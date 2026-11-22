@@ -362,3 +362,82 @@ Safety pool claims normalised in priority order (B10 / INP-18). Commits on `p1-r
   margin 0.42 (same before and after: the cut never fires in bot play; no separate pre-change run).
   test:cal and safetyresearch full were started, then stopped under the new RD test rule (no result).
 - **Moves calibration: no** (bit-identical unless the claims exceed the pool, which no bot reaches).
+
+### RD-B11
+
+Market fixes, interim before the product redesign (SYNTHESIS B14, B15, B16, B41, B42). Commit 158228c.
+- **B14 enablers applied once, capped.** Chat: the enabler stays in the users' app choice (mix.ts, × the player's
+  appeal in the logit) and is gone from revenue.ts's users. Sector products: `fOf` takes min(1 + share, 1 / player
+  share), so hours, agent-hours and seats in a sector never exceed what the sector adopts. [D] Kept the old size of
+  the effect (× the player's share) and only capped it; the segment reading of PRD-08 (share × the market, taken from
+  rivals) and enablers as offer capabilities are RD-P07's.
+- **B15 FREE_TIER_SHARE gone** (data, `freeTierShare`, its selector export). `productUses` returns the main model;
+  `productDomains` returns the main model's record (callers kept). production/data.ts tests `channel === 'consumer'`
+  for the free-tier token split. Chat's mini is read only by chatFreeTier (free users, their app choice, their need).
+- **B16 Trusted ×3 in the offer.** `CHANNEL_PRICE = { trusted: 3 }` (data/v2/features.ts) × the tier's markup inside
+  productOffer (serving.ts `channelPriceOf`), so the mix's choice and the revenue read one price; lineup rungs inherit
+  it through o.price. revenue.ts's TRUSTED_PREMIUM and its two after-the-choice multiplications are gone. Trusted has
+  no agent-hour or seat weight, so only the per-hour price moves. UI: the Price row adds a "Trusted access channel
+  price ×3.00 → asks …" line; the lineup footer gives markup × channel price; the blurb says ×3.
+- **B41 one appeal table.** `appealOf(v) = v.appeal ?? 1` (POST_PREF, V2-SPEC §3.3.2 D: minimal 0.7, engagement 1.2,
+  constitution 1.0, persuasion 1.1). The market's second switch (0.9 / 1.25 / 1.15) is deleted, so non-constitution
+  Chat models move further (minimal −0.2, engagement −0.05, persuasion −0.05 vs before).
+- **B42 Demand modifiers row.** `demandModifiers(s, d)`: KYC, feature enablers (Chat: "app choice"; sectors: grouped
+  by share with the sector names, "≤ the sector's adoption"), Restricted, No drop-in. Trusted's price left the row.
+  limits.ts rule, glossary `freeTier` / `featEnabler`, the Chat mini tooltip and design/ux/GLOSSARY.md updated.
+- **Tests added:** serving S6 / RD-B11 companion (target ≤ ×(1 + share), same-day users unchanged; users arrive
+  through the stock); RD-B11 B15 (a Chat mini leaves the paid-share target, paying fit / coverage and bestCover
+  unchanged, only the free-tier fit moves); B14 (95% share + computer use: adopted hours ≤ the sector's; uncapped would
+  be ×1.07); B16 (Trusted offer ×3 price, same cost and fit); B41. products P7 now reads the preview's target users
+  (the same-day demand does not jump: the effect arrives through the customer stock).
+- **Readouts:** finance F8 distress-free 66.7% → 66.7% (known failure, VAL), F11 2027 $141.4B → $141.4B, F7 2026
+  revenue $53.4B → $53.4B: RefBot sells no Chat features, no Chat mini, no Trusted and keeps the constitution
+  preference, so its games are unchanged; fixtures did not move (fixtures passes in test:quick).
+- **Tests:** tsc main + scripts; test:quick (fails only worldfx A2a / W4, known); serving full 95 / 95; finance full
+  191 / 192 (F8, known); test:cal passes (golden 16 / 0, 3 WARN; calib T1 T1L T4 33 / 0, 9 WARN; games unchanged);
+  npm run build + test:ui 687 / 687; lint-ux and lint-hidden pass (in test:quick). Tooltip text only: no screenshots.
+- **Open:** a Chat feature's preview now shows no revenue change today (the product card's customer target shows
+  the gain); the same holds for any Chat quality edit. Whether previews should show the converged revenue is a UI
+  question for the product redesign.
+
+### RD-B12
+
+Product lifecycle fixes (SYNTHESIS B18, B19, B20). Schema 44 → 45.
+- **B18 packs on the product.** `Deployment.sectorFocus` → `packs: SectorPack[]` (`{ sector, certDay }`, types.ts);
+  `world.fx.certDay` deleted. A built pack is pushed onto its host with certDay = built + SECTOR_CERT_DAYS
+  (departments/build.ts). Readers: productOffer reads the product's own certified pack (`packCertified`; its `certified`
+  parameter is gone), Enterprise ×3 weight and incident sectors read `d.packs`, the US friction cut −0.1 and the "+ pack"
+  sector check read `sectorCertDay(s, sector)` = earliest certDay among live (non-withdrawn) products (models/products.ts).
+  So a retirement ends the pack's effects and frees the sector for a new pack.
+- **Relaunch [D].** Only one live product per channel, so a relaunch = retire then launch on the channel. `deploy` takes
+  over the packs of the latest retired product on the same channel (minus sectors a live product now holds), certDay
+  kept, and empties the retired one's list (`relaunchPacks`). The launch preview's temporary product carries them too.
+- **No-host completion.** A pack built with no live host (the recorded one, else any Enterprise / API / Agents product)
+  refunds SECTOR_PACK_CASH ($0.4B, moved to build.ts; `PRODUCT.cash` / `days` now read the build constants) through
+  bookCash ('sector product', "… (refund)") and logs a severity-2 company message.
+- **B19.** `launchEffortBlock`: deep effort needs Deep think built and offered on the channel (featureToggleBlock, the
+  edit path's rule); checked in product.launch's apply and in deploy (so also at build completion).
+- **B20.** `launchFeatures(s, channel, effort)`: every lab-built feature the channel offers, Deep think only at effort
+  deep, never the lab-level Sector packs feature. Used by the launch build completion and the launch preview.
+- **Migration 44 → 45:** each product's sectorFocus → packs with the world certDay of the sector (or today if none); a
+  certified sector no product carried (the B18 lost pack) is dropped; world.fx.certDay deleted; idempotent.
+- **Towards DD-04 / RD-P08:** the pack is now owned by one product with its own certification day; still left for
+  RD-P08: the sectorPacks feature, LEADER flags, the one-pack-per-sector world rule (sectorCertDay) and the action's
+  v2 preview (B39 / RD-B20).
+- **Tests added:** products RD-B12 ×7 (pack stored on host; no double pack; relaunch takes the pack over; retire →
+  re-pack; no-host refund $0.4B + log; a new launch has its channel's built features on; deep launch needs Deep think);
+  hygiene "schemaRev-44 save migrates to 45"; the two SCHEMA_REV === 44 asserts → 45; worldfx's sector-product check
+  reads `sectorCertDay` / `packs`.
+- **Moves calibration: maybe.** RefBot launches its missing channels (bots/ref.ts), which now go live with the lab's
+  built features on (B20); its packs keep their effect as before. Fixture games may move; the merge regenerates them.
+- **Tests run (section H test rule):** tsc main + scripts clean; products full 68 / 68 (the 7 RD-B12 checks pass);
+  hygiene full 197 / 197 (the migration check) ran before the rule changed; npm run build passes. test:quick was
+  stopped unfinished; test:ui not run (Products.tsx change: the pack tooltip reads `d.packs`).
+
+### Phase 1 merge (p1-riv, p1-mkt into rd)
+
+- **Schema renumbered at the merge:** p1-train's RD-B02 / RD-B03 migration stays 44 → 45; p1-mkt's RD-B12 pack
+  migration (written as 44 → 45 above) becomes **45 → 46**, SCHEMA_REV = 46. A rev-44 save runs both in order.
+  Hygiene: the SCHEMA_REV === 45 asserts → 46; the RD-B12 pack check runs on a rev-45 and a rev-44 save.
+- **Conflicts:** BUILD-NOTES (all blocks kept); models/runs.ts type imports (RivalLab dropped by RD-B14, RunRecipe
+  kept from RD-B02); core/save.ts and hygiene.ts (both migrations and both checks kept).

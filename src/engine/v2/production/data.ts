@@ -24,7 +24,6 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { effectiveTokens, fDataEff } from '../models/effective';
 import { TOKENS } from '../../../data/v2/serving';
-import { FREE_TIER_SHARE } from '../../../data/v2/features';
 import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
@@ -420,7 +419,7 @@ export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.playe
   // A6: Chat's free users run on its free tier (worldfx/revenue.ts: paying users are served first, on the main model),
   // so the served compute beyond the paying need serves the free tier's tokens (×N_main/N_free per H100e). A7: the free
   // tier is its mini, else the cheapest student of its model (worldfx/serving.ts chatFreeTier).
-  const free = d.needPaidH100e !== undefined && (FREE_TIER_SHARE[d.channel] ?? 0) > 0 ? chatFreeTier(s, d) : undefined;
+  const free = d.needPaidH100e !== undefined && d.channel === 'consumer' ? chatFreeTier(s, d) : undefined;
   if (!free) return (h * main * elig * share) / 1e12;
   const paid = Math.min(h, d.needPaidH100e!);
   return ((paid * main + (h - paid) * outputTokensPerH100eDay(free.fpt)) * elig * share) / 1e12;

@@ -23,7 +23,7 @@ import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { previewEdit } from '../../src/engine/v2/models/productOps';
-import { agentsGate, catchRate, monitorOverhead, productDomains } from '../../src/engine/v2/models/products';
+import { agentsGate, catchRate, monitorOverhead, productDomains, sectorCertDay } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
@@ -182,7 +182,12 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const c = prod(s, 'consumer');
   const pv = previewEdit(s, c, { features: ['companion'] });
   const on = act(s, 'feature.toggle', { product: c.id, feature: 'companion', on: true });
-  check(!on && c.features.includes('companion') && pv.after!.demand > pv.before!.demand * 1.01, 'P7 switched on for Chat: the companion segment (a task enabler) raises its demand (preview)', `${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
+  // RD-B11 (B14): the enabler acts once, in the users' app choice: the preview shows it in the users at the target
+  // share (the customer stock moves there gradually), not as a same-day jump in demand.
+  const uT = (x: typeof pv.before) => x?.cust.usersTarget ?? 0;
+  check(!on && c.features.includes('companion') && uT(pv.after) > uT(pv.before) * 1.01 && pv.after!.demand <= pv.before!.demand * (1 + 1e-9),
+    'P7 switched on for Chat: the companion segment (a task enabler) raises the users at the target share (preview), arriving through the customer stock',
+    `target users ${(uT(pv.before) / 1e6).toFixed(0)}M → ${(uT(pv.after) / 1e6).toFixed(0)}M; demand today ${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
   const api = prod(s, 'api');
   const wrong = act(s, 'feature.toggle', { product: api.id, feature: 'companion', on: true });
   check(!!wrong, 'P7 a feature is offered only on its products', wrong ?? '');
@@ -352,6 +357,72 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const vm = featureView(mem, 'consumer');
   check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && vm.idleTW === vm.upkeepTW && featureView(FEATURE_BY_ID.sectorPacks, 'api').upkeepTW === 0,
     'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere; sector packs none)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
+}
+// ───────── RD-B12 product lifecycle: packs on the product, launch features, deep effort ─────────
+{
+  const s = game();
+  run(s, 10);
+  const until = (g: GameStateV2, ok: () => boolean, max = 120) => {
+    for (let i = 0; i < max && !ok(); i++) run(g, 1);
+    return ok();
+  };
+  const ent = prod(s, 'enterprise');
+  const api = prod(s, 'api');
+  const e1 = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: ent.id });
+  const built = until(s, () => ent.packs.some((p) => p.sector === 'LEGAL'));
+  const pk = ent.packs.find((p) => p.sector === 'LEGAL');
+  check(!e1 && built && !!pk && pk.certDay === s.time.day + 120 && sectorCertDay(s, 'LEGAL') === pk.certDay,
+    'RD-B12 a built sector pack (and its certification day) is stored on its host product', e1 ?? JSON.stringify(ent.packs));
+  const again = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: api.id });
+  check(!!again, 'RD-B12 a sector a live product holds cannot be packed twice', again ?? 'queued');
+  // Relaunch (retire, then launch on the same channel): the new product takes the pack over, certification kept.
+  const re = deserialize(serialize(s));
+  const reEnt = prod(re, 'enterprise');
+  act(re, 'product.retire', { id: reEnt.id });
+  const l = act(re, 'product.launch', { channel: 'enterprise', versionId: reEnt.versionId });
+  until(re, () => re.player.deployments.some((d) => d.channel === 'enterprise' && d.status !== 'withdrawn'));
+  const ne = prod(re, 'enterprise');
+  check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.packs) === JSON.stringify([pk]) && reEnt.packs.length === 0,
+    'RD-B12 a relaunch on the channel takes over the retired product\'s pack with its certification day', l ?? JSON.stringify(ne?.packs));
+  // Retire → the pack ends (no world effect) and the sector can be packed again on another product.
+  act(s, 'product.retire', { id: ent.id });
+  const gone = sectorCertDay(s, 'LEGAL') === undefined;
+  const e2 = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: api.id });
+  const rebuilt = until(s, () => api.packs.some((p) => p.sector === 'LEGAL'));
+  check(gone && !e2 && rebuilt && sectorCertDay(s, 'LEGAL') === api.packs.find((p) => p.sector === 'LEGAL')?.certDay,
+    'RD-B12 retire → re-pack: a retired host\'s pack stops acting and the sector can be packed again', e2 ?? JSON.stringify(api.packs));
+  // A pack that finishes with no live host: the cash comes back and the player is told.
+  const n = game();
+  run(n, 10);
+  const e3 = act(n, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: prod(n, 'enterprise').id });
+  for (const d of n.player.deployments) if (d.status !== 'withdrawn' && ['enterprise', 'api', 'agents'].includes(d.channel)) act(n, 'product.retire', { id: d.id });
+  const refunded = until(n, () => n.log.some((x) => /refunded/.test(x.text)));
+  const cause = Object.values(n.causes.byKey).flat().find((c) => c.source === 'sector product' && /refund/.test(c.detail ?? ''));
+  check(!e3 && refunded && !n.player.deployments.some((d) => d.packs.length > 0) && !!cause && near(cause.delta, 0.4, 1e-6),
+    'RD-B12 a pack built with no live host refunds its $0.4B and logs a player-facing message', `${e3 ?? ''} cause ${cause?.delta}`);
+  // A new launch starts with the lab's built features for its channel on (Deep think only with deep effort).
+  const f = game();
+  run(f, 10);
+  f.player.features.push('codingAgent', 'deepThink', 'companion');
+  const fa = prod(f, 'api');
+  act(f, 'product.retire', { id: fa.id });
+  const la = act(f, 'product.launch', { channel: 'api', versionId: fa.versionId });
+  until(f, () => f.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
+  const na = prod(f, 'api');
+  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('deepThink') && !na.features.includes('companion') && !na.features.includes('sectorPacks') && na.effort === 'max',
+    'RD-B12 a new launch has the lab\'s built features for its channel on (Deep think off at effort max; other channels\' and lab-level features not)', la ?? JSON.stringify(na?.features));
+  // Deep effort needs Deep think built (the effort selector's rule), with the idea known.
+  const dz = game();
+  run(dz, 10);
+  dz.player.tree.P05 = { ...(dz.player.tree.P05 ?? {}), status: 'known' } as GameStateV2['player']['tree'][string];
+  act(dz, 'product.retire', { id: prod(dz, 'api').id });
+  const noDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
+  dz.player.features.push('deepThink');
+  const yesDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
+  until(dz, () => dz.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
+  const dd = prod(dz, 'api');
+  check(!!noDeep && /Deep think/.test(noDeep) && !yesDeep && dd?.effort === 'deep' && dd.features.includes('deepThink'),
+    'RD-B12 launching at effort deep needs Deep think built; once built the product goes live deep with the feature on', `${noDeep ?? 'launched'} / ${yesDeep ?? 'launched'} / ${dd?.effort} ${JSON.stringify(dd?.features)}`);
 }
 
 finish('products');

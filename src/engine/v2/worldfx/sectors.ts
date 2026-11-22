@@ -33,6 +33,7 @@ import { costReduction, demandExpansion, workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
+import { sectorCertDay } from '../models/products';
 
 export { REGIONS };
 
@@ -84,7 +85,7 @@ export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, pol: Pol
     if (pol.schoolBan && id === 'EDU') R += 0.3;
     if (pol.armsRace && id === 'MIL') R -= 0.3;
     if (pol.sez && (id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;
-    const c = s.world.fx.certDay[id];
+    const c = sectorCertDay(s, id); // RD-B12: a live product's certified pack
     if (c !== undefined && c <= s.time.day) R -= 0.1;
   }
   if (r === 'ROW' && pol.euCode) R += 0.03;
@@ -163,7 +164,6 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     capPenalty: { consumer: 0, sector: 0 },
     youthRel,
     incidentR,
-    certDay: {},
     autoLevel: { US: 1, CN: 1, ROW: 1 },
     trend: { US: 30000, CN: 19000, ROW: 60000 },
     sezY: 0,
@@ -309,7 +309,7 @@ export const worldDailySystem: EngineSystem = {
     for (const inc of s.player.safety.incidents) {
       if (inc.day !== ctx.day || inc.severity < 3 || inc.exposure === 'internal') continue;
       const dep = s.player.deployments.find((d) => d.id === inc.deploymentId);
-      const secs = dep?.sectorFocus.length ? dep.sectorFocus : topPlayerSectors(s, 3);
+      const secs = dep?.packs.length ? dep.packs.map((p) => p.sector) : topPlayerSectors(s, 3);
       for (const id of secs) fx.incidentR[id] = Math.min(0.5, fx.incidentR[id] + 0.05);
     }
 

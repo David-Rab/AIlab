@@ -175,15 +175,10 @@ function depOffset(d: Deployment): number {
   return o;
 }
 
-/** Appeal of a version's character training for consumers (§3.11.3 "appeal (pref option)") [D]. */
-export function appealOf(v: ModelVersion | undefined): number {
-  switch (v?.design.pref) {
-    case 'engagement': return 1.25;
-    case 'persuasion': return 1.15;
-    case 'minimal': return 0.9;
-    default: return 1;
-  }
-}
+/** Appeal of a version's character training for consumers (§3.11.3 "appeal (pref option)"): the version's own
+ *  `appeal`, set from data/v2/runDesign.ts POST_PREF (V2-SPEC §3.3.2 D: minimal 0.7, engagement 1.2, constitution 1.0,
+ *  persuasion 1.1), the number the Models card shows. RD-B11 (B41): one table (the market's second switch is gone). */
+export const appealOf = (v: ModelVersion | undefined): number => v?.appeal ?? 1;
 
 /** Player deployments that earn revenue in external markets. */
 export function paidDeployments(s: GameStateV2): Deployment[] {
@@ -415,11 +410,6 @@ function computeMix(s: GameStateV2): WorldMix {
     const st = s.world.fx.secReach?.[r];
     return providers.map((p, i) => (!sells[i] ? 0 : p.open ? row[i] : Math.min(row[i], st?.[p.key] ?? row[i] * q)));
   });
-  const fxCert = s.world.fx.certDay;
-  const certified = (sec: SectorId) => {
-    const c = fxCert[sec];
-    return c !== undefined && c <= s.time.day;
-  };
 
   const bestPublic = bestPublicFrom(cands, providers);
   let bestPublicLg = 0;
@@ -468,10 +458,10 @@ function computeMix(s: GameStateV2): WorldMix {
       for (let c = 0; c < cands.length; c++) {
         const cd = cands[c];
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
-        const o = productOffer(s, cd.dep, t.id, certified(t.id), cd.uses, cd.fx);
+        const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx);
         offerBy.set(`${cd.dep.id}|${t.id}`, o);
         // TIERS: the product's lineup (main model, lineup students of it, its mini).
-        const om = cd.mini ? productOffer(s, cd.dep, t.id, certified(t.id), cd.mini, cd.fx) : undefined;
+        const om = cd.mini ? productOffer(s, cd.dep, t.id, cd.mini, cd.fx) : undefined;
         const line = productLineup(s, cd.dep, t.id, o, om, cd.fx);
         lineupBy.set(`${cd.dep.id}|${t.id}`, line);
         for (let k = 0; k < line.length; k++) {

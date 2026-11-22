@@ -44,7 +44,7 @@ export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
   enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
   agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
   gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (needs a gov variant).' },
-  trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at a premium; almost no leak.' },
+  trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at ×3 the price (buyers see it); almost no leak.' },
   open: { channel: 'open', name: 'Open weights', segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
 };
 /** Products shown as cards, in order. */
@@ -52,11 +52,13 @@ export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agent
 
 /** Products that take a mini (`miniVersionId`): Chat's free tier and the API's cheap tier (A5). */
 export const MINI_CHANNELS: readonly Channel[] = ['consumer', 'api'];
-/** Mini free tier of Chat: the share of its usage served by the mini (free users) [D]. Chat's quality is the
- *  usage-weighted blend of the two models; serving need falls with the mini's lower serve cost. A5: the API's mini is a
- *  cheap tier in the sector market instead, with no fixed share: buyers take it on the tasks it does adequately when it
- *  is the better buy (worldfx/choice.ts), so its share of the API's hours is derived. */
-export const FREE_TIER_SHARE: Partial<Record<Channel, number>> = { consumer: 0.6 };
+// RD-B11 (B15): Chat's mini is its free tier only (worldfx/serving.ts chatFreeTier): paying users run the main model,
+// so the mini does not blend into Chat's quality, paid share or reach (the 0.6 FREE_TIER_SHARE blend is gone). The
+// API's mini is a cheap tier in the sector market (A5: its share of the API's hours is derived, worldfx/choice.ts).
+/** RD-B11 (B16): a channel's price multiplier over its tier's markup. It is part of the product's offer
+ *  (worldfx/serving.ts productOffer), so buyers see it in their choice: Trusted access sells to vetted partners at ×3
+ *  the price (R12 §0.6) [D]. */
+export const CHANNEL_PRICE: Partial<Record<Channel, number>> = { trusted: 3 };
 
 /** D7: a monitor adds 0.25 × (monitor serve cost ÷ watched model's serve cost) to the product's serving need (a mini
  *  on its teacher ≈ 6%; the same model ≈ 25%). It reads the watched model's outputs and reasoning, not every token. */

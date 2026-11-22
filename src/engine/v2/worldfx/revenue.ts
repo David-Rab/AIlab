@@ -48,8 +48,8 @@ import { decodeUtilNow } from '../models/stacks';
 
 /** Channel weights splitting the player's sector demand between its deployments [D]. */
 const CH_WEIGHT: Partial<Record<Channel, number>> = { api: 1, agents: 1.5, enterprise: 1, trusted: 0.15, gov: 2 };
-/** Trusted access sells at a premium (×3 the price) to a small volume (R12 §0.6) [D]. */
-export const TRUSTED_PREMIUM = 3;
+// RD-B11 (B16): Trusted access's ×3 price is in its offer (worldfx/serving.ts productOffer, data/v2/features.ts
+// CHANNEL_PRICE), so the market's choice sees it; its volume here is the channel weight above.
 const GOV_SECTORS = new Set(['GOV', 'MIL']);
 /** Ceiling on share erosion from serving shortfall (a capacity-bound leader keeps a core of customers) [D]. */
 export const PENALTY_MAX = 0.75;
@@ -294,10 +294,6 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const marketSpend = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const consumerSpendR = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const playerAgent: RevenueReadout['playerAgent'] = { US: {}, CN: {}, ROW: {} };
-  const certified = (sec: SectorId) => {
-    const c = s.world.fx.certDay[sec];
-    return c !== undefined && c <= s.time.day;
-  };
   const rate = serveDollarsPerHour(s);
   const tl = s.hidden.timeline;
 
@@ -328,19 +324,19 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     let seatSum = 0;
     sectorDeps.forEach((d, i) => {
       if (d.channel === 'gov' && !GOV_SECTORS.has(def.id)) return;
-      const focus = d.channel === 'enterprise' && d.sectorFocus.includes(def.id) ? 3 : 1;
+      const focus = d.channel === 'enterprise' && d.packs.some((p) => p.sector === def.id) ? 3 : 1;
       const x = baseW[i] * focus;
       const wAg = agW[i] * focus;
       const wSeat = (SEAT_WEIGHT[d.channel] ?? 0) * focus;
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
-      const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
+      const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, usesOf.get(d.id), fxs.get(d.id));
       // TIERS: the product's lineup (main model, lineup students, its mini), blended per region by the hours its buyers
       // take on each tier (the mix's playerTierW).
       let line = offers ? mix.lineupBy?.get(`${d.id}|${def.id}`) : undefined;
       if (!line) {
         const mu = productMiniUses(s, d);
-        const om = mu ? productOffer(s, d, def.id, certified(def.id), mu, fxs.get(d.id)) : undefined;
+        const om = mu ? productOffer(s, d, def.id, mu, fxs.get(d.id)) : undefined;
         line = productLineup(s, d, def.id, o, om, fxs.get(d.id));
       }
       ws.push({ d, w: x, wAg, wSeat, o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
@@ -363,8 +359,11 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const ws = ws0.map((x) => (x.line.length > 1 ? { ...x, o: blendTiers(x.line, m.playerTierW?.[x.d.id]), tw: m.playerTierW?.[x.d.id] } : x));
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
+      // RD-B11 (B14): an enabler's segment is held to the sector's adoption: the player's hours, agent-hours and seats
+      // here never exceed the sector's (share × (1 + enabler) ≤ 1).
+      const enMax = 1 / ps;
       const fOf = (d: Deployment, en: number) => {
-        let f = en;
+        let f = Math.min(en, enMax);
         if (d.channel === 'api' || d.channel === 'agents') f *= 1 - 0.02 * d.kyc;
         if (d.status === 'restricted') f *= 0.3;
         return f;
@@ -406,14 +405,14 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           let x = ((ps * wh.adopted * x0) / wsum) * f;
           // usage policy "no drop-in replacement" caps the player's α at 0.5 (fewer hours per adopted task)
           if (d.usagePolicy.noDropInReplacement) x *= savedAt(Math.min(st.alpha, 0.5)) / hf;
-          const want = o.price * (d.channel === 'trusted' ? TRUSTED_PREMIUM : 1);
+          // RD-B11 (B16): o.price already carries the channel's price (Trusted ×3, productOffer).
+          const want = o.price;
           const price = Math.max(o.cost, Math.min(want, value));
           a.dem += (x * price) / 1e9;
           a.hours += x;
           a.adopted += x;
           a.adoptedDem += (x * price) / 1e9;
-          const prem = d.channel === 'trusted' ? TRUSTED_PREMIUM : 1;
-          addTiers(a, line, tw, x, (t) => Math.max(t.cost, Math.min(t.price * prem, value)));
+          addTiers(a, line, tw, x, (t) => Math.max(t.cost, Math.min(t.price, value)));
           a.need += (x * o.hph) / SERVE_HOURS_PER_YEAR;
           a.cost += (x * o.cost) / 1e9;
           if (want > value) a.capped += (x * price) / 1e9;
@@ -466,7 +465,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const tMain = tokEff(main);
         const ft = chatFreeTier(s, d);
         const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);
-        return { d, o, sp, fMain, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud, en: 1 + enablerShare(fx, 'CHAT') };
+        return { d, o, sp, fMain, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud };
       });
       const best = Math.max(...offs.map((x) => x.freeFit));
       // A5: users pick by quality alone (most pay nothing), as the market's user-share logit; A7: on the free tier's.
@@ -476,7 +475,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       // A2b: the player's paid share (stock) applies to each of its chat products; subscribers × price × 12 is the line.
       const P = cm.paid[playerIdx];
       offs.forEach((x, i) => {
-        let u = ((users * ws[i]) / wsum) * x.en;
+        // RD-B11 (B14): Chat's enablers act once, in the users' app choice (worldfx/mix.ts appeal), not again here.
+        let u = (users * ws[i]) / wsum;
         if (x.d.status === 'restricted') u *= 0.3;
         const subs = u * P;
         const a = acc.get(x.d.id)!;

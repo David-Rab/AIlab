@@ -13,7 +13,10 @@ import { wslFloor } from '../security/security';
 import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
 import { leaseAvailableGW } from '../compute/sites';
-import { TRUSTED_PREMIUM, revenueReadout, servingPool } from '../worldfx/revenue';
+import { revenueReadout, servingPool } from '../worldfx/revenue';
+import { enablerShare, productFx } from '../worldfx/serving';
+import { SECTOR_CHANNELS } from '../worldfx/mix';
+import { SECTORS } from '../../../data/v2/sectors';
 import { idleChips } from '../compute/forecast';
 import { idleTeams } from '../models/tree';
 import { outsidersWithAccess } from '../safety/incidents';
@@ -104,11 +107,25 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
   return { min: 50, max: SITE_PATHS[path].maxMW, ...(path === 'lease' ? { leaseGW: leaseAvailableGW(s) } : {}) };
 }
 
-/** A product's demand modifiers (LIMITS product.demandMods): each factor and the product of all. */
-export function demandModifiers(d: Deployment): { label: string; mult: number }[] {
+/** A product's demand modifiers (LIMITS product.demandMods): each factor on its demand. RD-B11 (B42): the feature
+ *  enablers are listed (Chat: × its appeal in the users' app choice; sector products: × its hours in the sectors they
+ *  open, held to the sector's adoption); Trusted's ×3 is a price, in its offer and the Price row, not here. */
+export function demandModifiers(s: GameStateV2, d: Deployment): { label: string; mult: number }[] {
   const out: { label: string; mult: number }[] = [];
   if ((d.channel === 'api' || d.channel === 'agents') && d.kyc > 0) out.push({ label: `KYC ${d.kyc}`, mult: 1 - 0.02 * d.kyc });
-  if (d.channel === 'trusted') out.push({ label: 'Trusted channel price', mult: TRUSTED_PREMIUM });
+  const fx = productFx(s, d);
+  if (d.channel === 'consumer') {
+    const e = enablerShare(fx, 'CHAT');
+    if (e > 0) out.push({ label: 'Feature enablers (app choice)', mult: 1 + e });
+  } else if (SECTOR_CHANNELS.includes(d.channel)) {
+    const by = new Map<number, string[]>();
+    for (const def of SECTORS) {
+      if (d.channel === 'gov' && def.id !== 'GOV' && def.id !== 'MIL') continue;
+      const e = enablerShare(fx, def.id);
+      if (e > 0) by.set(e, [...(by.get(e) ?? []), def.name.split(/[ ,]/)[0]]);
+    }
+    for (const [e, names] of by) out.push({ label: `Feature enablers in ${names.join(', ')} (≤ the sector's adoption)`, mult: 1 + e });
+  }
   if (d.status === 'restricted') out.push({ label: 'Restricted', mult: 0.3 });
   if (d.usagePolicy.noDropInReplacement) out.push({ label: 'No drop-in agents', mult: NaN });
   return out;

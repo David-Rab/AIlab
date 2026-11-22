@@ -12,7 +12,7 @@ import { previewDeployments, type EditPreview } from '../worldfx/productView';
 import { spareServing } from '../worldfx/revenue';
 import { CHANNEL_VARIANTS, deploy, deployGate, effortLock, setServing, withdraw } from './deployments';
 import { versionById } from './labs';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, newestCleared, priceIndexOf } from './products';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
 
 type Params = Record<string, number | string | boolean>;
@@ -51,7 +51,7 @@ export function changesFromParams(p: Params): ProductChanges {
 
 /** The product after an edit (a copy; deep think and the effort setting kept consistent). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
-  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], sectorFocus: [...d.sectorFocus], usagePolicy: { ...d.usagePolicy } };
+  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], packs: d.packs.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
   if (c.miniVersionId !== undefined) {
     if (c.miniVersionId) n.miniVersionId = c.miniVersionId;
@@ -208,7 +208,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-          safeguards: 'classifiers', controlLayer: false, sectorFocus: [], features: [], kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's packs).
+          safeguards: 'classifiers', controlLayer: false, packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch, 'max'), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);
@@ -236,7 +237,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
         if (gate !== true) return fail(gate);
         const effort = typeof p.effort === 'string' ? (p.effort as Deployment['effort']) : undefined;
-        const lock = effortLock(s, effort ?? 'max');
+        const lock = effortLock(s, effort ?? 'max') ?? launchEffortBlock(s, ch, effort);
         if (lock) return fail(lock);
         const wait = launchWaitText(s);
         queueBuild(s, 'launch', ch, LAUNCH_TW, {

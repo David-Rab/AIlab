@@ -21,7 +21,7 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, FEATURE_BY_ID, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { B_G_PER_Y, DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -29,7 +29,7 @@ import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '.
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
-import { activeFeatures } from '../models/products';
+import { activeFeatures, packCertified } from '../models/products';
 import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
@@ -176,7 +176,10 @@ export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
   return fxOn(fx, wt);
 }
 /** Segment a product's enablers open (share of the market's AI work only products with it can reach): per sector and for
- *  consumer chat. */
+ *  consumer chat. RD-B11 (B14), applied once: on Chat in the users' app choice (worldfx/mix.ts, × the player's appeal),
+ *  not again on its users; on a sector product × its hours, agent-hours and seats (worldfx/revenue.ts), held so the
+ *  player never sells more than the sector adopts (share × (1 + enabler) ≤ 1). Interim until enablers become
+ *  capabilities in the offer (SYNTHESIS RD-P07). */
 export function enablerShare(fx: FeatureFx[], sid: SectorId | 'CHAT'): number {
   let x = 0;
   for (const f of fx) if (f.kind === 'enabler' && (sid === 'CHAT' ? f.consumer : f.sectors?.includes(sid))) x += f.share;
@@ -323,17 +326,16 @@ export const costGateOf = (price: number, a: number, wageH: number) => sig(Math.
 
 /** Markup of a product's price tier (price = markup × its cost per work-hour). */
 export const markupOf = (d: Deployment) => MARKUP[d.price] ?? MARKUP.standard;
+/** RD-B11 (B16): a channel's price multiplier over the tier's markup (data/v2/features.ts CHANNEL_PRICE: Trusted ×3);
+ *  1 elsewhere. It is in the product's offer (productOffer), so buyers see it. */
+export const channelPriceOf = (d: Deployment) => CHANNEL_PRICE[d.channel] ?? 1;
 export { RIVAL_MARKUP, CHINA_MARKUP };
 
-/** The models a product serves with: its version, and for Chat its mini free tier (FREE_TIER_SHARE of usage). A5: a
- *  sector product's mini is a separate tier (productMiniUses), not blended in. */
+/** The model a product's paying customers use: its main version. RD-B11 (B15): Chat's mini serves only its free users
+ *  (chatFreeTier) and a sector product's mini is a separate tier (productMiniUses); neither blends in here. */
 export function productUses(s: GameStateV2, d: Deployment): ModelUse[] {
   const v = versionById(s, d.versionId);
-  if (!v) return [];
-  const f = d.miniVersionId ? FREE_TIER_SHARE[d.channel] ?? 0 : 0;
-  const mini = f > 0 ? versionById(s, d.miniVersionId) : undefined;
-  if (!mini) return [{ v, fpt: flopPerToken(s, v), w: 1 }];
-  return [{ v, fpt: flopPerToken(s, v), w: 1 - f }, { v: mini, fpt: flopPerToken(s, mini), w: f }];
+  return v ? [{ v, fpt: flopPerToken(s, v), w: 1 }] : [];
 }
 /** A5: a sector product's cheap tier, its mini (API), as a model use of its own; undefined without one. */
 export function productMiniUses(s: GameStateV2, d: Deployment): ModelUse[] | undefined {
@@ -437,12 +439,14 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (d.controlLayer ? CONTROL_LAYER_DG : 0);
 
-/** A product's offer on a sector (certified sector packs add SECTOR_PACK_DG where the product focuses). */
+/** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
+ *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
+ *  and the revenue read the same price. */
 export const SECTOR_PACK_DG = 0.5 / 1.2;
-export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certified = false, uses = productUses(s, d), fx = productFx(s, d)): Offer {
+export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d)): Offer {
   const x = fxOn(fx, sid);
-  const pack = certified && d.sectorFocus.includes(sid) ? SECTOR_PACK_DG : 0;
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
+  const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────

@@ -28,6 +28,8 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SectorId, SystemCtx, TrainingRun } from '../types';
 import { agentSplitShare, monitorVersion } from './agents';
 import { deploy } from '../models/deployments';
+import { launchFeatures } from '../models/products';
+import { bookCash } from '../finance/ledger';
 import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
@@ -73,6 +75,8 @@ export const LAUNCH_TW = 4;
 export const SECTOR_PACK_TW = 4;
 /** Certification after a sector pack is built (research/16 §1A.3: "costs months and money"). */
 export const SECTOR_CERT_DAYS = 120;
+/** Cash booked when a sector pack is queued ($B); refunded if it is built with no live product to carry it (RD-B12). */
+export const SECTOR_PACK_CASH = 0.4;
 
 export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor' | 'feature' | 'suite';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
@@ -245,9 +249,11 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   }
   if (it.kind === 'launch' && it.launch) {
     const l = it.launch;
+    // RD-B12 (B20): the product starts with the lab's built features for its channel on.
     const d = deploy(s, ctx, {
       versionId: l.versionId, channel: l.channel, price: l.price, priceIndex: PRICE_TIERS[l.price],
       ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.effort ? { effort: l.effort } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
+      features: launchFeatures(s, l.channel, l.effort ?? 'max'),
     });
     if (typeof d === 'string') ctx.log('company', `The ${l.channel} launch is built but cannot go live: ${d}.`, 2);
   }
@@ -255,10 +261,16 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
     const sector = it.ref as SectorId;
     const host = s.player.deployments.find((d) => d.id === it.host && d.status !== 'withdrawn')
       ?? s.player.deployments.find((d) => d.status !== 'withdrawn' && (d.channel === 'enterprise' || d.channel === 'api' || d.channel === 'agents'));
-    if (!host) return;
-    if (!host.sectorFocus.includes(sector)) host.sectorFocus.push(sector);
-    if (s.world.fx.certDay[sector] === undefined) s.world.fx.certDay[sector] = ctx.day + SECTOR_CERT_DAYS;
-    ctx.log('company', `${SECTOR_BY_ID[sector]?.name ?? sector} pack built: in certification (${SECTOR_CERT_DAYS} days).`, 1);
+    const name = SECTOR_BY_ID[sector]?.name ?? sector;
+    if (!host) {
+      // RD-B12 (B18): no live product to carry the pack: the cash comes back and the player is told.
+      bookCash(s, ctx, SECTOR_PACK_CASH, 'world', 'sector product', `${name} (refund)`);
+      ctx.log('company', `The ${name} pack was built but no live Enterprise, API or Agents product can carry it: $${SECTOR_PACK_CASH}B refunded.`, 2);
+      return;
+    }
+    // RD-B12 (B18): the pack (and its certification) lives on the host product.
+    if (!host.packs.some((p) => p.sector === sector)) host.packs.push({ sector, certDay: ctx.day + SECTOR_CERT_DAYS });
+    ctx.log('company', `${name} pack built: in certification (${SECTOR_CERT_DAYS} days).`, 1, host.id);
   }
 }
 

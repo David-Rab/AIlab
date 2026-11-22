@@ -39,7 +39,7 @@ import { engine } from '../../src/engine/v2/index';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { flopPerToken, labourOf, workFit } from '../../src/engine/v2/departments/workfit';
 import { versionById } from '../../src/engine/v2/models/labs';
-import { bandPaid, reachTargets, worldMix, type TierKind, type WorldMix } from '../../src/engine/v2/worldfx/mix';
+import { appealOf, bandPaid, reachTargets, worldMix, type TierKind, type WorldMix } from '../../src/engine/v2/worldfx/mix';
 import { adequacy, surplusChoice, type Tier } from '../../src/engine/v2/worldfx/choice';
 import { revenueReadout, sectorHours, sectorSpendParts, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
@@ -265,11 +265,23 @@ for (const d of [400, 900]) {
   const hz = fxOn(FEATURE_BY_ID.memory.fx, 'OFFICE');
   check(hz.hMult === 1.3 && fxOn(FEATURE_BY_ID.memory.fx, 'EXP').hMult === 1.3, 'S6 horizon extender (memory): × h50 on every work type, products and internal');
   const ent = prod(s, 'consumer');
+  const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
   const rd0 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
+  const tg0 = worldMix(s).consumer.US.target[pi];
   s.player.features.push('companion');
   ent.features.push('companion');
   const rd1 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
-  check((rd1.users ?? 0) > (rd0.users ?? 0) * 1.15, 'S6 task enabler (companion): opens a segment of Chat users', `${((rd0.users ?? 0) / 1e6).toFixed(0)}M → ${((rd1.users ?? 0) / 1e6).toFixed(0)}M users`);
+  const tg1 = worldMix(s).consumer.US.target[pi];
+  // RD-B11 (B14): the enabler acts once, through the users' app choice (× appeal in the logit): the target share rises
+  // by at most ×(1 + share); the same day's users (the customer stock) do not jump, as they did when revenue also
+  // multiplied them by (1 + share).
+  const en = FEATURE_BY_ID.companion.fx.find((x) => x.kind === 'enabler')!.share;
+  check(tg1 > tg0 && tg1 <= tg0 * (1 + en) * (1 + 1e-9) && near(rd1.users ?? 0, rd0.users ?? 0, 1e-9),
+    'S6 / RD-B11 task enabler (companion) opens Chat users once: through the users\' app choice (target ≤ ×(1 + share)), not again on the users',
+    `US target ${tg0.toFixed(4)} → ${tg1.toFixed(4)} (×${(tg1 / tg0).toFixed(3)}, enabler ${en}); same-day users ${((rd0.users ?? 0) / 1e6).toFixed(0)}M → ${((rd1.users ?? 0) / 1e6).toFixed(0)}M`);
+  run(s, 30);
+  const rd2 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
+  check((rd2.users ?? 0) > (rd1.users ?? 0), 'S6 the companion enabler\'s users arrive through the customer stock', `${((rd1.users ?? 0) / 1e6).toFixed(0)}M → ${((rd2.users ?? 0) / 1e6).toFixed(0)}M users after 30 days`);
   const d0 = productOffer(s, api, 'FIN');
   api.effort = 'deep';
   const d1 = productOffer(s, api, 'FIN');
@@ -1102,6 +1114,66 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   check(n > 0 && nP > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupOf(2e9).length === 1 && lineupOf(1e9).length === 0,
     'TIERS E8 day 400: every provider sells its model and the LINEUP students of it (rivals and China under their model, the player under each sector product\'s main model): each at r × the model\'s cost and price, DISTILL.a + DISTILL.b·log₁₀(1/r) below its fit, covering no more; the bottom rung 1/80 above the 1B floor',
     `${n} rival and China student tiers, ${nP} of the player's, ${bad} off; rungs under a 1T model ${rr.map((x) => `1/${(1 / x).toFixed(1)}`).join(', ')}`);
+}
+
+// ───────── RD-B11 market fixes (design/RD-AUDIT SYNTHESIS B14, B15, B16, B41) ─────────
+{
+  // B15: a Chat mini serves only the free users: paid conversion (the paid-share target), the paying users' fit and
+  // coverage (the reach target's input) read the main model; only the free tier's fit (the users' app choice) moves.
+  const s = game();
+  run(s, 3);
+  const chat = prod(s, 'consumer');
+  const v0 = versionById(s, chat.versionId)!;
+  const mini = cloneVersion(s, v0, 'VMC', { variant: 'mini', build: { ...v0.build!, dg: (v0.build?.dg ?? 0) - 1 } });
+  const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
+  const m0 = worldMix(s).consumer.US;
+  const a0 = { paid: m0.paidTarget[pi], fit: m0.fit[pi], cover: m0.cover[pi], free: m0.freeFit[pi], best: m0.bestCover };
+  chat.miniVersionId = mini.id;
+  const m1 = worldMix(s).consumer.US;
+  check(near(m1.paidTarget[pi], a0.paid, 1e-12) && near(m1.fit[pi], a0.fit, 1e-12) && near(m1.cover[pi], a0.cover, 1e-12) && near(m1.bestCover, a0.best, 1e-12) && Math.abs(m1.freeFit[pi] - a0.free) > 0.05,
+    'RD-B11 B15 a Chat mini (1 OOM below its main model) leaves the paid-share target, the paying users\' fit and coverage and the reach input unchanged; only the free tier (users\' app choice) reads it',
+    `paid target ${a0.paid.toFixed(4)} → ${m1.paidTarget[pi].toFixed(4)}; cover ${a0.cover.toFixed(4)} → ${m1.cover[pi].toFixed(4)}; free-tier fit ${a0.free.toFixed(3)} → ${m1.freeFit[pi].toFixed(3)}`);
+}
+{
+  // B14: a sector enabler never sells more hours than the sector adopts (share × (1 + enabler) ≤ 1).
+  const s = game();
+  run(s, 3);
+  const api = prod(s, 'api');
+  s.player.features.push('computerUse');
+  api.features.push('computerUse');
+  // the API alone sells sector work (no other product's channel weight dilutes its enabler)
+  for (const d of s.player.deployments) if (d.id !== api.id && d.channel !== 'consumer' && d.kind === 'product') d.status = 'withdrawn';
+  const mix = structuredClone(worldMix(s));
+  const pi = mix.providers.findIndex((p) => p.key === 'player');
+  for (const r of ['US', 'CN', 'ROW'] as const) for (const def of SECTORS) {
+    const m = mix.sec[r][def.id];
+    const hi = r === 'US' && def.id === 'OFFICE';
+    m.share = m.share.map((x, i) => (i === pi ? (hi ? 0.95 : 0) : hi ? 0.05 / Math.max(1, m.share.length - 1) : x));
+  }
+  const rd = revenueReadout(s, mix);
+  const mine = rd.deps.filter((x) => x.channel !== 'consumer').reduce((a, x) => a + (x.adoptedHours ?? 0), 0);
+  const sectorH = workHoursOf(s.world.sectors.US.OFFICE, 'OFFICE').adopted;
+  const en = FEATURE_BY_ID.computerUse.fx.find((x) => x.kind === 'enabler')!.share;
+  check(mine <= sectorH * (1 + 1e-9) && mine > sectorH * 0.95 * (1 - 1e-9) && 0.95 * (1 + en) > 1,
+    'RD-B11 B14 a sector enabler (computer use, +15% in Admin) is held to the sector\'s adoption: at a 95% share the player sells at most the sector\'s adopted hours, not 95% × 1.15',
+    `player ${(mine / 1e6).toFixed(1)}M vs sector ${(sectorH / 1e6).toFixed(1)}M adopted task-hours a year (uncapped ×${(0.95 * (1 + en)).toFixed(3)})`);
+}
+{
+  // B16: Trusted access's ×3 is a price in its offer (the market's choice reads productOffer), not a factor after it.
+  const s = game();
+  run(s, 1);
+  const api = prod(s, 'api');
+  const plain = { ...api, channel: 'enterprise' as const, kyc: 0 as const, features: [] };
+  const trusted = { ...plain, channel: 'trusted' as const };
+  const o0 = productOffer(s, plain, 'FIN');
+  const o1 = productOffer(s, trusted, 'FIN');
+  check(near(o1.price, 3 * o0.price, 1e-9) && near(o1.cost, o0.cost, 1e-9) && near(o1.fit, o0.fit, 1e-12),
+    'RD-B11 B16 Trusted access\'s ×3 is in its offer: the price buyers see is ×3 at the same cost and fit',
+    `$${o0.price.toFixed(2)} → $${o1.price.toFixed(2)} per adopted task-hour (cost $${o1.cost.toFixed(2)})`);
+  // B41: one appeal table: the market reads the version's own appeal (POST_PREF), the number the Models card shows.
+  const v = versionById(s, api.versionId)!;
+  check(appealOf({ ...v, appeal: 0.7, design: { ...v.design, pref: 'minimal' } }) === 0.7 && appealOf({ ...v, appeal: undefined }) === 1,
+    'RD-B11 B41 the consumer market reads a version\'s own appeal (minimal 0.7, as the Models card shows), not a second table');
 }
 
 finish('serving');

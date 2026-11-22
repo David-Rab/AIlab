@@ -13,7 +13,7 @@ import {
   Blocks, Bot, BrainCog, Briefcase, Building2, Check, Clock3, DoorOpen, Hammer, Layers, Lock, MessageCircle, Pencil, Ruler, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
   type LucideIcon,
 } from 'lucide-react';
-import { AGENT_TASK_HOURS, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
+import { AGENT_TASK_HOURS, CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
 import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
@@ -163,7 +163,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
       <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it and weighs 60% in Chat\'s quality.' : 'A mini of your own is an extra tier in the product\'s [[lineup]]: buyers take it on the tasks it does as well, at its lower price. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
+          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it for the free users only: subscribers run the main model, so it does not change the paid share.' : 'A mini of your own is an extra tier in the product\'s [[lineup]]: buyers take it on the tasks it does as well, at its lower price. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
             <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
               <option value="">{d.channel === 'consumer' ? 'student free tier' : 'lineup only'}</option>
               {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} {d.channel === 'consumer' ? 'free' : 'cheap'} tier</option>)}
@@ -261,14 +261,17 @@ function PriceRow({ d, r }: { d: Deployment; r: ProductRead }) {
   const unit = chat ? '/mo' : '/h';
   const capped = r.valueCapped > 0.05;
   const max = Math.max(1e-9, chat ? Math.max(r.price, e.wtp) : r.price);
-  const asked = r.cost * r.markup;
+  // RD-B11 (B16): a channel price (Trusted ×3) is part of the offer buyers see, on top of the tier's markup.
+  const cp = CHANNEL_PRICE[d.channel] ?? 1;
+  const asked = r.cost * r.markup * cp;
   const none = !(r.price > 0);
   return (
     <Tip as="div" content={() => <TipCard title={<Term id={chat ? 'wtp' : 'markup'}>{chat ? 'Price per subscriber-month' : 'Price per hour of use'}</Term>} value={none ? 'no sales' : `${usd(r.price)}${unit}`} rows={[
       { label: chat ? 'Serving cost of a subscriber-month' : 'Serving cost per hour', value: `${usd(r.cost)}${unit}` },
       chat
         ? { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> plan</>, value: `${usd(consumerPlanPrice(r.markup))}/mo` }
-        : { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> <Term id="markup">markup</Term></>, value: `×${r.markup.toFixed(2)} → asks ${usd(asked)}${unit}` },
+        : { label: <><Term id="priceTier">{TIER_LABEL[d.price]}</Term> <Term id="markup">markup</Term></>, value: cp !== 1 ? `×${r.markup.toFixed(2)}` : `×${r.markup.toFixed(2)} → asks ${usd(asked)}${unit}` },
+      ...(!chat && cp !== 1 ? [{ label: `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} channel price`, value: `×${cp.toFixed(2)} → asks ${usd(asked)}${unit}` }] : []),
       { label: 'Margin', value: F.pct(r.margin), tone: r.margin > 0 ? 'pos' : 'neutral' },
       ...(chat ? [
         { label: <Term id="wtp">Willingness to pay</Term>, value: `${usd(e.wtp)}/mo${capped ? ' · binds' : ''}`, tone: (capped ? 'neg' : 'neutral') as 'neg' | 'neutral' },
@@ -280,7 +283,7 @@ function PriceRow({ d, r }: { d: Deployment; r: ProductRead }) {
       ]),
       { label: 'Rule', value: <Limit id="price.valueCap" tone={capped ? 'warn' : 'quiet'}>price ≤ value</Limit> },
     ]} footer={chat ? 'Per-seat and per-hour pricing: API, Agents, Enterprise.' : 'Blended over adopted task-hours and agent-hours; seats are priced per seat-month (Sources).'}>
-      {chat ? 'A flat monthly plan at the market\'s price: the willingness to pay on Standard and Premium, less on Budget; never below a paying user\'s serving cost. Margin = price − serving cost.' :'The tokens an hour of use takes × their serving cost × the tier\'s markup, never above the value of the hour.'}
+      {chat ? 'A flat monthly plan at the market\'s price: the willingness to pay on Standard and Premium, less on Budget; never below a paying user\'s serving cost. Margin = price − serving cost.' :'The tokens an hour of use takes × their serving cost × the tier\'s markup (× the channel price on Trusted access, which buyers see), never above the value of the hour.'}
     </TipCard>}>
       <div className="ec-row" data-test={`prod-price-row.${d.id}`}>
         <span className="ec-k">Price</span>
@@ -406,7 +409,7 @@ function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow
     <div className="pc-line" data-test={`prod-lineup.${d.id}`}>
       <Tip as="div" content={() => <TipCard title={<Term id="lineup">Lineup</Term>} value={`${rows.length} tiers · ${sold} selling`} rows={rows.map((x, k) => ({
         label: <span><i className="tl-sw" style={{ background: TIER_COL[k] ?? TIER_COL[4] }} />{tierName(x)}</span>, value: `${F.pct(x.share)} of hours`,
-      }))} footer={`Price tier ${TIER_LABEL[d.price]}: every tier at ×${r.markup.toFixed(2)} its serving cost.`}>
+      }))} footer={`Price tier ${TIER_LABEL[d.price]}: every tier at ×${(r.markup * (CHANNEL_PRICE[d.channel] ?? 1)).toFixed(2)} its serving cost${(CHANNEL_PRICE[d.channel] ?? 1) !== 1 ? ` (markup ×${r.markup.toFixed(2)} × channel price ×${(CHANNEL_PRICE[d.channel] ?? 1).toFixed(2)})` : ''}.`}>
         {'Your main model and distilled students of it. In each band of task difficulty buyers take the tier with the best surplus among every provider\'s tiers: cheap tiers sell on easy work, the main model keeps the work only it does. Every lab sells the same [[lineup]].'}
       </TipCard>}>
         <div className="tl-h"><span className="ec-k">Lineup</span><span className="sp" /><span><Term id="fit">fit</Term></span><span>price</span><span>sold</span></div>
@@ -519,7 +522,7 @@ function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRe
       { label: <><Term id="servingShare">Served</Term> (<Term id="autoServing">{s.player.policies.servingAuto ? 'Auto rule' : 'your share'}</Term>)</>, value: `${F.h100e(r.servedH100e)} H100e` },
       { label: <Term id="servingCut">Unserved</Term>, value: r.cutH100e > 0 ? `${F.h100e(r.cutH100e)} H100e · ${F.money(r.unserved, { perYear: true })}` : 'none', tone: r.cutH100e > 0 ? 'neg' : 'neutral' },
       { label: <Term id="revPerH100e">Revenue per H100e</Term>, value: rate(r.rpH) },
-      { label: 'Demand modifiers', value: (() => { const m = demandModifiers(d); return <Limit id="product.demandMods">{m.length ? m.map((x) => Number.isNaN(x.mult) ? x.label : `${x.label} ×${x.mult.toFixed(2)}`).join(' · ') : 'none'}</Limit>; })() },
+      { label: 'Demand modifiers', value: (() => { const m = demandModifiers(s, d); return <Limit id="product.demandMods">{m.length ? m.map((x) => Number.isNaN(x.mult) ? x.label : `${x.label} ×${x.mult.toFixed(2)}`).join(' · ') : 'none'}</Limit>; })() },
     ]} footer={lever ? 'Click the lever to preview it.' : undefined} />}>
       <button className={`pc-bind ${r.bound}`} data-test={`prod-bind.${d.id}`} onClick={() => lever?.act()}>
         <span className="bt"><Term id={r.bound === 'capacity' ? 'capacityBound' : r.bound === 'quality' ? 'qualityBound' : r.bound === 'price' ? 'priceBound' : 'bindingCause'}>{BOUND[r.bound]}</Term></span>
@@ -589,13 +592,14 @@ function FeatureFxLine({ f, ch, right }: { f: FeatureDef; ch: Channel; right?: R
 function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: FeatureDef; eta?: number }) {
   const tip = () => <FeatureTip s={s} d={d} f={f} />;
   if (f.id === 'sectorPacks') {
-    const secs = d.sectorFocus;
+    const packs = d.packs;
+    const secs = packs.map((x) => x.sector);
     // J2 P1: packs being built (build queue) before their certification starts.
     const building = s.player.build.queue.filter((it) => it.kind === 'sectorPack' && (it.host ?? d.id) === d.id);
     const etas = buildEtas(s).etas;
     return (
       <div className="ft2" data-feature={f.id}>
-        <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...secs.map((x) => ({ label: x, value: s.world.fx.certDay[x] !== undefined && s.world.fx.certDay[x]! <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, s.world.fx.certDay[x] ?? s.time.day))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect}</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...packs.map((x) => ({ label: x.sector, value: x.certDay <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, x.certDay))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect}</TipCard>}>
           <div className="ft"><Layers size={12} /><span className="ft-n">{secs.length ? secs.join(' · ') : 'Sector packs'}{building.length > 0 && <span className="dim" data-test={`prod-pack-building.${d.id}`}> · {building.length} building</span>}</span><span className="sp" />
             <ActBtn id="wfx.sectorProduct" testId={`prod-pack.${d.id}`} params={{ deploymentId: d.id }} label="+ pack" />
           </div>

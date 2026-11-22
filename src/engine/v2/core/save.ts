@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2 } from '../types';
+import type { GameStateV2, SectorId } from '../types';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
@@ -36,8 +36,11 @@ import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
  *  continue run's draw, a post-train's domainG, P07 flag and serving FLOP part); completion and the trait hook read
  *  only it. Migration 44 → 45 fills what a run in flight lacks from the save's own day (the best available). RD-B03,
  *  same bump: a family unlocked later (computer use) has no suite until its first build; a save that knows its idea
- *  but never stored its suite (it read as a free start-quality one) keeps it, stored, before the runs are filled. */
-export const SCHEMA_REV = 45;
+ *  but never stored its suite (it read as a free start-quality one) keeps it, stored, before the runs are filled.
+ *  46 (RD-B12): sector packs live on their product (DeploymentV2.packs: {sector, certDay}[]); world.fx.certDay and
+ *  the product's sectorFocus are gone. Migration 45 → 46 moves each pack onto its product with the world's certification
+ *  day and drops a certified sector no product carries. */
+export const SCHEMA_REV = 46;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -254,6 +257,21 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (r.status !== 'running' && r.status !== 'paused') continue;
       fillRecipe(s, r);
     }
+  },
+  /** 45 → 46 (RD-B12): sector packs live on their product. Each product's sectorFocus becomes packs with the world's
+   *  certification day for the sector (world.fx.certDay is removed); a certified sector no product carries is dropped
+   *  (its pack was already lost; the sector can be packed again). Idempotent. */
+  45: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const fx = s.world?.fx as unknown as { certDay?: Partial<Record<string, number>> } | undefined;
+    const cert = fx?.certDay ?? {};
+    const day = s.time?.day ?? 0;
+    for (const d of s.player?.deployments ?? []) {
+      const o = d as unknown as { sectorFocus?: string[]; packs?: unknown };
+      if (!Array.isArray(o.packs)) d.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
+      delete o.sectorFocus;
+    }
+    if (fx) delete fx.certDay;
   },
 };
 
