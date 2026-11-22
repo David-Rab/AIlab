@@ -63,6 +63,29 @@ export const B0_DAY = -120;
 export const B0_START_DAY = -256;
 export const V0_DAY = -20;
 
+/** The start state as data (RD-U06; MEA-05 / MEA-06), per world preset: `g` = G(V0), the reference start version's
+ *  effective compute (OOM); `b0` = B0's pretraining recipe (OOM, research/12 §0.2 convention, as E_START: the recipe of
+ *  its launch day B0_START_DAY); `v0` = V0's RL recipe (OOM over the leader's day-0 RL recipe: the recipe of V0_DAY).
+ *  Every start lab (the player, the rivals, DeepCent, the leader twin) gets its start base and version from these through
+ *  models/capability.ts startLab. Was derived by playerStart (v2's closed-form start in the progress coordinate: v1
+ *  multiplierAt / stage1 / share at p0, pcRefLab, START_RETAIN 0.7; b0 = the retired E_B0 1.38 [fit: V0 at G ≈ 28.0,
+ *  research/12's Aug-2025 anchor] + B0's start-day vintage), written out to 17 digits so every named preset's
+ *  start is bit-identical; `g` is what startLab gives the reference base at these recipes. `sampled`: one literal for
+ *  every seed (the start is observed history, not a sampled future): the median of playerStart over 400 seeds (b0
+ *  p10–p90 0.687–0.935, g 27.48–27.75); the per-seed starts are gone. */
+export const START_STATE: Record<WorldPresetId, { g: number; b0: number; v0: number }> = {
+  ai2027: { g: 27.658471072331817, b0: 0.85397260273972597, v0: -0.041095890410958937 },
+  authors2026: { g: 27.627049427807886, b0: 0.82451506849315059, v0: -0.043397260273972567 },
+  fast: { g: 27.600112150053612, b0: 0.79926575342465744, v0: -0.045369863013698629 },
+  slow: { g: 27.766159476245420, b0: 0.95496986301369846, v0: -0.033205479452054765 },
+  sampled: { g: 27.691754354575195, b0: 0.8851811569793056, v0: -0.038657722110991784 },
+};
+/** The world preset of a timeline world, by its makeWorld label (TimelineWorld carries no preset id; an unknown label
+ *  reads as `sampled`). */
+export const PRESET_BY_LABEL: Record<string, WorldPresetId> = {
+  'AI 2027 scenario': 'ai2027', "Authors' 2026 model": 'authors2026', 'Fast takeoff': 'fast', 'Skeptic world': 'slow', 'Sampled world': 'sampled',
+};
+
 /** Production-function parameters by preset (research/13 §1.4). `sampled` draws La = 1 + LN80[1, 200]. */
 export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number }
 export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, slow10: 2.5, m2b: 3.25 };

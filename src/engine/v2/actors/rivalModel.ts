@@ -26,10 +26,10 @@ import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
-import { domainsOf, gV0, levelOfG } from '../models/capability';
+import { domainsOf, gV0, levelOfG, startLab } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
@@ -413,66 +413,39 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
 /** Physical start state of a non-player lab whose start internal model sits at its G (rivals.ts initialRival,
  *  initialLeaderLab, china.ts initialChina). Its last base is the reference start base B0 (≈ 354B active × 400 tokens per
  *  parameter, 3e26 FLOP: research/12 §0.3's 2025 frontier) scaled by the lab's training pool over the leader's day-0 pool
- *  (1e6 H100e × 40%), trained on B0's dates (launched day B0_START_DAY, finished B0_DAY), so its recipe is that many days
- *  of the lab's own recipe growth staler than today's (`effRun`: the run-time efficiency multiplier, effLab for China;
- *  undefined for the leader lab); the internal version was post-trained on its own day. A follower starts `k` behind in
- *  the pretraining and RL-efficiency parts (as the player's follower stacks, stacks.ts initialStacks) and k back on
- *  those research pools; k is solved so that version is the start model. The leader lab (B0 itself, V0) starts at k = 0,
- *  the leader's day-0 recipe, with B0's vintage solved so its start version is V0. The public model: the same base,
- *  publicGapY progress-years lower; the run toward the next base is already under way. */
+ *  (1e6 H100e × 40%), trained on B0's dates, its internal version post-trained on V0's: both from startLab, the one start
+ *  rule the player shares (RD-U06; models/capability.ts): the world's dated start recipes less the lab's recipe lag,
+ *  solved so that version is the start model. The lab's recipe today is that lag behind the leader's day-0 recipe in the
+ *  pretraining and RL-efficiency parts (as the player's follower stacks, stacks.ts initialStacks), and it sits that far
+ *  back on those research pools. The leader twin at the reference pool and G(V0) has lag 0. The public model: the same
+ *  base, publicGapY progress-years lower; the run toward the next base is already under way, at the recipe the lab's own
+ *  day-0 rates give its launch day (`effRun`: the run-time efficiency multiplier, effLab for China; undefined for the
+ *  leader lab). */
 export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY = START_PUBLIC_GAP_Y, effRun?: number) {
   const pool = r.core.computeOnline * r.core.split.training;
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
-  const G0 = r.internal.G;
-  // Staleness of the start base's and start version's recipes: the days since their launch × the lab's own day-0 growth
-  // of each part (model v3 F2; the pools are fresh at the start, so the rates do not depend on k). F1 used the leader's
-  // rate for every lab, which made a slow follower's start base too stale and its first new base too good (DeepCent above
-  // V0 on day 75: ws4 T3 −103 d).
-  let rs = 1;
-  if (effRun !== undefined) {
-    const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
-    const res = r.core.split.experiments + r.core.split.agents;
-    const C = r.core.computeOnline * res;
-    const f = bestRivalMix(w, G0, fpt, r.core.staff.cap, C);
-    rs = evalAggregate(w, G0, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
-  }
+  const st = startLab(w, r.internal.G, { flop: flop0, tpp: REF_TPP, shape: 'moe' });
+  const k = -st.lag;
   const P = recipeParts();
-  const dPost = Math.max(0, -r.internal.day) / 365;
-  const dPre = -B0_START_DAY / 365;
-  // A lab k behind sits k back on the same research pools (it has done less research: its next ideas come easier, as on
-  // F1's one-part law), so its start rates depend on k: solved together (a few fixed-point steps).
-  const poolAt = (k: number) => ({ pre: k / P.pre.kappa, mid: k / P.mid.kappa, ceil: 0 });
-  const ratesAt = (k: number) => recipeRates(w, { rec: { pre: k, mid: k, ceil: 0 }, pool: poolAt(k) }, rs).rec;
-  // The start version at lag k and staleness multiplier m (m = 1: the days since launch × today's rates).
-  const at = (k: number, v: RivalRecipe, m: number) => versionG(makeBase(1, B0_DAY, flop0, k - m * v.pre * dPre, REF_TPP), k - m * v.mid * dPost, -m * v.ceil * dPost);
-  const bisect = (f: (x: number) => number, lo: number, hi: number) => {
-    for (let i = 0; i < 60; i++) {
-      const mid = (lo + hi) / 2;
-      if (f(mid) < 0) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  let k = 0;
-  let m = 1;
-  let v = ratesAt(0);
-  if (effRun === undefined && at(0, v, 0) >= G0) {
-    // The leader lab is the reference lab on B0 itself: its recipe today is the leader's day-0 recipe (k = 0, the zero of
-    // the recipe) and B0's vintage is what makes its start version V0 (the pre-game growth over B0's age, solved).
-    m = bisect((x) => G0 - at(0, v, x), 0, 20);
-  } else {
-    for (let i = 0; i < 5; i++) {
-      v = ratesAt(k);
-      const vi = v;
-      k = bisect((x) => at(x, vi, 1) - G0, -8, 6);
-    }
-  }
-  const base = makeBase(1, B0_DAY, flop0, k - m * v.pre * dPre, REF_TPP);
-  r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolAt(k) };
-  setModelG(w, r.internal, versionG(base, k - m * v.mid * dPost, -m * v.ceil * dPost), base);
+  // A lab k behind sits k back on the same research pools (it has done less research: its next ideas come easier).
+  const poolOf = { pre: k / P.pre.kappa, mid: k / P.mid.kappa, ceil: 0 };
+  const base = makeBase(1, B0_DAY, flop0, st.ePre - E_START, REF_TPP);
+  r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolOf };
+  setModelG(w, r.internal, versionG(base, st.eRL, 0), base);
   if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapY * B, base);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
-  if (start < 0) r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (m * v.pre * start) / 365 };
+  if (start < 0) {
+    // The run in flight launched before day 0: its recipe is today's less the lab's own day-0 growth since launch.
+    let rs = 1;
+    if (effRun !== undefined) {
+      const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
+      const C = r.core.computeOnline * (r.core.split.experiments + r.core.split.agents);
+      const f = bestRivalMix(w, r.internal.G, fpt, r.core.staff.cap, C);
+      rs = evalAggregate(w, r.internal.G, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
+    }
+    const v = recipeRates(w, r.phys, rs).rec;
+    r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (v.pre * start) / 365 };
+  }
 }
 /** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
  *  share 0.4) it was sized on. */
