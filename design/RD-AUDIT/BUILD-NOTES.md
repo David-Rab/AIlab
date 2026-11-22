@@ -1576,3 +1576,30 @@ Safety science teams on the capability planner (SAFETY-REDESIGN §3.1, §5; SAF-
 - **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r03/check.ts` (no auto-assign
   left; nothing queued → 0 placed, flag text; queued two lines → priority / teams wanted honoured, priority 1 wanting
   every team takes them all; after a research day teams only on queued projects).
+
+### RD-R04
+
+Rolled tree path and the paradigm mirror gone (SYNTHESIS §6 Phase 3; CAP-15, SAF-18). Commit 1ff5271.
+**Moves calibration: maybe** (P27 now resolves on AG17's works draw at the line's T₁, not its paradigm prior at the old
+rolled speed; teams on P27 now count as AG17 staffing: harness fit and SAF_IDEAS labour; P27 waits on AG17's safety-model gate).
+
+- **Deleted (models/tree.ts):** roll(), researchSpeed, the rolled branch of researchDay (progress bar, retry date, odds
+  halving), syncParadigm; projectRate / projectEta are research-line only (else 0 / Infinity); projectReady's retry
+  reason; nodeOdds has no multiplier. TreeNodeState.priorMult / retryDay gone (TreeNodeState left one interface: [D]
+  the discriminated union skipped for the budget). TREE_RETRY_DAYS gone from data; RefBot keeps `REF_RETRY_DAYS` 180.
+- **kyc:** node deleted (and from the starts' known lists); the per-product KYC setting stays ungated.
+- **P27:** an `S` node of line AG17 (no `paradigm` flag; effort = AG17's line effort); effects unchanged (workfit
+  `adopted(s, 'P27')`, safety/ideas.ts aarAuto). Removed from PARADIGMS; its hidden draw is consumed in place
+  (world/hidden.ts TRAILING_DRAWS [0.8 P26, 0.7 P27]), so later world draws keep their values.
+- **Mirror:** PlayerLab / LabCore `paradigms` and ParadigmState gone; initialParadigms gone. `adopted(id)` (models/paradigms.ts
+  and safety/common.ts) = `tree[id].status === 'known'`. Readers repointed: RefBot (P08, P17, P23), actions (P08, P18),
+  theft (P25), agent-action cache key (P27). completeAdoption's onKnown is optional (build.ts passes none).
+- **Player text:** glossary `retryRule` and limit `tree.retry` gone (and the tree's retry readouts); [D] to satisfy the
+  `researchSpeed` grep, researchSpeedLimits / researchSpeedView / researchSpeedRel and the glossary id `researchSpeed`
+  are renamed `labSpeed*` / `labSpeed` (title unchanged; GLOSSARY.md not regenerated).
+- **Schema:** SCHEMA_REV 58; migration 57 → 58 drops player.paradigms, hidden.paradigmSuccess.P27, the kyc record / queue
+  entry / team placement, every tree record's fields outside TreeNodeState; a rolled P27 attempt becomes its AG17 test at
+  its progress (work = progress × T₁), a failed one reopens. Older migrations no longer touch the mirror (53 reads P24 via a cast).
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; grep `researchSpeed|syncParadigm|player.paradigms|priorMult`
+  in src empty; `npx tsx scripts/v2/_r04/check.ts` (source clean; kyc gone, P27 an AG17 line node; new game: no mirror,
+  ★ adopted; P27 works → known = adopted, doesn't → AG17 b + 1; rev-57 save migrates). hygiene's rev literals → 58 (not run).
