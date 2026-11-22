@@ -14,7 +14,7 @@
 //   research   RS = X(c̄, ℓ)·units·taste·eff·mods ÷ the leader's day-0 value: the player's experiment CES at aggregate
 //              level (as the player's projects, models/research.ts) — experiment compute per unit of research engineers, effective labour from the
 //              lab's own internal model on Experiments (coverage, AI FTE from its compute and FLOP per token, the coding
-//              CES), AI taste from its fit on Research ideas (workfit.ts teamTaste)
+//              CES), AI taste from its fit on Research ideas weighted by AI's share of its ideas labour (workfit.ts teamTaste, DD-13)
 //   training   one base run after another on BASE_POOL_SHARE of the training pool for BASE_RUN_DAYS, released on the
 //              archetype cadence (rivals.ts BASE_MONTHS): G_pre = log₁₀(FLOP) + E_START + e_pre at launch + the shape
 //              terms (effective.ts gPreOf); N_active = √(FLOP/(6·tpp)), FLOP per token 2·N_active
@@ -27,12 +27,12 @@ import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { domainsOf, gV0, levelOfG, startLab } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
-import { agentFptEq, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
+import { agentFptEq, aiIdeasShare, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
 import { tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
@@ -243,7 +243,7 @@ function rawAggregate(w: TimelineWorld, G: number, fpt: number, staffCap: number
   const wH = a >= 1 - 1e-12 ? 0 : a <= 1e-9 ? 1 : (Math.pow(1 - a, 1 - P.rc) * Math.pow(H * k.assist, P.rc)) / Math.pow(L, P.rc);
   // Ideation: the frontier-research share of the agent pool on Research ideas; AI taste lifts the scientists'.
   const LI = effLabour(P, k.aI, S, (kAg * AGENT_IDEAS * k.fte) / WORK_TYPES.IDEAS.heads, k.assistI);
-  const taste = kAg > 0 ? k.taste : 1;
+  const taste = rivalTaste(k, LI);
   return {
     E: X * units * taste, Eh: Xh * units, I: Math.pow(LI, P.lam) * taste * taste, Ih: Math.pow(S, P.lam),
     c, l, X, Xh, units, a, aiFte, mIdeas: LI / S, copies: copiesOf(kAg, fpt), wH, sdAI: k.sdAI, taste,
@@ -262,7 +262,7 @@ function rawEI(w: TimelineWorld, G: number, fpt: number, staffCap: number, f: nu
   const l = Math.pow(Math.max(1e-12, L / H), P.lam);
   const X = Xces(P, c, l);
   const LI = effLabour(P, k.aI, S, (kAg * AGENT_IDEAS * k.fte) / WORK_TYPES.IDEAS.heads, k.assistI);
-  const taste = kAg > 0 ? k.taste : 1;
+  const taste = rivalTaste(k, LI);
   return { E: X * units * taste, I: Math.pow(LI, P.lam) * taste * taste };
 }
 /** The parts of the aggregate that do not depend on the research mix (one entry memoised: the mix search asks 26 times). */
@@ -280,11 +280,15 @@ function labConstOf(w: TimelineWorld, G: number, fpt: number, staffCap: number) 
   const h50 = H50_V0_MIN * Math.pow(H50_PER_OOM, G - gV0(w));
   const sdAI = Math.min(SD_AI_MAX, sdAIOf(w, G));
   return {
-    H, S, units: H / RE_UNIT, fte: fteOfFpt(fpt),
+    H, S, units: H / RE_LABOUR_UNIT, fte: fteOfFpt(fpt),
     a: coverage(w, 'EXP', G, h50), assist: assistOf(winRate(w, 'EXP', G)),
     aI: coverage(w, 'IDEAS', G, h50), assistI: assistOf(winRate(w, 'IDEAS', G)),
-    sdAI, taste: teamTaste(0, sdAI, 1, w.prod.m2b),
+    sdAI, m2b: w.prod.m2b,
   };
+}
+/** RD-E02 (DD-13): a rival's scientists' taste, AI taste weighted by AI's share of its ideas labour (as the player's). */
+function rivalTaste(k: { S: number; aI: number; assistI: number; sdAI: number; m2b: number }, LI: number): number {
+  return teamTaste(0, k.sdAI, k.aI > 1e-9 ? aiIdeasShare(k.S, k.assistI, LI) : 0, k.m2b);
 }
 /** The aggregate research function on its inputs (model G and FLOP per token, capabilities staff, research compute and
  *  its experiment share f), normalised to the leader lab's day-0 lab, × efficiency and modifiers. */

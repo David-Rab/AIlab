@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, LabCore, SectorId, VersionBuild } from '../types';
+import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
@@ -10,8 +10,8 @@ import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
-import { domainsOf, gOfLevel } from '../models/capability';
-import { adopted } from '../models/paradigms';
+import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
+import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 
@@ -54,8 +54,15 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  48 → 49 converts every stored build's offL at the 1.2 L per OOM the fit applied (so the fit is unchanged) and
  *  recomputes the player's version domain levels as λ(G_d).
  *  50 (RD-U05): domain levels are scores against the domain's best human (models/capability.ts domainsOf); v2's display offsets are
- *  gone. Migration 49 → 50 recomputes every stored domain-level record. */
-export const SCHEMA_REV = 52;
+ *  gone. Migration 49 → 50 recomputes every stored domain-level record.
+ *  53 (RD-E03, DD-12): no headroom and no routine tuning: StackBucket.h and the research engineers' 'tune' need are gone.
+ *  Migration 52 → 53 delivers the remaining headroom (the bucket's effect becomes its whole adopted a) and drops 'tune'
+ *  from the research-engineer allocation and the last-day readout.
+ *  54 (RD-E01a, DD-14): paradigms P13 and P19 are deleted (with P19's RSCH gain) and P24 is an idea in the
+ *  pretraining stack: RunRecipe.p24 is gone. Migration 53 → 54 drops P13 / P19 state and draws, folds a run's frozen
+ *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
+ *  recomputes stored domain levels without P19. */
+export const SCHEMA_REV = 54;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -368,12 +375,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     walk(s.hidden);
     for (const b of s.player?.models?.bases ?? []) delete (b as unknown as { off?: unknown }).off;
     const w = s.hidden?.timeline;
-    if (w && s.player) {
-      const p19 = adopted(s, 'P19');
-      for (const v of s.player.models?.versions ?? []) if (v.build) v.domains = domainsOf(w, v.G, v.build, p19);
-    }
+    if (w && s.player) for (const v of s.player.models?.versions ?? []) if (v.build) v.domains = domainsOf(w, v.G, v.build);
   },
-  /** 49 → 50 (RD-U05): every stored domain-level record (player versions with their build and P19, rivals' and the
+  /** 49 → 50 (RD-U05): every stored domain-level record (player versions with their build, rivals' and the
    *  hidden models from G: found by shape G + Lg + domains) is recomputed as the score against the domain's best human.
    *  Idempotent. */
   49: (raw) => {
@@ -381,20 +385,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const w = s.hidden?.timeline;
     if (!w?.v3) return;
     const seen = new Set<object>();
-    const walk = (x: unknown, p19: boolean) => {
+    const walk = (x: unknown) => {
       if (!x || typeof x !== 'object' || seen.has(x)) return;
       seen.add(x);
-      if (Array.isArray(x)) { for (const y of x) walk(y, p19); return; }
+      if (Array.isArray(x)) { for (const y of x) walk(y); return; }
       const o = x as Record<string, unknown>;
       if (typeof o.G === 'number' && typeof o.Lg === 'number' && o.domains && typeof o.domains === 'object') {
         const b = o.build as VersionBuild | undefined;
-        o.domains = domainsOf(w, o.G, b && 'gPre' in b ? b : undefined, p19);
+        o.domains = domainsOf(w, o.G, b && 'gPre' in b ? b : undefined);
       }
-      for (const y of Object.values(o)) walk(y, p19);
+      for (const y of Object.values(o)) walk(y);
     };
-    walk(s.player, !!s.player && adopted(s, 'P19'));
-    walk(s.rivals, false);
-    walk(s.hidden, false);
+    walk(s.player);
+    walk(s.rivals);
+    walk(s.hidden);
   },
   /** 50 → 51 (RD-A02): the Auto research mix is gone (researchManual deleted; the split as it stands is kept); the
    *  engineering agents get their own split line: the player's engineering share of the agent pool moves to
@@ -429,6 +433,59 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  computeShare are rescaled to shares of the safety research line. The other labs: agents → routine / frontier at
    *  the reference ratio; safety agents, monitors 0. Everyone: idle 0. Idempotent (only a split with an agents key). */
   51: (raw) => migrateFlatSplit(raw as unknown as GameStateV2),
+  /** 52 → 53 (RD-E03): headroom is removed. A bucket's effect was (a − h); its remaining headroom h is delivered at once
+   *  (the effect becomes a, as every idea adopted from now on lands), and h is dropped. The 'tune' need leaves the
+   *  research-engineer allocation (order, caps) and the last-day readout. Idempotent. */
+  52: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const res = s.player?.research;
+    if (!res) return;
+    for (const st of Object.values(res.stacks ?? {})) for (const b of st.buckets ?? []) delete (b as { h?: number }).h;
+    const a = res.re as unknown as { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } | undefined;
+    if (a) {
+      if (Array.isArray(a.order)) a.order = a.order.filter((k) => k !== 'tune');
+      if (a.max) delete a.max.tune;
+      if (a.share) delete a.share.tune;
+    }
+    if (res.last?.re) delete (res.last.re as Record<string, number>).tune;
+  },
+  /** 53 → 54 (RD-E01a): P13 / P19 leave the paradigm, tree and hidden-draw data (queues and teams drop unknown nodes
+   *  themselves). Every run's recipe.p24 moves into its recipe.pre (both add to the base's G in OOM; the total is
+   *  unchanged). An adopted P24 (an axis until now) enters the pretraining stack as one scale-invariant idea of 0.96 ×
+   *  its payoff on the save's day (the bonus the next base would have had). Stored domain levels are recomputed without
+   *  P19's RSCH gain (player versions; rivals' internal and public models). Idempotent except the adopted-P24 idea,
+   *  which is added once (this step runs once, at rev 53). P24's payoff is read as tree.ts payoffOf read it before: the
+   *  AI share of experiment labour as the research engine ran it (1 − 1 ÷ m_EXP, research.last). */
+  53: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player;
+    const hadP24 = p?.paradigms?.P24?.status === 'adopted';
+    for (const id of ['P13', 'P19']) {
+      if (p?.paradigms) delete p.paradigms[id];
+      if (p?.tree) delete p.tree[id];
+      if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess[id];
+    }
+    for (const r of p?.models?.runs ?? []) {
+      const rec = r.recipe as (RunRecipe & { p24?: number }) | undefined;
+      if (!rec || rec.p24 === undefined) continue;
+      if (rec.pre !== undefined) rec.pre += rec.p24;
+      delete rec.p24;
+    }
+    const pre = p?.research?.stacks?.pre;
+    if (hadP24 && pre) {
+      const mExp = Math.max(1, p.research?.last?.x?.mExp ?? 1);
+      const payoff = Math.max(0, Math.min(1, (1 - 1 / mExp - 0.5) / 0.4));
+      if (payoff > 0) addIdea(pre, 0.96 * payoff, 0, 1, 1);
+    }
+    const w = s.hidden?.timeline;
+    if (!w) return;
+    for (const v of p?.models?.versions ?? []) if (v.domains) refreshLevels(w, v);
+    for (const r of s.rivals ?? []) {
+      type M = { G: number; domains?: unknown; build?: VersionBuild };
+      const o = r as unknown as { internal?: M; publicModel?: M };
+      for (const m of [o.internal, o.publicModel]) if (m && m.domains) m.domains = domainsOf(w, m.G, m.build && 'gPre' in m.build ? m.build : undefined);
+    }
+  },
 };
 
 type OldSplit = Record<string, number>;

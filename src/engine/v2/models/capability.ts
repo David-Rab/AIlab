@@ -1,7 +1,7 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { LEVEL_KNOTS, P19_RSCH_DG, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
+import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
@@ -112,10 +112,9 @@ export function gOfDomain(b: VersionBuild, d: DomainId): number {
   return b.gPre + (b.sD[d] ?? 0) + rl + b.dg + (b.dgD[d] ?? 0);
 }
 /** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon and the displayed
- *  domain level read (OOM): the build's domain G (a version without a build: its general G), plus P19's RSCH gain. */
-export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId, hasP19 = false): number {
-  const g = v.build ? gOfDomain(v.build, d) : v.G;
-  return d === 'RSCH' && hasP19 ? g + P19_RSCH_DG : g;
+ *  domain level read (OOM): the build's domain G (a version without a build: its general G; RD-E01a deleted P19's RSCH gain). */
+export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
+  return v.build ? gOfDomain(v.build, d) : v.G;
 }
 
 /** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
@@ -141,17 +140,17 @@ export function domainRefShift(w: TimelineWorld, d: DomainId): number {
  *  lives only in the human reference points (refDelta); v2's per-domain display offsets are gone. A version without a
  *  build (a rival's model) reads G for every domain. The display moves exactly as the fit does. Danger flags,
  *  dangerous benchmarks, misuse / exfiltration capability and rival hazards read this same score. */
-export function domainsOf(w: TimelineWorld, G: number, b?: VersionBuild, hasP19 = false): Record<DomainId, number> {
+export function domainsOf(w: TimelineWorld, G: number, b?: VersionBuild): Record<DomainId, number> {
   const out = {} as Record<DomainId, number>;
   const v = { G, build: b };
-  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d, hasP19) - domainRefShift(w, d)), 0, 15);
+  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d) - domainRefShift(w, d)), 0, 15);
   return out;
 }
 
 /** Recompute a version's derived levels from G and its build. */
-export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean) {
+export function refreshLevels(w: TimelineWorld, v: ModelVersion) {
   v.Lg = levelOfG(w, v.G);
-  v.domains = domainsOf(w, v.G, v.build, hasP19);
+  v.domains = domainsOf(w, v.G, v.build);
 }
 
 /** A version's effective compute in a horizon domain (OOM): its domain G; a version without a build: its general G. */

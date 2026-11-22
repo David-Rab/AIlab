@@ -20,11 +20,11 @@ import {
   MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
-import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { teamCapacity } from './capacity';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { h50Of, versionDomainG } from '../models/capability';
 import { adopted } from '../models/paradigms';
@@ -35,7 +35,7 @@ import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
-import { agentSplitShare, agentVersion, capShare, monitorVersion } from './agents';
+import { agentSplitShare, agentVersion, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
 
@@ -45,10 +45,10 @@ const sig = (x: number) => 1 / (1 + Math.exp(-x));
 // ───────────────────────────── fit and reference points ─────────────────────────────
 
 /** A version's effective compute in domain d for work (OOM): its domain G (MODEL-V3 §2.3; design offsets included, in
- *  OOM since RD-U01); with Learned research taste (P19) RSCH gains P19_RSCH_DG. The human reference points are set for
- *  a lab without P19. A version without a build (an imported open model, a rival's model) reads its general G. The
- *  displayed domain level is λ of this same G (models/capability.ts versionDomainG, domainsOf). */
-export const domainG = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number => versionDomainG(v, d, adopted(s, 'P19'));
+ *  OOM since RD-U01; RD-E01a deleted P19's RSCH gain). A version without a build (an imported open model, a rival's
+ *  model) reads its general G. The displayed domain level is λ of this same G (models/capability.ts versionDomainG,
+ *  domainsOf). */
+export const domainG = (_s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number => versionDomainG(v, d);
 
 /** Fit F_w of a version in work type w (OOM of effective compute). */
 export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId): number {
@@ -161,17 +161,26 @@ export function effLabour(P: Pick<ProdParams, 'rc'>, a: number, H: number, AI: n
 
 // ───────────────────────────── taste ─────────────────────────────
 
+/** AI's share of a slot's ideas (RD-E02, DD-13 "one ideas channel"): the share of the effective labour L above what the
+ *  humans (with their assist) make alone, s = max(0, 1 − H·assist ÷ L). 0 with no AI labour (L ≤ H·assist), rising with
+ *  AI FTE and saturating, for fixed coverage A, at 1 − (1 − A)^((1 − ρc)/(−ρc)) (→ 1 as A → 1). Not the CES margin share
+ *  1 − wH: with ρc < 0 (complements) that is ~1 at near-zero AI (AI the bottleneck) and falls to 0 as AI grows. */
+export function aiIdeasShare(H: number, assist: number, L: number): number {
+  const hh = H * assist;
+  return L > 1e-12 && L > hh ? Math.min(1, 1 - hh / L) : 0;
+}
+
 /** Taste of a team (research input per idea vs a Strong team without AI): E[max(T_team, F_AI)] with the team's human
  *  taste z SDs above the lab's average on the AIFM lognormal (mean 1, 99.9th pct = m2b × median), and AI taste sd_AI
- *  lifting it with weight φ (the frontier-research package's cover). */
-export function teamTaste(z: number, sdAI: number, phi: number, m2b: number, human = 1): number {
+ *  on the AI-done share sAI of the ideas (aiIdeasShare): (1 − s)·human + s·E[max(human, AI)] (DD-13). */
+export function teamTaste(z: number, sdAI: number, sAI: number, m2b: number, human = 1): number {
   const s = tasteSigma(m2b);
   const Th = Math.exp(s * z) * human;
-  if (phi <= 0) return Th;
+  if (sAI <= 0) return Th;
   const F = Math.exp(-0.5 * s * s + sdAI * s);
   const zz = z + Math.log(human) / s;
   const lifted = F * Phi(sdAI - zz) + Th * Phi(s - sdAI + zz);
-  return (1 - phi) * Th + phi * lifted;
+  return (1 - sAI) * Th + sAI * lifted;
 }
 /** A team's human taste position (SDs) from its quality. */
 export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];
@@ -201,14 +210,16 @@ export interface LabourOf {
   m: number;
   /** Humans' share of the labour margin (the CES weight of the human input). */
   wH: number;
+  /** AI's share of the slot's output (aiIdeasShare; on the ideas slots the weight of AI taste, DD-13). */
+  sAI: number;
 }
 export type CapSlot = 'SWE' | 'EXP' | 'IDEAS';
 export interface WorkContext {
   day: number;
   slots: Record<CapSlot, LabourOf>;
-  /** AI research taste (SDs) of the frontier-research model and its cover φ (0 with no frontier agents). */
+  /** AI research taste (SDs) of the frontier-research model and AI's share of the ideas (slots.IDEAS.sAI, DD-13). */
   sdAI: number;
-  phi: number;
+  sAI: number;
 }
 
 /** Agent compute (H100e) of a capabilities use, with the AI-labour multipliers of adopted ideas: P05 orchestration ×1.3,
@@ -277,7 +288,7 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
   const L = effLabour(P, fit.a, H, AI, fit.assist);
   const hh = Math.max(1e-12, H * fit.assist);
   const wH = fit.a >= 1 - 1e-12 ? 0 : fit.a <= 1e-9 ? 1 : (Math.pow(1 - fit.a, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
-  return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, t: 1, A: fit.a, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH };
+  return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit, t: 1, A: fit.a, H, AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L, m: H > 1e-12 ? L / H : 0, wH, sAI: aiFte > 0 ? aiIdeasShare(H, fit.assist, L) : 0 };
 }
 
 /** Effective labour when only a share t of the work is handed to AI (model v3 E2: the Trusted-to-AI policy on safety
@@ -302,12 +313,10 @@ export function workContext(s: GameStateV2): WorkContext {
   const hit = ctxMemo.get(s);
   if (hit && hit.day === s.time.day) return hit;
   const slots = { SWE: labourOf(s, 'SWE'), EXP: labourOf(s, 'EXP'), IDEAS: labourOf(s, 'IDEAS') };
-  const p = s.player;
   const fv = agentVersion(s, 'capFrontier');
   const sdAI = fv ? sdAIOf(s.hidden.timeline, fitOf(s, fv, 'IDEAS') + internalFx(s, 'IDEAS').dG) : -6;
-  const on = Number(s.flags['ws4:agentsOffUntil'] ?? -1) <= s.time.day && (p.split.routine + p.split.frontier) > 0;
-  const phi = on && fv ? Math.min(1, capShare(s, 'capFrontier') / DEFAULT_CAP_SHARES.capFrontier) : 0;
-  const out: WorkContext = { day: s.time.day, slots, sdAI, phi };
+  // RD-E02 (DD-13): AI taste weighs by AI's share of the ideas labour (0 with the agents off or no frontier compute).
+  const out: WorkContext = { day: s.time.day, slots, sdAI, sAI: slots.IDEAS.sAI };
   ctxMemo.set(s, out);
   return out;
 }
@@ -322,8 +331,8 @@ export const resetWorkContext = (s: GameStateV2) => ctxMemo.delete(s);
  *  The one difference is the player's policy: Trusted to AI t is the share of safety work handed to the agents
  *  (handedLabour; at t = 1 safety work gets exactly the capabilities multiplier at the same fit). No fleet (no model or
  *  no compute) = nothing handed. The package's compute is spread over the two work types in proportion to the work AI
- *  does in each (A × human team-equivalents) [D]. AI taste on safety ideas: sd_AI from the SAF_IDEAS fit, cover φ = t
- *  while the fleet works on ideas. P27 adds its AAR scaffold's fit (+0.3 OOM on SAF_EXP and SAF_IDEAS) and AG17's science
+ *  does in each (A × human team-equivalents) [D]. AI taste on safety ideas: sd_AI from the SAF_IDEAS fit, weighted by AI's
+ *  share of the SAF_IDEAS labour (aiIdeasShare, DD-13; 0 at Trusted to AI 0). P27 adds its AAR scaffold's fit (+0.3 OOM on SAF_EXP and SAF_IDEAS) and AG17's science
  *  teams their harness (+0.3 OOM × √(capacity ÷ SERIOUS_CAP); model v3 E14), data/v2/safetyIdeas.ts. */
 export interface SafetyLabour {
   /** Trusted to AI in effect (0 with no fleet). */
@@ -333,15 +342,16 @@ export interface SafetyLabour {
   exp: LabourOf;
   ideas: LabourOf;
   sdAI: number;
-  phi: number;
+  /** AI's share of the safety ideas (ideas.sAI): the weight of AI taste (DD-13). */
+  sAI: number;
 }
-/** AG17's science capacity (standard science units, as safSciOn: heads ÷ CAPACITY_UNIT × quality × specialty) on its
+/** AG17's science capacity (standard science units, departments/capacity.ts teamCapacity) on its
  *  research-line projects. */
 export function ag17Capacity(s: GameStateV2): number {
   let c = 0;
   for (const t of s.player.teams) {
     const n = t.role === 'sci' && t.projectId ? PROJECT_BY_ID[t.projectId] : undefined;
-    if (n && n.agenda === 'AG17' && isLineNode(n)) c += (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
+    if (n && n.agenda === 'AG17' && isLineNode(n)) c += teamCapacity(t, n.column);
   }
   return c;
 }
@@ -377,12 +387,12 @@ export function safetyLabour(s: GameStateV2): SafetyLabour {
     const aiFte = u.v ? (h100e * fteOfFpt(fpt) * u.mult) / fx[i].tok : 0;
     const AI = aiFte / WORK_TYPES[wt].heads;
     const r = aiFte > 0 ? handedLabour(P, fits[i].a, t, H[i], AI, fits[i].assist) : handedLabour(P, 0, 0, H[i], 0, 1);
-    return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit: fits[i], t, A: r.A, H: H[i], AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L: r.L, m: r.m, wH: r.wH };
+    return { wt, ...(u.v ? { versionId: u.v.id } : {}), fit: fits[i], t, A: r.A, H: H[i], AI, aiFte, h100e, copies: u.v ? copiesOf(h100e, fpt) : 0, L: r.L, m: r.m, wH: r.wH, sAI: aiFte > 0 && r.A > 0 ? aiIdeasShare(H[i], r.assist, r.L) : 0 };
   };
   const exp = slot(0);
   const ideas = slot(1);
   const sdAI = u.v ? sdAIOf(s.hidden.timeline, fits[1].fit, 'SAF_IDEAS') : -6;
-  const x: SafetyLabour = { t, ...(u.v ? { versionId: u.v.id } : {}), h100e: u.h100e, exp, ideas, sdAI, phi: ideas.aiFte > 0 ? t : 0 };
+  const x: SafetyLabour = { t, ...(u.v ? { versionId: u.v.id } : {}), h100e: u.h100e, exp, ideas, sdAI, sAI: ideas.sAI };
   safMemo.set(s, { day: s.time.day, x });
   return x;
 }

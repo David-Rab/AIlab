@@ -127,9 +127,9 @@ export function safLines(n: TreeNodeDef, odds: number): { gains: CostLine[]; exp
   return g('safety effect', n.saf ?? n.name);
 }
 
-const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp', 'tune'];
+const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp'];
 const NEEDS_ENG: EngNeed[] = ['runs', 'upkeep', 'builds'];
-/** Parse an order param ('exp,ops,tune'): a permutation of the needs, or undefined. */
+/** Parse an order param ('exp,ops,evals'): a permutation of the needs, or undefined. */
 function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {
   if (typeof p.order !== 'string') return undefined;
   const xs = p.order.split(',').map((x) => x.trim()) as K[];

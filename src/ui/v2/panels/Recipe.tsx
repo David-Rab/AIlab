@@ -1,6 +1,6 @@
 // Research › Recipe (model v3 V2b; mockups-v3/v3-v2b-recipe; RD-B17): one card per recipe stack, each in its own unit
 // (OOM of its own quantity: stacks are never summed), and a card for the domain and data effects in theirs. Home of stack
-// efficiency, headroom, the recipe not trained into the internal model, the adopted ideas (believed band → the true
+// efficiency, the recipe not trained into the internal model, the adopted ideas (believed band → the true
 // effect once a model that embodies it has been evaluated) and the software rate.
 import { dateOf, fmtDate, otherEffectViews, softwareRate, stackViews } from '../../../engine/v2';
 import type { AdoptedView, GameStateV2, OtherEffectView, StackView } from '../../../engine/v2';
@@ -39,13 +39,13 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
     <Card className="rc-card" home={`stack.${g.key}`} title={<span className="row-i"><Ic size={15} /><Term id="recipeStack">{g.name}</Term></span>}
       sub={<Tip content={() => <TipCard title="Ideas adopted" value={String(g.n)}>Every idea counts once: a line's batch counts each idea in it; an idea that also moves another stack counts in its main stack only.</TipCard>}><span>{g.n} ideas adopted</span></Tip>}>
       <div className="rc-hero">
-        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={oom(g.now)}>{`Over the start recipe, at your latest base's FLOP: start and public knowledge + adopted − headroom. In OOM ${g.unit}: not comparable with the other stacks.`}</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={oom(g.now)}>{`Over the start recipe, at your latest base's FLOP: start and public knowledge + adopted. In OOM ${g.unit}: not comparable with the other stacks.`}</TipCard>}>
           <b className="num" data-test={`stack-now.${g.key}`}>{fmtEff(g.now)}</b>
         </Tip>
         <span className="dim"><Term id="oom">OOM</Term> {g.unit}</span>
       </div>
-      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(g.base) }, { label: 'Adopted (delivered)', value: oom(g.adopted - g.headroom) }, { label: <Term id="headroom">Headroom (still to tune)</Term>, value: oom(g.headroom) }]} />}>
-        <span className="rc-bar">{g.base > 0 && <i className="base" style={{ width: w(g.base) }} />}<i className="ad" style={{ width: w(g.adopted - g.headroom) }} /><i className="hr" style={{ width: w(g.headroom) }} /></span>
+      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(g.base) }, { label: 'Adopted', value: oom(g.adopted) }]} />}>
+        <span className="rc-bar">{g.base > 0 && <i className="base" style={{ width: w(g.base) }} />}<i className="ad" style={{ width: w(g.adopted) }} /></span>
       </Tip>
       {g.gap !== undefined && (
         <div className="rp-kv"><span><Term id="trainedIn">Not trained in</Term></span>
@@ -55,10 +55,6 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
           <Ref id="blueprint" to={{ panel: 'blueprint' }}>Train</Ref>
         </div>
       )}
-      <div className="rp-kv"><span><Term id="headroom">Headroom</Term></span>
-        <Tip content={() => <TipCard title={<Term id="headroom">Headroom</Term>} value={oom(g.headroom)}>Closed by research engineers on routine tuning (Company › Work).</TipCard>}><span className="num">{oom(g.headroom)}</span></Tip>
-        <Ref id="routineTuning" to={{ panel: 'company', tab: 'work' }}>Tuning</Ref>
-      </div>
       <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → true</Term> <span className="dim">(<Term id="oom">OOM</Term>)</span></div>
       {g.ideas.length === 0 && <div className="small dim">Nothing adopted yet. Add a {ADD_KIND[g.key]} project on Projects.</div>}
       <div className="rc-ideas">

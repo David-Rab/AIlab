@@ -407,7 +407,7 @@ export interface VersionBuild {
   /** RL gain: general (mean over the cognitive domains) and per domain (OOM). */
   dgRL: number;
   dgRLd: Partial<Record<DomainId, number>>;
-  /** Other design effects (preference, reasoning, alignment, run penalties, distillation gap, P24), OOM. */
+  /** Other design effects (preference, reasoning, alignment, run penalties, distillation gap), OOM. */
   dg: number;
   /** Data-mix specialisation per domain (OOM, from the base). */
   sD: Partial<Record<DomainId, number>>;
@@ -448,7 +448,7 @@ export interface EvalRecord {
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 
-/** A run's launch snapshot (RD-B02, SYNTHESIS theme T). Base: pre, draw, p24. Continue: pre, draw (its base's design on
+/** A run's launch snapshot (RD-B02, SYNTHESIS theme T). Base: pre, draw. Continue: pre, draw (its base's design on
  *  the portfolio at launch: the trait hook's S5). Post and IDA: rlMid, rlCeil, fid, exploit, domainG, p07, serveOom.
  *  Distillation: none (its inputs are the teacher). */
 export interface RunRecipe {
@@ -456,8 +456,6 @@ export interface RunRecipe {
   pre?: number;
   /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
   draw?: DataDraw;
-  /** P24 AI-designed successor's design bonus on a base (OOM; 0 when not adopted). */
-  p24?: number;
   /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
   rlMid?: number;
   rlCeil?: number;
@@ -670,7 +668,7 @@ export interface SafProjectState {
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
 
 /** Lifecycle stage of a capability project (MODEL-V3 §5.3). `ideation` also covers waiting for enough candidates. */
-export type CapStage = 'ideation' | 'small' | 'scale' | 'result' | 'adopting' | 'failed';
+export type CapStage = 'ideation' | 'small' | 'scale' | 'test' | 'adopting' | 'failed';
 /** A candidate idea found by ideation. Its true effect is never stored: it is recomputed from the world seed, the
  *  project, the generation and the candidate number (models/research.ts candidateTruth), so nothing hidden is saved. */
 export interface Candidate {
@@ -680,7 +678,8 @@ export interface Candidate {
   gen: number;
   /** Novelty 0..1 (visible): novel candidates are bigger if they work and less certain. */
   nov: number;
-  /** Ideas batched into this candidate (lines at high research pace: the work, FLOP and effect scale with it). */
+  /** Ideas in this candidate: 1 (RD-R08: high throughput runs lines as an expected flow; older saves may hold batches
+   *  b > 1, whose work, FLOP and effect scale with b). */
   b: number;
   /** Taste of the scientists who found it (model v3 V3: the team's E[max(human, AI)] taste, a Strong team without AI = 1);
    *  for lines its research input per idea. */
@@ -718,6 +717,10 @@ export interface CapResult {
   /** Build item adopting it (engineers). */
   buildId?: string;
   day: Day;
+  /** RD-R08: a line's expected flow for one day (high experiment throughput): the TRUE kept effect at test scale (the
+   *  expected result of the ideas tested that day under the per-idea drop and survival rules), its survivors' mean
+   *  scale exponent and the expected ideas adopted. `c` is then a placeholder; completeAdoption reads this instead. */
+  flow?: { x: number; s: number; n: number };
 }
 export interface CapProjectState {
   stage: CapStage;
@@ -734,11 +737,16 @@ export interface CapProjectState {
   next: number;
   /** Times reopened as speculative (each halves the odds and widens the prior). */
   spec?: number;
+  /** RD-R05: an unlock project's one "does it work" test (stage 'test'): its work done / needed (team-months at unit
+   *  inputs, the project's whole stage work), FLOP used, and the build item once it works. No candidates, no band. */
+  trial?: { work: number; workNeed: number; flop: number; buildId?: string };
   /** Lines: results waiting for the engineers to build them in (the line moves on to its next generation). */
   pending?: CapResult[];
   /** Lines (model v3 V3): the pool's state above n₀ (reference ideas): R = n₀ + pool, advanced by each result's true effect
    *  (R ← R·10^(x/r_l)), so the line's realised stack is r_l·log₁₀(R/n₀). */
   pool?: number;
+  /** RD-R08: a line's expected ideas adopted by its flow so far (fractional; whole ideas move `gen`). */
+  flowDone?: number;
   /** Lines: research input of the results so far (Σ batch × taste, reference ideas; readout). */
   input?: number;
 }
@@ -766,20 +774,20 @@ export interface AdoptedIdea {
  *  train = training throughput (OOM of model FLOP per chip-day); serve = serving efficiency (OOM: decode utilisation,
  *  then less FLOP per token; D10 stacks.ts serveSplit). */
 export type StackKey = 'pre' | 'rlMid' | 'rlCeil' | 'train' | 'serve';
-/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded), and the part
- *  still in headroom (same units). Effect at run FLOP F = (a − h) · 10^(s·log₁₀ F). */
-export interface StackBucket { s: number; a: number; h: number }
+/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded). Effect at
+ *  run FLOP F = a · 10^(s·log₁₀ F) (RD-E03, DD-12: an adopted idea lands at its full effect at build-in). */
+export interface StackBucket { s: number; a: number }
 export interface StackState {
-  /** Start recipe and public knowledge (OOM, scale-invariant, no headroom). */
+  /** Start recipe and public knowledge (OOM, scale-invariant). */
   base: number;
   buckets: StackBucket[];
   /** Ideas adopted. */
   n: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
-/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments, routine
- *  tuning. */
-export type ReNeed = 'ops' | 'evals' | 'exp' | 'tune';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
+ *  none of them takes is idle (RD-E03 removed routine tuning). */
+export type ReNeed = 'ops' | 'evals' | 'exp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -828,6 +836,8 @@ export interface ResearchState {
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
     re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
+    /** RD-E03: research engineers no need took today (team-equivalents). Absent in older saves. */
+    idle?: number;
     /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
      *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */
     opsServed?: number;

@@ -29,14 +29,15 @@
 import { AG17_MIN_L, AGENDAS } from '../../../data/v2/agendas';
 import { START_BY_ID } from '../../../data/v2/starts';
 import {
-  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
+  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
   type OptionSlot, type TreeNodeDef,
 } from '../../../data/v2/tree';
-import { COLUMN_DEPT, QUALITY } from '../../../data/v2/teams';
+import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { fmtDate, dateOf } from '../core/time';
 import { hash32 } from '../core/rng';
+import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
-import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
+import { PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
@@ -137,7 +138,7 @@ export function nodeStatus(s: GameStateV2, id: string): NodeStatus {
   if (nodeKnown(s, id)) return 'known';
   if (n.soon) return 'soon';
   const st = s.player.tree[id];
-  if (st?.cap?.stage === 'adopting' || st?.cap?.stage === 'result') return 'active';
+  if (st?.cap?.stage === 'adopting') return 'active';
   if (st?.status === 'failed') return 'failed';
   const queued = s.player.research.queue.includes(id);
   if (queued) return teamsOn(s, id).length > 0 ? 'active' : 'queued';
@@ -164,18 +165,14 @@ export function nodeOdds(s: GameStateV2, id: string): number {
   return base * (s.player.tree[id]?.priorMult ?? 1);
 }
 
-/** One team's capacity on a node: heads/40 × quality × 1.5 in its specialty. */
-export function teamCapacity(t: Pick<Team, 'heads' | 'quality' | 'specialty'>, n: Pick<TreeNodeDef, 'column'>): number {
-  return (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
-}
 
 /** Capacity on a project (optionally with a team added or removed). */
 export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?: string): number {
   const n = node(id);
   if (!n) return 0;
   let c = 0;
-  for (const t of s.player.teams) if (t.projectId === id && t.id !== remove && t.id !== add?.id) c += teamCapacity(t, n);
-  if (add) c += teamCapacity(add, n);
+  for (const t of s.player.teams) if (t.projectId === id && t.id !== remove && t.id !== add?.id) c += teamCapacity(t, n.column);
+  if (add) c += teamCapacity(add, n.column);
   return c;
 }
 
@@ -414,13 +411,13 @@ function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
         const n = node(id) as TreeNodeDef;
         const c = cap.get(id) ?? 0;
         // An unstaffed project outranks any gain (queue order, then specialty); else days cut × priority weight.
-        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n))) * Math.pow(PRIORITY_W, r);
+        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n.column))) * Math.pow(PRIORITY_W, r);
         if (!best || score > best.score + 1e-9) best = { t, id, score };
       }
     }
     if (!best) break;
     best.t.projectId = best.id;
-    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, node(best.id) as TreeNodeDef));
+    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, (node(best.id) as TreeNodeDef).column));
     left.splice(left.indexOf(best.t), 1);
   }
   if (dept !== 'saf') return;
@@ -501,7 +498,7 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   // Model v3 V2: capability projects. Failed ones leave the queue; the rest run the lifecycle.
   for (let i = q.length - 1; i >= 0; i--) if (isCapProject(node(q[i])) && p.tree[q[i]]?.status === 'failed') q.splice(i, 1);
   const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
-  capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw), payoffOf(s, 'P13'));
+  capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw));
   for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
@@ -586,13 +583,11 @@ export function optionLocked(s: GameStateV2, slot: OptionSlot, value: string | b
   return nodeKnown(s, id) ? undefined : `Needs ${n.name} (Research)`;
 }
 
-/** How much a node's effect pays off now (0..1): P13 with the internal model's RSCH (6.5 → 8.5), P20 with the agent
- *  pool (2M H100e), P24 with the AI share of experiment labour as the research engine ran it (1 − 1 ÷ m_EXP, research.last; 50% → 90%). 1 for every other node. */
+/** How much a node's effect pays off now (0..1): P20 with the agent pool (2M H100e); 1 for every other node. RD-E01a
+ *  removed P13's and P24's payoffs; P20's goes with RD-E01b (a typed AI-labour effect), and this function with it. */
 export function payoffOf(s: GameStateV2, id: string): number {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-  if (id === 'P13') return clamp01((measuredDomain(s, 'RSCH') - 6.5) / 2);
   if (id === 'P20') return clamp01((s.player.computeOnline * (s.player.split.routine + s.player.split.frontier)) / 2e6);
-  if (id === 'P24') return clamp01((1 - 1 / Math.max(1, s.player.research.last?.x?.mExp ?? 1) - 0.5) / 0.4);
   return 1;
 }
 

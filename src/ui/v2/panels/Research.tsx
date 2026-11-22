@@ -82,7 +82,7 @@ function effortRows(n: TreeNodeDef): { label: ReactNode; value: string }[] {
   if (!isCapProject(n)) return [{ label: <Term id="teamMonth">Team-months</Term>, value: F.num(e.sci, 1) }];
   return [
     { label: <Term id="stageIdeation">{`Science: ideas for ${PICK_AT} candidates`}</Term>, value: `${F.num(e.sci, 1)} team-months` },
-    { label: <Term id="stageSmall">Experiments: small and scale tests</Term>, value: `${F.num(e.exp, 1)} team-months` },
+    { label: <Term id="stageSmall">Experiments: small and big tests</Term>, value: `${F.num(e.exp, 1)} team-months` },
   ];
 }
 
@@ -278,7 +278,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {efRow(<ICON.capabilities size={13} style={{ color: C.cap }} />, 'Capability', n.cap ?? 'none', n.fx.cap && n.fx.cap < 0 ? 'tone-neg' : '')}
         {efRow(<ICON.safety size={13} style={{ color: C.und }} />, 'Safety', n.saf, n.fx.saf && n.fx.saf < 0 ? 'tone-neg' : 'tone-pos')}
         {efRow(<ICON.cash size={13} />, 'Cost', n.cost, 'tone-warn')}
-        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}{payoff !== undefined && n.paradigm && ['P13', 'P20', 'P24'].includes(n.id) ? <b className="num"> · now {F.pct(payoff)}</b> : null}</span></div>}
+        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}{payoff !== undefined && n.paradigm && n.id === 'P20' ? <b className="num"> · now {F.pct(payoff)}</b> : null}</span></div>}
       </div>
       <div className="sec">
         <div className="k"><Term id="odds">Odds</Term></div>
@@ -294,9 +294,9 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         <div className="sec">
           <div className="k"><Term id="projectKind">{n.kind === 'line' ? 'Line' : n.kind === 'axis' ? 'Axis' : 'Idea'}</Term></div>
           <Tip as="div" content={() => <TipCard title={<Term id="projectStage">Stages</Term>} rows={[
-            { label: <Term id="stageIdeation">Ideation, per candidate</Term>, value: `${F.num(sg.idea, 1)} team-months` },
-            { label: <Term id="stageSmall">Small experiments</Term>, value: `${F.num(sg.small, 1)} team-months` },
-            { label: <Term id="stageScale">Scale test</Term>, value: `${F.num(sg.scale, 1)} team-months` },
+            { label: <Term id="stageIdeation">Ideas, per candidate</Term>, value: `${F.num(sg.idea, 1)} team-months` },
+            { label: <Term id="stageSmall">Small test</Term>, value: `${F.num(sg.small, 1)} team-months` },
+            { label: <Term id="stageScale">Big test</Term>, value: `${F.num(sg.scale, 1)} team-months` },
           ]}>At the leader lab's day-0 inputs; your teams, research engineers and compute set the speed (Projects tab).</TipCard>}>
             <div className="row-i small"><span className="lay">{effortClassOf(n)}</span><span><Term id="teamMonth">team-months</Term> per stage: <b className="num">{F.num(sg.idea, 1)} · {F.num(sg.small, 1)} · {F.num(sg.scale, 1)}</b></span></div>
           </Tip>

@@ -28,8 +28,8 @@ import {
 } from '../../../data/v2/agendas';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { RISK_KAPPA } from '../../../data/v2/research';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
-import { QUALITY } from '../../../data/v2/teams';
+import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
+import { teamCapacity } from '../departments/capacity';
 import { hash32 } from '../core/rng';
 import { safetyPoolClaims } from '../departments/agents';
 import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
@@ -111,7 +111,7 @@ function readStage(s: GameStateV2, n: TreeNodeDef, c: SafCandidate, stage: 'smal
 
 /** Science capacity and taste of the teams on a project. Taste: each team's E[max(human, AI)] on the AIFM taste
  *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
- *  fit and cover φ = Trusted to AI while the safety agents work on ideas (model v3 E2; departments/workfit.ts); on the
+ *  fit, weighted by AI's share of the SAF_IDEAS labour (DD-13; departments/workfit.ts aiIdeasShare); on the
  *  benchmarked agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). */
 export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; heads: number } {
   const n = node(id);
@@ -125,10 +125,10 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
   let heads = 0;
   for (const t of s.player.teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
+    const c = teamCapacity(t, n.column);
     cap += c;
     heads += t.heads;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.phi, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.sAI, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
 }

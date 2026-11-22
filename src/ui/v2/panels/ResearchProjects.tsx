@@ -5,7 +5,7 @@
 // One home per datum: research speed lives on Company › Flow, research engineers' needs on Company › Work (links).
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
-import { addableProjects, capPriorityList, dateOf, fmtDate, PROJECT_MAX_TEAMS, STAGES } from '../../../engine/v2';
+import { addableProjects, capPriorityList, dateOf, fmtDate, PROJECT_MAX_TEAMS, STAGES, UNLOCK_STAGES } from '../../../engine/v2';
 import type { CapProjectView, GameStateV2, StageId } from '../../../engine/v2';
 import { COLUMN_LABEL, QUALITY } from '../../../data/v2/teams';
 import type { Column } from '../../../engine/v2';
@@ -16,9 +16,9 @@ import { ICON } from '../icons';
 import * as F from '../fmt';
 
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const STAGE_LABEL: Record<StageId, string> = { ideation: 'Ideation', small: 'Small experiments', scale: 'Scale test', result: 'Result', adoption: 'Adoption' };
-const STAGE_SHORT: Record<StageId, string> = { ideation: 'Ideation', small: 'Small exp.', scale: 'Scale test', result: 'Result', adoption: 'Adoption' };
-const STAGE_TERM: Record<StageId, string> = { ideation: 'stageIdeation', small: 'stageSmall', scale: 'stageScale', result: 'stageResult', adoption: 'stageAdoption' };
+const STAGE_LABEL: Record<StageId, string> = { test: 'Test', ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
+const STAGE_SHORT: Record<StageId, string> = { test: 'Test', ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
+const STAGE_TERM: Record<StageId, string> = { test: 'stageTest', ideation: 'stageIdeation', small: 'stageSmall', scale: 'stageScale', adoption: 'stageAdoption' };
 const STACK_NAME: Record<string, string> = { pre: 'pretraining', rlMid: 'RL efficiency', rlCeil: 'RL ceiling', train: 'training throughput', serve: 'serving' };
 const RISK_OPTS = [{ v: 'safe', label: 'Safe' }, { v: 'balanced', label: 'Balanced' }, { v: 'speculative', label: 'Speculative' }] as const;
 
@@ -34,20 +34,23 @@ export const fmtEff = (x: number, unit: CapProjectView['unit'] = 'oom', signed =
   const d = a === 0 ? 2 : a < 0.01 ? 4 : a < 0.1 ? 3 : 2;
   return `${s}${a.toFixed(d)}`;
 };
+/** RD-R05: an unlock project's steps (test, build-in); the idea pipeline's four otherwise. */
+const stagesOfView = (v: CapProjectView): readonly StageId[] => (v.unlock ? UNLOCK_STAGES : STAGES);
 const sci = (x: number) => (x > 0 ? x.toExponential(1).replace('e+', 'e') : '0');
 const Q_N = { solid: 1, strong: 2, elite: 3 } as const;
 
-/** Five-step stage track: done steps filled, the current one partial, later ones empty. */
+/** Four-step stage track: done steps filled, the current one partial, later ones empty. */
 export function StageTrack({ v, big = false }: { v: CapProjectView; big?: boolean }) {
-  const cur = STAGES.indexOf(v.stage);
+  const steps = stagesOfView(v);
+  const cur = steps.indexOf(v.stage);
   const failed = v.state === 'failed';
   return (
     <div className={`rp-track ${big ? 'big' : ''} ${failed ? 'failed' : ''} ${v.state === 'waiting' ? 'waiting' : ''}`} data-test={`track.${v.id}`} data-stage={v.stage}>
-      {STAGES.map((st, i) => (
+      {steps.map((st, i) => (
         <Tip key={st} content={() => <TipCard title={<Term id={STAGE_TERM[st]}>{STAGE_LABEL[st]}</Term>} value={i < cur ? 'done' : i === cur ? (st === 'adoption' ? `engineers: ${eta(v.adoption?.eta ?? Infinity)}` : F.pct(v.stageFrac)) : 'later'}>
-          {st === 'ideation' ? `Candidates found: ${v.cands} (the team tests one once it has ${v.pickAt}).` : st === 'adoption' && v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left.` : undefined}
+          {st === 'test' ? `Chance it works: ${F.pct(v.odds)}. Science teams, research engineers and compute do the work; then it works or it doesn't.` : st === 'ideation' ? `Candidates found: ${v.cands} (the team tests one once it has ${v.pickAt}).` : st === 'adoption' && v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left.` : undefined}
         </TipCard>}>
-          <i className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{i === cur && <b style={{ width: `${Math.round((st === 'result' || st === 'adoption' ? 1 : v.stageFrac) * 100)}%` }} />}</i>
+          <i className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{i === cur && <b style={{ width: `${Math.round((st === 'adoption' ? 1 : v.stageFrac) * 100)}%` }} />}</i>
         </Tip>
       ))}
     </div>
@@ -105,12 +108,15 @@ function Binds({ v }: { v: CapProjectView }) {
 }
 
 function Next({ v }: { v: CapProjectView }) {
-  const label = v.state === 'failed' ? 'failed' : v.state === 'adopting' ? `build ${eta(v.adoption?.eta ?? Infinity)}` : v.want === 0 && !v.teams.length ? (v.stage === 'small' || v.stage === 'scale' ? 'test only' : 'paused') : eta(v.eta);
+  const label = v.state === 'failed' ? 'failed' : v.state === 'adopting' ? `build ${eta(v.adoption?.eta ?? Infinity)}` : v.want === 0 && !v.teams.length ? (v.stage === 'small' || v.stage === 'scale' || (v.stage === 'test' && v.re > 0) ? 'test only' : 'paused') : eta(v.eta);
   return (
-    <Tip content={() => <TipCard title={v.kind === 'line' ? 'Next result' : 'Result'} value={label} rows={v.state === 'adopting' ? [{ label: <Term id="stageAdoption">Engineers</Term>, value: v.adoption ? `${v.adoption.tw.toFixed(1)} team-weeks left` : 'queued' }] : [
-      { label: <Term id="stageIdeation">Ideation</Term>, value: eta(v.etaParts.ideation) },
-      { label: <Term id="stageSmall">Experiments</Term>, value: eta(v.etaParts.experiments) },
-    ]}>{v.wait ? v.wait : 'At today\'s teams, research engineers and compute; candidates can be dropped, which restarts ideation.'}</TipCard>}>
+    <Tip content={() => <TipCard title={v.kind === 'line' ? 'Next result' : 'Result'} value={label} rows={v.state === 'adopting' ? [{ label: <Term id="stageAdoption">Build-in</Term>, value: v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left` : 'queued' }] : v.unlock ? [
+      { label: <Term id="stageTest">Test</Term>, value: eta(v.etaParts.experiments) },
+      { label: <Term id="odds">Chance it works</Term>, value: F.pct(v.odds) },
+    ] : [
+      { label: <Term id="stageIdeation">Ideas</Term>, value: eta(v.etaParts.ideation) },
+      { label: <Term id="stageSmall">Small and big tests</Term>, value: eta(v.etaParts.experiments) },
+    ]}>{v.wait ? v.wait : v.unlock ? 'At today\'s teams, research engineers and compute; when the test ends it works or it does not.' : 'At today\'s teams, research engineers and compute; candidates can be dropped, which restarts the ideas step.'}</TipCard>}>
       <span className={`num ${v.state === 'failed' ? 'tone-neg' : ''}`} data-test={`next.${v.id}`}>{label}</span>
     </Tip>
   );
@@ -247,7 +253,8 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
   if (!v) return <Card className="rp-card" title="Project"><div className="dim small">Add a capability project to see its stages, beliefs and inputs.</div></Card>;
   const Ic = COL_ICON[v.column as Column];
   const unitLbl = v.unit === 'oom' ? 'OOM' : v.unit === 'design' ? 'of design' : '';
-  const cur = STAGES.indexOf(v.stage);
+  const steps = stagesOfView(v);
+  const cur = steps.indexOf(v.stage);
   const cMax = Math.max(v.c, v.l, 1);
   const rel = (x: number) => Math.min(100, (Math.log10(1 + x) / Math.log10(1 + cMax * 1.2)) * 100);
   return (
@@ -255,9 +262,9 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       sub={<span className="row-i"><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{v.kind}</Term></span><span>{v.area}{v.stack ? ` · ${STACK_NAME[v.stack]} stack` : v.unit === 'design' ? ' · domain effect' : ' · unlock'}</span></span>}
       right={<span className="row-i">{v.state !== 'failed' && <ActBtn id="research.dequeue" params={{ id: v.id }} icon={X} label="Remove" testId={`dequeue.${v.id}`} />}<button className="btn btn-sm btn-ghost" data-test="project-tree" onClick={() => { setUi('sel', v.id); store.setTab('research', 'tree'); }}>Tree ›</button></span>}>
       <StageTrack v={v} big />
-      <div className="rp-tlab">{STAGES.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
+      <div className="rp-tlab">{steps.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation' || st === 'test') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
       <div className="rp-secs">
-      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">Failed: gave up after {v.maxDrops} weak candidates. Weak results can be bad luck, so the direction may still work.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
+      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">{v.unlock ? <>The test showed it does not work on this attempt. A speculative reopening works with odds {F.pct(v.odds)}.</> : <>The team gave up after {v.maxDrops} weak candidates. Weak results can be bad luck: a speculative reopening works with odds {F.pct(v.odds)}.</>}</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
       {(v.belief || v.result) && (
         <Sec k={v.result && !v.belief ? 'Result · estimate at your latest base' : 'Belief · candidate in test'} term="beliefBand">
           {v.belief && <BeliefBand mu={v.belief.mu} sd={v.belief.sd} ref={v.line?.nextPrior !== undefined ? v.line.nextPrior * v.belief.b : undefined} unit={v.unit} />}
@@ -267,7 +274,8 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
           {v.result && <KVr k={<Term id="stageResult">Estimate at latest base</Term>} v={`${fmtEff(v.result.est, v.unit)} ± ${fmtEff(v.result.estSd, v.unit, false)} ${unitLbl}`} tip={() => <TipCard title={<Term id="stageResult">Result</Term>} value={fmtDate(dateOf(s, v.result?.day ?? 0))}>The final estimate band. The true effect shows on Recipe once a model trained with it is evaluated.</TipCard>} />}
         </Sec>
       )}
-      {v.kind !== 'line' && v.state !== 'failed' && <Sec k="Odds" term="odds"><KVr k="Works in this world" v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Odds</Term>} rows={[{ label: 'Candidates dropped', value: `${v.drops} of ${v.maxDrops}` }, { label: 'Speculative reopenings', value: String(v.spec) }]}>Three dropped candidates in a row end the project as failed.</TipCard>} /></Sec>}
+      {v.unlock && v.state !== 'failed' && v.state !== 'known' && <Sec k="Test" term="stageTest"><KVr k={<Term id="odds">Chance it works</Term>} v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Chance it works</Term>} rows={[{ label: 'Speculative reopenings', value: String(v.spec) }]}>One test: when its work is done it works (the engineers build it in) or it does not (reopen at half the odds).</TipCard>} />{v.state !== 'adopting' && <KVr k="Time left" v={eta(v.eta)} tip={() => <TipCard title={<Term id="stageTest">Test</Term>} value={F.pct(v.stageFrac)}>At today's science teams, research engineers and compute.</TipCard>} />}</Sec>}
+      {v.kind !== 'line' && !v.unlock && v.state !== 'failed' && <Sec k="Odds" term="odds"><KVr k="Works in this world" v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Odds</Term>} rows={[{ label: 'Candidates dropped', value: `${v.drops} of ${v.maxDrops}` }, { label: 'Speculative reopenings', value: String(v.spec) }]}>Three dropped candidates in a row end the project as failed.</TipCard>} /></Sec>}
       {v.state !== 'failed' && v.state !== 'adopting' && (
         <Sec k="Inputs today" term="prodfn">
           <div className="rp-bars">
@@ -288,7 +296,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
         </Sec>
       )}
       <Sec k="Science teams · why here" term="scienceWhy">
-        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? (v.stage === 'small' || v.stage === 'scale' ? 'Teams wanted 0: no new candidates; the test in progress continues.' : 'Teams wanted 0: paused.') : 'None placed: higher-priority projects took the teams.'}</div>}
+        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? (v.stage === 'test' ? 'Teams wanted 0: research engineers and compute carry the test on.' : v.stage === 'small' || v.stage === 'scale' ? 'Teams wanted 0: no new candidates; the test in progress continues.' : 'Teams wanted 0: paused.') : 'None placed: higher-priority projects took the teams.'}</div>}
         {v.teams.map((t, k) => {
           const TI = t.specialty ? COL_ICON[t.specialty as Column] : ICON.roleSci;
           // F6d: teams of the same specialty are numbered (two "Pretraining" rows read as a duplicate).

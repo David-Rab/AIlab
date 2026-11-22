@@ -1220,3 +1220,200 @@ One flat compute allocation to uses (theme A, SAFETY-REDESIGN §5, DD-19). Moves
   use keeps its compute; hygiene rev pins → 52. Retired: safety suite "RD-B07" claims test.
 - **Check:** `npx tsx scripts/v2/_a05a/check.ts` (sums, presets, readers, migration of a rebuilt rev-51 save with a
   budget above need and an open case: same H100e per use). Untracked scratch `scripts/v2/_a05a/ed*.cjs` (edit scripts).
+### RD-A01
+- **One capacity function:** `src/engine/v2/departments/capacity.ts` `teamCapacity(team, column)` (heads ÷ CAPACITY_UNIT
+  × quality × SPECIALTY_BONUS in the specialty) and `reCapacity(team)` (heads ÷ TEAM_SIZE.re × quality). Replaces
+  models/research.ts `sciCapacity` and `reCapacity`, models/tree.ts `teamCapacity(t, node)`, safety/agendas.ts `capOn`,
+  and the inline copies in safety/lineProjects.ts `safSciOn` and departments/workfit.ts `ag17Capacity`. selectors.ts
+  re-exports it from the new module. Not merged: teams.ts / investigations.ts sum raw heads × quality (another unit).
+- **RE constants:** RE_UNIT and RE_PER_PROJECT are different quantities that happen to be equal (2): a fixed unit of
+  measure for experiment labour (ℓ = 1; also scales C_UNIT_FLOP_PER_DAY) vs a per-project allocation cap (policy).
+  Kept both, renamed `RE_LABOUR_UNIT` (data/v2/workTypes.ts) and `RE_MAX_PER_PROJECT` (data/v2/research.ts).
+- **Checks:** tsc (app and scripts/v2) clean; grep shows one definition of each. Targeted check (one-off, not kept):
+  756 team × column combinations, new functions bit-identical (Object.is) to the old formulas.
+- **Moves calibration:** no.
+
+### RD-R06
+- **Drop rule (CAP-09):** `models/research.ts` `dropRule(score, underFloor, alts)`. After a test reading a candidate is
+  dropped only when its updated score (μ + κσ, the pick's score) is under the existing absolute floor (small: DROP_FRAC ×
+  prior mean; scale: SURVIVE_FRAC of the small estimate or the floor, on xT + κ·|xT|·TEST_READ_SD) AND under the best
+  remaining pool score (scale test: pool scores × E[1000^s] under the scale prior, or a batch's survivor factor). Empty
+  pool or score ≤ 0 under the floor: dropped (a fresh idea / doing nothing is better). Dropped candidates are not kept
+  as "tested, weak" (not cheap: the pool would re-pick them).
+- **Give up:** `giveUpText`: "the team gave up after 3 weak candidates (last: …). Weak results can be bad luck: the
+  chance it works is still X% (this attempt's odds). Reopening as speculative tries again at Y%." The Research card's
+  failed line shows the reopen odds. Reopen already starts a new attempt at 0 drops (freshCap; now checked).
+- **Checks:** tsc (app and scripts/v2) clean; `tsx scripts/v2/research.ts --rd-r06` (better than the pool's best is
+  kept; text shows the odds; drops reset on reopen).
+- **Moves calibration:** maybe (fewer drops when the pool is weak; κ now enters the floor: safe drops more, speculative
+  less).
+
+### RD-R07
+- **Four stages.** `CapStage` loses `result` (types.ts): when the scale test passes, resolveStage sets `adopting` at once
+  (it was set to `result` and overwritten by queueAdoption the same day, so no save holds it: no migration, SCHEMA_REV
+  stays 47). researchView `STAGES` = ideation, small, scale, adoption; tree status, capProgress and stepProject drop the
+  `result` checks. Player-facing names (ResearchProjects stage track, labels, Next tip; Research node card / effort
+  rows; glossary titles): Ideas → Small test → Big test → Build-in. The term `stageResult` stays as "Result estimate"
+  (the band read when the big test ends, not a step).
+- **One effort number.** For capability ideas and axes `effortTM` is now the whole stage work the engine runs (PICK_AT ×
+  idea + small + scale team-months = effortOfNode's sum); `IDEA_STAGES` are shares of it (old weights ÷
+  `IDEA_WORK_PER_E` 1.2), unfitted default `IDEA_DEFAULT_TM` 9.6 (was 8 × 1.2 implicitly). FITTED_EFFORT_TM and the
+  capability entries of V2_PARADIGM_EFFORT_TM restated ×1.2 (P13 95.544, etc.; P27 not a staged project: 24 kept), so
+  every stage's work is unchanged. calib --fit-tree now fits in these units.
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes; `tsx scripts/v2/research.ts --rd-r07` (four stages;
+  effort shown = stagesOf sum = effortTM for every capability idea / axis; P13 stage work unchanged; no result stage
+  reached in the engine or the view on a working elastic run).
+- **Moves calibration: no** (stage work identical up to floating point; the removed stage lasted zero days).
+
+### RD-R05
+- **Unlock projects (CAP-13, DD-14):** `isUnlockProject(n)` = a capability idea / axis without a typed effect (no stack,
+  domains, data or expert: 22 nodes, e.g. rl.* focus nodes, scienceData, multimodal, P05–P08, P13–P15, P17–P20,
+  P23–P25). They skip ideas / small test / big test: one stage `test` (CapStage) with `CapProjectState.trial` {work,
+  workNeed = trialWork(n) = the stagesOf sum = effortTM, flop, buildId}. Each day the science teams (ideation rate:
+  (m_IDEAS × capacity)^λ × taste × speed / 30) and the experiment CES (research engineers + the project's FLOP, as
+  `experimenting` now includes stage `test`) add to the same work. When it is done the hidden per-world `works()` draw
+  decides: works → build-in (ADOPT_TW.unlock), known on completion; doesn't → failed, reopen as speculative at the
+  lower odds (unchanged). No candidates, no belief or effect band, no drops (maxDrops 0). capEta / capProgress read
+  the trial. An older save's unlock mid-pipeline is restated on its next day at its progress (trialOf; no schema bump);
+  one already building in finishes on the old path.
+- **View / UI:** CapProjectView `unlock`; `UNLOCK_STAGES` = test, adoption (StageId gains `test`); Projects shows
+  Test → Build-in, a "Test" section with "Chance it works" and "Time left", Next tooltip rows Test / Chance it works,
+  unlock failure text ("the test showed it does not work on this attempt"). Glossary `stageTest` added (GLOSSARY.md
+  not regenerated). Ref bot treats stage `test` as in progress.
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes; `tsx scripts/v2/research.ts --rd-r05` (unlock set
+  = no typed effect; three day-0 unlocks run with no candidates / band, one test of trialWork, outcome = the works draw).
+- **Moves calibration: maybe** (unlock timing now one pooled work stage with no drops or give-ups: unlocks that used to
+  fail by three weak draws on a working direction now land; science teams' time counts toward the whole effort).
+
+### RD-E03
+
+Headroom removed (DD-12; SYNTHESIS §6 Phase 3; CAP-18). Commit eb8792d.
+- **Stacks:** an adopted idea adds its full true effect at build-in: `addIdea` has no headroom part, `StackBucket` is
+  `{ s, a }`, `stackAt` = base + adoptedAt. `headroomAt`, `headroomTotal`, `tuneDay` and HEADROOM are gone.
+- **Research engineers:** routine tuning is gone as a need (ReNeed = ops / evals / exp; TUNE_K, TUNE_RE_PER_OOM from
+  RD-B08, the tuning branch of capResearchDay). `expShares` divides the pool over RE_MAX_PER_PROJECT per project in
+  experiments; a project with no research engineers leaves its share unused (what RD-B08 already did with no
+  headroom). Spare research engineers are idle: new readout `research.last.idle`; Company › Work already lists "idle"
+  (overflow tip reworded); the hire preview's fallback line reads idle research engineers instead of tuning.
+- **UI / copy:** Recipe drops the headroom row and bar segment (make-up = start and public knowledge + adopted);
+  glossary `headroom` / `routineTuning` removed; stageAdoption, recipeStack, reNeeds, diffusion, publicKnowledge and
+  LIMITS speed.diffusion reworded.
+- **Schema:** SCHEMA_REV 48 (first bump on p3-c). Migration 47 → 48 delivers each bucket's remaining headroom (drops
+  `h`, so the effect is the whole `a`) and drops 'tune' from `research.re` (order, max, share) and `last.re`.
+- **Tests:** `tsx scripts/v2/research.ts --rd-e03` (adopted idea's full effect in the stack at build-in, bucket fields
+  `a,s`; no 'tune' need, idle readout = capacity − needs, an order naming tune is ignored; a rev-47 save loads with
+  headroom delivered and no tune). Old headroom / tuning checks in research.ts rewritten (overflow → idle; RD-B08
+  (a) idle only after every project is full, (c) projects take the whole pool; RD-B16 an idea moves Software progress
+  by its whole effect); evals EV3 order check reworded (evals last / capped at 0); hygiene rev asserts 48; lint-ux term
+  list drops headroom / routineTuning. Not run: the full research suite, evals, hygiene, test:cal (RD test rule; CP2).
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
+- **Moves calibration: yes** (the 30% of every adopted idea that waited for tuning now lands at once, and the research
+  engineers tuning held go idle; expect earlier milestones, most on presets with many adoptions; refit at CP2).
+
+### RD-A03
+
+Science-team planner by value (CAP-08; SYNTHESIS theme A, §6 Phase 3). Commit faa8d47.
+- **Value:** `models/research.ts` `projectValue(s, id)` = expected value per day (lab-wide software OOM) as a function of
+  the capacity C and capacity-weighted taste q on a project; ideation at (m_IDEAS·C)^λ × q × speed per team-month of
+  ideation work (as stepProject). Line: candidates/day × the pool's prior mean of a batch (`valueOom`). One-off idea in
+  ideation: candidates/day ÷ PICK_AT × attempt odds × prior mean (taste's lift included). Unlock: (science work + the
+  experiment CES work)/day ÷ trialWork × odds × `VALUE_PROXY.unlock`. Proxies [D] (data/v2/research.ts `VALUE_PROXY`):
+  a domain OOM = 0.1 software OOM; an unlock or a data / expert-data effect = 0.05 OOM × its size (about one mid-sized
+  stack idea). `assignmentValue(s, projects, teams)` sums projectValue (signature gained `s`).
+- **Release in tests:** `releasesTeams(n, st)`: a one-off idea (typed effect, not a line) in stage small / scale gets no
+  teams and value 0 (its new candidates only mattered after a drop); lines keep ideating; an unlock's test keeps them.
+  `takesTeams` unchanged (capEta, tree status, ref bot).
+- **Planner:** priority pass (teams wanted, best specialty first) unchanged except released projects are skipped; the
+  swap pass and the spare pass maximise value. Spares: auto projects first, then any project under PROJECT_MAX_TEAMS,
+  by marginal value × AUTO_RANK_W per rank (spares no longer all join the top project when every project is fixed);
+  no gain anywhere: idle. "Why here": the reason (priority / swapped / auto / spare, specialty) + "adds ~x% to this
+  project's yearly gain" (value with the team ÷ without − 1; a sole team "carries all of this project's yearly gain").
+- **Tests:** `tsx scripts/v2/research.ts --rd-a03` (a one-off idea in its small test gets no team, a line in its test
+  keeps one, back in ideation it gets one; the spare goes to P16 over the top-ranked elastic, gains shown; every why
+  states the value). B4 check updated: all-fixed spares go by value (no longer 4 on the top project); brute-force
+  check now on value. Not run: the full research suite, test:cal (RD test rule; CP2).
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
+- **Moves calibration: yes** (teams leave one-off ideas during their tests and spares follow effect size: more science
+  on lines and big-effect ideas, P13-type projects' ideation pace changes; refit at CP2).
+
+### RD-R08
+
+Batching as an internal expected flow (SYNTHESIS RD-R08; CAP-11). Commit 9f55e90.
+- **No batches:** every line candidate is one idea (`batchOf` removed; capEta and projectValue read one idea per
+  candidate). `Candidate.b` stays for old saves (atTest's batch path still reads in-flight b > 1 candidates).
+- **Flow:** at experiment throughput X the line's day splits: share φ = clamp(X / PACE_BATCH − 1, 0, 1) runs `stepFlow`,
+  the rest the explicit pipeline (its ideation and experiment time × (1 − φ)). The flow tests k = min(ideas ÷ ι, work ÷ w)
+  ideas a day; per tested idea w (work: small + scale if it passes), g (kept true effect at test scale ÷ prior mean), p
+  (kept ideas), sx (survivors' effect-weighted scale exponent), ι (ideas ideated) come from `flowStats`: the explicit
+  rules (newCandidate draws, addCandidate / pickCandidate pool, both dropRule tests, SURVIVE_FRAC) simulated on 1500
+  single-idea tests with fixed hash draws (seed-independent; cached per line, κ, grid point), bilinear in log taste and
+  log ρ (ideas ideated per test, from ideation vs experiment capacity). All of it is in prior-mean units, so it holds at
+  any pool state. The pool advances test by test (≤ 256 sub-steps a day) by g × the prior mean at the pool then.
+- **Results:** one `CapResult` a day with `flow = { x, s, n }` (true expected effect, exponent, ideas adopted);
+  completeAdoption uses it instead of the seed recompute; stacks count n ideas (fractional), `res.adopted` shows `b` =
+  ideas. Build-in tw = base × ideas + perOom × OOM (cap max × ideas). `gen` moves by whole adopted ideas (`flowDone`).
+- **Continuity:** φ is linear in X from PACE_BATCH to 2 × PACE_BATCH, and the flow's per-idea expectation is the explicit
+  pipeline's, so expected OOM/day has no jump at the switch (no b = ⌊X/30⌋ steps any more).
+- **Check (scripts/v2/.tmp-rdr08.ts, run alone):** L.scale, 8 seeds × 1500 days, φ = 0 vs 1 vs 0.5 at the same inputs
+  (default lab, 2 RE teams, 1 and 3 science teams): flow OOM/day +0.9% / +2.2%, ideas/day +3.0% / +1.5%, φ = 0.5 −1.0% /
+  +1.2% vs the explicit pipeline (tolerance 15%). tsc main and scripts clean.
+- **Limits:** an explicit test in flight when φ reaches 1 waits until throughput falls; flowStats draws T per candidate
+  (the explicit pipeline shares it per generation).
+- **Moves calibration: maybe** (above X = 30 the old batches' survivor factor and drop rule are replaced by the
+  single-idea rules in expectation; engineers' build-in cost per idea rises to the explicit pipeline's).
+
+### RD-E02
+
+AI taste per DD-13: one ideas channel (SYNTHESIS RD-E02; CAP-05). Commit f34119b.
+- **Weight:** `aiIdeasShare(H, assist, L) = max(0, 1 − H·assist ÷ L)` (departments/workfit.ts): AI's share of the
+  slot's effective labour above what the (assisted) humans make alone. Team taste = (1 − s)·human + s·E[max(human, AI)]
+  (teamTaste, its `phi` argument renamed `sAI`). Chosen over the margin share 1 − wH because with ρc = −2 (complements)
+  1 − wH is ~1 at near-zero AI compute (AI the bottleneck) and falls to 0 as AI grows: the wrong direction. The chosen
+  share is 0 with no AI FTE, rises with AI compute and saturates, at fixed coverage A, at 1 − (1 − A)^1.5 (→ 1 as A → 1),
+  so AI taste spreads with coverage, not with a compute-share ratio. Assisted human work keeps human taste.
+- **Where:** `LabourOf.sAI` on every slot; `WorkContext.sAI = slots.IDEAS.sAI` (capabilities: research.ts sciOn /
+  taste fn, production.ts); `SafetyLabour.sAI = ideas.sAI` (SAF_IDEAS via handedLabour, so Trusted to AI enters through
+  A = t·a; 0 at t = 0) read by safety/lineProjects.ts safSciOn; rivals (actors/rivalModel.ts rawAggregate / rawEI):
+  `rivalTaste` from their aggregate ideation LI (S scientists, aI, assistI), replacing φ = 1. φ deleted (frontier share
+  ÷ DEFAULT_CAP_SHARES.capFrontier; the unused import removed).
+- **Check (scripts/v2/.tmp-rde02.ts, run alone, untracked):** default lab, frontier model +4 OOM, agent compute × 0 …
+  10⁵: s 0 → 0.48 → 0.93 → 0.946 (saturated), lift 1.000 → 1.85 → 2.64 → 2.676; zero compute gives human taste exactly;
+  rival taste 1.000 with no agent compute, 1.005 with it (start-level coverage). At the start model (no boost) s ≈ 0.01
+  and the lift ≈ 1. tsc main and scripts clean. safetyresearch.ts E2 taste check label updated (not run).
+- **Moves calibration: yes** (rivals and the player lose the full AI-taste lift until IDEAS coverage is high: at the
+  start s ≈ 0.01 vs φ = 1 before; rivals' ideation I has taste², so their early research input falls; refit at CP2).
+
+### RD-E01a
+
+Paradigm typed effects, part 1 (DD-14; SYNTHESIS RD-E01a; CAP-02). Commit abaffe7.
+- **P13 deleted** (automated AI research agents: ×(1 + 0.5·payoff) experiment FLOP, applied in research.ts and again in
+  production.ts): AI labour in the EXP slot already models research agents. p13Mult and the `p13` parameter of
+  researchInputs / experimentRate / stepProject / capResearchDay are gone, and so is the P13 → U17 ×1.5 presence
+  modifier (UMODE_PRESENCE.p13U17; sabotage presence now has no research-automation term, revisit in the safety
+  redesign if wanted).
+- **P19 deleted** with RSCH_TASTE_PENALTY (−0.5 L on the RSCH display level; work fit never had it). domainsOf /
+  refreshLevels / domainG lose the P19 argument; the serving fit memo loses its P19 key. Display RSCH is +0.5 L for
+  every lab and model.
+- **New `needs`:** P15, P16, P24, aar → `['rl.mlResearch']` (P13's own prerequisite); P21 → `['P08', 'rl.mlResearch']`.
+  RefBot (REF_TREE) drops its P13 / P19 goals.
+- **P24** is `kind: 'idea'`, `effect: { stack: 'pre', mean: 0.96, sd: 0.4 }` (OOM of pretraining efficiency, scale-
+  invariant): prior mean = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 [D]. It runs the normal
+  idea pipeline and lands in the pretraining stack at build-in, so a base launched later freezes it in recipe.pre.
+  p24Dg, BaseFreeze.p24, RunRecipe.p24 and its payoff ("AI share of research labour 50% → 90%") are gone.
+- **payoffOf** stays, P20 only (its ×(1 + 0.1·payoff) agent multiplier is RD-E01b's); the Research card shows a payoff %
+  for P20 only.
+- **Draw order:** world/hidden.ts SKIPPED_DRAWS { P14: 0.75 (P13), P20: 0.6 (P19), P27: 0.8 (P26) } consumes each
+  deleted paradigm's draw where it was, so every other paradigm's hidden success is unchanged.
+- **Save:** SCHEMA_REV 49, migration 48 → 49: P13 / P19 paradigm, tree and draw entries dropped; each run's recipe.p24
+  added to recipe.pre (same total G); an adopted P24 gets one s = 0 pretraining-stack idea of 0.96 × its payoff on the
+  save's day; stored domain levels recomputed (player versions; rivals' internal / public models).
+- **Scripts:** hygiene rev checks → 49; research.ts RD-R07 / RD-B18 checks moved from P13 to P17 (not run);
+  data.ts RD-B02 drops its p24 condition. Left: calib.ts `--fit-tree` still lists P13 in FIT_IDS / targets (refit
+  at CP2); fixtures and golden traces regenerate at the checkpoint.
+- **Check (scripts/v2/.tmp-rde01a.ts, run alone, untracked):** no P13 / P19 node, paradigm, prerequisite, state or
+  draw; P24 is a pre-stack idea with mean 0.96; in a world where P24 works (seed 1) adopting a candidate adds its true
+  effect to the pretraining stack (+0.435 OOM) and the planned reference base's gPre moves by the same +0.435. tsc main
+  and scripts clean; `npm run build` passes.
+- **Moves calibration: yes** (the player loses P13's up-to-×1.5 experiment FLOP and P24's payoff-gated bonus becomes a
+  drawn stack idea; RSCH display levels +0.5 for every lab, which shifts anything gated on measured RSCH; RefBot no
+  longer researches P13 / P19; refit at CP2).

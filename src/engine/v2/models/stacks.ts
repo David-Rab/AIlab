@@ -8,9 +8,8 @@
 //   train   training throughput (OOM of model FLOP per chip-day: MFU × goodput), capped (TRAIN_CAP)
 //   serve   serving efficiency (OOM of serving throughput: decode utilisation up to 0.15, then less FLOP per token of
 //           new versions; serveSplit, model v3 D10)
-// e_stack = base (the start recipe and public knowledge) + Σ adopted effects − remaining headroom. An adopted idea adds
-// its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × tuning capacity × its experiment
-// throughput per day (models/research.ts); tuning wants research engineers in proportion to what remains (RD-B08).
+// e_stack = base (the start recipe and public knowledge) + Σ adopted effects. An adopted idea adds its full true effect
+// at build-in (RD-E03, DD-12: no headroom, no routine tuning).
 // Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
 // The lab's recipe compared with another lab's (secrets leaks, publish-research leaks) is recipeG at the common reference
@@ -18,7 +17,7 @@
 // player, actors/rivalModel.ts recipeOf for a rival's aggregate recipe. Model v3 F3 removed the know-how readout
 // `player.pa` that stood for it in progress-years.
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
-import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
+import { S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
 import type { GameStateV2, ModelVersion, StackKey, StackState, SystemCtx } from '../types';
 import { rlFamiliesAvailable, rlGainGeneral, rlWeights } from './effective';
@@ -35,21 +34,9 @@ export function initialStacks(lag = 0): Record<StackKey, StackState> {
 const stacksOf = (s: GameStateV2) => s.player.research.stacks;
 const lg = (F: number) => Math.log10(Math.max(1, F));
 
-/** Value of a stack at run FLOP F (OOM): base + Σ (adopted − headroom) · 10^(s·log₁₀F). */
-export function stackAt(st: StackState, F = FLOP_RL_REF): number {
-  let v = st.base;
-  const l = lg(F);
-  for (const b of st.buckets) v += (b.a - b.h) * Math.pow(10, b.s * l);
-  return v;
-}
-/** Remaining headroom of a stack at run FLOP F (OOM). */
-export function headroomAt(st: StackState, F = FLOP_RL_REF): number {
-  let v = 0;
-  const l = lg(F);
-  for (const b of st.buckets) v += b.h * Math.pow(10, b.s * l);
-  return v;
-}
-/** Adopted total (before headroom) at run FLOP F, excluding the base (OOM). */
+/** Value of a stack at run FLOP F (OOM): base + Σ adopted · 10^(s·log₁₀F). */
+export const stackAt = (st: StackState, F = FLOP_RL_REF): number => st.base + adoptedAt(st, F);
+/** Adopted total at run FLOP F, excluding the base (OOM). */
 export function adoptedAt(st: StackState, F = FLOP_RL_REF): number {
   let v = 0;
   const l = lg(F);
@@ -102,37 +89,26 @@ export function rlGOfBuild(b: { eRL: number; aRL?: number; flopPre: number }): n
 }
 
 /** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, scale exponent `sx` (0 for scale-invariant
- *  stacks). HEADROOM of it is headroom. `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
+ *  stacks), all of it at build-in (RD-E03). `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
  *  b; 0 for the second stack one idea also moves, RD-B17). */
 export function addIdea(st: StackState, x: number, sx: number, fTest: number, count = 1) {
   const sr = Math.round(sx / S_STEP) * S_STEP;
   const coef = x * Math.pow(10, -sr * lg(fTest));
   let b = st.buckets.find((y) => Math.abs(y.s - sr) < S_STEP / 2);
   if (!b) {
-    b = { s: Math.round(sr * 1000) / 1000, a: 0, h: 0 };
+    b = { s: Math.round(sr * 1000) / 1000, a: 0 };
     st.buckets.push(b);
     st.buckets.sort((p, q) => p.s - q.s);
   }
   b.a += coef;
-  b.h += HEADROOM * coef;
   st.n += count;
 }
 
-/** Public knowledge (diffusion from a leader, tacit knowledge, safety spillover): scale-invariant, no headroom. */
+/** Public knowledge (diffusion from a leader, tacit knowledge, safety spillover): scale-invariant. */
 export function addPublic(st: StackState, oom: number) {
   st.base += oom;
 }
 
-/** Remaining headroom of the lab's recipe: Σ over the stacks at the reference run FLOP (OOM). Routine tuning's
- *  research-engineer demand is proportional to it (models/research.ts reDemand, RD-B08). */
-export const headroomTotal = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + headroomAt(stacksOf(s)[k]), 0);
-
-/** One day of routine tuning: every stack's headroom shrinks by the factor exp(−k), k = TUNE_K × research-engineer
- *  team-equivalents on tuning × their experiment throughput (models/research.ts capResearchDay). */
-export function tuneDay(s: GameStateV2, k: number) {
-  const f = Math.exp(-Math.max(0, k));
-  for (const k of STACK_KEYS) for (const b of stacksOf(s)[k].buckets) b.h *= f;
-}
 
 // ───────────────────────────── G-equivalent of the recipe ─────────────────────────────
 
@@ -219,7 +195,7 @@ export function inPlaceRecipe(s: GameStateV2, v: ModelVersion): number {
 }
 
 /** Knowledge that arrives from outside (diffusion, tacit knowledge, safety spillover), dG OOM of effective compute: added
- *  to the pretraining stack as public ideas (no headroom) and the cause recorded (model v3 F3: the amounts are the old
+ *  to the pretraining stack as public ideas and the cause recorded (model v3 F3: the amounts are the old
  *  progress-years × B). */
 export function addKnowledge(s: GameStateV2, ctx: Pick<SystemCtx, 'cause'> | undefined, dG: number, source: string, detail?: string) {
   if (!Number.isFinite(dG) || dG === 0) return;

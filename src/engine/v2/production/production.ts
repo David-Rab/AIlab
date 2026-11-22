@@ -15,7 +15,7 @@
 // labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
 // (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
 import { CHINA_CAL, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
@@ -30,8 +30,6 @@ import { Xces } from './ces';
 import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import { idleTrainingShare } from '../models/runs';
-import { adopted } from '../models/paradigms';
-import { payoffOf } from '../models/tree';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
@@ -43,7 +41,7 @@ export interface V3Inputs {
   reRes0: number; H0: number;
   /** AI labour in experiments at today's agent compute (team-eq), coverage, assist. */
   AI0: number; a: number; assist: number;
-  /** Experiment FLOP efficiency per H100e-day of the pool vs 3.46e19 FLOP (training throughput stack × P13). */
+  /** Experiment FLOP efficiency per H100e-day of the pool vs 3.46e19 FLOP (the training throughput stack). */
   flopEff: number;
   /** Capacity-weighted taste of the capabilities science teams with AI (research input per idea). */
   Tai: number;
@@ -82,7 +80,7 @@ function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h:
   const reRes = v.reRes0 * hs;
   const H = Math.max(1e-9, v.H0 * hs);
   const AI = v.AI0 * (k / Math.max(1e-12, v.k0));
-  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
   const cbar = Math.max(1e-12, (c * DAY0_REF.flop * v.flopEff) / units / C_UNIT_FLOP_PER_DAY);
   const L = effLabour(Pp, v.a, H, AI, v.assist);
   const l = Math.pow(Math.max(1e-12, L / H), Pp.lam);
@@ -112,7 +110,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const Cag = off ? 0 : (pools.routine + pools.frontier);
   const spare = off ? 0 : spareServingToResearch(s);
   const idle = p.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
-  const flopEff = Math.pow(10, trainNow(s)) * (adopted(s, 'P13') ? 1 + 0.5 * payoffOf(s, 'P13') : 1);
+  const flopEff = Math.pow(10, trainNow(s));
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
   const k = (Cag + spare) * kUnit;
@@ -126,7 +124,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   for (const t of p.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
+    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
   const v3: V3Inputs = {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag + spare > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
@@ -172,7 +170,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 export function researchSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
-  return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
+  return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
 }
 
 /** The player's production readout (§3.2.5) at inputs `inp`, from the research engine's last day. */
@@ -226,7 +224,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
   }
   const pools = poolsOf(s, core.id);
-  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
+  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (experiment

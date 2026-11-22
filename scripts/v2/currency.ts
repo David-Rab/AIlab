@@ -2,7 +2,7 @@
 // G the work fit reads; no level→OOM factor is left in the engine. Run alone: `npx tsx scripts/v2/currency.ts`.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DOMAIN_IDS, P19_RSCH_DG } from '../../src/data/v2/calibration';
+import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -51,15 +51,11 @@ check(near(dG, 0.8 / 1.2, 1e-3) && near(dFit, wS * dG, 1e-9) && near(dL, dLwant,
   'design offset: persuasion adds 0.667 OOM to SOCIAL G (was 0.8 L ÷ 1.2: fit unchanged); fit and display move by the same G (the display may sit at its 0 floor, RD-U05)',
   `ΔG ${dG.toFixed(4)}, Δfit(OTHER) ${dFit.toFixed(4)} = ${wS} × ΔG, ΔL ${dL.toFixed(3)} = λ slope × ΔG`);
 
-// 4. P19: RSCH gains P19_RSCH_DG in the fit and the display reads λ of it.
-const p19was = s.player.paradigms.P19;
-s.player.paradigms.P19 = { ...(p19was ?? {}), status: 'adopted' } as typeof p19was;
+// 4. RSCH (RD-E01a deleted P19 and its RSCH gain): the fit's RSCH G is the build's domain G and the display reads λ of it.
 const gR = domainG(s, V0, 'RSCH');
-const domP19 = domainsOf(w, V0.G, V0.build, true);
-s.player.paradigms.P19 = p19was;
-const gR0 = domainG(s, V0, 'RSCH');
-check(near(gR - gR0, P19_RSCH_DG, 1e-12) && near(domP19.RSCH, clamp(levelOfG(w, gR - domainRefShift(w, 'RSCH')), 0, 15), 1e-9),
-  'P19: +0.4167 OOM RSCH (was the 0.5 L taste penalty ÷ 1.2) in the fit; the display is λ of the same G', `ΔG ${(gR - gR0).toFixed(4)}, L_RSCH ${V0.domains.RSCH.toFixed(3)} → ${domP19.RSCH.toFixed(3)}`);
+const domR = domainsOf(w, V0.G, V0.build);
+check(near(domR.RSCH, clamp(levelOfG(w, gR - domainRefShift(w, 'RSCH')), 0, 15), 1e-9),
+  'RSCH: the display is λ of the fit G (no P19 gain since RD-E01a)', `G_RSCH ${gR.toFixed(4)}, L_RSCH ${domR.RSCH.toFixed(3)}`);
 
 // 5. Migration 46 → 47: a stored offL becomes dgD at 1.2 L per OOM; offL / off gone; domains recomputed.
 const raw = JSON.parse(serialize(s));

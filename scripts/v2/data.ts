@@ -658,9 +658,9 @@ const adoptResult = (s: GameStateV2, id: string) => {
   const keysB = ['flop', 'tokens', 'gPre', 'ePre', 'sD', 'epochs', 'serve', 'signals', 'traitsTrue', 'uModes', 'teacherData'];
   const bA = A.player.models.bases.at(-1)!;
   const bB = B.player.models.bases.at(-1)!;
-  check(!!rid && typeof r0 !== 'string' && !!r0.recipe?.draw && r0.recipe.p24 === 0 && A.player.models.bases.length === s0.player.models.bases.length + 1
+  check(!!rid && typeof r0 !== 'string' && !!r0.recipe?.draw && A.player.models.bases.length === s0.player.models.bases.length + 1
     && pick(bA, keysB) === pick(bB, keysB) && planB - planA > 0.01,
-    'RD-B02: a base frozen at launch: data delivered and P24 / stacks adopted while it trains leave the finished base unchanged (traits included); a plan today moves',
+    'RD-B02: a base frozen at launch: data delivered and stacks adopted while it trains leave the finished base unchanged (traits included); a plan today moves',
     `${typeof r0 === 'string' ? r0 : ''} gPre ${bA.gPre.toFixed(4)} vs ${bB.gPre.toFixed(4)}; epochs ${bA.epochs?.toFixed(3)} vs ${bB.epochs?.toFixed(3)}; plan today ${planA.toFixed(4)} → ${planB.toFixed(4)}`);
   // Post-training run on B0.
   const s1 = game();

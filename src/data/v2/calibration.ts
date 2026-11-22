@@ -121,11 +121,6 @@ export const SHARE_REF: { year: number; share: { training: number; experiments: 
 export const LEVEL_KNOTS = [5, 6.5, 8.5, 10, 12, 13.5, 15];
 
 export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
-/** Learned research taste (P19, R12 §0.4) adds this to the RSCH domain's effective compute (OOM; RD-U01: was v2's
- *  −0.5 L RSCH taste penalty that P19 removed, ÷ 1.2 as the fit applied it). The fit and the displayed RSCH level
- *  λ(G_RSCH) both read it; v2's display-only −0.5 L for a lab without P19 is gone (the fit never had it: the human
- *  reference points are set for a lab without P19). */
-export const P19_RSCH_DG = 0.4167;
 
 /** Expected golden dates (decimal years), research/11 §5 and V2-SPEC §7.1. null = no target; [lo, hi] = range. */
 export interface GoldenExpect { SC: number | [number, number]; SAR: number | null; SIAR: number | null; ASI: number | null; M?: Record<string, number>; h80?: { year: number; minutes: number } }

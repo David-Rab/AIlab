@@ -30,7 +30,6 @@ import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
 import { activeFeatures, packCertified } from '../models/products';
-import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, RegionId, SectorId, SimpleModel, TimelineWorld } from '../types';
@@ -214,11 +213,10 @@ function useFitOf(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | '
   return { f, au, l: agentLeverage(au, h50) };
 }
 /** P2: a model without a build (rivals', China's: known only by G) has the same fit, coverage and leverage on a work
- *  type for the same G, ΔG, horizon multiplier and P19 (the only state domainG reads), so those are cached on exactly
+ *  type for the same G, ΔG and horizon multiplier, so those are cached on exactly
  *  these inputs (per world). Player versions (with a build) are computed every time. */
-type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // G → ΔG → h multiplier → work type + P19
+type FitMemo = Map<number, Map<number, Map<number, Map<string, UseFit>>>>; // G → ΔG → h multiplier → work type
 const useFitMemo = new WeakMap<TimelineWorld, { m: FitMemo; n: number }>();
-const PLUS_KEY: Partial<Record<SectorId | 'CHAT', string>> = {};
 function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CHAT', hd: DomainId, dG: number, hm: number): UseFit {
   if (v.build) return useFitOf(s, w, v, sid, hd, dG, hm);
   let memo = useFitMemo.get(w);
@@ -229,10 +227,9 @@ function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CH
   if (!b) a.set(dG, (b = new Map()));
   let c = b.get(hm);
   if (!c) b.set(hm, (c = new Map()));
-  const key = adopted(s, 'P19') ? (PLUS_KEY[sid] ??= sid + '+') : sid; // P4: the '+' keys made once (no string per call)
-  let x = c.get(key);
+  let x = c.get(sid);
   if (!x) {
-    c.set(key, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
+    c.set(sid, (x = useFitOf(s, w, v, sid, hd, dG, hm)));
     memo.n++;
   }
   return x;

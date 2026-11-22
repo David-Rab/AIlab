@@ -6,7 +6,7 @@
 // (v3 V1: active parameters at REF_TPP tokens per parameter, 400 since A6b: a lab that serves its models
 // overtrains them, DeepSeek-V3 ≈ 400 tokens per active parameter, research/20 A1; v2 trained 1 × the frontier run F(t), which took the same
 // time on the reference pool), a post-train every 6 weeks (≤ 2 in flight),
-// continual learning once P08 works, P05/P07/P08/P13/P17/P19 researched on the tree (REF_TREE; never P23), latent bases after
+// continual learning once P08 works, P05/P07/P08/P17 researched on the tree (REF_TREE; never P23), latent bases after
 // P17. Releases (F5, 'compete'): Chat, API and Enterprise serve the cheapest cleared version that leads the rivals'
 // public models by RELEASE_LEAD (AI 2027's Agent-1 release in answer to competitors), with a public mini distilled to
 // hold that lead and the API's cheap tier (A5); the frontier stays internal whenever a smaller model keeps the lead.
@@ -44,7 +44,6 @@ import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
 import { investigationFte, safetyReHeads } from '../safety/investigations';
 import { patchFte } from '../safety/responses';
-import { measuredDomain } from '../models/paradigms';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
@@ -69,18 +68,15 @@ const GATE_OOM = {
 };
 const atGate = (s: GameStateV2, L: number, dG: number) => gOfLevel(s.hidden.timeline, L) - gV0(s.hidden.timeline) >= dG - 1e-9;
 const Lg = (s: GameStateV2, dG: number) => atGate(s, bestMeasuredL(s), dG);
-const RSCH = (s: GameStateV2, dG: number) => atGate(s, measuredDomain(s, 'RSCH'), dG);
 /** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
  *  old pacing by starting each project when the old gate would have opened (GATE_OOM; tier 2 was L 6.5, tier 3 L 8.5,
- *  P08 L 7, P13 RSCH 8.5, P17 L 9.5). RL focus: ML research is P13's prerequisite on the tree. */
+ *  P08 L 7, P17 L 9.5). RD-E01a deleted P13 and P19. */
 export const REF_TREE: TreeGoal[] = [
   { id: 'P07' },
   { id: 'P05' },
   { id: 'P08', when: (s) => Lg(s, GATE_OOM.L7) },
   { id: 'rl.mlResearch', when: (s) => Lg(s, GATE_OOM.L65) },
-  { id: 'P13', when: (s) => Lg(s, GATE_OOM.L65) && RSCH(s, GATE_OOM.L85) },
   { id: 'P17', when: (s) => Lg(s, GATE_OOM.L95) },
-  { id: 'P19', when: (s) => Lg(s, GATE_OOM.L85) },
 ];
 /** RefBot's research lines (model v3 V2) and their share of the science teams the ideas leave free [D]: the
  *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
@@ -368,7 +364,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       if (day - (st.day ?? day) >= TREE_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
       continue;
     }
-    if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale') continue;
+    if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale' && st.cap.stage !== 'test') continue;
     if (g.when && !g.when(s)) continue;
     tryAct(s, api, 'research.start', { id: g.id });
   }

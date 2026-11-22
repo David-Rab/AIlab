@@ -58,9 +58,11 @@ export const PROJECT_SD = 0.25;
 export const RISK_KAPPA: Record<RiskPolicy, number> = { safe: -0.5, balanced: 0, speculative: 0.5 };
 /** Reopening a failed project as speculative: odds × 0.5, prior mean × 0.7, candidate spread × 1.5 per reopen [D]. */
 export const SPECULATIVE = { odds: 0.5, mean: 0.7, spread: 1.5 };
-/** Lines batch ideas once the lab's experiment throughput X (unit project = 1) exceeds this: a candidate then carries
- *  b = ⌊X / PACE_BATCH⌋ ideas (its work, research input and effect × b), so a takeoff does not need thousands of daily events [D: performance; the expected OOM per
- *  day is unchanged]. A batch counts as one generation. */
+/** RD-R08: lines run as an internal expected flow once the lab's experiment throughput X (unit project = 1) passes this:
+ *  the flow's share of the line's day is φ = clamp(X / PACE_BATCH − 1, 0, 1) (0 at PACE_BATCH, 1 at twice it), the explicit
+ *  candidate pipeline runs the rest, so a takeoff does not need thousands of daily events and nothing jumps at the switch
+ *  [D: performance]. Every candidate is one idea; the flow applies the same per-idea drop and survival rules in
+ *  expectation (models/research.ts flowStats). */
 export const PACE_BATCH = 30;
 
 // ───────────────────────────── diminishing returns (lines) ─────────────────────────────
@@ -79,23 +81,21 @@ export const LINE_FIT = { mu: 0.645 };
  *  lines [D]. Experiment FLOP is consumed at the project's share of the pool while it experiments (V3.4: no FLOP need
  *  per stage, no ÷ pace). */
 export const LINE_STAGES = { idea: 0.8, small: 0.8, scale: 1.0, testFrac: 0.002 };
-/** Ideas and axes: stage work from the v2 effort E (team-months): ideation E/4 per candidate, small experiments 0.28E,
- *  scale test 0.42E (with two research-engineer teams ≈ E in all, as the v2 project) and a scale test at 1% of the
- *  latest base [D]. */
-export const IDEA_STAGES = { idea: 0.25, small: 0.28, scale: 0.42, testFrac: 0.01 };
+/** Stage weights of ideas and axes from the v2 effort E: ideation E/4 per candidate, small experiments 0.28E, scale test
+ *  0.42E (with two research-engineer teams ≈ E in all, as the v2 project) [D]. */
+const IDEA_W = { idea: 0.25, small: 0.28, scale: 0.42 };
+/** RD-R07: the whole stage work per unit of v2 effort E (PICK_AT candidates' ideation + small + scale test = 1.2). */
+export const IDEA_WORK_PER_E = PICK_AT * IDEA_W.idea + IDEA_W.small + IDEA_W.scale;
+/** Ideas and axes: each stage's share of the node's one effort number (effortTM = the whole stage work the engine runs,
+ *  PICK_AT × idea + small + scale = 1) and the scale test at 1% of the latest base [D]. */
+export const IDEA_STAGES = {
+  idea: IDEA_W.idea / IDEA_WORK_PER_E, small: IDEA_W.small / IDEA_WORK_PER_E, scale: IDEA_W.scale / IDEA_WORK_PER_E, testFrac: 0.01,
+};
+/** An unfitted idea's or axis's effort (team-months, all stages): the v2 default E = 8, × IDEA_WORK_PER_E. */
+export const IDEA_DEFAULT_TM = 8 * IDEA_WORK_PER_E;
 
 // ───────────────────────────── stacks ─────────────────────────────
 
-/** Share of an adopted idea's effect left as headroom for routine tuning (MODEL-V3 §5.5) [D]. */
-export const HEADROOM = 0.3;
-/** Routine tuning closes headroom at TUNE_K × research-engineer team-equivalents on tuning × their experiment
- *  throughput X (the projects' CES on the tuning allocation; 1 at the leader's day-0 inputs), per day, on what remains
- *  [D: ≈ 3 months with 3 teams at unit inputs]. */
-export const TUNE_K = 1 / 270;
-/** Routine tuning's research-engineer demand per OOM of remaining headroom (Σ over the stacks at the reference run
- *  FLOP): one team-equivalent per 0.01 OOM [D, RD-B08: a finite need that falls to zero with the headroom; about the
- *  2.5–4 teams tuning held mid-game when its demand was unlimited]. Served after the projects in experiments. */
-export const TUNE_RE_PER_OOM = 100;
 /** Scale-exponent grid of the stack buckets (adopted ideas with s within half a step share a bucket) [D]. */
 export const S_STEP = 0.02;
 /** Training throughput cap: MFU 0.75 × goodput 0.97 over the start's 0.40 × 0.90 (OOM) [R20 A4: MFU 0.30–0.55 today;
@@ -130,20 +130,26 @@ export const ADOPT_TW = { base: 0.5, perOom: 2, unlock: 1, max: 8 };
 
 /** Most science teams one capability project takes ("max" teams wanted) [D: √capacity returns]. */
 export const PROJECT_MAX_TEAMS = 6;
-/** B4 "auto" teams wanted: a spare science team goes to the auto project where it adds the most progress (√capacity ÷
- *  ideation effort), weighted by this factor per rank down the list, so higher priority wins close calls [D]. */
+/** B4 "auto" teams wanted: a spare science team goes to the project (auto ones first) where it adds the most expected
+ *  value per day (RD-A03, models/research.ts projectValue), weighted by this factor per rank down the list, so higher
+ *  priority wins close calls [D]. */
 export const AUTO_RANK_W = 0.8;
-/** Research-engineer team-equivalents a project in experiments can use [D]. */
-export const RE_PER_PROJECT = 2;
+/** RD-A03: the science-team planner's value proxies, in lab-wide software OOM [D]. A domain OOM (one capability domain
+ *  of new versions) counts `domainOom` of a software OOM; an unlock (no typed effect: an RL focus, option, feature) and
+ *  a data / expert-data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
+export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
+/** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
+ *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
+export const RE_MAX_PER_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
  *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
  *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (RE_PER_PROJECT each, no
- *  share cap: RD-B08), then routine tuning (its demand ∝ remaining headroom, TUNE_RE_PER_OOM); the rest are idle;
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_MAX_PER_PROJECT each, no
+ *  share cap: RD-B08); the rest are idle (RD-E03: no routine tuning);
  *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
  *  release waits on them; they are small). */
-export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: {} };
+export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
-export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning' };
+export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments' };
 export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };

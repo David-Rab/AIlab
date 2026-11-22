@@ -3,9 +3,9 @@
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
 //   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment
 //   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
-//   down their needs; RD-B08: tuning wants research engineers ∝ headroom, after every project in experiments, and
-//   experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
-//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas and tuning at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   down their needs (spare research engineers are idle: RD-E03, no routine tuning); RD-E03: an adopted idea's full effect
+//   is in its stack at build-in (no headroom; migration 47 → 48); RD-B08: experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
+//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 // Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -13,19 +13,19 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
+import { DEFAULT_RE_ALLOC, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, isUnlockProject, trialWork, candidateTruth, capSciTeams, completeAdoption, dropRule, giveUpText, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, STACK_KEYS, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
+  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
-import { capProjectView, otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
+import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
 import { autoAssign, projectEta } from '../../src/engine/v2/models/tree';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { AGENDA_BY_ID } from '../../src/data/v2/agendas';
@@ -36,9 +36,184 @@ import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engin
 import { runStall } from '../../src/engine/v2/models/runs';
 import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
+import { hash32 } from '../../src/engine/v2/core/rng';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
+
+// ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
+// ---------- RD-E03 no headroom, no routine tuning (run alone: `tsx scripts/v2/research.ts --rd-e03`) ----------
+if (process.argv.includes('--rd-e03')) {
+  // An adopted idea's full true effect is in its stack at build-in (a scale-invariant line, so the effect is F-free).
+  const s = mk(7);
+  const ctx = makeCtx(s);
+  const n = TREE_BY_ID['L.rlalg'];
+  const c = newCandidate(s, n, freshCap(), 1, 1);
+  const fTest = stagesOf(n).testFrac * latestBaseFlop(s);
+  const r = { c, xTest: 0.05, sHat: 0, fTest, est: 0.05, estSd: 0.01, day: s.time.day, buildId: 'rde03' };
+  s.player.tree[n.id] = { status: 'researching', progress: 1, cap: { ...freshCap(), pending: [r] } };
+  const v0 = stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s));
+  completeAdoption(s, ctx, n.id, 'rde03', () => {});
+  const ad = s.player.research.adopted[s.player.research.adopted.length - 1];
+  const dv = stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s)) - v0;
+  const keys = [...new Set(STACK_KEYS.flatMap((k) => s.player.research.stacks[k].buckets.flatMap((b) => Object.keys(b))))].sort().join(',');
+  check(ad?.id === n.id && Math.abs(ad.eff) > 0 && Math.abs(dv - ad.eff) < 1e-4 && keys === 'a,s',
+    'RD-E03 an adopted idea adds its full true effect to its stack at build-in (no headroom part)', `effect ${ad?.eff} → stack +${dv.toFixed(5)}; bucket fields ${keys}`);
+  // No 'tune' need: research engineers serve run operations, evaluations and the projects; the rest show as idle.
+  for (let d = 0; d < 5; d++) tick(s, { skip: ['endings'] });
+  const al = reAllocation(s);
+  const last = s.player.research.last;
+  // The readout is the last tick's: its needs plus idle make up the (unchanged) capacity.
+  const sum = last ? last.re.ops + last.re.evals + last.re.exp : NaN;
+  act(s, 'research.reAlloc', { order: 'ops,exp,tune,evals' });
+  const order = s.player.research.re.order.join(',');
+  check(Object.keys(al.demand).sort().join(',') === 'evals,exp,ops' && DEFAULT_RE_ALLOC.order.join(',') === 'ops,evals,exp' && !('tune' in (last?.re ?? {}))
+    && last?.idle !== undefined && last.idle > 0 && Math.abs(last.idle + sum - al.total) < 0.01 && order === 'ops,evals,exp',
+    'RD-E03 no routine-tuning need; spare research engineers are idle (readout); an order naming tune is ignored', `needs ${Object.keys(al.demand).join(',')}; idle ${last?.idle} + needs ${sum.toFixed(3)} of ${al.total.toFixed(3)}; order after a tune order ${order}`);
+  // Migration 47 → 48: a bucket's remaining headroom is delivered (effect = a) and 'tune' leaves the allocation.
+  const raw = JSON.parse(serialize(s));
+  raw.schemaRev = 47;
+  raw.player.research.stacks.rlMid.buckets[0].h = 0.01;
+  raw.player.research.re.order = ['ops', 'evals', 'exp', 'tune'];
+  raw.player.research.re.max = { tune: 2 };
+  raw.player.research.last.re.tune = 1;
+  const g = deserialize(JSON.stringify(raw));
+  check(!('h' in g.player.research.stacks.rlMid.buckets[0]) && Math.abs(stackAt(g.player.research.stacks.rlMid, latestBaseFlop(g)) - stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s))) < 1e-12
+    && g.player.research.re.order.join(',') === 'ops,evals,exp' && !('tune' in g.player.research.re.max) && !('tune' in (g.player.research.last?.re ?? {})),
+    'RD-E03 a rev-47 save loads with its headroom delivered and no tune need', JSON.stringify(g.player.research.re));
+  finish('research');
+}
+
+// ---------- RD-R05 unlock projects: one works / doesn't test (run alone: `tsx scripts/v2/research.ts --rd-r05`) ----------
+if (process.argv.includes('--rd-r05')) {
+  const unlocks = Object.values(TREE_BY_ID).filter((n) => isUnlockProject(n));
+  check(unlocks.length > 0 && unlocks.every((n) => !hasTypedEffect(n) && n.kind !== 'line') && !isUnlockProject(TREE_BY_ID.elastic), 'RD-R05 unlock projects are the ideas / axes without a typed effect', `${unlocks.length}: ${unlocks.map((n) => n.id).slice(0, 12).join(', ')}…`);
+  // Run the first unlock that starts on day 0, with three teams, to its works draw.
+  const res: string[] = [];
+  let ran = 0;
+  for (const n of unlocks) {
+    if (ran >= 3) break;
+    const s = mk(7);
+    if (s.player.tree[n.id]?.cap || s.player.tree[n.id]?.status === 'known' || act(s, 'research.start', { id: n.id }) !== undefined) continue;
+    act(s, 'research.want', { id: n.id, n: 3 });
+    const seen: string[] = [];
+    let bandOrCands = false;
+    let workAtEnd = -1;
+    let needAtEnd = -1;
+    for (let d = 0; d < 900; d++) {
+      const before = s.player.tree[n.id]?.cap?.trial;
+      const bw = before ? { w: before.work, n: before.workNeed } : undefined;
+      tick(s, { skip: ['endings'] });
+      const ts = s.player.tree[n.id];
+      const st = ts?.cap;
+      const v = capProjectView(s, n.id);
+      if (st && (st.cands.length || st.test || st.result)) bandOrCands = true;
+      if (v && (v.belief || v.result || v.cands)) bandOrCands = true;
+      for (const x of [st?.stage ?? '', v?.stage ?? '']) if (x && seen[seen.length - 1] !== x) seen.push(x);
+      if (st && (st.stage === 'adopting' || st.stage === 'failed') && workAtEnd < 0) { needAtEnd = st.trial?.workNeed ?? bw?.n ?? 0; workAtEnd = st.trial?.work ?? (st.stage === 'adopting' ? needAtEnd : -1); }
+      if (ts?.status === 'known' || ts?.status === 'failed') break;
+    }
+    const ts = s.player.tree[n.id];
+    const spec = 0;
+    const expect = n.paradigm ? s.hidden.paradigmSuccess[n.id] === true : hash32(s.setup.seed, `node:${n.id}`) / 4294967296 < attemptOdds(n, spec);
+    const outcome = ts?.status === 'known' ? true : ts?.status === 'failed' ? false : undefined;
+    const ok = !bandOrCands && outcome === expect && seen.every((x) => ['test', 'adopting', 'adoption', 'failed'].includes(x)) && Math.abs(needAtEnd - trialWork(n)) < 1e-9 && workAtEnd >= needAtEnd - 1e-9;
+    res.push(`${n.id}: ${seen.join('→')} ${ts?.status} (draw ${expect}) work ${workAtEnd.toFixed(2)}/${needAtEnd.toFixed(2)}${bandOrCands ? ' BAND/CANDS' : ''}`);
+    check(ok, `RD-R05 ${n.id}: no candidates or effect band; one test of the project's effort; completes by the works draw`, res[res.length - 1]);
+    ran++;
+  }
+  check(ran > 0, 'RD-R05 at least one unlock project ran', String(ran));
+  finish('research');
+}
+
+if (process.argv.includes('--rd-r07')) {
+  check(STAGES.join(',') === 'ideation,small,scale,adoption', 'RD-R07 the player sees four stages (no result step)', STAGES.join(', '));
+  // Every capability idea / axis: the effort shown (effortOfNode) is stagesOf's work and the node's one effortTM.
+  const bad: string[] = [];
+  for (const n of Object.values(TREE_BY_ID)) {
+    if (!isCapProject(n) || n.kind === 'line') continue;
+    const e = effortOfNode(n);
+    const sg = stagesOf(n);
+    const sum = PICK_AT * sg.idea + sg.small + sg.scale;
+    if (Math.abs(e.sci + e.exp - sum) > 1e-9 || Math.abs(sum - (n.effortTM ?? IDEA_DEFAULT_TM)) > 1e-9) bad.push(`${n.id} ${(e.sci + e.exp).toFixed(3)} vs ${sum.toFixed(3)} vs ${n.effortTM}`);
+  }
+  check(!bad.length, 'RD-R07 effort shown = stagesOf sum = effortTM for every capability idea / axis', bad.join('; ') || 'all equal');
+  // Neutral: the stage work is the earlier fit's (P17 fitted E 65.97: ideation 0.25E per candidate, scale 0.42E; RD-E01a
+  // deleted P13, the node this checked before).
+  const p17 = stagesOf(TREE_BY_ID.P17);
+  check(Math.abs(p17.idea - 0.25 * 65.97) < 1e-9 && Math.abs(p17.scale - 0.42 * 65.97) < 1e-9, 'RD-R07 stage work unchanged (P17)', `${p17.idea.toFixed(4)} · ${p17.scale.toFixed(4)}`);
+  // No 'result' stage reachable: a working project goes from the scale test straight to the engineers' build-in.
+  let seed = 1;
+  for (; seed < 40; seed++) {
+    const t = mk(seed);
+    if (candidateTruth(t, TREE_BY_ID.elastic, freshCap(), { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 0, sd: 1, muS: 0, sdS: 0 }).x > 0.01) break;
+  }
+  const s = mk(seed);
+  act(s, 'research.start', { id: 'elastic' });
+  act(s, 'research.want', { id: 'elastic', n: 3 });
+  const seen: string[] = [];
+  for (let d = 0; d < 400 && s.player.tree.elastic?.status !== 'known'; d++) {
+    tick(s, { skip: ['endings'] });
+    const st: string | undefined = s.player.tree.elastic?.cap?.stage;
+    const v: string = capProjectView(s, 'elastic')?.stage ?? '';
+    for (const x of [st ?? '', v]) if (x && seen[seen.length - 1] !== x) seen.push(x);
+  }
+  check(!seen.includes('result') && seen.includes('adopting') && s.player.tree.elastic?.status === 'known', 'RD-R07 no result stage reached (engine or view)', seen.join(' → '));
+  finish('research');
+}
+
+// ---------- RD-A03 science-team planner by value (run alone: `tsx scripts/v2/research.ts --rd-a03`) ----------
+if (process.argv.includes('--rd-a03')) {
+  const s = mk(2);
+  const others = s.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
+  const teams: Team[] = [0, 1, 2, 3].map((i) => ({ id: `V${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: 'strong', specialty: 'systems' }));
+  s.player.teams = [...others, ...teams];
+  const projs = ['elastic', 'P16', 'L.scale'];
+  s.player.research.queue = [...projs];
+  for (const id of projs) s.player.research.want[id] = 1;
+  const on = (plan: ReturnType<typeof planAssignment>, id: string) => teams.filter((x) => plan.get(x.id)?.p === id).length;
+  // (a) A one-off idea in its small (or big) test releases its scientists; a line in its test keeps them.
+  s.player.tree.elastic = { status: 'researching', progress: 0.4, attempts: 1, cap: { ...freshCap(), stage: 'small' } };
+  s.player.tree['L.scale'] = { status: 'researching', progress: 0.4, attempts: 1, cap: { ...freshCap(), stage: 'scale' } };
+  const testing = planAssignment(s, projs);
+  s.player.tree.elastic = { status: 'researching', progress: 0, attempts: 1, cap: freshCap() };
+  const ideating = planAssignment(s, projs);
+  check(on(testing, 'elastic') === 0 && on(testing, 'L.scale') >= 1 && on(ideating, 'elastic') >= 1,
+    'RD-A03 a one-off idea in its test releases its scientists (a line in its test keeps them; back in ideation it gets them)',
+    `in test: elastic ${on(testing, 'elastic')}, L.scale ${on(testing, 'L.scale')}; ideating: elastic ${on(ideating, 'elastic')}`);
+  // (b) A spare team goes where it adds the most value (× AUTO_RANK_W per rank), not to the top project by default.
+  const two = ['elastic', 'P16'];
+  const with3 = (id: string) => [{ t: teams[0], p: 'elastic' }, { t: teams[1], p: 'P16' }, { t: teams[2], p: id }];
+  const base = assignmentValue(s, two, [{ t: teams[0], p: 'elastic' }, { t: teams[1], p: 'P16' }]);
+  const gE = assignmentValue(s, two, with3('elastic')) - base;
+  const gP = (assignmentValue(s, two, with3('P16')) - base) * 0.8;
+  s.player.teams = [...others, ...teams.slice(0, 3)];
+  const spare = planAssignment(s, two);
+  const where = teams.slice(0, 3).map((x) => spare.get(x.id)?.p);
+  check(where.filter((p) => p === 'P16').length === 2 && gP > gE, 'RD-A03 a spare team goes to the higher-value project (P16 over the top-ranked elastic)',
+    `teams → ${where.join(', ')}; spare gains: elastic ${gE.toExponential(2)}, P16 ×0.8 ${gP.toExponential(2)} OOM/day`);
+  const whys = [...spare.values()].map((v) => v.why);
+  check(whys.every((w) => /adds ~(<1|\d+)% to this project's yearly gain|carries all of this project's yearly gain/.test(w)), 'RD-A03 "why here" states the value in player language', whys.join(' | '));
+  finish('research');
+}
+
+// ---------- RD-R06 drop and give-up rules (run alone: `tsx scripts/v2/research.ts --rd-r06`) ----------
+{
+  // A candidate under the floor but better than the pool's best goes on; under the floor and under the pool's best, or
+  // with an empty pool, or a score ≤ 0, it is dropped; above the floor it always goes on.
+  const kept = !dropRule(0.2, true, [0.1, 0.15]);
+  const dropped = dropRule(0.2, true, [0.1, 0.3]) && dropRule(0.2, true, []) && dropRule(-0.1, true, [-0.5]);
+  const above = !dropRule(0.2, false, [0.9]);
+  check(kept && dropped && above, 'RD-R06 a candidate better than the pool\'s best is not dropped; worse, alone or ≤ 0 under the floor is', `kept ${kept}, dropped ${dropped}, above floor ${above}`);
+  const txt = giveUpText('Elastic training', 'small experiments showed too little', 0.4, 0.2);
+  check(/gave up/.test(txt) && /40%/.test(txt) && /20%/.test(txt) && !/does not (seem to )?work/.test(txt), 'RD-R06 give-up text shows the odds still standing (not "does not work")', txt);
+  // A reopen starts a new attempt at 0 drops.
+  const s = mk();
+  s.player.tree.P09 = { status: 'failed', progress: 0, attempts: 1, cap: { ...freshCap(), drops: MAX_DROPS, stage: 'failed' } };
+  reopenProject(s, 'P09');
+  check(s.player.tree.P09.cap?.drops === 0, 'RD-R06 the drop count resets on reopen', String(s.player.tree.P09.cap?.drops));
+  if (process.argv.includes('--rd-r06')) finish('research');
+}
 
 // ---------- lifecycle order ----------
 {
@@ -60,7 +235,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const order = ['ideation', 'small', 'scale', 'adopting'];
   const compact = seen.filter((x, i) => x !== 'ideation' || i === 0);
   const inOrder = order.every((x) => seen.includes(x)) && seen.indexOf('small') < seen.indexOf('scale') && seen.indexOf('scale') < seen.indexOf('adopting');
-  check(inOrder && s.player.tree.elastic?.status === 'known', 'lifecycle: ideation → small experiments → scale test → result → adoption → known', `${compact.join(' → ')} (${s.player.tree.elastic?.status}, seed ${seed})`);
+  check(inOrder && s.player.tree.elastic?.status === 'known', 'lifecycle: ideas → small test → big test → build-in → known', `${compact.join(' → ')} (${s.player.tree.elastic?.status}, seed ${seed})`);
   check(s.player.research.adopted.some((a) => a.id === 'elastic') && stackAt(s.player.research.stacks.train) > 0, 'adoption: the true effect enters its stack (training throughput)', `${stackAt(s.player.research.stacks.train).toFixed(4)} OOM`);
 }
 
@@ -179,14 +354,14 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     t.player.research.queue = projs;
     for (const p of projs) t.player.research.want[p] = 1 + Math.floor(r() * 2);
     const plan = planAssignment(t, projs);
-    const got = assignmentValue(projs, teams.map((x) => ({ t: x, p: plan.get(x.id)?.p })));
+    const got = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: plan.get(x.id)?.p })));
     const counts = projs.map((p) => teams.filter((x) => plan.get(x.id)?.p === p).length);
     // Every assignment with the same team count per project.
     let best = 0;
     const assign: (string | undefined)[] = new Array(nT).fill(undefined);
     const rec = (i: number, left: number[]) => {
       if (i === nT) {
-        if (left.every((x) => x === 0)) best = Math.max(best, assignmentValue(projs, teams.map((x, j) => ({ t: x, p: assign[j] }))));
+        if (left.every((x) => x === 0)) best = Math.max(best, assignmentValue(t, projs, teams.map((x, j) => ({ t: x, p: assign[j] }))));
         return;
       }
       for (let k = 0; k < projs.length; k++) if (left[k] > 0) { left[k]--; assign[i] = projs[k]; rec(i + 1, left); left[k]++; }
@@ -205,7 +380,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
 {
   // Six capability science teams on three projects: one fixed at 1 team, two on auto. The fixed project gets exactly its
   // number, each auto project at least one team, and the spare teams go to the auto projects (none idle, none to the
-  // fixed project) where they add the most progress; with every project fixed at 1 the spares all join the top project.
+  // fixed project) where they add the most value; with every project fixed at 1 the spares go by value (RD-A03).
   const t = mk(2);
   const others = t.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
   const cols = ['pretraining', 'posttraining', 'systems', 'pretraining', 'posttraining', 'systems'] as const;
@@ -219,12 +394,12 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const auto = planAssignment(t, projs);
   const n = (plan: typeof auto, id: string) => teams.filter((x) => plan.get(x.id)?.p === id).length;
   const idle = teams.filter((x) => !auto.get(x.id)?.p).length;
-  const vF = assignmentValue(projs, teams.map((x) => ({ t: x, p: fixed.get(x.id)?.p })));
-  const vA = assignmentValue(projs, teams.map((x) => ({ t: x, p: auto.get(x.id)?.p })));
-  check(n(auto, 'L.scale') === 1 && n(auto, 'L.data') >= 1 && n(auto, 'L.rlalg') >= 1 && idle === 0 && n(fixed, 'L.scale') === 4,
+  const vF = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: fixed.get(x.id)?.p })));
+  const vA = assignmentValue(t, projs, teams.map((x) => ({ t: x, p: auto.get(x.id)?.p })));
+  check(n(auto, 'L.scale') === 1 && n(auto, 'L.data') >= 1 && n(auto, 'L.rlalg') >= 1 && idle === 0 && projs.reduce((a2, id) => a2 + n(fixed, id), 0) === 6,
     'auto teams wanted: a fixed project gets its number, auto projects one team and then the spares; none idle',
     `auto: ${projs.map((id) => `${id} ${n(auto, id)}`).join(', ')}; all fixed at 1: ${projs.map((id) => `${id} ${n(fixed, id)}`).join(', ')}`);
-  check(vA > vF, 'auto teams wanted: spreading the spares by fit beats piling them on the top project', `progress value ${vF.toFixed(3)} → ${vA.toFixed(3)}`);
+  check(vF >= vA * (1 - 1e-9), 'RD-A03 every project fixed: the spares go where they add the most value (no less than limited to the auto projects)', `value ${vA.toExponential(3)} → ${vF.toExponential(3)} OOM/day`);
   check(teams.filter((x) => auto.get(x.id)?.p === 'L.data' || auto.get(x.id)?.p === 'L.rlalg').some((x) => /^Auto: /.test(auto.get(x.id)?.why ?? '')), 'auto teams wanted: a spare team says it is there on auto');
   // The action: auto on, a number takes it off again; the view shows the placed count as the number.
   const s2 = mk(3);
@@ -244,17 +419,14 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const s = mk(4);
   for (const id of ['L.scale', 'L.data', 'L.rlalg']) act(s, 'research.queue', { id });
   for (let d = 0; d < 60; d++) tick(s, { skip: ['endings'] });
-  // RD-B08: tuning's demand is finite (TUNE_RE_PER_OOM × headroom); an adopted idea leaves some to tune.
-  addIdea(s.player.research.stacks.pre, 0.05, 0, 1e24);
+  // RD-E03: no routine tuning; with experiments capped, their research engineers are idle.
   const before = reAllocation(s);
   act(s, 'research.reAlloc', { need: 'exp', max: 0 });
   const after = reAllocation(s);
-  const tuneWant = Math.min(after.demand.tune, before.re.tune + before.re.exp);
-  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp + a.re.tune;
-  check(before.re.exp > 0 && after.re.exp === 0 && after.demand.tune > 0 && Number.isFinite(after.demand.tune) && Math.abs(after.re.tune - tuneWant) < 1e-9
-    && Math.abs(after.total - sum(after) - Math.max(0, before.total - sum(before) + before.re.exp + before.re.tune - after.re.tune)) < 1e-9,
-    'research engineers: with experiments capped, their capacity flows to routine tuning up to its demand; the rest is idle',
-    `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, tune ${before.re.tune.toFixed(1)} → ${after.re.tune.toFixed(1)} (demand ${after.demand.tune.toFixed(2)}), idle ${(after.total - sum(after)).toFixed(2)}`);
+  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp;
+  check(before.re.exp > 0 && after.re.exp === 0 && Math.abs(after.total - sum(after) - (before.total - sum(before) + before.re.exp)) < 1e-9,
+    'research engineers: with experiments capped, their capacity is idle',
+    `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, idle ${(after.total - sum(after)).toFixed(2)}`);
   const r0 = buildRates(s);
   act(s, 'build.engAlloc', { need: 'builds', max: 0 });
   const r1 = buildRates(s);
@@ -269,12 +441,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   for (const id of ['L.scale', 'L.data', 'L.rlalg', 'L.env', 'L.opt', 'L.infer']) act(s, 'research.queue', { id });
   let nExp = 0;
   for (let d = 0; d < 300 && nExp < 4; d++) { tick(s, { skip: ['endings'] }); nExp = reAllocation(s).perProject.size; }
-  // Headroom to tune: an adopted 0.1 OOM leaves 0.03 OOM, i.e. 3 team-equivalents wanted on top of any already there.
-  addIdea(s.player.research.stacks.pre, 0.1, 0, 1e24);
-  const a0 = reAllocation(s);
-  check(nExp >= 4 && a0.demand.tune > 2.9 && Math.abs(a0.demand.tune - TUNE_RE_PER_OOM * headroomTotal(s)) < 1e-9,
-    'RD-B08: routine tuning wants research engineers in proportion to the remaining headroom (a finite need)',
-    `${nExp} projects in experiments; headroom ${headroomTotal(s).toFixed(4)} OOM → tuning wants ${a0.demand.tune.toFixed(2)} team-eq`);
+  check(nExp >= 4, 'RD-B08: four or more projects in experiments for the checks below', `${nExp} projects in experiments`);
   // The same day with k research-engineer teams removed (k < 0) or added (k > 0).
   const ids = s.player.teams.filter((t) => t.role === 're' && t.dept === 'cap').map((t) => t.id);
   const variant = (k: number) => {
@@ -287,19 +454,17 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     const a = reAllocation(x);
     const avail = projectFlopPerDay(x);
     const sh = expShares(a, avail);
-    const inp = researchInputs(x, Math.max(sh.units, RE_PER_PROJECT), avail);
-    const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, 1, re, sh.perProject.get(id) ?? 0)]));
+    const inp = researchInputs(x, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
+    const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, re, sh.perProject.get(id) ?? 0)]));
     return { k, a, sh, rate, avail, x };
   };
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
-  // (a) Projects in experiments are served before tuning: tuning holds research engineers only when every project has
-  // its full RE_PER_PROJECT (INP-V01: the old 75% share left the 7th project at 0 while tuning kept engineers).
-  const bad = vs.filter((v) => v.a.re.tune > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
-  const short = vs.filter((v) => [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
-  check(bad.length === 0 && short.length > 0 && short.every((v) => v.a.re.tune === 0),
-    'RD-B08: tuning gets research engineers only after every project in experiments has its full need',
-    `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; ${short.length} short of the projects' need (tuning 0 in each); violations ${bad.map((v) => v.k).join(',') || 'none'}`);
+  // (a) Research engineers are idle only when every project in experiments has its full RE_MAX_PER_PROJECT (INP-V01).
+  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.evals - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
+  check(bad.length === 0,
+    'RD-B08: research engineers are idle only after every project in experiments has its full need',
+    `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; violations ${bad.map((v) => v.k).join(',') || 'none'}`);
   // (b) More research engineers never lower a project's research engineers, FLOP or rate. The FLOP is by need, so it is
   // exactly flat; the rate may dip by the AI labour multiplier m_EXP = L/H, which spreads the same AI labour over the
   // extra (idle) humans (< 0.5%; departments/workfit.ts labourOf, DD-11 / DD-13).
@@ -320,21 +485,13 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   check(worstRe >= -1e-9 && worstFlop >= 1 - 1e-9 && worstRate >= 0.995,
     'RD-B08: adding research engineers never lowers a project\'s research engineers, experiment FLOP or rate (FLOP by need, not headcount)',
     `worst step: RE ${worstRe.toFixed(3)}, FLOP ×${worstFlop.toFixed(4)}, rate ×${worstRate.toFixed(4)}`);
-  // (c) Tuning's FLOP is what the projects leave: with RE to spare, the pool splits RE_PER_PROJECT per project and
-  // tuning's demand; with no headroom tuning wants nobody, the projects take the whole pool and the rest is idle.
+  // (c) With research engineers to spare, the projects take the whole pool and the rest of the engineers are idle.
   const top = vs[vs.length - 1];
-  const units = top.a.perProject.size * RE_PER_PROJECT + top.a.demand.tune;
   const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
-  const z = deserialize(serialize(top.x));
-  for (const k of ['pre', 'rlMid', 'rlCeil', 'train', 'serve'] as const) for (const b of z.player.research.stacks[k].buckets) b.h = 0;
-  resetWorkContext(z);
-  const az = reAllocation(z);
-  const shz = expShares(az, 1);
-  const usedZ = az.re.ops + az.re.evals + az.re.exp + az.re.tune;
-  check(Math.abs(top.sh.tune - top.avail * top.a.demand.tune / units) < 1e-6 * top.avail && Math.abs(projFlop + top.sh.tune - top.avail) < 1e-6 * top.avail
-    && az.demand.tune === 0 && az.re.tune === 0 && shz.tune === 0 && Math.abs([...shz.perProject.values()].reduce((x, y) => x + y, 0) - 1) < 1e-9 && az.total - usedZ > 0,
-    'RD-B08: tuning takes the FLOP the projects leave; with no headroom it wants no one and spare research engineers are idle',
-    `tuning ${(100 * top.sh.tune / top.avail).toFixed(1)}% of FLOP at demand ${top.a.demand.tune.toFixed(2)}; no headroom: idle ${(az.total - usedZ).toFixed(2)} team-eq`);
+  const usedTop = top.a.re.ops + top.a.re.evals + top.a.re.exp;
+  check(Math.abs(projFlop - top.avail) < 1e-6 * top.avail && top.a.total - usedTop > 0,
+    'RD-B08 / RD-E03: with research engineers to spare the projects take the whole pool; spare research engineers are idle',
+    `projects ${(100 * projFlop / top.avail).toFixed(1)}% of FLOP; idle ${(top.a.total - usedTop).toFixed(2)} team-eq`);
 }
 
 // ---------- RD-B09: run operations have one owner (research engineers); a shortfall slows runs ----------
@@ -411,13 +568,13 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   check(Math.abs(rate(dif) - rate(ref)) < 1e-12 && Math.abs(dPub - dG / 14) < 1e-12 && softwareRate(dif).publicPerYear > softwareRate(ref).publicPerYear,
     'RD-B16: a diffusion inflow does not move Software progress; it shows as public knowledge (its own 14-day average)',
     `rate ${(365 * rate(dif)).toFixed(4)} OOM/yr (unchanged); public +${(365 * dPub).toFixed(3)} OOM/yr`);
-  // An adopted idea does count: x × (1 − HEADROOM) enters the day's change.
+  // An adopted idea does count: all of x enters the day's change (RD-E03: no headroom).
   const ad = clone(s);
   const x = 0.02;
   addIdea(ad.player.research.stacks.pre, x, 0, latestBaseFlop(ad));
   softwareProgressDay(ad);
   const dRate = rate(ad) - rate(ref);
-  check(Math.abs(dRate - (x * (1 - HEADROOM)) / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its effect less headroom (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
+  check(Math.abs(dRate - x / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its whole effect (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
 
   // Theft and A4 compare at one F on the same parts: a player recipe equal to China's has no gap, whatever its base or
   // training-throughput stack; a bigger base leaves the secrets-leak gap unchanged.
@@ -485,21 +642,12 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     'a stage without experiment FLOP waits', `${stage0}: work ${w0.toFixed(2)} → ${t1?.work.toFixed(2)} of ${t1?.workNeed.toFixed(2)}`);
 }
 
-// ---------- headroom ----------
+// ---------- stacks: full effect at adoption (RD-E03), scale dependence ----------
 {
   const st = initialStacks(0).pre;
   addIdea(st, 0.1, 0, 1e24);
-  const h0 = headroomAt(st);
-  const s = mk(7);
-  s.player.research.stacks.pre = st;
-  tuneDay(s, 3 / 270);
-  const h1 = headroomAt(st);
-  for (let d = 0; d < 200; d++) tuneDay(s, 3 / 270);
-  const h2 = headroomAt(st);
   addIdea(st, 0.1, 0, 1e24);
-  const h3 = headroomAt(st);
-  check(Math.abs(h0 - HEADROOM * 0.1) < 1e-12 && h1 < h0 && h2 < 0.2 * h0 && Math.abs(h3 - h2 - HEADROOM * 0.1) < 1e-12 && Math.abs(stackAt(st) - (0.2 - h3)) < 1e-12,
-    'headroom: an adopted idea leaves 30% as headroom, tuning closes it, adoption refills it', `${h0.toFixed(3)} → ${h1.toFixed(4)} → ${h2.toFixed(4)} → ${h3.toFixed(4)}`);
+  check(Math.abs(stackAt(st) - 0.2) < 1e-12, 'stacks: two adopted 0.1 OOM ideas add 0.2 OOM at once (no headroom)', stackAt(st).toFixed(4));
   // Scale dependence: an idea with s > 0 is worth more at a bigger run.
   const st2 = initialStacks(0).pre;
   addIdea(st2, 0.1, 0.1, 1e24);
@@ -636,15 +784,15 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const apply = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => ACTION_BY_ID.get(id)!.apply(s, makeCtx(s), p);
   // B31 effort: from the stages the engine runs, not the class table.
   const sum = (n: TreeNodeDef) => { const e = effortOfNode(n); return e.sci + e.exp; };
-  const p13 = PROJECT_BY_ID.P13;
-  const p13c = pv(fx(400), 'research.queue', { id: 'P13' }).costs.filter((c) => c.currency === 'staffTime').map((c) => c.amount);
+  const p17 = PROJECT_BY_ID.P17;
+  const p17c = pv(fx(400), 'research.queue', { id: 'P17' }).costs.filter((c) => c.currency === 'staffTime').map((c) => c.amount);
   const line = PROJECT_BY_ID['L.scale'];
   const saf = PROJECT_BY_ID['T-CONFESS'];
   const safC = pv(fx(400), 'research.queue', { id: 'T-CONFESS' }).costs.filter((c) => c.currency === 'staffTime');
-  check(Math.abs(p13c[0] - Math.round(PICK_AT * stagesOf(p13).idea * 10) / 10) < 1e-9 && Math.abs(p13c[1] - Math.round((stagesOf(p13).small + stagesOf(p13).scale) * 10) / 10) < 1e-9 && effortClassOf(p13) === 'XL'
+  check(Math.abs(p17c[0] - Math.round(PICK_AT * stagesOf(p17).idea * 10) / 10) < 1e-9 && Math.abs(p17c[1] - Math.round((stagesOf(p17).small + stagesOf(p17).scale) * 10) / 10) < 1e-9 && effortClassOf(p17) === 'XL'
     && Math.abs(sum(line) - (PICK_AT * 0.8 + 1.8)) < 1e-9 && safC.length === 1 && safC[0].unit === 'months' && Math.abs(safC[0].amount - AGENDA_BY_ID[saf.agenda as AgendaId].T1) < 0.051,
-    'RD-B18 effort readouts run on the engine\'s stages: P13 science / experiment team-months from its fitted effort, a line its line stages, a safety line T₁ months',
-    `P13 ${p13c.join(' / ')} (class ${effortClassOf(p13)}); L.scale ${sum(line).toFixed(2)}; T-CONFESS ${safC.map((c) => `${c.amount} ${c.unit}`).join(', ')} (T₁ ${AGENDA_BY_ID[saf.agenda as AgendaId].T1})`);
+    'RD-B18 effort readouts run on the engine\'s stages: P17 science / experiment team-months from its fitted effort, a line its line stages, a safety line T₁ months',
+    `P17 ${p17c.join(' / ')} (class ${effortClassOf(p17)}); L.scale ${sum(line).toFixed(2)}; T-CONFESS ${safC.map((c) => `${c.amount} ${c.unit}`).join(', ')} (T₁ ${AGENDA_BY_ID[saf.agenda as AgendaId].T1})`);
   // B31 one ETA: the Projects card, the tree and the previews read capEta; one engine day takes a day off it at the
   // inputs that day ran on (the next day's experiment compute can differ: read with the day's own readout).
   const s = fx(400);

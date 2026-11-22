@@ -26,7 +26,7 @@ export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { capEta, effortClassOf, effortOfNode, isCapProject, stagesOf } from '../models/research';
-export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
@@ -168,7 +168,7 @@ export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from
 export { spareServingEffect } from '../production/production';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
-  STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
+  STAGES, UNLOCK_STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
   otherEffectViews, reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
 export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
@@ -177,3 +177,4 @@ export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safet
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';
 export { ousterVote, ousterLive, ousterPassesBelow, OUSTER, OUSTER_BC, OUSTER_NOTICE_D, BC_WARN, BC_CLEAR, CRITICS, criticsAvailable, criticsSide, criticsSeat, trustVote } from '../finance/board'; // jank ST3 + FIN3b: board review, ouster vote, critics' seat
 export { charterRights, charterHolds } from '../finance/charter'; // FIN3b: charter rights
+export { teamCapacity } from '../departments/capacity';

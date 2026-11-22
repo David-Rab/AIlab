@@ -126,12 +126,13 @@ export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 
 // ───────────────────────────── research in physical units (V3.4) ─────────────────────────────
 
-/** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): the per-project allocation. */
-export const RE_UNIT = 2;
+/** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): a fixed unit of measure, set
+ *  equal to one full project's allocation (data/v2/research.ts RE_MAX_PER_PROJECT) [D]. */
+export const RE_LABOUR_UNIT = 2;
 /** Experiment FLOP per day that makes one unit of experiment compute (c = 1): the leader lab's day-0 experiment FLOP per
- *  RE_UNIT of its research engineers on experiments and tuning (1e6 H100e × 5% × 3.46e19 FLOP/H100e-day over 11 teams ×
+ *  RE_LABOUR_UNIT of its research engineers on experiments and tuning (1e6 H100e × 5% × 3.46e19 FLOP/H100e-day over 11 teams ×
  *  88% ÷ 2) [D, fixed physical unit: never the calendar]. */
-export const C_UNIT_FLOP_PER_DAY = (1e6 * 0.05 * 3.46e19 * RE_UNIT) / (11 * 0.88);
+export const C_UNIT_FLOP_PER_DAY = (1e6 * 0.05 * 3.46e19 * RE_LABOUR_UNIT) / (11 * 0.88);
 /** Leader day-0 references for the readout ratios (h, k, c): research engineers on research (team-eq), agent compute
  *  (H100e), experiment FLOP per day. */
 export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19 };

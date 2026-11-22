@@ -8,7 +8,7 @@
 //   modest (a few % of its research engineers at most, a sliver of its experiment compute).
 import { BENCHMARKS, ELICITATION } from '../../src/data/v2/benchmarks';
 import { EVAL_DEPTHS, REEVAL_DAYS, REEVAL_DG } from '../../src/data/v2/evals';
-import { addIdea, inPlaceRecipe } from '../../src/engine/v2/models/stacks';
+import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { StreamRng } from '../../src/engine/v2/core/rng';
@@ -113,15 +113,15 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   check(days[1] < days[0] && days[0] >= 2 * days[1], 'EV3 more research engineers on evals finish a suite faster (no fixed days)',
     `evals capped at 0.03 team-eq: ${days[0]} days (estimate ${est[0]}); 0.1 team-eq (the full suite's 10 staff): ${days[1]} days (estimate ${est[1]})`);
   check(days.every((d, i) => Math.abs(d - est[i]) <= 2), 'EV3 the ready-date estimate matches the work ÷ capacity', `${days.join(', ')} vs ${est.join(', ')}`);
-  // With the evals need put last behind tuning, the suite gets what tuning leaves: nothing once tuning wants every
-  // research engineer (RD-B08: tuning's demand is ∝ headroom, here 3 OOM of it), the idle ones when it wants fewer.
+  // With the evals need put last, the suite gets what the needs above leave (RD-E03: no routine tuning; the start has
+  // research engineers to spare); with experiments taking every research engineer it gets nothing.
   const s = game();
-  act(s, 'research.reAlloc', { order: 'ops,exp,tune,evals' });
+  act(s, 'research.reAlloc', { order: 'ops,exp,evals' });
   const idleLast = evalDaysEstimate(s, 'full');
-  addIdea(s.player.research.stacks.pre, 10, 0, 1e24);
-  const behindTune = evalDaysEstimate(s, 'full');
-  check(behindTune === Infinity && Number.isFinite(idleLast), 'EV3 the player\'s order applies: evals after routine tuning get what it leaves',
-    `${behindTune} days behind a tuning need of every engineer; ${idleLast} days with the start headroom`);
+  act(s, 'research.reAlloc', { need: 'evals', max: 0 });
+  const capped = evalDaysEstimate(s, 'full');
+  check(capped === Infinity && Number.isFinite(idleLast), 'EV3 the player\'s order and caps apply: evals last get what the needs above leave; capped at 0, nothing',
+    `${idleLast} days last in the order; ${capped} capped at 0`);
   // AI labour in experiments multiplies the research engineers' eval work: a deep suite with a ×2 multiplier.
   const deepDays = EVAL_DEPTHS.deep.staffWeeks / EVAL_DEPTHS.deep.staff * 7;
   check(Math.abs(evalDaysEstimate(game(), 'deep') - deepDays) <= deepDays * 0.25, 'EV3 a deep suite at full staffing takes ≈ its staff-weeks ÷ staff (3 weeks at the start)', `${evalDaysEstimate(game(), 'deep')} d vs ${deepDays.toFixed(0)}`);

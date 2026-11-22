@@ -67,7 +67,8 @@ export interface TreeNodeDef {
   needs: string[];
   /** Effort class (display); undefined for ★ nodes. */
   effort?: EffortClass;
-  /** Effort in standard-team-months at M = 1 (default EFFORT_TM[effort]); fitted for RefBot's nodes (calib --fit-tree). */
+  /** Effort in standard-team-months at M = 1; fitted for RefBot's nodes (calib --fit-tree). Capability ideas and axes: the
+   *  whole stage work (stagesOf splits it; default IDEA_DEFAULT_TM); other projects: default EFFORT_TM[effort]. */
   effortTM?: number;
   /** Success chance of a new (non-paradigm) node. Paradigm nodes use the paradigm prior. */
   odds?: number;
@@ -102,17 +103,20 @@ export interface TreeNodeDef {
 /** Standard-team-months at M = 1 per effort class, for new (non-paradigm) nodes [D]. */
 export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 50 };
 
-/** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit (RD-R07). They are
- *  the pre-R4 effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to
- *  (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05. */
+/** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit. They are the pre-R4
+ *  effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to (P08: 150 d ≈
+ *  31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05; RD-R07: capability projects × IDEA_WORK_PER_E 1.2,
+ *  the whole stage work (P27 is not a staged project: its rolled team-months). */
 const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
-  P06: 18, P09: 24, P10: 24, P11: 36, P12: 36, P14: 24, P15: 24, P16: 18, P18: 24, P20: 18, P21: 42, P22: 36, P23: 24,
-  P24: 24, P25: 30, P27: 24,
+  P06: 21.6, P09: 28.8, P10: 28.8, P11: 43.2, P12: 43.2, P14: 28.8, P15: 28.8, P16: 21.6, P18: 28.8, P20: 21.6, P21: 50.4,
+  P22: 43.2, P23: 28.8, P24: 28.8, P25: 36, P27: 24,
 };
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
- *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 and P19 (they fail in the fit world) take the fitted ones'
- *  mean ratio (×0.6). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. */
-export const FITTED_EFFORT_TM: Record<string, number> = { P05: 4.6, P07: 3.34, P08: 12.32, P13: 79.62, P17: 65.97, P19: 29, 'rl.mlResearch': 1.36 };
+ *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 (it fails in the fit world) takes the fitted ones'
+ *  mean ratio (×0.6). Late projects (P17 at L 9.5) start when research pace is already 3–8×. RD-R07:
+ *  each is the node's one effort number, the whole stage work the engine runs (effortOfNode: PICK_AT × idea + small +
+ *  scale team-months; stagesOf splits it by IDEA_STAGES), i.e. the earlier fit × IDEA_WORK_PER_E. */
+export const FITTED_EFFORT_TM: Record<string, number> = { P05: 5.52, P07: 4.008, P08: 14.784, P17: 79.164, 'rl.mlResearch': 1.632 };
 
 /** A failed idea can be retried after this many days at half the previous odds (TECH-TREE §5 T1). */
 export const TREE_RETRY_DAYS = 180;
@@ -154,7 +158,9 @@ export const TREE: TreeNodeDef[] = [
   P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { kind: 'idea', effect: { mean: 1, sd: 0.25, expert: { family: 'longHorizon', tokensT: P12_DEMO_T } }, cap: 'Experts record days-long work: 20B tokens of demonstrations join the long-tasks suite (fidelity 1 → 1.35 from the start stock), raising its RL ceiling and so the time horizon', cost: '$1B at the expert-data price ($0.05 a token), paid when the demos are delivered (adoption)' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
-  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['P13', 'P19'], 'XL', { cap: 2, saf: -1 }, { cap: 'Next base +1 OOM recipe', saf: 'New lineage: traits redrawn, tools may not transfer', payoff: 'Pays off with research done mostly by AI (AI share of research labour 50% → 90%)' }),
+  // RD-E01a (DD-14): P24 is a capability idea in the pretraining stack (OOM), through the normal idea pipeline. Prior
+  // mean 0.96 OOM = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 (wide: no measurement) [D].
+  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, cap: 'AI-designed architecture and recipe: pretraining efficiency ≈ +1 OOM (wide uncertainty) for bases trained after adoption', saf: 'New lineage: traits redrawn, tools may not transfer' }),
 
   // ── Post-training (Training unless noted) ──
   STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, options: [['cot', 'visible']], cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
@@ -176,7 +182,7 @@ export const TREE: TreeNodeDef[] = [
   P('P11', 'Self-play curricula', 'posttraining', 'training', ['rl.math'], 'L', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.66, CODE: 0.33 } }, cap: 'REASON +0.66, CODE +0.33 OOM for new versions', saf: 'Verifier-hacking pressure' }),
   P('P18', 'Iterated distillation & amplification', 'posttraining', 'training', ['P05'], 'L', { cap: 2, saf: -1 }, { cap: 'One more RL budget (0.15 × the base FLOP) on the RL curve per cycle', saf: 'Traits ×1.1 per cycle', cost: 'RL compute (30% of the training pool while it runs)' }),
   P('P14', 'Interp-guided training', 'posttraining', 'training', ['T-PROBE'], 'M', { saf: 1 }, { saf: 'Post-training: the probes steer trait growth × (1 − their detection); fades as capability outruns them', cost: 'Goodhart: steered traits get masked from white-box tools' }),
-  P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'P19'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
+  P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
   STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, options: [['effort', 'low'], ['effort', 'max']], cap: 'Effort low / max', cost: 'Tokens' }),
@@ -186,10 +192,11 @@ export const TREE: TreeNodeDef[] = [
   LINE('L.infer', 'Inference efficiency', 'systems', [], { stack: 'serve', mean: 0.05, rShare: 0.15 }, { cap: 'Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it' }),
   P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; agent research throughput ×1.3', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Time horizon ×1.2 (horizon extender) [D]; memory', saf: 'Memory → successor-risk pressure' }),
-  P('P13', 'Automated AI research agents', 'systems', 'lab', ['rl.mlResearch'], 'L', { cap: 2, saf: -1 }, { cap: 'Experiment throughput up to ×1.5', saf: 'Sandbagging; AI research sabotage risk ↑', payoff: 'Pays off with your internal model\'s RSCH level (none at 6.5, full at 8.5)' }),
-  P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['P13'], 'M', { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.06, sd: 0.3, also: { serve: 0.125 / 0.06 } }, cap: 'Training throughput +0.06 OOM (×1.15); serving efficiency +0.125 OOM' }),
-  P('P19', 'Learned research taste', 'systems', 'lab', ['P13'], 'L', { cap: 2, saf: -1 }, { cap: 'Removes the RSCH −0.5 penalty', saf: 'AI sets research direction' }),
-  P('P15', 'AI-assisted oversight', 'systems', 'lab', ['P13'], 'M', { saf: 1 }, { saf: 'Safety agents share suite hardening: cheaper red-teaming, a deeper cut', cost: 'Collusion when the critic shares the trained model’s lineage', payoff: 'Pays off with safety work handed to AI' }),
+  // RD-E01a (DD-14): P13 (automated AI research agents) is gone, AI labour in the experiment slot already models research
+  // agents; P19 (learned research taste) is gone with the RSCH taste penalty it undid. Their dependants (P15, P16, P21,
+  // P24, aar) need P13's own prerequisite, RL focus: ML research.
+  P('P16', 'AI kernels / HW co-design', 'systems', 'lab', ['rl.mlResearch'], 'M', { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.06, sd: 0.3, also: { serve: 0.125 / 0.06 } }, cap: 'Training throughput +0.06 OOM (×1.15); serving efficiency +0.125 OOM' }),
+  P('P15', 'AI-assisted oversight', 'systems', 'lab', ['rl.mlResearch'], 'M', { saf: 1 }, { saf: 'Safety agents share suite hardening: cheaper red-teaming, a deeper cut', cost: 'Collusion when the critic shares the trained model’s lineage', payoff: 'Pays off with safety work handed to AI' }),
   P('P20', 'Massive agent societies', 'systems', 'lab', ['P05'], 'M', { cap: 1, saf: -2 }, { cap: 'Agent research throughput up to ×1.1', saf: 'Many-copies pressure max; collusion', payoff: 'Pays off with ≥ 2M H100e of agents' }),
   P('P22', 'Robotics foundation', 'systems', 'backbone', ['multimodal'], 'L', { cap: 1, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { PHYS: 1.65 } }, cap: 'PHYS +1.65 OOM for new versions; robotics progress', saf: 'Physical reach' }),
   P('P25', 'Formal verification at scale', 'systems', 'lab', ['P11'], 'L', { saf: 1 }, { saf: 'Weight security: defence +0.5 level against theft' }),
@@ -234,7 +241,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-COLLEVAL', 'Collusion evals', 'evals', 'lab', ['T-LOCK'], 'AG14', 'M', { saf: 1 }, { saf: 'Detects collusion, successor risk' }),
   S('T-RESAMPLE', 'Resample protocols', 'evals', 'lab', ['T-TMON'], 'AG07', 'M', { saf: 1 }, { saf: 'Contains power-seeking, scheming' }),
   S('T-CEVAL', 'Control evaluation', 'evals', 'lab', ['T-RESAMPLE'], 'AG07', 'M', { saf: 1 }, { saf: 'Measures containment' }),
-  S('aar', 'Automated alignment research', 'evals', 'lab', ['P13'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Teams build a harness: safety AI fit +0.3 OOM (√ of staffing); its finding lifts the safety AI to best-human fit on training-signal, steering and robustness lines', payoff: 'Pays off with a safety model at level ≥ 10' }),
+  S('aar', 'Automated alignment research', 'evals', 'lab', ['rl.mlResearch'], 'AG17', 'L', { saf: 2 }, { finding: 'F44', saf: 'Teams build a harness: safety AI fit +0.3 OOM (√ of staffing); its finding lifts the safety AI to best-human fit on training-signal, steering and robustness lines', payoff: 'Pays off with a safety model at level ≥ 10' }),
   S('T-MAD', 'Mechanistic anomaly detection', 'evals', 'lab', ['T-CIRCUIT'], 'AG04', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-SCIAI', 'Harm-probability guardrail', 'evals', 'lab', ['T-CEVAL'], 'AG11', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-GATE', 'Verified gatekeeper', 'evals', 'lab', ['P25'], 'AG10', 'XL', { saf: 2 }, { saf: 'Contains exfiltration', cost: 'Long shot' }),

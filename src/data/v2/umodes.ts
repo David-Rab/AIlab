@@ -67,7 +67,7 @@ export const UMODE_BY_ID = Object.fromEntries(UMODES.map((u) => [u.id, u])) as R
 
 /** Presence modifiers at base-run time (§3.5.5). */
 export const UMODE_PRESENCE = {
-  syntheticU01: 1.5, p08U14: 1.3, p13U17: 1.5, safetyPretrainU07: 0.5, p20U19: 1.3,
+  syntheticU01: 1.5, p08U14: 1.3, safetyPretrainU07: 0.5, p20U19: 1.3,
   /** The world learns: presence × 0.7 for every lab once a U-mode is publicly revealed. */
   revealed: 0.7,
 } as const;
