@@ -1518,3 +1518,36 @@ SAF-03). Commit dca648d. Moves calibration: **maybe**.
   not run.
 - **Check:** `npx tsx scripts/v2/_r02a/check.ts`: every agenda's first result at reference inputs vs T₁, worst 0.8%
   (±5%), c = 1.000, ℓ = 0.500. tsc app + scripts/v2 clean.
+
+### RD-R02b
+
+Safety projects on the shared project stepper (SAFETY-REDESIGN §3.1; replaces DD-15 / DD-16's candidate pool; SAF-01,
+SAF-08, SAF-V02). Commit fcc5614. **Moves calibration: yes (safety).**
+
+- **One stepper.** `stepProject(s, ctx, n, day: ProjectDay)` (models/research.ts): `dept: 'cap'` runs the capability
+  lifecycle as before; `dept: 'saf'` runs one "does it work" test (SafProjectState {work, workNeed = the agenda's T₁
+  months, flop}) through `stepTest`, the same day-step RD-R05's unlock projects now use: the science rate ((m_ideas ×
+  capacity ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30) and the experiment CES rate (X × speed ÷ 30 X_ref, RD-R02a units) add
+  on the same work, so at reference inputs a test takes T₁ ÷ 2 (as unlock projects: science time counts toward the
+  whole effort). Rates: safety/lineProjects.ts lineRates (`idea` → `sci`). speed = researchMods (lineSpeed and its
+  dead-end half speed gone; RD-A07 still owns the flat modifiers).
+- **Works draw.** `safetyWorks`: hash32(seed, 'saf:'+id+':'+attempt) < the agenda's true efficacy. Works → findings.ts
+  `nodeTestResult`: the node's own catalog row (`ownRow`), its generic technique, or the idea itself; never another
+  node's row, never past `needs`; a row whose `requires` fail in this world ends as failure (SAF-V02). Posterior a + 1.
+  Doesn't → `<AG>-DEAD` record (nodeId set), posterior b + 1 (was + 2), deadEnd status below 25%; the project restarts
+  (attempt + 1) at the posterior odds; the attempt's team-months go to the line's dead-end count as before.
+- **SAFSAB kept** (shared `sabotage` helper): on a working node result with the line's threat; caught → result lost
+  (no record, retry); uncaught → FALSE (masking tool `falseTool`, record trueType FALSE shown as the tool, the lab
+  takes the node as known; its real technique is not unlocked). fireFinding uses the same helper.
+- **Open study.** A line's follow-up keeps fireFinding's events (TECH / DEAD / NEG / DISC / SPILL / FALSE); its TECH
+  draws only rows no node owns (`NODE_ROWS`, SAF-08).
+- **Deleted:** candidate pool (SafCandidate, cands, newSafCandidate, readStage, betaBand / readInto), SafStage,
+  SAF_PICK_AT, SAF_POOL_MAX, SAF_BELIEF, lineSpeed, stepLineProject. SCHEMA_REV 57: migration 56 → 57 restates a
+  running safety project at its progress (work = progress × T₁).
+- **Readouts:** lineEtaDays = work left ÷ (sci + exp); lineCycleDays = T₁ ÷ (sci + exp).
+- **Scripts:** safetyresearch.ts compiles on the new stepper (section 3, belief noise, removed; its E1 pacing
+  expectations are stale: T₁ ÷ 2, no pipeline overlap), safetyideas.ts reads researchMods for lineSpeed, _r02a/check.ts
+  on stepProject (now expects T₁ ÷ 2), hygiene.ts rev 57. None run.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r02b/check.ts` (no pool / beliefs /
+  lineSpeed / line stepper in the source; one stepProject for dept cap and saf; all 33 safety nodes: works → only own
+  row / technique, doesn't → dead end with b + 1; a node run on the real stepper ends in DEAD or its own row).
