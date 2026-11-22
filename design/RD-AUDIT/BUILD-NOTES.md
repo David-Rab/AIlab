@@ -1493,3 +1493,28 @@ Moves calibration: **maybe**.
   ignored; a cap flows down; spare engineers idle; no SAF_EXP_SHARE in src). tsc (app, scripts/v2) clean; npm run build
   passes. Not run: safety suite, test:cal (RD test rule; CP2). The re-validation demand is not exercised by the fixture
   (no fading tool at day 400).
+
+### RD-R02a
+
+Safety line projects on the shared units and the shared experiment-pool rule (theme R, SAFETY-REDESIGN §3.1; SAF-02,
+SAF-03). Commit dca648d. Moves calibration: **maybe**.
+
+- **Labour:** ℓ = (m_exp × engineers ÷ RE_LABOUR_UNIT)^λ, engineers in research-engineer team-equivalents
+  (heads × quality ÷ TEAM_SIZE.re; the allocator still works in heads × quality, so lineProjects converts at
+  HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT × TEAM_SIZE.re = 200). A serious programme asks `SAF_RE_ASK` = 0.25 labour
+  units (= the old 50 heads; a staffing need like RE_MAX_PER_PROJECT, not a unit) × min(LINE_MULT_MAX, cap ÷ SERIOUS_CAP).
+- **Compute:** c = project FLOP/day ÷ (computeNeed × C_UNIT_FLOP_PER_DAY). `AgendaDef.computeNeed` = computeRef ×
+  1e6 H100e × PHI ÷ C_UNIT = computeRef × 96.8 (11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT)): the agenda's demand multiplier
+  relative to a capability project; c at the old reference compute is exactly the old c. Codex row shows it.
+- **Pacing conversion:** at reference ℓ = SAF_RE_ASK^λ (0.5 at λ 0.5), not 1, so the stage rate is X ÷ X_ref with
+  X_ref = Xces(P, 1, SAF_RE_ASK^λ): rate 1 and first result at T₁ at reference inputs. Away from reference the CES mix
+  differs from the old one (the old ℓ = 1 point sits at ℓ = 0.5 in the shared unit; ζ ≠ 1 so this is not an exact
+  rescale): why "maybe".
+- **FLOP by need** (RD-B08 rule): line pool ÷ Σ needs (ask × computeNeed per experimenting project); a project with
+  engineers takes its full share, one with none leaves it unused (was: by engineers got × computeRef, shares moving to
+  the others). `share` per agenda and recomputeComputeShares follow.
+- **Deleted:** SAF_RE_UNIT, SAF_C0_H100E. SERIOUS_CAP stays (the reference science staffing; ideation keeps
+  (m × cap ÷ SERIOUS_CAP)^λ; RD-R02b's one stepper decides it). scripts/v2/safetyresearch.ts compiles (REF_RE_HEADS),
+  not run.
+- **Check:** `npx tsx scripts/v2/_r02a/check.ts`: every agenda's first result at reference inputs vs T₁, worst 0.8%
+  (±5%), c = 1.000, ℓ = 0.500. tsc app + scripts/v2 clean.
