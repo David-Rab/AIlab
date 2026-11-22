@@ -4,16 +4,17 @@ import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { paidDeployments, worldMix } from './mix';
-import { moonshotH100e, revenueReadout } from './revenue';
+import { moonshotH100e } from './revenue';
 import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
-import { alphaUseOf, savedAt, useShareOf } from './use';
+import { useShareOf } from './use';
+import { revenueReadout } from './revenue';
 import { bookCash } from '../finance/ledger';
 import { buildWaitNew, pendingPack, queueBuild, SECTOR_CERT_DAYS, SECTOR_PACK_CASH, SECTOR_PACK_TW } from '../departments/build';
 import { sectorCertDay } from '../models/products';
 
-/** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
-export const PRODUCT = { days: SECTOR_CERT_DAYS, cash: SECTOR_PACK_CASH, prodFTE: 15 };
+/** Sector product: certification time and cash [D] (research/16 §1A.3 "costs months and money"). */
+export const PRODUCT = { days: SECTOR_CERT_DAYS, cash: SECTOR_PACK_CASH };
 
 type P = Record<string, number | string | boolean>;
 
@@ -40,19 +41,31 @@ function defaultSector(s: GameStateV2): SectorId | undefined {
   return best;
 }
 
-/** Estimated revenue gain ($B/yr) from +0.5 L in a sector: share elasticity 2.1·0.5 on the player's demand there. */
-function productGain(s: GameStateV2, sector: SectorId): number {
-  const share = s.world.shares[sector]?.player ?? 0;
-  const st = s.world.sectors.US[sector];
-  const spend = (useShareOf(st, sector) * st.E0 * 2000 * savedAt(alphaUseOf(st, sector)) * 0.06 * SECTOR_BY_ID[sector].wage * 35) / 1e9;
-  const newShare = (share * Math.exp(1.05)) / (share * Math.exp(1.05) + (1 - share));
-  return Math.max(0, (newShare - share) * spend * 2.8); // US + ROW
+/** RD-B20: the revenue a certified pack adds ($B/yr), from the market itself: today's market with the pack on its host
+ *  (certified today: its fit bonus, Enterprise's ×3 sector weight) against without, both with the sector's customers
+ *  at the shares they move toward (the customer stock catches up over CUSTOMER_TAU.sector, about eight months). */
+export function packRevenueGain(s: GameStateV2, host: Deployment, sector: SectorId): number {
+  const cust: NonNullable<GameStateV2['world']['fx']['cust']> = { US: {}, CN: {}, ROW: {} };
+  for (const [r, row] of Object.entries(s.world.fx.cust ?? {}) as [keyof typeof cust, Record<string, Record<string, number>>][]) {
+    const { [sector]: _drop, ...rest } = row;
+    cust[r] = rest;
+  }
+  const base: GameStateV2 = { ...s, world: { ...s.world, fx: { ...s.world.fx, cust } } };
+  const n: Deployment = { ...host, packs: [...host.packs.filter((x) => x.sector !== sector), { sector, certDay: s.time.day }] };
+  const withPack: GameStateV2 = { ...base, player: { ...base.player, deployments: s.player.deployments.map((d) => (d.id === host.id ? n : d)) } };
+  return revenueReadout(withPack).total - revenueReadout(base).total;
 }
 
 /** Days until a sector pack queued now is built. */
 function packWait(s: GameStateV2): string {
   const d = buildWaitNew(s, SECTOR_PACK_TW, 'sectorPack');
   return Number.isFinite(d) ? `${d} d` : "never at today's engineering";
+}
+
+/** The sector and host a pack action with these params acts on (preview and apply read the same). */
+function packTarget(s: GameStateV2, p: P): { sector?: SectorId; host?: Deployment } {
+  const sector = (typeof p.sector === 'string' && (SECTOR_IDS as string[]).includes(p.sector) ? p.sector : defaultSector(s)) as SectorId | undefined;
+  return { sector, host: productHost(s, typeof p.deploymentId === 'string' ? p.deploymentId : undefined) };
 }
 
 const sectorProduct: ActionDef = {
@@ -67,20 +80,24 @@ const sectorProduct: ActionDef = {
     return true;
   },
   preview(s, p: P) {
-    const sector = (typeof p.sector === 'string' ? p.sector : defaultSector(s)) as SectorId | undefined;
+    const { sector, host } = packTarget(s, p);
     const costs: CostLine[] = [
       { currency: 'cash', amount: -PRODUCT.cash },
-      { currency: 'staffTime', amount: -PRODUCT.prodFTE, lagDays: PRODUCT.days },
       // J2 P1: engineers build the pack first, then certification starts.
       { currency: 'staffTime', amount: -SECTOR_PACK_TW, target: `engineer team-weeks · built in ${packWait(s)}` },
     ];
-    const gains: CostLine[] = sector ? [{ currency: 'revenue', amount: Math.round(productGain(s, sector) * 100) / 100, target: sector, lagDays: PRODUCT.days }] : [];
-    const exposure: CostLine[] = sector ? [{ currency: 'approval', amount: -1, target: `bloc:labor`, lagDays: PRODUCT.days, probability: 0.5 }] : [];
-    return { costs, gains, exposure };
+    const gains: CostLine[] = [];
+    if (sector && host) {
+      const wait = buildWaitNew(s, SECTOR_PACK_TW, 'sectorPack');
+      const gain = Math.round(packRevenueGain(s, host, sector) * 100) / 100;
+      const line: CostLine = { currency: 'revenue', amount: gain, target: `${SECTOR_BY_ID[sector].name}, once certified and its customers have switched (today's market)`, ...(Number.isFinite(wait) ? { lagDays: wait + PRODUCT.days } : {}) };
+      if (gain >= 0) gains.push(line);
+      else costs.push(line);
+    }
+    return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p: P) {
-    const sector = (typeof p.sector === 'string' && (SECTOR_IDS as string[]).includes(p.sector) ? p.sector : defaultSector(s)) as SectorId | undefined;
-    const host = productHost(s, typeof p.deploymentId === 'string' ? p.deploymentId : undefined);
+    const { sector, host } = packTarget(s, p);
     if (!sector || !host) return;
     if (sectorCertDay(s, sector) !== undefined || pendingPack(s, sector)) throw new Error('That sector already has a product');
     // J2 P1: the engineers build the pack (build queue); certification (PRODUCT.days) starts when it is built.
