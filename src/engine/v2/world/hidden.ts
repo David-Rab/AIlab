@@ -56,8 +56,7 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 }
 
 /** Steps 1–2 of sampleHidden: the timeline world with its production parameters and the per-preset work-type
- *  calibration (no hidden draws beyond the v1 world's). Also builds the fixed ai2027 reference path the oversight
- *  conversion is derived from (safety/oversight.ts refPathWorld, model v3 M7). */
+ *  calibration (no hidden draws beyond the v1 world's). */
 export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);

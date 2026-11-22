@@ -53,12 +53,6 @@ export const HUMAN_REVIEW_L = 10;
 export const DECAY_KAPPA = 0.27;
 /** OOM of headroom one v2 "M½ doubling" of tool upkeep or one ×0.5 negative result was worth: log10(2)/κ. */
 export const OOM_PER_HALVING = Math.log10(2) / DECAY_KAPPA;
-/** Reference path used to convert v2 M½ values (save migration 24 → 25) and the agendas' half points: v2's research
- *  multiplier M at the display-level knots of λ(G) (V0 L 5, SC 10, SAR 12, SIAR 13.5, ASI 15) on the ai2027 reference;
- *  log-linear in M between knots. Each knot's OOM above V0 is derived in code from the ai2027 world's knots
- *  (safety/oversight.ts oomOfRefM). Model v3 M7: this replaced a hard-coded OOM column (0 / 2.532 / 4.376 / 8.776 /
- *  11.636) that went stale when A6b moved G_V0 and the ai2027 G_SC (now 0 / 2.452 / 4.296 / 8.696 / 11.556). */
-export const REF_M_LEVEL: readonly (readonly [number, number])[] = [[1.46, 5], [5, 10], [25, 12], [250, 13.5], [2000, 15]];
 
 /** Control protocols at deployment (MODEL-V3 §11.6, research/20 F4): Greenblatt et al. 2023 [P] trusted monitoring with
  *  defer-to-trusted, usefulness and safety by the deferral share d (GPT-4 untrusted, GPT-3.5 trusted, 2% audit). */

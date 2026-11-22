@@ -169,8 +169,6 @@ export {
   type DataPortfolioView, type DomainMixRow, type DrawDomainRow, type ExpertForm, type LicenceForm, type PendingView, type SynForm, type TeacherRow, type UsageLevelRow,
 } from './production/dataView';
 export { REF_SHARE, type DataDelta, type DataDraw, type KindRow } from './production/data';
-// Model v3 M7: an agenda's half-strength point in OOM above V0 (its v2 M½ on the ai2027 reference path, from the knots).
-export { agendaOHalf } from './safety/oversight';
 // FIN2: raises with a thesis, promises, credibility, the IPO, "What we owe".
 export { whatWeOwe, COVENANT_NEAR } from './finance/owe';
 export type { Owe, OweCovenant, OweContingent, OweTranche } from './finance/owe';

@@ -20,7 +20,7 @@ import { UMODE_BY_ID, UMODES } from '../../../data/v2/umodes';
 import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
 import { clamp01, setFlag, trueEfficacy } from './common';
-import { agendaOHalf, oomOfRefM, versionOom } from './oversight';
+import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
 import { addRivalKnowledge } from '../actors/rivalModel';
@@ -373,7 +373,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       for (const t of def.coverage) if (t !== 'CORRIG') cov[t] = 0.6;
       if (!Object.keys(cov).length) cov.SCHEME = 0.5;
       dept.techniques[`T-${id}`] = {
-        id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(oomOfRefM(25), agendaOHalf(def)), k: Math.max(0.5, def.k),
+        id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(4.218 /* SAR, v2 M½ 25 */, def.oHalf), k: Math.max(0.5, def.k),
         goodhart: def.G, trainedAgainst: 0, falseValidated: true, coverage: cov,
       };
       title = `AI-validated ${def.name} detector`;
