@@ -935,3 +935,23 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   effort shown = stagesOf sum = effortTM for every capability idea / axis; P13 stage work unchanged; no result stage
   reached in the engine or the view on a working elastic run).
 - **Moves calibration: no** (stage work identical up to floating point; the removed stage lasted zero days).
+
+### RD-R05
+- **Unlock projects (CAP-13, DD-14):** `isUnlockProject(n)` = a capability idea / axis without a typed effect (no stack,
+  domains, data or expert: 22 nodes, e.g. rl.* focus nodes, scienceData, multimodal, P05–P08, P13–P15, P17–P20,
+  P23–P25). They skip ideas / small test / big test: one stage `test` (CapStage) with `CapProjectState.trial` {work,
+  workNeed = trialWork(n) = the stagesOf sum = effortTM, flop, buildId}. Each day the science teams (ideation rate:
+  (m_IDEAS × capacity)^λ × taste × speed / 30) and the experiment CES (research engineers + the project's FLOP, as
+  `experimenting` now includes stage `test`) add to the same work. When it is done the hidden per-world `works()` draw
+  decides: works → build-in (ADOPT_TW.unlock), known on completion; doesn't → failed, reopen as speculative at the
+  lower odds (unchanged). No candidates, no belief or effect band, no drops (maxDrops 0). capEta / capProgress read
+  the trial. An older save's unlock mid-pipeline is restated on its next day at its progress (trialOf; no schema bump);
+  one already building in finishes on the old path.
+- **View / UI:** CapProjectView `unlock`; `UNLOCK_STAGES` = test, adoption (StageId gains `test`); Projects shows
+  Test → Build-in, a "Test" section with "Chance it works" and "Time left", Next tooltip rows Test / Chance it works,
+  unlock failure text ("the test showed it does not work on this attempt"). Glossary `stageTest` added (GLOSSARY.md
+  not regenerated). Ref bot treats stage `test` as in progress.
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes; `tsx scripts/v2/research.ts --rd-r05` (unlock set
+  = no typed effect; three day-0 unlocks run with no candidates / band, one test of trialWork, outcome = the works draw).
+- **Moves calibration: maybe** (unlock timing now one pooled work stage with no drops or give-ups: unlocks that used to
+  fail by three weak draws on a working direction now land; science teams' time counts toward the whole effort).
