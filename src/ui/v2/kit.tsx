@@ -218,7 +218,8 @@ const lineAmt = (c: CostLine) => {
   if (c.currency === 'compute') return a <= 1 ? `${F.pct(a)} compute` : `${F.count(a)} H100e`;
   // Dilution lines are in percent (finance actions, E32); a fraction reading turned 0.5% into 50%.
   if (c.currency === 'dilution') return `${a.toFixed(1)}% stake`;
-  if (c.currency === 'progress') return `${a.toFixed(2)} L`;
+  // RD-B19 (MEA-19): a 'progress' line carries its unit (lint-tradeoffs); a bare one is not a level.
+  if (c.currency === 'progress') return `${unitAmt(a)} progress`;
   if (c.currency === 'staffTime' && a >= 10) return `${F.count(a)} staff`; // heads (E32, E22); small amounts are percent
   return `${a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0)} ${m?.label.toLowerCase() ?? F.words(c.currency)}`;
 };

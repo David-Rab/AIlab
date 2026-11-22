@@ -11,7 +11,7 @@
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
-  B_G_PER_Y, CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
+  B_G_PER_Y, CONTINUE_SHARE, FLOP_RL_REF, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
   STREAM_LAG_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
@@ -35,7 +35,7 @@ import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, finishBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
-import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
+import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
@@ -43,7 +43,8 @@ import {
   continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, serveOfBase,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
-import { uniqueVersionName, versionById } from './labs';
+import { internalVersion, uniqueVersionName, versionById } from './labs';
+import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
 import { poolsOf } from '../compute/power';
 import { ws4r } from '../actors/state';
@@ -312,6 +313,33 @@ function distillBuild(t: ModelVersion, gap: number): VersionBuild {
 
 /** Active parameters of a version: its own (a distilled student's) or its base's. */
 export const paramsOfVersion = (s: GameStateV2, v: ModelVersion) => v.params ?? s.player.models.bases.find((x) => x.id === v.baseId)?.params ?? 1e12;
+
+/** RD-B19 (B45): what the lab can forecast of a run's level, on the measured scale. The engine's prediction is the true
+ *  outcome (hidden; the traits' AF gate reads it); the lab knows only the step its recipe and FLOP make over a model it
+ *  has measured. So the forecast is that reference's measured level plus the step, its band the reference's evaluation
+ *  band (±1 SD, measuredSd), the domains shifted the same way, and `gain` = forecast − the reference's measured level
+ *  (like with like). Reference: `ref` if measured, else the internal model, else the best measured live version.
+ *  Undefined when that reference is unmeasured or the plan has no prediction. Readout only. */
+export interface RunForecast { mid: number; band: [number, number]; sd: number; gain: number; refId: string; refName: string; domains: Record<DomainId, [number, number]> }
+export function runForecast(s: GameStateV2, pred: Pick<RunPrediction, 'Lg' | 'domains'>, ref?: ModelVersion): RunForecast | undefined {
+  const measured = (v: ModelVersion | undefined) => (v && v.evals.measuredL !== undefined ? v : undefined);
+  let r = measured(ref) ?? measured(internalVersion(s));
+  if (!r) {
+    for (const v of s.player.models.versions) {
+      if (v.status === 'retired' || v.status === 'rolledBack' || v.evals.measuredL === undefined) continue;
+      if (!r || v.evals.measuredL > (r.evals.measuredL ?? -Infinity)) r = v;
+    }
+  }
+  if (!r || r.evals.measuredL === undefined || !(pred.Lg[1] > 0)) return undefined;
+  const shift = r.evals.measuredL - r.Lg;
+  const mid = (pred.Lg[0] + pred.Lg[1]) / 2 + shift;
+  const sd = measuredSd(r);
+  const domains = Object.fromEntries(Object.entries(pred.domains).map(([d, b]) => {
+    const m = (b[0] + b[1]) / 2 + shift;
+    return [d, [m - sd, m + sd]];
+  })) as Record<DomainId, [number, number]>;
+  return { mid, band: [mid - sd, mid + sd], sd, gain: mid - r.evals.measuredL, refId: r.id, refName: r.name, domains };
+}
 
 /** Plan (and validate) a run without launching it: FLOP, wall time, cash, G and the run-card prediction. */
 export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
@@ -692,19 +720,39 @@ function advanceStream(s: GameStateV2) {
   }
 }
 
+/** The track a stream started on `v` today begins from. The stream continues from the recipe the version already
+ *  embodies; moving a running stream onto a version (e.g. on a newer base) carries the RL recipe it already absorbed,
+ *  and the pretraining recipe re-applies at the new base [D]. */
+function startTrack(s: GameStateV2, v: ModelVersion, b: VersionBuild): Track {
+  const old = s.player.models.stream;
+  const own = trackOf(s, v, b);
+  return old && old.versionId !== v.id && old.track
+    ? { pre: Math.max(own.pre, old.track.pre), rlMid: Math.max(own.rlMid, old.track.rlMid), rlCeil: Math.max(own.rlCeil, old.track.rlCeil) }
+    : own;
+}
+
+/** RD-B19 (B37): recipe (OOM of effective compute, stacks.ts inPlaceRecipe's measure, known to the lab) a version on the
+ *  stream has still to absorb: today's stacks (trackNow, what advanceStream closes in on with the STREAM_LAG_DAYS lag)
+ *  minus the track it holds (the running stream's, or startStream's start track). At least 0: the stream never lowers
+ *  a version. The start and stop previews read it. */
+export function streamRecipeGap(s: GameStateV2, versionId: string): number {
+  const v = versionById(s, versionId);
+  if (!v) return 0;
+  const b = v.build ?? fallbackBuild(v);
+  const st = s.player.models.stream;
+  const tr = st?.versionId === v.id && st.track ? st.track : startTrack(s, v, b);
+  const now = trackNow(s, v);
+  const F = v.build?.flopPre ?? s.player.models.bases.find((x) => x.id === v.baseId)?.flop ?? FLOP_RL_REF;
+  return Math.max(0, gEquivOf(F, now.pre, now.rlMid, now.rlCeil) - gEquivOf(F, tr.pre, tr.rlMid, tr.rlCeil));
+}
+
 /** Start a continual-learning stream on a version (needs P08). Returns an error string or undefined. */
 export function startStream(s: GameStateV2, versionId: string, day: Day = s.time.day): string | undefined {
   if (!adopted(s, 'P08')) return 'Needs continual learning (P08)';
   const v = versionById(s, versionId);
   if (!v || v.variant !== 'full') return 'Pick a full version';
   const b = v.build ?? fallbackBuild(v);
-  // The stream continues from the recipe the version already embodies; moving a running stream onto a version (e.g. on
-  // a newer base) carries the RL recipe it already absorbed, and the pretraining recipe re-applies at the new base [D].
-  const old = s.player.models.stream;
-  const own = trackOf(s, v, b);
-  const track = old && old.versionId !== versionId && old.track
-    ? { pre: Math.max(own.pre, old.track.pre), rlMid: Math.max(own.rlMid, old.track.rlMid), rlCeil: Math.max(own.rlCeil, old.track.rlCeil) }
-    : own;
+  const track = startTrack(s, v, b);
   const nb = streamBuild(s, v, b, track);
   const G = finishBuild(s.hidden.timeline, nb);
   v.build = nb;

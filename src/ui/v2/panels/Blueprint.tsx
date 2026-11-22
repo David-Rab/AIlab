@@ -763,7 +763,7 @@ function Predicted({ s, card, err }: { s: GameStateV2; card?: Card_; err?: strin
   const lo = Math.max(0, Math.floor(Math.min(now, band[0]) - 1.5));
   const hi = Math.min(16, Math.ceil(Math.max(now, band[1]) + 1.5));
   const x = (v: number) => 8 + ((v - lo) / Math.max(1e-6, hi - lo)) * (W - 16);
-  const dChips = card && doms ? DOMS.map((d) => [d, mid(card.domains[d]) - (doms[d] ?? 0)] as const).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4) : [];
+  const dChips = card && doms && card.band[1] > 0 ? DOMS.map((d) => [d, mid(card.domains[d]) - (doms[d] ?? 0)] as const).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4) : [];
   return (
     <Card title="Predicted model" sub={iv ? <>vs {iv.name} internal</> : undefined} className="bp-pred" home="runPrediction" right={<button className="btn btn-sm" data-go="models" onClick={() => store.goto('models')}>Model card ›</button>}>
       {err && <div className="tone-neg small">{err}</div>}
@@ -781,10 +781,11 @@ function Predicted({ s, card, err }: { s: GameStateV2; card?: Card_; err?: strin
           <div className="bp-chips">
             {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <Tip key={d} content={() => <TipCard title={<Term id="domains">{d}</Term>} value={`${F.dLevel(v)} L`} rows={[{ label: 'Predicted', value: F.level(mid(card.domains[d])) }, { label: iv?.name ?? 'Today', value: F.level(doms?.[d] ?? 0) }]}>This domain's predicted level vs your internal model.</TipCard>}><span className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span></Tip>; })}
           </div>
+          <div className="small dim">Forecast from {card.forecastRef ?? 'your measured model'}'s measured level; the band (±{F.num(card.forecastSd, 2)} L) is that measurement's uncertainty.</div>
           <div className="small dim bp-mon"><Term id="monitorability">Monitorability</Term> {card.monitorability}</div>
         </>
       )}
-      {card && card.band[1] <= 0 && <div className="dim small">{card.reason ?? 'No prediction'}</div>}
+      {card && card.band[1] <= 0 && <div className="dim small">{card.reason ?? 'No forecast: no model of yours is measured yet'}</div>}
     </Card>
   );
 }

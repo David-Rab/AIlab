@@ -7,7 +7,7 @@ import { addRivalKnowledge, recipeOf } from './rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
-import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, StructureSystem, SystemCtx } from '../types';
+import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, RivalLab, StructureSystem, SystemCtx } from '../types';
 import { signCommitment, hasCommitment } from './commitments';
 import { addCoverup } from './relations';
 import {
@@ -15,7 +15,7 @@ import {
   talent, trust, trustMany, type Preview,
 } from './fx';
 import { govPresetOf } from './gov';
-import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
+import { addPosture, archetypeOf, openAbsorbMonths, openWeightsReleased, ownProgressDays, paceOf, publishLeakG } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
 import { addKnowledge, stacksGEquiv } from '../models/stacks';
@@ -57,6 +57,18 @@ function def(x: Spec): ActionDef {
 const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
 const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 const dealmakerMult = (s: GameStateV2) => (govPresetOf(s.gov.preset).id === 'dealmaker' ? 1.6 : 1);
+/** RD-B19 (B40): A4's recipients, the active labs (China too) whose recipe is below the player's. */
+const publishRecipients = (s: GameStateV2): RivalLab[] => {
+  const own = stacksGEquiv(s);
+  return [...activeRivals(s), s.china.lab].filter((r) => r.core.status === 'active' && recipeOf(s, r) < own);
+};
+/** C6's release: the G of the weights (`behind` × 0.3 of a year of the lead pace below the player's best) and the
+ *  recipe each active rival takes in (0.3 × its model gap below them). */
+const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * paceOf(s) * B_G_PER_Y;
+const openRivalLeaks = (s: GameStateV2, G: number) => activeRivals(s).map((r) => ({ r, dG: 0.3 * Math.max(0, G - bestG(s, r.core.id)) })).filter((x) => x.dG > 0);
+/** The most days of its own progress any of `leaks` gives its lab (the preview's lead line). */
+const maxOwnDays = (s: GameStateV2, leaks: { r: RivalLab; dG: number }[]) => Math.round(Math.max(0, ...leaks.map((x) => ownProgressDays(s, x.r.core.id, x.dG))));
+
 const rivalCps = (s: GameStateV2): CounterpartyId[] => activeRivals(s).map((r) => `rival:${r.core.id}` as CounterpartyId);
 
 /** Default poach target: the active rival closest behind (or ahead of) the player. */
@@ -106,13 +118,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'A4', verb: 'policy', system: 'relations', title: 'Publish research', cooldown: 90,
-    preview: (s) => pv([L('leadDays', 9, 'capability leak to rivals and China')], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
+    // RD-B19 (B40): the lead line is the recipe A4 applies (publishLeakG) in days of each recipient's own progress.
+    preview: (s) => pv([L('leadDays', maxOwnDays(s, publishRecipients(s).map((r) => ({ r, dG: publishLeakG(s) }))), `days of progress into the recipes of ${publishRecipients(s).length} labs behind you (at their next model)`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
     apply(s, ctx) {
       const w = ws4(s);
       // Recipe leak (OOM; 9 days of the lead pace × 0.3): compares recipe with recipe, not with model capability.
-      const leak = (9 / 365) * paceOf(s) * B_G_PER_Y * 0.3;
-      const own = stacksGEquiv(s);
-      for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && recipeOf(s, r) < own) addRivalKnowledge(r, leak);
+      const leak = publishLeakG(s);
+      for (const r of publishRecipients(s)) addRivalKnowledge(r, leak);
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
@@ -340,15 +352,18 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'C6', verb: 'launch', system: 'models', title: 'Open weights', cooldown: 180,
-    preview: (_s, p) => pv([L('leadDays', 60 / Math.max(1, num(p, 'behind', 1)), 'rivals and China close the gap'), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('chinaTension', -3), L('scrutiny', 3)]),
+    // RD-B19 (B40): the lead lines are what apply adds: each rival's recipe (openRivalLeaks) and China's absorbed months
+    // (openWeightsReleased → openAbsorbMonths), in days of their own progress; none if the weights are not above the
+    // open frontier for China. The China-tension line went: nothing applies it.
+    preview: (s, p) => {
+      const G = openReleaseG(s, num(p, 'behind', 1));
+      const cn = G > s.knowledge.openWeightsG ? Math.round((openAbsorbMonths(s, G) / 12) * 365) : 0;
+      return pv([L('leadDays', maxOwnDays(s, openRivalLeaks(s, G)), "days of progress into the best-placed rival's recipe (at its next model)"), L('leadDays', cn, "days of China's own progress: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
+    },
     apply(s, ctx, p) {
-      const behind = Math.max(1, num(p, 'behind', 1));
-      const G = bestG(s, 'player') - behind * 0.3 * paceOf(s) * B_G_PER_Y;
+      const G = openReleaseG(s, num(p, 'behind', 1));
       // Model-vs-model gap (G); 30% of it enters the rival's recipe (like WS1's distillation leak).
-      for (const r of activeRivals(s)) {
-        const gap = G - bestG(s, r.core.id);
-        if (gap > 0) addRivalKnowledge(r, 0.3 * gap);
-      }
+      for (const { r, dG } of openRivalLeaks(s, G)) addRivalKnowledge(r, dG);
       openWeightsReleased(s, ctx, 'player', G);
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');

@@ -236,7 +236,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
       {runs.length === 0 && <div className="dim small">No runs</div>}
       {runs.map((r) => {
         const done = Math.min(1, r.flopDone / Math.max(1, r.flopNeeded));
-        const band = runBand(r);
+        const band = runBand(s, r);
         const stall = runStall(s, r);
         const live = r.status === 'running' || r.status === 'paused';
         const got = alloc.get(r.id) ?? 0;
@@ -246,7 +246,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
           <div className="run-row" key={r.id} data-run={r.id}>
             <Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Kind', value: r.kind }, { label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'FLOP done', value: F.pct(done) }]} />}><span className="ellip"><b>{runTitle(s, r)}</b></span></Tip>
             <Meter value={done} max={1} width={80} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <Tip content={() => <TipCard title="Predicted level" value={`L ${F.level(band[0])}–${F.level(band[1])}`}>The run's predicted general level when it finishes (a band: the result is drawn at the end).</TipCard>}><span className="num small dim">L {F.level(band[0])}–{F.level(band[1])}</span></Tip>
+            <Tip content={() => <TipCard title="Forecast level" value={band[1] > 0 ? `L ${F.level(band[0])}–${F.level(band[1])}` : '—'}>Your forecast of the run's general level when it finishes: your measured model's level plus the step this run makes over it. The band is that measurement's uncertainty; an eval of the result reads the real level.</TipCard>}><span className="num small dim">{band[1] > 0 ? `L ${F.level(band[0])}–${F.level(band[1])}` : 'L —'}</span></Tip>
             {live ? (
               <Tip content={() => <TipCard title={<Term id="poolShare">Pool share</Term>} value={F.pct(got)} rows={[
                 { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },

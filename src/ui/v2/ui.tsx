@@ -114,7 +114,7 @@ export function Rich({ text }: { text: string }) {
 
 // ───────────────────────── cost lines ─────────────────────────
 const CUR_LABEL: Record<CostLine['currency'], string> = {
-  cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'L', leadDays: 'lead', trust: 'trust',
+  cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'progress', leadDays: 'lead', trust: 'trust',
   credibility: 'cred', scrutiny: 'scrutiny', talent: 'talent', morale: 'morale', boardConf: 'board', approval: 'approval',
   security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', chinaTension: 'CN tension', dilution: 'dilution', valuation: 'valuation',
 };
@@ -131,7 +131,7 @@ function amt(c: CostLine): string {
     case 'revenue': return `$${a >= 10 ? a.toFixed(0) : a.toFixed(1)}B/yr`;
     case 'compute': return a <= 1 && a > 0 ? `${(a * 100).toFixed(a < 0.1 ? 1 : 0)}%` : fmtNum(a);
     case 'leadDays': return `${Math.round(a)}d`;
-    case 'progress': return `${a.toFixed(2)}`;
+    case 'progress': return unitAmt(a); // RD-B19: never a level without its unit
     case 'monitorability': case 'alignment': return a < 1 ? a.toFixed(2) : a.toFixed(0);
     case 'dilution': return `${a.toFixed(1)}%`; // percent (a fraction reading turned 0.5% into 50%)
     default: return a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0);
@@ -139,7 +139,7 @@ function amt(c: CostLine): string {
 }
 export function lineText(c: CostLine, sign = true): string {
   const sg = sign ? (c.amount < 0 ? '−' : '+') : '';
-  // F6b: '%' sits on its number (+5% research speed); `progress` without a unit is a display level (L).
+  // F6b: '%' sits on its number (+5% research speed). RD-B19: `progress` lines carry a unit (lint-tradeoffs).
   const label = c.unit === '%' ? '%' : c.unit ? ` ${c.unit}` : c.currency === 'cash' ? '' : ` ${CUR_LABEL[c.currency]}`;
   return `${sg}${amt(c)}${label}`;
 }
