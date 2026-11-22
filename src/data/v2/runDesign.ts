@@ -190,24 +190,36 @@ export const POST_SAFETY: Record<PostDesign['safety'], { dg: number }> = {
   heavy: { dg: -0.048 }, // SCHEME −0.95×, EA ×2 (WS2, E25)
 };
 
-/** RL families: domain values v_f,d (v2 levels; the largest is the family's own domain, the others adjacent, every
- *  other domain far: RL_TRANSFER) and, for agentic families (multi-step episodes with tools), the typical task length
- *  of an episode `taskH` (hours of a human expert's work), which sets their long-horizon pressure S3 (model v3 E3,
- *  safety/traits.ts). SWE = the SWE work type's H (2 h), ML research = EXP's (8 h; RE-Bench's tasks are 8-hour tasks
- *  [R20 F1]), long-horizon agentic = IDEAS' (40 h, a working week) [data/v2/workTypes.ts]; computer use and cyber 1 h
- *  [D: desktop tasks and CTF challenges are short multi-step episodes]. Math and bio are single-answer (not agentic). */
-export const RL_FAMILIES: Record<RLFamily, { v: Off; taskH?: number; h80Mult?: number }> = {
-  math: { v: { REASON: 1.2 } },
-  swe: { v: { CODE: 1.6, RSCH: 0.8, CYBER: 0.6 }, taskH: 2 },
-  computerUse: { v: { AGENCY: 1.6, REASON: 0.8 }, taskH: 1 }, // needs P06
-  mlResearch: { v: { RSCH: 1.6 }, taskH: 8 },
-  longHorizon: { v: { AGENCY: 0.6 }, taskH: 40, h80Mult: 2 },
-  cyber: { v: { CYBER: 2.0 }, taskH: 1 },
-  bio: { v: { BIO: 1.6 } },
+/** RL families (RD-T05): each family's `own` domain (RL transfers in full, RL_TRANSFER.same) and its `adjacent`
+ *  domains (RL_TRANSFER.adjacent); every other domain is far (RL_TRANSFER.far) [R20 C2]. For agentic families (multi-step
+ *  episodes with tools), the typical task length of an episode `taskH` (hours of a human expert's work), which sets
+ *  their long-horizon pressure S3 (model v3 E3, safety/traits.ts). SWE = the SWE work type's H (2 h), ML research =
+ *  EXP's (8 h; RE-Bench's tasks are 8-hour tasks [R20 F1]), long-horizon agentic = IDEAS' (40 h, a working week)
+ *  [data/v2/workTypes.ts]; computer use and cyber 1 h [D: desktop tasks and CTF challenges are short multi-step
+ *  episodes]. Math and bio are single-answer (not agentic). The long-tasks family's time-horizon gain is
+ *  LONG_TASKS_HORIZON (from the RL it actually does), not a flag on the family. */
+export const RL_FAMILIES: Record<RLFamily, { own: DomainId; adjacent: DomainId[]; taskH?: number }> = {
+  math: { own: 'REASON', adjacent: [] },
+  swe: { own: 'CODE', adjacent: ['RSCH', 'CYBER'], taskH: 2 },
+  computerUse: { own: 'AGENCY', adjacent: ['REASON'], taskH: 1 }, // needs P06
+  mlResearch: { own: 'RSCH', adjacent: [], taskH: 8 },
+  longHorizon: { own: 'AGENCY', adjacent: [], taskH: 40 },
+  cyber: { own: 'CYBER', adjacent: [], taskH: 1 },
+  bio: { own: 'BIO', adjacent: [] },
 };
+/** RD-T05: time-horizon gain from long-task RL. A version's horizon multiplier is
+ *  h80Mult = (perFocus × P07)^x,  x = max(0, (g − g_broad) / (g_focus − g_broad)),
+ *  g = the long-tasks family's in-family RL gain on its curve (models/effective.ts rlGains perFamily.longHorizon: its
+ *  share of the RL compute, on the base's ceiling × the long-tasks suite's fidelity), g_broad / g_focus = that gain of
+ *  the reference run (reference base B0, standard budget, e_RL 0, fidelity 1) with broad / long-tasks focus. So the
+ *  reference broad run keeps ×1, the reference long-tasks focus ×perFocus (2, the old flat value [D]), and the horizon
+ *  rises smoothly with the RL actually done on long tasks (more share, budget, base ceiling or suite fidelity). Never
+ *  below ×1 (less long-task RL than the broad reference does not shorten the horizon below the base's). */
+export const LONG_TASKS_HORIZON = { perFocus: 2 };
 export const RL_FAMILY_IDS = Object.keys(RL_FAMILIES) as RLFamily[];
-/** RD-E01b (DD-14): Long context + memory (P07) multiplies the long-tasks family's horizon multiplier (h80Mult 2 above)
- *  of post-trains launched after its adoption (the run freezes the flag, PostRecipe.p07): ×1.2 [D] (was ×1.2 on every
+/** RD-E01b (DD-14), RD-T05: Long context + memory (P07) multiplies the long-tasks horizon gain per unit of long-task
+ *  RL (LONG_TASKS_HORIZON: perFocus 2 becomes 2.4, so ×2.4 at the reference long-tasks focus, ×1 at broad) of
+ *  post-trains launched after its adoption (the run freezes the flag, PostRecipe.p07): ×1.2 [D] (was ×1.2 on every
  *  post-train's horizon). research/12 #7 proposed ×1.5 [G, no primary source]; CL-Bench 2026 finds dedicated memory
  *  systems not yet beating in-context learning [P, research/12 §2], so a smaller multi-day-continuity effect, and on
  *  the RL family that trains week-long episodes (memory carries state across them), not on every run. */

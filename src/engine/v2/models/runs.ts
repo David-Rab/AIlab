@@ -41,7 +41,7 @@ import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from 
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  continueFData, continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, rlGains, rlWeights, fptOfDesign,
+  continueFData, continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, longTasksHorizonMult, rlGains, rlWeights, fptOfDesign,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { internalVersion, uniqueVersionName, versionById } from './labs';
@@ -468,16 +468,16 @@ function rlBuild(s: GameStateV2, start: RlStart, d: PostDesign, rec: PostRecipe,
     return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, dgD: { ...tb.dgD }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
   }
   const base = start.base;
-  // RD-E01b: P07 (frozen at launch) multiplies the long-tasks RL family's horizon (data/v2/runDesign.ts). Long-horizon
-  // human demos (P12) act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.
-  const pe = postEffect(d, rec.p07 ? P07_LONG_TASKS_HORIZON : 1);
+  const pe = postEffect(d);
   const rlW = recipeWeights(s, d.rlFocus, rec);
   const rl = rlGains(base.flop, extra, rlW, rec.rlMid, rec.rlCeil, now);
   // The version's signals are the engine's (model v3 E3): its base's and this run's, from their quantities.
   const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: extra / Math.max(1, base.flop) }));
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop: extra, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...now }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(rec.domainG, base.sD ?? {}),
-    dgD: { ...pe.dgD }, h80Mult: pe.h80Mult,
+    // RD-T05: the horizon gain is the RL done on long tasks (its in-family gain); P07 (frozen at launch, RD-E01b)
+    // multiplies it. Long-horizon human demos (P12) act through the long-tasks suite's fidelity (its RL ceiling).
+    dgD: { ...pe.dgD }, h80Mult: longTasksHorizonMult(rl.perFamily.longHorizon ?? 0, rec.p07 ? P07_LONG_TASKS_HORIZON : 1),
     signals: clampSignals(sig),
   };
 }

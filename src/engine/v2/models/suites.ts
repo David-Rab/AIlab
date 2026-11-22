@@ -19,8 +19,8 @@ import {
   SUITE_UPKEEP,
 } from '../../../data/v2/suites';
 import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
-import { RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
-import { TRANSFER, rlWeights, type FamilyMap } from './effective';
+import { RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
+import { rlWeights, type FamilyMap } from './effective';
 import { nodeKnown } from './tree';
 import { aiOversight } from '../safety/ideas';
 import { queueBuild } from '../departments/build';
@@ -44,8 +44,8 @@ export function startSuites(start: StartType = 'leader'): Partial<Record<RLFamil
   return Object.fromEntries(START_SUITE_FAMILIES.map((f) => [f, startSuite(f, m)])) as Partial<Record<RLFamily, EnvSuite>>;
 }
 
-/** The family's own domain (its largest transfer entry): the expert asset's domain. */
-export const familyDomain = (f: RLFamily): DomainId => (Object.entries(TRANSFER[f]) as [DomainId, number][]).reduce((a, x) => (x[1] > a[1] ? x : a))[0];
+/** The family's own domain (RL_FAMILIES own): the expert asset's domain. */
+export const familyDomain = (f: RLFamily): DomainId => RL_FAMILIES[f].own;
 export const expertAssetId = (f: RLFamily) => `expert:${f}`;
 /** The expert data a suite is built on (D1's `expert` kind, q 3, one asset per family, domain = the family's own). */
 export const expertAsset = (f: RLFamily, tokensT: number): OwnedDataAsset => ({

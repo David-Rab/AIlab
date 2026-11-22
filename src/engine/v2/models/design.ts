@@ -1,9 +1,9 @@
 // Run design → design effects, signals, predictions (V2-SPEC §3.3.2; model v3 V1; data in src/data/v2/runDesign.ts).
 // Owner: WS1. Capability effects are in effective-compute OOMs (ΔG); size, tokens and RL compute are physical and
 // enter through models/effective.ts.
-import { BASE_DATA, CURATION, POST_COT, POST_PREF, POST_SAFETY, RL_FAMILIES, RL_FAMILY_IDS, SHAPE, SIGNAL_IDS } from '../../../data/v2/runDesign';
+import { BASE_DATA, CURATION, POST_COT, POST_PREF, POST_SAFETY, SHAPE, SIGNAL_IDS } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import type { BaseDesign, DomainId, PostDesign, RLFamily, SignalId } from '../types';
+import type { BaseDesign, DomainId, PostDesign, SignalId } from '../types';
 
 export type Off = Partial<Record<DomainId, number>>;
 export type Sig = Partial<Record<SignalId, number>>;
@@ -40,36 +40,21 @@ export function baseEffect(b: BaseDesign): BaseEffect {
   };
 }
 
-/** RL focus: the horizon multiplier of the focus families (§3.3.2 E); `longTasks` multiplies the long-tasks family's
- *  (P07, RD-E01b: runDesign.ts P07_LONG_TASKS_HORIZON). Domain gains come from the RL curve (models/effective.ts
- *  rlGains), training signals from the RL compute shares (safety/traits.ts postSignals). */
-function rlFocusEffect(focus: RLFamily[] | 'broad', longTasks = 1): { h80Mult: number } {
-  let h80Mult = 1;
-  if (focus === 'broad') return { h80Mult };
-  for (const f of RL_FAMILY_IDS) {
-    if (!focus.includes(f)) continue;
-    const fam = RL_FAMILIES[f];
-    if (fam.h80Mult) h80Mult *= fam.h80Mult * (f === 'longHorizon' ? longTasks : 1);
-  }
-  return { h80Mult };
-}
-
 /** Post-training design effects (choices D–H): ΔG (OOM), domain ΔG (preference, OOM), serving and monitorability of the
  *  reasoning mode. The RL budget's capability effect is the RL curve (runs.ts); the environment suites (model v3 D5,
  *  models/suites.ts) set the RL ceiling per family; the training signals are the run's quantities (safety/traits.ts
- *  postSignals, model v3 E3). `longTasks`: the long-tasks family's horizon multiplier from P07 (frozen in the run's
- *  recipe, PostRecipe.p07). */
+ *  postSignals, model v3 E3); the time-horizon multiplier is the RL done on long tasks (RD-T05: models/effective.ts
+ *  longTasksHorizonMult, set in runs.ts rlBuild). */
 export interface PostEffect {
-  dg: number; dgD: Off; serve: number; monitorability: number; h80Mult: number; appeal: number;
+  dg: number; dgD: Off; serve: number; monitorability: number; appeal: number;
 }
-export function postEffect(p: PostDesign, longTasks = 1): PostEffect {
+export function postEffect(p: PostDesign): PostEffect {
   const pr = POST_PREF[p.pref];
   const cot = POST_COT[p.cot];
   const sf = POST_SAFETY[p.safety];
-  const rl = rlFocusEffect(p.rlFocus, longTasks);
   return {
     dg: pr.dg + cot.dg + sf.dg, dgD: { ...pr.dgD }, serve: cot.serveMult, monitorability: cot.monitorability,
-    h80Mult: rl.h80Mult, appeal: pr.appeal,
+    appeal: pr.appeal,
   };
 }
 

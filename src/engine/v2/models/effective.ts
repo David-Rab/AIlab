@@ -6,7 +6,7 @@
 // state live in models/capability.ts.
 import {
   COGNITIVE, DISTILL, DISTILL_TOKEN_SLOPE, DISTILL_TPP, LOSS_LAW, OPT_TPP, REF_TPP, REPEAT_R_STAR, RL_BUDGET, RL_CURVE,
-  RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS, RL_FOCUS_SHARE, RL_REF_GAIN, RL_TRANSFER, FLOP_RL_REF, SHAPE,
+  LONG_TASKS_HORIZON, RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS, RL_FOCUS_SHARE, RL_REF_GAIN, RL_TRANSFER, FLOP_RL_REF, SHAPE,
 } from '../../../data/v2/runDesign';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { BaseDesign, DomainId, RLFamily } from '../types';
@@ -117,12 +117,11 @@ export const servingFlop = (params: number) => 2 * params;
 
 // ───────────────────────────── post-training (§4.2) ─────────────────────────────
 
-/** Transfer T[family][domain]: the family's largest v-entry is its own domain (1.0), its other v-entries adjacent
- *  (0.4), every other domain far (0.15) [R20 C2]. */
+/** Transfer T[family][domain]: the family's own domain 1.0, its adjacent domains 0.4, every other domain far 0.15
+ *  [R20 C2] (data/v2/runDesign.ts RL_FAMILIES own / adjacent, RD-T05). */
 export const TRANSFER: Record<RLFamily, Record<DomainId, number>> = Object.fromEntries(RL_FAMILY_IDS.map((f) => {
-  const v = RL_FAMILIES[f].v;
-  const top = Math.max(...Object.values(v).map((x) => x ?? 0));
-  const row = Object.fromEntries(DOMAIN_IDS.map((d) => [d, v[d] === undefined ? RL_TRANSFER.far : v[d] === top ? RL_TRANSFER.same : RL_TRANSFER.adjacent]));
+  const { own, adjacent } = RL_FAMILIES[f];
+  const row = Object.fromEntries(DOMAIN_IDS.map((d) => [d, d === own ? RL_TRANSFER.same : adjacent.includes(d) ? RL_TRANSFER.adjacent : RL_TRANSFER.far]));
   return [f, row];
 })) as Record<RLFamily, Record<DomainId, number>>;
 
@@ -222,6 +221,20 @@ export function rlGainGeneral(flopPre: number, rlFlop: number, w: FamilyMap, eRL
   let a = 0;
   for (let i = 0; i < rw.length; i++) a += sig(A, cMid, rlFlop * rw[i]);
   return a / COGNITIVE.length;
+}
+
+/** RD-T05: the long-tasks family's in-family gain of the reference run (B0, standard budget, e_RL 0, fidelity 1), broad
+ *  and with a long-tasks focus: the two anchors of the horizon gain (data/v2/runDesign.ts LONG_TASKS_HORIZON). */
+const LONG_REF = (() => {
+  const g = (w: FamilyMap) => rlGains(FLOP_RL_REF, RL_BUDGET.standard * FLOP_RL_REF, w, 0).perFamily.longHorizon ?? 0;
+  return { broad: g(REF_W), focus: g(rlWeights(['longHorizon'], START_FAMILIES)) };
+})();
+/** Time-horizon multiplier from the RL done on long tasks (RD-T05): (perFocus × p07)^x, x = max(0, (gLong − g_broad) ÷
+ *  (g_focus − g_broad)), gLong = rlGains(…).perFamily.longHorizon. ×1 at the reference broad run, ×perFocus (× P07) at
+ *  the reference long-tasks focus, rising smoothly with the long-task RL in between and beyond. */
+export function longTasksHorizonMult(gLong: number, p07 = 1): number {
+  const x = Math.max(0, (gLong - LONG_REF.broad) / (LONG_REF.focus - LONG_REF.broad));
+  return Math.pow(LONG_TASKS_HORIZON.perFocus * p07, x);
 }
 
 /** Reference RL profile γ_d: the reference run's domain gain minus its general gain (OOM). Domain levels are read
