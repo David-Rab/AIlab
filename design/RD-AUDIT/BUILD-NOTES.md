@@ -1560,3 +1560,24 @@ made-model and state hashes identical to the previous commit for all five former
 - **Check:** `npx tsx scripts/v2/_t01b/check.ts` (day-400 fixture; base, continue, post, distill, IDA each launched,
   setup and FLOP forced, one tick): hashes before = after, e.g. base run 9eeaf8a0c2210830 / state d8a2b5f88780b9cc,
   IDA run e879d56046092371 / state e3bce3a7bb61d547. tsc (main, scripts) and `npm run build` pass.
+
+### RD-T02
+
+Continue runs draw tokens from the portfolio (TRN-07; theme T). Commit f86f4fc. Moves calibration: **maybe** (on the
+unchanged day-400 portfolio a continue run already repeats: cumulative epochs 1.67, the added part's data factor 0.94,
+so continued bases are a little weaker than before).
+- **Draw.** `continueDrawNow(s, parent, addFlop)` (runs.ts): added tokens = added FLOP ÷ (6 · N_active), drawn with the
+  parent's data option through `playerDraw` (new optional `tokens` arg) / `drawData`, cumulative on the parent's
+  tokens (so each slice's epochs count the parent's use), plus `prevDEff` = D_eff of the parent's tokens alone on the
+  same portfolio. Stored in the launch snapshot (`RunRecipe.draw`, new `RunRecipe.prevDEff`); plan reads today's.
+- **[D] Added part's data factor** `continueFData` (effective.ts): effective compute adds, so f_add = (D_tot · f(D_tot)
+  − D_prev · f(D_prev)) ÷ D_add with f = fDataEff (Besiroglu, quality and repetition), both draws on the launch
+  portfolio; 1 on the 2025 reference data, ≥ 0. `continueGPre` takes it (new last arg, default 1). ePre still "what
+  remains", so it now carries f_add too. A snapshot without prevDEff (hand-built runs) keeps f_add 1.
+- **Base.** A continued base's `epochs` = the cumulative draw's (was copied from the parent); tokens unchanged formula.
+  Trait hook reads the cumulative draw (shares, so S5 barely moves).
+- **Schema 59:** migration 58 → 59 redraws in-flight (running / paused) continue runs on the save's day; idempotent
+  (skips runs with prevDEff). hygiene SCHEMA_REV literals 58 → 59.
+- **Check:** `npx tsx scripts/v2/_t02/check.ts` (day-400 fixture, continue launched and forced done; portfolio × 0.02 vs
+  × 1): epochs 83.5 vs 1.67, f_add 0.58 vs 0.94, gPre gain 0.219 vs 0.314 OOM; base epochs = draw epochs. tsc main +
+  scripts pass.
