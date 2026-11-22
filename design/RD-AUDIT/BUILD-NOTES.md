@@ -1551,3 +1551,28 @@ SAF-08, SAF-V02). Commit fcc5614. **Moves calibration: yes (safety).**
 - **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r02b/check.ts` (no pool / beliefs /
   lineSpeed / line stepper in the source; one stepProject for dept cap and saf; all 33 safety nodes: works → only own
   row / technique, doesn't → dead end with b + 1; a node run on the real stepper ends in DEAD or its own row).
+
+### RD-R03
+
+Safety science teams on the capability planner (SAFETY-REDESIGN §3.1, §5; SAF-03, SAF-23, INP-15). Commit c9ff03f.
+**Moves calibration: maybe** (safety teams beyond the bots' staffed lines now idle; lines no longer auto-continue).
+
+- **One planner.** `planAssignment(s, ready, dept = 'cap', valueOf?)` (models/research.ts) serves both departments:
+  priority list, teams wanted (`research.want`, shared), one swap pass and spares by value under PROJECT_MAX_TEAMS.
+  models/tree.ts `assignSafTeams` / `planSafAssignment` run it daily for 'saf' over `safReady` (queued, ready safety
+  projects in queue order); each team gets a `why`.
+- **Value proxy [D]:** `safProjectValue` = (m_ideas × C ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30 (the science part of
+  lineRates) ÷ the test's workNeed × chance it works (nodeOdds, the line's posterior mean) × `SAF_LINE_WEIGHT[agenda]`
+  (data/v2/research.ts, default 1; only ratios matter within the department).
+- **Idle stays idle.** Nothing queued → no safety team placed, nothing queued for the player. `safIdleFlag(s)`:
+  "2 safety teams idle — add projects to the priority list" (or the planner's reason when projects exist but none
+  gains); shown on Safety › Research lines (replaces "· N idle").
+- **Deleted:** autoAssignDept, autoAssign, lineForTeam, onLine, PRIORITY_W, continueLine (a finished node's teams are
+  freed; the line's next project waits for the player), the `research.autoAssign` action and `ResearchState.autoAssign`
+  (old saves keep a stale field, unread). RefBot no longer turns the toggle on (its staffLines places its line teams
+  by hand as before). scripts/v2/research.ts B35 auto-assign preview check removed; worktypes.ts no longer sets it.
+- **Player text:** glossary `autoAssign` → "Safety team placement"; Company team-effect tooltip and team hire preview
+  say a new safety science team joins the queued safety projects or waits idle.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r03/check.ts` (no auto-assign
+  left; nothing queued → 0 placed, flag text; queued two lines → priority / teams wanted honoured, priority 1 wanting
+  every team takes them all; after a research day teams only on queued projects).
