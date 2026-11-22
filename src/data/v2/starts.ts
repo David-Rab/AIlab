@@ -85,7 +85,7 @@ export const STARTS: StartDef[] = [
     // teams could not carry the start products' upkeep plus a base run setup in the first quarter.
     teams: { eng: 4, 're.cap': 7, 'sci.cap': 4, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: ['posttraining', 'pretraining', 'systems', 'posttraining'], saf: ['interp', 'alignment', 'evals'] },
-    known: ['kyc', 'rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
+    known: ['rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
     products: [
       { channel: 'consumer', servingShare: 0.3 },
       { channel: 'api', servingShare: 0.45, features: ['codingAgent'] },
@@ -125,7 +125,7 @@ export const STARTS: StartDef[] = [
     // The leader's own values are today's (START_TEAMS, initialFinance, initialSites …); these rows are for display.
     teams: { eng: 4, 're.cap': 11, 'sci.cap': 8, 're.saf': 1, 'sci.saf': 2 },
     specialties: { cap: [], saf: [] },
-    known: ['kyc'],
+    known: [],
     products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
     features: ['sectorPacks'],
     cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],

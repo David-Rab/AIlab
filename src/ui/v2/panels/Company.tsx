@@ -7,7 +7,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   WSL_TARGET_RANGE, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, researchSpeedLimits, researchSpeedView, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  rentedOnline, labSpeedLimits, labSpeedView, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, STAR_HIRE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
@@ -124,7 +124,7 @@ const SPEED_LIMIT_LABEL: Record<SpeedLimitLine['id'], ReactNode> = {
 };
 /** The limits on research speed (R11, LIMITS "Research speed"): one quiet line each, red / amber when binding. */
 function SpeedLimits({ s }: { s: GameStateV2 }) {
-  const lines = researchSpeedLimits(s);
+  const lines = labSpeedLimits(s);
   return (
     <div className="rs-limits" data-test="speed-limits">
       <div className="tip-cap" style={{ marginTop: 10 }}>Limits</div>
@@ -146,13 +146,13 @@ const BOUND_LABEL: Record<string, string> = { 'compute-bound': 'compute-bound', 
  *  binds), the limits. */
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
-  const v = researchSpeedView(s);
+  const v = labSpeedView(s);
   const cl = Math.max(v.c, v.l, 1);
   const w = (x: number) => `${Math.min(100, (Math.log10(1 + x) / Math.log10(1 + cl * 1.2)) * 100)}%`;
   return (
-    <Card title={<Term id="researchSpeed">Research speed</Term>} right={<span className="tag2 warn" data-test="speed-bound"><Term id={BOUND_TERM[p.label]}>{BOUND_LABEL[p.label]}</Term></span>} home="M">
+    <Card title={<Term id="labSpeed">Research speed</Term>} right={<span className="tag2 warn" data-test="speed-bound"><Term id={BOUND_TERM[p.label]}>{BOUND_LABEL[p.label]}</Term></span>} home="M">
       <div className="rs-chain">
-        <Tip content={() => <TipCard title={<Term id="researchSpeed">Research speed</Term>} value={`×${F.short(v.rel)}`} rows={[
+        <Tip content={() => <TipCard title={<Term id="labSpeed">Research speed</Term>} value={`×${F.short(v.rel)}`} rows={[
           { label: <Term id="expCompute">Unit project compute c</Term>, value: `×${F.short(v.c)}` }, { label: <Term id="expLabour">Unit project labour ℓ</Term>, value: `×${F.short(v.l)}` },
           { label: 'Experiment throughput X', value: `×${F.short(v.X)}` },
         ]}>Your research throughput relative to the leader lab's on its first day (= 1): every project's experiments at its compute and labour, × taste.</TipCard>}>
@@ -210,7 +210,7 @@ function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'q
     : g.unit === 'days' ? (g.amount === 0 ? 'no project faster today' : `${F.num(g.amount, 0, true)} d`)
     : `${F.num(g.amount, 2, true)} tuning`;
   const body = g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week, with the engineers\' AI tools: what one day of the build system gives with the team.'
-    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins a line when Auto-assign is on).'
+    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins the safety projects on the priority list, or waits idle if there are none).'
     : t.role === 'sci' ? 'Days sooner for the capability project this team speeds most, after one research day with it: the priority assignment places it (×1.5 on a project in its specialty; its quality sets its taste).'
     : 'Days sooner for the capability project these research engineers speed most, after one research day with them; when no project needs more, they go to routine tuning (team-equivalents).';
   return <Tip content={() => <TipCard title="If hired, once full" value={g.target}>{body}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;

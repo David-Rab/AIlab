@@ -19,8 +19,7 @@ import { clamp01, flagNum, lambda2Delta, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
 import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
-import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
-import { patchFte } from './responses';
+import { investigationsStep, safetyReHeads } from './investigations';
 import { decayAt, initialTechniques, strengthTrue } from './techniques';
 import { caseOnModel } from './footholdDetection';
 
@@ -74,19 +73,19 @@ export const lineTeams = (s: GameStateV2, ag: AgendaId): Team[] => s.player.team
 /** Whether any team works on the line (the pre-R8 "funded"). */
 export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some((t) => t.role === 'sci' && lineOfTeam(t) === ag);
 
-/** Safety research engineers (heads × quality) and what they do: investigations and patches first, then line
- *  experiments (model v3 E1: safety/lineProjects.ts safAllocation), the rest keeps tools validated (upkeep). */
-export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; experiments: number; upkeep: number } {
+/** Safety research engineers (heads × quality) and what each need got today (RD-A04: one needs list in the player's
+ *  order, safety/lineProjects.ts safAllocation); idle = what no need takes. */
+export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; experiments: number; upkeep: number; idle: number } {
   const al = safAllocation(s);
-  return { heads: safetyReHeads(s), investigations: investigationFte(s), patches: patchFte(s), experiments: al.exp, upkeep: al.upkeep };
+  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.patches, experiments: al.exp, upkeep: al.upkeep, idle: al.idle };
 }
 
 // ───────── compute ─────────
 
 /**
  * Line compute shares of the safety pool (model v3 E1): the safety research line (split.safety, RD-A05a) after investigations is
- * shared by the line projects in experiments in proportion to their research engineers × their agenda's compute need
- * (computeRef, R14's cost column); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
+ * shared by the line projects in experiments by need (RD-R02a: each project's engineer ask × its agenda's computeNeed, R14's
+ * cost column in capability C_UNITs; a project with no engineers leaves its share unused); a line not in experiments uses none (safety/lineProjects.ts safAllocation). Returns
  * the line pool (H100e).
  */
 export function recomputeComputeShares(s: GameStateV2): number {
@@ -157,16 +156,29 @@ function needsUpkeep(s: GameStateV2, t: TechniqueState, x: number, latent: boole
   return decayAt(s, t, x, latent) < UPKEEP_D;
 }
 
+/** Tools that need re-validation now (none without an internal model). */
+export function upkeepTools(s: GameStateV2): TechniqueState[] {
+  const iv = internalVersion(s);
+  if (!iv) return [];
+  const x = versionOom(s, iv);
+  const latent = lambda2Delta(s) <= -2;
+  return Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, x, latent));
+}
+
+/** RD-A04: tool re-validation's demand (safety research engineers, heads × quality): per tool in upkeep, the engineers at
+ *  which its re-validation rate saturates (effective engineers per tool = UPKEEP_MIN + UPKEEP_MAX × UPKEEP_REF), ÷ m of
+ *  safety experiments (AI labour carries the rest). Zero when no tool needs upkeep; more engineers add nothing. */
+export function revalDemand(s: GameStateV2): number {
+  const n = upkeepTools(s).length;
+  return n ? (n * (UPKEEP_MIN + UPKEEP_MAX * UPKEEP_REF)) / Math.max(1, safetyLabour(s).exp.m) : 0;
+}
+
 /** Tools in upkeep now and how fast their half-strength point oHalf rises (OOM per day) at today's free safety research
  *  engineers. Model v3 E6: v2's rate in M½ doublings per day × log10(2)/κ OOM per doubling (the same speed on the
  *  reference path). */
 export function upkeepState(s: GameStateV2): { tools: TechniqueState[]; perTool: number; oomPerDay: number; heads: number } {
   const re = safetyRe(s);
-  const iv = internalVersion(s);
-  if (!iv) return { tools: [], perTool: 0, oomPerDay: 0, heads: re.upkeep };
-  const x = versionOom(s, iv);
-  const latent = lambda2Delta(s) <= -2;
-  const tools = Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, x, latent));
+  const tools = upkeepTools(s);
   const perTool = tools.length ? re.upkeep / tools.length : re.upkeep;
   // Model v3 E2: AI labour re-validates tools as the same input as the engineers (effective heads = heads × m of safety
   // experiments, SAF_EXP through the Trusted-to-AI share).

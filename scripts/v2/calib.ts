@@ -26,7 +26,7 @@ import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { gOfBuild, h50Of } from '../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
-import { researchSpeedRel } from '../../src/engine/v2/production/production';
+import { labSpeedRel } from '../../src/engine/v2/production/production';
 import { speedOfCopy, workContext } from '../../src/engine/v2/departments/workfit';
 import { defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { START_DATE, dayOfDate, decimalYearOf } from '../../src/engine/v2/core/time';
@@ -373,7 +373,7 @@ function t1Rec(preset: T1Preset) {
   const gPath: { day: number; g: number }[] = [];
   const s = runT1(preset, cal, SEED, lastIdx(preset), MAX_DAYS, (x) => {
     watch(x);
-    if (x.time.day === 1) start = { M: x.player.research.last?.x?.mExp ?? 0, rs: researchSpeedRel(x) };
+    if (x.time.day === 1) start = { M: x.player.research.last?.x?.mExp ?? 0, rs: labSpeedRel(x) };
     const bv = bestPlayerVersion(x);
     if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
     if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };

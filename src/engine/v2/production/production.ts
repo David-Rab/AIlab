@@ -69,7 +69,7 @@ export interface LabInputs {
 
 /** RD-R01: the one aggregate piece left, the lab's experiment throughput at inputs (h, k, c): X(c̄, ℓ) of a unit project
  *  and the number of unit projects. READOUTS ONLY since RD-A02 (no mechanism, no Auto mix): the response charts
- *  (readout.ts), and researchSpeedRel. */
+ *  (readout.ts) and labSpeedRel. */
 function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number } {
   const v = inp.v3 as V3Inputs;
   const Pp = w.prod;
@@ -109,7 +109,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
   const k = Cag * kUnit;
-  const c = pools.experiments * cUnit;
+  const c = pools.experiments * cUnit * mod.frontierExp; // RD-A07: a frontier pause = no experiment FLOP
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
@@ -122,7 +122,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
   const v3: V3Inputs = {
-    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
+    h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
     agentFte: ex.aiFte + wc.slots.IDEAS.aiFte,
@@ -163,7 +163,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 
 /** The player's research speed relative to the leader lab's day-0 research (the Research speed readout): the lab's
  *  experiment throughput × taste × modifiers, ÷ the leader's day-0 value (≈ 1 at the start). */
-export function researchSpeedRel(s: GameStateV2): number {
+export function labSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
   return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);

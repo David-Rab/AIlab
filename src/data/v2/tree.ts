@@ -72,7 +72,7 @@ export interface TreeNodeDef {
   effortTM?: number;
   /** Success chance of a new (non-paradigm) node. Paradigm nodes use the paradigm prior. */
   odds?: number;
-  /** The id is a paradigm id (P05…P27): success adopts it (player.paradigms[id].status = 'adopted'). */
+  /** The id is a paradigm id (P05…P25): known = adopted (models/paradigms.ts adopted()). */
   paradigm?: boolean;
   /** Safety nodes: the research line whose hidden efficacy decides results. */
   agenda?: AgendaId;
@@ -106,10 +106,10 @@ export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 5
 /** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit. They are the pre-R4
  *  effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to (P08: 150 d ≈
  *  31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05; RD-R07: capability projects × IDEA_WORK_PER_E 1.2,
- *  the whole stage work (P27 is not a staged project: its rolled team-months). */
+ *  the whole stage work. */
 const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
   P06: 21.6, P09: 28.8, P10: 28.8, P11: 43.2, P12: 43.2, P14: 28.8, P15: 28.8, P16: 21.6, P18: 28.8, P21: 50.4,
-  P22: 43.2, P23: 28.8, P24: 28.8, P25: 36, P27: 24,
+  P22: 43.2, P23: 28.8, P24: 28.8, P25: 36,
 };
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
  *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 (it fails in the fit world) takes the fitted ones'
@@ -118,8 +118,6 @@ const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
  *  scale team-months; stagesOf splits it by IDEA_STAGES), i.e. the earlier fit × IDEA_WORK_PER_E. */
 export const FITTED_EFFORT_TM: Record<string, number> = { P05: 5.52, P07: 4.008, P08: 14.784, P17: 79.164, 'rl.mlResearch': 1.632 };
 
-/** A failed idea can be retried after this many days at half the previous odds (TECH-TREE §5 T1). */
-export const TREE_RETRY_DAYS = 180;
 /** Specialty bonus: a team works ×1.5 in its own column (TECH-TREE §5 T2). */
 export const SPECIALTY_BONUS = 1.5;
 /** Team-size unit of project capacity (one standard science team). */
@@ -229,7 +227,6 @@ export const TREE: TreeNodeDef[] = [
   S('T-MO', 'Model organisms', 'evals', 'lab', [], 'AG08', undefined, { saf: 1 }, { star: true, saf: 'Detects; reveals failure modes' }),
   S('T-TMON', 'Trusted monitoring', 'evals', 'lab', [], 'AG07', undefined, { saf: 1 }, { star: true, saf: 'Contains power-seeking, scheming, collusion' }),
   S('T-CCLASS', 'Misuse classifiers', 'evals', 'scaffold', [], 'AG16', undefined, { saf: 1 }, { star: true, saf: 'Misuse ×0.7', cost: 'Serving cost +' }),
-  S('kyc', 'KYC tiers', 'evals', 'scaffold', [], undefined, 'S', { saf: 1 }, { saf: 'Distillation access ×0.75 per tier', cost: 'Demand −2% per tier' }),
   S('T-PROP', 'Propensity evals', 'evals', 'lab', ['T-MO'], 'AG08', 'M', { saf: 1 }, { saf: 'Detects reward hacking, sycophancy, power-seeking' }),
   S('T-COTMON', 'CoT monitor', 'evals', 'lab', ['P01'], 'AG09', 'M', { saf: 2 }, { saf: 'Detects hacking, concealment, faking, scheming; useless on latent reasoning' }),
   S('T-LOCK', 'Comms lockdown', 'evals', 'lab', ['T-TMON'], 'AG07', 'S', { saf: 1 }, { saf: 'Contains collusion, successor risk' }),
@@ -244,7 +241,8 @@ export const TREE: TreeNodeDef[] = [
   S('T-MAD', 'Mechanistic anomaly detection', 'evals', 'lab', ['T-CIRCUIT'], 'AG04', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-SCIAI', 'Harm-probability guardrail', 'evals', 'lab', ['T-CEVAL'], 'AG11', 'XL', { saf: 2 }, { cost: 'Long shot' }),
   S('T-GATE', 'Verified gatekeeper', 'evals', 'lab', ['P25'], 'AG10', 'XL', { saf: 2 }, { saf: 'Contains exfiltration', cost: 'Long shot' }),
-  P('P27', 'Automated alignment research at scale', 'evals', 'lab', ['aar'], 'XL', { saf: 2 }, { agenda: 'AG17', saf: 'Safety AI labour: +0.3 OOM fit on safety work; line automation halfway to full', cost: 'More AI work, more false-result risk from a sabotaging model', payoff: 'Pays off with safety work handed to AI' }),
+  // RD-R04: P27 is a safety project of line AG17 on the shared stepper (no longer a rolled paradigm node); known = adopted.
+  S('P27', 'Automated alignment research at scale', 'evals', 'lab', ['aar'], 'AG17', 'XL', { saf: 2 }, { saf: 'Safety AI labour: +0.3 OOM fit on safety work; line automation halfway to full', cost: 'More AI work, more false-result risk from a sabotaging model', payoff: 'Pays off with safety work handed to AI' }),
 ];
 
 for (const n of TREE) {

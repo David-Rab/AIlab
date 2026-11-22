@@ -12,7 +12,7 @@ export const CHINA_ID: LabId = 'china';
 /** Fixed id of the simulated AI 2027 leader lab (setup.leaderLab, BUILD-PLAN R2), appended after the sampled rivals. */
 export const LEADER_ID: LabId = 'rL';
 
-export type AnyLabCore = Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
+export type AnyLabCore = Omit<LabCore, 'deployments' | 'models'>;
 
 /** Core record of any lab by id. */
 export function labCore(s: GameStateV2, id: LabId): AnyLabCore | undefined {

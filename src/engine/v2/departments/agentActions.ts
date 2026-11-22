@@ -30,6 +30,7 @@ import {
 } from './agents';
 import { buildCapacity } from './teams';
 import { agentFpt, copiesOf, workContext } from './workfit';
+import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string): string | undefined => (typeof p[k] === 'string' ? (p[k] as string) : undefined);
@@ -156,7 +157,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${(p.split.routine + p.split.frontier)}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.split.monitors}|${p.split.safetyAgents}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}|${(p.tooling ?? []).join(',')}`;
+  return `${s.time.day}|${p.computeOnline}|${(p.split.routine + p.split.frontier)}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.split.monitors}|${p.split.safetyAgents}|${p.models.versions.length}|${p.teams.length}|${adopted(s, 'P27') ? 1 : 0}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}|${(p.tooling ?? []).join(',')}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */

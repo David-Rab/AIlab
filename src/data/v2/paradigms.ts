@@ -38,5 +38,6 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P25', name: 'Formal verification at scale', prior: 0.5 },
   // P26 (Superhuman persuasion) was cut in model v3 V2 (superpersuasion is the SOCIAL level); its hidden draw is
   // skipped explicitly at the draw site (world/hidden.ts, RD-C07).
-  { id: 'P27', name: 'Automated alignment research', prior: 0.7 },
+  // P27 (Automated alignment research at scale) is a safety project of line AG17 since RD-R04 (its result is the line's
+  // works draw); its hidden paradigm draw is skipped at the draw site (world/hidden.ts).
 ];

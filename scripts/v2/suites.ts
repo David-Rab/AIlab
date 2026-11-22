@@ -13,7 +13,6 @@ import { EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, P12
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
-import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -213,10 +212,10 @@ check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.pos
   const x = candidateTruth(b, TREE_BY_ID.P12, freshCap(), C9).x;
   b.player.tree.P12 = { status: 'researching', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'adopting', result: { c: C9, xTest: x, sHat: 0, fTest: 1e24, est: 1, estSd: 0.1, buildId: 'd9', day: 0 } } } as never;
   const cash0 = b.player.finance.cash;
-  completeAdoption(b, makeCtx(b), 'P12', 'd9', (i) => syncParadigm(b, i));
+  completeAdoption(b, makeCtx(b), 'P12', 'd9');
   const tok = x * P12_DEMO_T;
   const paid = cash0 - b.player.finance.cash;
-  check(x > 0 && b.player.paradigms.P12.status === 'adopted' && near(expert(b, 'longHorizon')!.tokensT, EXPERT_START_T + tok, 1e-15) && near(paid, tok * EXPERT_PRICE_B_PER_T, 1e-9)
+  check(x > 0 && b.player.tree.P12?.status === 'known' && near(expert(b, 'longHorizon')!.tokensT, EXPERT_START_T + tok, 1e-15) && near(paid, tok * EXPERT_PRICE_B_PER_T, 1e-9)
     && near(P12_DEMO_T * EXPERT_PRICE_B_PER_T, 1, 1e-12) && near(fidelityOf(EXPERT_START_T + P12_DEMO_T), 1.5 - 0.5 * Math.sqrt(1 / 11), 1e-12)
     && START_FAMS.every((f) => f === 'longHorizon' || suiteFidelity(b, f) === 1),
     'P12: adoption delivers x × 20B tokens of demonstrations into the long-tasks suite, paid at the expert-data price ($1B as designed); fidelity 1 → 1.35 as designed',

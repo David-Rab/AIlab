@@ -268,7 +268,6 @@ export interface LabCore {
   models: ModelsState;
   deployments: Deployment[];
   security: SecurityState;
-  paradigms: Record<ParadigmId, ParadigmState>;
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
@@ -622,13 +621,7 @@ export interface Deployment {
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
 
-/** Mirror of the paradigm's tree node (R4): readers check `status === 'adopted'`. The tree (PlayerLab.tree) holds the
- *  project state. */
-export interface ParadigmState {
-  status: 'available' | 'researching' | 'failed' | 'adopted';
-  progress: number; // 0..1
-  revealedDay?: Day;
-}
+/** RD-R04: a paradigm's state is its tree node (PlayerLab.tree; known = adopted, models/paradigms.ts adopted()). */
 
 // ───────────────────────────── Tech tree (TECH-TREE.md, BUILD-PLAN R4) ─────────────────────────────
 
@@ -638,42 +631,23 @@ export interface TreeNodeState {
   progress: number; // 0..1 of the current attempt
   /** Day it became known or failed. */
   day?: Day;
-  /** Attempts started (1 = first; paradigm nodes use the hidden draw on the first). */
+  /** Attempts started (1 = first; capability paradigms use the hidden draw on the first). */
   attempts?: number;
-  /** Odds multiplier for the next attempt (halved per failure). */
-  priorMult?: number;
-  /** A failed idea can be retried from this day. */
-  retryDay?: Day;
   /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
-  /** Safety research-line projects (model v3 E1): the lifecycle state (safety/lineProjects.ts). */
+  /** Safety projects (RD-R02b): the one test's state (safety/lineProjects.ts). */
   saf?: SafProjectState;
 }
 
-/** Stage of a safety research-line project (MODEL-V3 §11.7, E1): ideation by safety scientists (also while waiting for a
- *  candidate), small experiments and validation on the frontier model by safety research engineers with compute. */
-export type SafStage = 'ideation' | 'small' | 'validation';
-/** A candidate approach on a safety line. Belief = the team's estimate of the line's chance of a working result (the
- *  hidden efficacy read with noise ÷ taste, narrowed by the experiments); visible, nothing hidden is stored. */
-export interface SafCandidate {
-  /** Candidate number within the project (hash key of its readings). */
-  k: number;
-  /** Taste of the scientists who found it (a Strong team = 1). */
-  q: number;
-  /** Belief: mean and sd. */
-  mu: number;
-  sd: number;
-}
+/** A safety project's one "does it work" test (RD-R02b, SAFETY-REDESIGN §3.1; the shared stepper, models/research.ts
+ *  stepProject): work done / needed (months of work at reference inputs, the agenda's T₁) and the experiment FLOP used.
+ *  No candidates and no beliefs: at the end the hidden works draw (a node) or the open study's event (a follow-up). */
 export interface SafProjectState {
-  stage: SafStage;
-  /** Ideation progress toward the next candidate (0..1). */
-  idea: number;
-  cands: SafCandidate[];
-  /** The candidate in test and its stage work (months of work at unit experiment throughput X = 1). */
-  test?: { c: SafCandidate; work: number; workNeed: number };
-  next: number;
+  work: number;
+  workNeed: number;
+  flop: number;
 }
 
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
@@ -799,6 +773,10 @@ export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
 /** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
  *  none of them takes is idle (RD-E03 removed routine tuning). */
 export type ReNeed = 'ops' | 'evals' | 'exp';
+/** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
+ *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
+ *  capacity none takes is idle. */
+export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -808,11 +786,7 @@ export interface Allocation<K extends string> { order: K[]; max: Partial<Record<
 export interface ResearchState {
   /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
   queue: string[];
-  /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
-   *  safety team whose project resolves keeps working its research line (R8). Capability science teams are always
-   *  placed by the assignment (V3-BUILD V2.5); the flag only affects safety teams. */
-  autoAssign: boolean;
-  /** Teams wanted per capability project (default 1; PROJECT_MAX_TEAMS = "max"). */
+  /** Teams wanted per project, both departments (RD-R03) (default 1; PROJECT_MAX_TEAMS = "max"). */
   want: Record<string, number>;
   /** B4: capability projects on "auto" teams wanted (the game picks the number by priority and fit): one team first,
    *  then spare teams where they add the most progress. A project here ignores its `want` number. */
@@ -821,6 +795,8 @@ export interface ResearchState {
   risk: RiskPolicy;
   /** Research engineers (capabilities) by need. */
   re: Allocation<ReNeed>;
+  /** Safety research engineers by need (RD-A04; OD-9: the order is set in LAB, Company › Work). */
+  safRe: Allocation<SafReNeed>;
   /** Recipe stacks. */
   stacks: Record<StackKey, StackState>;
   /** Adopted domain effects for versions trained after them (OOM per domain: test-time training, self-play, robotics). */
@@ -1890,7 +1866,7 @@ export interface RivalFinance {
 }
 
 export interface RivalLab {
-  core: Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
+  core: Omit<LabCore, 'deployments' | 'models'>;
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;

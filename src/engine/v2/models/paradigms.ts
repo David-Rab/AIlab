@@ -1,25 +1,15 @@
 // Paradigm readers (V2-SPEC §3.3.3). Owner: WS1.
 // Since R4 paradigms are tech-tree nodes (models/tree.ts): research projects staffed by science teams, no tier or
-// measured-level gates, no FTE taken from research. A node that works sets `player.paradigms[id].status = 'adopted'`
-// and its effect applies at once in the consuming systems (which call `adopted`).
+// measured-level gates, no FTE taken from research. RD-R04: a paradigm is adopted when its tree node is known (the
+// tree is the only state; the consuming systems call `adopted`).
 import { PARADIGMS, type ParadigmDef } from '../../../data/v2/paradigms';
-import type { DomainId, GameStateV2, ParadigmState } from '../types';
+import type { DomainId, GameStateV2 } from '../types';
 
 export const PARADIGM_BY_ID = Object.fromEntries(PARADIGMS.map((p) => [p.id, p])) as Record<string, ParadigmDef>;
 
-/** Start state: P01–P04 (★ nodes) adopted, the rest available. */
-export function initialParadigms(): Record<string, ParadigmState> {
-  const out: Record<string, ParadigmState> = {};
-  for (const p of PARADIGMS) {
-    const isAdopted = p.prior >= 1;
-    out[p.id] = { status: isAdopted ? 'adopted' : 'available', progress: isAdopted ? 1 : 0 };
-    if (isAdopted) out[p.id].revealedDay = 0;
-  }
-  return out;
-}
-
-/** Whether the player has adopted paradigm `id`. */
-export const adopted = (s: GameStateV2, id: string) => s.player.paradigms[id]?.status === 'adopted';
+/** Whether the player has adopted paradigm `id`: its tree node is known (★ P01–P04 from the start; capability paradigms
+ *  once built in; P27 when its AG17 test works). */
+export const adopted = (s: GameStateV2, id: string) => s.player.tree[id]?.status === 'known';
 
 /** Best measured domain level across non-retired versions (benchmark-based, visible). */
 export function measuredDomain(s: GameStateV2, d: DomainId): number {

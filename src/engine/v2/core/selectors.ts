@@ -26,7 +26,7 @@ export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
 export { capEta, effortClassOf, effortOfNode, isCapProject, stagesOf } from '../models/research';
-export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { assignBlock, effortOf, idleTeams, isProject, safIdleFlag, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, projectCapacity, projectEta, projectRate, projectReady, projectTeams, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
@@ -169,7 +169,7 @@ export { idleServing, servingPool } from '../worldfx/revenue';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, UNLOCK_STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
-  otherEffectViews, reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
+  otherEffectViews, reAllocView, safReAllocView, labSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
 export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).

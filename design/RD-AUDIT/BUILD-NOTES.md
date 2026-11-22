@@ -1463,6 +1463,147 @@ Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3
 - **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
   FTE, which copies did not).
 
+### RD-A04
+
+One allocator for the safety research engineers (theme A, SAFETY-REDESIGN §5, OD-9 (a)). Commit bfec9fb.
+Moves calibration: **maybe**.
+
+- **Needs list:** `SafReNeed` = cases (open investigations' fte), patches (patch + foothold removals, patchFte),
+  safExp (line experiments: each experimenting project in priority order asks SAF_RE_UNIT × min(LINE_MULT_MAX,
+  cap ÷ SERIOUS_CAP), as before), reval (tool re-validation: `revalDemand` = tools in upkeep × (UPKEEP_MIN + UPKEEP_MAX ×
+  UPKEEP_REF) ÷ m of safety experiments, the engineers per tool at which the upkeep rate saturates; 0 with no fading
+  tool). `safAllocation` runs models/research.ts `allocate()` over `research.safRe` (the player's order, caps as the
+  capability list); what no need takes is `idle` (SafAlloc.idle, safetyRe().idle, safety view staff.idleRe). Compute
+  part unchanged (the flat allocation's safety line; flop by engineers × computeRef).
+- **Default order** = the pre-RD-A04 sequence: cases, patches, line experiments, re-validation (DEFAULT_SAF_RE_ALLOC),
+  without the 50% cap. SAF_EXP_SHARE deleted.
+- **Served amounts act:** a case below its staffing gains clarity at the engineers it gets (`casesServed`, investigations
+  caseRate × share served). Patches / removals keep fixed durations (their need is served or not; effect → RD-S05).
+  Tool upkeep and the validation lead (reValidationMult) read the re-validation need's engineers.
+- **Behaviour changes (why "maybe"):** experiments are no longer capped at 50% of the free engineers (a lab short of
+  engineers now fills its projects before upkeep); re-validation takes at most its demand and the rest is idle, so the
+  validation lead (believed U only; RD-S04 deletes it) no longer counts free engineers when no tool fades.
+- **Action / UI:** `research.safReAlloc` (order, need + max / share); Company › Work card "Safety research engineers"
+  (NeedList with gets / needs, caps, idle); `safReAllocView`; glossary `safReNeeds`, toolUpkeep reworded (GLOSSARY.md
+  not regenerated).
+- **Save:** SCHEMA_REV 56; migration 55 → 56 adds research.safRe at the default order; hygiene rev pins → 56.
+  scripts/v2/safetyresearch.ts' rig keeps twice the ask of engineers (was ask ÷ SAF_EXP_SHARE).
+- **Check:** `npx tsx scripts/v2/_a04/check.ts` (day-400 fixture migrates with the default order; with 60 people over
+  cases 40 / patches 10 / experiments 37.5 the served amounts follow the default and a reordered list; partial order
+  ignored; a cap flows down; spare engineers idle; no SAF_EXP_SHARE in src). tsc (app, scripts/v2) clean; npm run build
+  passes. Not run: safety suite, test:cal (RD test rule; CP2). The re-validation demand is not exercised by the fixture
+  (no fading tool at day 400).
+
+### RD-R02a
+
+Safety line projects on the shared units and the shared experiment-pool rule (theme R, SAFETY-REDESIGN §3.1; SAF-02,
+SAF-03). Commit dca648d. Moves calibration: **maybe**.
+
+- **Labour:** ℓ = (m_exp × engineers ÷ RE_LABOUR_UNIT)^λ, engineers in research-engineer team-equivalents
+  (heads × quality ÷ TEAM_SIZE.re; the allocator still works in heads × quality, so lineProjects converts at
+  HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT × TEAM_SIZE.re = 200). A serious programme asks `SAF_RE_ASK` = 0.25 labour
+  units (= the old 50 heads; a staffing need like RE_MAX_PER_PROJECT, not a unit) × min(LINE_MULT_MAX, cap ÷ SERIOUS_CAP).
+- **Compute:** c = project FLOP/day ÷ (computeNeed × C_UNIT_FLOP_PER_DAY). `AgendaDef.computeNeed` = computeRef ×
+  1e6 H100e × PHI ÷ C_UNIT = computeRef × 96.8 (11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT)): the agenda's demand multiplier
+  relative to a capability project; c at the old reference compute is exactly the old c. Codex row shows it.
+- **Pacing conversion:** at reference ℓ = SAF_RE_ASK^λ (0.5 at λ 0.5), not 1, so the stage rate is X ÷ X_ref with
+  X_ref = Xces(P, 1, SAF_RE_ASK^λ): rate 1 and first result at T₁ at reference inputs. Away from reference the CES mix
+  differs from the old one (the old ℓ = 1 point sits at ℓ = 0.5 in the shared unit; ζ ≠ 1 so this is not an exact
+  rescale): why "maybe".
+- **FLOP by need** (RD-B08 rule): line pool ÷ Σ needs (ask × computeNeed per experimenting project); a project with
+  engineers takes its full share, one with none leaves it unused (was: by engineers got × computeRef, shares moving to
+  the others). `share` per agenda and recomputeComputeShares follow.
+- **Deleted:** SAF_RE_UNIT, SAF_C0_H100E. SERIOUS_CAP stays (the reference science staffing; ideation keeps
+  (m × cap ÷ SERIOUS_CAP)^λ; RD-R02b's one stepper decides it). scripts/v2/safetyresearch.ts compiles (REF_RE_HEADS),
+  not run.
+- **Check:** `npx tsx scripts/v2/_r02a/check.ts`: every agenda's first result at reference inputs vs T₁, worst 0.8%
+  (±5%), c = 1.000, ℓ = 0.500. tsc app + scripts/v2 clean.
+
+### RD-R02b
+
+Safety projects on the shared project stepper (SAFETY-REDESIGN §3.1; replaces DD-15 / DD-16's candidate pool; SAF-01,
+SAF-08, SAF-V02). Commit fcc5614. **Moves calibration: yes (safety).**
+
+- **One stepper.** `stepProject(s, ctx, n, day: ProjectDay)` (models/research.ts): `dept: 'cap'` runs the capability
+  lifecycle as before; `dept: 'saf'` runs one "does it work" test (SafProjectState {work, workNeed = the agenda's T₁
+  months, flop}) through `stepTest`, the same day-step RD-R05's unlock projects now use: the science rate ((m_ideas ×
+  capacity ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30) and the experiment CES rate (X × speed ÷ 30 X_ref, RD-R02a units) add
+  on the same work, so at reference inputs a test takes T₁ ÷ 2 (as unlock projects: science time counts toward the
+  whole effort). Rates: safety/lineProjects.ts lineRates (`idea` → `sci`). speed = researchMods (lineSpeed and its
+  dead-end half speed gone; RD-A07 still owns the flat modifiers).
+- **Works draw.** `safetyWorks`: hash32(seed, 'saf:'+id+':'+attempt) < the agenda's true efficacy. Works → findings.ts
+  `nodeTestResult`: the node's own catalog row (`ownRow`), its generic technique, or the idea itself; never another
+  node's row, never past `needs`; a row whose `requires` fail in this world ends as failure (SAF-V02). Posterior a + 1.
+  Doesn't → `<AG>-DEAD` record (nodeId set), posterior b + 1 (was + 2), deadEnd status below 25%; the project restarts
+  (attempt + 1) at the posterior odds; the attempt's team-months go to the line's dead-end count as before.
+- **SAFSAB kept** (shared `sabotage` helper): on a working node result with the line's threat; caught → result lost
+  (no record, retry); uncaught → FALSE (masking tool `falseTool`, record trueType FALSE shown as the tool, the lab
+  takes the node as known; its real technique is not unlocked). fireFinding uses the same helper.
+- **Open study.** A line's follow-up keeps fireFinding's events (TECH / DEAD / NEG / DISC / SPILL / FALSE); its TECH
+  draws only rows no node owns (`NODE_ROWS`, SAF-08).
+- **Deleted:** candidate pool (SafCandidate, cands, newSafCandidate, readStage, betaBand / readInto), SafStage,
+  SAF_PICK_AT, SAF_POOL_MAX, SAF_BELIEF, lineSpeed, stepLineProject. SCHEMA_REV 57: migration 56 → 57 restates a
+  running safety project at its progress (work = progress × T₁).
+- **Readouts:** lineEtaDays = work left ÷ (sci + exp); lineCycleDays = T₁ ÷ (sci + exp).
+- **Scripts:** safetyresearch.ts compiles on the new stepper (section 3, belief noise, removed; its E1 pacing
+  expectations are stale: T₁ ÷ 2, no pipeline overlap), safetyideas.ts reads researchMods for lineSpeed, _r02a/check.ts
+  on stepProject (now expects T₁ ÷ 2), hygiene.ts rev 57. None run.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r02b/check.ts` (no pool / beliefs /
+  lineSpeed / line stepper in the source; one stepProject for dept cap and saf; all 33 safety nodes: works → only own
+  row / technique, doesn't → dead end with b + 1; a node run on the real stepper ends in DEAD or its own row).
+
+### RD-R03
+
+Safety science teams on the capability planner (SAFETY-REDESIGN §3.1, §5; SAF-03, SAF-23, INP-15). Commit c9ff03f.
+**Moves calibration: maybe** (safety teams beyond the bots' staffed lines now idle; lines no longer auto-continue).
+
+- **One planner.** `planAssignment(s, ready, dept = 'cap', valueOf?)` (models/research.ts) serves both departments:
+  priority list, teams wanted (`research.want`, shared), one swap pass and spares by value under PROJECT_MAX_TEAMS.
+  models/tree.ts `assignSafTeams` / `planSafAssignment` run it daily for 'saf' over `safReady` (queued, ready safety
+  projects in queue order); each team gets a `why`.
+- **Value proxy [D]:** `safProjectValue` = (m_ideas × C ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30 (the science part of
+  lineRates) ÷ the test's workNeed × chance it works (nodeOdds, the line's posterior mean) × `SAF_LINE_WEIGHT[agenda]`
+  (data/v2/research.ts, default 1; only ratios matter within the department).
+- **Idle stays idle.** Nothing queued → no safety team placed, nothing queued for the player. `safIdleFlag(s)`:
+  "2 safety teams idle — add projects to the priority list" (or the planner's reason when projects exist but none
+  gains); shown on Safety › Research lines (replaces "· N idle").
+- **Deleted:** autoAssignDept, autoAssign, lineForTeam, onLine, PRIORITY_W, continueLine (a finished node's teams are
+  freed; the line's next project waits for the player), the `research.autoAssign` action and `ResearchState.autoAssign`
+  (old saves keep a stale field, unread). RefBot no longer turns the toggle on (its staffLines places its line teams
+  by hand as before). scripts/v2/research.ts B35 auto-assign preview check removed; worktypes.ts no longer sets it.
+- **Player text:** glossary `autoAssign` → "Safety team placement"; Company team-effect tooltip and team hire preview
+  say a new safety science team joins the queued safety projects or waits idle.
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; `npx tsx scripts/v2/_r03/check.ts` (no auto-assign
+  left; nothing queued → 0 placed, flag text; queued two lines → priority / teams wanted honoured, priority 1 wanting
+  every team takes them all; after a research day teams only on queued projects).
+
+### RD-R04
+
+Rolled tree path and the paradigm mirror gone (SYNTHESIS §6 Phase 3; CAP-15, SAF-18). Commit 1ff5271.
+**Moves calibration: maybe** (P27 now resolves on AG17's works draw at the line's T₁, not its paradigm prior at the old
+rolled speed; teams on P27 now count as AG17 staffing: harness fit and SAF_IDEAS labour; P27 waits on AG17's safety-model gate).
+
+- **Deleted (models/tree.ts):** roll(), researchSpeed, the rolled branch of researchDay (progress bar, retry date, odds
+  halving), syncParadigm; projectRate / projectEta are research-line only (else 0 / Infinity); projectReady's retry
+  reason; nodeOdds has no multiplier. TreeNodeState.priorMult / retryDay gone (TreeNodeState left one interface: [D]
+  the discriminated union skipped for the budget). TREE_RETRY_DAYS gone from data; RefBot keeps `REF_RETRY_DAYS` 180.
+- **kyc:** node deleted (and from the starts' known lists); the per-product KYC setting stays ungated.
+- **P27:** an `S` node of line AG17 (no `paradigm` flag; effort = AG17's line effort); effects unchanged (workfit
+  `adopted(s, 'P27')`, safety/ideas.ts aarAuto). Removed from PARADIGMS; its hidden draw is consumed in place
+  (world/hidden.ts TRAILING_DRAWS [0.8 P26, 0.7 P27]), so later world draws keep their values.
+- **Mirror:** PlayerLab / LabCore `paradigms` and ParadigmState gone; initialParadigms gone. `adopted(id)` (models/paradigms.ts
+  and safety/common.ts) = `tree[id].status === 'known'`. Readers repointed: RefBot (P08, P17, P23), actions (P08, P18),
+  theft (P25), agent-action cache key (P27). completeAdoption's onKnown is optional (build.ts passes none).
+- **Player text:** glossary `retryRule` and limit `tree.retry` gone (and the tree's retry readouts); [D] to satisfy the
+  `researchSpeed` grep, researchSpeedLimits / researchSpeedView / researchSpeedRel and the glossary id `researchSpeed`
+  are renamed `labSpeed*` / `labSpeed` (title unchanged; GLOSSARY.md not regenerated).
+- **Schema:** SCHEMA_REV 58; migration 57 → 58 drops player.paradigms, hidden.paradigmSuccess.P27, the kyc record / queue
+  entry / team placement, every tree record's fields outside TreeNodeState; a rolled P27 attempt becomes its AG17 test at
+  its progress (work = progress × T₁), a failed one reopens. Older migrations no longer touch the mirror (53 reads P24 via a cast).
+- **Check:** tsc app + scripts/v2 clean; npm run build passes; grep `researchSpeed|syncParadigm|player.paradigms|priorMult`
+  in src empty; `npx tsx scripts/v2/_r04/check.ts` (source clean; kyc gone, P27 an AG17 line node; new game: no mirror,
+  ★ adopted; P27 works → known = adopted, doesn't → AG17 b + 1; rev-57 save migrates). hygiene's rev literals → 58 (not run).
+
 ### RD-A05b
 
 Spare-compute policies removed per DD-19; one explicit Auto-split policy; real compute for cases. Moves calibration: **yes**
@@ -1613,3 +1754,26 @@ with no L 8.5 threshold; on the day-400 fixture one player period adds 0.119 OOM
   nothing; effective compute per FLOP constant (pre 51.4 vs 51.7 at ×0.5 / ×2, RL exact); the daily system spends the
   period on day 7 only; rival 0 FLOP 0, effective compute ×2 for 2× FLOP, same ΔG at L 8.4 and 8.6. tsc main +
   scripts and `npm run build` pass.
+
+### Merge rd into p3-c2
+
+rd's schema chain kept (56 A05b, 57 A06, 58 T01a, 59 T02); p3-c2's renumbered: 59 → 60 (RD-A04), 60 → 61 (RD-R02b),
+61 → 62 (RD-R04); SCHEMA_REV 62, hygiene rev literals 62. Cases: A04's casesServed() FTE with A05b's caseH100e compute; the
+agents' readout key reads adopted(P27) (R04) and the tooling list (A06); spareServingEffect gone (A05b) with R04's labSpeed* names.
+
+### RD-A07
+
+Flat research modifiers made physical, one helper for both departments (departments/workfit.ts `researchMods`, read
+by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit cb2cb96. **Moves calibration: maybe.**
+
+- **Pause = no experiment FLOP for frontier projects** (`frontierExp` 0, `expFlopAllowed(s, dept, flop)`). Frontier =
+  the capability department's projects (their tests run on the frontier experiment pool and scale toward the frontier
+  run): capResearchDay's project FLOP is 0 while the pause lasts, so their tests stall. Ideation goes on at full rate;
+  safety research-line projects (agenda-sized compute) keep their FLOP (they were ×0.1 before). The lab readout
+  (production.ts) puts the experiment compute c to 0 instead of ×0.1; LIMITS line reads "no experiment FLOP".
+- **Clearances = heads off the teams for 60 days** (`onDuty(s, t)`: heads − round(10% × heads)): sciOn, safSciOn,
+  capReCapacity, humansOf. The `humans` ×0.9 factor is gone.
+- **[D] multipliers kept (speed):** siloing −5%/level (who cannot share experiments is not modelled), ASIC migration
+  −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
+- **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
+  inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.

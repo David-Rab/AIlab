@@ -5,12 +5,12 @@ import { PROJECT_BY_ID, TREE, isLineNode, type TreeNodeDef } from '../../../data
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
-import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, StackKey, TraitId } from '../types';
-import { PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
+import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, SafReNeed, StackKey, TraitId } from '../types';
+import { DEFAULT_SAF_RE_ALLOC, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
-  assignCapNow, assignTeam, autoAssign, dequeueNode, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
+  assignCapNow, assignTeam, dequeueNode, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
   queueNode, unassignTeam,
 } from './tree';
 
@@ -129,6 +129,7 @@ export function safLines(n: TreeNodeDef, odds: number): { gains: CostLine[]; exp
 
 const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp'];
 const NEEDS_ENG: EngNeed[] = ['runs', 'upkeep', 'builds'];
+const NEEDS_SAF_RE: SafReNeed[] = ['cases', 'patches', 'safExp', 'reval'];
 /** Parse an order param ('exp,ops,evals'): a permutation of the needs, or undefined. */
 function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {
   if (typeof p.order !== 'string') return undefined;
@@ -237,28 +238,6 @@ export const TREE_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => fail(unassignTeam(s, teamParam(s, p))),
   },
   {
-    id: 'research.autoAssign', verb: 'policy', system: 'research', sphere: 'models', owner: 'WS1', title: 'Auto-assign',
-    available: () => true,
-    preview: (s, p) => {
-      const on = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
-      // B35: the policy places safety science teams only (autoAssign); capability teams always follow the priority list.
-      // On: run it on a copy and count the idle safety scientists it puts to work today.
-      let placed = 0;
-      if (on) {
-        const c: GameStateV2 = { ...s, player: { ...s.player, teams: s.player.teams.map((t) => ({ ...t })), research: { ...s.player.research, queue: [...s.player.research.queue] } } };
-        autoAssign(c);
-        placed = c.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && t.projectId && !s.player.teams.find((x) => x.id === t.id)?.projectId).reduce((a, t) => a + t.heads, 0);
-      }
-      const idle = idleTeams(s, 'saf').reduce((a, t) => a + t.heads, 0);
-      return on
-        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'safety teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(placed), unit: 'scientists', target: 'idle safety scientists put on projects today' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: -Math.round(idle), unit: 'scientists', target: 'idle safety scientists wait for you (capability teams still follow the priority list)' }], gains: [{ currency: 'staffTime', amount: 0, target: 'you place safety teams by hand' }], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      s.player.research.autoAssign = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
-    },
-  },
-  {
     id: 'research.want', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Teams wanted',
     available: (s) => (s.player.research.queue.length ? true : 'No projects'),
     preview: (s, p) => {
@@ -329,6 +308,21 @@ export const TREE_ACTIONS: ActionDef[] = [
       const o = orderParam(p, NEEDS_RE);
       if (o) a.order = o;
       capParams(a, p, NEEDS_RE);
+    },
+  },
+  {
+    // RD-A04 (OD-9): the safety research engineers' needs list, set in LAB like the capability one.
+    id: 'research.safReAlloc', verb: 'policy', system: 'safety', sphere: 'departments', owner: 'WS1', title: 'Safety research engineers by need',
+    available: () => true,
+    preview: (_s, p) => {
+      const need = str(p, 'need', 'safExp');
+      return { costs: [{ currency: 'staffTime', amount: 0, target: 'safety research engineers move from the needs below it' }], gains: [{ currency: 'progress', amount: 0, target: need + ' gets them first' }], exposure: [] };
+    },
+    apply: (s, _ctx, p) => {
+      const a = (s.player.research.safRe ??= { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} });
+      const o = orderParam(p, NEEDS_SAF_RE);
+      if (o) a.order = o;
+      capParams(a, p, NEEDS_SAF_RE);
     },
   },
   {
