@@ -158,8 +158,6 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
 
 // ───────────────────────────── capacities and taste ─────────────────────────────
 
-/** Ideas a line candidate batches at today's experiment throughput X (1 below PACE_BATCH) [D: performance]. */
-export const batchOf = (X: number) => Math.max(1, Math.floor(X / PACE_BATCH));
 
 
 /** Science teams of the capabilities department. */
@@ -215,7 +213,7 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
   const P = s.hidden.timeline.prod;
   const x = s.player.research.last?.x;
   const sg = stagesOf(n);
-  const b = n.kind === 'line' ? batchOf(x?.X ?? 1) : 1;
+  const b = 1; // RD-R08: every candidate is one idea (the flow runs at the same rates)
   const speed = researchMods(s).speed;
   if (isUnlockProject(n)) {
     // RD-R05: one test, science teams and the experiment CES on the same work.
@@ -368,8 +366,8 @@ export function projectValue(s: GameStateV2, id: string, env = valueEnv(s)): (ca
   }
   const sg = stagesOf(n);
   if (n.kind === 'line') {
-    const b = batchOf(env.X);
-    return (cap, q) => (cap > 0 ? (work(cap, q) / (sg.idea * b)) * valueOom(n, b * priorMean(s, n, { q, b })) : 0);
+    // RD-R08: one idea per candidate; the flow runs the same ideas in expectation.
+    return (cap, q) => (cap > 0 ? (work(cap, q) / sg.idea) * valueOom(n, priorMean(s, n, { q })) : 0);
   }
   return (cap, q) => (cap > 0 ? (work(cap, q) / (sg.idea * PICK_AT)) * odds * valueOom(n, priorMean(s, n, { q }, spec)) : 0);
 }
@@ -794,9 +792,11 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   }
   const r = n.kind === 'line' ? st.pending?.find((x) => x.buildId === buildId) : st.result?.buildId === buildId ? st.result : undefined;
   if (!r) return;
-  const truth0 = candidateTruth(s, n, st, r.c);
-  const at = atTest(n, r.c, truth0);
+  // RD-R08: a flow result carries its true (expected) effect; a candidate's is recomputed from the seed.
+  const truth0 = r.flow ? { x: r.flow.x, s: r.flow.s } : candidateTruth(s, n, st, r.c);
+  const at = r.flow ? { xTest: r.flow.x, s: r.flow.s, batch: false } : atTest(n, r.c, truth0);
   const truth = { x: truth0.x, s: at.s };
+  const count = r.flow ? r.flow.n : r.c.b;
   const res = s.player.research;
   const eff = n.effect;
   const xTest = at.xTest;
@@ -806,7 +806,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   let realised = 0;
   if (eff?.stack) {
     // RD-B17: a batch counts its b ideas; the second stack an idea also moves adds no idea.
-    addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, r.c.b);
+    addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, count);
     for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
     realised = xTest * Math.pow(latestBaseFlop(s) / r.fTest, truth.s);
   } else if (eff?.domains) {
@@ -827,7 +827,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   if (eff && hasTypedEffect(n)) {
     // RD-B17: domain and data effects are listed as their own kind (not under a stack).
     const where = eff.stack ? { stack: eff.stack } : { kind: eff.domains ? ('domain' as const) : ('data' as const) };
-    res.adopted.push({ id, name: n.name, ...where, ...(r.c.b > 1 ? { b: r.c.b } : {}), eff: Math.round(realised * 1e4) / 1e4, est: Math.round(r.est * 1e4) / 1e4, estSd: Math.round(r.estSd * 1e4) / 1e4, s: Math.round(truth.s * 1000) / 1000, day: ctx.day });
+    res.adopted.push({ id, name: n.name, ...where, ...(count !== 1 ? { b: Math.round(count * 10) / 10 } : {}), eff: Math.round(realised * 1e4) / 1e4, est: Math.round(r.est * 1e4) / 1e4, estSd: Math.round(r.estSd * 1e4) / 1e4, s: Math.round(truth.s * 1000) / 1000, day: ctx.day });
     if (res.adopted.length > 30) res.adopted.splice(0, res.adopted.length - 30);
   }
   if (n.kind === 'line') {
@@ -851,9 +851,173 @@ export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' 
   return (Xces(P, (flopDay * p13) / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
 }
 
+// ───────────────────────────── RD-R08: lines as an expected flow ─────────────────────────────
+
+/** Share of a line's day run as the expected flow at experiment throughput X (0 below PACE_BATCH, 1 from twice it, linear
+ *  between: the explicit pipeline and the flow share the day, so nothing jumps at the switch). */
+export const flowShare = (X: number) => Math.max(0, Math.min(1, X / PACE_BATCH - 1));
+
+/** Per tested idea under the explicit pipeline's rules, in units of the line's prior mean per idea (every draw of a line
+ *  candidate scales with it): research-engineer work w (team-months at unit inputs: small + scale when it passes), kept
+ *  true effect at test scale g, kept ideas p, the kept ideas' effect-weighted scale exponent sx, ideas ideated ι. */
+export interface FlowStats { w: number; g: number; p: number; sx: number; iota: number }
+const FLOW_Q = [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256];
+const FLOW_RHO = [1, 1.5, 2, 3, 4, 6, 8, 16];
+const FLOW_N = 1500;
+const FLOW_WARM = 30;
+const flowCache = new Map<string, FlowStats>();
+
+/** The explicit pipeline's rules (newCandidate, addCandidate, pickCandidate, resolveStage's two drop rules) run on FLOW_N
+ *  tests of single ideas with fixed hash draws (seed-independent: the flow is the expectation, not a world's draw), at
+ *  taste q, risk κ and ρ ideas ideated per test (ρ > 1: ideation outruns the tests, the pool fills and selection
+ *  sharpens). Cached per line, κ and grid point. */
+function flowSim(n: TreeNodeDef, kappa: number, q: number, rho: number): FlowStats {
+  const key = `${n.id}|${kappa}|${q}|${rho}`;
+  const hit = flowCache.get(key);
+  if (hit) return hit;
+  const sg = LINE_STAGES;
+  const [sm, ssd] = n.effect?.s ?? [0, 0];
+  const sdT = n.effect?.sd ?? PROJECT_SD;
+  const la = Math.log(SMALL_TO_TEST);
+  const scaleF = Math.exp(la * sm + (la * la * ssd * ssd) / 2);
+  const uh = (k: string) => (hash32(0x52d08, `${key}:${k}`) + 0.5) / 4294967297;
+  const zh = (k: string) => Math.sqrt(-2 * Math.log(uh(`${k}a`))) * Math.cos(2 * Math.PI * uh(`${k}b`));
+  type C = { x: number; s: number; mu: number; sd: number };
+  const score = (c: C) => c.mu + kappa * c.sd;
+  const cands: C[] = [];
+  let k = 0;
+  let ideated = 0;
+  const mk = () => {
+    const i = k++;
+    ideated++;
+    const nov = uh(`n${i}`);
+    const T = Math.exp(sdT * zh(`T${i}`) - (sdT * sdT) / 2);
+    const x = T * (CAND.mean0 + CAND.meanNov * nov) + T * (CAND.sd0 + CAND.sdNov * nov) * zh(`x${i}`);
+    const s = Math.max(S_RANGE[0], Math.min(S_RANGE[1], sm + ssd * zh(`s${i}`)));
+    const sd = (BELIEF_NOISE * (0.5 + nov)) / Math.max(0.2, q);
+    const c = { x, s, mu: x + sd * zh(`b${i}`), sd };
+    if (cands.length < POOL_MAX) {
+      cands.push(c);
+      return;
+    }
+    let wi = 0;
+    for (let j = 1; j < cands.length; j++) if (score(cands[j]) < score(cands[wi])) wi = j;
+    if (score(c) > score(cands[wi])) cands[wi] = c;
+  };
+  let acc = 0;
+  let w = 0;
+  let g = 0;
+  let p = 0;
+  let sxw = 0;
+  let id0 = 0;
+  for (let t = 0; t < FLOW_N + FLOW_WARM; t++) {
+    if (t === FLOW_WARM) id0 = ideated;
+    const on = t >= FLOW_WARM;
+    acc += rho;
+    while (acc >= 1) {
+      acc -= 1;
+      mk();
+    }
+    while (cands.length < PICK_AT) mk();
+    let bi = 0;
+    for (let j = 1; j < cands.length; j++) if (score(cands[j]) > score(cands[bi]) + 1e-12) bi = j;
+    const c = cands.splice(bi, 1)[0];
+    const alts = cands.map(score);
+    // Small experiments (resolveStage: the reading narrows the belief; drop rule against the floor and the pool).
+    const se = EXP_NOISE;
+    const y = c.x + se * zh(`e${t}`);
+    const w1 = 1 / (c.sd * c.sd);
+    const w2 = 1 / (se * se);
+    c.mu = (c.mu * w1 + y * w2) / (w1 + w2);
+    c.sd = Math.sqrt(1 / (w1 + w2));
+    if (on) w += sg.small;
+    const sc = score(c);
+    if (dropRule(sc, sc < DROP_FRAC, alts)) continue;
+    // Scale test (one idea: x·1000^s must hold SURVIVE_FRAC of the small-scale estimate; the pool compared at test scale).
+    if (on) w += sg.scale;
+    const xTest = c.x * Math.pow(SMALL_TO_TEST, c.s);
+    const xT = xTest * (1 + TEST_READ_SD * zh(`r${t}`));
+    const scT = xT + kappa * Math.abs(xT) * TEST_READ_SD;
+    if (dropRule(scT, scT < SURVIVE_FRAC * c.mu || scT < DROP_FRAC, alts.map((a) => a * scaleF))) continue;
+    if (!on) continue;
+    g += xTest;
+    p += 1;
+    sxw += xTest * c.s;
+  }
+  const out = { w: w / FLOW_N, g: g / FLOW_N, p: p / FLOW_N, sx: g > 0 ? sxw / g : sm, iota: (ideated - id0) / FLOW_N };
+  flowCache.set(key, out);
+  return out;
+}
+
+/** Grid bracket of v on a sorted grid, in log space: the two points and the weight of the upper one (clamped). */
+function bracket(grid: number[], v: number): [number, number, number] {
+  if (v <= grid[0]) return [grid[0], grid[0], 0];
+  const last = grid[grid.length - 1];
+  if (v >= last) return [last, last, 0];
+  let i = 0;
+  while (grid[i + 1] < v) i++;
+  return [grid[i], grid[i + 1], Math.log(v / grid[i]) / Math.log(grid[i + 1] / grid[i])];
+}
+
+/** FlowStats at taste q and ρ ideas per test, bilinear in log q and log ρ between grid points (continuous in both). */
+export function flowStats(n: TreeNodeDef, kappa: number, q: number, rho: number): FlowStats {
+  const [q0, q1, a] = bracket(FLOW_Q, q);
+  const [r0, r1, b] = bracket(FLOW_RHO, Math.max(1, rho));
+  const pts: [FlowStats, number][] = [
+    [flowSim(n, kappa, q0, r0), (1 - a) * (1 - b)],
+    [flowSim(n, kappa, q1, r0), a * (1 - b)],
+    [flowSim(n, kappa, q0, r1), (1 - a) * b],
+    [flowSim(n, kappa, q1, r1), a * b],
+  ];
+  const mix = (f: (x: FlowStats) => number) => pts.reduce((acc, [x, wt]) => acc + f(x) * wt, 0);
+  const g = mix((x) => x.g);
+  return { w: mix((x) => x.w), g, p: mix((x) => x.p), sx: g > 0 ? mix((x) => x.g * x.sx) / g : mix((x) => x.sx), iota: mix((x) => x.iota) };
+}
+
+/** One day of a line's expected flow (its share φ of the day): ideas ideated at φ × the science teams' rate, tested at
+ *  φ × the experiment rate (tests per day k = min(ideas ÷ ι, work ÷ w)); the pool advances test by test (at most 256 steps
+ *  a day, each of k/steps tests) by the expected kept effect g × the prior mean at the pool's state then, so the line's
+ *  stack stays r_l·log₁₀(R/n₀). The day's result is queued for the engineers as one build (its true effect is the
+ *  expectation; ideas adopted = k·p). Returns the FLOP used. */
+function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, phi: number, ideasFull: number, q: number, rate: number, flopDay: number, queueBuild: (tw: number) => string): number {
+  const ideas = phi * ideasFull;
+  const work = phi * rate;
+  if (ideas <= 0 || work <= 0) return 0;
+  const sg = stagesOf(n);
+  const rho = Math.max(1, (ideas * (sg.small + sg.scale)) / work);
+  const f = flowStats(n, RISK(s), q, rho);
+  const k = Math.min(ideas / Math.max(1e-12, f.iota), work / Math.max(1e-12, f.w));
+  if (k <= 0) return 0;
+  const pl = linePool(s, n);
+  let M = pl.n0 + (st.pool ?? 0);
+  const steps = Math.min(256, Math.max(1, Math.ceil(k)));
+  const j = k / steps;
+  let x = 0;
+  for (let i = 0; i < steps; i++) {
+    const gain = j * f.g * pl.r * Math.log10((M + q) / M);
+    x += gain;
+    M *= Math.pow(10, Math.max(0, gain) / pl.r);
+  }
+  st.pool = M - pl.n0;
+  st.input = (st.input ?? 0) + k * q;
+  const kept = k * f.p;
+  const before = Math.floor(st.flowDone ?? 0);
+  st.flowDone = (st.flowDone ?? 0) + kept;
+  st.gen += Math.floor(st.flowDone) - before;
+  const fTest = sg.testFrac * latestBaseFlop(s);
+  const ratio = Math.log10(Math.max(1, latestBaseFlop(s) / fTest));
+  const est = x * Math.pow(10, f.sx * ratio);
+  const c: Candidate = { k: 0, gen: st.gen, nov: 0, b: 1, q, mu: x, sd: 0, muS: f.sx, sdS: 0, at: st.pool };
+  const result: CapResult = { c, xTest: x, sHat: f.sx, fTest, est, estSd: (Math.abs(est) * TEST_READ_SD) / Math.sqrt(Math.max(1, kept)), day: ctx.day, flow: { x, s: f.sx, n: kept } };
+  (st.pending ??= []).push(result);
+  // The engineers' build-in as the explicit pipeline pays it: a base per idea plus the effect's OOM (capped per idea).
+  result.buildId = queueBuild(Math.min(ADOPT_TW.max * Math.max(1, kept), ADOPT_TW.base * kept + ADOPT_TW.perOom * oomOf(n, est)));
+  return flopDay * phi * Math.min(1, (k * f.w) / work);
+}
+
 /** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
  *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
-function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
+export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const st = capState(s, n.id);
   if (st.stage === 'failed' || st.stage === 'adopting') return 0;
   const P = s.hidden.timeline.prod;
@@ -861,22 +1025,25 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: Resear
   const sg = stagesOf(n);
   const sci = sciOn(s, n.id);
   if (isUnlockProject(n)) return stepTrial(s, ctx, n, st, inp, sci, experimentRate(s, inp, p13, reCap, flopDay), flopDay, queueBuild);
-  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
-  if (sci.cap > 0) {
-    const b = n.kind === 'line' ? batchOf(inp.X) : 1;
-    st.idea += (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * b * 30);
-    let guard = 0;
-    while (st.idea >= 1 && guard++ < 8) {
-      st.idea -= 1;
-      addCandidate(st, newCandidate(s, n, st, sci.q, b), kappa);
-    }
-    st.idea = Math.min(st.idea, 1);
-  }
+  // RD-R08: at high experiment throughput a line runs share φ of its day as the expected flow (stepFlow), the rest as the
+  // explicit pipeline below (ideation and experiment time × (1 − φ)).
+  const phi = n.kind === 'line' ? flowShare(inp.X) : 0;
+  const ideasFull = sci.cap > 0 ? (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * 30) : 0;
   // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
   // inputs: √RE_LABOUR_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
   const rate = experimentRate(s, inp, p13, reCap, flopDay);
-  let time = 1;
-  let used = 0;
+  let used = phi > 0 ? stepFlow(s, ctx, n, st, phi, ideasFull, sci.q, rate, flopDay, queueBuild) : 0;
+  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
+  if (sci.cap > 0 && phi < 1) {
+    st.idea += ideasFull * (1 - phi);
+    let guard = 0;
+    while (st.idea >= 1 && guard++ < 8) {
+      st.idea -= 1;
+      addCandidate(st, newCandidate(s, n, st, sci.q, 1), kappa);
+    }
+    st.idea = Math.min(st.idea, 1);
+  }
+  let time = 1 - phi;
   for (let guard = 0; guard < 6 && time > 1e-9; guard++) {
     if (!st.test && st.cands.length >= PICK_AT) {
       const i = pickCandidate(st.cands, kappa);

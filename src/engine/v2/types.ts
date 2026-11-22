@@ -672,7 +672,8 @@ export interface Candidate {
   gen: number;
   /** Novelty 0..1 (visible): novel candidates are bigger if they work and less certain. */
   nov: number;
-  /** Ideas batched into this candidate (lines at high research pace: the work, FLOP and effect scale with it). */
+  /** Ideas in this candidate: 1 (RD-R08: high throughput runs lines as an expected flow; older saves may hold batches
+   *  b > 1, whose work, FLOP and effect scale with b). */
   b: number;
   /** Taste of the scientists who found it (model v3 V3: the team's E[max(human, AI)] taste, a Strong team without AI = 1);
    *  for lines its research input per idea. */
@@ -710,6 +711,10 @@ export interface CapResult {
   /** Build item adopting it (engineers). */
   buildId?: string;
   day: Day;
+  /** RD-R08: a line's expected flow for one day (high experiment throughput): the TRUE kept effect at test scale (the
+   *  expected result of the ideas tested that day under the per-idea drop and survival rules), its survivors' mean
+   *  scale exponent and the expected ideas adopted. `c` is then a placeholder; completeAdoption reads this instead. */
+  flow?: { x: number; s: number; n: number };
 }
 export interface CapProjectState {
   stage: CapStage;
@@ -734,6 +739,8 @@ export interface CapProjectState {
   /** Lines (model v3 V3): the pool's state above n₀ (reference ideas): R = n₀ + pool, advanced by each result's true effect
    *  (R ← R·10^(x/r_l)), so the line's realised stack is r_l·log₁₀(R/n₀). */
   pool?: number;
+  /** RD-R08: a line's expected ideas adopted by its flow so far (fractional; whole ideas move `gen`). */
+  flowDone?: number;
   /** Lines: research input of the results so far (Σ batch × taste, reference ideas; readout). */
   input?: number;
 }

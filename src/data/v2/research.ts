@@ -58,9 +58,11 @@ export const PROJECT_SD = 0.25;
 export const RISK_KAPPA: Record<RiskPolicy, number> = { safe: -0.5, balanced: 0, speculative: 0.5 };
 /** Reopening a failed project as speculative: odds × 0.5, prior mean × 0.7, candidate spread × 1.5 per reopen [D]. */
 export const SPECULATIVE = { odds: 0.5, mean: 0.7, spread: 1.5 };
-/** Lines batch ideas once the lab's experiment throughput X (unit project = 1) exceeds this: a candidate then carries
- *  b = ⌊X / PACE_BATCH⌋ ideas (its work, research input and effect × b), so a takeoff does not need thousands of daily events [D: performance; the expected OOM per
- *  day is unchanged]. A batch counts as one generation. */
+/** RD-R08: lines run as an internal expected flow once the lab's experiment throughput X (unit project = 1) passes this:
+ *  the flow's share of the line's day is φ = clamp(X / PACE_BATCH − 1, 0, 1) (0 at PACE_BATCH, 1 at twice it), the explicit
+ *  candidate pipeline runs the rest, so a takeoff does not need thousands of daily events and nothing jumps at the switch
+ *  [D: performance]. Every candidate is one idea; the flow applies the same per-idea drop and survival rules in
+ *  expectation (models/research.ts flowStats). */
 export const PACE_BATCH = 30;
 
 // ───────────────────────────── diminishing returns (lines) ─────────────────────────────
