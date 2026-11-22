@@ -1192,3 +1192,31 @@ shared the agent pool). Moves calibration: **yes**.
 - **Not done:** the optional "Suggest" button (budget). Untracked scratch `scripts/v2/_r01/check.ts` still imports
   `researchMixCurve` (outside the scripts tsconfig). Check: untracked `scripts/v2/_a02/check.ts` (mix held over 60
   days, engineering line live, migration).
+
+### RD-A05a
+
+One flat compute allocation to uses (theme A, SAFETY-REDESIGN §5, DD-19). Moves calibration: **maybe**.
+
+- **Shape:** `ComputeSplit` = training, synthetic (data generation), experiments, routine, frontier, engineering,
+  safetyAgents, monitors, safety (safety research: open cases first, lines the rest), serving, idle; each a share of
+  total compute, Σ = 1 with idle. Gone: `split.agents`, `AgentPackage.compute`, `policies.monitorBudget`,
+  `safetyAgentShare`, the four-claim `safetyPoolClaims` (now the safety line only: cases → lines), split.ts
+  TOP_KEYS / specOf / fromSpec / MIX_RANGE. Other labs: same shape (agents → routine / frontier at 0.65 : 0.15;
+  engineering, safetyAgents, monitors 0).
+- **One allocation:** `split.ts allocOf` (and `poolsOf`, its H100e); `agentSplitShare(use)` = the use's line
+  (`AGENT_LINE`); `monitorBudget` = the monitors' line, `used = min(line, need)`; the unused rest is shown (Safety
+  tooltip "Unused", safety view idle), never moved. Model per agent use unchanged.
+- **Actions:** `setSplit` takes the flat keys; `agents.set {compute}` writes the line (research uses: routine share of
+  routine + frontier; safety: its line, from / to the safety research line); `agents.monitorBudget {share}` = share of
+  total compute, moved from / to the safety research line (step 0.1 pt); Trusted to AI starts safety agents at 20%
+  of the safety research line. Presets (reference / race / balanced / safety) set group totals and keep the player's
+  proportions inside each group (preset arithmetic only).
+- **Behaviour changes (why "maybe"):** a monitoring budget above the need is now unused instead of feeding the lines
+  (DD-19); case `computeShare` is a share of the safety research line (caseRate's share term sees a larger share for
+  the same compute); RefBot's safety agents / monitors converted to total-compute units with the same targets.
+- **UI:** Compute › Split is a flat list of sliders per use in player language (spare training / serving rows kept);
+  full redesign later.
+- **Save:** SCHEMA_REV 52; migration 51 (`migrateFlatSplit`) splits the old pool by RD-B07's granted claims, so every
+  use keeps its compute; hygiene rev pins → 52. Retired: safety suite "RD-B07" claims test.
+- **Check:** `npx tsx scripts/v2/_a05a/check.ts` (sums, presets, readers, migration of a rebuilt rev-51 save with a
+  budget above need and an open case: same H100e per use). Untracked scratch `scripts/v2/_a05a/ed*.cjs` (edit scripts).
