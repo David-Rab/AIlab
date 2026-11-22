@@ -914,3 +914,21 @@ Domain difficulty in one place (MEA-04, TRN-27's last column). Commit 731e8c2.
   domain level moves: P13's RSCH gate (RSCH now ≈ 3.5 L lower on ai2027) delays that paradigm and whatever it feeds,
   danger flags / misuse / exfiltration / rival hazards fire much later or not at all, SOCIAL-based control reads lower.
   Run test:cal at CP2 with the threshold review; watch RSCH-gated research and safety S4 / S5.
+
+### RD-U07
+- **RefBot's gates in OOM above V0** (bots/ref.ts `GATE_OOM`): each gate is `gOfLevel(measured L) − G_V0 ≥ ΔG`, the
+  measured level read back as G. ΔG = the old conversion (levelOfV2 on V2a's CAL_SHIFT, v2's progress coordinate placed
+  on G at slope B) on ai2027: was L 6.5 → 1.3656, L 7 → 1.7706, L 8.5 → 2.9856, L 9.5 → 3.5256 OOM (display λ 7.74 /
+  8.55 / 10.57 / 11.20; same on seeds 1 and 2027). P13's RSCH gate uses the RSCH domain level through the same map, as before.
+- **Other presets' gates move:** the stale table had set them at authors2026 3.81 / 4.42 / 6.26 / 6.67, fast 2.26 / 2.75 /
+  4.22 / 4.60, slow 7.23 / 8.31 / 11.57 / 12.29 OOM; they now share the ai2027 constants, so RefBot starts those projects
+  earlier on authors2026, fast and slow.
+- **Deleted:** `levelOfV2` (world/calibration.ts), `CAL_SHIFT` (data/v2/calibration.ts), RefBot's `gateLevel`; CAL_SHIFT
+  dropped from the rivals R7 and worktypes lint regexes. **Kept:** `milestoneThresholds` (data/world.ts), because
+  scripts/v2/golden-timelines.ts (the v1 golden integrator, test:cal) still reads it; v1 `MILESTONES` (end-screen canon
+  dates). `capIndex` (data/world.ts) is dead but was left alone. The only grep hits left for levelOfV2 are the "was L x
+  via levelOfV2" comments.
+- **Check:** tsc main and scripts clean. One RefBot game (ai2027, seed 2027, integrated, to day 820), first day each
+  gate holds, before = after: P08 470, rl.mlResearch 470, P19 632, P17 714, P13 748.
+- **Moves calibration: maybe.** ai2027 is unchanged; authors2026 / fast / slow RefBot research starts earlier (see
+  above). Watch those presets' T1 at CP2.
