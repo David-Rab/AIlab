@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
+import { HEADROOM, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
@@ -25,7 +25,7 @@ import {
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
-import { capProjectView, otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
+import { capProjectView, otherEffectViews, softwareRate, stackViews, STAGES } from '../../src/engine/v2/models/researchView';
 import { autoAssign, projectEta } from '../../src/engine/v2/models/tree';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { AGENDA_BY_ID } from '../../src/data/v2/agendas';
@@ -39,6 +39,42 @@ import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
+
+// ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
+if (process.argv.includes('--rd-r07')) {
+  check(STAGES.join(',') === 'ideation,small,scale,adoption', 'RD-R07 the player sees four stages (no result step)', STAGES.join(', '));
+  // Every capability idea / axis: the effort shown (effortOfNode) is stagesOf's work and the node's one effortTM.
+  const bad: string[] = [];
+  for (const n of Object.values(TREE_BY_ID)) {
+    if (!isCapProject(n) || n.kind === 'line') continue;
+    const e = effortOfNode(n);
+    const sg = stagesOf(n);
+    const sum = PICK_AT * sg.idea + sg.small + sg.scale;
+    if (Math.abs(e.sci + e.exp - sum) > 1e-9 || Math.abs(sum - (n.effortTM ?? IDEA_DEFAULT_TM)) > 1e-9) bad.push(`${n.id} ${(e.sci + e.exp).toFixed(3)} vs ${sum.toFixed(3)} vs ${n.effortTM}`);
+  }
+  check(!bad.length, 'RD-R07 effort shown = stagesOf sum = effortTM for every capability idea / axis', bad.join('; ') || 'all equal');
+  // Neutral: the stage work is the earlier fit's (P13 fitted E 79.62: ideation 0.25E per candidate, scale 0.42E).
+  const p13 = stagesOf(TREE_BY_ID.P13);
+  check(Math.abs(p13.idea - 0.25 * 79.62) < 1e-9 && Math.abs(p13.scale - 0.42 * 79.62) < 1e-9, 'RD-R07 stage work unchanged (P13)', `${p13.idea.toFixed(4)} · ${p13.scale.toFixed(4)}`);
+  // No 'result' stage reachable: a working project goes from the scale test straight to the engineers' build-in.
+  let seed = 1;
+  for (; seed < 40; seed++) {
+    const t = mk(seed);
+    if (candidateTruth(t, TREE_BY_ID.elastic, freshCap(), { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 0, sd: 1, muS: 0, sdS: 0 }).x > 0.01) break;
+  }
+  const s = mk(seed);
+  act(s, 'research.start', { id: 'elastic' });
+  act(s, 'research.want', { id: 'elastic', n: 3 });
+  const seen: string[] = [];
+  for (let d = 0; d < 400 && s.player.tree.elastic?.status !== 'known'; d++) {
+    tick(s, { skip: ['endings'] });
+    const st: string | undefined = s.player.tree.elastic?.cap?.stage;
+    const v: string = capProjectView(s, 'elastic')?.stage ?? '';
+    for (const x of [st ?? '', v]) if (x && seen[seen.length - 1] !== x) seen.push(x);
+  }
+  check(!seen.includes('result') && seen.includes('adopting') && s.player.tree.elastic?.status === 'known', 'RD-R07 no result stage reached (engine or view)', seen.join(' → '));
+  finish('research');
+}
 
 // ---------- RD-R06 drop and give-up rules (run alone: `tsx scripts/v2/research.ts --rd-r06`) ----------
 {
@@ -78,7 +114,7 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const order = ['ideation', 'small', 'scale', 'adopting'];
   const compact = seen.filter((x, i) => x !== 'ideation' || i === 0);
   const inOrder = order.every((x) => seen.includes(x)) && seen.indexOf('small') < seen.indexOf('scale') && seen.indexOf('scale') < seen.indexOf('adopting');
-  check(inOrder && s.player.tree.elastic?.status === 'known', 'lifecycle: ideation → small experiments → scale test → result → adoption → known', `${compact.join(' → ')} (${s.player.tree.elastic?.status}, seed ${seed})`);
+  check(inOrder && s.player.tree.elastic?.status === 'known', 'lifecycle: ideas → small test → big test → build-in → known', `${compact.join(' → ')} (${s.player.tree.elastic?.status}, seed ${seed})`);
   check(s.player.research.adopted.some((a) => a.id === 'elastic') && stackAt(s.player.research.stacks.train) > 0, 'adoption: the true effect enters its stack (training throughput)', `${stackAt(s.player.research.stacks.train).toFixed(4)} OOM`);
 }
 

@@ -67,7 +67,8 @@ export interface TreeNodeDef {
   needs: string[];
   /** Effort class (display); undefined for ★ nodes. */
   effort?: EffortClass;
-  /** Effort in standard-team-months at M = 1 (default EFFORT_TM[effort]); fitted for RefBot's nodes (calib --fit-tree). */
+  /** Effort in standard-team-months at M = 1; fitted for RefBot's nodes (calib --fit-tree). Capability ideas and axes: the
+   *  whole stage work (stagesOf splits it; default IDEA_DEFAULT_TM); other projects: default EFFORT_TM[effort]. */
   effortTM?: number;
   /** Success chance of a new (non-paradigm) node. Paradigm nodes use the paradigm prior. */
   odds?: number;
@@ -102,17 +103,20 @@ export interface TreeNodeDef {
 /** Standard-team-months at M = 1 per effort class, for new (non-paradigm) nodes [D]. */
 export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 50 };
 
-/** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit (RD-R07). They are
- *  the pre-R4 effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to
- *  (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05. */
+/** Paradigm nodes not in FITTED_EFFORT_TM, in standard-team-months: v2-derived values pending refit. They are the pre-R4
+ *  effortDays (days at RefBot's reference staffing) × 0.2 TM/day, the rate RefBot's early projects fit to (P08: 150 d ≈
+ *  31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05; RD-R07: capability projects × IDEA_WORK_PER_E 1.2,
+ *  the whole stage work (P27 is not a staged project: its rolled team-months). */
 const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
-  P06: 18, P09: 24, P10: 24, P11: 36, P12: 36, P14: 24, P15: 24, P16: 18, P18: 24, P20: 18, P21: 42, P22: 36, P23: 24,
-  P24: 24, P25: 30, P27: 24,
+  P06: 21.6, P09: 28.8, P10: 28.8, P11: 43.2, P12: 43.2, P14: 28.8, P15: 28.8, P16: 21.6, P18: 28.8, P20: 21.6, P21: 50.4,
+  P22: 43.2, P23: 28.8, P24: 28.8, P25: 36, P27: 24,
 };
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
  *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 and P19 (they fail in the fit world) take the fitted ones'
- *  mean ratio (×0.6). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. */
-export const FITTED_EFFORT_TM: Record<string, number> = { P05: 4.6, P07: 3.34, P08: 12.32, P13: 79.62, P17: 65.97, P19: 29, 'rl.mlResearch': 1.36 };
+ *  mean ratio (×0.6). Late projects (P13 at RSCH 8.5, P17 at L 9.5) start when research pace is already 3–8×. RD-R07:
+ *  each is the node's one effort number, the whole stage work the engine runs (effortOfNode: PICK_AT × idea + small +
+ *  scale team-months; stagesOf splits it by IDEA_STAGES), i.e. the earlier fit × IDEA_WORK_PER_E. */
+export const FITTED_EFFORT_TM: Record<string, number> = { P05: 5.52, P07: 4.008, P08: 14.784, P13: 95.544, P17: 79.164, P19: 34.8, 'rl.mlResearch': 1.632 };
 
 /** A failed idea can be retried after this many days at half the previous odds (TECH-TREE §5 T1). */
 export const TREE_RETRY_DAYS = 180;

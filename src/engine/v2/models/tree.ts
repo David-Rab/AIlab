@@ -142,7 +142,7 @@ export function nodeStatus(s: GameStateV2, id: string): NodeStatus {
   if (nodeKnown(s, id)) return 'known';
   if (n.soon) return 'soon';
   const st = s.player.tree[id];
-  if (st?.cap?.stage === 'adopting' || st?.cap?.stage === 'result') return 'active';
+  if (st?.cap?.stage === 'adopting') return 'active';
   if (st?.status === 'failed') return 'failed';
   const queued = s.player.research.queue.includes(id);
   if (queued) return teamsOn(s, id).length > 0 ? 'active' : 'queued';

@@ -16,9 +16,9 @@ import { ICON } from '../icons';
 import * as F from '../fmt';
 
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const STAGE_LABEL: Record<StageId, string> = { ideation: 'Ideation', small: 'Small experiments', scale: 'Scale test', result: 'Result', adoption: 'Adoption' };
-const STAGE_SHORT: Record<StageId, string> = { ideation: 'Ideation', small: 'Small exp.', scale: 'Scale test', result: 'Result', adoption: 'Adoption' };
-const STAGE_TERM: Record<StageId, string> = { ideation: 'stageIdeation', small: 'stageSmall', scale: 'stageScale', result: 'stageResult', adoption: 'stageAdoption' };
+const STAGE_LABEL: Record<StageId, string> = { ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
+const STAGE_SHORT: Record<StageId, string> = { ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
+const STAGE_TERM: Record<StageId, string> = { ideation: 'stageIdeation', small: 'stageSmall', scale: 'stageScale', adoption: 'stageAdoption' };
 const STACK_NAME: Record<string, string> = { pre: 'pretraining', rlMid: 'RL efficiency', rlCeil: 'RL ceiling', train: 'training throughput', serve: 'serving' };
 const RISK_OPTS = [{ v: 'safe', label: 'Safe' }, { v: 'balanced', label: 'Balanced' }, { v: 'speculative', label: 'Speculative' }] as const;
 
@@ -37,7 +37,7 @@ export const fmtEff = (x: number, unit: CapProjectView['unit'] = 'oom', signed =
 const sci = (x: number) => (x > 0 ? x.toExponential(1).replace('e+', 'e') : '0');
 const Q_N = { solid: 1, strong: 2, elite: 3 } as const;
 
-/** Five-step stage track: done steps filled, the current one partial, later ones empty. */
+/** Four-step stage track: done steps filled, the current one partial, later ones empty. */
 export function StageTrack({ v, big = false }: { v: CapProjectView; big?: boolean }) {
   const cur = STAGES.indexOf(v.stage);
   const failed = v.state === 'failed';
@@ -47,7 +47,7 @@ export function StageTrack({ v, big = false }: { v: CapProjectView; big?: boolea
         <Tip key={st} content={() => <TipCard title={<Term id={STAGE_TERM[st]}>{STAGE_LABEL[st]}</Term>} value={i < cur ? 'done' : i === cur ? (st === 'adoption' ? `engineers: ${eta(v.adoption?.eta ?? Infinity)}` : F.pct(v.stageFrac)) : 'later'}>
           {st === 'ideation' ? `Candidates found: ${v.cands} (the team tests one once it has ${v.pickAt}).` : st === 'adoption' && v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left.` : undefined}
         </TipCard>}>
-          <i className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{i === cur && <b style={{ width: `${Math.round((st === 'result' || st === 'adoption' ? 1 : v.stageFrac) * 100)}%` }} />}</i>
+          <i className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{i === cur && <b style={{ width: `${Math.round((st === 'adoption' ? 1 : v.stageFrac) * 100)}%` }} />}</i>
         </Tip>
       ))}
     </div>
@@ -107,10 +107,10 @@ function Binds({ v }: { v: CapProjectView }) {
 function Next({ v }: { v: CapProjectView }) {
   const label = v.state === 'failed' ? 'failed' : v.state === 'adopting' ? `build ${eta(v.adoption?.eta ?? Infinity)}` : v.want === 0 && !v.teams.length ? (v.stage === 'small' || v.stage === 'scale' ? 'test only' : 'paused') : eta(v.eta);
   return (
-    <Tip content={() => <TipCard title={v.kind === 'line' ? 'Next result' : 'Result'} value={label} rows={v.state === 'adopting' ? [{ label: <Term id="stageAdoption">Engineers</Term>, value: v.adoption ? `${v.adoption.tw.toFixed(1)} team-weeks left` : 'queued' }] : [
-      { label: <Term id="stageIdeation">Ideation</Term>, value: eta(v.etaParts.ideation) },
-      { label: <Term id="stageSmall">Experiments</Term>, value: eta(v.etaParts.experiments) },
-    ]}>{v.wait ? v.wait : 'At today\'s teams, research engineers and compute; candidates can be dropped, which restarts ideation.'}</TipCard>}>
+    <Tip content={() => <TipCard title={v.kind === 'line' ? 'Next result' : 'Result'} value={label} rows={v.state === 'adopting' ? [{ label: <Term id="stageAdoption">Build-in</Term>, value: v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left` : 'queued' }] : [
+      { label: <Term id="stageIdeation">Ideas</Term>, value: eta(v.etaParts.ideation) },
+      { label: <Term id="stageSmall">Small and big tests</Term>, value: eta(v.etaParts.experiments) },
+    ]}>{v.wait ? v.wait : 'At today\'s teams, research engineers and compute; candidates can be dropped, which restarts the ideas step.'}</TipCard>}>
       <span className={`num ${v.state === 'failed' ? 'tone-neg' : ''}`} data-test={`next.${v.id}`}>{label}</span>
     </Tip>
   );

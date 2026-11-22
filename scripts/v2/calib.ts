@@ -236,7 +236,7 @@ if (process.argv.includes('--fit-leader')) {
 // ---------- --fit-tree (R4; model v3 V2): reference efforts of RefBot's paradigm projects ----------
 // RefBot starts each paradigm project when the old gate would have opened (bots/ref.ts REF_TREE). Model v3 V2 runs them
 // through the research lifecycle (models/research.ts: ideation by science teams, experiments by research engineers),
-// so their efforts (standard-team-months at pace 1, split over the stages) are refitted until every successful RefBot
+// so their efforts (standard-team-months at pace 1, the whole stage work, split over the stages by stagesOf) are refitted until every successful RefBot
 // attempt lasts as long as it did under V1 (V1_DAYS, measured on V1's RefBot, seed 2027), so adoption days stay where
 // they were. Failed attempts are not fitted (a dud direction now fails after three dropped candidates). Presets: the
 // named ones (default ai2027); several presets combine by the geometric mean of their ratios. Prints `effortTM` values

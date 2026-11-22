@@ -662,7 +662,7 @@ export interface SafProjectState {
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
 
 /** Lifecycle stage of a capability project (MODEL-V3 §5.3). `ideation` also covers waiting for enough candidates. */
-export type CapStage = 'ideation' | 'small' | 'scale' | 'result' | 'adopting' | 'failed';
+export type CapStage = 'ideation' | 'small' | 'scale' | 'adopting' | 'failed';
 /** A candidate idea found by ideation. Its true effect is never stored: it is recomputed from the world seed, the
  *  project, the generation and the candidate number (models/research.ts candidateTruth), so nothing hidden is saved. */
 export interface Candidate {

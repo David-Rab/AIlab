@@ -32,7 +32,7 @@
 // highest-priority project under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K, TUNE_RE_PER_OOM,
 } from '../../../data/v2/research';
@@ -74,10 +74,10 @@ function Z(s: GameStateV2, key: string): number {
 // ───────────────────────────── project parameters ─────────────────────────────
 
 /** Stage work (team-months at unit inputs) and the scale test's FLOP share of the latest base (the scale the effect is
- *  measured at). */
+ *  measured at). Ideas and axes split their effortTM, the whole stage work (PICK_AT × idea + small + scale; RD-R07). */
 export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: number; testFrac: number } {
   if (n.kind === 'line') return LINE_STAGES;
-  const E = n.effortTM ?? 8;
+  const E = n.effortTM ?? IDEA_DEFAULT_TM;
   return { idea: IDEA_STAGES.idea * E, small: IDEA_STAGES.small * E, scale: IDEA_STAGES.scale * E, testFrac: IDEA_STAGES.testFrac };
 }
 
@@ -709,7 +709,7 @@ export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' 
  *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
 function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const st = capState(s, n.id);
-  if (st.stage === 'failed' || st.stage === 'result' || st.stage === 'adopting') return 0;
+  if (st.stage === 'failed' || st.stage === 'adopting') return 0;
   const P = s.hidden.timeline.prod;
   const kappa = RISK(s);
   const sg = stagesOf(n);
@@ -800,7 +800,7 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   if (dropRule(scoreT, underT, st.cands.map((o) => candidateScore(o, kappa) * scaleF))) {
     return !dropTest(s, ctx, n, st, 'the effect did not hold at scale');
   }
-  // 4 Result: the estimate at the lab's latest base.
+  // The estimate at the lab's latest base (read when the scale test ends; the build-in starts the same day).
   const ratio = Math.log10(Math.max(1, latestBaseFlop(s) / t.fTest));
   const est = xT * Math.pow(10, sHat * ratio);
   const estSd = Math.abs(est) * Math.sqrt(TEST_READ_SD * TEST_READ_SD + Math.pow(S_READ_SD * Math.LN10 * ratio, 2));
@@ -822,7 +822,7 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
     return true;
   }
   st.result = result;
-  st.stage = 'result';
+  st.stage = 'adopting'; // RD-R07: no zero-length result stage; the engineers' build-in starts at once
   s.player.tree[n.id].progress = 1;
   ctx.log('research', `${n.name} works: estimated ${fmtEst(n, est, estSd)}. The engineers are building it in.`, 2, n.id);
   queueAdoption(n, st, queueBuild);
@@ -834,7 +834,7 @@ const fmtEst = (n: TreeNodeDef, est: number, sd: number) => (n.effect?.stack ? `
 /** Progress readout of a project (0..1 of the current stage chain) for the tree's progress ring. */
 export function capProgress(st: CapProjectState | undefined): number {
   if (!st) return 0;
-  if (st.stage === 'result' || st.stage === 'adopting') return 1;
+  if (st.stage === 'adopting') return 1;
   if (st.stage === 'failed') return 0;
   const t = st.test;
   const frac = (x: number, y: number) => (y > 0 ? Math.min(1, x / y) : 1);

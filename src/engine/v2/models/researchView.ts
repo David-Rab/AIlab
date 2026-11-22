@@ -27,8 +27,9 @@ import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, Re
 
 // ───────────────────────────── projects ─────────────────────────────
 
-/** The five steps of a project's life the player sees (MODEL-V3 §5.3). */
-export const STAGES = ['ideation', 'small', 'scale', 'result', 'adoption'] as const;
+/** The four steps of a project's life the player sees (MODEL-V3 §5.3; RD-R07: no zero-length result step): ideas, small
+ *  test, big (scale) test, build-in (adoption by the engineers). */
+export const STAGES = ['ideation', 'small', 'scale', 'adoption'] as const;
 export type StageId = (typeof STAGES)[number];
 
 export interface ProjectTeamView { id: string; specialty?: string; quality: Team['quality']; heads: number; match: boolean; why: string }
@@ -129,12 +130,11 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
     if (st.stage === 'small' || st.stage === 'scale') {
       stage = st.stage;
       stageFrac = st.test && st.test.workNeed > 0 ? Math.min(1, st.test.work / st.test.workNeed) : 0;
-    } else if (st.stage === 'result') stage = 'result';
-    else if (st.stage === 'adopting') stage = 'adoption';
+    } else if (st.stage === 'adopting') stage = 'adoption';
     else stageFrac = Math.min(1, (st.cands.length + st.idea) / PICK_AT);
   }
   if (n.kind === 'line' && st?.pending?.length && stage === 'ideation' && !st.test) stageFrac = Math.min(1, (st.cands.length + st.idea) / PICK_AT);
-  const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' || st?.stage === 'result' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test) ? 'running' : 'waiting';
+  const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test) ? 'running' : 'waiting';
   // Inputs today.
   const flopDay = flopOfProject(s, id);
   // When it is not experimenting today, read the inputs it would get (RE_MAX_PER_PROJECT; FLOP by need, RD-B08).

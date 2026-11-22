@@ -79,10 +79,18 @@ export const LINE_FIT = { mu: 0.645 };
  *  lines [D]. Experiment FLOP is consumed at the project's share of the pool while it experiments (V3.4: no FLOP need
  *  per stage, no ÷ pace). */
 export const LINE_STAGES = { idea: 0.8, small: 0.8, scale: 1.0, testFrac: 0.002 };
-/** Ideas and axes: stage work from the v2 effort E (team-months): ideation E/4 per candidate, small experiments 0.28E,
- *  scale test 0.42E (with two research-engineer teams ≈ E in all, as the v2 project) and a scale test at 1% of the
- *  latest base [D]. */
-export const IDEA_STAGES = { idea: 0.25, small: 0.28, scale: 0.42, testFrac: 0.01 };
+/** Stage weights of ideas and axes from the v2 effort E: ideation E/4 per candidate, small experiments 0.28E, scale test
+ *  0.42E (with two research-engineer teams ≈ E in all, as the v2 project) [D]. */
+const IDEA_W = { idea: 0.25, small: 0.28, scale: 0.42 };
+/** RD-R07: the whole stage work per unit of v2 effort E (PICK_AT candidates' ideation + small + scale test = 1.2). */
+export const IDEA_WORK_PER_E = PICK_AT * IDEA_W.idea + IDEA_W.small + IDEA_W.scale;
+/** Ideas and axes: each stage's share of the node's one effort number (effortTM = the whole stage work the engine runs,
+ *  PICK_AT × idea + small + scale = 1) and the scale test at 1% of the latest base [D]. */
+export const IDEA_STAGES = {
+  idea: IDEA_W.idea / IDEA_WORK_PER_E, small: IDEA_W.small / IDEA_WORK_PER_E, scale: IDEA_W.scale / IDEA_WORK_PER_E, testFrac: 0.01,
+};
+/** An unfitted idea's or axis's effort (team-months, all stages): the v2 default E = 8, × IDEA_WORK_PER_E. */
+export const IDEA_DEFAULT_TM = 8 * IDEA_WORK_PER_E;
 
 // ───────────────────────────── stacks ─────────────────────────────
 
