@@ -1827,3 +1827,29 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   ≈7 (L6) not: shorter (compute gap / withheld share missing, per research §3A; for CP2).
 - **moves calibration: yes.** Every lab now absorbs (rivals and China from each other), distillation moved from daily
   recipe to post-training level, China's distillation path changed; lead days, T3 China lead, golden dates → CP2.
+
+### RD-X04b
+- **Done (commit ef8a6c1):** every leak / theft / tacit-knowledge event sized by what moves (research/RD-X04r §3C), in
+  the diffusion rule's units, in `production/diffusion.ts`. Recipe leaks: `recipeLeakG(s, srcRecG, dst, share)` = share ×
+  max(0, source recipeG − receiver recipeG) at RECIPE_F; no gap, nothing. `RECIPE_LEAK_SHARE`: A4 publish 0.05 [D] (one
+  of ~20 techniques in a recipe lead), open weights 0.3 [D] (weights reveal architecture / size / tokenizer, not data
+  or code), E1 Track-2 0.01 [D] (a tenth of the AI 2027 SSL test bound, T3). C4 / E16 tacit: `tacitLeakG` =
+  `TACIT_FIRM_SHARE` 0.5 [S1] × movers' share of the source's research staff × the recipe gap to the lab they left (C4:
+  player from the rival; E16: rival from the player; sized before heads move). Theft: `stolenModelG` = own G +
+  `THEFT_GAP_CLOSED` 2/3 [P, T5: 6 → 2 months] × max(0, stolen G − own G); the third left is the integration loss; no gap,
+  China's model is unchanged (theft still recorded).
+- **Sites:** A4 `publishLeakG(s, dst)`; E16 `poachLeakG(s, dst, moved)`; C4 `c4TacitG`; E1 `e1LeakG`; C6
+  `openRivalLeaks(s, recG)` + `openWeightsReleased(…, recG)`; China's open-weights absorb `openAbsorbG(s, recG)` (replaces
+  openAbsorbMonths; rival releases pass rel.recG, player open deployments the version's recG via distillationLeak
+  `openRecG`, C6's synthetic release `releaseRecG` = lab recipe − (best G − release G) [D]); executeTheft (60-day adoptG
+  gone). Previews (A4, C4, E1, C6, E16, open launch) read the same functions, in days of the recipient's own progress.
+- **Deleted:** C4_TACIT_OOM, E1_LEAK_OOM, pace-sized publishLeakG / poachLeakG, openAbsorbMonths (and its 2-month cap),
+  C6's 0.3 × model-G gap, theft's 60-day frontier lookback.
+- **Not done:** C6's release G (`openReleaseG`, `behind` × 0.3 yr of player pace) is still pace-sized: it picks which
+  model is released, not a transfer size. Secrets espionage (`secretsLeakDaily`, WS4 leakK) untouched.
+- **Check:** tsc main + scripts clean; `scripts/v2/.tmp-rdx04b.ts` (untracked, run alone): no recipe gap → A4 / E16 / E1 /
+  open weights / C4 / theft move 0; gap 0.1 → 0.2 doubles A4, raises E16, open weights and theft. leadreaders /
+  lint-tradeoffs / products expectations updated to the new functions (not run).
+- **moves calibration: maybe.** Sizes now scale with gaps rather than the player's pace: A4 / E16 larger when far ahead,
+  zero at parity; theft lands China nearer the source than the 60-day rule when its gap is small; China's open-weights
+  absorb is uncapped. Lead days, T3 China lead → CP2.
