@@ -189,9 +189,8 @@ const RUN_ACTIONS: ActionDef[] = [
       const use = str(p, 'use', s.player.policies.spareTraining === 'data' ? 'research' : 'data');
       const spare = Math.round(idleTrainingShare(s) * poolsOf(s).training);
       const toData = { currency: 'compute' as const, amount: spare, target: 'data generation' };
-      const exp = s.player.prodCache?.elast.exp ?? 0.3;
-      const pool = poolsOf(s);
-      const research = { currency: 'progress' as const, amount: Math.round(exp * Math.log1p(spare / Math.max(1, pool.experiments)) * 1e4) / 100, unit: '%', target: 'research speed' };
+      // RD-R01: the compute itself (what the research engine's experiments get), not an aggregate elasticity.
+      const research = { currency: 'compute' as const, amount: spare, target: 'research experiments' };
       return use === 'data' ? { costs: [research], gains: [toData], exposure: [] } : { costs: [toData], gains: [research], exposure: [] };
     },
     apply: (s, _ctx, p) => {

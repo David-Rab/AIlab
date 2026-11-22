@@ -72,7 +72,7 @@ function recorder(id: string, preset: string, mode: Trace['mode'], s: GameStateV
     if (day % 30 === 0) {
       const pr = production(s, 'player');
       const L = Math.max(0, ...p.models.versions.map((v) => v.Lg));
-      t.monthly.push({ day, M: r4(pr.M), h: r4(pr.ratios.h), k: r4(pr.ratios.k), c: r4(pr.ratios.c), sdAI: r4(pr.sdAI), recipe: r4(stacksGEquiv(s)), L: r4(L) });
+      t.monthly.push({ day, M: r4(s.player.research.last?.x?.mExp ?? 1), h: r4(pr.ratios.h), k: r4(pr.ratios.k), c: r4(pr.ratios.c), sdAI: r4(pr.sdAI), recipe: r4(stacksGEquiv(s)), L: r4(L) });
     }
     const q = quarterIndex(s.time.startDate, day);
     if (q !== lastQ) {

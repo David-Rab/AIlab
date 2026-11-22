@@ -15,7 +15,6 @@ import {
 } from '../../src/engine/v2/departments/workfit';
 import { linePool, poolMean, researchInputs } from '../../src/engine/v2/models/research';
 import { Xces } from '../../src/engine/v2/production/ces';
-import { computeProduction } from '../../src/engine/v2/production/production';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { buildCapacity } from '../../src/engine/v2/departments/teams';
@@ -180,10 +179,10 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
 {
   const s = mk(9);
   for (let d = 0; d < 20; d++) tick(s, { skip: ['endings'] });
-  const before = { x: researchInputs(s, 9).X, M: computeProduction(s, 'player')!.M, cov: workContext(s).slots.EXP.fit.a };
+  const before = { x: researchInputs(s, 9).X, M: workContext(s).slots.EXP.m, cov: workContext(s).slots.EXP.fit.a };
   const later = structuredClone(s) as GameStateV2;
   later.time.day += 3 * 365; // the same lab, three years later on the calendar
-  const after = { x: researchInputs(later, 9).X, M: computeProduction(later, 'player')!.M, cov: workContext(later).slots.EXP.fit.a };
+  const after = { x: researchInputs(later, 9).X, M: workContext(later).slots.EXP.m, cov: workContext(later).slots.EXP.fit.a };
   check(Math.abs(after.x / before.x - 1) < 1e-9 && Math.abs(after.M / before.M - 1) < 0.02 && Math.abs(after.cov - before.cov) < 1e-9,
     'calendar: a fixed lab\'s research speed, AI multiplier and coverage are the same three years later', `X ${before.x.toFixed(4)} → ${after.x.toFixed(4)}, M ${before.M.toFixed(3)} → ${after.M.toFixed(3)}, EXP coverage ${before.cov.toFixed(3)} → ${after.cov.toFixed(3)}`);
   const v = bestPlayerVersion(s) as ModelVersion;

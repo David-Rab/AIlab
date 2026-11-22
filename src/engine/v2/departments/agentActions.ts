@@ -80,7 +80,7 @@ function productionNow(s: GameStateV2): ProductionReadout | undefined {
   const inp = labInputs(s, 'player');
   if (!inp) return undefined;
   const at = s.player.researchManual ? inp : inputsAtMix(inp, bestResearchMix(s, inp));
-  return evalProduction(s.hidden.timeline, at, false);
+  return evalProduction(s, at);
 }
 
 export interface AgentLane {
@@ -119,8 +119,10 @@ export interface AgentLane {
 
 export interface AgentsView {
   lanes: Record<AgentUse, AgentLane>;
-  /** Research speed M, build capacity, AI taste (SD), safety AI FTE. */
-  M: number;
+  /** RD-R01: the AI labour multipliers in experiments and research ideas the research engine's next day runs at
+   *  (workContext EXP / IDEAS m, what models/research.ts researchInputs reads), build capacity, AI taste (SD), safety AI FTE. */
+  mExp: number;
+  mIdeas: number;
   build: number;
   sdAI: number;
   safetyAiFte: number;
@@ -137,7 +139,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.prodCache?.M ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
+  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */
@@ -172,7 +174,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     const monH = monitorH100e(s, u, budget);
     // Model v3 V2b: engineers' AI share is the AI part of the labour margin (1 − humans' share), as for research engineers;
     // coverage has its home on Company › Work.
-    const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - (pr?.labor.wH ?? 1) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
+    const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - 1 / Math.max(1, workContext(s).slots.EXP.m) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
@@ -185,7 +187,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     totalCost += (compute + monH) * tco;
   }
   return {
-    lanes, M: pr?.M ?? 1, build: buildCapacity(s).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: fleet.aiFte, total, totalCost,
+    lanes, mExp: workContext(s).slots.EXP.m, mIdeas: workContext(s).slots.IDEAS.m, build: buildCapacity(s).capacity, sdAI: pr?.sdAI ?? 0, safetyAiFte: fleet.aiFte, total, totalCost,
     monitors: budget,
     trusted: { policy: s.player.policies.trustedToAI, effective: fleet.compute > 0 && fleet.versionId ? s.player.policies.trustedToAI : 0, aiShare: tr },
   };
@@ -234,9 +236,12 @@ const AGENTS_SET: ActionDef = {
     const a = pv.after;
     const costs: CostLine[] = [];
     const gains: CostLine[] = [];
-    const dM = r3(a.M / Math.max(1e-9, b.M) - 1);
-    if (dM > 0) gains.push({ currency: 'progress', amount: r3(dM * 100), unit: '%', target: 'research speed' });
-    else if (dM < 0) costs.push({ currency: 'progress', amount: r3(dM * 100), unit: '%', target: 'research speed' });
+    // RD-R01: the AI labour multipliers the research engine runs at tomorrow (experiments, ideas), not an aggregate M.
+    for (const [k, t] of [['mExp', 'AI labour in experiments'], ['mIdeas', 'AI labour on research ideas']] as const) {
+      const d = r3(a[k] / Math.max(1e-9, b[k]) - 1);
+      if (d > 0) gains.push({ currency: 'progress', amount: r3(d * 100), unit: '%', target: t });
+      else if (d < 0) costs.push({ currency: 'progress', amount: r3(d * 100), unit: '%', target: t });
+    }
     const dCatch = r3(a.lanes[use].catch - b.lanes[use].catch);
     if (dCatch > 0) gains.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
     else if (dCatch < 0) costs.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });

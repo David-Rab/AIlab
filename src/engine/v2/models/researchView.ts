@@ -13,7 +13,7 @@ import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  agentFpt, costPerWorkHour, pSuccess, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
@@ -442,12 +442,11 @@ export function milestoneViews(s: GameStateV2): MilestoneView[] {
 export interface ResearchSpeedView {
   /** Research speed vs the leader lab's day 0 (≈ 1 at the start). */
   rel: number;
-  /** AI R&D multiplier: speed ÷ the same lab with humans only; its parts. */
-  M: number;
-  aiLabour: number; aiTaste: number; mods: number;
-  /** A unit project's inputs (leader day 0 = 1) and the elasticities of research speed. */
+  /** RD-R01, what the research engine ran its last day at (research.last.x): the AI labour multipliers in experiments
+   *  and on research ideas (humans only = 1), and the siloing / migration modifiers. */
+  mExp: number; mIdeas: number; mods: number;
+  /** A unit project's inputs (leader day 0 = 1) and its experiment throughput. */
   c: number; l: number; X: number;
-  eExp: number; eRe: number; eAgents: number;
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** Research compute (H100e) and the share on experiments (the rest runs research agents). */
   researchH100e: number; expShare: number; manual: boolean;
@@ -456,11 +455,12 @@ export interface ResearchSpeedView {
 export function researchSpeedView(s: GameStateV2): ResearchSpeedView {
   const pr = production(s, 'player');
   const x = s.player.research.last?.x;
+  const mods = researchMods(s);
   const pools = poolsOf(s);
   const r = pools.experiments + pools.agents;
   return {
-    rel: researchSpeedRel(s), M: pr.M, aiLabour: pr.parts.agents, aiTaste: pr.parts.taste, mods: pr.parts.other,
-    c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, eExp: pr.elast.exp, eRe: pr.elast.humans, eAgents: pr.elast.agents, label: pr.label,
+    rel: researchSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
+    c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,
     researchH100e: r, expShare: r > 0 ? pools.experiments / r : 0, manual: !!s.player.researchManual,
   };
 }

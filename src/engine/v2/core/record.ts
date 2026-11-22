@@ -39,7 +39,7 @@ export function sampleSeries(s: GameStateV2) {
   // Hidden: L − U_true drives trait drift (WS2 traits.ts understandingGapGrowth, M4).
   const tu = trueUnderstanding(s);
   s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.L - tu.U));
-  S.M.push(r3(s.player.prodCache?.M ?? 1));
+  S.M.push(r3(s.player.research.last?.x?.mExp ?? 1)); // RD-R01: the engine's AI labour multiplier in experiments (was the aggregate M)
   S.cash.push(r3(s.player.finance.cash));
   S.revenue.push(r3(s.player.finance.revenueRun));
   S.valuation.push(r3(s.player.finance.valuation));

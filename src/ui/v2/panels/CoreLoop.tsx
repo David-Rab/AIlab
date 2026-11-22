@@ -70,7 +70,7 @@ function readings(s: GameStateV2): Record<string, Reading> {
   };
   const active = p.research.queue.filter((id) => p.teams.some((t) => t.projectId === id)).length;
   const pr = engine.production(s, 'player');
-  out.research = { text: `${active} project${active === 1 ? '' : 's'} active`, tone: active > 0 ? 'good' : 'watch', tip: [{ label: <Term id="rdmult">Research speed</Term>, value: pr ? `${F.mult(pr.M)} · ${pr.label}` : '—' }] };
+  out.research = { text: `${active} project${active === 1 ? '' : 's'} active`, tone: active > 0 ? 'good' : 'watch', tip: [{ label: <Term id="rdmult">Research speed</Term>, value: pr ? `AI labour ${F.mult(p.research.last?.x?.mExp ?? 1)} in experiments · ${pr.label}` : '—' }] };
   const best = bestPlayerVersion(s);
   const running = p.models.runs.filter((r) => r.status === 'running').length;
   out.models = { text: best ? `${best.name}${running ? ` · ${running} run${running > 1 ? 's' : ''}` : ''}` : 'no model', tone: best ? (running ? 'good' : 'watch') : 'bad', tip: best ? [{ label: 'Best model', value: `${best.name} · L ${F.level(measuredLOf(s, best).L)}` }, { label: 'Runs in progress', value: String(running) }] : [] };

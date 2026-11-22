@@ -87,7 +87,8 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
       {c.versionId !== undefined && la.version && lb.version && la.L < lb.L - 0.05 && <div className="small tone-warn" data-test={`agent-worse.${use}`}>⚠ {la.version.name} measures L {F.level(la.L)}, below {lb.version.name} (L {F.level(lb.L)})</div>}
       {block ? <div className="tone-neg small">{block}</div> : (
         <div className="pv">
-          {row(<Term id="rdmult">Research speed</Term>, b.M, a.M, (x) => F.mult(x))}
+          {row(<Term id="effectiveLabour">AI labour, experiments</Term>, b.mExp, a.mExp, (x) => F.mult(x))}
+          {row(<Term id="effectiveLabour">AI labour, ideas</Term>, b.mIdeas, a.mIdeas, (x) => F.mult(x))}
           {row(<Term id={AI_TERM[use]}>AI share</Term>, lb.aiShare, la.aiShare, (x) => F.pct(x))}
           {use === 'eng' && row(<Term id="buildCapacity">Build capacity</Term>, b.build, a.build, (x) => `${x.toFixed(1)} t-wk/wk`)}
           {use === 'capFrontier' && row(<Term id="researchTaste">AI taste</Term>, b.sdAI, a.sdAI, (x) => `${F.num(x, 1, true)} SD`)}

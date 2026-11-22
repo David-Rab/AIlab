@@ -11,8 +11,9 @@
 // weighted by queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread
 // when a project finishes or a ready project has no team; a team with nothing queued joins a research line. Teams placed
 // by hand stay put. Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
-//  - Rolled (safety) nodes: progress/day = M · √capacity / (effort · 30), M = the research-speed readout prodCache.M
-//    (until RD-R01 / RD-R04, SYNTHESIS §6 Phase 3, retire the readout and the rolled path). At progress 1 the attempt resolves:
+//  - Rolled (safety) nodes: progress/day = speed · √capacity / (effort · 30), speed = researchSpeed: the research
+//    engine's experiment labour factor ℓ (research.last.x, RD-R01) × the siloing / migration modifiers (until RD-R04,
+//    SYNTHESIS §6 Phase 3, retires the rolled path). At progress 1 the attempt resolves:
 //    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
 //    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
 //    after 180 days at half odds.
@@ -39,6 +40,7 @@ import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
+import { researchMods } from '../departments/workfit';
 import {
   assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, takesTeams,
 } from './research';
@@ -177,8 +179,13 @@ export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?:
   return c;
 }
 
-/** Research speed of the rolled (safety) nodes: the research-speed readout M (until RD-R04, SYNTHESIS §6 Phase 3). */
-export const researchSpeed = (s: GameStateV2) => s.player.prodCache?.M ?? 1;
+/** Research speed of the rolled (safety) nodes (until RD-R04, SYNTHESIS §6 Phase 3), measured (RD-R01): the
+ *  experiment labour factor ℓ = m_EXP^λ the research engine ran its last day at (humans only = 1) × the siloing /
+ *  migration modifiers (a pause or treaty does not slow them, as before). */
+export function researchSpeed(s: GameStateV2): number {
+  const m = researchMods(s);
+  return (s.player.research.last?.x?.l ?? 1) * (m.speed / m.rateMult);
+}
 
 /** Progress per day of a project the research system rolls (research-line projects: results per day once the pipeline
  *  is full; any other non-capability project: √ capacity × research speed over its team-months). Capability projects run
@@ -580,12 +587,12 @@ export function optionLocked(s: GameStateV2, slot: OptionSlot, value: string | b
 }
 
 /** How much a node's effect pays off now (0..1): P13 with the internal model's RSCH (6.5 → 8.5), P20 with the agent
- *  pool (2M H100e), P24 with the AI share of research labour (50% → 90%). 1 for every other node. */
+ *  pool (2M H100e), P24 with the AI share of experiment labour as the research engine ran it (1 − 1 ÷ m_EXP, research.last; 50% → 90%). 1 for every other node. */
 export function payoffOf(s: GameStateV2, id: string): number {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
   if (id === 'P13') return clamp01((measuredDomain(s, 'RSCH') - 6.5) / 2);
   if (id === 'P20') return clamp01((s.player.computeOnline * s.player.split.agents) / 2e6);
-  if (id === 'P24') return clamp01((1 - (s.player.prodCache?.labor.wH ?? 1) - 0.5) / 0.4);
+  if (id === 'P24') return clamp01((1 - 1 / Math.max(1, s.player.research.last?.x?.mExp ?? 1) - 0.5) / 0.4);
   return 1;
 }
 

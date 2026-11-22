@@ -414,9 +414,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const use = str(p, 'use', s.player.policies.spareServing === 'headroom' ? 'research' : 'headroom');
       const spare = Math.round(spareServing(s));
-      const agents = Math.max(1, s.player.computeOnline * s.player.split.agents);
-      const el = s.player.prodCache?.elast.agents ?? 0.3;
-      const research = { currency: 'progress' as const, amount: Math.round(el * Math.log1p(spare / agents) * 1e4) / 100, unit: '%', target: 'research speed' };
+      // RD-R01: the compute itself (routine research agents' H100e), not an aggregate elasticity.
+      const research = { currency: 'compute' as const, amount: spare, target: 'routine research agents' };
       const headroom = { currency: 'compute' as const, amount: spare, target: 'serving headroom (eroded share recovers 2× faster)' };
       return use === 'headroom' ? { costs: [research], gains: [headroom], exposure: [] } : { costs: [headroom], gains: [research], exposure: [] };
     },

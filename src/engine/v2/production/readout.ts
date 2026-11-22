@@ -1,7 +1,8 @@
 // Bottleneck readout selectors (V2-SPEC §3.2.5, §6.4). Owner: WS1.
-// `production(s, lab)` = the bottleneck bar: decomposition (parts multiply to M), elasticities, per-$ values,
-// ceilings, what-ifs, label/binding, labour (copies × speed), ratios vs the reference path.
-import { bestResearchMix, computeProduction, evalM, inputsAtMix, labInputs, type LabInputs } from './production';
+// `production(s, lab)` = label / binding, labour (copies × speed), ratios vs the reference path. The mix and response
+// charts plot the lab's experiment throughput (production.ts labThroughput, the Auto mix's objective until RD-A02;
+// RD-R01: no aggregate multiplier M), relative to today's.
+import { bestResearchMix, computeProduction, inputsAtMix, labInputs, labThroughput, type LabInputs } from './production';
 import { MIX_RANGE } from '../departments/split';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
@@ -13,15 +14,17 @@ export function production(s: GameStateV2, lab: LabId): ProductionReadout {
   return core?.prodCache ?? computeProduction(s, lab) ?? computeProduction(s, 'player')!;
 }
 
-/** Research-mix trade-off: research speed M as the research compute (experiments + agents) is re-split, from all
- *  agents (f = 0) to all experiments (f = 1). `current` is today's experiments share, `best` the best one. */
+/** Research-mix trade-off: experiment throughput relative to today's (M field, today = ×1) as the research compute
+ *  (experiments + agents) is re-split, from all agents (f = 0) to all experiments (f = 1). `current` is today's
+ *  experiments share, `best` the best one. */
 export interface MixCurve { points: { f: number; M: number }[]; current: number; best: number; Mcurrent: number; Mbest: number; manual: boolean; research: number }
 
 export function researchMixCurve(s: GameStateV2, n = 41): MixCurve | undefined {
   const inp = labInputs(s, 'player');
   if (!inp) return undefined;
   const w = s.hidden.timeline;
-  const at = (f: number) => evalM(w, inputsAtMix(inp, f)).M;
+  const X0 = Math.max(1e-12, labThroughput(w, inp));
+  const at = (f: number) => labThroughput(w, inputsAtMix(inp, f)) / X0;
   const points: { f: number; M: number }[] = [];
   for (let i = 0; i < n; i++) {
     const f = MIX_RANGE[0] + ((MIX_RANGE[1] - MIX_RANGE[0]) * i) / (n - 1);
@@ -31,7 +34,7 @@ export function researchMixCurve(s: GameStateV2, n = 41): MixCurve | undefined {
   const r = sp.experiments + sp.agents;
   const current = r > 0 ? sp.experiments / r : 0.5;
   const best = bestResearchMix(s, inp);
-  return { points, current, best, Mcurrent: evalM(w, inp).M, Mbest: at(best), manual: !!s.player.researchManual, research: s.player.computeOnline * r };
+  return { points, current, best, Mcurrent: 1, Mbest: at(best), manual: !!s.player.researchManual, research: s.player.computeOnline * r };
 }
 
 /** Response of research speed to scaling one input from ×0.25 to ×4 (today = ×1), others held. Research compute
@@ -44,8 +47,8 @@ export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
   const inp = labInputs(s, 'player');
   if (!inp) return undefined;
   const w = s.hidden.timeline;
-  const M0 = evalM(w, inp).M;
-  const rel = (o: Partial<LabInputs>) => evalM(w, { ...inp, ...o }).M / M0;
+  const X0 = Math.max(1e-12, labThroughput(w, inp));
+  const rel = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => labThroughput(w, inp, o) / X0;
   const fBest = (x: number) => bestResearchMix(s, { ...inp, mixUnit: { ...inp.mixUnit, c: inp.mixUnit.c * x, k: inp.mixUnit.k * x } });
   return {
     scales: RESPONSE_SCALES,

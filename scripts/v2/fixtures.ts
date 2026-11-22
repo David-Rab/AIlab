@@ -46,7 +46,7 @@ const main = cached('fixtures-ref', { setup: FIXTURE_SETUP, days: FIXTURE_DAYS, 
   for (const day of FIXTURE_DAYS) {
     runRef(s, day, undefined, { extraSystems: [cashFloorStub] });
     const v = internalVersion(s);
-    snaps.push({ day, json: serialize(s), errs: validateJson(s), version: v?.name, measuredL: v?.evals.measuredL, M: s.player.prodCache?.M });
+    snaps.push({ day, json: serialize(s), errs: validateJson(s), version: v?.name, measuredL: v?.evals.measuredL, M: s.player.research.last?.x?.mExp });
   }
   return { snaps, md: s.player.milestoneDays, day: s.time.day };
 });

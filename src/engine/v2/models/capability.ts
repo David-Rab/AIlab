@@ -348,9 +348,9 @@ export const milestonesSystem: EngineSystem = {
         ctx.log('milestone', `${MILESTONE_NAMES[i]}: your evaluations show the criterion met (${MILESTONE_CRITERIA[i]}).`, 3);
       }
     }
-    // Acts keyed to milestones (§1.5): SAR (or M ≥ 25) → 4, Research agent → 3, Reliable agent (or day 150) → 2.
-    const M = s.player.prodCache?.M ?? 1;
-    const act = md[4] !== undefined || M >= 25 ? 4 : md[2] !== undefined ? 3 : md[1] !== undefined || ctx.day >= 150 ? 2 : 1;
+    // Acts keyed to milestones (§1.5): SAR → 4, Research agent → 3, Reliable agent (or day 150) → 2 (RD-R01: the M ≥ 25
+    // alternative is gone; SAR is the milestone it stood for).
+    const act = md[4] !== undefined ? 4 : md[2] !== undefined ? 3 : md[1] !== undefined || ctx.day >= 150 ? 2 : 1;
     if (act > s.tutorial.act) s.tutorial.act = act;
   },
 };

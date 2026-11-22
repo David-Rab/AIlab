@@ -16,7 +16,7 @@ import { AgentsAtWork } from './Agents';
 import { Work } from './Work';
 import { store } from '../store';
 import { ActBtn, Limit, Slider, Term, Tip, TipCard, Why } from '../ui';
-import { Card, GoBtn, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
+import { Card, HBar, KV, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, POOL_COLOR, SPHERE } from '../theme';
@@ -142,16 +142,13 @@ function SpeedLimits({ s }: { s: GameStateV2 }) {
 const BOUND_TERM: Record<string, string> = { 'compute-bound': 'computeBound', 'labor-bound': 'laborBound', 'human-bound': 'humanBound', 'taste-bound': 'tasteBound' };
 const BOUND_LABEL: Record<string, string> = { 'compute-bound': 'compute-bound', 'labor-bound': 'labour-bound', 'human-bound': 'human-bound', 'taste-bound': 'taste-bound' };
 
-/** Research speed (HOME of research speed and M; model v3 V2b): speed vs the leader lab's day 0, the AI R&D multiplier
- *  and its parts, a unit project's compute c and labour ℓ (what binds), the levers ranked per dollar, the limits. */
+/** Research speed (HOME of research speed; model v3 V2b): speed vs the leader lab's day 0, the AI labour multipliers the
+ *  research engine ran at (RD-R01: no aggregate M or per-dollar levers), a unit project's compute c and labour ℓ (what
+ *  binds), the limits. */
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
   const v = researchSpeedView(s);
   const spareFx = spareServingEffect(s);
-  const lev = ([['exp', '+10% experiment compute', ICON.experiments, { panel: 'compute', tab: 'split', anchor: 'split-experiments' }], ['agents', '+10% research agents', ICON.agents, { panel: 'compute', tab: 'split', anchor: 'split-agents' }], ['humans', '+10% research engineers', ICON.roleRE, { panel: 'company', tab: 'people' }]] as const)
-    .map(([id, label, icon, to]) => ({ id, label, icon, to, gain: Math.pow(1.1, p.elast[id]) - 1, perD: p.perDollar[id] }))
-    .sort((a, b) => b.perD - a.perD);
-  const maxG = Math.max(1e-6, ...lev.map((l) => l.gain));
   const cl = Math.max(v.c, v.l, 1);
   const w = (x: number) => `${Math.min(100, (Math.log10(1 + x) / Math.log10(1 + cl * 1.2)) * 100)}%`;
   return (
@@ -163,12 +160,12 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
         ]}>Your research throughput relative to the leader lab's on its first day (= 1): every project's experiments at its compute and labour, × taste.</TipCard>}>
           <span className="sp-node hero" data-test="speed-rel"><b className="num">×{F.short(v.rel)}</b><span>vs leader day 0</span></span>
         </Tip>
-        <Tip content={() => <TipCard title={<Term id="rdmult">AI R&D multiplier</Term>} value={F.mult(v.M)} rows={[
-          { label: <Term id="effectiveLabour">AI labour in experiments</Term>, value: F.mult(v.aiLabour) },
-          { label: <Term id="researchTaste">AI research taste</Term>, value: F.mult(v.aiTaste) },
+        <Tip content={() => <TipCard title={<Term id="effectiveLabour">AI labour</Term>} value={F.mult(v.mExp)} rows={[
+          { label: <Term id="effectiveLabour">In experiments</Term>, value: F.mult(v.mExp) },
+          { label: <Term id="effectiveLabour">On research ideas</Term>, value: F.mult(v.mIdeas) },
           ...(Math.abs(v.mods - 1) > 1e-3 ? [{ label: 'Siloing, migrations', value: F.mult(v.mods) }] : []),
-        ]}>Research speed ÷ the same lab with people only.</TipCard>}>
-          <span className="sp-node"><b className="num">{F.mult(v.M)}</b><span><Term id="rdmult">from AI</Term></span></span>
+        ]}>Effective labour ÷ the people's own, as your projects ran yesterday.</TipCard>}>
+          <span className="sp-node"><b className="num">{F.mult(v.mExp)}</b><span><Term id="effectiveLabour">AI labour</Term></span></span>
         </Tip>
       </div>
       <div className="tip-cap" style={{ marginTop: 10 }}><Term id="bottleneck">Unit project inputs</Term></div>
@@ -182,15 +179,6 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
         <div className="small dim" data-test="speed-mix">{v.manual ? 'Manual' : 'Auto'} mix: <b className="num">{F.pct(v.expShare)}</b> of research compute on experiments</div>
       </Tip>
       {spareFx.h100e > 0 && <div className="small dim" data-test="rs-spare-serving"><Term id="spareServing">spare serving</Term> → agents <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving lent</Term>} value={`${F.count(spareFx.h100e)} H100e`} rows={[{ label: 'Research speed', value: F.pct(spareFx.dM, 1, true) }]}>Serving compute no product needs runs research agents (products take it back first).</TipCard>}><b className="num tone-pos">{F.pct(spareFx.dM, 1, true)}</b></Tip> <Ref id="spareServing" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare-serving' }}>policy</Ref></div>}
-      <div className="tip-cap" style={{ marginTop: 10 }}>Best lever per dollar</div>
-      {lev.map((l) => (
-        <div className="rs-lev" key={l.id}>
-          <span><l.icon size={13} /> {l.label}{l.gain < 0.001 ? <span className="dim"> · saturated</span> : null}</span>
-          <HBar v={l.gain} max={maxG} color={C.good} w={70} />
-          <Tip content={() => <TipCard title={l.label} value={`${F.pct(l.gain, 1, true)} research speed`} rows={[{ label: 'Per $1B a year', value: F.pct(l.perD, 2, true) }]}>Research speed from 10% more of this input, holding the rest.</TipCard>}><span className="num tone-pos">+{(l.gain * 100).toFixed(1)}%</span></Tip>
-          <GoBtn to={l.to} label="Go" testId={`lever.${l.id}`} />
-        </div>
-      ))}
       <SpeedLimits s={s} />
       <div className="row-i small" style={{ marginTop: 8 }}><Ref id="softwareRate" to={{ panel: 'research', tab: 'recipe' }}>Software progress</Ref><Ref id="work" to={{ panel: 'company', tab: 'work' }}>AI labour by work type</Ref></div>
     </Card>

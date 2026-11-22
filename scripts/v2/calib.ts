@@ -373,7 +373,7 @@ function t1Rec(preset: T1Preset) {
   const gPath: { day: number; g: number }[] = [];
   const s = runT1(preset, cal, SEED, lastIdx(preset), MAX_DAYS, (x) => {
     watch(x);
-    if (x.time.day === 1) start = { M: x.player.prodCache?.M ?? 0, rs: researchSpeedRel(x) };
+    if (x.time.day === 1) start = { M: x.player.research.last?.x?.mExp ?? 0, rs: researchSpeedRel(x) };
     const bv = bestPlayerVersion(x);
     if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
     if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };

@@ -285,14 +285,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const old = s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && (v.evals.measuredL ?? 0) < (iv.evals.measuredL ?? 0) - 2);
   if (old) {
     const pf = previewAgentChange(s, 'capFrontier', { versionId: old.id });
-    check(pf.after.M < pf.before.M && pf.after.sdAI < pf.before.sdAI, 'A2 an older frontier-research model lowers AI taste and research speed', `${pf.before.M.toFixed(1)} → ${pf.after.M.toFixed(1)}`);
+    check(pf.after.mIdeas <= pf.before.mIdeas && pf.after.sdAI < pf.before.sdAI, 'A2 an older frontier-research model lowers AI taste and AI ideas labour', `${pf.before.mIdeas.toFixed(2)} → ${pf.after.mIdeas.toFixed(2)}`);
     const pm = previewAgentChange(s, 'capRoutine', { monitorId: old.id });
     check(pm.after.lanes.capRoutine.strength < 1 && pm.after.lanes.capRoutine.gap > 0, 'A3 an older monitor has an oversight gap and less than full strength', `gap ${pm.after.lanes.capRoutine.gap.toFixed(2)}`);
     const e = act(s, 'agents.set', { use: 'eng', versionId: old.id });
     check(!e && internalFleets(s).length === 2 && Math.abs(internalFleets(s).reduce((a, f) => a + f.usage, 0) - 1) < 1e-9, 'A4 an engineering model of its own is a second internal fleet (usages sum to 1)');
   }
   const pe = previewAgentChange(s, 'eng', { compute: 0.05 });
-  check(pe.after.build < pe.before.build && pe.after.M > pe.before.M, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
+  check(pe.after.build < pe.before.build && pe.after.mExp > pe.before.mExp, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
   act(s, 'agents.set', { use: 'capRoutine', monitorId: '' });
   act(s, 'agents.set', { use: 'capFrontier', monitorId: '' });
   check(monitorBudget(s).poolShare === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');

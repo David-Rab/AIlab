@@ -828,20 +828,15 @@ export interface ResearchState {
 
 // ───────────────────────────── Production readout (§3.2.5) ─────────────────────────────
 
+/** RD-R01: no aggregate multiplier M, elasticities, per-dollar values, ceilings or what-ifs (the player's research
+ *  readout is the engine's day, research.last; the rivals' research speed is rivalModel.ts RivalResearch). */
 export interface ProductionReadout {
-  M: number; // AI R&D multiplier
   stage: 1 | 2;
-  parts: { agents: number; taste: number; other: number }; // multiply to M
-  elast: { exp: number; humans: number; agents: number; taste: number };
-  perDollar: { exp: number; humans: number; agents: number }; // elasticity / cost
-  ceilings: { humans: number; agents: number; exp: number };
   binding: 'experiments' | 'humans' | 'agents' | 'taste' | 'data';
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** aEng (R7, player): AI share of engineers' work from the engineering agents (A_eng of their model × coverage). */
   labor: { A: number; aiFTE: number; copies: number; speed: number; wH: number; aEng?: number };
   ratios: { h: number; k: number; c: number };
-  /** What-ifs: M multiplier from 2× humans, 2×/0.1× agents, 2×/0.5× experiment compute (research/13 §1.6). */
-  whatIf: { humans2: number; agents2: number; agents01: number; exp2: number; exp05: number };
   /** AI research taste in human SDs above the median (research/13 §2.4). */
   sdAI: number;
 }

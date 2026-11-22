@@ -12,7 +12,7 @@
 //              shares. What leaks, diffusion and events give the lab enters the pretraining part as public knowledge
 //              (addRivalKnowledge, OOM; the player's addKnowledge).
 //   research   RS = X(c̄, ℓ)·units·taste·eff·mods ÷ the leader's day-0 value: the player's experiment CES at aggregate
-//              level (production.ts evalV3) — experiment compute per unit of research engineers, effective labour from the
+//              level (as the player's projects, models/research.ts) — experiment compute per unit of research engineers, effective labour from the
 //              lab's own internal model on Experiments (coverage, AI FTE from its compute and FLOP per token, the coding
 //              CES), AI taste from its fit on Research ideas (workfit.ts teamTaste)
 //   training   one base run after another on BASE_POOL_SHARE of the training pool for BASE_RUN_DAYS, released on the
@@ -360,17 +360,12 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
   }
 }
 
-/** A ProductionReadout for a non-player lab from its aggregate research (M = research speed with AI ÷ without). */
+/** A ProductionReadout for a non-player lab from its aggregate research. */
 export function rivalReadout(x: RivalResearch, stage2: boolean, ratios: ProductionReadout['ratios']): ProductionReadout {
-  const M = x.rs / Math.max(1e-12, x.rsHuman);
-  const one = { humans2: 1, agents2: 1, agents01: 1, exp2: 1, exp05: 1 };
   return {
-    M, stage: stage2 ? 2 : 1,
-    parts: { agents: x.X / Math.max(1e-12, x.Xh), taste: x.taste, other: M / Math.max(1e-12, (x.X / Math.max(1e-12, x.Xh)) * x.taste) },
-    elast: { exp: 0, humans: 0, agents: 0, taste: 0 }, perDollar: { exp: 0, humans: 0, agents: 0 },
-    ceilings: { humans: 1, agents: 1, exp: 1 }, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',
+    stage: stage2 ? 2 : 1, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',
     labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH },
-    ratios, whatIf: one, sdAI: x.sdAI,
+    ratios, sdAI: x.sdAI,
   };
 }
 

@@ -62,13 +62,6 @@ export function govSeesMilestone(s: GameStateV2, i: MilestoneIdx): boolean {
   return s.player.models.versions.some((v) => v.status === 'deployed' && versionMilestones(s, v)[i]);
 }
 
-/** AI R&D multiplier as seen by government (full at briefing 3 or evaluator rung ≥ 3). */
-export function govSeenM(s: GameStateV2): number {
-  const M = s.player.prodCache?.M ?? 1;
-  const b = s.player.policies.govBriefing;
-  if (b >= 3 || s.relations.stocks.evalGov.access >= 3) return M;
-  return 1 + (M - 1) * (b >= 2 ? 0.7 : 0.3);
-}
 
 const detectedThefts = (s: GameStateV2) => s.player.security.detectedThefts.length;
 
@@ -105,7 +98,11 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   w.claimedL = Math.max(w.claimedL, claimedL(s));
   const seenL = govSeenL(s);
   w.govSeenL = seenL;
-  const seenM = govSeenM(s);
+  // RD-R01: fast AI research as government sees it is a measured milestone (was the aggregate M ≥ 10, between the
+  // superhuman coder's ≈5× and the superhuman AI researcher's ≈25× AI R&D multiplier in AI 2027's takeoff model):
+  // demand rises at the superhuman coder, the top rungs wait for the superhuman AI researcher.
+  const seesSC = govSeesMilestone(s, 3);
+  const seesSAR = govSeesMilestone(s, 4);
   // RD-L05: capability doses in OOM of effective compute above V0 (seen: the seen level read back to G; was display
   // levels: 2.0 levels per OOM on ai2027, V0 → SC 2.49 OOM).
   const tl = s.hidden.timeline;
@@ -117,7 +114,7 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   drift(s, G, 'aiPriority', (prioT - g.aiPriority) * 0.01, 0, 100, 'gov.aiPriority');
   // Security demand: rises with seen capability, thefts and the China ladder; access speeds it up (§3.9.3 rule 4).
   const a1 = s.commitments.some((c) => c.status === 'live' && c.kind === 'testingAgreement');
-  const secT = clamp((15 + 18 * Math.max(0, seenOom - 0.25) + 15 * detectedThefts(s) + 5 * g.rungChn + (seenM >= 10 ? 20 : 0)) * pre.security, 0, 100);
+  const secT = clamp((15 + 18 * Math.max(0, seenOom - 0.25) + 15 * detectedThefts(s) + 5 * g.rungChn + (seesSC ? 20 : 0)) * pre.security, 0, 100);
   const k = secT > g.securityDemand ? 0.01 * (1 + 0.5 * (a1 ? 1 : 0) + 0.2 * s.player.policies.govBriefing) : 0.003;
   drift(s, G, 'securityDemand', (secT - g.securityDemand) * k, 0, 100, 'gov.securityDemand');
   // China hawkishness.
@@ -137,10 +134,10 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
   // ── G-SEC ladder (research/07; multipliers/levels instead of model names, §3.10.1).
   const cond = [
     false,
-    (govSeesMilestone(s, 1) || seenM >= 1.5) && g.aiPriority > 60, // RD-L05: Reliable agent (was seenL ≥ 6.5)
+    govSeesMilestone(s, 1) && g.aiPriority > 60, // RD-L05: Reliable agent (was seenL ≥ 6.5); RD-R01: the M ≥ 1.5 alternative gone
     detectedThefts(s) >= 1 || (govSeesMilestone(s, 2) && s.player.policies.govBriefing >= 1), // RD-L05: Research agent (was seenL ≥ 8.5)
     (s.player.policies.govBriefing >= 1 && govSeesMilestone(s, 3)) || g.securityDemand > 70,
-    seenM >= 10 || detectedThefts(s) >= 2,
+    seesSAR || detectedThefts(s) >= 2,
     (w.misalignmentLeak && s.pub.concern > 65) || g.nationalization > pre.natThreshold,
   ];
   if (g.rungSec < 5 && holdCheck(g, `sec${g.rungSec + 1}`, cond[g.rungSec + 1], Math.max(7, Math.round(pre.lag * 0.7)))) {
@@ -165,7 +162,7 @@ export function govDaily(s: GameStateV2, ctx: SystemCtx) {
     chinaLead < 120 || g.hawkishness > 60,
     s.player.security.stolen.some((x) => x.by === 'china' && s.player.security.detectedThefts.includes(x.versionId)),
     chinaLead < 60 || g.hawkishness > 80,
-    seenM >= 10 && shrinking,
+    seesSAR && shrinking,
   ];
   if (g.rungChn < 4 && holdCheck(g, `chn${g.rungChn + 1}`, chnCond[g.rungChn + 1])) {
     g.rungChn = (g.rungChn + 1) as GovActor['rungChn'];
