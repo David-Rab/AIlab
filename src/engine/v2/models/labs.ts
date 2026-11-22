@@ -6,7 +6,7 @@
 // aggregate recipe (model v3 F1, actors/rivalModel.ts). Non-player labs carry SimpleModel versions on a physical base;
 // until WS4 sets `RivalLab.managed`, WS1's continual system applies a default policy (split tracks shareRef(t), the base
 // run trains, the continual learner refreshes).
-import type { ComputeSplit, GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
+import type { GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
 
 export const PLAYER_ID: LabId = 'player';
 export const CHINA_ID: LabId = 'china';
@@ -36,24 +36,6 @@ export function otherLabs(s: GameStateV2): RivalLab[] {
 /** Active US rivals only (V2-SPEC §3.10.3 bug fix: never reference inactive labs). */
 export function activeRivals(s: GameStateV2): RivalLab[] {
   return s.rivals.filter((r) => r.core.status === 'active');
-}
-
-/** All lab ids that are active (player included). */
-export function activeLabIds(s: GameStateV2): LabId[] {
-  const ids: LabId[] = [];
-  if (s.player.status === 'active') ids.push(PLAYER_ID);
-  for (const r of activeRivals(s)) ids.push(r.core.id);
-  if (s.china.lab.core.status === 'active') ids.push(CHINA_ID);
-  return ids;
-}
-
-/** Compute pools of a lab in H100e: online compute × split (§3.4.2). */
-export function labPools(s: GameStateV2, id: LabId): ComputeSplit {
-  const c = labCore(s, id);
-  const out: ComputeSplit = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0 };
-  if (!c) return out;
-  for (const k of Object.keys(out) as (keyof ComputeSplit)[]) out[k] = c.computeOnline * c.split[k];
-  return out;
 }
 
 const LIVE = (v: ModelVersion) => v.status !== 'retired';

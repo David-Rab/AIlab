@@ -29,13 +29,12 @@
 // highest-priority project under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, HEADROOM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
-import { PARADIGMS } from '../../../data/v2/paradigms';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { COLUMN_DEPT, QUALITY, TEAM_SIZE } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
@@ -43,9 +42,9 @@ import type {
   Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
 } from '../types';
 import { poolsOf } from '../compute/power';
-import { Phi, Xces } from '../production/knots';
+import { Phi, Xces } from '../production/ces';
 import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
-import { adopted } from './paradigms';
+import { adopted, PARADIGM_BY_ID } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
@@ -53,7 +52,6 @@ import { addIdea, latestBaseFlop, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } 
 import { steerAdoption } from '../safety/covert';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
-const PRIOR_BY_ID = Object.fromEntries(PARADIGMS.map((p) => [p.id, p.prior])) as Record<string, number>;
 
 /** A capability research project (a capability-column node that is not ★ and not a product placeholder). */
 export const isCapProject = (n: TreeNodeDef | undefined): boolean => !!n && !!n.kind && COLUMN_DEPT[n.column] === 'cap' && !n.star && !n.soon;
@@ -99,7 +97,7 @@ export function priorMean(s: GameStateV2, n: TreeNodeDef, c: Partial<Pick<Candid
 }
 
 /** Base odds that the direction works in a world (paradigm prior or node odds; lines always). */
-export const baseOdds = (n: TreeNodeDef) => (n.kind === 'line' ? 1 : n.paradigm ? (PRIOR_BY_ID[n.id] ?? 1) : (n.odds ?? 1));
+export const baseOdds = (n: TreeNodeDef) => (n.kind === 'line' ? 1 : n.paradigm ? (PARADIGM_BY_ID[n.id]?.prior ?? 1) : (n.odds ?? 1));
 /** Odds of the current attempt (each speculative reopen halves them). */
 export const attemptOdds = (n: TreeNodeDef, spec = 0) => baseOdds(n) * Math.pow(SPECULATIVE.odds, spec);
 
@@ -514,21 +512,13 @@ export const hasTypedEffect = (n: TreeNodeDef) => !!n.effect && !!(n.effect.stac
 export const adoptTW = (n: TreeNodeDef, est: number) =>
   !n.effect || (!n.effect.stack && !n.effect.domains) ? ADOPT_TW.unlock : Math.min(ADOPT_TW.max, ADOPT_TW.base + ADOPT_TW.perOom * oomOf(n, est));
 
-/** Queue the adoption of a finished result (only finished projects can be adopted). Returns an error or undefined. */
-export function adoptProject(s: GameStateV2, id: string, queueBuild: (tw: number) => string): string | undefined {
-  const n = node(id);
-  const st = s.player.tree[id]?.cap;
-  if (!n || !isCapProject(n) || !st) return 'Not a capability project';
-  if (n.kind === 'line') {
-    const r = st.pending?.find((x) => !x.buildId);
-    if (!r) return 'No finished result to adopt';
-    r.buildId = queueBuild(adoptTW(n, r.est));
-    return undefined;
-  }
-  if (st.stage !== 'result' || !st.result) return 'Only finished projects can be adopted';
-  st.result.buildId = queueBuild(adoptTW(n, st.result.est));
-  st.stage = 'adopting';
-  return undefined;
+/** Queue the adoption of the result resolveStage just produced: a line's oldest unqueued pending result, or a
+ *  project's result (which moves it to 'adopting'). Only resolveStage calls this, right after it stores the result. */
+function queueAdoption(n: TreeNodeDef, st: CapProjectState, queueBuild: (tw: number) => string): void {
+  const r = n.kind === 'line' ? st.pending?.find((x) => !x.buildId) : st.result;
+  if (!r) return;
+  r.buildId = queueBuild(adoptTW(n, r.est));
+  if (n.kind !== 'line') st.stage = 'adopting';
 }
 
 /** The engineers finished building a result in: its TRUE effect enters the stack (or the lever unlocks); the R&D fleet
@@ -680,7 +670,7 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   delete st.test;
   if (n.kind === 'line') {
     (st.pending ??= []).push(result);
-    adoptProject(s, n.id, queueBuild);
+    queueAdoption(n, st, queueBuild);
     st.gen += c.b;
     // The line's pool advances by what the result delivers (V3 notes, derivation 1): R ← R·10^(x/r_l) with x its true
     // effect at test scale, so the line's realised stack is exactly r_l·log₁₀(R/n₀) however good the picked candidates
@@ -697,7 +687,7 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   st.stage = 'result';
   s.player.tree[n.id].progress = 1;
   ctx.log('research', `${n.name} works: estimated ${fmtEst(n, est, estSd)}. The engineers are building it in.`, 2, n.id);
-  adoptProject(s, n.id, queueBuild);
+  queueAdoption(n, st, queueBuild);
   return false;
 }
 
@@ -793,6 +783,4 @@ export function stackRate(s: GameStateV2): { oomPerDay: number; ideasPerDay: num
   return { oomPerDay: Math.max(0, (b.g - a.g) / d), ideasPerDay: Math.max(0, (b.n - a.n) / d) };
 }
 
-/** Headroom share of an adopted idea (for readouts). */
-export const HEADROOM_SHARE = HEADROOM;
 export { TREE };

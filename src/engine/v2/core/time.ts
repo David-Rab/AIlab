@@ -38,11 +38,6 @@ export function decimalYear(s: GameStateV2, day: Day = s.time.day): number {
   return decimalYearOf(s.time.startDate, day);
 }
 
-/** Years since the game start (continuous). */
-export function yearsSinceStart(day: Day): number {
-  return day / 365;
-}
-
 /** Quarter index since start: Q3 2025 = 0, Q4 2025 = 1, Q1 2026 = 2 ... */
 export function quarterIndex(startDate: string, day: Day): number {
   const d = dateOfDay(startDate, day);

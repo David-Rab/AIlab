@@ -23,10 +23,9 @@ import {
 } from '../../../data/v2/serving';
 import { FEATURE_BY_ID, FREE_TIER_SHARE, MINI_CHANNELS, type FeatureFx, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
-import { B_G_PER_Y, DISTILL, DISTILL_TPP, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
-import { distillGap } from '../models/effective';
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
@@ -73,41 +72,6 @@ export function useHourCost(s: GameStateV2, fpt: number, tau = 1, ud = decodeUti
 export const effortTokens = (e: Deployment['effort']) => EFFORT_TOKENS[e] ?? 1;
 export const effortDG = (mult: number) => Math.max(-EFFORT_CAP_OOM, Math.min(EFFORT_CAP_OOM, EFFORT_OOM_PER_10X * Math.log10(Math.max(1e-6, mult))));
 
-// ───────────────────────────── the cheapest model at a capability (A3) ─────────────────────────────
-
-/** The cheapest model a lab can serve at capability G. */
-export interface CheapestAt {
-  /** Serving FLOP per token and active parameters of that model. */
-  fpt: number;
-  params: number;
-  /** The version itself, or the teacher of the student. */
-  versionId: string;
-  student: boolean;
-  /** The teacher's fit and the distillation gap (OOM; 0 for the version itself). */
-  teacherFit: number;
-  gap: number;
-}
-/** The cheapest model a lab can serve at capability `G` (fit on work type `wt`, OOM): the smallest of (1) its own
- *  versions that hold G and (2) a distilled student of any of them, sized to hold G exactly. A student follows the
- *  game's distillation rule (R20 C4, runs.ts planRun): gap δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP
- *  tokens per student parameter, N_S ≥ PARAM_RANGE[0], FLOP per token = the teacher's × N_S/N_T (its shape and serving
- *  efficiency). Distillation is ★ (P04), so every lab can do this. It is what the lab could sell at G, not what it
- *  sells. research/20 D3's fixed-capability price (Cottier et al. 2025: the cheapest model above a benchmark threshold)
- *  is the price of this model. Undefined when no version holds G. */
-export function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): CheapestAt | undefined {
-  let best: CheapestAt | undefined;
-  for (const v of s.player.models.versions) {
-    if (v.status === 'retired' || v.variant === 'imported') continue;
-    const fit = workFit(s, v, wt).fit;
-    if (fit < G) continue;
-    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-    const nS = studentParamsFor(nT, fit - G);
-    const student = nS < nT;
-    const c: CheapestAt = { fpt: (flopPerToken(s, v) * nS) / nT, params: nS, versionId: v.id, student, teacherFit: fit, gap: student ? distillGap(nT, nS, DISTILL_TPP * nS) : 0 };
-    if (!best || c.fpt < best.fpt) best = c;
-  }
-  return best;
-}
 /** Active parameters of the smallest student of a teacher with `nT` active parameters that lands at most `gap` OOM below
  *  it (the distillation rule: δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP, N_S ≥ PARAM_RANGE[0]); the
  *  teacher's own size when no student holds within `gap` (δ ≥ DISTILL.a). */

@@ -15,7 +15,7 @@ import {
   copiesOf, coverage, effLabour, fitOf, flopPerToken, fteOfFpt, refPoints, sdAIOf, teamTaste, versionMilestones, workContext,
 } from '../../src/engine/v2/departments/workfit';
 import { linePool, poolMean, researchInputs } from '../../src/engine/v2/models/research';
-import { Xces } from '../../src/engine/v2/production/knots';
+import { Xces } from '../../src/engine/v2/production/ces';
 import { computeProduction } from '../../src/engine/v2/production/production';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
@@ -211,11 +211,11 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   const walk = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (p.endsWith('.ts')) files.push(p); } };
   walk(root);
   const FORBIDDEN = /\b(frontierFlop|hRef|refTotal|shareRefAt|knotAt|multiplierAt|multiplierRef|CAL_SHIFT|laborSlowdown|referenceTech)\b/;
-  // Allowed: the definitions and the knot generation (production/knots.ts, world/), rivals / China / the leader lab
+  // Allowed: the definitions (production/ces.ts, world/), rivals / China / the leader lab
   // (actors/), the reference bot (bots/: the calibration harness's policy), the compute-split module that defines the
   // reference split and offers it as a player preset (departments/split.ts) and the selector re-exports; any other line
   // must carry BRIDGE(V6|V7) (V4 removed its bridges).
-  const ALLOWED = ['production/knots.ts', 'world/', 'actors/', 'bots/', 'departments/split.ts', 'core/selectors.ts'];
+  const ALLOWED = ['production/ces.ts', 'world/', 'actors/', 'bots/', 'departments/split.ts', 'core/selectors.ts'];
   const bad: string[] = [];
   for (const f of files) {
     const rel = relative(root, f).replace(/\\/g, '/');

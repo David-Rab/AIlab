@@ -34,7 +34,7 @@ import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { decodeUtilOf, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
 import { tokEff } from '../worldfx/serving';
-import { Xces, hRef } from '../production/knots';
+import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
@@ -370,11 +370,11 @@ export function rivalReadout(x: RivalResearch, eRate: number, stage2: boolean, r
   const one = { humans2: 1, agents2: 1, agents01: 1, exp2: 1, exp05: 1 };
   return {
     M, rate: eRate / B, stage: stage2 ? 2 : 1,
-    parts: { base: 1, agents: x.X / Math.max(1e-12, x.Xh), taste: x.taste, other: M / Math.max(1e-12, (x.X / Math.max(1e-12, x.Xh)) * x.taste) },
-    elast: { exp: 0, humans: 0, agents: 0, taste: 0, train: 0, data: 0 }, perDollar: { exp: 0, humans: 0, agents: 0 },
+    parts: { agents: x.X / Math.max(1e-12, x.Xh), taste: x.taste, other: M / Math.max(1e-12, (x.X / Math.max(1e-12, x.Xh)) * x.taste) },
+    elast: { exp: 0, humans: 0, agents: 0, taste: 0 }, perDollar: { exp: 0, humans: 0, agents: 0 },
     ceilings: { humans: 1, agents: 1, exp: 1 }, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',
     labor: { A: x.a, aiFTE: x.aiFte, copies: x.copies, speed: x.copies > 0 ? speedOfCopy() : 0, wH: x.wH },
-    ratios, Ddata: 1, whatIf: one, sdAI: x.sdAI,
+    ratios, whatIf: one, sdAI: x.sdAI,
   };
 }
 

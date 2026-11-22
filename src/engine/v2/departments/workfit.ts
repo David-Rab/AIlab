@@ -16,7 +16,7 @@
 //              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import {
-  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H80_OVER_H50, HORIZON_BETA,
+  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
   LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, STAR_TASTE, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
@@ -27,7 +27,7 @@ import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
-import { Lrel, Phi, tasteSigma } from '../production/knots';
+import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { gOfDomain, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
@@ -83,8 +83,6 @@ export function refPoints(w: TimelineWorld, wt: WorkTypeId): { best: number; med
 /** 50% time horizon (minutes) of a version in a work type: METR's 203 min for V0 × 4.2 per OOM of the horizon domain's
  *  effective compute over V0's, × the version's horizon multiplier (long-horizon RL, P07, P12). */
 export const h50Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId = 'EXP') => h50Of(s.hidden.timeline, v, WORK_TYPES[wt].horizon);
-/** 80% time horizon (minutes) = h50 / 5 (METR TH1.1). */
-export const h80Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId = 'EXP') => h50Min(s, v, wt) * H80_OVER_H50;
 /** METR success probability on a task of `hours` given h50 (minutes): 1/(1 + (t/h50)^β). */
 export const pSuccess = (hours: number, h50: number) => 1 / (1 + Math.pow((hours * 60) / Math.max(1e-9, h50), HORIZON_BETA));
 

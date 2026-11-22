@@ -33,7 +33,7 @@ import { QUALITY } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { monitorBudget } from '../departments/agents';
 import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
-import { Xces } from '../production/knots';
+import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
 import { aiShareOf } from './agents';

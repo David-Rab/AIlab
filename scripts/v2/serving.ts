@@ -46,7 +46,7 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, cheapestAt, effortDG, lineupOf, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, effortDG, studentParamsFor, lineupOf, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
@@ -54,9 +54,10 @@ import { B_G_PER_Y, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
-import { DISTILL } from '../../src/data/v2/runDesign';
+import { DISTILL, DISTILL_TPP } from '../../src/data/v2/runDesign';
+import { distillGap } from '../../src/engine/v2/models/effective';
 import { fptOfBase, makeBase } from '../../src/engine/v2/actors/rivalModel';
-import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL } from '../../src/data/v2/workTypes';
+import { SERVE_FLOP_MAX, TOK_MIN, TOK_PER_RL_OOM, TOKENS_PER_WORK_HOUR, U_DECODE, U_DECODE_MAX, U_PREFILL, type WorkTypeId } from '../../src/data/v2/workTypes';
 import { SERVE_RATE0 } from '../../src/data/v2/rivalModel';
 import { addPublic, decodeUtilNow, decodeUtilOf, rlGOfBuild, serveFlopOomOf, serveNow, SERVE_U_OOM } from '../../src/engine/v2/models/stacks';
 import { serveTechMult } from '../../src/engine/v2/models/runs';
@@ -64,6 +65,42 @@ import { agentFpt, agentFptEq, h100eHoursPerWorkHour } from '../../src/engine/v2
 import { rivalDecodeU, rivalServeFpt } from '../../src/engine/v2/actors/rivalModel';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
+
+// The cheapest model a lab can serve at a capability (A3; moved here from worldfx/serving.ts in RD-C04: only this
+// suite reads it).
+/** The cheapest model a lab can serve at capability G. */
+interface CheapestAt {
+  /** Serving FLOP per token and active parameters of that model. */
+  fpt: number;
+  params: number;
+  /** The version itself, or the teacher of the student. */
+  versionId: string;
+  student: boolean;
+  /** The teacher's fit and the distillation gap (OOM; 0 for the version itself). */
+  teacherFit: number;
+  gap: number;
+}
+/** The cheapest model a lab can serve at capability `G` (fit on work type `wt`, OOM): the smallest of (1) its own
+ *  versions that hold G and (2) a distilled student of any of them, sized to hold G exactly. A student follows the
+ *  game's distillation rule (R20 C4, runs.ts planRun): gap δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP
+ *  tokens per student parameter, N_S ≥ PARAM_RANGE[0], FLOP per token = the teacher's × N_S/N_T (its shape and serving
+ *  efficiency). Distillation is ★ (P04), so every lab can do this. It is what the lab could sell at G, not what it
+ *  sells. research/20 D3's fixed-capability price (Cottier et al. 2025: the cheapest model above a benchmark threshold)
+ *  is the price of this model. Undefined when no version holds G. */
+function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): CheapestAt | undefined {
+  let best: CheapestAt | undefined;
+  for (const v of s.player.models.versions) {
+    if (v.status === 'retired' || v.variant === 'imported') continue;
+    const fit = workFit(s, v, wt).fit;
+    if (fit < G) continue;
+    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
+    const nS = studentParamsFor(nT, fit - G);
+    const student = nS < nT;
+    const c: CheapestAt = { fpt: (flopPerToken(s, v) * nS) / nT, params: nS, versionId: v.id, student, teacherFit: fit, gap: student ? distillGap(nT, nS, DISTILL_TPP * nS) : 0 };
+    if (!best || c.fpt < best.fpt) best = c;
+  }
+  return best;
+}
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {

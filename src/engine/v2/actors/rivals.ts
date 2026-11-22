@@ -24,7 +24,7 @@ import { referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
 import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
-import { hRef, refTotal } from '../production/knots';
+import { hRef, refTotal } from '../production/ces';
 import { ipAccessDaily } from '../finance/deals';
 import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
 import { decimalYear } from '../core/time';
@@ -282,9 +282,6 @@ export function capIndexOfLevel(L: number): number {
   for (let i = 0; i < k.length - 1; i++) if (L < k[i + 1]) return i + (L - k[i]) / (k[i + 1] - k[i]);
   return k.length - 1;
 }
-
-/** Trait-drift scale [fit]: tuned so maverick Mis at ASI ≈ 0.45–0.6 and safety-rival ≈ 0.25–0.35 (medium). */
-export const RIVAL_DRIFT_K = () => WS4_TUNING.rivalDriftK;
 
 /**
  * One post-training step of a non-player lineage's hidden traits. STAND-IN for WS2's trait graph (§3.5.4) until

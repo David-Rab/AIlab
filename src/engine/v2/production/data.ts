@@ -29,7 +29,6 @@ import { chatFreeTier } from '../worldfx/serving';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { gOfBuild, gV0 } from '../models/capability';
 import { internalVersion, versionById } from '../models/labs';
-import { latestBaseFlop } from '../models/stacks';
 import { idleTrainingShare } from '../models/runs';
 import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, DomainId, GameStateV2, ModelVersion, OwnedDataAsset, SystemCtx } from '../types';
 
@@ -474,20 +473,4 @@ export function dataDeltaText(d: DataDelta): string {
   const sg = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
   const sg3 = (x: number) => `${x >= -5e-4 ? '+' : ''}${(Math.abs(x) < 5e-4 ? 0 : x).toFixed(3)}`;
   return `unique tokens ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)} · data quality ${sg3(d.qG[0])} → ${sg3(d.qG[1])} OOM`;
-}
-
-/** Tokens required for a base of `flop` FLOP: N_req(C) = 20·sqrt(C/120) (research/13 §1.7). Overtrained ×5. */
-export function tokensRequired(flop: number, overtrained = false): number {
-  return 20 * Math.sqrt(flop / 120) * (overtrained ? 5 : 1);
-}
-/** Epochs of the unique stock that cost almost nothing (Muennighoff et al. 2023: ≈ 4, research/20 A3). */
-export const FREE_EPOCHS = 4;
-/** Data the next base can use at almost no repetition cost (tokens): FREE_EPOCHS × U. */
-export const freeStock = (s: GameStateV2) => FREE_EPOCHS * uniqueTokens(s);
-/** The lab's next frontier base for the readouts (model v3 V3: physical, not the calendar's F(t)): its latest base × 3,
- *  one generation of compute growth [D]. */
-export const nextBaseFlop = (s: GameStateV2) => 3 * latestBaseFlop(s);
-/** min(1, free stock / N_req(next base)): adequacy of the player's data for its next frontier base (readout). */
-export function dataStockRatio(s: GameStateV2): number {
-  return Math.min(1, freeStock(s) / tokensRequired(nextBaseFlop(s)));
 }

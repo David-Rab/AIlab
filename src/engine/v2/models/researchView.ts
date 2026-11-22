@@ -2,19 +2,19 @@
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
-import { ADOPT_TW, DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, RE_PER_PROJECT, STACK_GROUPS, STACK_LABEL } from '../../../data/v2/research';
+import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, RE_PER_PROJECT, STACK_GROUPS, STACK_LABEL } from '../../../data/v2/research';
 import { COGNITIVE_WORK, MILESTONE_COVER, RE_UNIT, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
-import { Xces } from '../production/knots';
+import { Xces } from '../production/ces';
 import { researchSpeedRel } from '../production/production';
 import { production } from '../production/readout';
 import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  agentFpt, costPerWorkHour, h100eHoursPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
@@ -361,9 +361,6 @@ export function workTypeViews(s: GameStateV2): WorkTypeView[] {
   });
 }
 
-/** H100e-hours of serving per human work-hour of a version (copies readout). */
-export const workHourCost = (s: GameStateV2, v: ModelVersion) => h100eHoursPerWorkHour(agentFpt(s, v));
-
 // ───────────────────────────── milestones ─────────────────────────────
 
 export interface MilestoneCriterion { label: string; wt?: WorkTypeId; kind: 'fit' | 'coverage' | 'cost'; have: number; need: number; met: boolean }
@@ -441,7 +438,5 @@ export function buildSplit(s: GameStateV2): { capacity: number; human: number; a
   return { capacity: bc.capacity, human: bc.human, ai: Math.max(0, bc.capacity - bc.human), coverage: bc.aEng, m: bc.human > 0 ? bc.capacity / bc.human : 0 };
 }
 
-/** Adoption cost readout (engineers' team-weeks for a result of `oom`). */
-export const adoptCostTW = (oom: number) => Math.min(ADOPT_TW.max, ADOPT_TW.base + ADOPT_TW.perOom * Math.abs(oom));
 export { r3 as round3 };
 export type { CapStage };

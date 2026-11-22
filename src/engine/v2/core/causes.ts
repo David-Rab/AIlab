@@ -64,16 +64,6 @@ function rangeOf(key: string): [number, number] {
   return [-Number.MAX_VALUE, Number.MAX_VALUE];
 }
 
-/** Read the meter behind a cause key (undefined if the path does not lead to a number). */
-export function readMeter(s: GameStateV2, key: string): number | undefined {
-  let o: unknown = s;
-  for (const k of pathOf(canonicalKey(key))) {
-    if (o === null || typeof o !== 'object') return undefined;
-    o = (o as Record<string, unknown>)[k];
-  }
-  return typeof o === 'number' ? o : undefined;
-}
-
 export function recordCause(s: GameStateV2, key: string, delta: number, source: string, detail?: string, day: Day = s.time.day) {
   if (!delta || !Number.isFinite(delta)) return;
   const k = canonicalKey(key);

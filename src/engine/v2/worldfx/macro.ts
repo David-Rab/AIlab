@@ -194,6 +194,3 @@ export const macroSystem: EngineSystem = {
     runMacro(s, ctx);
   },
 };
-
-/** AI-driven TFP level (X − 1) for the US: the Acemoglu comparison readout. */
-export const aiTfp = (s: GameStateV2, r: RegionId = 'US') => s.world.fx.autoLevel[r] - 1;

@@ -68,7 +68,6 @@ export function nodePreview(s: GameStateV2, id: string): Preview {
   if (!n) return { costs: [{ currency: 'staffTime', amount: 0 }], gains: [], exposure: [] };
   const odds = nodeOdds(s, id);
   const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(effortOf(n) * 10) / 10, target: 'science team-months' }];
-  if (n.cashCost) costs.push({ currency: 'cash', amount: n.cashCost, target: 'data' });
   const cap = capLines(s, n, odds);
   const gains = cap.gains;
   costs.push(...cap.costs);

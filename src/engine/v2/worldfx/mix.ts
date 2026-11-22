@@ -66,7 +66,6 @@ export const SECTOR_TASKS = SECTORS.map((def) => {
   }
   return { id: def.id, idx, w, physW: def.tasks.PHYS ?? 0, gov: def.id === 'GOV' || def.id === 'MIL', theta: def.theta };
 });
-export const SECTOR_INDEX = Object.fromEntries(SECTORS.map((d, i) => [d.id, i])) as Record<SectorId, number>;
 
 export interface Provider {
   key: string; // 'player' | 'player:open' | rival id | 'china'
@@ -214,20 +213,6 @@ function capVec(dom: Record<DomainId, number>, offset = 0): number[] {
   const cap = v[AGENCY] + 2;
   for (const i of COG_IDX) if (v[i] > cap) v[i] = cap;
   return v;
-}
-
-/** Effective display level Le of a sector for a model with domain levels `dom` (research/16 §1A.2 step 1). */
-export function sectorLevel(dom: Record<DomainId, number>, sector: SectorId, physCap: number, pf: { floor: number; log: number }, out?: Record<DomainId, number>): number {
-  const v = capVec(dom);
-  const t = SECTOR_TASKS[SECTOR_INDEX[sector]];
-  const lp = Math.min(Math.max(v[PHYS], pf.floor) + (sector === 'LOG' ? pf.log : 0), physCap);
-  if (out) {
-    for (let i = 0; i < ND; i++) out[DOMAIN_IDS[i]] = v[i];
-    out.PHYS = lp;
-  }
-  let L = t.physW * lp;
-  for (let k = 0; k < t.idx.length; k++) L += t.w[k] * v[t.idx[k]];
-  return L;
 }
 
 function access(p: Provider, r: RegionId): number {
@@ -908,12 +893,6 @@ export function initCustomerStocks(s: GameStateV2) {
     for (const t of SECTOR_TASKS) put(r, t.id, mix.sec[r][t.id].target);
     put(r, 'consumer', mix.consumer[r].target);
   }
-}
-
-/** Share of provider key `key` in a sector mix (0 if absent). */
-export function shareOf(mix: WorldMix, r: RegionId, sid: SectorId, key: string): number {
-  const i = mix.providers.findIndex((p) => p.key === key);
-  return i < 0 ? 0 : mix.sec[r][sid].share[i];
 }
 
 /** A5 readout: what buyers pay for work at the edge of what a model of coverage `u0` (e.g. V0's) can do in a sector and

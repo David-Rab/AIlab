@@ -17,7 +17,7 @@ import {
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
-import { Phi } from '../production/knots';
+import { Phi } from '../production/ces';
 import { workContext } from './workfit';
 import type {
   BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, StartType, SystemCtx, Team, TeamCandidate, TeamDept,

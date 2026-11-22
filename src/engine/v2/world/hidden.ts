@@ -2,9 +2,8 @@
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS } from '../../../data/v2/agendas';
-import { CAL_SHIFT, PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
+import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { V3_CAL } from '../../../data/v2/workTypes';
-import { alignedCalShift } from '../models/capability';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -13,7 +12,7 @@ import { makeWorld } from '../../../data/world';
 import { CONTROL } from '../../../data/v2/danger';
 import { hash32 } from '../core/rng';
 import { Rng, clamp } from '../../rng';
-import { buildKnots, cesFromAsymptotes } from '../production/knots';
+import { cesFromAsymptotes } from '../production/ces';
 import type {
   AgendaId, EconPresetId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
 } from '../types';
@@ -38,12 +37,11 @@ export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng,
 }
 
 /** Production parameters for the world (§2.3 step 2). */
-export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>, w: Omit<TimelineWorld, 'prod' | 'v3'>): ProdParams {
+export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>): ProdParams {
   const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}) };
   if (setup.world === 'sampled') base.La = 1 + rng.lognormal80(1, 200);
   const ces = cesFromAsymptotes(base.La, base.Ca, base.slow10);
-  const P: Omit<ProdParams, 'knots'> = { ...base, ...ces };
-  return { ...P, knots: buildKnots(w as TimelineWorld, P) };
+  return { ...base, ...ces };
 }
 
 const LATENT_KEYS: (keyof SafetyLatents)[] = ['legibility', 'cotLoadBearing', 'verificationAdvantage', 'benignGeneralization', 'formalizability', 'schemingDefault'];
@@ -63,14 +61,9 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
-  const tl0 = { ...w1, calShift: CAL_SHIFT[setup.world] };
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
-  const timeline: TimelineWorld = { ...tl0, prod: prodParamsFor(rng, setup, tl0), v3: { ...V3_CAL[setup.world] } };
-  // Model v3 V3b: the display bridge's shift is derived so v2's pm thresholds line up with the work-type levels
-  // (models/capability.ts alignedCalShift). Rivals do not read it since model v3 F1.
-  timeline.calShift = alignedCalShift(timeline);
-  return timeline;
+  return { ...w1, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
 }
 
 /**
@@ -99,7 +92,12 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
 
   // 5. Paradigm success.
   const paradigmSuccess: Record<string, boolean> = {};
-  for (const p of PARADIGMS) paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
+  for (const p of PARADIGMS) {
+    // RD-C07: P26 (Superhuman persuasion, cut in model v3 V2) was drawn between P25 and P27; its draw (one rng.next,
+    // prior 0.8) is consumed and discarded so every later draw keeps its value.
+    if (p.id === 'P27') rng.chance(0.8);
+    paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
+  }
 
   // 6. Edge weights.
   const edgeWeights: Record<string, number> = {};

@@ -11,33 +11,26 @@
 //
 // Rivals, China and the leader lab (model v3 F1): the same experiment CES at aggregate level with their own models' AI
 // labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
-// (rivalResearch). v2's knot production function (evalM / evalProduction without v3 inputs) stays only as the reference
-// function the identity test checks:
-//   Lrel = [(1−A)^(1−ρc)·h^ρc + A^(1−ρc)·(R·k)^ρc]^(1/ρc)      (A ≥ 1 ⇒ R·k)
-//   ℓ = Lrel^λ;  X = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ);  Tref = M_ref(q)/X(1, ℓ_ref(q));  norm = X(1, ℓ_ref(q)) / X*(q, yr)
-//   M = Tref·X·norm·eff·mods;  Stage 1: dpa/dt = share·laborSlowdown(M, yr);  Stage 2: dpa/dt = M;  × pause × treaty
-import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
-import { CHINA_CAL, H100E_PER_COPY_SC, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+// (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
+import { CHINA_CAL, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT, SPEED_CAP } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
-import { shareRefAt } from '../departments/split';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
 import { advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
-import { asV1World } from '../world/calibration';
 import { poolsOf } from '../compute/power';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { spareServingToResearch } from '../worldfx/revenue';
-import { Lrel, Phi, Xces, bestMix, hRef, knotAt, refTotal, tasteSD } from './knots';
+import { Phi, Xces } from './ces';
 import { effLabour, qualityZ, researchMods, resetWorkContext, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import { idleTrainingShare } from '../models/runs';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
-import type { EngineSystem, GameStateV2, LabId, ProdParams, ProductionReadout, RivalLab, TimelineWorld } from '../types';
+import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
  *  h, k, c. Absent for the other labs. */
@@ -62,32 +55,21 @@ export interface V3Inputs {
   stage2: boolean;
 }
 
-/** Inputs of one lab's production function for one day: the player's (`v3` set) h, k, c in fixed physical units (the
- *  leader lab's day-0 research engineers on research, agent compute, experiment FLOP = 1). Without `v3`: v2's knot
- *  function's ratios vs the reference path (the identity test's reference inputs). */
+/** Inputs of the player's production readout for one day: h, k, c in fixed physical units (the leader lab's day-0
+ *  research engineers on research, agent compute, experiment FLOP = 1). The other labs have none (rivalResearch). */
 export interface LabInputs {
-  /** v1-coordinate progress of the internally deployed model (v2's knot function only). */
-  qDep: number;
-  qTaste?: number;
-  aEng?: number;
   yr: number;
-  h: number; k: number; c: number; d: number;
+  h: number; k: number; c: number;
   /** c and k this lab would have with all of its research compute (experiments + agents) on experiments / on agents;
-   *  C = that research compute (H100e), load = 0, off = agents switched off. idle = training compute no run uses
-   *  (H100e, player only, R5) and spare = serving compute no product needs (H100e, player only, J2 PR1), in c and k units
-   *  as cIdle and kSpare. */
-  mixUnit: { c: number; k: number; C: number; load: number; off: boolean; idle?: number; cIdle?: number; spare?: number; kSpare?: number };
-  stock: number;
-  tasteHire: number;
-  eff: number;
+   *  C = that research compute (H100e), off = agents switched off. idle = training compute no run uses (H100e, R5) and
+   *  spare = serving compute no product needs (H100e, J2 PR1), in c and k units as cIdle and kSpare. */
+  mixUnit: { c: number; k: number; C: number; off: boolean; idle?: number; cIdle?: number; spare?: number; kSpare?: number };
   mods: number;
   rateMult: number;
   abs: { H: number; Cagents: number; Cexp: number; serveCost: number; tcoPerYr: number; staffCostPerYr: number };
-  /** Model v3 V3: the player's work-type research inputs (absent for other labs). */
-  v3?: V3Inputs;
+  /** Model v3 V3: the player's work-type research inputs. */
+  v3: V3Inputs;
 }
-
-type P = ProdParams;
 
 // ───────────────────────────── the player's research-speed readout (model v3 V3) ─────────────────────────────
 
@@ -133,9 +115,6 @@ function xAtMix(w: TimelineWorld, inp: LabInputs, f: number): number {
   return Xces(Pp, cbar, l);
 }
 
-/** Synthetic-data compute of the leader lab at day 0 (H100e; the readout ratio d). */
-const DAY0_SYNTHETIC = 1e6 * 0.21;
-
 /** The player's inputs today (model v3 V3). */
 function playerInputs(s: GameStateV2, day: number): LabInputs {
   const p = s.player;
@@ -177,8 +156,8 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   };
   const Cres = pools.experiments + pools.agents;
   return {
-    qDep: 0, yr, h, k, c, d: pools.synthetic / DAY0_SYNTHETIC, stock: 1, tasteHire: 1, eff: 1, mods: v3.mods, rateMult: mod.rateMult,
-    mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, load: 0, off, idle, cIdle: idle * cUnit, ...(spare > 0 ? { spare, kSpare: spare * kUnit } : {}) },
+    yr, h, k, c, mods: v3.mods, rateMult: mod.rateMult,
+    mixUnit: { c: Cres * cUnit, k: off ? 0 : Cres * kUnit, C: Cres, off, idle, cIdle: idle * cUnit, ...(spare > 0 ? { spare, kSpare: spare * kUnit } : {}) },
     abs: { H: capReCapacity(s) * 100, Cagents: Cag + spare, Cexp: pools.experiments + idle, serveCost: 0.5, tcoPerYr: tcoPerH100eYear(s, yr), staffCostPerYr: 0.8e-3 },
     v3,
   };
@@ -193,14 +172,14 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   // `rate` (progress-years per year, BRIDGE(V7) for the lead readers): the stacks' recent growth ÷ B, at these inputs.
   const e0 = evalV3(w, { ...inp, h: v.h0, k: v.k0 });
   const rate = (v.gRate / B_G_PER_Y) * v.rateMult * (e.M / Math.max(1e-12, e0.M));
-  const parts = { base: 1, agents: e.X / e.Xh, taste: v.Tai / Math.max(1e-12, v.Th), other: v.mods };
+  const parts = { agents: e.X / e.Xh, taste: v.Tai / Math.max(1e-12, v.Th), other: v.mods };
   const cT = Pp.u * Math.pow(e.cbar, Pp.zeta * Pp.rho);
   const lT = Pp.v * Math.pow(e.l, Pp.rho);
   const sC = cT / (cT + lT);
   const sL = 1 - sC;
   const elast = {
     exp: Pp.zeta * sC, humans: Pp.lam * sL * e.wH, agents: Pp.lam * sL * (1 - e.wH),
-    taste: 1 - Phi(v.sdAI), train: 0, data: 0,
+    taste: 1 - Phi(v.sdAI),
   };
   const costExp = Math.max(1e-6, inp.abs.Cexp * inp.abs.tcoPerYr);
   const costHum = Math.max(1e-6, inp.abs.H * inp.abs.staffCostPerYr);
@@ -226,8 +205,8 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   return {
     M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
     labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH: e.wH, aEng: v.aEng },
-    ratios: { h: inp.h, k: inp.k, c: inp.c, d: inp.d },
-    Ddata: 1, whatIf, sdAI: v.sdAI,
+    ratios: { h: inp.h, k: inp.k, c: inp.c },
+    whatIf, sdAI: v.sdAI,
   };
 }
 
@@ -235,117 +214,21 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
  *  of X × taste × modifiers, ÷ the leader's day-0 value (≈ 1 at the start). */
 export function researchSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
-  if (!inp?.v3) return 1;
+  if (!inp) return 1;
   const e = evalV3(s.hidden.timeline, inp);
   return (e.X * e.units * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
 }
 
-// ───────────────────────────── v2's knot production function (the identity test's reference) ─────────────────────────────
-
-/** X* of the reference lab with the best research mix at (q, yr); memoised per world (a few distinct keys a day). */
-const xOptMemo = new WeakMap<ProdParams, Map<string, number>>();
-export function refBestX(Pp: P, A: number, R: number, q: number, yr: number): number {
-  let m = xOptMemo.get(Pp);
-  if (!m) xOptMemo.set(Pp, (m = new Map()));
-  const key = `${q.toFixed(5)}|${yr.toFixed(4)}`;
-  let x = m.get(key);
-  if (x === undefined) {
-    const sh = shareRefAt(yr); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-    const r = sh.experiments + sh.agents;
-    x = bestMix(Pp, A, R, 1, r / sh.experiments, r / sh.agents).X;
-    if (m.size > 4000) m.clear();
-    m.set(key, x);
-  }
-  return x;
+/** M and its pieces for a set of inputs (the player's work-type research speed). Pure. */
+export function evalM(w: TimelineWorld, inp: LabInputs) {
+  const e = evalV3(w, inp);
+  return { M: e.M, Mref: e.M, A: inp.v3.a, R: 0, Tref: inp.v3.Tai, tau: 1, sdAI: inp.v3.sdAI, L: e.L, l: e.l, X: e.X, ai: e.AI, norm: 1 };
 }
-
-/** M and its pieces for a set of inputs. Pure. The player's inputs (inp.v3) evaluate the work-type research speed. */
-export function evalM(w: TimelineWorld, inp: Pick<LabInputs, 'qDep' | 'yr' | 'h' | 'k' | 'c' | 'tasteHire' | 'eff' | 'mods'> & { qTaste?: number; v3?: V3Inputs }) {
-  if (inp.v3) {
-    const e = evalV3(w, inp as LabInputs);
-    return { M: e.M, Mref: e.M, A: inp.v3.a, R: 0, Tref: inp.v3.Tai, tau: 1, sdAI: inp.v3.sdAI, L: e.L, l: e.l, X: e.X, ai: e.AI, norm: 1 };
-  }
-  const Pp: P = w.prod;
-  const q = inp.qDep;
-  const Mref = multiplierAt(asV1World(w), q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  const kn = knotAt(Pp.knots, q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  const lRef = Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam);
-  const Xref = Xces(Pp, 1, lRef);
-  const Tref = inp.qTaste === undefined || inp.qTaste === q ? Mref / Xref : tasteCurve(w, inp.qTaste);
-  const norm = Xref / refBestX(Pp, kn.A, kn.R, q, inp.yr);
-  const ai = kn.R * inp.k;
-  const L = Lrel(Pp, kn.A, inp.h, ai);
-  const l = Math.pow(L, Pp.lam);
-  const X = Xces(Pp, inp.c, l);
-  const sdAI = inp.tasteHire !== 1 ? tasteSD(Tref, Pp.m2b) : 0;
-  const tau = inp.tasteHire !== 1 ? 1 + (inp.tasteHire - 1) * (1 - Phi(sdAI)) : 1;
-  const M = Tref * tau * X * norm * inp.eff * inp.mods;
-  return { M, Mref, A: kn.A, R: kn.R, Tref, tau, sdAI, L, l, X, ai, norm };
-}
-
-/** The taste curve Tref(q) = M_ref(q) / X(1, ℓ_ref(q)) (research/13; v2's knot function). */
-export function tasteCurve(w: TimelineWorld, q: number): number {
-  const Pp = w.prod;
-  const kn = knotAt(Pp.knots, q); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  return multiplierAt(asV1World(w), q) / Xces(Pp, 1, Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam)); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-}
-
-const speedOf = (M: number) => Math.min(SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
 
 /** Full production readout (§3.2.5). Pure function of the world and inputs. `detail` = false skips the ceilings and
- *  what-ifs (reported as 1 = no change). The player's inputs (inp.v3) give the work-type readout. */
+ *  what-ifs (reported as 1 = no change). */
 export function evalProduction(w: TimelineWorld, inp: LabInputs, detail = true): ProductionReadout {
-  if (inp.v3) return evalProductionV3(w, inp, detail);
-  const Pp = w.prod;
-  const e = evalM(w, inp);
-  const stage: 1 | 2 = inp.qDep >= stage1(asV1World(w)) ? 2 : 1;
-  const rate = (stage === 1 ? w.share * laborSlowdown(e.M, inp.yr) : e.M) * inp.rateMult; // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  const Xh = Xces(Pp, inp.c, Math.pow(Math.max(1e-9, inp.h), Pp.lam));
-  const parts = { base: Xh * e.norm, agents: e.X / Xh, taste: e.Tref * e.tau, other: inp.eff * inp.mods };
-  const cT = Pp.u * Math.pow(inp.c, Pp.zeta * Pp.rho);
-  const lT = Pp.v * Math.pow(e.l, Pp.rho);
-  const sC = cT / (cT + lT);
-  const sL = 1 - sC;
-  const wH = e.A >= 1 - 1e-12 ? 0 : (Math.pow(1 - e.A, 1 - Pp.rc) * Math.pow(inp.h, Pp.rc)) / Math.pow(e.L, Pp.rc);
-  const gF = refTotal(w, inp.yr + 1) / refTotal(w, inp.yr); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  const elast = {
-    exp: Pp.zeta * sC,
-    humans: Pp.lam * sL * wH,
-    agents: Pp.lam * sL * (1 - wH),
-    taste: inp.tasteHire < 1.5 ? 1 - Phi(e.sdAI || tasteSD(e.Tref, Pp.m2b)) : 0,
-    train: stage === 1 ? (1 - w.share) / Math.log(gF) : 0,
-    data: 0,
-  };
-  const costExp = Math.max(1e-6, inp.abs.Cexp * inp.abs.tcoPerYr);
-  const costHum = Math.max(1e-6, inp.abs.H * inp.abs.staffCostPerYr);
-  const costAg = Math.max(1e-6, inp.abs.Cagents * inp.abs.tcoPerYr);
-  const perDollar = { exp: elast.exp / costExp, humans: elast.humans / costHum, agents: elast.agents / costAg };
-  const at = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => evalM(w, { ...inp, ...o }).M / e.M;
-  const BIG = 1e9;
-  const ceilings = detail ? { humans: at({ h: inp.h * BIG }), agents: at({ k: inp.k * BIG }), exp: at({ c: inp.c * BIG }) } : { humans: 1, agents: 1, exp: 1 };
-  const whatIf = detail
-    ? { humans2: at({ h: inp.h * 2 }), agents2: at({ k: inp.k * 2 }), agents01: at({ k: inp.k * 0.1 }), exp2: at({ c: inp.c * 2 }), exp05: at({ c: inp.c * 0.5 }) }
-    : { humans2: 1, agents2: 1, agents01: 1, exp2: 1, exp05: 1 };
-  let binding: ProductionReadout['binding'] = 'experiments';
-  const pd = perDollar;
-  if (pd.humans > pd.exp && pd.humans >= pd.agents) binding = 'humans';
-  else if (pd.agents > pd.exp && pd.agents > pd.humans) binding = 'agents';
-  const lnM = Math.log(Math.max(1.0001, e.M));
-  const tasteShare = Math.log(Math.max(1, parts.taste)) / lnM;
-  if (tasteShare > 0.6 && e.Mref >= 25) binding = 'taste';
-  let label: ProductionReadout['label'] = elast.humans + elast.agents > elast.exp ? 'labor-bound' : 'compute-bound';
-  if (e.Mref >= 25 && tasteShare > 0.6) label = 'taste-bound';
-  else if (label === 'labor-bound' && wH > 0.5) label = 'human-bound';
-  const perCopy = H100E_PER_COPY_SC * (inp.abs.serveCost / 0.5);
-  const copies = inp.abs.Cagents / Math.max(1e-6, perCopy);
-  return {
-    M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
-    labor: { A: e.A, aiFTE: e.ai * hRef(inp.yr), copies, speed: speedOf(e.M), wH }, // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-    ratios: { h: inp.h, k: inp.k, c: inp.c, d: inp.d },
-    Ddata: 1,
-    whatIf,
-    sdAI: e.sdAI || tasteSD(e.Tref, Pp.m2b),
-  };
+  return evalProductionV3(w, inp, detail);
 }
 
 // ───────────────────────────── inputs from state ─────────────────────────────
@@ -396,7 +279,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const eRate = rates.g;
   const pools = poolsOf(s, core.id);
-  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c, d: pools.synthetic / DAY0_SYNTHETIC });
+  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (M with it ÷ M
@@ -420,33 +303,28 @@ export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout
 }
 
 /** Best experiments share of a lab's research compute (experiments + agents) for its current inputs: the player's by
- *  golden-section search on its experiment throughput (model v3 V3); v2's knot inputs by the knot model's mix. */
+ *  golden-section search on its experiment throughput (model v3 V3). */
 export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
   const w = s.hidden.timeline;
-  if (inp.v3) {
-    const f = (x: number) => xAtMix(w, inp, x);
-    const g = (Math.sqrt(5) - 1) / 2;
-    let lo = 0.01;
-    let hi = 0.99;
-    let x1 = hi - g * (hi - lo);
-    let x2 = lo + g * (hi - lo);
-    let f1 = f(x1);
-    let f2 = f(x2);
-    for (let i = 0; i < 24; i++) {
-      if (f1 < f2) { lo = x1; x1 = x2; f1 = f2; x2 = lo + g * (hi - lo); f2 = f(x2); }
-      else { hi = x2; x2 = x1; f2 = f1; x1 = hi - g * (hi - lo); f1 = f(x1); }
-    }
-    return (lo + hi) / 2;
+  const f = (x: number) => xAtMix(w, inp, x);
+  const g = (Math.sqrt(5) - 1) / 2;
+  let lo = 0.01;
+  let hi = 0.99;
+  let x1 = hi - g * (hi - lo);
+  let x2 = lo + g * (hi - lo);
+  let f1 = f(x1);
+  let f2 = f(x2);
+  for (let i = 0; i < 24; i++) {
+    if (f1 < f2) { lo = x1; x1 = x2; f1 = f2; x2 = lo + g * (hi - lo); f2 = f(x2); }
+    else { hi = x2; x2 = x1; f2 = f1; x1 = hi - g * (hi - lo); f1 = f(x1); }
   }
-  const Pp = w.prod;
-  const kn = knotAt(Pp.knots, inp.qDep); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
-  return bestMix(Pp, kn.A, kn.R, inp.h, inp.mixUnit.c, inp.mixUnit.k, inp.mixUnit.cIdle ?? 0, inp.mixUnit.kSpare ?? 0).f;
+  return (lo + hi) / 2;
 }
 
 /** Inputs with the research compute re-split at experiments share f (same total). */
 export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
   const u = inp.mixUnit;
-  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k + (u.kSpare ?? 0), abs: { ...inp.abs, Cexp: f * u.C * (1 - u.load) + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C + (u.spare ?? 0) } };
+  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k + (u.kSpare ?? 0), abs: { ...inp.abs, Cexp: f * u.C + (u.idle ?? 0), Cagents: u.off ? 0 : (1 - f) * u.C + (u.spare ?? 0) } };
 }
 
 /** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch

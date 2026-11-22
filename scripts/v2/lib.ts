@@ -6,7 +6,7 @@ import { newGame } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { refPlay } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
-import { refTotal } from '../../src/engine/v2/production/knots';
+import { refTotal } from '../../src/engine/v2/production/ces';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/engine/v2/types';
 

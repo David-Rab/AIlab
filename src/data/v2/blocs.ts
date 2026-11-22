@@ -58,5 +58,4 @@ export const BLOCS: BlocDef[] = [
     agenda: { evals: 3, treaty: 1, copyright: -1, openWeightLimits: -1, weightSecurity: -1 } },
 ];
 
-export const BLOC_IDS: BlocId[] = BLOCS.map((b) => b.id);
 export const BLOC_BY_ID = Object.fromEntries(BLOCS.map((b) => [b.id, b])) as Record<BlocId, BlocDef>;

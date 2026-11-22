@@ -23,7 +23,7 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
  *  the data option's FLOP and cash multipliers. The data mix's domain specialisation and repetition come from the draw
  *  (production/data.ts drawData, model v3 D3), the training signals from the base's G and drawn data (safety/traits.ts
  *  baseSignals, model v3 E3), not from here. */
-export interface BaseEffect { dg: number; sD: Off; monitorability: number; flopMult: number; cashMult: number; flags: { bioUplift?: boolean } }
+export interface BaseEffect { dg: number; sD: Off; monitorability: number; flopMult: number; cashMult: number }
 export function baseEffect(b: BaseDesign): BaseEffect {
   const sh = SHAPE[b.shape];
   const da = BASE_DATA[b.data];
@@ -39,23 +39,20 @@ export function baseEffect(b: BaseDesign): BaseEffect {
   for (const d of DOMAIN_IDS) if (offL[d]) sD[d] = (offL[d] ?? 0) / 2;
   return {
     dg, sD, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult,
-    flags: b.data === 'science' ? { bioUplift: false } : {},
   };
 }
 
-/** RL focus: the horizon multiplier and danger flags of the focus families (§3.3.2 E). Domain gains come from the RL
+/** RL focus: the horizon multiplier of the focus families (§3.3.2 E). Domain gains come from the RL
  *  curve (models/effective.ts rlGains), training signals from the RL compute shares (safety/traits.ts postSignals). */
-export function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number; flags: { bioUplift?: boolean; cyberOffense?: boolean } } {
+function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number } {
   let h80Mult = 1;
-  const flags: { bioUplift?: boolean; cyberOffense?: boolean } = {};
-  if (focus === 'broad') return { h80Mult, flags };
+  if (focus === 'broad') return { h80Mult };
   for (const f of RL_FAMILY_IDS) {
     if (!focus.includes(f)) continue;
     const fam = RL_FAMILIES[f];
     if (fam.h80Mult) h80Mult *= fam.h80Mult;
-    if (fam.flag) flags[fam.flag] = true;
   }
-  return { h80Mult, flags };
+  return { h80Mult };
 }
 
 /** Post-training design effects (choices D–H): ΔG (OOM), level offsets (preference), serving and monitorability of the
@@ -63,18 +60,16 @@ export function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number; f
  *  models/suites.ts) set the RL ceiling per family; the training signals are the run's quantities (safety/traits.ts
  *  postSignals, model v3 E3). */
 export interface PostEffect {
-  dg: number; offL: Off; serve: number; monitorability: number; h80Mult: number; misuseMult: number; appeal: number;
-  flags: { bioUplift?: boolean; cyberOffense?: boolean; persuasion?: boolean }; safetyFteWeeks: number;
+  dg: number; offL: Off; serve: number; monitorability: number; h80Mult: number; appeal: number;
 }
 export function postEffect(p: PostDesign): PostEffect {
   const pr = POST_PREF[p.pref];
   const cot = POST_COT[p.cot];
   const sf = POST_SAFETY[p.safety];
   const rl = rlFocusEffect(p.rlFocus);
-  const flags = { ...rl.flags, ...(p.pref === 'persuasion' ? { persuasion: true } : {}) };
   return {
     dg: pr.dg + cot.dg + sf.dg, offL: { ...pr.off }, serve: cot.serveMult, monitorability: cot.monitorability,
-    h80Mult: rl.h80Mult, misuseMult: sf.misuseMult, appeal: pr.appeal, flags, safetyFteWeeks: pr.safetyFteWeeks,
+    h80Mult: rl.h80Mult, appeal: pr.appeal,
   };
 }
 

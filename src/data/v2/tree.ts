@@ -87,8 +87,6 @@ export interface TreeNodeDef {
   soon?: 'products';
   /** Design options this node unlocks. */
   options?: [OptionSlot, string][];
-  /** Cash ($B) booked when an attempt starts. */
-  cashCost?: number;
   /** Capability projects (model v3 V2): kind and typed effect (absent effect = an unlock). */
   kind?: ProjectKind;
   effect?: ProjectEffect;
@@ -109,7 +107,7 @@ export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 5
  *  (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams), written out in RD-C05. */
 const V2_PARADIGM_EFFORT_TM: Record<string, number> = {
   P06: 18, P09: 24, P10: 24, P11: 36, P12: 36, P14: 24, P15: 24, P16: 18, P18: 24, P20: 18, P21: 42, P22: 36, P23: 24,
-  P24: 24, P25: 30, P26: 12, P27: 24,
+  P24: 24, P25: 30, P27: 24,
 };
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as
  *  under V1 (`npx tsx scripts/v2/calib.ts --fit-tree`); P05 and P19 (they fail in the fit world) take the fitted ones'
@@ -277,19 +275,6 @@ export const lineNodeId = (agenda: AgendaId) => `line:${agenda}`;
 export const TREE_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries(TREE.map((n) => [n.id, n]));
 /** Every project: tree nodes and the research lines' follow-ups. */
 export const PROJECT_BY_ID: Record<string, TreeNodeDef> = Object.fromEntries([...TREE, ...LINE_NODES].map((n) => [n.id, n]));
-
-/** Depth of each node: 0 for nodes with no prerequisites, else 1 + the deepest prerequisite. */
-export const TREE_DEPTH: Record<string, number> = (() => {
-  const out: Record<string, number> = {};
-  const depth = (id: string): number => {
-    if (out[id] !== undefined) return out[id];
-    const n = TREE_BY_ID[id];
-    out[id] = n && n.needs.length ? 1 + Math.max(...n.needs.map(depth)) : 0;
-    return out[id];
-  };
-  for (const n of TREE) depth(n.id);
-  return out;
-})();
 
 /** Nodes that need a node (reverse edges). */
 export const TREE_CHILDREN: Record<string, string[]> = (() => {

@@ -33,7 +33,7 @@ import { decimalYear } from '../core/time';
 import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
-import { hRef } from '../production/knots';
+import { hRef } from '../production/ces';
 import { DEFAULT_LINES } from '../../../data/v2/research';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE } from '../../../data/v2/teams';
 import type { AgentUse, BotPolicy, ComputeSplit, EngineApi, GameStateV2, ModelVersion, PendingDecision, TeamKey, TrainingRun } from '../types';

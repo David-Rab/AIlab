@@ -2,7 +2,7 @@
 // Owner: WS1. Every preview shows ≥ 1 cost in a currency not among its gains (lint-tradeoffs) and works with empty
 // params (defaults: a standard capabilities research-engineering team, the newest team).
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import { tasteSigma } from '../production/knots';
+import { tasteSigma } from '../production/ces';
 import { qualityZ } from './workfit';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../types';
 import {

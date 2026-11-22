@@ -104,15 +104,6 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
   return { min: 50, max: SITE_PATHS[path].maxMW, ...(path === 'lease' ? { leaseGW: leaseAvailableGW(s) } : {}) };
 }
 
-/** A product's price against its cost and the value cap (LIMITS price.valueCap, model v3 V4.2): price per work-hour =
- *  markup × cost, never above the task's value (the sector wage); `capped` = share of its demand $ sold at the cap. */
-export function priceView(s: GameStateV2, d: Deployment): { cost: number; price: number; margin: number; capped: number } {
-  const x = revenueReadout(s).deps.find((r) => r.id === d.id);
-  const cost = d.channel === 'consumer' ? x?.subCost ?? 0 : x?.costPerHour ?? 0;
-  const price = d.channel === 'consumer' ? x?.subPrice ?? 0 : x?.pricePerHour ?? 0;
-  return { cost, price, margin: price > 0 ? 1 - cost / price : 0, capped: x?.valueCapped ?? 0 };
-}
-
 /** A product's demand modifiers (LIMITS product.demandMods): each factor and the product of all. */
 export function demandModifiers(d: Deployment): { label: string; mult: number }[] {
   const out: { label: string; mult: number }[] = [];

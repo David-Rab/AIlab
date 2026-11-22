@@ -50,10 +50,6 @@ export function theftHazardDaily(s: GameStateV2): number {
   return theftHazardOn(s, s.player.security, leadBetween(s, 'player', CHINA_ID), gulfShare(s));
 }
 
-/** Secrets leak coefficient [fit] (R11 #16c: "≈ 0.00015, tuned so the lead stays 150–200 d until the theft"). The
- *  spec's spies scale (privileged·0.005 ≈ 10) is ~10× v1's, so the per-spy coefficient is scaled to match T3. */
-export const LEAK_K = () => WS4_TUNING.leakK;
-
 /** Daily China recipe gain (OOM) from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gap (§3.6), gap = the player's
  *  recipe − China's (OOM of G-equivalent; model v3 F3: the old know-how gap in progress-years × B, so the same OOM). */
 export function secretsLeakDaily(s: GameStateV2): number {
@@ -62,11 +58,6 @@ export function secretsLeakDaily(s: GameStateV2): number {
   const sec = s.player.security;
   return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gap;
 }
-
-/** Distillation of US RIVALS' public models by China [fit]: China recovers a share of the gap to the best rival
- *  public model each day, scaled by distillation access. The player's deployments leak through WS1's
- *  distillationLeak (§3.3.5), applied by the security system for every lab. */
-export const DISTILL_K = () => WS4_TUNING.distillK;
 
 export function distillFlowDaily(s: GameStateV2): number {
   let pub = -Infinity;

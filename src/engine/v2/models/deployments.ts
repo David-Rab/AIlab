@@ -12,16 +12,12 @@ import { tierOfIndex } from '../../../data/v2/features';
 /** Which version variants a channel accepts (§3.3.5). */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
   consumer: ['full', 'mini'], api: ['full', 'mini'], agents: ['full'], enterprise: ['full'],
-  gov: ['gov'], trusted: ['trusted'], internal: ['full', 'mini', 'gov', 'trusted', 'internal', 'open', 'imported'], open: ['open'],
+  gov: ['gov'], trusted: ['trusted'], internal: ['full', 'mini', 'gov', 'trusted', 'open', 'imported'], open: ['open'],
 };
 /** Distillation leak coefficient per channel (× gap × DA), §3.3.5. Open weights = full absorption. */
 export const LEAK_COEF: Record<Channel, number> = { consumer: 0.3, api: 1.0, agents: 0.5, enterprise: 0.2, gov: 0, trusted: 0.05, internal: 0, open: 1 };
 /** Default serving-pool reservation per channel [D]. */
 export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, agents: 0.2, enterprise: 0.15, gov: 0.05, trusted: 0.03, internal: 0, open: 0 };
-
-export function liveDeployments(s: GameStateV2, channel?: Channel): Deployment[] {
-  return s.player.deployments.filter((d) => d.status !== 'withdrawn' && (!channel || d.channel === channel));
-}
 
 const external = (c: Channel) => c !== 'internal';
 

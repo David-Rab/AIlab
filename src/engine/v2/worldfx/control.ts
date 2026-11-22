@@ -8,7 +8,7 @@ import { SECTORS } from '../../../data/v2/sectors';
 import { internalVersion } from '../models/labs';
 import { productDomains } from '../models/products';
 import type { ControlDomainId, ControlState, GameStateV2, LabId, SectorId, SystemCtx } from '../types';
-import { paidDeployments, versionOf, type WorldMix } from './mix';
+import { paidDeployments, type WorldMix } from './mix';
 import { clamp01, sigmoid, techRamp, type PolicyState } from './policy';
 import { worldTechEffects } from './techtree';
 
@@ -58,24 +58,6 @@ export function leverageAll(s: GameStateV2): Record<string, number> {
   return out;
 }
 
-/** The player's leverage split by model lineage (deployments weighted by revenue rate). */
-export function playerLeverageByLineage(s: GameStateV2): Record<string, number> {
-  const lev = leverage(s, 'player');
-  const w: Record<string, number> = {};
-  let sum = 0;
-  for (const d of paidDeployments(s)) {
-    const v = versionOf(s, d.versionId);
-    const base = v && s.player.models.bases.find((b) => b.id === v.baseId);
-    const lineage = base?.lineage ?? 'unknown';
-    const x = Math.max(1e-6, d.revenueRate ?? 0);
-    w[lineage] = (w[lineage] ?? 0) + x;
-    sum += x;
-  }
-  const out: Record<string, number> = {};
-  for (const k of Object.keys(w)) out[k] = sum ? (lev * w[k]) / sum : 0;
-  return out;
-}
-
 export type LeverageTier = 'none' | 'entrenched' | 'indispensable' | 'decisive';
 export function leverageTier(s: GameStateV2, lev: number): LeverageTier {
   const robotsHigh = s.world.robots.stockHWE * s.world.fx.robotUS > 0.1 * 170e6;
@@ -84,9 +66,6 @@ export function leverageTier(s: GameStateV2, lev: number): LeverageTier {
   if (lev >= LEVERAGE_THRESHOLDS.entrenched) return 'entrenched';
   return 'none';
 }
-
-/** GDP cost of shutting a lineage down (R16 §2.3: "Indispensable" → GDP −Lev·40%). */
-export const shutdownGdpCost = (lev: number) => (lev >= LEVERAGE_THRESHOLDS.indispensable ? 0.4 * lev : 0);
 
 /** Persuasion_X = INFO_share_X · σ((L_SOCIAL − 10)/1.5), ×(1 + W23 ramp effect) (R16 §2.1). */
 export function persuasion(s: GameStateV2, lab: LabId, mix?: WorldMix): number {
