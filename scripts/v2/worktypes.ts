@@ -2,8 +2,7 @@
 //   coverage is monotone in fit and horizon; copies ∝ compute ÷ FLOP per token; effective labour = humans when coverage
 //   is 0; a line with constant inputs reproduces r; doubling project FLOP speeds a compute-bound experiment and not a
 //   labour-bound one (and vice versa for labour); milestones fire in order SC → SAR → SIAR → ASI; a fixed lab's research
-//   speed does not change with the calendar; the lint (no player mechanism reads the reference path, the knot tables or
-//   CAL_SHIFT).
+//   speed does not change with the calendar; the lint (no player mechanism reads the reference path or the knot tables).
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -211,13 +210,13 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   check(ok, 'engineering: every start type carries its upkeep plus a base run setup in its first quarter', rows.join('; '));
 }
 
-// ---------- lint: no player mechanism reads the reference path, the knot tables or CAL_SHIFT ----------
+// ---------- lint: no player mechanism reads the reference path or the knot tables ----------
 {
   const root = join(HERE, '..', '..', 'src', 'engine', 'v2');
   const files: string[] = [];
   const walk = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) walk(p); else if (p.endsWith('.ts')) files.push(p); } };
   walk(root);
-  const FORBIDDEN = /\b(frontierFlop|hRef|refTotal|shareRefAt|knotAt|multiplierAt|multiplierRef|CAL_SHIFT|laborSlowdown|referenceTech)\b/;
+  const FORBIDDEN = /\b(frontierFlop|hRef|refTotal|shareRefAt|knotAt|multiplierAt|multiplierRef|laborSlowdown|referenceTech)\b/;
   // Allowed: the definitions (production/ces.ts, world/), rivals / China / the leader lab
   // (actors/), the reference bot (bots/: the calibration harness's policy), the compute-split module that defines the
   // reference split and offers it as a player preset (departments/split.ts) and the selector re-exports; any other line
@@ -235,7 +234,7 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
       bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
     });
   }
-  check(bad.length === 0, 'lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt, multiplierAt or CAL_SHIFT (allowed: harness, rivals, lines naming the RD item that removes them)', bad.slice(0, 6).join(' | '));
+  check(bad.length === 0, 'lint: no player mechanism reads frontierFlop, hRef, refTotal, shareRefAt, knotAt or multiplierAt (allowed: harness, rivals, lines naming the RD item that removes them)', bad.slice(0, 6).join(' | '));
   const wf = readFileSync(join(root, 'departments', 'workfit.ts'), 'utf8');
   check(!/\.pm\b(?!\))/.test(wf.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')) && !/levelOf|thresholds\(/.test(wf),
     'lint: the work-type layer (fit, coverage, milestones) reads effective compute, not pm or the level bridge', '');

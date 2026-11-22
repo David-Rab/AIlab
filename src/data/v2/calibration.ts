@@ -2,29 +2,6 @@
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
-/** Per-preset milestone threshold shift (years of v2's progress coordinate), until RD-U07 (SYNTHESIS §6 Phase 2) moves
- *  RefBot's gates to OOM. Its only reader is RefBot's pacing gates (bots/ref.ts gateLevel). The player's milestones are
- *  work-type statements (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL); rivals, China
- *  and the leader lab do not read it (model v3 F1); RD-C02 removed the derived per-world calShift.
- *  History: fitted so RefBot's best internal model hit the golden dates (§7.1).
- *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
- *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).
- *  J1 refit (jank M1: a version's measured level no longer re-rolls every 30 days, so RefBot's measured-level gates
- *  for paradigms (P08 L ≥ 7, P13 RSCH ≥ 8.5, …) no longer fire early on a lucky re-roll; the slow world, with the most
- *  re-rolls near each gate, lost the most): slow −0.172 → −0.127 (`--fit slow`); the other presets still pass.
- *  R4 refit (tree projects replace paradigm FTE; RefBot loses P05 on seed 2027 to the per-world retry draw): each preset
- *  moved within ±0.03 to the offset closest to the R1 ref-trace milestone days (ai2027 unchanged: +0.01 fits the stub
- *  trace better but moves the integrated trace 14 d; authors2026 +0.005 (+0.015 fits the trace better but leaves T1 SC
- *  at −0.079 y), fast −0.03, slow +0.025; a scan of SC…last against scripts/v2/golden/ref-trace.json).
- *  Model v3 V1 refit (`--fit`; models built from physical quantities, pm = Φ(G)): ai2027 0.08 → −0.36, authors2026 0.03 →
- *  −0.633, fast 0.075 → −0.557, slow −0.127 → 0.291 (worst |Δ| over SC…last 0.036 / 0.044 / 0.058 / 0.016 y). The v3
- *  reference lab runs above v2's pm path once it trains its first base (design/V3-BUILD.md V1 notes); slow's compute grows
- *  1.6×/yr after 2028, which v2's calendar compute term over-credited.
- *  Model v3 V2a refit (recipe from research stacks; LINE_FIT.mu 0.58 fitted to the v2 know-how path on ai2027):
- *  ai2027 −0.36 → −0.463, authors2026 −0.633 → −0.618, fast −0.557 → −0.473, slow 0.291 → −1.5 (slow's stacks outgrow the v2
- *  path by ~25% over its 13 pre-SC years; design/V3-BUILD.md V2 notes, PROGRESS.md V2a). */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, authors2026: -0.618, fast: -0.473, slow: -1.5, sampled: -0.463 };
-
 /** Research efficiency of the simulated leader lab (setup.leaderLab, BUILD-PLAN R2), OOM: its research speed is ×10^LEADER_CAL
  *  the aggregate research function's at its inputs (actors/rivalModel.ts; the leader runs at the reference compute,
  *  staff and split, MODEL-V3 §12: "fitted so the simulated leader lab follows the AI 2027 path") so its milestones hit

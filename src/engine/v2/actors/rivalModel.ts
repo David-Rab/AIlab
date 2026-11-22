@@ -21,7 +21,7 @@
 //   versions   post-training every 6–10 weeks: G = G_pre + the reference RL run's gain on the base at today's RL recipe;
 //              from the Research-agent level the internal model re-applies today's whole recipe weekly (continual
 //              learning, as the player's P08 stream)
-// Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
+// Nothing here reads a calendar path, pm or pm thresholds, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
