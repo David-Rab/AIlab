@@ -1138,3 +1138,29 @@ Start state as data; one start rule for every lab (MEA-05, MEA-06; SYNTHESIS RD-
 - **Check:** tsc main + scripts clean; the grep is empty in src; levellint ok. Nothing else run.
 - **moves calibration: yes.** Rival / follower start gaps (rate per world → 1.2), early-game pace readers (slope after
   the second weekly point), C4 / E1 / C6 sizes, distill days and the diffusion line. For CP2 (golden dates re-reported).
+
+### RD-R01
+- **Done (commit c6efab8):** the one-project aggregate of the research engine is gone: `evalV3`, `evalM`,
+  `evalProductionV3`, `govSeenM`, `ProductionReadout.{M, parts, elast, perDollar, ceilings, whatIf}` (player and
+  rivals), `LabInputs.abs` (the 0.8e-3 staff cost), `V3Inputs.Th`. The player's readout is built from research.last.x
+  (playerReadout): wH = 1 ÷ m_EXP as run; label from the experiment CES's compute vs labour terms at the engine's c, ℓ
+  (no taste-bound: it needed M).
+- **Readers moved:** gov security demand +20 at the seen superhuman coder (govSeesMilestone 3; was seen M ≥ 10), G-SEC
+  rung 4 and G-CHN rung 4 at the seen superhuman AI researcher (4); G-SEC rung 1's "M ≥ 1.5" alternative dropped
+  (Reliable agent only). Tutorial act 4 = SAR only (M ≥ 25 gone). P24 payoff and aiShareByRole.re = 1 − 1 ÷ m_EXP.
+  tree.ts researchSpeed (rolled nodes) = the engine's ℓ (m_EXP^λ) × siloing / migration (no pause / treaty, as M).
+  Previews: runs.spareTraining / serving.spare show the H100e moved (no elasticity %); agents.set shows AI labour in
+  experiments / on ideas from workContext of the hypothetical (AgentsView.M → mExp, mIdeas); the viewKey reads m_EXP.
+  S.M = m_EXP (record, ref-trace, fixtures, calib start). Company › Research speed: AI labour ×m_EXP (ideas ×m_IDEAS)
+  replaces "×M from AI"; the "Best lever per dollar" block is removed; CoreLoop tip likewise.
+- **Kept for the Auto mix (RD-A02):** `labThroughput` / `throughputAt` (Σ unit projects' X at h, k, c: the same
+  expressions as the old xAtMix, so the mix search is bit-identical). It also backs researchSpeedRel, spareServingEffect
+  (X ratio = the old M ratio exactly) and the mix / response charts (now throughput relative to today; response curves
+  were M ratios, now research-throughput ratios).
+- **Not done:** glossary `rdmult` text still describes M (Term id kept on the UI); save schema not bumped (old saves'
+  prodCache keeps stale extra fields until the next day rewrites it).
+- **Check:** tsc main + scripts clean; grep empty; `npm run build` ok; `scripts/v2/_r01/check.ts` (untracked, 60-day
+  game: researchSpeed, P24, readout, charts, agents view finite and sane) ok.
+- **moves calibration: yes.** Rolled safety nodes' speed (ℓ instead of M = X/Xh × taste × mods: no taste lift, and ℓ
+  is not the throughput ratio), gov security demand / rungs (milestones instead of M thresholds), tutorial act 4 timing,
+  P24 payoff and the RE AI share (1 − 1/m_EXP instead of the CES weight 1 − wH). Mix and research engine unchanged.
