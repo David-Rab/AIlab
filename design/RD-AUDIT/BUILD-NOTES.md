@@ -1533,3 +1533,30 @@ previous commit with the new field stripped).
 - **Check:** `npx tsx scripts/v2/_t01a/check.ts`: IDA run carries the field, a post run does not, a rev-57 save gets it
   back from the name; after 150 days (IDA finished) the stripped state hash is 9fd770432d0ac490 on this commit and on
   the previous one (same script on an archive of HEAD~). tsc (main, scripts) pass; `grep "startsWith('IDA" src` empty.
+
+### RD-T01b
+
+Two training acts, engine structure only (DD-06, TRN-06; theme T). Commit fa60a15. Moves calibration: **no** (run,
+made-model and state hashes identical to the previous commit for all five former kinds).
+- **Acts.** `runAct(kind)`: `'pretrain'` (kinds base / continue / distill) or `'rl'` (kind post). The run kinds stay
+  the save format (no schema bump); the engine reads them as act + source / start.
+- **Pretraining** (`pretrain(s, src, rec?)`, one path): `PretrainSource` = `design` (new base on the portfolio),
+  `continue` (parent + added FLOP) or `teacher` (student size nS, tokens of teacher outputs). Sources come from launch
+  params (`pretrainSourceOfParams`) or a launched run (`pretrainSourceOfRun`); the result (`Pretrained`: FLOP needed,
+  cash, scale, flop / params / tokens / gPre / ePre / sD / fpt / monitorability) feeds both `planPretrain` and
+  `completePretrain`. Blueprint limits are read from the design source.
+- **RL** (`rlBuild(s, start, design, rec, extra)`, one path; replaces postBuild and idaBuild): `RlStart` = a base
+  (fresh RL: design focus weights, design effects, domain effects, run penalty at completion, design serve cost) or a
+  version (the teacher-as-grader option, IDA: more RL FLOP on its build, best of its and the run's recipe and suite
+  fidelity, its RL mix, serving, design and traits kept). Budget `rlFlopOf` = RL_BUDGET[design] or IDA_RL_SHARE × base
+  FLOP. `planRl` / `completeRl`.
+- **planRun / completeRun** are the act dispatch plus the shared tail (setup, ETA, cash / pause reasons, prediction).
+- **[Q] quirks kept, not fixed:** (1) a distilled student has no BaseModel of its own: it is a mini version on its
+  teacher's base whose build is the teacher's minus the gap (materialising a base would change state); (2) RL on a
+  version is reachable only with the teacher as grader (no launch parameter for plain RL on a version); (3) the IDA
+  preview's serve cost / monitorability are the fresh-RL formula (completion keeps the teacher's); (4) IDA ignores the
+  design's RL budget and focus (IDA_RL_SHARE, the teacher's mix); (5) only fresh RL consumes the pending run penalty.
+- **effective.ts** unchanged (its arithmetic already is per act: pretraining, RL, distillation).
+- **Check:** `npx tsx scripts/v2/_t01b/check.ts` (day-400 fixture; base, continue, post, distill, IDA each launched,
+  setup and FLOP forced, one tick): hashes before = after, e.g. base run 9eeaf8a0c2210830 / state d8a2b5f88780b9cc,
+  IDA run e879d56046092371 / state e3bce3a7bb61d547. tsc (main, scripts) and `npm run build` pass.
