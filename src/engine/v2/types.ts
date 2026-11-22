@@ -535,11 +535,13 @@ export interface PostDesign {
 
 export type RLFamily = 'math' | 'swe' | 'computerUse' | 'mlResearch' | 'longHorizon' | 'cyber' | 'bio';
 
-/** An RL environment suite (model v3 D5, MODEL-V3 §4.3; models/suites.ts): one per RL family. Its fidelity is read from
- *  the expert data it is built on (the family's `expert:<family>` asset in the data portfolio). */
+/** An RL environment suite (model v3 D5, MODEL-V3 §4.3; models/suites.ts): one per RL family. Fidelity = f(live tasks ×
+ *  grader quality) (RD-T07); the expert data its builds bought stays on the family's `expert:<family>` asset. */
 export interface EnvSuite {
-  /** Exploitability: share of the suite's tasks whose scorer a policy can game (0–1); S2 reads it. */
+  /** Exploitability: share of the suite's tasks whose grader a policy can game (0–1); S2 reads it. */
   exploit: number;
+  /** Live tasks (RD-T07): the builds' expert tokens ÷ TASK_TOKENS_T, less those gone stale for lack of upkeep. */
+  tasks: number;
   /** Builds (expert data built in) and hardening passes finished. */
   builds: number;
   hardenings: number;

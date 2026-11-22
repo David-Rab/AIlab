@@ -62,7 +62,7 @@ export const K_GAO = 0.71;
 export const P_MIN = 0.1;
 export const optimisationPressure = (rho: number) => Math.max(P_MIN, 1 + K_GAO * Math.log10(Math.max(1e-6, rho) / RHO_REF));
 /** Per-family hack rate of a run: h_f = x_f · p(ρ). The suites' exploitability x_f is the 2025 observed hack rate at the
- *  reference pressure (D5: METR o3 RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1% with cheap graders; × 0.4 hardened)
+ *  reference pressure (D5: METR o3 RE-Bench 30%, SWE scaffolds 43%, HCAST ≈1% unhardened; red-teamed start 40% of that)
  *  [R20 F1]. Read by `runHack` (E16: learned hacking) and E10's rate calibration. */
 export function hackRates(w: FamilyMap, exploit: FamilyMap, rho: number): FamilyMap {
   const p = optimisationPressure(rho);

@@ -13,7 +13,7 @@ import { FIN } from '../actors/rivals';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
-import { creditSuiteExpertData, familyDomain, keepUnlockedSuite, suiteFamilies, unbuiltSuiteFamilies } from '../models/suites';
+import { creditSuiteExpertData, familyDomain, keepUnlockedSuite, restateSuiteTasks, suiteFamilies, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
@@ -90,8 +90,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  65 (RD-T06, DD-07): expert data is only a suite input (no purchase by domain, no `expert:dom:<domain>` stock) and
  *  P12 unlocks the long-tasks demonstrations build instead of delivering data at adoption. Migration 64 → 65 credits
  *  each bought domain stock (delivered or pending) to the suites of its families (split evenly over those with a
- *  suite), drops stock no suite maps to, and restarts a P12 under test as a plain unlock project at its progress. */
-export const SCHEMA_REV = 65;
+ *  suite), drops stock no suite maps to, and restarts a P12 under test as a plain unlock project at its progress.
+ *  66 (RD-T07, DD-07): EnvSuite.tasks, the live tasks (fidelity = f(tasks × grader quality), decaying without
+ *  upkeep). Migration 65 → 66 sets each stored suite's tasks from its expert data (nothing stale yet). */
+export const SCHEMA_REV = 66;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -628,6 +630,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     const st = s.player.tree?.P12 as unknown as (Record<string, unknown> & { status?: string }) | undefined;
     if (st && st.status !== 'known' && st.cap) delete st.cap;
+  },
+  /** 65 → 66 (RD-T07): stored suites get their live tasks from their expert data. Idempotent. */
+  65: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.dataPortfolio) restateSuiteTasks(s);
   },
 };
 

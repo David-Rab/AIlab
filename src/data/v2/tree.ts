@@ -26,7 +26,7 @@ import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'graders' | 'cot' | 'inoculation' | 'effort';
+export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'inoculation' | 'effort';
 
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';

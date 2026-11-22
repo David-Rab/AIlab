@@ -153,10 +153,11 @@ function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: Sui
     <div className="sx-line" data-suite={r.family}>
       <span className="sx-fam"><I size={14} /><b>{r.label}</b></span>
       <Tip content={() => <TipCard title={<Term id="suiteFidelity">Fidelity</Term>} value={fid(r.fid)} rows={[
-        { label: <Term id="expertData">Expert data built in</Term>, value: `${tok(r.expertT)} tokens` },
+        { label: 'Live tasks', value: F.count(r.tasks) },
+        { label: 'Grader quality', value: `×${r.grader.toFixed(2)}` },
         { label: 'Builds done', value: String(r.builds) },
         { label: 'Next build', value: `${fid(pv.build.effect.fid[0])} → ${fid(pv.build.effect.fid[1])}` },
-      ]} footer="The family's RL ceiling × this; 1 at the start, never above 1.5.">How much of the RL ceiling this family&apos;s environments let a model reach.</TipCard>}>
+      ]} footer="The family's RL ceiling × this: f(live tasks × grader quality), 1 at the start, never above 1.5. Without upkeep the tasks go stale (half in 6 months).">How much of the RL ceiling this family&apos;s environments let a model reach.</TipCard>}>
         <span className="sx-bar" data-test="suite-fid"><Meter value={r.fid - 0.5} max={1} marker={0.5} color={C.good} width={96} /><b className="num">{fid(r.fid)}</b></span>
       </Tip>
       <Tip content={() => <TipCard title={<Term id="suiteExploit">Exploitable</Term>} value={`${F.pct(r.exploit, 1)} of tasks`} rows={[
@@ -166,7 +167,7 @@ function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: Sui
       ]} footer="White mark: the floor no red team gets below.">Hack rate: the share of this suite&apos;s tasks whose scorer a model can game.</TipCard>}>
         <span className="sx-bar" data-test="suite-exploit"><Meter value={Math.min(r.exploit, xMax)} max={xMax} marker={floor} color={C.bad} width={96} /><b className="num">{F.pct(r.exploit, 1)}</b></span>
       </Tip>
-      <Tip className="sx-r" content={() => <TipCard title={<Term id="expertData">Expert data</Term>} value={`${tok(r.expertT)} tokens`} rows={[{ label: 'Tasks (≈ 20k tokens each)', value: F.count(r.expertT * 1e12 / 2e4) }]}>Expert-written tasks built into this suite; more raises its fidelity.</TipCard>}>
+      <Tip className="sx-r" content={() => <TipCard title={<Term id="expertData">Expert data</Term>} value={`${tok(r.expertT)} tokens`} rows={[{ label: 'Live tasks (≈ 20k tokens each; stale ones drop out)', value: F.count(r.tasks) }]}>Expert-written tasks built into this suite; more raises its fidelity.</TipCard>}>
         <span className="num" data-test="suite-expert">{tok(r.expertT)} <span className="dim">tok</span></span>
       </Tip>
       <Tip className="sx-r" content={() => <TipCard title={<Term id="suiteRlShare">RL share</Term>} value={F.pct(r.share)}>Share of the planned run&apos;s RL compute spent in this suite.</TipCard>}>
@@ -247,7 +248,7 @@ function DemosBtn({ r, pv }: { r: SuiteRow; pv: SuiteWorkPreview }) {
 function UnbuiltLine({ s, family, pv }: { s: GameStateV2; family: RLFamily; pv: SuiteWorkPreview }) {
   const I = famIcon(family);
   const label = RL_FAMILY_LABEL[family];
-  const r: SuiteRow = { family, label, fid: 0, exploit: 0, expertT: 0, share: 0, builds: 0, hardenings: 0, pending: [] };
+  const r: SuiteRow = { family, label, fid: 0, exploit: 0, expertT: 0, tasks: 0, grader: 1, share: 0, builds: 0, hardenings: 0, pending: [] };
   const pend = suitePending(s, family).find((x) => x.work === 'build');
   return (
     <div className="sx-line unbuilt" data-suite={family} data-unbuilt={family}>

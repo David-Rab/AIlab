@@ -11,7 +11,7 @@ import { adopted } from '../safety/common';
 import { buildEtas, buildWaitNew } from '../departments/build';
 import {
   S2_PER_EXPLOIT, exploitFloor, expertAsset, expertAssetId, familyUnlocked, firstSuite, hardenCut, hardenedExploit, suiteExpertT, suiteOf, queuedSuiteWork, suiteRlWeights,
-  suiteWorkBlock, suiteWorkCost, suiteWorkEffect, unbuiltSuiteFamilies, type SuiteCost, type SuiteWork,
+  suiteWorkBlock, suiteWorkCost, suiteWorkEffect, tasksOf, unbuiltSuiteFamilies, type SuiteCost, type SuiteWork,
 } from './suites';
 import type { GameStateV2, PostDesign, RLFamily } from '../types';
 
@@ -20,7 +20,7 @@ import type { GameStateV2, PostDesign, RLFamily } from '../types';
 function withSuiteWork(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): GameStateV2 {
   const x = suiteOf(s, f) ?? (work === 'build' && familyUnlocked(s, f) ? firstSuite(s, f) : undefined);
   if (!x) return s;
-  const suites = { ...(s.player.suites ?? {}), [f]: work === 'harden' ? { ...x, exploit: hardenedExploit(f, x.exploit, hardenCut(s)), hardenings: x.hardenings + 1 } : { ...x, builds: x.builds + 1 } };
+  const suites = { ...(s.player.suites ?? {}), [f]: work === 'harden' ? { ...x, exploit: hardenedExploit(f, x.exploit, hardenCut(s)), hardenings: x.hardenings + 1 } : { ...x, tasks: x.tasks + tasksOf(suiteWorkCost(s, f, 'build', demos).tokensT), builds: x.builds + 1 } };
   let assets = s.player.dataPortfolio.assets;
   if (work === 'build') {
     const id = expertAssetId(f);

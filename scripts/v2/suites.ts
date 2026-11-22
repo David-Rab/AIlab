@@ -9,7 +9,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
-import { EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { EXPERT_START_T, EXPLOIT_START, START_EXPLOIT_MULT, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+const EXPLOIT_CHEAP = Object.fromEntries((Object.keys(EXPLOIT_START) as RLFamily[]).map((f) => [f, EXPLOIT_START[f] * START_EXPLOIT_MULT.spinout])) as Record<RLFamily, number>; // RD-T07: the spinout's raw (unhardened) rates
+
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
@@ -21,7 +23,7 @@ import { upkeepLines } from '../../src/engine/v2/departments/build';
 import { rlFamiliesAvailable, rlGains, rlWeights } from '../../src/engine/v2/models/effective';
 import { planRun, playerRlWeights } from '../../src/engine/v2/models/runs';
 import {
-  S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
+  S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, tasksOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
 import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
@@ -125,7 +127,7 @@ runTo(sb, sb.time.day + 60);
 const fid1 = suiteFidelity(sb, 'math');
 check(near(expert(sb, 'math')!.tokensT, EXPERT_START_T + SUITE_BUILD.tokensT, 1e-15) && fid1 > 1 && suiteFidelity(sb, 'swe') === 1,
   'building: the expert data joins the family\'s expert asset and its fidelity rises (that suite only)', `math fidelity 1 → ${fid1.toFixed(3)}`);
-check(fidelityOf(3 * EXPERT_START_T) - fidelityOf(2 * EXPERT_START_T) < fid1 - 1 && fidelityOf(1e6) <= 1.5, 'building: fidelity has diminishing returns in expert data and a ceiling');
+check(fidelityOf(tasksOf(3 * EXPERT_START_T)) - fidelityOf(tasksOf(2 * EXPERT_START_T)) < fid1 - 1 && fidelityOf(1e6) <= 1.5, 'building: fidelity has diminishing returns in expert data and a ceiling');
 const rlMath = planRun(sb, { kind: 'post', baseId: 'B0', post: post({ rlFocus: ['math'] }) }).g.rl!;
 const rlMath0 = planRun(game(), { kind: 'post', baseId: 'B0', post: post({ rlFocus: ['math'] }) }).g.rl!;
 check(rlMath.perDomain.REASON > rlMath0.perDomain.REASON, 'building: a post-train reads the better math suite (REASON gain up)', `${rlMath0.perDomain.REASON.toFixed(3)} → ${rlMath.perDomain.REASON.toFixed(3)} OOM`);

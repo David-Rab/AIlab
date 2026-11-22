@@ -11,7 +11,7 @@
 //             Operating a run while it trains (and the continual-learning stream) is research engineers' work, not
 //             engineers' (RD-B09, DD-11: models/research.ts reOpsNeed, the 'ops' need; short of it, runs slow)
 //   upkeep    every live product (reliability, on-call, integrations; grows with revenue), every RL environment suite
-//             (model v3 D5) and every monitor in
+//             (model v3 D5; short of upkeep its tasks go stale, RD-T07 models/suites.ts decaySuites) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
 //             feature (model v3 C2: featureUpkeepTW)
 //   builds    the rest of the queue in priority order: product launches, product features, sector packs, suite builds
@@ -33,7 +33,7 @@ import { bookCash } from '../finance/ledger';
 import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
-import { completeSuiteWork, suiteFamilies, suiteUpkeepTW } from '../models/suites';
+import { completeSuiteWork, decaySuites, suiteFamilies, suiteUpkeepTW } from '../models/suites';
 import { evalEngDone } from '../models/evals';
 import type { EngNeed } from '../types';
 
@@ -308,6 +308,8 @@ export const buildSystem: EngineSystem = {
     const c = workQueue(s, ctx, al.builds / 7, false);
     const r3 = (x: number) => Math.round(x * 1000) / 1000;
     const served = prod * 7;
+    // RD-T07: the suites decay at the unmet share of the upkeep need (one coverage for every upkeep line).
+    decaySuites(s, u.total > 0 ? served / u.total : 1);
     const work = (a.work + c.work) * 7;
     b.last = { cap: r3(cap), upkeep: r3(u.total), served: r3(served), queue: r3(work) };
     const x = cap > 0 ? Math.min(1, (served + work) / cap) : 0;

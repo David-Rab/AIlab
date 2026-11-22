@@ -1,40 +1,35 @@
 // Environment suites (model v3 D5: design/MODEL-V3.md §4.3, §11.2; research/20 C1, F1; research/12 §2 E–F). Owner: WS1.
 // Engine: src/engine/v2/models/suites.ts. One suite per RL family, owned by the lab:
-//   fidelity        scales the family's RL ceiling A_f (models/effective.ts rlGains); read from the expert data the
-//                   suite is built on (the family's `expert` asset in the data portfolio), with diminishing returns
-//   exploitability  share of the suite's tasks whose scorer a policy can game (0–1); trait signal S2 reads the RL
-//                   compute share on the family × its exploitability (safety/traits.ts postSignals)
-// Engineers build (more expert data built into environments: fidelity up) and harden (red-teaming, held-out tests,
-// cheat detectors: exploitability down) on the build queue, and keep every suite running (upkeep). Tags as runDesign.ts.
+//   fidelity        scales the family's RL ceiling A_f (models/effective.ts rlGains): f(live tasks × grader quality)
+//                   with diminishing returns (RD-T07); tasks come from the expert data builds buy (TASK_TOKENS_T),
+//                   grader quality from hardening; without upkeep the tasks go stale (SUITE_DECAY)
+//   exploitability  share of the suite's tasks whose grader a policy can game (0–1); S2 = S2_PER_EXPLOIT · Σ RL
+//                   compute share × exploitability (× the RL budget's pressure, safety/traits.ts postSignals)
+// Engineers build (more tasks: fidelity up) and harden (red-teaming, held-out tests, cheat detectors: exploitability
+// down, grader quality up) on the build queue, and keep every suite running (upkeep). Tags as runDesign.ts.
 import type { RLFamily, StartType } from '../../engine/v2/types';
 
-/** Exploitability with cheap graders (unit tests, simple checks; research/12 §2 F) per family: research/20 F1's 2025
- *  hack rates — ≈ 30% on optimisation tasks with exploitable scorers (METR o3: RE-Bench 30.4%, kernel optimisation 25%,
- *  Rust codecontest scaffold 43%) and ≈ 1% on typical agentic tasks (HCAST 0.7%). ML research 0.30 (RE-Bench); SWE 0.45
- *  (test special-casing and test edits, the 43% scaffold); math 0.15 (answers are checkable, format hacks remain); the
- *  agentic, cyber and bio families 0.025 (HCAST-like). The ratio math : SWE : ML research = 1 : 3 : 2 is V1's family
- *  S2 table (0.2 / 0.6 / 0.4), which had 0 for the other families [D]. */
-export const EXPLOIT_CHEAP: Record<RLFamily, number> = {
-  math: 0.15, swe: 0.45, computerUse: 0.025, mlResearch: 0.3, longHorizon: 0.025, cyber: 0.025, bio: 0.025,
+/** Start exploitability per family (a red-teamed suite, the leader's start) [D, sourced per family]: research/20 F1's
+ *  2025 hack rates on bought or unhardened environments — ≈ 30% on optimisation tasks with exploitable scorers (METR o3:
+ *  RE-Bench 30.4%, kernel optimisation 25%, Rust codecontest scaffold 43%) and ≈ 1% on typical agentic tasks (HCAST
+ *  0.7%) — after red-teaming, held-out tests and cheat detectors (research/12 §2 F), which leave 40% of them [D]:
+ *  SWE 0.18 (test special-casing and test edits, the 43% scaffold), ML research 0.12 (RE-Bench), math 0.06 (answers are
+ *  checkable, format hacks remain), the agentic, cyber and bio families 0.01 (HCAST-like). */
+export const EXPLOIT_START: Record<RLFamily, number> = {
+  math: 0.06, swe: 0.18, computerUse: 0.01, mlResearch: 0.12, longHorizon: 0.01, cyber: 0.01, bio: 0.01,
 };
-/** Hardened graders (red-teamed environments, held-out tests, cheat detectors, LLM-judge rubrics; research/12 §2 F) =
- *  0.4 × cheap: V1's graders multipliers 0.6 / 1.5. The leader's start suites are hardened (the old reference recipe). */
-export const V1_HARDENED_S2 = 0.6;
-export const HARDENED_FACTOR = V1_HARDENED_S2 / 1.5;
-/** Start exploitability per family (hardened, the leader's start): 0.4 × EXPLOIT_CHEAP. */
-export const EXPLOIT_START: Record<RLFamily, number> = Object.fromEntries(
-  (Object.keys(EXPLOIT_CHEAP) as RLFamily[]).map((f) => [f, EXPLOIT_CHEAP[f] * HARDENED_FACTOR]),
-) as Record<RLFamily, number>;
 /** Start exploitability per start type, × EXPLOIT_START [D]: the leader, the challenger (Anthropic, xAI) and big tech
- *  (Google DeepMind, Meta) start hardened; the spinout starts on bought environments without red-teaming = cheap graders
- *  (× 1 / 0.4 = 2.5). Fidelity starts at 1 for every start: a follower's lag lives in know-how (V3-BUILD V1 notes, start
- *  state), and a lower start fidelity would count the lag twice. */
-export const START_EXPLOIT_MULT: Record<StartType, number> = { leader: 1, challenger: 1, bigtech: 1, spinout: 1 / HARDENED_FACTOR };
+ *  (Google DeepMind, Meta) start red-teamed; the spinout starts on bought environments without red-teaming, at the raw
+ *  2025 hack rates above (× 2.5: SWE 0.45, ML research 0.30). Fidelity starts at 1 for every start: a follower's lag
+ *  lives in know-how (V3-BUILD V1 notes, start state), and a lower start fidelity would count the lag twice. */
+export const START_EXPLOIT_MULT: Record<StartType, number> = { leader: 1, challenger: 1, bigtech: 1, spinout: 2.5 };
 
-/** S2 at the reference recipe (standard RL budget, broad, hardened graders) in V1: the family table's S2 under broad
- *  (0.5 × (0.2 + 0.6 + 0.4) = 0.6) × standard 1 × hardened 0.6 = 0.36. The suites' S2 constant is solved so the start
- *  suites under broad RL reproduce it (models/suites.ts S2_PER_EXPLOIT). */
-export const S2_REF = 0.36;
+/** S2 per unit of exploitable RL share (RD-T07, stated directly) [D]: S2 = S2_PER_EXPLOIT · Σ_f share_f · x_f (× the RL
+ *  budget's optimisation pressure, safety/traits.ts), where share_f is the RL compute share on family f and x_f its
+ *  suite's exploitability. 5.5: S2 saturates (1) once 1/5.5 ≈ 18% of the RL compute lands on gameable tasks, the start
+ *  SWE suite's rate, so a run focused on SWE's start suite at the standard budget teaches hacking at the full rate; a
+ *  broad run on the start suites (6.5% gameable) reads 0.36. */
+export const S2_PER_EXPLOIT = 5.5;
 
 /** Expert data: the start suites hold EXPERT_START_T per family (T tokens) = fidelity 1 [D, sourced per unit]: Epoch's
  *  RL-environment FAQ [P, research/12 §2]: tasks cost $200–2,000 each (≈ $1k), whole web-app replicas $20k–300k; a
@@ -51,11 +46,23 @@ export const EXPERT_PRICE_B_PER_T = 50;
  *  §6]) = 0.02T = 10 × a start suite's E₀ (a build with demos from the start stock: fidelity 1 → 1.36). Units [D]:
  *  ≈ 200k expert-days of recorded work at ≈ 100k tokens and ≈ $5k a day. Repeatable, like any build. */
 export const DEMO_BUILD = { family: 'longHorizon', needs: 'P12', tokensT: 1 / EXPERT_PRICE_B_PER_T, tw: 4 } as const;
-/** Fidelity from the expert data built into a suite, E (T): fid = max − (max − 1)·(E₀/E)^γ, clamped at `min` [D]: 1 at
- *  the start stock E₀, ×2 the data → 1.15, ×4 → 1.25, ×16 → 1.375, never above 1.5. Bounded like Khatri et al.'s
- *  asymptote (research/20 C1: environment and recipe choices rarely move A; the base sets most of it), with diminishing
- *  returns in data. `min` 0.5 at E₀/4. */
+/** Tasks per expert token (RD-T07, DD-07): one task = TASK_TOKENS_T T tokens of expert data (20k tokens: a task
+ *  statement, tests or a rubric and a reference solution [D], as EXPERT_START_T above), so a suite's tasks = the expert
+ *  tokens its builds bought ÷ TASK_TOKENS_T; the start suites hold START_TASKS = 100k each. */
+export const START_TASKS = 100_000;
+export const TASK_TOKENS_T = EXPERT_START_T / START_TASKS;
+/** Fidelity = f(tasks × grader quality) (RD-T07, DD-07) [D]: n = live tasks × g ÷ START_TASKS, the suite's sound tasks
+ *  relative to a start suite, where grader quality g = (1 − x) ÷ (1 − x₀) is the share of tasks with an ungameable
+ *  grader relative to the suite's start graders (x₀ the start type's exploitability: hardening raises g as it cuts x).
+ *  fid = max − (max − 1)·n^(−γ), clamped at `min`: 1 at a start suite, ×2 the sound tasks → 1.15, ×4 → 1.25, ×16 →
+ *  1.375, never above 1.5. Bounded like Khatri et al.'s asymptote (research/20 C1: environment and recipe choices
+ *  rarely move A; the base sets most of it), with diminishing returns in tasks. `min` 0.5 at n = 1/4. */
 export const FIDELITY = { max: 1.5, gamma: 0.5, min: 0.5 } as const;
+/** Suites go stale (RD-T07, DD-07) [D]: without upkeep a suite loses half its live tasks in `halfLifeMonths` (tools and
+ *  APIs drift, sandboxes break, models outgrow and memorise tasks; METR's 2025 task-horizon doubling ≈ 7 months), so its
+ *  fidelity falls; met upkeep holds them. Short upkeep decays at the unmet share of the rate (the 'upkeep' need's
+ *  coverage, departments/build.ts). Lost tasks come back only with new builds. */
+export const SUITE_DECAY = { halfLifeMonths: 6, daysPerMonth: 365 / 12 } as const;
 
 /** A build: buys `tokensT` of expert data (cash = tokens × EXPERT_PRICE_B_PER_T = $0.1B, paid when queued) and the
  *  engineers build it into environments, `twPerStart` team-weeks per E₀ of data (harnesses, graders, sandboxes; Epoch's
@@ -65,12 +72,12 @@ export const SUITE_BUILD = { tokensT: EXPERT_START_T, twPerStart: 2 } as const;
 /** A hardening pass [D]: cuts exploitability by `cut` of its distance to the floor (x ← floor + (x − floor)·(1 − cut):
  *  each pass removes less, diminishing returns), floor = `floorFrac` × the family's start (hardened) value (some exploits
  *  survive every red team; METR still finds ≈ 1–2% hacks in GPT-5's runs, research/20 F1). Cost grows with the suite:
- *  `tw` team-weeks and `cashB` $B of expert red-teamers × √(E/E₀). Two passes take cheap graders to about hardened
- *  (0.6² = 0.36 vs 0.4). P15 (AI-assisted oversight, model v3 E13) hands part of the red-teaming to the safety agents:
+ *  `tw` team-weeks and `cashB` $B of expert red-teamers × √(tasks ÷ START_TASKS). Two passes take a spinout's bought
+ *  suite to about a red-teamed one (0.6² = 0.36 vs 0.4). P15 (AI-assisted oversight, model v3 E13) hands part of the red-teaming to the safety agents:
  *  cheaper cash and a deeper cut (data/v2/safetyIdeas.ts P15_OVERSIGHT, safety/ideas.ts aiOversight). */
 export const SUITE_HARDEN = { cut: 0.4, floorFrac: 0.1, tw: 1.5, cashB: 0.05 } as const;
-/** Upkeep [D]: every suite keeps `tw` team-weeks a week busy × √(E/E₀) (environment maintenance as models and tools
- *  change), on the engineers' upkeep need with products, monitors and features. Six start suites ≈ 0.18 team-weeks a
+/** Upkeep [D]: every suite keeps `tw` team-weeks a week busy × √(tasks ÷ START_TASKS) (environment maintenance as models and tools
+ *  change; short of it the suite decays, SUITE_DECAY), on the engineers' upkeep need with products, monitors and features. Six start suites ≈ 0.18 team-weeks a
  *  week, ≈ 3% of the leader's start capacity. */
 export const SUITE_UPKEEP = { tw: 0.03 } as const;
 

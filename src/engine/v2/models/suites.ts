@@ -3,23 +3,26 @@
 // One suite per RL family, owned by the lab (PlayerLab.suites). A family with no suite has no environments: broad RL
 // leaves it out and a run cannot focus on it, and it costs no upkeep. The six start families have suites from day 0; a
 // family unlocked later (computer use, P06) has none until the lab builds its first suite (RD-B03, DD-07): the first
-// build creates it at fidelity 1 (E₀ of expert data) with the start type's exploitability.
-//   fidelity        fid_f = FIDELITY(expert data built into the suite, the family's `expert:<f>` asset): scales the
+// build creates it at fidelity 1 (START_TASKS tasks) with the start type's exploitability.
+//   fidelity        fid_f = FIDELITY(n), n = live tasks × grader quality ÷ START_TASKS (RD-T07, DD-07): scales the
 //                   family's RL ceiling A_f = fid_f · (A_base + a_RL) (effective.ts rlGains). The RL-ceiling stack
 //                   (research line "Environments & rewards", a_RL) is the lab-wide method for making environments and
 //                   rewards; a suite's fidelity is how much of it this family's environments realise
-//   exploitability  x_f, the share of the suite's tasks whose scorer a policy can game: S2 = S2_PER_EXPLOIT ·
+//   tasks           the expert tokens builds bought ÷ TASK_TOKENS_T; they go stale without upkeep (half-life
+//                   SUITE_DECAY.halfLifeMonths at zero upkeep, decaySuites from the build system), held by met upkeep
+//   grader quality  g = (1 − x) ÷ (1 − x₀): the share of tasks with a sound grader against the suite's start graders
+//   exploitability  x_f, the share of the suite's tasks whose grader a policy can game: S2 = S2_PER_EXPLOIT ·
 //                   Σ_f (RL compute share_f · x_f) × the RL budget's optimisation pressure (safety/traits.ts)
-//   build           cash for expert data + engineer team-weeks (build queue); the data joins the asset when built.
+//   build           cash for expert data + engineer team-weeks (build queue); the tasks join the suite when built.
 //                   Builds are the only way to buy expert data, and suites its only reader (DD-07)
 //   demos build     (long tasks, needs P12) a premium build that also buys DEMO_BUILD's long-horizon human
 //                   demonstrations: more expert data in the suite (fidelity up) at the one expert-data price
 //   harden         cash for expert red-teamers + team-weeks; x ← floor + (x − floor)·(1 − cut) (diminishing returns)
-//   upkeep          every suite keeps engineers busy (build.ts upkeepLines, the 'upkeep' need)
+//   upkeep          every suite keeps engineers busy (build.ts upkeepLines, the 'upkeep' need); short of it, it decays
 // A post-training run freezes its suites' fidelity and exploitability at launch (TrainingRun.recipe), like its RL recipe.
 import {
-  DEMO_BUILD, EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_REF, START_EXPLOIT_MULT, SUITE_BUILD, SUITE_HARDEN,
-  SUITE_UPKEEP,
+  DEMO_BUILD, EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_PER_EXPLOIT, START_EXPLOIT_MULT, START_TASKS,
+  SUITE_BUILD, SUITE_DECAY, SUITE_HARDEN, SUITE_UPKEEP, TASK_TOKENS_T,
 } from '../../../data/v2/suites';
 import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
 import { RL_FAMILIES, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
@@ -38,7 +41,8 @@ export const START_SUITE_FAMILIES: RLFamily[] = RL_FAMILY_IDS.filter((f) => !RL_
 export const familyUnlocked = (s: GameStateV2, f: RLFamily) => !RL_FAMILY_NEEDS[f] || nodeKnown(s, RL_FAMILY_NEEDS[f] as string);
 
 const startMult = (s: Pick<GameStateV2, 'setup'>) => START_EXPLOIT_MULT[(s.setup.start ?? 'leader') as StartType] ?? 1;
-const startSuite = (f: RLFamily, mult: number): EnvSuite => ({ exploit: Math.min(1, EXPLOIT_START[f] * mult), builds: 0, hardenings: 0 });
+const startExploit = (f: RLFamily, mult: number) => Math.min(1, EXPLOIT_START[f] * mult);
+const startSuite = (f: RLFamily, mult: number, tasks = START_TASKS): EnvSuite => ({ exploit: startExploit(f, mult), tasks, builds: 0, hardenings: 0 });
 
 /** Start suites of a start type: the six start families, start exploitability × the start type's multiplier. */
 export function startSuites(start: StartType = 'leader'): Partial<Record<RLFamily, EnvSuite>> {
@@ -67,8 +71,8 @@ export function suiteOf(s: GameStateV2, f: RLFamily): EnvSuite | undefined {
 export const suiteFamilies = (s: GameStateV2): RLFamily[] => RL_FAMILY_IDS.filter((f) => suiteOf(s, f));
 /** Families whose environments can exist (the idea is known) but have no suite yet: the lab can build the first one. */
 export const unbuiltSuiteFamilies = (s: GameStateV2): RLFamily[] => RL_FAMILY_IDS.filter((f) => familyUnlocked(s, f) && !suiteOf(s, f));
-/** The suite a family's first build creates (RD-B03): the start type's exploitability, no work done yet. */
-export const firstSuite = (s: GameStateV2, f: RLFamily): EnvSuite => startSuite(f, startMult(s));
+/** The suite a family's first build creates (RD-B03): the start type's exploitability, no tasks yet (the build adds them). */
+export const firstSuite = (s: GameStateV2, f: RLFamily): EnvSuite => startSuite(f, startMult(s), 0);
 
 const findExpert = (s: GameStateV2, f: RLFamily) =>
   s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.kind === 'expert' && a.id === expertAssetId(f));
@@ -77,11 +81,24 @@ export function suiteExpertT(s: GameStateV2, f: RLFamily): number {
   if (!suiteOf(s, f)) return 0;
   return findExpert(s, f)?.tokensT ?? EXPERT_START_T;
 }
-/** Fidelity from expert data E (T): max − (max − 1)·(E₀/E)^γ, ≥ min. 1 at the start stock. */
-export const fidelityOf = (expertT: number) =>
-  expertT <= 0 ? FIDELITY.min : Math.max(FIDELITY.min, FIDELITY.max - (FIDELITY.max - 1) * Math.pow(EXPERT_START_T / expertT, FIDELITY.gamma));
+/** Tasks an amount of expert data makes (TASK_TOKENS_T per task). */
+export const tasksOf = (tokensT: number) => Math.max(0, tokensT) / TASK_TOKENS_T;
+/** Grader quality of a suite with exploitability x (RD-T07): (1 − x) ÷ (1 − x₀), the share of its tasks with a sound
+ *  grader against the start type's start graders x₀ (1 for a suite never hardened; hardening raises it). */
+export const graderQuality = (s: Pick<GameStateV2, 'setup'>, f: RLFamily, x: number) => (1 - Math.min(1, x)) / Math.max(1e-9, 1 - startExploit(f, startMult(s)));
+/** Fidelity of `tasks` live tasks at grader quality g: max − (max − 1)·n^(−γ), n = tasks·g ÷ START_TASKS, ≥ min.
+ *  1 for a start suite (START_TASKS tasks, start graders). */
+export const fidelityOf = (tasks: number, g = 1) => {
+  const n = (Math.max(0, tasks) * Math.max(0, g)) / START_TASKS;
+  return n <= 0 ? FIDELITY.min : Math.max(FIDELITY.min, FIDELITY.max - (FIDELITY.max - 1) * Math.pow(n, -FIDELITY.gamma));
+};
+/** Fidelity of a suite object (its live tasks and grader quality). */
+export const fidelityOfSuite = (s: Pick<GameStateV2, 'setup'>, f: RLFamily, x: EnvSuite) => fidelityOf(x.tasks, graderQuality(s, f, x.exploit));
 /** A suite's fidelity; 0 without a suite (no environments: no RL on the family). */
-export const suiteFidelity = (s: GameStateV2, f: RLFamily) => (suiteOf(s, f) ? fidelityOf(suiteExpertT(s, f)) : 0);
+export const suiteFidelity = (s: GameStateV2, f: RLFamily) => {
+  const x = suiteOf(s, f);
+  return x ? fidelityOfSuite(s, f, x) : 0;
+};
 
 /** Fidelity and exploitability of every suite (the snapshot a post-training run freezes at launch). */
 export function suiteFidMap(s: GameStateV2): FamilyMap {
@@ -99,20 +116,17 @@ export function suiteExploitMap(s: GameStateV2): FamilyMap {
  *  dropped here and refused by planRun). */
 export const suiteRlWeights = (s: GameStateV2, focus: PostDesign['rlFocus']): FamilyMap => rlWeights(focus, suiteFamilies(s));
 
-/** S2 per unit of RL-share-weighted exploitability [fit]: the start suites under broad RL at the standard budget give
- *  V1's reference S2 (0.36: the family table under broad × hardened graders). */
-export const S2_PER_EXPLOIT = (() => {
-  const w = rlWeights('broad', START_SUITE_FAMILIES);
-  return S2_REF / START_SUITE_FAMILIES.reduce((a, f) => a + (w[f] ?? 0) * EXPLOIT_START[f], 0);
-})();
-/** S2 before the RL budget's pressure: S2_PER_EXPLOIT · Σ_f w_f · x_f (MODEL-V3 §11.2: RL FLOP share × exploitability). */
+/** S2 per unit of exploitable RL share, stated directly (data/v2/suites.ts S2_PER_EXPLOIT, RD-T07). */
+export { S2_PER_EXPLOIT };
+/** S2 before the RL budget's pressure, the one formula: S2_PER_EXPLOIT · Σ_f w_f · x_f (MODEL-V3 §11.2: RL compute
+ *  share × exploitability). */
 export const suiteS2 = (w: FamilyMap, exploit: FamilyMap) =>
   S2_PER_EXPLOIT * (Object.entries(w) as [RLFamily, number][]).reduce((a, [f, wf]) => a + wf * (exploit[f] ?? EXPLOIT_START[f]), 0);
 
 // ───────────────────────────── work on a suite ─────────────────────────────
 
-/** Size of a suite relative to the start stock (√ scales hardening and upkeep). */
-const sizeOf = (s: GameStateV2, f: RLFamily) => Math.sqrt(Math.max(1e-9, suiteExpertT(s, f)) / EXPERT_START_T);
+/** Size of a suite relative to a start suite, √(live tasks ÷ START_TASKS) (scales hardening and upkeep). */
+const sizeOf = (s: GameStateV2, f: RLFamily) => Math.sqrt(Math.max(1e-9, suiteOf(s, f)?.tasks ?? 0) / START_TASKS);
 /** Hardening floor of a family: floorFrac × its start (hardened) exploitability. */
 export const exploitFloor = (f: RLFamily) => SUITE_HARDEN.floorFrac * EXPLOIT_START[f];
 /** Exploitability after one hardening pass that cuts `cut` of the distance to the floor (default: humans alone, D5's
@@ -149,10 +163,11 @@ export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork, demo
 /** Fidelity after a build and exploitability after a hardening pass (the action's before → after). */
 export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): { fid: [number, number]; exploit: [number, number] } {
   const fid = suiteFidelity(s, f);
-  const x = (suiteOf(s, f) ?? firstSuite(s, f)).exploit;
-  return work === 'build'
-    ? { fid: [fid, fidelityOf(suiteExpertT(s, f) + buildTokensT(demos))], exploit: [x, x] }
-    : { fid: [fid, fid], exploit: [x, hardenedExploit(f, x, hardenCut(s))] };
+  const su = suiteOf(s, f) ?? firstSuite(s, f);
+  const x = su.exploit;
+  if (work === 'build') return { fid: [fid, fidelityOf(su.tasks + tasksOf(buildTokensT(demos)), graderQuality(s, f, x))], exploit: [x, x] };
+  const x1 = hardenedExploit(f, x, hardenCut(s));
+  return { fid: [fid, fidelityOf(su.tasks, graderQuality(s, f, x1))], exploit: [x, x1] };
 }
 
 /** Build-queue reference of suite work: `<family>:build`, `<family>:build:demos` (a demos build) or `<family>:harden`. */
@@ -182,7 +197,7 @@ export function materialiseSuite(s: GameStateV2, f: RLFamily): EnvSuite | undefi
 /** Migration 44 → 45 (RD-B03): a save from before the fix read an unlocked family's missing suite as a free start
  *  suite (fidelity 1); store it so the save keeps what it had. */
 export function keepUnlockedSuite(s: GameStateV2, f: RLFamily): void {
-  (s.player.suites ??= {})[f] ??= firstSuite(s, f);
+  (s.player.suites ??= {})[f] ??= startSuite(f, startMult(s));
   if (!findExpert(s, f)) s.player.dataPortfolio.assets.push(expertAsset(f, EXPERT_START_T));
 }
 /** A family's first suite (RD-B03): stored with an empty expert asset, which the finishing build fills. */
@@ -203,13 +218,15 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
   if (!x) return;
   if (r.work === 'build') {
     const a = findExpert(s, r.family)!;
-    const before = fidelityOf(a.tokensT);
+    const before = fidelityOfSuite(s, r.family, x);
     a.tokensT += buildTokensT(r.demos);
     a.day = ctx.day;
+    x.tasks = (x.tasks ?? 0) + tasksOf(buildTokensT(r.demos));
     x.builds++;
+    const after = fidelityOfSuite(s, r.family, x);
     ctx.log('research', first
-      ? `Engineers finished the first ${RL_FAMILY_LABEL[r.family]} environments: post-training can now train on them (fidelity ${fidelityOf(a.tokensT).toFixed(2)}).`
-      : `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments${r.demos ? ' with long-horizon human demonstrations' : ''}: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
+      ? `Engineers finished the first ${RL_FAMILY_LABEL[r.family]} environments: post-training can now train on them (fidelity ${after.toFixed(2)}).`
+      : `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments${r.demos ? ' with long-horizon human demonstrations' : ''}: fidelity ${before.toFixed(2)} → ${after.toFixed(2)}.`, 1, r.family);
   } else {
     const before = x.exploit;
     x.exploit = hardenedExploit(r.family, x.exploit, hardenCut(s));
@@ -220,8 +237,30 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
 
 /** Migration 64 → 65 (RD-T06): expert data bought by domain (the removed data.expert) joins a family's suite. */
 export function creditSuiteExpertData(s: GameStateV2, f: RLFamily, tokensT: number): void {
-  if (!(tokensT > 0) || !materialiseSuite(s, f)) return;
+  const x = tokensT > 0 ? materialiseSuite(s, f) : undefined;
+  if (!x) return;
   findExpert(s, f)!.tokensT += tokensT;
+  x.tasks = (x.tasks ?? START_TASKS) + tasksOf(tokensT);
+}
+/** Migration 65 → 66 (RD-T07): a stored suite's live tasks = its expert data ÷ TASK_TOKENS_T (nothing stale yet). */
+export function restateSuiteTasks(s: GameStateV2): void {
+  for (const f of RL_FAMILY_IDS) {
+    const x = s.player?.suites?.[f];
+    if (x) x.tasks = tasksOf(findExpert(s, f)?.tokensT ?? EXPERT_START_T);
+  }
+}
+
+/** Daily decay of the suites' live tasks (RD-T07): half-life SUITE_DECAY.halfLifeMonths at zero upkeep, scaled by the
+ *  unmet share of the 'upkeep' need (`coverage` = served ÷ needed, 0–1; departments/build.ts). Met upkeep holds them.
+ *  Start families missing from the state are stored first, so their decay sticks. */
+export function decaySuites(s: GameStateV2, coverage: number, days = 1): void {
+  const short = 1 - Math.max(0, Math.min(1, coverage));
+  if (!(short > 1e-12)) return;
+  const k = Math.pow(0.5, (short * days) / (SUITE_DECAY.halfLifeMonths * SUITE_DECAY.daysPerMonth));
+  for (const f of suiteFamilies(s)) {
+    const x = materialiseSuite(s, f);
+    if (x) x.tasks *= k;
+  }
 }
 
 /** Upkeep of a family's suite, team-weeks per week: SUITE_UPKEEP.tw × √(E/E₀). */
@@ -280,7 +319,7 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
 
 // ───────────────────────────── readout (Blueprint today, D6's suites view) ─────────────────────────────
 
-export interface SuiteRow { family: RLFamily; label: string; fid: number; exploit: number; expertT: number; share: number; builds: number; hardenings: number; pending: SuiteWork[] }
+export interface SuiteRow { family: RLFamily; label: string; fid: number; exploit: number; expertT: number; tasks: number; grader: number; share: number; builds: number; hardenings: number; pending: SuiteWork[] }
 /** Every suite with its fidelity, exploitability, expert data and the RL share a post-train with `focus` gives it;
  *  `weighted` = the RL-share-weighted fidelity and exploitability, `s2` = the S2 before the RL budget's pressure. */
 export function suitesView(s: GameStateV2, focus: PostDesign['rlFocus'] = 'broad'): { rows: SuiteRow[]; weighted: { fid: number; exploit: number }; s2: number } {
@@ -288,7 +327,7 @@ export function suitesView(s: GameStateV2, focus: PostDesign['rlFocus'] = 'broad
   const rows = suiteFamilies(s).map((f): SuiteRow => {
     const x = suiteOf(s, f)!;
     const pending = (['build', 'harden'] as SuiteWork[]).filter((k) => queuedSuiteWork(s, f, k));
-    return { family: f, label: RL_FAMILY_LABEL[f], fid: suiteFidelity(s, f), exploit: x.exploit, expertT: suiteExpertT(s, f), share: w[f] ?? 0, builds: x.builds, hardenings: x.hardenings, pending };
+    return { family: f, label: RL_FAMILY_LABEL[f], fid: suiteFidelity(s, f), exploit: x.exploit, expertT: suiteExpertT(s, f), tasks: x.tasks, grader: graderQuality(s, f, x.exploit), share: w[f] ?? 0, builds: x.builds, hardenings: x.hardenings, pending };
   });
   const weighted = rows.reduce((a, r) => ({ fid: a.fid + r.share * r.fid, exploit: a.exploit + r.share * r.exploit }), { fid: 0, exploit: 0 });
   return { rows, weighted, s2: suiteS2(w, suiteExploitMap(s)) };
