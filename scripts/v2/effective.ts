@@ -3,10 +3,10 @@
 //   bounded by its ceiling; distillation never above the teacher; continued pretraining adds effective compute; wall
 //   time ∝ 1/compute with no floor; a fixed physical run gives the same G whatever its start date (the v2 calendar
 //   bug); the start state (V0 at research/12's G ≈ 28.0, pm(V0) = the reference start for every start type).
-import { DOMAIN_IDS, REF_OFF } from '../../src/data/v2/calibration';
+import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { COGNITIVE, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { gOfBuild, gV0, playerStart } from '../../src/engine/v2/models/capability';
+import { domainRefShift, gOfBuild, gV0, levelOfG, playerStart } from '../../src/engine/v2/models/capability';
 import { B_G_PER_Y } from '../../src/data/v2/runDesign';
 import {
   REF_RL_PROFILE, continueGPre, distillGap, effectiveTokens, fData, fOver, flopOfDesign, rlCeiling, rlFamiliesAvailable, rlGains, rlWeights, trainFlop,
@@ -79,8 +79,8 @@ const V0 = s0.player.models.versions[0];
 // fitted at 50, so V0 sits the overtraining factor lower (log₁₀ f_over(400) − log₁₀ f_over(50) = −0.31 OOM), no new term.
 check(near(gV0(w0), 28.0 - 0.307, 0.1) && near(gOfBuild(V0.build!), gV0(w0), 1e-9), 'start: V0 at G ≈ 27.7 (research/12 Aug-2025 anchor 28.0 less the overtraining of a 400-tokens-per-parameter base), incl. ≈ 0.7 OOM RL', `G ${gOfBuild(V0.build!).toFixed(3)}, RL ${V0.build!.dgRL.toFixed(2)}`);
 check(V0.G === gOfBuild(V0.build!), 'start: G(V0) is its build\'s G (the reference start)');
-const v0Off = Object.fromEntries(DOMAIN_IDS.map((d) => [d, V0.domains[d] - Math.min(15, Math.max(0, V0.Lg + REF_OFF[d]))]));
-check(Object.values(v0Off).every((x) => Math.abs(x) < 0.25), 'start: the reference recipe reproduces the 2025 domain profile (|L_d − Lg − profile| < 0.25 L)', JSON.stringify(Object.fromEntries(Object.entries(v0Off).map(([k, v]) => [k, +v.toFixed(2)]))));
+const v0Off = Object.fromEntries(DOMAIN_IDS.map((d) => [d, V0.domains[d] - Math.min(15, Math.max(0, levelOfG(w0, V0.G - domainRefShift(w0, d))))]));
+check(Object.values(v0Off).every((x) => Math.abs(x) < 0.25), 'start: the reference recipe reproduces the reference-point domain profile (|L_d − λ(G − shift_d)| < 0.25 L, RD-U05)', JSON.stringify(Object.fromEntries(Object.entries(v0Off).map(([k, v]) => [k, +v.toFixed(2)]))));
 for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
   const t = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
   const ps = playerStart(t.hidden.timeline);

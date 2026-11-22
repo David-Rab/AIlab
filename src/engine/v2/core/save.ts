@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, SectorId } from '../types';
+import type { GameStateV2, SectorId, VersionBuild } from '../types';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
@@ -45,8 +45,10 @@ import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
  *  47 (RD-U01): one capability currency. VersionBuild.offL (design offsets in levels) and the derived VersionBuild.off
  *  become VersionBuild.dgD (domain ΔG, OOM, part of gOfDomain); BaseModel.off (never written) is gone. Migration
  *  46 → 47 converts every stored build's offL at the 1.2 L per OOM the fit applied (so the fit is unchanged) and
- *  recomputes the player's version domain levels as λ(G_d). */
-export const SCHEMA_REV = 47;
+ *  recomputes the player's version domain levels as λ(G_d).
+ *  48 (RD-U05): domain levels are scores against the domain's best human (models/capability.ts domainsOf); v2's display offsets are
+ *  gone. Migration 47 → 48 recomputes every stored domain-level record. */
+export const SCHEMA_REV = 48;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -310,6 +312,29 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const p19 = adopted(s, 'P19');
       for (const v of s.player.models?.versions ?? []) if (v.build) v.domains = domainsOf(w, v.G, v.build, p19);
     }
+  },
+  /** 47 → 48 (RD-U05): every stored domain-level record (player versions with their build and P19, rivals' and the
+   *  hidden models from G: found by shape G + Lg + domains) is recomputed as the score against the domain's best human.
+   *  Idempotent. */
+  47: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden?.timeline;
+    if (!w?.v3) return;
+    const seen = new Set<object>();
+    const walk = (x: unknown, p19: boolean) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return;
+      seen.add(x);
+      if (Array.isArray(x)) { for (const y of x) walk(y, p19); return; }
+      const o = x as Record<string, unknown>;
+      if (typeof o.G === 'number' && typeof o.Lg === 'number' && o.domains && typeof o.domains === 'object') {
+        const b = o.build as VersionBuild | undefined;
+        o.domains = domainsOf(w, o.G, b && 'gPre' in b ? b : undefined, p19);
+      }
+      for (const y of Object.values(o)) walk(y, p19);
+    };
+    walk(s.player, !!s.player && adopted(s, 'P19'));
+    walk(s.rivals, false);
+    walk(s.hidden, false);
   },
 };
 

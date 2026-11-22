@@ -1,7 +1,7 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { B0_START_DAY, LEVEL_KNOTS, P19_RSCH_DG, REF_OFF, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
+import { B0_START_DAY, LEVEL_KNOTS, P19_RSCH_DG, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { multiplierAt, stage1 } from '../../../data/world';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
@@ -113,14 +113,33 @@ export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId
   return d === 'RSCH' && hasP19 ? g + P19_RSCH_DG : g;
 }
 
-/** Domain levels L_d = λ(G_d) − o_d, clamped to [0, 15] (MODEL-V3 §2.3; RD-U01): G_d the version's domain effective
- *  compute (versionDomainG: training, data and design specialisation, all in OOM), o_d = −REF_OFF[d] the domain's
- *  constant display difficulty (the 2025 profile; RD-U05). A version without a build (a rival's model) reads G for
- *  every domain. The display moves exactly as the fit does. */
+/** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
+ *  refDelta(sd_SC)[d] (data/v2/workTypes.ts: the human reference points the work fit reads, departments/workfit.ts
+ *  refPoints; RD-U05). Memo per world calibration, as refPoints'. */
+const shiftMemo = new WeakMap<TimelineWorld['v3'], Record<DomainId, number>>();
+export function domainRefShift(w: TimelineWorld, d: DomainId): number {
+  let m = shiftMemo.get(w.v3);
+  if (!m) {
+    const rd = refDelta(w.v3.sdSC);
+    m = {} as Record<DomainId, number>;
+    for (const k of DOMAIN_IDS) m[k] = rd[k] * w.v3.dBM;
+    shiftMemo.set(w.v3, m);
+  }
+  return m[d];
+}
+
+/** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain
+ *  effective compute (versionDomainG: training, data and design specialisation, all in OOM) measured against that
+ *  domain's best human, best_d = G_SC + δ_d·Δ_bm, on the general 0–15 scale. So L_d = 10 exactly when the model
+ *  matches the best human in domain d (the superhuman-coder knot is the CODE / AGENCY best human), λ(G_SC − Δ_bm) at
+ *  that domain's median expert, and an OOM above or below counts as it does on the general scale. Domain difficulty
+ *  lives only in the human reference points (refDelta); v2's per-domain display offsets are gone. A version without a
+ *  build (a rival's model) reads G for every domain. The display moves exactly as the fit does. Danger flags,
+ *  dangerous benchmarks, misuse / exfiltration capability and rival hazards read this same score. */
 export function domainsOf(w: TimelineWorld, G: number, b?: VersionBuild, hasP19 = false): Record<DomainId, number> {
   const out = {} as Record<DomainId, number>;
   const v = { G, build: b };
-  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d, hasP19)) + REF_OFF[d], 0, 15);
+  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d, hasP19) - domainRefShift(w, d)), 0, 15);
   return out;
 }
 

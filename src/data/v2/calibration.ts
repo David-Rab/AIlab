@@ -121,19 +121,6 @@ export const SHARE_REF: { year: number; share: ComputeSplit }[] = [
 export const LEVEL_KNOTS = [5, 6.5, 8.5, 10, 12, 13.5, 15];
 
 export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
-/** Domain offsets relative to CODE (§3.1.5): each domain's constant difficulty offset o_d (models/capability.ts
- *  domainsOf), v2's 2025 profile (column 0 of its era table; the scripted later columns went in RD-C05; refit in RD-U05). */
-export const REF_OFF: Record<DomainId, number> = {
-  CODE: 0,
-  RSCH: 0,
-  REASON: 0,
-  AGENCY: -1,
-  SOCIAL: 0,
-  MEDIA: 0,
-  CYBER: -1,
-  BIO: 0,
-  PHYS: -4,
-};
 /** Learned research taste (P19, R12 §0.4) adds this to the RSCH domain's effective compute (OOM; RD-U01: was v2's
  *  −0.5 L RSCH taste penalty that P19 removed, ÷ 1.2 as the fit applied it). The fit and the displayed RSCH level
  *  λ(G_RSCH) both read it; v2's display-only −0.5 L for a lab without P19 is gone (the fit never had it: the human
