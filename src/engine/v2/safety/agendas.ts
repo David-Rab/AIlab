@@ -226,7 +226,7 @@ export const safetyResearchSystem: EngineSystem = {
     recomputeComputeShares(s);
     for (const a of AGENDAS) {
       const st = dept.agendas[a.id];
-      if (st.status !== 'deadEnd') st.status = lineStaffed(s, a.id) ? 'active' : 'idle';
+      st.status = lineStaffed(s, a.id) ? 'active' : 'idle';
     }
     upkeepStep(s);
     investigationsStep(s, ctx);

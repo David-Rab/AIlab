@@ -310,7 +310,6 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       id = row?.id ?? nextId(s, `${agenda}-DEAD`);
       title = row?.title ?? 'A line of attack dead-ends';
       st.posterior.b += 2;
-      if (st.posterior.a / (st.posterior.a + st.posterior.b) < 0.25) st.status = 'deadEnd';
       break;
     }
     case 'NEG': {

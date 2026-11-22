@@ -1,5 +1,5 @@
 // Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E19, E25, E30). Owner: WS4 (content
-// shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / fix quietly / deny.
+// shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / keep it quiet / deny.
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
@@ -61,7 +61,7 @@ function dilemma(what: string, credGain: number, scrut: number) {
       disclosureTrust(s, ctx, ['exec', 'evalGov', 'evalIndep'], 4, `disclosed ${what}`);
       ws4(s).disclosed++;
     }),
-    ch('Fix quietly', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'every audience if found', { probability: discoveryOdds(s), lagDays: 90 }), L('credibility', 15, 'if found', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0, 'no attention now')], exposure: [] }), (s: GameStateV2) => {
+    ch('Keep it quiet', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'every audience if found', { probability: discoveryOdds(s), lagDays: 90 }), L('credibility', 15, 'if found', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0, 'no attention now; nothing is fixed: the flaw stays in the model')], exposure: [] }), (s: GameStateV2) => {
       addCoverup(s, what, discoveryOdds(s), [...ALL_PUBLIC_CPS]);
     }),
     ch('Deny', ['deny'], P([L('credibility', 10, 'gamble', { probability: 0.5 })], [L('scrutiny', 3, 'story dies', { probability: 0.5 })]), (_s: GameStateV2, ctx: SystemCtx) => {
@@ -92,7 +92,7 @@ function firstFindingText(s: GameStateV2): string {
   const inv = [...s.player.safety.investigations].reverse().find((i) => i.target.kind === 'trait' && (i.outcome === 'confirmed' || i.outcome === 'discovery'));
   const vs = s.player.models.versions;
   const v = (inv && inv.target.kind === 'trait' ? vs.find((x) => x.id === (inv.target as { versionId: string }).versionId) : undefined) ?? internalVersion(s) ?? vs[vs.length - 1];
-  const tail = 'Disclose, fix quietly or deny? Flaws found later cost 3× the trust.';
+  const tail = 'Disclose, keep it quiet or deny? Keeping quiet fixes nothing; flaws found later cost 3× the trust.';
   if (!v) return `Your safety team confirmed a real flaw in your model. ${tail}`;
   let trait: TraitId | undefined = inv && inv.target.kind === 'trait' ? inv.target.trait : undefined;
   if (!trait) {

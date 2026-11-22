@@ -938,8 +938,8 @@ export interface EffectiveControl {
 export interface AgendaState {
   computeShare: number; // of the safety pool (E1: its experiments' share, by research engineers × the agenda's compute need)
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
-  /** idle: no team on the line; active: teams on it; deadEnd: posterior mean < 0.25 (projects run at half speed). */
-  status: 'idle' | 'active' | 'deadEnd';
+  /** idle: no team on the line; active: teams on it (SR-01: the dead-end latch is gone). */
+  status: 'idle' | 'active';
   /** Team-months spent on attempts that ended in a dead end. */
   deadEndTM: number;
 }

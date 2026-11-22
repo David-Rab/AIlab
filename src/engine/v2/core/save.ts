@@ -12,6 +12,7 @@ import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
+import { techniqueRole } from '../safety/techniques';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 
@@ -61,8 +62,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  54 (RD-E01a, DD-14): paradigms P13 and P19 are deleted (with P19's RSCH gain) and P24 is an idea in the
  *  pretraining stack: RunRecipe.p24 is gone. Migration 53 → 54 drops P13 / P19 state and draws, folds a run's frozen
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
- *  recomputes stored domain levels without P19. */
-export const SCHEMA_REV = 54;
+ *  recomputes stored domain levels without P19.
+ *  55 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
+ *  detection / containment tools are always active. Migration 54 → 55 unlatches lines and sets those tools active. */
+export const SCHEMA_REV = 55;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -485,6 +488,16 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const o = r as unknown as { internal?: M; publicModel?: M };
       for (const m of [o.internal, o.publicModel]) if (m && m.domains) m.domains = domainsOf(w, m.G, m.build && 'gPre' in m.build ? m.build : undefined);
     }
+  },
+  /** 54 → 55 (SR-01): the dead-end latch and the tool On/Off toggle are gone. A line latched 'deadEnd' becomes 'idle'
+   *  (the safety step sets active / idle from staffing on the next day); every owned detection or containment tool is
+   *  in use (active), as unlockTechnique sets it. Fix methods keep their flag. Idempotent. */
+  54: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const dept = s.player?.safety;
+    if (!dept) return;
+    for (const a of Object.values(dept.agendas ?? {})) if ((a.status as string) === 'deadEnd') a.status = 'idle';
+    for (const t of Object.values(dept.techniques ?? {})) if (t.unlocked && techniqueRole(t) !== 'fix') t.active = true;
   },
 };
 

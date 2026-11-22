@@ -9,7 +9,6 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
 import { hash32 } from '../core/rng';
-import { reValidationMult } from './agendas';
 import { believedEfficacy, clamp01, lambda2Delta } from './common';
 import { oomOfLevel } from './oversight';
 import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
@@ -24,23 +23,16 @@ function detTools(s: GameStateV2): TechniqueState[] {
 
 /**
  * Projection beyond the model the tools were checked on (M4, §3.5.7) [D]. Detectors are validated on today's
- * internal model; how well they work on a more capable one is unknown until they are re-validated, which takes a
- * staffed validation effort (R14 §1.6A). A tool keeps its strength up to VAL_LEAD·√(validation multiplier) levels above
- * the current measured level L₀, then falls as 1/(1 + ((L − L₀ − lead)/VAL_W)²). Believed eval awareness is also
- * projected upward with capability (R14: verbalized EA 11.7% → 41–51% across generations):
- * EA(L) = 1 − (1 − EA₀)·exp(−EA_PROJ·(L − L₀)). Both only apply above L₀, so U starts near L and stays ahead only
- * with enough safety research engineers (R8, STRUCTURE §4.5: free engineers per line with tools ÷ RE_SERIOUS replaces
- * funding; agendas.ts reValidationMult).
+ * internal model; how well they work on a more capable one is unknown, so a tool's strength falls above the current
+ * measured level L₀ as 1/(1 + ((L − L₀)/VAL_W)²). SR-01 deleted the unsourced staffed "validation lead" (SAF-10, U8)
+ * that kept tools at full strength up to 1.5 levels ahead; believed reliability will come from validation evidence
+ * (SAFETY-REDESIGN §6 #3). Believed eval awareness is also projected upward with capability (R14: verbalized EA
+ * 11.7% → 41–51% across generations): EA(L) = 1 − (1 − EA₀)·exp(−EA_PROJ·(L − L₀)). Both only apply above L₀.
  */
-export const VAL_LEAD = 1.5;
 export const VAL_W = 0.75;
 export const EA_PROJ = 0.25;
-export function validationLead(s: GameStateV2, agenda: AgendaId): number {
-  return s.player.safety.agendas[agenda] ? VAL_LEAD * Math.sqrt(reValidationMult(s)) : 0;
-}
-function valAt(dL: number, lead: number): number {
-  const x = dL - lead;
-  return x <= 0 ? 1 : 1 / (1 + (x / VAL_W) ** 2);
+function valAt(dL: number): number {
+  return dL <= 0 ? 1 : 1 / (1 + (dL / VAL_W) ** 2);
 }
 const eaAt = (ea0: number, dL: number) => (dL <= 0 ? ea0 : 1 - (1 - ea0) * Math.exp(-EA_PROJ * dL));
 
@@ -51,7 +43,7 @@ export function detectionAt(s: GameStateV2, v: ModelVersion, trait: TraitId, L: 
 
 /**
  * Believed detection for many levels at once (the U bisection evaluates ~10 levels × the critical traits): everything
- * that does not depend on L — believed efficacy, Goodhart factor, masks, the WB penalty, λ2, validation leads — is
+ * that does not depend on L — believed efficacy, Goodhart factor, masks, the WB penalty, λ2 — is
  * computed once.
  */
 function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: number, draw?: BeliefDraw) {
@@ -72,8 +64,7 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     if (m === undefined) maskCache.set(key, (m = believedMask(s, family, p)));
     return m;
   };
-  const vLead = VAL_LEAD * Math.sqrt(reValidationMult(s)); // validationLead, hoisted (P2)
-  const tl = tools.map((t) => ({ t, pre: t.s0 * (draw?.eff?.[t.agenda] ?? believedEfficacy(s, t.agenda)), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst), lead: s.player.safety.agendas[t.agenda] ? vLead : 0 }));
+  const tl = tools.map((t) => ({ t, pre: t.s0 * (draw?.eff?.[t.agenda] ?? believedEfficacy(s, t.agenda)), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst) }));
   // Per trait: the covering tools in stack order with their mask (BB: with the EA flag; COT: ctl(L) later).
   const rows = new Map<TraitId, { i: number; cov: number; mask: number; fam: ToolFamily; eaPen: boolean }[]>();
   const rowKeys = new Map<TraitId, string[]>();
@@ -109,8 +100,8 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     for (const row of r) {
       let strength = str[row.i];
       if (!done[row.i]) {
-        const { t, pre, g, lead } = tl[row.i];
-        strength = str[row.i] = pre * decayAt(s, t, x, latent) * g * valAt(dL, lead);
+        const { t, pre, g } = tl[row.i];
+        strength = str[row.i] = pre * decayAt(s, t, x, latent) * g * valAt(dL);
         done[row.i] = true;
       }
       let pen = 1;

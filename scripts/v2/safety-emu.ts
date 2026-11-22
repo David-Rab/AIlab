@@ -27,7 +27,6 @@ import { flagNum } from '../../src/engine/v2/safety/common';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { validateJson } from './lib';
 
-const FIX = ['T-PERSONA', 'T-ANTISCHEME', 'T-CONFESS', 'T-CAST', 'T-W2S'];
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
 
 /** Safe-only recipe on reference finance (see header). */
@@ -52,7 +51,6 @@ export const safeRecipeBot: BotPolicy = {
     });
     financeAutopilot(s, REF_AUTOPILOT);
     if (day % 30 === 0) {
-      for (const id of FIX) if (s.player.safety.techniques[id]?.unlocked && !s.player.safety.techniques[id].active) tryAct(s, api, 'safety.technique', { id });
       const iv = internalVersion(s);
       if (iv) {
         for (const t of RED) {

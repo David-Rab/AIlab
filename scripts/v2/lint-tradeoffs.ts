@@ -26,11 +26,6 @@ const linesOf = (p: Pv) => [...p.costs, ...p.gains, ...p.exposure];
 /** RD-B19: a 'progress' line names its unit (L, OOM, %, version, reading, …). */
 const unitless = (p: Pv) => linesOf(p).filter((l) => l.currency === 'progress' && l.amount !== 0 && !l.unit);
 
-// Deviations found when the checks were added (RD-B19), left to their owners' tasks.
-for (const s of states) {
-  KNOWN[`action safety.pledge @day ${s.time.day}: every progress line has a unit`] = 'the pledge\'s Δp line waits on the safety redesign (RD-B04–B06)';
-}
-
 let n = 0;
 for (const a of ACTIONS) {
   for (const s of states) {
@@ -78,9 +73,6 @@ const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> =
 };
 const PENDING: Record<string, string> = {
   'A6 trust': 'the trust line names no counterparty and nothing applies it (relations previews; not RD-B19)',
-  'safety.evalGate credibility': 'no credibility is applied when the gate is set (safety previews; not RD-B19)',
-  'safety.publishPolicy credibility': 'a yearly flow shown as an immediate line (safety previews; not RD-B19)',
-  'safety.publishPolicy talent': 'a yearly flow shown as an immediate line (safety previews; not RD-B19)',
   'starHire trust': 'applied to rivals\' cooperation directly, not as trust (people previews, RD-B18)',
   'wfx.moonshot credibility': 'no credibility is applied at the start (world previews; not RD-B19)',
 };

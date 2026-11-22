@@ -10,16 +10,16 @@ import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
 
-export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number, number]; note: string }> = {
-  patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
-  retrainAgainst: { title: 'Retrain against', days: [14, 14], note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask.' },
-  targetedTraining: { title: 'Targeted training', days: [21, 35], note: 'Technique-specific alignment training (inoculation, anti-scheming…).' },
-  restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
-  addControl: { title: 'Add control', days: [0, 0], note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
-  removeControl: { title: 'Remove control', days: [0, 0], note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
-  rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
-  disclose: { title: 'Disclose', days: [0, 0], note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
-  removeFoothold: { title: 'Remove foothold', days: [14, 30], note: 'A located foothold: safety engineers, agents off for the downtime; its effect ends (model v3 E8).' },
+export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
+  patchSignal: { title: 'Patch signal', note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide); 10 safety research engineers are busy 30–90 days.' },
+  retrainAgainst: { title: 'Retrain against', note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask. Takes effect at once.' },
+  targetedTraining: { title: 'Targeted training', note: 'Technique-specific alignment training (inoculation, anti-scheming…). Takes effect at once.' },
+  restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
+  addControl: { title: 'Add control', note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
+  removeControl: { title: 'Remove control', note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
+  rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
+  disclose: { title: 'Disclose', note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
+  removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
 };
 
 /** Lowest edge multiplier repeated signal patches reach (some of every pressure is irreducible) [D, M4]. */

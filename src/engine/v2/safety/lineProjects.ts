@@ -169,14 +169,13 @@ export function lineLabourMult(s: GameStateV2, ag: AgendaId, truth = true): { id
   return { ideas: l.ideas, exp: l.exp };
 }
 
-/** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research) and a
- *  dead-end line at half speed. No agenda-specific factor: P27, F44 and AG17 act on the lines' AI labour (lineLabour;
+/** Speed modifiers of a line's stages: siloing −5% per level and a custom-ASIC migration −15% (as all research)
+ *  (SR-01: no dead-end half speed). No agenda-specific factor: P27, F44 and AG17 act on the lines' AI labour (lineLabour;
  *  model v3 E13, E14). */
-export function lineSpeed(s: GameStateV2, ag: AgendaId): number {
+export function lineSpeed(s: GameStateV2, _ag: AgendaId): number {
   const p = s.player;
   let v = 1 - 0.05 * p.security.siloing;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > s.time.day) v *= 0.85;
-  if (p.safety.agendas[ag].status === 'deadEnd') v *= 0.5;
   return v;
 }
 

@@ -539,7 +539,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
   const target = l.projects[0]?.id ?? l.next;
   const resTypes: FindingType[] = ['TECH', 'EVAL', 'DISC', 'NEG', 'DEAD'];
   return (
-    <div className={`sf-lrow ${l.status === 'deadEnd' ? 'dead' : ''}`} data-line={l.id}>
+    <div className="sf-lrow" data-line={l.id}>
       <Tip content={() => <TipCard title={l.name} value={COLUMN_LABEL[l.column as keyof typeof COLUMN_LABEL]} rows={[
         { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at serious staffing', value: `${l.T1} mo` },
         { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of serious` }, { label: 'Compute share', value: F.pct(l.computeShare) },
@@ -634,21 +634,21 @@ function ResultsCard({ s, sv }: { s: GameStateV2; sv: SV }) {
 
 function ToolsCard({ sv }: { sv: SV }) {
   const [open, setOpen] = useState(false);
-  const techs = sv.techniques.filter((t) => t.unlocked).sort((a, b) => Number(b.active) - Number(a.active) || a.decay - b.decay);
+  const techs = sv.techniques.filter((t) => t.unlocked).sort((a, b) => a.decay - b.decay);
   return (
     <Card title={<><Term id="technique">Tools</Term> <span className="dim num">{techs.length}</span></>} sub="strength on today's model" home="techniques" className="sf-tools"
       right={<button className="btn btn-sm" data-test="tools-open" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>}>
       {open && (
         <div className="sf-tgrid">
           {techs.map((t) => (
-            <div key={t.id} className={`sf-tool ${t.active || t.role === 'fix' ? '' : 'off'}`} data-technique={t.id}>
-              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method: used in every post-training run while its line is staffed.' : 'A detection or control tool in your safety stack.'}</TipCard>}>
+            <div key={t.id} className="sf-tool" data-technique={t.id}>
+              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method used in your post-training runs.' : 'A detection or control tool in your safety stack. Tools you own are always in use.'}</TipCard>}>
                 <span className="ellip small"><b>{t.name}</b></span>
               </Tip>
               <HBar v={t.strength} max={1} w={70} color={t.decay < 0.5 ? C.bad : C.und} />
               <span className="num small">{F.num(t.strength, 2)}</span>
               {t.trainedAgainst > 0.05 ? <span className="tag2 warn"><Term id="goodhart">masked</Term></span> : t.decay < 0.8 ? <span className="tag2 bad">{F.pct(1 - t.decay)} faded</span> : <span />}
-              {t.role !== 'fix' ? <ActBtn id="safety.technique" testId={`safety.technique.${t.id}`} params={{ id: t.id, active: !t.active }} label={t.active ? 'On' : 'Off'} /> : <span className="tag2">fix</span>}
+              {t.role === 'fix' ? <span className="tag2">fix</span> : <span />}
             </div>
           ))}
         </div>

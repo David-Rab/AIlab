@@ -5,10 +5,13 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { ActionDef, CostLine, GameStateV2, ResponseKind, SafetyDept, TechniqueState, TraitId } from '../types';
+import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TechniqueState, TraitId } from '../types';
 import { believedEfficacy, clamp01, flagNum, versionById } from './common';
 import { measuredOom, oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
+import { gradePlayer } from '../actors/index';
+import { dateOf } from '../core/time';
+import { lineResultsPerYear } from './agendas';
 import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
@@ -19,7 +22,7 @@ import {
   patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
 } from './responses';
 import { ANTISCHEME_EA_MULT, RETRAIN_OBF, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
-import { strengthBelieved, techniqueRole } from './techniques';
+import { strengthBelieved } from './techniques';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
 import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } from './dangerView';
@@ -32,10 +35,28 @@ const str = (p: P, k: string): string | undefined => (typeof p[k] === 'string' ?
 const num = (p: P, k: string): number | undefined => (typeof p[k] === 'number' ? (p[k] as number) : undefined);
 const isTrait = (x: string | undefined): x is TraitId => !!x && (TRAIT_IDS as string[]).includes(x);
 
-function measuredL(s: GameStateV2): number {
-  return internalVersion(s)?.evals.measuredL ?? 0;
-}
 
+/**
+ * SR-01: a policy's Safety Index effect, from gradePlayer on a copy with the change made. Each edition (twice a year)
+ * moves talent pull by (grade − 2)·3 and the safety bloc's approval by (grade − 2)·4 (actors/index.ts), so a grade
+ * change Δg shifts those by Δg·3 and Δg·4 at the next edition.
+ */
+function indexLines(s: GameStateV2, change: (c: GameStateV2) => void): CostLine[] {
+  const c = JSON.parse(JSON.stringify(s)) as GameStateV2;
+  change(c);
+  const dg = gradePlayer(c).overall - gradePlayer(s).overall;
+  if (Math.abs(dg) < 0.005) return [];
+  let lag = 1;
+  for (; lag < 190; lag++) {
+    const d = dateOf(s, s.time.day + lag);
+    if (d.getUTCDate() === 1 && d.getUTCMonth() % 6 === 0) break;
+  }
+  const g = `Safety Index grade ${dg > 0 ? '+' : '−'}${Math.abs(dg).toFixed(2)} at its next edition`;
+  return [
+    { currency: 'talent', amount: r2(dg * 3), lagDays: lag, target: g },
+    { currency: 'approval', amount: r2(dg * 4), lagDays: lag, target: `safety bloc (${g})` },
+  ];
+}
 /** Default investigation target: the internal model's critical trait with the highest believed level. */
 function defaultTarget(s: GameStateV2): { versionId: string; trait: TraitId } | undefined {
   const v = internalVersion(s);
@@ -347,11 +368,29 @@ const PUBLISH: ActionDef = {
 const POLICY: ActionDef = {
   id: 'safety.publishPolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Publish policy',
   available: () => true,
-  preview(_s, p) {
-    const pol = str(p, 'policy') ?? 'all';
-    if (pol === 'all') return { costs: [{ currency: 'leadDays', amount: -10, target: 'per year, findings shared' }], gains: [{ currency: 'credibility', amount: 4, target: 'per year' }, { currency: 'talent', amount: 2 }], exposure: [] };
-    if (pol === 'none') return { costs: [{ currency: 'credibility', amount: -3 }, { currency: 'talent', amount: -1 }], gains: [{ currency: 'leadDays', amount: 5, target: 'advantage kept' }], exposure: [{ currency: 'trust', amount: -3, probability: 0.2, target: 'evaluators find out' }] };
-    return { costs: [{ currency: 'staffTime', amount: 1, target: 'review each finding' }], gains: [{ currency: 'leadDays', amount: 2 }], exposure: [] };
+  preview(s, p) {
+    // SR-01 (inventory O1): what apply does. "all" publishes each new result as it lands (publishFinding: credibility
+    // +2, talent pull +1, rivals share it); "selective" and "none" publish nothing by themselves. The policy also sets
+    // the Safety Index's publishing score (gradePlayer on a copy).
+    const raw = str(p, 'policy') ?? 'all';
+    const pol: 'none' | 'selective' | 'all' = raw === 'none' || raw === 'selective' ? raw : 'all';
+    const idx = indexLines(s, (c) => (c.player.policies.publishSafety = pol));
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    if (pol === 'all') {
+      const perYear = (Object.keys(s.player.safety.agendas) as AgendaId[]).reduce((a, ag) => a + lineResultsPerYear(s, ag), 0);
+      const lag = perYear > 0 ? Math.max(1, Math.round(365 / perYear)) : 365;
+      const pace = perYear > 0 ? `about ${perYear.toFixed(1)} results a year at today's staffing` : 'no line is producing results now';
+      gains.push(
+        { currency: 'credibility', amount: 2, unit: 'per result', lagDays: lag, target: `each new result is published when it lands (${pace})` },
+        { currency: 'talent', amount: 1, unit: 'per result', lagDays: lag, target: 'safety researchers like labs that publish' },
+      );
+      costs.push({ currency: 'alignment', amount: 0, target: "rivals learn each result too: the shared safety pool +0.02 per tool or eval, +0.04 per discovery" });
+    } else {
+      costs.push({ currency: 'credibility', amount: 0, target: pol === 'none' ? 'nothing is published unless you press Publish on a result' : 'you choose each result to publish (Publish on the result)' });
+    }
+    for (const l of idx) (l.amount >= 0 ? gains : costs).push(l);
+    return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
     const pol = str(p, 'policy');
@@ -364,11 +403,28 @@ const POLICY: ActionDef = {
 const PLEDGE: ActionDef = {
   id: 'safety.pledge', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Monitorability pledge',
   available: (s) => !s.player.safety.monitorabilityCommitment || 'Already pledged',
-  preview: () => ({
-    costs: [{ currency: 'progress', amount: -0.4, target: 'no latent reasoning (forgo +0.4 Δp)' }, { currency: 'leadDays', amount: -30, target: 'vs rivals who adopt neuralese' }],
-    gains: [{ currency: 'credibility', amount: 8 }, { currency: 'trust', amount: 4, target: 'evalGov, safety bloc' }, { currency: 'monitorability', amount: 0.5, target: 'obfuscation growth −50%' }],
-    exposure: [{ currency: 'credibility', amount: -20, probability: 0.1, target: 'if broken' }],
-  }),
+  // SR-01 (inventory O2): what apply does: credibility +8, government evaluators' trust +4, a live commitment, and in
+  // training the push toward obfuscated reasoning (E15) ×0.5. It blocks no design choice; breaking it costs its
+  // breakCost. The Safety Index effect is gradePlayer on a copy with the commitment.
+  preview: (s) => {
+    const idx = indexLines(s, (c) => {
+      c.player.safety.monitorabilityCommitment = true;
+      c.commitments.push({ id: 'C-mon-preview', kind: 'monitorabilityPledge', title: 'Monitorability pledge', condition: { predicate: 'monitorabilityPledge', params: {} }, audience: [], breakCost: { trust: 15, credibility: 20 }, signedDay: s.time.day, status: 'live', amendments: 0 });
+    });
+    return {
+      costs: [
+        { currency: 'credibility', amount: 0, target: 'a public promise: it blocks no design choice, but breaking it later costs credibility −20 and trust −15 with evaluators and the safety bloc' },
+        ...idx.filter((l) => l.amount < 0),
+      ],
+      gains: [
+        { currency: 'credibility', amount: 8 },
+        { currency: 'trust', amount: 4, target: 'evalGov' },
+        { currency: 'monitorability', amount: 0.5, unit: '×', target: 'training pushes toward obfuscated reasoning half as hard' },
+        ...idx.filter((l) => l.amount >= 0),
+      ],
+      exposure: [],
+    };
+  },
   apply(s, ctx) {
     s.player.safety.monitorabilityCommitment = true;
     if (!s.commitments.some((c) => c.kind === 'monitorabilityPledge' && c.status === 'live')) {
@@ -393,9 +449,24 @@ const EVAL_GATE: ActionDef = {
   preview(s, p) {
     const g = (str(p, 'level') as SafetyDept['evalGate']) ?? 'fullPlusExternal';
     const to = GATES.includes(g) ? g : 'fullPlusExternal';
-    const d = evalDaysFor(s, to) - evalDaysFor(s, s.player.safety.evalGate);
-    if (d >= 0) return { costs: [{ currency: 'leadDays', amount: -d, target: 'per external launch' }], gains: [{ currency: 'alignment', amount: r2(d / 60), target: 'pre-deployment clarity' }, { currency: 'credibility', amount: to === 'fullPlusExternal' ? 3 : 1 }], exposure: [] };
-    return { costs: [{ currency: 'credibility', amount: -2 }, { currency: 'alignment', amount: r2(d / 60) }], gains: [{ currency: 'leadDays', amount: -d, target: 'per external launch' }], exposure: [{ currency: 'approval', amount: -3, probability: 0.2, target: 'incident after a rushed launch' }] };
+    // SR-01 (inventory E1): what apply does. The gate holds new EXTERNAL products until the suite is done (internal
+    // use is not gated, models/deployments.ts); with the propensity evals tool, a gate also weakens hacking → persona
+    // drift (E01) ×0.7 in training (safety/traits.ts playerMods); the Safety Index reads an external gate.
+    const from = s.player.safety.evalGate;
+    const d = evalDaysFor(s, to) - evalDaysFor(s, from);
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    const wait: CostLine = { currency: 'leadDays', amount: -d, target: 'each new external product waits this much longer for its eval suite; internal use is never held' };
+    if (d > 0) costs.push(wait);
+    else if (d < 0) gains.push(wait);
+    else costs.push({ ...wait, target: 'no change in how long external launches wait' });
+    if (s.player.safety.techniques['T-PROP']?.unlocked && (from === 'none') !== (to === 'none')) {
+      const line: CostLine = { currency: 'alignment', amount: 1, unit: 'training pressure', target: `reward hacking → persona drift in training: weight ${to === 'none' ? '×0.7 → ×1' : '×1 → ×0.7'} (with propensity evals)` };
+      if (to === 'none') costs.push({ ...line, amount: -1 });
+      else gains.push(line);
+    }
+    for (const l of indexLines(s, (c) => (c.player.safety.evalGate = to))) (l.amount >= 0 ? gains : costs).push(l);
+    return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
     const g = str(p, 'level') as SafetyDept['evalGate'];
@@ -405,24 +476,5 @@ const EVAL_GATE: ActionDef = {
   },
 };
 
-const TECHNIQUE: ActionDef = {
-  id: 'safety.technique', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Safety stack',
-  available: (s) => Object.values(s.player.safety.techniques).some((t) => t.unlocked && techniqueRole(t) !== 'fix') || 'No tools unlocked',
-  preview(s, p) {
-    const t = s.player.safety.techniques[str(p, 'id') ?? ''] ?? Object.values(s.player.safety.techniques).find((x) => x.unlocked && techniqueRole(x) !== 'fix');
-    const on = p.active === undefined ? !t?.active : !!p.active;
-    const L = measuredL(s);
-    const d = t ? r2(strengthBelieved(s, t, oomOfLevel(s.hidden.timeline, L))) : 0;
-    const name = t ? TECHNIQUE_BY_ID[t.id]?.name ?? t.id : 'tool';
-    if (on) return { costs: [{ currency: 'compute', amount: 0.5, target: '% of serving for monitors' }], gains: [{ currency: 'alignment', amount: d, target: `${name} strength` }], exposure: [] };
-    return { costs: [{ currency: 'alignment', amount: -d, target: `${name} strength` }], gains: [{ currency: 'compute', amount: 0.5 }], exposure: [] };
-  },
-  apply(s, ctx, p) {
-    const t = s.player.safety.techniques[str(p, 'id') ?? ''];
-    if (!t?.unlocked) return void ctx.log('alert', 'Safety stack: unknown or locked tool.');
-    t.active = p.active === undefined ? !t.active : !!p.active;
-  },
-};
-
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, TECHNIQUE];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE];
 
