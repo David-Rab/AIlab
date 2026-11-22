@@ -163,7 +163,7 @@ export { flopPerToken } from '../departments/workfit';
 export type { ProductRead, ProductEcon, EditPreview, CustomerView, CustomerSeg, FeatureView, FeatureKind, FeatureLine, LineupRow } from '../worldfx/productView';
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
-export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, freeTierShare, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
+export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
 export { monitorCatchAt, type ControlReadout } from '../safety/oversight';
 export { LENT_RECOVERY, servingPool, spareServing, spareServingToResearch } from '../worldfx/revenue';
 export { spareServingEffect } from '../production/production';

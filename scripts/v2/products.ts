@@ -182,7 +182,12 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const c = prod(s, 'consumer');
   const pv = previewEdit(s, c, { features: ['companion'] });
   const on = act(s, 'feature.toggle', { product: c.id, feature: 'companion', on: true });
-  check(!on && c.features.includes('companion') && pv.after!.demand > pv.before!.demand * 1.01, 'P7 switched on for Chat: the companion segment (a task enabler) raises its demand (preview)', `${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
+  // RD-B11 (B14): the enabler acts once, in the users' app choice: the preview shows it in the users at the target
+  // share (the customer stock moves there gradually), not as a same-day jump in demand.
+  const uT = (x: typeof pv.before) => x?.cust.usersTarget ?? 0;
+  check(!on && c.features.includes('companion') && uT(pv.after) > uT(pv.before) * 1.01 && pv.after!.demand <= pv.before!.demand * (1 + 1e-9),
+    'P7 switched on for Chat: the companion segment (a task enabler) raises the users at the target share (preview), arriving through the customer stock',
+    `target users ${(uT(pv.before) / 1e6).toFixed(0)}M → ${(uT(pv.after) / 1e6).toFixed(0)}M; demand today ${pv.before!.demand.toFixed(2)} → ${pv.after!.demand.toFixed(2)}`);
   const api = prod(s, 'api');
   const wrong = act(s, 'feature.toggle', { product: api.id, feature: 'companion', on: true });
   check(!!wrong, 'P7 a feature is offered only on its products', wrong ?? '');

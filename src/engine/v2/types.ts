@@ -374,7 +374,7 @@ export interface ModelVersion {
   flags: { bioUplift?: boolean; cyberOffense?: boolean; replication?: boolean; persuasion?: boolean };
   /** How G was built (MODEL-V3 §2); lets the engine recompute G for streams and domains. Hidden. */
   build?: VersionBuild;
-  /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible, read by WS5 revenue. */
+  /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible; the consumer market reads it (worldfx/mix.ts appealOf, RD-B11: the one appeal table). */
   appeal?: number;
 }
 
@@ -531,7 +531,7 @@ export interface Deployment {
   kind: DeploymentKind;
   versionId: string;
   /** Smaller model on the product. Chat: its free tier, the model Chat's free users get (worldfx/serving.ts chatFreeTier),
-   *  also blended at FREE_TIER_SHARE into productUses and the display levels (the blend goes with RD-B11). Sector
+   *  and nothing else (RD-B11: paying users run the main model; the old FREE_TIER_SHARE blend is gone). Sector
    *  products (API, Agents): a separate cheap tier (productMiniUses), not blended. */
   miniVersionId?: string;
   /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a

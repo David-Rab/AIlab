@@ -6,7 +6,7 @@
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
 import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FREE_TIER_SHARE, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
@@ -17,7 +17,6 @@ import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { flopPerToken } from '../departments/workfit';
 
-const DOMAINS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 
 /** Products customers buy (external, paid). */
 export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channel !== 'open';
@@ -34,26 +33,13 @@ export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
   return out;
 }
 
-/** Share of the product's usage served by its mini free tier (0 without one). */
-export function freeTierShare(s: GameStateV2, d: Deployment): number {
-  if (!d.miniVersionId || !versionById(s, d.miniVersionId)) return 0;
-  return FREE_TIER_SHARE[d.channel] ?? 0;
-}
-
 /**
- * Display domain levels of a product: its model's, blended with the free-tier mini by usage (feature effects are typed
- * and act on work-type fit, horizon and tokens, worldfx/serving.ts, not on these levels). Returns the model's own record
- * without a free tier.
+ * Display domain levels of a product: its main model's own record (feature effects are typed and act on work-type fit,
+ * horizon and tokens, worldfx/serving.ts, not on these levels). RD-B11 (B15): a Chat mini serves only the free users
+ * (worldfx/serving.ts chatFreeTier) and no longer blends in.
  */
 export function productDomains(s: GameStateV2, d: Deployment, v: ModelVersion | undefined = versionById(s, d.versionId)): Record<DomainId, number> | undefined {
-  if (!v) return undefined;
-  const f = freeTierShare(s, d);
-  if (f <= 0) return v.domains;
-  const mini = versionById(s, d.miniVersionId);
-  if (!mini) return v.domains;
-  const out = {} as Record<DomainId, number>;
-  for (const k of DOMAINS) out[k] = (1 - f) * v.domains[k] + f * mini.domains[k];
-  return out;
+  return v?.domains;
 }
 
 /** Incident-hazard multiplier of a trait on a product from its features. */

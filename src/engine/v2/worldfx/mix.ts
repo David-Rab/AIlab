@@ -175,15 +175,10 @@ function depOffset(d: Deployment): number {
   return o;
 }
 
-/** Appeal of a version's character training for consumers (§3.11.3 "appeal (pref option)") [D]. */
-export function appealOf(v: ModelVersion | undefined): number {
-  switch (v?.design.pref) {
-    case 'engagement': return 1.25;
-    case 'persuasion': return 1.15;
-    case 'minimal': return 0.9;
-    default: return 1;
-  }
-}
+/** Appeal of a version's character training for consumers (§3.11.3 "appeal (pref option)"): the version's own
+ *  `appeal`, set from data/v2/runDesign.ts POST_PREF (V2-SPEC §3.3.2 D: minimal 0.7, engagement 1.2, constitution 1.0,
+ *  persuasion 1.1), the number the Models card shows. RD-B11 (B41): one table (the market's second switch is gone). */
+export const appealOf = (v: ModelVersion | undefined): number => v?.appeal ?? 1;
 
 /** Player deployments that earn revenue in external markets. */
 export function paidDeployments(s: GameStateV2): Deployment[] {
