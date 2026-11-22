@@ -1833,3 +1833,29 @@ Scrutiny against the largest rival run; `scale` removed. Commit 609c699. Moves c
   pass. tsc (app, scripts/v2) clean.
 - **Calibration.** The reference changed from F(t) to the rival frontier (not compared at day 0), so the gov
   scrutiny bump can fire at different times. Not measured (no cal run in this task).
+
+### RD-T06
+
+Expert data only as a suite input; P12 as a suite option (DD-07, TRN-04). Moves calibration: maybe.
+
+- **Removed.** Action `data.expert` (production/dataActions.ts expertTerms), the domain stock `expert:dom:<domain>`
+  (production/data.ts expertDomainId / expertDomainAsset / expertStockT / takeExpertData), the start portfolio's empty
+  `expert` placeholder, EXPERT_DELIVERY_DAYS / EXPERT_SIZE_T, dataView expertForm / expertUnbuilt, the Data panel's
+  "Buy expert data" card, SuiteCost.fromStockT, ProjectEffect.expert and its branches (research.ts completeAdoption,
+  researchView, treeActions), suites.ts addSuiteExpertData, P12_DEMO_T.
+- **Rule.** A suite build buys the expert data it builds in (SUITE_BUILD.tokensT × EXPERT_PRICE_B_PER_T, paid when
+  queued): the only purchase path. P12 is now a plain unlock node (no effect, no cash at adoption); once known, the
+  long-tasks suite offers a demonstrations build (`suite.build {family: 'longHorizon', demos: true}`, ref
+  `longHorizon:build:demos`): DEMO_BUILD = +0.02T demos (+$1B) and +4 team-weeks [D] on top of the build; repeatable.
+  From the start stock: fidelity 1 → 1.356 (plain build 1.146). The old adoption delivered x × 0.02T once (x ≈ 1).
+  Suites panel: "+ demos" button in the long-tasks Build cell.
+- **Texts.** Glossary expertData / suiteBuild, Data panel tooltips, dataAssets / data.ts comments: no claim that
+  evaluations read expert data.
+- **Save.** SCHEMA_REV 64 → 65; migration 64 credits `expert:dom:<domain>` stock (owned and pending) to the suites of
+  that domain's families (split over those with a suite; AGENCY → long tasks when computer use has none), drops stock
+  with no suite (SOCIAL, MEDIA, PHYS), and drops the idea stages of a P12 under test. hygiene.ts pins → 65.
+- **Check.** scripts/v2/_t06/check.ts: pass (no domain purchase; build pays $0.1B; demos blocked without P12; demos
+  build +$1B and fidelity above a plain build; migration). tsc (app, scripts/v2) clean; npm run build ok. scripts/v2
+  data.ts / suites.ts / research.ts / uitest.mjs updated for the removed paths, not run.
+- **Calibration.** Bots never bought data.expert, but RefBot no longer gets P12's 0.02T into long tasks on adoption
+  (it does not take the demos build): long-tasks fidelity and AGENCY gains are lower in bot runs. Not measured.
