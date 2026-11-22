@@ -786,11 +786,7 @@ export interface Allocation<K extends string> { order: K[]; max: Partial<Record<
 export interface ResearchState {
   /** Projects in priority order (node ids). Teams work on the ones that are ready; the rest wait. */
   queue: string[];
-  /** Policy: idle science teams join the highest-priority ready project of their department in their specialty; a
-   *  safety team whose project resolves keeps working its research line (R8). Capability science teams are always
-   *  placed by the assignment (V3-BUILD V2.5); the flag only affects safety teams. */
-  autoAssign: boolean;
-  /** Teams wanted per capability project (default 1; PROJECT_MAX_TEAMS = "max"). */
+  /** Teams wanted per project, both departments (RD-R03) (default 1; PROJECT_MAX_TEAMS = "max"). */
   want: Record<string, number>;
   /** B4: capability projects on "auto" teams wanted (the game picks the number by priority and fit): one team first,
    *  then spare teams where they add the most progress. A project here ignores its `want` number. */

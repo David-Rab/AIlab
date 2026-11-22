@@ -47,7 +47,7 @@ import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { reCapacity, teamCapacity } from '../departments/capacity';
 import type {
-  AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
+  AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team, TeamDept,
 } from '../types';
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
@@ -404,13 +404,18 @@ function gainText(withT: number, without: number): string {
   return withT > 0 ? "carries all of this project's yearly gain" : 'adds nothing to this project for now';
 }
 
-/** Deterministic assignment of capabilities science teams to the ready projects (in priority order). Returns the team
- *  → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state).
+/** A project's term in the science-team planner: expected value per day as a function of science capacity and taste. */
+export type ProjectValueFn = (cap: number, q: number) => number;
+
+/** Deterministic assignment of one department's science teams to its ready projects (in priority order). Returns the
+ *  team → project map and why each team is there; teams placed by hand stay. Pure (does not mutate the state).
  *  RD-A03: the priority list and teams wanted are the player's controls; value (projectValue, expected OOM per day)
- *  decides the swaps and the spare teams. A one-off idea in its tests releases its teams (releasesTeams). */
-export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p?: string; why: string }> {
+ *  decides the swaps and the spare teams. A one-off idea in its tests releases its teams (releasesTeams).
+ *  RD-R03: safety science teams use the same planner (`dept` 'saf') with the caller's value proxy (models/tree.ts
+ *  safProjectValue: chance it works × the line's weight); with nothing ready they stay idle. */
+export function planAssignment(s: GameStateV2, ready: string[], dept: TeamDept = 'cap', valueOf?: (id: string) => ProjectValueFn): Map<string, { p?: string; why: string }> {
   const out = new Map<string, { p?: string; why: string }>();
-  const all = capSciTeams(s);
+  const all = dept === 'cap' ? capSciTeams(s) : s.player.teams.filter((t) => t.role === 'sci' && t.dept === dept);
   const manual = all.filter((t) => t.manual && t.projectId && ready.includes(t.projectId));
   for (const t of manual) out.set(t.id, { p: t.projectId, why: 'Placed by hand' });
   const pool = all.filter((t) => !out.has(t.id)).sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -444,7 +449,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   const capRows: { id: string; cap: number[]; f: (cap: number, q: number) => number }[] = [];
   for (const id of ready) {
     const n = node(id);
-    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), f: projectValue(s, id, env) });
+    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), f: valueOf ? valueOf(id) : projectValue(s, id, env) });
   }
   const sums = (row: (typeof capRows)[number], skip = -1) => {
     let cap = 0;
@@ -528,7 +533,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
     const spec = t.specialty === node(e.p)?.column ? ' (its specialty)' : '';
     e.why = row ? `${pre}${spec}; ${gainText(term(row), term(row, k))}` : `${pre}${spec}`;
   }
-  if (!ready.length) for (const t of pool) out.set(t.id, { why: 'Idle: no capability project is ready (rank one on Research)' });
+  if (!ready.length) for (const t of pool) out.set(t.id, { why: dept === 'cap' ? 'Idle: no capability project is ready (rank one on Research)' : 'Idle: no safety project on the priority list (add one on Research)' });
   return out;
 }
 

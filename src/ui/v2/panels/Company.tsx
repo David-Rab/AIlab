@@ -212,7 +212,7 @@ function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'q
     : g.unit === 'days' ? (g.amount === 0 ? 'no project faster today' : `${F.num(g.amount, 0, true)} d`)
     : `${F.num(g.amount, 2, true)} tuning`;
   const body = g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week, with the engineers\' AI tools: what one day of the build system gives with the team.'
-    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins a line when Auto-assign is on).'
+    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins the safety projects on the priority list, or waits idle if there are none).'
     : t.role === 'sci' ? 'Days sooner for the capability project this team speeds most, after one research day with it: the priority assignment places it (×1.5 on a project in its specialty; its quality sets its taste).'
     : 'Days sooner for the capability project these research engineers speed most, after one research day with them; when no project needs more, they go to routine tuning (team-equivalents).';
   return <Tip content={() => <TipCard title="If hired, once full" value={g.target}>{body}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;

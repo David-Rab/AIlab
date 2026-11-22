@@ -26,7 +26,8 @@
 //    open node, else the line's follow-up project. Safety teams keep the J2 auto-assign above (E1 notes: why not the
 //    capability assignment).
 // Product-feature nodes wait for live products (R6).
-import { AG17_MIN_L, AGENDAS } from '../../../data/v2/agendas';
+import { AG17_MIN_L, SERIOUS_CAP } from '../../../data/v2/agendas';
+import { posteriorBand } from '../safety/agendas';
 import { START_BY_ID } from '../../../data/v2/starts';
 import {
   CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
@@ -38,16 +39,16 @@ import { hash32 } from '../core/rng';
 import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { PARADIGM_BY_ID } from './paradigms';
-import { posteriorBand } from '../safety/agendas';
-import { freshSaf, lineCycleDays, lineEtaDays, lineRates, resetSafAllocation, safAllocation, safProgress, safState } from '../safety/lineProjects';
+import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetSafAllocation, safAllocation, safProgress, safState } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, planAssignment, sciOn, stepProject, takesTeams,
+  type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding, nodeTestResult } from '../safety/findings';
-import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
+import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC, SAF_LINE_WEIGHT } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
 export type NodeStatus = 'known' | 'active' | 'queued' | 'open' | 'locked' | 'failed' | 'soon';
@@ -90,7 +91,7 @@ export function initialResearch(teams: Team[] = []): ResearchState {
     queue.push(l.id);
     cap.want[l.id] = Math.max(1, Math.round((l.w / wSum) * sci));
   }
-  return { queue, autoAssign: true, ...cap };
+  return { queue, ...cap };
 }
 
 /** Re-run the capability science assignment now (V4.0): the priority list's actions (queue, start, drop, reorder, teams
@@ -353,87 +354,52 @@ export function nextLineProject(s: GameStateV2, ag: AgendaId): string | undefine
   return projectReady(s, f) === true ? f : undefined;
 }
 
-/** Whether a team works on a research line (any of its projects). */
-const onLine = (t: Team, ag: AgendaId) => {
-  const n = t.projectId ? node(t.projectId) : undefined;
-  return !!n && n.agenda === ag && isLineNode(n);
-};
-
-/** The line an idle safety team joins when nothing is queued for it: lines with no team first, then the best estimate,
- *  then its specialty. */
-function lineForTeam(s: GameStateV2, t: Team): string | undefined {
-  let best: { id: string; score: number } | undefined;
-  for (const a of AGENDAS) {
-    const id = nextLineProject(s, a.id);
-    if (!id) continue;
-    const staffed = s.player.teams.some((x) => onLine(x, a.id));
-    const score = (staffed ? 0 : 10) + posteriorBand(s.player.safety.agendas[a.id]).mean * 2 + (node(id)?.column === t.specialty ? 0.5 : 0);
-    if (!best || score > best.score + 1e-9) best = { id, score };
-  }
-  return best?.id;
+/** RD-R03: a safety project's term in the science-team planner (models/research.ts planAssignment), the value proxy
+ *  [D]: the science part of its results per day ((m_ideas × C ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30, as lineRates, over
+ *  the test's work) × the chance it works (nodeOdds: the line's estimate, never the hidden efficacy) × the line's
+ *  weight (SAF_LINE_WEIGHT, default 1). Square-root returns per team, so spares spread. */
+export function safProjectValue(s: GameStateV2, id: string): ProjectValueFn {
+  const n = node(id);
+  if (!n || !isLineNode(n)) return () => 0;
+  const ag = n.agenda as AgendaId;
+  const lam = s.hidden.timeline.prod.lam;
+  const m = lineLabourMult(s, ag, false).ideas;
+  const speed = researchMods(s).speed;
+  const need = Math.max(1e-9, freshSaf(n).workNeed);
+  const v = (nodeOdds(s, id) * (SAF_LINE_WEIGHT[ag] ?? 1)) / need;
+  return (cap, q) => (cap > 0 ? ((Math.pow((m * cap) / SERIOUS_CAP, lam) * q * speed) / 30) * v : 0);
 }
 
-/** Weight of a project by its place among the ready projects (queue priority) [D]: the second counts half the first. */
-export const PRIORITY_W = 0.5;
-
-/** Auto-assign policy for one department (J2 R2; only autoAssign calls it, for safety): spread teams over the ready queued projects. Each team in turn goes
- *  where it gains most: a project with no team first (in queue order, a team of its specialty first), otherwise the
- *  most ETA days cut × PRIORITY_W^rank (√ capacity, so returns fall per extra team). Idle teams are placed every day;
- *  with `respread` every team the policy placed is re-placed (a project finished, or a ready project has no team while
- *  another has two or more). Teams placed by hand stay. Safety teams with nothing queued join a research line. */
-function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
-  const q = s.player.research.queue;
-  const ready = q.filter((id) => {
+/** Ready safety projects on the priority list, in priority order. */
+export const safReady = (s: GameStateV2): string[] =>
+  s.player.research.queue.filter((id) => {
     const n = node(id);
-    return !!n && nodeDept(n) === dept && projectReady(s, id) === true;
+    return !!n && nodeDept(n) === 'saf' && projectReady(s, id) === true;
   });
-  const pool = projectTeams(s, dept);
-  // Teams on a research line stay with the line (its results build on each other); the policy's other teams move.
-  const lineTeam = (t: Team) => {
-    const n = t.projectId ? node(t.projectId) : undefined;
-    return !!n && isLineNode(n);
-  };
-  if (!respread && ready.some((id) => !pool.some((t) => t.projectId === id))) {
-    const counts = new Map<string, number>();
-    for (const t of pool) if (t.projectId && !t.manual && !lineTeam(t)) counts.set(t.projectId, (counts.get(t.projectId) ?? 0) + 1);
-    respread = [...counts.values()].some((c) => c >= 2);
-  }
-  const free = pool.filter((t) => !t.projectId || (respread && !t.manual && !lineTeam(t) && ready.includes(t.projectId)));
-  if (!free.length) return;
-  for (const t of free) delete t.projectId;
-  const cap = new Map(ready.map((id) => [id, projectCapacity(s, id)]));
-  const eta = (id: string, c: number) => (c > 0 ? projectEta(s, id, c) : Infinity);
-  const left = [...free];
-  while (left.length && ready.length) {
-    let best: { t: Team; id: string; score: number } | undefined;
-    for (const t of left) {
-      for (let r = 0; r < ready.length; r++) {
-        const id = ready[r];
-        const n = node(id) as TreeNodeDef;
-        const c = cap.get(id) ?? 0;
-        // An unstaffed project outranks any gain (queue order, then specialty); else days cut × priority weight.
-        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n.column))) * Math.pow(PRIORITY_W, r);
-        if (!best || score > best.score + 1e-9) best = { t, id, score };
-      }
-    }
-    if (!best) break;
-    best.t.projectId = best.id;
-    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, (node(best.id) as TreeNodeDef).column));
-    left.splice(left.indexOf(best.t), 1);
-  }
-  if (dept !== 'saf') return;
-  for (const t of left) {
-    const pick = lineForTeam(s, t);
-    if (!pick) continue;
-    if (!q.includes(pick)) q.push(pick);
-    t.projectId = pick;
+
+/** The safety science teams' plan (RD-R03): the same planner as capability (priority list, teams wanted, spares by
+ *  value). With nothing ready the teams stay idle (no line is ever staffed or queued for the player, SAF-23). */
+export const planSafAssignment = (s: GameStateV2) => planAssignment(s, safReady(s), 'saf', (id) => safProjectValue(s, id));
+
+/** Apply the plan to the safety science teams. */
+export function assignSafTeams(s: GameStateV2) {
+  const plan = planSafAssignment(s);
+  for (const t of projectTeams(s, 'saf')) {
+    const x = plan.get(t.id);
+    if (!x) continue;
+    if (x.p) t.projectId = x.p;
+    else delete t.projectId;
+    t.why = x.why;
   }
 }
 
-/** Auto-assign policy, safety science teams only (capabilities teams use the priority assignment of models/research.ts,
- *  assignCapTeams); `respread` re-places every team the policy placed (a project finished). */
-export function autoAssign(s: GameStateV2, respread = false) {
-  autoAssignDept(s, 'saf', respread);
+/** The readout flag for idle safety science teams, or undefined: "2 safety teams idle — add projects to the priority
+ *  list" (nothing ready) or the planner's reason. */
+export function safIdleFlag(s: GameStateV2): string | undefined {
+  const idle = idleTeams(s, 'saf');
+  if (!idle.length) return undefined;
+  const head = `${idle.length} safety team${idle.length === 1 ? '' : 's'} idle`;
+  return safReady(s).length ? `${head}: ${(idle[0].why ?? 'Idle').replace(/^Idle: /, '')}` : `${head} — add projects to the priority list`;
 }
 
 /** Roll an attempt's result. Outcomes are drawn per world (TECH-TREE §1.3): a paradigm's first attempt is the hidden
@@ -475,17 +441,7 @@ function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNod
   return true;
 }
 
-/** Teams of a finished research-line project keep working the line (auto-assign on): its next project takes the
- *  finished one's place in the queue. */
-function continueLine(s: GameStateV2, ag: AgendaId, done: number, teams: Team[]) {
-  const next = nextLineProject(s, ag);
-  if (!next || !teams.length) return;
-  const q = s.player.research.queue;
-  if (!q.includes(next)) q.splice(Math.min(done, q.length), 0, next);
-  for (const t of teams) t.projectId = next;
-}
-
-/** One day of research projects: drop teams from projects that cannot run, auto-assign idle teams, progress, resolve. */
+/** One day of research projects: drop teams from projects that cannot run, plan both departments' teams, progress, resolve. */
 export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   const p = s.player;
   const q = p.research.queue;
@@ -504,8 +460,7 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
   capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw));
   for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
-  if (p.research.autoAssign) autoAssign(s);
-  let freed = false;
+  assignSafTeams(s);
   // Model v3 E1: today's safety research engineers and line compute for the line projects in experiments (a test that
   // starts today gets its engineers and FLOP from tomorrow's allocation, as capability projects).
   resetSafAllocation(s);
@@ -537,13 +492,12 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       const live = p.tree[id];
       if (live && live.status === 'researching') live.progress = safProgress(live.saf);
       if (!done) continue;
-      const at = q.indexOf(id);
-      q.splice(at, 1);
-      // The line's teams stay on the line (its next project; a hand placement stays a hand placement).
-      for (const t of teams) delete t.projectId;
-      if (p.research.autoAssign) continueLine(s, n.agenda as AgendaId, at, teams);
-      for (const t of teams) if (!t.projectId) delete t.manual;
-      freed = true;
+      q.splice(q.indexOf(id), 1);
+      // RD-R03: the teams are free; tomorrow's plan places them (the line's next project only if the player queues it).
+      for (const t of teams) {
+        delete t.projectId;
+        delete t.manual;
+      }
       continue;
     }
     st.progress = Math.min(1, st.progress + projectRate(s, id, cap));
@@ -568,9 +522,7 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       delete t.projectId;
       delete t.manual;
     }
-    freed = true;
   }
-  if (freed && p.research.autoAssign) autoAssign(s, true);
 }
 
 /** research (35, daily): tree projects (capability and safety). */

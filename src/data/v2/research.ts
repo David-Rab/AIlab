@@ -138,6 +138,10 @@ export const AUTO_RANK_W = 0.8;
  *  of new versions) counts `domainOom` of a software OOM; an unlock (no typed effect: an RL focus, option, feature) and
  *  a data / expert-data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
 export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
+/** RD-R03: the safety planner's per-line weight [D] (value proxy = results per day × chance it works × weight; the
+ *  safety department is planned on its own, so only ratios between lines matter). 1 for every line until a line's
+ *  results are priced (SAFETY-REDESIGN §3.1); a line listed here counts that much more or less. */
+export const SAF_LINE_WEIGHT: Partial<Record<string, number>> = {};
 /** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
  *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
 export const RE_MAX_PER_PROJECT = 2;

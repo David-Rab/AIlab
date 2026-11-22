@@ -250,7 +250,6 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   const near = (a: number, b: number, rel: number, abs: number) => Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
   for (const d of [400, 900]) {
     const s = fx(d);
-    s.player.research.autoAssign = true;
     const t0 = cl(s);
     tick(t0, { skip: ['endings'] });
     const base = readNow(t0);

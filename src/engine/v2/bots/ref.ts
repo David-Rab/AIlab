@@ -384,7 +384,6 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     const n = wOf(l) > 0 ? Math.max(1, Math.round((wOf(l) / wSum) * free)) : 0;
     if ((p.research.want[l.id] ?? 1) !== n) tryAct(s, api, 'research.want', { id: l.id, n });
   }
-  if (!p.research.autoAssign) tryAct(s, api, 'research.autoAssign', { on: true });
 
   // Base runs: a base every 9 months; once neuralese (P17) is adopted the next base is latent and starts at once
   // (AI 2027's Agent-3 is a neuralese model at SC).

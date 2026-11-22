@@ -10,7 +10,7 @@ import { DEFAULT_SAF_RE_ALLOC, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LAB
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
-  assignCapNow, assignTeam, autoAssign, dequeueNode, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
+  assignCapNow, assignTeam, dequeueNode, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
   queueNode, unassignTeam,
 } from './tree';
 
@@ -236,28 +236,6 @@ export const TREE_ACTIONS: ActionDef[] = [
       return { costs, gains, exposure: [] };
     },
     apply: (s, _ctx, p) => fail(unassignTeam(s, teamParam(s, p))),
-  },
-  {
-    id: 'research.autoAssign', verb: 'policy', system: 'research', sphere: 'models', owner: 'WS1', title: 'Auto-assign',
-    available: () => true,
-    preview: (s, p) => {
-      const on = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
-      // B35: the policy places safety science teams only (autoAssign); capability teams always follow the priority list.
-      // On: run it on a copy and count the idle safety scientists it puts to work today.
-      let placed = 0;
-      if (on) {
-        const c: GameStateV2 = { ...s, player: { ...s.player, teams: s.player.teams.map((t) => ({ ...t })), research: { ...s.player.research, queue: [...s.player.research.queue] } } };
-        autoAssign(c);
-        placed = c.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && t.projectId && !s.player.teams.find((x) => x.id === t.id)?.projectId).reduce((a, t) => a + t.heads, 0);
-      }
-      const idle = idleTeams(s, 'saf').reduce((a, t) => a + t.heads, 0);
-      return on
-        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'safety teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(placed), unit: 'scientists', target: 'idle safety scientists put on projects today' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: -Math.round(idle), unit: 'scientists', target: 'idle safety scientists wait for you (capability teams still follow the priority list)' }], gains: [{ currency: 'staffTime', amount: 0, target: 'you place safety teams by hand' }], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      s.player.research.autoAssign = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
-    },
   },
   {
     id: 'research.want', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Teams wanted',
