@@ -1910,3 +1910,36 @@ TRN-23, TRN-25). Commit e9b84e6. Moves calibration: maybe.
   `reValidationMult` → validation lead → believed detection → believed monitor catch → `believedTerms` NaN. Fix
   (d329aa8): an unset share means no cap (Infinity), never multiplied by capacity. Probe: spinout + leader lab, RefBot to
   day 400 with endings skipped (the fixture's run): no non-finite `effectiveControl.believed` on any day.
+
+### RD-T08
+
+Design options through the draw (TRN-11, TRN-20, TRN-31; SYNTHESIS §5 small calls). Commit 3602ced. **Moves calibration: yes.**
+- **Quality filter** (runDesign `QUALITY_FILTER`, [D]): on the public crawl and usage logs (licences and synthetic arrive
+  curated) it drops the worst quarter of raw tokens; the kept three quarters are 1.25× the quality (quality-weighted stock
+  −6%). Applied to the assets before the draw weights (production/data.ts drawWith). Start portfolio, reference size:
+  mean drawn q 0.984 → 1.199, unique tokens the mix can use 310T → 235T. The reference recipe has it on, so Q_REF is
+  now ≈ 1.20 (reference draw still D_eff = D); a big base repeats sooner. `qualityOffDg` −0.24 deleted.
+- **Hazard filter** (`HAZARD_FILTER`, [D]): removes a third of every asset's BIO and CYBER tokens from the draw (after
+  the weights: the domain draws a third less, its epochs per own token unchanged, the others take the freed share).
+  BIO tokens 8.34T → 5.73T at the reference size, s_BIO −0.25 OOM (was a flat −0.5 OOM plus −0.024 general).
+- **[D] constants kept, in OOM, v2 provenance dropped:** Dense −0.3, latent +0.5 (SHAPE); safety pretraining
+  `SAFETY_PRETRAIN_DG` −0.02 (was −0.024); alignment minimal +0.02 / heavy −0.05 (was +0.024 / −0.048); preference
+  minimal −0.06. BaseEffect is now {dg (safety pretraining), monitorability}; sD / flopMult / cashMult gone.
+- **Data presets** = named per-domain weights on the portfolio's own mix (BASE_DATA {weights, kinds}): balanced,
+  codeMath, science, synthetic (UI "Synthetic-heavy"), multimodal. 'natural' merged into 'balanced'. Multimodal +20% FLOP
+  and science +5% cash deleted (base cash 0). `MixTarget` = {shares?, weights, kinds, filter?}; `designTarget(d)`.
+- **RefBot's fixed target:** `REFBOT_DATA_SHARES` (bots/ref.ts, = REF_SHARE) passed as launchBase `mixShares` (JSON
+  param) → new optional `BaseDesign.mixShares`. Other bots draw the balanced (own) mix.
+- **Tokens per parameter:** no gate (TPP_FREE_MAX, OptionSlot 'tpp' and the "Overtrained compact" node deleted);
+  `tppLabel` names the trade-off (most capable per FLOP / 2025 practice / cheaper to serve); the Blueprint track has
+  "← more capable per FLOP · cheaper to serve →".
+- **Text:** tree cards Dense, Quality filter (now unlocks `curation:quality`), Code & math, Science, Native multimodal,
+  Hazard data filtering, Safety pretraining in player language (no years, no "+5% cash" / "+20% FLOP"); glossary
+  dataMix, naturalMix, hazardFilter, tokensPerParam.
+- **Schema:** 66 → **67**: 'natural' → 'balanced' in every stored base design (walk of objects with curation + tpp);
+  tree / queue / team state of 'overtrained' dropped. hygiene literals bumped.
+- **Check:** `npx tsx scripts/v2/rdt08.ts` (4 checks, run alone: quality filter raises drawn q and lowers unique tokens;
+  hazard filter removes BIO / CYBER tokens, s_BIO follows; no flat curation offset; no Δp × B / flopMult / cashMult /
+  tpp gate in runDesign). tsc main + scripts clean; build ok. scripts/v2/data.ts: three draws rewritten to
+  `{ shares: REF_SHARE, weights, kinds }` (not run; its balanced-vs-natural and quality-offset checks will need restating
+  at CP3).
