@@ -30,3 +30,32 @@ Retired v2's knot production function (SYNTHESIS §4.1; INP-20, MEA-16). Commit 
   committed fixtures left at rev 43 (stale only by the removed fields; the merge regenerates them with `--write`).
 - **Tests:** tsc main + scripts clean. test:quick 32/34: fixtures FAIL (stale, expected: the removed fields and rev),
   worldfx A2a 6.7% / W4 23.3% (known). hygiene incl. the new migration check passes.
+
+### RD-C02
+
+Deleted the calShift bridge (SYNTHESIS §4.2; MEA-08). Commit ef3a578.
+- **Deleted:** alignedCalShift (models/capability.ts), `TimelineWorld.calShift` and its write in timelineFor
+  (world/hidden.ts), world/calibration.ts thresholds(), levelOfV2's default `shift = w.calShift` (now a required
+  argument). Grep before: no reader of `w.calShift` or thresholds() beyond those; levelOfV2's only caller (RefBot
+  gateLevel) already passed CAL_SHIFT explicitly.
+- Doc comments fixed: world/calibration.ts header (what remains), playerStart's comment (no calShift lag), CAL_SHIFT's
+  doc (only reader: RefBot's gates).
+- **Kept:** CAL_SHIFT (bots/ref.ts gateLevel still reads it), levelOfV2. Comment-only mentions left in save.ts history
+  (rev 15), calib.ts T1 A1 text, golden-timelines.ts; rivals.ts R7 lint still forbids `calShift` in rival code.
+- **Schema:** no bump; the rev-44 migration (43 → 44) also deletes `hidden.timeline.calShift`.
+- **Behaviour:** identical. Probe (RefBot, runRef; sampled #11 d0/250/500, authors2026 #5 d0/400, fast #3 d0/300,
+  ai2027 #2027 d0/450): state hashes with the removed fields stripped equal before / after.
+- **Tests:** tsc main + scripts clean; test:quick 32/34 (fixtures stale, worldfx A2a 6.7% / W4 23.3%, known).
+
+### RD-C07
+
+Removed the cut paradigm P26 (SYNTHESIS §4.10). Commit 0b69b73.
+- P26 gone from PARADIGMS (data/v2/paradigms.ts; a comment says where its draw went) and tree.ts OLD_EFFORT_DAYS. No
+  tree node, glossary, UI or script listed it; Codex, research.ts PRIOR_BY_ID and initialParadigms derive from PARADIGMS.
+- [D] Draw site (world/hidden.ts step 5): `if (p.id === 'P27') rng.chance(0.8)` before P27's draw, i.e. the same single
+  rng.next P26 consumed, with a comment.
+- **Schema:** player.paradigms and hidden.paradigmSuccess lose their P26 key: no bump; the rev-44 migration deletes both.
+- **Behaviour:** identical. The same probe (stripping P26 too) gives equal hashes at all nine checkpoints. Fixtures
+  (all five) regenerated and compared with the committed rev-43 ones, both through deserialize (the rev-44 migration
+  strips RD-C01's, RD-C02's and RD-C07's fields): identical JSON; committed fixtures left at rev 43 (merge `--write`s).
+- **Tests:** tsc main + scripts clean; test:quick 32/34 (fixtures stale, worldfx A2a / W4, known).
