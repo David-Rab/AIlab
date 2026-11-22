@@ -31,7 +31,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -317,7 +317,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     w.nextPost[id] = day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
     const G = Math.max(gOfSimple(wl, r.internal), newVersionG(s, r, r.phys.base));
     r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
-    setModelG(wl, r.internal, G, r.phys.base);
+    setModelG(wl, r.internal, G, r.phys.base, rivalDomainDg(r));
     w.internalDay[id] = day;
     ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
   };
@@ -335,7 +335,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       r.phys.base = nb;
       r.phys.clDay = day;
       r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
-      setModelG(wl, r.internal, gNew, nb);
+      setModelG(wl, r.internal, gNew, nb, rivalDomainDg(r));
       w.internalDay[id] = day;
       ws2RivalTraitStep(s, rng, r, 'base');
       ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });

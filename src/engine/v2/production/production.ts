@@ -19,7 +19,7 @@ import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
-import { advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
+import { adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkG, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { poolsOf } from '../compute/power';
 import { withResearchAgents } from '../departments/split';
@@ -202,7 +202,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;
   const core = r.core;
-  const G = gOfSimple(w, r.internal);
+  const G = rivalWorkG(w, r);
   const fpt = rivalAgentFpt(r);
   const res = core.split.experiments + (core.split.routine + core.split.frontier);
   const C = core.computeOnline * res;
@@ -218,6 +218,8 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     advanceRecipe(r, rates, 1 / 365);
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
+    // RD-X02 (DD-14 rival part): the same research speed works through the paradigms' typed effects.
+    if (r.phys) adoptRivalIdeas(s, r, x.rs);
   }
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });

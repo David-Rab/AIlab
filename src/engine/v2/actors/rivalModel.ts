@@ -1,7 +1,8 @@
 // Rivals, China and the simulated leader lab in effective compute (model v3 F1: design/MODEL-V3.md §12, §13;
 // design/notes/F1.md). Owner: WS1 (capability) / WS4 (behaviour). Data: src/data/v2/rivalModel.ts.
 //
-// A non-player lab is the player's model at aggregate level, without ideas or a blueprint:
+// A non-player lab is the player's model at aggregate level, without a blueprint; the paradigms' typed effects it adopts
+// through aggregate adoption steps at its research speed (RD-X02, adoptRivalIdeas):
 //   recipe     three parts in the player's stack units (model v3 F2): pretraining efficiency e_pre, RL efficiency (rlMid)
 //              and RL ceiling (rlCeil). Each part p is a research pool with its lines' returns r_p = Σ rShare × r (the
 //              player's line pools, research.ts linePool, at aggregate level): dS_p/dt = a_p · RS/RS₀ · 10^(−S_p/r_p) (RD-X01: research.ts lineRate summed over the part's lines) at
@@ -30,7 +31,9 @@ import { E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAP
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
-import { domainsOf, gV0, levelOfG, startLab } from '../models/capability';
+import { hash32 } from '../core/rng';
+import { P05_ORCHESTRATION } from '../../../data/v2/features';
+import { domainRefShift, domainsOf, gV0, levelOfG, startLab } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
@@ -39,7 +42,7 @@ import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { REF_AGENT_SHARES } from '../../../data/v2/agents';
-import type { GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld } from '../types';
+import type { DomainId, GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld } from '../types';
 
 /** Research-engineer team-equivalents on research per capabilities head: the leader's day-0 9.68 team-equivalents on
  *  experiments and tuning (DAY0_REF.re) over its 2,050 capabilities staff (H_REF_BASE) [D: fixed day-0 ratio]. */
@@ -167,10 +170,15 @@ export const fptOfSimpleModel = (m: Pick<SimpleModel, 'fpt' | 'params'>) => m.fp
 /** Set a SimpleModel's G and its readouts (level λ(G), domain levels) and its design from `base`; D10: with the
  *  base's G_pre, the RL part of G (rlG = G − G_pre − the reference RL gain on the base, ≥ 0), which sets the model's
  *  reasoning tokens (worldfx/serving.ts tokEff). A model set from G alone (a release copy) keeps its rlG. */
-export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'> & Partial<Pick<RivalBase, 'gPre'>>) {
+export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'> & Partial<Pick<RivalBase, 'gPre'>>, domainDg?: SimpleModel['domainDg']) {
   m.G = G;
   m.Lg = levelOfG(w, G);
   m.domains = domainsOf(w, G);
+  // RD-X02: a version post-trained after domain ideas (rivalDomainDg) carries their offsets; a copy keeps its model's.
+  if (domainDg) m.domainDg = domainDg;
+  for (const [d, dg] of Object.entries(m.domainDg ?? {}) as [DomainId, number][]) {
+    if (dg) m.domains[d] = clamp(levelOfG(w, G + dg - domainRefShift(w, d)), 0, 15);
+  }
   if (base) {
     m.flop = base.flop;
     m.params = base.params;
@@ -192,7 +200,15 @@ export const rivalDecodeU = (r: Pick<RivalLab, 'phys'>) => decodeUtilOf(rivalSer
 export const rivalServeFpt = (r: Pick<RivalLab, 'phys'>, m: Pick<SimpleModel, 'fpt' | 'params'>) => fptOfSimpleModel(m) * Math.pow(10, -serveFlopOomOf(rivalServe(r)));
 /** The equivalent FLOP per token of a lab's internal agents on its internal model (FLOP, reasoning tokens, utilisation:
  *  departments/workfit.ts agentFptEq), what its aggregate research reads. */
-export const rivalAgentFpt = (r: Pick<RivalLab, 'phys' | 'internal'>) => agentFptEq(rivalServeFpt(r, r.internal), tokEff(r.internal), rivalDecodeU(r));
+export const rivalAgentFpt = (r: Pick<RivalLab, 'phys' | 'internal'>) =>
+  agentFptEq(rivalServeFpt(r, r.internal), tokEff(r.internal), rivalDecodeU(r)) * (rivalIdea(r, 'P05') > 0 ? P05_FX.tokens : 1);
+/** P05's scaffold (data/v2/features.ts P05_ORCHESTRATION: ΔG 0.26 at ×3.75 tokens). */
+const P05_FX = P05_ORCHESTRATION as Extract<typeof P05_ORCHESTRATION, { kind: 'scaffold' }>;
+/** RD-X02: the G a lab's internal agents work at in the research aggregate: the internal model's, + the P05 scaffold's
+ *  ΔG once adopted (stand-in [D]: the player's scaffold lifts the fit on SWE / Experiments / Research ideas; here the
+ *  aggregate's whole work G, coverage, win rates, AI taste and horizon, moves by it). */
+export const rivalWorkG = (w: TimelineWorld, r: Pick<RivalLab, 'phys' | 'internal'>) =>
+  gOfSimple(w, r.internal) + (rivalIdea(r, 'P05') > 0 ? P05_FX.dG : 0);
 /** Returns of the serving stack: the Inference-efficiency line's share of the world's r (research.ts linePool). */
 const serveRShare = () => TREE_BY_ID['L.infer']?.effect?.rShare ?? 0.15;
 /** Serving-stack growth of lab `r` today (OOM per year) at research speed `rs`: the recipe law with the line's returns,
@@ -222,7 +238,7 @@ export interface RivalResearch {
  *  work. `eff` = the lab's research-efficiency multiplier, `mods` the speed modifiers. */
 export function evalRival(s: GameStateV2, r: Pick<RivalLab, 'internal' | 'core' | 'phys'>, f: number, C: number, eff: number, mods: number): RivalResearch {
   const w = s.hidden.timeline;
-  return evalAggregate(w, gOfSimple(w, r.internal), rivalAgentFpt(r), r.core.staff.cap, f, C, eff, mods);
+  return evalAggregate(w, rivalWorkG(w, r), rivalAgentFpt(r), r.core.staff.cap, f, C, eff, mods);
 }
 
 /** Raw aggregate research of a lab (before the day-0 normalisation), MODEL-V3 §5 at aggregate level:
@@ -383,6 +399,63 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
   }
 }
 
+// ───────────────────────────── paradigm ideas (RD-X02, DD-14 rival part) ─────────────────────────────
+
+/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (pretraining-stack
+ *  idea: + x OOM on the pretraining recipe, so bases launched after adoption carry it; scale-invariant, as the player's),
+ *  P16 (training-throughput stack idea: base-run FLOP ×10^x; its serving part, also.serve × x, on the serving stack),
+ *  P09 / P11 / P22 (domain ideas: + x × the node's domain OOM on versions post-trained after adoption) and P05 (the
+ *  internal agents' scaffold: rivalWorkG, rivalAgentFpt). Not adoptable, no rival state to carry them: P07 (the long-tasks
+ *  RL family's horizon; the aggregate has no RL families), P10 / P21 / P12 (synthetic-data quality, token worth, expert
+ *  demos; a rival's base has fixed tokens per parameter and no data stock). */
+export const RIVAL_IDEA_IDS = ['P05', 'P09', 'P11', 'P16', 'P22', 'P24'] as const;
+/** Standard-team-months of idea research a lab at the leader's day-0 research speed (rs = 1) does a year: its 8 science
+ *  team-equivalents (SCI_PER_HEAD × H_REF_BASE) × 12 months, shared equally among its projects, the reference lines
+ *  (DEFAULT_LINES) and one idea at a time [D: equal share per project]. 13.7 TM a year. */
+export const RIVAL_IDEA_TM_PER_YEAR = (SCI_PER_HEAD * H_REF_BASE * 12) / (DEFAULT_LINES.length + 1);
+/** The lab's research order: the adoptable ideas by effort, the cheapest first (id breaks ties) [D: no prerequisites at
+ *  the aggregate level]. */
+let orderMemo: TreeNodeDef[] | undefined;
+export const rivalIdeaOrder = (): TreeNodeDef[] =>
+  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => TREE_BY_ID[id]).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
+/** Realised effect of an adopted idea (0 if not adopted or it did not work here). */
+export const rivalIdea = (r: Partial<Pick<RivalLab, 'phys'>>, id: string) => r.phys?.ideas?.done[id] ?? 0;
+/** Hidden: the effect lab `labId` realises from idea n. Availability is the world's: the paradigm's per-world success
+ *  draw (hidden.paradigmSuccess, the one the player's first attempt reads), so a direction that fails here gives every lab
+ *  0. Size, rolled with the lab's id: the node's mean × e^(sd·z − sd²/2) (the player's per-world project mean at taste 1,
+ *  one idea: research.ts candidateTruth's T), floored at 0; an effect-less paradigm (P05's fixed scaffold) 1 = as designed. */
+export function rivalIdeaTruth(s: GameStateV2, labId: string, n: TreeNodeDef): number {
+  if ((s.hidden.paradigmSuccess as Record<string, boolean>)[n.id] !== true) return 0;
+  const e = n.effect;
+  if (!e) return 1;
+  const u = (k: string) => (hash32(s.setup.seed, `rivalIdea:${labId}:${n.id}:${k}`) + 0.5) / 4294967297;
+  const z = Math.sqrt(-2 * Math.log(u('a'))) * Math.cos(2 * Math.PI * u('b'));
+  const sd = e.sd ?? 0;
+  return Math.max(0, (e.mean ?? 1) * Math.exp(sd * z - (sd * sd) / 2));
+}
+/** One day of lab r's idea research at research speed `rs`: rs × RIVAL_IDEA_TM_PER_YEAR / 365 team-months go to the next
+ *  idea in its order; an idea whose effort (the player's effortTM) is spent is adopted (its effect lands, rivalIdeaTruth)
+ *  and the rest carries to the next. Returns the ids adopted today. */
+export function adoptRivalIdeas(s: GameStateV2, r: RivalLab, rs: number): string[] {
+  const order = rivalIdeaOrder();
+  const st = (r.phys.ideas ??= { spent: 0, done: {} });
+  if (order.every((n) => n.id in st.done)) return [];
+  st.spent += (Math.max(0, rs) * RIVAL_IDEA_TM_PER_YEAR) / 365;
+  const out: string[] = [];
+  for (const n of order) {
+    if (n.id in st.done) continue;
+    const E = n.effortTM ?? 0;
+    if (st.spent < E) break;
+    st.spent -= E;
+    const x = rivalIdeaTruth(s, r.core.id, n);
+    st.done[n.id] = x;
+    out.push(n.id);
+    if (x > 0 && n.effect?.stack === 'pre') r.phys.rec.pre += x;
+    if (x > 0 && n.effect?.stack === 'train') r.phys.serve = (r.phys.serve ?? 0) + x * (n.effect.also?.serve ?? 0);
+  }
+  return out;
+}
+
 /** A ProductionReadout for a non-player lab from its aggregate research. */
 export function rivalReadout(x: RivalResearch, stage2: boolean, ratios: ProductionReadout['ratios']): ProductionReadout {
   return {
@@ -414,7 +487,8 @@ export function growLabStaff(s: GameStateV2, r: RivalLab): void {
 // ───────────────────────────── training ─────────────────────────────
 
 /** Training FLOP a day of a lab's base run: BASE_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const baseFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
+export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>) =>
+  r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
 
 /** One day of the lab's base run: launch it BASE_RUN_DAYS before the base is due (recipe frozen at launch), add a day of
  *  FLOP. */
@@ -484,6 +558,18 @@ export const learnsOnline = (w: TimelineWorld, r: RivalLab) => levelOfG(w, gOfSi
 export function newVersionG(s: GameStateV2, r: RivalLab, base: RivalBase): number {
   return learnsOnline(s.hidden.timeline, r) ? clG(base, r.phys.rec) : postG(base, r.phys.rec);
 }
+/** RD-X02: domain offsets (OOM) a version post-trained today carries: Σ over the lab's adopted domain ideas of the
+ *  realised effect × the node's per-domain OOM (the player's research.domainG). Undefined when none. */
+export function rivalDomainDg(r: Pick<RivalLab, 'phys'>): SimpleModel['domainDg'] {
+  let out: SimpleModel['domainDg'];
+  for (const [id, x] of Object.entries(r.phys.ideas?.done ?? {})) {
+    const dom = TREE_BY_ID[id]?.effect?.domains;
+    if (!dom || !x) continue;
+    out ??= {};
+    for (const [d, v] of Object.entries(dom) as [DomainId, number][]) out[d] = (out[d] ?? 0) + x * (v ?? 0);
+  }
+  return out;
+}
 /** Weekly continual-learning refresh of the internal model in place (never down). Returns true if it moved. */
 export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   const w = s.hidden.timeline;
@@ -491,6 +577,6 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   r.phys.clDay = day;
   const G = clG(r.phys.base, r.phys.rec);
   if (G <= gOfSimple(w, r.internal) + 1e-12) return false;
-  setModelG(w, r.internal, G, r.phys.base);
+  setModelG(w, r.internal, G, r.phys.base, rivalDomainDg(r));
   return true;
 }

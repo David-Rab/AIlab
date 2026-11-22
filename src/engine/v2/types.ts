@@ -1811,6 +1811,9 @@ export interface SimpleModel {
   /** Model v3 D10: the RL part of G (OOM over the leader's day-0 recipe: G − the base's G_pre − the reference RL gain on
    *  it), set with the design; the model's reasoning tokens for the same answer fall with it (worldfx/serving.ts tokEff). */
   rlG?: number;
+  /** RD-X02: domain effective-compute offsets (OOM) of a rival version post-trained after its lab adopted domain ideas
+   *  (P09 / P11 / P22): added to G in that domain's level (setModelG). */
+  domainDg?: Partial<Record<DomainId, number>>;
 }
 
 /** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active
@@ -1838,6 +1841,9 @@ export interface RivalPhys {
   rec: { pre: number; mid: number; ceil: number };
   /** Research pools of the three parts: OOM at test scale since the start (the lines' pools at aggregate level). */
   pool: { pre: number; mid: number; ceil: number };
+  /** RD-X02: aggregate adoption of the paradigms' typed effects (actors/rivalModel.ts adoptRivalIdeas): research spent on
+   *  the idea in progress (standard-team-months) and each finished idea's realised effect (0: it did not work here). */
+  ideas?: { spent: number; done: Record<string, number> };
 }
 
 /** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
