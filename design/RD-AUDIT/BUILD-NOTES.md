@@ -1777,3 +1777,24 @@ by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit
   −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
 - **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
   inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.
+
+### RD-T04
+
+RL midpoint in absolute RL FLOP (DD-06, TRN-09; theme T). Commit 9993cd4. Moves calibration: **yes** (every base not at
+B0's FLOP: students, small and large rival bases, later player bases; start-lab lags re-solve for rivals whose last base
+differs from B0).
+- **Change:** `C_mid = c0 / 10^e_RL` (models/effective.ts rlGains, rlGainGeneral), no longer `c0 · FLOP_pre / 10^e_RL`,
+  so FLOP_pre no longer cancels out of the RL gain. c0 (now in FLOP, ≈ 6.97e24) is solved once, as before, on the
+  reference base (FLOP_RL_REF = 3e26 = B0) with the standard budget, broad, e_RL = 0 → RL_REF_GAIN 0.7; V0's gain is
+  unchanged (0.667988 both ways). Rivals follow automatically (stacks.ts refRlGain / rlGOfBuild read rlGainGeneral).
+  Docs: runDesign.ts RL_CURVE, runs.ts rlAddOnVersion comment.
+- **Effect at the standard share (0.15):** 0.1× B0 base 0.038 (was 0.630), B0 0.700, 10× B0 1.092. A 10× base reaches
+  the reference gain at share 0.0126.
+- **Saturation (read the task's wording carefully):** with an absolute midpoint every base reaches 95% of its own
+  ceiling at the same absolute RL FLOP (≈ 1.5e26); a 10× smaller base therefore needs a 10× **higher** share (5.1 vs
+  0.51), not a lower one, and saturates at a lower ceiling (0.90 vs 1.00). "Small bases saturate sooner" holds only in
+  absolute FLOP relative to their pretraining cost being smaller, not as a budget share. If a lower share is wanted, the
+  midpoint needs a sublinear base term (C_mid ∝ FLOP_pre^k, 0 < k < 1) — not done.
+- **Check:** `npx tsx scripts/v2/_t04/check.ts` (V0 unchanged; reference gain 0.7; gain depends on base size at fixed
+  share; bigger base reaches the reference gain at a smaller share; 10× smaller base saturates at the same absolute RL
+  FLOP). tsc app + scripts/v2 clean.
