@@ -1527,3 +1527,25 @@ Open: save size grows by up to 20 entries × 17 traits per version (not measured
 do not show the list yet (SR-07 / UI); IDA cycles keep the post-train start (no extra widening for the ×1.1 compounding).
 Moves calibration: maybe (S4/S5): no drift keeps frozen models' beliefs narrower, so red flags, Unknown / unseen badges,
 gates and Loss-of-control risk ranges read tighter; stream versions widen more slowly than before.
+
+### SR-12
+
+One monitor formula (SAFETY-REDESIGN §3.3): `models/products.ts monitorStop(s, watched, monitor, monitorCompute,
+watchedCompute, costRatio, controlled)` → stop contribution = watched share × flag rate × acted-on rate, where watched
+share = monitor compute ÷ (watched compute × cost ratio) capped at 1 (AI 2027 fn 51), flag rate = catchRate (Engels gap
+rule, AG07 tools, control deferral; same-lineage collusion as `stopColl`), acted-on = MONITOR_ACTED_ON = 1 [D] (a flag
+blocks; SR-13's protocol / human review set it). Also strength = watched × min(1, flag ÷ 85%) × acted-on (runtime logs,
+internal tool catch). Products: `productMonitor(s, d)`, compute billed to serving `monitorOverhead` = PRODUCT_MONITOR_WATCH
+(1 [D]) × FLOP-per-token ratio (MONITOR_OVERHEAD = 0.25 deleted); `productCatch` = its stop. Internal: `useMonitor(s, use)`,
+monitor compute = the use's part of the used flat allocation (same pooled coverage as before); `monitorStrength` reads it.
+Logs as evidence: runtimeMonitoring's product strength = productMonitor's strength (internal: fleetMonitor, already the
+kernel's). actTable: product stop rate and `monitor` read productMonitor (with the table's control override);
+`ActSite.monitorParts` carries the parts for products and lanes. **MONU closed** (product monitors on the fn-51 rule; the
+tutorial hint for the 17% start coverage is not done: UI, left open). Glossary `monitor` updated. Check:
+`npx tsx scripts/v2/_sr12/check.ts` (day400 / day900: same pair → same product and internal catch, collusion too; readers =
+kernel; doubling compute doubles watched share until 1, kernel and allocation). scripts/v2/products.ts P4 updated to the
+new overhead.
+Open: internal catch still = CoT/WB tool detection × (½ + ½ × strength) (the instrument part; SR-13/SR-14 may fold it into
+flag rate); product watched share is a constant, not a player setting (SR-13 / SR-26); OD-6 trusted default watcher is SR-20.
+Moves calibration: maybe (S4/S5, serving cost): product monitor overhead ×4 (a same-size monitor +100% of serving, a
+quarter-size mini +25%); catch numbers unchanged (product watched share 1; internal coverage the same up to float order).
