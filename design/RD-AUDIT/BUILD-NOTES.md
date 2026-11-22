@@ -923,3 +923,29 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   can come later than λ 10 / 12); Agent etc. are credited below λ 5 (every lab records Agent at day 0 on seed 11);
   Stage 2 timing, endings (ASI first, overtaken), acts, China's escalation (flags 1 / 2 on the predicate) and gov
   G-SEC 3 / mil-loop / SEZ timing all move. T1 golden dates to be re-checked at CP2.
+
+### RD-L05
+- **Done (commit e57b5cf):** between-knot display-level thresholds in mechanics restated. Milestone-aligned ones read
+  the predicate (`milestoneDays`, RD-L04): gov G-SEC rung 1 `govSeesMilestone(s, 1)` (Reliable agent, was seenL ≥ 6.5),
+  rung 2 `govSeesMilestone(s, 2)` + briefing ≥ 1 (Research agent, was seenL ≥ 8.5); safety/control rogue-copy gate =
+  player SAR met (was λ ≥ 12); rival S3 +0.3 and the SC u-mode tier (`tierAtLeastSC`, player and rivals) = SC met (was
+  λ ≥ SC_LEVEL; SC_LEVEL deleted). Doses go to OOM of effective compute above V0 (ai2027: V0 → SC 2.49 OOM, 2.0 levels
+  per OOM below SC): gov awareness 60 / OOM of (true − seen) (was 30 / level), priority 14 / OOM from V0 (was 7 / level
+  from L 5), security demand 18 / OOM from 0.25 OOM (was 9 / level from L 5.5), seen OOM = gOfLevel(seenL) − G_V0;
+  rival latent-reasoning era at 2.0 OOM (was Lg 9 = 1.99); rival misuse 2e-4 / OOM from 1.0 OOM (was 1e-4 / level
+  from L 7); CoT controllability 0.8·σ((x − 1.0)/0.3), x OOM above V0 (was σ((L − 7)/0.6)); callers pass versionOom /
+  oomOfLevel.
+- **Left (lint tags `level-lint-left`):** worldfx domain-level doses (techtree bio / cyber / persuasion sigmoids,
+  control internal ops AGENCY − 10 and INFRA CYBER − 11, sectors AGENCY − 8): restate in domain OOM above V0 with the
+  world-effects work. safety/common `tierOfLevel` (continuous tier over all seven v2 knots, traits priors) not flagged
+  by the lint (reads LEVEL_KNOTS via a local); goes with the safety redesign (RD-B04–06). Knot-aligned constants kept
+  (HUMAN_REVIEW_L / AG05 overseerL = SC knot, epilogue / incidents ASI knot): consistent physically by construction
+  (MEA-18 verifier).
+- **Check:** `npx tsx scripts/v2/levellint.ts` (new; seconds): flags level-like identifiers (L, Lg, …L, level…)
+  and domain levels compared with / minus / divided by a number literal, and comparisons with LEVEL_KNOTS[i] /
+  SC_LEVEL, in src/engine/v2 outside comments and strings; allows *View / readout / glossary / ui files and lines
+  tagged `level-lint-ok: <reason>` (run-card band, market pipeline length, WSL). tsc main + scripts clean. Nothing
+  else run.
+- **moves calibration: yes.** G-SEC rungs 1–2 now wait on the predicate and on the government seeing the evaluations
+  (briefing ≥ 2, evaluator rung 3 or a deployed version), so rung timing moves; rogue-copy and SC u-mode / S3 gates
+  move with the predicate days. OOM restatements are near-identical on ai2027 below SC (maybe on other presets).
