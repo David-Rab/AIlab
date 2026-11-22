@@ -1462,3 +1462,34 @@ Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3
   0.317 / 1 at 1× / 4× / 16× compute; no `speed.serialCap` row.
 - **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
   FTE, which copies did not).
+
+### RD-A04
+
+One allocator for the safety research engineers (theme A, SAFETY-REDESIGN §5, OD-9 (a)). Commit bfec9fb.
+Moves calibration: **maybe**.
+
+- **Needs list:** `SafReNeed` = cases (open investigations' fte), patches (patch + foothold removals, patchFte),
+  safExp (line experiments: each experimenting project in priority order asks SAF_RE_UNIT × min(LINE_MULT_MAX,
+  cap ÷ SERIOUS_CAP), as before), reval (tool re-validation: `revalDemand` = tools in upkeep × (UPKEEP_MIN + UPKEEP_MAX ×
+  UPKEEP_REF) ÷ m of safety experiments, the engineers per tool at which the upkeep rate saturates; 0 with no fading
+  tool). `safAllocation` runs models/research.ts `allocate()` over `research.safRe` (the player's order, caps as the
+  capability list); what no need takes is `idle` (SafAlloc.idle, safetyRe().idle, safety view staff.idleRe). Compute
+  part unchanged (the flat allocation's safety line; flop by engineers × computeRef).
+- **Default order** = the pre-RD-A04 sequence: cases, patches, line experiments, re-validation (DEFAULT_SAF_RE_ALLOC),
+  without the 50% cap. SAF_EXP_SHARE deleted.
+- **Served amounts act:** a case below its staffing gains clarity at the engineers it gets (`casesServed`, investigations
+  caseRate × share served). Patches / removals keep fixed durations (their need is served or not; effect → RD-S05).
+  Tool upkeep and the validation lead (reValidationMult) read the re-validation need's engineers.
+- **Behaviour changes (why "maybe"):** experiments are no longer capped at 50% of the free engineers (a lab short of
+  engineers now fills its projects before upkeep); re-validation takes at most its demand and the rest is idle, so the
+  validation lead (believed U only; RD-S04 deletes it) no longer counts free engineers when no tool fades.
+- **Action / UI:** `research.safReAlloc` (order, need + max / share); Company › Work card "Safety research engineers"
+  (NeedList with gets / needs, caps, idle); `safReAllocView`; glossary `safReNeeds`, toolUpkeep reworded (GLOSSARY.md
+  not regenerated).
+- **Save:** SCHEMA_REV 56; migration 55 → 56 adds research.safRe at the default order; hygiene rev pins → 56.
+  scripts/v2/safetyresearch.ts' rig keeps twice the ask of engineers (was ask ÷ SAF_EXP_SHARE).
+- **Check:** `npx tsx scripts/v2/_a04/check.ts` (day-400 fixture migrates with the default order; with 60 people over
+  cases 40 / patches 10 / experiments 37.5 the served amounts follow the default and a reordered list; partial order
+  ignored; a cap flows down; spare engineers idle; no SAF_EXP_SHARE in src). tsc (app, scripts/v2) clean; npm run build
+  passes. Not run: safety suite, test:cal (RD test rule; CP2). The re-validation demand is not exercised by the fixture
+  (no fading tool at day 400).
