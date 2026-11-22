@@ -221,3 +221,37 @@ model. Commit cd1d7a1 on `p1-riv`.
   ending, so this change cannot move them) and worldfx A2a 6.7% / W4 23.3% (known). ws4 full 25/0, control full 32/0
   (endings "no roll", every ASI ending reachable). The deep tier has no scoring / endings suite (deep = safety S5
   only), so no deep run.
+
+### RD-B07
+
+Safety pool claims normalised in priority order (B10 / INP-18). Commits on `p1-riv`.
+- **Fix:** `safetyPoolClaims(s, extraInv?)` (departments/agents.ts) serves the safety pool in the order the code already
+  implied: **monitors → investigations → safety agents → research lines**. Each claim gets min(request, what the claims
+  before it leave). The monitoring budget is ≤ the pool, so monitors are never cut by others; open cases are cut pro rata
+  (`invScale`); the safety agents get the rest up to their share; lines take what remains. [D] The monitors' need
+  includes the monitored safety fleet, so it is taken at the agents' *granted* share (monitors do not watch compute that
+  no longer runs): the agents get the largest a ≤ request with m(a) + cases + a ≤ 1, m(a) = min(budget, capabilities
+  need + safety monitor cost ratio × a), in closed form (piecewise linear).
+- **Readers on granted shares:** `agentSplitShare('safety')` (→ monitor need / coverage, fleets, incidents, danger
+  view), `useLabour` (workfit.ts) and `safetyAgentCompute` via `safetyAgentShare`, `linePoolH100e` (= pool × lines
+  granted), `monthlyGain` (case compute × invScale), the Investigate preview (its case's granted share; the cost line
+  says "gets x%: the monitors come first" when cut), agendas `safetyReserved`, `safetyUtilisation`.
+- **Readout for the UI (later):** `safetyUtilisation(s).compute.claims` = `SafetyPoolClaims`: per claim
+  `{ requested, granted }` (shares of the pool) for monitors, investigations, agents, lines, plus `invScale`, Σ requested
+  (may exceed 1), Σ granted (≤ 1). Not wired into a panel (Agents.tsx still shows the requested safety share; RD-A05a's
+  flat allocation replaces this with one visible allocator, SAFETY-REDESIGN §5, which this does not contradict).
+- **Neutral when nothing is cut:** fast path (budget + cases + agents ≤ 1 → requested share), and the cut-free arithmetic
+  repeats monitorBudget's / the old linePoolH100e's operations, so states are bit-identical. Instrumented the cut path on
+  RefBot 500–503, safe-only 700–701 and mixed 900–901 (safety-emu play) and RefBot runRef seeds 2027 / 500 to day 1000:
+  it never fires (RefBot's budget + agents stay ≈ 0.2 of the pool). So S4 / S5 are unchanged by this task.
+- **Probe (verify_inp13, copied to this worktree):** pool sum before 140% / 144% / 160% (days 30 / 300 / 600), after
+  100% / 100% / 100%. Day 600: requested monitors 100% + agents 60%; granted monitors 72.5% (coverage 0.95 → 1.00: the cut
+  agents need no watching), agents 27.5%, lines 0.
+- **Regression test:** safety suite "RD-B07" (day400 fixture): default settings cut nothing; extreme settings alone,
+  + a 30% case, + a 90% case: readers' H100e sum ≤ 100% and the cut shows (146% → 100%; 176% → 100% with cases kept at
+  30%; 236% → 100% with cases cut to 74%, agents 0).
+- **Tests:** tsc main + scripts clean. test:quick 32/34 (fixtures stale since RD-B14; worldfx A2a 6.7% / W4 23.3%, known).
+  safety full 25/0: S4 RefBot 0.659, S4 safe-only 0.039, S5 RefBot below in 57% of 40 (median U − L −0.91), mixed bot
+  margin 0.42 (same before and after: the cut never fires in bot play; no separate pre-change run).
+  test:cal and safetyresearch full were started, then stopped under the new RD test rule (no result).
+- **Moves calibration: no** (bit-identical unless the claims exceed the pool, which no bot reaches).
