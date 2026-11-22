@@ -35,7 +35,7 @@ import { gOfLevel, lagDays, levelOfG } from '../../src/engine/v2/models/capabili
 const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b, a);
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
-import type { EndingId, EngineSystem, GameStateV2, LabId, StorytellerId, TraitVector } from '../../src/engine/v2/types';
+import type { EndingId, EngineSystem, GameStateV2, LabId, MilestoneIdx, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
@@ -245,6 +245,9 @@ const load = (i: number) => deserialize(fixtures[i]);
     const v = internalVersion(s)!;
     v.G = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[idx]) + 0.01;
     v.Lg = levelOfG(s.hidden.timeline, v.G);
+    // RD-L04 / L05: milestones are the work-fit predicate on the version's build (not its G) and the rogue gate reads
+    // the SAR record, so force the record (milestones 0..idx met today), as the ASI setups force milestoneDays[6].
+    for (let i = 0; i <= idx; i++) s.player.milestoneDays[i as MilestoneIdx] ??= s.time.day;
   }
   function rivalAsi(s: GameStateV2, id: string, bad: boolean) {
     const r = id === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === id)!;
