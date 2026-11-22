@@ -1118,3 +1118,18 @@ Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3
 - **Not touched:** design/TECH-TREE.md P07 / P05 / P20 rows (still the old text); calib.ts `--fit-tree` targets.
 - **Moves calibration: yes** (P05's gain changes shape and size and leaves safety work; P20's agent and S8 / U19
   effects gone; P07 only on long-tasks-focus runs; RefBot researches P05 / P07; refit at CP2).
+
+### RD-A08
+
+- **Done:** the serial-speed limit line is gone (core/limitsView.ts row, data/v2/limits.ts `speed.serialCap`, the
+  Company label). The duplicate cap (PROD_SPEED_CAP in calibration.ts) was already gone; SPEED_CAP stays only inside
+  workfit `speedOfCopy` (copies / speed readouts). S8 (player `deploymentS8` and rival postures) now reads
+  `prodCache.labor.agentFte` (new field: AI FTE of Experiments + Research ideas agents, a rival's whole agent pool;
+  fteOfFpt × compute) against `S8_FTE_REF` = 7.1M FTE (the old 300k copies at 5.4× × 8,766 / 2,000 h). Pressure tab
+  and glossary text say AI FTE.
+- **copiesOf kept:** safety/incidents.ts (serving incident size) and the copies readouts (workfit slots,
+  agentActions, rivalModel, researchView / production `copies`).
+- **Check:** tsc main and scripts clean; `npm run build` passes; targeted check (day 0, ai2027 seed 2027): S8 0.079 /
+  0.317 / 1 at 1× / 4× / 16× compute; no `speed.serialCap` row.
+- **Moves calibration: maybe** (same S8 scale; S8 now includes per-version usefulness and token overhead inside AI
+  FTE, which copies did not).
