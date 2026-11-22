@@ -164,3 +164,24 @@ Stale comments and BRIDGE tags (SYNTHESIS §4.9). Commit 5a0a250. Comments only,
 - Not touched: glossary / player-facing text (B47); other stale-looking comments outside the §4.9 list
   (finance/observe.ts "until MODEL-V3 lands", runDesign serveCost readout).
 - **Tests:** tsc main + scripts clean. No test run (comments only).
+
+### RD-B01
+
+Synthetic base launch; Data teacher quality cap; Blueprint defaults from the engine (B01, B43, B44). Commit fb46301.
+- **B01 confirmed and removed.** A base run's teacher only seeded `traitsTrue` in completeRun, and applyBaseToLineage
+  (called right after) rebuilds the traits from the draw's synthetic teachers (`synTeachers`, `base.teacherData`), and
+  pulledTraits reads only `run.id`. So: planRun drops the "Synthetic data needs a teacher version" check (the P10 lock
+  reason now stands), launchBase no longer reads `teacherVersionId`, completeRun's trait seed is B0's (placeholder).
+  Old saves with a teacher on a base run are harmless (nothing reads it). Glossary dataMix text updated; GLOSSARY.md
+  regenerated. Left: `planRun`'s params / TPP out-of-range checks still overwrite a lock reason (both are real errors).
+- **B43:** teacherRows passes `synQualityCap(s)`, the cap generation uses.
+- **B44 [D]:** the engine exports `RUN_PARAM_DEFAULTS` (flat params from REFERENCE_BASE / REFERENCE_POST; models/actions.ts)
+  and `RUN_POOL_DEFAULT` (runs.ts: base 0.6, post 0.2, distill 0.1, continue 0.3). The engine's values win, so the
+  Blueprint's pool defaults fall from post 0.4 / distill 0.2 / continue 0.4 (no sim moves; only the player's default
+  click). Pool pills are the old five plus the defaults (10%, 30%). The distill size text reads STUDENT_DEFAULT ("an
+  eighth"). The default base size is still the largest feasible snap (unchanged); DEFAULTS.params (now B0's 354B) is only
+  the fallback. RefBot's ½ student (bots/ref.ts) is a bot choice, untouched.
+- **Tests:** tsc main + scripts clean; data full 63/63 (two new RD-B01 checks: lock reason kept, then launch with no
+  teacher; teacher-table quality = generated quality with P10); test:quick 33/34 (worldfx A2a / W4, known); fixtures
+  pass (did not move); build ok; test:ui 687/687 (a first run timed out on the coach click under load, the rerun passed);
+  lint-ux, lint-hidden pass.
