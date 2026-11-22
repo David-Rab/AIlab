@@ -169,17 +169,17 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
       </div>
       <div className="ag-cmp">
         <Tip content={() => <TipCard title={<Term id="agentBudget">Compute</Term>} value={`${F.h100e(l.compute)} H100e`} rows={[
-          { label: use === 'safety' ? 'Share of the safety pool' : 'Share of the agent pool', value: F.pct(l.share) },
+          { label: use === 'safety' ? 'Share of the safety pool' : use === 'eng' ? 'Share of compute (its own line)' : 'Share of the research agent pool', value: F.pct(use === 'eng' ? s.player.split.engineering : l.share) },
           { label: <Term id="agentCopies">Copies × speed</Term>, value: `${F.count(l.copies)} × ${l.speed.toFixed(0)}` },
           ...(l.monitor ? [{ label: <Term id="agentMonitor">Monitor (safety pool)</Term>, value: `${F.h100e(l.monitorH100e)} H100e` }] : []),
-        ]}>{use === 'safety' ? 'Safety research agents run on a share of the safety budget.' : 'Engineering, routine and frontier research agents share the capabilities agent pool; Auto splits that budget between experiments and agents.'}</TipCard>}>
+        ]}>{use === 'safety' ? 'Safety research agents run on a share of the safety budget.' : use === 'eng' ? 'Engineering agents run on their own line of the compute split (Compute › Split › Engineering).' : 'Routine and frontier research agents share the research agent pool (Compute › Split › Research, the part not on experiments).'}</TipCard>}>
           <div className="row-i"><HBar v={l.share} max={1} color={def.budget === 'saf' ? SPHERE.saf : SPHERE.cap} w={64} /><b className="num">{F.h100e(l.compute)}</b><span className={`dept-tag ${def.budget}`}>{budget}</span>{l.compute <= 0 && <span className="tag2" data-test={`lane-off.${use}`}>off</span>}</div>
         </Tip>
         <div className="row-i small dim"><Tip content={() => <TipCard title={<Term id="agentCopies">Copies × speed</Term>} rows={[{ label: 'Copies running', value: F.count(l.copies) }, { label: 'Speed of each', value: `${l.speed.toFixed(0)}× a human` }]}>How many agent instances run at once and how fast each thinks.</TipCard>}><span className="num">{F.count(l.copies)} copies × {l.speed.toFixed(0)}</span></Tip><span className="sp" />
-          <span className="stepper mini">
+          {use !== 'eng' && <span className="stepper mini">
             <ActBtn id="agents.set" testId={`agents.compute.down.${use}`} params={{ use, compute: shareNext(-STEP) }} icon={ICON.minus} label="" block={l.share <= 0 ? 'Already 0%' : undefined} />
             <ActBtn id="agents.set" testId={`agents.compute.up.${use}`} params={{ use, compute: shareNext(STEP) }} icon={ICON.plus} label="" block={l.share >= (use === 'safety' ? 0.6 : 1) - 1e-9 ? 'At the maximum' : undefined} />
-          </span>
+          </span>}
         </div>
       </div>
       <div className="ag-ai">
@@ -209,7 +209,7 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
     <Card id="ctl-agents" home="agents" className="agents-card"
       title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">Agents at work</Term></span>}
       sub={<>model + monitor + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
-      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>{s.player.researchManual ? 'Manual' : 'Auto'} split experiments ↔ agents</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
+      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>Split experiments ↔ agents · engineering</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
       <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">danger</Term> acts/yr</span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
       <RiskLegend />

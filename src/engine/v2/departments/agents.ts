@@ -7,8 +7,8 @@
 //   capFrontier  frontier research: research ideas (IDEAS) and the AI research taste sdAI; its compute counts in the
 //                readout's k with routine's
 //   safety       safety research agents (the safety work types), on a share of the safety pool
-// Engineering and the two research uses share the capabilities agent pool (split.agents); their `compute` are shares
-// of it. Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)
+// The two research uses share the research agent pool (split.agents); their `compute` are shares of it. Engineering
+// runs on its own split line (split.engineering, RD-A02; it was a share of the agent pool, traded by the Auto mix). Monitors watch internal uses, paid first from the safety pool: the monitoring budget (a share of the pool, SAFMECH)
 // buys coverage = budget ÷ (watched compute × the monitor's cost ratio) (AI 2027 fn 51). A monitor's strength = coverage × min(1, catch ÷ 85%): a monitor as capable as the
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
@@ -60,18 +60,21 @@ export function monitorVersion(s: GameStateV2, use: AgentUse): ModelVersion | un
   return live(v) ? v : undefined;
 }
 
-/** Share of the capabilities agent pool on a capabilities use (shares normalised to 1). */
+/** Share of its pool a capabilities use runs on: engineering 1 (its own line, split.engineering); routine and frontier
+ *  research their shares of the research agent pool (normalised to 1). */
 export function capShare(s: GameStateV2, use: CapUse): number {
+  if (use === 'eng') return 1;
   const a = s.player.agents;
-  const sum = a.eng.compute + a.capRoutine.compute + a.capFrontier.compute;
+  const sum = a.capRoutine.compute + a.capFrontier.compute;
   if (Math.abs(sum - 1) < 1e-9) return a[use].compute;
   return sum > 0 ? a[use].compute / sum : DEFAULT_CAP_SHARES[use];
 }
 
-/** Share of the player's total compute running a use (capabilities uses: split.agents × share; safety: split.safety ×
- *  its GRANTED share of the safety pool, safetyPoolClaims). */
+/** Share of the player's total compute running a use (engineering: split.engineering; research uses: split.agents ×
+ *  share; safety: split.safety × its GRANTED share of the safety pool, safetyPoolClaims). */
 export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
   const p = s.player;
+  if (use === 'eng') return p.split.engineering ?? 0;
   return use === 'safety' ? p.split.safety * safetyAgentShare(s) : p.split.agents * capShare(s, use);
 }
 

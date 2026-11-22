@@ -476,7 +476,6 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const t0 = s.player.tree['L.scale']?.cap?.test;
   const w0 = t0?.work ?? 0;
   const stage0 = s.player.tree['L.scale']?.cap?.stage;
-  s.player.researchManual = true;
   s.player.split.agents += s.player.split.experiments;
   s.player.split.experiments = 0;
   s.player.policies.spareTraining = 'data';

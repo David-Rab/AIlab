@@ -6,7 +6,6 @@ import { RE_OPS } from '../../../data/v2/research';
 import { startOf } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type SplitPreset } from '../departments/split';
-import { applyBestMix } from '../production/production';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { starGain, TEAM_ACTIONS } from '../departments/teamActions';
@@ -336,13 +335,9 @@ function splitFromParams(s: GameStateV2, p: Params): ComputeSplit {
   return out;
 }
 
-/** Apply a split, the manual/auto research-mix choice (param `manual` 1/0), then the best mix when automatic. */
-function applySplit(s: GameStateV2, sp: ComputeSplit, p: Params): string | undefined {
-  const err = setSplit(s, sp);
-  if (err) return err;
-  if (typeof p.manual === 'number') s.player.researchManual = p.manual > 0 ? true : undefined;
-  applyBestMix(s, 'player');
-  return undefined;
+/** Apply a split (RD-A02: the research mix is part of it; no Auto mix). */
+function applySplit(s: GameStateV2, sp: ComputeSplit): string | undefined {
+  return setSplit(s, sp);
 }
 
 function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
@@ -350,7 +345,7 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
   const costs: CostLine[] = [];
   const gains: CostLine[] = [];
   const cur2cur: Record<keyof ComputeSplit, CostLine['currency']> = {
-    training: 'progress', experiments: 'progress', agents: 'progress', synthetic: 'progress', serving: 'revenue', safety: 'alignment',
+    training: 'progress', experiments: 'progress', agents: 'progress', synthetic: 'progress', serving: 'revenue', safety: 'alignment', engineering: 'progress',
   };
   const agg: Partial<Record<CostLine['currency'], number>> = {};
   for (const k of SPLIT_KEYS) agg[cur2cur[k]] = (agg[cur2cur[k]] ?? 0) + (next[k] - cur[k]);
@@ -370,13 +365,13 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     id: 'setSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Compute split',
     available: () => true,
     preview: (s, p) => splitPreview(s, splitFromParams(s, p)),
-    apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p), p)),
+    apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p))),
   },
   {
     id: 'splitPreset', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Split preset',
     available: () => true,
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
-    apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split), p)),
+    apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split))),
   },
   ...TEAM_ACTIONS,
   ...BUILD_ACTIONS,

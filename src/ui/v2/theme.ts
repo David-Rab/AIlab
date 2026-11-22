@@ -12,7 +12,7 @@ export const SPHERE = { cap: '#9b6be0', saf: '#22a394', sec: '#3a8ae0', prod: '#
 
 /** Compute pools take their department's hue (experiments and training are capabilities). */
 export const POOL_COLOR: Record<string, string> = {
-  training: '#9b6be0', experiments: '#7d55c0', agents: '#b28cf0', synthetic: '#6b7c91', serving: '#b08e1a', safety: '#22a394', security: '#3a8ae0',
+  training: '#9b6be0', experiments: '#7d55c0', agents: '#b28cf0', synthetic: '#6b7c91', serving: '#b08e1a', safety: '#22a394', security: '#3a8ae0', engineering: '#c97a3a',
 };
 
 /** Sequential ramp (magnitude): dark teal → light teal. t in 0..1. */

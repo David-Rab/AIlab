@@ -5,12 +5,12 @@
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 //   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
 import {
-  AGENT_USES, AGENT_USE_DEF, CAP_USES, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
+  AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, SAFETY_AGENT_MAX_SHARE, type CapUse,
 } from '../../../data/v2/agents';
 import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
-import { bestResearchMix, evalProduction, inputsAtMix, labInputs, tcoPerH100eYear } from '../production/production';
+import { evalProduction, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/ces';
 import { safetyFleet } from '../safety/agents';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
@@ -49,12 +49,10 @@ export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
   }
   if (c.compute !== undefined) {
     if (!isCapUse(use)) p.compute = Math.max(0, Math.min(SAFETY_AGENT_MAX_SHARE, c.compute));
-    else {
+    else if (use !== 'eng') { // RD-A02: engineering's compute is its own split line (Compute › Split), not a share here
       const x = Math.max(0, Math.min(1, c.compute));
-      const others = CAP_USES.filter((u) => u !== use);
-      const o = others.map((u) => capShare(s, u));
-      const sum = o[0] + o[1];
-      others.forEach((u, i) => { a[u].compute = sum > 0 ? ((1 - x) * o[i]) / sum : (1 - x) / 2; });
+      const other = use === 'capRoutine' ? 'capFrontier' : 'capRoutine';
+      a[other].compute = 1 - x;
       p.compute = x;
     }
   }
@@ -62,7 +60,8 @@ export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
 }
 
 /** Why a change cannot apply (undefined = fine). */
-export function agentChangeBlock(s: GameStateV2, _use: AgentUse, c: AgentChange): string | undefined {
+export function agentChangeBlock(s: GameStateV2, use: AgentUse, c: AgentChange): string | undefined {
+  if (use === 'eng' && c.compute !== undefined) return 'Engineering agents have their own line: set it on Compute › Split';
   if (c.versionId) {
     const v = versionById(s, c.versionId);
     if (!live(v)) return 'Pick a live model';
@@ -75,12 +74,10 @@ const hypo = (s: GameStateV2, agents: Record<AgentUse, AgentPackage>, trusted?: 
   ...s, player: { ...s.player, agents, ...(trusted !== undefined ? { policies: { ...s.player.policies, trustedToAI: trusted } } : {}) },
 });
 
-/** Production readout at the lab's research mix (the best mix under Auto), from state (no mutation). */
+/** Production readout at the lab's research mix, from state (no mutation). */
 function productionNow(s: GameStateV2): ProductionReadout | undefined {
   const inp = labInputs(s, 'player');
-  if (!inp) return undefined;
-  const at = s.player.researchManual ? inp : inputsAtMix(inp, bestResearchMix(s, inp));
-  return evalProduction(s, at);
+  return inp ? evalProduction(s, inp) : undefined;
 }
 
 export interface AgentLane {
@@ -139,7 +136,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.researchManual ? 1 : 0}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
+  return `${s.time.day}|${p.computeOnline}|${p.split.agents}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.policies.monitorBudget}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */

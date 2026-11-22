@@ -108,7 +108,7 @@ export const AI2027_COMPUTE_TABLE: { year: number; h100e: number }[] = [
 export const PHI_FLOP_PER_H100E_DAY = 3.46e19;
 
 /** Reference compute-usage shares by decimal year (§3.2.1; AI 2027 compute forecast). Linear interp, held after. */
-export const SHARE_REF: { year: number; share: ComputeSplit }[] = [
+export const SHARE_REF: { year: number; share: Omit<ComputeSplit, 'engineering'> }[] = [
   { year: 2025.5, share: { training: 0.4, experiments: 0.05, agents: 0.03, synthetic: 0.21, serving: 0.29, safety: 0.02 } },
   { year: 2026.5, share: { training: 0.4, experiments: 0.06, agents: 0.04, synthetic: 0.21, serving: 0.27, safety: 0.02 } },
   { year: 2027.125, share: { training: 0.3, experiments: 0.14, agents: 0.06, synthetic: 0.28, serving: 0.19, safety: 0.03 } },

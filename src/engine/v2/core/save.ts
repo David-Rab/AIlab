@@ -2,8 +2,8 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, SectorId, VersionBuild } from '../types';
-import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
+import type { GameStateV2, LabCore, SectorId, VersionBuild } from '../types';
+import { DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
@@ -54,7 +54,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  recomputes the player's version domain levels as λ(G_d).
  *  50 (RD-U05): domain levels are scores against the domain's best human (models/capability.ts domainsOf); v2's display offsets are
  *  gone. Migration 49 → 50 recomputes every stored domain-level record. */
-export const SCHEMA_REV = 50;
+export const SCHEMA_REV = 51;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -394,6 +394,31 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     walk(s.player, !!s.player && adopted(s, 'P19'));
     walk(s.rivals, false);
     walk(s.hidden, false);
+  },
+  /** 50 → 51 (RD-A02): the Auto research mix is gone (researchManual deleted; the split as it stands is kept); the
+   *  engineering agents get their own split line: the player's engineering share of the agent pool moves to
+   *  split.engineering and the two research uses' shares are renormalised over the research agent pool (eng = 1, all of
+   *  its line). The other labs get engineering 0 (their research model has no build queue). */
+  50: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player;
+    const a = p?.agents;
+    const fresh = !!p?.split && typeof p.split.engineering !== 'number'; // idempotent: only a save without the line
+    const cores = [s.player, ...(s.rivals ?? []).map((r) => r.core), s.china?.lab?.core].filter(Boolean) as LabCore[];
+    for (const c of cores) {
+      delete (c as unknown as Record<string, unknown>).researchManual;
+      if (c.split && typeof c.split.engineering !== 'number') c.split.engineering = 0;
+    }
+    if (fresh && a) {
+      const sum = a.eng.compute + a.capRoutine.compute + a.capFrontier.compute;
+      const fe = sum > 0 ? a.eng.compute / sum : 0;
+      p.split.engineering += p.split.agents * fe;
+      p.split.agents *= 1 - fe;
+      const rs = a.capRoutine.compute + a.capFrontier.compute;
+      a.capRoutine.compute = rs > 0 ? a.capRoutine.compute / rs : DEFAULT_CAP_SHARES.capRoutine;
+      a.capFrontier.compute = rs > 0 ? a.capFrontier.compute / rs : DEFAULT_CAP_SHARES.capFrontier;
+      a.eng.compute = 1;
+    }
   },
 };
 

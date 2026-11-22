@@ -1,9 +1,8 @@
 // Bottleneck readout selectors (V2-SPEC §3.2.5, §6.4). Owner: WS1.
-// `production(s, lab)` = label / binding, labour (copies × speed), ratios vs the reference path. The mix and response
-// charts plot the lab's experiment throughput (production.ts labThroughput, the Auto mix's objective until RD-A02;
-// RD-R01: no aggregate multiplier M), relative to today's.
-import { bestResearchMix, computeProduction, inputsAtMix, labInputs, labThroughput, type LabInputs } from './production';
-import { MIX_RANGE } from '../departments/split';
+// `production(s, lab)` = label / binding, labour (copies × speed), ratios vs the reference path. The response charts
+// plot the lab's experiment throughput (production.ts expThroughput, a readout only; RD-R01: no aggregate multiplier M),
+// relative to today's. RD-A02: the research-mix chart went with the Auto mix (INP-V02).
+import { computeProduction, expThroughput, labInputs, type LabInputs } from './production';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
 /** EngineApi.production: the lab's readout (cached by the daily production system, recomputed if absent). Other
@@ -14,31 +13,8 @@ export function production(s: GameStateV2, lab: LabId): ProductionReadout {
   return core?.prodCache ?? computeProduction(s, lab) ?? computeProduction(s, 'player')!;
 }
 
-/** Research-mix trade-off: experiment throughput relative to today's (M field, today = ×1) as the research compute
- *  (experiments + agents) is re-split, from all agents (f = 0) to all experiments (f = 1). `current` is today's
- *  experiments share, `best` the best one. */
-export interface MixCurve { points: { f: number; M: number }[]; current: number; best: number; Mcurrent: number; Mbest: number; manual: boolean; research: number }
-
-export function researchMixCurve(s: GameStateV2, n = 41): MixCurve | undefined {
-  const inp = labInputs(s, 'player');
-  if (!inp) return undefined;
-  const w = s.hidden.timeline;
-  const X0 = Math.max(1e-12, labThroughput(w, inp));
-  const at = (f: number) => labThroughput(w, inputsAtMix(inp, f)) / X0;
-  const points: { f: number; M: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    const f = MIX_RANGE[0] + ((MIX_RANGE[1] - MIX_RANGE[0]) * i) / (n - 1);
-    points.push({ f, M: at(f) });
-  }
-  const sp = s.player.split;
-  const r = sp.experiments + sp.agents;
-  const current = r > 0 ? sp.experiments / r : 0.5;
-  const best = bestResearchMix(s, inp);
-  return { points, current, best, Mcurrent: 1, Mbest: at(best), manual: !!s.player.researchManual, research: s.player.computeOnline * r };
-}
-
 /** Response of research speed to scaling one input from ×0.25 to ×4 (today = ×1), others held. Research compute
- *  scales experiments and agents together at the best mix; humans are capabilities staff. */
+ *  scales experiments and agents together at today's mix; humans are capabilities staff. */
 export interface ResponseCurves { scales: number[]; humans: number[]; research: number[]; experiments: number[]; agents: number[] }
 
 export const RESPONSE_SCALES = [0.25, 0.35, 0.5, 0.7, 1, 1.4, 2, 2.8, 4];
@@ -47,15 +23,14 @@ export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
   const inp = labInputs(s, 'player');
   if (!inp) return undefined;
   const w = s.hidden.timeline;
-  const X0 = Math.max(1e-12, labThroughput(w, inp));
-  const rel = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => labThroughput(w, inp, o) / X0;
-  const fBest = (x: number) => bestResearchMix(s, { ...inp, mixUnit: { ...inp.mixUnit, c: inp.mixUnit.c * x, k: inp.mixUnit.k * x } });
+  const X0 = Math.max(1e-12, expThroughput(w, inp));
+  const rel = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => expThroughput(w, inp, o) / X0;
   return {
     scales: RESPONSE_SCALES,
     humans: RESPONSE_SCALES.map((x) => rel({ h: inp.h * x })),
     research: RESPONSE_SCALES.map((x) => {
       const cIdle = inp.mixUnit.cIdle ?? 0; // idle training compute (and spare serving, kSpare) is not research compute: it stays as it is
-      const f = s.player.researchManual ? ((inp.c - cIdle) / Math.max(1e-12, inp.mixUnit.c)) : fBest(x);
+      const f = (inp.c - cIdle) / Math.max(1e-12, inp.mixUnit.c);
       return rel({ c: f * inp.mixUnit.c * x + cIdle, k: (1 - f) * inp.mixUnit.k * x + (inp.mixUnit.kSpare ?? 0) });
     }),
     experiments: RESPONSE_SCALES.map((x) => rel({ c: inp.c * x })),

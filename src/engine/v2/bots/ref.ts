@@ -30,7 +30,7 @@ import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
-import { shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
+import { playerShareRef, shareRefAt, TOP_KEYS, topOf, withFixed } from '../departments/split';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
 import { hRef } from '../production/ces';
@@ -174,7 +174,7 @@ export function refSafetyShare(s: GameStateV2): number {
 
 /**
  * S5R: RefBot's safety agents (the safety package's share of the safety pool): the safety research is mixed like the
- * capabilities research pool (agents ÷ (experiments + agents) of the lab's split, the Auto best mix), so the safety
+ * capabilities research pool (agents ÷ (experiments + agents) of the lab's split, RefBot's table mix since RD-A02), so the safety
  * agents' compute is the alignment share of the lab's research automation (the table's 3% of the automation row) and the
  * safety AI labour a/(1 − a) of the capabilities agents' on the same model. (Before S5R RefBot kept the package default, 20%
  * of the pool: in 2026 that was ≈ 4× the capabilities agents' AI labour, against the source's ~95% of research effort
@@ -311,10 +311,13 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // Departments: reference split (monthly) and cap hiring tracking H_ref six weeks ahead.
   if (day % 30 === 0) {
     const safShare = (o.safetyShare ?? refSafetyShare)(s);
-    const ref: ComputeSplit = safShare === undefined ? shareRefAt(yr) : withFixed(shareRefAt(yr), { safety: safShare });
+    // RD-A02: the table's split set explicitly, the research mix included (AI 2027's experiments : automation rows; no
+    // Auto mix re-splits it), with the reference lab's engineering share of its agent compute on the engineering line
+    // (playerShareRef).
+    const ref: ComputeSplit = safShare === undefined ? playerShareRef(yr) : withFixed(playerShareRef(yr), { safety: safShare });
     const now = topOf(p.split);
     const want = topOf(ref);
-    const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3;
+    const diff = TOP_KEYS.some((k) => Math.abs(want[k] - now[k]) > 1e-3) || Math.abs(ref.synthetic - p.split.synthetic) > 1e-3 || Math.abs(ref.experiments - p.split.experiments) > 1e-3;
     if (diff) tryAct(s, api, 'setSplit', { ...ref });
     // Whole teams in the reference split (D2): round(share · H_ref(t + 6 wk) / size) per role.
     const H = hRef(yr + 0.12);

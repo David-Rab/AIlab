@@ -53,6 +53,7 @@ import type {
 import { emptySeries, sampleSeries } from './record';
 import { hash32, seedStreams, StreamRng } from './rng';
 import { SCHEMA_REV } from './save';
+import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
 import { START_DATE } from './time';
 
@@ -192,7 +193,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
     computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
-    split: { ...SHARE_REF[0].share }, // the start split: AI 2027's compute-usage table at the start (data)
+    split: playerShareRef(SHARE_REF[0].year), // the start split: AI 2027's compute-usage table at the start (data), engineering agents on their own line (RD-A02)
     staff,
     tasteHire: 1,
     models: {

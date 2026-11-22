@@ -12,8 +12,8 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { leadDays } from '../actors/intel';
 import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } from '../types';
 
-export { production, researchMixCurve, responseCurves, RESPONSE_SCALES } from '../production/readout';
-export type { MixCurve, ResponseCurves } from '../production/readout';
+export { production, responseCurves, RESPONSE_SCALES } from '../production/readout';
+export type { ResponseCurves } from '../production/readout';
 export { MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).

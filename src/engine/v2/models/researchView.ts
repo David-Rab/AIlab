@@ -449,7 +449,7 @@ export interface ResearchSpeedView {
   c: number; l: number; X: number;
   label: 'compute-bound' | 'labor-bound' | 'human-bound' | 'taste-bound';
   /** Research compute (H100e) and the share on experiments (the rest runs research agents). */
-  researchH100e: number; expShare: number; manual: boolean;
+  researchH100e: number; expShare: number;
 }
 
 export function researchSpeedView(s: GameStateV2): ResearchSpeedView {
@@ -461,7 +461,7 @@ export function researchSpeedView(s: GameStateV2): ResearchSpeedView {
   return {
     rel: researchSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
     c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,
-    researchH100e: r, expShare: r > 0 ? pools.experiments / r : 0, manual: !!s.player.researchManual,
+    researchH100e: r, expShare: r > 0 ? pools.experiments / r : 0,
   };
 }
 

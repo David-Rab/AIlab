@@ -237,6 +237,9 @@ export interface StaffByRole { cap: number; saf: number; }
 export interface ComputeSplit {
   training: number; experiments: number; agents: number; synthetic: number;
   serving: number; safety: number;
+  /** RD-A02: engineering agents' own compute line (coding for the build queue); `agents` is research agents only.
+   *  0 for the other labs (their research model has no build queue). */
+  engineering: number;
 }
 
 export interface LabCore {
@@ -249,8 +252,6 @@ export interface LabCore {
   scDay?: Day;
   computeOnline: H100e;
   split: ComputeSplit;
-  /** Research mix set by hand. Absent/false: experiments vs agents is re-split to the best mix every day. */
-  researchManual?: boolean;
   staff: StaffByRole;
   /** τ_h, star-hire taste multiplier (research/13). */
   tasteHire: number;

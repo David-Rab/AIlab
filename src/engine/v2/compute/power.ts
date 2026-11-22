@@ -37,7 +37,7 @@ export function computeOnlineOf(s: GameStateV2): number {
 /** Compute pools (H100e) of a lab: online × split (§3.4.2). WS1/WS2 read pools through this. */
 export function poolsOf(s: GameStateV2, lab: LabId = 'player'): ComputeSplit {
   const c = labCore(s, lab);
-  const out: ComputeSplit = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0 };
+  const out: ComputeSplit = { training: 0, experiments: 0, agents: 0, synthetic: 0, serving: 0, safety: 0, engineering: 0 };
   if (!c) return out;
   for (const k of Object.keys(out) as (keyof ComputeSplit)[]) out[k] = c.computeOnline * (c.split[k] ?? 0);
   return out;

@@ -21,10 +21,10 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, POOL_COLOR, SPHERE } from '../theme';
 
-const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety' };
+const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety', engineering: 'engAgents' };
 type Dept = 'cap' | 'serve' | 'saf';
-const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf' };
-const POOL_LABEL: Record<string, string> = { training: 'Training runs', experiments: 'Experiments', agents: 'Agents', synthetic: 'Data generation', serving: 'Serving', safety: 'Safety' };
+const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf', engineering: 'cap' };
+const POOL_LABEL: Record<string, string> = { training: 'Training runs', experiments: 'Experiments', agents: 'Research agents', synthetic: 'Data generation', serving: 'Serving', safety: 'Safety', engineering: 'Engineering agents' };
 
 // ───────── Flow: compute online → pools → departments → outputs ─────────
 function Flow({ s }: { s: GameStateV2 }) {
@@ -175,8 +175,8 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
         <span><Term id="expLabour">Labour ℓ</Term></span><span className="hb"><i style={{ width: w(v.l), background: '#5aa9ff' }} /></span>
         <Tip content={() => <TipCard title={<Term id="expLabour">Experiment labour ℓ</Term>} value={`×${F.short(v.l)}`}>Research engineers with the agents' help, to the power λ.</TipCard>}><span className="num">×{F.short(v.l)}</span></Tip>
       </div>
-      <Tip content={() => <TipCard title={<Term id="autoSplit">Research compute mix</Term>} value={`${F.pct(v.expShare)} experiments`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }]}>{v.manual ? 'Set by you on Compute › Split.' : 'Auto puts research compute where it adds most speed. Before agents cover much of the work, an agent adds little next to the same chips running experiments, so almost all of it goes to experiments.'}</TipCard>}>
-        <div className="small dim" data-test="speed-mix">{v.manual ? 'Manual' : 'Auto'} mix: <b className="num">{F.pct(v.expShare)}</b> of research compute on experiments</div>
+      <Tip content={() => <TipCard title={<Term id="autoSplit">Research compute mix</Term>} value={`${F.pct(v.expShare)} experiments`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }]}>Set by you on Compute › Split.</TipCard>}>
+        <div className="small dim" data-test="speed-mix">Mix: <b className="num">{F.pct(v.expShare)}</b> of research compute on experiments</div>
       </Tip>
       {spareFx.h100e > 0 && <div className="small dim" data-test="rs-spare-serving"><Term id="spareServing">spare serving</Term> → agents <Tip content={() => <TipCard title={<Term id="spareServing">Spare serving lent</Term>} value={`${F.count(spareFx.h100e)} H100e`} rows={[{ label: 'Research speed', value: F.pct(spareFx.dM, 1, true) }]}>Serving compute no product needs runs research agents (products take it back first).</TipCard>}><b className="num tone-pos">{F.pct(spareFx.dM, 1, true)}</b></Tip> <Ref id="spareServing" to={{ panel: 'compute', tab: 'split', anchor: 'split-spare-serving' }}>policy</Ref></div>}
       <SpeedLimits s={s} />

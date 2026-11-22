@@ -35,7 +35,7 @@ import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
-import { agentVersion, capShare, monitorVersion, safetyAgentShare } from './agents';
+import { agentSplitShare, agentVersion, capShare, monitorVersion, safetyAgentShare } from './agents';
 import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
 
@@ -222,7 +222,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   let h100e = 0;
   if (!off) {
     if (use === 'safety') h100e = p.computeOnline * p.split.safety * safetyAgentShare(s); // RD-B07: the granted share
-    else h100e = p.computeOnline * p.split.agents * capShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
+    else h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
   }
   let mult = 1;
   if (adopted(s, 'P05')) mult *= 1.3;

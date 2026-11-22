@@ -4,10 +4,10 @@
 // The player (model v3 V3: design/V3-BUILD.md V3.4): research speed comes from each project's explicit compute and
 // labour (models/research.ts, the AI Futures experiment CES at project level) and AI labour per work type
 // (departments/workfit.ts). For the player this file builds only the READOUT (ProductionReadout: label, labour, ratios)
-// from what that engine did on its last day (research.last), and the Auto research mix (applyBestMix), which still
-// maximises one aggregate quantity, the lab's experiment throughput (labThroughput) over the experiments share, until
-// RD-A02. RD-R01: no aggregate AI R&D multiplier M or elasticities (evalV3 is gone); gov, the tutorial, P24, the rolled
-// safety nodes, previews and the record read the engine's measured quantities or milestones.
+// from what that engine did on its last day (research.last). RD-R01: no aggregate AI R&D multiplier M or elasticities
+// (evalV3 is gone); gov, the tutorial, P24, the rolled safety nodes, previews and the record read the engine's measured
+// quantities or milestones. RD-A02: the Auto research mix is gone (DD-11); the experiments / agents split is the
+// player's own setting, and no mechanism reads the aggregate experiment throughput (expThroughput: readouts only).
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //
@@ -26,9 +26,8 @@ import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { spareServingToResearch } from '../worldfx/revenue';
 import { Xces } from './ces';
-import { effLabour, qualityZ, researchMods, resetWorkContext, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
-import { MIX_RANGE } from '../departments/split';
 import { idleTrainingShare } from '../models/runs';
 import { adopted } from '../models/paradigms';
 import { payoffOf } from '../models/tree';
@@ -70,13 +69,11 @@ export interface LabInputs {
   v3: V3Inputs;
 }
 
-// ───────────────────────────── the player's experiment throughput (the Auto mix's objective) ─────────────────────────────
+// ───────────────────────────── the player's experiment throughput (readouts only) ─────────────────────────────
 
 /** RD-R01: the one aggregate piece left, the lab's experiment throughput at inputs (h, k, c): X(c̄, ℓ) of a unit project
- *  and the number of unit projects. Only the Auto research mix (bestResearchMix / applyBestMix: maximises X over the
- *  experiments share, until RD-A02), its charts (readout.ts), researchSpeedRel and spareServingEffect read it; no
- *  readout, preview or mechanism reads an aggregate multiplier or elasticity any more (the research readout is the
- *  engine's day, research.last). */
+ *  and the number of unit projects. READOUTS ONLY since RD-A02 (no mechanism, no Auto mix): the response charts
+ *  (readout.ts), researchSpeedRel and spareServingEffect. */
 function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number } {
   const v = inp.v3 as V3Inputs;
   const Pp = w.prod;
@@ -91,15 +88,8 @@ function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h:
   return { X: Xces(Pp, cbar, l), units };
 }
 
-/** Experiment throughput X at experiments share f of the research compute (P2: the mix search calls it 26 times a day,
- *  so no input copies; the same value as throughputAt at inputsAtMix(inp, f)). */
-function xAtMix(w: TimelineWorld, inp: LabInputs, f: number): number {
-  const u = inp.mixUnit;
-  return throughputAt(w, inp, f * u.c + (u.cIdle ?? 0), (1 - f) * u.k + (u.kSpare ?? 0), inp.h).X;
-}
-
-/** The lab's total experiment throughput (Σ unit projects' X) at inputs, other inputs as in `inp`. */
-export function labThroughput(w: TimelineWorld, inp: LabInputs, o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>> = {}): number {
+/** The lab's total experiment throughput (Σ unit projects' X) at inputs, other inputs as in `inp` (readouts only). */
+export function expThroughput(w: TimelineWorld, inp: LabInputs, o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>> = {}): number {
   const t = throughputAt(w, inp, o.c ?? inp.c, o.k ?? inp.k, o.h ?? inp.h);
   return t.X * t.units;
 }
@@ -181,7 +171,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 export function researchSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
-  return (labThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
+  return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
 }
 
 /** The player's production readout (§3.2.5) at inputs `inp`, from the research engine's last day. */
@@ -211,7 +201,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 }
 
 /** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
- *  compute (re-split unless set by hand), research speed through the aggregate CES with its internal model's AI labour,
+ *  compute (the rivals' aggregate policy, actors/rivalModel.ts bestRivalMix), research speed through the aggregate CES with its internal model's AI labour,
  *  its efficiency (the leader's LEADER_CAL, China's effLab) and modifiers (a binding leader, a verified treaty), and the
  *  recipe growth that gives. `apply` re-splits the mix and advances the recipe by a day. */
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
@@ -222,7 +212,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   const res = core.split.experiments + core.split.agents;
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
-  if (apply && !core.researchManual && res > 0) {
+  if (apply && res > 0) {
     f = bestRivalMix(w, G, fpt, core.staff.cap, C);
     core.split.experiments = res * f;
     core.split.agents = res * (1 - f);
@@ -246,7 +236,7 @@ export function spareServingEffect(s: GameStateV2): { h100e: number; dM: number 
   const ks = inp?.mixUnit.kSpare ?? 0;
   if (!inp || ks <= 0) return { h100e: 0, dM: 0 };
   const w = s.hidden.timeline;
-  return { h100e: inp.mixUnit.spare ?? 0, dM: labThroughput(w, inp) / Math.max(1e-12, labThroughput(w, inp, { k: Math.max(1e-12, inp.k - ks) })) - 1 };
+  return { h100e: inp.mixUnit.spare ?? 0, dM: expThroughput(w, inp) / Math.max(1e-12, expThroughput(w, inp, { k: Math.max(1e-12, inp.k - ks) })) - 1 };
 }
 
 /** Production readout for a lab, computed from current state (§3.2.2/§3.2.5; the other labs' from rivalResearch). */
@@ -259,45 +249,6 @@ export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout
   return inp ? evalProduction(s, inp) : undefined;
 }
 
-/** Best experiments share of a lab's research compute (experiments + agents) for its current inputs: the player's by
- *  golden-section search on its experiment throughput (model v3 V3). */
-export function bestResearchMix(s: GameStateV2, inp: LabInputs): number {
-  const w = s.hidden.timeline;
-  const f = (x: number) => xAtMix(w, inp, x);
-  const g = (Math.sqrt(5) - 1) / 2;
-  let lo = MIX_RANGE[0];
-  let hi = MIX_RANGE[1];
-  let x1 = hi - g * (hi - lo);
-  let x2 = lo + g * (hi - lo);
-  let f1 = f(x1);
-  let f2 = f(x2);
-  for (let i = 0; i < 24; i++) {
-    if (f1 < f2) { lo = x1; x1 = x2; f1 = f2; x2 = lo + g * (hi - lo); f2 = f(x2); }
-    else { hi = x2; x2 = x1; f2 = f1; x1 = hi - g * (hi - lo); f1 = f(x1); }
-  }
-  return (lo + hi) / 2;
-}
-
-/** Inputs with the research compute re-split at experiments share f (same total). */
-export function inputsAtMix(inp: LabInputs, f: number): LabInputs {
-  const u = inp.mixUnit;
-  return { ...inp, c: f * u.c + (u.cIdle ?? 0), k: (1 - f) * u.k + (u.kSpare ?? 0) };
-}
-
-/** Re-split a lab's research share between experiments and agents in the best way (auto mix; the player can switch
- *  to a manual mix). Keeps experiments + agents unchanged. Returns the inputs at the new mix (or `inp` unchanged). */
-export function applyBestMix(s: GameStateV2, lab: LabId, day = s.time.day, inp = labInputs(s, lab, day)): LabInputs | undefined {
-  const core = labCore(s, lab);
-  if (!core || !inp || core.researchManual) return inp;
-  const r = core.split.experiments + core.split.agents;
-  if (r <= 0) return inp;
-  const f = bestResearchMix(s, inp);
-  core.split.experiments = r * f;
-  core.split.agents = r * (1 - f);
-  if (lab === PLAYER_ID) resetWorkContext(s); // the agent compute changed: today's AI labour follows it
-  return inputsAtMix(inp, f);
-}
-
 /** One lab's day: the player's readout at day−1 inputs (its research runs in models/research.ts; the readout is cached
  *  here); a non-player lab's research advances its recipe (rivalResearch). */
 export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
@@ -307,7 +258,7 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
     const r = rivalLab(s, lab);
     return r ? (core.prodCache = rivalResearch(s, r, true)) : undefined;
   }
-  const inp = applyBestMix(s, lab, s.time.day - 1);
+  const inp = labInputs(s, lab, s.time.day - 1);
   if (!inp) return undefined;
   const r = evalProduction(s, inp);
   core.prodCache = r;

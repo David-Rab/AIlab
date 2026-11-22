@@ -1,12 +1,17 @@
 // Internal agent packages (STRUCTURE §4.9, BUILD-PLAN R7). Each internal use of a model is a package: a model, an
-// optional monitor model and compute. Engineering, routine research and frontier research share the capabilities
-// agent pool (`split.agents`); safety research runs on a share of the safety pool. Values marked [D] are design.
+// optional monitor model and compute. Routine research and frontier research share the research agent pool
+// (`split.agents`); engineering has its own line (`split.engineering`, RD-A02); safety research runs on a share of the
+// safety pool. Values marked [D] are design.
 import type { AgentUse, TeamRole, TraitId } from '../../engine/v2/types';
 
 export const AGENT_USES: AgentUse[] = ['eng', 'capRoutine', 'capFrontier', 'safety'];
-/** Uses funded from the capabilities agent pool (their `compute` are shares of it, summing to 1). */
+/** Capabilities uses (watched by the capabilities monitors). */
 export const CAP_USES = ['eng', 'capRoutine', 'capFrontier'] as const;
 export type CapUse = (typeof CAP_USES)[number];
+/** Uses funded from the research agent pool (split.agents; their `compute` are shares of it, summing to 1). Engineering
+ *  runs on its own split line (split.engineering) since RD-A02: its `compute` is 1 (all of that line). */
+export const RESEARCH_AGENT_USES = ['capRoutine', 'capFrontier'] as const;
+export type ResearchAgentUse = (typeof RESEARCH_AGENT_USES)[number];
 
 export interface AgentUseDef {
   name: string;
@@ -27,12 +32,18 @@ export const AGENT_USE_DEF: Record<AgentUse, AgentUseDef> = {
   safety: { name: 'Safety research', work: 'safety researchers', role: 're', budget: 'saf', misuse: 'Sabotage: false results, corrupted investigations', order: 2 },
 };
 
-/** Reference share of the capabilities agent pool spent on engineering (coding for the build queue) [D]. The
- *  production function's agent ratio k counts routine + frontier agents against the reference agent compute net of
- *  this share, so a lab at the reference split has exactly today's k. */
+/** Reference share of a lab's agent compute spent on engineering (coding for the build queue) [D]. The player's
+ *  reference split puts it on the engineering line (split.ts playerShareRef), so a lab at the reference split has
+ *  exactly the research agent compute (and k) it had when engineering was a share of the agent pool. */
 export const ENG_REF_SHARE = 0.2;
-/** Default shares of the capabilities agent pool (the reference lab; mockups-v3 v3-company) [D]. */
-export const DEFAULT_CAP_SHARES: Record<CapUse, number> = { eng: ENG_REF_SHARE, capRoutine: 0.65, capFrontier: 0.15 };
+/** Reference shares of ALL of a lab's agent compute (the reference lab; mockups-v3 v3-company) [D]; the rivals' research
+ *  model reads routine and frontier from it. */
+export const REF_AGENT_SHARES: Record<CapUse, number> = { eng: ENG_REF_SHARE, capRoutine: 0.65, capFrontier: 0.15 };
+/** The player's default package shares: research uses as shares of the research agent pool (the reference shares net of
+ *  engineering: 0.8125 / 0.1875), engineering 1 (all of its own line). */
+export const DEFAULT_CAP_SHARES: Record<CapUse, number> = {
+  eng: 1, capRoutine: REF_AGENT_SHARES.capRoutine / (1 - ENG_REF_SHARE), capFrontier: REF_AGENT_SHARES.capFrontier / (1 - ENG_REF_SHARE),
+};
 
 /** Monitor id meaning "the model it watches" (a copy of the same model: as capable as the watched one, so no
  *  oversight gap). The default monitor on routine and frontier research; it follows model swaps. */

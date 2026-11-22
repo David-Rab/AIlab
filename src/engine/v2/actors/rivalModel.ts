@@ -37,7 +37,7 @@ import { tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
-import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
+import { REF_AGENT_SHARES } from '../../../data/v2/agents';
 import type { GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld } from '../types';
 
 /** Research-engineer team-equivalents on research per capabilities head: the leader's day-0 9.68 team-equivalents on
@@ -46,15 +46,15 @@ export const RE_PER_HEAD = DAY0_REF.re / H_REF_BASE;
 /** Science team-equivalents per capabilities head: the leader start's 320 Strong capability scientists (8 team-eq of
  *  WORK_TYPES.IDEAS.heads) over 2,050 [D: fixed day-0 ratio, data/v2/starts.ts]. */
 export const SCI_PER_HEAD = 8 / H_REF_BASE;
-/** Shares of a lab's agent pool on Experiments and on Research ideas: the player's default agent shares (routine 0.65,
- *  frontier 0.15; engineering 0.2 does not enter research here) [D, data/v2/agents.ts DEFAULT_CAP_SHARES]. */
-const AGENT_EXP = DEFAULT_CAP_SHARES.capRoutine;
+/** Shares of a lab's agent pool on Experiments and on Research ideas: the reference agent shares (routine 0.65,
+ *  frontier 0.15; engineering 0.2 does not enter research here) [D, data/v2/agents.ts REF_AGENT_SHARES]. */
+const AGENT_EXP = REF_AGENT_SHARES.capRoutine;
 /** Numerical guards past superintelligence (the law is explosive: AIFM's software singularity): AI taste counts up to 30
  *  SD (AI 2027's ASI is 14.5 SD, research/13 §1.5) and the recipe grows at most 36 OOM a year (0.1 a day; RefBot's
  *  fastest measured takeoff is 30–40 OOM/yr, ai2027 stub) [D]. Neither binds before ASI on the presets. */
 const SD_AI_MAX = 30;
 const RECIPE_RATE_MAX = 36.5;
-const AGENT_IDEAS = DEFAULT_CAP_SHARES.capFrontier;
+const AGENT_IDEAS = REF_AGENT_SHARES.capFrontier;
 
 // ───────────────────────────── recipe and models ─────────────────────────────
 
