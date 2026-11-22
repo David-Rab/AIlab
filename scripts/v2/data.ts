@@ -2,7 +2,7 @@
 //   The start portfolio sums to v1's U (310T); repetition is unchanged at equal U; quality moves G through U (higher q,
 //   less repetition, higher G); the public web is one finite stock shared by every lab; synthetic tokens grow with the
 //   synthetic compute (v1's yield at V0) and their quality with the teacher's G; usage tokens come only from live
-//   products on eligible channels; saves at schemaRev 20 migrate with the same U.
+//   products on eligible channels.
 // Model v3 D3 (the draw): a base draws its tokens from the portfolio by its data mix; the balanced draw reproduces the
 //   start, the natural mix reproduces D1's U and repetition, specialisation s_d,data follows the drawn shares (capped), a
 //   short domain repeats and loses value, and no V1 data-option offsets are left.
@@ -27,13 +27,13 @@ import { actionView } from '../../src/engine/v2';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
 import { effectiveTokens, fDataEff } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
 import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
 import {
-  NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, dataPortfolioFromV2, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
+  NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
   syntheticAccrual, syntheticQuality, synAssetFor, synQualityCap, synTokensPerH100eDay, tokenWorth, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
 import type { BaseDesign, Candidate, DataPortfolio, DomainId, GameStateV2, OwnedDataAsset } from '../../src/engine/v2/types';
@@ -598,28 +598,12 @@ const adoptResult = (s: GameStateV2, id: string) => {
 }
 
 // ---------- saves ----------
-const migA = dataPortfolioFromV2({ licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 812.5 }, 0);
-const migB = dataPortfolioFromV2({ licensedTokensT: 300, unlicensedTokensT: 0, syntheticTokensT: 812.5 }, 1);
-check(near(portfolioU(migA), oldU({ licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: 812.5 }, 0), 1e3) && near(portfolioU(migB), oldU({ licensedTokensT: 300, unlicensedTokensT: 0, syntheticTokensT: 812.5 }, 1), 1e3)
-  && unlicensedPublicT(migA) === 270 && unlicensedPublicT(migB) === 0, 'save: migration 20 → 21 keeps U and the unlicensed tokens (before and after a licence deal)');
-const raw = readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8');
-const old = (JSON.parse(raw) as { player: { dataAssets?: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number } } }).player.dataAssets;
-if (old) {
-  const fx = deserialize(raw);
-  check(near(uniqueTokens(fx), oldU(old, fx.relations.dataLicences.length), 1e3) && !('dataAssets' in fx.player),
-    'save: the day-400 fixture loads with the same U', `${(uniqueTokens(fx) / T).toFixed(1)}T`);
-}
-
-// Model v3 D2 (schemaRev 24 after M2, built as 23): a schemaRev-23 save (no pending deals, no job) migrates; saved deals and jobs round-trip.
-const raw22 = JSON.parse(serialize(game())) as { schemaRev: number; player: { dataPortfolio: { pending?: unknown } } };
-raw22.schemaRev = 23;
-delete raw22.player.dataPortfolio.pending;
-const mig22 = deserialize(JSON.stringify(raw22));
+// RD-C03 (DD-20): saves below schemaRev 33 no longer load (hygiene checks the refusal); the 20 → 21 and 23 → 24 data
+// migrations went with them. A current save round-trips its portfolio, deals and jobs.
 const rt = deserialize(serialize(sLic));
-check(mig22.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && Array.isArray(mig22.player.dataPortfolio.pending) && mig22.player.dataPortfolio.pending.length === 0 && !mig22.player.dataPortfolio.synJob
-  && near(uniqueTokens(mig22), uniqueTokens(s0), 1e3) && uniqueTokens(rt) === uniqueTokens(sLic) && deserialize(serialize(jS.s)).player.dataPortfolio.synJob?.teacherId === strong.v.id,
-  'save: a schemaRev-23 save migrates to the current rev (nothing pending, no job, same U); deals and jobs round-trip');
+check(uniqueTokens(rt) === uniqueTokens(sLic) && deserialize(serialize(jS.s)).player.dataPortfolio.synJob?.teacherId === strong.v.id,
+  'save: deals and jobs round-trip');
 const fx400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
-check(Array.isArray(fx400.player.dataPortfolio.pending) && !fx400.player.research.dataFx, 'save: the day-400 fixture migrates to the current rev (no data-efficiency effects adopted)');
+check(Array.isArray(fx400.player.dataPortfolio.pending) && !fx400.player.research.dataFx, 'save: the day-400 fixture loads at the current rev (no data-efficiency effects adopted)');
 
 finish('data');

@@ -4,7 +4,7 @@
 //   corrupted safety tool (masks), an exfiltrated copy. Checks: each act kind creates its foothold kind (and grows it);
 //   effects; suspicion (monitors, compute accounting, eval drift, model organisms, caught-act sweeps) and location (cases)
 //   at their stated probabilities; removal clears the effect and costs what the preview says; the player's view never
-//   shows hidden footholds; the 2025 start makes ≈ none; a schemaRev-30 save migrates (E8 built as 25 → 26, renumbered in M5).
+//   shows hidden footholds; the 2025 start makes ≈ none.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FOOTHOLD } from '../../src/data/v2/danger';
@@ -13,7 +13,7 @@ import { computeOnlineOf, computeOnlineSystem, poolsOf } from '../../src/engine/
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { securitySystem } from '../../src/engine/v2/security/security';
 import { ws4 } from '../../src/engine/v2/actors/state';
@@ -362,31 +362,8 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   void covertOutcome;
 }
 
-// ───────────── save: a schemaRev-30 save (before E8; E8 was built as 25 → 26, renumbered in M5) migrates ─────────────
+// ───────────── save: a new game's footholds round-trip (RD-C03: saves below rev 33 no longer load) ─────────────
 {
-  const s = scheming();
-  const raw = JSON.parse(serialize(s));
-  raw.schemaRev = 30;
-  delete raw.player.safety.footholds;
-  raw.flags['ws2.covert.BACKDOOR.n'] = 2;
-  raw.flags['ws2.covert.BACKDOOR.sev'] = 7;
-  raw.flags['ws2.covert.HIDCOMP.n'] = 1;
-  raw.flags['ws2.covert.HIDCOMP.sev'] = 3;
-  raw.flags['ws2.covert.BACKDOOR.caught'] = 4;
-  const tid = Object.keys(raw.player.safety.techniques)[0];
-  raw.player.safety.techniques[tid].falseValidated = true;
-  raw.player.safety.techniques[tid].unlocked = true;
-  let msg = '';
-  let m: GameStateV2 | undefined;
-  try { m = deserialize(JSON.stringify(raw)); } catch (e) { msg = String(e); }
-  const fs = m ? footholdsOf(m) : [];
-  const bd = fs.find((f) => f.kind === 'backdoor');
-  const hc = fs.find((f) => f.kind === 'hiddenCompute');
-  const ct = fs.find((f) => f.kind === 'corruptedTool');
-  const pool = s.player.computeOnline * s.player.split.agents;
-  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && bd?.acts === 2 && bd.severity === 7 && Math.abs((hc?.size ?? 0) - 0.03 * pool) < 1e-6 && ct?.ref === tid && fs.every((f) => f.status === 'hidden')
-    && m.flags['ws2.covert.BACKDOOR.n'] === undefined && m.flags['ws2.covert.BACKDOOR.caught'] === 4 && covertRecord(m, 'BACKDOOR').n === 2,
-    'save: a schemaRev-30 save migrates to 31 (flag records → hidden footholds, false-validated tools → corrupted tools; caught counts kept)', msg || `${fs.length} footholds`);
   const fresh = newGame(defaultSetupV2({ seed: 3 }));
   check(Array.isArray(fresh.player.safety.footholds) && fresh.player.safety.footholds.length === 0 && footholdsOf(deserialize(serialize(fresh))).length === 0, 'save: a new game starts with no footholds and round-trips');
 }

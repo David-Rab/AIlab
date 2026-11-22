@@ -484,25 +484,6 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapY
 const START_BASE_FLOP = flopOfDesign(REFERENCE_BASE);
 const LEADER_DAY0_TRAIN = 1e6 * 0.4;
 
-/** Physical state for a lab from a save before rev 27 (core/save.ts): its recipe e (OOM, all in the pretraining part,
- *  fresh pools; the save migration converts its old know-how), a base sized by its training pool under which its
- *  internal model (at G) sits (G_pre = G − RL gain), its models' designs from that base (the public model at gPub). */
-export function migrateRivalPhys(w: TimelineWorld, r: RivalLab, e: number, G: number, gPub: number | undefined, eff = 1) {
-  const flop = Math.max(1e24, r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * BASE_RUN_DAYS);
-  const b = makeBase(1, r.internal.day, flop, e);
-  b.gPre = G - rlOnBase(flop);
-  r.phys = { base: b, eff, serve: 0, rec: { pre: e, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 } };
-  setModelG(w, r.internal, G, b);
-  if (r.publicModel && gPub !== undefined) setModelG(w, r.publicModel, gPub, b);
-}
-/** rev 29 → 30 (model v3 F2): a lab's one-number recipe e (OOM; the save migration converts its old know-how) becomes the
- *  pretraining part (the RL parts at the leader's day-0 recipe, fresh pools). */
-export function migrateRivalRecipe(r: RivalLab, e: number) {
-  if (r.phys.rec) return;
-  r.phys.rec = { pre: e, mid: 0, ceil: 0 };
-  r.phys.pool = { pre: 0, mid: 0, ceil: 0 };
-}
-
 // ───────────────────────────── versions (WS4's cadence calls these) ─────────────────────────────
 
 /** The base the lab's run produced today (undefined without a run): FLOP so far, recipe frozen at launch. */

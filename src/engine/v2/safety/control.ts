@@ -255,15 +255,3 @@ export function believedLowest(s: GameStateV2): { versionId: string; control: nu
   }
   return out;
 }
-
-/** Save migration 26 → 27: the world's tolerance noise from the seed, each escaped copy's misalignment (the loose
- *  record's, else its version's), and the control record (refreshed on the next day). */
-export function controlFromV26(s: GameStateV2, toleranceNoise: number): void {
-  s.hidden.toleranceNoise ??= toleranceNoise;
-  const loose = (s as unknown as { ws4?: { loose?: { versionId: string; mis: number } } }).ws4?.loose;
-  for (const f of footholdsOf(s)) {
-    if (f.kind !== 'exfiltratedCopy' || f.mis !== undefined) continue;
-    f.mis = loose && loose.versionId === f.versionId ? loose.mis : copyMis(s, f);
-  }
-  s.player.safety.effectiveControl ??= { level: 1, exposure: 0, lowest: 1, believed: 1 };
-}

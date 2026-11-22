@@ -62,7 +62,7 @@ const testMonths = (T1: number) => (SAF_STAGES.small + SAF_STAGES.val) * T1;
 export const freshSaf = (): SafProjectState => ({ stage: 'ideation', idea: 0, cands: [], next: 1 });
 
 /** Stage state of a pre-E1 project at `progress` (0..1 of T₁): the same share of the stage chain, so no work is lost
- *  (schemaRev 21 → 22 migration; also when an old state is met at runtime). The candidate in test starts at the line's
+ *  (when an old state is met at runtime: safState; RD-C05 removes it). The candidate in test starts at the line's
  *  posterior. */
 export function safFromProgress(T1: number, progress: number, posterior: { a: number; b: number }): SafProjectState {
   const st = freshSaf();

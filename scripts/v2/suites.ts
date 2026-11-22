@@ -3,21 +3,20 @@
 //   spent on the family. The start suites reproduce V1's reference RL gain and S2 (leader = the old hardened graders,
 //   the spinout = cheap); higher fidelity raises that family's gain (others only via transfer); higher exploitability
 //   raises S2; building and hardening cost team-weeks and cash (hardening with diminishing returns); a family with no
-//   suite cannot be focused; a run freezes its suites at launch; saves at schemaRev 22 migrate (graders → suites; 22 → 23 after M2).
+//   suite cannot be focused; a run freezes its suites at launch.
 // Model v3 D9: P12 (long-horizon human demos) delivers expert data into the long-tasks suite at the expert-data price;
-//   its fidelity raises that family's RL gain, AGENCY and the horizon; the old flat flags are gone; saves migrate 27 → 28 (built as 23 → 24, renumbered in M5).
+//   its fidelity raises that family's RL gain, AGENCY and the horizon; the old flat flags are gone.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
 import { EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, P12_DEMO_T, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
-import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from '../../src/data/v2/dataAssets';
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
 import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
-import { deserialize, migrations, serialize } from '../../src/engine/v2/core/save';
+import { deserialize } from '../../src/engine/v2/core/save';
 import { upkeepLines } from '../../src/engine/v2/departments/build';
 import { rlFamiliesAvailable, rlGains, rlWeights } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
@@ -184,30 +183,11 @@ check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.pos
   // Old flags: no P12 horizon constant and no paradigm level offsets.
   const runsSrc = readFileSync(join(HERE, '..', '..', 'src', 'engine', 'v2', 'models', 'runs.ts'), 'utf8');
   check(!/P12_HORIZON|adopted\(s, 'P12'\)|paradigmOff/.test(runsSrc), 'P12: the old "time horizon ×2, RSCH +0.4" flags are gone (no P12_HORIZON, no paradigm level offsets)');
-  // Save migration 27 → 28 (D9; built as 23 → 24, renumbered in M5): a lab that had adopted P12 under the old flag gets its demonstrations (paid then).
-  const raw23 = JSON.parse(serialize(game())) as Record<string, unknown> & { player: GameStateV2['player'] };
-  raw23.schemaRev = 27;
-  raw23.player.paradigms.P10.status = 'adopted';
-  raw23.player.paradigms.P12.status = 'adopted';
-  raw23.player.paradigms.P21.status = 'adopted';
-  const m = deserialize(JSON.stringify(raw23));
-  check(near(expert(m, 'longHorizon')!.tokensT, EXPERT_START_T + P12_DEMO_T, 1e-15) && m.player.research.dataFx?.synQMax === P10_SYN_Q_RAISE && m.player.research.dataFx?.worthOom === P21_WORTH_OOM,
-    'migration 27 → 28: adopted P10 / P12 / P21 get their designed effect (ceiling +0.5, ×2 token worth, 20B demo tokens)', JSON.stringify(m.player.research.dataFx));
 }
 
-// ---------- save migration 22 → 23 (D5; built as 21 → 22, renumbered in M2) ----------
+// ---------- saves (RD-C03: saves below schemaRev 33 no longer load, so the 22 → 23 graders migration is gone) ----------
 const day400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 check(suiteFamilies(day400).length >= START_FAMS.length && START_FAMS.every((f) => !!expert(day400, f)) && near(suiteExploitMap(day400).swe ?? 0, EXPLOIT_START.swe, 1e-12),
-  'migration: an old save gets start suites and their expert data (hardened graders → start exploitability)', suiteFamilies(day400).join(', '));
-const raw = JSON.parse(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8')) as Record<string, unknown>;
-if (Number(raw.schemaRev) <= 22) {
-  const st = raw as unknown as GameStateV2;
-  for (let r = Number(raw.schemaRev); r < 22; r++) migrations[r](raw);
-  delete (st.player as Partial<GameStateV2['player']>).suites;
-  for (const v of st.player.models.versions) v.design.graders = 'cheap';
-  for (const r of st.player.models.runs) if (r.post) r.post.graders = 'cheap';
-  migrations[22](raw);
-  check(near(st.player.suites.swe!.exploit, EXPLOIT_CHEAP.swe, 1e-12), 'migration: a save whose latest post-train used cheap graders gets cheap suites', `${(st.player.suites.swe!.exploit * 100).toFixed(1)}%`);
-}
+  'save: the day-400 fixture has its start suites and their expert data (start exploitability)', suiteFamilies(day400).join(', '));
 
 finish('suites');

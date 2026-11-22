@@ -14,7 +14,7 @@
 //   upkeep          every suite keeps engineers busy (build.ts upkeepLines, the 'upkeep' need)
 // A post-training run freezes its suites' fidelity and exploitability at launch (TrainingRun.recipe), like its RL recipe.
 import {
-  EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, HARDENED_FACTOR, RL_FAMILY_LABEL, S2_REF, START_EXPLOIT_MULT, SUITE_BUILD, SUITE_HARDEN,
+  EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_REF, START_EXPLOIT_MULT, SUITE_BUILD, SUITE_HARDEN,
   SUITE_UPKEEP,
 } from '../../../data/v2/suites';
 import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
@@ -194,13 +194,6 @@ export function addSuiteExpertData(s: GameStateV2, ctx: SystemCtx, f: RLFamily, 
 
 /** Upkeep of a family's suite, team-weeks per week: SUITE_UPKEEP.tw × √(E/E₀). */
 export const suiteUpkeepTW = (s: GameStateV2, f: RLFamily) => SUITE_UPKEEP.tw * sizeOf(s, f);
-
-/** Save migration 21 → 22: start suites (exploitability from the lab's graders: cheap → cheap, else hardened) and the
- *  start expert data. `graders` is the post design's v1 option, read only here. */
-export function suitesFromV1(graders: 'cheap' | 'hardened' | undefined, families: RLFamily[]): Partial<Record<RLFamily, EnvSuite>> {
-  const mult = graders === 'cheap' ? 1 / HARDENED_FACTOR : 1;
-  return Object.fromEntries(families.map((f) => [f, startSuite(f, mult)])) as Partial<Record<RLFamily, EnvSuite>>;
-}
 
 // ───────────────────────────── actions ─────────────────────────────
 

@@ -4,7 +4,7 @@
 //   compute, hidden compute launches more jobs, a backdoor raises exfiltration odds, an escape can go unnoticed); loss of
 //   control comes only from the process (E above the world's tolerance θ_w = doomThreshold + ε_w while the AI can act),
 //   never from a roll; a lab with strong oversight and no footholds keeps control through ASI; difficulty shifts the
-//   threshold; the endings still resolve; a schemaRev-31 save migrates (E9 built as 26 → 27, renumbered in M5).
+//   threshold; the endings still resolve.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL, EXFIL } from '../../src/data/v2/danger';
@@ -13,7 +13,7 @@ import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
 import { ws4 } from '../../src/engine/v2/actors/state';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { resolveAsi } from '../../src/engine/v2/endings/epilogue';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
@@ -370,23 +370,8 @@ for (const fx of ['day400.json', 'day900.json']) {
   check(powers.size === 1 && [...powers][0].startsWith('ousted/'), 'endings: a company-loss epilogue resolves the competitor without a roll (same power under 6 RNG states)', [...powers].join(', '));
 }
 
-// ───────────── save: a schemaRev-31 save (before E9; E9 was built as 26 → 27, renumbered in M5) migrates ─────────────
+// ───────────── save: a new game's tolerance noise and control record round-trip (RD-C03: saves below rev 33 no longer load) ─────────────
 {
-  const s = lab(12);
-  const v = routine(s);
-  footholdFromEscape(s, s.time.day, v, 0.33);
-  ws4(s).loose = { day: s.time.day, versionId: v.id, mis: 0.33 };
-  const raw = JSON.parse(serialize(s));
-  raw.schemaRev = 31;
-  delete raw.hidden.toleranceNoise;
-  delete raw.player.safety.effectiveControl;
-  for (const f of raw.player.safety.footholds) delete f.mis;
-  let msg = '';
-  let m: GameStateV2 | undefined;
-  try { m = deserialize(JSON.stringify(raw)); } catch (e) { msg = String(e); }
-  const cp = m ? footholdsOf(m).find((f) => f.kind === 'exfiltratedCopy') : undefined;
-  check(!!m && m.schemaRev === SCHEMA_REV && SCHEMA_REV === 43 && m.hidden.toleranceNoise === toleranceNoiseOf(m.setup.seed) && cp?.mis === 0.33 && m.player.safety.effectiveControl.level === 1,
-    'save: a schemaRev-31 save migrates to 32 (the world\'s tolerance noise from the seed, the copy\'s Mis from the loose record, full control until the next day)', msg || `ε_w ${f3(m?.hidden.toleranceNoise ?? NaN)}`);
   const fresh = newGame(defaultSetupV2({ seed: 3 }));
   const back = deserialize(serialize(fresh));
   check(back.hidden.toleranceNoise === fresh.hidden.toleranceNoise && fresh.hidden.toleranceNoise === toleranceNoiseOf(3) && back.player.safety.effectiveControl.level === 1, 'save: a new game carries its tolerance noise and control record and round-trips');

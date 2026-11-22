@@ -4,7 +4,7 @@
 //   compute from the experiments pool (not serving), as far as the pool goes; EV5 the standing policy queues suites
 //   (release gate at its depth, re-runs when a model changed or on the cadence, off = none); EV6 a version waits in
 //   evaluation until its suite's work is done, and the gate 'none' releases it at once; EV7 independent evaluators keep
-//   their extra elicitation (and work with their own staff); EV8 migration 24 → 25; EV9 the reference lab's eval cost is
+//   their extra elicitation (and work with their own staff); EV9 the reference lab's eval cost is
 //   modest (a few % of its research engineers at most, a sliver of its experiment compute).
 import { BENCHMARKS, ELICITATION } from '../../src/data/v2/benchmarks';
 import { EVAL_DEPTHS, REEVAL_DAYS, REEVAL_DG, REEVAL_DL } from '../../src/data/v2/evals';
@@ -12,7 +12,6 @@ import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { StreamRng } from '../../src/engine/v2/core/rng';
-import { SCHEMA_REV, deserialize, serialize } from '../../src/engine/v2/core/save';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { MEASURE_SD, measureBench, measuredSd, runEvalSuite } from '../../src/engine/v2/models/benchmarks';
 import {
@@ -234,32 +233,6 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   const rec = v0(x).evals.bench.patch;
   check(!no && !!t && t.reTW === 0 && t.h100eDays > 0 && rec?.by === 'evalIndep' && capReCapacity(x) === before,
     'EV7 an independent suite runs on its own staff (no lab research engineers) and records its evaluator', `${no ?? 'queued'}, done in ${d} d, PatchBench by ${rec?.by}`);
-}
-
-// ───────── EV8 migration 25 → 26 (D7, built as 24 → 25; after E6 in merge M4) ─────────
-{
-  // A schemaRev-25 save (E6, before D7): a game 60 days in without D7's state, with v2's research-engineer order.
-  const g0 = game();
-  run(g0, 60);
-  const raw = JSON.parse(serialize(g0));
-  const rev = 25;
-  {
-    raw.schemaRev = rev;
-    delete raw.player.models.evals;
-    delete raw.player.models.evalSpent;
-    raw.player.research.re.order = ['ops', 'exp', 'tune'];
-    raw.player.build.queue = raw.player.build.queue.filter((x: { kind: string }) => x.kind !== 'eval');
-    // A version that was in v2's fixed-days evaluation when the game was saved.
-    const pend = raw.player.models.versions[raw.player.models.versions.length - 1] as ModelVersion;
-    pend.status = 'evaluating';
-    const s = deserialize(JSON.stringify(raw));
-    const o = s.player.research.re.order;
-    check(Array.isArray(s.player.models.evals) && o.indexOf('evals') === o.indexOf('ops') + 1 && s.schemaRev === SCHEMA_REV,
-      'EV8 migration 25 → 26 (and on to the current rev): no suites queued, evals right after run operations', `from ${rev}: ${o.join(', ')}`);
-    run(s, 1);
-    const t = openEval(s, pend.id);
-    check(!!t && t.why === 'release', 'EV8 a version in evaluation in an old save gets its release suite', `${pend.name}: ${t ? `${t.depth} ${t.why}` : 'none'}`);
-  }
 }
 
 // ───────── EV9 the reference lab's eval cost ─────────

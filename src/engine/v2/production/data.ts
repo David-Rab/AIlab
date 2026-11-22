@@ -17,7 +17,7 @@
 //              signing and delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
-  LICENCE_DEAL_SHARE, LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
+  LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
   SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
@@ -49,27 +49,6 @@ export function startPortfolio(): DataPortfolio {
     usageShare: USAGE_POLICY_SHARE,
     pending: [],
   };
-}
-
-/** v2's token counts (schemaRev ≤ 20). */
-export interface V2DataAssets { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number; litigationRisk?: number }
-/** Save migration 20 → 21: the same U and the same unlicensed tokens as v2's (licensed + unlicensed) × (1 + 0.5·deals) +
- *  0.5 × synthetic — the crawl up to the start coverage, the rest of the human tokens licensed, the deals as a corpus. */
-export function dataPortfolioFromV2(a: V2DataAssets, deals: number): DataPortfolio {
-  const p = startPortfolio();
-  const human = a.licensedTokensT + a.unlicensedTokensT;
-  const crawlT = Math.min(PUBLIC_START_COVERAGE * PUBLIC_WEB.stockT, human);
-  const pub = publicUse(p)!;
-  pub.coverage = crawlT / PUBLIC_WEB.stockT;
-  pub.licensed = a.unlicensedTokensT <= 0;
-  const set = (id: string, t: number) => {
-    const x = p.assets.find((y): y is OwnedDataAsset => y.id === id);
-    if (x) x.tokensT = t;
-  };
-  set('lic:start', human - crawlT);
-  set('syn:start', a.syntheticTokensT);
-  if (deals > 0) p.assets.push({ id: 'lic:corpus:0', kind: 'licensed', tokensT: (LICENCE_DEAL_SHARE * deals * human) / LICENSED_QUALITY, mix: { ...LICENSED_MIX }, quality: LICENSED_QUALITY, day: 0 });
-  return p;
 }
 
 /** Tokens of an asset (T). The public web is the lab's crawl of the one shared world stock: coverage (≤ 1) × stock. */

@@ -9,12 +9,11 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
-import { SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
+import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { cadencesDue, decimalYear } from '../../src/engine/v2/core/time';
 import { LEADER_LAB_NAME } from '../../src/data/v2/names';
 import { postureOf } from '../../src/engine/v2/actors/rivals';
-import { gV0, playerStart } from '../../src/engine/v2/models/capability';
-import { oomOfRefM } from '../../src/engine/v2/safety/oversight';
+import { gV0 } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { B_G_PER_Y } from '../../src/data/v2/runDesign';
@@ -24,8 +23,6 @@ import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import { hRef, refTotal } from '../../src/engine/v2/production/knots';
-import { uniqueTokens } from '../../src/engine/v2/production/data';
-import { lineNodeId } from '../../src/data/v2/tree';
 import type { Cadence, EngineSystem, GameStateV2, SetupV2, StreamId, WorkstreamId } from '../../src/engine/v2/types';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -369,353 +366,31 @@ try {
   threw = true;
 }
 check(threw, 'save: v1 save is rejected (no migration)');
-// Model v3 V1 (schemaRev 12): saves from before the v3 model rebuild do not carry over (MODEL-V3 §16). A schemaRev-11
-// save and an older one (rev 1, which migrated up to 11 before) are rejected with the existing message.
-for (const rev of [1, 11, 12, 13, 14]) {
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = rev;
-  let msg = '';
-  try {
-    deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  // Model v3 V2 (schemaRev 13): V1 saves (12) are rejected too; model v3 V3 (schemaRev 14): V2 saves (13) too.
-  check(SCHEMA_REV === 43 && msg ===`no migration from schemaRev ${rev >= 12 ? rev : 11}`, `save: a schemaRev-${rev} save is rejected (${msg || 'loaded'})`);
-}
-// Model v3 V4a (schemaRev 16): a V3b save (15) migrates (customer stocks start empty, versions get their FLOP per token).
+// RD-C03 (DD-20): the save floor is MIN_SCHEMA_REV (33). Every older save (v2 and model v3 V1–F2, revs 0–32, and a
+// save with no schemaRev) is refused with the player-facing message; the oldest loading rev is 33 (tested below).
 {
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 15;
-  delete (old.world.fx as Partial<typeof old.world.fx>).cust;
-  for (const v of old.player.models.versions) delete v.fpt;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
+  const bad: string[] = [];
+  const revs: (number | undefined)[] = [undefined, 0, 1, 11, 14, 15, 20, 27, MIN_SCHEMA_REV - 1];
+  const base = serialize(run(detSetup, 30));
+  for (const rev of revs) {
+    const old = JSON.parse(base) as Record<string, unknown>;
+    if (rev === undefined) delete old.schemaRev;
+    else old.schemaRev = rev;
+    let msg = '';
+    try {
+      deserialize(JSON.stringify(old));
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    if (msg !== OLD_SAVE_MESSAGE) bad.push(`${rev ?? 'none'}: ${msg || 'loaded'}`);
   }
-  check(!!g && !!g.world.fx.cust && g.player.models.versions.every((v) => (v.fpt ?? 0) > 0), 'save: a schemaRev-15 save migrates to 16 (customer stocks, FLOP per token)', msg);
-}
-// Model v3 A2a (schemaRev 17): a V4a save (16) migrates (the workers' AI use stock W starts at its ceiling).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 16;
-  for (const row of Object.values(old.world.sectors)) for (const st of Object.values(row)) delete (st as Partial<typeof st>).W;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const ok = !!g && Object.values(g.world.sectors).every((row) => Object.values(row).every((st) => st.W >= st.A && st.W > 0 && st.W <= 1));
-  check(ok, "save: a schemaRev-16 save migrates to 17 (workers' AI use W per sector, A ≤ W ≤ 1)", msg);
-}
-// Model v3 A2b (schemaRev 18): an A2a save (17) migrates (the single consumer reach becomes reach per region, paid
-// shares start empty).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 17;
-  const fx = old.world.fx as Partial<typeof old.world.fx> & { consumerReach?: number };
-  delete fx.reach;
-  delete fx.paid;
-  fx.consumerReach = 0.42;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const r = g?.world.fx.reach;
-  const ok = !!g && !!r && r.US > 0.42 && r.US < 0.6 && r.ROW < r.US && !!g.world.fx.paid && !('consumerReach' in g.world.fx);
-  check(ok, 'save: a schemaRev-17 save migrates to 18 (consumer reach per region, paid-share stocks)', `${msg}${r ? ` US ${r.US.toFixed(3)} ROW ${r.ROW.toFixed(3)}` : ''}`);
-  if (g) for (let i = 0; i < 3; i++) tick(g);
-  check(!!g && Object.keys(g.world.fx.paid.US).length > 0 && Object.values(g.world.fx.paid.US).every((x) => x > 0 && x < 1), 'save: after the 17 → 18 migration the paid shares fill on the next ticks', JSON.stringify(g?.world.fx.paid.US ?? {}));
-}
-
-// Model v3 A2c (schemaRev 19): an A2b save (18) migrates (the paid-seat share of each sector's AI users starts at the
-// region's start share).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 18;
-  for (const row of Object.values(old.world.sectors)) for (const st of Object.values(row)) delete (st as Partial<typeof st>).seat;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const ok = !!g && Object.values(g.world.sectors).every((row) => Object.values(row).every((st) => st.seat > 0 && st.seat < 1));
-  check(ok, 'save: a schemaRev-18 save migrates to 19 (paid-seat share per sector, 0 < σ < 1)', msg);
-  if (g) for (let i = 0; i < 3; i++) tick(g);
-  check(!!g && Object.values(g.world.sectors.US).every((st) => Number.isFinite(st.seat) && st.seat > 0), 'save: after the 18 → 19 migration the seat stocks move on the next ticks');
-}
-
-// Model v3 B4 (schemaRev 20): an A2c save (19) migrates (no project on auto teams wanted).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 19;
-  delete (old.player.research as Partial<typeof old.player.research>).wantAuto;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(!!g && Array.isArray(g.player.research.wantAuto) && g.player.research.wantAuto.length === 0, 'save: a schemaRev-19 save migrates to 20 (no project on auto teams wanted)', msg);
-}
-// Model v3 D1 (schemaRev 21): a B4 save (20) migrates (v2's dataAssets token counts become the data portfolio, same U).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  const u0 = uniqueTokens(deserialize(JSON.stringify(old)));
-  old.schemaRev = 20;
-  const p = old.player as unknown as Record<string, unknown>;
-  delete p.dataPortfolio;
-  p.dataAssets = { licensedTokensT: 30, unlicensedTokensT: 270, syntheticTokensT: (u0 / 1e12 - 300) / 0.5 };
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(!!g && !!g.player.dataPortfolio && !('dataAssets' in g.player) && Math.abs(uniqueTokens(g) / u0 - 1) < 1e-9, 'save: a schemaRev-20 save migrates to 21 (data portfolio with the same U)', msg || (g ? `U ${(uniqueTokens(g) / 1e12).toFixed(2)}T vs ${(u0 / 1e12).toFixed(2)}T` : ''));
-}
-// Model v3 E1 (schemaRev 22): a D1 save (21) migrates (a safety line project in progress gets its stage state).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 21;
-  const id = lineNodeId('AG02');
-  old.player.tree[id] = { status: 'researching', progress: 0.5, attempts: 1 };
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const saf = g?.player.tree[id]?.saf;
-  check(!!saf && saf.stage === 'small' && (saf.test?.work ?? 0) > 0, 'save: a schemaRev-21 save migrates to 22 (a line project in progress keeps its work as stage state)', msg || `${saf?.stage ?? 'no saf'}`);
-}
-// Model v3 D5 (schemaRev 23, built as 22 before M2): an E1 save (22) migrates (environment suites from the graders choice,
-// the start suites' expert data).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 22;
-  delete (old.player as Partial<GameStateV2['player']>).suites;
-  old.player.dataPortfolio.assets = old.player.dataPortfolio.assets.filter((a) => a.kind !== 'expert');
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const fams = g ? Object.keys(g.player.suites) : [];
-  check(!!g && fams.length >= 6 && fams.every((f) => g!.player.dataPortfolio.assets.some((a) => a.id === `expert:${f}` && a.kind === 'expert' && a.tokensT > 0)),
-    'save: a schemaRev-22 save migrates to 23 (environment suites with their expert data)', msg || fams.join(', '));
-}
-// Model v3 D2 (schemaRev 24, built as 23 before M2): a D5 save (23) migrates (no data deals pending, no synthetic job).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 23;
-  delete (old.player.dataPortfolio as Partial<GameStateV2['player']['dataPortfolio']>).pending;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(!!g && Array.isArray(g.player.dataPortfolio.pending) && g.player.dataPortfolio.pending.length === 0 && !g.player.dataPortfolio.synJob,
-    'save: a schemaRev-23 save migrates to 24 (nothing pending, no synthetic job)', msg);
-}
-
-// Model v3 E6 (schemaRev 25): a D2 save (24) migrates: each technique's M½ becomes its half-strength point in OOM above
-// the start model where v2's decay halved on the ai2027 reference path (oomOfRefM, from the knots since M7: M½ 25 → 4.30, 50 → 5.62, 250 → 8.70).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 24;
-  const ts = old.player.safety.techniques as unknown as Record<string, { oHalf?: number; mHalf?: number }>;
-  for (const t of Object.values(ts)) delete t.oHalf;
-  ts['T-PROP'].mHalf = 50; // AG08 (M½ 25) after one upkeep doubling
-  ts['T-PROBE'].mHalf = 250;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const T = g?.player.safety.techniques;
-  const ok = !!T && Object.values(T).every((t) => typeof t.oHalf === 'number' && !('mHalf' in t))
-    && Math.abs(T['T-PROP'].oHalf - oomOfRefM(50)) < 1e-9 && Math.abs(T['T-PROBE'].oHalf - oomOfRefM(250)) < 1e-9;
-  check(ok, 'save: a schemaRev-24 save migrates to 25 (M½ → the same half point in OOM)', msg || (T ? `T-PROP ${T['T-PROP'].oHalf.toFixed(3)}, T-PROBE ${T['T-PROBE'].oHalf.toFixed(3)}` : ''));
-}
-// Model v3 D7 (schemaRev 26, built as 25 before M4): an E6 save (25) migrates (no eval suites queued, 'evals' joins the
-// research engineers' order right after run operations).
-{
-  const old = JSON.parse(serialize(run(detSetup, 30))) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 25;
-  const m = old.player.models as unknown as Record<string, unknown>;
-  delete m.evals;
-  delete m.evalSpent;
-  old.player.research.re.order = old.player.research.re.order.filter((x) => x !== 'evals');
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const o = g?.player.research.re.order ?? [];
-  check(!!g && Array.isArray(g.player.models.evals) && g.player.models.evals.length === 0 && o.indexOf('evals') === o.indexOf('ops') + 1,
-    'save: a schemaRev-25 save migrates to 26 (no eval suites, evals after run operations)', msg || o.join(', '));
-}
-/** Model v3 F3: a current state written back in the rev-32 shape (pm through the retired bridge, the know-how readout pa
- *  and its sync mark, openWeightsFrontier), so the tests of the older migrations can build their old saves from it. */
-function asRev32(x: GameStateV2): GameStateV2 & Record<string, unknown> {
-  const o = JSON.parse(serialize(x)) as GameStateV2 & Record<string, unknown>;
-  const w = o.hidden.timeline;
-  const ps = playerStart(w);
-  const pm = (G: number) => ps.target + (G - gV0(w)) / B_G_PER_Y;
-  type Old = { pm?: number; pa?: number; paSync?: number; openWeightsFrontier?: number; openWeightsG?: number };
-  for (const r of [...o.rivals, o.china.lab]) {
-    for (const m of [r.internal, r.publicModel]) if (m) (m as Old).pm = pm(m.G);
-    const pa = ps.pa0 + recipeOf(o, r) / B_G_PER_Y;
-    (r.core as Old).pa = pa;
-    (r.phys as Old).paSync = pa;
-  }
-  for (const v of o.player.models.versions) (v as Old).pm = pm(v.G);
-  (o.player as Old).pa = ps.pa0 + stacksGEquiv(o) / B_G_PER_Y;
-  const k = o.knowledge as Old;
-  k.openWeightsFrontier = pm(k.openWeightsG ?? 0);
-  delete k.openWeightsG;
-  o.schemaRev = 32;
-  return o;
-}
-type Legacy = { pm?: number; pa?: number; paSync?: number };
-// Model v3 F1 (schemaRev 27, built as 25 before M4): a D7 save (26) migrates: every non-player lab gets a base under its internal model.
-{
-  const cur = run(detSetup, 30);
-  const old = asRev32(cur);
-  old.schemaRev = 26;
-  for (const r of [...old.rivals, old.china.lab]) {
-    delete (r as Partial<typeof r>).phys;
-    for (const m of [r.internal, r.publicModel]) if (m) { delete (m as Partial<typeof m>).G; delete m.flop; delete m.params; delete m.fpt; }
-  }
-  const want = [...cur.rivals, cur.china.lab].map((r) => r.internal.G);
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const labs = g ? [...g.rivals, g.china.lab] : [];
-  const ok = !!g && labs.every((r, i) => !!r.phys && r.phys.base.flop > 0 && Math.abs(r.internal.G - want[i]) < 1e-9 && (r.internal.fpt ?? 0) > 0);
-  check(ok, 'save: a schemaRev-26 save migrates to 27 (each rival keeps its model, now on a physical base)', msg || labs.map((r) => `${r.core.id} G ${r.internal.G?.toFixed(2)} N ${((r.internal.params ?? 0) / 1e12).toFixed(2)}T`).join(', '));
-}
-// Model v3 D10 (schemaRev 29; built as 26): a D9 save (28) migrates: every lab's serving stack at the 2025 reference, rlG on its models.
-{
-  const cur = run(detSetup, 30);
-  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 28;
-  for (const r of [...old.rivals, old.china.lab]) {
-    delete (r.phys as Partial<typeof r.phys>).serve;
-    for (const m of [r.internal, r.publicModel]) if (m) delete m.rlG;
-  }
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const labs = g ? [...g.rivals, g.china.lab] : [];
-  const was = [...cur.rivals, cur.china.lab];
-  const ok = !!g && labs.every((r, i) => r.phys.serve === 0 && r.internal.rlG !== undefined && Math.abs((r.internal.rlG ?? 0) - (was[i].internal.rlG ?? 0)) < 1e-9);
-  check(ok, 'save: a schemaRev-28 save migrates to 29 (serving stacks at 0, the RL part of G of each internal model from its base)', msg || labs.map((r) => `${r.core.id} rlG ${r.internal.rlG?.toFixed(3)}`).join(', '));
-}
-// Model v3 F2 (schemaRev 30; built as 26): a D10 save (29) migrates: each lab's recipe e becomes the pretraining part, know-how unchanged.
-{
-  const old = asRev32(run(detSetup, 30));
-  old.schemaRev = 29;
-  const pa0: number[] = [];
-  for (const r of [...old.rivals, old.china.lab]) {
-    const ph = r.phys as Partial<typeof r.phys> & Legacy;
-    delete ph.rec; delete ph.pool; delete ph.paSync;
-    pa0.push((r.core as Legacy).pa ?? NaN);
-  }
-  const e0 = (w: GameStateV2['hidden']['timeline'], pa: number) => B_G_PER_Y * (pa - playerStart(w).pa0);
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const labs = g ? [...g.rivals, g.china.lab] : [];
-  const ok = !!g && labs.every((r, i) => !!r.phys.rec && !!r.phys.pool && Math.abs(recipeOf(g!, r) - e0(g!.hidden.timeline, pa0[i])) < 1e-9);
-  check(ok, 'save: a schemaRev-29 save migrates to 30 (each rival recipe in three parts, know-how unchanged)', msg);
-}
-// Model v3 F3 (schemaRev 33): a rev-32 save migrates: pm → G through the old bridge, the know-how readout pa removed, and
-// what the know-how writers had added to a lab's core.pa since its last sync enters its pretraining part (× B).
-{
-  const cur = run(detSetup, 60);
-  const old = asRev32(cur);
-  const cn = old.china.lab;
-  (cn.core as Legacy).pa = ((cn.core as Legacy).pa ?? 0) + 0.01; // an unsynced leak of 0.01 progress-years
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const json = g ? serialize(g) : '';
-  const curLabs = [...cur.rivals, cur.china.lab];
-  const okG = !!g && [...g.rivals, g.china.lab].every((r, i) => Math.abs(r.internal.G - curLabs[i].internal.G) < 1e-9 && Math.abs((r.publicModel?.G ?? 0) - (curLabs[i].publicModel?.G ?? 0)) < 1e-9)
-    && g.player.models.versions.every((v, i) => Math.abs(v.G - cur.player.models.versions[i].G) < 1e-9) && Math.abs(g.knowledge.openWeightsG - cur.knowledge.openWeightsG) < 1e-9;
-  const okLeak = !!g && Math.abs(g.china.lab.phys.rec.pre - cur.china.lab.phys.rec.pre - 0.01 * B_G_PER_Y) < 1e-9 && g.rivals.every((r, i) => Math.abs(r.phys.rec.pre - cur.rivals[i].phys.rec.pre) < 1e-9);
-  const okGone = !!g && !/"(pm|pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)":/.test(json);
-  check(okG && okLeak && okGone && g!.schemaRev === SCHEMA_REV && SCHEMA_REV === 43,
-    'save: a schemaRev-32 save migrates to 33 (every model\'s G from its pm, an unsynced know-how gain into the recipe, no pm / pa fields left)', msg || `G ${okG} leak ${okLeak} fields ${okGone}`);
-  let same = false;
-  try {
-    const again = JSON.parse(serialize(cur)) as Record<string, unknown>;
-    again.schemaRev = 32;
-    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(same, 'save: the 32 → 33 migration leaves an already-migrated state unchanged (idempotent)', msg);
-}
-// Merge M5: the migrations added in M5 (27 → 28 D9, 28 → 29 D10, 29 → 30 F2, 30 → 31 E8, 31 → 32 E9) are idempotent: a
-// state that already has their fields, labelled rev 27, loads unchanged.
-{
-  const cur = run(detSetup, 60);
-  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 27;
-  let msg = '';
-  let same = false;
-  try {
-    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(same, 'save: the migrations 27 → 33 (M5\'s and F3\'s) leave an already-migrated state unchanged (idempotent)', msg);
+  check(MIN_SCHEMA_REV === 33 && bad.length === 0, `save: a save below schemaRev ${MIN_SCHEMA_REV} is refused ("${OLD_SAVE_MESSAGE}")`, bad.slice(0, 3).join('; '));
 }
 // Merge FINM: finance v3's migrations 33 → 42 (built on finance-v3 as 11 → 20, renumbered after model v3's 33). A
 // model-v3 save (rev 33) carries the old finance block: an SPV leaseback, an SPV deal, the JV and the one-quarter
 // operating cash become a financing lease at 12%, nothing, nothing and a four-quarter history; the story fields and the
 // rivals' marks are filled. The chain is idempotent (a current state labelled 33 loads unchanged), and every model-v3
-// rev from 15 (the oldest model-v3 save that migrates) to 41 loads a current state up to SCHEMA_REV.
+// rev from MIN_SCHEMA_REV (33, the oldest save that loads) to 42 loads a current state up to SCHEMA_REV.
 {
   const cur = run(detSetup, 60);
   const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
@@ -752,7 +427,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
   }
   check(same, 'save: the finance migrations 33 → 42 leave an already-migrated state unchanged (idempotent)', msg);
   const bad: string[] = [];
-  for (let rev = 15; rev < SCHEMA_REV; rev++) {
+  for (let rev = MIN_SCHEMA_REV; rev < SCHEMA_REV; rev++) {
     try {
       const o = JSON.parse(serialize(cur)) as Record<string, unknown>;
       o.schemaRev = rev;
@@ -762,7 +437,7 @@ type Legacy = { pm?: number; pa?: number; paSync?: number };
       bad.push(`${rev}: ${(e as Error).message}`);
     }
   }
-  check(bad.length === 0, `save: every model-v3 save rev 15–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
+  check(bad.length === 0, `save: every save rev ${MIN_SCHEMA_REV}–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
 }
 // SAFMECH (schemaRev 43): a rev-42 save has no monitoring budget; it gets the old standard package's 20% of the safety
 // pool, and an already-migrated state labelled 42 loads unchanged (idempotent).

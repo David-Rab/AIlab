@@ -28,9 +28,6 @@ export const PUBLIC_START_COVERAGE = 0.9;
 export const LICENSED_START_T = 30;
 export const LICENSED_QUALITY = 1;
 export const LICENSED_MIX: DomainMix = { SOCIAL: 0.35, MEDIA: 0.12, RSCH: 0.15, REASON: 0.1, CODE: 0.15, BIO: 0.06, CYBER: 0.03, AGENCY: 0.02, PHYS: 0.02 };
-/** v2's "License data" deal (× (1 + 0.5 · licence deals) on the human tokens): read only by the schemaRev 20 → 21 save
- *  migration (a corpus of ½ the human tokens per old deal). Model v3 D2 replaced the action (LICENCE_TIERS below). */
-export const LICENCE_DEAL_SHARE = 0.5;
 
 /** Licensing deals by domain (action data.license, model v3 D2). A deal buys `tokensT` of one domain at a price tier;
  *  quality per tier spans research/20 A3's curated/licensed q 1.5–3 (DCLM/FineWeb-Edu-style selection ≈ ×3, Gundlach's

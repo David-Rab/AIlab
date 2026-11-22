@@ -158,46 +158,6 @@ export function sweepOnCaught(s: GameStateV2, ctx: SystemCtx, act: CovertActId, 
   }
 }
 
-/**
- * Save migration 25 → 26: E7 kept uncaught acts as flag records (`ws2.covert.<act>.n | sev`), without maker or day.
- * Each record becomes one hidden foothold of its kind (maker = the routine research model, day = today, acts and
- * severity from the record; hidden compute sized from the severity on today's agent pool, a backdoor's reach from the
- * severity); each live false-validated tool a corrupted-tool foothold; a loose copy a located exfiltrated copy. The
- * flag records go.
- */
-export function footholdsFromV25(s: GameStateV2): Foothold[] {
-  const out: Foothold[] = [];
-  s.player.safety.footholds = out;
-  const day = s.time.day;
-  const v = s.player.models.versions.find((x) => x.id === s.player.agents?.capRoutine?.versionId) ?? s.player.models.versions[0];
-  const num = (k: string) => (typeof s.flags[k] === 'number' ? (s.flags[k] as number) : 0);
-  if (v) {
-    for (const act of ['BACKDOOR', 'HIDCOMP', 'SUCCSTEER'] as const) {
-      const n = num(`ws2.covert.${act}.n`);
-      const sev = num(`ws2.covert.${act}.sev`);
-      if (n > 0) {
-        const kind = ACT_FOOTHOLD[act] as FootholdKind;
-        const size = kind === 'backdoor' ? Math.min(FOOTHOLD.reachMax, 1 - Math.pow(1 - FOOTHOLD.reachPerSev * (sev / n), n))
-          : kind === 'hiddenCompute' ? FOOTHOLD.hidCompPerSev * sev * agentPool(s) : 0;
-        const f = newFoothold(s, kind, v, day, sev, size);
-        f.acts = n;
-      }
-    }
-    for (const t of Object.values(s.player.safety.techniques)) {
-      if (!t.falseValidated || !t.unlocked) continue;
-      newFoothold(s, 'corruptedTool', v, day, 2, t.s0, t.id);
-    }
-    const loose = (s as unknown as { ws4?: { loose?: { versionId: string } } }).ws4?.loose;
-    const lv = loose && s.player.models.versions.find((x) => x.id === loose.versionId);
-    if (lv) footholdFromEscape(s, day, lv);
-  }
-  for (const act of ['SAFSAB', 'BACKDOOR', 'HIDCOMP', 'SUCCSTEER']) {
-    delete s.flags[`ws2.covert.${act}.n`];
-    delete s.flags[`ws2.covert.${act}.sev`];
-  }
-  return out;
-}
-
 // ───────────────────────────── effects ─────────────────────────────
 
 /** H100e reserved by active hidden compute footholds (subtracted from the lab's usable compute, compute/power.ts). */
