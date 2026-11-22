@@ -22,7 +22,12 @@ import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/pla
 import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { misalignment, misalignmentEstimate, pMis } from '../../src/engine/v2/safety/traits';
-import { trueUnderstanding, understanding, understandingBand } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understanding = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, margin: r.gap, perTrait: r.perTrait }; };
+const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, lo: r.lo, hi: r.hi }; };
+const trueUnderstanding = (s: GameStateV2) => { const r = trueSightLimit(s); return { U: r.L, L: r.level }; };
+void trueSightLimit;
 import { flagNum } from '../../src/engine/v2/safety/common';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { validateJson } from './lib';

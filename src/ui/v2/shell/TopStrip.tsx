@@ -1,7 +1,7 @@
 // Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS, understandingBand, upkeepView } from '../../../engine/v2';
+import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import type { GameStateV2 } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
@@ -20,27 +20,20 @@ export { catRisk, nearestRival, runwayLive };
 export const ACT_TRIGGER: Record<number, string> = { 2: 'capability L ≥ 6.5 or day 150', 3: 'capability L ≥ 8.5', 4: 'capability L ≥ 12 or R&D speed ≥ 25×' };
 
 function RaceTip({ s }: { s: GameStateV2 }) {
-  const u = engine.understanding(s);
+  const u = engine.sightLimit(s);
   const ev = internalEval(s);
   const sv = safetyView(s);
-  const band = understandingBand(s);
   // Jank S2: list tools that are fading now; tools that no longer work at all are one line, not "decayed 100%".
   const active = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix');
   const decaying = active.filter((t) => t.decay > 0.05 && t.decay < 0.99).sort((a, b) => b.decay - a.decay).slice(0, 3);
   const gone = active.filter((t) => t.decay >= 0.99);
   const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
   const hist = s.series.U.slice(-13);
-  const up = upkeepView(s);
   return (
-    <TipCard title="The race: capability vs understanding" value={`${u.margin >= 0 ? '+' : '−'}${Math.abs(u.margin).toFixed(1)}`}>
-      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: <Term id="U">understanding</Term>, the highest level your tools still read. Past teal you are <Term id="gap">flying blind</Term>.</div>
+    <TipCard title="Sight limit vs capability" value={`Sight limit L ${F.level(u.L)} (${F.level(u.lo)}–${F.level(u.hi)})`}>
+      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range). Gap {F.num(u.gap, 1, true)} levels.</div>
       <div className="tip-sec">
-        <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="validatedTo">Tools validated to</Term></span><span /><span className="num" data-test="validated-to">{up.validatedTo !== undefined ? `L ${F.level(up.validatedTo)}` : '—'}</span></div>
-        <div className="small dim">How far above today's model your tools were re-checked. Understanding can sit lower: it is where detection of the critical traits stays at 50% or more.</div>
-        <div className="det-row"><span className="det-lbl"><ICON.U size={12} /><Term id="uRange">Likely range</Term></span><span /><span className="num" data-test="u-range">L {F.level(band.lo)}–{F.level(band.hi)}</span></div>
-      </div>
-      <div className="tip-sec">
-        <div className="tip-cap">Can your tools see it? detection at L vs 50%</div>
+        <div className="tip-cap">Reading at the model's level vs 50%</div>
         {CRITICAL_TRAITS.map((t) => {
           const p = u.perTrait[t] ?? 0;
           const Ic = TRAIT_ICON[t];
@@ -54,7 +47,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
         })}
       </div>
       <div className="tip-sec">
-        <div className="tip-cap">Why understanding moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
+        <div className="tip-cap">Why the sight limit moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
         {/* Jank M2: the engine's weekly U drivers (new model, tools, eval-awareness belief, re-validation). */}
         {(s.causes.byKey.U ?? []).filter((e) => e.day > s.time.day - 90).slice(-4).reverse().map((e, i) => <div className="small" key={`u${i}`} data-test="u-cause"><span className={e.delta >= 0 ? 'tone-pos' : 'tone-neg'}>{F.num(e.delta, 1, true)}</span> <span className="dim">{fmtDate(dateOf(s, e.day)).replace(/,? \d{4}$/, '')}</span> {e.detail ?? e.source}</div>)}
         {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">fading</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="halfStrength">capability outgrows it</Term>)</span></div>)}
@@ -73,16 +66,16 @@ function RaceTip({ s }: { s: GameStateV2 }) {
 }
 
 function RaceMeter({ s }: { s: GameStateV2 }) {
-  const u = engine.understanding(s);
+  const u = engine.sightLimit(s);
   const ev = internalEval(s);
   const L = ev.L;
-  const U = u.U;
-  const band = understandingBand(s);
+  const U = u.L;
+  const band = u;
   const W = 470;
   const lo = 4;
   const hi = 15;
   const x = (v: number) => 4 + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (W - 8);
-  const gap = u.margin;
+  const gap = u.gap;
   return (
     <Tip as="div" className="ts-race2" content={() => <RaceTip s={s} />}>
       <div data-test="race" data-home="race" onClick={() => store.goto('safety', { tab: 'overview' })}>
@@ -91,10 +84,10 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
           <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>
           {ev.evaluating && <button className="tag2 warn ts-evchip" data-test="evaluating" data-ref="evalQueue" onClick={(e) => { e.stopPropagation(); store.goto('models', { tab: 'evals', anchor: 'evalQueue' }); }}>evaluating</button>}
           <span className="sp" />
-          <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {Math.abs(gap).toFixed(1)} {gap < 0 ? 'BLIND' : 'AHEAD'}</span>
+          <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {F.num(gap, 1, true)}</span>
           <span className="sp" />
           <b className="num" style={{ color: C.und }} data-home="U">{F.level(U)}</b>
-          <span className="race2-und">UNDERSTANDING <ICON.U size={12} /></span>
+          <span className="race2-und">SIGHT LIMIT <ICON.U size={12} /></span>
         </div>
         <svg width={W} height={28} className="race2-svg">
           <defs><pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill={C.bad} /></pattern></defs>

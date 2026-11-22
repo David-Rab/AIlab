@@ -4,11 +4,10 @@
 // levels, beliefs, intel. `selectHidden` is for the end screen only (scripts/v2/lint-hidden.ts enforces this).
 import { bestLg, internalVersion, measuredLOf, PLAYER_ID } from '../models/labs';
 import { misalignment, predictBeliefs, runHack, runOmega, type Signals } from '../safety/traits';
-import { detectionAt, understanding } from '../safety/understanding';
+import { sightLimitPoint } from '../safety/sightLimit';
 import { levelOfOom, oomOfLevel } from '../safety/oversight';
 import { strengthBelieved } from '../safety/techniques';
 import { planRun, type LaunchRunParams } from '../models/runs';
-import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { leadDays } from '../actors/intel';
 import type { DecisionSnapshot, GameStateV2, HiddenWorld, SignalId, TraitId } from '../types';
 
@@ -38,7 +37,7 @@ export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departmen
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
-export { understanding, understandingBand } from '../safety/understanding';
+export { plannedSightLimit, sightGrid, sightLimit } from '../safety/sightLimit';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';
 // WS2 safety-panel selectors (beliefs, posteriors, incidents as the player sees them). `safetyTruth` is END SCREEN ONLY.
@@ -49,7 +48,6 @@ export { controlView } from '../safety/control';
 export { believedInternalOversight } from '../safety/believedOversight';
 export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
-export { familySeenTo } from '../safety/understanding';
 export { basePressure, plannedPressure, postPressure, signalPushes, storedBaseRows, successorPullView, versionPressure } from '../safety/pressureView';
 export type { FamilyId, ImitationView, PressureRow, PushTarget, RunPressure, SuccessorPartView, SuccessorPullView } from '../safety/pressureView';
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
@@ -92,7 +90,7 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
   const leadRival = rivals.length ? Math.min(...rivals.map((r) => leadDays(s, r.core.id).est)) : 0;
   return {
     L: v?.evals.measuredL ?? bestLg(s, PLAYER_ID),
-    U: understanding(s).U,
+    U: sightLimitPoint(s),
     cash: s.player.finance.cash,
     leadRival,
     leadChina: leadDays(s, 'china').est,
@@ -103,19 +101,6 @@ export function decisionSnapshot(s: GameStateV2): DecisionSnapshot {
 }
 
 // ───────── M5 UX read-only selectors (Safety lab, Run designer). Player-visible data only. ─────────
-
-/** Detection-by-level heat grid (PLAN B4): believed detection of each critical trait on the internal model at
- *  levels around its measured level L (2·span + 1 columns centred on round(L), shifted to stay in 0…15). */
-export function detectionGrid(s: GameStateV2, span = 4): { L: number; levels: number[]; rows: { trait: TraitId; det: number[] }[] } {
-  const v = internalVersion(s);
-  const L = measuredLOf(s, v).L;
-  const c = Math.round(L);
-  const levels: number[] = [];
-  const lo = Math.max(0, Math.min(15 - 2 * span, c - span));
-  for (let l = lo; l <= Math.min(15, lo + 2 * span); l++) levels.push(l);
-  if (!v) return { L, levels, rows: CRITICAL_TRAITS.map((trait) => ({ trait, det: levels.map(() => 0) })) };
-  return { L, levels, rows: CRITICAL_TRAITS.map((trait) => ({ trait, det: levels.map((l) => detectionAt(s, v, trait, l)) })) };
-}
 
 /** Believed strength of a technique against capability level (Tools tab small multiples): strength at each level
  *  in `levels`, the level at which the overseen model reaches the tool's half-strength point (model v3 E6: oHalf OOM

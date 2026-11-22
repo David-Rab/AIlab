@@ -2257,7 +2257,8 @@ export interface EngineApi {
   resolve(s: GameStateV2, instance: string, choice: number): void;
   // selectors (pure; UI and bots use these, never raw hidden state)
   production(s: GameStateV2, lab: LabId): ProductionReadout;
-  understanding(s: GameStateV2): { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> };
+  /** SR-11: the sight limit (believed; level L with its range) of the internal model, its measured level and the gap. */
+  sightLimit(s: GameStateV2): { L: number; lo: number; hi: number; level: number; gap: number; versionId?: string; perTrait: Partial<Record<TraitId, number>> };
   riskSources(s: GameStateV2): RiskSource[];
   leadDays(s: GameStateV2, other: LabId): { est: number; sd: number };
   raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> };

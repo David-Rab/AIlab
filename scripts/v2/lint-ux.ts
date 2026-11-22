@@ -7,7 +7,8 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { internalEval, internalVersion, measuredL, understanding } from '../../src/engine/v2/index';
+import { internalEval, internalVersion, measuredL, sightLimit } from '../../src/engine/v2/index';
+const understanding = (s: Parameters<typeof sightLimit>[0]) => ({ U: sightLimit(s).L });
 import { GLOSSARY_V2 } from '../../src/data/v2/glossary';
 import { LIMITS } from '../../src/data/v2/limits';
 import { STORY } from '../../src/engine/v2/finance/story';

@@ -14,7 +14,7 @@ import { levelOfOom, oomOfLevel } from './oversight';
 import { deadEndTotal, lineCapacity, lineMult, lineResultsPerYear, lineTeams, posteriorBand, promisingIdle, safetyRe, upkeepState, type LineHealth } from './agendas';
 import { decayAt, strengthBelieved, techniqueRole } from './techniques';
 import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate } from './traits';
-import { familySeenTo, nearestDecay, understanding } from './understanding';
+import { sightLimit } from './sightLimit';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { lineLabour } from './lineProjects';
@@ -76,10 +76,9 @@ export function lineBadges(s: GameStateV2): { promisingIdle: AgendaId[]; deadEnd
 }
 
 /** The four risk families of a version (STRUCTURE §4.5, L1): the worst believed trait in each with its band, how clearly
- *  the tools read it, whether a case is open on it, and the level up to which the tools see it. */
+ *   the tools read it and whether a case is open on it. */
 export function riskFamilies(s: GameStateV2, versionId?: string) {
   const v = versionById(s, versionId) ?? internalVersion(s);
-  const seen = v ? familySeenTo(s, v) : undefined;
   return RISK_FAMILIES.map((f) => {
     let worst: TraitId = f.traits[0];
     let clar = 0;
@@ -92,10 +91,9 @@ export function riskFamilies(s: GameStateV2, versionId?: string) {
     const sd = b?.sd ?? 0.35;
     const investigating = !!v && s.player.safety.investigations.some((i) => !i.outcome && ((i.target.kind === 'trait' && i.target.versionId === v.id && f.traits.includes(i.target.trait))
       || (i.target.kind === 'incident' && s.player.safety.incidents.some((x) => x.id === (i.target as { incidentId: string }).incidentId && x.versionId === v.id && f.traits.includes(x.apparent as TraitId)))));
-    const seenTo = seen?.[f.id] ?? 0;
     return {
       id: f.id, label: f.label, traits: f.traits, worst, est, sd, lo: Math.max(0, est - 1.64 * sd), hi: Math.min(1, est + 1.64 * sd),
-      clarity: clar / f.traits.length, seenTo, critical: f.traits.some((t) => CRITICAL_TRAITS.includes(t)),
+      clarity: clar / f.traits.length, critical: f.traits.some((t) => CRITICAL_TRAITS.includes(t)),
       // Unseen: the tools cannot read the family's beliefs (mean clarity under 0.3, as the Company risk badges).
       unseen: clar / f.traits.length < RISK_UNSEEN_CLARITY, investigating,
     };
@@ -240,10 +238,8 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
 
 /** Everything the Safety panel needs in one call. */
 export function safetyView(s: GameStateV2) {
-  const u = understanding(s);
   return {
-    understanding: u,
-    nextDecay: nearestDecay(s),
+    sightLimit: sightLimit(s),
     lines: lineRows(s),
     lineBadges: lineBadges(s),
     techniques: techniqueRows(s),

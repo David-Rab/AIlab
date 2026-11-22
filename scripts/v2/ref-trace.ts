@@ -18,7 +18,10 @@ import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { quarterIndex } from '../../src/engine/v2/core/time';
 import { engine } from '../../src/engine/v2/index';
 import { production } from '../../src/engine/v2/production/readout';
-import { understanding } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understanding = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, margin: r.gap, perTrait: r.perTrait }; };
+void trueSightLimit;
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { refGame, runRef } from './lib';

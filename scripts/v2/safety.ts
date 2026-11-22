@@ -22,7 +22,10 @@ import { check, finish, FIXTURE_DIR, SMOKE, smokeCheck } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { understandingBand } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, lo: r.lo, hi: r.hi }; };
+void trueSightLimit;
 const DEEP = process.argv.includes('--deep');
 import { MIXED, REF, REF_HALF_STAFF, REF_TRUSTED, SAFE, play, type Outcome } from './safety-emu';
 import { cached, prefill } from './simcache';

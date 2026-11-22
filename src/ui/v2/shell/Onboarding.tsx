@@ -21,7 +21,7 @@ function goals(s: GameStateV2): Goal[] {
   const postDone = p.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0 && r.status === 'done');
   if (s.tutorial.act <= 1) {
     return [
-      { id: 'race', text: <>Read the race: <Term id="L">capability</Term> vs <Term id="U">understanding</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
+      { id: 'race', text: <>Read the race: <Term id="L">capability</Term> vs <Term id="sightLimit">sight limit</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
       { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
       { id: 'ff', text: <>Fast-forward to the result <span className="kbd">F</span></>, done: postDone },
       { id: 'finding', text: 'Decide on your first finding', done: s.decisions.some((d) => d.eventId === 'E01') },
@@ -121,7 +121,7 @@ export function QuarterRecap({ s }: { s: GameStateV2 }) {
   const cashCause = causeStrip(s, 'cash', 91, 1)[0];
   const rows: { label: ReactNode; icon: typeof ICON.L; from: string; to: string; d: number; good: boolean; note?: string }[] = [
     { label: <Term id="L">Capability</Term>, icon: ICON.L, from: F.level(r.from.L), to: F.level(r.to.L), d: r.to.L - r.from.L, good: true },
-    { label: <Term id="U">Understanding</Term>, icon: ICON.U, from: F.level(r.from.U), to: F.level(r.to.U), d: r.to.U - r.from.U, good: r.to.U >= r.from.U },
+    { label: <Term id="sightLimit">Sight limit</Term>, icon: ICON.U, from: F.level(r.from.U), to: F.level(r.to.U), d: r.to.U - r.from.U, good: r.to.U >= r.from.U },
     { label: <Term id="cash">Cash</Term>, icon: ICON.cash, from: F.money(r.from.cash), to: F.money(r.to.cash), d: r.to.cash - r.from.cash, good: r.to.cash >= r.from.cash, note: cashCause ? `biggest cause: ${cashCause.source}` : undefined },
     { label: <Term id="lead">Lead</Term>, icon: ICON.lead, from: F.lead(r.from.lead), to: F.lead(r.to.lead), d: r.to.lead - r.from.lead, good: r.to.lead >= r.from.lead },
   ];

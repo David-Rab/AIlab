@@ -3,7 +3,7 @@
 // estimate and its ± band in severity colour. Edges: width = weight, dash = evidence grade. Hovering a node lights its
 // upstream paths and opens the evidence card (belief, detection vs 50%, incoming edges with citations, levers).
 import { useRef, useState } from 'react';
-import { beliefView, traitGraph, understanding, versionSignals } from '../../../engine/v2';
+import { beliefView, traitGraph, sightLimit, versionSignals } from '../../../engine/v2';
 import type { GameStateV2, TraitId } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
 import { GoBtn, HBar, Ref } from '../kit';
@@ -83,7 +83,7 @@ function edgePath(a: { x: number; y: number }, b: { x: number; y: number }, from
 export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const g = traitGraph(s);
   const bv = beliefView(s, versionId);
-  const u = understanding(s);
+  const u = sightLimit(s);
   const sig = versionSignals(s, bv?.versionId) as Record<string, number>;
   const [hover, setHover] = useState<string>();
   const [pin, setPin] = useState<string>();
@@ -231,7 +231,7 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
           <span className="small">Your tools catch it</span>
           <HBar v={det} max={1} w={150} h={6} color={det >= 0.5 ? C.und : C.bad} mark={0.5} />
           <span className={`num ${det >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(det)}</span>
-          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% at your level · counts toward <Ref id="U" to={{ panel: 'safety', tab: 'overview' }}>Understanding</Ref></div>
+          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% at your level · counts toward the <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>sight limit</Ref></div>
         </div>
       )}
       {inc.length > 0 && (

@@ -87,8 +87,8 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
   // Jank O4: day 0 shows the start point, not a large empty card.
   if (n < 2) {
     const ev = internalEval(s);
-    const u = engine.understanding(s);
-    return <Tip as="div" content={() => <TipCard title="The race at the start" rows={[{ label: <Term id="L">Capability</Term>, value: F.level(ev.L) }, { label: <Term id="U">Understanding</Term>, value: F.level(u.U) }]}>The chart draws one point a week from here.</TipCard>}><div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>understanding {F.level(u.U)}</b> <span className="dim">· the history fills in week by week</span></div></Tip>;
+    const u = engine.sightLimit(s);
+    return <Tip as="div" content={() => <TipCard title="The race at the start" rows={[{ label: <Term id="L">Capability</Term>, value: F.level(ev.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: `L ${F.level(u.L)} (${F.level(u.lo)}–${F.level(u.hi)})` }]}>The chart draws one point a week from here.</TipCard>}><div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>sight limit {F.level(u.L)}</b> <span className="dim">· the history fills in week by week</span></div></Tip>;
   }
   const L = S.Lmeasured.slice(0, n);
   const U = S.U.slice(0, n);
@@ -173,7 +173,7 @@ export function Overview({ s }: { s: GameStateV2 }) {
         <LeadTrack s={s} />
       </Card>
       <div className={`ov-lower ${goals ? 'with-goals' : ''}`}>
-        <Card title="How the race got here" sub="hover to read a week" right={<span className="legend2"><span><i style={{ background: C.cap }} /><Term id="L">Capability</Term></span><span><i style={{ background: C.und }} /><Term id="U">Understanding</Term></span><span><i style={{ background: 'rgba(239,107,107,.5)', height: 8 }} /><Term id="gap">blind</Term></span></span>}>
+        <Card title="How the race got here" sub="hover to read a week" right={<span className="legend2"><span><i style={{ background: C.cap }} /><Term id="L">Capability</Term></span><span><i style={{ background: C.und }} /><Term id="sightLimit">Sight limit</Term></span><span><i style={{ background: 'rgba(239,107,107,.5)', height: 8 }} />past it</span></span>}>
           <RaceHistory s={s} />
         </Card>
         <WatchCard s={s} />

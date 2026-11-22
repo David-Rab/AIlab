@@ -18,13 +18,13 @@ import type { GameStateV2, ModelVersion, TraitId } from '../types';
 import { aiRdShare } from './incidents';
 import { controlProtocol, gapFactor, measuredOom, oversightGap, underControl } from './oversight';
 import { containment, techniqueRole } from './techniques';
-import { detectionAt } from './understanding';
+import { sightAt } from './sightLimit';
 
 /** Believed monitoring catch on trait k inside the lab: CoT and white-box tools as the player believes them, at the
  *  model's measured level, × (½ + ½ × the fleet's monitor strength). */
 export function believedMonitorCatch(s: GameStateV2, v: ModelVersion, trait: TraitId, L = measuredLOf(s, v).L): number {
   const tools = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && techniqueRole(t) !== 'fix' && (t.family === 'COT' || t.family === 'WB'));
-  const det = tools.length ? detectionAt(s, v, trait, L, tools) : 0;
+  const det = tools.length ? sightAt(s, v, trait, L, tools) : 0;
   return Math.max(0, Math.min(1, det * (0.5 + 0.5 * fleetMonitor(s, v, trait))));
 }
 

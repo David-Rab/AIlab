@@ -49,7 +49,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     });
   }
   // 3. critical traits the stack can no longer read at L
-  const u = engine.understanding(s);
+  const u = engine.sightLimit(s);
   const unseen = CRITICAL_TRAITS.filter((t) => (u.perTrait[t] ?? 1) < 0.5);
   if (internalVersion(s) && unseen.length) {
     const sv = safetyView(s);

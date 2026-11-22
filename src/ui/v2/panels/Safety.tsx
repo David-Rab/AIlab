@@ -13,8 +13,8 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, detectionGrid, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
-  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, understanding, versionById,
+  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -115,13 +115,15 @@ function SideSwitch() {
 }
 
 type Fams = ReturnType<typeof riskFamilies>;
-/** The family U depends on that the tools see least (deception or power). */
-const weakFamily = (fams: Fams) => [...fams].filter((f) => f.critical).sort((a, b) => a.seenTo - b.seenTo)[0];
+/** A family's mean reading over its hidden-goal traits at the model's level (the sight limit's drill-down). */
+const famRead = (f: Fams[number], pt: Partial<Record<TraitId, number>>) => { const ks = f.traits.filter((k) => CRITICAL_TRAITS.includes(k)); return ks.length ? ks.reduce((a, k) => a + (pt[k] ?? 0), 0) / ks.length : 1; };
+/** The hidden-goal family your instruments read least at the model's level (deception or power). */
+const weakFamily = (fams: Fams, pt: Partial<Record<TraitId, number>>) => [...fams].filter((f) => f.critical).sort((a, b) => famRead(a, pt) - famRead(b, pt))[0];
 
 /** The idea that would most help the family the tools see least: a detection tool not yet known, preferring one with
  *  teams on it, then one that can start now. */
 function bestIdea(s: GameStateV2, fams: Fams): { id: string; name: string; fam: Fams[number]; active: boolean } | undefined {
-  const weak = weakFamily(fams);
+  const weak = weakFamily(fams, sightLimit(s).perTrait);
   if (!weak) return undefined;
   let best: { id: string; name: string; score: number; active: boolean } | undefined;
   for (const n of TREE) {
@@ -139,20 +141,22 @@ function bestIdea(s: GameStateV2, fams: Fams): { id: string; name: string; fam: 
 }
 
 function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea> }) {
-  const m = sv.understanding.margin;
+  const sl = sv.sightLimit;
+  const m = sl.gap;
   const up = sv.upkeep;
   const tone = m < 0 ? 'bad' : m < 0.5 || fams.some((f) => f.unseen) ? 'warn' : 'good';
   // Jank S1: the verdict counts what the tools cannot see.
   const unseen = fams.filter((f) => f.unseen);
-  const title = m < 0 ? 'Understanding lags capability' : m < 0.5 ? 'Understanding barely ahead' : unseen.length ? `Understanding ahead, but ${unseen.length} of ${fams.length} risk families unseen` : 'Understanding ahead of capability';
+  const title = m < 0 ? 'Model past your sight limit' : m < 0.5 ? 'Sight limit barely above the model' : unseen.length ? `Sight limit above the model, but ${unseen.length} of ${fams.length} risk families unseen` : 'Sight limit above the model';
   const widening = up.capPerMo > up.upkeepPerMo + 0.02;
-  const sub = [m < 0 ? `${F.num(-m, 1)} levels blind` : `${F.num(m, 1)} levels ahead`, widening ? 'gap widening' : 'holding',
+  const sub = [`Sight limit L ${F.level(sl.L)} (${F.level(sl.lo)}–${F.level(sl.hi)})`, m < 0 ? `${F.num(-m, 1)} levels past it` : `${F.num(m, 1)} levels above the model`, widening ? 'gap widening' : 'holding',
     up.behindInMonths !== undefined && up.behindInMonths > 0 ? `tools fall behind in ~${Math.max(1, Math.round(up.behindInMonths))} mo` : up.behindInMonths === 0 ? 'tools already behind' : ''].filter(Boolean).join(' · ');
-  const weak = weakFamily(fams);
+  const weak = weakFamily(fams, sl.perTrait);
+  const weakRead = weak ? famRead(weak, sl.perTrait) : 1;
   const chains: ChainLink[][] = [];
-  if (weak && weak.seenTo < up.L + 0.5) {
+  if (weak && weakRead < 0.6) {
     chains.push([
-      { label: <>{weak.label} {weak.seenTo < up.L ? 'unseen' : 'barely seen'}</>, icon: FAM_ICON[weak.id], kind: 'bad', to: { panel: 'safety', tab: 'overview' } },
+      { label: <>{weak.label} {weakRead < 0.5 ? 'unread' : 'barely read'}</>, icon: FAM_ICON[weak.id], kind: 'bad', to: { panel: 'safety', tab: 'overview' } },
       cand ? { label: cand.name, icon: ICON.research, kind: 'root', tip: () => <TipCard title={cand.name} value={cand.active ? 'in progress' : 'not started'}>A detection idea that covers {weak.label.toLowerCase()}. Its odds are the research line's estimate.</TipCard> }
         : { label: 'Research lines', icon: ListChecks, kind: 'root', to: { panel: 'safety', tab: 'lines' } },
     ]);
@@ -164,11 +168,10 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
       {m < 0 ? <ICON.blind size={22} /> : <Eye size={22} />}
       <div className="sf-vt">
         <b>{title}</b>
-        <Tip content={() => <TipCard title={<Term id="U">Understanding vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
-          { label: 'Capability (measured)', value: F.level(up.L) }, { label: 'Understanding', value: F.level(up.L + m) },
+        <Tip content={() => <TipCard title={<Term id="sightLimit">Sight limit vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
+          { label: 'Capability (measured)', value: F.level(up.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: `L ${F.level(sl.L)} (${F.level(sl.lo)}–${F.level(sl.hi)})` },
           { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} L` }, { label: 'Tool upkeep per month', value: `+${F.num(up.upkeepPerMo, 2)} L` },
-          ...fams.map((f) => ({ label: `${f.label} seen to`, value: `L ${F.num(f.seenTo, 1)}${f.unseen ? ' · unseen' : ''}`, tone: (f.unseen ? 'neg' : 'neutral') as 'neg' | 'neutral' })),
-        ]}>Positive: your tools read the model past its level. The gap widens when capability grows faster than tool upkeep.</TipCard>}><span className="small">{sub}</span></Tip>
+        ]}>Positive: your instruments read the model past its level. The gap widens when capability grows faster than tool upkeep.</TipCard>}><span className="small">{sub}</span></Tip>
       </div>
       <span className="sp" />
       {chains.map((c, i) => (
@@ -182,14 +185,14 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
   );
 }
 
-/** U if an idea works (estimate from believed efficacy): understanding with its technique unlocked. */
+/** Sight limit if an idea works (estimate from believed efficacy): with its instrument unlocked. */
 function uIfWorks(s: GameStateV2, id: string): number | undefined {
   const tid = PROJECT_BY_ID[id]?.technique;
   const t = tid ? s.player.safety.techniques[tid] : undefined;
   if (!t || t.unlocked) return undefined;
   const techniques = { ...s.player.safety.techniques, [t.id]: { ...t, unlocked: true, active: true } };
   const hypo = { ...s, player: { ...s.player, safety: { ...s.player.safety, techniques } } } as GameStateV2;
-  return understanding(hypo).U;
+  return sightLimit(hypo).L;
 }
 
 function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea> }) {
@@ -203,7 +206,7 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
   const today = s.time.day;
   const ahead = 17; // weeks shown ahead
   const Lnow = up.L;
-  const Unow = sv.understanding.U;
+  const Unow = sv.sightLimit.L;
   const capWk = (up.capPerMo * 7) / 30.4;
   const upkWk = (up.upkeepPerMo * 7) / 30.4;
   const projL = Array.from({ length: ahead + 1 }, (_, i) => Lnow + capWk * i);
@@ -242,8 +245,8 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
   }
   const tip = () => <UTip s={s} sv={sv} fams={fams} cand={cand} ifU={ifU} />;
   return (
-    <Card title={<span className="row-i"><ICON.U size={14} /> <Term id="U">Capability vs understanding</Term></span>} sub="internal model · 6 mo back, 4 ahead" home="raceChart" className="sf-chart"
-      right={<span className="sf-legend small"><span><i style={{ background: C.cap }} />Capability</span><span><i style={{ background: C.und }} /><Term id="U">Understanding</Term></span><span><i className="hatch" /><Term id="blind">blind</Term></span><span className="dim">- - projected</span></span>}>
+    <Card title={<span className="row-i"><ICON.U size={14} /> <Term id="sightLimit">Capability vs sight limit</Term></span>} sub="internal model · 6 mo back, 4 ahead" home="raceChart" className="sf-chart"
+      right={<span className="sf-legend small"><span><i style={{ background: C.cap }} />Capability</span><span><i style={{ background: C.und }} /><Term id="sightLimit">Sight limit</Term></span><span><i className="hatch" />past it</span><span className="dim">- - projected</span></span>}>
       <svg viewBox={`0 0 ${W} ${H}`} className="sf-svg" data-test="race-chart">
         <defs>
           <pattern id="sfHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke={C.bad} strokeWidth="2" opacity="0.55" /></pattern>
@@ -265,9 +268,9 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
           </g>
         )}
         <text x={x(total) + 4} y={y(projL[ahead]) + 3} className="sf-lab" fill={C.cap}>capability</text>
-        <text x={x(total) + 4} y={y(projU[ahead]) + 3} className="sf-lab" fill={C.und}>understanding</text>
+        <text x={x(total) + 4} y={y(projU[ahead]) + 3} className="sf-lab" fill={C.und}>sight limit</text>
         {L.map((l, i) => (
-          <Tip key={i} as="g" content={() => <TipCard title={fmtDate(dateOf(s, days[i]))} rows={[{ label: <Term id="L">Capability</Term>, value: F.num(l, 2) }, { label: <Term id="U">Understanding</Term>, value: F.num(U[i], 2) }, { label: <Term id="blind">Blind</Term>, value: F.num(Math.max(0, l - U[i]), 2), tone: l > U[i] ? 'neg' : 'neutral' }]} />}>
+          <Tip key={i} as="g" content={() => <TipCard title={fmtDate(dateOf(s, days[i]))} rows={[{ label: <Term id="L">Capability</Term>, value: F.num(l, 2) }, { label: <Term id="sightLimit">Sight limit</Term>, value: F.num(U[i], 2) }, { label: 'Past it by', value: F.num(Math.max(0, l - U[i]), 2), tone: l > U[i] ? 'neg' : 'neutral' }]} />}>
             <rect x={x(i) - 6} y={pt} width={12} height={H - pt - pb} fill="transparent" />
           </Tip>
         ))}
@@ -277,17 +280,14 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
   );
 }
 
-/** The U tooltip (L3): what U is, the level up to which the tools see each family, tools validated to and upkeep. */
-function UTip({ s, sv, fams, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea>; ifU?: number }) {
+/** The sight-limit tooltip (L3): the sight limit with its range, upkeep against capability, and the best idea's effect. */
+function UTip({ s, sv, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea>; ifU?: number }) {
   const up = sv.upkeep;
-  const lowest = Math.min(...fams.filter((f) => f.critical).map((f) => f.seenTo));
   return (
-    <TipCard title={<><Term id="U">Understanding</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={F.num(sv.understanding.U, 2)} rows={[
-      ...fams.map((f) => ({ label: <span className="row-i">{(() => { const I = FAM_ICON[f.id]; return <I size={12} />; })()}{f.label} seen to{f.critical ? null : <span className="dim"> · not in U</span>}</span>, value: <>{F.num(f.seenTo, 1)}{f.critical && f.seenTo === lowest ? <span className="dim"> lowest</span> : null}</>, tone: (f.seenTo < up.L ? 'neg' : 'neutral') as 'neg' | 'neutral' })),
-      { label: <Term id="validatedTo">Tools validated to</Term>, value: up.validatedTo !== undefined ? `L ${F.num(up.validatedTo, 1)}` : '—' },
+    <TipCard title={<><Term id="sightLimit">Sight limit</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={`L ${F.level(sv.sightLimit.L)} (${F.level(sv.sightLimit.lo)}–${F.level(sv.sightLimit.hi)})`} rows={[
       { label: <>upkeep {F.num(up.upkeepPerMo, 2, true)}/mo · capability {F.num(up.capPerMo, 2, true)}/mo</>, value: up.behindInMonths === undefined ? 'keeps up' : up.behindInMonths === 0 ? 'behind now' : `behind in ~${Math.max(1, Math.round(up.behindInMonths))} mo`, tone: up.behindInMonths !== undefined ? 'neg' : 'pos' },
-      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `${F.num(sv.understanding.U, 1)} → ${F.num(ifU, 1)}` }] : []),
-    ]}>Level up to which your tools see the critical traits (average detection ≥ 50%). Estimates from what you believe, not the truth.</TipCard>
+      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `L ${F.num(sv.sightLimit.L, 1)} → ${F.num(ifU, 1)}` }] : []),
+    ]}>The highest level at which your instruments together still read the hidden-goal traits at 50% or better; the range is what your uncertainty about each instrument allows. From what you believe, not the truth.</TipCard>
   );
 }
 
@@ -353,7 +353,6 @@ function Families({ s }: { s: GameStateV2 }) {
               <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={`${F.num(f.est, 2)} ± ${F.num(f.sd, 2)}`} rows={[
                 { label: 'Highest trait', value: tname(f.worst) },
                 { label: <Term id="clarity">Mean clarity</Term>, value: F.pct(f.clarity), tone: f.unseen ? 'neg' : 'neutral' },
-                { label: 'Tools see it to', value: `L ${F.num(f.seenTo, 1)}`, tone: f.unseen ? 'neg' : 'neutral' },
               ]} footer="Click for its traits.">{st === 'unseen' ? 'Your evidence on this family is thin (clarity under 30%): the estimate may be far off.' : st === 'inv' ? 'A case is open on it.' : 'Your tools read it.'} The bar shows the highest trait estimate and its 90% band.</TipCard>
             )}>
               <div className="sf-fam-row" data-family={f.id} data-state={st} data-test={`fam-open.${f.id}`} onClick={() => setOpen(isOpen ? undefined : f.id)}>
@@ -737,11 +736,11 @@ function GraphTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   );
 }
 
-function DetectionCard({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const g = useMemo(() => detectionGrid(s), [s, s.time.day]);
+function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
+  const g = useMemo(() => sightGrid(s), [s, s.time.day]);
   const cur = Math.round(g.L);
   return (
-    <Card title="Can your tools see it?" sub="detection by capability level" home="detectionByLevel" id="ctl-detection">
+    <Card title="Sight limit by trait" sub="believed reading by capability level" home="detectionByLevel" id="ctl-detection">
       <div className="det-grid" style={{ gridTemplateColumns: `130px repeat(${g.levels.length}, minmax(0, 1fr))` }}>
         <span />
         {g.levels.map((l) => <span key={l} className={`det-h num ${l === cur ? 'cur' : ''}`}>L{l}</span>)}
@@ -763,9 +762,8 @@ function DetectionCard({ s, sv }: { s: GameStateV2; sv: SV }) {
       </div>
       <div className="det-leg small dim">
         <span className="row-i"><i className="det-sw cur" /> your level</span>
-        <span className="row-i"><i className="det-sw edge" /> 50% line ({CRITICAL_TRAITS.length} critical traits average = <Ref id="U" to={{ panel: 'safety', tab: 'overview' }}>Understanding</Ref>)</span>
+        <span className="row-i"><i className="det-sw edge" /> 50% line ({CRITICAL_TRAITS.length} hidden-goal traits average = <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>Sight limit</Ref>)</span>
       </div>
-      {sv.nextDecay && <Tip as="div" content={() => <TipCard title="Next to fade" value={`${F.pct(1 - (sv.nextDecay?.decay ?? 1))} faded`}>The tool closest to losing half its strength on your newest model; tool upkeep slows it.</TipCard>}><div className="small dim">Next to fade: {TECHNIQUE_BY_ID[sv.nextDecay.id]?.name ?? sv.nextDecay.id} ({F.pct(1 - sv.nextDecay.decay)} faded) · <Ref id="toolUpkeep" to={{ panel: 'safety', tab: 'lines' }}>Tool upkeep</Ref></div></Tip>}
     </Card>
   );
 }

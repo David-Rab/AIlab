@@ -17,7 +17,10 @@ import {
   controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl, versionOom,
 } from '../../src/engine/v2/safety/oversight';
 import { decayAt, decayOom, strengthTrue } from '../../src/engine/v2/safety/techniques';
-import { understanding } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understanding = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, margin: r.gap, perTrait: r.perTrait }; };
+void trueSightLimit;
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { HERE, check, finish } from './lib';
 
