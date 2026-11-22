@@ -11,8 +11,10 @@ import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { expectedObservation, familyPenalty, observeVersion } from '../../src/engine/v2/safety/detection';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
 import { applyResponse } from '../../src/engine/v2/safety/responses';
-import { safetyAgentVersion, safetyFleet, trustedShare } from '../../src/engine/v2/safety/agents';
-import { lineLabour, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
+import { safetyAgentCompute, safetyAgentVersion, safetyFleet, trustedShare } from '../../src/engine/v2/safety/agents';
+import { monitorBudget, monitorH100e, safetyPoolClaims } from '../../src/engine/v2/departments/agents';
+import { AGENT_USES, MONITOR_SAME } from '../../src/data/v2/agents';
+import { lineLabour, linePoolH100e, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
 import { openInvestigation } from '../../src/engine/v2/safety/investigations';
 import { sampleHidden } from '../../src/engine/v2/world/hidden';
 import { Rng } from '../../src/engine/rng';
@@ -297,6 +299,48 @@ smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to
   for (const v of t.player.models.versions) { v.traitsTrue.EA = 0.95; v.traitsTrue.OBF = 0.95; }
   const tb = understandingBand(t);
   check(tb.lo === now.lo && tb.hi === now.hi && tb.U === now.U, 'SAFMECH U range reads beliefs only (hidden efficacy and true traits changed: same range)', `${tb.lo}–${tb.hi}`);
+}
+
+// ───────── RD-B07 (audit B10 / INP-18): the safety pool's claims never total more than the pool ─────────
+// verify_inp13's extreme settings (monitoring budget 100%, 'same' monitors on all four uses, safety agents 60%) ran the
+// pool at 140–160% (monitors and agents kept their full H100e; lines clamped at 0). Served in priority order (monitors →
+// investigations → safety agents → lines), the readers' H100e sum to ≤ the pool and the cut is visible (requested vs
+// granted). With an open case at 30% the agents' cut shows; at 90% the cases' cut too.
+{
+  const base = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+  const sumOf = (s: GameStateV2) => {
+    const pool = s.player.computeOnline * s.player.split.safety;
+    const c = safetyPoolClaims(s);
+    const mon = AGENT_USES.reduce((a, u) => a + monitorH100e(s, u), 0);
+    const parts = mon + pool * c.investigations.granted + safetyAgentCompute(s) + linePoolH100e(s);
+    return { c, share: parts / pool, mon: mon / pool };
+  };
+  const extreme = (invShare: number) => {
+    const s = JSON.parse(JSON.stringify(base)) as GameStateV2;
+    s.player.policies.monitorBudget = 1;
+    for (const u of AGENT_USES) s.player.agents[u].monitorId = MONITOR_SAME;
+    s.player.agents.safety.compute = 0.6;
+    if (invShare > 0) {
+      const v = s.player.models.versions.find((x) => x.status === 'deployed' || x.status === 'ready') ?? s.player.models.versions[0];
+      s.player.safety.investigations.push({ id: 'INVB07', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 10, computeShare: invShare, tools: [], startDay: s.time.day, clarity: 0 });
+    }
+    resetSafAllocation(s);
+    return s;
+  };
+  const dflt = sumOf(base);
+  check(dflt.c.agents.granted === dflt.c.agents.requested && dflt.c.investigations.granted === dflt.c.investigations.requested && dflt.share <= 1 + 1e-9,
+    'RD-B07 default settings: nothing is cut (granted = requested) and the claims fit the pool', `${pct(dflt.share)} of the pool`);
+  for (const inv of [0, 0.3, 0.9]) {
+    const s = extreme(inv);
+    const r = sumOf(s);
+    const c = r.c;
+    const b = monitorBudget(s);
+    const ok = r.share <= 1 + 1e-9 && c.granted <= 1 + 1e-9 && c.requested > 1 && Math.abs(r.mon - c.monitors.granted) < 1e-9
+      && Math.abs(b.poolShare - c.monitors.granted) < 1e-9 && c.agents.granted < c.agents.requested
+      && (inv < 0.9 || c.investigations.granted < c.investigations.requested);
+    check(ok, `RD-B07 extreme settings${inv ? ` + a case at ${pct(inv)}` : ''}: the safety pool sum ≤ 100%, the cut visible (requested vs granted)`,
+      `requested ${pct(c.requested)} (monitors ${pct(c.monitors.requested)}, cases ${pct(c.investigations.requested)}, agents ${pct(c.agents.requested)}); granted ${pct(r.share)}: monitors ${pct(c.monitors.granted)} (coverage ${b.coverage.toFixed(2)}), cases ${pct(c.investigations.granted)}, agents ${pct(c.agents.granted)}, lines ${pct(c.lines.granted)}`);
+  }
 }
 
 console.log(`      (${((performance.now() - t0) / 1000).toFixed(1)} s for the emulated games)`);

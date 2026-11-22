@@ -31,7 +31,7 @@ import { RISK_KAPPA } from '../../../data/v2/research';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
-import { monitorBudget } from '../departments/agents';
+import { safetyPoolClaims } from '../departments/agents';
 import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
@@ -195,11 +195,10 @@ function experimenting(s: GameStateV2, extra?: string): string[] {
   return out;
 }
 
-/** Pool for research lines (H100e): the safety pool after monitors, the safety agents and investigations. */
+/** Pool for research lines (H100e): the safety pool after monitors, investigations and the safety agents, each at its
+ *  granted share (RD-B07 safetyPoolClaims: served in that order, so the claims never total more than the pool). */
 export function linePoolH100e(s: GameStateV2): number {
-  const inv = s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-  const reserved = monitorBudget(s).poolShare + s.player.agents.safety.compute;
-  return s.player.computeOnline * s.player.split.safety * Math.max(0, 1 - reserved - inv);
+  return s.player.computeOnline * s.player.split.safety * safetyPoolClaims(s).lines.granted;
 }
 
 /** Today's safety research-engineer and compute allocation. Heads are heads × quality. */

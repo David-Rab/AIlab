@@ -6,6 +6,7 @@
 // close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
 import { safetyLabour } from '../departments/workfit';
+import { safetyPoolClaims } from '../departments/agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
@@ -120,7 +121,7 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
   // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
-  return caseRate(s, g, inv.fte, inv.computeShare);
+  return caseRate(s, g, inv.fte, inv.computeShare * safetyPoolClaims(s).invScale); // RD-B07: the granted share
 }
 
 /** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and compute

@@ -12,7 +12,7 @@ import { OOM_PER_HALVING } from '../../../data/v2/oversight';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { QUALITY } from '../../../data/v2/teams';
 import { safetyLabour } from '../departments/workfit';
-import { monitorBudget } from '../departments/agents';
+import { safetyPoolClaims } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
 import { internalVersion } from '../models/labs';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team, TechniqueState } from '../types';
@@ -88,9 +88,11 @@ export function safetyRe(s: GameStateV2): { heads: number; investigations: numbe
 
 // ───────── compute ─────────
 
-/** Share of the safety pool taken before research lines (R7): monitors on internal uses (paid first), the safety agents. */
+/** Share of the safety pool taken before research lines (R7): monitors on internal uses (paid first), the safety agents
+ *  (granted shares, RD-B07). */
 export function safetyReserved(s: GameStateV2): number {
-  return monitorBudget(s).poolShare + s.player.agents.safety.compute;
+  const c = safetyPoolClaims(s);
+  return c.monitors.granted + c.agents.granted;
 }
 
 /**
