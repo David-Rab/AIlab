@@ -841,3 +841,14 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
 - **Left over:** worktree %TEMP%/ai27ux/wt/cp1b (detached at 49b2f6e) was not removed (the removal command was denied
   by the permission classifier). It holds a `node_modules` **junction** to AI27-rd/node_modules: unlink it first
   (`cmd /c rmdir …\cp1b\node_modules`), then `git worktree remove --force`, or the real node_modules may be deleted.
+
+### RD-U03
+
+- **What:** safety tool half-points are OOM literals: `oHalf` per agenda in data/v2/agendas.ts (M½ 25 → 4.218, 30 →
+  4.678, 250 → 10.018, 2000 → 13.788, never = 1e9) and `AG09_LATENT.oHalf` 2.492; the decoy-tool floor in
+  safety/findings.ts is 4.218 (SAR). Deleted REF_M_LEVEL, refPathWorld, refMOomTable, oomOfRefM, agendaOHalf and the
+  `mHalf` fields. F21 / F30 were already OOM deltas (−1.11 / −0.82), unchanged.
+- **Checks:** tsc (app and scripts/v2) clean; probe %TEMP%/ai27ux/probes/rdu03-check.ts: every agenda's oHalf equals
+  the old computed value (±0.001). scripts/v2/oversight.ts: the M → OOM table check is gone; the half-point check reads
+  the literals.
+- **Moves calibration:** no (values identical up to 3-decimal rounding).
