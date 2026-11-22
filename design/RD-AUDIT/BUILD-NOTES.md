@@ -733,3 +733,53 @@ Research readouts, honest Recipe tab (SYNTHESIS B28, B29, B30; CAP-03, CAP-11, C
   setups", not "training runs" (RD-B09).
 - **Tests:** tsc main + scripts clean; research full 46/46; hygiene full 199/199; lint-ux / lint-tips clean; build ok.
   No other tier (RD test rule).
+
+### RD-B18
+
+Preview truth 1, research and people (bugs B31–B35; CAP-16, CAP-21, SAF-13 effort part, INP-13, INP-14, INP-25,
+INP-V03). Every listed preview is the mechanism run on a copy, or the one function the engine's readouts use.
+- **B31 one effort, one ETA.** `effortOfNode` (models/research.ts): capability projects = PICK_AT × stagesOf.idea science
+  team-months + small + scale experiment team-months (P13 39.8 + 55.7, not "25"; a line 1.6 + 1.8 per result, not
+  "3"); a safety research line = T₁ months at serious staffing (ideas + tests; not T₁·√4 team-months); other projects
+  (kyc, P27) their rolled team-months. `effortClassOf` = the class of that sum (S ≤ 6, M ≤ 12, L ≤ 24 TM; lines keep
+  their agenda class): P13 shows XL, unfitted ideas (stagesOf's default 8 TM) M. Readers: nodePreview / reopen costs,
+  tree effort tip and dots, node card, Codex "Effort" row, glossary effortClass. `capEta` (models/research.ts) is the
+  one capability ETA (capProjectView's formula, extracted, with `projectExpInputs`): capProjectView, projectEta (tree,
+  Assign / Take off, teamGain) read it; projectRate's rough capability branch (2 candidates, no taste / speed / batch)
+  and `sciAiMult` are gone. `projectEta(s, id, staff)` takes a capacity or `{ add | remove }` team. [D] Inputs read the
+  allocation the next research day runs (`reAllocation`), not yesterday's reProj: a project in tests with no research
+  engineers now reads Infinity (it waits), where it read 29 days (P05 at day 400); a project not yet testing is read at
+  RE_PER_PROJECT as before. Node-card tip drops "progress ∝ √capacity" for safety lines (their pipeline is not √).
+- **B32 hire previews.** `readDay` (departments/teamActions.ts): one engine day (`core/previewTick.ts`, registered by
+  core/loop.ts with endings skipped, so action modules need not import the loop) on a structuredClone with the team full
+  and arrived, against the same day without it (memoised per state, day and staffing; ~25 ms a read). `effectLine`
+  in the team's own currency: engineers build capacity (team-weeks / week, with AI); capability teams the project whose
+  ETA moves most (days; "gets going" / "stalls" when it starts or stops; research engineers no project needs → routine
+  tuning team-equivalents); safety teams results / yr across the lines. Hire, Let go (arrived teams only), Move (loss in
+  the old department, gain in the new, one copy), Keep hiring (n teams) and Star hire (one more star) use it. Gone:
+  "taste ±0", the elasticity "%", "+N safety staff". Company GainChip shows the line (target in the tip). Day 400: eng
+  +5.59, re.cap 2 d, sci.cap 0 d (every project is in tests), sci.saf +0.24 results / yr.
+- **B33 agents.set.** Constant "security −0.05" removed (nothing applied it). Build capacity before → after
+  (agentsView.build) is a line, so a routine / frontier compute change that re-normalises the engineering share shows
+  its build cost; a change with no cost shows "no compute taken from another use" (0 H100e). m_IDEAS not shown (INP-03
+  proxy left to RD-R01).
+- **B34 star taste.** One factor `starTasteOf(stars)` (data/v2/teams.ts) = min(1.5, 1 + 0.05 · stars); research's
+  `starTaste` and the bench `tauH` both call it; STAR_TASTE deleted. Chip: "star taste ×…", tip says stars multiply
+  every capabilities science team's human taste (+0.05 each, up to ×1.5); "from quality" gone. Safety teams still get
+  no star factor (open design question, INP-14).
+- **B35 research actions.** Reopen = nodePreview of the speculative attempt (prior at spec + 1, its odds), not +0.05;
+  Research risk = the pick rule (mean ± κ × spread) with zero-amount lines, no κ as progress; Auto-assign counts the
+  safety scientists autoAssign places on a copy (idle capability teams excluded; off: idle safety scientists wait);
+  Reorder runs moveInQueue + assignCapNow on a copy and lists each capability project's ETA change (all capability
+  teams are re-planned, not "idle teams follow"); Assign / Take off use `etaChange` (no 9999 for a stalled project).
+- **Tests added:** research +6 (effort from stages; one ETA = card, and one engine day takes one day off it at that day's
+  inputs, 6 / 6 projects; Assign / Take off = a copy with the team moved; Reorder = the re-plan on a copy; Auto-assign =
+  safety scientists placed on a copy; Reopen = the reopened copy's preview, risk has no κ line). worktypes +7 (days 400
+  and 900: each of the five hire previews = one full tick on a copy with the team, exact; Star hire = a tick with one
+  more star; agents.set has no security line and its build line = buildCapacity of the applied copy; one star-taste
+  factor for 0–14 stars and the chip text). lint-tradeoffs: research.reopen's known deviation removed (passes).
+- **Moves calibration: no** (previews and readouts; projectRate's capability branch was readout-only; starTaste's cap at
+  1.5 is unreachable because the Star hire gate stops at 1.5; no bot reads previews).
+- **Tests run:** tsc main + scripts clean; research full 52 / 52; worktypes full 23 / 23; lint-tradeoffs all passed;
+  lint-ux --doc (GLOSSARY.md regenerated, passed); npm run build ok. test:ui not run (Company chips, Research tree tip /
+  card, Codex row changed). Left: starHire's rival-cooperation line is still a `trust` line (lint PENDING).
