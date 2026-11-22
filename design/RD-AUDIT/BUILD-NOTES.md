@@ -515,3 +515,41 @@ TRN-V04, MEA-15, MEA-19). Every line is what the action or the engine applies, o
   no bot reads previews).
 - **Tests run:** tsc main + scripts clean; lint-tradeoffs all passed (7 RD-B19 checks, 175 applied-effect checks);
   npm run build passes. test:ui not run (Blueprint forecast line, run-queue tooltip, Models band).
+
+### RD-B21
+
+Copy batch (bugs B27, B46, B47; MEA-17 glossary; SYNTHESIS §4.9 glossary entries). Every listed text now says what
+the engine does; no engine behaviour changed except the manual mix range.
+- **B27 (INP-21).** One constant `MIX_RANGE` = [0.01, 0.99] (departments/split.ts, was MANUAL_MIX_RANGE [0.02, 0.98]):
+  the manual slider, Auto's search (production.ts bestResearchMix) and the mix chart (readout.ts, was 0.02–0.98) all
+  read it. Unified to Auto's range, so Auto is unchanged; only a manual mix may now go 1 point further each way.
+- **CAP-09.** Failure log and project card: "gave up after 3 weak candidates … weak results can be bad luck, so the
+  direction may still work" (was "does not work in this world"). Drop / pick rules unchanged (RD-R06).
+- **CAP-12.** Recipe tip: effective compute ≈ 2-week average, ideas over the last 14 weeks; softwareRate glossary too.
+- **CAP-24.** Teams wanted 0 with a candidate in test: label "test only" (not "paused"); teams tip and card say the
+  test keeps its engineers and compute.
+- **TRN-10.** RL-focus nodes and P06: "RL gains: X in full; Y 40%; other domains 15%" (RL_TRANSFER), not v2 levels.
+- **TRN-12.** T-SPEC: the 8 FTE-weeks cost is gone; the card lists what constitution does (honesty +0.05, approval
+  pressure, E08 / E29 ×0.7 unless minimal alignment, best AG18 healing). P05: "Tokens ×4" (EFFORT_TOKENS.deep).
+- **TRN-13.** Blueprint cash tile and Cash tip: only the science-journals mix costs cash (+5%); nothing else per run.
+  `nextModelGate` (dead readout) not removed: deletion belongs to TRN-24 / cleanup.
+- **TRN-23.** hardenedGraders: no `graders` option and no ▲; text points to suite hardening on the Suites tab.
+- **SAF-06.** T-HARDEN and T-UNDO: no arrows, text says no effect of their own (T-HARDEN leads to T-INOC). F13: the
+  Codex body says a finding with no effects has none in play. Data and IDs kept (bots/common.ts lists T-UNDO).
+- **SAF-16.** Line Health tip adds that the same hidden efficacy sets tool strength and gates some results.
+- **SAF-21.** Codex agenda row "Compute share 3–8%" → "Reference compute N H100e (a unit, not a share)"; line tip:
+  teams speed candidates with diminishing returns, engineers and compute the experiments (not "√ capacity"); ETA tip:
+  "teams, engineers, compute and AI labour" (not "research speed"). `computeShare` state left (RD-C05).
+- **PRD-17.** Safeguards tip: quality costs in OOM from SAFEGUARD_DG (−0.04 / −0.17), not "−0.05 L / −0.2 L".
+- **MEA-17.** Glossary L: true level plus eval noise; sandbagging lowers dangerous benchmarks, not the level.
+- **Glossary (§4.9).** rdmult (three parts; ideation AI labour not in M), researchMix (Auto maximises experiment
+  throughput; chart peak can differ), trustedToAI (lines and investigations, no "funded"), seriousStaffing (no √),
+  autoAssign (days cut, line joining and queueing), idaCycle (one more RL budget, 0.15 × base FLOP), stream (the last
+  reading goes out of date). design/ux/GLOSSARY.md regenerated.
+- **B46 (MEA-22).** EndScreen table: in-game MILESTONE_NAMES, the AI 2027 column shows the canon date with its canon
+  name (idx 2: "Online Learner" is a different event). **Left for DD-09:** day-0 milestones still come from the λ rule
+  (MEA-V01).
+- **Also fixed:** RD-B19's Blueprint forecast band (±sd L) had no tooltip, failing lint-tips; now a Measurement-band tip.
+- **Moves calibration: no** (copy; the mix range widens only the manual slider; Auto's search range is unchanged, and
+  bots use Auto).
+- **Tests run:** tsc main + scripts clean; lint-ux all passed; lint-tips 0 failing; npm run build passes.
