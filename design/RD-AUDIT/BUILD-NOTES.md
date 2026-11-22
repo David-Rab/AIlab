@@ -1817,3 +1817,19 @@ raise it even on broad runs; light budgets or small bases on a long-tasks focus 
 - **Check (scripts/v2/.tmp-rdt05.ts, run alone, untracked):** transfer matrix identical to the old v-derived one; no
   `v` / `h80Mult` on any family; reference broad ×1, long-tasks focus ×2, with P07 ×2.4, swe focus ×1; horizon
   monotone in long-task share. tsc main and scripts clean; `npm run build` passes.
+
+### RD-T11
+
+Scrutiny against the largest rival run; `scale` removed. Commit 609c699. Moves calibration: maybe (gov).
+- **Rule.** A base run's public scrutiny is sizeScrutiny(FLOP ÷ rivalRunFlop) (+5 per ×3 above, 0 at or below), at
+  the blueprint preview and at launch (models/runs.ts runScrutiny). rivalRunFlop = the largest training run of any active
+  non-player lab (US rivals and China): a run in progress at its planned FLOP (FLOP so far + baseFlopPerDay × days to its
+  due day) or a base finished in the last SCRUTINY_WINDOW_DAYS = 365 [D]; none in the window: the largest current base.
+- **Removed.** TrainingRun.scale, the pretrain plan's `scale`, runs.ts scaleOf (and its frontierFlop import). The RD-C06
+  lint exemption on scaleOf has nothing left to exempt there.
+- **Save.** SCHEMA_REV 63 → 64; migration 63 drops TrainingRun.scale (idempotent). hygiene.ts's two `SCHEMA_REV === 63`
+  pins moved to 64.
+- **Check.** scripts/v2/_t11/check.ts (day-0 reference 6.3e26 FLOP; 0 at ≤ 1×, +5 at 3×; migration drops the field):
+  pass. tsc (app, scripts/v2) clean.
+- **Calibration.** The reference changed from F(t) to the rival frontier (not compared at day 0), so the gov
+  scrutiny bump can fire at different times. Not measured (no cal run in this task).
