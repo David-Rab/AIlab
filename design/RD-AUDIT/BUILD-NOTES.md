@@ -1053,3 +1053,38 @@ AI taste per DD-13: one ideas channel (SYNTHESIS RD-E02; CAP-05). Commit f34119b
   and the lift ≈ 1. tsc main and scripts clean. safetyresearch.ts E2 taste check label updated (not run).
 - **Moves calibration: yes** (rivals and the player lose the full AI-taste lift until IDEAS coverage is high: at the
   start s ≈ 0.01 vs φ = 1 before; rivals' ideation I has taste², so their early research input falls; refit at CP2).
+
+### RD-E01a
+
+Paradigm typed effects, part 1 (DD-14; SYNTHESIS RD-E01a; CAP-02). Commit abaffe7.
+- **P13 deleted** (automated AI research agents: ×(1 + 0.5·payoff) experiment FLOP, applied in research.ts and again in
+  production.ts): AI labour in the EXP slot already models research agents. p13Mult and the `p13` parameter of
+  researchInputs / experimentRate / stepProject / capResearchDay are gone, and so is the P13 → U17 ×1.5 presence
+  modifier (UMODE_PRESENCE.p13U17; sabotage presence now has no research-automation term, revisit in the safety
+  redesign if wanted).
+- **P19 deleted** with RSCH_TASTE_PENALTY (−0.5 L on the RSCH display level; work fit never had it). domainsOf /
+  refreshLevels / domainG lose the P19 argument; the serving fit memo loses its P19 key. Display RSCH is +0.5 L for
+  every lab and model.
+- **New `needs`:** P15, P16, P24, aar → `['rl.mlResearch']` (P13's own prerequisite); P21 → `['P08', 'rl.mlResearch']`.
+  RefBot (REF_TREE) drops its P13 / P19 goals.
+- **P24** is `kind: 'idea'`, `effect: { stack: 'pre', mean: 0.96, sd: 0.4 }` (OOM of pretraining efficiency, scale-
+  invariant): prior mean = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 [D]. It runs the normal
+  idea pipeline and lands in the pretraining stack at build-in, so a base launched later freezes it in recipe.pre.
+  p24Dg, BaseFreeze.p24, RunRecipe.p24 and its payoff ("AI share of research labour 50% → 90%") are gone.
+- **payoffOf** stays, P20 only (its ×(1 + 0.1·payoff) agent multiplier is RD-E01b's); the Research card shows a payoff %
+  for P20 only.
+- **Draw order:** world/hidden.ts SKIPPED_DRAWS { P14: 0.75 (P13), P20: 0.6 (P19), P27: 0.8 (P26) } consumes each
+  deleted paradigm's draw where it was, so every other paradigm's hidden success is unchanged.
+- **Save:** SCHEMA_REV 49, migration 48 → 49: P13 / P19 paradigm, tree and draw entries dropped; each run's recipe.p24
+  added to recipe.pre (same total G); an adopted P24 gets one s = 0 pretraining-stack idea of 0.96 × its payoff on the
+  save's day; stored domain levels recomputed (player versions; rivals' internal / public models).
+- **Scripts:** hygiene rev checks → 49; research.ts RD-R07 / RD-B18 checks moved from P13 to P17 (not run);
+  data.ts RD-B02 drops its p24 condition. Left: calib.ts `--fit-tree` still lists P13 in FIT_IDS / targets (refit
+  at CP2); fixtures and golden traces regenerate at the checkpoint.
+- **Check (scripts/v2/.tmp-rde01a.ts, run alone, untracked):** no P13 / P19 node, paradigm, prerequisite, state or
+  draw; P24 is a pre-stack idea with mean 0.96; in a world where P24 works (seed 1) adopting a candidate adds its true
+  effect to the pretraining stack (+0.435 OOM) and the planned reference base's gPre moves by the same +0.435. tsc main
+  and scripts clean; `npm run build` passes.
+- **Moves calibration: yes** (the player loses P13's up-to-×1.5 experiment FLOP and P24's payoff-gated bonus becomes a
+  drawn stack idea; RSCH display levels +0.5 for every lab, which shifts anything gated on measured RSCH; RefBot no
+  longer researches P13 / P19; refit at CP2).
