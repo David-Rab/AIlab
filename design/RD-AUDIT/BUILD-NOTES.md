@@ -2062,3 +2062,35 @@ Scrutiny against the largest rival run; `scale` removed. Commit 609c699. Moves c
   pass. tsc (app, scripts/v2) clean.
 - **Calibration.** The reference changed from F(t) to the rival frontier (not compared at day 0), so the gov
   scrutiny bump can fire at different times. Not measured (no cal run in this task).
+
+### SR-09
+
+Validation jobs replace tool upkeep (SAFETY-REDESIGN §2.2 concept 4, §3.2, §6 row 2). Commit 4d120fc.
+- **`safety/validation.ts`**: a job (instrument, model) takes VAL_ENGINEERS = 15 safety research engineers (÷ m of
+  safety experiments) for VAL_DAYS = 30 at full staffing and VAL_COMPUTE_FRAC = 0.25 of a serious project's compute on
+  the instrument's line (shared by need with the line projects in safAllocation; SafAlloc.valPool) [D; costs [R] pending,
+  §6 row 17]. It plants VAL_N = 20 cases: found ~ Binomial(20, trueRecall), trueRecall = the true `reliability()` on that
+  model, mean over the traits it reads (OD-7: no organism-realism factor). Finishing sets validatedOn / validatedOom
+  (port = same job) and `TechniqueState.measured` {on, found, n, day}. False-validated tools measure ~0 (true reliability
+  0): SR-10 builds on it (who ran it).
+- **Needs list**: SafReNeed 'reval' → 'validation' (demand = live jobs × per-job engineers, filled in queue order).
+- **Policy**: SafetyDept.validation {jobs, autoNew (on), lastModel}: on each new internal model every owned instrument
+  not measured there is queued (the start model too: day 1 of a new game queues the start tools).
+- **Actions**: `safety.validate` (tool id or 'all', model; preview: engineers, days, queue ahead, compute, current range
+  and the sample's width), `safety.validationPolicy` (on).
+- **Range** `validationRange(s, t, v)`: measured on v → found/n, 90% Beta range; else extrapolated = measured × believed
+  change from the measured model, half-width + VAL_WIDEN_PER_OOM = 0.06 per OOM of gap; never measured → believed value,
+  half-width VAL_UNMEASURED_HALF = 0.15 + the gap widening. Not yet read by sightLimit (its range is efficacy draws) or
+  the instrument rows (UI tasks).
+- **Deleted**: upkeepStep / upkeepState / upkeepTools / revalDemand / reValidationMult (the validation lead), UPKEEP_*,
+  RE_SERIOUS, glossary toolUpkeep (now `validation`), upkeepView (→ validationPanel; Safety's Validation card with the
+  queue, "Validate all", auto toggle; the race chart's sight-limit projection is flat). LINE_MULT_MAX kept (line asks,
+  AG17 harness, AG18 healing). record.ts U-cause "validation" = instruments measured on the model.
+- **Save**: SCHEMA_REV 69; migration 68 → 69 (empty queue, policy on, measured null, need renamed in research.safRe);
+  hygiene pins → 69. safetyresearch.ts E1 reads idle engineers (was upkeep).
+- **Not done**: job reordering in the queue (the need's place in the list is reorderable); cost scaling with model size.
+Check: `npx tsx scripts/v2/_sr09/check.ts` (day 400: migrates; policy queues 5 of 5; unstaffed: no progress, no oHalf
+drift; staffed: done in 30 d, validated on Atlas-2.7, each measured within 3 sd of true recall; mean of 400 = 0.195 vs
+0.203; never-measured range wider; no upkeep code in src). tsc (app, scripts/v2) clean; npm run build passes.
+Moves calibration: yes (S4/S5): oHalf no longer rises with spare engineers (tools fade faster unless validated on each
+model, which re-anchors the gap); validation takes engineers and some line compute.
