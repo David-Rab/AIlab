@@ -783,3 +783,61 @@ INP-V03). Every listed preview is the mechanism run on a copy, or the one functi
 - **Tests run:** tsc main + scripts clean; research full 52 / 52; worktypes full 23 / 23; lint-tradeoffs all passed;
   lint-ux --doc (GLOSSARY.md regenerated, passed); npm run build ok. test:ui not run (Company chips, Research tree tip /
   card, Codex row changed). Left: starHire's rival-cooperation line is still a `trust` line (lint PENDING).
+
+### CP1
+
+Checkpoint 1 (end of RD Phase 1) on `rd` 36d773d + a1d228f (fixtures regenerated), 2026-11-22, machine otherwise idle.
+Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 logs kept in prelogs/).
+- **tsc** main + scripts clean. **Fixtures** `--write`: all five rewritten, committed a1d228f (20 s).
+- **test:full: 29.4 min wall** (cpu 162 min, load 75%; Phase 0 58.2 min under load), 30/35 scripts, **3025 passed,
+  8 failed**; test:ui 685 / 687. **test:deep: 8.0 min** (cpu 44 min), 27 passed, 1 failed (Phase 0 23 / 1; +4 RD-B07
+  checks).
+- **Check counts that moved (new task checks, no failure):** data 61 → 65, suites 30 → 37, research 29 → 52, worktypes
+  16 → 23, hygiene 196 → 199, products 61 → 75, serving 90 → 95, rivals 16 → 17, safety 21 → 25 (RD-B07);
+  lint-tradeoffs 464 → 1062 with 34 WARN (RD-B19's new lint; the WARNs are its listed known deviations: A6 / starHire
+  trust, safety.evalGate / publishPolicy credibility / talent, wfx.moonshot, safety.pledge unit, and RD-B20's five free
+  levers).
+
+| Item | Phase 0 | CP1 | Attribution | Class |
+|---|---|---|---|---|
+| finance F8 distress-free 2026 | 66.7% | 66.7% | – | baseline |
+| worldfx A2a / W4 | 6.7% / 23.3% | 6.7% / 23.4% | W4 +0.1 pp: RD-B02 (its notes already 23.4%) | baseline |
+| deep S5 sabotage (b) believed − true U | −0.37 ± 0.45 se | −0.09 ± 0.51 se (2.32 vs 2.41) | within noise | baseline |
+| calib T1 authors2026 SIAR | 2134.5 d (−0.05 y) PASS | 2041.5 d (−0.30 y) **FAIL** | RD-B08 (p1-res alone 2052.5; RDB08-CAL) | calibration → CP2 |
+| calib T1 authors2026 ASI | 2976.5 d (0.00 y) PASS | 2823 d (−0.42 y) **FAIL** | RD-B08 (p1-res alone 2797; RD-B02 +0.12 y offsets part) | calibration → CP2 |
+| ws4 E1 all actions pass the trade-off lint | pass | **FAIL** (makeVariant, product.update, product.serving, feature.toggle, products.policy) | RD-B20 left them with no cost line; RD-B19 notes list it ("a free lever needs a rule decision") | test outdated by RD-B20 / design rule decision |
+| ui "Research: recipe shows three stacks and the software rate" | pass | **FAIL** | RD-B17 (B28): five stack cards + `stack.other`; the check counts 3 `data-home^=stack.` | test outdated by RD-B17 |
+| ui "J2 P1: the build tooltip splits runs, product upkeep and builds" | pass | **FAIL** | RD-B09: BuildLoad has no runs segment (run ops moved to research engineers) | test outdated by RD-B09 |
+| calib T1 ai2027 SC / SAR / SIAR / ASI | 638 / 762 / 854.5 / 911.5 | 667 / 766.5 / 865 / 920.5 (SC +29 d at the ±29 d edge, PASS) | RD-B02 (its own test:cal: +0.075 / −0.078 / −0.041 / +0.029 y = the CP1 deltas); p1-res alone 638.5 / 759.5 / 851.5 / 897 | calibration → CP2 (watch SC) |
+| calib T1 fast SAR / ASI; authors2026 SC / SAR | 915 / 918.5; 1514 / 1562 | 921.5 / 926; 1505 / 1540 | RD-B02 (fast) and RD-B08 (authors2026 SAR); all PASS | calibration → CP2 |
+| calib WARNs (T1 A1 / A2, T1L authors2026 SIAR / ASI −0.74 / −1.49 y) | 9 | 9, T1L unchanged; fast A2 463 → 443, slow A2 3558.5 → 3432 | A2 rows: p1 merges, not bisected | calibration → CP2 |
+| calib T3 China mean lead before theft (INFO) | 149 d | 174 d | p1-res alone 138 d; rest p1-train / riv / mkt with p1-res (RD-B16 secrets-leak gap at RECIPE_F likely); not bisected | calibration → CP2 |
+| safety S4 RefBot P_mis at ASI | 0.670 | 0.601 (PASS, band 0.55–0.85) | p1-res alone 0.647 (RD-B08 −0.016, RD-B16 −0.007); p1-riv 0.659 (RD-B07 notes); the rest −0.05 p1-train / p1-mkt and their interaction with p1-res, not split (run stopped) | calibration → CP2 |
+| safety S4 safe-only | 0.037 | 0.050 | as S4 | calibration → CP2 |
+| safety S5 RefBot U < L by SAR | 60%, median −0.57 | 68%, median −1.09 | p1-res alone 68%, −1.44 (RD-B08) | calibration → CP2 |
+| safety S5 mixed-bot min margin | +0.42 (65%) | −0.10 (60%), PASS (bound −0.5) | p1-res alone −0.04 (RD-B08) | calibration → CP2 (watch: margin near the bound) |
+| deep S5 neuralese / half staff | −3.54 / −2.18 vs −0.77 | −4.71 / −3.31 vs −1.14 | follows S5's base shift | calibration → CP2 |
+| safetyrates WARNs F5 EA / F6 | 52.9% / 71.1–74.3% | 53.9% / 71.1–74.4%; S4 INFO 0.516 → 0.565 | small; p1 merges | calibration → CP2 |
+| finance FIN3a end-2027 board confidence (INFO) | 59.1 | **50.1** (below the design target 55) | p1-res alone 56.5 (RD-B08); the rest p1-train / p1-mkt (RD-B12 RefBot channel launches / RD-B02) with p1-res, not split | calibration → CP2 (design target missed) |
+| finance F7 2026 revenue / F11 2027 / end-2027 valuation | $53.4B / $141.4B / $3.78T | $54.0B / $136.3B / $4.47T; worldfx F4 20-seed 2027 revenue median $136.9B → $151.4B | p1-res alone $52.8B / $134.3B → $138.9B, $3.61T → $4.58T (RD-B08, then RD-B16); all PASS | calibration → CP2 |
+| golden-timelines (3 v1 WARNs) | – | unchanged | – | baseline |
+
+- **Bisect (temporary worktree %TEMP%/ai27ux/wt/cp1b, calib + safety + finance at full tier, ~24 min a point):**
+  ff85b51 (RD-B08), 0531318 (RD-B09: identical to RD-B08 on every key value, so RD-B09 is neutral on these), bad7924
+  (RD-B16). Note: p1-res branched from the Phase 0 tip 1a25b28, so these three points are p1-res **alone**, not on
+  p1-train / riv / mkt; the 49b2f6e point (p1-train + riv + mkt) was stopped by the lead, so the S4 / FIN3a remainder
+  is not split between p1-train, p1-mkt and the merge.
+- **Seed-2027 fixture probe (player SC / SAR / SIAR, `fixtures.ts`, 20 s a commit):** Phase 0 590 / 735 / 825; 49b2f6e
+  591 / 735 / 829; RD-B20, RD-B19, RD-B21 commits on p1-wb all 591 / 735 / 829 (p1-wb neutral: "moves calibration:
+  no" holds); p1-res RD-B16 and RD-B17 tips 585 / 720 / 824 (RD-B17 neutral); merge 3b516e5, post-merge fix 38f3d39
+  and RD-B18 8c2a541 all 586 / 724 / 870 (post-merge fix and RD-B18 neutral). The merged seed-2027 SIAR (+46 d vs either
+  side alone) is an interaction of p1-train / mkt with p1-res (single seed; the 20-seed ai2027 SIAR moves +11 d only).
+- **Real bugs: none found.** Every value change traces to a task marked "moves calibration: yes / maybe" (RD-B02,
+  RD-B08, RD-B16, RD-B12 / RD-B03 untested) or to the merge of those branches; tasks marked "no" (RD-B07, RD-B17,
+  RD-B18, RD-B19, RD-B20, RD-B21, RD-B09's capability dates) did not move the probes. The three test failures are
+  checks outdated by RD-B09, RD-B17 and RD-B20 (fix the checks, or for ws4 E1 decide the free-lever rule).
+- **For CP2:** refit / restate authors2026 SIAR / ASI (RD-B08), ai2027 SC +29 d at the tolerance edge (RD-B02), S4
+  0.601 near the band floor 0.55, S5 mixed-bot margin −0.10 vs the −0.5 bound, FIN3a 50.1 below its target 55.
+- **Left over:** worktree %TEMP%/ai27ux/wt/cp1b (detached at 49b2f6e) was not removed (the removal command was denied
+  by the permission classifier). It holds a `node_modules` **junction** to AI27-rd/node_modules: unlink it first
+  (`cmd /c rmdir …\cp1b\node_modules`), then `git worktree remove --force`, or the real node_modules may be deleted.
