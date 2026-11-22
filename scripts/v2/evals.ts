@@ -7,7 +7,7 @@
 //   their extra elicitation (and work with their own staff); EV9 the reference lab's eval cost is
 //   modest (a few % of its research engineers at most, a sliver of its experiment compute).
 import { BENCHMARKS, ELICITATION } from '../../src/data/v2/benchmarks';
-import { EVAL_DEPTHS, REEVAL_DAYS, REEVAL_DG, REEVAL_DL } from '../../src/data/v2/evals';
+import { EVAL_DEPTHS, REEVAL_DAYS, REEVAL_DG } from '../../src/data/v2/evals';
 import { addIdea, inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
@@ -172,7 +172,7 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
     ['cadence', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - REEVAL_DAYS; }, true],
     ['changed in place (the recipe the stream applied)', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - 5; v.evals.recipeAt = inPlaceRecipe(x, v) - REEVAL_DG - 0.01; }, true],
     ['recent and unchanged', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - 5; v.evals.recipeAt = inPlaceRecipe(x, v); }, false],
-    ['true level moved, no known change (F6: no hidden-truth trigger)', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - 5; v.evals.recipeAt = inPlaceRecipe(x, v); v.G += 1; v.Lg += REEVAL_DL + 0.5; }, false],
+    ['true level moved, no known change (F6: no hidden-truth trigger)', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - 5; v.evals.recipeAt = inPlaceRecipe(x, v); v.G += 1; v.Lg += 0.8; }, false],
     ['policy off', (x: GameStateV2, v: ModelVersion) => { v.evals.suiteDay = x.time.day - REEVAL_DAYS; act(x, 'products.policy', { autoEvaluate: false }); }, false],
   ] as const) {
     const x = game();

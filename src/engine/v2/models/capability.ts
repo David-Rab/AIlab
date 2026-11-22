@@ -1,10 +1,10 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
+import { B0_START_DAY, LEVEL_KNOTS, P19_RSCH_DG, REF_OFF, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { multiplierAt, stage1 } from '../../../data/world';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
@@ -99,49 +99,39 @@ export function gV0(w: TimelineWorld): number {
 
 /** A version's general effective compute: G = G_pre + ΔG_RL + Σ design ΔG. */
 export const gOfBuild = (b: VersionBuild) => b.gPre + b.dgRL + b.dg;
-/** A domain's effective compute: G_pre + s_d,data + (ΔG_RL,d − the reference RL profile) + design ΔG. Builds without
- *  per-domain RL gains use the general gain. */
+/** A domain's effective compute: G_pre + s_d,data + (ΔG_RL,d − the reference RL profile) + design ΔG (general and the
+ *  domain's, OOM; RD-U01: every design offset is a ΔG here, none in levels). Builds without per-domain RL gains use the
+ *  general gain. */
 export function gOfDomain(b: VersionBuild, d: DomainId): number {
   const rl = b.dgRLd[d] !== undefined ? (b.dgRLd[d] ?? 0) - REF_RL_PROFILE[d] : b.dgRL;
-  return b.gPre + (b.sD[d] ?? 0) + rl + b.dg;
+  return b.gPre + (b.sD[d] ?? 0) + rl + b.dg + (b.dgD[d] ?? 0);
 }
-/** Set build.off (domain level − general level − the 2025 profile, L) from the build's domain G and its level offsets;
- *  returns G. L_d = λ(G_d) − o_d + design offsets (MODEL-V3 §2.3), o_d = −REF_OFF[d] (+ RSCH taste). */
-export function finishBuild(w: TimelineWorld, b: VersionBuild): number {
-  const G = gOfBuild(b);
-  const Lg = levelOfG(w, G);
-  const off: Partial<Record<DomainId, number>> = {};
-  for (const d of DOMAIN_IDS) {
-    const x = levelOfG(w, gOfDomain(b, d)) - Lg + (b.offL[d] ?? 0);
-    if (Math.abs(x) > 1e-9) off[d] = x;
-  }
-  b.off = off;
-  return G;
+/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon and the displayed
+ *  domain level read (OOM): the build's domain G (a version without a build: its general G), plus P19's RSCH gain. */
+export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId, hasP19 = false): number {
+  const g = v.build ? gOfDomain(v.build, d) : v.G;
+  return d === 'RSCH' && hasP19 ? g + P19_RSCH_DG : g;
 }
 
-/** Domain levels L_d = Lg − o_d + off_d, clamped to [0, 15] (MODEL-V3 §2.3): o_d = −REF_OFF[d] is the domain's
- *  constant difficulty offset (the 2025 profile; RSCH's taste penalty until P19), off_d the version's training and
- *  design specialisation (finishBuild). No era table: a domain lags only by what training gives it. */
-export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record<DomainId, number>> = {}, hasP19 = false): Record<DomainId, number> {
-  const Lg = levelOfG(w, G);
+/** Domain levels L_d = λ(G_d) − o_d, clamped to [0, 15] (MODEL-V3 §2.3; RD-U01): G_d the version's domain effective
+ *  compute (versionDomainG: training, data and design specialisation, all in OOM), o_d = −REF_OFF[d] the domain's
+ *  constant display difficulty (the 2025 profile; RD-U05). A version without a build (a rival's model) reads G for
+ *  every domain. The display moves exactly as the fit does. */
+export function domainsOf(w: TimelineWorld, G: number, b?: VersionBuild, hasP19 = false): Record<DomainId, number> {
   const out = {} as Record<DomainId, number>;
-  for (const d of DOMAIN_IDS) {
-    const pen = d === 'RSCH' && !hasP19 ? RSCH_TASTE_PENALTY : 0;
-    out[d] = clamp(Lg + REF_OFF[d] + pen + (designOff[d] ?? 0), 0, 15);
-  }
+  const v = { G, build: b };
+  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d, hasP19)) + REF_OFF[d], 0, 15);
   return out;
 }
 
-/** Recompute a version's derived levels from G (and its build offsets). */
+/** Recompute a version's derived levels from G and its build. */
 export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean) {
   v.Lg = levelOfG(w, v.G);
-  v.domains = domainsOf(w, v.G, v.build?.off ?? {}, hasP19);
+  v.domains = domainsOf(w, v.G, v.build, hasP19);
 }
 
-/** A version's effective compute in a horizon domain (OOM): its domain G plus its level offsets at LEVEL_PER_OOM; a
- *  version without a build: its general G. */
-export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') =>
-  v.build ? gOfDomain(v.build, d) + (v.build.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
+/** A version's effective compute in a horizon domain (OOM): its domain G; a version without a build: its general G. */
+export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') => versionDomainG(v, d);
 /** 50% time horizon in minutes (model v3 V3.2): METR TH1.1's 203 min for the Aug-2025 frontier (V0) × 4.2 per OOM of the
  *  version's AGENCY effective compute over V0's (CODE for software work, departments/workfit.ts), × its horizon
  *  multiplier (long-horizon RL, P07, P12). Replaces the v1 horizon curve on pm. */

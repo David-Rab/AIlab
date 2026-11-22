@@ -30,7 +30,7 @@ import { startStory } from '../finance/story';
 import { recordThesisHist } from '../finance/promises';
 import { startDivision } from '../finance/parent';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
+import { domainsOf, gOfBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
@@ -134,10 +134,10 @@ function startModels(w: TimelineWorld, ps: ReturnType<typeof playerStart>, uniqu
   const rlFlop = RL_BUDGET.standard * flop;
   const rl = rlGains(flop, rlFlop, rlW, eRL);
   const build: VersionBuild = {
-    gPre, flopPre: flop, rlFlop, rlW, eRL, aRL: 0, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, offL: {}, off: {},
+    gPre, flopPre: flop, rlFlop, rlW, eRL, aRL: 0, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: {}, dgD: {},
     h80Mult: 1, signals: {},
   };
-  const G = finishBuild(w, build);
+  const G = gOfBuild(build);
   return { flop, tokens, gPre, ePre: recipe, epochs: tokens / Math.max(1, uniqueT), build, G, serve: serveOfBase(d.params, flop, d.shape) };
 }
 
@@ -183,7 +183,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const roster = startTeams(setup.baseline, start);
   const staff = staffOf(roster.teams);
   const Lg = levelOfG(w, G0);
-  const domains = domainsOf(w, G0, build.off);
+  const domains = domainsOf(w, G0, build);
   const lineage = 'L-player-1';
   const uModes = drawLineageUModes(rng, hidden, false);
   const beliefs = {} as Record<TraitId, TraitBelief>;
@@ -227,7 +227,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       bases: [{
         id: 'B0', name: def.imported ? 'Open-weight base (imported)' : `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: sm.flop,
         params: REFERENCE_BASE.params, tokens: sm.tokens, gPre: sm.gPre, ePre: sm.ePre, epochs: sm.epochs,
-        design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, off: {}, serve: sm.serve, monitorability: 1, signals: {},
+        design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, serve: sm.serve, monitorability: 1, signals: {},
         lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes],
       }],
       versions: [V0],

@@ -9,6 +9,8 @@ import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
+import { domainsOf } from '../models/capability';
+import { adopted } from '../models/paradigms';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
@@ -39,8 +41,12 @@ import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
  *  but never stored its suite (it read as a free start-quality one) keeps it, stored, before the runs are filled.
  *  46 (RD-B12): sector packs live on their product (DeploymentV2.packs: {sector, certDay}[]); world.fx.certDay and
  *  the product's sectorFocus are gone. Migration 45 → 46 moves each pack onto its product with the world's certification
- *  day and drops a certified sector no product carries. */
-export const SCHEMA_REV = 46;
+ *  day and drops a certified sector no product carries.
+ *  47 (RD-U01): one capability currency. VersionBuild.offL (design offsets in levels) and the derived VersionBuild.off
+ *  become VersionBuild.dgD (domain ΔG, OOM, part of gOfDomain); BaseModel.off (never written) is gone. Migration
+ *  46 → 47 converts every stored build's offL at the 1.2 L per OOM the fit applied (so the fit is unchanged) and
+ *  recomputes the player's version domain levels as λ(G_d). */
+export const SCHEMA_REV = 47;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -272,6 +278,38 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete o.sectorFocus;
     }
     if (fx) delete fx.certDay;
+  },
+  /** 46 → 47 (RD-U01): every stored VersionBuild (versions, runs, rivals: found by shape) gets dgD = offL ÷ 1.2 (the
+   *  fit's old conversion) and loses offL and off; player bases lose off; the player's version domain levels are
+   *  recomputed as λ(G_d). Idempotent. */
+  46: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const seen = new Set<object>();
+    const walk = (x: unknown) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return;
+      seen.add(x);
+      if (Array.isArray(x)) { for (const y of x) walk(y); return; }
+      const o = x as Record<string, unknown>;
+      if ('gPre' in o && 'dgRL' in o && 'sD' in o) {
+        if (!o.dgD) {
+          const dgD: Record<string, number> = {};
+          for (const [d, v] of Object.entries((o.offL ?? {}) as Record<string, number>)) if (v) dgD[d] = v / 1.2;
+          o.dgD = dgD;
+        }
+        delete o.offL;
+        delete o.off;
+      }
+      for (const y of Object.values(o)) walk(y);
+    };
+    walk(s.player);
+    walk(s.rivals);
+    walk(s.hidden);
+    for (const b of s.player?.models?.bases ?? []) delete (b as unknown as { off?: unknown }).off;
+    const w = s.hidden?.timeline;
+    if (w && s.player) {
+      const p19 = adopted(s, 'P19');
+      for (const v of s.player.models?.versions ?? []) if (v.build) v.domains = domainsOf(w, v.G, v.build, p19);
+    }
   },
 };
 

@@ -126,10 +126,10 @@ export const EFFORT_TOKENS = { low: 0.3, max: 1, deep: 4 } as const;
 export const EFFORT_OOM_PER_10X = 0.4;
 export const EFFORT_CAP_OOM = 1.5;
 
-/** Safeguards and the AI-control layer cost fit, in OOM (v2's level offsets ÷ 1.2 levels per OOM) [D]: hardened −0.17,
- *  classifiers −0.04, control layer −0.08. The UI shows these OOM values. */
-export const SAFEGUARD_DG: Record<'minimal' | 'standard' | 'classifiers' | 'hardened', number> = { minimal: 0, standard: 0, classifiers: -0.05 / 1.2, hardened: -0.2 / 1.2 };
-export const CONTROL_LAYER_DG = -0.1 / 1.2;
+/** Safeguards and the AI-control layer cost fit, in OOM [D] (RD-U01: v2's level offsets restated in OOM): hardened
+ *  −0.1667 (was −0.2 L), classifiers −0.0417 (was −0.05 L), control layer −0.0833 (was −0.1 L). The UI shows these. */
+export const SAFEGUARD_DG: Record<'minimal' | 'standard' | 'classifiers' | 'hardened', number> = { minimal: 0, standard: 0, classifiers: -0.0417, hardened: -0.1667 };
+export const CONTROL_LAYER_DG = -0.0833;
 
 /** Market share logit per segment (V4.2): weight ∝ exp(SHARE_SLOPE_G·(fit − best fit)) · price^−PRICE_ELASTICITY ·
  *  access · brand. v2's 2.1 per level at ≈ 2 levels per OOM before SC [D]. Price elasticity 1 (v2: 1.5 on a price index

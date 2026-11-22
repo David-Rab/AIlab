@@ -20,9 +20,9 @@
 //                       full, full + external → deep; external reports stay WS4's). Gate 'none': the version is ready at
 //                       once and, under auto-evaluate, gets a basic suite that blocks nothing.
 //   auto-evaluate       the internal models and the continual-learning stream are re-run when they changed in place by
-//                       ≥ REEVAL_DL (the recipe the stream applied, REEVAL_DG OOM) or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
+//                       ≥ REEVAL_DG OOM (the recipe the stream applied) or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
 import { BENCHMARKS, BENCH_NOISE_SD, SAFETY_EVALS } from '../../../data/v2/benchmarks';
-import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DG, REEVAL_DL } from '../../../data/v2/evals';
+import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DG } from '../../../data/v2/evals';
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -335,11 +335,11 @@ export function evalMeasureView(s: GameStateV2): EvalMeasureRow[] {
 
 /** Cost of the standing policy for readouts (D8): one suite at the policy depth on the internal model, the work spent so
  *  far, and today's research engineers on evals (team-equivalents) of the capacity. */
-export function evalPolicyView(s: GameStateV2): { depth: EvalDepth; perSuite?: EvalCost; spent: GameStateV2['player']['models']['evalSpent']; reToday: number; reCap: number; reevalDL: number; reevalDays: number } {
+export function evalPolicyView(s: GameStateV2): { depth: EvalDepth; perSuite?: EvalCost; spent: GameStateV2['player']['models']['evalSpent']; reToday: number; reCap: number; reevalDG: number; reevalDays: number } {
   const depth = policyDepth(s);
   const v = policyModels(s)[0];
   return {
     depth, ...(v ? { perSuite: evalCost(s, v, depth) } : {}), spent: { ...spentOf(s) },
-    reToday: s.player.research.last?.re.evals ?? 0, reCap: capReCapacity(s), reevalDL: REEVAL_DL, reevalDays: REEVAL_DAYS,
+    reToday: s.player.research.last?.re.evals ?? 0, reCap: capReCapacity(s), reevalDG: REEVAL_DG, reevalDays: REEVAL_DAYS,
   };
 }

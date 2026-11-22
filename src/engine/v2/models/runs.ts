@@ -34,7 +34,7 @@ import { optionLocked, payoffOf } from './tree';
 import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
-import { domainsOf, finishBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
+import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
 import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { fptOfBuild } from '../departments/workfit';
@@ -296,7 +296,7 @@ function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: PostReci
   const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
   return {
     gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(rec.domainG, base.sD ?? {}),
-    offL: addOff(base.off ?? {}, pe.offL), off: {}, h80Mult,
+    dgD: { ...pe.dgD }, h80Mult,
     signals: clampSignals(sig),
   };
 }
@@ -308,14 +308,14 @@ function referencePostOn(s: GameStateV2, gPre: number, flop: number, sD: Off): V
   const rl = rlGains(flop, RL_BUDGET.standard * flop, rlW, rec.rlMid, rec.rlCeil, rec.fid);
   return {
     gPre, flopPre: flop, rlFlop: RL_BUDGET.standard * flop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...rec.fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: 0, sD: withDomainG(s.player.research.domainG, sD),
-    offL: {}, off: {}, h80Mult: 1, signals: {},
+    dgD: {}, h80Mult: 1, signals: {},
   };
 }
 
 /** Distilled build: the teacher's build with the distillation gap δ (never above the teacher). */
 function distillBuild(t: ModelVersion, gap: number): VersionBuild {
   const tb = t.build ?? fallbackBuild(t);
-  return { ...tb, dg: tb.dg - gap, sD: { ...tb.sD }, offL: { ...tb.offL }, off: { ...tb.off }, dgRLd: { ...tb.dgRLd }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
+  return { ...tb, dg: tb.dg - gap, sD: { ...tb.sD }, dgD: { ...tb.dgD }, dgRLd: { ...tb.dgRLd }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
 /** Active parameters of a version: its own (a distilled student's) or its base's. */
@@ -443,9 +443,9 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const etaDays = limits ? limits.wallDays : setupDays + Math.ceil(daysFor(flopNeeded, rate));
   if (cash > s.player.finance.cash) reason ??= 'Not enough cash';
   if ((p.kind === 'base' || p.kind === 'post') && frontierPaused(s)) reason ??= 'Frontier runs are paused';
-  const gPred = finishBuild(w, build);
+  const gPred = gOfBuild(build);
   const Lg = levelOfG(w, gPred);
-  const doms = domainsOf(w, gPred, build.off, adopted(s, 'P19'));
+  const doms = domainsOf(w, gPred, build, adopted(s, 'P19'));
   // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
   const ws2Signals = p.kind === 'base' ? signals
     : runSignals(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
@@ -477,7 +477,7 @@ function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: RlRecipe)
   const rlFid: FamilyMap = { ...tb.rlFid };
   for (const [f, v] of Object.entries(now) as [RLFamily, number][]) rlFid[f] = Math.max(rlFid[f] ?? 1, v);
   const rl = rlGains(tb.flopPre, rlFlop, tb.rlW, eRL, aRL, rlFid);
-  return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, offL: { ...tb.offL }, off: {}, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
+  return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, dgD: { ...tb.dgD }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
 /** Launch a run (commits cash, §3.3.1). Returns the run or a reason string. */
@@ -548,11 +548,11 @@ function versionName(s: GameStateV2, baseId: string, suffix = ''): string {
 
 function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: VersionBuild, parent: ModelVersion | undefined, extra: Partial<ModelVersion>): ModelVersion {
   const w = s.hidden.timeline;
-  const G = finishBuild(w, build);
+  const G = gOfBuild(build);
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
-    G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build.off, adopted(s, 'P19')),
+    G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build, adopted(s, 'P19')),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, serveCost: base.serve ?? 0.5, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
     status: 'evaluating', flags: {}, build, ...extra,
@@ -646,7 +646,7 @@ const rlDayOf = (s: GameStateV2, run: TrainingRun) => (run.recipe?.rlMid !== und
 
 /** Build of a version without one (legacy, an import): its G as the pretraining part, no RL detail. */
 function fallbackBuild(v: ModelVersion): VersionBuild {
-  return { gPre: v.G, flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, offL: {}, off: { ...(v.build?.off ?? {}) }, h80Mult: 1, signals: {} };
+  return { gPre: v.G, flopPre: 1, rlFlop: 0, rlW: {}, eRL: 0, aRL: 0, dgRL: 0, dgRLd: {}, dg: 0, sD: {}, dgD: {}, h80Mult: 1, signals: {} };
 }
 
 /** WS2 trait hooks for a finished post/distill/IDA run (§3.5.4). An IDA cycle (P18) is WS2's applyIdaCycle on the
@@ -725,7 +725,7 @@ function advanceStream(s: GameStateV2) {
   const now = trackNow(s, v);
   st.track = { pre: cur.pre + a * (now.pre - cur.pre), rlMid: cur.rlMid + a * (now.rlMid - cur.rlMid), rlCeil: cur.rlCeil + a * (now.rlCeil - cur.rlCeil) };
   const nb = streamBuild(s, v, b, st.track);
-  const G = finishBuild(s.hidden.timeline, nb);
+  const G = gOfBuild(nb);
   v.build = nb;
   if (G > v.G) {
     v.G = G;
@@ -767,7 +767,7 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
   const b = v.build ?? fallbackBuild(v);
   const track = startTrack(s, v, b);
   const nb = streamBuild(s, v, b, track);
-  const G = finishBuild(s.hidden.timeline, nb);
+  const G = gOfBuild(nb);
   v.build = nb;
   if (G > v.G) {
     v.G = G;

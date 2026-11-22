@@ -19,7 +19,7 @@ export const addSig = (a: Sig, b: Sig, k = 1): Sig => {
   return out;
 };
 
-/** Base-run design effects: curation as OOM (general ΔG; the hazard filter's domain offset ÷ 2, research/12 ΔL = 2·ΔG),
+/** Base-run design effects: curation as OOM (general ΔG; the hazard filter's domain ΔG, OOM),
  *  the data option's FLOP and cash multipliers. The data mix's domain specialisation and repetition come from the draw
  *  (production/data.ts drawData, model v3 D3), the training signals from the base's G and drawn data (safety/traits.ts
  *  baseSignals, model v3 E3), not from here. */
@@ -28,15 +28,13 @@ export function baseEffect(b: BaseDesign): BaseEffect {
   const sh = SHAPE[b.shape];
   const da = BASE_DATA[b.data];
   let dg = 0;
-  let offL: Off = {};
+  let sD: Off = {};
   if (!b.curation.quality) dg += CURATION.qualityOffDg;
   if (b.curation.hazard) {
     dg += CURATION.hazard.dg;
-    offL = addOff(offL, CURATION.hazard.off);
+    sD = addOff(sD, CURATION.hazard.dgD);
   }
   if (b.curation.safetyPretrain) dg += CURATION.safetyPretrain.dg;
-  const sD: Off = {};
-  for (const d of DOMAIN_IDS) if (offL[d]) sD[d] = (offL[d] ?? 0) / 2;
   return {
     dg, sD, monitorability: sh.monitorability ?? 1, flopMult: da.flopMult, cashMult: da.cashMult,
   };
@@ -55,12 +53,12 @@ function rlFocusEffect(focus: RLFamily[] | 'broad'): { h80Mult: number } {
   return { h80Mult };
 }
 
-/** Post-training design effects (choices D–H): ΔG (OOM), level offsets (preference), serving and monitorability of the
+/** Post-training design effects (choices D–H): ΔG (OOM), domain ΔG (preference, OOM), serving and monitorability of the
  *  reasoning mode. The RL budget's capability effect is the RL curve (runs.ts); the environment suites (model v3 D5,
  *  models/suites.ts) set the RL ceiling per family; the training signals are the run's quantities (safety/traits.ts
  *  postSignals, model v3 E3). */
 export interface PostEffect {
-  dg: number; offL: Off; serve: number; monitorability: number; h80Mult: number; appeal: number;
+  dg: number; dgD: Off; serve: number; monitorability: number; h80Mult: number; appeal: number;
 }
 export function postEffect(p: PostDesign): PostEffect {
   const pr = POST_PREF[p.pref];
@@ -68,7 +66,7 @@ export function postEffect(p: PostDesign): PostEffect {
   const sf = POST_SAFETY[p.safety];
   const rl = rlFocusEffect(p.rlFocus);
   return {
-    dg: pr.dg + cot.dg + sf.dg, offL: { ...pr.off }, serve: cot.serveMult, monitorability: cot.monitorability,
+    dg: pr.dg + cot.dg + sf.dg, dgD: { ...pr.dgD }, serve: cot.serveMult, monitorability: cot.monitorability,
     h80Mult: rl.h80Mult, appeal: pr.appeal,
   };
 }

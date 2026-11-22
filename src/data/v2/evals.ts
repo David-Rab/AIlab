@@ -26,7 +26,6 @@
 //   standing harness is upkeep the lab already has; each new model needs a little).
 import type { EvalDepth } from '../../engine/v2/types';
 import { TOKENS } from './serving';
-import { LEVEL_PER_OOM } from './workTypes';
 
 export interface EvalDepthDef {
   label: string;
@@ -61,16 +60,14 @@ export const EVAL_TOKENS = TOKENS.agentic;
  *  years with a team of this order per pass, research/20 §G]. The lab still gives engineer support and the compute. */
 export const EXT_EVAL_STAFF = 10;
 
-/** Standing re-evaluation (auto-evaluate, R7): re-run a model's suite when it changed in place by ≥ REEVAL_DL (L; the
- *  continual-learning stream; model v3 F6: judged on the recipe the stream applied, REEVAL_DG, not the true level), or on a cadence of REEVAL_DAYS since its last suite [D]. 0.3 L is 1.5 × a full suite's
+/** Standing re-evaluation (auto-evaluate, R7): re-run a model's suite when it changed in place by ≥ REEVAL_DG OOM (the
+ *  continual-learning stream; model v3 F6: judged on the recipe the stream applied, not the true level), or on a
+ *  cadence of REEVAL_DAYS since its last suite [D]. REEVAL_DG 0.25 OOM (RD-U01: was 0.3 L ÷ 1.2). 0.3 L is 1.5 × a full suite's
  *  error band: a change the last reading could not hide (0.1 and 0.2 L were tried; the extra re-runs moved the
  *  authors2026 SIAR/ASI dates of seed 2027 out of tolerance through RefBot's measured-level decisions, a knife edge,
  *  D7 notes). The cadence stays v2's month (internal models tracked monthly): a quarterly cadence left the reference
  *  lab's internal model with a noisier measured level for longer, which moved RefBot's mini-distillation timing (its
  *  "internal model ahead of the served one by MINI_GAP_L" test) and with it the seed-2027 SC date by −34 days.
  *  Each re-run is a suite at the policy depth, its cost shown on the policy. */
-export const REEVAL_DL = 0.3;
+export const REEVAL_DG = 0.25; // OOM of recipe applied in place; was 0.3 L
 export const REEVAL_DAYS = 30;
-/** REEVAL_DL in recipe OOM (G-equivalent at LEVEL_PER_OOM 1.2 L per OOM): the known change in place that re-runs a
- *  suite (model v3 F6). */
-export const REEVAL_DG = REEVAL_DL / LEVEL_PER_OOM;
