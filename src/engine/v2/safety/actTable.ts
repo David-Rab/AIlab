@@ -32,7 +32,8 @@ import {
   actTerms, aiRdShare, autonomyOf, capabilityOf, catchOf as engineCatch, dispositionOf, exfilTerms, internalScale, misuseHazards, siteOf, usageOf, type Site,
 } from './incidents';
 import { measuredOom, useControl, versionOom } from './oversight';
-import { containment, strengthBelieved } from './techniques';
+import { containment } from './techniques';
+import { reliability } from './instruments';
 import { misalignmentBand } from './traits';
 import { uModeContainMult } from './umodes';
 
@@ -324,7 +325,7 @@ function labRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
 /** Misuse by people on a product (misuseHazards; believed: measured levels and believed classifier strength). */
 function misuseRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
   const { v, d } = a;
-  const rows = misuseHazards(s, v, d, believed ? { level: (dom) => measuredDomainL(s, v, dom), strength: (t) => strengthBelieved(s, t, measuredOom(s, v)) } : undefined);
+  const rows = misuseHazards(s, v, d, believed ? { level: (dom) => measuredDomainL(s, v, dom), strength: (t) => reliability(s, t, { x: measuredOom(s, v) }, true).base } : undefined);
   return rows.map((r) => {
     const id = r.domain === 'BIO' ? 'MISUSE_BIO' : 'MISUSE_CYBER';
     const attempts = MISUSE.kappa * r.disposition * r.capability * r.opportunity * YEAR;

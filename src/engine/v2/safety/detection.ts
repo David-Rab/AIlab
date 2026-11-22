@@ -10,7 +10,8 @@ import type { BeliefEvidence, GameStateV2, ModelVersion, RngLike, SystemCtx, Tec
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
 import { oomOfLevel, versionOom } from './oversight';
 import { cotAlive } from './latents';
-import { believedMask, strengthTrue, techniqueRole } from './techniques';
+import { believedMask, techniqueRole } from './techniques';
+import { reliability } from './instruments';
 import { hiddenUModes } from './umodes';
 import { cotResist } from './ideas';
 import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
@@ -114,20 +115,29 @@ export function familyPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, f
   return 1;
 }
 
-/** BELIEVED family penalty (for U): believed EA, the player's own training-against history, known λ2 shift. */
-export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, family: ToolFamily, L: number): number {
+/** SR-08: the BELIEVED penalty's parts, each a factor in [0, 1] (product = believedPenalty): `tests` = the eval-awareness
+ *  factor on behavioural tests (believed EA, or `ea` = an already-suppressed override), `legible` = reasoning legibility
+ *  on reasoning reading (CoT controllability at x, believed OBF or `obf`, known λ2 shift), `mask` = what the player's own
+ *  training against the family hides. */
+export function believedPenaltyParts(s: GameStateV2, v: ModelVersion, trait: TraitId, family: ToolFamily, x: number, o: { ea?: number; obf?: number } = {}): { tests: number; legible: number; mask: number } {
   const pressured = v.design.cot === 'pressured';
   const mask = believedMask(s, family, pressured && (trait === 'RH' || trait === 'CONCEAL'));
-  if (family === 'BB') {
-    const ea = (v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
-    return Math.max(0, (takesEaPenalty(trait) ? 1 - eaCoef(s) * ea : 1) * (1 - mask));
+  let tests = 1;
+  let legible = 1;
+  if (family === 'BB' && takesEaPenalty(trait)) {
+    const ea = o.ea ?? (v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
+    tests = Math.max(0, 1 - eaCoef(s) * ea);
+  } else if (family === 'COT') {
+    const obf = o.obf ?? cotObfuscation(v.beliefs.OBF?.est ?? 0);
+    legible = lambda2Delta(s) <= -2 ? 0 : Math.max(0, v.monitorability * (1 - Math.max(cotControllability(x) * (1 - cotResist(v.design?.cot)), obf)));
   }
-  if (family === 'COT') {
-    if (lambda2Delta(s) <= -2) return 0;
-    return Math.max(0, v.monitorability * (1 - Math.max(cotControllability(oomOfLevel(s.hidden.timeline, L)) * (1 - cotResist(v.design?.cot)), cotObfuscation(v.beliefs.OBF?.est ?? 0))) * (1 - mask));
-  }
-  if (family === 'WB') return 1 - mask;
-  return 1;
+  return { tests, legible, mask: family === 'OR' ? 0 : mask };
+}
+
+/** BELIEVED family penalty (for U): believed EA, the player's own training-against history, known λ2 shift. */
+export function believedPenalty(s: GameStateV2, v: ModelVersion, trait: TraitId, family: ToolFamily, L: number): number {
+  const p = believedPenaltyParts(s, v, trait, family, oomOfLevel(s.hidden.timeline, L));
+  return Math.max(0, p.tests * p.legible * (1 - p.mask));
 }
 
 /**
@@ -196,7 +206,7 @@ export function groupKeyOf(agenda: string): string {
 }
 
 /** False-validated techniques of `family` covering `trait` that are active: they mask (×0.5) instead of detecting. */
-function falseMask(s: GameStateV2, trait: TraitId, family: ToolFamily): number {
+export function falseMask(s: GameStateV2, trait: TraitId, family: ToolFamily): number {
   for (const t of Object.values(s.player.safety.techniques)) {
     if (t.falseValidated && t.unlocked && t.active && t.family === family && (t.coverage[trait] ?? 0) > 0) return 0.5;
   }
@@ -230,7 +240,7 @@ export function familyDetection(s: GameStateV2, _v: ModelVersion, trait: TraitId
     if (!t.unlocked || (!tools && !t.active) || t.family !== family || techniqueRole(t) === 'fix') continue;
     const cov = t.coverage[trait] ?? 0;
     if (cov <= 0) continue;
-    items.push({ agenda: t.agenda, d: cov * strengthTrue(s, t, X) });
+    items.push({ agenda: t.agenda, d: cov * reliability(s, t, { x: X }, false).base });
   }
   return combineTools(items);
 }
@@ -321,7 +331,7 @@ export function stackDetectionMap(s: GameStateV2, v: ModelVersion, traits: reado
   const tools: { t: TechniqueState; str: number }[] = [];
   for (const t of Object.values(s.player.safety.techniques)) {
     if (!t.unlocked || !t.active || techniqueRole(t) === 'fix') continue;
-    const str = strengthTrue(s, t, X);
+    const str = reliability(s, t, { x: X }, false).base;
     if (str > 0) tools.push({ t, str });
   }
   const out: Partial<Record<TraitId, number>> = {};

@@ -372,7 +372,8 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       if (!Object.keys(cov).length) cov.SCHEME = 0.5;
       dept.techniques[`T-${id}`] = {
         id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(4.218 /* SAR, v2 M½ 25 */, def.oHalf), k: Math.max(0.5, def.k),
-        goodhart: def.G, trainedAgainst: 0, falseValidated: true, coverage: cov,
+        goodhart: def.G, trainedAgainst: 0, trainedAgainstOn: null, falseValidated: true, coverage: cov,
+        validatedOn: internalVersion(s)?.id ?? null, validatedOom: versionOom(s, internalVersion(s)),
       };
       title = `AI-validated ${def.name} detector`;
       // Model v3 E8: the masking tool is a corrupted-tool foothold of the safety model that falsified it.

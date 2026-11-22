@@ -837,6 +837,7 @@ export function goodhartTrain(s: GameStateV2, rng: RngLike, v: ModelVersion, tec
   }
   v.traitsTrue.OBF = clamp01(v.traitsTrue.OBF + RETRAIN_OBF);
   t.trainedAgainst += 1;
+  t.trainedAgainstOn = v.id;
 }
 
 // ───────────────────────────── Player runs (WS1 hook) ─────────────────────────────

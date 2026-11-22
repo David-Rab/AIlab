@@ -961,12 +961,19 @@ export interface TechniqueState {
   unlocked: boolean;
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
-  /** Model v3 E6: OOM of effective compute above the start model V0 at which strength halves (the capability the tool
-   *  is validated up to plus its headroom; raised by tool upkeep, lowered by negative results; 1e9 = never decays). */
+  /** Model v3 E6 / SR-08: capability gap in OOM above the model the tool was validated on (validatedOom) at which its
+   *  reliability halves (raised by tool upkeep, lowered by negative results; 1e9 = never decays). */
   oHalf: number;
   k: number;
   goodhart: number; // G
   trainedAgainst: number; // 0..1 cumulative
+  /** SR-08: the version this instrument was last trained against (the player chose it, so it is known); null = never. */
+  trainedAgainstOn: string | null;
+  /** SR-08: the model this instrument was last validated on (null = the start model V0) and that model's OOM above V0.
+   *  Reliability decays with the capability gap from it. Today every tool counts as validated on the internal model when
+   *  it is unlocked; SR-09 adds validation jobs. */
+  validatedOn: string | null;
+  validatedOom: number;
   falseValidated: boolean; // hidden: came from an F49 FALSE finding (masks, does not detect)
   coverage: Partial<Record<TraitId, number>>;
 }

@@ -7,13 +7,13 @@
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId } from '../types';
+import type { AgendaId, GameStateV2, ModelVersion, TechniqueState, TraitId } from '../types';
 import { hash32 } from '../core/rng';
-import { believedEfficacy, clamp01, lambda2Delta } from './common';
+import { believedEfficacy, clamp01 } from './common';
 import { oomOfLevel } from './oversight';
-import { combineKeyed, combineTools, cotControllability, groupKeyOf, cotObfuscation, eaCoef, eaSuppression, familyPenalty, takesEaPenalty } from './detection';
-import { believedMask, decayAt, strengthTrue, techniqueRole } from './techniques';
-import { cotResist } from './ideas';
+import { combineKeyed, combineTools, groupKeyOf, cotObfuscation, eaSuppression } from './detection';
+import { decayAt, techniqueRole } from './techniques';
+import { reliability } from './instruments';
 
 export interface UnderstandingReadout { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> }
 
@@ -42,31 +42,17 @@ export function detectionAt(s: GameStateV2, v: ModelVersion, trait: TraitId, L: 
 }
 
 /**
- * Believed detection for many levels at once (the U bisection evaluates ~10 levels × the critical traits): everything
- * that does not depend on L — believed efficacy, Goodhart factor, masks, the WB penalty, λ2 — is
- * computed once.
+ * Believed detection for many levels at once (the U bisection evaluates ~10 levels × the critical traits): SR-08 each
+ * tool's believed reliability (safety/instruments.ts) at the level; the covering-tool rows per trait are computed once.
  */
 function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: number, draw?: BeliefDraw) {
   const w = s.hidden.timeline;
-  const l2 = lambda2Delta(s);
-  const latent = l2 <= -2;
-  const pressured = v.design.cot === 'pressured';
   const ea0 = (draw?.ea ?? v.beliefs.EA?.est ?? 0.15) * (1 - eaSuppression(s));
-  const eaC = eaCoef(s);
   const obf = cotObfuscation(draw?.obf ?? v.beliefs.OBF?.est ?? 0);
-  const resist = 1 - cotResist(v.design?.cot); // P23: faithful CoT halves the controllability that blinds CoT monitors
   // L0: the version's measured level (lineage fallback while it is in evaluation; see measuredLOf).
-  const maskCache = new Map<string, number>();
-  const maskOf = (family: ToolFamily, trait: TraitId) => {
-    const p = pressured && (trait === 'RH' || trait === 'CONCEAL');
-    const key = `${family}:${p ? 1 : 0}`;
-    let m = maskCache.get(key);
-    if (m === undefined) maskCache.set(key, (m = believedMask(s, family, p)));
-    return m;
-  };
-  const tl = tools.map((t) => ({ t, pre: t.s0 * (draw?.eff?.[t.agenda] ?? believedEfficacy(s, t.agenda)), g: Math.max(0, 1 - t.goodhart * t.trainedAgainst) }));
-  // Per trait: the covering tools in stack order with their mask (BB: with the EA flag; COT: ctl(L) later).
-  const rows = new Map<TraitId, { i: number; cov: number; mask: number; fam: ToolFamily; eaPen: boolean }[]>();
+  const tl = tools.map((t) => ({ t, eff: draw?.eff?.[t.agenda] }));
+  // Per trait: the covering tools in stack order.
+  const rows = new Map<TraitId, { i: number; cov: number }[]>();
   const rowKeys = new Map<TraitId, string[]>();
   const rowOf = (trait: TraitId) => {
     let r = rows.get(trait);
@@ -75,40 +61,23 @@ function detector(s: GameStateV2, v: ModelVersion, tools: TechniqueState[], L0: 
     tl.forEach(({ t }, i) => {
       const cov = t.coverage[trait] ?? 0;
       if (cov <= 0) return;
-      r!.push({ i, cov, mask: maskOf(t.family, trait), fam: t.family, eaPen: takesEaPenalty(trait) });
+      r!.push({ i, cov });
     });
     rows.set(trait, r);
     rowKeys.set(trait, r.map((x) => groupKeyOf(tl[x.i].t.agenda)));
     return r;
   };
-  // P2: a tool's strength at L does not depend on the trait: computed once per level (meanDet asks every critical
-  // trait at the same L).
-  let strL = NaN;
-  const str: number[] = [];
-  const done: boolean[] = [];
+  // SR-08: each tool's believed reliability (safety/instruments.ts, the one definition) at the hypothetical level, with
+  // believed EA projected upward and the extrapolation factor valAt above the current measured level.
   return (trait: TraitId, L: number) => {
     const x = oomOfLevel(w, L);
-    if (!(L === strL)) {
-      strL = L;
-      done.fill(false);
-    }
     const dL = L - L0;
-    const ctl = Math.max(cotControllability(x) * resist, obf);
     const ea = eaAt(ea0, dL);
+    const va = valAt(dL);
     const ds: number[] = [];
-    const r = rowOf(trait);
-    for (const row of r) {
-      let strength = str[row.i];
-      if (!done[row.i]) {
-        const { t, pre, g } = tl[row.i];
-        strength = str[row.i] = pre * decayAt(s, t, x, latent) * g * valAt(dL);
-        done[row.i] = true;
-      }
-      let pen = 1;
-      if (row.fam === 'BB') pen = Math.max(0, (row.eaPen ? 1 - eaC * ea : 1) * (1 - row.mask));
-      else if (row.fam === 'COT') pen = l2 <= -2 ? 0 : Math.max(0, v.monitorability * (1 - ctl) * (1 - row.mask));
-      else if (row.fam === 'WB') pen = 1 - row.mask;
-      ds.push(row.cov * strength * pen);
+    for (const row of rowOf(trait)) {
+      const { t, eff } = tl[row.i];
+      ds.push(row.cov * reliability(s, t, { x, v, trait, eff, ea, obf }, true).value * va);
     }
     return combineKeyed(ds, rowKeys.get(trait)!);
   };
@@ -322,18 +291,15 @@ export function trueUnderstanding(s: GameStateV2): { U: number; L: number } {
   const mean = (L: number) => {
     const x = oomOfLevel(s.hidden.timeline, L);
     const pv = at(L);
-    const str = tools.map((t) => strengthTrue(s, t, x)); // once per tool and level
     let sum = 0;
     for (const k of CRITICAL_TRAITS) {
-      const pen = new Map<ToolFamily, number>(); // once per family and trait
       const items: { agenda: string; d: number }[] = [];
-      tools.forEach((t, i) => {
+      for (const t of tools) {
         const cov = t.coverage[k] ?? 0;
-        if (cov <= 0 || str[i] <= 0) return;
-        let f = pen.get(t.family);
-        if (f === undefined) pen.set(t.family, (f = familyPenalty(s, pv, k, t.family)));
-        items.push({ agenda: t.agenda, d: cov * str[i] * f });
-      });
+        if (cov <= 0) continue;
+        const d = reliability(s, t, { x, v: pv, trait: k }, false).value; // SR-08: the one reliability, true version
+        if (d > 0) items.push({ agenda: t.agenda, d: cov * d });
+      }
       sum += combineTools(items);
     }
     return sum / CRITICAL_TRAITS.length;

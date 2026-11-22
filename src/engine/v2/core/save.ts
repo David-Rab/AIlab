@@ -69,8 +69,12 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  and any other model's) an empty list.
  *  57 (SR-13): Deployment.controlLayer and status 'restricted' are gone; Deployment.guards holds safeguard items (control
  *  protocol, human review, restriction, comms lockdown). Migration 56 → 57 maps the flag / status to items, gives
- *  internal deployments human review, and an owned T-LOCK a comms lockdown on them. */
-export const SCHEMA_REV = 57;
+ *  internal deployments human review, and an owned T-LOCK a comms lockdown on them.
+ *  58 (SR-08): detect techniques are instruments: TechniqueState.validatedOn / validatedOom (the model it was validated
+ *  on; reliability decays with the capability gap from it, oHalf is that gap's half point) and trainedAgainstOn.
+ *  Migration 57 → 58 sets every technique validated on the start model (gap = OOM above V0, as before) and
+ *  trainedAgainstOn null. */
+export const SCHEMA_REV = 58;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -531,6 +535,27 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
           for (const b of Object.values(y as Record<string, unknown>)) {
             const tb = b as { est?: unknown; sd?: unknown; evidence?: unknown };
             if (tb && typeof tb === 'object' && typeof tb.est === 'number' && typeof tb.sd === 'number' && !Array.isArray(tb.evidence)) tb.evidence = [];
+          }
+        } else walk(y, depth + 1);
+      }
+    };
+    walk(raw, 0);
+  },
+  57: (raw) => {
+    // Any record under a `techniques` key whose values look like TechniqueStates (s0, oHalf) gets the SR-08 fields.
+    const walk = (x: unknown, depth: number) => {
+      if (!x || typeof x !== 'object' || depth > 10) return;
+      if (Array.isArray(x)) {
+        for (const y of x) walk(y, depth + 1);
+        return;
+      }
+      for (const [k, y] of Object.entries(x as Record<string, unknown>)) {
+        if (k === 'techniques' && y && typeof y === 'object' && !Array.isArray(y)) {
+          for (const t of Object.values(y as Record<string, Record<string, unknown>>)) {
+            if (!t || typeof t !== 'object' || typeof t.s0 !== 'number' || typeof t.oHalf !== 'number') continue;
+            t.validatedOn ??= null;
+            t.validatedOom ??= 0;
+            t.trainedAgainstOn ??= null;
           }
         } else walk(y, depth + 1);
       }
