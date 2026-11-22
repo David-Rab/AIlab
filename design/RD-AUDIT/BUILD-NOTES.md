@@ -1417,3 +1417,28 @@ Paradigm typed effects, part 1 (DD-14; SYNTHESIS RD-E01a; CAP-02). Commit abaffe
 - **Moves calibration: yes** (the player loses P13's up-to-×1.5 experiment FLOP and P24's payoff-gated bonus becomes a
   drawn stack idea; RSCH display levels +0.5 for every lab, which shifts anything gated on measured RSCH; RefBot no
   longer researches P13 / P19; refit at CP2).
+
+### SR-01
+
+Safety cleanup (SAFETY-REDESIGN §6 #3, #14; §0 line 5; inventory E1, O1, O2, I3, V2, T10, R3).
+- **Validation lead deleted** (U8, SAF-10): `understanding.ts` has no VAL_LEAD / validationLead; a tool's believed
+  strength falls as 1/(1 + ((L − L₀)/VAL_W)²) from the measured level with no staffed lead. `reValidationMult` stays
+  only for the record readout (`core/record.ts`) and upkeep (removed by later SR tasks).
+- **Dead-end latch deleted** (R7, SAF-14): AgendaState.status is 'idle' | 'active'; no ×0.5 line speed; a DEAD result
+  still lowers the posterior and counts its team-months.
+- **Tool On/Off deleted**: action `safety.technique` gone; owned detection / containment tools are always active
+  (unlockTechnique already set that); the Tools card shows no toggle. `safety-emu.ts` no longer toggles fix methods.
+- **Staffing copy**: the fix-method tooltip no longer says "while its line is staffed" (engine switch stays until
+  SR-14 / SR-12); glossary dead end loses the half-speed sentence.
+- **Previews**: eval gate shows the extra wait on external launches only, the T-PROP ×0.7 coupling when it flips, and
+  the Safety Index effect (gradePlayer on a copy → next edition's talent / safety-bloc approval); no clarity or
+  credibility lines. Publish policy: "all" shows +2 credibility / +1 talent per result (lagged by the lines' result
+  pace) and the shared-pool spill to rivals; none / selective say nothing is published automatically; plus the Index
+  effect. Pledge: credibility +8, evalGov trust +4, E15 ×0.5, break cost as text, Index effect; the notional progress
+  and lead lines are gone. RESPONSE_INFO loses its `days` (instant responses say "takes effect at once"; patch names its
+  real 30–90 d crew). E01 "Fix quietly" → "Keep it quiet" with "nothing is fixed".
+- SCHEMA_REV 54 → 55: migration unlatches 'deadEnd' lines (→ idle) and sets owned non-fix tools active.
+- Checks: tsc main and scripts, `npm run build`, `lint-tradeoffs` (pledge / evalGate / publishPolicy known deviations
+  removed: all pass), targeted `npx tsx scripts/v2/_sr01/check.ts` (passes).
+- **Moves calibration: maybe** (no lead lowers believed U and so the U-margin, red flags and anything gated on it;
+  latched lines run at full speed; tools switched off by bots are back on).
