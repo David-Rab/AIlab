@@ -148,7 +148,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
     'the pull acts only on dispositions (B-layer and PERSONA): awareness, learned behaviours and the protective traits keep the prior',
     `moved: ${moved.join(' ')}`);
   // A full post-training run: same capability with a clean or a misaligned fleet, different dispositions.
-  const post: PostDesign = { ...REFERENCE_POST, techniques: [], trainAgainst: [] };
+  const post: PostDesign = { ...REFERENCE_POST, methods: [] };
   const train = (fleet: Partial<TraitVector>) => {
     const g = withFleet(fleet, undefined);
     const v0 = g.player.models.versions[0];

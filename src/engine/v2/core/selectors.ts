@@ -38,6 +38,7 @@ export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoS
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
 export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
+export { AGAINST, FOLDED_METHODS, METHOD_BY_ID, METHODS, againstOptions, defaultMethods, methodPolicyOn, ownedMethods } from '../safety/methods';
 export { plannedSightLimit, sightGrid, sightLimit } from '../safety/sightLimit';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';

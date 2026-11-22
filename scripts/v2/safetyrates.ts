@@ -59,7 +59,7 @@ const q = (xs: number[], p: number) => {
   return a[Math.min(a.length - 1, Math.max(0, Math.round(p * (a.length - 1))))];
 };
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
-const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, techniques: [], trainAgainst: [], ...o });
+const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 
 // ───────────────────────────── probes: one post-training run on V0 ─────────────────────────────
 
@@ -121,7 +121,7 @@ function worldProbe(seed: number): WorldProbe {
   const as = s.player.safety.techniques['T-ANTISCHEME'];
   const noAS = probeRun(s, xs, post(), start);
   as.unlocked = true;
-  const withAS = probeRun(s, xs, post({ techniques: ['T-ANTISCHEME'] }), start);
+  const withAS = probeRun(s, xs, post({ methods: ['T-ANTISCHEME'] }), start);
   as.unlocked = false;
   // Persistence of a conditional behaviour (Hubinger) through standard safety training at V0's EA and at a frontier
   // model's eval awareness (0.5: research/20 F5's late-2026 band). Heavy safety includes anti-scheming (E25: the

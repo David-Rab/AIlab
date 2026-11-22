@@ -97,7 +97,7 @@ const trainDays = (p: ReturnType<typeof base>) => p.etaDays - p.setupDays;
 check(near(trainDays(a) / trainDays(b), 2, 0.05), 'wall time ∝ 1/compute (2× the pool halves the training days)', `${trainDays(a)} d → ${trainDays(b)} d`);
 const tiny = base(sA, 1e9);
 check(trainDays(tiny) <= 1, 'no minimum length: a tiny base trains in a day', `${tiny.etaDays} d incl. ${tiny.setupDays} d setup`);
-const post = planRun(sA, { kind: 'post', baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] }, poolShare: 0.5 });
+const post = planRun(sA, { kind: 'post', baseId: 'B0', post: { ...REFERENCE_POST, methods: [] }, poolShare: 0.5 });
 check(post.etaDays - post.setupDays < 30 && post.flopNeeded === RL_BUDGET.standard * sA.player.models.bases[0].flop, 'post-training: RL FLOP = ρ × base FLOP; no minimum days', `${post.flopNeeded.toExponential(2)} FLOP, ${post.etaDays} d`);
 
 // ---------- the v2 calendar bug: same physical run, same G at any start date ----------

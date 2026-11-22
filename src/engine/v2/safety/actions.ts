@@ -23,6 +23,7 @@ import {
 } from './responses';
 import { ANTISCHEME_EA_MULT, RETRAIN_OBF, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
 import { strengthBelieved } from './techniques';
+import { METHOD_BY_ID, ownedMethods } from './methods';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
 import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } from './dangerView';
@@ -568,6 +569,26 @@ const VALIDATION_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, VALIDATE, VALIDATION_POLICY];
+/** SR-14: the standing policy "Use all known methods" (on by default): every new run plan lists every owned method.
+ *  The preview shows what turning it on puts in each plan, with each method's cost where one exists. */
+const METHOD_POLICY: ActionDef = {
+  id: 'safety.methodPolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Use all known methods',
+  available: () => true,
+  preview(s, p) {
+    const on = p.on !== false;
+    const owned = ownedMethods(s);
+    if (!on) return { costs: [{ currency: 'alignment', amount: 0, target: 'new run plans start with no methods: you tick each one in the plan' }], gains: [], exposure: [] };
+    const gains = owned.map((id) => ({ currency: 'alignment' as const, amount: 1, unit: 'method', target: METHOD_BY_ID[id].effect }));
+    const costs: CostLine[] = owned.filter((id) => METHOD_BY_ID[id].cost).map((id) => ({ currency: 'monitorability' as const, amount: -1, unit: 'side effect', target: `${TECHNIQUE_BY_ID[id]?.name ?? id}: ${METHOD_BY_ID[id].cost}` }));
+    if (!costs.length) costs.push({ currency: 'alignment', amount: 0, target: owned.length ? 'the owned methods have no cash, compute or staff cost of their own' : 'no methods owned yet' });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    s.player.safety.useAllMethods = p.on !== false;
+    ctx.log('company', `Use all known methods in new run plans: ${p.on !== false ? 'on' : 'off'}.`, 1);
+  },
+};
+
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
 
 

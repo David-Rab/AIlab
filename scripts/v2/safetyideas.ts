@@ -45,7 +45,7 @@ const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const fixture = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
 const adopt = (s: GameStateV2, id: string) => { s.player.tree[id] = { status: 'known', progress: 1 }; resetSafAllocation(s); };
-const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, techniques: [], trainAgainst: [], ...o });
+const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 /** Hand safety work to the agents: Trusted to AI t on the internal model with 20% of the safety pool. */
 function trust(s: GameStateV2, t: number) {
   s.player.policies.trustedToAI = t;
@@ -171,15 +171,15 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const pf = planRun(s, { kind: 'post', baseId: 'B0', post: post({ cot: 'faithful' }) });
   check(!pf.reason && near(pf.g.G - pv.g.G, FAITHFUL_COT.dOom, 1e-9) && near(pf.prediction.fpt / pv.prediction.fpt, FAITHFUL_COT.fptMult, 1e-9),
     'P23: the run card shows the cost: G −0.29 OOM, serving cost (→ FLOP per token) × 1.2', `G ${pv.g.G.toFixed(3)} → ${pf.g.G.toFixed(3)}; fpt ${pv.prediction.fpt.toExponential(3)} → ${pf.prediction.fpt.toExponential(3)}`);
-  const vs = postSignals(s, post({ trainAgainst: ['T-COTMON'] })).S4;
-  const fs = postSignals(s, post({ cot: 'faithful', trainAgainst: ['T-COTMON'] })).S4;
+  const vs = postSignals(s, post({ methods: ['against:T-COTMON'] })).S4;
+  const fs = postSignals(s, post({ cot: 'faithful', methods: ['against:T-COTMON'] })).S4;
   check(near(vs, 0.8, 1e-12) && near(fs, 0.8 * (1 - FAITHFUL_COT.resist), 1e-12) && postSignals(s, post({ cot: 'faithful' })).S4 === 0,
     'P23: training against a CoT monitor gives S4 0.8 on visible reasoning, × (1 − 0.5) on faithful reasoning (0 without it)', `${vs} vs ${fs}`);
   // COT masks from training against the CoT monitor: halved.
   const masks = (cot: PostDesign['cot']) => {
     const g = game();
     g.player.tree.P23 = { status: 'known', progress: 1 };
-    const nv = postRun(g, post({ cot, trainAgainst: ['T-COTMON'] }));
+    const nv = postRun(g, post({ cot, methods: ['against:T-COTMON'] }));
     return nv.masks.RH?.COT ?? 0;
   };
   const mv = masks('visible');

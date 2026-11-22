@@ -19,9 +19,8 @@ import type {
 } from '../types';
 import { gOfLevel, gV0 } from '../models/capability';
 import { adopted, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
-import { lineMultCapped, lineStaffed } from './agendas';
 import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
-import { techniqueRole } from './techniques';
+import { againstOf, usesMethod } from './methods';
 import { cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
@@ -301,12 +300,13 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   let s3 = 0;
   for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f);
   sg.S3 = K_S3 * s3;
-  const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
+  const against = againstOf(post);
+  const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
   // P23: faithful-by-construction reasoning resists the pressure of training against a CoT monitor (FAITHFUL_COT.resist).
   sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
   sg.S6 = S6_NARROW_HARMFUL;
-  const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  const bb = against.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
   sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb;
   sg.S9 = s9OfDetectors(bb);
   sg.S8 = deploymentS8(s);
@@ -638,12 +638,10 @@ function techActive(s: GameStateV2, id: string) {
   const t = tech(s, id);
   return !!t && t.active;
 }
-/** A technique is in a run when the run lists it, or (M4) when it is an unlocked FIX technique whose research line is
- *  staffed: a lab's alignment-training methods are part of every post-training run it does [D]. */
+/** SR-14: a method is in a run only when the run's plan lists it (PostDesign.methods) and the lab owns it; staffing its
+ *  research line switches nothing (SAF-04a). */
 function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
-  const t = post ? tech(s, id) : undefined;
-  if (!post || !t) return false;
-  return post.techniques.includes(id) || (techniqueRole(t) === 'fix' && lineStaffed(s, t.agenda));
+  return !!post && usesMethod(post, id) && !!tech(s, id);
 }
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. */
@@ -675,7 +673,8 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   }
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
-  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
+  // SR-14 (SAF-04b): monitoring effects follow the monitor deployment, not AG07 staffing.
+  if (techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
   if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
@@ -684,7 +683,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
     mul('E28', 0.1);
   }
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
-  if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON')) mul('E22', 0.5);
+  if (techActive(s, 'T-TMON') && routineMonitor(s) > 0) mul('E22', 0.5);
   // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
   // model is reused by every later run, so the fix outlives the lineage).
   const prefix = `ws2.patch.${lineage}.`;
@@ -711,15 +710,19 @@ export function runMemoryOn(s: GameStateV2, run?: Pick<TrainingRun, 'recipe'>) {
 /**
  * Alignment training that generalises (M4, §3.5.4) [D]: training on the lab's spec and character data heals value
  * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
- * training-signal design. Removal fraction per post-run = HEAL_K · e_AG18(true) · √(AG18 line multiplier, ≤ 2.5) ·
- * preference factor · safety-training factor. Zero for a lab that does not staff AG18.
+ * training-signal design. SR-14 (SAF-04c): it reads the run's own safety training, not AG18 staffing. Removal fraction
+ * per post-run = HEAL_K · e_AG18(true) · √(min(2.5, 1 + AG18 methods the run uses)) · preference factor · safety-training
+ * factor; the AG18 methods are honesty / confession and anti-scheming training and inoculation (its run option).
  */
 export const HEAL_K = 0.35;
+/** SR-14: AG18 methods that add to healing, and the cap of 1 + their count (the old line-multiplier cap 2.5) [D]. */
+const HEAL_METHODS = ['T-CONFESS', 'T-ANTISCHEME'];
+const HEAL_MAX = 2.5;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
 export function healRate(s: GameStateV2, post: PostDesign): number {
-  if (!lineStaffed(s, 'AG18')) return 0;
-  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(lineMultCapped(s, 'AG18')) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
+  const n = HEAL_METHODS.filter((id) => inRun(s, post, id)).length + (post.inoculation ? 1 : 0);
+  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(HEAL_MAX, 1 + n)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
 /** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
@@ -1149,7 +1152,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
-  for (const id of post.trainAgainst) {
+  for (const id of againstOf(post)) {
     const t = s.player.safety.techniques[id];
     if (!t?.unlocked) continue;
     const covered = (Object.keys(t.coverage) as TraitId[]).filter((k) => (t.coverage[k] ?? 0) >= 0.3);

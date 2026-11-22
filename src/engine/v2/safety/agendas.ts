@@ -40,6 +40,7 @@ export function initialSafetyDept(): SafetyDept {
     footholds: [],
     effectiveControl: { level: 1, exposure: 0, lowest: 1, believed: 1 },
     validation: initialValidation(),
+    useAllMethods: true,
   };
 }
 

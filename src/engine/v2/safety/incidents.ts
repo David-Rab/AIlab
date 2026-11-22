@@ -21,6 +21,7 @@ import { controlProtocol, humanReviewFactor, oomOfLevel, underControl, versionOo
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
+import { usesMethod } from './methods';
 import { isDiscovered, uModeContainMult } from './umodes';
 import { productCatch, productHazardMult } from '../models/products';
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
@@ -120,6 +121,8 @@ export function modelHazards(
 /** SR-03: the player's inputs to misuse (the act table's believed rows): measured domain levels, believed tool strength. */
 export interface MisuseBelieved { level: (d: 'BIO' | 'CYBER') => number; strength: (t: TechniqueState) => number }
 
+/** SR-14 (SAF-06): distill-after-unlearn's cut of hazardous bio / cyber capability for misuse [D]. */
+export const UNDO_MISUSE_MULT = 0.5;
 const SAFEGUARD: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 0.3, classifiers: 0.6, hardened: 0.85 };
 
 /** Misuse (§3.5.10, same structure): h = κ · demand · σ((L_d − 9)/1) · reach · (1 − safeguards), BIO and CYBER;
@@ -131,14 +134,19 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, be
   const clsS = (t: TechniqueState) => (believed ? believed.strength(t) : strengthTrue(s, t, versionOom(s, v)));
   const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, clsS(cls) / 0.4) : 1;
   let sg = d.channel === 'open' ? 0 : SAFEGUARD[d.safeguards] * clsBoost;
-  if (d.channel === 'open' && v.design.techniques.includes('T-FILTER')) sg = 0.5; // only the hazard filter survives fine-tuning
+  // SAF-05 / SR-14: the hazard data filter is the base run's choice (pretraining), the only safeguard that survives
+  // open-weights fine-tuning; distill-after-unlearn (T-UNDO, a post-training method) cuts the hazardous capability itself
+  // and survives fine-tuning too (Lee et al. 2025, "distillation robustifies unlearning").
+  const base = s.player.models.bases.find((b) => b.id === v.baseId);
+  if (d.channel === 'open' && base?.design.curation.hazard) sg = 0.5;
+  const undo = usesMethod(v.design, 'T-UNDO') && !!s.player.safety.techniques['T-UNDO']?.unlocked ? UNDO_MISUSE_MULT : 1;
   let demand = v.design.safety === 'minimal' ? 2 : 1;
   const jb = flagNum(s, 'jailbreak', -1e9);
   if (s.time.day - jb < 90) demand *= 3;
   const out: HazardRow[] = [];
   const block = clamp01(sg);
   for (const dom of ['BIO', 'CYBER'] as const) {
-    const capability = capabilityOf(believed ? believed.level(dom) : v.domains[dom], MISUSE);
+    const capability = capabilityOf(believed ? believed.level(dom) : v.domains[dom], MISUSE) * undo;
     const h = MISUSE.kappa * demand * capability * reach * (1 - block);
     if (h > 0) out.push({ source: 'misuse', apparent: 'misuse', h, sev: MISUSE.floor + MISUSE.span * capability, domain: dom, disposition: demand, capability, opportunity: reach, block });
   }

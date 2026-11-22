@@ -101,8 +101,12 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  trainedAgainstOn null.
  *  69 (SR-09): tool upkeep is replaced by validation jobs: SafetyDept.validation (jobs queue, policy "validate on each
  *  new internal model", on), TechniqueState.measured, and the safety engineers' need 'reval' is 'validation'.
- *  Migration 68 → 69 adds an empty queue with the policy on, measured null, and renames the need in research.safRe. */
-export const SCHEMA_REV = 69;
+ *  Migration 68 → 69 adds an empty queue with the policy on, measured null, and renames the need in research.safRe.
+ *  70 (SR-14): training-time safety methods are run-plan options: PostDesign.techniques and .trainAgainst become one
+ *  list PostDesign.methods (method ids and `against:<instrument>` entries); SafetyDept.useAllMethods (the policy "Use
+ *  all known methods", on by default). Migration 69 → 70 rewrites every post design in the save and turns the policy on.
+ */
+export const SCHEMA_REV = 70;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -699,6 +703,24 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (Array.isArray(al.order)) al.order = al.order.map((k) => (k === 'reval' ? 'validation' : k));
       for (const m of [al.max, al.share]) if (m && 'reval' in m) { m.validation = m.reval; delete m.reval; }
     }
+  },
+  69: (raw) => {
+    // 69 → 70 (SR-14): every post design (runs, versions, templates anywhere in the save) gets one `methods` list from
+    // its old `techniques` and `trainAgainst` (as `against:<id>`); the policy "Use all known methods" is on.
+    const walk = (o: unknown, depth: number): void => {
+      if (!o || typeof o !== 'object' || depth > 12) return;
+      if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+      const r = o as Record<string, unknown>;
+      if (Array.isArray(r.techniques) && Array.isArray(r.trainAgainst) && 'pref' in r) {
+        r.methods = [...(r.techniques as string[]), ...(r.trainAgainst as string[]).map((id) => `against:${id}`)];
+        delete r.techniques;
+        delete r.trainAgainst;
+      }
+      for (const v of Object.values(r)) walk(v, depth + 1);
+    };
+    walk(raw, 0);
+    const dept = (raw as { player?: { safety?: { useAllMethods?: boolean } } }).player?.safety;
+    if (dept) dept.useAllMethods ??= true;
   },
 };
 

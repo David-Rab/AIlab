@@ -536,10 +536,9 @@ export interface PostDesign {
   inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';
-  /** Techniques from the safety stack applied in this run (e.g. persona-vector steering). */
-  techniques: TechniqueId[];
-  /** Detectors explicitly trained against in this run (Goodhart, §3.5.6). */
-  trainAgainst: TechniqueId[];
+  /** SR-14: the training-time safety methods this run uses (fix technique ids, safety/methods.ts METHODS) and the
+   *  instruments it trains against (`against:<id>`, Goodhart, §3.5.6). A method's effect applies only if listed here. */
+  methods: TechniqueId[];
 }
 
 export type RLFamily = 'math' | 'swe' | 'computerUse' | 'mlResearch' | 'longHorizon' | 'cyber' | 'bio';
@@ -882,6 +881,8 @@ export interface SafetyDept {
    *  and the default policy "validate instruments on each new internal model" (on by default); `lastModel` = the
    *  internal model the policy last queued for. Optional on other labs' departments. */
   validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null };
+  /** SR-14: the policy "Use all known methods" (on by default): new run plans list every owned method. */
+  useAllMethods?: boolean;
 }
 
 /** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */

@@ -266,7 +266,7 @@ const f3 = (x: number) => x.toFixed(3);
   check(caught > 0 && caught === covertRecord(bad, 'STEER').caught && bad.player.safety.incidents.slice(inc0).every((x) => x.exposure === 'internal' && ['SCHEME', 'POWER', 'PROXY'].includes(String(x.apparent))),
     'steering: caught attempts are internal incidents (SCHEME/POWER/PROXY)', `${caught} caught`);
   // The next post-training run: more obfuscation (S4 → OBF, E15) in the TRUE traits; the predicted beliefs do not show it.
-  const post: PostDesign = { ...REFERENCE_POST, techniques: [], trainAgainst: [] };
+  const post: PostDesign = { ...REFERENCE_POST, methods: [] };
   const train = (steer: number) => {
     const g = game();
     setFlag(g, 'covert.STEER.steered', steer);

@@ -20,6 +20,7 @@ import { aiRdShare } from './incidents';
 import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
+import { againstOf } from './methods';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
   INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
@@ -94,8 +95,9 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const hacked = hackShare(w, x, rho);
   const learned = learnedHackingOf(hacked);
   const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
-  const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
-  const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  const against = againstOf(post);
+  const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
+  const bb = against.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
   const agentFte = s.player.prodCache?.labor.agentFte ?? 0;
   const ps = prefShare(rho);
   const rows: PressureRow[] = [

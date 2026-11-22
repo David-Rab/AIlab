@@ -22,7 +22,7 @@ import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
-const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, techniques: [], trainAgainst: [], ...o });
+const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 const base = (o: Partial<BaseDesign> = {}): BaseDesign => ({ ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation }, ...o });
 const fmt = (sg: Partial<Signals>, keys = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'] as (keyof Signals)[]) => keys.map((k) => `${k} ${(sg[k] ?? 0).toFixed(3)}`).join(' ');
 const s0 = game();
@@ -178,15 +178,15 @@ check(near(afPre, xAF.AF, 1e-12) && afPreOn > xAF.AF + 0.05,
   `AF 0.05 with SA 0.6, PROXY 0.5, PERSONA 0.5: pretraining step → ${afPre.toFixed(3)}; with E13 / E27 on → ${afPreOn.toFixed(3)}`);
 
 // ---------- S4 and S7 ----------
-const cotTrain = postSignals(s0, post({ trainAgainst: ['T-COTMON'] }));
-const bbTrain = postSignals(s0, post({ trainAgainst: ['T-PROP'] }));
+const cotTrain = postSignals(s0, post({ methods: ['against:T-COTMON'] }));
+const bbTrain = postSignals(s0, post({ methods: ['against:T-PROP'] }));
 check(cotTrain.S4 === 0.8 && ref.S4 === 0 && postSignals(s0, post({ cot: 'pressured' })).S4 === 0.8,
   'S4: training against a CoT monitor is CoT pressure (Baker et al. 2025: obfuscated reward hacking), like a pressured CoT', `${cotTrain.S4}`);
 check(bbTrain.S7 > ref.S7 && postSignals(s0, post({ rlFocus: ['mlResearch'] })).S7 > ref.S7, 'S7 rises with training against behavioural detectors and with RL on eval-like (ML-research) environments',
   `ref ${ref.S7.toFixed(3)}, vs a BB detector ${bbTrain.S7.toFixed(3)}, ML focus ${postSignals(s0, post({ rlFocus: ['mlResearch'] })).S7.toFixed(3)}`);
 // E17: S7 split. S7 (capability RL, eval-like data) feeds only eval awareness (E11, Schoen); S9 (oversight-conditional
 // reward) feeds only alignment faking (E14, MATS/GDM) and is 0 unless the run trains against a behavioural detector.
-const bb2 = postSignals(s0, post({ trainAgainst: ['T-PROP', 'T-MO'] }));
+const bb2 = postSignals(s0, post({ methods: ['against:T-PROP', 'against:T-MO'] }));
 const heavyS9 = postSignals(s0, post({ rlBudget: 'heavy', rlFocus: ['mlResearch'] })).S9;
 const into = (sig: string) => EDGES.filter((e) => (e.from as string[]).includes(sig)).map((e) => `${e.id}→${e.to}`);
 check(ref.S9 === 0 && heavyS9 === 0 && near(bbTrain.S9, 0.3, 1e-9) && near(bb2.S9, 0.6, 1e-9) && cotTrain.S9 === 0

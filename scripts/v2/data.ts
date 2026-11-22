@@ -662,7 +662,7 @@ const adoptResult = (s: GameStateV2, id: string) => {
     `${typeof r0 === 'string' ? r0 : ''} gPre ${bA.gPre.toFixed(4)} vs ${bB.gPre.toFixed(4)}; epochs ${bA.epochs?.toFixed(3)} vs ${bB.epochs?.toFixed(3)}; plan today ${planA.toFixed(4)} → ${planB.toFixed(4)}`);
   // Post-training run on B0.
   const s1 = game();
-  const postP = { kind: 'post' as const, baseId: s1.player.models.bases[0].id, post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] }, poolShare: 0.2 };
+  const postP = { kind: 'post' as const, baseId: s1.player.models.bases[0].id, post: { ...REFERENCE_POST, methods: [] }, poolShare: 0.2 };
   const r1 = launchRun(s1, makeCtx(s1), postP);
   const pid = typeof r1 === 'string' ? '' : r1.id;
   const C = deserialize(serialize(s1));

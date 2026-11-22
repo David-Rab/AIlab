@@ -15,6 +15,7 @@ import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
   beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
   projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
+  FOLDED_METHODS,
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
@@ -636,7 +637,7 @@ function ResultsCard({ s, sv }: { s: GameStateV2; sv: SV }) {
 
 function ToolsCard({ sv }: { sv: SV }) {
   const [open, setOpen] = useState(false);
-  const techs = sv.techniques.filter((t) => t.unlocked).sort((a, b) => a.decay - b.decay);
+  const techs = sv.techniques.filter((t) => t.unlocked && !(t.role === 'fix' && FOLDED_METHODS[t.id])).sort((a, b) => a.decay - b.decay);
   return (
     <Card title={<><Term id="technique">Tools</Term> <span className="dim num">{techs.length}</span></>} sub="strength on today's model" home="techniques" className="sf-tools"
       right={<button className="btn btn-sm" data-test="tools-open" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>}>
@@ -644,7 +645,7 @@ function ToolsCard({ sv }: { sv: SV }) {
         <div className="sf-tgrid">
           {techs.map((t) => (
             <div key={t.id} className="sf-tool" data-technique={t.id}>
-              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method used in your post-training runs.' : 'A detection or control tool in your safety stack. Tools you own are always in use.'}</TipCard>}>
+              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method: a run uses it only when its plan ticks it (TRAINING › Blueprint › Methods; "Use all known methods" ticks every owned one).' : 'A detection or control tool in your safety stack. Tools you own are always in use.'}</TipCard>}>
                 <span className="ellip small"><b>{t.name}</b></span>
               </Tip>
               <HBar v={t.strength} max={1} w={70} color={t.decay < 0.5 ? C.bad : C.und} />
