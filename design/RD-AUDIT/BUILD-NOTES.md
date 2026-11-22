@@ -895,3 +895,31 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   epilogue / survival score (days to ASI now on each lab's own slope: shorter for fast labs late, longer for slow ones
   without the × 0.7). Recipe-leak previews and E16 / A4 sizes move with the player's slope vs paceOf. For CP2 (deep S5,
   finance, worldfx).
+
+### RD-L04
+- **Done (commit 8efd698):** one milestone predicate for every lab (DD-09). departments/workfit.ts `milestonesOf(s, v,
+  fpt)` (work-type fit and coverage vs the best human, AI cost per work-hour vs the best engineers); the player's
+  `versionMilestones` = it on the version's build at its FLOP per token. `referenceProfileModel(G)`: a model known only
+  by G as a build with the reference RL profile (every domain at G; = the no-build read). models/capability.ts
+  `otherLabMilestones(s, r)` = the predicate on the internal and public model at `rivalServeFpt`; `recordMilestones`
+  (ordered first crossings) and `updateMilestones(s, day)` (player + every active lab) used by the milestones system and
+  by core/init.ts at day 0 (before the readouts, so Stage 2 reads it). `initialMilestones` (λ ≥ knot) and the rivals'
+  λ ≥ LEVEL_KNOTS path deleted; the measured-level notice deleted.
+- **Readers:** endings (another lab's ASI first, overtaken) and production's Stage 2 read `milestoneDays`, now the
+  same predicate for player and rivals (indices unchanged: overtaken stays rival SIAR vs player SAR). Notice: "[name]:
+  your evaluations show the criterion met ([player-language criterion])", flag `seenMilestone{i}` = that day (China's
+  seenMilestone1 / 2 readers unchanged, now on the predicate; day-0 ones set silently). Acts: SAR or M ≥ 25 → 4, Research
+  agent → 3, Reliable agent or day 150 → 2. Gov: `govSeesMilestone(s, i)` (player met it and briefing ≥ 2 or evaluator
+  rung ≥ 3, or a deployed version meets it) replaces seenL ≥ 10 / 12 / 13.5 (G-SEC rung 3, mil-loop removal, SEZs).
+  data/world.ts MILESTONES stays only as the EndScreen's canon dates.
+- **Left:** gov seenL 6.5 / 8.5 (G-SEC rungs 1–2), safety/control L ≥ 12, epilogue's ASI G, rival era / acts thresholds
+  outside milestones: RD-L05. glossary.ts still states the L knots (UI). domainG's P19 term reads the player's
+  adoption also for rival reference builds (rival paradigms, later).
+- **Check:** `npx tsx scripts/v2/milestonepred.ts` (seconds): day-0 records = the predicate for every lab; player
+  version (reference profile) and rival at the same G and fpt agree over a G sweep; reference build = general-G read;
+  rival credited SC + SAR on fit; rival at λ 13 with AI dearer than engineers gets no SC / SAR; player SC record, flag
+  and notice; source greps. tsc main + scripts clean. Nothing else run.
+- **moves calibration: yes.** Rivals' and China's milestone days now need coverage ≥ 0.9 and the cost test (SC / SAR
+  can come later than λ 10 / 12); Agent etc. are credited below λ 5 (every lab records Agent at day 0 on seed 11);
+  Stage 2 timing, endings (ASI first, overtaken), acts, China's escalation (flags 1 / 2 on the predicate) and gov
+  G-SEC 3 / mil-loop / SEZ timing all move. T1 golden dates to be re-checked at CP2.
