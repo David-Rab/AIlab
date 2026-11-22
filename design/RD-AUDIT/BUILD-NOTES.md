@@ -1471,3 +1471,30 @@ oversight; no backdoor reach the lab cannot see); "Able to" of the composite row
 gate is not a capability sigmoid). SR-04 builds Loss-of-control risk on the composite row. Stray untracked
 `scripts/v2/_sr03/refactor1.py` (a helper the sandbox would not run or delete) can be removed.
 Moves calibration: no (engine numbers unchanged: same formulas, same float order; no RNG or state change).
+
+### SR-04
+
+Loss-of-control risk: `safety/lossRisk.ts` `lossOfControlRisk(s, model?, mods?)` = the player's believed odds that the
+engine's loss test (control.ts: E = Mis·(1 − O_eff)·(1 + F) > θ_w) fails for a model, "if it could act now" (OD-2).
+Mis ~ Normal(misalignmentEstimate, misalignmentSd) clamped to [0, 1] (assumption: trait belief sds independent normal
+errors, Mis linear in them; 81-point grid over ±4σ; `misalignmentSd` split out of traits.ts misalignmentBand, same
+floats). O_eff = believedInternalOversight on the takeover act (the composite row's stop rate) after believed backdoor
+reach. Footholds: located at half weight and their size; suspected at full weight and the typical size of their kind
+(backdoor reachPerSev·(floor + span/2), hidden compute hidCompPerSev·(floor + span/2) of the agent pool; other kinds
+suspectedF; kind and lineage are visible, size is not); unfound allowance = the believed fleet table's unstopped BACKDOOR
+and HIDCOMP acts over UNFOUND_YEARS = 1 [D] at the typical size (item acts excluded: no believed items / yr). θ prior:
+0.40 (U(0.30, 0.50) when setup.alignment is sampled) + Logistic(0, toleranceSd), clamped [0.05, 0.95], closed form
+(softplus); never s.hidden. Range = risk at the belief's 5th / 95th percentile. Lab headline = max over running models
+(best, internal fleets, live products' models). `unstoppedHarmPerYear(s)` = Σ per-year rows of every site's believed
+table × expected severity (floor + span·Able to·A·F; escape 5; misuse floor + span·Able to); item and composite rows out.
+Readers: Risk › own row (label "Loss of control (model)", no pFirst factor, drivers by removal: footholds, belief
+uncertainty, rest; levers misalignment −0.05 / belief ranges halved / stop rate +10 pts; RiskMods.margin gone) and so the
+top-strip combined estimate; Safety › Overview Control card = Loss-of-control risk gauge (< 5 / 5–20 / > 20%) with
+belief ± range, stop rate, known + unfound footholds and Unstopped harm / yr (controlReadout.risk / harm / harmActs).
+Other labs' world rows unchanged. Glossary: lossRisk, unstoppedHarm. Check: `npx tsx scripts/v2/_sr04/check.ts`
+(day400 / day900: wider beliefs raise it below the line; suspected > located > removed backdoor; control layer and +10
+pts stop lower it; identical with ε_w, doomThreshold and true traits rewritten).
+Open: the stored believed control (controlStep → effectiveControl.believed, controlView, ControlRead.believed and the
+card's data-control hook for uitest) still exists; CONTROL_BANDS / controlBand are unused by the card; GLOSSARY.md not
+regenerated; the monitor-budget lever moved nothing on the fixtures (watched share already full).
+Moves calibration: no (output only: the engine's loss test, control and incidents are unchanged; no RNG or state change).
