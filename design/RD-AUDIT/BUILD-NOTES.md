@@ -1801,3 +1801,29 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   clean. test:cal not run (RD rule exception names this task; left to the caller / CP3).
 - **Moves calibration: yes (rivals)** (every rival gains up to ~1 OOM pretraining recipe, P16 FLOP / serving, domain
   levels and the P05 research lift over its first years; LEADER_CAL / CHINA_CAL were fitted without them).
+
+### RD-X04
+- **Done (commit 5e620f5):** `production/diffusion.ts`, one rule for every lab (player, rivals, China; DD-17,
+  research/RD-X04r §3). **A:** daily, `recipeDiffusionPerDay(s, lab)` = (best released recipe G above the lab − its
+  recipeG at RECIPE_F) / τ into the pretraining part (player addKnowledge, others addRivalKnowledge), all labs sized on
+  the same day's public recipes before any lab steps. τ = `DIFFUSION_TAU_DAYS` = 4 months [P] (range 2–7,
+  `DIFFUSION_TAU_RANGE_DAYS`). A released model reveals the recipe it was made with: `recG` stamped on ModelVersion
+  (newVersion) and SimpleModel (rival post / new base / clRefresh); an unstamped release (day-0 lineups) reveals the
+  lab's recipe today [D]. Player sources = live non-internal deployments. **B:** `distillLift` at each post-training
+  (player completeRl into build.dg; rival postVersion, new base, clRefresh) = S 0.5 [P] × access × fit × (best released
+  teacher G − own G); access: open 1, API LEAK_COEF[channel] × (1 − 0.25·kyc) (c = 1 − 10^−kyc [D]), China × its
+  distillationAccess/60; fit = R1 student ratio by active params (`DISTILL_FIT`). A level, not recipe: no compounding.
+- **Deleted:** K_DIFFUSION; the daily distillationLeak recipe flow for every lab and `distillFlowDaily` (security.ts);
+  `distillationLeak` now returns the next-post lift from the player's products (`dG`, products preview
+  distillDaysPerYear = days at the next post-training, not per year); `w.distillDays` counts days that lift exceeds
+  0.00048 × 56 OOM [D]. Limits diffusion line names the source lab (no leader-only gate).
+- **Not done (time budget):** leaks still pace / constant sized: A4 publishLeakG, E16 poachLeakG, C4_TACIT_OOM,
+  E1_LEAK_OOM, C6 openReleaseG / openRivalLeaks, openAbsorbMonths, executeTheft's 60-day adoptG. Next: stolen weights =
+  the model's G; recipe leaks = share × recipe gap into R_pub via rule A (research §3C). WS4_TUNING.distillK now unused.
+- **Check:** tsc main + scripts clean; `scripts/v2/.tmp-rdx04.ts` (untracked, run alone): rule A = (pub − own)/τ for
+  player, r0–r3, rL, China (6 of 7 gaining at day 30), τ = 121.8 d. **Validation (ai2027 seed 1 RefBot, internal G
+  lagDays behind the frontier lab, not tuned):** d300 leader rL: player 3.3, rivals 3.2–3.6, China 3.8 months; d600
+  leader r3: player 1.6, rivals 1.5–2.2, China 2.4 months. Open-weight-like 3–4 months (L1, L2) matched at d300; China
+  ≈7 (L6) not: shorter (compute gap / withheld share missing, per research §3A; for CP2).
+- **moves calibration: yes.** Every lab now absorbs (rivals and China from each other), distillation moved from daily
+  recipe to post-training level, China's distillation path changed; lead days, T3 China lead, golden dates → CP2.
