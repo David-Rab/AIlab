@@ -1,5 +1,5 @@
 // Player actions in the World sphere (sector products, transition fund, moonshots). Owner: WS5.
-// Every preview shows at least one cost in a currency that is not among its gains (V2-SPEC §2.7).
+// Every preview shows what apply() does (V2-SPEC §2.7 preview truth).
 import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';

@@ -1,6 +1,6 @@
 // Relations action catalog A1–F3 as ActionDefs, plus Security levers and Retire (V2-SPEC §3.9.2, §3.6, §5.1 #10;
 // research/17 §1.4). Owner: WS4. All magnitudes are [D] calibrations; precedents are in research/17 §1.4.
-// Every preview lists ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
+// Every preview shows what apply() does (§2.7 preview truth, lint-tradeoffs); a lever with no cost shows none.
 import { clamp } from '../../rng';
 import { bestG, activeRivals } from '../models/labs';
 import { addRivalKnowledge, recipeOf } from './rivalModel';

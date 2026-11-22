@@ -86,7 +86,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   indexSystem, // 500 WS4 semiannual
 ];
 
-/** Player-callable levers, all spheres (§2.7 trade-off lint runs over these). */
+/** Player-callable levers, all spheres (§2.7 preview-truth lint runs over these). */
 export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...RELATION_ACTIONS, ...WORLD_ACTIONS];
 
 /** Decision events (§4.2). */

@@ -1,5 +1,5 @@
 // Player actions in the Finance and Compute spheres (ActionDef catalog, V2-SPEC §3.7–3.8). Owner: WS3.
-// Every preview lists a cost in a currency that is not among its gains (§2.7). Units: cash $B, compute H100e,
+// Every preview shows what apply() does (§2.7 preview truth). Units: cash $B, compute H100e,
 // dilution % points, boardConf points.
 import { CAPEX_LEASE, COMMUNITY, DEBT_SIZING, MARKET, NEOCLOUD, PARTNER_DEFS, PARTNER_TERMS, partnerDef, SITE_PATHS, TRANSFORMER, type PartnerSupply } from '../../../data/v2/deals';
 import { dateOfDay, dayOfQuarter } from '../core/time';

@@ -1,8 +1,8 @@
-// Trade-off contract lint (V2-SPEC §2.7): every ActionDef and ChoiceV2 preview must show ≥ 1 cost in a currency
-// that is not among its gains, on 3 canned states (the M0 fixtures). Owner: WS4 (seeded by WS1).
-// RD-B19 (preview truth): every 'progress' line carries its unit (a bare one read as levels, MEA-19); every immediate
-// meter line (no delay, no odds) of an action is applied when the action runs on a copy; and the training / evals /
-// leads previews equal what their mechanism does (runEvals, stream, run forecast, A4 / E16 / C6).
+// Preview-truth lint (V2-SPEC §2.7): previews show what the engine applies; an action with no cost shows none. On 3
+// canned states (the M0 fixtures), every ActionDef and ChoiceV2 preview renders without throwing; every 'progress' line
+// carries its unit (a bare one read as levels, MEA-19); every immediate meter line (no delay, no odds) of an action is
+// applied when the action runs on a copy; and the training / evals / leads previews equal what their mechanism does
+// (runEvals, stream, run forecast, A4 / E16 / C6). Owner: WS4 (seeded by WS1).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ACTIONS, ACTION_BY_ID, EVENTS, EVENT_BY_ID } from '../../src/engine/v2/core/registry';
@@ -22,20 +22,12 @@ import { FIXTURE_DIR, KNOWN, check, finish } from './lib';
 const states: GameStateV2[] = [0, 400, 900].map((d) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8')));
 
 type Pv = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
-function ok(p: { costs: CostLine[]; gains: CostLine[] }) {
-  const gains = new Set(p.gains.map((g) => g.currency));
-  return p.costs.some((c) => !gains.has(c.currency));
-}
 const linesOf = (p: Pv) => [...p.costs, ...p.gains, ...p.exposure];
 /** RD-B19: a 'progress' line names its unit (L, OOM, %, version, reading, …). */
 const unitless = (p: Pv) => linesOf(p).filter((l) => l.currency === 'progress' && l.amount !== 0 && !l.unit);
 
 // Deviations found when the checks were added (RD-B19), left to their owners' tasks.
 for (const s of states) {
-  // RD-B20 removed these previews' unapplied cost lines: they now show no cost (true), against the trade-off rule.
-  for (const id of ['makeVariant', 'product.update', 'product.serving', 'feature.toggle', 'products.policy']) {
-    KNOWN[`action ${id} @day ${s.time.day}`] = 'RD-B20: no cost line is the true preview (nothing charged); the trade-off rule needs a decision for free levers';
-  }
   KNOWN[`action safety.pledge @day ${s.time.day}: every progress line has a unit`] = 'the pledge\'s Δp line waits on the safety redesign (RD-B04–B06)';
 }
 
@@ -43,17 +35,14 @@ let n = 0;
 for (const a of ACTIONS) {
   for (const s of states) {
     n++;
-    let pass = false;
     let why = '';
     let bare: CostLine[] = [];
     try {
-      const p = a.preview(s, {});
-      pass = ok(p);
-      bare = unitless(p);
+      bare = unitless(a.preview(s, {}));
     } catch (e) {
       why = String(e);
     }
-    check(pass, `action ${a.id} @day ${s.time.day}`, why);
+    check(!why, `action ${a.id} @day ${s.time.day}: preview renders`, why);
     if (!why) check(!bare.length, `action ${a.id} @day ${s.time.day}: every progress line has a unit`, JSON.stringify(bare));
   }
 }
@@ -62,17 +51,14 @@ for (const e of EVENTS) {
   e.choices.forEach((c, i) => {
     for (const s of states) {
       n++;
-      let pass = false;
       let why = '';
       let bare: CostLine[] = [];
       try {
-        const p = c.preview(s);
-        pass = ok(p);
-        bare = unitless(p);
+        bare = unitless(c.preview(s));
       } catch (err) {
         why = String(err);
       }
-      check(pass, `event ${e.id} choice ${i} "${c.label}" @day ${s.time.day}`, why);
+      check(!why, `event ${e.id} choice ${i} "${c.label}" @day ${s.time.day}: preview renders`, why);
       if (!why) check(!bare.length, `event ${e.id} choice ${i} @day ${s.time.day}: every progress line has a unit`, JSON.stringify(bare));
     }
   });

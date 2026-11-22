@@ -1,5 +1,5 @@
 // Player actions in the Models and Departments spheres (ActionDef catalog, V2-SPEC §2.7, §3.3, §3.4). Owner: WS1.
-// Every preview shows ≥ 1 cost in a currency that is not among its gains (lint-tradeoffs). Previews must work with
+// Every preview shows what apply() does (§2.7, lint-tradeoffs). Previews must work with
 // empty params (defaults below). apply() throws on an invalid request; core/loop act() turns that into an error.
 import { REFERENCE_BASE, REFERENCE_POST, STREAM_LAG_DAYS, STREAM_POOL_SHARE } from '../../../data/v2/runDesign';
 import { RE_OPS } from '../../../data/v2/research';

@@ -1,5 +1,5 @@
 // WS4 acceptance tests (V2-SPEC §8.3: E1–E5; §7.1 T3, T4). Owner: WS4.
-//   E1  every event has ≥ 2 choices passing the trade-off lint (plus catalog shape: ids, titles, text length)
+//   E1  catalog shape: the kept events, ≥ 2 choices each, titles, text length (preview truth is lint-tradeoffs.ts)
 //   E2  no event text references an inactive lab (fuzz 1,000 seeds)
 //   E3  rival comparisons use the player's INTERNAL frontier
 //   E4  storyteller limits hold
@@ -23,7 +23,7 @@ import { deployGate } from '../../src/engine/v2/models/deployments';
 import { WS4_TUNING } from '../../src/engine/v2/actors/tuning';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { ACTIONS, EVENTS } from '../../src/engine/v2/core/registry';
+import { EVENTS } from '../../src/engine/v2/core/registry';
 import { seedStreams } from '../../src/engine/v2/core/rng';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { STORYTELLERS } from '../../src/engine/v2/events/director';
@@ -33,7 +33,7 @@ import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
 import { gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { B_G_PER_Y } from '../../src/data/v2/runDesign';
-import type { CostLine, EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
+import type { EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
@@ -45,17 +45,13 @@ const ME = [fileURLToPath(import.meta.url)];
 const fixtures = [0, 400, 900].map((d) => readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
 const load = (i: number) => deserialize(fixtures[i]);
 
-// ───────── E1: catalog shape + trade-off lint on every choice ─────────
+// ───────── E1: catalog shape ─────────
 {
   const ids = new Set(EVENTS.map((e) => e.id));
   // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
   const want = ['E01', 'E10', 'E12', 'E16', 'E17', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 14 kept events', `${EVENTS.length} events`);
-  const okLint = (p: { costs: CostLine[]; gains: CostLine[] }) => {
-    const g = new Set(p.gains.map((x) => x.currency));
-    return p.costs.some((c) => !g.has(c.currency));
-  };
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
   for (const e of EVENTS) {
@@ -64,10 +60,9 @@ const load = (i: number) => deserialize(fixtures[i]);
     if (e.title.split(/\s+/).length > 3) bad.push(`${e.id}: title > 3 words`);
     e.choices.forEach((c, i) => {
       if (c.label.split(/\s+/).length > 3) bad.push(`${e.id}.${i}: label > 3 words`);
-      for (const s of states) if (!okLint(c.preview(s))) bad.push(`${e.id}.${i} lint @${s.time.day}`);
     });
   }
-  check(bad.length === 0, 'E1 every event has ≥ 2 choices passing the trade-off lint', bad.slice(0, 5).join('; '));
+  check(bad.length === 0, 'E1 every event has ≥ 2 choices, a valid default, short title and labels', bad.slice(0, 5).join('; '));
   bad = [];
   for (const s of states) for (const e of EVENTS) {
     const d = e.when(s);
@@ -76,9 +71,6 @@ const load = (i: number) => deserialize(fixtures[i]);
     if (/AI 2027|Agent-\d|OpenBrain'?s? (Agent)|20(25|26|27|28) (Jan|Feb|Mar|Apr)/.test(t)) bad.push(`${e.id}: canon in text`);
   }
   check(bad.length === 0, 'E1 event texts ≤ 220 chars, no AI 2027 canon', bad.slice(0, 5).join('; '));
-  bad = [];
-  for (const a of ACTIONS) for (const s of states) if (!okLint(a.preview(s, {}))) bad.push(`${a.id}@${s.time.day}`);
-  check(bad.length === 0, `E1 all ${ACTIONS.length} actions pass the trade-off lint`, bad.join(', '));
 }
 
 // ───────── E2: never name inactive labs (fuzz 1,000 seeds) ─────────

@@ -1,5 +1,5 @@
 // Team actions (STRUCTURE §4.1 verbs: hire a team, let a team go, move a research-engineering team, keep hiring to N).
-// Owner: WS1. Every preview shows ≥ 1 cost in a currency not among its gains (lint-tradeoffs) and works with empty
+// Owner: WS1. Every preview shows what apply() does (§2.7, lint-tradeoffs) and works with empty
 // params (defaults: a standard capabilities research-engineering team, the newest team).
 // RD-B18 (B32): a team's gain or loss is one engine day (core/previewTick) on a copy with and without the change
 // (readDay), in each department's own currency.

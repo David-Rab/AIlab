@@ -46,7 +46,7 @@ import { CAPEX2X_AUTOPILOT, financeAutopilot, REF_AUTOPILOT, type AutopilotOpts 
 import { refDecide, refPlay } from '../../src/engine/v2/bots/ref';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
-import type { CostLine, EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
+import type { EngineSystem, GameStateV2 } from '../../src/engine/v2/types';
 import { fileURLToPath } from 'node:url';
 import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
 import { cached, pick, prefill } from './simcache';
@@ -332,15 +332,9 @@ smokeCheck(share(x2.map((r) => r.firstDistress >= 0 && r.firstDistress < END_202
   check(Math.abs(s0.player.finance.revenueRun - 30) < 1.5, 'F11 revenue run-rate follows WS5 deployment revenue (30-day smoothing)', f1(s0.player.finance.revenueRun));
 }
 
-// ───────────────────────────── Content: actions apply, events lint ─────────────────────────────
-const fixtures: GameStateV2[] = [0, 400, 900].map((d) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8')));
-const okPreview = (p: { costs: CostLine[]; gains: CostLine[] }) => {
-  const gains = new Set(p.gains.map((g) => g.currency));
-  return p.costs.some((c) => !gains.has(c.currency));
-};
+// ───────────────────────────── Content: actions apply ─────────────────────────────
 // FIN3b: WS3 has no events any more (E37 "Board revolt" was dropped for the critics' seat action, FINANCE-V3 §10).
 check(!EVENT_BY_ID.has('E37'), 'FIN3b E37 Board revolt is gone (the critics seat is a standing action)');
-for (const s of fixtures) check(okPreview(FINANCE_ACTIONS.find((a) => a.id === 'fin.critics')!.preview(s, {})), `FIN3b critics' seat preview trade-off @day ${s.time.day}`);
 let applied = 0;
 for (const a of FINANCE_ACTIONS) {
   const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));

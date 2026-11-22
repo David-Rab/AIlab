@@ -1,6 +1,6 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
-// none reads truth. Each has ≥ 1 cost in a currency that is not among its gains (§2.7, lint-tradeoffs).
+// none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';

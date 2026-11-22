@@ -294,9 +294,9 @@ Sampling happens in this order, all from stream `world`.
 - **Tooltip for any meter.** It shows a Democracy-style strip of the last 30 days, giving the top 5 first-order causes by |ΣΔ|. Nested terms in it link to the deeper breakdowns.
 - **Rates are decomposed by formula, not the ledger.** The production readout, valuation terms, raise-ceiling limits and sector binding constraint are explained from their formulas.
 
-### 2.7 Trade-off contract (enforced)
+### 2.7 Preview truth
 
-- Every `ActionDef` and `ChoiceV2` must declare `preview()` with at least one **cost** in a currency that is not among its **gains**. A static test (`scripts/v2/lint-tradeoffs.ts`) instantiates each preview on 3 canned states and fails on violation.
+- Previews show the real consequences of an action (costs, gains, risks) as the engine applies them; an action with no cost shows none.
 - **Exposure lines.** Delayed or probabilistic side effects are shown as ghost bars before commit, with `lagDays` and `probability` (R17 §2.5).
 
 ---
@@ -2257,7 +2257,7 @@ All tests are headless `tsx` scripts in `scripts/v2/`. Each prints a table and e
 | Stream isolation | Adding a draw in one stream leaves the others' hashes unchanged |
 | Save | Round-trip equality; size < 1.5 MB at day 1,500 |
 | Performance | Daily tick ≤ 1.5 ms average and quarter tick ≤ 8 ms (laptop, Node), so FF reaches ~80 days per second |
-| Trade-off lint | §2.7 |
+| Preview-truth lint | §2.7 |
 | Hidden-state lint | No `hidden.` or `*True` reads under `src/ui/v2/` except `end/` |
 | `uitest.mjs` v2 | Boots the single-file build; plays 400 days at FF with auto-resolve; screenshots each panel; asserts that no tooltip throws and every panel renders |
 

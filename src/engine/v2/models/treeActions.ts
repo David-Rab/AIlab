@@ -1,6 +1,6 @@
 // Research verbs (STRUCTURE §4.2, BUILD-PLAN R4): queue a project, start it now, reorder, drop it, assign or take off a
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
-// the first capabilities science team) and show ≥ 1 cost in a currency not among the gains (lint-tradeoffs).
+// the first capabilities science team) and show what apply() does (§2.7, lint-tradeoffs).
 import { PROJECT_BY_ID, TREE, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
