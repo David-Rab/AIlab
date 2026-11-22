@@ -1745,3 +1745,23 @@ by models/research.ts, safety/lineProjects.ts, production/production.ts). Commit
   −15% (the port is not modelled), verified treaty ×0.65 (gov.treaty has no compute limit to cap FLOP with; = rateMult).
 - **Check:** `npx tsx scripts/v2/_a07/check.ts` (pause: cap experiment FLOP and rate → 0, safety FLOP and ideation
   inputs unchanged; clearance: speed unchanged, science and RE capacity −10%, back after). tsc app + scripts/v2 clean.
+
+### RD-X01
+
+One line-rate law for player lines and rival parts (SYNTHESIS RD-X01; CAP-07). Commit b185ad0.
+- **Law:** `research.ts lineRate(r, M, q) = r·log₁₀((M + q)/M)`: expected OOM a line of returns r at pool M = n₀ + R gains
+  from research input q (a day's input: OOM/day); `poolAfter(r, M, x) = M·10^(x/r)`. poolMean and stepFlow (RD-R08's
+  expected flow) call it; `linePoolAt(worldR, n)` is linePool at a given preset r. Player results unchanged (same
+  arithmetic).
+- **Rivals (DD-18 stand-in, stated in recipeRates):** each part's pool rate = Σ over its DEFAULT_LINES of
+  365·lineRate(r_l, n₀_l·10^(S_p/r_p), i·n₀_l/365): the lab runs its reference lines at one relative research speed
+  i = rs·i₀ (i₀ = a_pre·ln 10 ÷ r_pre, so the pretraining part still realises PRE_RATE0 at rs = 1, S = 0), so a part's
+  lines stand at one relative state and the part's pool stays one aggregate number. The old continuous a_p·rs·10^(−S/r_p)
+  is this sum's limit; the daily discrete form is slightly lower. recipeParts keeps each part's lines; lineScaleFactor
+  reads the player's S_SURVIVE and stagesOf testFrac (no own SURVIVE_FRAC / LINE_STAGES read, no own pool law;
+  S_CLAMP was already gone).
+- **Check (scripts/v2/.tmp-rdx01.ts, run alone):** poolMean = lineRate and poolAfter inverts it; rival mid / ceil part rates
+  = Σ lines lineRate exactly and −0.007% to −0.09% vs the old law (rs 1 / 5); source scan clean. INFO leader pretraining
+  pool growth on ai2027: day 100 0.2149 vs 0.2150 OOM/yr (−0.021%), day 400 0.2409 vs 0.2409 (−0.024%). tsc main and
+  scripts clean. scripts/v2/rivals.ts R5's `near(v.pre, PRE_RATE0, 1e-9)` will now miss by ~0.02% (tolerance to loosen at CP).
+- **Moves calibration: yes (rivals)** (recipe growth −0.02% to −0.1%, more at high rs).
