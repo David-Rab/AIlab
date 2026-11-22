@@ -1601,3 +1601,28 @@ Check: `npx tsx scripts/v2/_sr13b/check.ts` (day400: control ×0.97 AI FTE and i
 added, ×0.97; product control usage ×0.93, +1% serving). Passes.
 Moves calibration: maybe (S4/S5): review now takes up to 50 safety engineers early (human share ≈ 1), fewer free for
 experiments / cases; product control costs usage; bots now pay the 3% lockdown Slowdown.
+
+### SR-08
+
+Detect techniques are instruments (SAFETY-REDESIGN §2.2 concepts 3–4, §3.2) with one reliability definition.
+- **`safety/instruments.ts`**: kinds `tests` (BB) / `reasoning` (COT) / `internals` (WB) / `formal` (OR) / `logs` (a
+  reading taken by a monitor in deployment, `instrumentKind(t, 'monitor')`); `instrumentReads(t)` (coverage > 0);
+  `instruments(s)` (owned detect tools). `reliability(s, t, {x, v?, trait?, eff?, ea?, obf?}, believed)` = base ·
+  penalty, base = s0 · efficacy · D(gap) · (1 − G·trainedAgainst) (techniques.ts `reliabilityBase`; true: hidden efficacy,
+  false-validated → 0; believed: posterior mean), penalty = true `familyPenalty` × (1 − falseMask) or believed
+  `believedPenaltyParts` (tests = EA factor, legible = CoT legibility, mask = own training-against). Returns the parts.
+  `reliabilityReasons(s, t, v, trait?, L?)`: "not validated on V", "capability gap from V −x", "trained against on V −x",
+  "notices tests −x", "reasoning not legible −x", "masked by training −x", "line works x%" (−x = % of reliability lost).
+- **Validated on**: `TechniqueState.validatedOn / validatedOom` (start tools: V0 / 0; `unlockTechnique` and F49 false
+  tools: the internal model at unlock). Decay is on the gap x − validatedOom (oHalf = the gap's half point; AG05 keeps
+  the overseer gap, AG09 the latent override). `trainedAgainstOn` set by goodhartTrain. SCHEMA_REV 58 (migration 57 →
+  58: validated on V0, gap as before).
+- **Callers**: detection (familyDetection, stackDetectionMap), understanding (believed detector: reliability().value ×
+  valAt above the measured level; trueUnderstanding: true value, now including the false-tool mask), actTable (misuse
+  classifier strength). strengthTrue / strengthBelieved are wrappers of reliabilityBase for the other callers (agendas,
+  ideas, incidents, investigations, pressureView, responses, view, selectors); not yet migrated. Reasons are not in the
+  view yet (SR-11 / UI). valAt (believed extrapolation above the current level) kept; SR-09 validation evidence replaces it.
+Check: `npx tsx scripts/v2/_sr08/check.ts` (day400: familyDetection = combine(cov · reliability base); detectionAt =
+cov · reliability value; reliability full on the validated model, falling with the gap 0.406 → 0.290 over 8 OOM). Passes.
+Moves calibration: maybe (S4/S5): tools unlocked mid-game now decay from the model they were unlocked on, not from V0
+(stronger later in the game, true and believed U up); start tools and old saves unchanged.
