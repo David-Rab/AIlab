@@ -1032,3 +1032,24 @@ Batching as an internal expected flow (SYNTHESIS RD-R08; CAP-11). Commit 9f55e90
   (the explicit pipeline shares it per generation).
 - **Moves calibration: maybe** (above X = 30 the old batches' survivor factor and drop rule are replaced by the
   single-idea rules in expectation; engineers' build-in cost per idea rises to the explicit pipeline's).
+
+### RD-E02
+
+AI taste per DD-13: one ideas channel (SYNTHESIS RD-E02; CAP-05). Commit f34119b.
+- **Weight:** `aiIdeasShare(H, assist, L) = max(0, 1 − H·assist ÷ L)` (departments/workfit.ts): AI's share of the
+  slot's effective labour above what the (assisted) humans make alone. Team taste = (1 − s)·human + s·E[max(human, AI)]
+  (teamTaste, its `phi` argument renamed `sAI`). Chosen over the margin share 1 − wH because with ρc = −2 (complements)
+  1 − wH is ~1 at near-zero AI compute (AI the bottleneck) and falls to 0 as AI grows: the wrong direction. The chosen
+  share is 0 with no AI FTE, rises with AI compute and saturates, at fixed coverage A, at 1 − (1 − A)^1.5 (→ 1 as A → 1),
+  so AI taste spreads with coverage, not with a compute-share ratio. Assisted human work keeps human taste.
+- **Where:** `LabourOf.sAI` on every slot; `WorkContext.sAI = slots.IDEAS.sAI` (capabilities: research.ts sciOn /
+  taste fn, production.ts); `SafetyLabour.sAI = ideas.sAI` (SAF_IDEAS via handedLabour, so Trusted to AI enters through
+  A = t·a; 0 at t = 0) read by safety/lineProjects.ts safSciOn; rivals (actors/rivalModel.ts rawAggregate / rawEI):
+  `rivalTaste` from their aggregate ideation LI (S scientists, aI, assistI), replacing φ = 1. φ deleted (frontier share
+  ÷ DEFAULT_CAP_SHARES.capFrontier; the unused import removed).
+- **Check (scripts/v2/.tmp-rde02.ts, run alone, untracked):** default lab, frontier model +4 OOM, agent compute × 0 …
+  10⁵: s 0 → 0.48 → 0.93 → 0.946 (saturated), lift 1.000 → 1.85 → 2.64 → 2.676; zero compute gives human taste exactly;
+  rival taste 1.000 with no agent compute, 1.005 with it (start-level coverage). At the start model (no boost) s ≈ 0.01
+  and the lift ≈ 1. tsc main and scripts clean. safetyresearch.ts E2 taste check label updated (not run).
+- **Moves calibration: yes** (rivals and the player lose the full AI-taste lift until IDEAS coverage is high: at the
+  start s ≈ 0.01 vs φ = 1 before; rivals' ideation I has taste², so their early research input falls; refit at CP2).
