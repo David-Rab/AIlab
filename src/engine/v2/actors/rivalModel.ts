@@ -25,7 +25,7 @@
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
-import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
+import { E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
@@ -40,7 +40,6 @@ import { decimalYear } from '../core/time';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import type { GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld } from '../types';
 
-const B = B_G_PER_Y;
 /** Research-engineer team-equivalents on research per capabilities head: the leader's day-0 9.68 team-equivalents on
  *  experiments and tuning (DAY0_REF.re) over its 2,050 capabilities staff (H_REF_BASE) [D: fixed day-0 ratio]. */
 export const RE_PER_HEAD = DAY0_REF.re / H_REF_BASE;
@@ -361,13 +360,12 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
   }
 }
 
-/** A ProductionReadout for a non-player lab from its aggregate research (the lead readers' `rate` = recipe growth in
- *  progress-years a year, as the player's readout; M = research speed with AI ÷ without). */
-export function rivalReadout(x: RivalResearch, eRate: number, stage2: boolean, ratios: ProductionReadout['ratios']): ProductionReadout {
+/** A ProductionReadout for a non-player lab from its aggregate research (M = research speed with AI ÷ without). */
+export function rivalReadout(x: RivalResearch, stage2: boolean, ratios: ProductionReadout['ratios']): ProductionReadout {
   const M = x.rs / Math.max(1e-12, x.rsHuman);
   const one = { humans2: 1, agents2: 1, agents01: 1, exp2: 1, exp05: 1 };
   return {
-    M, rate: eRate / B, stage: stage2 ? 2 : 1,
+    M, stage: stage2 ? 2 : 1,
     parts: { agents: x.X / Math.max(1e-12, x.Xh), taste: x.taste, other: M / Math.max(1e-12, (x.X / Math.max(1e-12, x.Xh)) * x.taste) },
     elast: { exp: 0, humans: 0, agents: 0, taste: 0 }, perDollar: { exp: 0, humans: 0, agents: 0 },
     ceilings: { humans: 1, agents: 1, exp: 1 }, binding: 'experiments', label: x.wH > 0.5 ? 'human-bound' : 'compute-bound',

@@ -6,9 +6,9 @@
 // (departments/workfit.ts). For the player this file builds only the READOUT in the v2 shape (ProductionReadout) from the
 // same mechanics (and the Auto research mix, applyBestMix): M = the research speed of the lab ÷ the same lab with no AI
 // labour (AIFM's AI R&D multiplier, research/13 §2.8) at today's resources, its decomposition, elasticities, what-ifs and
-// ceilings, and `rate` = the stacks' recent growth in progress-years. M is still read by gov, the record, the tutorial
+// ceilings (RD-L03: the progress-year `rate` is gone; pace readers use frontierGPerYear). M is still read by gov, the record, the tutorial
 // act (models/capability.ts) and the rolled safety nodes (models/tree.ts researchSpeed), until RD-R01 / RD-R04 (SYNTHESIS
-// §6 Phase 3); `rate` by the lead readers until RD-L03 (Phase 2).
+// §6 Phase 3).
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //
@@ -16,7 +16,6 @@
 // labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
 // (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
 import { CHINA_CAL, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
@@ -53,8 +52,6 @@ export interface V3Inputs {
   mods: number; rateMult: number;
   /** Readout pieces of the work-type layer. */
   sdAI: number; aEng: number; copies: number; speed: number; aiFte: number;
-  /** Software progress of the stacks, OOM per year (smoothed). */
-  gRate: number;
   /** The lab has reached its superhuman coder (stage 2 for the readers of `stage`). */
   stage2: boolean;
 }
@@ -158,7 +155,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s) * mod.humans), AI0: Cag + spare > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
     flopEff, Tai: cap > 0 ? tai / cap : 1, Th: cap > 0 ? th / cap : 1, mods: mod.speed / mod.rateMult, rateMult: mod.rateMult,
     sdAI: wc.sdAI, aEng: wc.slots.SWE.fit.a, copies: ex.copies + wc.slots.IDEAS.copies, speed: ex.copies > 0 ? speedOfCopy() : 0, aiFte: ex.aiFte,
-    gRate: (p.research.gRate ?? 0) * 365, stage2: p.milestoneDays[3] !== undefined,
+    stage2: p.milestoneDays[3] !== undefined,
   };
   const Cres = pools.experiments + pools.agents;
   return {
@@ -175,9 +172,6 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   const v = inp.v3 as V3Inputs;
   const e = evalV3(w, inp);
   const stage: 1 | 2 = v.stage2 ? 2 : 1;
-  // `rate` (progress-years per year, for the lead readers until RD-L03): the stacks' recent growth ÷ B, at these inputs.
-  const e0 = evalV3(w, { ...inp, h: v.h0, k: v.k0 });
-  const rate = (v.gRate / B_G_PER_Y) * v.rateMult * (e.M / Math.max(1e-12, e0.M));
   const parts = { agents: e.X / e.Xh, taste: v.Tai / Math.max(1e-12, v.Th), other: v.mods };
   const cT = Pp.u * Math.pow(e.cbar, Pp.zeta * Pp.rho);
   const lT = Pp.v * Math.pow(e.l, Pp.rho);
@@ -209,7 +203,7 @@ function evalProductionV3(w: TimelineWorld, inp: LabInputs, detail: boolean): Pr
   if (e.M >= 25 && tasteShare > 0.6) label = 'taste-bound';
   else if (label === 'labor-bound' && e.wH > 0.5) label = 'human-bound';
   return {
-    M: e.M, rate, stage, parts, elast, perDollar, ceilings, binding, label,
+    M: e.M, stage, parts, elast, perDollar, ceilings, binding, label,
     labor: { A: v.a, aiFTE: v.aiFte, copies: v.copies, speed: v.speed, wH: e.wH, aEng: v.aEng },
     ratios: { h: inp.h, k: inp.k, c: inp.c },
     whatIf, sdAI: v.sdAI,
@@ -283,9 +277,8 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
   }
-  const eRate = rates.g;
   const pools = poolsOf(s, core.id);
-  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
+  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (M with it ÷ M

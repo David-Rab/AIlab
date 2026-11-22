@@ -18,7 +18,7 @@
 // the cache in shards. Each banded row is a check; rows rate constants cannot bring into band print WARN with the
 // mechanism they need; rows with no source band print INFO.
 import { EXPLOIT_CHEAP, EXPLOIT_START } from '../../src/data/v2/suites';
-import { B_G_PER_Y, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { TRAIT_START } from '../../src/data/v2/traits';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -311,7 +311,7 @@ row('F5 AF, RefBot model at ASI', 'no source → report', null, refs.map((r) => 
 {
   const g0 = gV0(s0.hidden.timeline);
   row(`E18 AF capability gate at V0 (G ${g0.toFixed(2)}; MacDiarmid's 2025 organism, F2)`, `Greenblatt 2024: AF in frontier-scale models; F2's organism needs the gate open (smoothstep G ${AF_GATE_G0}–${AF_GATE_G1})`, [0.95, 1], [afCapGate(g0)]);
-  console.log(`  INFO  E18 AF gate: mid-2024 frontier (V0 − 1.25 y × B, Claude 3 Opus / 3.5 Sonnet / Llama 3.1 405B, "barely capable") ${afCapGate(g0 - 1.25 * B_G_PER_Y).toFixed(2)}; 0.8 OOM below it (Llama 3.1 70B, Claude 3 Sonnet: no AF) ${afCapGate(g0 - 1.25 * B_G_PER_Y - 0.8).toFixed(2)}`);
+  console.log(`  INFO  E18 AF gate: mid-2024 frontier (V0 − 1.25 y × B, Claude 3 Opus / 3.5 Sonnet / Llama 3.1 405B, "barely capable") ${afCapGate(g0 - 1.25 * PRE_GAME_G_PER_YEAR).toFixed(2)}; 0.8 OOM below it (Llama 3.1 70B, Claude 3 Sonnet: no AF) ${afCapGate(g0 - 1.25 * PRE_GAME_G_PER_YEAR - 0.8).toFixed(2)}`);
   row('E18 AF gate per RefBot version (all generations, minis included)', 'report (RefBot trains at V0’s G or above)', null, refs.flatMap((r) => r.versions.map((v) => v.gate)), '');
 }
 // E17: S9 oversight-conditional reward → AF (E14), its own anchor.

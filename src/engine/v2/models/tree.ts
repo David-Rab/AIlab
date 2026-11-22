@@ -39,7 +39,6 @@ import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import {
   assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, takesTeams,
 } from './research';
@@ -99,18 +98,13 @@ export function assignCapNow(s: GameStateV2) {
   assignCapTeams(s, ready);
 }
 
-/** Seed of the software-rate readout (OOM/day): the leader's first-year G-equivalent stack growth, ≈ 0.83 OOM/yr. */
-export const START_G_RATE = 0.83 / 365;
-/** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). */
-export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG' | 'gRate'> {
+/** Model v3 V2 research fields (stacks from initialStacks; the start lag is applied by core/init). The software-rate
+ *  readout (gRate) starts unset and warms up over its 14-day average (RD-L03: no seed; no lead reader reads it, the
+ *  pace readers use frontierGPerYear). */
+export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 'risk' | 're' | 'stacks' | 'adopted' | 'hist' | 'domainG'> {
   return {
     want: {}, wantAuto: [], risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
     stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
-    // The software-rate readout starts at the reference lab's first-year rate (≈ 0.83 OOM/yr of G-equivalent; V3 notes)
-    // so the lead readers do not see a lab at rest on day 0. RD-B16 kept it: it is the 14-day average's warm-up, not a
-    // mask for the new-base jump (gone: the rate holds F fixed across each day). Without it production.ts `rate` is 0
-    // on day 0, so paceOf (the lead conversions, A4 / C4 sizes) starts at 1 − share and the day-0 lead readouts move.
-    gRate: START_G_RATE,
   };
 }
 
@@ -602,4 +596,3 @@ export function treeCounts(s: GameStateV2): { known: number; total: number } {
   return { known, total: TREE.length };
 }
 
-export { B_G_PER_Y };

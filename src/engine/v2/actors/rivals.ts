@@ -8,7 +8,7 @@ import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
 import { LEADER_CAL } from '../../../data/v2/calibration';
 import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
@@ -21,7 +21,6 @@ import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/tra
 import { drawSeverity, labModelHazards } from '../safety/incidents';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 import { initialSecurity } from '../security/security';
-import { referenceRate } from '../world/calibration';
 import { labMarketRevenue } from '../worldfx/revenue';
 import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
@@ -80,9 +79,8 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
   const posture: SafetyPosture = h.rivalPostures[id];
   const g = rng.range(arch.gapYears[0], arch.gapYears[1]) * (baseline === 'reality' ? 0.3 : 1);
   const leadMonths = clamp(3 + (6 * (g - 0.1)) / 1.0, baseline === 'reality' ? 1 : 3, 9);
-  // The pre-game frontier rate at the start model (progress-years a year, × B G per progress-year).
-  const rate0 = referenceRate(h.timeline, h.timeline.p0, 2025.5) * B_G_PER_Y;
-  const G = playerG - (leadMonths / 12) * rate0;
+  // The start lead in months at the stated pre-game frontier pace (OOM of G a year, RD-L03).
+  const G = playerG - (leadMonths / 12) * PRE_GAME_G_PER_YEAR;
   const fam = RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
   const uModes = drawUModes(rng, h, false);
   const internal = simpleModel(h, `${id}-b1p0`, `${fam}-1`, -30, G, uModes, false);
@@ -196,26 +194,6 @@ export function addPosture(s: GameStateV2, lab: LabId, key: keyof SafetyPosture,
   const pd = (w.postureDelta[lab] ??= {});
   pd[key] = (pd[key] ?? 0) + d;
 }
-
-/** Model-frontier progress rate (v2's years of progress per year; × B_G_PER_Y for G per year): the recipe rate plus, in
- *  Stage 1, v2's compute term (1 − share) that new bases add (§3.1.3). RD-L02: no lead reader in rivals / theft /
- *  endings uses it (they read lagDays and frontierGPerYear); actions.ts still does until RD-L03 deletes it. */
-function modelRate(s: GameStateV2, pr: { rate: number; stage: number } | undefined): number {
-  return Math.max(0.05, (pr?.rate ?? 1) + (pr?.stage === 2 ? 0 : 1 - s.hidden.timeline.share));
-}
-
-/** Common pace for lead conversions: the player's current model-frontier rate (years of progress per year). */
-export const paceOf = (s: GameStateV2) => modelRate(s, s.player.prodCache);
-
-/** A lab's current model-frontier progress rate (years/year) from its production readout. */
-export function rateOf(s: GameStateV2, lab: LabId): number {
-  const c = lab === 'player' ? s.player : lab === 'china' ? s.china.lab.core : s.rivals.find((r) => r.core.id === lab)?.core;
-  return c?.prodCache ? modelRate(s, c.prodCache) : paceOf(s);
-}
-
-/** TRUE lead in days of lab `a` over lab `b` (positive = a ahead), from internal frontiers. Engine use only.
- *  RD-L02: the one lead clock, lagDays(b, a) (DD-10; no progress-year rate). Kept for the scripts; RD-L03 deletes it. */
-export const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b, a);
 
 /** The current leader among active labs (player included) by TRUE internal frontier. */
 export function leaderOf(s: GameStateV2): LabId {

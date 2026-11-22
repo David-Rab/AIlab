@@ -9,7 +9,7 @@ import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departmen
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbMonths } from '../actors/rivals';
 import { spareServing } from '../worldfx/revenue';
 import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
@@ -186,11 +186,14 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
 }
 
 /** RD-B20: days of progress the strongest distiller gains in a year from the player's live products (distillationLeak,
- *  the security system's daily leak: G per day → progress-days at B_G_PER_Y G per progress-year). */
+ *  the security system's daily leak: a year's G gained ÷ the distiller's own frontier-G slope, RD-L03). */
 export function distillDaysPerYear(s: GameStateV2): number {
-  let dG = 0;
-  for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) dG = Math.max(dG, distillationLeak(s, lab.core.id).dGPerDay);
-  return (dG * 365 * 365) / B_G_PER_Y;
+  let days = 0;
+  for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
+    const dG = distillationLeak(s, lab.core.id).dGPerDay * 365;
+    if (dG > 0) days = Math.max(days, (dG / frontierGPerYear(s, lab.core.id, PACE_WINDOW_DAYS)) * 365);
+  }
+  return days;
 }
 
 /** The distillation line of a change to the products: the change in rivals' yearly catch-up (lead days). */

@@ -2,12 +2,11 @@
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
 import { LEVEL_KNOTS, P19_RSCH_DG, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
-import { B_G_PER_Y, RL_BUDGET } from '../../../data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
-import { referenceRate } from '../world/calibration';
 import { rivalServeFpt } from '../actors/rivalModel';
 import type { BaseDesign, Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
 import { PLAYER_ID, bestG, labCore, otherLabs } from './labs';
@@ -202,9 +201,8 @@ export function frontierGAt(s: GameStateV2, lab: LabId, day: Day): number | unde
  *  - Follower a G value above the leader's frontier: −(gap ÷ the leader's frontier-G slope), i.e. how long until the
  *    leader gets there at its own recorded pace (frontierGPerYear).
  *  - History too short (the follower is below the leader's first sample, the first weeks of a game): the days since that
- *    sample plus the gap to it at the pre-game reference frontier rate, the rate every start gap was drawn at
- *    (rivals.ts initialRival, china.ts initialChina), i.e. the leader's true pre-history slope. RD-U04 / RD-U06 restate
- *    the start gaps in OOM and replace this rate with the start data's.
+ *    sample plus the gap to it at the stated pre-game pace PRE_GAME_G_PER_YEAR (OOM/yr), the rate the start gaps in
+ *    months are converted at (rivals.ts initialRival, core/init.ts), i.e. the leader's pre-history slope.
  *  - No record at all for the leader: the gap at the pre-game rate. Non-finite G: 0. */
 export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId): number {
   const gL = bestG(s, leader);
@@ -216,7 +214,7 @@ export function lagDays(s: GameStateV2, follower: LabId | number, leader: LabId)
   }
   if (!Number.isFinite(follower) || !Number.isFinite(gL)) return 0;
   if (follower <= gL) return daysSinceG(s, leader, follower, gL);
-  return -((follower - gL) / Math.max(0.05 * B_G_PER_Y, frontierGPerYear(s, leader))) * 365;
+  return -((follower - gL) / Math.max(0.06, frontierGPerYear(s, leader))) * 365;
 }
 
 /** A lab's recorded frontier G samples aligned to series.day (a lab first recorded after day 0 aligns at the end). */
@@ -230,7 +228,7 @@ function gSeries(s: GameStateV2, lab: LabId): { xs: number[]; days: Day[]; off: 
 function daysSinceG(s: GameStateV2, lab: LabId, g: number, gNow: number): number {
   const { xs, days, off } = gSeries(s, lab);
   const today = s.time.day;
-  const rate = Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y; // G a year: the pre-history slope
+  const rate = PRE_GAME_G_PER_YEAR; // G a year: the pre-history slope (RD-L03: the stated pre-game pace)
   if (!xs.length) return ((gNow - g) / rate) * 365;
   if (g < xs[0]) return Math.max(0, today - days[off]) + ((xs[0] - g) / rate) * 365;
   let pd = days[off];
@@ -254,8 +252,8 @@ export const PACE_WINDOW_DAYS = 182;
 
 /** A lab's pace (DD-10): the slope of its own recorded frontier G in OOM a year, over the last `windowDays` of its
  *  frontier line to today's best G (default: the whole recorded history). A window with under 28 days of history or no
- *  rise reads the whole history; with under 28 days of that (or no rise yet) it reads the pre-game reference frontier
- *  rate. Readers that need a rate ("days of its own progress", "G a release lag behind") use this with
+ *  rise reads the whole history; with under two series.G points (or no rise yet) it reads the stated pre-game pace
+ *  PRE_GAME_G_PER_YEAR (RD-L03: this replaces the old day-0 software-rate seed). Readers that need a rate ("days of its own progress", "G a release lag behind") use this with
  *  PACE_WINDOW_DAYS, never a progress-year pace. */
 export function frontierGPerYear(s: GameStateV2, lab: LabId, windowDays = Infinity): number {
   const { xs, days, off } = gSeries(s, lab);
@@ -268,21 +266,14 @@ export function frontierGPerYear(s: GameStateV2, lab: LabId, windowDays = Infini
   }
   const span = xs.length ? s.time.day - days[off] : 0;
   const rise = xs.length ? top - xs[0] : 0;
-  if (span >= 28 && rise > 0) return (rise / span) * 365;
-  return Math.max(0.05, preGameRate(s.hidden.timeline)) * B_G_PER_Y;
+  if (xs.length >= 2 && span > 0 && rise > 0) return (rise / span) * 365;
+  return PRE_GAME_G_PER_YEAR;
 }
 
 /** Days a lab's true frontier lags the player's best internal version (positive = player ahead): lagDays(other, player).
  *  Hidden; engine use only (intel, endings, events). */
 export function trueLeadDays(s: GameStateV2, other: LabId): number {
   return lagDays(s, other, PLAYER_ID);
-}
-/** The pre-game frontier rate (progress-years a year, the start gaps' unit): referenceRate at the start model and 2025.5. */
-const preRateMemo = new WeakMap<TimelineWorld, number>();
-function preGameRate(w: TimelineWorld): number {
-  let r = preRateMemo.get(w);
-  if (r === undefined) preRateMemo.set(w, (r = referenceRate(w, w.p0, 2025.5)));
-  return r;
 }
 
 // ───────────────────────────── milestones (§3.1.6) ─────────────────────────────

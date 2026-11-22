@@ -50,7 +50,7 @@ import {
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
-import { B_G_PER_Y, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -394,7 +394,7 @@ for (const d of [400, 900]) {
   const v = versionById(s, chat.versionId)!;
   const pi = mix.providers.findIndex((p) => p.key === 'player');
   const gap = freeTierOf(v.params ?? REFERENCE_BASE.params).gap;
-  check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - B_G_PER_Y) < 1e-9,
+  check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - PRE_GAME_G_PER_YEAR) < 1e-9,
     'A7 every lab\'s free tier is the student of its consumer model one year of frontier progress below it; users choose on it',
     `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
@@ -440,7 +440,7 @@ for (const d of [400, 900]) {
   // best among those it can buy from. (1) Σ R* = the providers per firm, so a firm's second contract goes to the next
   // lab however far ahead the first is (Ramp AI Index Oct 2026 [P]: 44.8% of businesses pay Anthropic, 40.6% OpenAI,
   // of 56.8% paying any: both leaders reach ≥ 0.7 of paying firms). (2) Real gaps still count: a lab 1.5 OOM behind
-  // (≈ 15 months at B_G_PER_Y) gets almost no contracts. (3) A lab few firms can reach (access 0.05) does not take the
+  // (≈ 15 months at PRE_GAME_G_PER_YEAR) gets almost no contracts. (3) A lab few firms can reach (access 0.05) does not take the
   // other firms' contracts (A8's min(acc, m·w ÷ Σw) gave every other lab ≈ 0 when it led by OOMs).
   const M = MULTI_HOMING.providers;
   const lwOf = (gaps: number[], brand: number[]) => gaps.map((g, i) => Math.log(brand[i]) - SHARE_SLOPE_G * g);

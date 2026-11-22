@@ -4,7 +4,7 @@
 import { clamp } from '../../rng';
 import { bestG, activeRivals } from '../models/labs';
 import { addRivalKnowledge, recipeOf } from './rivalModel';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { frontierGPerYear, PACE_WINDOW_DAYS } from '../models/capability';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
 import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, RivalLab, StructureSystem, SystemCtx } from '../types';
@@ -15,7 +15,7 @@ import {
   talent, trust, trustMany, type Preview,
 } from './fx';
 import { govPresetOf } from './gov';
-import { addPosture, archetypeOf, openAbsorbMonths, openWeightsReleased, ownProgressDays, paceOf, publishLeakG } from './rivals';
+import { addPosture, archetypeOf, openAbsorbMonths, openWeightsReleased, ownProgressDays, publishLeakG } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
 import { addKnowledge, playerRecipeG } from '../models/stacks';
@@ -62,9 +62,13 @@ const publishRecipients = (s: GameStateV2): RivalLab[] => {
   const own = playerRecipeG(s); // RD-B16: the same recipeG at RECIPE_F as recipeOf
   return [...activeRivals(s), s.china.lab].filter((r) => r.core.status === 'active' && recipeOf(s, r) < own);
 };
-/** C6's release: the G of the weights (`behind` × 0.3 of a year of the lead pace below the player's best) and the
- *  recipe each active rival takes in (0.3 × its model gap below them). */
-const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * paceOf(s) * B_G_PER_Y;
+/** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best,
+ *  RD-L03) and the recipe each active rival takes in (0.3 × its model gap below them). */
+const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
+/** C4's tacit knowledge (OOM into the pretraining stack): v2's 5 progress-days × 1.2 OOM a progress-year (RD-L03). */
+const C4_TACIT_OOM = 0.0164;
+/** E1's leak to China (OOM of recipe): v2's 1 progress-day × 1.2 OOM a progress-year (RD-L03). */
+const E1_LEAK_OOM = 0.0033;
 const openRivalLeaks = (s: GameStateV2, G: number) => activeRivals(s).map((r) => ({ r, dG: 0.3 * Math.max(0, G - bestG(s, r.core.id)) })).filter((x) => x.dG > 0);
 /** The most days of its own progress any of `leaks` gives its lab (the preview's lead line). */
 const maxOwnDays = (s: GameStateV2, leaks: { r: RivalLab; dG: number }[]) => Math.round(Math.max(0, ...leaks.map((x) => ownProgressDays(s, x.r.core.id, x.dG))));
@@ -340,8 +344,8 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
-      // Model v3 V2: tacit knowledge (5 days of the lead pace, OOM) enters the pretraining stack as public ideas.
-      addKnowledge(s, ctx, (5 / 365) * paceOf(s) * B_G_PER_Y, 'C4 tacit knowledge', r.core.name);
+      // Model v3 V2: tacit knowledge (C4_TACIT_OOM) enters the pretraining stack as public ideas.
+      addKnowledge(s, ctx, C4_TACIT_OOM, 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
@@ -406,7 +410,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       trust(s, ctx, 'china', 5, 'E1 Track-2 dialogue');
       grantAccess(s, 'china', 1);
       bloc(s, ctx, 'hawks', -3, 0, 'E1');
-      addRivalKnowledge(s.china.lab, (1 / 365) * paceOf(s) * B_G_PER_Y);
+      addRivalKnowledge(s.china.lab, E1_LEAK_OOM);
     },
   }),
   def({

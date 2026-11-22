@@ -53,7 +53,7 @@ export const P15_OVERSIGHT = { aiCostRatio: 4 / 150, criticGain: 0.5 } as const;
  * P23 faithful-CoT architecture (research/12 #23: "keep reasoning legible by construction, accepting a capability tax";
  * option "faithful": monitorability high, −0.3 G).
  * - `dOom`: effective compute of a post run with the faithful option, OOM: −0.29 [D: research/12's −0.3 G as v2's −0.24
- *   y at the reference 1.2 OOM/yr, B_G_PER_Y].
+ *   y at the reference 1.2 OOM/yr, PRE_GAME_G_PER_YEAR].
  * - `fptMult`: serving FLOP per token × 1.2 (the version's serving cost relative to its base, which sets ModelVersion.fpt
  *   and so AI labour, eval and product costs) [D, v2's serve ×1.2: legible reasoning spends more tokens per task].
  * - `monitorability`: 0.98 (visible 0.9) [D, v2].

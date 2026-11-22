@@ -13,7 +13,7 @@ import { PHYS_PLACEHOLDER, goalpostsQ, rivalFinanceQ, simpleModel } from './riva
 import { lagDays } from '../models/capability';
 import { initRivalPhys } from './rivalModel';
 import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { CHINA_CAL } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
@@ -52,7 +52,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
       phys: PHYS_PLACEHOLDER(),
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
       visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
-      intel: { leadDaysEst: Math.round((chinaGapOom / B_G_PER_Y) * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
+      intel: { leadDaysEst: Math.round((chinaGapOom / PRE_GAME_G_PER_YEAR) * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
       meters: { poachAggression: 20, cooperation: 10, lobbyStance: 0, openness: 85 },
       pressure: 0,
       pressureDays: 0,

@@ -7,12 +7,11 @@ import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { COGNITIVE, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../src/data/v2/runDesign';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { domainRefShift, gOfBuild, gV0, levelOfG } from '../../src/engine/v2/models/capability';
-import { B_G_PER_Y } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import {
   REF_RL_PROFILE, continueGPre, distillGap, effectiveTokens, fData, fOver, flopOfDesign, rlCeiling, rlFamiliesAvailable, rlGains, rlWeights, trainFlop,
 } from '../../src/engine/v2/models/effective';
 import { planRun } from '../../src/engine/v2/models/runs';
-import { referenceRate } from '../../src/engine/v2/world/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import type { GameStateV2 } from '../../src/engine/v2/types';
 import { check, finish, runTo } from './lib';
@@ -83,7 +82,7 @@ const v0Off = Object.fromEntries(DOMAIN_IDS.map((d) => [d, V0.domains[d] - Math.
 check(Object.values(v0Off).every((x) => Math.abs(x) < 0.25), 'start: the reference recipe reproduces the reference-point domain profile (|L_d − λ(G − shift_d)| < 0.25 L, RD-U05)', JSON.stringify(Object.fromEntries(Object.entries(v0Off).map(([k, v]) => [k, +v.toFixed(2)]))));
 for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
   const t = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
-  const want = gV0(t.hidden.timeline) - (START_BY_ID[start].lagMonths / 12) * referenceRate(t.hidden.timeline, t.hidden.timeline.p0, 2025.5) * B_G_PER_Y;
+  const want = gV0(t.hidden.timeline) - (START_BY_ID[start].lagMonths / 12) * PRE_GAME_G_PER_YEAR;
   check(near(t.player.models.versions[0].G, want, 1e-6), `start: ${start} V0 lags by its start lag (G ${want.toFixed(3)})`, t.player.models.versions[0].G.toFixed(4));
 }
 

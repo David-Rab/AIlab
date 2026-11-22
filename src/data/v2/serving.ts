@@ -176,7 +176,7 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
 
 /** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
  *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
- *  (B_G_PER_Y OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
+ *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
  *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). The player's Chat runs its mini instead when the player sets one.
  *  Free tiers in mid-2025 ran a generation below the paid frontier: ChatGPT's free users on GPT-4o (a May 2024 model)
  *  with a GPT-4.1 mini fallback at the limits, paid users on o3 [P/R: ChatGPT release notes, 14 May 2025 (help.openai.com,

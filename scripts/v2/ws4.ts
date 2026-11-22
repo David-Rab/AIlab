@@ -16,7 +16,7 @@ import { RIVAL_NAMES_V2 } from '../../src/data/v2/names';
 import { TRAIT_IDS, TRAIT_START } from '../../src/data/v2/traits';
 import { chinaGapFormulaMonths } from '../../src/engine/v2/actors/china';
 import { updateIntel, leadDays } from '../../src/engine/v2/actors/intel';
-import { deactivateRival, leadBetween } from '../../src/engine/v2/actors/rivals';
+import { deactivateRival } from '../../src/engine/v2/actors/rivals';
 import { request, ws4 } from '../../src/engine/v2/actors/state';
 import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
 import { deployGate } from '../../src/engine/v2/models/deployments';
@@ -30,10 +30,12 @@ import { STORYTELLERS } from '../../src/engine/v2/events/director';
 import { bestG, internalVersion } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
-import { gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
+import { gOfLevel, lagDays, levelOfG } from '../../src/engine/v2/models/capability';
+/** Lead of lab a over lab b in days (the lead clock; RD-L03 deleted the engine alias). */
+const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b, a);
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
-import { B_G_PER_Y } from '../../src/data/v2/runDesign';
-import type { EndingId, EngineSystem, GameStateV2, StorytellerId, TraitVector } from '../../src/engine/v2/types';
+import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
+import type { EndingId, EngineSystem, GameStateV2, LabId, StorytellerId, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
@@ -130,7 +132,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const r = s.rivals.find((x) => x.core.status === 'active')!;
   const v = internalVersion(s)!;
   // Add an internal-only version far ahead of every public deployment.
-  const boost = 0.5 * B_G_PER_Y;
+  const boost = 0.5 * PRE_GAME_G_PER_YEAR;
   const v2 = { ...JSON.parse(JSON.stringify(v)), id: 'VX', name: 'Atlas-X', status: 'ready', G: v.G + boost, Lg: levelOfG(s.hidden.timeline, v.G + boost) };
   const truthBefore = leadBetween(s, 'player', r.core.id);
   for (let i = 0; i < 12; i++) updateIntel(s, ctx, r);
@@ -151,12 +153,12 @@ const load = (i: number) => deserialize(fixtures[i]);
     const w = t.hidden.timeline;
     const base = bestG(t, 'player');
     t.series.L[rr.core.id] = t.series.L.player.map((x) => x + 0.5);
-    t.series.G[rr.core.id] = t.series.G.player.map((x) => x + 0.3 * B_G_PER_Y); // RD-L01: the lead clock reads series.G
-    rr.internal = { ...rr.internal, G: base + 0.3 * B_G_PER_Y, Lg: levelOfG(w, base + 0.3 * B_G_PER_Y) };
+    t.series.G[rr.core.id] = t.series.G.player.map((x) => x + 0.3 * PRE_GAME_G_PER_YEAR); // RD-L01: the lead clock reads series.G
+    rr.internal = { ...rr.internal, G: base + 0.3 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.3 * PRE_GAME_G_PER_YEAR) };
     rr.publicModel = undefined;
     const behind = leadBetween(t, 'player', rr.core.id);
     const deployed = JSON.stringify(t.player.deployments);
-    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', G: base + 0.5 * B_G_PER_Y, Lg: levelOfG(w, base + 0.5 * B_G_PER_Y) });
+    t.player.models.versions.push({ ...JSON.parse(JSON.stringify(internalVersion(t)!)), id: 'VY', name: 'Atlas-Y', status: 'ready', G: base + 0.5 * PRE_GAME_G_PER_YEAR, Lg: levelOfG(w, base + 0.5 * PRE_GAME_G_PER_YEAR) });
     const ahead = leadBetween(t, 'player', rr.core.id);
     check(behind < -30 && ahead > 0 && JSON.stringify(t.player.deployments) === deployed, 'E3 true lead follows the internal frontier (an internal-only version turns a rival lead around)', `${behind.toFixed(0)} → ${ahead.toFixed(0)} d; a leader's instant jump alone ${truthBefore.toFixed(0)} → ${truthAfter.toFixed(0)} d (time-lag metric)`);
   }

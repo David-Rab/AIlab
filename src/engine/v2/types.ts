@@ -804,7 +804,7 @@ export interface ResearchState {
   hist: { day: Day; g: number; n: number }[];
   /** Software progress (OOM/day, 14-day average): the daily change of the lab's research recipe G (stacks.ts researchG:
    *  adopted ideas and tuning, no public knowledge) with F held at the earlier day's base (RD-B16; models/research.ts
-   *  capResearchDay). Read by the Research view and production.ts `rate` (pace, C4). gLast = researchG at gLastF, the
+   *  capResearchDay). Read by the Research view and the Limits diffusion line. gLast = researchG at gLastF, the
    *  latest base FLOP on the last research day (gLastF absent in older saves: their gLast is skipped once). */
   gRate?: number;
   gLast?: number;
@@ -830,7 +830,6 @@ export interface ResearchState {
 
 export interface ProductionReadout {
   M: number; // AI R&D multiplier
-  rate: number; // dpa/dt (years per year)
   stage: 1 | 2;
   parts: { agents: number; taste: number; other: number }; // multiply to M
   elast: { exp: number; humans: number; agents: number; taste: number };

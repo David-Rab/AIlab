@@ -17,7 +17,7 @@ import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
-import { B_G_PER_Y, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { CHINA_CAL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
@@ -242,7 +242,7 @@ for (const setup of setups) {
     const v = s.player.models.versions[0];
     check(v.G < ref && (def.imported ? v.variant === 'imported' && s.player.models.runs.length === 0 : v.variant === 'full'), `${tag}: start model lags the reference (${def.lagMonths} mo)${def.imported ? ', imported (D6)' : ''}`, `G ${v.G.toFixed(3)} < ${ref.toFixed(3)}`);
   }
-  const leads = s.rivals.map((r) => Math.round(((gV0(s.hidden.timeline) - r.internal.G) / (1.25 * B_G_PER_Y)) * 12 * 10) / 10);
+  const leads = s.rivals.map((r) => Math.round(((gV0(s.hidden.timeline) - r.internal.G) / (1.25 * PRE_GAME_G_PER_YEAR)) * 12 * 10) / 10);
   // v1 archetype gap ranges (≤ 1.1 y); the tighter 3–9 month target is WS4's acceptance test T4.
   check(leads.every((m) => m >= 0 && m <= 13.5), `${tag}: rival gaps within v1 ranges (months)`, leads.join(', '));
   if (setup.leaderLab) leaderChecks(s, setup, tag);

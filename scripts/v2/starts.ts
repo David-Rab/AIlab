@@ -11,7 +11,7 @@
 // (before day 0: extrapolated at the leader's start rate). Also reports each start's ending mix: non-leader starts
 // should be hard but winnable (some wins; "overtaken" a common loss, not the only outcome).
 import { START_BY_ID } from '../../src/data/v2/starts';
-import { B_G_PER_Y } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { mixedBot } from '../../src/engine/v2/bots/mixed';
 import { raceBot } from '../../src/engine/v2/bots/race';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -38,7 +38,7 @@ function play(start: StartType, botName: string, seed: number): Game {
   const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'sampled' : 'ai2027', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID)!;
   const lPm: number[] = [L.internal.G];
-  const rate0 = ((L.core.prodCache?.rate ?? 1) + (1 - s.hidden.timeline.share)) * B_G_PER_Y; // G a year
+  const rate0 = PRE_GAME_G_PER_YEAR; // G a year: the stated pre-game pace (RD-L03)
   // Months behind at day d for a model at G x: d − (first day the leader reached x).
   const lagAt = (x: number, d: number) => {
     if (x >= lPm[d]) return 0;

@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { leadBetween, openAbsorbMonths, ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
+import { openAbsorbMonths, ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { frontierGAt, frontierGPerYear, gOfLevel, lagDays, PACE_WINDOW_DAYS } from '../../src/engine/v2/models/capability';
@@ -47,8 +47,8 @@ check(near(frontierGAt(s, Q, 100)!, qAt(100), 1e-9) && frontierGAt(s, Q, -1) ===
 // 2. Windowed pace: R's slope over the last PACE_WINDOW_DAYS is its recent 1.0 OOM/yr, the whole history is slower.
 const rWin = frontierGPerYear(s, R, PACE_WINDOW_DAYS);
 check(near(rWin, 1.0, 1e-6) && frontierGPerYear(s, R) < 0.7, 'frontierGPerYear over the window = the recent slope', `${rWin.toFixed(4)} vs whole ${frontierGPerYear(s, R).toFixed(4)}`);
-// 3. Rival-vs-rival lead is the lead clock (no rate conversion): leadBetween(a, b) = lagDays(b, a).
-check(leadBetween(s, R, Q) === lagDays(s, Q, R) && leadBetween(s, 'player', R) === lagDays(s, R, 'player'), 'leadBetween = lagDays (rival vs rival and vs player)');
+// 3. Rival-vs-rival lead is the lead clock (no rate conversion; RD-L03 deleted the leadBetween alias).
+check(lagDays(s, Q, R) === -lagDays(s, R, Q), 'lead clock antisymmetric (rival vs rival)');
 // 4. Recipe-leak previews: days of the recipient's own slope; leak sizes from the player's own slope.
 const pW = frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
 check(near(ownProgressDays(s, Q, 0.05), (0.05 * 365) / 0.5, 1e-6) && near(publishLeakG(s), (9 / 365) * pW * 0.3) && near(poachLeakG(s), 0.1 * pW), 'ownProgressDays / publishLeakG / poachLeakG on frontier-G slopes', `${ownProgressDays(s, Q, 0.05).toFixed(2)} d`);
@@ -66,7 +66,7 @@ if (s.china.lab.core.status === 'active') {
   check(near(s.china.lab.internal.G, qAt(340), 1e-6), 'stolen copy = the victim’s frontier line 60 d ago', `${s.china.lab.internal.G.toFixed(4)} vs ${qAt(340).toFixed(4)}`);
 } else check(false, 'China active for the theft check');
 
-// 8. Source: no progress-year lead reader left in the RD-L02 files (rivals.ts keeps only the definitions RD-L03 deletes).
+// 8. Source: no progress-year lead reader left in the RD-L02 files or rivals.ts.
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '../../src/engine/v2');
 const src = (p: string) => readFileSync(join(root, p), 'utf8');
 const pat = /leadBetween|paceOf|modelRate|rateOf/;
@@ -74,6 +74,6 @@ const files = ['security/theft.ts', ...readdirSync(join(root, 'endings')).filter
 const bad = files.filter((f) => pat.test(src(f)));
 check(!bad.length, 'theft.ts and endings/*.ts read no leadBetween / paceOf / modelRate / rateOf', bad.join(', '));
 const rv = src('actors/rivals.ts').split('\n').filter((l) => pat.test(l) && !/^\s*(\/\/|\*|\/\*\*)/.test(l));
-const defs = rv.every((l) => /function modelRate|const paceOf =|function rateOf|return c\?\.prodCache \? modelRate|const leadBetween = .*lagDays\(s, b, a\)/.test(l));
-check(defs, 'rivals.ts: only the definitions remain (leadBetween = lagDays)', rv.join(' | '));
+const defs = rv.length === 0;
+check(defs, 'rivals.ts: no progress-year pace or leadBetween left (RD-L03)', rv.join(' | '));
 finish('leadreaders');

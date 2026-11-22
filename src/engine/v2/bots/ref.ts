@@ -532,7 +532,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
 }
 
 /** F5: the lead (OOM of consumer-chat fit) RefBot's public release keeps over the best rival or Chinese public model
- *  [D]: 0.3 OOM ≈ 3 months of the reference frontier's progress (B_G_PER_Y 1.2 OOM/yr). It ships no more than that:
+ *  [D]: 0.3 OOM ≈ 3 months of the reference frontier's progress (PRE_GAME_G_PER_YEAR 1.2 OOM/yr). It ships no more than that:
  *  a released model leaks to distillers in proportion to its G above theirs (models/deployments.ts distillationLeak)
  *  and a bigger model costs more serving. */
 export const RELEASE_LEAD = 0.3;

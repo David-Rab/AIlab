@@ -5,7 +5,7 @@ import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { B_G_PER_Y, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -44,7 +44,6 @@ import { portfolioU, startPortfolio } from '../production/data';
 import { startExpertAssets, startSuites } from '../models/suites';
 import { initialSafetyDept } from '../safety/agendas';
 import { initialSecurity } from '../security/security';
-import { referenceRate } from '../world/calibration';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks } from '../worldfx/mix';
@@ -140,17 +139,18 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const def = START_BY_ID[start];
   const leader = start === 'leader';
   // §3.1.4 initial state: B0 finished day −120, V0 day −20 (data/v2/calibration.ts START_STATE, RD-U06).
-  const lagY = leader ? 0 : (def.lagMonths / 12) * referenceRate(w, w.p0, 2025.5);
+  // A follower's start lag in OOM of G: its months behind at the stated pre-game pace (RD-L03).
+  const lagG = leader ? 0 : (def.lagMonths / 12) * PRE_GAME_G_PER_YEAR;
   const dataPortfolio = startPortfolio(); // model v3 D1: U = 270T public crawl + 30T licensed + 0.5 × 20T synthetic = 310T
   // Model v3 D5: the start suites' expert data (one asset per start RL family) replaces D1's empty expert placeholder.
   dataPortfolio.assets = [...dataPortfolio.assets.filter((a) => a.kind !== 'expert'), ...startExpertAssets()];
   const uniqueT = portfolioU(dataPortfolio);
-  // A follower's start model lags by lagY progress-years (BUILD-PLAN R9). Its base is the same physical run; the lag is
-  // a recipe lag (startLab: the pretraining and the RL recipe), solved so that G(V0) = G(V0 of the leader) − lagY·B.
-  const gWant = gV0(w) - lagY * B_G_PER_Y;
+  // A follower's start model lags by lagG (BUILD-PLAN R9). Its base is the same physical run; the lag is a recipe lag
+  // (startLab: the pretraining and the RL recipe), solved so that G(V0) = G(V0 of the leader) − lagG.
+  const gWant = gV0(w) - lagG;
   const sm = startModels(w, gWant, uniqueT);
   const k = sm.lag;
-  const G0 = lagY ? gWant : sm.G;
+  const G0 = lagG ? gWant : sm.G;
   const build = sm.build;
   const roster = startTeams(setup.baseline, start);
   const staff = staffOf(roster.teams);
