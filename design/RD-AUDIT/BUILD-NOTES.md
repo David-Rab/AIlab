@@ -221,3 +221,34 @@ Research-engineer allocation (SYNTHESIS B11; INP-02, INP-V01). Commits ba0776b (
   moves. This is the fix working (DD-12: "research gets slightly faster (refit)"). For the lead: refit authors2026's
   post-SAR pace (the preset's G_SC / CAL_SHIFT-type values, not named here), or accept and restate; TUNE_RE_PER_OOM is
   [D] and also sets tuning's FLOP share (∝ √K at equilibrium), but tuning it to the dates would be a forcing refit.
+
+### RD-B09
+
+One owner for run operations (SYNTHESIS B12; CAP-23, CAP-V1, INP-17; DD-11 sub-call). Commit 0531318.
+- **Engineers:** the 'runs' need is run setups, research adoptions and eval harness work (`engDemand.runs = 7 ×` queued
+  stack work). Removed: the run / stream upkeep lines, `runOpsTW`, `isRunLine`, `UPKEEP.runBase / runMid / runSmall /
+  stream`, `upkeepSplit().runs` (selectors re-exports too). buildRates / buildSystem no longer subtract run ops.
+- **Research engineers:** `opsServed(alloc)` (research.ts) = re.ops ÷ demand.ops (1 with no need, 1e-3 rounding), stored
+  as `research.last.opsServed` (new optional readout field; no schema bump: absent → 1). The research system (35) writes
+  it before runs (40): `run.flopDone += share × rate × opsServed`; runEtaDays uses the same factor. [D] The stream's
+  tracking rate (advanceStream) is × opsServed too (its RE_OPS.stream is part of the ops need). [D] A slowed run keeps
+  its pool share (the compute sits idle: lost goodput), so it does not flow to experiments.
+- **Kept [D]:** RE_OPS sizes (base 1, mid 0.5, small 0.2, stream 0.5 team-eq ÷ m_EXP). The engineers' version scaled a
+  base with √(FLOP ÷ 1e27); that size scaling is gone, not moved. Open: give RE_OPS.base the √ scale if run size should
+  cost operators (it would grow late-game ops 3–10×, mostly cancelled by m_EXP).
+- **Readouts / copy:** runStall says "slowed to N%: too few research engineers on run operations" (Models run row,
+  Blueprint gantt); Work › research engineers' ops tooltip adds "Runs train at N%"; ops' term → `runOps`, engineers'
+  runs need → "Setups & adoptions" / ENG_NEED_LABEL "Run setups, research adoptions, eval harness"; BuildLoad drops the
+  runs segment and run lines (footer points to research engineers); glossary runOps / reNeeds / engNeeds / buildQueue
+  rewritten; GLOSSARY.md regenerated.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb09/probe.mts`, RefBot seed 2027, days 60–800): opsServed = 1 at every checkpoint
+  in ai2027, authors2026, fast. The engineers' removed run load was 0–3.2 t-wk/wk; on authors2026 / fast early (cap
+  4.4–4.9, util 0.90–0.98) that is about a fifth of capacity now free for product upkeep and builds.
+- **Tests:** research full 36/36 (+3: engineers' runs need = queued stack work, no run / stream upkeep line; with half
+  the ops need served a run trains ×0.5000 a day and says "slowed"; RefBot's ops served 1 on all 185 run-days to day
+  240, ai2027). tsc main + scripts clean. No other tier run (RD test rule).
+- **Moves calibration: maybe.** Capability dates: probably not, since RefBot's research engineers serve run ops in full
+  (no run slows) and setups were already first in the engineers' order. Finance / products: maybe, in the tight worlds
+  (authors2026, fast) where engineers ran at 90–98% and about 1 t-wk/wk of run ops now goes to product upkeep and
+  launches / features, so revenue and anything downstream of shipping can shift. Fixture hashes change (new readout
+  field and engineer allocation). test:cal and the finance tier should be re-reported at the merge.
