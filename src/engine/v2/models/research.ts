@@ -49,7 +49,7 @@ import { adopted, PARADIGM_BY_ID } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
-import { addIdea, headroomTotal, latestBaseFlop, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } from './stacks';
+import { addIdea, headroomTotal, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, tuneDay, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -745,6 +745,25 @@ export function capProgress(st: CapProjectState | undefined): number {
   return st.stage === 'small' ? 0.33 + 0.33 * tp : 0.66 + 0.34 * tp;
 }
 
+/** The research readouts' daily step (RD-B16), on every research day after the projects and tuning.
+ *  Software progress (gRate, OOM/day, a 14-day average): the Research view's OOM/year and the input of production.ts
+ *  `rate` (until RD-L03): the change since the last research day of the lab's research recipe G (stacks.ts researchG:
+ *  no public knowledge), both ends at the last day's base FLOP, so a new, bigger base does not count; adopted ideas
+ *  (engineers' build system, 38) and tuning do. Public knowledge (pubRate, OOM/day, a 14-day average): the change of the
+ *  stacks' bases since the last research day (diffusion, C4 tacit knowledge, safety spillover). */
+export function softwareProgressDay(s: GameStateV2) {
+  const res = s.player.research;
+  if (res.gLast !== undefined && res.gLastF !== undefined) { // an older save's gLast was the whole G: restart there
+    const d = researchG(s, res.gLastF) - res.gLast;
+    res.gRate = (res.gRate ?? 0) + (Math.max(0, d) - (res.gRate ?? 0)) / 14;
+  }
+  res.gLastF = latestBaseFlop(s);
+  res.gLast = researchG(s, res.gLastF);
+  const pub = publicBase(s);
+  if (res.pubLast !== undefined) res.pubRate = (res.pubRate ?? 0) + (pub - res.pubLast - (res.pubRate ?? 0)) / 14;
+  res.pubLast = pub;
+}
+
 /** One day of capability research: assignment, research engineers, every ready project's lifecycle, routine tuning,
  *  the readouts. `ready` = capability projects in priority order that can take teams today. */
 export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], queueBuild: (id: string, tw: number) => string, p13Payoff = 0) {
@@ -780,10 +799,8 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     tuneDay(s, TUNE_K * tune * Xt);
     used += sh.tune;
   }
-  // Software progress readout (OOM/day of the stacks' G-equivalent, a 14-day average): the Research view's OOM/year and the input of production.ts `rate` (until RD-L03).
+  softwareProgressDay(s);
   const g = stacksGEquiv(s);
-  if (p.research.gLast !== undefined) p.research.gRate = (p.research.gRate ?? 0) + (Math.max(0, g - p.research.gLast) - (p.research.gRate ?? 0)) / 14;
-  p.research.gLast = g;
   p.research.last = {
     re: { ops: r3(alloc.re.ops), evals: r3(alloc.re.evals), exp: r3(alloc.re.exp), tune: r3(alloc.re.tune) },
     opsServed: opsServed(alloc),

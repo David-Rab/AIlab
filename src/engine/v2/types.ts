@@ -766,10 +766,17 @@ export interface ResearchState {
   adopted: AdoptedIdea[];
   /** Weekly samples of the stacks' G-equivalent total (OOM over the start) and ideas adopted (the recent rate). */
   hist: { day: Day; g: number; n: number }[];
-  /** Model v3 V3: yesterday's G-equivalent of the stacks and its daily growth (OOM/day, 14-day average): the research
-   *  readout's software rate. */
-  gLast?: number;
+  /** Software progress (OOM/day, 14-day average): the daily change of the lab's research recipe G (stacks.ts researchG:
+   *  adopted ideas and tuning, no public knowledge) with F held at the earlier day's base (RD-B16; models/research.ts
+   *  capResearchDay). Read by the Research view and production.ts `rate` (pace, C4). gLast = researchG at gLastF, the
+   *  latest base FLOP on the last research day (gLastF absent in older saves: their gLast is skipped once). */
   gRate?: number;
+  gLast?: number;
+  gLastF?: number;
+  /** RD-B16: the stacks' public knowledge (Σ bases) at the last research day, and its daily inflow (OOM/day, 14-day
+   *  average: diffusion, C4 tacit knowledge, safety spillover). A readout only; absent in older saves (→ 0). */
+  pubLast?: number;
+  pubRate?: number;
   /** Readout of the last day: research engineers per need and per project (team-equivalents), experiment FLOP per
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {

@@ -5,7 +5,7 @@
 //   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
 //   down their needs; RD-B08: tuning wants research engineers ∝ headroom, after every project in experiments, and
 //   experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
-//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas and tuning at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 // Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -17,9 +17,14 @@ import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST
 import { TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import {
   allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
-  planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs,
+  planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
-import { addIdea, headroomAt, headroomTotal, initialStacks, stackAt, tuneDay } from '../../src/engine/v2/models/stacks';
+import {
+  addIdea, addKnowledge, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
+} from '../../src/engine/v2/models/stacks';
+import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
+import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
+import { softwareRate } from '../../src/engine/v2/models/researchView';
 import { serialize, deserialize } from '../../src/engine/v2/core/save';
 import { syncTeams } from '../../src/engine/v2/departments/teams';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
@@ -368,6 +373,91 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     return false;
   });
   check(days > 30 && worst === 1, "RD-B09: RefBot's runs are fully operated (research engineers serve the ops need every day a run trains)", `${days} run-days to day 240, worst served ${worst}`);
+}
+
+// ---------- RD-B16: one recipe currency; Software progress counts only the lab's own research ----------
+{
+  // A RefBot lab at day 300 (adopted ideas, scale-dependent pretraining buckets, more than one base).
+  const s = runRef(mk(2027), 300);
+  const clone = (x: GameStateV2) => deserialize(serialize(x));
+  const res = s.player.research;
+  const bases = s.player.models.bases;
+  const scaled = res.stacks.pre.buckets.some((b) => Math.abs(b.s) > 1e-9 && Math.abs(b.a) > 1e-9);
+  check(bases.length > 0 && scaled && res.gLast !== undefined && res.gLastF === latestBaseFlop(s), 'fixture: the RD-B16 lab has a base, scale-dependent pretraining ideas and a research readout', `${bases.length} bases, scaled ${scaled}`);
+
+  // Reference: one more research readout with nothing new.
+  const ref = clone(s);
+  softwareProgressDay(ref);
+  const rate = (x: GameStateV2) => x.player.research.gRate ?? 0;
+  // A new, 30× bigger base: the stacks' G at the latest base jumps, Software progress does not move.
+  const big = clone(s);
+  const last = big.player.models.bases[big.player.models.bases.length - 1];
+  big.player.models.bases.push({ ...last, id: `${last.id}-rdb16`, flop: last.flop * 30 });
+  const jump = stacksGEquiv(big) - stacksGEquiv(s);
+  softwareProgressDay(big);
+  check(Math.abs(jump) > 1e-3 && Math.abs(rate(big) - rate(ref)) < 1e-12 && big.player.research.gLastF === last.flop * 30,
+    'RD-B16: a new, bigger base does not move Software progress (the recipe G at the latest base jumps; the rate holds F fixed)',
+    `G at latest base ${jump >= 0 ? '+' : ''}${jump.toFixed(4)} OOM; rate ${(365 * rate(ref)).toFixed(4)} → ${(365 * rate(big)).toFixed(4)} OOM/yr`);
+  // A diffusion inflow: public knowledge, its own readout, not Software progress.
+  const dif = clone(s);
+  const dG = 0.05;
+  addKnowledge(dif, undefined, dG, 'knowledge diffusion', 'test');
+  softwareProgressDay(dif);
+  const dPub = (dif.player.research.pubRate ?? 0) - (ref.player.research.pubRate ?? 0);
+  check(Math.abs(rate(dif) - rate(ref)) < 1e-12 && Math.abs(dPub - dG / 14) < 1e-12 && softwareRate(dif).publicPerYear > softwareRate(ref).publicPerYear,
+    'RD-B16: a diffusion inflow does not move Software progress; it shows as public knowledge (its own 14-day average)',
+    `rate ${(365 * rate(dif)).toFixed(4)} OOM/yr (unchanged); public +${(365 * dPub).toFixed(3)} OOM/yr`);
+  // An adopted idea does count: x × (1 − HEADROOM) enters the day's change.
+  const ad = clone(s);
+  const x = 0.02;
+  addIdea(ad.player.research.stacks.pre, x, 0, latestBaseFlop(ad));
+  softwareProgressDay(ad);
+  const dRate = rate(ad) - rate(ref);
+  check(Math.abs(dRate - (x * (1 - HEADROOM)) / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its effect less headroom (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
+
+  // Theft and A4 compare at one F on the same parts: a player recipe equal to China's has no gap, whatever its base or
+  // training-throughput stack; a bigger base leaves the secrets-leak gap unchanged.
+  const eq = clone(s);
+  const cn = eq.china.lab.phys.rec;
+  const st = eq.player.research.stacks;
+  for (const [k, v] of [['pre', cn.pre], ['rlMid', cn.mid], ['rlCeil', cn.ceil], ['train', 0.3]] as const) st[k] = { base: v, buckets: [], n: 0 };
+  const eqLast = eq.player.models.bases[eq.player.models.bases.length - 1];
+  eq.player.models.bases.push({ ...eqLast, id: `${eqLast.id}-rdb16`, flop: eqLast.flop * 30 });
+  const gapEq = playerRecipeG(eq) - recipeOf(eq, eq.china.lab);
+  // A China 1 OOM behind (so there is a gap to leak) and spies at work, with and without the bigger base.
+  const leaky = (x: GameStateV2) => {
+    const y = clone(x);
+    y.china.lab.phys.rec.pre -= 1;
+    y.player.security.spies = Math.max(1, y.player.security.spies);
+    y.player.security.ssl = Math.min(2, y.player.security.ssl);
+    return secretsLeakDaily(y);
+  };
+  const leakRef = leaky(s);
+  const leakBig = leaky(big);
+  check(Math.abs(gapEq) < 1e-12 && playerRecipeG(s) === recipeG(playerRecipe(s, RECIPE_F), RECIPE_F) && recipeOf(s, s.china.lab) === recipeG(s.china.lab.phys.rec, RECIPE_F) && leakRef > 0 && leakBig === leakRef,
+    'RD-B16: theft and leaks compare recipes in one unit (recipeG at RECIPE_F, same parts): equal recipes have no gap, and a bigger base leaves the leak unchanged',
+    `gap at equal recipes ${gapEq.toExponential(1)}; leak ${leakRef.toExponential(3)} → ${leakBig.toExponential(3)} OOM/day; player ${playerRecipeG(s).toFixed(3)} vs China ${recipeOf(s, s.china.lab).toFixed(3)} OOM`);
+
+  // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
+  // change of the stacks' G at the latest base) reads far faster.
+  const ch = newGame(defaultSetupV2({ world: 'ai2027', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
+  let pubMax = 0;
+  let pubSum = 0;
+  let pub0 = publicBase(ch);
+  let gl: number | undefined;
+  let old = ch.player.research.gRate ?? 0;
+  runRef(ch, 200, (g) => {
+    pubMax = Math.max(pubMax, g.player.research.pubRate ?? 0);
+    pubSum += publicBase(g) - pub0;
+    pub0 = publicBase(g);
+    const x = stacksGEquiv(g);
+    if (gl !== undefined) old += (Math.max(0, x - gl) - old) / 14;
+    gl = x;
+    return false;
+  });
+  check(pubMax > 0 && pubSum > 0.05 && rate(ch) < 0.5 * old,
+    'RD-B16: a challenger receives diffusion as public knowledge (its own readout), not as Software progress',
+    `public knowledge to day 200 +${pubSum.toFixed(3)} OOM (peak ${(365 * pubMax).toFixed(2)} OOM/yr); Software progress ${(365 * rate(ch)).toFixed(2)} OOM/yr, old measure ${(365 * old).toFixed(2)}`);
 }
 
 // ---------- a stage without FLOP waits ----------

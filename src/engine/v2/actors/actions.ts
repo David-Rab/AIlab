@@ -18,7 +18,7 @@ import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openWeightsReleased, paceOf } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
-import { addKnowledge, stacksGEquiv } from '../models/stacks';
+import { addKnowledge, playerRecipeG } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
 
@@ -111,7 +111,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const w = ws4(s);
       // Recipe leak (OOM; 9 days of the lead pace × 0.3): compares recipe with recipe, not with model capability.
       const leak = (9 / 365) * paceOf(s) * B_G_PER_Y * 0.3;
-      const own = stacksGEquiv(s);
+      const own = playerRecipeG(s); // RD-B16: the same recipeG at RECIPE_F as recipeOf
       for (const r of [...activeRivals(s), s.china.lab]) if (r.core.status === 'active' && recipeOf(s, r) < own) addRivalKnowledge(r, leak);
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);

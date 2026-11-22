@@ -25,13 +25,13 @@
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID } from '../../../data/v2/tree';
-import { B_G_PER_Y, E_START, FLOP_RL_REF, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
+import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { domainsOf, gV0, levelOfG } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
-import { decodeUtilOf, refRlGain, serveFlopOomOf } from '../models/stacks';
+import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
 import { tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
@@ -125,14 +125,10 @@ export function rlOnBase(flop: number, mid = 0, ceil = 0): number {
   }
   return x;
 }
-/** G-equivalent of a recipe over the leader's day-0 recipe (OOM): pretraining + what its RL recipe adds to the reference
- *  RL run, at the reference base FLOP FLOP_RL_REF (the same form as stacks.ts gEquivOf, without the training-throughput
- *  stack). */
-export const gEquivOfRecipe = (rec: RivalRecipe) => rec.pre + rlOnBase(FLOP_RL_REF, rec.mid, rec.ceil) - rlOnBase(FLOP_RL_REF);
-/** The lab's recipe as a G-equivalent e (OOM over the leader's day-0 recipe): the unit the leaks, diffusion and events
- *  compare and move recipes in. The player's counterpart is stacks.ts stacksGEquiv, taken at the player's latest base
- *  FLOP and with the throughput stack, so the two are not at a common F until RD-B16 (SYNTHESIS §6 Phase 1). */
-export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'>) => gEquivOfRecipe(r.phys.rec);
+/** The lab's recipe as a G-equivalent e (OOM over the leader's day-0 recipe): the unit the leaks and events compare and
+ *  move recipes in. RD-B16: stacks.ts recipeG at the common reference FLOP RECIPE_F, the same function and parts as the
+ *  player's counterpart playerRecipeG. */
+export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'>) => recipeG(r.phys.rec, RECIPE_F);
 /** Knowledge from outside the lab (distillation of others' models, secrets leaks, open weights, events, safety
  *  spillover; model v3 F3) enters the pretraining part as public knowledge: dG OOM, scale-invariant and outside the
  *  research pool (the player's addKnowledge into the stack base). F2 bridged these writers through the know-how readout
@@ -351,7 +347,7 @@ export function recipeRates(w: TimelineWorld, ph: Pick<RivalPhys, 'rec' | 'pool'
   const pool = { pre: pre / P.pre.kappa, mid: Math.min(RECIPE_RATE_MAX, grow('mid')), ceil: Math.min(RECIPE_RATE_MAX, grow('ceil')) };
   const rec = { pre, mid: pool.mid * P.mid.kappa, ceil: pool.ceil * P.ceil.kappa };
   const h = 1 / 365;
-  const at = (k: number) => gEquivOfRecipe({ pre: ph.rec.pre + k * rec.pre, mid: ph.rec.mid + k * rec.mid, ceil: ph.rec.ceil + k * rec.ceil });
+  const at = (k: number) => recipeG({ pre: ph.rec.pre + k * rec.pre, mid: ph.rec.mid + k * rec.mid, ceil: ph.rec.ceil + k * rec.ceil });
   return { pool, rec, g: (at(h) - at(0)) / h };
 }
 /** G-equivalent recipe growth of lab `r` today (OOM per year) at research speed `rs`. */

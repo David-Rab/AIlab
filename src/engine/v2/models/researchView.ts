@@ -265,11 +265,13 @@ export function stackViews(s: GameStateV2): StackGroupView[] {
   });
 }
 
-/** Software progress of the recipe (OOM of effective compute per year, 14-day average) and the ideas adopted per year. */
-export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear: number } {
+/** Software progress of the recipe (OOM of effective compute per year, 14-day average: the lab's own adopted ideas and
+ *  tuning at a fixed base, RD-B16), the ideas adopted per year, and public knowledge received (OOM per year, 14-day
+ *  average: diffusion, tacit knowledge, safety spillover; not part of Software progress). */
+export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear: number; publicPerYear: number } {
   const h = s.player.research.hist;
   const ideas = h.length >= 2 ? ((h[h.length - 1].n - h[0].n) / Math.max(1, h[h.length - 1].day - h[0].day)) * 365 : 0;
-  return { oomPerYear: (s.player.research.gRate ?? 0) * 365, ideasPerYear: Math.max(0, ideas) };
+  return { oomPerYear: (s.player.research.gRate ?? 0) * 365, ideasPerYear: Math.max(0, ideas), publicPerYear: Math.max(0, (s.player.research.pubRate ?? 0) * 365) };
 }
 
 // ───────────────────────────── allocations ─────────────────────────────

@@ -3,7 +3,7 @@ import { clamp } from '../../rng';
 import { frontierLevelAt, gOfLevel } from '../models/capability';
 import { B_G_PER_Y, REF_TPP } from '../../../data/v2/runDesign';
 import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
-import { stacksGEquiv } from '../models/stacks';
+import { playerRecipeG } from '../models/stacks';
 import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { leadBetween, rateOf } from '../actors/rivals';
@@ -51,10 +51,11 @@ export function theftHazardDaily(s: GameStateV2): number {
 }
 
 /** Daily China recipe gain (OOM) from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gap (§3.6), gap = the player's
- *  recipe − China's (OOM of G-equivalent; model v3 F3: the old know-how gap in progress-years × B, so the same OOM). */
+ *  recipe − China's (OOM of G-equivalent, both stacks.ts recipeG at RECIPE_F on the same parts, RD-B16; model v3 F3:
+ *  the old know-how gap in progress-years × B, so the same OOM). */
 export function secretsLeakDaily(s: GameStateV2): number {
   // Secrets are recipe: the gap is recipe against recipe, not model capability (G includes the compute).
-  const gap = Math.max(0, stacksGEquiv(s) - recipeOf(s, s.china.lab));
+  const gap = Math.max(0, playerRecipeG(s) - recipeOf(s, s.china.lab)); // RD-B16: both recipeG at RECIPE_F
   const sec = s.player.security;
   return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gap;
 }
