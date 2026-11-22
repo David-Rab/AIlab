@@ -1885,3 +1885,27 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
 - **moves calibration: yes (finance/serving).** The player loses the three free students on every sector product
   (cheap easy-band hours go to rivals or the main model at its cost) and Chat's free users now cost the main model's
   serving unless a mini is in the lineup: serving need, revenue, margins and F-tier finance readouts move.
+
+### RD-P01b
+- **Done (commit a2a0c7b), player side.** Day 0: V0's distilled students at the lineup sizes (data/v2/serving.ts
+  LINEUP via `lineupOf`: 1/2.83, 1/5.66, 1/80 of active parameters), ids `V0-1..3`, names `<V0>-mini / -micro / -nano`,
+  variant mini, parent V0. Each is what a finished Distill a mini run makes: V0's build less `distillGap` at full
+  teacher-output tokens (0.61 / 0.88 / 1.94 OOM), fpt = V0's × size ratio, `distilledStart` traits and
+  `distilledBeliefs` (no run step: no run happened in game), V0's masks / U-modes, start evals, status deployed. Every
+  start product (not internal) has them as its lineup; Chat's free tier defaults to the cheapest (the nano, 1/80; the
+  old phantom free tier was 1/12.5).
+- **Policy "Auto-make cheap tiers"** (`policies.autoCheapTier`, models/cheapTier.ts, run in productsSystem after the
+  upgrade policy): a full model that is a live product's main model with no student of it made (within the 1/80..1/2.8
+  sizes) or training gets a real distill run at 1/5.66 (`run.autoTier`; its FLOP, pool share 0.1, ETA logged; the
+  products.policy preview lists the runs turning it on would start). The student (`ModelVersion.autoTier`) joins the
+  front of the lineup of every live product whose main is its teacher once ready (and evaluated under an eval gate);
+  the mark is then dropped, so a student the player removes is not re-added. Off: nothing automatic. Trigger is
+  "student of this model", not "any cheaper lineup entry" (day-0 minis would otherwise block it forever). Products
+  header switch; glossary `cheapTierPolicy` states the trigger. RefBot turns it on.
+- **Migration 63 → 64 (SCHEMA_REV 64):** autoCheapTier false in existing games. Hygiene asserts → 64.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp01b.ts` (untracked, run alone) 9 / 9.
+  Not run: test:quick / full.
+- **Left:** lineups only grow (old students stay until the player removes them); RefBot's competeRelease can pick a
+  lineup student as a main model (then it is main and lineup entry at once); rivals unchanged (RD-P02).
+- **moves calibration: yes (finance).** Start products sell three real cheap tiers again (similar to the old phantom
+  rungs); Chat's free users run the 1/80 nano; every new main model costs a distill run of training compute.
