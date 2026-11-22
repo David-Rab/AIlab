@@ -177,7 +177,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const eff = n.effect;
   return {
     id, name: n.name, kind: n.kind ?? 'idea', column: n.column, area: COLUMN_LABEL[n.column], ...(eff?.stack ? { stack: eff.stack } : {}),
-    unit: eff?.stack ? 'oom' : eff?.domains || eff?.data || eff?.expert ? 'design' : 'unlock', unlock,
+    unit: eff?.stack ? 'oom' : eff?.domains || eff?.data ? 'design' : 'unlock', unlock,
     state, stage, stageFrac, ...(ready !== true && !known ? { wait: ready } : {}), rank, want: wantIsAuto(s, id) ? teams.length : teamsWanted(s, id), auto: wantIsAuto(s, id), teams,
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),
@@ -254,11 +254,9 @@ function adoptedView(s: GameStateV2, a: AdoptedIdea, by: EmbodiedBy): AdoptedVie
   return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v ? { realised: eff, seenIn: v.name } : {}) };
 }
 /** Where a domain or data effect lands, all frozen at a run's launch (RD-B02 snapshot): domain effects and serving in
- *  a post-training run's recipe; the data pipeline (synthetic quality, token worth) in a base run's data draw; expert
- *  demonstrations in the RL suites a post-training run freezes. */
+ *  a post-training run's recipe; the data pipeline (synthetic quality, token worth) in a base run's data draw. */
 function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
   if (n?.effect?.domains) return 'post';
-  if (n?.effect?.expert) return 'rl';
   return 'baseStart';
 }
 
@@ -288,7 +286,7 @@ export function stackViews(s: GameStateV2): StackView[] {
 }
 
 /** RD-B17: adopted domain effects (OOM of a domain's capability for new versions) and data effects (synthetic quality
- *  ceiling, token worth, expert demonstrations), newest first, each row in its own unit. Older saves listed domain
+ *  ceiling, token worth), newest first, each row in its own unit. Older saves listed domain
  *  effects with `stack: 'pre'`; they are read as domain effects here. */
 export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
   const out: OtherEffectView[] = [];
@@ -303,7 +301,6 @@ export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
     for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0));
     if (eff.data?.synQMax) rows.push(row('Synthetic data quality ceiling', 'web text = 1', eff.data.synQMax));
     if (eff.data?.worthOom) rows.push(row('Worth of each training token', 'OOM', eff.data.worthOom));
-    if (eff.expert) rows.push(row('Expert demonstrations', 'B tokens', eff.expert.tokensT * 1000));
     out.push({ ...av, kind, rows });
   }
   return out;

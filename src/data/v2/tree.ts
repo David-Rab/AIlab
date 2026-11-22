@@ -19,10 +19,9 @@
 // is the line's T₁ at serious staffing (data/v2/agendas.ts SERIOUS_CAP). Every line also has a follow-up project
 // (LINE_NODES, not drawn on the tree) that keeps producing results once its ideas are known.
 // Product-feature nodes (Scaffold) are projects like any other; a known feature node lets the engineers build the feature (R6).
-import type { AgendaId, Column, DomainId, RLFamily, StackKey } from '../../engine/v2/types';
+import type { AgendaId, Column, DomainId, StackKey } from '../../engine/v2/types';
 import { AGENDAS, AGENDA_BY_ID, SERIOUS_CAP } from './agendas';
 import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
-import { P12_DEMO_T } from './suites';
 
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
@@ -32,7 +31,7 @@ export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFoc
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
 /** A capability project's typed effect (MODEL-V3 §5.2). The project's scalar effect x is in this unit: OOM of the stack
- *  for stack effects, "1 = as designed" for domain, data and expert-data effects and unlocks. */
+ *  for stack effects, "1 = as designed" for domain and data effects and unlocks. */
 export interface ProjectEffect {
   /** Stack the effect enters (absent: an unlock or a domain effect). */
   stack?: StackKey;
@@ -50,9 +49,6 @@ export interface ProjectEffect {
    *  (q, the web = 1; production/data.ts syntheticQuality) for data generated after adoption; `worthOom` = OOM more
    *  effective tokens per drawn token in the loss law (D_eff × 10^x, models/runs.ts baseG through the draw). */
   data?: { synQMax?: number; worthOom?: number };
-  /** Expert data delivered at adoption into a family's suite (T tokens per unit of the effect; the suite's fidelity
-   *  reads it, models/suites.ts), paid at the expert-data price on delivery (model v3 D9). */
-  expert?: { family: RLFamily; tokensT: number };
   /** Lines: the line's share w_l of the lab's returns to research r (r_l = w_l·r; the G-carrying lines sum to 1: their
    *  shares of the lab's start software progress) [D, V3 notes derivation 1]. */
   rShare?: number;
@@ -153,7 +149,7 @@ export const TREE: TreeNodeDef[] = [
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
   N('elastic', 'Elastic training', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.023, sd: 0.3 }, cap: 'Training throughput +0.023 OOM (goodput 0.90 → 0.95)' }),
   P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, options: [['data', 'synthetic']], cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering); unlocks the synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
-  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { kind: 'idea', effect: { mean: 1, sd: 0.25, expert: { family: 'longHorizon', tokensT: P12_DEMO_T } }, cap: 'Experts record days-long work: 20B tokens of demonstrations join the long-tasks suite (fidelity 1 → 1.35 from the start stock), raising its RL ceiling and so the time horizon', cost: '$1B at the expert-data price ($0.05 a token), paid when the demos are delivered (adoption)' }),
+  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cap: 'Unlocks the demonstrations build of the long-tasks suite (Suites): experts record days-long work, 20B tokens of demonstrations join the suite for $1B at the expert-data price, raising its fidelity, its RL ceiling and so the time horizon', cost: 'Research only: each demonstrations build pays for its own data' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
   // RD-E01a (DD-14): P24 is a capability idea in the pretraining stack (OOM), through the normal idea pipeline. Prior

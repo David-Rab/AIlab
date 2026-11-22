@@ -3,7 +3,6 @@
 // What one build or hardening pass on a family's suite would do to a planned post-training run: the run's RL gain per
 // domain (planRun(...).g.rl) and its reward-hacking signal S2 (postSignals), before and after. The "after" is read from
 // a shallow hypothetical copy of the state with the work done; the state passed in is never changed.
-import { SUITE_BUILD } from '../../../data/v2/suites';
 import { RL_BUDGET, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { planRun, type LaunchRunParams } from './runs';
 import type { RlGains } from './effective';
@@ -11,21 +10,21 @@ import { optimisationPressure, postSignals } from '../safety/traits';
 import { adopted } from '../safety/common';
 import { buildEtas, buildWaitNew } from '../departments/build';
 import {
-  S2_PER_EXPLOIT, exploitFloor, expertAsset, expertAssetId, familyUnlocked, firstSuite, hardenCut, hardenedExploit, suiteExpertT, suiteOf, suiteRef, suiteRlWeights,
+  S2_PER_EXPLOIT, exploitFloor, expertAsset, expertAssetId, familyUnlocked, firstSuite, hardenCut, hardenedExploit, suiteExpertT, suiteOf, queuedSuiteWork, suiteRlWeights,
   suiteWorkBlock, suiteWorkCost, suiteWorkEffect, unbuiltSuiteFamilies, type SuiteCost, type SuiteWork,
 } from './suites';
 import type { GameStateV2, PostDesign, RLFamily } from '../types';
 
 /** The state with one piece of suite work done (shallow copies of the suites and the data portfolio); a family's first
  *  build creates its suite (RD-B03). The state itself when the work cannot be done. */
-function withSuiteWork(s: GameStateV2, f: RLFamily, work: SuiteWork): GameStateV2 {
+function withSuiteWork(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): GameStateV2 {
   const x = suiteOf(s, f) ?? (work === 'build' && familyUnlocked(s, f) ? firstSuite(s, f) : undefined);
   if (!x) return s;
   const suites = { ...(s.player.suites ?? {}), [f]: work === 'harden' ? { ...x, exploit: hardenedExploit(f, x.exploit, hardenCut(s)), hardenings: x.hardenings + 1 } : { ...x, builds: x.builds + 1 } };
   let assets = s.player.dataPortfolio.assets;
   if (work === 'build') {
     const id = expertAssetId(f);
-    const E = suiteExpertT(s, f) + SUITE_BUILD.tokensT;
+    const E = suiteExpertT(s, f) + suiteWorkCost(s, f, 'build', demos).tokensT;
     assets = assets.some((a) => a.kind === 'expert' && a.id === id)
       ? assets.map((a) => (a.kind === 'expert' && a.id === id ? { ...a, tokensT: E } : a))
       : [...assets, expertAsset(f, E)];
@@ -61,11 +60,11 @@ export interface SuiteWorkPreview {
   before: SuitePlanEffect; after: SuitePlanEffect;
 }
 /** One build or hardening pass on family `f`: cost, the suite's before → after, and the planned run's before → after. */
-export function suiteWorkPreview(s: GameStateV2, f: RLFamily, work: SuiteWork, lp: LaunchRunParams, before = suitePlanEffect(s, lp)): SuiteWorkPreview {
-  const cost = suiteWorkCost(s, f, work);
-  const done = withSuiteWork(s, f, work);
+export function suiteWorkPreview(s: GameStateV2, f: RLFamily, work: SuiteWork, lp: LaunchRunParams, before = suitePlanEffect(s, lp), demos = false): SuiteWorkPreview {
+  const cost = suiteWorkCost(s, f, work, demos);
+  const done = withSuiteWork(s, f, work, demos);
   return {
-    work, cost, effect: suiteWorkEffect(s, f, work), block: suiteWorkBlock(s, f, work), waitDays: buildWaitNew(s, cost.tw, 'suite'),
+    work, cost, effect: suiteWorkEffect(s, f, work, demos), block: suiteWorkBlock(s, f, work, demos), waitDays: buildWaitNew(s, cost.tw, 'suite'),
     before, after: done !== s ? suitePlanEffect(done, lp) : before,
   };
 }
@@ -74,7 +73,7 @@ export function suiteWorkPreview(s: GameStateV2, f: RLFamily, work: SuiteWork, l
 export function suitePending(s: GameStateV2, f: RLFamily): { work: SuiteWork; leftTW: number; etaDays: number }[] {
   const etas = buildEtas(s).etas;
   return (['build', 'harden'] as SuiteWork[]).flatMap((work) => {
-    const it = s.player.build.queue.find((q) => q.kind === 'suite' && q.ref === suiteRef(f, work));
+    const it = queuedSuiteWork(s, f, work);
     return it ? [{ work, leftTW: Math.max(0, it.needTW - it.doneTW), etaDays: etas.get(it.id) ?? Infinity }] : [];
   });
 }

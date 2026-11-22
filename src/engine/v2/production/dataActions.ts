@@ -6,27 +6,23 @@
 //   data.synthesize   a share of the synthetic pool generates with a chosen teacher for some days (tokens from
 //                     synTokensPerH100eDay, quality from the teacher's G, the asset inherits the teacher's traits);
 //                     days 0 stops the job. The rest of the pool keeps the default teacher (the internal research model)
-//   data.expert       buy expert data in one domain (for suites and, from D7, evaluations); a suite build of a family in
-//                     that domain uses it before buying its own (models/suites.ts)
+//   (no expert-data purchase: expert data is only a suite input, bought by "Build suite" in models/suites.ts, DD-07)
 //   data.usagePolicy  none / standard / broad: the share of eligible product output kept as usage data, against the
 //                     Civil Liberties bloc's approval
 // Every preview shows the Blueprint's data readouts before → after (dataDelta: U, the domain's share of the stock and
 // its specialisation, the latest base design's epochs).
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
-  EXPERT_DELIVERY_DAYS, EXPERT_SIZE_T, LICENCE_DELIVERY_DAYS, LICENCE_SIZE_T, LICENCE_TIERS, SYN_JOB, USAGE_LEVELS, USAGE_MIX, WEB_LICENCE,
+  LICENCE_DELIVERY_DAYS, LICENCE_SIZE_T, LICENCE_TIERS, SYN_JOB, USAGE_LEVELS, USAGE_MIX, WEB_LICENCE,
   type LicenceTier, type UsageLevel,
 } from '../../../data/v2/dataAssets';
-import { EXPERT_PRICE_B_PER_T, EXPERT_START_T, RL_FAMILY_LABEL } from '../../../data/v2/suites';
-import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { bloc, L, pv } from '../actors/fx';
 import { bookCash } from '../finance/ledger';
 import { gOfBuild } from '../models/capability';
 import { versionById } from '../models/labs';
-import { familyDomain } from '../models/suites';
 import type { ActionDef, DataPortfolio, DomainId, GameStateV2, ModelVersion } from '../types';
 import {
-  addAsset, dataDelta, dataDeltaText, expertDomainAsset, expertStockT, licenceAsset, publicUse, queueData, synAssetFor, synPoolH100e, synTeacher,
+  addAsset, dataDelta, dataDeltaText, licenceAsset, publicUse, queueData, synAssetFor, synPoolH100e, synTeacher,
   synTokensT, unlicensedPublicT, usageRateAt,
 } from './data';
 
@@ -34,7 +30,6 @@ type P = Record<string, number | string | boolean>;
 const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const r2 = (x: number) => Math.round(x * 100) / 100;
-const r3 = (x: number) => Math.round(x * 1000) / 1000;
 const domainOf = (p: P, d: DomainId = 'CODE'): DomainId => (DOMAIN_IDS.includes(p.domain as DomainId) ? (p.domain as DomainId) : d);
 const tierOf = (p: P): LicenceTier => (typeof p.tier === 'string' && p.tier in LICENCE_TIERS ? (p.tier as LicenceTier) : 'bulk');
 const active = (s: GameStateV2) => (s.player.status === 'active' ? true : 'Company inactive');
@@ -141,36 +136,6 @@ const SYNTHESIZE: ActionDef = {
   },
 };
 
-// ───────────────────────────── expert data ─────────────────────────────
-
-/** An expert order's terms: domain, tokens, cash, and the suite families in that domain (their builds use it). */
-export function expertTerms(_s: GameStateV2, p: P) {
-  const domain = domainOf(p);
-  const tokensT = clamp(num(p, 'tokensT', EXPERT_START_T), EXPERT_SIZE_T.min, EXPERT_SIZE_T.max);
-  return { domain, tokensT, cashB: tokensT * EXPERT_PRICE_B_PER_T, families: RL_FAMILY_IDS.filter((f) => familyDomain(f) === domain) };
-}
-
-const EXPERT: ActionDef = {
-  id: 'data.expert', verb: 'deal', system: 'models', sphere: 'models', owner: 'WS1', title: 'Buy expert data',
-  available: active,
-  preview(s, p) {
-    const t = expertTerms(s, p);
-    const have = expertStockT(s.player.dataPortfolio, t.domain);
-    const use = t.families.length ? `suite builds for ${t.families.map((f) => RL_FAMILY_LABEL[f]).join(', ')} use it before buying` : 'no suite family in this domain yet (evaluations, D7)';
-    return pv(
-      [L('cash', -r2(t.cashB), `${fmtTok(t.tokensT)} ${t.domain} expert tokens at $${EXPERT_PRICE_B_PER_T / 1000} a token`)],
-      [L('progress', r3(t.tokensT * 1000), `${t.domain} in ${EXPERT_DELIVERY_DAYS} d: ${fmtTok(have)} → ${fmtTok(have + t.tokensT)} unbuilt; ${use}`, { lagDays: EXPERT_DELIVERY_DAYS, unit: 'B expert tokens' })],
-    );
-  },
-  apply(s, ctx, p) {
-    const t = expertTerms(s, p);
-    if (t.cashB > s.player.finance.cash) throw new Error('Not enough cash');
-    bookCash(s, ctx, -t.cashB, 'training', 'expert data', t.domain);
-    queueData(s.player.dataPortfolio, expertDomainAsset(t.domain, t.tokensT, s.time.day + EXPERT_DELIVERY_DAYS), s.time.day + EXPERT_DELIVERY_DAYS);
-    ctx.log('research', `Expert data ordered: ${fmtTok(t.tokensT)} tokens of ${t.domain} tasks and rubrics, delivered in ${EXPERT_DELIVERY_DAYS} days.`, 1, t.domain);
-  },
-};
-
 // ───────────────────────────── usage-data policy ─────────────────────────────
 
 /** The policy level a usage share reads as (the nearest level). */
@@ -214,4 +179,4 @@ const USAGE: ActionDef = {
   },
 };
 
-export const DATA_ACTIONS: ActionDef[] = [LICENSE, SYNTHESIZE, EXPERT, USAGE];
+export const DATA_ACTIONS: ActionDef[] = [LICENSE, SYNTHESIZE, USAGE];

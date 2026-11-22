@@ -9,10 +9,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET, REFERENCE_POST, RL_REF_GAIN } from '../../src/data/v2/runDesign';
-import { EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, P12_DEMO_T, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
+import { EXPERT_START_T, EXPLOIT_CHEAP, EXPLOIT_START, DEMO_BUILD, SUITE_BUILD, SUITE_HARDEN } from '../../src/data/v2/suites';
 import { H50_PER_OOM } from '../../src/data/v2/workTypes';
-import { TREE_BY_ID } from '../../src/data/v2/tree';
-import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
@@ -26,7 +24,7 @@ import {
   S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
-import type { Candidate, GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
+import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
@@ -203,23 +201,16 @@ sr.player.suites.swe!.exploit = EXPLOIT_CHEAP.swe;
 check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.post!, run.recipe.exploit).S2, frozen, 1e-12) && postSignals(sr, run.post!).S2 > frozen,
   'a post-training run freezes its suites\' fidelity and exploitability at launch', `S2 frozen ${frozen.toFixed(3)} vs today ${postSignals(sr, run.post!).S2.toFixed(3)}`);
 
-// ---------- model v3 D9: P12 long-horizon human demos as expert data in the long-tasks suite ----------
+// ---------- RD-T06: P12 unlocks the long-tasks demonstrations build (expert data in the suite, paid by the build) ----------
 {
-  const C9: Candidate = { k: 1, gen: 1, nov: 0.5, b: 1, q: 1, mu: 1, sd: 0.2, muS: 0, sdS: 0 };
   const a = game();
   const b = game();
-  b.hidden.paradigmSuccess.P12 = true;
-  const x = candidateTruth(b, TREE_BY_ID.P12, freshCap(), C9).x;
-  b.player.tree.P12 = { status: 'researching', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'adopting', result: { c: C9, xTest: x, sHat: 0, fTest: 1e24, est: 1, estSd: 0.1, buildId: 'd9', day: 0 } } } as never;
-  const cash0 = b.player.finance.cash;
-  completeAdoption(b, makeCtx(b), 'P12', 'd9');
-  const tok = x * P12_DEMO_T;
-  const paid = cash0 - b.player.finance.cash;
-  check(x > 0 && b.player.tree.P12?.status === 'known' && near(expert(b, 'longHorizon')!.tokensT, EXPERT_START_T + tok, 1e-15) && near(paid, tok * EXPERT_PRICE_B_PER_T, 1e-9)
-    && near(P12_DEMO_T * EXPERT_PRICE_B_PER_T, 1, 1e-12) && near(fidelityOf(EXPERT_START_T + P12_DEMO_T), 1.5 - 0.5 * Math.sqrt(1 / 11), 1e-12)
-    && START_FAMS.every((f) => f === 'longHorizon' || suiteFidelity(b, f) === 1),
-    'P12: adoption delivers x × 20B tokens of demonstrations into the long-tasks suite, paid at the expert-data price ($1B as designed); fidelity 1 → 1.35 as designed',
-    `x ${x.toFixed(3)}: ${(tok * 1000).toFixed(1)}B tokens, $${paid.toFixed(2)}B, fidelity ${suiteFidelity(b, 'longHorizon').toFixed(3)}`);
+  b.player.tree.P12 = { status: 'known', progress: 1, attempts: 1 } as never;
+  b.player.finance.cash = 100;
+  check(!act(b, 'suite.build', { family: 'longHorizon', demos: true }), 'P12: the demonstrations build can be queued once P12 is known');
+  completeSuiteWork(b, makeCtx(b), 'longHorizon:build:demos');
+  check(near(expert(b, 'longHorizon')!.tokensT, EXPERT_START_T + SUITE_BUILD.tokensT + DEMO_BUILD.tokensT, 1e-15) && START_FAMS.every((f) => f === 'longHorizon' || suiteFidelity(b, f) === 1),
+    'P12: a demonstrations build adds 20B tokens of demos to the long-tasks suite on top of the build', `fidelity ${suiteFidelity(b, 'longHorizon').toFixed(3)}`);
   // Through the mechanism: the suite's higher fidelity raises the long-tasks family's RL ceiling, so AGENCY and the
   // time horizon (h50 ∝ 4.2^ΔG_AGENCY) rise for a post-train after adoption; no flat horizon multiplier.
   const rows: string[] = [];

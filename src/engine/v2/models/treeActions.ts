@@ -7,7 +7,6 @@ import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
 import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, SafReNeed, StackKey, TraitId } from '../types';
 import { DEFAULT_SAF_RE_ALLOC, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
-import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
   assignCapNow, assignTeam, dequeueNode, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
@@ -41,7 +40,7 @@ const pushEta = (costs: CostLine[], gains: CostLine[], l: CostLine | undefined) 
 /** Capability lines of a node's preview (F6c): its typed effect in its own unit, from the numbers adoption applies
  *  (models/research.ts completeAdoption): a stack effect is the expected effect at the scale test (the public prior mean
  *  per idea × 1000^s at the prior exponent, `atTest`), in OOM of that stack (and its `also` stacks); a domain effect the
- *  prior × the node's OOM per domain; data and expert-data effects the prior × their own units. A node without a typed
+ *  prior × the node's OOM per domain; data effects the prior × their own units. A node without a typed
  *  effect gives what it unlocks (its design options, or its stated capability). */
 function capLines(s: GameStateV2, n: TreeNodeDef, odds: number, spec: number): { gains: CostLine[]; costs: CostLine[] } {
   const gains: CostLine[] = [];
@@ -55,10 +54,9 @@ function capLines(s: GameStateV2, n: TreeNodeDef, odds: number, spec: number): {
     for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) g(x * ratio, 'OOM', `${STACK_LABEL[k]} (expected)`);
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) g(per * (v ?? 0), 'OOM', `${d} for new versions (expected)`);
-  } else if (eff?.data || eff?.expert) {
+  } else if (eff?.data) {
     if (eff.data?.synQMax) g(per * eff.data.synQMax, 'q', 'synthetic-quality ceiling, the web = 1 (expected)');
     if (eff.data?.worthOom) g(per * eff.data.worthOom, 'OOM', 'worth of each drawn token (expected)');
-    if (eff.expert) g(per * eff.expert.tokensT * 1000, 'B expert tokens', `${RL_FAMILY_LABEL[eff.expert.family]} suite (expected)`);
   }
   const opts = n.options?.length ?? 0;
   if ((n.fx.cap ?? 0) > 0 && (opts || !eff)) g(Math.max(1, opts), opts > 1 ? 'options' : opts ? 'option' : 'unlock', n.cap ?? n.name);

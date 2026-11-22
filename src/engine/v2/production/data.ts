@@ -1,6 +1,7 @@
 // The data portfolio (model v3 D1: design/MODEL-V3.md §9; research/20 §A3; data in data/v2/dataAssets.ts). Owner: WS1.
 //
-//   assets     public web (the lab's crawl of the one shared, finite world stock), licensed, usage, synthetic, expert;
+//   assets     public web (the lab's crawl of the one shared, finite world stock), licensed, usage, synthetic, expert
+//              (one `expert:<family>` asset per suite, made and filled only by suite builds: models/suites.ts, DD-07);
 //              each with tokens T, a domain mix and a quality q (1 = the web)
 //   U          unique-token stock a base trains on = Σ q·T over the pretraining kinds (public, licensed, usage,
 //              synthetic): the stock in web-equivalent tokens (readouts, the draw's weights)
@@ -13,12 +14,12 @@
 //              ceiling (the web's 1; P10, the synthetic data flywheel, raises it: model v3 D9)
 //   worth      (model v3 D9) adopted data-efficiency ideas (P21) multiply every drawn token's worth in the loss law
 //   usage      += live products' output tokens × channel eligibility × the lab's data-policy share per day
-//   deals      (model v3 D2, actions in production/dataActions.ts) licences by domain and expert data are paid at
-//              signing and delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
+//   deals      (model v3 D2, actions in production/dataActions.ts) licences by domain are paid at signing and
+//              delivered later (`pending`); a synthetic job sends a share of the pool to a chosen teacher
 //   readout    data adequacy of the next base: Muennighoff's ≈ free 4 epochs of U vs N_req(next base)
 import {
   LICENCE_TIERS, LICENSED_MIX, LICENSED_QUALITY, LICENSED_START_T, PUBLIC_START_COVERAGE, PUBLIC_WEB, SYN_MIX, SYN_OVERGEN, SYN_Q,
-  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, EXPERT_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
+  SYN_START_T, USAGE_ELIGIBLE, USAGE_MIX, USAGE_POLICY_SHARE, USAGE_QUALITY, ALPHA_DATA, SPEC_CAP, type DomainMix, type LicenceTier,
 } from '../../../data/v2/dataAssets';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
@@ -33,7 +34,7 @@ import type { BaseDesign, DataAsset, DataKind, DataPortfolio, Deployment, Domain
 // ───────────────────────────── assets ─────────────────────────────
 
 /** The start portfolio (every start type, as before D1): the public crawl 0.9 × 300T, 30T licensed, 20T synthetic at
- *  q 0.5 (made before the game), no usage or expert data yet. U = 270 + 30 + 0.5·20 = 310T (v1's start stock). */
+ *  q 0.5 (made before the game), no usage data yet (expert data lives only in the suites' assets, models/suites.ts). U = 270 + 30 + 0.5·20 = 310T (v1's start stock). */
 export function startPortfolio(): DataPortfolio {
   return {
     assets: [
@@ -41,7 +42,6 @@ export function startPortfolio(): DataPortfolio {
       { id: 'lic:start', kind: 'licensed', tokensT: LICENSED_START_T, mix: { ...LICENSED_MIX }, quality: LICENSED_QUALITY },
       { id: 'usage', kind: 'usage', tokensT: 0, mix: {}, quality: USAGE_QUALITY },
       { id: 'syn:start', kind: 'synthetic', tokensT: SYN_START_T, mix: { ...SYN_MIX }, quality: SYN_Q.atV0, inheritsTraits: true },
-      { id: 'expert', kind: 'expert', tokensT: 0, mix: {}, quality: EXPERT_QUALITY },
     ],
     usageShare: USAGE_POLICY_SHARE,
     pending: [],
@@ -52,7 +52,7 @@ export function startPortfolio(): DataPortfolio {
 export const assetTokensT = (a: DataAsset) => (a.kind === 'public' ? Math.min(1, Math.max(0, a.coverage)) * PUBLIC_WEB.stockT : a.tokensT);
 export const assetQuality = (a: DataAsset) => (a.kind === 'public' ? PUBLIC_WEB.quality : a.quality);
 export const assetMix = (a: DataAsset): DomainMix => (a.kind === 'public' ? PUBLIC_WEB.mix : a.mix);
-/** Kinds a base pretrains on (expert data feeds RL environments and evals, D5). */
+/** Kinds a base pretrains on (expert data feeds only RL environments, the suites, D5 / DD-07). */
 export const PRETRAIN_KINDS: readonly DataKind[] = ['public', 'licensed', 'usage', 'synthetic'];
 const isPretrain = (a: DataAsset) => PRETRAIN_KINDS.includes(a.kind);
 
@@ -281,16 +281,11 @@ export function unlicensedPublicT(p: DataPortfolio): number {
   return u && !u.licensed ? assetTokensT(u) : 0;
 }
 
-// ───────────────────────────── deals (model v3 D2: licences and expert data) ─────────────────────────────
+// ───────────────────────────── deals (model v3 D2: licences) ─────────────────────────────
 
 /** The licensed corpus a deal adds: `tokensT` of one domain at the tier's quality (one asset per domain and tier). */
 export const licenceAsset = (domain: DomainId, tier: LicenceTier, tokensT: number, day: number): OwnedDataAsset => ({
   id: `lic:${domain}:${tier}`, kind: 'licensed', tokensT, mix: { [domain]: 1 }, quality: LICENCE_TIERS[tier].quality, domain, day,
-});
-/** Expert data bought by domain, not yet built into a suite (`expert:dom:<domain>`; suites own `expert:<family>`). */
-export const expertDomainId = (domain: DomainId) => `expert:dom:${domain}`;
-export const expertDomainAsset = (domain: DomainId, tokensT: number, day: number): OwnedDataAsset => ({
-  id: expertDomainId(domain), kind: 'expert', tokensT, mix: { [domain]: 1 }, quality: EXPERT_QUALITY, domain, day,
 });
 const ownedById = (p: DataPortfolio, id: string) => p.assets.find((a): a is OwnedDataAsset => a.kind !== 'public' && a.id === id);
 
@@ -315,22 +310,11 @@ export function deliverData(s: GameStateV2, ctx?: SystemCtx) {
   for (const d of p.pending) {
     if (d.due > s.time.day) { keep.push(d); continue; }
     addAsset(p, d.asset);
-    ctx?.log('research', `${d.asset.kind === 'expert' ? 'Expert data' : 'Licensed data'} delivered: ${fmtT(d.asset.tokensT)} of ${d.asset.domain ?? 'mixed'} data at quality ${d.asset.quality}.`, 1, d.asset.domain);
+    ctx?.log('research', `Licensed data delivered: ${fmtT(d.asset.tokensT)} of ${d.asset.domain ?? 'mixed'} data at quality ${d.asset.quality}.`, 1, d.asset.domain);
   }
   p.pending = keep;
 }
 const fmtT = (t: number) => (t >= 1 ? `${t.toFixed(1)}T` : `${(t * 1000).toFixed(t >= 0.01 ? 0 : 1)}B`) + ' tokens';
-
-/** Expert tokens of a domain bought and not yet built into a suite (T). */
-export const expertStockT = (p: DataPortfolio, domain: DomainId) => ownedById(p, expertDomainId(domain))?.tokensT ?? 0;
-/** Take up to `tokensT` of a domain's bought expert data (a suite build uses it before buying); returns the tokens taken. */
-export function takeExpertData(p: DataPortfolio, domain: DomainId, tokensT: number): number {
-  const a = ownedById(p, expertDomainId(domain));
-  if (!a || !(tokensT > 0)) return 0;
-  const t = Math.min(a.tokensT, tokensT);
-  a.tokensT -= t;
-  return t;
-}
 
 /** Add `tokensT` of mix `mix` to an owned asset (the mix becomes the token-weighted blend). */
 function addTo(a: OwnedDataAsset, tokensT: number, mix: DomainMix) {

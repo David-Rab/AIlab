@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { Dumbbell, Hammer, Lock, ShieldCheck, type LucideIcon } from 'lucide-react';
 import {
   dateOf, exploitFloor, optionLocked, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, suitePending, suitePlanEffect, suiteS2Parts, suitesView,
-  suiteWorkPreview, unbuiltSuites,
+  suiteWorkPreview, unbuiltSuites, demosAvailable,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, PostDesign, RLFamily, SuiteRow, SuiteWorkPreview } from '../../../engine/v2';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
@@ -68,7 +68,8 @@ export function Suites({ s }: { s: GameStateV2 }) {
     const before = suitePlanEffect(s, plan.lp);
     const pv = Object.fromEntries(view.rows.map((r) => [r.family, {
       build: suiteWorkPreview(s, r.family, 'build', plan.lp, before), harden: suiteWorkPreview(s, r.family, 'harden', plan.lp, before),
-    }])) as Record<RLFamily, { build: SuiteWorkPreview; harden: SuiteWorkPreview }>;
+      ...(demosAvailable(s, r.family) ? { demos: suiteWorkPreview(s, r.family, 'build', plan.lp, before, true) } : {}),
+    }])) as Record<RLFamily, { build: SuiteWorkPreview; harden: SuiteWorkPreview; demos?: SuiteWorkPreview }>;
     return { view, before, pv, s2: suiteS2Parts(s, plan.post), locked: lockedSuiteFamilies(s), unbuilt: unbuiltSuites(s, plan.lp, before) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -143,7 +144,7 @@ function PlanCard({ s, plan, rows, s2, reason }: { s: GameStateV2; plan: Plan; r
 }
 
 // ───────── one family ─────────
-function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: SuiteWorkPreview; harden: SuiteWorkPreview } }) {
+function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: SuiteWorkPreview; harden: SuiteWorkPreview; demos?: SuiteWorkPreview } }) {
   const I = famIcon(r.family);
   const floor = exploitFloor(r.family);
   const pend = suitePending(s, r.family);
@@ -171,14 +172,14 @@ function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: Sui
       <Tip className="sx-r" content={() => <TipCard title={<Term id="suiteRlShare">RL share</Term>} value={F.pct(r.share)}>Share of the planned run&apos;s RL compute spent in this suite.</TipCard>}>
         <span className={`num ${r.share > 0 ? '' : 'dim'}`} data-test="suite-share">{F.pct(r.share)}</span>
       </Tip>
-      <WorkCell s={s} r={r} pv={pv.build} pend={pend.find((x) => x.work === 'build')} />
+      <WorkCell s={s} r={r} pv={pv.build} pend={pend.find((x) => x.work === 'build')} demos={pv.demos} />
       <WorkCell s={s} r={r} pv={pv.harden} pend={pend.find((x) => x.work === 'harden')} />
     </div>
   );
 }
 
 /** A build or harden button with its cost and the suite's after value, or the pending item with its ETA. */
-function WorkCell({ s, r, pv, pend }: { s: GameStateV2; r: SuiteRow; pv: SuiteWorkPreview; pend?: { leftTW: number; etaDays: number } }) {
+function WorkCell({ s, r, pv, pend, demos }: { s: GameStateV2; r: SuiteRow; pv: SuiteWorkPreview; pend?: { leftTW: number; etaDays: number }; demos?: SuiteWorkPreview }) {
   const build = pv.work === 'build';
   const id = build ? 'suite.build' : 'suite.harden';
   if (pend) {
@@ -219,7 +220,24 @@ function WorkCell({ s, r, pv, pend }: { s: GameStateV2; r: SuiteRow; pv: SuiteWo
         </button>
         <span className="sx-cost small dim">{pv.cost.tw.toFixed(1)} t-wk · {F.money(pv.cost.cashB)}</span>
         <span className="sx-after small" data-test={`suite-after.${pv.work}`}>→ {after} <span className={(build ? dG >= 0.005 : dS2 < -0.0005) ? 'tone-pos' : 'dim'}>{effect}</span></span>
+        {demos && <DemosBtn r={r} pv={demos} />}
       </span>
+    </Tip>
+  );
+}
+
+/** RD-T06: the long-tasks demonstrations build (unlocked by P12): a build that also buys recorded expert work. */
+function DemosBtn({ r, pv }: { r: SuiteRow; pv: SuiteWorkPreview }) {
+  return (
+    <Tip content={() => <TipCard title={<Term id="suiteBuild">Build with human demonstrations</Term>} value={pv.block ? <span className="tone-neg">{pv.block}</span> : <span className="tag2">preview</span>} rows={[
+      { label: <Term id="expertData">Expert data (cash, now)</Term>, value: F.money(pv.cost.cashB), tone: 'neg' },
+      { label: 'Of which demonstrations', value: `${tok(pv.cost.demosT)} tokens` },
+      { label: <Term id="teamWeek">Engineers</Term>, value: `${pv.cost.tw.toFixed(1)} team-wk`, tone: 'neg' },
+      { label: <Term id="suiteFidelity">Fidelity</Term>, value: `${fid(pv.effect.fid[0])} → ${fid(pv.effect.fid[1])}`, tone: 'pos' },
+    ]} footer="Long-horizon human demos (P12): experts record days-long work into the long-tasks suite." />}>
+      <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act="suite.build" data-family={r.family} data-demos="1" onClick={(e) => { e.stopPropagation(); store.act('suite.build', { family: r.family, demos: true }); }}>
+        <Hammer size={12} /><span>+ demos</span><span className="small dim">{F.money(pv.cost.cashB)}</span>
+      </button>
     </Tip>
   );
 }

@@ -9,12 +9,11 @@ import { BookOpen, Database, Globe, GraduationCap, MessagesSquare, Sparkles, typ
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { LICENCE_TIERS, type LicenceTier, type UsageLevel } from '../../../data/v2/dataAssets';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
-import { EXPERT_PRICE_B_PER_T } from '../../../data/v2/suites';
 import {
-  dataPortfolioView, dateOf, expertForm, fmtDate, licenceForm, naturalMixView, synForm, teacherRows, usageLevels,
+  dataPortfolioView, dateOf, fmtDate, licenceForm, naturalMixView, synForm, teacherRows, usageLevels,
   type DataDelta, type DataPortfolioView, type DomainMixRow, type KindRow,
 } from '../../../engine/v2';
-import type { DomainId, GameStateV2 } from '../../../engine/v2';
+import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
 import { Card, HBar, Ref } from '../kit';
@@ -55,7 +54,7 @@ export function DataView({ s }: { s: GameStateV2 }) {
         <NaturalMix rows={d.nat} />
       </div>
       <div className="dv-acts">
-        <div className="dv-col"><LicenceCard s={s} /><ExpertCard s={s} /></div>
+        <div className="dv-col"><LicenceCard s={s} /></div>
         <div className="dv-col"><SynCard s={s} /><UsageCard s={s} /></div>
       </div>
     </div>
@@ -69,7 +68,7 @@ function Portfolio({ s, v }: { s: GameStateV2; v: DataPortfolioView }) {
     <TipCard title={<Term id="uniqueTokens">Unique tokens</Term>} value={tokT(v.uT)} rows={[
       ...v.rows.filter((r) => r.kind !== 'expert').map((r) => ({ label: <>{KIND[r.kind].label}: {tokT(r.tokensT)} × q {r.quality.toFixed(2)}</>, value: tokT(r.weightedT) })),
       { label: 'Pretraining tokens', value: tokT(v.tokensT) },
-    ]} footer="Expert data is not pretraining data (RL environments and evaluations).">Σ [[dataQuality|quality]] × tokens over the pretraining kinds.</TipCard>
+    ]} footer="Expert data is not pretraining data (it lives in the RL suites).">Σ [[dataQuality|quality]] × tokens over the pretraining kinds.</TipCard>
   );
   return (
     <Card title={<span className="row-i"><Database size={15} /><Term id="dataPortfolio">Data portfolio</Term></span>} home="dataPortfolio" className="dv-port"
@@ -135,14 +134,12 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
         </Tip>
       );
       case 'expert': {
-        const unbuilt = Object.values(v.expertUnbuilt).reduce((a, x) => a + (x ?? 0), 0);
         return (
           <span className="row-i small">
             <Tip content={() => <TipCard title={<Term id="expertData">Expert data</Term>} rows={[
               { label: 'Built into suites', value: tokT(v.expertInSuitesT) },
-              ...(Object.entries(v.expertUnbuilt) as [DomainId, number][]).map(([d, t]) => ({ label: `${d} bought, unbuilt`, value: tokT(t) })),
-            ]} footer="Each suite's expert data and fidelity: Models › Suites.">Not pretraining data. Suite builds of a family in a domain use that domain&apos;s bought data first.</TipCard>}>
-              <span>{tokT(unbuilt)} unbuilt</span>
+            ]} footer="Each suite's expert data and fidelity: Models › Suites.">Not pretraining data. Bought only by suite builds (Build suite).</TipCard>}>
+              <span>{tokT(v.expertInSuitesT)} in suites</span>
             </Tip>
             <Ref id="expertData" to={{ panel: 'models', tab: 'suites' }}>Suites</Ref>
           </span>
@@ -335,36 +332,6 @@ function SynCard({ s }: { s: GameStateV2 }) {
         <DeltaRows d={f.delta} what="syn" />
       </div>
       <div className="dv-go"><ActBtn id="data.synthesize" params={params} primary label={f.job ? 'Replace job' : 'Start job'} reason /></div>
-    </Card>
-  );
-}
-
-// ───────── expert data ─────────
-const EXPERT_SIZES = [0.001, 0.002, 0.01];
-function ExpertCard({ s }: { s: GameStateV2 }) {
-  const [dom, setDom] = useState<string>('CODE');
-  const [size, setSize] = useState(0.002);
-  const params: Params = { domain: dom, tokensT: size };
-  const f = expertForm(s, params);
-  return (
-    <Card title={<span className="row-i"><GraduationCap size={14} /><Term id="expertData">Buy expert data</Term></span>} home="expertForm" className="dv-form" sub={<Term id="pendingData">delivered in 30 d</Term>}
-      right={<Ref id="envSuite" to={{ panel: 'models', tab: 'suites' }}>Suites</Ref>}>
-      <FormRow label={<Term id="domains">Domain</Term>}><DomainPills value={dom} onPick={setDom} test="exp-domain" /></FormRow>
-      <FormRow label="Size"><Pills value={size} test="exp-size" onPick={setSize} opts={EXPERT_SIZES.map((t) => ({ v: t, label: tokT(t), tip: () => <TipCard title={`${tokT(t)} expert tokens`} value={F.money(t * EXPERT_PRICE_B_PER_T)}>$0.05 a token, about $1k a task.</TipCard> }))} /></FormRow>
-      <div className="dv-sum">
-        <Tip content={() => <TipCard title={<Term id="expertData">Expert order</Term>} value={F.money(f.cashB)} rows={[{ label: 'Tokens', value: tokT(f.tokensT) }, { label: 'Families served', value: f.families.map((x) => x.label).join(', ') || 'none yet' }]}>Not pretraining data: U does not change.</TipCard>}>
-          <span className="small" data-test="exp-sum" data-cash={f.cashB} data-tokens={f.tokensT}><b className="num">{F.money(f.cashB)}</b> for {tokT(f.tokensT)} {f.domain}</span>
-        </Tip>
-        <div className="dv-delta">
-          <Tip as="div" content={() => <TipCard title={`${f.domain} expert data, unbuilt`} value={`${tokT(f.stockT[0])} → ${tokT(f.stockT[1])}`}>Bought and waiting for a suite build of a family in this domain.</TipCard>}>
-            <div className="dv-drow"><span className="small">{f.domain} unbuilt</span><span className="num small dim">{tokT(f.stockT[0])}</span><span className="dim">→</span><span className="num small tone-pos">{tokT(f.stockT[1])}</span></div>
-          </Tip>
-          <Tip as="div" content={() => <TipCard title={<Term id="envSuite">Suites served</Term>}>A build of these families&apos; suites takes this data before buying its own.</TipCard>}>
-            <div className="dv-drow"><span className="small">serves</span><span className="small" data-test="exp-families">{f.families.length ? f.families.map((x) => x.label).join(', ') : <span className="dim">no suite family in {f.domain} yet (evaluations later)</span>}</span></div>
-          </Tip>
-        </div>
-      </div>
-      <div className="dv-go"><ActBtn id="data.expert" params={params} primary label="Order" reason /></div>
     </Card>
   );
 }

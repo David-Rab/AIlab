@@ -54,7 +54,6 @@ import { Phi, Xces } from '../production/ces';
 import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalReDemand, evalsDay } from './evals';
-import { addSuiteExpertData } from './suites';
 import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
@@ -338,7 +337,7 @@ function tasteOf(s: GameStateV2): (t: Team) => number {
 }
 
 /** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×
- *  VALUE_PROXY.domainOom; a data / expert-data effect VALUE_PROXY.unlock × its size multiplier [D]. */
+ *  VALUE_PROXY.domainOom; a data effect VALUE_PROXY.unlock × its size multiplier [D]. */
 const valueOom = (n: TreeNodeDef, x: number) =>
   n.effect?.stack ? oomOf(n, x) : n.effect?.domains ? oomOf(n, x) * VALUE_PROXY.domainOom : Math.abs(x) * VALUE_PROXY.unlock;
 
@@ -757,8 +756,8 @@ function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
 
 /** Effect unit of a project as an OOM total (for the adoption cost): stack effects as is, domain effects summed. */
 const oomOf = (n: TreeNodeDef, x: number) => (n.effect?.stack ? Math.abs(x) * (1 + Object.values(n.effect.also ?? {}).reduce((a, v) => a + Math.abs(v ?? 0), 0)) : n.effect?.domains ? Math.abs(x) * Object.values(n.effect.domains).reduce((a, v) => a + Math.abs(v ?? 0), 0) : 0);
-/** A project with a typed effect beyond an unlock (stack, domains, data efficiency or expert data). */
-export const hasTypedEffect = (n: TreeNodeDef) => !!n.effect && !!(n.effect.stack || n.effect.domains || n.effect.data || n.effect.expert);
+/** A project with a typed effect beyond an unlock (stack, domains or data efficiency). */
+export const hasTypedEffect = (n: TreeNodeDef) => !!n.effect && !!(n.effect.stack || n.effect.domains || n.effect.data);
 
 /** Engineers' team-weeks to adopt a result. */
 export const adoptTW = (n: TreeNodeDef, est: number) =>
@@ -811,16 +810,13 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);
     realised = xTest;
-  } else if (eff?.data || eff?.expert) {
-    // Model v3 D9: data-efficiency and expert-data effects in their own units (× xTest, the realised "1 = as designed"),
+  } else if (eff?.data) {
+    // Model v3 D9: data-efficiency effects in their own units (× xTest, the realised "1 = as designed"),
     // floored at 0 [D: an adopted method is never worse than the pipeline it replaces; the lab keeps the old one].
     const x = Math.max(0, xTest);
-    if (eff.data) {
-      const fx = (res.dataFx ??= {});
-      if (eff.data.synQMax) fx.synQMax = (fx.synQMax ?? 0) + x * eff.data.synQMax;
-      if (eff.data.worthOom) fx.worthOom = (fx.worthOom ?? 0) + x * eff.data.worthOom;
-    }
-    if (eff.expert) addSuiteExpertData(s, ctx, eff.expert.family, x * eff.expert.tokensT, n.name);
+    const fx = (res.dataFx ??= {});
+    if (eff.data.synQMax) fx.synQMax = (fx.synQMax ?? 0) + x * eff.data.synQMax;
+    if (eff.data.worthOom) fx.worthOom = (fx.worthOom ?? 0) + x * eff.data.worthOom;
     realised = x;
   }
   if (eff && hasTypedEffect(n)) {

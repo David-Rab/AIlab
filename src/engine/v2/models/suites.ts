@@ -10,12 +10,15 @@
 //                   rewards; a suite's fidelity is how much of it this family's environments realise
 //   exploitability  x_f, the share of the suite's tasks whose scorer a policy can game: S2 = S2_PER_EXPLOIT ·
 //                   Σ_f (RL compute share_f · x_f) × the RL budget's optimisation pressure (safety/traits.ts)
-//   build           cash for expert data + engineer team-weeks (build queue); the data joins the asset when built
-//   harden          cash for expert red-teamers + team-weeks; x ← floor + (x − floor)·(1 − cut) (diminishing returns)
+//   build           cash for expert data + engineer team-weeks (build queue); the data joins the asset when built.
+//                   Builds are the only way to buy expert data, and suites its only reader (DD-07)
+//   demos build     (long tasks, needs P12) a premium build that also buys DEMO_BUILD's long-horizon human
+//                   demonstrations: more expert data in the suite (fidelity up) at the one expert-data price
+//   harden         cash for expert red-teamers + team-weeks; x ← floor + (x − floor)·(1 − cut) (diminishing returns)
 //   upkeep          every suite keeps engineers busy (build.ts upkeepLines, the 'upkeep' need)
 // A post-training run freezes its suites' fidelity and exploitability at launch (TrainingRun.recipe), like its RL recipe.
 import {
-  EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_REF, START_EXPLOIT_MULT, SUITE_BUILD, SUITE_HARDEN,
+  DEMO_BUILD, EXPERT_PRICE_B_PER_T, EXPERT_START_T, EXPLOIT_START, FIDELITY, RL_FAMILY_LABEL, S2_REF, START_EXPLOIT_MULT, SUITE_BUILD, SUITE_HARDEN,
   SUITE_UPKEEP,
 } from '../../../data/v2/suites';
 import { EXPERT_QUALITY } from '../../../data/v2/dataAssets';
@@ -25,7 +28,6 @@ import { nodeKnown } from './tree';
 import { aiOversight } from '../safety/ideas';
 import { queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
-import { expertStockT, takeExpertData } from '../production/data';
 import type { ActionDef, CostLine, DomainId, EnvSuite, GameStateV2, OwnedDataAsset, PostDesign, RLFamily, StartType, SystemCtx } from '../types';
 
 export type SuiteWork = 'build' | 'harden';
@@ -123,34 +125,50 @@ export const hardenedExploit = (f: RLFamily, x: number, cut: number = SUITE_HARD
  *  (AI-assisted oversight, safety/ideas.ts aiOversight: less when the critic shares the trained model's lineage). */
 export const hardenCut = (s: GameStateV2) => Math.min(0.95, SUITE_HARDEN.cut * aiOversight(s).cutMult);
 
-export interface SuiteCost { tw: number; cashB: number; tokensT: number; /** Expert tokens taken from the domain's bought stock (data.expert, D2) instead of bought. */ fromStockT: number }
-/** Cost of a build (more expert data built in) or a hardening pass on a family's suite, today. A build first uses the
- *  expert data the lab bought in the family's domain (data.expert, model v3 D2: one purchase path) and buys the rest. */
-export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork): SuiteCost {
+export interface SuiteCost {
+  tw: number; cashB: number;
+  /** Expert tokens the build buys (0 for hardening). */ tokensT: number;
+  /** Of which long-horizon human demonstrations (a demos build, P12). */ demosT: number;
+}
+/** The demonstrations build is an option of this family (long tasks) and the lab knows how to record them (P12). */
+export const demosAvailable = (s: GameStateV2, f: RLFamily) => f === DEMO_BUILD.family && nodeKnown(s, DEMO_BUILD.needs);
+/** Expert tokens a build buys: SUITE_BUILD's tasks, plus DEMO_BUILD's demonstrations for a demos build. */
+const buildTokensT = (demos: boolean) => SUITE_BUILD.tokensT + (demos ? DEMO_BUILD.tokensT : 0);
+/** Cost of a build (more expert data built in, bought by the build at EXPERT_PRICE_B_PER_T: the only way to buy expert
+ *  data, DD-07) or a hardening pass on a family's suite, today. `demos`: the long-tasks premium build (P12). */
+export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): SuiteCost {
   if (work === 'build') {
-    const fromStockT = Math.min(SUITE_BUILD.tokensT, expertStockT(s.player.dataPortfolio, familyDomain(f)));
-    return { tw: SUITE_BUILD.twPerStart * (SUITE_BUILD.tokensT / EXPERT_START_T), cashB: (SUITE_BUILD.tokensT - fromStockT) * EXPERT_PRICE_B_PER_T, tokensT: SUITE_BUILD.tokensT, fromStockT };
+    const tokensT = buildTokensT(demos);
+    const tw = SUITE_BUILD.twPerStart * (SUITE_BUILD.tokensT / EXPERT_START_T) + (demos ? DEMO_BUILD.tw : 0);
+    return { tw, cashB: tokensT * EXPERT_PRICE_B_PER_T, tokensT, demosT: demos ? DEMO_BUILD.tokensT : 0 };
   }
   const k = sizeOf(s, f);
   // P15: the safety agents do their share of the red-teaming at the AI's cost (safety/ideas.ts aiOversight).
-  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * aiOversight(s).cashMult, tokensT: 0, fromStockT: 0 };
+  return { tw: SUITE_HARDEN.tw * k, cashB: SUITE_HARDEN.cashB * k * aiOversight(s).cashMult, tokensT: 0, demosT: 0 };
 }
 /** Fidelity after a build and exploitability after a hardening pass (the action's before → after). */
-export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork): { fid: [number, number]; exploit: [number, number] } {
+export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): { fid: [number, number]; exploit: [number, number] } {
   const fid = suiteFidelity(s, f);
   const x = (suiteOf(s, f) ?? firstSuite(s, f)).exploit;
   return work === 'build'
-    ? { fid: [fid, fidelityOf(suiteExpertT(s, f) + SUITE_BUILD.tokensT)], exploit: [x, x] }
+    ? { fid: [fid, fidelityOf(suiteExpertT(s, f) + buildTokensT(demos))], exploit: [x, x] }
     : { fid: [fid, fid], exploit: [x, hardenedExploit(f, x, hardenCut(s))] };
 }
 
-/** Build-queue reference of suite work: `<family>:build` or `<family>:harden`. */
-export const suiteRef = (f: RLFamily, work: SuiteWork) => `${f}:${work}`;
-export function parseSuiteRef(ref: string): { family: RLFamily; work: SuiteWork } | undefined {
-  const [f, w] = ref.split(':');
+/** Build-queue reference of suite work: `<family>:build`, `<family>:build:demos` (a demos build) or `<family>:harden`. */
+export const suiteRef = (f: RLFamily, work: SuiteWork, demos = false) => `${f}:${work}${demos && work === 'build' ? ':demos' : ''}`;
+export function parseSuiteRef(ref: string): { family: RLFamily; work: SuiteWork; demos: boolean } | undefined {
+  const [f, w, d] = ref.split(':');
   if (!RL_FAMILY_IDS.includes(f as RLFamily) || (w !== 'build' && w !== 'harden')) return undefined;
-  return { family: f as RLFamily, work: w };
+  return { family: f as RLFamily, work: w, demos: w === 'build' && d === 'demos' };
 }
+/** The queued work of one kind on a family's suite (a demos build counts as a build), or undefined. */
+export const queuedSuiteWork = (s: GameStateV2, f: RLFamily, work: SuiteWork) =>
+  s.player.build.queue.find((it) => {
+    if (it.kind !== 'suite') return false;
+    const r = parseSuiteRef(it.ref);
+    return r?.family === f && r.work === work;
+  });
 
 /** Store a family's suite and its expert asset (a start family missing from the state gets its start suite). */
 export function materialiseSuite(s: GameStateV2, f: RLFamily): EnvSuite | undefined {
@@ -186,12 +204,12 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
   if (r.work === 'build') {
     const a = findExpert(s, r.family)!;
     const before = fidelityOf(a.tokensT);
-    a.tokensT += SUITE_BUILD.tokensT;
+    a.tokensT += buildTokensT(r.demos);
     a.day = ctx.day;
     x.builds++;
     ctx.log('research', first
       ? `Engineers finished the first ${RL_FAMILY_LABEL[r.family]} environments: post-training can now train on them (fidelity ${fidelityOf(a.tokensT).toFixed(2)}).`
-      : `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
+      : `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments${r.demos ? ' with long-horizon human demonstrations' : ''}: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
   } else {
     const before = x.exploit;
     x.exploit = hardenedExploit(r.family, x.exploit, hardenCut(s));
@@ -200,19 +218,10 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
   }
 }
 
-/** Model v3 D9: expert data an adopted research result delivers into a family's suite (P12's long-horizon human
- *  demonstrations), paid at the expert-data price on delivery (EXPERT_PRICE_B_PER_T: one price for every expert token).
- *  Returns the cash paid ($B). */
-export function addSuiteExpertData(s: GameStateV2, ctx: SystemCtx, f: RLFamily, tokensT: number, source: string): number {
-  if (!(tokensT > 0) || !materialiseSuite(s, f)) return 0;
-  const a = findExpert(s, f)!;
-  const before = fidelityOf(a.tokensT);
-  a.tokensT += tokensT;
-  a.day = ctx.day;
-  const cash = tokensT * EXPERT_PRICE_B_PER_T;
-  bookCash(s, ctx, -cash, 'training', 'expert data', source);
-  ctx.log('research', `${source}: ${Math.round(tokensT * 1000)}B tokens of expert data join the ${RL_FAMILY_LABEL[f]} environments ($${cash.toFixed(2)}B): fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, f);
-  return cash;
+/** Migration 64 → 65 (RD-T06): expert data bought by domain (the removed data.expert) joins a family's suite. */
+export function creditSuiteExpertData(s: GameStateV2, f: RLFamily, tokensT: number): void {
+  if (!(tokensT > 0) || !materialiseSuite(s, f)) return;
+  findExpert(s, f)!.tokensT += tokensT;
 }
 
 /** Upkeep of a family's suite, team-weeks per week: SUITE_UPKEEP.tw × √(E/E₀). */
@@ -224,15 +233,19 @@ const famParam = (p: Record<string, number | string | boolean>): RLFamily => {
   const f = typeof p.family === 'string' ? (p.family as RLFamily) : 'swe';
   return RL_FAMILY_IDS.includes(f) ? f : 'swe';
 };
+const demosParam = (p: Record<string, number | string | boolean>) => p.demos === true || p.demos === 'true' || p.demos === 1;
 /** Why suite work cannot be queued (undefined = it can). One pending item per family and kind of work. */
-export function suiteWorkBlock(s: GameStateV2, f: RLFamily, work: SuiteWork): string | undefined {
+export function suiteWorkBlock(s: GameStateV2, f: RLFamily, work: SuiteWork, demos = false): string | undefined {
   if (!familyUnlocked(s, f)) return `No ${RL_FAMILY_LABEL[f]} environments yet (needs ${RL_FAMILY_NEEDS[f]})`;
   if (!suiteOf(s, f) && work === 'harden') return `No ${RL_FAMILY_LABEL[f]} environments yet: build a suite first`;
-  if (s.player.build.queue.some((it) => it.kind === 'suite' && it.ref === suiteRef(f, work))) return `Already ${work === 'build' ? 'building' : 'hardening'} the ${RL_FAMILY_LABEL[f]} suite`;
-  if (suiteWorkCost(s, f, work).cashB > s.player.finance.cash) return 'Not enough cash';
+  if (demos && work === 'build' && f !== DEMO_BUILD.family) return `Human demonstrations are a ${RL_FAMILY_LABEL[DEMO_BUILD.family]} build`;
+  if (demos && work === 'build' && !demosAvailable(s, f)) return `Needs Long-horizon human demos (${DEMO_BUILD.needs})`;
+  if (queuedSuiteWork(s, f, work)) return `Already ${work === 'build' ? 'building' : 'hardening'} the ${RL_FAMILY_LABEL[f]} suite`;
+  if (suiteWorkCost(s, f, work, demos).cashB > s.player.finance.cash) return 'Not enough cash';
   return undefined;
 }
 const pct = (x: number) => Math.round(x * 1000) / 10;
+const fmtB = (t: number) => `${Math.round(t * 1e4) / 10}B`;
 
 /** suite.build / suite.harden (model v3 D5): queue engineers' work on a family's suite; cash is paid when queued. */
 export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).map((work): ActionDef => ({
@@ -240,12 +253,13 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
   available: (s) => (suiteFamilies(s).length ? true : 'No environment suites'),
   preview: (s, p) => {
     const f = famParam(p);
-    const c = suiteWorkCost(s, f, work);
-    const e = suiteWorkEffect(s, f, work);
+    const demos = work === 'build' && demosParam(p);
+    const c = suiteWorkCost(s, f, work, demos);
+    const e = suiteWorkEffect(s, f, work, demos);
     // P15: the safety agents' share of the red-teaming, and whether their critiques are discounted for collusion.
     const ai = work === 'harden' ? aiOversight(s) : undefined;
     const red = ai && ai.A > 0 ? `expert red-teamers (safety agents do ${Math.round(ai.A * 100)}%${ai.collusion ? `, their critiques count ${Math.round((1 - ai.Aeff / ai.A) * 100)}% less: same lineage as the trained model` : ''})` : 'expert red-teamers';
-    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.fromStockT > 0 ? `expert data (${Math.round(c.fromStockT * 1e6)}M tokens from your bought stock)` : 'expert data') : red }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
+    const costs: CostLine[] = [{ currency: 'cash', amount: -Math.round(c.cashB * 1000) / 1000, target: work === 'build' ? (c.demosT > 0 ? `expert data (${fmtB(c.tokensT - c.demosT)} task + ${fmtB(c.demosT)} long-horizon demonstration tokens)` : `expert data (${fmtB(c.tokensT)} task tokens)`) : red }, { currency: 'staffTime', amount: -Math.round(c.tw * 10) / 10, target: 'engineer team-weeks' }];
     const gains: CostLine[] = work === 'build'
       ? [{ currency: 'progress', unit: 'fidelity', amount: Math.round((e.fid[1] - e.fid[0]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite fidelity ${e.fid[0].toFixed(2)} → ${e.fid[1].toFixed(2)}` }]
       : [{ currency: 'alignment', amount: Math.round((e.exploit[0] - e.exploit[1]) * 1000) / 1000, target: `${RL_FAMILY_LABEL[f]} suite exploitable ${pct(e.exploit[0])}% → ${pct(e.exploit[1])}% of tasks` }];
@@ -253,12 +267,12 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
   },
   apply: (s, ctx, p) => {
     const f = famParam(p);
-    const why = suiteWorkBlock(s, f, work);
+    const demos = work === 'build' && demosParam(p);
+    const why = suiteWorkBlock(s, f, work, demos);
     if (why) throw new Error(why);
     materialiseSuite(s, f);
-    const c = suiteWorkCost(s, f, work);
-    if (c.fromStockT > 0) takeExpertData(s.player.dataPortfolio, familyDomain(f), c.fromStockT);
-    queueBuild(s, 'suite', suiteRef(f, work), c.tw);
+    const c = suiteWorkCost(s, f, work, demos);
+    queueBuild(s, 'suite', suiteRef(f, work, demos), c.tw);
     if (c.cashB > 0) bookCash(s, ctx, -c.cashB, 'training', work === 'build' ? 'expert data' : 'environment hardening', f);
     ctx.log('research', `Engineers start ${work === 'build' ? 'building out' : 'hardening'} the ${RL_FAMILY_LABEL[f]} environments.`, 1, f);
   },
@@ -273,7 +287,7 @@ export function suitesView(s: GameStateV2, focus: PostDesign['rlFocus'] = 'broad
   const w = suiteRlWeights(s, focus);
   const rows = suiteFamilies(s).map((f): SuiteRow => {
     const x = suiteOf(s, f)!;
-    const pending = (['build', 'harden'] as SuiteWork[]).filter((k) => s.player.build.queue.some((it) => it.kind === 'suite' && it.ref === suiteRef(f, k)));
+    const pending = (['build', 'harden'] as SuiteWork[]).filter((k) => queuedSuiteWork(s, f, k));
     return { family: f, label: RL_FAMILY_LABEL[f], fid: suiteFidelity(s, f), exploit: x.exploit, expertT: suiteExpertT(s, f), share: w[f] ?? 0, builds: x.builds, hardenings: x.hardenings, pending };
   });
   const weighted = rows.reduce((a, r) => ({ fid: a.fid + r.share * r.fid, exploit: a.exploit + r.share * r.exploit }), { fid: 0, exploit: 0 });

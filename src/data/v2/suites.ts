@@ -44,12 +44,13 @@ export const S2_REF = 0.36;
  *  Expert data is not pretraining data (D1: it does not enter U). */
 export const EXPERT_START_T = 0.002;
 export const EXPERT_PRICE_B_PER_T = 50;
-/** P12 (long-horizon human demonstrations, model v3 D9): expert data delivered into the long-tasks suite per unit of the
- *  project's effect (T tokens; hidden per-world relative sd 0.25: how much of the recordings pass review). Size: v2's
- *  $1B data budget (research/12 #12 "$1B+"; AI 2027: "billions of dollars for human laborers to record themselves"
- *  [P via research/12 §6]) at the one expert-data price above = 0.02T = 10 × a start suite's E₀ (fidelity 1 → 1.35).
- *  Units [D]: ≈ 200k expert-days of recorded work at ≈ 100k tokens and ≈ $5k a day. */
-export const P12_DEMO_T = 1 / EXPERT_PRICE_B_PER_T;
+/** The demonstrations build (RD-T06, DD-07): a premium build of the long-tasks suite, unlocked by P12 (long-horizon
+ *  human demonstrations), that also buys `tokensT` of recorded expert work into the suite at the one expert-data price
+ *  above, plus `tw` engineer team-weeks to turn recordings into environments [D]. Size: v2's $1B data budget
+ *  (research/12 #12 "$1B+"; AI 2027: "billions of dollars for human laborers to record themselves" [P via research/12
+ *  §6]) = 0.02T = 10 × a start suite's E₀ (a build with demos from the start stock: fidelity 1 → 1.36). Units [D]:
+ *  ≈ 200k expert-days of recorded work at ≈ 100k tokens and ≈ $5k a day. Repeatable, like any build. */
+export const DEMO_BUILD = { family: 'longHorizon', needs: 'P12', tokensT: 1 / EXPERT_PRICE_B_PER_T, tw: 4 } as const;
 /** Fidelity from the expert data built into a suite, E (T): fid = max − (max − 1)·(E₀/E)^γ, clamped at `min` [D]: 1 at
  *  the start stock E₀, ×2 the data → 1.15, ×4 → 1.25, ×16 → 1.375, never above 1.5. Bounded like Khatri et al.'s
  *  asymptote (research/20 C1: environment and recipe choices rarely move A; the base sets most of it), with diminishing

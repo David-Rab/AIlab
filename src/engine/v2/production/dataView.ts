@@ -3,15 +3,14 @@
 import { LICENCE_DELIVERY_DAYS, LICENCE_TIERS, PUBLIC_WEB, USAGE_LEVELS, USAGE_QUALITY, type DomainMix, type LicenceTier, type UsageLevel } from '../../../data/v2/dataAssets';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { BASE_DATA, REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { gOfBuild, gV0 } from '../models/capability';
 import { versionById } from '../models/labs';
-import type { DataKind, DomainId, GameStateV2, ModelVersion, RLFamily } from '../types';
+import type { DataKind, DomainId, GameStateV2, ModelVersion } from '../types';
 import {
-  addAsset, dataDelta, drawData, expertStockT, licenceAsset, NATURAL_MIX, portfolioByKind, portfolioU, pretrainMix, publicUse, REF_SHARE, synAssetFor,
+  addAsset, dataDelta, drawData, licenceAsset, NATURAL_MIX, portfolioByKind, portfolioU, pretrainMix, publicUse, REF_SHARE, synAssetFor,
   synPoolH100e, synQualityCap, syntheticQuality, synTeacher, synTokensT, unlicensedPublicT, usageRateAt, type DataDelta, type DataDraw, type KindRow, type MixTarget,
 } from './data';
-import { expertTerms, licenceTerms, synJobTerms, usageLevelOf } from './dataActions';
+import { licenceTerms, synJobTerms, usageLevelOf } from './dataActions';
 
 type P = Record<string, number | string | boolean>;
 /** Tokens of the lab's latest base design (the size the natural-mix and delta readouts use). */
@@ -34,8 +33,7 @@ export interface DataPortfolioView {
   defaultTeacher?: string;
   /** The public crawl: coverage of the shared world stock, licensed or not. */
   crawl: { coverage: number; stockT: number; licensed: boolean; unlicensedT: number };
-  /** Expert data bought by domain and not yet built into a suite (T), and the tokens held by suites (T). */
-  expertUnbuilt: Partial<Record<DomainId, number>>;
+  /** Expert data held by the suites (T; bought only by suite builds, DD-07). */
   expertInSuitesT: number;
   usageLevel: UsageLevel;
 }
@@ -47,7 +45,7 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
   const pending = (p.pending ?? []).map((d): PendingView => {
     const a = d.asset;
     const tier = a.kind === 'licensed' ? (Object.entries(LICENCE_TIERS) as [LicenceTier, (typeof LICENCE_TIERS)[LicenceTier]][]).find(([, t]) => t.quality === a.quality)?.[1].label : undefined;
-    return { kind: a.kind, domain: a.domain, tokensT: a.tokensT, quality: a.quality, due: d.due, label: a.kind === 'expert' ? 'Expert data' : (tier ?? 'Licensed') };
+    return { kind: a.kind, domain: a.domain, tokensT: a.tokensT, quality: a.quality, due: d.due, label: tier ?? 'Licensed' };
   });
   const job = p.synJob;
   const pool = synPoolH100e(s);
@@ -55,13 +53,7 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
   const f = job && jobT ? Math.min(1, Math.max(0, job.share)) : 0;
   const synPerDayT = synTokensT(jobT, pool * f) + synTokensT(synTeacher(s), pool * (1 - f));
   const pub = publicUse(p);
-  const expertUnbuilt: Partial<Record<DomainId, number>> = {};
-  let inSuites = 0;
-  for (const a of p.assets) {
-    if (a.kind !== 'expert') continue;
-    if (a.id.startsWith('expert:dom:') && a.domain) expertUnbuilt[a.domain] = (expertUnbuilt[a.domain] ?? 0) + a.tokensT;
-    else inSuites += a.tokensT;
-  }
+  const inSuites = p.assets.reduce((t, a) => t + (a.kind === 'expert' ? a.tokensT : 0), 0);
   return {
     uT: portfolioU(p) / 1e12,
     tokensT: rows.filter((r) => r.kind !== 'expert').reduce((a, r) => a + r.tokensT, 0),
@@ -69,7 +61,7 @@ export function dataPortfolioView(s: GameStateV2): DataPortfolioView {
     usagePerDayT: usageRateAt(s, p.usageShare),
     synPerDayT, synPoolH100e: pool, defaultTeacher: synTeacher(s)?.name,
     crawl: { coverage: pub ? Math.min(1, Math.max(0, pub.coverage)) : 0, stockT: PUBLIC_WEB.stockT, licensed: !!pub?.licensed, unlicensedT: unlicensedPublicT(p) },
-    expertUnbuilt, expertInSuitesT: inSuites,
+    expertInSuitesT: inSuites,
     usageLevel: usageLevelOf(p.usageShare),
   };
 }
@@ -110,13 +102,6 @@ export function licenceForm(s: GameStateV2, p: P): LicenceForm {
     ...t, quality: tier.quality, priceBPerT: tier.priceBPerT, days: LICENCE_DELIVERY_DAYS, licensed: !!pub?.licensed, unlicensedT: unlicensedPublicT(s.player.dataPortfolio),
     delta: t.web ? undefined : dataDelta(s, (x) => addAsset(x, licenceAsset(t.domain, t.tier, t.tokensT, s.time.day)), t.domain),
   };
-}
-
-export interface ExpertForm { domain: DomainId; tokensT: number; cashB: number; families: { id: RLFamily; label: string }[]; stockT: [number, number] }
-export function expertForm(s: GameStateV2, p: P): ExpertForm {
-  const t = expertTerms(s, p);
-  const h = expertStockT(s.player.dataPortfolio, t.domain);
-  return { domain: t.domain, tokensT: t.tokensT, cashB: t.cashB, families: t.families.map((f) => ({ id: f, label: RL_FAMILY_LABEL[f] })), stockT: [h, h + t.tokensT] };
 }
 
 export interface TeacherRow { id: string; name: string; g: number; quality: number; tokensPerH100eDay: number; weightedPerH100eDay: number; isDefault: boolean }

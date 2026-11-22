@@ -136,7 +136,7 @@ export const PROJECT_MAX_TEAMS = 6;
 export const AUTO_RANK_W = 0.8;
 /** RD-A03: the science-team planner's value proxies, in lab-wide software OOM [D]. A domain OOM (one capability domain
  *  of new versions) counts `domainOom` of a software OOM; an unlock (no typed effect: an RL focus, option, feature) and
- *  a data / expert-data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
+ *  a data effect count `unlock` OOM × the attempt's odds (about one mid-sized stack idea, 0.02–0.06 OOM). */
 export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
 /** RD-R03: the safety planner's per-line weight [D] (value proxy = results per day × chance it works × weight; the
  *  safety department is planned on its own, so only ratios between lines matter). 1 for every line until a line's

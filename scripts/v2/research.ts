@@ -696,10 +696,9 @@ if (process.argv.includes('--rd-a03')) {
 
 // ---------- model v3 D9: P10, P12, P21 are typed data / suite effects (no flat level bonuses, old flags gone) ----------
 {
-  const typed = ['P10', 'P12', 'P21'].map((id) => ({ id, n: TREE_BY_ID[id] }));
+  const typed = ['P10', 'P21'].map((id) => ({ id, n: TREE_BY_ID[id] }));
   const want: Record<string, (e: NonNullable<TreeNodeDef['effect']>) => boolean> = {
     P10: (e) => (e.data?.synQMax ?? 0) > 0 && !e.data?.worthOom,
-    P12: (e) => e.expert?.family === 'longHorizon' && e.expert.tokensT > 0,
     P21: (e) => (e.data?.worthOom ?? 0) > 0 && !e.data?.synQMax,
   };
   const bad = typed.filter(({ id, n }) => !n.kind || !n.effect || n.effect.stack || n.effect.domains || !want[id](n.effect) || !hasTypedEffect(n)).map((x) => x.id);

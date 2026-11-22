@@ -1181,9 +1181,9 @@ async function d4Check(where, act, stepOk = true) {
   const miss = Object.entries(want).filter(([k, re]) => !re.test(tips[k])).map(([k]) => k);
   ok(`D4 ${where}: tooltips on U, the natural mix, kind rows, domain cells, teachers, usage levels and the before → after`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
   const lic = await d4Tip(dv('[data-act="data.license"]'));
-  const exp = await d4Tip(dv('[data-act="data.expert"]'));
   const syn = await d4Tip(dv('[data-act="data.synthesize"]'));
-  ok(`D4 ${where}: data previews read in token units, not levels`, /T unique tokens/.test(lic) && /B expert tokens/.test(exp) && /M H100e-days/.test(syn) && ![lic, exp, syn].some((t) => /\d L\b/.test(t)), `${lic.slice(0, 90)} | ${exp.slice(0, 60)}`);
+  ok(`D4 ${where}: data previews read in token units, not levels`, /T unique tokens/.test(lic) && /M H100e-days/.test(syn) && ![lic, syn].some((t) => /\d L\b/.test(t)), `${lic.slice(0, 90)}`);
+  ok(`D4 ${where}: no expert-data purchase on Data (RD-T06: suite builds buy it)`, !(await page.$(dv('[data-act="data.expert"]'))));
   await clearTips();
   if (act) {
     // A day first, so the fixture's cached readouts (compute online, prodCache) are today's before the previews are read.
@@ -1198,14 +1198,6 @@ async function d4Check(where, act, stepOk = true) {
     const c1 = JSON.parse(await get('s.player.finance.cash'));
     ok(`D4 ${where}: the deal adds the previewed U (${du ? (du[1] - du[0]).toFixed(2) : '?'}T) and costs the previewed cash`, !!du && Math.abs(last.u - (du[1] - du[0])) < 1e-6 && last.d === 'PHYS' && Math.abs(c0 - c1 - cash) < 1e-6, `asset U ${last.u} · cash ${(c0 - c1).toFixed(3)} vs ${cash}`);
     ok(`D4 ${where}: the deal shows as pending`, !!(await page.$(dv('[data-test=data-pending] [data-pending=licensed]'))));
-    // Expert data.
-    const eTok = Number(await attr(dv('[data-test=exp-sum]'), 'data-tokens'));
-    const eCash = Number(await attr(dv('[data-test=exp-sum]'), 'data-cash'));
-    const e0 = JSON.parse(await get('s.player.finance.cash'));
-    await check(`D4 ${where}: Order expert data queues a delivery`, 's.player.dataPortfolio.pending.length', () => page.click(dv('[data-act="data.expert"]')));
-    const le = JSON.parse(await get('(() => { const p = s.player.dataPortfolio.pending; const a = p[p.length - 1].asset; return { k: a.kind, t: a.tokensT }; })()'));
-    const e1 = JSON.parse(await get('s.player.finance.cash'));
-    ok(`D4 ${where}: the expert order is the previewed size and cash`, le.k === 'expert' && Math.abs(le.t - eTok) < 1e-12 && Math.abs(e0 - e1 - eCash) < 1e-6, JSON.stringify(le));
     // Generation job with the best-yield teacher; a day of it adds ≈ tokens ÷ days.
     const best = await page.$eval(dv('[data-test=syn-teachers]'), (e) => [...e.querySelectorAll('[data-teacher]')].find((b) => /best yield/.test(b.textContent ?? ''))?.getAttribute('data-teacher') ?? '').catch(() => '');
     if (best) { await page.click(dv(`[data-test=syn-teachers] [data-teacher="${best}"]`)); await wait(80); }

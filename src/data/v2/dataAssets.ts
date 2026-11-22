@@ -114,17 +114,9 @@ export const USAGE_MIX: Partial<Record<Channel, DomainMix>> = {
   consumer: CHAT_WORK.w,
 };
 
-/** Expert human data (cash, for RL environments and evals; D5's suites read it). Not pretraining data: it does not
- *  enter U. q 3 [D: research/20 A3's top curated tier]. Starts empty (D5 sources the start suites). */
+/** Expert human data (cash, only for RL environments: each suite's `expert:<family>` asset, bought by its builds,
+ *  DD-07). Not pretraining data: it does not enter U. q 3 [D: research/20 A3's top curated tier]. */
 export const EXPERT_QUALITY = 3;
-/** Expert data purchases by domain (action data.expert, model v3 D2): the price is the suites' ($0.05 a token, $50B/T:
- *  Epoch's RL-environment FAQ ≈ $1k per task at ≈ 20k tokens a task, data/v2/suites.ts EXPERT_PRICE_B_PER_T); the
- *  default order is one start suite's worth (EXPERT_START_T = 0.002T, $0.1B). Delivered EXPERT_DELIVERY_DAYS later
- *  (contractor recruiting and review) [D]. The tokens wait in the domain's expert asset (`expert:dom:<domain>`) until a
- *  suite build of a family in that domain uses them instead of buying (models/suites.ts) or an evaluation reads them
- *  (D7). Size limits per order (T) [D]. */
-export const EXPERT_DELIVERY_DAYS = 30;
-export const EXPERT_SIZE_T = { min: 0.0005, max: 0.05 } as const;
 
 /** Synthetic generation job (action data.synthesize, model v3 D2): a share of the synthetic pool generates with a chosen
  *  teacher for some days; the rest keeps the default teacher (the internal research model). Defaults [D]: the whole

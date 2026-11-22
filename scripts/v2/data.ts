@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ALPHA_DATA, EXPERT_DELIVERY_DAYS, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, P10_SYN_Q_RAISE, P21_WORTH_OOM, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
+  ALPHA_DATA, LICENCE_DELIVERY_DAYS, LICENCE_TIERS, P10_SYN_Q_RAISE, P21_WORTH_OOM, PUBLIC_WEB, SPEC_CAP, SYN_Q, USAGE_LEVELS, WEB_LICENCE,
 } from '../../src/data/v2/dataAssets';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
@@ -30,9 +30,10 @@ import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { gOfBuild, gV0 } from '../../src/engine/v2/models/capability';
 import { effectiveTokens, fDataEff } from '../../src/engine/v2/models/effective';
 import { launchRun, planRun, runsSystem } from '../../src/engine/v2/models/runs';
-import { familyDomain, suiteWorkCost } from '../../src/engine/v2/models/suites';
+import { suiteWorkCost } from '../../src/engine/v2/models/suites';
+import { DATA_ACTIONS } from '../../src/engine/v2/production/dataActions';
 import {
-  NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, deliverData, drawData, expertDomainId, expertStockT, portfolioByKind, portfolioU, publicUse, synTeacher,
+  NATURAL_MIX, Q_REF, REF_SHARE, addAsset, assetQuality, assetTokensT, licenceAsset, playerDraw, deliverData, drawData, portfolioByKind, portfolioU, publicUse, synTeacher,
   syntheticAccrual, syntheticQuality, synAssetFor, synQualityCap, synTokensPerH100eDay, tokenWorth, uniqueTokens, unlicensedPublicT, usageAccrual, usageTokensPerDay,
 } from '../../src/engine/v2/production/data';
 import { teacherRows } from '../../src/engine/v2/production/dataView';
@@ -284,23 +285,10 @@ const g0f = gV0(sSy.hidden.timeline);
 check(syntheticQuality(g0f + 2, g0f) === 1 && syntheticQuality(g0f + 4, g0f) === 1 && syntheticQuality(g0f + 1.5, g0f) < 1,
   'D11 teacher: synthetic quality stops at the web\'s 1 (cap [D]: no source for synthetic tokens beating human text)', `q at V0 + 1 / 2 / 4 OOM: ${[1, 2, 4].map((x) => syntheticQuality(g0f + x, g0f)).join(' / ')}`);
 
-// Expert data by domain: cash, delivered, and a suite build in that domain uses it before buying.
-const sEx = game();
-sEx.player.finance.cash = 100;
-const famBio = 'bio' as const;
-const domBio = familyDomain(famBio);
-const errE = act(sEx, 'data.expert', { domain: domBio, tokensT: 0.003 });
-deliverAt(sEx, EXPERT_DELIVERY_DAYS);
-const exA = owned(sEx, expertDomainId(domBio));
-check(!errE && near(sEx.player.finance.cash, 100 - 0.003 * EXPERT_PRICE_B_PER_T, 1e-9) && exA?.tokensT === 0.003 && exA.kind === 'expert' && exA.quality === 3 && portfolioU(sEx.player.dataPortfolio) === portfolioU(s0.player.dataPortfolio),
-  'expert: buying 3M BIO expert tokens costs $0.15B and adds them to the domain\'s expert asset (not pretraining data: U unchanged)', errE ?? `${exA?.tokensT}T`);
-const cBuild = suiteWorkCost(sEx, famBio, 'build');
-const cash0 = sEx.player.finance.cash;
-const errB = act(sEx, 'suite.build', { family: famBio });
-check(!errB && cBuild.cashB === 0 && cBuild.fromStockT === SUITE_BUILD.tokensT && near(expertStockT(sEx.player.dataPortfolio, domBio), 0.001, 1e-12) && sEx.player.finance.cash === cash0,
-  'expert: a suite build in that domain takes the bought data instead of paying (one purchase path)', errB ?? `cost ${cBuild.cashB}, left ${expertStockT(sEx.player.dataPortfolio, domBio)}T`);
-const c2 = suiteWorkCost(sEx, 'swe', 'build');
-check(c2.fromStockT === 0 && near(c2.cashB, SUITE_BUILD.tokensT * EXPERT_PRICE_B_PER_T, 1e-12), 'expert: a build without bought data in its domain pays as before ($0.1B)');
+// RD-T06 (DD-07): expert data is bought only by suite builds (no purchase by domain).
+check(!DATA_ACTIONS.some((x) => x.id === 'data.expert'), 'expert: no expert-data purchase by domain (suite builds buy it)');
+const c2 = suiteWorkCost(game(), 'swe', 'build');
+check(c2.tokensT === SUITE_BUILD.tokensT && near(c2.cashB, SUITE_BUILD.tokensT * EXPERT_PRICE_B_PER_T, 1e-12), 'expert: a build pays for the expert data it builds in ($0.1B)');
 
 // ---------- synthetic data ----------
 const syn = (share: number) => {

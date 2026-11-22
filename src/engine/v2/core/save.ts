@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import type { DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
@@ -13,7 +13,7 @@ import { FIN } from '../actors/rivals';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
-import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
+import { creditSuiteExpertData, familyDomain, keepUnlockedSuite, suiteFamilies, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
@@ -86,8 +86,12 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  Migration 62 → 63 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
  *  failed: open again, next attempt).
  *  64 (RD-T11): TrainingRun.scale is gone (scrutiny reads the run's FLOP against the largest rival run). Migration
- *  63 → 64 drops it. */
-export const SCHEMA_REV = 64;
+ *  63 → 64 drops it.
+ *  65 (RD-T06, DD-07): expert data is only a suite input (no purchase by domain, no `expert:dom:<domain>` stock) and
+ *  P12 unlocks the long-tasks demonstrations build instead of delivering data at adoption. Migration 64 → 65 credits
+ *  each bought domain stock (delivered or pending) to the suites of its families (split evenly over those with a
+ *  suite), drops stock no suite maps to, and restarts a P12 under test as a plain unlock project at its progress. */
+export const SCHEMA_REV = 65;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -606,6 +610,24 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   63: (raw) => {
     const s = raw as unknown as GameStateV2;
     for (const r of s.player?.models?.runs ?? []) delete (r as unknown as Record<string, unknown>).scale;
+  },
+  /** 64 → 65 (RD-T06): domain expert stock → its families' suites (else dropped); P12 loses its idea stages. Idempotent. */
+  64: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player?.dataPortfolio;
+    if (!p) return;
+    const byDomain: Partial<Record<DomainId, number>> = {};
+    const isDom = (a: { kind: string; id?: string }) => a.kind === 'expert' && (a.id ?? '').startsWith('expert:dom:');
+    for (const a of p.assets) if (isDom(a) && a.kind === 'expert' && a.domain) byDomain[a.domain] = (byDomain[a.domain] ?? 0) + a.tokensT;
+    for (const d of p.pending ?? []) if (isDom(d.asset) && d.asset.domain) byDomain[d.asset.domain] = (byDomain[d.asset.domain] ?? 0) + d.asset.tokensT;
+    p.assets = p.assets.filter((a) => !isDom(a));
+    if (p.pending) p.pending = p.pending.filter((d) => !isDom(d.asset));
+    for (const [dom, t] of Object.entries(byDomain) as [DomainId, number][]) {
+      const fams = suiteFamilies(s).filter((f) => familyDomain(f) === dom);
+      for (const f of fams) creditSuiteExpertData(s, f, t / fams.length);
+    }
+    const st = s.player.tree?.P12 as unknown as (Record<string, unknown> & { status?: string }) | undefined;
+    if (st && st.status !== 'known' && st.cap) delete st.cap;
   },
 };
 
