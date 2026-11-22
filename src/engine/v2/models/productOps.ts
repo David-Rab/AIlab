@@ -444,7 +444,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       if (p.autoEvaluate === true) {
         const pv = evalPolicyView(s);
         if (pv.perSuite) {
-          costs.push({ currency: 'staffTime', amount: Math.round(pv.perSuite.reTW * 100) / 100, target: `research-engineer team-weeks per ${pv.depth} re-run (changed ≥ ${pv.reevalDL} L or every ${pv.reevalDays} days)` });
+          costs.push({ currency: 'staffTime', amount: Math.round(pv.perSuite.reTW * 100) / 100, target: `research-engineer team-weeks per ${pv.depth} re-run (changed ≥ ${pv.reevalDG} OOM or every ${pv.reevalDays} days)` });
           costs.push({ currency: 'compute', amount: Math.round(pv.perSuite.h100eDays), target: 'H100e-days per re-run, from experiments' });
         }
       }

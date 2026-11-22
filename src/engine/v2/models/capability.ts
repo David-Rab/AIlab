@@ -1,18 +1,17 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
-import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { multiplierAt, stage1 } from '../../../data/world';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
+import { LEVEL_KNOTS, P19_RSCH_DG, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
+import { B_G_PER_Y, RL_BUDGET } from '../../../data/v2/runDesign';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
-import { START_DATE, dayOfDate, decimalYearOf } from '../core/time';
-import { asV1World, referenceRate } from '../world/calibration';
+import { START_DATE, decimalYearOf } from '../core/time';
+import { referenceRate } from '../world/calibration';
 import { rivalServeFpt } from '../actors/rivalModel';
-import type { Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
+import type { BaseDesign, Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
 import { PLAYER_ID, bestG, labCore, otherLabs } from './labs';
-import { REF_RL_PROFILE, flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
+import { REF_RL_PROFILE, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
 
 /** In-game milestone names (no canon tags, §3.1.6). */
 export const MILESTONE_NAMES = ['Agent', 'Reliable agent', 'Research agent', 'Superhuman coder', 'Superhuman AI researcher', 'Superintelligent AI researcher', 'Superintelligence'];
@@ -57,128 +56,112 @@ export function gOfLevel(w: TimelineWorld, L: number): number {
   return g[g.length - 1];
 }
 
-const DAY_2029 = dayOfDate(START_DATE, '2029-01-01');
-
 /** Decimal year of a day (v1 convention) on the standard start date. */
 export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 
-// ───────────────────────────── compute component (§3.1.3) ─────────────────────────────
+// ───────────────────────────── start state (RD-U06) ─────────────────────────────
 
-/** pcRef_lab(t) = (1 − share)·∫₀^min(t, scDay) computePace dt (years; t < 0 extrapolates linearly): v2's compute term,
- *  read only by the start-state solution below (playerStart) since model v3 F1. */
-export function pcRefLab(w: TimelineWorld, day: Day, scDay?: Day): number {
-  const t = scDay !== undefined ? Math.min(day, scDay) : day;
-  const pre = Math.min(t, DAY_2029);
-  const post = Math.max(0, t - DAY_2029);
-  return ((1 - w.share) * (pre + 0.5 * post)) / 365;
-}
+/** The start state of world w (data/v2/calibration.ts START_STATE): G(V0), B0's pretraining recipe, V0's RL recipe. */
+export const startStateOf = (w: TimelineWorld) => START_STATE[PRESET_BY_LABEL[w.label] ?? 'sampled'];
+/** G of the reference start version V0 in world w (data): the reference base B0 (≈ 354B active × 400 tokens per
+ *  parameter, the recipe of its launch day) plus the reference post-training run (standard budget, broad) at V0's RL
+ *  recipe. */
+export const gV0 = (w: TimelineWorld): number => startStateOf(w).g;
 
-// ───────────────────────────── start recipe vintages (until RD-U06) ─────────────────────────────
+/** What a start lab's last base was trained as: its FLOP, tokens per parameter and shape. */
+export interface StartInputs { flop: number; tpp: number; shape: BaseDesign['shape'] }
+/** A start lab: its recipe lag (OOM behind the leader's day-0 recipe, the same in the pretraining and the RL-efficiency
+ *  part; negative = ahead), B0's pretraining recipe and V0's RL recipe at that lag, the version's parts and G. */
+export interface StartLab { lag: number; ePre: number; eRL: number; gPre: number; rl: ReturnType<typeof rlGains>; G: number }
 
-/** Start state only (model v3 V2): the recipe vintage of a start-state know-how value of the closed-form start solution
- *  (playerStart: B0's start day, V0's post-training day), OOM over the leader's day-0 recipe. The engine's recipe comes
- *  from the stacks (models/stacks.ts); nothing reads it from the know-how readout. */
-export const startVintage = (w: TimelineWorld, paStart: number) => B_G_PER_Y * (paStart - playerStart(w).pa0);
-
-const gV0Cache = new WeakMap<TimelineWorld, number>();
-/** G of the reference start version V0 in world w: the reference base B0 (≈ 354B active × 400 tokens per parameter, the
- *  recipe of its start day) plus the reference post-training run (standard budget, broad) at V0's RL recipe. */
-export function gV0(w: TimelineWorld): number {
-  const hit = gV0Cache.get(w);
-  if (hit !== undefined) return hit;
-  const ps = playerStart(w);
-  const flop = flopOfDesign(REFERENCE_BASE);
-  const g = gPreOf({ flop, tpp: REFERENCE_BASE.tpp, recipe: E_B0 + startVintage(w, ps.paBase), shape: REFERENCE_BASE.shape, fData: 1, designDg: 0 }).total;
-  const rl = rlGains(flop, RL_BUDGET.standard * flop, rlWeights('broad', rlFamiliesAvailable(() => false)), startVintage(w, ps.paPost));
-  const out = g + rl.general;
-  gV0Cache.set(w, out);
-  return out;
+/** The one start rule for every lab (RD-U06; the player, each rival, DeepCent and the leader twin): the lab's last base
+ *  was trained on B0's dates and its start version post-trained on V0's (reference run: standard budget, broad), at the
+ *  world's start recipes (START_STATE) less the lab's recipe lag; the lag is solved so the version lands at G0. A lab at
+ *  the reference inputs and G0 = G(V0) has lag 0 exactly. Stand-in (DD-18): every lab's start recipes are the same
+ *  dated recipes; only its lag and its base FLOP differ. */
+export function startLab(w: TimelineWorld, G0: number, inp: StartInputs): StartLab {
+  const st = startStateOf(w);
+  const rlW = rlWeights('broad', rlFamiliesAvailable(() => false));
+  const at = (lag: number): StartLab => {
+    const ePre = st.b0 - lag;
+    const eRL = st.v0 - lag;
+    const gPre = gPreOf({ flop: inp.flop, tpp: inp.tpp, recipe: ePre, shape: inp.shape, fData: 1, designDg: 0 }).total;
+    const rl = rlGains(inp.flop, RL_BUDGET.standard * inp.flop, rlW, eRL);
+    return { lag, ePre, eRL, gPre, rl, G: gPre + rl.general };
+  };
+  const zero = at(0);
+  if (Math.abs(zero.G - G0) < 1e-12) return zero;
+  let lo = -8;
+  let hi = 8;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid).G > G0) lo = mid;
+    else hi = mid;
+  }
+  return at((lo + hi) / 2);
 }
 
 // ───────────────────────────── versions (MODEL-V3 §2) ─────────────────────────────
 
 /** A version's general effective compute: G = G_pre + ΔG_RL + Σ design ΔG. */
 export const gOfBuild = (b: VersionBuild) => b.gPre + b.dgRL + b.dg;
-/** A domain's effective compute: G_pre + s_d,data + (ΔG_RL,d − the reference RL profile) + design ΔG. Builds without
- *  per-domain RL gains use the general gain. */
+/** A domain's effective compute: G_pre + s_d,data + (ΔG_RL,d − the reference RL profile) + design ΔG (general and the
+ *  domain's, OOM; RD-U01: every design offset is a ΔG here, none in levels). Builds without per-domain RL gains use the
+ *  general gain. */
 export function gOfDomain(b: VersionBuild, d: DomainId): number {
   const rl = b.dgRLd[d] !== undefined ? (b.dgRLd[d] ?? 0) - REF_RL_PROFILE[d] : b.dgRL;
-  return b.gPre + (b.sD[d] ?? 0) + rl + b.dg;
+  return b.gPre + (b.sD[d] ?? 0) + rl + b.dg + (b.dgD[d] ?? 0);
 }
-/** Set build.off (domain level − general level − the 2025 profile, L) from the build's domain G and its level offsets;
- *  returns G. L_d = λ(G_d) − o_d + design offsets (MODEL-V3 §2.3), o_d = −REF_OFF[d] (+ RSCH taste). */
-export function finishBuild(w: TimelineWorld, b: VersionBuild): number {
-  const G = gOfBuild(b);
-  const Lg = levelOfG(w, G);
-  const off: Partial<Record<DomainId, number>> = {};
-  for (const d of DOMAIN_IDS) {
-    const x = levelOfG(w, gOfDomain(b, d)) - Lg + (b.offL[d] ?? 0);
-    if (Math.abs(x) > 1e-9) off[d] = x;
-  }
-  b.off = off;
-  return G;
+/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon and the displayed
+ *  domain level read (OOM): the build's domain G (a version without a build: its general G), plus P19's RSCH gain. */
+export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId, hasP19 = false): number {
+  const g = v.build ? gOfDomain(v.build, d) : v.G;
+  return d === 'RSCH' && hasP19 ? g + P19_RSCH_DG : g;
 }
 
-/** Domain levels L_d = Lg − o_d + off_d, clamped to [0, 15] (MODEL-V3 §2.3): o_d = −REF_OFF[d] is the domain's
- *  constant difficulty offset (the 2025 profile; RSCH's taste penalty until P19), off_d the version's training and
- *  design specialisation (finishBuild). No era table: a domain lags only by what training gives it. */
-export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record<DomainId, number>> = {}, hasP19 = false): Record<DomainId, number> {
-  const Lg = levelOfG(w, G);
-  const out = {} as Record<DomainId, number>;
-  for (const d of DOMAIN_IDS) {
-    const pen = d === 'RSCH' && !hasP19 ? RSCH_TASTE_PENALTY : 0;
-    out[d] = clamp(Lg + REF_OFF[d] + pen + (designOff[d] ?? 0), 0, 15);
+/** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
+ *  refDelta(sd_SC)[d] (data/v2/workTypes.ts: the human reference points the work fit reads, departments/workfit.ts
+ *  refPoints; RD-U05). Memo per world calibration, as refPoints'. */
+const shiftMemo = new WeakMap<TimelineWorld['v3'], Record<DomainId, number>>();
+export function domainRefShift(w: TimelineWorld, d: DomainId): number {
+  let m = shiftMemo.get(w.v3);
+  if (!m) {
+    const rd = refDelta(w.v3.sdSC);
+    m = {} as Record<DomainId, number>;
+    for (const k of DOMAIN_IDS) m[k] = rd[k] * w.v3.dBM;
+    shiftMemo.set(w.v3, m);
   }
+  return m[d];
+}
+
+/** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain
+ *  effective compute (versionDomainG: training, data and design specialisation, all in OOM) measured against that
+ *  domain's best human, best_d = G_SC + δ_d·Δ_bm, on the general 0–15 scale. So L_d = 10 exactly when the model
+ *  matches the best human in domain d (the superhuman-coder knot is the CODE / AGENCY best human), λ(G_SC − Δ_bm) at
+ *  that domain's median expert, and an OOM above or below counts as it does on the general scale. Domain difficulty
+ *  lives only in the human reference points (refDelta); v2's per-domain display offsets are gone. A version without a
+ *  build (a rival's model) reads G for every domain. The display moves exactly as the fit does. Danger flags,
+ *  dangerous benchmarks, misuse / exfiltration capability and rival hazards read this same score. */
+export function domainsOf(w: TimelineWorld, G: number, b?: VersionBuild, hasP19 = false): Record<DomainId, number> {
+  const out = {} as Record<DomainId, number>;
+  const v = { G, build: b };
+  for (const d of DOMAIN_IDS) out[d] = clamp(levelOfG(w, versionDomainG(v, d, hasP19) - domainRefShift(w, d)), 0, 15);
   return out;
 }
 
-/** Recompute a version's derived levels from G (and its build offsets). */
+/** Recompute a version's derived levels from G and its build. */
 export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean) {
   v.Lg = levelOfG(w, v.G);
-  v.domains = domainsOf(w, v.G, v.build?.off ?? {}, hasP19);
+  v.domains = domainsOf(w, v.G, v.build, hasP19);
 }
 
-/** A version's effective compute in a horizon domain (OOM): its domain G plus its level offsets at LEVEL_PER_OOM; a
- *  version without a build: its general G. */
-export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') =>
-  v.build ? gOfDomain(v.build, d) + (v.build.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
+/** A version's effective compute in a horizon domain (OOM): its domain G; a version without a build: its general G. */
+export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') => versionDomainG(v, d);
 /** 50% time horizon in minutes (model v3 V3.2): METR TH1.1's 203 min for the Aug-2025 frontier (V0) × 4.2 per OOM of the
  *  version's AGENCY effective compute over V0's (CODE for software work, departments/workfit.ts), × its horizon
  *  multiplier (long-horizon RL, P07, P12). Replaces the v1 horizon curve on pm. */
 export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') =>
   H50_V0_MIN * Math.pow(H50_PER_OOM, horizonG(w, v, d) - gV0(w)) * (v.build?.h80Mult ?? 1);
-
-// ───────────────────────────── start state (§3.1.4 "Initial state") ─────────────────────────────
-
-/** Closed-form start in v2's progress coordinate (kept until RD-U06, SYNTHESIS §6 Phase 2, states the start as data):
- *  B0 started day −120, V0 finished day −20, start know-how pa(t) = pa0 + r0·t before day 0 (r0 = the v2 reference
- *  software rate at start), pa0 solved so that V0 sits at the world's start point p0 (§3.1.4). No lab's capability is
- *  in this coordinate: it only fixes the start recipe vintages (startVintage, gV0), the start labs' lags (core/init.ts),
- *  RefBot's gate conversion and the rivals' start rate. */
-const startCache = new WeakMap<TimelineWorld, ReturnType<typeof playerStartOf>>();
-/** Start state of world w (cached). */
-export function playerStart(w: TimelineWorld): ReturnType<typeof playerStartOf> {
-  let x = startCache.get(w);
-  if (!x) startCache.set(w, (x = playerStartOf(w)));
-  return x;
-}
-function playerStartOf(w: TimelineWorld) {
-  const target = w.p0;
-  const Mref = multiplierAt(asV1World(w), w.p0); // v2 reference multiplier at p0: the start software rate (until RD-U06)
-  const r0 = w.p0 < stage1(asV1World(w)) ? w.share * Mref : Mref; // years per year
-  const pcB0 = pcRefLab(w, B0_START_DAY);
-  const dPost = V0_DAY;
-  // The v2 start-state solution (post-training retention 0.7, compute term pcB0), kept only so the start know-how pa0
-  // (the zero of the start recipe vintages, startVintage) and the start lag stay where they were calibrated.
-  const k = START_RETAIN;
-  const pa0 = target - pcB0 - (r0 * B0_START_DAY) / 365 - (k * r0 * (dPost - B0_START_DAY)) / 365;
-  const paAt = (d: number) => pa0 + (r0 * d) / 365;
-  return { pa0, r0, pcB0, paBase: paAt(B0_START_DAY), paPost: paAt(dPost), target, lag: pa0 - target };
-}
-
-/** v2's post-training retention, kept only inside the start-state solution (the zero of the know-how readout). Versions
- *  no longer retain know-how: a post-training run applies today's RL recipe only (MODEL-V3 §4.4). */
-const START_RETAIN = 0.7;
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 
@@ -298,7 +281,7 @@ export function trueLeadDays(s: GameStateV2, other: LabId): number {
 const preRateMemo = new WeakMap<TimelineWorld, number>();
 function preGameRate(w: TimelineWorld): number {
   let r = preRateMemo.get(w);
-  if (r === undefined) preRateMemo.set(w, (r = referenceRate(w, playerStart(w).target, 2025.5)));
+  if (r === undefined) preRateMemo.set(w, (r = referenceRate(w, w.p0, 2025.5)));
   return r;
 }
 

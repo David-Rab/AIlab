@@ -45,11 +45,7 @@ import { footholdView } from '../safety/footholdDetection';
 import { investigationFte, safetyReHeads } from '../safety/investigations';
 import { patchFte } from '../safety/responses';
 import { measuredDomain } from '../models/paradigms';
-import { levelOfV2 } from '../world/calibration';
-import { gV0, levelOfG, playerStart } from '../models/capability';
-import { CAL_SHIFT } from '../../../data/v2/calibration';
-import { B_G_PER_Y } from '../../../data/v2/runDesign';
-import type { TimelineWorld } from '../types';
+import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
 import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
@@ -60,45 +56,31 @@ type Params = Record<string, number | string | boolean>;
 
 /** A tree project a bot queues once `when` holds (and its prerequisites are known). */
 export interface TreeGoal { id: string; when?: (s: GameStateV2) => boolean }
-/** RefBot's research pacing gates on the display scale (model v3 V3b, F3): the display level λ(G) moved onto the work-type
- *  reference points, but the gates were set on v2's levels ("when the old gate would have opened"), so each gate x (a
- *  v2 level) opens at the display level of the effective compute where v2's level map reached x: v2's progress
- *  coordinate q placed on G from the start model V0 at V1's slope B (G = G(V0) + (q − q(V0))·B; a conversion of the
- *  gate points only, no lab's capability is in that coordinate), so the bot starts each project at the same capability
- *  as before. Memoised per world. */
-const gateMemo = new WeakMap<TimelineWorld, Map<number, number>>();
-export function gateLevel(s: GameStateV2, x: number): number {
-  const w = s.hidden.timeline;
-  let m = gateMemo.get(w);
-  if (!m) gateMemo.set(w, (m = new Map()));
-  const hit = m.get(x);
-  if (hit !== undefined) return hit;
-  const shift = CAL_SHIFT[s.setup.world];
-  let lo = w.p0 - 10;
-  let hi = w.p0 + 80;
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    if (levelOfV2(w, mid, shift) >= x) hi = mid;
-    else lo = mid;
-  }
-  const L = levelOfG(w, gV0(w) + (hi - playerStart(w).target) * B_G_PER_Y);
-  m.set(x, L);
-  return L;
-}
-const atGate = (s: GameStateV2, L: number, x: number) => L >= gateLevel(s, x) - 1e-9;
-const Lg = (s: GameStateV2, x: number) => atGate(s, bestMeasuredL(s), x);
-const RSCH = (s: GameStateV2, x: number) => atGate(s, measuredDomain(s, 'RSCH'), x);
+/** RefBot's research pacing gates in effective compute above the start model V0 (OOM, G − G_V0; RD-U07). They were v2
+ *  display levels converted through v2's level map (on V2a's stale per-preset threshold-shift table) and v2's progress
+ *  coordinate placed on G at slope B. Each constant is that conversion's value on the ai2027 preset, so the ai2027 gates
+ *  open where they did; the other presets' gates now sit at the same OOM above their own V0 (before, the stale table
+ *  set them per preset). A measured level is read back as G through gOfLevel (the inverse of the display map λ). */
+const GATE_OOM = {
+  L65: 1.3656, // was L 6.5 via levelOfV2 (display λ 7.74 on ai2027)
+  L7: 1.7706, // was L 7 via levelOfV2 (λ 8.55)
+  L85: 2.9856, // was L 8.5 via levelOfV2 (λ 10.57)
+  L95: 3.5256, // was L 9.5 via levelOfV2 (λ 11.20)
+};
+const atGate = (s: GameStateV2, L: number, dG: number) => gOfLevel(s.hidden.timeline, L) - gV0(s.hidden.timeline) >= dG - 1e-9;
+const Lg = (s: GameStateV2, dG: number) => atGate(s, bestMeasuredL(s), dG);
+const RSCH = (s: GameStateV2, dG: number) => atGate(s, measuredDomain(s, 'RSCH'), dG);
 /** RefBot's research (§3.3.3 "RefBot paradigm policy", R4): the engine has no capability gates, so the bot keeps the
- *  old pacing by starting each project when the old gate would have opened (tier 2: measured L ≥ 6.5, tier 3: 8.5;
- *  P08 L ≥ 7; P13 RSCH ≥ 8.5; P17 L ≥ 9.5). RL focus: ML research is P13's prerequisite on the tree. */
+ *  old pacing by starting each project when the old gate would have opened (GATE_OOM; tier 2 was L 6.5, tier 3 L 8.5,
+ *  P08 L 7, P13 RSCH 8.5, P17 L 9.5). RL focus: ML research is P13's prerequisite on the tree. */
 export const REF_TREE: TreeGoal[] = [
   { id: 'P07' },
   { id: 'P05' },
-  { id: 'P08', when: (s) => Lg(s, 7) },
-  { id: 'rl.mlResearch', when: (s) => Lg(s, 6.5) },
-  { id: 'P13', when: (s) => Lg(s, 6.5) && RSCH(s, 8.5) },
-  { id: 'P17', when: (s) => Lg(s, 9.5) },
-  { id: 'P19', when: (s) => Lg(s, 8.5) },
+  { id: 'P08', when: (s) => Lg(s, GATE_OOM.L7) },
+  { id: 'rl.mlResearch', when: (s) => Lg(s, GATE_OOM.L65) },
+  { id: 'P13', when: (s) => Lg(s, GATE_OOM.L65) && RSCH(s, GATE_OOM.L85) },
+  { id: 'P17', when: (s) => Lg(s, GATE_OOM.L95) },
+  { id: 'P19', when: (s) => Lg(s, GATE_OOM.L85) },
 ];
 /** RefBot's research lines (model v3 V2) and their share of the science teams the ideas leave free [D]: the
  *  pretraining lines carry the pretraining stack (Ho et al. ≈ 3×/yr before SC), the RL lines the RL stack. Recurrent
@@ -112,7 +94,7 @@ export const REF_RESEARCH_LINES = DEFAULT_LINES;
 const REF_IDEA_TEAMS = 3;
 /** The safe bot's extra research: faithful-CoT architecture, paced like its old gate (tier 3, an AG09 technique). */
 export const SAFE_TREE_EXTRA: TreeGoal[] = [
-  { id: 'P23', when: (s) => Lg(s, 8.5) && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
+  { id: 'P23', when: (s) => Lg(s, GATE_OOM.L85) && s.player.safety.findings.some((f) => f.agenda === 'AG09' && f.type === 'TECH') },
 ];
 const BASE_EVERY = 270;
 /** RefBot's base run length at its requested share (60% of the pool): v2's reference run (1 × F(t) = 91 days of 80% of

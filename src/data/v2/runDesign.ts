@@ -18,12 +18,9 @@ export const B_G_PER_Y = 1.2;
 
 // ───────────────────────────── pretraining (MODEL-V3 §3; R20 A1–A4) ─────────────────────────────
 
-/** Recipe level behind the start base B0, OOMs over the reference recipe (research/12 §0.2 convention: GPT-4 2023 =
- *  log₁₀ FLOP): B0's recipe = E_B0 + its start-day vintage (models/capability.ts startVintage) [fit: the start version V0
- *  lands at G ≈ 28.0, research/12's Aug-2025 frontier anchor]. */
-export const E_B0 = 1.38;
-/** The leader's day-0 pretraining recipe for new runs (OOM, same convention): B0's recipe (0.85 on ai2027) + Ho et al.'s
- *  0.48 OOM/yr over B0's age at the start (256 days) = 1.19. Model v3 V3b: v2's start solution put the leader 0.53 OOM
+/** The leader's day-0 pretraining recipe for new runs (OOMs over the reference recipe, research/12 §0.2 convention:
+ *  GPT-4 2023 = log₁₀ FLOP): B0's recipe (data/v2/calibration.ts START_STATE.b0, 0.85 on ai2027) + Ho et al.'s 0.48
+ *  OOM/yr over B0's age at the start (256 days) = 1.19. Model v3 V3b: v2's start solution put the leader 0.53 OOM
  *  ahead of B0 (its know-how rate × 256 days), so the first new base jumped +0.53 OOM of recipe at once and the frontier
  *  ran ≈ 0.5 G above research/12's Feb-2026 anchor. Stacks are added on top (models/stacks.ts). */
 export const E_START = 1.19;
@@ -153,21 +150,24 @@ export const BASE_DATA: Record<BaseDesign['data'], { base: 'reference' | 'natura
   synthetic: { base: 'reference', tilt: {}, kinds: { synthetic: 4 }, flopMult: 1, cashMult: 0 },
   multimodal: { base: 'reference', tilt: { MEDIA: 3, PHYS: 3, AGENCY: 2 }, kinds: {}, flopMult: 1.2, cashMult: 0 },
 };
-/** Curation (OOM: v2's Δp × B). */
+/** Curation (OOM: v2's Δp × B). The hazard filter's `dgD` is a domain ΔG in OOM of the domain's effective compute
+ *  (RD-U01): BIO −0.5 OOM, was −1.0 L at v2's ΔL = 2·ΔG (the engine's conversion, so the mechanics are unchanged). */
 export const CURATION = {
   qualityOffDg: -0.24,
-  hazard: { dg: -0.024, off: { BIO: -1.0 } as Off },
+  hazard: { dg: -0.024, dgD: { BIO: -0.5 } as Off }, // was BIO −1.0 L
   safetyPretrain: { dg: -0.024 }, // S5: it filters AI-related data (safety/traits.ts SAFETY_PRETRAIN_AI_CUT)
 };
 
 // ── Post choices ──
-/** Preference training: `dg` OOM (v2's Δp × B), domain offsets in levels (kept as design offsets). */
+/** Preference training: `dg` OOM (v2's Δp × B); `dgD` a domain ΔG in OOM of the domain's effective compute (RD-U01:
+ *  v2's level offsets ÷ 1.2, the conversion the fit applied, so the mechanics are unchanged; the displayed domain level
+ *  is λ of the same G). */
 /** A method's approval-reward pressure (S1) is safety/traits.ts PREF_S1 × the run's preference-RL share (model v3 E3). */
-export const POST_PREF: Record<PostDesign['pref'], { dg: number; off: Off; appeal: number }> = {
-  minimal: { dg: -0.06, off: {}, appeal: 0.7 },
-  engagement: { dg: 0, off: { SOCIAL: 0.2 }, appeal: 1.2 }, // GPT-4o rollback
-  constitution: { dg: 0, off: {}, appeal: 1.0 },
-  persuasion: { dg: 0, off: { SOCIAL: 0.8 }, appeal: 1.1 },
+export const POST_PREF: Record<PostDesign['pref'], { dg: number; dgD: Off; appeal: number }> = {
+  minimal: { dg: -0.06, dgD: {}, appeal: 0.7 },
+  engagement: { dg: 0, dgD: { SOCIAL: 0.1667 }, appeal: 1.2 }, // GPT-4o rollback; was SOCIAL +0.2 L
+  constitution: { dg: 0, dgD: {}, appeal: 1.0 },
+  persuasion: { dg: 0, dgD: { SOCIAL: 0.6667 }, appeal: 1.1 }, // was SOCIAL +0.8 L
 };
 /** Reasoning modes: `dg` effective compute (OOM), `serveMult` serving FLOP per token relative to the base (it sets
  *  ModelVersion.fpt), `monitorability`. CoT pressure (S4) per mode is safety/traits.ts COT_S4; faithful (P23) also

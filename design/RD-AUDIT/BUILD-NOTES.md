@@ -998,3 +998,126 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
 - **moves calibration: yes.** G-SEC rungs 1–2 now wait on the predicate and on the government seeing the evaluations
   (briefing ≥ 2, evaluator rung 3 or a deployed version), so rung timing moves; rogue-copy and SC u-mode / S3 gates
   move with the predicate days. OOM restatements are near-identical on ai2027 below SC (maybe on other presets).
+
+### RD-U02
+
+- **One λ.** `safety/oversight.ts` `oomOfLevel(w, L) = gOfLevel(w, L) − gV0(w)`; its own LEVEL_AT table and piecewise
+  copy are deleted (models/capability.ts is the only level map). `versionOom(s, v) = v.G − gV0` reads the version's true
+  G instead of λ⁻¹(λ(G)); `measuredOom` still goes through the measured level (a level is all the player has).
+- **Clamping below 0:** `gOfLevel` clamps L < 0 to 0, the deleted copy extended the first slope linearly; no caller
+  passes a negative level (stated in the comment). Old and new agree to 0 on L 0 … 16 in 4 worlds × 2 seeds.
+- **Behaviour change:** only past the ASI knot (two post-ASI models now differ: 14.29 vs 15.79 OOM, were both 13.79 on
+  ai2027) and for a version with G below λ 0 (none in play). `understanding.ts` `trueUnderstanding` projects a version
+  to other levels by overriding `Lg` only; it reads `oomOfLevel(L)` directly and its per-level copies never reach
+  `versionOom`, so it is unaffected.
+- **Check:** `npx tsx scripts/v2/oversight.ts` (three new RD-U02 checks; the file passes). tsc main and scripts clean.
+- **Moves calibration: no** for dates (identical below λ 15); **maybe** for safety outcomes in the window where a model
+  is past λ 15 before the game ends (detection, findings, covert containment, agendas read larger gaps there).
+
+### RD-U01
+
+One capability currency (SYNTHESIS theme U; MEA-02, TRN-03 (a) and the hazard part of (b)). Commit ee06451.
+- **Offsets in OOM of domain G** (literal = old level ÷ 1.2, the fit's conversion; "was X L" comments): preference
+  `POST_PREF.dgD` engagement SOCIAL 0.1667, persuasion SOCIAL 0.6667; hazard curation `CURATION.hazard.dgD` BIO −0.5
+  (was −1.0 L at the engine's ÷ 2: kept, so its G is unchanged); SAFEGUARD_DG classifiers −0.0417, hardened −0.1667;
+  CONTROL_LAYER_DG −0.0833; SECTOR_PACK_DG 0.4167; `P19_RSCH_DG` 0.4167 (replaces RSCH_TASTE_PENALTY); REEVAL_DG 0.25.
+  Paradigm level offsets were already gone (P12 lint); paradigm domainG was already OOM in sD.
+- **Engine:** VersionBuild `offL` and the derived `off` → `dgD` (domain ΔG, OOM), added inside `gOfDomain`.
+  New `versionDomainG(v, d, hasP19)` (models/capability.ts) is the one domain G: workfit `domainG`, `horizonG` and
+  `domainsOf` read it. `domainsOf(w, G, build?, hasP19)` = clamp(λ(G_d) + REF_OFF[d]) (REF_OFF stays a display profile
+  until RD-U05). Deleted: LEVEL_PER_OOM, `finishBuild` (callers use gOfBuild), `sD = offL/2`, REEVAL_DL (UI and the
+  product-ops cost text show "≥ 0.25 OOM"; glossary autoEvaluate / rerunRule reworded), BaseModel.off (never written).
+- [D] **RSCH taste:** v2's display-only −0.5 L on RSCH for a lab without P19 is deleted (the fit never had it); P19 is
+  +0.4167 OOM on RSCH G for fit and display alike. So every lab's displayed RSCH level is 0.5 L higher than before
+  without P19, and with P19 rises by λ-slope × 0.4167 instead of 0.5.
+- **Schema:** SCHEMA_REV 48 → **49** (renumbered at the merge into rd: p2-b took 46 → 48); migration 48 → 49 walks player / rivals / hidden for builds (shape gPre + dgRL +
+  sD), sets dgD = offL ÷ 1.2, drops offL / off, drops BaseModel.off, recomputes the player's version domains as λ(G_d).
+  hygiene's `SCHEMA_REV === 46` literals bumped.
+- **Check:** `npx tsx scripts/v2/currency.ts` (new, registered in run.ts; 5 checks: grep for the deleted factors,
+  V0's L_d = λ(G_d), persuasion moves fit and display by the same G, P19, the migration). tsc main and scripts clean.
+  scripts/v2/effective.ts's V0 profile check rewritten on domains (it read `build.off`); evals.ts re-run test uses 0.8.
+- **Mechanics:** fit / coverage / horizon identical up to the literal rounding (≤ 4e-5 OOM: 0.4167 vs 0.41667 etc.).
+  **Displayed domain levels change:** design offsets now show as λ-slope × ΔG (persuasion SOCIAL on V0: +1.34 L, was
+  +0.8), RSCH +0.5 for labs without P19. A run-card preview's `gD` (runs.ts planRun) now includes the design ΔG.
+- **Left for later rows:** the benchmark midpoint ×2 rule (data/v2/benchmarks.ts m_L) and the distillation fit
+  (TRN-03 (b)); B_G_PER_Y (TRN-03 (e)); REF_OFF (RD-U05); RefBot level gates (RD-U07).
+- **Moves calibration: maybe.** Levels drive gates: paradigm gates on domain levels (P13 RSCH ≥ 8.5 now fires 0.5 L
+  earlier for every lab), benchmarks / danger flags / rival hazards read version domain levels (SOCIAL, RSCH), RefBot's
+  measured-level decisions. Dates and fits should move little; RSCH-gated research and danger flags may.
+
+### RD-U05
+
+Domain difficulty in one place (MEA-04, TRN-27's last column). Commit 731e8c2.
+- **Formula:** L_d = clamp(λ(G_d − (best_d − G_SC)), 0, 15), best_d = G_SC + δ_d·Δ_bm, δ_d = refDelta(sd_SC)[d] (the
+  per-domain best human the work fit's refPoints read). So 10 = the domain's best human (the SC knot is the CODE /
+  AGENCY best human), λ(G_SC − Δ_bm) = its median expert, and one OOM counts as on the general λ scale. New
+  `domainRefShift(w, d)` = δ_d·Δ_bm in models/capability.ts; `domainsOf` is the only reader. REF_OFF (data/v2/calibration.ts)
+  deleted; its readers were capability.ts `domainsOf` (benchmarks.ts, rivals.ts, rivalModel.ts, runs.ts, init.ts read
+  domain levels through it) and scripts currency.ts / effective.ts (rewritten on the new formula).
+- **Danger flags / dangerous benches / misuse, exfiltration, covert capability / rival hazards / worldfx control:** same
+  source, the domain score above (v.domains, unchanged readers). **Their thresholds (data/v2/benchmarks.ts
+  DANGER_THRESHOLD and m_L, safety/incidents.ts MISUSE / EXFIL θ, covert defs, control.ts AGENCY − 10, paradigm gates on
+  domain levels such as P13 RSCH ≥ 8.5) were set on the old REF_OFF-shifted levels and need a source review** (not done).
+- **Size of the change (V0, seed 2027):** ai2027 (Δ_bm 2.9) CODE / AGENCY 5.00, RSCH / REASON 1.55, SOCIAL / MEDIA / CYBER /
+  BIO / PHYS 0.00 (clamped; best human 5.5 OOM up); authors2026 RSCH 3.79, others 0; slow RSCH 4.14, expert domains 2.81;
+  fast (Δ_bm 0.3) 4.2–4.8 everywhere. Was CODE 5, AGENCY 4, CYBER 4, PHYS 1, rest ≈ 5. So on ai2027 / authors2026 the
+  expert domains show 0 at the start and the danger thresholds are reached several OOM later than before.
+- **Schema:** SCHEMA_REV 49 → **50** (renumbered at the merge into rd); migration 49 → 50 recomputes every stored G + Lg + domains record (player with its
+  build and P19; rivals and hidden from G). hygiene's `SCHEMA_REV === 47` literals bumped. Fixtures not regenerated.
+- Glossary `domains` body reworded (GLOSSARY.md not regenerated).
+- **Check:** `npx tsx scripts/v2/domainref.ts` (new, registered in run.ts: grep, formula and the 10-at-best-human point
+  in 4 worlds, migration). currency.ts and effective.ts's profile check pass on the new formula. tsc main and scripts clean.
+- **Moves calibration: yes.** Mechanics (fit, coverage, horizon, milestone dates) are unchanged, but every gate read on a
+  domain level moves: P13's RSCH gate (RSCH now ≈ 3.5 L lower on ai2027) delays that paradigm and whatever it feeds,
+  danger flags / misuse / exfiltration / rival hazards fire much later or not at all, SOCIAL-based control reads lower.
+  Run test:cal at CP2 with the threshold review; watch RSCH-gated research and safety S4 / S5.
+
+### RD-U07
+- **RefBot's gates in OOM above V0** (bots/ref.ts `GATE_OOM`): each gate is `gOfLevel(measured L) − G_V0 ≥ ΔG`, the
+  measured level read back as G. ΔG = the old conversion (levelOfV2 on V2a's CAL_SHIFT, v2's progress coordinate placed
+  on G at slope B) on ai2027: was L 6.5 → 1.3656, L 7 → 1.7706, L 8.5 → 2.9856, L 9.5 → 3.5256 OOM (display λ 7.74 /
+  8.55 / 10.57 / 11.20; same on seeds 1 and 2027). P13's RSCH gate uses the RSCH domain level through the same map, as before.
+- **Other presets' gates move:** the stale table had set them at authors2026 3.81 / 4.42 / 6.26 / 6.67, fast 2.26 / 2.75 /
+  4.22 / 4.60, slow 7.23 / 8.31 / 11.57 / 12.29 OOM; they now share the ai2027 constants, so RefBot starts those projects
+  earlier on authors2026, fast and slow.
+- **Deleted:** `levelOfV2` (world/calibration.ts), `CAL_SHIFT` (data/v2/calibration.ts), RefBot's `gateLevel`; CAL_SHIFT
+  dropped from the rivals R7 and worktypes lint regexes. **Kept:** `milestoneThresholds` (data/world.ts), because
+  scripts/v2/golden-timelines.ts (the v1 golden integrator, test:cal) still reads it; v1 `MILESTONES` (end-screen canon
+  dates). `capIndex` (data/world.ts) is dead but was left alone. The only grep hits left for levelOfV2 are the "was L x
+  via levelOfV2" comments.
+- **Check:** tsc main and scripts clean. One RefBot game (ai2027, seed 2027, integrated, to day 820), first day each
+  gate holds, before = after: P08 470, rl.mlResearch 470, P19 632, P17 714, P13 748.
+- **Moves calibration: maybe.** ai2027 is unchanged; authors2026 / fast / slow RefBot research starts earlier (see
+  above). Watch those presets' T1 at CP2.
+
+### RD-U06
+Start state as data; one start rule for every lab (MEA-05, MEA-06; SYNTHESIS RD-U06). Commit a7b6f47.
+- **Data:** `START_STATE` (data/v2/calibration.ts) per preset: `g` = G(V0), `b0` = B0's pretraining recipe (absolute,
+  E_START's convention), `v0` = V0's RL recipe (OOM over the leader's day-0 RL recipe); literals written to 17 digits
+  from the old playerStart ("was derived by playerStart"): ai2027 27.6585 / 0.8540 / −0.0411, authors2026 27.6270 /
+  0.8245 / −0.0434, fast 27.6001 / 0.7993 / −0.0454, slow 27.7662 / 0.9550 / −0.0332. TimelineWorld has no preset id
+  [D]: `startStateOf(w)` looks the preset up by makeWorld's label (`PRESET_BY_LABEL`, unknown → sampled); no shape change.
+- **sampled** [D]: one literal for every seed (median of playerStart over 400 seeds: g 27.6918, b0 0.8852, v0 −0.0387;
+  was per seed, b0 p10–p90 0.687–0.935, g 27.48–27.75). Sampled player start G moves −0.07…+0.05 OOM per seed.
+- **`startLab(w, G0, {flop, tpp, shape})`** (models/capability.ts): base on B0's dates and version on V0's at the world's
+  start recipes less one recipe lag (OOM, pretraining and RL efficiency alike), lag bisected so the version lands at G0;
+  lag 0 exactly when the reference base meets G(V0). Used by init.ts startModels (player, every start) and
+  rivalModel.ts initRivalPhys (rivals, DeepCent, leader twin). `gV0` reads the data. The player's in-flight post run
+  (day −3) takes V0's RL recipe scaled linearly to day 0 (v0·(−3)/V0_DAY − lag), as the old linear know-how did.
+- **Deleted:** playerStart / playerStartOf, pcRefLab, START_RETAIN, startVintage, DAY_2029, E_B0 (folded into
+  START_STATE.b0), the rivals' k / m bisection on their own day-0 rates. `referenceRate(w, w.p0, 2025.5)` replaces
+  `playerStart(w).target` (rivals' rate0, follower lagY, preGameRate, scripts effective / rivals). **Kept:** data/world.ts
+  multiplierAt / stage1 (world/calibration.ts referenceRate still reads them); rivals' in-flight base run still dates
+  its recipe by the lab's own day-0 rates (a run, not the start rule). The double write of the public model
+  (simpleModel then initRivalPhys) is untouched.
+- **Player:** identical on every named preset (leader start bit-exact: G, gPre, eRL, dgRL, B0 ePre / gPre, Lg; follower
+  starts within 1e-9 (re-bisected lag), stacks within 1e-12).
+- **Rivals:** start internal / public G unchanged (to 1e-14); their start recipes move. B0's recipe now the player's
+  dated one less the lab's lag: |Δ base ePre| up to 0.03–0.10 OOM; recipe today (rec.pre / mid) −0.09…+0.08 OOM
+  (named presets, seed 2027, four starts). Leader twin: lag 0 on ai2027 / slow, −0.01 OOM on authors2026 / fast (its
+  day-0 pool differs from the 1e6 × 0.4 B0 was sized on); was a bisected staleness m.
+- **Check:** probe + check `scripts/v2/_u06/` (untracked: probe.ts writes old.json / new.json, check.ts compares and
+  re-derives player and leader twin from startLab on all five presets): all pass. tsc main and scripts clean.
+- **Moves calibration: yes (small).** Player start unchanged except sampled (per-seed start → one literal); rivals' /
+  DeepCent's recipe today shifts up to ±0.09 OOM, which moves their research pools and next bases. Check rival lead
+  and China gap at CP2; no refit here.

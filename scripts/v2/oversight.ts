@@ -9,11 +9,11 @@ import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { labourOf, resetSafetyLabour, resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { agentsView } from '../../src/engine/v2/departments/agentActions';
-import { gV0, levelOfG } from '../../src/engine/v2/models/capability';
+import { gOfLevel, gV0, levelKnotsG, levelOfG } from '../../src/engine/v2/models/capability';
 import { catchRate } from '../../src/engine/v2/models/products';
 import { catchOf, internalOversight } from '../../src/engine/v2/safety/incidents';
 import {
-  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl,
+  controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl, versionOom,
 } from '../../src/engine/v2/safety/oversight';
 import { decayAt, decayOom, strengthTrue } from '../../src/engine/v2/safety/techniques';
 import { understanding } from '../../src/engine/v2/safety/understanding';
@@ -36,6 +36,41 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const trip = [0.5, 3, 5, 7.5, 10, 11, 12, 13, 14.5].every((L) => near(levelOfOom(w, oomOfLevel(w, L)), L, 1e-9));
   check(trip && near(oomOfLevel(w, LEVEL_KNOTS[0]), 0, 1e-12), 'map: oomOfLevel is the inverse of λ(G) (round trip on 0.5 … 14.5; V0 = 0 OOM)');
   check([0, 1.5, 3, 6, 9].every((x) => near(levelOfOom(w, x), levelOfG(w, gV0(w) + x))), 'map: levelOfOom(x) = λ(G_V0 + x)');
+}
+
+// ───────────── RD-U02: one λ (oomOfLevel = gOfLevel − G_V0; versionOom = G − G_V0) ─────────────
+{
+  // The deleted duplicate (safety/oversight.ts before RD-U02), kept here only to show behaviour is unchanged on [0, 15].
+  const LA = [LEVEL_KNOTS[0], LEVEL_KNOTS[3], LEVEL_KNOTS[4], LEVEL_KNOTS[5], LEVEL_KNOTS[6]];
+  const oldOom = (w: GameStateV2['hidden']['timeline'], L: number) => {
+    const g = levelKnotsG(w);
+    const g0 = gV0(w);
+    if (L <= LA[0]) return g[0] + (L - LA[0]) * ((g[1] - g[0]) / (LA[1] - LA[0])) - g0;
+    for (let i = 0; i < g.length - 1; i++) if (L < LA[i + 1]) return g[i] + ((L - LA[i]) * (g[i + 1] - g[i])) / (LA[i + 1] - LA[i]) - g0;
+    return g[g.length - 1] - g0;
+  };
+  let worst = 0;
+  let oneSource = true;
+  for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
+    for (const seed of [1, 7]) {
+      const w = newGame(defaultSetupV2({ seed, world, alignment: 'medium', tutorial: false })).hidden.timeline;
+      for (let L = 0; L <= 16; L += 0.25) {
+        worst = Math.max(worst, Math.abs(oomOfLevel(w, L) - oldOom(w, L)));
+        oneSource &&= oomOfLevel(w, L) === gOfLevel(w, L) - gV0(w);
+      }
+    }
+  }
+  check(oneSource && worst < 1e-9, 'RD-U02: oomOfLevel = gOfLevel − G_V0 and equals the deleted duplicate on L 0 … 16 (4 worlds × 2 seeds)', `max |Δ| ${worst.toExponential(2)}`);
+  const s = fresh();
+  const w = s.hidden.timeline;
+  const v0 = s.player.models.versions[0];
+  const asiG = levelKnotsG(w)[4];
+  const a = cloneVersion(s, v0, 'u02a', { G: asiG + 0.5, Lg: 15 });
+  const b = cloneVersion(s, v0, 'u02b', { G: asiG + 2, Lg: 15 });
+  check(near(versionOom(s, a), asiG + 0.5 - gV0(w)) && versionOom(s, b) - versionOom(s, a) > 1.4, 'RD-U02: two post-ASI models get different versionOom (true G − G_V0)',
+    `${versionOom(s, a).toFixed(3)} vs ${versionOom(s, b).toFixed(3)}`);
+  const sub = [0.5, 3, 7, 11, 14.5].every((L) => near(versionOom(s, { ...v0, G: gOfLevel(w, L), Lg: L }), oomOfLevel(w, L), 1e-9));
+  check(sub, 'RD-U02: below λ 15 versionOom (G − G_V0) equals the old λ⁻¹(Lg) − G_V0');
 }
 
 // ───────────── (a) monitor catch rate vs the capability gap (Engels et al. 2025) ─────────────

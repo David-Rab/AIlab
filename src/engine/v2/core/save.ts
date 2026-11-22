@@ -2,16 +2,17 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, SectorId } from '../types';
+import type { GameStateV2, SectorId, VersionBuild } from '../types';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
+import { domainsOf, gOfLevel } from '../models/capability';
+import { adopted } from '../models/paradigms';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
-import { gOfLevel } from '../models/capability';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -46,8 +47,14 @@ import { gOfLevel } from '../models/capability';
  *  the versions' and run predictions' relative serve cost are gone (the relative 0.5-reference readout). Migration 46 → 47
  *  computes fpt as the old reader did and drops the old fields.
  *  48 (RD-L01): SeriesV2.G, each lab's weekly best internal frontier G (the lead clock lagDays reads it). Migration
- *  47 → 48 seeds it from the λ series (G = gOfLevel(λ); approximate: λ was rounded to 0.001 and capped at 15). */
-export const SCHEMA_REV = 48;
+ *  47 → 48 seeds it from the λ series (G = gOfLevel(λ); approximate: λ was rounded to 0.001 and capped at 15).
+ *  49 (RD-U01): one capability currency. VersionBuild.offL (design offsets in levels) and the derived VersionBuild.off
+ *  become VersionBuild.dgD (domain ΔG, OOM, part of gOfDomain); BaseModel.off (never written) is gone. Migration
+ *  48 → 49 converts every stored build's offL at the 1.2 L per OOM the fit applied (so the fit is unchanged) and
+ *  recomputes the player's version domain levels as λ(G_d).
+ *  50 (RD-U05): domain levels are scores against the domain's best human (models/capability.ts domainsOf); v2's display offsets are
+ *  gone. Migration 49 → 50 recomputes every stored domain-level record. */
+export const SCHEMA_REV = 50;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -332,6 +339,61 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (G[id] || !w) continue;
       G[id] = xs.map((L) => Math.round(gOfLevel(w, L) * 10000) / 10000);
     }
+  },
+  /** 48 → 49 (RD-U01): every stored VersionBuild (versions, runs, rivals: found by shape) gets dgD = offL ÷ 1.2 (the
+   *  fit's old conversion) and loses offL and off; player bases lose off; the player's version domain levels are
+   *  recomputed as λ(G_d). Idempotent. */
+  48: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const seen = new Set<object>();
+    const walk = (x: unknown) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return;
+      seen.add(x);
+      if (Array.isArray(x)) { for (const y of x) walk(y); return; }
+      const o = x as Record<string, unknown>;
+      if ('gPre' in o && 'dgRL' in o && 'sD' in o) {
+        if (!o.dgD) {
+          const dgD: Record<string, number> = {};
+          for (const [d, v] of Object.entries((o.offL ?? {}) as Record<string, number>)) if (v) dgD[d] = v / 1.2;
+          o.dgD = dgD;
+        }
+        delete o.offL;
+        delete o.off;
+      }
+      for (const y of Object.values(o)) walk(y);
+    };
+    walk(s.player);
+    walk(s.rivals);
+    walk(s.hidden);
+    for (const b of s.player?.models?.bases ?? []) delete (b as unknown as { off?: unknown }).off;
+    const w = s.hidden?.timeline;
+    if (w && s.player) {
+      const p19 = adopted(s, 'P19');
+      for (const v of s.player.models?.versions ?? []) if (v.build) v.domains = domainsOf(w, v.G, v.build, p19);
+    }
+  },
+  /** 49 → 50 (RD-U05): every stored domain-level record (player versions with their build and P19, rivals' and the
+   *  hidden models from G: found by shape G + Lg + domains) is recomputed as the score against the domain's best human.
+   *  Idempotent. */
+  49: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden?.timeline;
+    if (!w?.v3) return;
+    const seen = new Set<object>();
+    const walk = (x: unknown, p19: boolean) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return;
+      seen.add(x);
+      if (Array.isArray(x)) { for (const y of x) walk(y, p19); return; }
+      const o = x as Record<string, unknown>;
+      if (typeof o.G === 'number' && typeof o.Lg === 'number' && o.domains && typeof o.domains === 'object') {
+        const b = o.build as VersionBuild | undefined;
+        o.domains = domainsOf(w, o.G, b && 'gPre' in b ? b : undefined, p19);
+      }
+      for (const y of Object.values(o)) walk(y, p19);
+    };
+    walk(s.player, !!s.player && adopted(s, 'P19'));
+    walk(s.rivals, false);
+    walk(s.hidden, false);
   },
 };
 

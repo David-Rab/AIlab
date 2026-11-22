@@ -15,7 +15,7 @@ import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, playerStart, yearOfDay } from '../models/capability';
+import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
@@ -81,7 +81,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
   const g = rng.range(arch.gapYears[0], arch.gapYears[1]) * (baseline === 'reality' ? 0.3 : 1);
   const leadMonths = clamp(3 + (6 * (g - 0.1)) / 1.0, baseline === 'reality' ? 1 : 3, 9);
   // The pre-game frontier rate at the start model (progress-years a year, × B G per progress-year).
-  const rate0 = referenceRate(h.timeline, playerStart(h.timeline).target, 2025.5) * B_G_PER_Y;
+  const rate0 = referenceRate(h.timeline, h.timeline.p0, 2025.5) * B_G_PER_Y;
   const G = playerG - (leadMonths / 12) * rate0;
   const fam = RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
   const uModes = drawUModes(rng, h, false);

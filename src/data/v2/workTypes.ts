@@ -61,8 +61,6 @@ export function refDelta(sdSC = SD_AT_SC): Record<DomainId, number> {
   return { CODE: 0, AGENCY: 0, RSCH: r, REASON: r, SOCIAL: o, MEDIA: o, CYBER: o, BIO: o, PHYS: o };
 }
 export const REF_DELTA: Record<DomainId, number> = refDelta();
-/** Level offsets (preference, paradigms, the RSCH taste penalty) convert to OOM at this rate (V2's conversion). */
-export const LEVEL_PER_OOM = 1.2;
 
 // ───────────────────────────── coverage, win rate, assist (V3.2) ─────────────────────────────
 

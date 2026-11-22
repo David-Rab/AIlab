@@ -7,7 +7,7 @@
 //   R5  the start state: each lab's start model is its drawn start model; the leader lab's recipe is the leader's day-0
 //       recipe (e ≈ 0); at the leader's day-0 inputs the pretraining part grows at PRE_RATE0, the RL parts by their shares
 //   R6  milestones are λ(G) crossings of the level knots (one map for every lab)
-//   R7  lint: no BRIDGE(V7), simpleLag / simpleCredit, CAL_SHIFT or calShift / pm thresholds, fptOfG or the G cap in rival code
+//   R7  lint: no BRIDGE(V7), simpleLag / simpleCredit, calShift / pm thresholds, fptOfG or the G cap in rival code
 //   INFO the leader lab's G path (passive player, ai2027) vs research/12's frontier anchors
 //   R8  (F2) a follower's start base is stale by its own day-0 recipe growth (the leader lab: the reference rates, B0 itself)
 //   R9  (F2) the lead before the level history reaches back: the start gap at the pre-game frontier rate + days since
@@ -34,7 +34,7 @@ import { B0_START_DAY } from '../../src/data/v2/calibration';
 import { bestRivalMix } from '../../src/engine/v2/actors/rivalModel';
 import { leadBetween } from '../../src/engine/v2/actors/rivals';
 import { agentVersion } from '../../src/engine/v2/departments/agents';
-import { gOfBuild, playerStart } from '../../src/engine/v2/models/capability';
+import { gOfBuild } from '../../src/engine/v2/models/capability';
 import { bestG } from '../../src/engine/v2/models/labs';
 import { latestBaseFlop, refRlGain, rlCeilNow, rlMidNow, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { linePool } from '../../src/engine/v2/models/research';
@@ -228,7 +228,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
     tick(s, { skip: ['endings'] });
     if (s.time.day % 30 === 0) at.push(leadBetween(s, 'player', 'china') - l0);
   }
-  const gap0 = ((gV0(s.hidden.timeline) - bestG(mk(4, false), 'china')) / (referenceRate(s.hidden.timeline, playerStart(s.hidden.timeline).target, 2025.5) * B_G_PER_Y)) * 365;
+  const gap0 = ((gV0(s.hidden.timeline) - bestG(mk(4, false), 'china')) / (referenceRate(s.hidden.timeline, s.hidden.timeline.p0, 2025.5) * B_G_PER_Y)) * 365;
   // China's versions still add a little (the RL share of its recipe growth, fed by the know-how leaks), so the lead
   // grows at most a day a day and does not jump (v2's fallback read 390–450 d in days 30–60).
   check(Math.abs(l0 - gap0 - 1) <= 2 && at.every((x, i) => x <= 30 * (i + 1) + 1 && x >= -30), 'R9 in the first weeks China\'s lead is its start gap at the pre-game frontier rate plus at most the days since', `day 1 ${l0.toFixed(0)} d (gap ${gap0.toFixed(0)} d); +${at.map((x) => x.toFixed(0)).join(', +')} d at days 30, 60`);
@@ -294,7 +294,7 @@ if (process.argv.includes('--ref')) {
     readFileSync(join(root, f), 'utf8').split('\n').forEach((line, i) => {
       if (/BRIDGE\(V7\)/.test(line)) bad.push(`${f}:${i + 1} BRIDGE(V7)`);
       const code = line.replace(/\/\/.*$/, '').replace(/\/\*\*?.*?(\*\/|$)/, '').replace(/^\s*\*.*$/, '');
-      if (/\b(simpleLag|simpleCredit|simpleFrontierPm|simpleStartPa|simplePaFor|trainScaleTerm|CAL_SHIFT\w*|calShift|thresholds|capIndexV2|fptOfG|marketModel|RIVAL_ALGO_OOM_PER_YEAR|knotAt|multiplierAt)\b/.test(code)) bad.push(`${f}:${i + 1}: ${line.trim().slice(0, 80)}`);
+      if (/\b(simpleLag|simpleCredit|simpleFrontierPm|simpleStartPa|simplePaFor|trainScaleTerm|calShift|thresholds|capIndexV2|fptOfG|marketModel|RIVAL_ALGO_OOM_PER_YEAR|knotAt|multiplierAt)\b/.test(code)) bad.push(`${f}:${i + 1}: ${line.trim().slice(0, 80)}`);
     });
   }
   // Anywhere in the engine and data: the v2 simple-lab lag model is gone (the save migration may delete its fields).
@@ -304,10 +304,10 @@ if (process.argv.includes('--ref')) {
     if (rel === 'engine/v2/core/save.ts') continue;
     readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
       const code = line.replace(/\/\/.*$/, '').replace(/\/\*\*?.*?(\*\/|$)/, '').replace(/^\s*\*.*$/, '');
-      if (/\b(simpleLag|simpleCredit|simpleFrontierPm|simpleStartPa|simplePaFor|trainScaleTerm|lagCal|CAL_SHIFT_V2|fptOfG|marketModel)\b/.test(code)) bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 80)}`);
+      if (/\b(simpleLag|simpleCredit|simpleFrontierPm|simpleStartPa|simplePaFor|trainScaleTerm|lagCal|fptOfG|marketModel)\b/.test(code)) bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 80)}`);
     });
   }
-  check(bad.length === 0, 'R7 lint: no BRIDGE(V7), v2 lag model (simpleLag, simpleCredit, LEADER lag), CAL_SHIFT / calShift / pm thresholds, knots or the old rival FLOP bridge in rival code', bad.slice(0, 6).join(' | '));
+  check(bad.length === 0, 'R7 lint: no BRIDGE(V7), v2 lag model (simpleLag, simpleCredit, LEADER lag), calShift / pm thresholds, knots or the old rival FLOP bridge in rival code', bad.slice(0, 6).join(' | '));
 }
 
 finish('rivals');

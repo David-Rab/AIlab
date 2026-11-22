@@ -442,7 +442,7 @@ export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) +
 /** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
  *  and the revenue read the same price. */
-export const SECTOR_PACK_DG = 0.5 / 1.2;
+export const SECTOR_PACK_DG = 0.4167; // OOM of fit in the sector (RD-U01: was 0.5 L ÷ 1.2)
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d)): Offer {
   const x = fxOn(fx, sid);
   const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;

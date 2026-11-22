@@ -2,29 +2,6 @@
 // [fit] values are fitted by WS1 acceptance tests (scripts/v2/calib.ts, M1) and hard-coded here.
 import type { ComputeSplit, DomainId, WorldPresetId } from '../../engine/v2/types';
 
-/** Per-preset milestone threshold shift (years of v2's progress coordinate), until RD-U07 (SYNTHESIS §6 Phase 2) moves
- *  RefBot's gates to OOM. Its only reader is RefBot's pacing gates (bots/ref.ts gateLevel). The player's milestones are
- *  work-type statements (departments/workfit.ts; per-preset G_SC and Δ_bm in data/v2/workTypes.ts V3_CAL); rivals, China
- *  and the leader lab do not read it (model v3 F1); RD-C02 removed the derived per-world calShift.
- *  History: fitted so RefBot's best internal model hit the golden dates (§7.1).
- *  [fit] by `npx tsx scripts/v2/calib.ts --fit` (bisection on SC, refined on a ±0.03 grid by the worst |Δ| over
- *  SC…ASI because SC(calShift) is step-like). `sampled` uses the ai2027 value. Never tune for balance (§7.4).
- *  J1 refit (jank M1: a version's measured level no longer re-rolls every 30 days, so RefBot's measured-level gates
- *  for paradigms (P08 L ≥ 7, P13 RSCH ≥ 8.5, …) no longer fire early on a lucky re-roll; the slow world, with the most
- *  re-rolls near each gate, lost the most): slow −0.172 → −0.127 (`--fit slow`); the other presets still pass.
- *  R4 refit (tree projects replace paradigm FTE; RefBot loses P05 on seed 2027 to the per-world retry draw): each preset
- *  moved within ±0.03 to the offset closest to the R1 ref-trace milestone days (ai2027 unchanged: +0.01 fits the stub
- *  trace better but moves the integrated trace 14 d; authors2026 +0.005 (+0.015 fits the trace better but leaves T1 SC
- *  at −0.079 y), fast −0.03, slow +0.025; a scan of SC…last against scripts/v2/golden/ref-trace.json).
- *  Model v3 V1 refit (`--fit`; models built from physical quantities, pm = Φ(G)): ai2027 0.08 → −0.36, authors2026 0.03 →
- *  −0.633, fast 0.075 → −0.557, slow −0.127 → 0.291 (worst |Δ| over SC…last 0.036 / 0.044 / 0.058 / 0.016 y). The v3
- *  reference lab runs above v2's pm path once it trains its first base (design/V3-BUILD.md V1 notes); slow's compute grows
- *  1.6×/yr after 2028, which v2's calendar compute term over-credited.
- *  Model v3 V2a refit (recipe from research stacks; LINE_FIT.mu 0.58 fitted to the v2 know-how path on ai2027):
- *  ai2027 −0.36 → −0.463, authors2026 −0.633 → −0.618, fast −0.557 → −0.473, slow 0.291 → −1.5 (slow's stacks outgrow the v2
- *  path by ~25% over its 13 pre-SC years; design/V3-BUILD.md V2 notes, PROGRESS.md V2a). */
-export const CAL_SHIFT: Record<WorldPresetId, number> = { ai2027: -0.463, authors2026: -0.618, fast: -0.473, slow: -1.5, sampled: -0.463 };
-
 /** Research efficiency of the simulated leader lab (setup.leaderLab, BUILD-PLAN R2), OOM: its research speed is ×10^LEADER_CAL
  *  the aggregate research function's at its inputs (actors/rivalModel.ts; the leader runs at the reference compute,
  *  staff and split, MODEL-V3 §12: "fitted so the simulated leader lab follows the AI 2027 path") so its milestones hit
@@ -86,6 +63,29 @@ export const B0_DAY = -120;
 export const B0_START_DAY = -256;
 export const V0_DAY = -20;
 
+/** The start state as data (RD-U06; MEA-05 / MEA-06), per world preset: `g` = G(V0), the reference start version's
+ *  effective compute (OOM); `b0` = B0's pretraining recipe (OOM, research/12 §0.2 convention, as E_START: the recipe of
+ *  its launch day B0_START_DAY); `v0` = V0's RL recipe (OOM over the leader's day-0 RL recipe: the recipe of V0_DAY).
+ *  Every start lab (the player, the rivals, DeepCent, the leader twin) gets its start base and version from these through
+ *  models/capability.ts startLab. Was derived by playerStart (v2's closed-form start in the progress coordinate: v1
+ *  multiplierAt / stage1 / share at p0, pcRefLab, START_RETAIN 0.7; b0 = the retired E_B0 1.38 [fit: V0 at G ≈ 28.0,
+ *  research/12's Aug-2025 anchor] + B0's start-day vintage), written out to 17 digits so every named preset's
+ *  start is bit-identical; `g` is what startLab gives the reference base at these recipes. `sampled`: one literal for
+ *  every seed (the start is observed history, not a sampled future): the median of playerStart over 400 seeds (b0
+ *  p10–p90 0.687–0.935, g 27.48–27.75); the per-seed starts are gone. */
+export const START_STATE: Record<WorldPresetId, { g: number; b0: number; v0: number }> = {
+  ai2027: { g: 27.658471072331817, b0: 0.85397260273972597, v0: -0.041095890410958937 },
+  authors2026: { g: 27.627049427807886, b0: 0.82451506849315059, v0: -0.043397260273972567 },
+  fast: { g: 27.600112150053612, b0: 0.79926575342465744, v0: -0.045369863013698629 },
+  slow: { g: 27.766159476245420, b0: 0.95496986301369846, v0: -0.033205479452054765 },
+  sampled: { g: 27.691754354575195, b0: 0.8851811569793056, v0: -0.038657722110991784 },
+};
+/** The world preset of a timeline world, by its makeWorld label (TimelineWorld carries no preset id; an unknown label
+ *  reads as `sampled`). */
+export const PRESET_BY_LABEL: Record<string, WorldPresetId> = {
+  'AI 2027 scenario': 'ai2027', "Authors' 2026 model": 'authors2026', 'Fast takeoff': 'fast', 'Skeptic world': 'slow', 'Sampled world': 'sampled',
+};
+
 /** Production-function parameters by preset (research/13 §1.4). `sampled` draws La = 1 + LN80[1, 200]. */
 export interface ProdPreset { rc: number; lam: number; La: number; Ca: number; slow10: number; m2b: number }
 export const PROD_DEFAULT: ProdPreset = { rc: -2, lam: 0.5, La: 100, Ca: 1000, slow10: 2.5, m2b: 3.25 };
@@ -121,21 +121,11 @@ export const SHARE_REF: { year: number; share: ComputeSplit }[] = [
 export const LEVEL_KNOTS = [5, 6.5, 8.5, 10, 12, 13.5, 15];
 
 export const DOMAIN_IDS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
-/** Domain offsets relative to CODE (§3.1.5): each domain's constant difficulty offset o_d (models/capability.ts
- *  domainsOf), v2's 2025 profile (column 0 of its era table; the scripted later columns went in RD-C05; refit in RD-U05). */
-export const REF_OFF: Record<DomainId, number> = {
-  CODE: 0,
-  RSCH: 0,
-  REASON: 0,
-  AGENCY: -1,
-  SOCIAL: 0,
-  MEDIA: 0,
-  CYBER: -1,
-  BIO: 0,
-  PHYS: -4,
-};
-/** RSCH takes this extra offset until paradigm P19 is adopted (R12 §0.4). */
-export const RSCH_TASTE_PENALTY = -0.5;
+/** Learned research taste (P19, R12 §0.4) adds this to the RSCH domain's effective compute (OOM; RD-U01: was v2's
+ *  −0.5 L RSCH taste penalty that P19 removed, ÷ 1.2 as the fit applied it). The fit and the displayed RSCH level
+ *  λ(G_RSCH) both read it; v2's display-only −0.5 L for a lab without P19 is gone (the fit never had it: the human
+ *  reference points are set for a lab without P19). */
+export const P19_RSCH_DG = 0.4167;
 
 /** Expected golden dates (decimal years), research/11 §5 and V2-SPEC §7.1. null = no target; [lo, hi] = range. */
 export interface GoldenExpect { SC: number | [number, number]; SAR: number | null; SIAR: number | null; ASI: number | null; M?: Record<string, number>; h80?: { year: number; minutes: number } }

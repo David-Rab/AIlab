@@ -2,7 +2,7 @@
 // milestones; the research-speed readout (model v3 V3: design/MODEL-V3.md §6, §8; design/V3-BUILD.md V3.2–V3.5 and "V3
 // notes"). Owner: WS1. Data: src/data/v2/workTypes.ts.
 //
-//   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute + level offsets ÷ LEVEL_PER_OOM)
+//   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute, design offsets included)
 //   reference  best human F*_w = G_SC + Δ_bm·Σ ω·δ_d(sd_SC); median expert F*_w − Δ_bm (per preset: TimelineWorld.v3)
 //   horizon    h50 = 203 min × 4.2^(G_h − G_V0) × h80Mult (G_h: CODE for software, AGENCY otherwise); p(H) = 1/(1 + (H/h50)^β)
 //   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln 19 + κ_v·(0.9 − v_w)
@@ -17,17 +17,16 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
-  LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
-import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
-import { gOfDomain, h50Of } from '../models/capability';
+import { h50Of, versionDomainG } from '../models/capability';
 import { adopted } from '../models/paradigms';
 import { REF_RL_PROFILE } from '../models/effective';
 import { payoffOf } from '../models/tree';
@@ -45,17 +44,11 @@ const sig = (x: number) => 1 / (1 + Math.exp(-x));
 
 // ───────────────────────────── fit and reference points ─────────────────────────────
 
-/** A version's effective compute in domain d for work (OOM): its domain G (MODEL-V3 §2.3) and its level offsets
- *  (preference, paradigms) at LEVEL_PER_OOM; with Learned research taste (P19) RSCH gains the size of v2's RSCH taste
- *  penalty (0.5 L = 0.42 OOM). The human reference points are set for a lab without P19, so the v2 penalty is not also
- *  subtracted (the display level keeps it until P19). A version without a build (an imported open model, a rival's
- *  model) reads its general G. */
-export function domainG(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
-  const b = v.build;
-  let g = b ? gOfDomain(b, d) + (b.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
-  if (d === 'RSCH' && adopted(s, 'P19')) g -= RSCH_TASTE_PENALTY / LEVEL_PER_OOM;
-  return g;
-}
+/** A version's effective compute in domain d for work (OOM): its domain G (MODEL-V3 §2.3; design offsets included, in
+ *  OOM since RD-U01); with Learned research taste (P19) RSCH gains P19_RSCH_DG. The human reference points are set for
+ *  a lab without P19. A version without a build (an imported open model, a rival's model) reads its general G. The
+ *  displayed domain level is λ of this same G (models/capability.ts versionDomainG, domainsOf). */
+export const domainG = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number => versionDomainG(v, d, adopted(s, 'P19'));
 
 /** Fit F_w of a version in work type w (OOM of effective compute). */
 export function fitOf(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId): number {
@@ -429,7 +422,7 @@ export const versionMilestones = (s: GameStateV2, v: ModelVersion): boolean[] =>
  *  recipe (actors/rivalModel.ts), so this is the build their G stands for. */
 export function referenceProfileModel(G: number, flopPre = 0): Pick<ModelVersion, 'G' | 'build'> {
   const build: VersionBuild = {
-    gPre: G, flopPre, rlFlop: 0, rlW: {}, eRL: 0, dgRL: 0, dgRLd: { ...REF_RL_PROFILE }, dg: 0, sD: {}, offL: {}, off: {}, h80Mult: 1, signals: {},
+    gPre: G, flopPre, rlFlop: 0, rlW: {}, eRL: 0, dgRL: 0, dgRLd: { ...REF_RL_PROFILE }, dg: 0, sD: {}, dgD: {}, h80Mult: 1, signals: {},
   };
   return { G, build };
 }

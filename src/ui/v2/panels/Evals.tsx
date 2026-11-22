@@ -89,10 +89,10 @@ function PolicyCard({ s }: { s: GameStateV2 }) {
           label={<span className="psw"><span className={`sw ${auto ? 'on' : ''}`}><i /></span><Term id="autoEvaluate">Auto-evaluate</Term></span>} />
         <Tip content={() => <TipCard title={<Term id="rerunRule">Re-run rule</Term>} value={auto ? 'on' : 'off'} rows={[
           { label: 'Cadence', value: `${p.reevalDays} d after the last suite` },
-          { label: 'Changed in place', value: `≥ ${p.reevalDL.toFixed(1)} L` },
+          { label: 'Changed in place', value: `≥ ${p.reevalDG.toFixed(2)} OOM` },
           { label: 'Depth', value: D.label },
         ]}>Which models: every internal use&apos;s model and the continual-learning stream.</TipCard>}>
-          <span className={`ev-pol-item ${auto ? '' : 'dim'}`} data-test="eval-rerun"><span className="tip-cap"><Term id="rerunRule">Re-run</Term></span><span className="small">every {p.reevalDays} d or Δ ≥ {p.reevalDL.toFixed(1)} L</span></span>
+          <span className={`ev-pol-item ${auto ? '' : 'dim'}`} data-test="eval-rerun"><span className="tip-cap"><Term id="rerunRule">Re-run</Term></span><span className="small">every {p.reevalDays} d or Δ ≥ {p.reevalDG.toFixed(2)} OOM</span></span>
         </Tip>
         <span className="ev-sep" />
         {c ? (

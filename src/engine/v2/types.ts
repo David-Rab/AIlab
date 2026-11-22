@@ -323,8 +323,6 @@ export interface BaseModel {
   startDay?: Day;
   /** Data-mix specialisation per domain (OOM, MODEL-V3 §2.3 s_d,data). */
   sD?: Partial<Record<DomainId, number>>;
-  /** Design domain offsets of the base kept in levels (none today; paradigm offsets are added per version). */
-  off?: Partial<Record<DomainId, number>>;
   /** Data repetition at training: epochs over the unique tokens. */
   epochs?: number;
   /** Serving FLOP per token of the base (2·N_active × the shape's token multiplier; model v3 V4), set when it is made. */
@@ -402,10 +400,9 @@ export interface VersionBuild {
   dg: number;
   /** Data-mix specialisation per domain (OOM, from the base). */
   sD: Partial<Record<DomainId, number>>;
-  /** Design + paradigm domain offsets kept in levels (preference, paradigms). */
-  offL: Partial<Record<DomainId, number>>;
-  /** Derived: domain level − general level − the 2025 profile (L). h80 and benchmarks read it. */
-  off: Partial<Record<DomainId, number>>;
+  /** Design domain ΔG (OOM of the domain's effective compute: preference; RD-U01, was level offsets). Part of
+   *  gOfDomain, so the fit and the displayed domain level λ(G_d) both read it. */
+  dgD: Partial<Record<DomainId, number>>;
   /** Horizon multiplier (long-horizon RL, P07, P12). */
   h80Mult: number;
   /** Trait-pressure signals of the run(s) that produced it, for WS2 applyRunToTraits. */
