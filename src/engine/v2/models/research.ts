@@ -37,11 +37,12 @@ import {
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, type TreeNodeDef } from '../../../data/v2/tree';
+import { CAPACITY_UNIT, EFFORT_TM, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, type EffortClass, type TreeNodeDef } from '../../../data/v2/tree';
+import { AGENDA_BY_ID, SAF_PICK_AT, SAF_STAGES } from '../../../data/v2/agendas';
 import { COLUMN_DEPT, QUALITY, TEAM_SIZE } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import type {
-  Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
+  AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
 } from '../types';
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
@@ -184,6 +185,70 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
     qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
   }
   return { cap, q: cap > 0 ? qw / cap : 1 };
+}
+
+/** A project's experiment inputs as the next research day gives them: its research-engineer team-equivalents from the
+ *  allocation that day runs (reAllocation; a project not yet in experiments is read at a full project's RE_PER_PROJECT,
+ *  what it gets when its test starts if engineers are free), its experiment compute c (a full project's share of FLOP,
+ *  which goes by need, RD-B08; yesterday's unit project), labour ℓ and CES throughput X (0 for a test with no research
+ *  engineers: it waits for them). */
+export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAllocation, 'perProject'> = reAllocation(s)): { re: number; reEval: number; cc: number; l: number; X: number } {
+  const P = s.hidden.timeline.prod;
+  const x = s.player.research.last?.x;
+  const testing = !!s.player.tree[id]?.cap?.test;
+  const re = alloc.perProject.get(id) ?? 0;
+  const reEval = re > 0 || testing ? re : RE_PER_PROJECT;
+  const cc = (x?.c ?? 0) * (RE_PER_PROJECT / RE_UNIT);
+  const l = Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_UNIT), P.lam);
+  return { re, reEval, cc, l, X: cc > 0 && reEval > 0 ? Xces(P, cc, l) : 0 };
+}
+
+/** RD-B18 (B31): the one capability-project ETA, in days, that every readout and preview uses. Ideation to PICK_AT
+ *  candidates at the science teams' rate (as stepProject: (m_IDEAS × capacity)^λ × taste × speed over the ideation
+ *  stage's team-months, a line's batch), then the test stages at the project's experiment inputs (projectExpInputs).
+ *  `sci` previews other staffing (default: the teams on it). 0 for a project past its tests; Infinity = stalled. */
+export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number } = sciOn(s, id)): { ideation: number; experiments: number; eta: number } {
+  const n = node(id);
+  const ts = s.player.tree[id];
+  const st = ts?.cap;
+  if (!n || ts?.status === 'known' || ts?.status === 'failed' || !takesTeams(st)) return { ideation: 0, experiments: 0, eta: 0 };
+  const P = s.hidden.timeline.prod;
+  const x = s.player.research.last?.x;
+  const sg = stagesOf(n);
+  const b = n.kind === 'line' ? batchOf(x?.X ?? 1) : 1;
+  const speed = researchMods(s).speed;
+  const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * sci.q * speed) / (sg.idea * b * 30) : 0;
+  const { X } = projectExpInputs(s, id);
+  const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_UNIT)) / 30 : 0;
+  const t = st?.test;
+  const ideation = t ? 0 : ideaPerDay > 0 ? Math.max(0, PICK_AT - (st?.cands.length ?? 0) - (st?.idea ?? 0)) / ideaPerDay : Infinity;
+  const left = t ? Math.max(0, t.workNeed - t.work) + (st?.stage === 'small' ? sg.scale * t.c.b : 0) : (sg.small + sg.scale) * b;
+  const experiments = workPerDay > 0 ? left / workPerDay : Infinity;
+  return { ideation, experiments, eta: ideation + experiments };
+}
+
+/** RD-B18 (B31): a project's work in the units the engine runs, one readout for every view: capability projects in
+ *  team-months at unit inputs (ideation of PICK_AT candidates by science teams; the two test stages by research
+ *  engineers and experiment compute); a safety research-line project in months at serious staffing (T₁: its ideation
+ *  and test stages, safety/lineProjects.ts); any other project in team-months at research speed 1 (√ capacity). */
+export function effortOfNode(n: TreeNodeDef): { sci: number; exp: number; unit: 'team-months' | 'months' } {
+  if (isCapProject(n)) {
+    const sg = stagesOf(n);
+    return { sci: PICK_AT * sg.idea, exp: sg.small + sg.scale, unit: 'team-months' };
+  }
+  if (n.agenda && !n.paradigm) {
+    const T1 = AGENDA_BY_ID[n.agenda as AgendaId].T1;
+    return { sci: SAF_PICK_AT * SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
+  }
+  return { sci: n.effortTM ?? EFFORT_TM[n.effort ?? 'M'], exp: 0, unit: 'team-months' };
+}
+/** The size class shown for a node's work (S ≤ 6, M ≤ 12, L ≤ 24 team-months, else XL), from effortOfNode; a research
+ *  line's class is its agenda's (data/v2/tree.ts, from T₁). */
+export function effortClassOf(n: TreeNodeDef): EffortClass {
+  const e = effortOfNode(n);
+  if (e.unit === 'months') return n.effort ?? 'M';
+  const tm = e.sci + e.exp;
+  return tm <= 6 ? 'S' : tm <= 12 ? 'M' : tm <= 24 ? 'L' : 'XL';
 }
 
 // ───────────────────────────── state ─────────────────────────────

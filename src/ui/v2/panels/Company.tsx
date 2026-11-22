@@ -10,7 +10,7 @@ import {
   rentedOnline, researchSpeedLimits, researchSpeedView, revenueReadout, securityFloorView, spareServingEffect, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
-import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
+import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, STAR_HIRE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
 import type { Column, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AgentsAtWork } from './Agents';
 import { Work } from './Work';
@@ -216,11 +216,19 @@ function QDots({ q }: { q: TeamQuality }) {
   );
 }
 
-/** What a team adds, as one short chip (build capacity, research speed, taste, safety staff). */
+/** What a team adds once full, as one short chip in its department's currency (RD-B18: today's mechanisms run for one
+ *  day on a copy with the team): build capacity, the capability project it speeds most, safety results per year. */
 function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'quality' | 'specialty'> }) {
   const g = teamGain(s, t);
-  const text = g.currency === 'staffTime' ? `+${g.amount.toFixed(1)} build` : g.currency === 'alignment' ? `+${F.count(g.amount)} safety staff` : g.amount === 0 ? 'taste ±0' : `${t.role === 'sci' ? 'taste' : 'speed'} ${F.pct(g.unit === '%' ? g.amount / 100 : g.amount, 1, true)}`;
-  return <Tip content={() => <TipCard title="If hired">{g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week (before AI speed-up).' : g.currency === 'alignment' ? 'Safety staff: agendas, tool validation, investigations.' : t.role === 'sci' ? 'Research speed through research taste: Elite teams raise it, Solid teams lower it, Strong teams leave it. Capabilities scientists also staff research projects on the tree (Research), ×1.5 in their specialty.' : 'Research speed through research labour h.'}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;
+  const text = g.currency === 'staffTime' ? `+${F.num(g.amount, 1)} build`
+    : g.currency === 'alignment' ? `${F.num(g.amount, 2, true)} results/yr`
+    : g.unit === 'days' ? (g.amount === 0 ? 'no project faster today' : `${F.num(g.amount, 0, true)} d`)
+    : `${F.num(g.amount, 2, true)} tuning`;
+  const body = g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week, with the engineers\' AI tools: what one day of the build system gives with the team.'
+    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins a line when Auto-assign is on).'
+    : t.role === 'sci' ? 'Days sooner for the capability project this team speeds most, after one research day with it: the priority assignment places it (×1.5 on a project in its specialty; its quality sets its taste).'
+    : 'Days sooner for the capability project these research engineers speed most, after one research day with them; when no project needs more, they go to routine tuning (team-equivalents).';
+  return <Tip content={() => <TipCard title="If hired, once full" value={g.target}>{body}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;
 }
 
 function Teams({ s }: { s: GameStateV2 }) {
@@ -284,8 +292,8 @@ function Teams({ s }: { s: GameStateV2 }) {
         <div className="teams-col wide">
           <RoleHead r="sci" right={(
             <span className="row-i small">
-              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }]}>Lab-wide human taste from science-team quality and stars. Each team's taste with AI: Research › Projects; AI taste: Company › Work.</TipCard>}>
-                <span><ICON.taste size={12} /> taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
+              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }, { label: 'Per star', value: `+${F.num(STAR_HIRE.dTaste, 2)} each, up to ×${F.num(STAR_HIRE.maxTaste, 1)}` }]}>Star hires multiply the human taste of every capabilities science team. Each team's taste (its quality, the stars and AI): Research › Projects; AI taste: Company › Work.</TipCard>}>
+                <span><ICON.taste size={12} /> star taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
               </Tip>
               <ActBtn id="starHire" icon={ICON.hiring} label="Star" />
             </span>

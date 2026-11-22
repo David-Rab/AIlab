@@ -20,8 +20,15 @@ import { computeProduction } from '../../src/engine/v2/production/production';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { buildCapacity } from '../../src/engine/v2/departments/teams';
+import { starTaste } from '../../src/engine/v2/departments/workfit';
 import { engScale, runSetupTW, upkeepSplit } from '../../src/engine/v2/departments/build';
-import { HERE, check, finish, refGame, runRef } from './lib';
+import { FIXTURE_DIR, HERE, check, finish, refGame, runRef } from './lib';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { effectLine, readState, type DayRead } from '../../src/engine/v2/departments/teamActions';
+import { capShare } from '../../src/engine/v2/departments/agents';
+import { nextSpecialty, tauH } from '../../src/engine/v2/departments/teams';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
 
 const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
 
@@ -233,6 +240,67 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   check(!/\.pm\b(?!\))/.test(wf.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')) && !/levelOf|thresholds\(/.test(wf),
     'lint: the work-type layer (fit, coverage, milestones) reads effective compute, not pm or the level bridge', '');
   void WORK_TYPES;
+}
+
+
+// ---------- RD-B18: people previews are one day of the mechanism on a copy (B32 hires, B33 agents, B34 star taste) ----------
+{
+  const fx = (d: number) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
+  const cl = (x: GameStateV2) => deserialize(serialize(x));
+  const pv = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => ACTION_BY_ID.get(id)!.preview(s, p);
+  const readNow = (c: GameStateV2): DayRead => readState(c);
+  const near = (a: number, b: number, rel: number, abs: number) => Math.abs(a - b) <= Math.max(abs, rel * Math.max(Math.abs(a), Math.abs(b)));
+  for (const d of [400, 900]) {
+    const s = fx(d);
+    s.player.research.autoAssign = true;
+    const t0 = cl(s);
+    tick(t0, { skip: ['endings'] });
+    const base = readNow(t0);
+    const rows: string[] = [];
+    let ok = true;
+    for (const key of ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'] as const) {
+      const g = pv(s, 'teams.hire', { key }).gains[0];
+      // The hire's team, full and arrived, on a copy: one full engine day.
+      const role = key === 'eng' ? 'eng' : (key.split('.')[0] as 're' | 'sci');
+      const dept = key.endsWith('saf') ? 'saf' : 'cap';
+      const c = cl(s);
+      const spec = role === 'sci' ? { specialty: nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) } : {};
+      c.player.teams.push({ id: 'T-test', role, dept, size: TEAM_SIZE[role], heads: TEAM_SIZE[role], quality: 'strong', ...spec });
+      tick(c, { skip: ['endings'] });
+      const want = effectLine(s, base, readNow(c), { role, dept });
+      const same = g.unit === want.unit && (g.unit === 'days' ? near(g.amount, want.amount, 0.1, 1) : near(g.amount, want.amount, 0.05, 0.02));
+      ok &&= same && !(key === 'sci.cap' && g.unit === '%') && !(dept === 'saf' && /staff/.test(String(g.target)));
+      rows.push(`${key} ${g.amount} ${g.unit} vs ${want.amount} ${want.unit}${same ? '' : ' ✗'}`);
+    }
+    check(ok, `RD-B18 @day ${d}: each hire preview = one engine day on a copy with the team (build, project days, safety results)`, rows.join('; '));
+    // Star hire: one more star on a copy.
+    const sg = pv(s, 'starHire').gains[0];
+    const c = cl(s);
+    c.player.stars = (c.player.stars ?? 0) + 1;
+    tick(c, { skip: ['endings'] });
+    const sw = effectLine(s, base, readNow(c), { role: 'sci', dept: 'cap' });
+    check(sg.unit === sw.unit && near(sg.amount, sw.amount, 0.1, 1), `RD-B18 @day ${d}: Star hire preview = one engine day with one more star`, `${sg.amount} ${sg.unit} (${sg.target}) vs ${sw.amount} ${sw.unit}`);
+    // Agents: no constant security line; a routine-compute change that re-normalises engineering shows its build delta,
+    // equal to build capacity on the applied copy.
+    const x = Math.min(0.9, capShare(s, 'capRoutine') + 0.2);
+    const a = pv(s, 'agents.set', { use: 'capRoutine', compute: x });
+    const ca = cl(s);
+    engine.act(ca, 'agents.set', { use: 'capRoutine', compute: x });
+    const dB = Math.round((buildCapacity(ca).capacity - buildCapacity(s).capacity) * 1000) / 1000;
+    const line = [...a.costs, ...a.gains].find((l) => l.target === 'build capacity');
+    check(![...a.costs, ...a.gains].some((l) => l.currency === 'security') && (dB === 0 ? !line : !!line && Math.abs(line.amount - dB) < 2e-3),
+      `RD-B18 @day ${d}: agent preview has no constant security line and shows the build change of the applied copy`, `build ${line?.amount ?? 'none'} vs ${dB}; lines ${[...a.costs, ...a.gains].map((l) => `${l.currency} ${l.amount}`).join(', ')}`);
+  }
+  // B34: one star-taste factor (research reads the bench the Star hire gate reads); the chip says what enters it.
+  const s = fx(400);
+  let same = true;
+  for (let n = 0; n <= 14; n++) {
+    s.player.stars = n;
+    same &&= Math.abs(starTaste(s) - tauH(s.player)) < 1e-12;
+  }
+  const company = readFileSync(join(HERE, '../../src/ui/v2/panels/Company.tsx'), 'utf8');
+  const wt = readFileSync(join(HERE, '../../src/data/v2/workTypes.ts'), 'utf8');
+  check(same && !/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 one star-taste factor (research = the Star hire bench, 0–14 stars); the taste chip no longer claims quality enters it', '');
 }
 
 finish('worktypes');

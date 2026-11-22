@@ -242,8 +242,13 @@ const AGENTS_SET: ActionDef = {
     else if (dCatch < 0) costs.push({ currency: 'alignment', amount: dCatch, target: `${AGENT_USE_DEF[use].name}: monitor catch` });
     const dMon = a.monitors.poolShare - b.monitors.poolShare;
     if (Math.abs(dMon) > 1e-6) (dMon > 0 ? costs : gains).push({ currency: 'compute', amount: r3(Math.abs(dMon) * 100), target: dMon > 0 ? '% of the safety pool to monitors' : '% of the safety pool back to safety research' });
-    // Every model in internal use can misbehave there (STRUCTURE §4.9 "a misaligned model here can …").
-    costs.push({ currency: 'security', amount: -0.05, target: `${AGENT_USE_DEF[use].misuse.toLowerCase()} (exposure)` });
+    // RD-B18 (B33): build capacity before → after, also when a routine / frontier compute change re-normalises the
+    // engineering share (withAgentChange). The old constant "security −0.05" line is gone: nothing applied it.
+    const dB = r3(a.build - b.build);
+    if (dB > 0) gains.push({ currency: 'staffTime', amount: dB, unit: 'team-weeks / week', target: 'build capacity' });
+    else if (dB < 0) costs.push({ currency: 'staffTime', amount: dB, unit: 'team-weeks / week', target: 'build capacity' });
+    // Agents run on the lab's own compute: a change that only gains costs nothing here.
+    if (!costs.length) costs.push({ currency: 'compute', amount: 0, unit: 'H100e', target: 'no compute taken from another use' });
     return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {

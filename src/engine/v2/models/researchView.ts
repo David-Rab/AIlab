@@ -2,25 +2,24 @@
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
-import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, RE_PER_PROJECT, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
-import { COGNITIVE_WORK, MILESTONE_COVER, RE_UNIT, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
+import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
+import { COGNITIVE_WORK, MILESTONE_COVER, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
-import { Xces } from '../production/ces';
 import { researchSpeedRel } from '../production/production';
 import { production } from '../production/readout';
 import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  agentFpt, costPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, pSuccess, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
 import { versionById } from './labs';
 import {
-  allocate, attemptOdds, batchOf, capReCapacity, isCapProject, linePool, poolMean, reAllocation, reDemand, sciOn, stagesOf, teamsWanted, wantIsAuto,
+  allocate, attemptOdds, capEta, capReCapacity, isCapProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
 } from './research';
 import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
@@ -114,7 +113,6 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const p = s.player;
   const ts = p.tree[id];
   const st = ts?.cap;
-  const P = s.hidden.timeline.prod;
   const capIds = p.research.queue.filter((x) => isCapProject(node(x)));
   const rank = capIds.indexOf(id) + 1;
   const known = nodeStatus(s, id) === 'known';
@@ -138,33 +136,13 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   if (n.kind === 'line' && st?.pending?.length && stage === 'ideation' && !st.test) stageFrac = Math.min(1, (st.cands.length + st.idea) / PICK_AT);
   const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' || st?.stage === 'result' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test) ? 'running' : 'waiting';
   // Inputs today.
-  const x = p.research.last?.x;
-  const re = p.research.last?.reProj?.[id] ?? 0;
   const flopDay = flopOfProject(s, id);
-  // When it is not experimenting today, read the inputs it would get (RE_PER_PROJECT). Experiment FLOP goes by need
-  // (RD-B08): a project with research engineers gets a full project's share, which is yesterday's unit-project c ×
-  // RE_PER_PROJECT / RE_UNIT whatever its research engineers.
-  const reEval = re > 0 ? re : RE_PER_PROJECT;
-  const cc = (x?.c ?? 0) * (RE_PER_PROJECT / RE_UNIT);
-  const mExp = x?.mExp ?? 1;
-  const l = Math.pow(Math.max(1e-12, (mExp * reEval) / RE_UNIT), P.lam);
-  const X = cc > 0 ? Xces(P, cc, l) : 0;
+  // When it is not experimenting today, read the inputs it would get (RE_PER_PROJECT; FLOP by need, RD-B08).
+  const { re, cc, l, X } = projectExpInputs(s, id);
   const el = elasticities(s, Math.max(1e-12, cc), l);
   const bound: CapProjectView['bound'] = cc <= 0 ? 'none' : el.eC >= el.eL ? 'compute' : 'labour';
-  // ETA (days): ideation to PICK_AT candidates at today's ideation rate, then the test stages at today's X.
-  const sg = stagesOf(n);
-  const b = n.kind === 'line' ? batchOf(x?.X ?? 1) : 1;
-  const mIdeas = Math.max(1, x?.mIdeas ?? 1);
-  const ideaPerDay = sci.cap > 0 ? (Math.pow(mIdeas * sci.cap, P.lam) * sci.q * researchMods(s).speed) / (sg.idea * b * 30) : 0;
-  const workPerDay = X > 0 ? (X * researchMods(s).speed * Math.sqrt(RE_UNIT)) / 30 : 0;
-  let ideation = 0;
-  let experiments = 0;
-  if (state === 'running' || state === 'waiting') {
-    const t = st?.test;
-    if (!t) ideation = ideaPerDay > 0 ? Math.max(0, PICK_AT - (st?.cands.length ?? 0) - (st?.idea ?? 0)) / ideaPerDay : Infinity;
-    const left = t ? Math.max(0, t.workNeed - t.work) + (st?.stage === 'small' ? sg.scale * t.c.b : 0) : (sg.small + sg.scale) * b;
-    experiments = workPerDay > 0 ? left / workPerDay : Infinity;
-  }
+  // ETA (days): the one capability ETA (models/research.ts capEta), also used by the Assign / Take off previews.
+  const { ideation, experiments } = state === 'running' || state === 'waiting' ? capEta(s, id, sci) : { ideation: 0, experiments: 0 };
   const builds = buildEtas(s).etas;
   let adoption: CapProjectView['adoption'];
   const bid = st?.result?.buildId ?? st?.pending?.find((r) => r.buildId)?.buildId;

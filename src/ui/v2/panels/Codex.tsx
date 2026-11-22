@@ -15,11 +15,19 @@ import { TRAITS_V2 } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import * as F from '../fmt';
 import { LIMITS } from '../../../data/v2/limits';
-import { ACTION_DEFS, EVENT_DEFS, agendaOHalf } from '../../../engine/v2';
+import { ACTION_DEFS, EVENT_DEFS, agendaOHalf, effortClassOf, effortOfNode } from '../../../engine/v2';
 import { CoreLoop } from './CoreLoop';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { playerSource, Rich } from '../ui';
+import type { TreeNodeDef } from '../../../data/v2/tree';
+
+/** RD-B18 (B31): a node's work as the engine runs it (effortOfNode). */
+function effortText(n: TreeNodeDef): string {
+  const e = effortOfNode(n);
+  if (e.unit === 'months') return `${effortClassOf(n)} · ${F.num(e.sci + e.exp, 1)} months to a result at serious staffing`;
+  return `${effortClassOf(n)} · ${F.num(e.sci + e.exp, 1)} team-months${e.exp > 0 ? ` (science ${F.num(e.sci, 1)}, experiments ${F.num(e.exp, 1)})` : ''}`;
+}
 
 const PARADIGM_ODDS: Record<string, number> = Object.fromEntries(PARADIGMS.map((p) => [p.id, p.prior]));
 
@@ -44,7 +52,7 @@ export function codexEntries(s: GameStateV2): CodexEntry[] {
   for (const t of TRAITS_V2) out.push({ id: `t:${t.id}`, cat: 'Traits', title: `${t.id} ${t.name}`, body: t.desc, src: `research/04 ${t.r04}`, rows: [['Layer', t.layer], ['Protective', t.protective ? 'yes' : 'no'], ['Scales with difficulty', t.difficulty ? 'yes' : 'no']] });
   for (const e of EDGES) out.push({ id: `e:${e.id}`, cat: 'Trait edges', title: `${e.id} ${e.from.join(' + ')} → ${e.to}`, body: `Prior mean weight ${e.wBar}, evidence grade ${e.grade}.${e.moderator ? ` Moderator: ${e.moderator}.` : ''}`, src: e.cite, design: e.grade === 'C' || e.grade === 'D' });
   for (const b of BENCHMARKS) out.push({ id: `b:${b.id}`, cat: 'Benchmarks', title: b.name, body: `Modelled on ${b.family}. Domain ${Array.isArray(b.domain) ? b.domain.join(' + ') : b.domain}.${b.dangerous ? ' Dangerous-capability benchmark: sandbagging shifts it.' : ''}${b.flag ? ` Sets the ${b.flag} flag above 60.` : ''}`, src: 'research/12 §0.5', rows: b.special ? [] : [['Floor–ceiling', `${b.floor}–${b.ceil}`], ['Midpoint L', b.mL.toFixed(1)]] });
-  for (const n of TREE) out.push({ id: `n:${n.id}`, cat: 'Tech tree', title: n.name, body: [n.cap, n.saf && `Safety: ${n.saf}`, n.cost && `Cost: ${n.cost}`, n.payoff].filter(Boolean).join('. ') + '.', src: n.paradigm ? 'research/12 §0.7' : 'design/TECH-TREE.md', design: true, rows: [['Column', COLUMN_LABEL[n.column]], ['Layer', n.layer], ['Needs', n.needs.map((r) => TREE_BY_ID[r]?.name ?? r).join(', ') || 'nothing'], ['Effort', n.star ? 'known at start' : n.effort ?? '—'], ...(n.paradigm && PARADIGM_ODDS[n.id] !== undefined && !n.star ? [['Odds', `${Math.round(PARADIGM_ODDS[n.id] * 100)}%`] as [string, string]] : n.odds ? [['Odds', `${Math.round(n.odds * 100)}%`] as [string, string]] : [])] });
+  for (const n of TREE) out.push({ id: `n:${n.id}`, cat: 'Tech tree', title: n.name, body: [n.cap, n.saf && `Safety: ${n.saf}`, n.cost && `Cost: ${n.cost}`, n.payoff].filter(Boolean).join('. ') + '.', src: n.paradigm ? 'research/12 §0.7' : 'design/TECH-TREE.md', design: true, rows: [['Column', COLUMN_LABEL[n.column]], ['Layer', n.layer], ['Needs', n.needs.map((r) => TREE_BY_ID[r]?.name ?? r).join(', ') || 'nothing'], ['Effort', n.star ? 'known at start' : effortText(n)], ...(n.paradigm && PARADIGM_ODDS[n.id] !== undefined && !n.star ? [['Odds', `${Math.round(PARADIGM_ODDS[n.id] * 100)}%`] as [string, string]] : n.odds ? [['Odds', `${Math.round(n.odds * 100)}%`] as [string, string]] : [])] });
   for (const x of SECTORS) out.push({ id: `s:${x.id}`, cat: 'Sectors', title: x.name, body: `${x.empPct}% of US employment, relative wage ${x.wage}. Task mix: ${Object.entries(x.tasks).map(([d, w]) => `${d} ${Math.round((w ?? 0) * 100)}%`).join(', ')}.`, src: 'research/16 §1A', rows: [['Start A', `${Math.round(x.A0 * 100)}%`], ['Friction R0', String(x.R0)], ['Remote-workable', x.remote ? 'yes' : 'no']] });
   for (const t of WORLD_TECHS) out.push({ id: `w:${t.id}`, cat: 'Technologies', title: `${t.id} ${t.name}`, body: `${t.headline}. Gates: ${Object.entries(t.gates).map(([d, l]) => `${d} ${l}`).join(', ') || 'none'}. Prereqs: ${t.prereqs.join(', ') || 'none'}.${t.risk ? ` Risk: ${t.risk}.` : ''}`, src: `research/16 ${t.r16}` });
   for (const a of ACTION_DEFS) out.push({ id: `a:${a.id}`, cat: 'Actions', title: a.title, body: `Sphere ${a.sphere}. Hover the action button in its panel for the live cost, gain and exposure preview.${a.vote ? ' A major decision when large: the board votes, seat by seat, before you commit.' : ''}`, src: a.owner });

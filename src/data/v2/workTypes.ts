@@ -125,8 +125,6 @@ export const SPEED_CAP = 50;
 export const FTE_HOURS_PER_YEAR = 2000;
 /** Human taste of a team by quality, in SDs of the lab's taste distribution (Strong = the lab's average) [D]. */
 export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
-/** Star hires lift the lab's human taste by this factor each (STAR_HIRE.dTaste) [D]. */
-export const STAR_TASTE = 0.05;
 
 // ───────────────────────────── research in physical units (V3.4) ─────────────────────────────
 

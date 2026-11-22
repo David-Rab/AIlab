@@ -17,7 +17,7 @@ import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
@@ -25,14 +25,17 @@ import {
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
-import { otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
+import { capProjectView, otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
+import { autoAssign, projectEta } from '../../src/engine/v2/models/tree';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { AGENDA_BY_ID } from '../../src/data/v2/agendas';
 import { serialize, deserialize } from '../../src/engine/v2/core/save';
 import { syncTeams } from '../../src/engine/v2/departments/teams';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engine/v2/departments/build';
 import { runStall } from '../../src/engine/v2/models/runs';
-import type { Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
-import { HERE, check, finish, runRef } from './lib';
+import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
+import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
@@ -623,6 +626,122 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const after = rl();
   check(afterMini === undefined && afterOld === undefined && after.realised !== undefined && after.seenIn === 'Tnew',
     'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.realised} seen in ${after.seenIn}`);
+}
+
+
+// ---------- RD-B18: research previews are what the engine runs (B31 one ETA / effort, B35 action previews) ----------
+{
+  const fx = (d: number) => deserialize(readFileSync(join(FIXTURE_DIR, `day${d}.json`), 'utf8'));
+  const cl = (x: GameStateV2) => deserialize(serialize(x));
+  const pv = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => ACTION_BY_ID.get(id)!.preview(s, p);
+  const apply = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => ACTION_BY_ID.get(id)!.apply(s, makeCtx(s), p);
+  // B31 effort: from the stages the engine runs, not the class table.
+  const sum = (n: TreeNodeDef) => { const e = effortOfNode(n); return e.sci + e.exp; };
+  const p13 = PROJECT_BY_ID.P13;
+  const p13c = pv(fx(400), 'research.queue', { id: 'P13' }).costs.filter((c) => c.currency === 'staffTime').map((c) => c.amount);
+  const line = PROJECT_BY_ID['L.scale'];
+  const saf = PROJECT_BY_ID['T-CONFESS'];
+  const safC = pv(fx(400), 'research.queue', { id: 'T-CONFESS' }).costs.filter((c) => c.currency === 'staffTime');
+  check(Math.abs(p13c[0] - Math.round(PICK_AT * stagesOf(p13).idea * 10) / 10) < 1e-9 && Math.abs(p13c[1] - Math.round((stagesOf(p13).small + stagesOf(p13).scale) * 10) / 10) < 1e-9 && effortClassOf(p13) === 'XL'
+    && Math.abs(sum(line) - (PICK_AT * 0.8 + 1.8)) < 1e-9 && safC.length === 1 && safC[0].unit === 'months' && Math.abs(safC[0].amount - AGENDA_BY_ID[saf.agenda as AgendaId].T1) < 0.051,
+    'RD-B18 effort readouts run on the engine\'s stages: P13 science / experiment team-months from its fitted effort, a line its line stages, a safety line T₁ months',
+    `P13 ${p13c.join(' / ')} (class ${effortClassOf(p13)}); L.scale ${sum(line).toFixed(2)}; T-CONFESS ${safC.map((c) => `${c.amount} ${c.unit}`).join(', ')} (T₁ ${AGENDA_BY_ID[saf.agenda as AgendaId].T1})`);
+  // B31 one ETA: the Projects card, the tree and the previews read capEta; one engine day takes a day off it at the
+  // inputs that day ran on (the next day's experiment compute can differ: read with the day's own readout).
+  const s = fx(400);
+  const ids = s.player.research.queue.filter((id) => isCapProject(PROJECT_BY_ID[id]));
+  const same = ids.every((id) => { const v = capProjectView(s, id)!; return v.state === 'adopting' || Math.abs(projectEta(s, id) - (v.etaParts.ideation + v.etaParts.experiments)) < 1e-9 || (!Number.isFinite(v.eta) && !Number.isFinite(projectEta(s, id))); });
+  const t1 = cl(s);
+  tick(t1, { skip: ['endings'] });
+  const drift: string[] = [];
+  let close = 0;
+  let n = 0;
+  const h = cl(s);
+  h.player.research.last = t1.player.research.last;
+  for (const id of ids) {
+    const a = capEta(h, id);
+    const b = capEta(t1, id);
+    const sa = s.player.tree[id]?.cap;
+    const sb = t1.player.tree[id]?.cap;
+    if (!Number.isFinite(a.eta) || !Number.isFinite(b.eta) || a.eta < 3 || !sa || !sb || sa.stage !== sb.stage || !!sa.test !== !!sb.test || sa.cands.length !== sb.cands.length || (sa.test && sb.test && sa.test.c.k !== sb.test.c.k)) continue;
+    n++;
+    const err = Math.abs(a.eta - 1 - b.eta);
+    if (err < Math.max(0.05, 0.02 * a.eta)) close++;
+    drift.push(`${id} ${a.eta.toFixed(1)}→${b.eta.toFixed(1)}`);
+  }
+  check(same && n > 0 && close === n, 'RD-B18 one capability ETA: Projects card = projectEta (tree, Assign / Take off); one engine day takes one day off it', `${close}/${n}: ${drift.join(', ')}`);
+  // B35 Assign / Take off: the days are those of a copy with the team moved (a project in ideation, where science
+  // teams set the pace: its candidates reset on a copy of the fixture).
+  {
+    const base = cl(s);
+    const sciT = base.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap' && t.projectId);
+    const team = sciT[0];
+    const to = sciT.find((t) => t.projectId !== team?.projectId)?.projectId;
+    if (team && to) {
+      base.player.tree[to].cap = freshCap();
+      const from = team.projectId!;
+      const r = (x: number) => (Number.isFinite(x) ? Math.round(x) : NaN);
+      const g = pv(base, 'research.assign', { id: to, team: team.id });
+      const c = cl(base);
+      apply(c, 'research.assign', { id: to, team: team.id });
+      const want = r(capEta(base, to).eta) - r(capEta(c, to).eta);
+      const fromLate = r(capEta(c, from).eta) - r(capEta(base, from).eta);
+      const u = pv(base, 'research.unassign', { team: team.id });
+      const cu = cl(base);
+      apply(cu, 'research.unassign', { team: team.id });
+      const late = r(capEta(cu, from).eta) - r(capEta(base, from).eta);
+      const gotFrom = g.costs.find((x) => x.currency === 'leadDays')?.amount ?? 0;
+      const gotLate = u.costs[0].amount;
+      check(want > 0 && g.gains[0].amount === want && (Number.isNaN(fromLate) ? /stalls/.test(String(g.costs[1]?.target)) : -gotFrom === fromLate) && (Number.isNaN(late) ? /stalls/.test(String(u.costs[0].target)) : -gotLate === late),
+        'RD-B18 Assign / Take off previews = the ETA change of a copy with the team moved', `assign ${g.gains[0].amount} vs ${want} d sooner; from ${gotFrom} vs ${fromLate}; take off ${gotLate} vs ${late} (${u.costs[0].target})`);
+    } else check(false, 'RD-B18 Assign / Take off previews = the ETA change of a copy with the team moved', 'fewer than two capability projects with teams in the day-400 fixture');
+  }
+  // B35 Reorder: the lines are each project's ETA change on a copy where the order is applied.
+  {
+    const last = ids[ids.length - 1];
+    const m = pv(s, 'research.move', { id: last, to: 0 });
+    const c = cl(s);
+    apply(c, 'research.move', { id: last, to: 0 });
+    const fin = (id: string) => Number.isFinite(capEta(s, id).eta) && Number.isFinite(capEta(c, id).eta);
+    const stalls = ids.filter((id) => Number.isFinite(capEta(s, id).eta) !== Number.isFinite(capEta(c, id).eta)).length;
+    const want = ids.filter(fin).map((id) => Math.round(capEta(s, id).eta) - Math.round(capEta(c, id).eta)).filter((d) => d !== 0).sort((a, b) => a - b);
+    const lines = [...m.gains, ...m.costs].filter((l) => l.amount !== 0);
+    const got = lines.filter((l) => / (sooner|later)$/.test(String(l.target))).map((l) => l.amount).sort((a, b) => a - b);
+    const gotStalls = lines.filter((l) => /stalls|gets going/.test(String(l.target))).length;
+    const words = JSON.stringify(m);
+    check(JSON.stringify(want) === JSON.stringify(got) && stalls === gotStalls && !/idle teams follow/.test(words), 'RD-B18 Reorder preview = each capability project\'s ETA change after the re-plan on a copy (no "idle teams follow")', `preview ${got.join(', ')} (${gotStalls} start / stall) vs copy ${want.join(', ')} (${stalls})`);
+  }
+  // B35 Auto-assign: counts the safety scientists the policy places (on a copy), never capability teams.
+  {
+    const c = cl(s);
+    c.player.research.autoAssign = false;
+    const capT = c.player.teams.find((t) => t.role === 'sci' && t.dept === 'cap');
+    const safT = c.player.teams.find((t) => t.role === 'sci' && t.dept === 'saf');
+    if (capT) delete capT.projectId;
+    if (safT) delete safT.projectId;
+    const on = pv(c, 'research.autoAssign', { on: true });
+    const d = cl(c);
+    apply(d, 'research.autoAssign', { on: true });
+    autoAssign(d);
+    const placed = d.player.teams.filter((t) => t.role === 'sci' && !c.player.teams.find((x) => x.id === t.id)?.projectId && t.projectId).reduce((a, t) => a + t.heads, 0);
+    const placedSaf = d.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && !c.player.teams.find((x) => x.id === t.id)?.projectId && t.projectId).reduce((a, t) => a + t.heads, 0);
+    check(on.gains[0].amount === Math.round(placedSaf) && placed === placedSaf && !!safT && !!capT, 'RD-B18 Auto-assign preview = the safety scientists the policy places on a copy (an idle capability team is not counted)', `preview ${on.gains[0].amount}, copy places ${placedSaf} safety (${placed} in all)`);
+  }
+  // B35 Reopen: the speculative attempt's own preview (lower prior, half the odds), as the reopened copy shows it; no
+  // "+0.05 progress"; Research risk shows no κ as progress.
+  {
+    const c = cl(s);
+    const id = 'P09';
+    c.player.tree[id] = { status: 'failed', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'failed' } };
+    const r = pv(c, 'research.reopen', { id });
+    const d = cl(c);
+    apply(d, 'research.reopen', { id });
+    const after = pv(d, 'research.queue', { id });
+    const gl = (p: { gains: { amount: number; probability?: number }[] }) => JSON.stringify(p.gains.map((x) => [x.amount, x.probability]));
+    const risky = ['safe', 'balanced', 'speculative'].map((k) => pv(c, 'research.risk', { risk: k })).flatMap((p) => [...p.costs, ...p.gains]).filter((l) => l.currency === 'progress' && l.amount !== 0);
+    check(gl(r) === gl(after) && !r.gains.some((x) => x.amount === 0.05) && r.gains.every((x) => !!x.unit) && risky.length === 0,
+      'RD-B18 Reopen preview = the reopened copy\'s own preview (prior and odds of the speculative attempt); Research risk shows no κ as progress', `reopen ${gl(r)} vs copy ${gl(after)}; risk progress lines ${risky.length}`);
+  }
 }
 
 check(PICK_AT >= 2, 'fixture: teams choose among at least two candidates');

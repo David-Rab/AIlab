@@ -26,8 +26,8 @@ export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../mo
 export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
 export type { LaunchRunParams, RunPlan } from '../models/runs';
 export { PARADIGM_BY_ID } from '../models/paradigms';
-export { isCapProject, stagesOf } from '../models/research';
-export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, sciAiMult, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
+export { capEta, effortClassOf, effortOfNode, isCapProject, stagesOf } from '../models/research';
+export { assignBlock, effortOf, idleTeams, isProject, missingNeeds, nextLineProject, nodeDept, nodeKnown, nodeOdds, nodeStatus, optionLocked, payoffOf, projectCapacity, projectEta, projectRate, projectReady, projectTeams, PRIORITY_W, researchSpeed, teamCapacity, teamGain as projectTeamGain, teamsOn, treeCounts } from '../models/tree';
 export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';

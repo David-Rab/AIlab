@@ -9,7 +9,7 @@ import { SPLIT_KEYS, TOP_KEYS, fromSpec, presetSplit, setSplit, specOf, type Spl
 import { applyBestMix } from '../production/production';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
-import { TEAM_ACTIONS } from '../departments/teamActions';
+import { starGain, TEAM_ACTIONS } from '../departments/teamActions';
 import { BUILD_ACTIONS } from '../departments/build';
 import { SUITE_ACTIONS } from './suites';
 import { DATA_ACTIONS } from '../production/dataActions';
@@ -387,7 +387,7 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
     available: (s) => (s.player.tasteHire >= STAR_HIRE.maxTaste ? 'Taste bench is full' : s.player.finance.cash < starCost(s) ? 'Not enough cash' : true),
     preview: (s) => ({
       costs: [{ currency: 'cash', amount: starCost(s) }, { currency: 'trust', amount: STAR_HIRE.cooperation, target: 'rivals' }],
-      gains: [{ currency: 'progress', amount: Math.round((s.player.prodCache?.elast.taste ?? 0.5) * STAR_HIRE.dTaste * 1e4) / 100, unit: '%', target: 'research speed' }],
+      gains: [starGain(s)],
       exposure: [],
     }),
     apply: (s, ctx) => {

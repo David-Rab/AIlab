@@ -41,9 +41,8 @@ import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLine
 import { queueBuild } from '../departments/build';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import {
-  assignCapTeams, attemptOdds, capProgress, capResearchDay, isCapProject, stagesOf, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, takesTeams,
 } from './research';
-import { RE_UNIT } from '../../../data/v2/workTypes';
 import { safetyAgentL } from '../safety/agents';
 import { fireFinding } from '../safety/findings';
 import { DEFAULT_LINES, DEFAULT_RE_ALLOC } from '../../../data/v2/research';
@@ -149,7 +148,8 @@ export function nodeStatus(s: GameStateV2, id: string): NodeStatus {
   return missingNeeds(s, id).length ? 'locked' : 'open';
 }
 
-/** Effort in standard-team-months at M = 1 (research-line nodes: T₁ at serious staffing). */
+/** Team-months at research speed 1 of a project the research system rolls (projectRate); readouts of any project's work
+ *  read effortOfNode (models/research.ts), which also covers capability and research-line projects. */
 export const effortOf = (n: TreeNodeDef): number => n.effortTM ?? EFFORT_TM[n.effort ?? 'M'];
 
 /** Odds of the next attempt: paradigm prior or the node's odds, × ½ per failure; a research-line node shows its line's
@@ -186,54 +186,51 @@ export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?:
 /** Research speed of the rolled (safety) nodes: the research-speed readout M (until RD-R04, SYNTHESIS §6 Phase 3). */
 export const researchSpeed = (s: GameStateV2) => s.player.prodCache?.M ?? 1;
 
-/** Progress per day of a project at a capacity (default: its teams). */
+/** Progress per day of a project the research system rolls (research-line projects: results per day once the pipeline
+ *  is full; any other non-capability project: √ capacity × research speed over its team-months). Capability projects run
+ *  their stages (models/research.ts) and read their ETA from capEta. */
 export function projectRate(s: GameStateV2, id: string, cap?: number): number {
   const n = node(id);
-  if (!n) return 0;
+  if (!n || isCapProject(n)) return 0;
   const now = projectCapacity(s, id);
   const c = cap ?? now;
   if (c <= 0) return 0;
   // Model v3 E1: a line project's results per day once its pipeline is full (safety/lineProjects.ts).
   if (isLineNode(n)) return 1 / lineCycleDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c);
-  if (isCapProject(n)) {
-    // Model v3 V3: a rough share of the lifecycle per day for the ETA readout (ideation of two candidates at (m_IDEAS ×
-    // capacity)^λ, plus the two test stages at yesterday's unit-project experiment throughput X); the engine runs the
-    // stages (models/research.ts).
-    const sg = stagesOf(n);
-    const x = s.player.research.last?.x;
-    const lam = s.hidden.timeline.prod.lam;
-    const ideaDays = (2 * sg.idea * 30) / Math.max(1e-9, Math.pow(c * sciAiMult(s), lam));
-    const testDays = ((sg.small + sg.scale) * 30) / Math.max(1e-9, (x?.X ?? 1) * Math.sqrt(RE_UNIT));
-    return 1 / Math.max(1e-9, ideaDays + testDays);
-  }
   return (researchSpeed(s) * Math.sqrt(c)) / (effortOf(n) * 30);
 }
 
-/** AI labour's multiplier on scientists' capacity (m_IDEAS of the work-type layer, departments/workfit.ts; yesterday's
- *  research readout): AI in research ideas adds capacity to every science team's allocation. */
-export const sciAiMult = (s: GameStateV2) => Math.max(1, s.player.research.last?.x?.mIdeas ?? 1);
+/** A staffing change a preview asks about: a team joins the project, or a team leaves it. */
+export interface StaffChange { add?: Team; remove?: string }
 
 /** Days a team would cut from a project's ETA by joining it (Infinity for a project no other team works on; 0 if it
- *  cannot help). The team picker shows it (R2). */
+ *  cannot help). */
 export function teamGain(s: GameStateV2, teamId: string, id: string): { etaNow: number; etaWith: number; gain: number } {
   const t = s.player.teams.find((x) => x.id === teamId);
-  const n = node(id);
-  if (!t || !n) return { etaNow: Infinity, etaWith: Infinity, gain: 0 };
-  const c0 = projectCapacity(s, id, undefined, t.id);
-  const etaNow = c0 > 0 ? projectEta(s, id, c0) : Infinity;
-  const etaWith = projectEta(s, id, c0 + teamCapacity(t, n));
+  if (!t || !node(id)) return { etaNow: Infinity, etaWith: Infinity, gain: 0 };
+  const etaNow = projectEta(s, id, { remove: t.id });
+  const etaWith = projectEta(s, id, { add: t });
   return { etaNow, etaWith, gain: etaNow === Infinity ? (etaWith < Infinity ? Infinity : 0) : Math.max(0, etaNow - etaWith) };
 }
 
-/** Days to finish (research-line projects: to the next result) at today's speed (Infinity with no teams). */
-export function projectEta(s: GameStateV2, id: string, cap?: number): number {
+/** RD-B18 (B31): days to finish (research-line projects: to the next result) at today's inputs, the one ETA of every
+ *  readout and preview: capability projects capEta (their stages as the engine runs them), research-line projects
+ *  lineEtaDays, other projects their rate. `staff` previews a science capacity or a team joining / leaving. Infinity
+ *  with no teams. */
+export function projectEta(s: GameStateV2, id: string, staff?: number | StaffChange): number {
   const n = node(id);
-  if (n && isLineNode(n)) {
-    const now = projectCapacity(s, id);
-    const c = cap ?? now;
-    return c > 0 ? lineEtaDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c) : Infinity;
+  if (!n) return Infinity;
+  const now = projectCapacity(s, id);
+  const c = staff === undefined ? now : typeof staff === 'number' ? staff : projectCapacity(s, id, staff.add, staff.remove);
+  const same = staff === undefined || Math.abs(c - now) < 1e-9;
+  if (isCapProject(n)) {
+    if (same) return capEta(s, id).eta;
+    if (typeof staff === 'number') return capEta(s, id, { cap: c, q: sciOn(s, id).q }).eta;
+    const teams = s.player.teams.filter((t) => t.id !== staff.remove && t.id !== staff.add?.id);
+    return capEta(s, id, sciOn(s, id, staff.add ? [...teams, { ...staff.add, projectId: id }] : teams)).eta;
   }
-  const r = projectRate(s, id, cap);
+  if (isLineNode(n)) return c > 0 ? lineEtaDays(s, id, same ? undefined : c) : Infinity;
+  const r = projectRate(s, id, c);
   const left = 1 - (s.player.tree[id]?.status === 'researching' ? s.player.tree[id].progress : 0);
   return r > 0 ? left / r : Infinity;
 }

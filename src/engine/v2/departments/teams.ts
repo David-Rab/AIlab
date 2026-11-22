@@ -14,7 +14,7 @@
 // build capacity (buildCapacity, the build queue of departments/build.ts). `staff.cap/saf` are derived from heads.
 import {
   ATTRITION_BASE, CANDIDATES, CANDIDATE_QUALITY_W, CANDIDATE_RE_SAF, CANDIDATE_ROLE_W, COLUMN_DEPT, COLUMN_LABEL, COLUMNS,
-  HIRING_BASE, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, STAR_HIRE,
+  HIRING_BASE, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, starTasteOf,
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
@@ -47,7 +47,7 @@ function newTeam(h: Pick<TeamHiring, 'nextId'>, role: TeamRole, dept: TeamDept, 
 }
 
 /** Specialty for a new standard science team: the department's column with the fewest teams (ties: column order). */
-function nextSpecialty(teams: readonly Team[], dept: TeamDept): Column {
+export function nextSpecialty(teams: readonly Team[], dept: TeamDept): Column {
   const cols = COLUMNS.filter((c) => COLUMN_DEPT[c] === dept);
   const n = (c: Column) => teams.filter((t) => t.role === 'sci' && t.specialty === c).length;
   return cols.reduce((a, c) => (n(c) < n(a) ? c : a), cols[0]);
@@ -107,7 +107,7 @@ export function playerH(p: Pick<PlayerLab, 'teams'>): number {
  *  the AIFM distribution directly (departments/workfit.ts teamTaste), no longer through a lab-level τ normalised by the
  *  reference headcount; stars lift every capabilities team's human taste by this factor. */
 export function tauH(p: Pick<PlayerLab, 'teams' | 'stars'>, _yr?: number): number {
-  return Math.min(STAR_HIRE.maxTaste, 1 + STAR_HIRE.dTaste * (p.stars ?? 0));
+  return starTasteOf(p.stars ?? 0);
 }
 
 /** Payroll $B/yr of a team (heads × role cost × quality cost). */

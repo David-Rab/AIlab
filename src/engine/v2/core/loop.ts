@@ -12,6 +12,7 @@ import { StreamRng } from './rng';
 import { resetSafAllocation } from '../safety/lineProjects';
 import { decisionSnapshot } from './selectors';
 import { cadencesDue } from './time';
+import { registerPreviewTick } from './previewTick';
 
 validateRegistry();
 
@@ -89,6 +90,8 @@ export function tick(s: GameStateV2, opts?: TickOptions): void {
   }
   if (s.time.day !== day0 + 1) throw new Error(`tick: clock did not advance exactly one day (${day0} → ${s.time.day})`);
 }
+
+registerPreviewTick((c) => tick(c, { skip: ['endings'] }));
 
 /** Player/bot action by id (ActionDef registry). Returns an error string if unavailable. */
 export function act(s: GameStateV2, actionId: string, params: Record<string, number | string | boolean> = {}): string | undefined {

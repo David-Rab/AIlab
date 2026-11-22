@@ -17,7 +17,7 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
-  LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, STAR_TASTE, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
@@ -25,7 +25,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { QUALITY, TEAM_COST_M } from '../../../data/v2/teams';
+import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { gOfDomain, h50Of } from '../models/capability';
@@ -193,8 +193,8 @@ export function teamTaste(z: number, sdAI: number, phi: number, m2b: number, hum
 }
 /** A team's human taste position (SDs) from its quality. */
 export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];
-/** Lab-wide human taste factor from star hires. */
-export const starTaste = (s: GameStateV2) => 1 + STAR_TASTE * (s.player.stars ?? 0);
+/** Lab-wide human taste factor from star hires (data/v2/teams.ts starTasteOf). */
+export const starTaste = (s: GameStateV2) => starTasteOf(s.player.stars ?? 0);
 
 // ───────────────────────────── the lab's work context (one day) ─────────────────────────────
 

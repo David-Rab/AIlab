@@ -6,11 +6,11 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
 import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, StackKey, TraitId } from '../types';
-import { PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
+import { PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
-import { atTest, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
+import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
-  assignCapNow, assignTeam, dequeueNode, effortOf, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectCapacity, projectEta, projectTeams,
+  assignCapNow, assignTeam, autoAssign, dequeueNode, idleTeams, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
   queueNode, unassignTeam,
 } from './tree';
 
@@ -25,19 +25,30 @@ const fail = (why: string | undefined) => {
 /** Default node for previews: the param, else the first open idea. */
 const nodeParam = (s: GameStateV2, p: Params) => str(p, 'id', TREE.find((n) => nodeStatus(s, n.id) === 'open')?.id ?? 'P05');
 const teamParam = (s: GameStateV2, p: Params) => str(p, 'team', projectTeams(s)[0]?.id ?? '');
-const days = (x: number) => (Number.isFinite(x) ? Math.round(x) : 9999);
+/** One project's ETA change as a preview line, in days (B31: before and after from projectEta / capEta); a project that
+ *  gets going or stalls says so. Undefined when it does not move. */
+function etaChange(name: string, a: number, b: number): CostLine | undefined {
+  if (!Number.isFinite(a) && !Number.isFinite(b)) return undefined;
+  if (!Number.isFinite(b)) return { currency: 'leadDays', amount: -Math.round(a), target: `${name} stalls (its ETA was this many days)` };
+  if (!Number.isFinite(a)) return { currency: 'progress', amount: Math.round(b), unit: 'days', target: `${name} gets going: its ETA in days` };
+  const d = Math.round(a) - Math.round(b);
+  if (d > 0) return { currency: 'progress', amount: d, unit: 'days', target: `${name} sooner` };
+  if (d < 0) return { currency: 'leadDays', amount: d, target: `${name} later` };
+  return undefined;
+}
+const pushEta = (costs: CostLine[], gains: CostLine[], l: CostLine | undefined) => { if (l) (l.amount > 0 && l.currency === 'progress' ? gains : costs).push(l); };
 
 /** Capability lines of a node's preview (F6c): its typed effect in its own unit, from the numbers adoption applies
  *  (models/research.ts completeAdoption): a stack effect is the expected effect at the scale test (the public prior mean
  *  per idea × 1000^s at the prior exponent, `atTest`), in OOM of that stack (and its `also` stacks); a domain effect the
  *  prior × the node's OOM per domain; data and expert-data effects the prior × their own units. A node without a typed
  *  effect gives what it unlocks (its design options, or its stated capability). */
-function capLines(s: GameStateV2, n: TreeNodeDef, odds: number): { gains: CostLine[]; costs: CostLine[] } {
+function capLines(s: GameStateV2, n: TreeNodeDef, odds: number, spec: number): { gains: CostLine[]; costs: CostLine[] } {
   const gains: CostLine[] = [];
   const costs: CostLine[] = [];
   const g = (amount: number, unit: string, target: string) => gains.push({ currency: 'progress', amount: Number(amount.toPrecision(3)), unit, probability: odds, target });
   const eff = n.effect;
-  const per = eff ? priorMean(s, n, {}, s.player.tree[n.id]?.cap?.spec ?? 0) : 0;
+  const per = eff ? priorMean(s, n, {}, spec) : 0;
   if (eff?.stack) {
     const x = atTest(n, { b: 1 }, { x: per, s: eff.s?.[0] ?? 0 }).xTest;
     g(x, 'OOM', `${STACK_LABEL[eff.stack]}${n.kind === 'line' ? ' per idea' : ''} (expected)`);
@@ -61,14 +72,32 @@ function capLines(s: GameStateV2, n: TreeNodeDef, odds: number): { gains: CostLi
   return { gains, costs };
 }
 
-/** What researching a node costs and gives: team-months of science; its capability effect in its own unit (capLines)
- *  with its odds, or a safety (alignment) gain; safety side effects as exposure. */
-export function nodePreview(s: GameStateV2, id: string): Preview {
+/** RD-B18 (B31): a node's work as cost lines, from effortOfNode (what the engine runs): capability projects' science
+ *  and experiment team-months, a research line's months at serious staffing, another project's team-months. */
+function effortLines(n: TreeNodeDef, again = ''): CostLine[] {
+  const e = effortOfNode(n);
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  const per = n.kind === 'line' ? ' per result' : '';
+  if (isCapProject(n)) {
+    return [
+      { currency: 'staffTime', amount: r1(e.sci), unit: 'team-months', target: `science teams: ideas for ${PICK_AT} candidates${per}${again}` },
+      { currency: 'staffTime', amount: r1(e.exp), unit: 'team-months', target: `research engineers and experiment compute: small and scale tests${per}${again}` },
+    ];
+  }
+  if (e.unit === 'months') return [{ currency: 'staffTime', amount: r1(e.sci + e.exp), unit: 'months', target: `to a result at serious staffing (ideas, then tests)${again}` }];
+  return [{ currency: 'staffTime', amount: r1(e.sci), unit: 'team-months', target: `science teams${again}` }];
+}
+
+/** What researching a node costs and gives: its work (effortLines); its capability effect in its own unit (capLines)
+ *  with its odds, or a safety gain; safety side effects as exposure. `reopen`: the next speculative attempt of a failed
+ *  project (reopenProject: one more speculative step, so a lower prior mean and half the odds). */
+export function nodePreview(s: GameStateV2, id: string, reopen = false): Preview {
   const n = PROJECT_BY_ID[id];
   if (!n) return { costs: [{ currency: 'staffTime', amount: 0 }], gains: [], exposure: [] };
   const odds = nodeOdds(s, id);
-  const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(effortOf(n) * 10) / 10, target: 'science team-months' }];
-  const cap = capLines(s, n, odds);
+  const costs = effortLines(n, reopen ? ', again' : '');
+  const spec = (s.player.tree[n.id]?.cap?.spec ?? 0) + (reopen ? 1 : 0);
+  const cap = capLines(s, n, odds, spec);
   const gains = cap.gains;
   costs.push(...cap.costs);
   const saf = safLines(n, odds);
@@ -151,8 +180,24 @@ export const TREE_ACTIONS: ActionDef[] = [
     id: 'research.move', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Reorder',
     available: (s) => (s.player.research.queue.length > 1 ? true : 'Nothing to reorder'),
     preview: (s, p) => {
-      const id = str(p, 'id', s.player.research.queue[s.player.research.queue.length - 1] ?? '');
-      return { costs: [{ currency: 'staffTime', amount: 0, target: 'idle teams follow the new order' }], gains: [{ currency: 'progress', amount: 0, unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'}: teams follow the order` }], exposure: [] };
+      // B35: apply re-plans every capability science team by the new order (assignCapNow); run it on a copy and read
+      // each project's ETA (capEta) before and after.
+      const q = s.player.research.queue;
+      const id = str(p, 'id', q[q.length - 1] ?? '');
+      const to = num(p, 'to', 0);
+      const c: GameStateV2 = { ...s, player: { ...s.player, teams: s.player.teams.map((t) => ({ ...t })), research: { ...s.player.research, queue: [...q] } } };
+      moveInQueue(c, id, to);
+      assignCapNow(c);
+      const costs: CostLine[] = [];
+      const gains: CostLine[] = [];
+      for (const x of q) {
+        const n = PROJECT_BY_ID[x];
+        if (!n || !isCapProject(n)) continue;
+        pushEta(costs, gains, etaChange(n.name, capEta(s, x).eta, capEta(c, x).eta));
+      }
+      if (!costs.length) costs.push({ currency: 'leadDays', amount: 0, target: 'no capability project later: the science teams stay where they are' });
+      if (!gains.length) gains.push({ currency: 'progress', amount: 0, unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'} moves in the order; no capability project sooner today` });
+      return { costs, gains, exposure: [] };
     },
     apply: (s, _ctx, p) => {
       fail(moveInQueue(s, str(p, 'id', ''), num(p, 'to', 0)));
@@ -165,14 +210,15 @@ export const TREE_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const id = nodeParam(s, p);
       const team = s.player.teams.find((t) => t.id === teamParam(s, p));
-      const before = projectEta(s, id);
-      const after = team ? projectEta(s, id, projectCapacity(s, id, team)) : before;
       const costs: CostLine[] = [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists' }];
+      const gains: CostLine[] = [];
+      if (team) pushEta(costs, gains, etaChange(PROJECT_BY_ID[id]?.name ?? 'project', projectEta(s, id), projectEta(s, id, { add: team })));
       if (team?.projectId && team.projectId !== id) {
         const from = team.projectId;
-        costs.push({ currency: 'leadDays', amount: -Math.max(0, days(projectEta(s, from, projectCapacity(s, from, undefined, team.id))) - days(projectEta(s, from))), target: PROJECT_BY_ID[from]?.name ?? 'project' });
+        pushEta(costs, gains, etaChange(PROJECT_BY_ID[from]?.name ?? 'project', projectEta(s, from), projectEta(s, from, { remove: team.id })));
       }
-      return { costs, gains: [{ currency: 'progress', amount: Math.max(0, days(before) - days(after)), unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'} sooner` }], exposure: [] };
+      if (!gains.length) gains.push({ currency: 'progress', amount: 0, unit: 'days', target: `${PROJECT_BY_ID[id]?.name ?? 'project'}: no sooner today` });
+      return { costs, gains, exposure: [] };
     },
     apply: (s, _ctx, p) => fail(assignTeam(s, teamParam(s, p), nodeParam(s, p))),
   },
@@ -182,8 +228,11 @@ export const TREE_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const team = s.player.teams.find((t) => t.id === str(p, 'team', s.player.teams.find((t) => t.projectId)?.id ?? ''));
       const id = team?.projectId ?? '';
-      const delay = id && team ? Math.max(0, days(projectEta(s, id, projectCapacity(s, id, undefined, team.id))) - days(projectEta(s, id))) : 0;
-      return { costs: [{ currency: 'leadDays', amount: -delay, target: PROJECT_BY_ID[id]?.name ?? 'project' }], gains: [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists free' }], exposure: [] };
+      const costs: CostLine[] = [];
+      const gains: CostLine[] = [{ currency: 'staffTime', amount: Math.round(team?.heads ?? 0), target: 'scientists free' }];
+      if (id && team) pushEta(costs, gains, etaChange(PROJECT_BY_ID[id]?.name ?? 'project', projectEta(s, id), projectEta(s, id, { remove: team.id })));
+      if (!costs.length) costs.push({ currency: 'leadDays', amount: 0, target: `${PROJECT_BY_ID[id]?.name ?? 'project'}: no later today` });
+      return { costs, gains, exposure: [] };
     },
     apply: (s, _ctx, p) => fail(unassignTeam(s, teamParam(s, p))),
   },
@@ -192,10 +241,18 @@ export const TREE_ACTIONS: ActionDef[] = [
     available: () => true,
     preview: (s, p) => {
       const on = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
-      const idle = idleTeams(s).reduce((a, t) => a + t.heads, 0);
+      // B35: the policy places safety science teams only (autoAssign); capability teams always follow the priority list.
+      // On: run it on a copy and count the idle safety scientists it puts to work today.
+      let placed = 0;
+      if (on) {
+        const c: GameStateV2 = { ...s, player: { ...s.player, teams: s.player.teams.map((t) => ({ ...t })), research: { ...s.player.research, queue: [...s.player.research.queue] } } };
+        autoAssign(c);
+        placed = c.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && t.projectId && !s.player.teams.find((x) => x.id === t.id)?.projectId).reduce((a, t) => a + t.heads, 0);
+      }
+      const idle = idleTeams(s, 'saf').reduce((a, t) => a + t.heads, 0);
       return on
-        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(idle), unit: 'scientists', target: 'idle, put to work' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: 0, unit: 'scientists', target: 'idle teams wait for you' }], gains: [{ currency: 'staffTime', amount: 0, target: 'manual placement' }], exposure: [] };
+        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'safety teams placed by the policy, not by you' }], gains: [{ currency: 'progress', amount: Math.round(placed), unit: 'scientists', target: 'idle safety scientists put on projects today' }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: -Math.round(idle), unit: 'scientists', target: 'idle safety scientists wait for you (capability teams still follow the priority list)' }], gains: [{ currency: 'staffTime', amount: 0, target: 'you place safety teams by hand' }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       s.player.research.autoAssign = p.on === undefined ? !s.player.research.autoAssign : p.on === true;
@@ -231,9 +288,14 @@ export const TREE_ACTIONS: ActionDef[] = [
     preview: (_s, p) => {
       const r = (str(p, 'risk', 'balanced') as RiskPolicy);
       const k = RISK_KAPPA[r] ?? 0;
-      return k >= 0
-        ? { costs: [{ currency: 'progress', amount: -k, target: 'more candidates dropped' }], gains: [{ currency: 'staffTime', amount: 0, target: 'teams pursue bigger, less certain ideas' }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: k, target: 'smaller ideas' }], gains: [{ currency: 'staffTime', amount: 0, target: 'teams pursue surer ideas: fewer dead ends' }], exposure: [] };
+      // B35: the policy is the pick rule (models/research.ts candidateScore): the candidate tested next is the one with
+      // the highest belief mean + κ × spread. No one-number effect: which candidate wins depends on the candidates.
+      const rule = k === 0 ? 'the highest expected effect' : `expected effect ${k > 0 ? '+' : '−'} ${Math.abs(k)} × its spread`;
+      return k > 0
+        ? { costs: [{ currency: 'staffTime', amount: 0, target: 'more tests on candidates that fail them (dropped, the team time is spent)' }], gains: [{ currency: 'progress', amount: 0, unit: 'pick rule', target: `tests the candidate with the best ${rule}: bigger, less certain ideas` }], exposure: [] }
+        : k < 0
+          ? { costs: [{ currency: 'progress', amount: 0, unit: 'pick rule', target: `tests the candidate with the best ${rule}: surer, smaller ideas` }], gains: [{ currency: 'staffTime', amount: 0, target: 'fewer tests on candidates that fail them' }], exposure: [] }
+          : { costs: [{ currency: 'staffTime', amount: 0, target: 'no weight on spread: neither surer nor bolder candidates first' }], gains: [{ currency: 'progress', amount: 0, unit: 'pick rule', target: `tests the candidate with ${rule}` }], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const r = str(p, 'risk', 'balanced') as RiskPolicy;
@@ -245,8 +307,9 @@ export const TREE_ACTIONS: ActionDef[] = [
     id: 'research.reopen', verb: 'research', system: 'research', sphere: 'models', owner: 'WS1', title: 'Reopen as speculative',
     available: (s) => (TREE.some((n) => s.player.tree[n.id]?.status === 'failed' && n.kind && n.kind !== 'line') ? true : 'No failed project'),
     preview: (s, p) => {
-      const id = str(p, 'id', TREE.find((n) => s.player.tree[n.id]?.status === 'failed')?.id ?? '');
-      return { costs: [{ currency: 'staffTime', amount: Math.round(effortOf(PROJECT_BY_ID[id] ?? TREE[0]) * 10) / 10, target: 'science team-months again' }], gains: [{ currency: 'progress', amount: 0.05, probability: nodeOdds(s, id), target: PROJECT_BY_ID[id]?.name ?? 'project' }], exposure: [] };
+      // B35: the next speculative attempt's own preview (lower prior mean, half the odds; nodePreview with reopen).
+      const id = str(p, 'id', TREE.find((n) => s.player.tree[n.id]?.status === 'failed' && n.kind && n.kind !== 'line')?.id ?? '');
+      return nodePreview(s, PROJECT_BY_ID[id] ? id : TREE[0].id, true);
     },
     apply: (s, _ctx, p) => {
       const id = str(p, 'id', '');

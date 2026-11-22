@@ -7,10 +7,11 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X } from 'lucide-react';
 import {
-  dateOf, effortOf, fmtDate, isCapProject, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
+  dateOf, effortClassOf, effortOfNode, fmtDate, isCapProject, missingNeeds, nodeOdds, nodeStatus, payoffOf, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus } from '../../../engine/v2';
-import { EFFORT_TM, SAFETY_COLUMNS, TREE, TREE_CHILDREN, TREE_RETRY_DAYS, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
+import { PICK_AT } from '../../../data/v2/research';
+import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, TREE_RETRY_DAYS, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { COLUMNS, COLUMN_LABEL } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
@@ -74,6 +75,17 @@ function StatusIcon({ st, p }: { st: NodeStatus; p?: number }) {
   return <CircleDashed size={12} />;
 }
 
+/** RD-B18 (B31): a node's work as the engine runs it (effortOfNode), as tooltip rows. */
+function effortRows(n: TreeNodeDef): { label: ReactNode; value: string }[] {
+  const e = effortOfNode(n);
+  if (e.unit === 'months') return [{ label: <Term id="seriousStaffing">To a result at serious staffing</Term>, value: `${F.num(e.sci + e.exp, 1)} mo (ideas ${F.num(e.sci, 1)}, tests ${F.num(e.exp, 1)})` }];
+  if (!isCapProject(n)) return [{ label: <Term id="teamMonth">Team-months</Term>, value: F.num(e.sci, 1) }];
+  return [
+    { label: <Term id="stageIdeation">{`Science: ideas for ${PICK_AT} candidates`}</Term>, value: `${F.num(e.sci, 1)} team-months` },
+    { label: <Term id="stageSmall">Experiments: small and scale tests</Term>, value: `${F.num(e.exp, 1)} team-months` },
+  ];
+}
+
 // ───────── tree ─────────
 function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus; sel: boolean; qn: number }) {
   const ts = s.player.tree[n.id];
@@ -82,8 +94,9 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
   let meta: ReactNode = null;
   // Jank R3/R4: layer and effort as icons with tooltips, odds as the only number; nothing truncated without a tooltip.
   const odds = !n.soon ? (isLineNode(n) ? health(nodeOdds(s, n.id)) : n.kind === 'line' ? 'line' : F.pct(nodeOdds(s, n.id))) : '';
-  const effortTip = () => <TipCard title={<Term id="effortClass">Effort</Term>} value={EFFORT_WORD[n.effort ?? 'M']} rows={[{ label: <Term id="teamMonth">Team-months</Term>, value: `about ${EFFORT_TM[n.effort ?? 'M']} at the leader lab's day-0 inputs` }]}>Bigger ideas take more work in every stage; more teams, research engineers and compute shorten it.</TipCard>;
-  if (st === 'open') meta = <>{n.effort && <Tip content={effortTip}><span className="eff" data-effort={n.effort}><Hourglass size={10} />{EFFORT_DOTS[n.effort]}</span></Tip>}{odds && <Tip content={() => <TipCard title={<Term id="odds">Odds</Term>} value={odds}>{isLineNode(n) ? 'Line health: how likely a result here is a working tool.' : n.kind === 'line' ? 'A capability line: it always produces results, each a little smaller.' : 'Chance the idea works in this world.'}</TipCard>}><span className="eo">{odds}</span></Tip>}</>;
+  const cls = effortClassOf(n);
+  const effortTip = () => <TipCard title={<Term id="effortClass">Effort</Term>} value={EFFORT_WORD[cls]} rows={effortRows(n)}>{effortOfNode(n).unit === 'months' ? 'Months to a result with serious staffing; more teams, safety research engineers, compute and AI help shorten it.' : "At the leader lab's day-0 inputs; more teams, research engineers and compute shorten it."}</TipCard>;
+  if (st === 'open') meta = <>{n.effort && <Tip content={effortTip}><span className="eff" data-effort={cls}><Hourglass size={10} />{EFFORT_DOTS[cls]}</span></Tip>}{odds && <Tip content={() => <TipCard title={<Term id="odds">Odds</Term>} value={odds}>{isLineNode(n) ? 'Line health: how likely a result here is a working tool.' : n.kind === 'line' ? 'A capability line: it always produces results, each a little smaller.' : 'Chance the idea works in this world.'}</TipCard>}><span className="eo">{odds}</span></Tip>}</>;
   else if (st === 'locked') meta = <Tip content={() => <TipCard title="Needs first" rows={miss.map((m) => ({ label: PROJECT_BY_ID[m]?.name ?? m, value: nodeStatus(s, m) }))} />}><span className="eo warn">needs {miss.length > 1 ? `${miss.length} ideas` : PROJECT_BY_ID[miss[0]]?.name ?? miss[0]}</span></Tip>;
   else if (st === 'queued') meta = <span className="rs-qn">{qn}</span>;
   else if (st === 'active') meta = <Tip content={() => <TipCard title="Progress" value={F.pct(p)}>{isCapProject(n) ? 'Through its stages; stage, beliefs and ETA are on Projects.' : 'Share of the project done; ETA is on Safety › Research lines.'}</TipCard>}><span className="eo">{F.pct(p)}</span></Tip>;
@@ -285,7 +298,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
             { label: <Term id="stageSmall">Small experiments</Term>, value: `${F.num(sg.small, 1)} team-months` },
             { label: <Term id="stageScale">Scale test</Term>, value: `${F.num(sg.scale, 1)} team-months` },
           ]}>At the leader lab's day-0 inputs; your teams, research engineers and compute set the speed (Projects tab).</TipCard>}>
-            <div className="row-i small">{n.effort && <span className="lay">{n.effort}</span>}<span><Term id="teamMonth">team-months</Term> per stage: <b className="num">{F.num(sg.idea, 1)} · {F.num(sg.small, 1)} · {F.num(sg.scale, 1)}</b></span></div>
+            <div className="row-i small"><span className="lay">{effortClassOf(n)}</span><span><Term id="teamMonth">team-months</Term> per stage: <b className="num">{F.num(sg.idea, 1)} · {F.num(sg.small, 1)} · {F.num(sg.scale, 1)}</b></span></div>
           </Tip>
         </div>
       )}
@@ -295,11 +308,11 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           <Tip as="div" content={() => (
             <TipCard title="ETA" value={eta(etaNow)} rows={[
               { label: 'Capacity', value: projectCapacity(s, n.id).toFixed(2) },
-              { label: <Term id="diminishingReturns">Progress ∝ √capacity</Term>, value: `×${Math.sqrt(projectCapacity(s, n.id)).toFixed(2)}` },
-              ...(line ? [{ label: <Term id="seriousStaffing">First result at serious staffing</Term>, value: `${AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.T1 ?? '—'} mo` }] : []),
-            ]}>Capacity = Σ team people ÷ 40 × quality × 1.5 in the team's specialty. ETA to the next result; safety compute and Trusted to AI speed it up.</TipCard>
+              ...(line ? [] : [{ label: <Term id="diminishingReturns">Progress ∝ √capacity</Term>, value: `×${Math.sqrt(projectCapacity(s, n.id)).toFixed(2)}` }]),
+              ...effortRows(n),
+            ]}>Capacity = Σ team people ÷ 40 × quality × 1.5 in the team's specialty. {line ? 'ETA to the next result; safety research engineers, compute and Trusted to AI speed it up.' : "ETA at today's research speed."}</TipCard>
           )}>
-            <div className="row-i"><span className="lay">{n.effort}</span><b className="num">{F.num(effortOf(n), 0)}</b><Term id="teamMonth">team-months</Term><span className="sp" />
+            <div className="row-i"><span className="lay">{effortClassOf(n)}</span><b className="num">{F.num(effortOfNode(n).sci + effortOfNode(n).exp, 0)}</b>{line ? <Term id="seriousStaffing">months at serious staffing</Term> : <Term id="teamMonth">team-months</Term>}<span className="sp" />
               <span className="dim small">{teams.length ? `${teams.length} team${teams.length > 1 ? 's' : ''} · ETA ${eta(etaNow)}` : `one team ≈ ${eta(etaOne)}`}</span></div>
           </Tip>
         </div>

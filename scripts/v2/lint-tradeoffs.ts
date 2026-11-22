@@ -36,7 +36,6 @@ for (const s of states) {
   for (const id of ['makeVariant', 'product.update', 'product.serving', 'feature.toggle', 'products.policy']) {
     KNOWN[`action ${id} @day ${s.time.day}`] = 'RD-B20: no cost line is the true preview (nothing charged); the trade-off rule needs a decision for free levers';
   }
-  KNOWN[`action research.reopen @day ${s.time.day}: every progress line has a unit`] = 'research action previews are RD-B18\'s (B31–B35)';
   KNOWN[`action safety.pledge @day ${s.time.day}: every progress line has a unit`] = 'the pledge\'s Δp line waits on the safety redesign (RD-B04–B06)';
 }
 

@@ -1,12 +1,17 @@
 // Team actions (STRUCTURE §4.1 verbs: hire a team, let a team go, move a research-engineering team, keep hiring to N).
 // Owner: WS1. Every preview shows ≥ 1 cost in a currency not among its gains (lint-tradeoffs) and works with empty
 // params (defaults: a standard capabilities research-engineering team, the newest team).
-import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, REF_ROLE_SHARE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import { tasteSigma } from '../production/ces';
-import { qualityZ } from './workfit';
+// RD-B18 (B32): a team's gain or loss is one engine day (core/previewTick) on a copy with and without the change
+// (readDay), in each department's own currency.
+import { AGENDAS } from '../../../data/v2/agendas';
+import { MOVE_SAFETY_MORALE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import { previewTick } from '../core/previewTick';
+import { capEta, isCapProject } from '../models/research';
+import { lineResultsPerYear } from '../safety/agendas';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../types';
 import {
-  deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, playerH, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
+  buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
   staffOf, teamPayroll, teamsOfKey,
 } from './teams';
 
@@ -17,27 +22,110 @@ const fail = (why: string | undefined) => {
   if (why) throw new Error(why);
 };
 
-/** What one team of this kind adds (the "gain" of a hire, the loss of a release):
- *  engineers → build capacity (team-weeks/week); capabilities REs → research speed via h's elasticity; capabilities
- *  scientists → research speed via taste (0 for Strong: they matter for projects from R4); safety → safety staff. */
-export function teamGain(s: GameStateV2, t: { role: TeamRole; dept: TeamDept; quality: TeamQuality; specialty?: Column; heads?: number }): CostLine {
-  const q = QUALITY[t.quality].out;
-  const heads = t.heads ?? TEAM_SIZE[t.role];
-  const el = s.player.prodCache?.elast;
-  if (t.role === 'eng') return { currency: 'staffTime', amount: Math.round((heads / TEAM_SIZE.eng) * q * 100) / 100, target: 'build capacity' };
-  if (t.dept === 'saf') return { currency: 'alignment', amount: Math.round(heads), target: 'safety staff' };
-  if (t.role === 're') {
-    const re = Math.max(1, playerH(s.player) * REF_ROLE_SHARE.re);
-    return { currency: 'progress', amount: Math.round((Math.pow(1 + (heads * q) / re, el?.humans ?? 0.2) - 1) * 1e4) / 100, unit: '%', target: 'research speed' };
+/** A team a preview adds (full, arrived): the spec's role, department, quality and specialty (a standard science hire
+ *  takes the specialty hireTeam would give it). */
+export type TeamSpec = { role: TeamRole; dept: TeamDept; quality: TeamQuality; specialty?: Column; heads?: number };
+const previewTeam = (s: GameStateV2, t: TeamSpec, i = 0): Team => {
+  const dept = t.role === 'eng' ? 'cap' : t.dept;
+  const specialty = t.specialty ?? (t.role === 'sci' ? nextSpecialty([...s.player.teams, ...s.player.hiring.filling], dept) : undefined);
+  return { id: `preview:${i}`, role: t.role, dept, size: TEAM_SIZE[t.role], heads: t.heads ?? TEAM_SIZE[t.role], quality: t.quality, ...(specialty ? { specialty } : {}) };
+};
+
+/** What the lab reads after a day: build capacity (team-weeks / week, buildCapacity), every capability project's ETA
+ *  (capEta: the assignment placed the science teams, research engineers went by need), safety results per year (the
+ *  lines' cycles; new safety science teams are placed by Auto-assign when it is on), and research-engineer
+ *  team-equivalents on routine tuning. */
+export interface DayRead { build: number; eta: Map<string, number>; saf: number; tune: number }
+export function readState(c: GameStateV2): DayRead {
+  const eta = new Map<string, number>();
+  for (const id of c.player.research.queue) if (isCapProject(PROJECT_BY_ID[id])) eta.set(id, capEta(c, id).eta);
+  let saf = 0;
+  for (const a of AGENDAS) saf += lineResultsPerYear(c, a.id);
+  return { build: buildCapacity(c).capacity, eta, saf, tune: c.player.research.last?.re.tune ?? 0 };
+}
+/** One engine day on a copy with these teams (and an optional edit), read after it. */
+export function readDay(s: GameStateV2, teams: Team[], edit?: (c: GameStateV2) => void): DayRead {
+  const c = structuredClone(s);
+  c.player.teams = structuredClone(teams);
+  edit?.(c);
+  previewTick(c);
+  return readState(c);
+}
+/** Today's read and the changed reads, memoised per state, day and staffing (every hire chip compares against it). */
+const teamsKey = (s: GameStateV2) => `${s.time.day}|${s.player.research.queue.join(',')}|${s.player.research.autoAssign ? 1 : 0}|${s.player.teams.map((t) => `${t.id}:${t.heads}:${t.projectId ?? ''}:${t.dept}`).join(',')}`;
+const readMemo = new WeakMap<GameStateV2, { key: string; m: Map<string, DayRead> }>();
+function memoRead(s: GameStateV2, tag: string, teams: () => Team[], edit?: (c: GameStateV2) => void): DayRead {
+  const key = teamsKey(s);
+  let e = readMemo.get(s);
+  if (!e || e.key !== key) readMemo.set(s, (e = { key, m: new Map() }));
+  let r = e.m.get(tag);
+  if (!r) {
+    if (e.m.size > 32) e.m.clear();
+    e.m.set(tag, (r = readDay(s, teams(), edit)));
   }
-  // Model v3 V3: the team's human taste on the AIFM distribution vs a Strong team, as a share of the lab's science heads.
-  let sciHeads = heads;
-  for (const x of s.player.teams) if (x.role === 'sci' && x.dept === 'cap') sciHeads += x.heads;
-  const dTau = (heads * (Math.exp(tasteSigma(s.hidden.timeline.prod.m2b) * qualityZ(t.quality)) - 1)) / sciHeads;
-  return { currency: 'progress', amount: Math.round((el?.taste ?? 0.5) * dTau * 1e4) / 100, unit: '%', target: t.specialty ? `${COLUMN_LABEL[t.specialty]} research` : 'research taste' };
+  return r;
+}
+const baseRead = (s: GameStateV2) => memoRead(s, 'base', () => s.player.teams);
+
+const r2 = (x: number) => Math.round(x * 100) / 100;
+/** The line of a team change in its department's currency: engineers' build capacity; capability teams the project
+ *  whose ETA moves most (days; research engineers no project needs show as routine tuning); safety results per year. */
+export function effectLine(s: GameStateV2, before: DayRead, after: DayRead, t: Pick<Team, 'role' | 'dept'>, none?: string): CostLine {
+  if (t.role === 'eng') return { currency: 'staffTime', amount: r2(after.build - before.build), unit: 'team-weeks / week', target: 'build capacity' };
+  if (t.dept === 'saf') {
+    return { currency: 'alignment', amount: r2(after.saf - before.saf), unit: 'results / yr', target: s.player.research.autoAssign || t.role === 're' ? 'safety research results' : 'safety research results (Auto-assign is off: a new science team waits for you)' };
+  }
+  let best: { id: string; d: number; stall?: 'starts' | 'stops' } | undefined;
+  let moved = 0;
+  for (const [id, a] of before.eta) {
+    const b = after.eta.get(id) ?? Infinity;
+    const fa = Number.isFinite(a);
+    const fb = Number.isFinite(b);
+    if (!fa && !fb) continue;
+    const d = fa && fb ? a - b : fa ? -Infinity : Infinity;
+    if (Math.abs(d) < 0.5) continue;
+    moved++;
+    if (!best || Math.abs(d) > Math.abs(best.d)) best = { id, d, ...(fa && fb ? {} : { stall: fa ? ('stops' as const) : ('starts' as const) }) };
+  }
+  const name = (id: string) => PROJECT_BY_ID[id]?.name ?? id;
+  const more = moved > 1 ? ` (${moved - 1} more project${moved > 2 ? 's' : ''} move too)` : '';
+  if (best?.stall === 'starts') return { currency: 'progress', amount: Math.round(after.eta.get(best.id) ?? 0), unit: 'days', target: `${name(best.id)} gets going: its ETA in days${more}` };
+  if (best?.stall === 'stops') return { currency: 'progress', amount: -Math.round(before.eta.get(best.id) ?? 0), unit: 'days', target: `${name(best.id)} stalls: the ETA it loses${more}` };
+  if (best) return { currency: 'progress', amount: Math.round(best.d), unit: 'days', target: `${name(best.id)} ${best.d > 0 ? 'sooner' : 'later'}${more}` };
+  const dt = r2(after.tune - before.tune);
+  return dt !== 0
+    ? { currency: 'progress', amount: dt, unit: 'team-equivalents', target: 'research engineers on routine tuning (no project ETA moves today)' }
+    : { currency: 'progress', amount: 0, unit: 'days', target: none ?? (t.role === 'sci' ? 'no capability project moves today (no project is finding ideas: science teams speed ideation)' : 'no capability project moves today (idle until a project needs them)') };
 }
 
-const negate = (c: CostLine): CostLine => ({ ...c, amount: -c.amount });
+/** What one team of this kind adds once it is full (the gain of a hire): today's mechanisms on a copy with the team. */
+export function teamGain(s: GameStateV2, t: TeamSpec): CostLine {
+  const add = previewTeam(s, t);
+  return effectLine(s, baseRead(s), memoRead(s, `add:${add.role}:${add.dept}:${add.quality}:${add.specialty ?? ''}:${add.heads}`, () => [...s.player.teams, add]), add);
+}
+/** What one more star hire adds: the copy with one more star (star taste, data/v2/teams.ts starTasteOf) after one
+ *  research day, as the capability project it speeds most. */
+export function starGain(s: GameStateV2): CostLine {
+  const after = memoRead(s, 'star', () => s.player.teams, (c) => { c.player.stars = (c.player.stars ?? 0) + 1; });
+  return effectLine(s, baseRead(s), after, { role: 'sci', dept: 'cap' }, 'no capability project moves today (star taste acts on new ideas: no project is finding ideas)');
+}
+/** What `n` more standard teams of a kind add (Keep hiring). */
+function teamsGain(s: GameStateV2, t: TeamSpec, n: number): CostLine {
+  const adds = Array.from({ length: n }, (_, i) => previewTeam(s, t, i));
+  return effectLine(s, baseRead(s), memoRead(s, `add${n}:${t.role}:${t.dept}:${t.quality}`, () => [...s.player.teams, ...adds]), adds[0]);
+}
+/** What losing a team costs: the copy without it against today (negative amounts). */
+function teamLoss(s: GameStateV2, t: Team): CostLine {
+  return effectLine(s, baseRead(s), memoRead(s, `remove:${t.id}`, () => s.player.teams.filter((x) => x.id !== t.id)), t);
+}
+/** A research-engineering team moved to the other department: what its old department loses and its new one gains. */
+function teamMove(s: GameStateV2, t: Team): { loss: CostLine; gain: CostLine } {
+  const to: TeamDept = t.dept === 'cap' ? 'saf' : 'cap';
+  const after = memoRead(s, `move:${t.id}`, () => s.player.teams.map((x) => (x.id === t.id ? { ...x, dept: to } : x)));
+  const base = baseRead(s);
+  return { loss: effectLine(s, base, after, t), gain: effectLine(s, base, after, { role: t.role, dept: to }) };
+}
+
 
 /** The team a release/move preview talks about: the given id, else the newest arrived team (of a role, if given). */
 function pickTeam(s: GameStateV2, p: Params, role?: TeamRole): Team | undefined {
@@ -83,7 +171,7 @@ export const TEAM_ACTIONS: ActionDef[] = [
       if (!t) return { costs: [{ currency: 'morale', amount: 0 }], gains: [], exposure: [] };
       const pct = (100 * t.heads) / Math.max(1, staffOf(s.player.teams)[t.dept]);
       return {
-        costs: [{ currency: 'morale', amount: -Math.min(15, pct), target: t.dept === 'saf' ? 'safety staff' : 'staff' }, ...(t.heads > 0 ? [negate(teamGain(s, t))] : [])],
+        costs: [{ currency: 'morale', amount: -Math.min(15, pct), target: t.dept === 'saf' ? 'safety staff' : 'staff' }, ...(t.heads > 0 && s.player.teams.includes(t) ? [teamLoss(s, t)] : [])],
         gains: [{ currency: 'cash', amount: teamPayroll(t), target: '$B/yr payroll saved' }],
         exposure: [],
       };
@@ -99,10 +187,10 @@ export const TEAM_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const t = pickTeam(s, p, 're');
       if (!t || t.role !== 're') return { costs: [{ currency: 'morale', amount: 0 }], gains: [], exposure: [] };
-      const to = { ...t, dept: (t.dept === 'cap' ? 'saf' : 'cap') as TeamDept };
-      const costs: CostLine[] = [negate(teamGain(s, t))];
+      const mv = teamMove(s, t);
+      const costs: CostLine[] = [mv.loss];
       if (t.dept === 'saf') costs.push({ currency: 'morale', amount: MOVE_SAFETY_MORALE, target: 'safety staff' });
-      return { costs, gains: [teamGain(s, to)], exposure: [] };
+      return { costs, gains: [mv.gain], exposure: [] };
     },
     apply: (s, ctx, p) => {
       const t = pickTeam(s, p, 're');
@@ -119,10 +207,9 @@ export const TEAM_ACTIONS: ActionDef[] = [
       const have = teamsOfKey(s.player, k).length + queuedOfKey(s.player, k).length;
       const n = Math.max(0, Math.round(num(p, 'n', (s.player.hiring.targets[k] ?? 0) + 1)));
       const d = Math.max(0, n - have);
-      const g = teamGain(s, { role, dept, quality: 'strong' });
       return d > 0
-        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(role, dept, 'strong'), target: '$B/yr payroll' }], gains: [{ ...g, amount: g.amount * d }], exposure: [] }
-        : { costs: [{ ...g, amount: 0, target: 'no new teams (it never lays off)' }], gains: [], exposure: [] };
+        ? { costs: [{ currency: 'cash', amount: d * fullTeamPayroll(role, dept, 'strong'), target: '$B/yr payroll' }], gains: [teamsGain(s, { role, dept, quality: 'strong' }, d)], exposure: [] }
+        : { costs: [{ currency: 'cash', amount: 0, target: 'no new teams (it never lays off)' }], gains: [], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const k = str(p, 'key', 're.cap') as TeamKey;
