@@ -123,7 +123,7 @@ export function EndScreen({ s }: { s: GameStateV2 }) {
             <tbody>
               {MILESTONES.map((m) => {
                 const d = s.player.milestoneDays[m.idx as 0];
-                return <tr key={m.idx}><td>{m.name}</td><td className="num">{d !== undefined ? fmtDate(dateOf(s, d)) : '—'}</td><td className="num dim">{m.canon}</td></tr>;
+                return <tr key={m.idx}><td>{MILESTONE_NAMES[m.idx]}</td><td className="num">{d !== undefined ? fmtDate(dateOf(s, d)) : '—'}</td><td className="num dim">{m.canon} <span className="small">{m.name}</span></td></tr>;
               })}
             </tbody>
           </table>

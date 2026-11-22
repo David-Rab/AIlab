@@ -69,7 +69,7 @@ export function Recipe({ s }: { s: GameStateV2 }) {
   return (
     <div className="rc-wrap">
       <div className="rc-head" data-home="softwareRate">
-        <Tip content={() => <TipCard title={<Term id="softwareRate">Software progress</Term>} rows={[{ label: 'Effective compute', value: `${F.num(r.oomPerYear, 2)} OOM a year` }, { label: 'Ideas adopted', value: `${F.count(r.ideasPerYear)} a year` }]}>Growth of the recipe stacks over the last two weeks, at your latest base.</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="softwareRate">Software progress</Term>} rows={[{ label: 'Effective compute', value: `${F.num(r.oomPerYear, 2)} OOM a year` }, { label: 'Ideas adopted', value: `${F.count(r.ideasPerYear)} a year` }]}>Growth of the recipe stacks at your latest base: effective compute averaged over about two weeks, ideas adopted over the last 14 weeks.</TipCard>}>
           <span className="row-i"><ICON.revenue size={14} /><Term id="softwareRate">Software progress</Term> <b className="num">{F.num(r.oomPerYear, 2)} OOM/yr</b> <span className="dim">· {F.count(r.ideasPerYear)} ideas/yr</span></span>
         </Tip>
         <span className="sp" />

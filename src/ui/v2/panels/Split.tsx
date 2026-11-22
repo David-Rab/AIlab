@@ -3,7 +3,7 @@
 // The split between engineering, routine and frontier research agents lives on Company › Agents at work.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { LENT_RECOVERY, MANUAL_MIX_RANGE, actionView, idleTrainingShare, poolsOf, spareServing, specOf, SPLIT_PRESETS, TOP_KEYS } from '../../../engine/v2';
+import { LENT_RECOVERY, MIX_RANGE, actionView, idleTrainingShare, poolsOf, spareServing, specOf, SPLIT_PRESETS, TOP_KEYS } from '../../../engine/v2';
 import type { GameStateV2, SplitSpec, TopKey } from '../../../engine/v2';
 import { MixChart, ResponseCharts } from './ResearchCharts';
 import { ActBtn, pct as pct0, Seg, Slider, Term, Tip, TipCard } from '../ui';
@@ -109,7 +109,7 @@ export function Split({ s }: { s: GameStateV2 }) {
           <div className="alloc-row split-row split-sub" id="ctl-split-experiments">
             <span className="alloc-label small"><Term id="researchMix">Mix</Term> <Seg value={manual ? 'manual' : 'auto'} options={[{ v: 'auto', label: 'Auto', tip: 'Best mix, re-set every day' }, { v: 'manual', label: 'Manual', tip: 'Hold your own mix' }]} onChange={(v) => setManual(v === 'manual')} /></span>
             {manual
-              ? <Slider value={spec.expShare} min={MANUAL_MIX_RANGE[0]} max={MANUAL_MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
+              ? <Slider value={spec.expShare} min={MIX_RANGE[0]} max={MIX_RANGE[1]} step={0.01} onChange={(v) => setSpec({ ...spec, expShare: v })} width={260} />
               : <span className="small dim" style={{ width: 260 }}>follows the best mix</span>}
             <Tip content={() => <TipCard title={<Term id="researchMix">Research mix</Term>} value={`${pct0(manual ? spec.expShare : cur.expShare)} experiments`}>The rest of the research pool runs AI research agents.</TipCard>}><span className="alloc-val num small">{pct0(manual ? spec.expShare : cur.expShare)}</span></Tip>
             <span className="small dim">experiments · rest <Term id="poolAgents">agents</Term></span><Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>agents by use</Ref>

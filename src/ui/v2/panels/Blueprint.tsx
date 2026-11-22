@@ -491,7 +491,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
     tip: () => <TipCard title="Cash at launch" value={F.money(card.cash)} rows={[
       { label: 'Your cash', value: F.money(cash) },
       ...(L ? [{ label: 'Compute-equivalent cost', value: F.money(L.computeCost) }] : []),
-    ]} footer="Data licences, RL environments and journals are paid at launch; the compute is your training pool, already paid for.">Committed when you start the run.</TipCard>,
+    ]} footer="Only the science-journals data mix costs cash at launch (+5% of the compute-equivalent cost). Data licences and RL suites are assets you buy elsewhere; the compute is your training pool, already paid for.">Committed when you start the run.</TipCard>,
   });
   // B4: serving is FLOP per token and the cost of an hour of use (the relative serve cost is only the engine's bridge).
   const fpt = card.fpt;
@@ -566,7 +566,7 @@ function Effects({ s, e }: { s: GameStateV2; e: Effect }) {
       <Tip content={() => <TipCard title={<Term id="wallTime">Time</Term>} value={e.ref ? 'reference' : F.days(e.dDays, true)} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.days(e.cur.card.etaDays) }, { label: 'With the reference card', value: F.days(e.base.card.etaDays) }] : []}>Days until the run is done: FLOP ÷ rate, plus the setup.</TipCard>}>
         <span className={`e ${e.ref || Math.abs(e.dDays) < 1 ? 'no' : e.dDays > 0 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.dDays) < 1 ? '–' : F.days(e.dDays, true)}</span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="cash">Cash at launch</Term>} value={e.ref ? 'reference' : F.money(e.dCash, { signed: true })} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.money(e.cur.card.cash) }, { label: 'With the reference card', value: F.money(e.base.card.cash) }] : []}>Data licences and RL environments paid when the run starts.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="cash">Cash at launch</Term>} value={e.ref ? 'reference' : F.money(e.dCash, { signed: true })} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: F.money(e.cur.card.cash) }, { label: 'With the reference card', value: F.money(e.base.card.cash) }] : []}>Only the science-journals data mix costs cash (+5% of the run's compute-equivalent cost); nothing else is paid per run.</TipCard>}>
         <span className={`e ${e.ref || Math.abs(e.dCash) < 0.05 ? 'no' : e.dCash > 0 ? 'neg' : 'pos'}`}>{e.ref ? '' : Math.abs(e.dCash) < 0.05 ? '–' : F.money(e.dCash, { signed: true })}</span>
       </Tip>
       <Tip content={() => <TipCard title={<Term id="servingFlop">Serving FLOP per token</Term>} value={e.ref ? 'reference' : `×${e.serve.toFixed(2)}`} rows={e.cur.card && e.base.card ? [{ label: 'With this card', value: `${sci(e.cur.card.fpt)} FLOP/token` }, { label: 'With the reference card', value: `${sci(e.base.card.fpt)} FLOP/token` }] : []}>FLOP per generated token relative to the reference card; the <Term id="useHourCost">cost per hour of use</Term> and the H100e per agent copy scale with it.</TipCard>}>
@@ -763,7 +763,7 @@ function Predicted({ s, card, err }: { s: GameStateV2; card?: Card_; err?: strin
   const lo = Math.max(0, Math.floor(Math.min(now, band[0]) - 1.5));
   const hi = Math.min(16, Math.ceil(Math.max(now, band[1]) + 1.5));
   const x = (v: number) => 8 + ((v - lo) / Math.max(1e-6, hi - lo)) * (W - 16);
-  const dChips = card && doms ? DOMS.map((d) => [d, mid(card.domains[d]) - (doms[d] ?? 0)] as const).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4) : [];
+  const dChips = card && doms && card.band[1] > 0 ? DOMS.map((d) => [d, mid(card.domains[d]) - (doms[d] ?? 0)] as const).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4) : [];
   return (
     <Card title="Predicted model" sub={iv ? <>vs {iv.name} internal</> : undefined} className="bp-pred" home="runPrediction" right={<button className="btn btn-sm" data-go="models" onClick={() => store.goto('models')}>Model card ›</button>}>
       {err && <div className="tone-neg small">{err}</div>}
@@ -781,10 +781,11 @@ function Predicted({ s, card, err }: { s: GameStateV2; card?: Card_; err?: strin
           <div className="bp-chips">
             {dChips.map(([d, v]) => { const I = DOMAIN_ICON[d]; return <Tip key={d} content={() => <TipCard title={<Term id="domains">{d}</Term>} value={`${F.dLevel(v)} L`} rows={[{ label: 'Predicted', value: F.level(mid(card.domains[d])) }, { label: iv?.name ?? 'Today', value: F.level(doms?.[d] ?? 0) }]}>This domain's predicted level vs your internal model.</TipCard>}><span className="dch"><I size={11} /><span className="k">{d}</span><b className={v >= 0 ? 'tone-pos' : 'tone-neg'}>{F.dLevel(v)}</b></span></Tip>; })}
           </div>
+          <div className="small dim">Forecast from {card.forecastRef ?? 'your measured model'}'s measured level; the band (<Tip content={() => <TipCard title={<Term id="measureBand">Measurement band</Term>} value={`±${F.num(card.forecastSd, 2)}`}>One standard deviation of the reference model's measured level.</TipCard>}><span className="num">±{F.num(card.forecastSd, 2)}</span></Tip> levels) is that measurement's uncertainty.</div>
           <div className="small dim bp-mon"><Term id="monitorability">Monitorability</Term> {card.monitorability}</div>
         </>
       )}
-      {card && card.band[1] <= 0 && <div className="dim small">{card.reason ?? 'No prediction'}</div>}
+      {card && card.band[1] <= 0 && <div className="dim small">{card.reason ?? 'No forecast: no model of yours is measured yet'}</div>}
     </Card>
   );
 }

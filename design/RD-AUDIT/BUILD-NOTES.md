@@ -441,3 +441,115 @@ Product lifecycle fixes (SYNTHESIS B18, B19, B20). Schema 44 → 45.
   Hygiene: the SCHEMA_REV === 45 asserts → 46; the RD-B12 pack check runs on a rev-45 and a rev-44 save.
 - **Conflicts:** BUILD-NOTES (all blocks kept); models/runs.ts type imports (RivalLab dropped by RD-B14, RunRecipe
   kept from RD-B02); core/save.ts and hygiene.ts (both migrations and both checks kept).
+
+### RD-B20
+
+Preview truth 3, products (bugs B38, B39; PRD-05, PRD-12, PRD-13). Lines with no applied effect removed; the rest come
+from the function the action or the engine runs.
+- **Sector pack (wfx.sectorProduct).** `productGain` (exp(1.05), 0.06, ×35, ×2.8) deleted. New `packRevenueGain`
+  (worldfx/actions.ts): `revenueReadout` with the pack certified today on its host (fit bonus, Enterprise ×3 weight)
+  minus without, both with that sector's customer stock removed so it reads the target shares (the stock catches up
+  over CUSTOMER_TAU.sector, ~8 months; today's market). Line lag = build wait + 120 d. Removed: 15 product-team staff
+  time (`PRODUCT.prodFTE` deleted) and the labour approval risk. Preview and apply share `packTarget` (sector, host).
+  Not shown: the US friction cut −0.1 (acts on adoption over time, no one-number preview).
+- **Product actions (models/productOps.ts).** Removed: update "−2 product team" and "lead −5 p0.5"; launch "lead −10
+  p0.6", "approval −2 p0.2" and open "trust +3 academia"; retire "trust −1 p0.3"; serving "−1 Auto serving off";
+  feature toggle "−1"; products policy "−1", upgrade "lead −5 p0.5", auto-evaluate off "monitorability −0.05".
+  Retire now runs `previewDeployments` without the product (was −revenueRate: Auto serving moves its compute to the
+  other products, so the total can even rise). Launch, update and retire add the distillation line:
+  `distillDaysPerYear` = the strongest distiller's `distillationLeak` dG/day × 365 → progress-days (B_G_PER_Y),
+  after − before on `hypothetical`. Open launch: the invented −60 lead days → `openAbsorbMonths` (new in
+  actors/rivals.ts, the same formula openWeightsReleased now calls) × 365/12, only above the open frontier.
+- **makeVariant (models/actions.ts, B38).** Preview is one new version (unit "version"), no cost; the staff +10,
+  revenue +0.5, approval −1, and open's lead −60 / security −1 / trust +3 are gone (the copy charges nothing; the open
+  release is the Open weights launch). RD-B19 owns models/actions.ts otherwise; only this preview changed.
+- **Tests added:** products RD-B20 ×7 (pack cash / team-weeks as applied and only cash / staff / revenue lines; pack
+  revenue fn = the engine's certified pack minus without; retire revenue and distillation = the same-day state after
+  withdrawal; update / serving / feature / policy carry only market and distillation lines; launch team-weeks =
+  queued; makeVariant charges nothing; open launch lead = openAbsorbMonths).
+- **Moves calibration: no** (previews only; openWeightsReleased refactor is the same arithmetic).
+- **Tests run:** tsc main + scripts clean; products full 75 / 75; npm run build passes. test:ui not run (no UI file
+  changed; the "+ pack", Gov / Trusted / Open and retire buttons show the new lines).
+
+### RD-B19
+
+Preview truth 2, training / evals / models / leads (bugs B36, B37, B38, B40, B45; TRN-02, TRN-08, TRN-16, TRN-V03,
+TRN-V04, MEA-15, MEA-19). Every line is what the action or the engine applies, or it is gone.
+- **runEvals (B36).** Gains = what finishEval does (`evalGains`, models/actions.ts): one "reading" line (new benchmark
+  and safety-eval scores; measured-level band now → after, from evalDepthView) and, by external evaluators while the
+  eval gate is 'full + external' and the version is not yet externally evaluated, a "release check" line
+  (deployments.ts externallyEvaluated). Removed: self monitorability +0.02; external credibility +2, trust +1, lead −14.
+- **Stream / stop stream / IDA (B37).** New `streamRecipeGap` (models/runs.ts): today's stacks minus the track the version
+  holds (startStream's start track, now `startTrack`, or the running stream's), OOM of effective compute (inPlaceRecipe's
+  measure). Start: costs = pool share, engineer upkeep (UPKEEP.stream team-weeks / week), research-engineer operations
+  (RE_OPS.stream teams); gain = the gap in OOM, lag 7 d. Stop: the same load freed; cost = the gap not absorbed (the
+  version keeps what it has). Removed: +0.2 L / −0.1 L, monitorability ∓, alignment −0.1. The stream's trait drift has
+  no one-number preview. IDA preview = runPreview on the IDA plan (planRun's pool share, not 0.3), forecast over the
+  teacher; its constant alignment −0.1 is gone.
+- **Run forecast (B45).** New `runForecast` (models/runs.ts): reference = the given version if measured, else the
+  internal model, else the best measured live version; mid = its measured level + (predicted − its true level), band =
+  ± measuredSd(reference), domains shifted alike; gain = mid − its measured level. runCard (band, domains,
+  forecastRef, forecastSd), runBand (now takes s) and runPreview read it, so no card shows a true level. The engine's
+  RunPrediction (true ± 0.25) is unchanged: run.predicted and the traits' predictedG read it. runPreview's
+  "alignment −Σ signals, p 0.5" → a pressure line (unit 'pressure', the plan's signals, no odds).
+- **A4 / E16 / C6 (B40).** New `publishLeakG`, `poachLeakG`, `ownProgressDays` (actors/rivals.ts); A4 recipients and C6
+  release G / rival leaks as functions in actors/actions.ts. Apply and preview share them; lead lines = days of the
+  recipient's own progress (dG ÷ its rate × B): A4 the most of any recipient, E16 that rival, C6 the best-placed rival
+  plus China's openAbsorbMonths (RD-B20's open-launch line). C6's China-tension −3 removed (nothing applies it).
+  Sizing still by the player's pace (MEA-15; DD-17 / RD-X04).
+- **B38.** Nothing left after RD-B20 (no other variant preview lines).
+- **Typed progress (MEA-19).** Split previews: compute shares in percent ('%', target names the pool group); ui.tsx /
+  kit.tsx render a bare progress line as "progress", not L. A type-level rule (CostLine union) gave 10 errors, most in
+  treeActions (RD-B18's), so the rule is a lint.
+- **Lint (scripts/v2/lint-tradeoffs.ts).** (1) every nonzero progress line has a unit (actions, event choices, 3
+  fixtures); (2) every immediate meter line (credibility, scrutiny, talent, morale, approval, trust, China tension; no
+  lag, odds 1) leaves a cause on that meter when the action applies on a copy; (3) RD-B19 checks: self suite narrows
+  the band to the preview; external suite meets the previewed release check; forecast = measured + step, band =
+  2·measuredSd, gain unmoved by another measurement; stream absorbs the previewed gap in 42 d, stop keeps G; A4 / E16 /
+  C6 lines = the applied rec.pre change in own days. Known deviations (WARN, other owners): progress unit
+  research.reopen (RD-B18), safety.pledge (safety redesign); applied-effect A6 trust, safety.evalGate credibility,
+  safety.publishPolicy credibility / talent (yearly flows), starHire trust (RD-B18), wfx.moonshot credibility.
+  **Also found:** RD-B20 left makeVariant, product.update, product.serving, feature.toggle, products.policy with no
+  cost line, failing the trade-off rule (≥ 1 cost); listed as known: a free lever needs a rule decision.
+- **Moves calibration: no** (previews and readouts; the A4 / E16 / C6 / startStream refactors are the same arithmetic;
+  no bot reads previews).
+- **Tests run:** tsc main + scripts clean; lint-tradeoffs all passed (7 RD-B19 checks, 175 applied-effect checks);
+  npm run build passes. test:ui not run (Blueprint forecast line, run-queue tooltip, Models band).
+
+### RD-B21
+
+Copy batch (bugs B27, B46, B47; MEA-17 glossary; SYNTHESIS §4.9 glossary entries). Every listed text now says what
+the engine does; no engine behaviour changed except the manual mix range.
+- **B27 (INP-21).** One constant `MIX_RANGE` = [0.01, 0.99] (departments/split.ts, was MANUAL_MIX_RANGE [0.02, 0.98]):
+  the manual slider, Auto's search (production.ts bestResearchMix) and the mix chart (readout.ts, was 0.02–0.98) all
+  read it. Unified to Auto's range, so Auto is unchanged; only a manual mix may now go 1 point further each way.
+- **CAP-09.** Failure log and project card: "gave up after 3 weak candidates … weak results can be bad luck, so the
+  direction may still work" (was "does not work in this world"). Drop / pick rules unchanged (RD-R06).
+- **CAP-12.** Recipe tip: effective compute ≈ 2-week average, ideas over the last 14 weeks; softwareRate glossary too.
+- **CAP-24.** Teams wanted 0 with a candidate in test: label "test only" (not "paused"); teams tip and card say the
+  test keeps its engineers and compute.
+- **TRN-10.** RL-focus nodes and P06: "RL gains: X in full; Y 40%; other domains 15%" (RL_TRANSFER), not v2 levels.
+- **TRN-12.** T-SPEC: the 8 FTE-weeks cost is gone; the card lists what constitution does (honesty +0.05, approval
+  pressure, E08 / E29 ×0.7 unless minimal alignment, best AG18 healing). P05: "Tokens ×4" (EFFORT_TOKENS.deep).
+- **TRN-13.** Blueprint cash tile and Cash tip: only the science-journals mix costs cash (+5%); nothing else per run.
+  `nextModelGate` (dead readout) not removed: deletion belongs to TRN-24 / cleanup.
+- **TRN-23.** hardenedGraders: no `graders` option and no ▲; text points to suite hardening on the Suites tab.
+- **SAF-06.** T-HARDEN and T-UNDO: no arrows, text says no effect of their own (T-HARDEN leads to T-INOC). F13: the
+  Codex body says a finding with no effects has none in play. Data and IDs kept (bots/common.ts lists T-UNDO).
+- **SAF-16.** Line Health tip adds that the same hidden efficacy sets tool strength and gates some results.
+- **SAF-21.** Codex agenda row "Compute share 3–8%" → "Reference compute N H100e (a unit, not a share)"; line tip:
+  teams speed candidates with diminishing returns, engineers and compute the experiments (not "√ capacity"); ETA tip:
+  "teams, engineers, compute and AI labour" (not "research speed"). `computeShare` state left (RD-C05).
+- **PRD-17.** Safeguards tip: quality costs in OOM from SAFEGUARD_DG (−0.04 / −0.17), not "−0.05 L / −0.2 L".
+- **MEA-17.** Glossary L: true level plus eval noise; sandbagging lowers dangerous benchmarks, not the level.
+- **Glossary (§4.9).** rdmult (three parts; ideation AI labour not in M), researchMix (Auto maximises experiment
+  throughput; chart peak can differ), trustedToAI (lines and investigations, no "funded"), seriousStaffing (no √),
+  autoAssign (days cut, line joining and queueing), idaCycle (one more RL budget, 0.15 × base FLOP), stream (the last
+  reading goes out of date). design/ux/GLOSSARY.md regenerated.
+- **B46 (MEA-22).** EndScreen table: in-game MILESTONE_NAMES, the AI 2027 column shows the canon date with its canon
+  name (idx 2: "Online Learner" is a different event). **Left for DD-09:** day-0 milestones still come from the λ rule
+  (MEA-V01).
+- **Also fixed:** RD-B19's Blueprint forecast band (±sd L) had no tooltip, failing lint-tips; now a Measurement-band tip.
+- **Moves calibration: no** (copy; the mix range widens only the manual slider; Auto's search range is unchanged, and
+  bots use Auto).
+- **Tests run:** tsc main + scripts clean; lint-ux all passed; lint-tips 0 failing; npm run build passes.

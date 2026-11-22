@@ -421,6 +421,24 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   }
 }
 
+/** RD-B19 (B40): hand-made recipe transfers to other labs, OOM into the recipient's pretraining recipe (addRivalKnowledge;
+ *  it shows at that lab's next base or continual-learning refresh). Still sized by the player's pace (MEA-15; DD-17
+ *  resizes them). The actions apply these and their previews read the same functions. A4 publish: 9 days × 0.3. */
+export const publishLeakG = (s: GameStateV2) => (9 / 365) * paceOf(s) * B_G_PER_Y * 0.3;
+/** E16 "let go": 0.1 years of the lead pace. */
+export const poachLeakG = (s: GameStateV2) => 0.1 * paceOf(s) * B_G_PER_Y;
+/** A recipe increment `dG` (OOM) in days of lab `id`'s own progress at today's rate: the previews' unit. */
+export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / (rateOf(s, id) * B_G_PER_Y);
+
+/** Months of its own recipe growth China absorbs from open weights at G (0 when China is inactive or ahead): the
+ *  model-vs-model gap (G), half of it in months of the lead pace, at most 2 months (R10 R13), as public knowledge in
+ *  its pretraining part (OOM). Read by openWeightsReleased and the open launch preview (RD-B20). */
+export function openAbsorbMonths(s: GameStateV2, G: number): number {
+  const cnG = bestG(s, 'china');
+  if (s.china.lab.core.status !== 'active' || G <= cnG) return 0;
+  return Math.min(2, ((G - cnG) / (paceOf(s) * B_G_PER_Y)) * 12 * 0.5);
+}
+
 /** Open weights released by lab `id` at effective compute G: the world's open frontier rises, China absorbs part of the
  *  gap (R10 R13: −1 to −3 months), rivals' moats fall. */
 export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number) {
@@ -428,11 +446,8 @@ export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G
   if (G <= k.openWeightsG) return;
   k.openWeightsG = G;
   const cn = s.china.lab;
-  const cnG = bestG(s, 'china');
-  if (id !== 'china' && cn.core.status === 'active' && G > cnG) {
-    // Model-vs-model gap (G); China's recipe absorbs half of it in months of the lead pace, at most 2 months of its own
-    // recipe growth (R10 R13), as public knowledge in its pretraining part (OOM).
-    const months = Math.min(2, ((G - cnG) / (paceOf(s) * B_G_PER_Y)) * 12 * 0.5);
+  const months = id !== 'china' ? openAbsorbMonths(s, G) : 0;
+  if (months > 0) {
     const dG = (months / 12) * rateOf(s, 'china') * B_G_PER_Y;
     addRivalKnowledge(cn, dG);
     ctx.cause('china.recipe', dG, 'open weights absorbed', id);

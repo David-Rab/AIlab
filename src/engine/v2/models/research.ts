@@ -16,7 +16,8 @@
 //   3 scale test    the same CES; it reads the effect at test scale (x·1000^s) and the scale exponent s. Below
 //                   SURVIVE_FRAC of the small-scale estimate: dropped.
 //   4 result        the final estimate band at the lab's latest base. Ideas and axes fail after MAX_DROPS dropped
-//                   candidates (the direction does not work in this world) and can be reopened as speculative.
+//                   candidates (weak candidates, which can be noise; the direction may still work) and can be
+//                   reopened as speculative.
 //   5 adoption      the engineers build it in (team-weeks ∝ effect); then the TRUE effect enters its stack (models/
 //                   stacks.ts; HEADROOM of it waits for routine tuning), an axis's lever unlocks, a domain effect applies.
 // Lines repeat. Each line is a pool with returns r (V3 notes, derivation 1): the result that brings research input q (its
@@ -500,7 +501,7 @@ function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
     const ts = s.player.tree[n.id];
     ts.status = 'failed';
     ts.day = ctx.day;
-    ctx.log('research', `${n.name}: ${MAX_DROPS} candidates dropped (${why}): the direction does not seem to work here. It can be reopened as a speculative project.`, 2, n.id);
+    ctx.log('research', `${n.name}: gave up after ${MAX_DROPS} weak candidates (last: ${why}). Weak results can be bad luck, so the direction may still work; it can be reopened as a speculative project.`, 2, n.id);
     return true;
   }
   return false;

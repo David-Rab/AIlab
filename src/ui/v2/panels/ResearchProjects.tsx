@@ -78,7 +78,7 @@ function WantStepper({ v }: { v: CapProjectView }) {
   return (
     <span className="stepper" data-test={`want.${v.id}`}>
       <ActBtn id="research.want" testId={`want-down.${v.id}`} ariaLabel={`Fewer teams wanted for ${v.name}`} params={{ id: v.id, n: Math.max(0, v.want - 1) }} icon={ICON.minus} label="" block={v.want <= 0 && !v.auto ? 'Already 0 (paused)' : undefined} />
-      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={shown} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.auto ? 'Auto: one team first, then the spare science teams go where they add the most progress, by priority and fit. Fixed numbers on other projects are filled first; − or + fixes the number.' : v.want === 0 ? 'Paused: the project keeps its candidates but gets no science teams.' : 'The game fills the list in order, best specialty first.'}</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={shown} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.auto ? 'Auto: one team first, then the spare science teams go where they add the most progress, by priority and fit. Fixed numbers on other projects are filled first; − or + fixes the number.' : v.want === 0 ? 'No science teams: no new candidates. A candidate already in test keeps its engineers and compute until it is read.' : 'The game fills the list in order, best specialty first.'}</TipCard>}>
         <b className={`num ${v.auto ? 'rp-auto-n' : ''}`} data-test={`want-n.${v.id}`}>{v.auto ? <>{v.want}<span className="dim small"> auto</span></> : shown}</b>
       </Tip>
       <ActBtn id="research.want" testId={`want-up.${v.id}`} ariaLabel={`More teams wanted for ${v.name}`} params={{ id: v.id, n: Math.min(PROJECT_MAX_TEAMS, v.want + 1) }} icon={ICON.plus} label="" block={v.want >= PROJECT_MAX_TEAMS ? `At most ${PROJECT_MAX_TEAMS} teams per project` : undefined} />
@@ -105,7 +105,7 @@ function Binds({ v }: { v: CapProjectView }) {
 }
 
 function Next({ v }: { v: CapProjectView }) {
-  const label = v.state === 'failed' ? 'failed' : v.state === 'adopting' ? `build ${eta(v.adoption?.eta ?? Infinity)}` : v.want === 0 && !v.teams.length ? 'paused' : eta(v.eta);
+  const label = v.state === 'failed' ? 'failed' : v.state === 'adopting' ? `build ${eta(v.adoption?.eta ?? Infinity)}` : v.want === 0 && !v.teams.length ? (v.stage === 'small' || v.stage === 'scale' ? 'test only' : 'paused') : eta(v.eta);
   return (
     <Tip content={() => <TipCard title={v.kind === 'line' ? 'Next result' : 'Result'} value={label} rows={v.state === 'adopting' ? [{ label: <Term id="stageAdoption">Engineers</Term>, value: v.adoption ? `${v.adoption.tw.toFixed(1)} team-weeks left` : 'queued' }] : [
       { label: <Term id="stageIdeation">Ideation</Term>, value: eta(v.etaParts.ideation) },
@@ -257,7 +257,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       <StageTrack v={v} big />
       <div className="rp-tlab">{STAGES.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
       <div className="rp-secs">
-      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">Failed: {v.maxDrops} candidates were dropped, so the direction does not seem to work in this world.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
+      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">Failed: gave up after {v.maxDrops} weak candidates. Weak results can be bad luck, so the direction may still work.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
       {(v.belief || v.result) && (
         <Sec k={v.result && !v.belief ? 'Result · estimate at your latest base' : 'Belief · candidate in test'} term="beliefBand">
           {v.belief && <BeliefBand mu={v.belief.mu} sd={v.belief.sd} ref={v.line?.nextPrior !== undefined ? v.line.nextPrior * v.belief.b : undefined} unit={v.unit} />}
@@ -288,7 +288,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
         </Sec>
       )}
       <Sec k="Science teams · why here" term="scienceWhy">
-        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? 'Teams wanted 0: paused.' : 'None placed: higher-priority projects took the teams.'}</div>}
+        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? (v.stage === 'small' || v.stage === 'scale' ? 'Teams wanted 0: no new candidates; the test in progress continues.' : 'Teams wanted 0: paused.') : 'None placed: higher-priority projects took the teams.'}</div>}
         {v.teams.map((t, k) => {
           const TI = t.specialty ? COL_ICON[t.specialty as Column] : ICON.roleSci;
           // F6d: teams of the same specialty are numbered (two "Pretraining" rows read as a duplicate).

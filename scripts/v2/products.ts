@@ -37,6 +37,10 @@ import { previewAgentChange } from '../../src/engine/v2/departments/agentActions
 import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
 import { evalDaysFor } from '../../src/engine/v2/models/evals';
+import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { packRevenueGain } from '../../src/engine/v2/worldfx/actions';
+import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
+import { openAbsorbMonths } from '../../src/engine/v2/actors/rivals';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
@@ -423,6 +427,92 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const dd = prod(dz, 'api');
   check(!!noDeep && /Deep think/.test(noDeep) && !yesDeep && dd?.effort === 'deep' && dd.features.includes('deepThink'),
     'RD-B12 launching at effort deep needs Deep think built; once built the product goes live deep with the feature on', `${noDeep ?? 'launched'} / ${yesDeep ?? 'launched'} / ${dd?.effort} ${JSON.stringify(dd?.features)}`);
+}
+
+// ───────── RD-B20 preview truth, products: every preview line is what the action applies ─────────
+{
+  const pvOf = (s: GameStateV2, id: string, p: Record<string, string | number | boolean>) => ACTION_BY_ID.get(id)!.preview(s, p);
+  const lines = (pv: ReturnType<typeof pvOf>) => [...pv.costs, ...pv.gains, ...pv.exposure].filter((l) => l.amount !== 0);
+  const signed = (pv: ReturnType<typeof pvOf>, cur: string) => [...pv.gains.filter((l) => l.currency === cur).map((l) => l.amount), ...pv.costs.filter((l) => l.currency === cur).map((l) => -Math.abs(l.amount))].reduce((a, x) => a + x, 0);
+  const only = (pv: ReturnType<typeof pvOf>, ok: string[]) => lines(pv).every((l) => ok.includes(l.currency) && l.probability === undefined) && !pv.exposure.length;
+  const s = game();
+  run(s, 10);
+  const until = (g: GameStateV2, ok: () => boolean, max = 600) => {
+    for (let i = 0; i < max && !ok(); i++) run(g, 1);
+    return ok();
+  };
+  const ent = prod(s, 'enterprise');
+  // Sector pack: cash and engineer team-weeks as applied; the revenue line is the market run with the pack certified.
+  const pk = pvOf(s, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: ent.id });
+  const c = clone(s);
+  const cash0 = c.player.finance.cash;
+  const e = act(c, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: ent.id });
+  const item = c.player.build.queue.find((it) => it.kind === 'sectorPack' && it.ref === 'FIN');
+  const tw = pk.costs.find((l) => l.currency === 'staffTime');
+  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && near(c.player.finance.cash - cash0, signed(pk, 'cash'), 1e-6) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6),
+    'RD-B20 sector pack preview: only cash, engineer team-weeks and revenue, the first two as applied (no product-team time, no approval risk)', `${e ?? ''} ${JSON.stringify(pk)}`);
+  const host = prod(c, 'enterprise');
+  const certified = until(c, () => host.packs.some((x) => x.sector === 'FIN' && x.certDay <= c.time.day));
+  // The engine's certified pack against the same state without it, the sector's customers at their target shares.
+  const strip = (st: GameStateV2) => {
+    const x = clone(st);
+    for (const r of Object.keys(x.world.fx.cust ?? {}) as (keyof NonNullable<GameStateV2['world']['fx']['cust']>)[]) delete x.world.fx.cust![r][('FIN')];
+    return x;
+  };
+  const withP = strip(c);
+  const noP = strip(c);
+  const hn = prod(noP, 'enterprise');
+  hn.packs = hn.packs.filter((x) => x.sector !== 'FIN');
+  const real = revenueReadout(withP).total - revenueReadout(noP).total;
+  const raw = clone(c);
+  const hr = prod(raw, 'enterprise');
+  hr.packs = hr.packs.filter((x) => x.sector !== 'FIN');
+  const prev = packRevenueGain(raw, hr, 'FIN');
+  check(certified && real > 0 && near(prev, real, 1e-6) && signed(pk, 'revenue') > 0,
+    'RD-B20 sector pack revenue line = the market with the engine\'s certified pack minus without (customers switched), not v2 share arithmetic', `real ${real} preview-fn ${prev} day-10 line ${signed(pk, 'revenue')}`);
+  // Retire: revenue, serving compute and rivals' distillation exactly as the withdrawal leaves them (same day).
+  const api = prod(s, 'api');
+  const rt = pvOf(s, 'product.retire', { id: api.id });
+  const r = clone(s);
+  const rd0 = revenueReadout(r).total;
+  const dd0 = distillDaysPerYear(r);
+  act(r, 'product.retire', { id: api.id });
+  const lead = signed(rt, 'leadDays');
+  check(only(rt, ['revenue', 'compute', 'leadDays']) && Math.abs(signed(rt, 'revenue') - (revenueReadout(r).total - rd0)) <= 0.006 && Math.abs(lead + Math.round(distillDaysPerYear(r) - dd0)) <= 0.5 && lead > 0,
+    'RD-B20 retire preview: the revenue the market loses (its serving goes to the other products) and the distillation it ends; no trust risk', `${JSON.stringify(rt)} real rev ${revenueReadout(r).total - rd0} lead ${distillDaysPerYear(r) - dd0}`);
+  // Update (model swap), serving share, feature toggle, product policy: no product-team time, no invented lead / approval risks.
+  const up = pvOf(s, 'product.update', { id: api.id, price: 'premium' });
+  const sv = pvOf(s, 'product.serving', { id: api.id, share: 0.1 });
+  const ft = pvOf(s, 'feature.toggle', { product: api.id, feature: 'codingAgent', on: true });
+  const po = pvOf(s, 'products.policy', { upgradeToNewest: true, autoEvaluate: false });
+  check(only(up, ['revenue', 'compute', 'leadDays']) && only(sv, ['revenue', 'compute']) && only(ft, ['revenue', 'compute', 'leadDays']) && lines(po).length === 0,
+    'RD-B20 update / serving / feature / policy previews carry only market and distillation lines', JSON.stringify({ up, sv, ft, po }));
+  // Launch: build team-weeks as queued, market lines, the distillation the new product adds; no lead / approval odds.
+  const L = clone(s);
+  act(L, 'product.retire', { id: api.id });
+  const ln = pvOf(L, 'product.launch', { channel: 'api', versionId: api.versionId });
+  const lc = clone(L);
+  const le = act(lc, 'product.launch', { channel: 'api', versionId: api.versionId });
+  const lq = lc.player.build.queue.find((it) => it.kind === 'launch');
+  const ltw = ln.costs.find((l) => l.currency === 'staffTime');
+  check(!le && only(ln, ['revenue', 'compute', 'staffTime', 'leadDays']) && !!lq && !!ltw && near(-ltw.amount, lq.needTW, 1e-6),
+    'RD-B20 launch preview: engineer team-weeks as queued, market and distillation lines only', `${le ?? ''} ${JSON.stringify(ln)}`);
+  // Make variant: a copy, nothing charged.
+  const mv = pvOf(s, 'makeVariant', { versionId: api.versionId, variant: 'gov' });
+  const m = clone(s);
+  const n0 = m.player.models.versions.length;
+  const cashM = m.player.finance.cash;
+  const me = act(m, 'makeVariant', { versionId: api.versionId, variant: 'gov' });
+  check(!me && !mv.costs.length && !mv.exposure.length && mv.gains.length === 1 && mv.gains[0].unit === 'version' && m.player.models.versions.length === n0 + 1 && m.player.finance.cash === cashM,
+    'RD-B20 make-variant preview: one new version, no cost, revenue or approval lines (the copy charges nothing)', `${me ?? ''} ${JSON.stringify(mv)}`);
+  // Open weights: the lead line is what China absorbs at the release (openWeightsReleased), or no line.
+  const o = clone(s);
+  const v = o.player.models.versions.find((x) => x.id === api.versionId)!;
+  const op = pvOf(o, 'product.launch', { channel: 'open', versionId: v.id });
+  const days = -signed(op, 'leadDays');
+  const want = v.G > o.knowledge.openWeightsG ? Math.round((openAbsorbMonths(o, v.G) / 12) * 365) : 0;
+  check(only(op, ['leadDays', 'compute']) && days === want && op.gains.length === 0,
+    'RD-B20 open launch preview: China\'s absorbed progress from openWeightsReleased, no academia trust gain', `${days} vs ${want} ${JSON.stringify(op)}`);
 }
 
 finish('products');

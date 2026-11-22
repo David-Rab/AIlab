@@ -30,9 +30,9 @@ export type * from './types';
 
 // ───────────── M3 UI selectors (WS6/WS7; read-only, additive) ─────────────
 // The UI may only read the visible world. These wrap engine modules so src/ui/v2 never imports internals.
-import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId } from './types';
+import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId, RunPrediction } from './types';
 import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
-import { planRun as planRunUI, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
+import { planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
 import { measuredDomain } from './actors/commitments';
 import { DOMAIN_IDS } from '../../data/v2/calibration';
 import { SHAPE } from '../../data/v2/runDesign';
@@ -92,13 +92,16 @@ export function choiceVote(s: GameStateV2, eventId: string, choice: number, data
   }
 }
 
-/** Run card for the run designer: the predicted band under UI-safe names (a prediction, not truth). */
+/** Run card for the run designer under UI-safe names. RD-B19 (B45): band and domains are the lab's forecast (runForecast:
+ *  a measured reference plus the run's step, ± that reference's evaluation band), never the engine's true outcome;
+ *  [0, 0] when nothing is measured yet. */
 export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   const plan = planRunUI(s, p);
   const pr = plan.prediction;
+  const fc = runForecast(s, pr);
   return {
     fpt: planFpt(s, p, pr.serveCost),
-    band: pr.Lg, domains: pr.domains, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
+    band: fc?.band ?? [0, 0] as [number, number], domains: fc?.domains ?? ({} as typeof pr.domains), forecastRef: fc?.refName, forecastSd: fc?.sd ?? 0, signals: pr.signals, etaDays: plan.etaDays, serveCost: pr.serveCost, monitorability: pr.monitorability,
     flop: plan.flopNeeded, cash: plan.cashCost, poolShare: plan.poolShare, reason: plan.reason, g: plan.g,
     effShare: plan.effShare, setupTW: plan.setupTW, setupDays: plan.setupDays, limits: plan.limits,
   };
@@ -120,8 +123,9 @@ function planFpt(s: GameStateV2, p: LaunchRunParamsUI, serve: number): number {
   return 2 * b.params * SHAPE[b.design.shape].tokenMult * rel;
 }
 
-/** Predicted band of a launched run (run queue). */
-export const runBand = (r: { predicted: { Lg: [number, number] } }): [number, number] => r.predicted.Lg;
+/** Forecast band of a launched run (run queue; RD-B19: today's measured reference plus the run's step, ± its evaluation
+ *  band; [0, 0] when nothing is measured). */
+export const runBand = (s: GameStateV2, r: { predicted: RunPrediction }): [number, number] => runForecast(s, r.predicted)?.band ?? [0, 0];
 
 /** Measured domain levels of a version (what the player's evals show). */
 export function measuredDomains(v: ModelVersion): Record<DomainId, number> {

@@ -8,10 +8,12 @@ import { FEATURE_BY_ID, MINI_CHANNELS, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
-import { previewDeployments, type EditPreview } from '../worldfx/productView';
+import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
+import { B_G_PER_Y } from '../../../data/v2/runDesign';
+import { openAbsorbMonths } from '../actors/rivals';
 import { spareServing } from '../worldfx/revenue';
-import { CHANNEL_VARIANTS, deploy, deployGate, effortLock, setServing, withdraw } from './deployments';
-import { versionById } from './labs';
+import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
+import { activeRivals, versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
 
@@ -183,6 +185,22 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
+/** RD-B20: days of progress the strongest distiller gains in a year from the player's live products (distillationLeak,
+ *  the security system's daily leak: G per day → progress-days at B_G_PER_Y G per progress-year). */
+export function distillDaysPerYear(s: GameStateV2): number {
+  let dG = 0;
+  for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) dG = Math.max(dG, distillationLeak(s, lab.core.id).dGPerDay);
+  return (dG * 365 * 365) / B_G_PER_Y;
+}
+
+/** The distillation line of a change to the products: the change in rivals' yearly catch-up (lead days). */
+function distillLine(s: GameStateV2, deps: Deployment[]): CostLine[] {
+  const d = Math.round(distillDaysPerYear(hypothetical(s, deps)) - distillDaysPerYear(s));
+  if (d > 0) return [{ currency: 'leadDays', amount: -d, target: 'per year live: rivals distil it' }];
+  if (d < 0) return [{ currency: 'leadDays', amount: -d, target: 'per year: less for rivals to distil' }];
+  return [];
+}
+
 /** When a launch queued now would go live (the build queue wait). */
 function launchWaitText(s: GameStateV2): string {
   const d = buildWaitNew(s, LAUNCH_TW, 'launch');
@@ -204,7 +222,11 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const costs: CostLine[] = [];
       const gains: CostLine[] = [];
       const exposure: CostLine[] = [];
-      if (ch === 'open') costs.push({ currency: 'leadDays', amount: -60, target: 'rivals and China absorb the weights' });
+      // RD-B20: what openWeightsReleased does at release (China absorbs part of the gap above the open frontier).
+      if (ch === 'open' && v && v.G > s.knowledge.openWeightsG) {
+        const days = Math.round((openAbsorbMonths(s, v.G) / 12) * 365);
+        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
+      }
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
@@ -216,13 +238,12 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const dl = deltaLines(pv);
         costs.push(...dl.costs);
         gains.push(...dl.gains);
+        costs.push(...distillLine(s, [...s.player.deployments, tmp]));
       }
       // J2 P1: engineers build the launch first (team-weeks on the build queue); the product goes live when it is built.
       if (ch !== 'open' && ch !== 'internal') costs.push({ currency: 'staffTime', amount: -LAUNCH_TW, target: `engineer team-weeks · live in ${launchWaitText(s)}` });
-      if (ch === 'api' || ch === 'agents' || ch === 'consumer') exposure.push({ currency: 'leadDays', amount: -10, lagDays: 30, probability: 0.6 });
-      exposure.push({ currency: 'approval', amount: -2, probability: 0.2, lagDays: 60 });
       if (!costs.length) costs.push({ currency: 'compute', amount: 0, target: 'serving pool' });
-      return { costs, gains: ch === 'open' ? [{ currency: 'trust', amount: 3, target: 'academia' }] : gains, exposure };
+      return { costs, gains, exposure };
     },
     apply: (s, ctx, p) => {
       const ch = str(p, 'channel', 'api') as Channel;
@@ -265,19 +286,19 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
-      const costs: CostLine[] = [{ currency: 'staffTime', amount: -2, target: 'product team' }];
+      const costs: CostLine[] = [];
       const gains: CostLine[] = [];
-      const exposure: CostLine[] = [];
       if (d) {
         const c = changesFromParams(p);
         if (Object.keys(c).length && !editBlock(s, d, c)) {
           const dl = deltaLines(previewEdit(s, d, c));
           costs.push(...dl.costs);
           gains.push(...dl.gains);
-          if (c.versionId && (d.channel === 'api' || d.channel === 'consumer')) exposure.push({ currency: 'leadDays', amount: -5, lagDays: 30, probability: 0.5 });
+          const n = editedProduct(d, c);
+          for (const l of distillLine(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)))) (l.amount < 0 ? costs : gains).push(l);
         }
       }
-      return { costs, gains, exposure };
+      return { costs, gains, exposure: [] };
     },
     apply: (s, ctx, p) => {
       const d = productOf(s, str(p, 'id', ''));
@@ -289,12 +310,15 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'product.retire', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Retire product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
+      // RD-B20: the market run without the product (its serving goes to the other products; its packs end).
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
-      return {
-        costs: [{ currency: 'revenue', amount: -round2(d?.revenueRate ?? 1) }],
-        gains: [{ currency: 'compute', amount: Math.round(d?.servedH100e ?? 0), target: 'serving pool (H100e)' }],
-        exposure: [{ currency: 'trust', amount: -1, probability: 0.3 }],
-      };
+      if (!d) return { costs: [], gains: [], exposure: [] };
+      const deps = s.player.deployments.map((x) => (x.id === d.id ? { ...x, status: 'withdrawn' as const } : x));
+      const dl = deltaLines(previewDeployments(s, deps, d.id));
+      const costs = [...dl.costs];
+      const gains = [...dl.gains];
+      for (const l of distillLine(s, deps)) (l.amount < 0 ? costs : gains).push(l);
+      return { costs, gains, exposure: [] };
     },
     apply: (s, ctx, p) => {
       const d = productOf(s, str(p, 'id', ''));
@@ -314,7 +338,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const n = { ...d, servingShare: Math.max(0, Math.min(1, share)) };
       const pv = previewDeployments(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)), d.id, { policies: { servingAuto: false } });
       const dl = deltaLines(pv);
-      return { costs: [...dl.costs, { currency: 'staffTime', amount: -1, target: 'Auto serving off' }], gains: dl.gains, exposure: [] };
+      return { costs: dl.costs, gains: dl.gains, exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const d = productOf(s, str(p, 'id', ''));
@@ -358,7 +382,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     preview: (s, p) => {
       const d = productOf(s, str(p, 'product', '')) ?? firstProduct(s);
       const id = str(p, 'feature', '');
-      const costs: CostLine[] = [{ currency: 'staffTime', amount: -1, target: 'product team' }];
+      const costs: CostLine[] = [];
       const gains: CostLine[] = [];
       if (d && id) {
         const on = p.on !== false;
@@ -404,7 +428,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'products.policy', verb: 'policy', system: 'products', sphere: 'models', owner: 'WS1', title: 'Product policy',
     available: () => true,
     preview: (s, p) => {
-      const costs: CostLine[] = [{ currency: 'staffTime', amount: -1 }];
+      const costs: CostLine[] = [];
       const gains: CostLine[] = [];
       const exposure: CostLine[] = [];
       if (typeof p.servingAuto === 'boolean' && p.servingAuto !== s.player.policies.servingAuto) {
@@ -416,8 +440,6 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           else if (dRev < 0) costs.push({ currency: 'revenue', amount: dRev });
         }
       }
-      if (p.upgradeToNewest === true) exposure.push({ currency: 'leadDays', amount: -5, lagDays: 30, probability: 0.5, target: 'newer models leak to distillers' });
-      if (p.autoEvaluate === false) exposure.push({ currency: 'monitorability', amount: -0.05, target: 'stale trait estimates on the internal model' });
       // Model v3 D7: what a re-run costs (one suite at the policy depth on the internal model; models/evals.ts).
       if (p.autoEvaluate === true) {
         const pv = evalPolicyView(s);
