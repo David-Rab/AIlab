@@ -955,3 +955,28 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   = no typed effect; three day-0 unlocks run with no candidates / band, one test of trialWork, outcome = the works draw).
 - **Moves calibration: maybe** (unlock timing now one pooled work stage with no drops or give-ups: unlocks that used to
   fail by three weak draws on a working direction now land; science teams' time counts toward the whole effort).
+
+### RD-E03
+
+Headroom removed (DD-12; SYNTHESIS §6 Phase 3; CAP-18). Commit eb8792d.
+- **Stacks:** an adopted idea adds its full true effect at build-in: `addIdea` has no headroom part, `StackBucket` is
+  `{ s, a }`, `stackAt` = base + adoptedAt. `headroomAt`, `headroomTotal`, `tuneDay` and HEADROOM are gone.
+- **Research engineers:** routine tuning is gone as a need (ReNeed = ops / evals / exp; TUNE_K, TUNE_RE_PER_OOM from
+  RD-B08, the tuning branch of capResearchDay). `expShares` divides the pool over RE_MAX_PER_PROJECT per project in
+  experiments; a project with no research engineers leaves its share unused (what RD-B08 already did with no
+  headroom). Spare research engineers are idle: new readout `research.last.idle`; Company › Work already lists "idle"
+  (overflow tip reworded); the hire preview's fallback line reads idle research engineers instead of tuning.
+- **UI / copy:** Recipe drops the headroom row and bar segment (make-up = start and public knowledge + adopted);
+  glossary `headroom` / `routineTuning` removed; stageAdoption, recipeStack, reNeeds, diffusion, publicKnowledge and
+  LIMITS speed.diffusion reworded.
+- **Schema:** SCHEMA_REV 48 (first bump on p3-c). Migration 47 → 48 delivers each bucket's remaining headroom (drops
+  `h`, so the effect is the whole `a`) and drops 'tune' from `research.re` (order, max, share) and `last.re`.
+- **Tests:** `tsx scripts/v2/research.ts --rd-e03` (adopted idea's full effect in the stack at build-in, bucket fields
+  `a,s`; no 'tune' need, idle readout = capacity − needs, an order naming tune is ignored; a rev-47 save loads with
+  headroom delivered and no tune). Old headroom / tuning checks in research.ts rewritten (overflow → idle; RD-B08
+  (a) idle only after every project is full, (c) projects take the whole pool; RD-B16 an idea moves Software progress
+  by its whole effect); evals EV3 order check reworded (evals last / capped at 0); hygiene rev asserts 48; lint-ux term
+  list drops headroom / routineTuning. Not run: the full research suite, evals, hygiene, test:cal (RD test rule; CP2).
+- **Checks:** tsc (app and scripts/v2) clean; npm run build passes.
+- **Moves calibration: yes** (the 30% of every adopted idea that waited for tuning now lands at once, and the research
+  engineers tuning held go idle; expect earlier milestones, most on presets with many adoptions; refit at CP2).
