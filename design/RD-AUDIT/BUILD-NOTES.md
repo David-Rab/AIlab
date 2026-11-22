@@ -1487,3 +1487,32 @@ share recovery always full speed; case rate reads H100e).
   the "idle serving stays idle" assertion needs a setup that really leaves serving idle), and its "moved" test is too
   strict (Auto-split moved 29.6 pt, mostly idle training). `npm run build` not run. grep: only the migration names the
   old policy keys.
+
+### RD-A06
+
+AI staff packages name their model, have their own control layer, and internal tooling is its own owned item (DD-03).
+Moves calibration: **maybe** (eng / frontier / safety packages with no pick now run the newest cleared full model instead
+of following routine research; built Memory / Coding agent / Deep research no longer help internal work unless the lab
+builds the tool; feature upkeep of a feature on no product drops to keep-alive; Add control now covers the packages
+running that model, not every package).
+
+- **Model:** `newestInternal(s)` (departments/agents.ts) = newest ready / deployed full model (routine's while none);
+  `agentVersion` = own live pick, else that (the "as routine" fallback is gone). Lane flag `follows` → `newest`; the
+  picker's empty option reads "newest · Vx". Routine research still sets the internal deployment.
+- **Control:** `AgentPackage.control?`; `useControl(s, model, monitor, on)` reads the package; `underControl(s)` = any
+  package on. `syncInternalControl(s)` keeps the internal deployment's `controlLayer` (read by covert / incidents /
+  believed oversight containment) = a package running its model has control. Set by `agents.set {use, control}`, the
+  addControl / removeControl responses (packages on that model) and the E-event "Continue + control" (all packages).
+- **Tooling:** data/v2/features.ts `INTERNAL_TOOLS` (Coding harness ← Coding agent SWE +0.3 ×2 tok; Research harness ←
+  Deep research IDEAS +0.3 ×3 tok, P05 gate; Agent memory ← Memory horizon ×1.3 all, P07 gate; same team-weeks / cash);
+  `player.tooling`; build kind `tooling`; action `tooling.build {id}`; upkeep line `tooling` (always in use). `internalFx`
+  reads tooling + P05 orchestration only; the features' SWE / IDEAS work entries removed, effect texts say product only.
+  `featureInternal` deleted (productView `internal` now empty). Starts: `toolsFromFeatures(start features)` (leader none,
+  challenger Coding harness). Rivals: not yet (DD-03 rival part later).
+- **UI:** Company › Agents at work: per-lane "Control on/off" button (tooltip agentControl), a Tooling row (built ✓ /
+  building days / Build button with effect tooltip); BuildLoad labels; glossary agentTooling, agentControl.
+- **Save:** SCHEMA_REV 57; migration 56 → tooling from built features, package control from the internal deployment's
+  flag; hygiene pins → 57. Scripts setting `controlLayer` on the internal deployment also set package control.
+- **Check:** `npx tsx scripts/v2/_a06/check.ts` (12/12): features leave internal fit and build capacity unchanged; the
+  Coding harness via the build queue gives SWE +0.3 OOM; starts / rev-56 save own the equivalents; no pick = newest;
+  control on one package only. tsc (main, scripts) and `npm run build` pass.
