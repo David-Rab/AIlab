@@ -9,10 +9,6 @@ export const WS4_TUNING = {
   leakK: 0.0003,
   /** Distillation: daily share of the gap to the best US public model China recovers at access 60. [fit, T3] */
   distillK: 0.00006,
-  /** Rival trait-drift scale (stand-in for WS2's graph). [fit: maverick Mis at ASI ≈ 0.45–0.6, safety ≈ 0.25–0.35] */
-  rivalDriftK: 3.5,
-  /** Per-step pull-back of bad traits by effective safety work (safety training on the rival's lineage). [D] */
-  rivalPullback: 0.05,
   /** China attempts weight theft only from this posture rung (R10 §1.4 rung 2 "intensified acquisition … cyber
    *  recon of labs"; R8 is an escalation path). [D] deviation from §3.6, which has no rung gate. */
   theftMinRung: 2,

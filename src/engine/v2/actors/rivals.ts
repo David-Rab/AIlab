@@ -6,13 +6,14 @@
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
-import { LEADER_CAL, LEVEL_KNOTS } from '../../../data/v2/calibration';
+import { LEADER_CAL } from '../../../data/v2/calibration';
 import { POST_DAYS, START_PUBLIC_GAP_Y } from '../../../data/v2/rivalModel';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
-import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
+import { TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
+import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
 import { domainsOf, levelOfG, playerStart, trueLeadDays, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
@@ -29,12 +30,11 @@ import { ipAccessDaily } from '../finance/deals';
 import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
 import { decimalYear } from '../core/time';
 import type {
-  BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, TraitVector, UModeId,
+  BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
-import { ws4 } from './state';
-import { WS4_TUNING } from './tuning';
+import { ws4, ws4r } from './state';
 
 export { activeRivals } from '../models/labs';
 
@@ -250,64 +250,41 @@ export function rivalSpeedMult(s: GameStateV2, lab: LabId): number {
   return b > 0.5 ? 1 - 0.2 * b : 1;
 }
 
-/** Training signals S1–S8 for a non-player lab from its posture (§3.10.3). */
-export function rivalSignals(s: GameStateV2, r: RivalLab): Record<'S1' | 'S2' | 'S3' | 'S4' | 'S5' | 'S6' | 'S7' | 'S8', number> {
-  const p = postureOf(s, r.core.id);
-  const L = r.internal.Lg;
-  const ci = capIndexOfLevel(L);
-  return {
-    S1: p.prefIntensity * 0.9,
-    S2: p.rlIntensity * (1 - 0.4 * p.evalRigor),
-    S3: 0.5 + 0.3 * (L >= 10 ? 1 : 0),
-    S4: s.flags[`latent:${r.core.id}`] ? 1 : 0,
-    S5: 0.2 + 0.1 * ci,
-    S6: 0.2,
-    S7: 0.2 + 0.2 * p.evalRigor,
-    S8: 0.1 + 0.4 * clamp((L - 8) / 6, 0, 1),
-  };
-}
-
-/** Effective safety (§3.10.3): safetyInvestment·(1 − raceRelaxation·pressure)·(1 − |N(0, rhetoricGap)|). China:
- *  a state directive (steering × (1 − concern)) replaces race relaxation. */
-export function effSafety(s: GameStateV2, r: RivalLab, noise: number): number {
-  const p = postureOf(s, r.core.id);
-  const relax = r.core.kind === 'china' ? (s.china.meters.stateSteering / 100) * (1 - s.china.meters.safetyConcern / 100) : p.raceRelaxation;
-  return clamp(p.safetyInvestment * (1 - relax * r.pressure) * (1 - Math.abs(noise) * p.rhetoricGap), 0, 1);
-}
-
-/** Fractional capability index 0..6 of a display level on the level knots (Agent-0 … ASI), the λ(G) scale every lab
- *  shares (model v3 F1: replaces the rivals' pm thresholds). */
-export function capIndexOfLevel(L: number): number {
-  const k = LEVEL_KNOTS;
-  if (L <= k[0]) return 0;
-  for (let i = 0; i < k.length - 1; i++) if (L < k[i + 1]) return i + (L - k[i]) / (k[i + 1] - k[i]);
-  return k.length - 1;
-}
-
 /**
- * One post-training step of a non-player lineage's hidden traits. STAND-IN for WS2's trait graph (§3.5.4) until
- * WS2 exports a per-lab signal → trait function; it follows the same signal → node directions, scaled by
- * capability (cap), difficultyMult and the drift multiplier 1 − eff_safety·(0.3 + 0.7·sharedTechniquePool).
+ * Projected hidden Mis of a non-player lab when it reaches ASI (the epilogue and the final score, endings/epilogue.ts):
+ * its trait cadence fast-forwarded with the rule labDaily runs in play: WS2's rivalTraitStep after every post-training
+ * (the mean of POST_DAYS apart, the first at the lab's scheduled one) and after every base run (BASE_MONTHS by
+ * archetype from its next base day: a 'base' step, then a 'post' on it), with latent reasoning adopted once at Lg >= 9
+ * (LATENT_P). The stated stand-in (DD-18): capability rises linearly in G from the internal model's to `asiG` over
+ * `days`, every base starts a new lineage, and race pressure stays at today's. At most 120 steps (a guard: a ten-year
+ * projection is ≈ 75). Pure: works on a clone and draws from a hash of the seed, lab and day (no stream).
  */
-export function rivalTraitStep(s: GameStateV2, r: RivalLab, eff: number, dt = 1) {
-  const S = rivalSignals(s, r);
-  const t = r.internal.traitsTrue;
-  const pool = s.knowledge.sharedTechniquePool;
-  const mult = (1 - eff * (0.3 + 0.7 * pool)) * s.hidden.difficultyMult * WS4_TUNING.rivalDriftK * dt;
-  const cap = clamp(r.internal.Lg / 10, 0.3, 1.5) ** 2;
-  const d: Partial<TraitVector> = {
-    SYC: 0.02 * S.S1, RH: 0.03 * S.S2, PROXY: 0.02 * S.S2 + 0.01 * S.S5, SA: 0.02 * S.S3,
-    EA: 0.015 * S.S3 + 0.01 * S.S7, PERSONA: 0.01 * S.S1, OBF: 0.03 * S.S4,
-    TGAME: 0.012 * (S.S2 + S.S3) * cap, CONCEAL: 0.01 * (S.S4 + S.S2) * cap, POWER: 0.012 * S.S5 * cap,
-    AF: 0.02 * (t.TGAME + t.SA) * cap, SAND: 0.015 * t.EA * cap, SCHEME: 0.02 * (t.AF + t.POWER + 0.5 * S.S4) * cap,
-    COLLUDE: 0.012 * S.S8 * cap, SUCC: 0.01 * S.S8 * cap,
-  };
-  for (const k of TRAIT_IDS) {
-    if (k === 'HONEST' || k === 'CORRIG') continue;
-    t[k] = clamp(t[k] + (d[k] ?? 0) * mult - WS4_TUNING.rivalPullback * eff * t[k], 0, 1);
+export function projectLabMis(s: GameStateV2, r0: RivalLab, asiG: number, days: number): number {
+  const r: RivalLab = JSON.parse(JSON.stringify(r0));
+  const id = r.core.id;
+  const day0 = s.time.day;
+  const end = day0 + days;
+  const rng = new Rng(hash32(s.setup.seed, `projectMis:${id}:${day0}`));
+  const postEvery = (POST_DAYS[0] + POST_DAYS[1]) / 2;
+  const baseEvery = (BASE_MONTHS[r.archetype] ?? 12) * 30.4;
+  const lk = s.flags[`latent:${id}`];
+  let latent = lk === undefined ? undefined : lk === true;
+  let nextPost = Math.max(day0, ws4r(s).nextPost[id] ?? day0 + postEvery);
+  let nextBase = Math.max(day0, r.nextBaseDay);
+  const G0 = r.internal.G;
+  const G1 = Math.max(G0, asiG);
+  for (let n = 0; n < 120 && days > 0; n++) {
+    const d = Math.min(nextPost, nextBase);
+    if (d > end) break;
+    setModelG(s.hidden.timeline, r.internal, G0 + ((G1 - G0) * (d - day0)) / days);
+    if (latent === undefined && r.internal.Lg >= 9) latent = rng.chance(LATENT_P[r.archetype] ?? 0.5);
+    if (d === nextBase) {
+      nextBase += baseEvery;
+      ws2RivalTraitStep(s, rng, r, 'base');
+    } else nextPost = d + postEvery;
+    ws2RivalTraitStep(s, rng, r, 'post', { latent: latent === true });
   }
-  t.HONEST = clamp(t.HONEST - 0.01 * (S.S1 + S.S2) * mult + 0.01 * eff, 0, 1);
-  t.CORRIG = clamp(t.CORRIG - 0.008 * S.S5 * cap * mult + 0.01 * eff, 0, 1);
+  return rivalMis(r);
 }
 
 /** Hidden Mis of a non-player lab's internal frontier. */
