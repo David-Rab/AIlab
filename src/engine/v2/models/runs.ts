@@ -518,7 +518,7 @@ const blankBeliefs = (src?: ModelVersion): Record<TraitId, TraitBelief> => {
   const out = {} as Record<TraitId, TraitBelief>;
   for (const t of TRAIT_IDS) {
     const b = src?.beliefs[t];
-    out[t] = b ? { est: b.est, sd: Math.min(0.35, b.sd + 0.05), clarity: Math.max(0, 1 - Math.min(0.35, b.sd + 0.05) / 0.35) } : { est: 0.2, sd: 0.3, clarity: 1 - 0.3 / 0.35 };
+    out[t] = b ? { est: b.est, sd: Math.min(0.35, b.sd + 0.05), clarity: Math.max(0, 1 - Math.min(0.35, b.sd + 0.05) / 0.35), evidence: [] } : { est: 0.2, sd: 0.3, clarity: 1 - 0.3 / 0.35, evidence: [] }; // placeholder: applyRunToTraits sets the beliefs
   }
   return out;
 };

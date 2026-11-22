@@ -98,7 +98,7 @@ function clarityBoost(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, traits: Trai
     // Choose σ so the posterior sd shrinks by `amount`·0.35 (clarity = 1 − sd/0.35).
     const target = Math.max(0.02, b.sd - amount * 0.35);
     const sigma = target >= b.sd ? 0.5 : Math.sqrt(1 / Math.max(1e-6, 1 / (target * target) - 1 / (b.sd * b.sd)));
-    observeVersion(s, ctx.rng('safety'), ctx.day, v, t, fam, 0.12 / sigma);
+    observeVersion(s, ctx.rng('safety'), ctx.day, v, t, fam, 0.12 / sigma, 1, 'finding');
   }
 }
 
@@ -116,7 +116,7 @@ export function applyEffects(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, effec
         break;
       case 'revealTrait': {
         const v = internalVersion(s);
-        if (v) observeVersion(s, ctx.rng('safety'), ctx.day, v, a as TraitId, 'OR', 0.12 / 0.05);
+        if (v) observeVersion(s, ctx.rng('safety'), ctx.day, v, a as TraitId, 'OR', 0.12 / 0.05, 1, 'finding');
         break;
       }
       case 'reveal':

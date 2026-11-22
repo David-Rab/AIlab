@@ -161,7 +161,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const beliefs = {} as Record<TraitId, TraitBelief>;
   const masks = {} as Record<TraitId, Partial<Record<ToolFamily, number>>>;
   for (const t of TRAIT_IDS) {
-    beliefs[t] = { est: clamp(TRAIT_START[t] + rng.normal(0, 0.08), 0, 1), sd: 0.2, clarity: 1 - 0.2 / 0.35, lastObsDay: -20 };
+    const est = clamp(TRAIT_START[t] + rng.normal(0, 0.08), 0, 1);
+    beliefs[t] = { est, sd: 0.2, clarity: 1 - 0.2 / 0.35, lastObsDay: -20, evidence: [{ day: -20, source: 'start', reading: Math.round(est * 1000) / 1000, noise: 0.2 }] };
     masks[t] = {};
   }
   const V0: ModelVersion = {

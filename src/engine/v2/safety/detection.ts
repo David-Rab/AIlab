@@ -6,7 +6,7 @@
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { SAFETY_EVALS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
-import type { GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
+import type { BeliefEvidence, GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
 import { oomOfLevel, versionOom } from './oversight';
 import { cotAlive } from './latents';
@@ -19,12 +19,32 @@ import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
 
 export const SD_MAX = 0.35;
 
-/** Gaussian belief update (§3.5.6): 1/sd'² = 1/sd² + 1/σ²; clarity = 1 − sd/0.35. */
-export function updateBelief(b: TraitBelief, o: number, sigma: number, day: number): TraitBelief {
+/** SR-06: a belief keeps its last 20 pieces of evidence (oldest first). */
+export const BELIEF_EVIDENCE_CAP = 20;
+/** "Unknown" (SAFETY-REDESIGN §2.2 concept 2): the 90% range (est ± 1.64·sd) is wider than 30 points. Derived, never
+ *  stored. */
+export const UNKNOWN_RANGE = 0.3;
+export function beliefRange(b: Pick<TraitBelief, 'sd'> | undefined): number {
+  return 2 * 1.64 * (b?.sd ?? SD_MAX);
+}
+export function beliefUnknown(b: Pick<TraitBelief, 'sd'> | undefined): boolean {
+  return beliefRange(b) > UNKNOWN_RANGE;
+}
+const r3 = (x: number) => Math.round(x * 1000) / 1000;
+/** `list` with `e` appended: a new array capped at BELIEF_EVIDENCE_CAP (oldest dropped), numbers to 3 decimals. */
+export function withEvidence(list: readonly BeliefEvidence[] | undefined, e: BeliefEvidence): BeliefEvidence[] {
+  const out = (list ?? []).slice(-(BELIEF_EVIDENCE_CAP - 1));
+  out.push({ day: e.day, source: e.source, reading: r3(e.reading), noise: r3(e.noise) });
+  return out;
+}
+
+/** Gaussian belief update (§3.5.6): 1/sd'² = 1/sd² + 1/σ²; clarity = 1 − sd/0.35. SR-06: the reading o and its σ go on
+ *  the belief's evidence list under `source`. */
+export function updateBelief(b: TraitBelief, o: number, sigma: number, day: number, source = 'obs'): TraitBelief {
   const prec = 1 / (b.sd * b.sd) + 1 / (sigma * sigma);
   const sd = Math.sqrt(1 / prec);
   const est = clamp01(sd * sd * (b.est / (b.sd * b.sd) + o / (sigma * sigma)));
-  return { est, sd, clarity: Math.max(0, 1 - sd / SD_MAX), lastObsDay: day };
+  return { est, sd, clarity: Math.max(0, 1 - sd / SD_MAX), lastObsDay: day, evidence: withEvidence(b.evidence, { day, source, reading: o, noise: sigma }) };
 }
 
 /** CoT controllability at x OOM of effective compute above V0: ctl(x) = 0.8·σ((x − 1.0)/0.3) (anchors 1.7% → 16% →
@@ -188,18 +208,19 @@ function falseMask(s: GameStateV2, trait: TraitId, family: ToolFamily): number {
  * One observation of `trait` on version `versionId` through a tool family with combined detection `strength`.
  * Updates the version's belief and returns the observed value (undefined if the version is unknown).
  */
-export function observe(s: GameStateV2, ctx: SystemCtx | { day: number; rng: SystemCtx['rng'] }, versionId: string, trait: TraitId, family: ToolFamily, strength: number, sigmaMult = 1): number | undefined {
+export function observe(s: GameStateV2, ctx: SystemCtx | { day: number; rng: SystemCtx['rng'] }, versionId: string, trait: TraitId, family: ToolFamily, strength: number, sigmaMult = 1, kind = 'obs'): number | undefined {
   const v = versionById(s, versionId);
   if (!v) return undefined;
-  return observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, family, strength, sigmaMult);
+  return observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, family, strength, sigmaMult, kind);
 }
 
-export function observeVersion(s: GameStateV2, rng: RngLike, day: number, v: ModelVersion, trait: TraitId, family: ToolFamily, strength: number, sigmaMult = 1): number {
+/** One reading. `kind` names the instrument use for the evidence entry (source "<kind>/<family>"). */
+export function observeVersion(s: GameStateV2, rng: RngLike, day: number, v: ModelVersion, trait: TraitId, family: ToolFamily, strength: number, sigmaMult = 1, kind = 'obs'): number {
   const sigma = (0.12 / Math.max(0.1, strength)) * sigmaMult;
   const pen = familyPenalty(s, v, trait, family) * (1 - falseMask(s, trait, family));
   const o = clamp(v.traitsTrue[trait] * pen + rng.normal(0, sigma), 0, 1); // a measured rate lies in [0, 1]
-  const prior = v.beliefs[trait] ?? { est: 0.2, sd: SD_MAX, clarity: 0 };
-  v.beliefs[trait] = updateBelief(prior, o, sigma, day);
+  const prior: TraitBelief = v.beliefs[trait] ?? { est: 0.2, sd: SD_MAX, clarity: 0, evidence: [] };
+  v.beliefs[trait] = updateBelief(prior, o, sigma, day, `${kind}/${family}`);
   return o;
 }
 
@@ -228,7 +249,7 @@ export function safetyEvalSuite(s: GameStateV2, rng: RngLike, day: number, v: Mo
       let d = familyDetection(s, v, trait, fam, X);
       if (by === 'evalIndep' && fam === 'BB') d = Math.max(d, 0.35); // external elicitation (+) [D]
       if (d <= 0.02) continue;
-      const o = observeVersion(s, rng, day, v, trait, fam, d);
+      const o = observeVersion(s, rng, day, v, trait, fam, d, 1, by === 'self' ? 'suite' : 'external');
       if (fam === 'BB') bbObs[trait] = { o, sigma: 0.12 / Math.max(0.1, d) };
     }
   }
@@ -278,7 +299,7 @@ export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
       for (const fam of ['COT', 'WB'] as ToolFamily[]) {
         const d = familyDetection(s, v, trait, fam, X) * scale;
         if (d <= 0.05) continue;
-        observeVersion(s, rng, ctx.day, v, trait, fam, d, 2);
+        observeVersion(s, rng, ctx.day, v, trait, fam, d, 2, 'monitor');
       }
     }
   }
@@ -331,20 +352,10 @@ export function monitoringCatch(s: GameStateV2, v: ModelVersion, trait: TraitId)
   return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v, trait)));
 }
 
-/** Beliefs drift (§3.5.6): sd + 0.01/week since the last observation; stream versions +0.05/day (stale evals). */
-export function driftBeliefs(s: GameStateV2): void {
-  const streamId = s.player.models.stream?.versionId;
-  for (const v of s.player.models.versions) {
-    if (v.status === 'retired') continue;
-    const inc = v.id === streamId ? 0.05 : 0.01 / 7;
-    for (const t of TRAIT_IDS) {
-      const b = v.beliefs[t];
-      if (!b || b.sd >= SD_MAX) continue;
-      b.sd = Math.min(SD_MAX, b.sd + inc);
-      b.clarity = Math.max(0, 1 - b.sd / SD_MAX);
-    }
-  }
-}
+// SR-06 (SAFETY-REDESIGN §6 #6): no belief drift with time (driftBeliefs deleted). Evidence is about a checkpoint and a
+// frozen model does not change, so a belief moves only through evidence; a new model starts from its parent's belief
+// moved and widened by the run's predicted change (traits.ts predictBeliefs) and a stream version widens by its own
+// training (traits.ts applyStreamDay).
 
 /** Expected (noise-free) observation of a trait through a family — used by tests and the end screen. Engine only. */
 export function expectedObservation(s: GameStateV2, v: ModelVersion, trait: TraitId, family: ToolFamily): number {

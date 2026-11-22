@@ -95,7 +95,7 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
     const factor = e.id === 'evalAware' || e.id === 'honesty' ? 1 : ea; // awareness hides misbehaviour, not itself
     const rate = Math.min(1, Math.max(0, truth * factor * (1 - mask) + rng.normal(0, SAFETY_EVAL_SD * k)));
     v.evals.safety[e.id] = { rate: Math.round(rate * 1000) / 1000, sd: Math.round(SAFETY_EVAL_SD * k * 1000) / 1000, day, by };
-    for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', Math.sqrt(w)); // WS2 turns observations into beliefs
+    for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', Math.sqrt(w), 1, 'bench'); // WS2 turns observations into beliefs
   }
   v.evals.suiteDay = day;
   const z = rng.normal(0, MEASURE_SD);

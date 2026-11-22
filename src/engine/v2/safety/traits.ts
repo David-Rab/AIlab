@@ -13,13 +13,13 @@ import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import { drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
-  BaseDesign, BaseModel, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
+  BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0 } from '../models/capability';
 import { adopted, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { lineMultCapped, lineStaffed } from './agendas';
-import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty } from './detection';
+import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
 import { techniqueRole } from './techniques';
 import { cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
@@ -752,8 +752,15 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
 const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id, e.wBar]));
 
 /** Predicted beliefs for a new version: the parent's beliefs pushed through the graph with the PUBLIC w̄ (or the
- *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth. */
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s)): Record<TraitId, TraitBelief> {
+ *  revealed weight) and D = 1, sd widened by the size of the predicted change. Visible, never reads truth.
+ *  SR-06 widening rule: sd' = min(SD_MAX, √(sd² + w²)), w = 0.3·|Δ| + floor, Δ = the predicted change of the estimate
+ *  and floor = PREDICT_SD_FLOOR (0.04) for a run; the prediction's error is independent of the parent's, so variances
+ *  add. A stream day passes floor·√(ω_day / OMEGA_KIND.post) so a stream's widening over the training of one post-run
+ *  adds the same variance as that run. Each belief gets one evidence entry (source `from`, reading = the new estimate,
+ *  noise = w): a new model's list starts with it ("inherit:<parent>"); `from` 'stream' keeps the version's list and
+ *  folds into a trailing 'stream' entry (noise = √(old² + w²)). */
+export const PREDICT_SD_FLOOR = 0.04;
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s), from = 'predicted', floor = PREDICT_SD_FLOOR): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   const w: Record<string, number> = { ...W_BAR };
@@ -772,10 +779,19 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
   };
   const next = stepTraits(est, env);
   const out = {} as Record<TraitId, TraitBelief>;
+  const day = s.time.day;
   for (const t of TRAIT_IDS) {
-    const p = prior[t] ?? { est: TRAIT_START[t], sd: SD_MAX, clarity: 0 };
-    const sd = Math.min(SD_MAX, Math.sqrt(p.sd * p.sd + (0.3 * Math.abs(next[t] - est[t]) + 0.04) ** 2));
-    const b: TraitBelief = { est: next[t], sd, clarity: Math.max(0, 1 - sd / SD_MAX) };
+    const p: TraitBelief = prior[t] ?? { est: TRAIT_START[t], sd: SD_MAX, clarity: 0, evidence: [] };
+    const wd = 0.3 * Math.abs(next[t] - est[t]) + floor;
+    const sd = Math.min(SD_MAX, Math.sqrt(p.sd * p.sd + wd ** 2));
+    let evidence: BeliefEvidence[];
+    if (from !== 'stream') evidence = withEvidence(undefined, { day, source: from, reading: next[t], noise: wd });
+    else {
+      const last = p.evidence?.[p.evidence.length - 1];
+      const prev = last?.source === 'stream' ? p.evidence.slice(0, -1) : p.evidence;
+      evidence = withEvidence(prev, { day, source: 'stream', reading: next[t], noise: last?.source === 'stream' ? Math.sqrt(last.noise ** 2 + wd ** 2) : wd });
+    }
+    const b: TraitBelief = { est: next[t], sd, clarity: Math.max(0, 1 - sd / SD_MAX), evidence };
     if (p.lastObsDay !== undefined) b.lastObsDay = p.lastObsDay;
     out[t] = b;
   }
@@ -792,7 +808,7 @@ export function emptyMasks(): Record<TraitId, Partial<Record<ToolFamily, number>
 function defaultBeliefs(s: GameStateV2): Record<TraitId, TraitBelief> {
   const prior = basePrior(tierOfLevel(labLevel(s)));
   const out = {} as Record<TraitId, TraitBelief>;
-  for (const t of TRAIT_IDS) out[t] = { est: prior[t], sd: SD_MAX * 0.8, clarity: 0.2 };
+  for (const t of TRAIT_IDS) out[t] = { est: prior[t], sd: SD_MAX * 0.8, clarity: 0.2, evidence: withEvidence(undefined, { day: s.time.day, source: 'prior', reading: prior[t], noise: SD_MAX * 0.8 }) };
   return out;
 }
 
@@ -1070,7 +1086,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = { ...(base?.traitsTrue ?? TRAIT_START) };
     version.uModes = [...(base?.uModes ?? [])];
     version.masks = parent ? copyRec(parent.masks) : emptyMasks();
-    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run), true) : defaultBeliefs(s);
+    version.beliefs = parent ? predictBeliefs(s, parent.beliefs, base?.signals ? { ...zeroSignals(), ...base.signals } : runSignals(s, run), runOmega(s, run).growth, undefined, lineage, undefined, undefined, 0, predictedG(s, run), true, undefined, `inherit:${parent.id}`) : defaultBeliefs(s);
     return;
   }
 
@@ -1087,7 +1103,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
     version.traitsTrue = stepTraits(x0, env);
     version.uModes = uModes;
     version.masks = teacher ? copyRec(teacher.masks) : emptyMasks();
-    version.beliefs = teacher ? predictBeliefs(s, distilledBeliefs(teacher.beliefs), sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run)) : defaultBeliefs(s);
+    version.beliefs = teacher ? predictBeliefs(s, distilledBeliefs(teacher.beliefs), sg, om.growth, undefined, lineage, om.safety, undefined, 0, predictedG(s, run), false, undefined, `inherit:${teacher.id}`) : defaultBeliefs(s);
     return;
   }
 
@@ -1124,7 +1140,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory);
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior');
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1154,6 +1170,9 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   env.lh = postHack(s, v.design).lambda; // E16: the stream trains on today's suites
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
+  // SR-06: the stream's beliefs widen by its day of training (predictBeliefs on the PUBLIC rule, scaled floor).
+  const omDay = 0.6 / 42;
+  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post));
 }
 
 /** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4

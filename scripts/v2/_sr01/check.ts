@@ -26,7 +26,7 @@ const ag = Object.keys(old.player.safety.agendas)[0];
 const tool = Object.values(old.player.safety.techniques).find((t) => t.unlocked && techniqueRole(t) !== 'fix');
 if (tool) tool.active = false;
 const m = deserialize(JSON.stringify(old));
-check(m.schemaRev === SCHEMA_REV && SCHEMA_REV === 55, 'a rev-54 save loads at rev 55');
+check(m.schemaRev === SCHEMA_REV && SCHEMA_REV >= 55, 'a rev-54 save loads at the current rev');
 check(m.player.safety.agendas[ag].status === 'idle', 'a latched dead-end line is unlatched');
 check(!tool || m.player.safety.techniques[tool.id].active, 'an owned tool switched off is in use after migration', tool?.id);
 

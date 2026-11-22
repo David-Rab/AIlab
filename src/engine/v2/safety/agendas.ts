@@ -18,7 +18,7 @@ import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, Syst
 import { clamp01, flagNum, lambda2Delta, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
-import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
+import { combineTools, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
 import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import { decayAt, initialTechniques, strengthTrue } from './techniques';
@@ -196,7 +196,7 @@ function auditStep(s: GameStateV2, ctx: SystemCtx) {
     let dMax = 0;
     for (const trait of ['AF', 'SCHEME'] as const) {
       const d = combineTools(wb.map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthTrue(s, t, X) })));
-      observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d));
+      observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d), 1, 'audit');
       dMax = Math.max(dMax, d);
     }
     // Model v3 E8: the audit is a case on the model at clarity = its white-box strength (footholds of its lineage).
@@ -217,7 +217,7 @@ function suiteHook(s: GameStateV2, ctx: SystemCtx) {
 }
 
 /** safetyResearch (70, daily): line compute and status; tool upkeep; investigations; eval-suite hook; weekly runtime
- *  monitoring; belief drift. Line projects progress and resolve in the research system (models/tree.ts). U is computed
+ *  monitoring (no belief drift: SR-06). Line projects progress and resolve in the research system (models/tree.ts). U is computed
  *  on demand by understanding(). */
 export const safetyResearchSystem: EngineSystem = {
   id: 'safetyResearch', owner: 'WS2', cadence: 'daily', order: 70, system: 'safety',
@@ -232,7 +232,6 @@ export const safetyResearchSystem: EngineSystem = {
     investigationsStep(s, ctx);
     auditStep(s, ctx);
     suiteHook(s, ctx);
-    driftBeliefs(s);
     if (ctx.day % 7 === 0) runtimeMonitoring(s, ctx);
   },
 };

@@ -64,8 +64,10 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
  *  recomputes stored domain levels without P19.
  *  55 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
- *  detection / containment tools are always active. Migration 54 → 55 unlatches lines and sets those tools active. */
-export const SCHEMA_REV = 55;
+ *  detection / containment tools are always active. Migration 54 → 55 unlatches lines and sets those tools active.
+ *  56 (SR-06): every TraitBelief carries an evidence list. Migration 55 → 56 gives existing beliefs (player versions'
+ *  and any other model's) an empty list. */
+export const SCHEMA_REV = 56;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -498,6 +500,25 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!dept) return;
     for (const a of Object.values(dept.agendas ?? {})) if ((a.status as string) === 'deadEnd') a.status = 'idle';
     for (const t of Object.values(dept.techniques ?? {})) if (t.unlocked && techniqueRole(t) !== 'fix') t.active = true;
+  },
+  55: (raw) => {
+    // Any object under a `beliefs` key whose values look like TraitBeliefs (est, sd) gets an empty evidence list.
+    const walk = (x: unknown, depth: number) => {
+      if (!x || typeof x !== 'object' || depth > 12) return;
+      if (Array.isArray(x)) {
+        for (const y of x) walk(y, depth + 1);
+        return;
+      }
+      for (const [k, y] of Object.entries(x as Record<string, unknown>)) {
+        if (k === 'beliefs' && y && typeof y === 'object' && !Array.isArray(y)) {
+          for (const b of Object.values(y as Record<string, unknown>)) {
+            const tb = b as { est?: unknown; sd?: unknown; evidence?: unknown };
+            if (tb && typeof tb === 'object' && typeof tb.est === 'number' && typeof tb.sd === 'number' && !Array.isArray(tb.evidence)) tb.evidence = [];
+          }
+        } else walk(y, depth + 1);
+      }
+    };
+    walk(raw, 0);
   },
 };
 

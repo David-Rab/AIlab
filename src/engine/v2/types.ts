@@ -425,7 +425,16 @@ export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'open' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 
-export interface TraitBelief { est: number; sd: number; clarity: number; lastObsDay?: Day; }
+/** One piece of evidence behind a belief (SR-06, SAFETY-REDESIGN §2.2 concept 2): the day, where it came from, what it
+ *  read and its noise (σ of the reading; for a prior or a predicted start, the sd it contributed). `source` is
+ *  "<kind>/<family>" for an instrument reading (suite/BB, external/BB, bench/BB, monitor/COT, monitor/WB, audit/WB,
+ *  finding/<family>, case/<family>), "case" for a case verdict, "prior" for the public lineage prior, "start" for the
+ *  starting model's evals, "inherit:<parent id>" for a new model's start (the parent's belief moved by the run's
+ *  predicted change), "stream" for a stream version's training since the last entry. */
+export interface BeliefEvidence { day: Day; source: string; reading: number; noise: number; }
+
+/** `evidence`: the last BELIEF_EVIDENCE_CAP (20) updates of this belief, oldest first. */
+export interface TraitBelief { est: number; sd: number; clarity: number; lastObsDay?: Day; evidence: BeliefEvidence[]; }
 
 export interface EvalRecord {
   suiteDay?: Day; // last full suite run
