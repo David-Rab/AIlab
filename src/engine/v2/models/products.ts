@@ -6,10 +6,11 @@
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
 import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FEATURES, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FEATURES, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
+import { MONITOR_ACTED_ON, MONITOR_CATCH_BASE, PRODUCT_MONITOR_WATCH } from '../../../data/v2/oversight';
 import { containment } from '../safety/techniques';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorPack, TraitId } from '../types';
 import { measuredLOf, versionById } from './labs';
@@ -90,16 +91,70 @@ export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId)
   return m;
 }
 
-// ───────────────────────────── monitors (D7) ─────────────────────────────
+// ───────────────────────────── monitors (SR-12: one formula; D7) ─────────────────────────────
 
-/** Serving overhead of the product's monitor, as a share of its serving need (D7: 0.25 × the FLOP-per-token ratio of the
- *  monitor to the watched model). */
-export function monitorOverhead(s: GameStateV2, d: Deployment): number {
+/** SR-12 (SAFETY-REDESIGN §3.3): one monitor, products and internal agent packages alike. */
+export interface MonitorStop {
+  /** Watched share = monitor compute ÷ (watched compute × the monitor's cost ratio), at most 1 (AI 2027 fn 51). */
+  watched: number;
+  /** Flag rate: the watcher's catch at its capability gap to the watched model (catchRate: Engels' gap rule, AG07 tools,
+   *  control deferral) and its same-lineage collusion rate on collusion-relevant acts. */
+  flag: number; flagColl: number;
+  /** Acted-on rate (MONITOR_ACTED_ON [D]). */
+  actedOn: number;
+  /** Stop contribution = watched × flag × acted-on (and with collusion). */
+  stop: number; stopColl: number;
+  /** Strength for the monitor's logs (runtime observations, internal tool catch): watched × min(1, flag ÷ 85%) × acted-on
+   *  (1 = a full-coverage monitor with no oversight gap). */
+  strength: number; strengthColl: number;
+  /** The catchRate parts (gap, copy, defer, …). */
+  c: CatchRate;
+}
+
+/**
+ * SR-12: the stop contribution of a monitor (`monitor` watching `watched`): watched share × flag rate × acted-on rate.
+ * `monitorCompute` and `watchedCompute` in one unit (H100e or shares of compute); `costRatio` = the monitor's FLOP per
+ * token ÷ the watched model's (one monitor pass per watched pass). Products: their monitor compute is billed to their
+ * serving (monitorOverhead); internal packages: the monitors' part of the flat allocation (departments/agents.ts).
+ */
+export function monitorStop(
+  s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined,
+  monitorCompute: number, watchedCompute: number, costRatio: number, controlled = false,
+): MonitorStop {
+  const c = catchRate(s, watched, monitor, controlled);
+  const need = watchedCompute * costRatio;
+  const w = !watched || !monitor ? 0 : need > 0 ? Math.min(1, Math.max(0, monitorCompute) / need) : 1;
+  const a = MONITOR_ACTED_ON;
+  // No oversight gap (a copy of the watched model, or one as capable) = full strength exactly.
+  const q = c.gap <= 0 ? 1 : Math.min(1, c.rate / MONITOR_CATCH_BASE);
+  const qc = q * (c.rate > 0 ? c.collusion / c.rate : 1);
+  return {
+    watched: w, flag: c.rate, flagColl: c.collusion, actedOn: a, stop: w * c.rate * a, stopColl: w * c.collusion * a,
+    strength: w * q * a, strengthColl: w * qc * a, c,
+  };
+}
+
+/** Cost ratio of a product's monitor: its FLOP per token ÷ the watched model's (0 with no monitor). */
+export function productMonitorCostRatio(s: GameStateV2, d: Deployment): number {
   if (!d.monitorId) return 0;
   const mon = versionById(s, d.monitorId);
   const v = versionById(s, d.versionId);
   if (!mon || !v) return 0;
-  return (MONITOR_OVERHEAD * flopPerToken(s, mon)) / Math.max(1e-6, flopPerToken(s, v));
+  return flopPerToken(s, mon) / Math.max(1e-6, flopPerToken(s, v));
+}
+
+/** Serving overhead of the product's monitor, as a share of its serving need (SR-12: the monitor's compute billed to the
+ *  product's serving = the watched share PRODUCT_MONITOR_WATCH × the cost ratio; MONU closed: was D7's 0.25 × ratio). */
+export function monitorOverhead(s: GameStateV2, d: Deployment): number {
+  return PRODUCT_MONITOR_WATCH * productMonitorCostRatio(s, d);
+}
+
+/** SR-12: a product's monitor through the one formula: monitor compute = its billed overhead × the product's serving
+ *  (both scale with what is served, so the watched share is PRODUCT_MONITOR_WATCH). Open weights: no monitor. */
+export function productMonitor(s: GameStateV2, d: Deployment, controlled = d.controlLayer): MonitorStop {
+  const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
+  const r = productMonitorCostRatio(s, d);
+  return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled);
 }
 
 export interface CatchRate {
@@ -149,11 +204,12 @@ export const sameLineage = (a: Pick<ModelVersion, 'baseId'>, b: Pick<ModelVersio
 /** Whether incidents from a trait are collusion-relevant (a same-lineage monitor catches them less often). */
 export const collusionTrait = (t: TraitId | undefined) => !!t && COLLUSION_TRAITS.includes(t);
 
-/** A product monitor's catch rate (for incidents from `trait`: the collusion rate when it is collusion-relevant). */
+/** A product monitor's stop contribution (SR-12 monitorStop: watched share × flag rate × acted-on rate; for incidents
+ *  from `trait`: the collusion rate when it is collusion-relevant). */
 export function productCatch(s: GameStateV2, d: Deployment, trait?: TraitId): number {
   if (!d.monitorId) return 0;
-  const c = catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId), d.controlLayer);
-  return collusionTrait(trait) ? c.collusion : c.rate;
+  const m = productMonitor(s, d);
+  return collusionTrait(trait) ? m.stopColl : m.stop;
 }
 
 // ───────────────────────────── gates ─────────────────────────────

@@ -14,8 +14,7 @@ import { believedMask, strengthTrue, techniqueRole } from './techniques';
 import { hiddenUModes } from './umodes';
 import { cotResist } from './ideas';
 import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
-import { productCatch } from '../models/products';
-import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
+import { productMonitor } from '../models/products';
 
 export const SD_MAX = 0.35;
 
@@ -273,7 +272,9 @@ export function observeExternal(s: GameStateV2, ctx: SystemCtx, versionId: strin
  * Runtime monitoring (weekly, §3.5.6): COT and WB tools on deployed and internal versions, σ × 2, scaled by monitor
  * strength^0.3 (R7; strength 1 = the pre-R7 default of 20% of the safety pool): an internal fleet by its monitors
  * (departments/agents.ts fleetMonitor), a product model by the routine-research fleet's monitor (the runtime stack also
- * samples product traffic) or its own product monitor, whichever is stronger.
+ * samples product traffic) or its own product monitor, whichever is stronger. SR-12: the monitor's logs are an evidence
+ * source read from the same numbers as its stop rate (models/products.ts monitorStop: watched share × flag rate ×
+ * acted-on; strength = watched share × min(1, flag ÷ 85%)), for products and internal packages alike.
  */
 export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
   const lab = routineMonitor(s);
@@ -284,7 +285,7 @@ export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
     if (d.channel === 'internal') {
       const v = versionById(s, d.versionId);
       put(d.versionId, v ? fleetMonitor(s, v) : 0);
-    } else put(d.versionId, d.monitorId ? Math.max(lab, Math.min(1, productCatch(s, d) / MONITOR_CATCH_BASE)) : lab);
+    } else put(d.versionId, d.monitorId ? Math.max(lab, productMonitor(s, d).strength) : lab);
   }
   for (const f of internalFleets(s)) put(f.v.id, fleetMonitor(s, f.v));
   const rng = ctx.rng('safety');

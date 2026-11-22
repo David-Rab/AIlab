@@ -20,9 +20,8 @@ import {
   AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
-import { MONITOR_CATCH_BASE } from '../../../data/v2/features';
 import { versionById } from '../models/labs';
-import { catchRate, collusionTrait } from '../models/products';
+import { collusionTrait, monitorStop, type MonitorStop } from '../models/products';
 import { researchAgents } from './split';
 import type { AgentPackage, AgentUse, ComputeSplit, GameStateV2, ModelVersion, TraitId } from '../types';
 
@@ -118,7 +117,7 @@ export function monitorCostRatio(s: GameStateV2, use: AgentUse): number {
 }
 
 /** Monitor compute that would watch every forward pass of a use, as a share of total compute (SAFMECH: the use's
- *  compute × the monitor's cost ratio; D7's 0.25 overhead stays the products' serving rule). */
+ *  compute × the monitor's cost ratio; SR-12: products bill theirs to serving by the same rule, models/products.ts monitorOverhead). */
 export function monitorNeedShare(s: GameStateV2, use: AgentUse): number {
   return monitorCostRatio(s, use) * agentSplitShare(s, use);
 }
@@ -164,18 +163,21 @@ export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)
   return b.need > 0 ? (s.player.computeOnline * b.used * monitorNeedShare(s, use)) / b.need : 0;
 }
 
-/** Catch rate of a use's monitor (products' rule: 85% × 0.52^gap, AG07 control tools) and its strength: coverage ×
- *  min(1, catch ÷ 85%). Strength 1 = today's runtime monitoring; 0 = no monitor. */
-export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): { catch: number; strength: number; gap: number; copy: boolean; catchColl: number; strengthColl: number } {
-  const mon = monitorVersion(s, use);
-  const v = agentVersion(s, use);
-  if (!mon || !v) return { catch: 0, strength: 0, gap: 0, copy: false, catchColl: 0, strengthColl: 0 };
-  const c = catchRate(s, v, mon);
-  // No oversight gap (a copy of the watched model, or one as capable) = full strength exactly.
-  const q = c.gap <= 0 ? 1 : Math.min(1, c.rate / MONITOR_CATCH_BASE);
-  // J2 AG1: on collusion-relevant incidents a same-lineage monitor's strength falls with its catch rate.
-  const qc = q * (c.rate > 0 ? c.collusion / c.rate : 1);
-  return { catch: c.rate * budget.coverage, strength: budget.coverage * q, gap: c.gap, copy: c.copy, catchColl: c.collusion * budget.coverage, strengthColl: budget.coverage * qc };
+/** SR-12: a use's monitor through the one monitor formula (models/products.ts monitorStop): monitor compute = the use's
+ *  part of the monitors' used allocation (monitorH100e's share), watched compute = the use's compute, at the monitor's
+ *  cost ratio, so its watched share is the pooled coverage (AI 2027 fn 51). */
+export function useMonitor(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): MonitorStop {
+  const need = monitorNeedShare(s, use);
+  const mine = budget.need > 0 ? (budget.used * need) / budget.need : 0;
+  return monitorStop(s, agentVersion(s, use), monitorVersion(s, use), mine, agentSplitShare(s, use), monitorCostRatio(s, use));
+}
+
+/** A use's monitor (SR-12 useMonitor): its stop contribution (`catch` = watched share × flag rate × acted-on) and its
+ *  strength (watched share × min(1, flag ÷ 85%)). Strength 1 = today's runtime monitoring; 0 = no monitor. */
+export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): { catch: number; strength: number; gap: number; copy: boolean; catchColl: number; strengthColl: number; watched: number } {
+  if (!monitorVersion(s, use) || !agentVersion(s, use)) return { catch: 0, strength: 0, gap: 0, copy: false, catchColl: 0, strengthColl: 0, watched: 0 };
+  const m = useMonitor(s, use, budget);
+  return { catch: m.stop, strength: m.strength, gap: m.c.gap, copy: m.c.copy, catchColl: m.stopColl, strengthColl: m.strengthColl, watched: m.watched };
 }
 
 /** Uses in fleet order (routine research first: the old internal agent's fleet). */

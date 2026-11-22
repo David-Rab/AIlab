@@ -8,6 +8,7 @@
 //   Able to    capability σ((L − θ)/s) on the act's domain level
 //   Chances    opportunity (incidents.ts Site: scale, autonomy, affordances, AI share of R&D; per work item: AI share)
 //   Stop rate  1 − (1 − block)(1 − catch) from the site's safeguards (containment, weight security, monitors, review)
+//              (SR-12: a monitor supplies watched share × flag rate × acted-on rate, models/products.ts monitorStop)
 //   Unstopped  attempts × (1 − Stop rate), per year (per work item for the item acts; the composite row: exposure)
 // `believed` true reads only what the player knows (belief estimates with their 90% range, measured levels, believed tool
 // strengths: dangerView's inputs); false reads the truth with the engine's own functions (incidents.ts actTerms / catchOf /
@@ -17,9 +18,9 @@
 import { AGENT_USES } from '../../../data/v2/agents';
 import { CHANNEL_AFFORD, COVERT_ACTS, DANGER_ACTS, MISUSE, type ActDef, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
-import { agentSplitShare, agentVersion, fleetMonitor, monitorVersion } from '../departments/agents';
+import { agentSplitShare, agentVersion, fleetMonitor, monitorVersion, useMonitor } from '../departments/agents';
 import { measuredLOf } from '../models/labs';
-import { catchRate, collusionTrait, productHazardMult } from '../models/products';
+import { collusionTrait, productHazardMult, productMonitor, type MonitorStop } from '../models/products';
 import type { AgentUse, Deployment, DomainId, GameStateV2, ModelVersion, TraitId, TraitVector } from '../types';
 import { clamp01, versionById } from './common';
 import { believedInternalOversight, believedMonitorCatch, believedOversightParts } from './believedOversight';
@@ -88,6 +89,9 @@ export interface ActSite {
   layer: boolean; restricted: boolean; monitored: boolean;
   contain: number; monitor: number; human: number; controlMiss: number;
   catchOf: (t: TraitId) => number;
+  /** SR-12: the site's monitor in the one monitor formula (watched share, flag rate, acted-on rate, stop contribution);
+   *  products and internal lanes (undefined with no monitor, and on a fleet as incidents rolls it). */
+  monitorParts?: MonitorStop;
 }
 
 /** A product (deployment id), an internal lane (use), or an internal fleet as incidents rolls it (internal deployment,
@@ -146,10 +150,11 @@ function productSite(s: GameStateV2, d: Deployment, believed: boolean, o: ActOpt
   const restricted = d.status === 'restricted' || !!o.restrict;
   const contain = believed ? containment(s, measuredOom(s, v), layer, true) : containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
   const site: Site = { ...base, scale: base.scale * (o.restrict && d.status !== 'restricted' ? RESTRICT : 1), contain };
-  const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
-  const cr = mon ? catchRate(s, v, mon, layer) : undefined;
-  const catchOf = believed ? (t: TraitId) => (cr ? (collusionTrait(t) ? cr.collusion : cr.rate) : 0) : (t: TraitId) => engineCatch(s, d, v, { source: t, apparent: t });
-  return { d, v, site, usage, layer, restricted, monitored: !!mon, contain, monitor: cr?.rate ?? 0, human: 0, controlMiss: cr?.defer ?? 1, catchOf };
+  // SR-12: the product's monitor through the one monitor formula (watched share × flag rate × acted-on rate).
+  const m = d.monitorId && d.channel !== 'open' ? productMonitor(s, d, layer) : undefined;
+  const mon = m && m.watched > 0 ? m : undefined;
+  const catchOf = believed ? (t: TraitId) => (mon ? (collusionTrait(t) ? mon.stopColl : mon.stop) : 0) : (t: TraitId) => engineCatch(s, d, v, { source: t, apparent: t });
+  return { d, v, site, usage, layer, restricted, monitored: !!mon, contain, monitor: mon?.stop ?? 0, human: 0, controlMiss: mon?.c.defer ?? 1, catchOf, monitorParts: mon };
 }
 
 function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts): ActSite | undefined {
@@ -165,14 +170,15 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
     afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: 0, wsl: s.player.security.wsl,
   };
   const monitored = !!monitorVersion(s, use);
+  const monitorParts = monitored ? useMonitor(s, use) : undefined;
   if (!believed) {
     site.contain = containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
-    return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }) };
+    return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
   }
   // E15: the same believed oversight as E9's believed control (believedOversight.ts).
   const p = believedOversightParts(s, v, layer, site.rd);
   site.contain = p.block;
-  return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss) };
+  return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss), monitorParts };
 }
 
 /** Would try's 90% range from a belief (est ± 1.64 sd, clamped) through `f`. */

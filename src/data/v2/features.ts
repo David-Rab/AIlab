@@ -60,9 +60,6 @@ export const MINI_CHANNELS: readonly Channel[] = ['consumer', 'api'];
  *  the price (R12 §0.6) [D]. */
 export const CHANNEL_PRICE: Partial<Record<Channel, number>> = { trusted: 3 };
 
-/** D7: a monitor adds 0.25 × (monitor serve cost ÷ watched model's serve cost) to the product's serving need (a mini
- *  on its teacher ≈ 6%; the same model ≈ 25%). It reads the watched model's outputs and reasoning, not every token. */
-export const MONITOR_OVERHEAD = 0.25;
 /** Catch rate of a monitor as capable as the model it watches (model v3 E6: it falls with the capability gap in OOM,
  *  data/v2/oversight.ts, and rises with AI-control containment tools, AG07). */
 export { MONITOR_CATCH_BASE } from './oversight';
