@@ -20,6 +20,7 @@
 // adopted + agent hours ≤ E0·2000·(1 + η·CR), their spend ≤ that × the wage); agentK is after the ceiling.
 // Display levels (the share-weighted domain vector `dom`, Le_d = min(L_d, L_AGENCY + 2)) still feed substitution α, the
 // integration boost, control and the tech tree, as in v2.
+import { controlOn } from '../safety/safeguards';
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
@@ -171,7 +172,7 @@ export interface WorldMix {
 function depOffset(d: Deployment): number {
   let o = d.effort === 'low' ? -0.4 : d.effort === 'deep' ? 0.3 : 0;
   o += d.safeguards === 'hardened' ? -0.2 : d.safeguards === 'classifiers' ? -0.05 : 0;
-  if (d.controlLayer) o -= 0.1;
+  if (controlOn(d)) o -= 0.1;
   return o;
 }
 

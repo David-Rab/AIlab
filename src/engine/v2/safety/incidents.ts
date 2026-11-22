@@ -9,6 +9,7 @@
 // public incidents on products, silent ones inside the lab (`uncaughtInternal`). Severity rises with capability ×
 // opportunity per copy. Incidents are the main visible proxy of hidden traits and U-modes: the player sees `apparent`
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
+import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -125,7 +126,7 @@ const SAFEGUARD: Record<Deployment['safeguards'], number> = { minimal: 0, standa
  *  demand ×2 on minimal safety training, ×3 for 90 days after a jailbreak; severity 3 + 1.5 · capability. */
 export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, believed?: MisuseBelieved): HazardRow[] {
   if (d.channel === 'internal') return [];
-  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * (d.status === 'restricted' ? 0.3 : 1);
+  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * restrictMult(d);
   const cls = s.player.safety.techniques['T-CCLASS'];
   const clsS = (t: TechniqueState) => (believed ? believed.strength(t) : strengthTrue(s, t, versionOom(s, v)));
   const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, clsS(cls) / 0.4) : 1;
@@ -147,7 +148,7 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, be
 /** Contain(x) on the fleet running this deployment (x = its model's OOM above V0; control layer × best AG07 tool), U19
  *  lowers it. */
 function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): number {
-  return containment(s, versionOom(s, v), d.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, versionOom(s, v), controlOn(d), false, uModeContainMult(v.uModes));
 }
 
 export function usageOf(s: GameStateV2, d: Deployment): number {
@@ -199,7 +200,7 @@ export function internalScale(s: GameStateV2): number {
 /** The site of model `v` in deployment `d` at `usage` (an internal fleet's share, a product's serving share). */
 export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): Site {
   const contain = deploymentContain(s, v, d);
-  const restricted = d.status === 'restricted' ? 0.3 : 1;
+  const restricted = restrictMult(d);
   if (d.channel === 'internal') {
     return {
       internal: true, scale: usage * internalScale(s) * restricted, autonomy: internalAutonomy(s, v), afford: CHANNEL_AFFORD.internal,
@@ -220,8 +221,8 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
   const trait = row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
   if (d.channel === 'internal') {
     const mon = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
-    const human = HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v);
-    const miss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+    const human = reviewOn(d) ? HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v) : 0;
+    const miss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
     return 1 - (1 - mon) * (1 - human) * miss;
   }
   if (!d.monitorId || d.channel === 'open') return 0;
@@ -432,7 +433,7 @@ export function exfilTerms(s: GameStateV2, v: ModelVersion, believed?: { traits:
   // so the security stream draws exactly as before until then).
   if (cyber < EXFIL.theta - 2) return { disposition, capability: 0, opportunity: 0, secBlock: 0, contain: 0, gate: 1, p: 0 };
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
-  const contain = believed ? believed.contain : containment(s, versionOom(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
+  const contain = believed ? believed.contain : containment(s, versionOom(s, v), !!controlOn(dep), false, uModeContainMult(v.uModes));
   const opportunity = internalAutonomy(s, v) * CHANNEL_AFFORD.internal * internalScale(s);
   // Model v3 E9: a backdoor of v's lineage raises the odds: its reach bypasses that share of weight security and containment.
   const r = believed ? believed.reach : backdoorReach(s, lineageOf(s, v));
@@ -453,7 +454,7 @@ export function containAtAsi(s: GameStateV2): number {
   if (!v) return 0;
   const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const dep = internal.find((d) => d.versionId === s.player.agents.capRoutine.versionId) ?? internal[0];
-  return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!controlOn(dep), false, uModeContainMult(v.uModes));
 }
 
 /** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
@@ -477,8 +478,8 @@ export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitI
     ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const block = dep ? deploymentContain(s, v, dep) : 0;
   const monitor = monitoringCatch(s, v, trait);
-  const human = HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v);
-  const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+  const human = reviewOn(dep) ? HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v) : 0;
+  const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   const c = 1 - (1 - monitor) * (1 - human) * controlMiss;
   return { oversight: 1 - (1 - block) * (1 - c), block, catch: c, monitor, human, controlMiss };
 }

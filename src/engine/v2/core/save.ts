@@ -66,8 +66,11 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  55 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
  *  detection / containment tools are always active. Migration 54 → 55 unlatches lines and sets those tools active.
  *  56 (SR-06): every TraitBelief carries an evidence list. Migration 55 → 56 gives existing beliefs (player versions'
- *  and any other model's) an empty list. */
-export const SCHEMA_REV = 56;
+ *  and any other model's) an empty list.
+ *  57 (SR-13): Deployment.controlLayer and status 'restricted' are gone; Deployment.guards holds safeguard items (control
+ *  protocol, human review, restriction, comms lockdown). Migration 56 → 57 maps the flag / status to items, gives
+ *  internal deployments human review, and an owned T-LOCK a comms lockdown on them. */
+export const SCHEMA_REV = 57;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -500,6 +503,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!dept) return;
     for (const a of Object.values(dept.agendas ?? {})) if ((a.status as string) === 'deadEnd') a.status = 'idle';
     for (const t of Object.values(dept.techniques ?? {})) if (t.unlocked && techniqueRole(t) !== 'fix') t.active = true;
+  },
+  56: (raw) => {
+    // SR-13: the control-layer flag, the 'restricted' status, always-on internal human review and an owned T-LOCK
+    // become safeguard items on each deployment.
+    const p = (raw as { player?: { deployments?: Record<string, unknown>[]; safety?: { techniques?: Record<string, { unlocked?: boolean }> } } }).player;
+    const lock = !!p?.safety?.techniques?.['T-LOCK']?.unlocked;
+    for (const d of p?.deployments ?? []) {
+      const g: { kind: string; setting?: string; since: number }[] = Array.isArray(d.guards) ? (d.guards as never) : [];
+      if (d.controlLayer) g.push({ kind: 'control', setting: 'defer10', since: 0 });
+      if (d.status === 'restricted') { g.push({ kind: 'restrict', since: 0 }); d.status = 'live'; }
+      if (d.channel === 'internal') { g.push({ kind: 'review', since: 0 }); if (lock) g.push({ kind: 'lockdown', since: 0 }); }
+      delete d.controlLayer;
+      d.guards = g;
+    }
   },
   55: (raw) => {
     // Any object under a `beliefs` key whose values look like TraitBeliefs (est, sd) gets an empty evidence list.

@@ -26,6 +26,7 @@
 // Draws are hashes of (seed, day, act, key) except in findings and investigations (the safety stream, as E2's draws),
 // so no other RNG stream moves. Caught counts and STEER's steered stock live in flags (`ws2.covert.<act>.*`, engine
 // only); every other uncaught act is a foothold (state).
+import { controlOn } from './safeguards';
 import { CHANNEL_AFFORD, COVERT_ACTS, COVERT_IDS, STEER_S4, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { TRAITS_V2 } from '../../../data/v2/traits';
@@ -87,7 +88,7 @@ export function covertDisposition(v: ModelVersion, def: CovertActDef): { x: numb
 function internalContain(s: GameStateV2, v: ModelVersion): number {
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn')
     ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-  return dep ? containment(s, versionOom(s, v), !!dep.controlLayer, false, uModeContainMult(v.uModes)) : 0;
+  return dep ? containment(s, versionOom(s, v), !!controlOn(dep), false, uModeContainMult(v.uModes)) : 0;
 }
 
 /**

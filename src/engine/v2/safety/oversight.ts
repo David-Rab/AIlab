@@ -10,8 +10,11 @@
 //   monitorCatchAt(gapOom)                    a monitor's catch rate at that gap (Engels Backdoor Code)
 //   internalOversight(s, v, trait)            (safety/incidents.ts) the internal fleet's oversight of model v: monitor,
 //                                             human review, control deferral and containment, as one readout
+import { controlOn, controlTerms, labControlSetting } from './safeguards';
+import type { ControlSetting } from '../types';
+
 import {
-  CONTROL_DEFER, CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO,
+  CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO,
 } from '../../../data/v2/oversight';
 import { gOfLevel, gV0, levelOfG } from '../models/capability';
 import { measuredLOf } from '../models/labs';
@@ -78,7 +81,7 @@ function lerpTable(d: number, key: 'safety' | 'usefulness'): number {
 
 /** Whether the lab's internal work runs under control protocols (the AG07 control layer on a live internal deployment). */
 export function underControl(s: GameStateV2): boolean {
-  return s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
+  return s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && controlOn(d));
 }
 
 export interface ControlReadout {
@@ -103,14 +106,14 @@ export const NO_CONTROL: ControlReadout = { on: false, defer: 0, usefulness: 1, 
  * deferring to a model as capable as the watched one loses nothing extra). Acts slipping past the monitor × (1 −
  * S(d)) ÷ (1 − S(0)) = 0.17/0.38. With no trusted model the deferred actions go to humans: the full loss.
  */
-export function controlProtocol(gapOom: number | undefined, defer = CONTROL_DEFER): ControlReadout {
-  const u0 = lerpTable(0, 'usefulness');
-  const ud = lerpTable(defer, 'usefulness');
-  const f = gapOom === undefined ? 1 : Math.min(1, Math.max(0, gapOom) / CONTROL_GAP_FULL);
-  const usefulness = u0 - (u0 - ud) * f;
-  const missMult = (1 - lerpTable(defer, 'safety')) / (1 - lerpTable(0, 'safety'));
-  return { on: true, defer, usefulness, tax: 1 - usefulness, missMult, gapOom: gapOom ?? CONTROL_GAP_FULL };
+export function controlProtocol(gapOom: number | undefined, setting: ControlSetting = 'defer10'): ControlReadout {
+  // SR-13: the control-protocol safeguard's setting (safety/safeguards.ts CONTROL_SETTINGS: Greenblatt's 10% / 20%
+  // deferral rows, Ctrl-Z resampling); Slowdown = tax.
+  const t = controlTerms(setting, gapOom, CONTROL_GAP_FULL);
+  return { on: true, defer: t.deferShare, usefulness: t.usefulness, tax: t.slowdown, missMult: t.missMult, gapOom: gapOom ?? CONTROL_GAP_FULL };
 }
+/** Greenblatt's table at deferral d (kept for readouts that sweep d). */
+export const greenblattAt = lerpTable;
 
 /** Control on one internal use (its model watched, its monitor the trusted model; a copy of itself = no gap). Measured
  *  levels: the tax is a design readout. Off when the control layer is off. */
@@ -118,5 +121,5 @@ export function useControl(s: GameStateV2, model: ModelVersion | undefined, moni
   if (!underControl(s) || !model) return NO_CONTROL;
   const w = s.hidden.timeline;
   const gap = monitor ? oversightGap(w, measuredLOf(s, model).L, measuredLOf(s, monitor).L).oom : undefined;
-  return controlProtocol(gap);
+  return controlProtocol(gap, labControlSetting(s));
 }

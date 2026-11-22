@@ -1,5 +1,6 @@
 // Read-only views of the limits the player can hit (STRUCTURE R11, data/v2/limits.ts): the live reading of each cap,
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
+import { RESTRICT, isRestricted } from '../safety/safeguards';
 import { SPEED_CAP } from '../../../data/v2/workTypes';
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { decimalYear } from './time';
@@ -125,7 +126,7 @@ export function demandModifiers(s: GameStateV2, d: Deployment): { label: string;
     }
     for (const [e, names] of by) out.push({ label: `Feature enablers in ${names.join(', ')} (≤ the sector's adoption)`, mult: 1 + e });
   }
-  if (d.status === 'restricted') out.push({ label: 'Restricted', mult: 0.3 });
+  if (isRestricted(d)) out.push({ label: 'Restricted', mult: RESTRICT });
   if (d.usagePolicy.noDropInReplacement) out.push({ label: 'No drop-in agents', mult: NaN });
   return out;
 }

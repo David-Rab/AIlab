@@ -15,6 +15,7 @@
 //   safety     SAF_EXP / SAF_IDEAS on the safety package through the same functions; Trusted to AI t is the share of
 //              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
+import { LOCKDOWN_SLOWDOWN, lockdownOn } from '../safety/safeguards';
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
   MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
@@ -238,6 +239,8 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   if (adopted(s, 'P05')) mult *= 1.3;
   if (adopted(s, 'P20')) mult *= 1 + 0.1 * payoffOf(s, 'P20');
   mult *= useControl(s, v, monitorVersion(s, use)).usefulness;
+  // SR-13: the comms-lockdown safeguard's Slowdown on internal work.
+  if (lockdownOn(s)) mult *= 1 - LOCKDOWN_SLOWDOWN;
   return { v, h100e, mult };
 }
 

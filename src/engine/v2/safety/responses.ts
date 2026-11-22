@@ -1,4 +1,5 @@
 // Response menu per confirmed finding or incident (V2-SPEC §3.5.9). Owner: WS2.
+import { addSafeguard, controlOn, isRestricted, removeSafeguard, setControl } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
@@ -15,8 +16,9 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }
   retrainAgainst: { title: 'Retrain against', note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask. Takes effect at once.' },
   targetedTraining: { title: 'Targeted training', note: 'Technique-specific alignment training (inoculation, anti-scheming…). Takes effect at once.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
-  addControl: { title: 'Add control', note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
-  removeControl: { title: 'Remove control', note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
+  liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
+  addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, defer 10% to trusted): about 7% of the work lost at a 1-OOM trusted gap; acts slipping past monitors ×0.45; AI-control tools block.' },
+  removeControl: { title: 'Remove control protocol', note: 'Remove the control-protocol safeguard: its slowdown ends; blocking and deferral end with it.' },
   rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
   disclose: { title: 'Disclose', note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
   removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
@@ -105,7 +107,7 @@ export function targetedPlan(s: GameStateV2, v: ModelVersion, trait: TraitId, ef
 
 /** The live external deployments Restrict context restricts (the incident's own deployment when it names one). */
 export function restrictTargets(s: GameStateV2, v: ModelVersion, inc?: Incident) {
-  return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
+  return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && !isRestricted(d) && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
 }
 
 /** Disclosure's trust change per counterparty at today's credibility (below 30 it costs trust, §3.9.1), after the
@@ -173,19 +175,25 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
     case 'restrictContext': {
       const deps = restrictTargets(s, v, inc);
       if (!deps.length) return 'No live external deployment of this model';
-      for (const d of deps) d.status = 'restricted';
+      for (const d of deps) addSafeguard(s, d, 'restrict');
+      break;
+    }
+    case 'liftRestriction': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && isRestricted(d) && (!inc?.deploymentId || d.id === inc.deploymentId));
+      if (!deps.length) return 'No restricted deployment of this model';
+      for (const d of deps) removeSafeguard(d, 'restrict');
       break;
     }
     case 'addControl': {
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn');
       if (!deps.length) return 'Model is not deployed';
-      for (const d of deps) d.controlLayer = true;
+      for (const d of deps) setControl(d, true);
       break;
     }
     case 'removeControl': {
-      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer);
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && controlOn(d));
       if (!deps.length) return 'No control layer on this model';
-      for (const d of deps) d.controlLayer = false;
+      for (const d of deps) setControl(d, false);
       break;
     }
     case 'rollback': {

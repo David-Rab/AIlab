@@ -595,7 +595,8 @@ export interface Deployment {
   /** Features switched on for this product (built lab-wide first, R6). */
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
-  controlLayer: boolean; // AG07 protocols active (usefulness tax)
+  /** Owned safeguard items (SR-13: control protocol, human review, restriction, comms lockdown; safety/safeguards.ts). */
+  guards: SafeguardItem[];
   /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
    *  (worldfx/serving.ts), Enterprise ×3 channel weight there (worldfx/revenue.ts), and while live and certified US
    *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
@@ -603,7 +604,7 @@ export interface Deployment {
   packs: SectorPack[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
-  status: 'live' | 'restricted' | 'withdrawn';
+  status: 'live' | 'withdrawn';
   // derived each day
   revenueRate?: Money; // $B/yr
   demandBound?: 'capacity' | 'demand' | 'price' | 'quality';
@@ -1011,7 +1012,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 
@@ -2348,3 +2349,8 @@ export interface Ws4State {
   /** Event requests from WS4 systems; the director fires them under storyteller limits (E4). Expire after 60 d. */
   requests: { id: string; day: Day; data: Record<string, number | string> }[];
 }
+
+/** SR-13 safeguard items (safety/safeguards.ts). */
+export type SafeguardKind = 'control' | 'review' | 'restrict' | 'lockdown';
+export type ControlSetting = 'defer10' | 'defer20' | 'resample';
+export interface SafeguardItem { kind: SafeguardKind; setting?: ControlSetting; since: number }

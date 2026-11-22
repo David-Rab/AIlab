@@ -5,6 +5,7 @@
 //  3. a better stop rate (control layer on / more monitor budget / a stronger stop) lowers it;
 //  4. it never reads the world's draw (toleranceNoise ε_w, doomThreshold) or true traits;
 //  5. Unstopped harm / yr is finite and ≥ 0; the lab headline is the max over the models it runs.
+import { setControl } from '../../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../../src/engine/v2/core/save';
@@ -50,7 +51,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   // 3. A better stop rate lowers it: control layer on, more monitor budget, +10 pts stop.
   const base = modelLossRisk(s, v).p;
   const layer = clone(s);
-  for (const d of layer.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
+  for (const d of layer.player.deployments) if (d.channel === 'internal') setControl(d, true);
   const pLayer = lossOfControlRisk(layer, v.id)!.p;
   const mon = clone(s);
   mon.player.split.monitors = Math.max(0.05, mon.player.split.monitors * 4);

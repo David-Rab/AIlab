@@ -5,6 +5,7 @@
 //   successor-trainer passes its traits on in full), oversight = E5's internal terms (containment, monitors on SUCC,
 //   human review of the human share). Checks: AI share, oversight and SUCC move the pull the right way; no AI share, no
 //   pull; the pull touches dispositions only, never capability; the reference fixtures' numbers.
+import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { REFERENCE_POST } from '../../src/data/v2/runDesign';
@@ -78,7 +79,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 // ---------- stronger oversight lowers the pull ----------
 {
   const off = withFleet();
-  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; });
+  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true); });
   const vOff = off.player.models.versions.find((v) => v.id === 'VF')!;
   const vOn = on.player.models.versions.find((v) => v.id === 'VF')!;
   const oOff = successorOversight(off, vOff);

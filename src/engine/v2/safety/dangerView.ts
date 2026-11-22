@@ -18,6 +18,7 @@
 // model that sets it, the footholds the lab knows of, and the control layer's tax (E6).
 // SR-03: both danger readouts are the believed act table's trait rows (actTable.ts actSite + siteActs), so this view and
 // the SAFETY act table cannot drift.
+import { controlOn, labControlSetting } from './safeguards';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { DANGER_ACTS } from '../../../data/v2/danger';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
@@ -119,7 +120,7 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
 /** What lowers a site's danger, with the same selector's estimate after each lever where it has one. */
 function levers(s: GameStateV2, d: Deployment, acts: DangerActRead[], monitored: boolean, restricted: boolean, what: (o: Opts) => number | undefined): DangerLever[] {
   const out: DangerLever[] = [];
-  if (!d.controlLayer) out.push({ id: 'control', label: 'Control layer', after: what({ control: true }), note: 'AI-control containment and deferral (Safety › Overview › Control)' });
+  if (!controlOn(d)) out.push({ id: 'control', label: 'Control layer', after: what({ control: true }), note: 'AI-control containment and deferral (Safety › Overview › Control)' });
   if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Company › Agents at work' : 'the monitor chip on this card' });
   if (!restricted) out.push({ id: 'restrict', label: 'Restrict context', after: what({ restrict: true }), note: d.channel === 'internal' ? 'opportunity ×0.3 (an incident response)' : 'opportunity ×0.3; revenue ×0.5 (an incident response)' });
   const top = acts[0];
@@ -240,10 +241,10 @@ export function controlReadout(s: GameStateV2): ControlRead {
     const m = agentVersion(s, u);
     if (!m || agentSplitShare(s, u) <= 0) continue;
     const mu = monitorVersion(s, u);
-    const c = controlProtocol(mu ? oversightGap(w, measuredLOf(s, m).L, measuredLOf(s, mu).L).oom : undefined);
+    const c = controlProtocol(mu ? oversightGap(w, measuredLOf(s, m).L, measuredLOf(s, mu).L).oom : undefined, labControlSetting(s));
     if (!best || c.tax > best.tax) { best = c; bestUse = u; }
   }
-  const p = best ?? controlProtocol(undefined);
+  const p = best ?? controlProtocol(undefined, labControlSetting(s));
   const risk = lossOfControlRisk(s);
   const h = unstoppedHarmPerYear(s);
   return {
@@ -253,7 +254,7 @@ export function controlReadout(s: GameStateV2): ControlRead {
     humanGapOom: oversightGap(w, L, HUMAN_REVIEW_L).oom,
     suspected: fv.suspected, located: fv.located, removed: fv.removed,
     layer, tax: p.tax, missMult: p.missMult, taxUse: bestUse,
-    layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)?.versionId,
+    layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && controlOn(d))?.versionId,
     risk, harm: h.harm, harmActs: h.acts,
   };
 }

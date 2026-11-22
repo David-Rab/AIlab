@@ -3,6 +3,7 @@
 //  1. the same function gives the product and the internal catch (same watched / monitor pair, full watched share);
 //  2. productCatch, monitorStrength and actTable's product stop rate are monitorStop's numbers;
 //  3. doubling monitor compute raises the watched share until 1 (kernel and the internal allocation).
+import { setControl } from '../../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../../src/engine/v2/core/save';
@@ -30,7 +31,7 @@ for (const fx of ['day400.json', 'day900.json']) {
 
   // 1. Same pair on both: the product runs the use's model under the use's monitor; the internal allocation covers all.
   s.player.split.monitors = 10 * monitorBudget(s).need;
-  d.versionId = v.id; d.monitorId = mon.id; d.controlLayer = false;
+  d.versionId = v.id; d.monitorId = mon.id; setControl(d, false);
   const pi = productCatch(s, d), ii = monitorStrength(s, use).catch;
   check(near(pi, ii) && pi > 0, `${fx}: product and internal catch from one formula (${v.id} watched by ${mon.id})`, `${f4(pi)} = ${f4(ii)}`);
   for (const t of ['SCHEME', 'SYC'] as const) {

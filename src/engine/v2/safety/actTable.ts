@@ -15,6 +15,7 @@
 // misuseHazards / exfilTerms, covert.ts dayTerms / itemTerms, control.ts controlTerms). dangerView builds its readouts on
 // siteActs and actSite, so the believed table and the old readouts cannot drift. U-modes are left out of both readings
 // (the engine rolls them as extra rows of their mapped act; the player does not know which model carries one).
+import { controlOn, isRestricted, reviewOn, safeguardLines, type SafeguardLine } from './safeguards';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { CHANNEL_AFFORD, COVERT_ACTS, DANGER_ACTS, MISUSE, type ActDef, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -30,14 +31,15 @@ import { dayTerms, itemTerms, rdParts, safetySabotage, type CovertTerms } from '
 import {
   actTerms, aiRdShare, autonomyOf, capabilityOf, catchOf as engineCatch, dispositionOf, exfilTerms, internalScale, misuseHazards, siteOf, usageOf, type Site,
 } from './incidents';
-import { measuredOom, versionOom } from './oversight';
+import { measuredOom, useControl, versionOom } from './oversight';
 import { containment, strengthBelieved } from './techniques';
 import { misalignmentBand } from './traits';
 import { uModeContainMult } from './umodes';
 
 const YEAR = 365;
 /** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach by the same 0.3. */
-export const RESTRICT = 0.3;
+import { RESTRICT } from './safeguards';
+export { RESTRICT };
 /** z of the 90% range on a belief (est ± 1.64 sd). */
 const Z90 = 1.64;
 const USE_WORK: Record<AgentUse, WorkTypeId> = { eng: 'SWE', capRoutine: 'EXP', capFrontier: 'IDEAS', safety: 'SAF_EXP' };
@@ -129,14 +131,14 @@ export function actSite(s: GameStateV2, target: ActTarget, believed: boolean, o:
   if (!('versionId' in target)) return undefined;
   const v = versionById(s, target.versionId);
   if (!v || v.status === 'retired') return undefined;
-  const layer = o.control ?? d.controlLayer;
+  const layer = o.control ?? controlOn(d);
   const base = siteOf(s, d, v, target.usage);
-  const restricted = d.status === 'restricted' || !!o.restrict;
-  const site: Site = { ...base, scale: base.scale * (o.restrict && d.status !== 'restricted' ? RESTRICT : 1) };
+  const restricted = isRestricted(d) || !!o.restrict;
+  const site: Site = { ...base, scale: base.scale * (o.restrict && !isRestricted(d) ? RESTRICT : 1) };
   if (!believed) {
     return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }) };
   }
-  const p = believedOversightParts(s, v, layer, site.rd);
+  const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
   return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss) };
 }
@@ -145,11 +147,11 @@ function productSite(s: GameStateV2, d: Deployment, believed: boolean, o: ActOpt
   const v = versionById(s, d.versionId);
   if (!v || v.status === 'retired') return undefined;
   const usage = d.channel === 'open' ? 1 : d.servingShare;
-  const layer = o.control ?? d.controlLayer;
+  const layer = o.control ?? controlOn(d);
   const base = siteOf(s, d, v, believed ? usage : usageOf(s, d));
-  const restricted = d.status === 'restricted' || !!o.restrict;
+  const restricted = isRestricted(d) || !!o.restrict;
   const contain = believed ? containment(s, measuredOom(s, v), layer, true) : containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
-  const site: Site = { ...base, scale: base.scale * (o.restrict && d.status !== 'restricted' ? RESTRICT : 1), contain };
+  const site: Site = { ...base, scale: base.scale * (o.restrict && !isRestricted(d) ? RESTRICT : 1), contain };
   // SR-12: the product's monitor through the one monitor formula (watched share × flag rate × acted-on rate).
   const m = d.monitorId && d.channel !== 'open' ? productMonitor(s, d, layer) : undefined;
   const mon = m && m.watched > 0 ? m : undefined;
@@ -163,8 +165,8 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
   if (!v || !d || v.status === 'retired') return undefined;
   const on = (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
   const usage = laneUsage(s, use) * (v.id === d.versionId ? on : 1);
-  const layer = o.control ?? d.controlLayer;
-  const restricted = d.status === 'restricted' || !!o.restrict;
+  const layer = o.control ?? controlOn(d);
+  const restricted = isRestricted(d) || !!o.restrict;
   const site: Site = {
     internal: true, scale: usage * internalScale(s) * (restricted ? RESTRICT : 1), autonomy: autonomyOf(WORK_TYPES[USE_WORK[use]].H),
     afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: 0, wsl: s.player.security.wsl,
@@ -176,7 +178,7 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
     return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
   }
   // E15: the same believed oversight as E9's believed control (believedOversight.ts).
-  const p = believedOversightParts(s, v, layer, site.rd);
+  const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
   return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss), monitorParts };
 }
@@ -334,7 +336,9 @@ function misuseRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
   });
 }
 
-export interface ActTable { site: ActSite; rows: ActRow[] }
+/** SR-13: `guards` = the site's safeguard items in player terms (stop contribution, Slowdown, compute, people); with
+ *  the monitor they make every row's Stop rate through one rule, 1 − Π (1 − stop_i) (safety/safeguards.ts). */
+export interface ActTable { site: ActSite; rows: ActRow[]; guards: SafeguardLine[] }
 
 /** The harmful-acts table of one target: the trait acts, then (internal) the covert, composite and escape rows, or
  *  (products) misuse; `believed` picks the player's estimate or the truth. Undefined when nothing runs there. */
@@ -343,5 +347,6 @@ export function actTable(s: GameStateV2, target: ActTarget, believed: boolean, o
   if (!a) return undefined;
   const rows = siteActs(s, a, believed);
   if (!o.core) rows.push(...(a.site.internal ? labRows(s, a, believed) : misuseRows(s, a, believed)));
-  return { site: a, rows };
+  const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use)).gapOom : undefined;
+  return { site: a, rows, guards: safeguardLines(a.d, { block: a.contain, human: a.human, gapOom: gap, humanShare: a.site.internal ? 1 - a.site.rd : 0 }) };
 }

@@ -2,6 +2,7 @@
 // what the player can know: run quantities (exact), and for the successor pull the player's beliefs (believed SUCC,
 // believed tool strength, measured level) in place of the engine's true traits, true strength and hidden U-modes
 // (Sylvester rule, STRUCTURE R9). The engine's own pull is `successorPull` (traits.ts); this is its believed reading.
+import { controlOn, labControlSetting, labReviewOn } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
@@ -247,10 +248,10 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
   for (const k of CAP_SLOTS) L += Math.max(w[k].H, w[k].L);
   const r = aiRdShare(s);
   const parts: SuccessorPartView[] = [];
-  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: HUMAN_REVIEW * (1 - r) };
+  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) };
   if (L <= 1e-12) return out;
   const tl = s.hidden.timeline; // the public level → OOM map (as catchRate); no hidden trait or capability
-  const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+  const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   for (const k of CAP_SLOTS) {
     const sl = w[k];
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
@@ -262,9 +263,9 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
     const x = oomOfLevel(tl, Lv);
     const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn')
       ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-    const block = dep ? containment(s, x, dep.controlLayer, true) : 0;
+    const block = dep ? containment(s, x, controlOn(dep), true) : 0;
     const mon = believedCatchSucc(s, v, x, Lv);
-    const human = HUMAN_REVIEW * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
+    const human = (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
     const caught = clamp01(1 - (1 - mon) * (1 - human) * controlMiss);
     const oversight = clamp01(1 - (1 - block) * (1 - caught));
     const b = v.beliefs.SUCC ?? { est: 0, sd: 0.35 };

@@ -4,6 +4,7 @@
 // streams, IDA cycles, and rivals/China (rivalTraitStep, signals from their hidden SafetyPosture, §3.10.3).
 //   Δx_j = ω · D_j · (1 − x_j) · Σ_{e→j} w_e · a_e · mod_e  +  ω · amp_j(U-modes)  −  removal_j
 // Nodes are visited in topological order S → L → A → B (data/v2/traits.ts TRAIT_ORDER).
+import { LOCKDOWN_COLLUSION_MULT, lockdownOn } from './safeguards';
 import { EDGE_BY_ID, EDGES } from '../../../data/v2/edges';
 import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/v2/traits';
 import { UMODES } from '../../../data/v2/umodes';
@@ -679,7 +680,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
     mul('E19', 0.1);
     mul('E28', 0.1);
   }
-  if (techActive(s, 'T-LOCK')) mul('E21', 0.5);
+  if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
   if (lineStaffed(s, 'AG07') && techActive(s, 'T-TMON')) mul('E22', 0.5);
   // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
   // model is reused by every later run, so the fix outlives the lineage).

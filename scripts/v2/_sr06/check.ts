@@ -28,7 +28,7 @@ const load = (fx: string) => deserialize(readFileSync(join(FIXTURE_DIR, fx), 'ut
   for (const v of old.player.models.versions) for (const b of Object.values(v.beliefs)) delete (b as { evidence?: unknown }).evidence;
   const m = deserialize(JSON.stringify(old));
   const all = m.player.models.versions.flatMap((v) => Object.values(v.beliefs));
-  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV === 56 && all.length > 0 && all.every((b) => Array.isArray(b.evidence) && b.evidence.length === 0), `a rev-55 save loads at 56 with empty evidence lists (${all.length} beliefs)`);
+  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV >= 56 && all.length > 0 && all.every((b) => Array.isArray(b.evidence) && b.evidence.length === 0), `a rev-55 save loads at 56 with empty evidence lists (${all.length} beliefs)`);
 }
 
 for (const fx of ['day400.json', 'day900.json']) {

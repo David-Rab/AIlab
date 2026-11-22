@@ -17,6 +17,7 @@
 // Rivals and China serve their own designs (model v3 F1, actors/rivalModel.ts): FLOP per token 2·N_active of their base,
 // fit their G. Nothing here reads a relative serve cost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
+import { controlOn } from '../safety/safeguards';
 import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
@@ -434,7 +435,7 @@ export function blendTiers(tiers: readonly Offer[], w: readonly number[] | undef
 /** h50 (minutes) of a model on a sector's work (its horizon domain), as the offers read it. */
 export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMult = 1) => h50Of(s.hidden.timeline, v, horizonDomain(sid)) * hMult;
 /** ΔG of a product's settings (safeguards, control layer). */
-export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (d.controlLayer ? CONTROL_LAYER_DG : 0);
+export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (controlOn(d) ? CONTROL_LAYER_DG : 0);
 
 /** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice

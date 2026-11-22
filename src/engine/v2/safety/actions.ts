@@ -1,6 +1,7 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
+import { controlOn, isRestricted } from './safeguards';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
@@ -264,6 +265,18 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         exposure: [],
       };
     }
+    case 'liftRestriction': {
+      // SR-13: the restriction safeguard is two-way; lifting it returns usage (and revenue, misuse reach, Chances) to full.
+      const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && isRestricted(d) && (!inc?.deploymentId || d.id === inc.deploymentId)) : [];
+      if (!deps.length) return { costs: [{ currency: 'revenue', amount: 0, target: 'no restricted deployment of this model' }], gains: [], exposure: [] };
+      const rev = deps.reduce((a, d) => a + (d.revenueRate ?? 0), 0);
+      const n = plural(deps.length, 'product');
+      return {
+        costs: [{ currency: 'security', amount: -Math.round((1 - RESTRICT) * 100), unit: '%', target: `more bio / cyber misuse reach and incident chances at ${n} (usage ×${(1 / RESTRICT).toFixed(1)})` }],
+        gains: [{ currency: 'revenue', amount: rev * (1 / RESTRICT - 1), target: `${n} unrestricted: $${rev.toFixed(2)}B → $${(rev / RESTRICT).toFixed(2)}B/yr at today's demand` }],
+        exposure: [],
+      };
+    }
     case 'addControl': {
       // Model v3 E11: the preview reads E6's control protocol (the largest internal lane's tax, the miss multiplier).
       const c = controlReadout(s);
@@ -277,7 +290,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       // Model v3 F6 (lead: the layer can be turned off): the tax saved (E6's protocol, as on Add control) and the believed
       // danger at the sites it covered with the layer off (dangerView's estimate). Beliefs only.
       const c = controlReadout(s);
-      const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer) : [];
+      const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && controlOn(d)) : [];
       const internal = deps.some((d) => d.channel === 'internal' && d.status === 'live');
       const dd = v ? controlDangerDelta(s, v.id, false) : { now: 0, after: 0, sites: 0 };
       const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));

@@ -172,7 +172,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   };
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
-    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, packs: [], features: [],
+    safeguards: channel === 'internal' ? 'standard' : 'classifiers', guards: channel === 'internal' ? [{ kind: 'review', since: -20 }] : [], packs: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });

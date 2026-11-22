@@ -32,7 +32,7 @@ const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 const RESPONSES: { k: ResponseKind; label: string }[] = [
   { k: 'patchSignal', label: 'Patch signal' }, { k: 'retrainAgainst', label: 'Retrain against' }, { k: 'targetedTraining', label: 'Targeted training' },
-  { k: 'restrictContext', label: 'Restrict context' }, { k: 'addControl', label: 'Add control' }, { k: 'rollback', label: 'Roll back' }, { k: 'disclose', label: 'Disclose' },
+  { k: 'restrictContext', label: 'Restrict context' }, { k: 'liftRestriction', label: 'Lift restriction' }, { k: 'addControl', label: 'Add control' }, { k: 'rollback', label: 'Roll back' }, { k: 'disclose', label: 'Disclose' },
 ];
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
   TECH: { icon: Wrench, label: 'Tool', tone: 'good' }, EVAL: { icon: Ruler, label: 'Eval', tone: 'good' }, DISC: { icon: Telescope, label: 'Discovery', tone: 'warn' },

@@ -5,6 +5,8 @@
 // reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead and catch rate), the
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
+import { LOCKDOWN_COLLUSION_MULT, labControlSetting, lockdownOn } from '../safety/safeguards';
+import { controlOn } from '../safety/safeguards';
 import {
   AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FEATURES, PRICE_TIERS,
   type FeatureDef, type FeatureId,
@@ -151,7 +153,7 @@ export function monitorOverhead(s: GameStateV2, d: Deployment): number {
 
 /** SR-12: a product's monitor through the one formula: monitor compute = its billed overhead × the product's serving
  *  (both scale with what is served, so the watched share is PRODUCT_MONITOR_WATCH). Open weights: no monitor. */
-export function productMonitor(s: GameStateV2, d: Deployment, controlled = d.controlLayer): MonitorStop {
+export function productMonitor(s: GameStateV2, d: Deployment, controlled = controlOn(d)): MonitorStop {
   const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
   const r = productMonitorCostRatio(s, d);
   return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled);
@@ -190,11 +192,10 @@ export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, mon
   const g = oversightGap(w, Lw, measuredLOf(s, monitor).L);
   const base = monitorCatchAt(g.oom);
   const control = containment(s, oomOfLevel(w, Lw), true, true);
-  const defer = controlled ? controlProtocol(undefined).missMult : 1;
+  const defer = controlled ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   const rate = Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control) * defer);
   const copy = sameLineage(watched, monitor);
-  const lock = s.player.safety.techniques['T-LOCK'];
-  const pen = copy ? COPY_COLLUSION * (lock?.unlocked && lock.active ? 0.5 : 1) : 0;
+  const pen = copy ? COPY_COLLUSION * (lockdownOn(s) ? LOCKDOWN_COLLUSION_MULT : 1) : 0;
   return { rate, gap: g.oom, gapL: g.levels, elo: g.elo, base, control, defer, copy, collusion: rate * (1 - pen) };
 }
 

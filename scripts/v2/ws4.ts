@@ -10,6 +10,7 @@
 // E2, E4, E5, T3 and the T4 spread go through the simulation cache (simcache.ts). `--smoke` (test:quick): E2 on 60
 // seeds, E4 on 2 seeds per storyteller, T3 on 2 seeds, the T4 spread on 20; checks that every seed must pass stay
 // binding on the subset, means and counts print SMOKE.
+import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RIVAL_NAMES_V2 } from '../../src/data/v2/names';
@@ -257,7 +258,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     s.player.milestoneDays[6] = 0;
     if (contain) {
       // §5.2 Cont = Contain(2000) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6 adopted].
-      for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true;
+      for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true);
       s.flags['ws2.gatekeeper'] = s.time.day;
       const gate = s.player.safety.techniques['T-GATE'];
       if (gate) Object.assign(gate, { unlocked: true, active: true, falseValidated: false });

@@ -1,5 +1,6 @@
 // Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E19, E25, E30). Owner: WS4 (content
 // shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / keep it quiet / deny.
+import { addSafeguard, setControl } from '../../safety/safeguards';
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
 import { internalVersion } from '../../models/labs';
@@ -148,7 +149,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
       }),
       // F6d: the control tax is E6's protocol (as on Safety › Add control); the red flag this choice counts is a cost.
       ch('Continue + control', ['control', 'balanced'], (s) => pv([L('progress', Math.round(controlReadout(s).tax * 100), 'of internal AI labour at most (control tax)', { unit: '%' }), redFlagLine(s)], [controlLayerGo(s)]), (s) => {
-        for (const dep of s.player.deployments) if (dep.channel === 'internal') dep.controlLayer = true;
+        for (const dep of s.player.deployments) if (dep.channel === 'internal') setControl(dep, true);
         ws4(s).redFlags++;
       }),
       // F6d: no "alignment 0.2" (never applied): the cost is the red flag it counts (leak odds) and the pledge's own break
@@ -269,7 +270,7 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.safeguards !== 'hardened') d.safeguards = 'classifiers';
       break;
     case 'preDeployTesting':
-      for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) d.status = 'restricted';
+      for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) addSafeguard(s, d, 'restrict');
       break;
     case 'monitorabilityPledge': {
       // Cancel the offending runs still in training and pull latent releases (WS1 withdraw); a finished run or an

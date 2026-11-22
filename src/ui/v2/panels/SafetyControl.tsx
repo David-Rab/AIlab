@@ -2,6 +2,7 @@
 // layer with its tax) and the Footholds tab (HOME of every foothold the lab knows of: symptoms of suspected ones with
 // where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
 // footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
+import { controlOn } from '../../../engine/v2/safety/safeguards';
 import { useMemo } from 'react';
 import { believedInternalOversight, controlReadout, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
 import { CONTROL } from '../../../data/v2/danger';
@@ -23,7 +24,7 @@ const AGENTS = { panel: 'company', tab: 'people', anchor: 'agents' } as const;
 
 /** Safety › Overview: believed control (L1 gauge + band), its three drivers, the control layer and its tax. */
 export function ControlCard({ s }: { s: GameStateV2 }) {
-  const c = useMemo(() => controlReadout(s), [s, s.time.day, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const c = useMemo(() => controlReadout(s), [s, s.time.day, s.player.deployments.some((d) => d.channel === 'internal' && controlOn(d))]);
   const r = c.risk;
   const assessed = !!r;
   const name = r?.name ?? c.name;
