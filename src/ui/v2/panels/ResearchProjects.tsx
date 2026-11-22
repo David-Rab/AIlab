@@ -257,7 +257,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       <StageTrack v={v} big />
       <div className="rp-tlab">{STAGES.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
       <div className="rp-secs">
-      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">Failed: gave up after {v.maxDrops} weak candidates. Weak results can be bad luck, so the direction may still work.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
+      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">The team gave up after {v.maxDrops} weak candidates. Weak results can be bad luck: a speculative reopening works with odds {F.pct(v.odds)}.</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
       {(v.belief || v.result) && (
         <Sec k={v.result && !v.belief ? 'Result · estimate at your latest base' : 'Belief · candidate in test'} term="beliefBand">
           {v.belief && <BeliefBand mu={v.belief.mu} sd={v.belief.sd} ref={v.line?.nextPrior !== undefined ? v.line.nextPrior * v.belief.b : undefined} unit={v.unit} />}

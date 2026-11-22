@@ -17,7 +17,7 @@ import { HEADROOM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, candidateTruth, capSciTeams, completeAdoption, dropRule, giveUpText, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
@@ -39,6 +39,24 @@ import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
+
+// ---------- RD-R06 drop and give-up rules (run alone: `tsx scripts/v2/research.ts --rd-r06`) ----------
+{
+  // A candidate under the floor but better than the pool's best goes on; under the floor and under the pool's best, or
+  // with an empty pool, or a score ≤ 0, it is dropped; above the floor it always goes on.
+  const kept = !dropRule(0.2, true, [0.1, 0.15]);
+  const dropped = dropRule(0.2, true, [0.1, 0.3]) && dropRule(0.2, true, []) && dropRule(-0.1, true, [-0.5]);
+  const above = !dropRule(0.2, false, [0.9]);
+  check(kept && dropped && above, 'RD-R06 a candidate better than the pool\'s best is not dropped; worse, alone or ≤ 0 under the floor is', `kept ${kept}, dropped ${dropped}, above floor ${above}`);
+  const txt = giveUpText('Elastic training', 'small experiments showed too little', 0.4, 0.2);
+  check(/gave up/.test(txt) && /40%/.test(txt) && /20%/.test(txt) && !/does not (seem to )?work/.test(txt), 'RD-R06 give-up text shows the odds still standing (not "does not work")', txt);
+  // A reopen starts a new attempt at 0 drops.
+  const s = mk();
+  s.player.tree.P09 = { status: 'failed', progress: 0, attempts: 1, cap: { ...freshCap(), drops: MAX_DROPS, stage: 'failed' } };
+  reopenProject(s, 'P09');
+  check(s.player.tree.P09.cap?.drops === 0, 'RD-R06 the drop count resets on reopen', String(s.player.tree.P09.cap?.drops));
+  if (process.argv.includes('--rd-r06')) finish('research');
+}
 
 // ---------- lifecycle order ----------
 {

@@ -12,12 +12,13 @@
 //   2 small         experiment work at the AI Futures experiment CES X(c, ℓ) of the project's own experiment FLOP per day
 //                   (c) and research-engineer labour (ℓ = (m_EXP × team-equivalents)^λ), both in fixed physical units (the
 //                   leader lab's day-0 inputs per project = 1; data/v2/workTypes.ts). A noisy reading narrows the belief.
-//                   Posterior below DROP_FRAC × the prior mean: the candidate is dropped, the team picks another.
+//                   Drop rule (RD-R06, dropRule): a score (μ + κσ) under DROP_FRAC × the prior mean drops the candidate
+//                   only if something left in the pool scores better; otherwise it goes on.
 //   3 scale test    the same CES; it reads the effect at test scale (x·1000^s) and the scale exponent s. Below
-//                   SURVIVE_FRAC of the small-scale estimate: dropped.
-//   4 result        the final estimate band at the lab's latest base. Ideas and axes fail after MAX_DROPS dropped
-//                   candidates (weak candidates, which can be noise; the direction may still work) and can be
-//                   reopened as speculative.
+//                   SURVIVE_FRAC of the small-scale estimate (or the floor): dropped, again only if the pool holds better.
+//   4 result        the final estimate band at the lab's latest base. Ideas and axes: the team gives up after MAX_DROPS
+//                   dropped candidates in one attempt (weak candidates can be noise, so the odds stand) and the project
+//                   can be reopened as speculative (a new attempt, its drop count back at 0).
 //   5 adoption      the engineers build it in (team-weeks ∝ effect); then the TRUE effect enters its stack (models/
 //                   stacks.ts; HEADROOM of it waits for routine tuning), an axis's lever unlocks, a domain effect applies.
 // Lines repeat. Each line is a pool with returns r (V3 notes, derivation 1): the result that brings research input q (its
@@ -582,7 +583,28 @@ function startTest(s: GameStateV2, n: TreeNodeDef, c: Candidate): CapProjectStat
 
 // ───────────────────────────── one day ─────────────────────────────
 
-/** Drop the candidate in test; ideas fail after MAX_DROPS. Returns true if the project failed. */
+/** RD-R06 drop rule (CAP-09). After a test reading the candidate is dropped only when BOTH hold:
+ *  (a) its updated score (μ + κσ, the score pickCandidate uses) is under the absolute floor (`underFloor`: DROP_FRAC × the
+ *      prior mean after small experiments; SURVIVE_FRAC of the small-scale estimate or the floor after the scale test);
+ *  (b) it is under the best remaining alternative in the pool (`alts`: the pool's scores, at the same scale).
+ *  An empty pool counts as "a fresh idea is better" (a fresh idea's prior mean is above the floor), so (a) alone decides.
+ *  Doing nothing is always an alternative: a score ≤ 0 under the floor is dropped whatever the pool holds.
+ *  Otherwise the candidate goes on: a weak candidate that still beats everything left is never thrown away. A dropped
+ *  candidate just goes (it is not kept as "tested, weak"). */
+export function dropRule(score: number, underFloor: boolean, alts: number[]): boolean {
+  if (!underFloor) return false;
+  return score <= 0 || alts.length === 0 || score < Math.max(...alts);
+}
+
+/** Player text when the team gives up on an idea or axis: the drops, the last reason and the odds still standing (this
+ *  attempt's odds; a reopen tries at `reopenOdds`). Weak readings can be noise, so it never says the direction fails. */
+export function giveUpText(name: string, why: string, odds: number, reopenOdds: number): string {
+  const pc = (x: number) => `${Math.round(x * 100)}%`;
+  return `${name}: the team gave up after ${MAX_DROPS} weak candidates (last: ${why}). Weak results can be bad luck: the chance it works is still ${pc(odds)}. Reopening as speculative tries again at ${pc(reopenOdds)}.`;
+}
+
+/** Drop the candidate in test; the team gives up on an idea after MAX_DROPS in one attempt (reopenProject starts a new
+ *  attempt at 0 drops). Returns true if the project failed. */
 function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, why: string): boolean {
   delete st.test;
   st.drops += 1;
@@ -592,7 +614,8 @@ function dropTest(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
     const ts = s.player.tree[n.id];
     ts.status = 'failed';
     ts.day = ctx.day;
-    ctx.log('research', `${n.name}: gave up after ${MAX_DROPS} weak candidates (last: ${why}). Weak results can be bad luck, so the direction may still work; it can be reopened as a speculative project.`, 2, n.id);
+    const spec = st.spec ?? 0;
+    ctx.log('research', giveUpText(n.name, why, attemptOdds(n, spec), attemptOdds(n, spec + 1)), 2, n.id);
     return true;
   }
   return false;
@@ -752,7 +775,9 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
     const w2 = 1 / (se * se);
     c.mu = (c.mu * w1 + y * w2) / (w1 + w2);
     c.sd = Math.sqrt(1 / (w1 + w2));
-    if (c.mu < DROP_FRAC * pub) return !dropTest(s, ctx, n, st, 'small experiments showed too little');
+    const kappa = RISK(s);
+    const score = candidateScore(c, kappa);
+    if (dropRule(score, score < DROP_FRAC * pub, st.cands.map((o) => candidateScore(o, kappa)))) return !dropTest(s, ctx, n, st, 'small experiments showed too little');
     st.stage = 'scale';
     st.test = { c, work: 0, workNeed: sg.scale * c.b, flop: 0, flopNeed: 0, fTest: t.fTest };
     return true;
@@ -763,8 +788,16 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   const sHat = at.s + S_READ_SD * Z(s, `cs2:${n.id}:${spec}:${c.k}`);
   c.muS = sHat;
   c.sdS = S_READ_SD;
-  // A batch keeps its surviving ideas; a single idea must hold at scale.
-  if ((!at.batch && xT < SURVIVE_FRAC * c.mu) || xT < DROP_FRAC * pub * (at.batch ? at.xTest / Math.max(1e-12, truth.x) : 1)) {
+  // A batch keeps its surviving ideas; a single idea must hold at scale (the floor). The pool's scores are compared at test
+  // scale: × the expected scale factor (a batch: its survivor factor; one idea: E[1000^s] under the project's scale prior).
+  const kappa = RISK(s);
+  const [sMu, sSd] = n.effect?.s ?? [0, 0];
+  const la = Math.log(SMALL_TO_TEST);
+  const batchF = at.batch ? at.xTest / Math.max(1e-12, truth.x) : 1;
+  const scaleF = at.batch ? batchF : Math.exp(la * sMu + (la * la * sSd * sSd) / 2);
+  const scoreT = xT + kappa * Math.abs(xT) * TEST_READ_SD;
+  const underT = (!at.batch && scoreT < SURVIVE_FRAC * c.mu) || scoreT < DROP_FRAC * pub * batchF;
+  if (dropRule(scoreT, underT, st.cands.map((o) => candidateScore(o, kappa) * scaleF))) {
     return !dropTest(s, ctx, n, st, 'the effect did not hold at scale');
   }
   // 4 Result: the estimate at the lab's latest base.
