@@ -42,7 +42,7 @@ import {
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { EFFORT_TM, PROJECT_BY_ID, TREE, type EffortClass, type TreeNodeDef } from '../../../data/v2/tree';
-import { AGENDA_BY_ID, SAF_PICK_AT, SAF_STAGES } from '../../../data/v2/agendas';
+import { AGENDA_BY_ID, SAF_STAGES } from '../../../data/v2/agendas';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
 import { reCapacity, teamCapacity } from '../departments/capacity';
@@ -58,6 +58,7 @@ import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
 import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
+import { trueEfficacy } from '../safety/common';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 
@@ -244,7 +245,7 @@ export function effortOfNode(n: TreeNodeDef): { sci: number; exp: number; unit: 
   }
   if (n.agenda && !n.paradigm) {
     const T1 = AGENDA_BY_ID[n.agenda as AgendaId].T1;
-    return { sci: SAF_PICK_AT * SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
+    return { sci: SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
   }
   return { sci: n.effortTM ?? EFFORT_TM[n.effort ?? 'M'], exp: 0, unit: 'team-months' };
 }
@@ -1011,9 +1012,48 @@ function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
   return flopDay * phi * Math.min(1, (k * f.w) / work);
 }
 
-/** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
- *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
-export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
+/** RD-R02b: one project day's department-specific inputs. Capability: the research inputs, the project's research-engineer
+ *  team-equivalents `reCap` and experiment FLOP share `flopDay`, and the build queue. Safety (a node of a safety line, or a
+ *  line's open study): the project's one test state, its work rates from the science teams and from the experiment CES
+ *  (safety/lineProjects.ts lineRates, months of work per day), its FLOP per day, and the result handler (`works` = the
+ *  draw from the agenda's hidden efficacy; undefined for an open study, whose result is an event). */
+export type ProjectDay =
+  | { dept: 'cap'; inp: ResearchInputs; reCap: number; flopDay: number; queueBuild: (tw: number) => string }
+  | { dept: 'saf'; trial: ProjectTrial; sciRate: number; expRate: number; flopDay: number; onResult: (works: boolean | undefined) => void };
+/** A one-question test's state: work done / needed and FLOP used (capability unlock projects, safety projects). */
+export interface ProjectTrial { work: number; workNeed: number; flop: number }
+
+/** RD-R02b: one day of a one-question test (RD-R05's unlock projects and every safety project). The science teams' and
+ *  the experiment CES's work rates add up on the same work; returns the FLOP used and whether the work is done. */
+function stepTest(tr: ProjectTrial, sciRate: number, expRate: number, flopDay: number): { used: number; done: boolean } {
+  const rate = sciRate + expRate;
+  if (rate <= 0) return { used: 0, done: false };
+  const need = Math.max(0, tr.workNeed - tr.work);
+  const step = Math.min(1, need / rate);
+  tr.work = rate < need ? tr.work + rate : tr.workNeed;
+  const used = expRate > 0 ? flopDay * step : 0;
+  tr.flop += used;
+  return { used, done: tr.work >= tr.workNeed - 1e-12 };
+}
+
+/** RD-R02b: does a safety node's test work on this attempt? A hidden per-world draw against the agenda's true efficacy
+ *  (deterministic: hash32(seed, 'saf:'+id+':'+attempt)), never read by the views (they show the posterior). */
+export function safetyWorks(s: GameStateV2, n: TreeNodeDef, attempt: number): boolean {
+  if (!n.agenda) return false;
+  return hash32(s.setup.seed, `saf:${n.id}:${attempt}`) / 4294967296 < trueEfficacy(s, n.agenda as AgendaId);
+}
+
+/** One day of one project's lifecycle, for both departments (RD-R02b). Capability: `reCap` = research-engineer
+ *  team-equivalents on it today (human); `flopDay` = its share of the experiment FLOP per day (consumed while it
+ *  experiments). Safety: one "does it work" test, as an unlock project; at its end the works draw (node projects) or the
+ *  open study's event. Returns the FLOP used. */
+export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, day: ProjectDay): number {
+  if (day.dept === 'saf') {
+    const r = stepTest(day.trial, day.sciRate, day.expRate, day.flopDay);
+    if (r.done) day.onResult(n.followUp ? undefined : safetyWorks(s, n, s.player.tree[n.id]?.attempts ?? 1));
+    return r.used;
+  }
+  const { inp, reCap, flopDay, queueBuild } = day;
   const st = capState(s, n.id);
   if (st.stage === 'failed' || st.stage === 'adopting') return 0;
   const P = s.hidden.timeline.prod;
@@ -1074,14 +1114,8 @@ export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp:
  *  the FLOP used. */
 function stepTrial(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, inp: ResearchInputs, sci: { cap: number; q: number }, expRate: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const tr = trialOf(n, st);
-  const rate = sciWorkRate(s, inp.mIdeas, sci, inp.speed) + expRate;
-  if (rate <= 0) return 0;
-  const need = Math.max(0, tr.workNeed - tr.work);
-  const step = Math.min(1, need / rate);
-  tr.work = rate < need ? tr.work + rate : tr.workNeed;
-  const used = expRate > 0 ? flopDay * step : 0;
-  tr.flop += used;
-  if (tr.work < tr.workNeed - 1e-12) return used;
+  const { used, done } = stepTest(tr, sciWorkRate(s, inp.mIdeas, sci, inp.speed), expRate, flopDay);
+  if (!done) return used;
   const spec = st.spec ?? 0;
   const ts = s.player.tree[n.id];
   if (works(s, n, spec)) {
@@ -1225,7 +1259,7 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     const n = node(id) as TreeNodeDef;
     // A test that starts today gets research engineers (and FLOP) from tomorrow's allocation.
     const re = alloc.perProject.get(id) ?? 0;
-    used += stepProject(s, ctx, n, inp, re, sh.perProject.get(id) ?? 0, (tw) => queueBuild(id, tw));
+    used += stepProject(s, ctx, n, { dept: 'cap', inp, reCap: re, flopDay: sh.perProject.get(id) ?? 0, queueBuild: (tw) => queueBuild(id, tw) });
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }

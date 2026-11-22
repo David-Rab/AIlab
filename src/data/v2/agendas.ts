@@ -110,13 +110,6 @@ export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
  *  a project asks in proportion to its science staffing (× capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). A staffing
  *  need, as capability's RE_MAX_PER_PROJECT, not a unit. */
 export const SAF_RE_ASK = 0.25;
-/** A line project tests its first candidate as soon as it has one; scientists keep ideating up to this many waiting
- *  [D]. */
-export const SAF_PICK_AT = 1;
-export const SAF_POOL_MAX = 2;
-/** Belief noise (sd on the chance of a working result): the scientists' reading ÷ taste, then the small-experiment and
- *  validation readings [D; MODEL-V3 §5.3 "better taste = lower noise"]. The team starts from the line's posterior. */
-export const SAF_BELIEF = { idea: 0.3, small: 0.3, val: 0.25 } as const;
 
 /** Cap on the line multiplier (capacity ÷ SERIOUS_CAP) where the pre-R8 code read funding (AG18 healing): the old Major
  *  level. */

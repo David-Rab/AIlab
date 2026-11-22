@@ -15,6 +15,8 @@ import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -66,8 +68,10 @@ import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
  *  55 (RD-E01b, DD-14): paradigm P20 is deleted; P05 is a typed scaffold and P07 multiplies the long-tasks RL family's
  *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
  *  56 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 55 → 56 adds the
- *  default order. */
-export const SCHEMA_REV = 56;
+ *  default order.
+ *  57 (RD-R02b): a safety project is one test (SafProjectState {work, workNeed, flop}); the candidate pool, its beliefs
+ *  and stages are gone. Migration 56 → 57 restates a running project's state at its progress (work = progress × T₁). */
+export const SCHEMA_REV = 57;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -503,6 +507,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   55: (raw) => {
     const s = raw as unknown as GameStateV2;
     if (s.player?.research && !s.player.research.safRe) s.player.research.safRe = { order: [...DEFAULT_SAF_RE_ALLOC.order], max: {}, share: {} };
+  },
+  /** 56 → 57 (RD-R02b): a safety project's candidate-pool state becomes its one test at the project's progress (the
+   *  agenda's T₁ months of work; FLOP used restarts at 0). Idempotent. */
+  56: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const [id, ts] of Object.entries(s.player?.tree ?? {})) {
+      const old = ts.saf as unknown as { workNeed?: number } | undefined;
+      if (!old || typeof old.workNeed === 'number' && !('cands' in old)) continue;
+      const ag = PROJECT_BY_ID[id]?.agenda;
+      const T1 = ag ? AGENDA_BY_ID[ag as keyof typeof AGENDA_BY_ID]?.T1 : undefined;
+      if (!T1) {
+        delete ts.saf;
+        continue;
+      }
+      ts.saf = { work: Math.min(1, Math.max(0, ts.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
+    }
   },
 };
 

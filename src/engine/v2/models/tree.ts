@@ -17,12 +17,12 @@
 //    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
 //    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
 //    after 180 days at half odds.
-//  - Research-line nodes (R8; a safety node with an agenda; model v3 E1): the project mechanism of capability projects
-//    (safety/lineProjects.ts): ideation by the safety scientists, small experiments and validation on the frontier
-//    model by safety research engineers with compute, rates from the experiment CES; T₁ at reference inputs. Each
-//    validated candidate is one result (findings.ts fireFinding, typed by the line's hidden efficacy). A working result
-//    of this node unlocks it; any other result lets the project test its next candidate, and a dead end adds the
-//    attempt's team-months to the line's dead-end count. When a node becomes known its teams move on to the line's next
+//  - Safety nodes (a node with an agenda; RD-R02b): the shared project stepper (models/research.ts stepProject, dept
+//    'saf'; rates in safety/lineProjects.ts lineRates): one "does it work" test that the safety scientists and the
+//    research engineers with compute work through. Then the hidden works draw: works → the node's own technique or
+//    finding (findings.ts nodeTestResult) and the node is known; doesn't → a dead end for this attempt (posterior toward
+//    failure, the attempt's team-months to the line's dead-end count) and the project retries at the posterior odds. A
+//    line's follow-up is its open study: each test ends in an event (findings.ts fireFinding). When a node becomes known its teams move on to the line's next
 //    open node, else the line's follow-up project. Safety teams keep the J2 auto-assign above (E1 notes: why not the
 //    capability assignment).
 // Product-feature nodes wait for live products (R6).
@@ -39,14 +39,14 @@ import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
-import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
+import { freshSaf, lineCycleDays, lineEtaDays, lineRates, resetSafAllocation, safAllocation, safProgress, safState } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, sciOn, stepProject, takesTeams,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
-import { fireFinding } from '../safety/findings';
+import { fireFinding, nodeTestResult } from '../safety/findings';
 import { DEFAULT_LINES, DEFAULT_RE_ALLOC, DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { initialStacks } from './stacks';
 
@@ -456,19 +456,22 @@ export function syncParadigm(s: GameStateV2, id: string) {
   if (st.day !== undefined && st.status !== 'researching') ps.revealedDay = st.day;
 }
 
-/** A research-line project reached progress 1: the line produces a result. Returns true if the project is done (its
- *  node became known); otherwise it restarts. */
-function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNodeState): boolean {
+/** A safety project's test is done (RD-R02b): a node's result (`works` = the hidden draw) or its open study's event.
+ *  Returns true if the project is done (its node became known); otherwise its next attempt starts. */
+function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNodeState, works: boolean | undefined): boolean {
   const ag = n.agenda as AgendaId;
   const line = s.player.safety.agendas[ag];
-  const rec = fireFinding(s, ctx, ag, n.id);
+  const rec = works === undefined ? fireFinding(s, ctx, ag, n.id) : nodeTestResult(s, ctx, n, works);
   if (rec?.trueType === 'DEAD') line.deadEndTM = Math.round(((line.deadEndTM ?? 0) + (st.tm ?? 0)) * 100) / 100;
   st.tm = 0;
   st.progress = 0;
+  st.saf = freshSaf(n);
   st.attempts = (st.attempts ?? 1) + 1;
   if (!nodeKnown(s, n.id)) return false;
   st.status = 'known';
+  st.progress = 1;
   st.day = ctx.day;
+  delete st.saf;
   return true;
 }
 
@@ -526,10 +529,13 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
       const teams = teamsOn(s, id);
       const ts = st;
       let done = false;
-      stepLineProject(s, id, ts, salloc, () => {
-        done = resolveLine(s, ctx, n, ts);
-        return !done;
+      const r = lineRates(s, id, salloc);
+      stepProject(s, ctx, n, {
+        dept: 'saf', trial: safState(s, ts, n), sciRate: r.sci, expRate: r.exp, flopDay: r.flop,
+        onResult: (works) => { done = resolveLine(s, ctx, n, ts, works); },
       });
+      const live = p.tree[id];
+      if (live && live.status === 'researching') live.progress = safProgress(live.saf);
       if (!done) continue;
       const at = q.indexOf(id);
       q.splice(at, 1);

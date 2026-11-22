@@ -6,7 +6,10 @@ import { lineNodeId } from '../../../src/data/v2/tree';
 import { RE_LABOUR_UNIT } from '../../../src/data/v2/workTypes';
 import { TEAM_SIZE } from '../../../src/data/v2/teams';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
-import { freshSaf, lineRates, linePoolH100e, resetSafAllocation, safAllocation, stepLineProject } from '../../../src/engine/v2/safety/lineProjects';
+import { freshSaf, lineRates, linePoolH100e, resetSafAllocation, safAllocation } from '../../../src/engine/v2/safety/lineProjects';
+import { stepProject } from '../../../src/engine/v2/models/research';
+import { PROJECT_BY_ID } from '../../../src/data/v2/tree';
+import type { SystemCtx } from '../../../src/engine/v2/types';
 import type { AgendaId, Team } from '../../../src/engine/v2/types';
 
 function firstResult(ag: AgendaId): { days: number; c: number; l: number } {
@@ -30,14 +33,17 @@ function firstResult(ag: AgendaId): { days: number; c: number; l: number } {
   p.split.safety = 0.05;
   for (let i = 0; i < 4; i++) p.split.safety *= want / Math.max(1e-9, linePoolH100e(s));
   const ts = (s.player.tree[id] ??= { status: 'researching', progress: 0, attempts: 1 });
-  ts.saf ??= freshSaf();
+  const nd = PROJECT_BY_ID[id];
+  const tr = (ts.saf ??= freshSaf(nd));
   let r0 = { c: 0, l: 0 };
   for (let d = 1; d <= 4000; d++) {
     resetSafAllocation(s);
     const a = safAllocation(s);
-    if (ts.saf?.test && r0.c === 0) r0 = lineRates(s, id, a);
+    const r = lineRates(s, id, a);
+    if (r0.c === 0) r0 = r;
     let done = false;
-    stepLineProject(s, id, ts, a, () => ((done = true), false));
+    // RD-R02b: the shared stepper (science and experiments on one test: at reference inputs the result takes T₁ ÷ 2).
+    stepProject(s, {} as SystemCtx, nd, { dept: 'saf', trial: tr, sciRate: r.sci, expRate: r.exp, flopDay: r.flop, onResult: () => { done = true; } });
     if (done) return { days: d, ...r0 };
   }
   return { days: Infinity, ...r0 };

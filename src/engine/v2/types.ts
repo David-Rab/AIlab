@@ -637,32 +637,17 @@ export interface TreeNodeState {
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
-  /** Safety research-line projects (model v3 E1): the lifecycle state (safety/lineProjects.ts). */
+  /** Safety projects (RD-R02b): the one test's state (safety/lineProjects.ts). */
   saf?: SafProjectState;
 }
 
-/** Stage of a safety research-line project (MODEL-V3 §11.7, E1): ideation by safety scientists (also while waiting for a
- *  candidate), small experiments and validation on the frontier model by safety research engineers with compute. */
-export type SafStage = 'ideation' | 'small' | 'validation';
-/** A candidate approach on a safety line. Belief = the team's estimate of the line's chance of a working result (the
- *  hidden efficacy read with noise ÷ taste, narrowed by the experiments); visible, nothing hidden is stored. */
-export interface SafCandidate {
-  /** Candidate number within the project (hash key of its readings). */
-  k: number;
-  /** Taste of the scientists who found it (a Strong team = 1). */
-  q: number;
-  /** Belief: mean and sd. */
-  mu: number;
-  sd: number;
-}
+/** A safety project's one "does it work" test (RD-R02b, SAFETY-REDESIGN §3.1; the shared stepper, models/research.ts
+ *  stepProject): work done / needed (months of work at reference inputs, the agenda's T₁) and the experiment FLOP used.
+ *  No candidates and no beliefs: at the end the hidden works draw (a node) or the open study's event (a follow-up). */
 export interface SafProjectState {
-  stage: SafStage;
-  /** Ideation progress toward the next candidate (0..1). */
-  idea: number;
-  cands: SafCandidate[];
-  /** The candidate in test and its stage work (months of work at unit experiment throughput X = 1). */
-  test?: { c: SafCandidate; work: number; workNeed: number };
-  next: number;
+  work: number;
+  workNeed: number;
+  flop: number;
 }
 
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────

@@ -32,7 +32,10 @@ import { completeSuiteWork, exploitFloor, hardenCut, suiteWorkCost, suiteWorkEff
 import { cotControllability, familyPenalty } from '../../src/engine/v2/safety/detection';
 import { oomOfLevel } from '../../src/engine/v2/safety/oversight';
 import { aarAuto, aarFindingOom, aiOversight, probeSteer, steerGrowth } from '../../src/engine/v2/safety/ideas';
-import { lineLabour, lineSpeed, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
+import { lineLabour, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
+import { researchMods } from '../../src/engine/v2/departments/workfit';
+/** RD-R02b: lineSpeed is gone; a line's speed is the shared research modifiers. */
+const lineSpeed = (s: GameStateV2, _ag: string) => researchMods(s).speed;
 import { applyRunToTraits, playerEnv, postSignals, stepTraits, zeroSignals } from '../../src/engine/v2/safety/traits';
 import type { GameStateV2, ModelVersion, PostDesign, Team, TrainingRun } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
