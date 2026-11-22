@@ -841,3 +841,18 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
 - **Left over:** worktree %TEMP%/ai27ux/wt/cp1b (detached at 49b2f6e) was not removed (the removal command was denied
   by the permission classifier). It holds a `node_modules` **junction** to AI27-rd/node_modules: unlink it first
   (`cmd /c rmdir …\cp1b\node_modules`), then `git worktree remove --force`, or the real node_modules may be deleted.
+
+### RD-U02
+
+- **One λ.** `safety/oversight.ts` `oomOfLevel(w, L) = gOfLevel(w, L) − gV0(w)`; its own LEVEL_AT table and piecewise
+  copy are deleted (models/capability.ts is the only level map). `versionOom(s, v) = v.G − gV0` reads the version's true
+  G instead of λ⁻¹(λ(G)); `measuredOom` still goes through the measured level (a level is all the player has).
+- **Clamping below 0:** `gOfLevel` clamps L < 0 to 0, the deleted copy extended the first slope linearly; no caller
+  passes a negative level (stated in the comment). Old and new agree to 0 on L 0 … 16 in 4 worlds × 2 seeds.
+- **Behaviour change:** only past the ASI knot (two post-ASI models now differ: 14.29 vs 15.79 OOM, were both 13.79 on
+  ai2027) and for a version with G below λ 0 (none in play). `understanding.ts` `trueUnderstanding` projects a version
+  to other levels by overriding `Lg` only; it reads `oomOfLevel(L)` directly and its per-level copies never reach
+  `versionOom`, so it is unaffected.
+- **Check:** `npx tsx scripts/v2/oversight.ts` (three new RD-U02 checks; the file passes). tsc main and scripts clean.
+- **Moves calibration: no** for dates (identical below λ 15); **maybe** for safety outcomes in the window where a model
+  is past λ 15 before the game ends (detection, findings, covert containment, agendas read larger gaps there).
