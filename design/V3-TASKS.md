@@ -227,6 +227,11 @@ RD-B04, RD-B05, RD-B06 (safety bugs B05–B09). Dropped: RD-B10 (DD-19 removes s
 tolerance refitting only named values). Rows RD-B01–B03, B07–B09, B11, B12, B14–B21 as in SYNTHESIS §6. RD-B09's
 run-operations owner (DD-11): research engineers operate runs and a shortfall slows them; engineers do setups only.
 
+**Safety redesign** ([SAFETY-REDESIGN.md](RD-AUDIT/SAFETY-REDESIGN.md), all eleven open decisions accepted 2026-11-22,
+see DECISIONS.md): tasks SR-01 … SR-30 in its §8.2, engine first then UI, after RD Phase 1. They replace RD-B04 / B05 /
+B06 and DD-15 / DD-16. The shared research engine and allocator (SYNTHESIS Phase 3) come before the SR tasks that move
+safety projects onto them.
+
 ## Order (one at a time)
 
 A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in

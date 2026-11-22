@@ -15,3 +15,14 @@ All recommendations accepted, except:
   clear area (understanding, research lines, tool upkeep, investigations, ...). Hidden truth stays deliberate; the
   problem is that the player cannot tell what safety lets them do, what information and tools they have, and what
   each buys. Step 1 inventory (SAFETY-INVENTORY.md), step 2 first-principles redesign.
+
+## Safety redesign (SAFETY-REDESIGN.md §8.1), 2026-11-22
+
+The designer accepted all eleven recommendations (OD-1 … OD-11): headline = Loss-of-control risk + Unstopped harm / yr
+with the sight-limit race small beside them; shown always as "if it could act now"; delete the blind-gap growth
+amplifier and add the sourced "undetected hacking reinforced" mechanism if research backs it; ~10 visible safety lines
+grouped by output (see / stop / fix / meta), data keeps 18; a Safety framework policy replaces the eval-gate toggle;
+trusted watcher models chosen automatically (override allowed); organism realism as a hidden per-world factor if
+research finds a range, else none; default disclosure = legal minimum; safety engineers' order set in LAB (one
+allocator); SAFETY grouped by harmful acts (Risks tab first); "train against an instrument" stays as a method with an
+honest preview. SR-01 … SR-30 (§8.2) replace RD-B04 / B05 / B06 and DD-15 / DD-16.
