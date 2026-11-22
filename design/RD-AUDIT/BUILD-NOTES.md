@@ -856,3 +856,34 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
 - **Check:** `npx tsx scripts/v2/oversight.ts` (three new RD-U02 checks; the file passes). tsc main and scripts clean.
 - **Moves calibration: no** for dates (identical below λ 15); **maybe** for safety outcomes in the window where a model
   is past λ 15 before the game ends (detection, findings, covert containment, agendas read larger gaps there).
+
+### RD-U01
+
+One capability currency (SYNTHESIS theme U; MEA-02, TRN-03 (a) and the hazard part of (b)). Commit ee06451.
+- **Offsets in OOM of domain G** (literal = old level ÷ 1.2, the fit's conversion; "was X L" comments): preference
+  `POST_PREF.dgD` engagement SOCIAL 0.1667, persuasion SOCIAL 0.6667; hazard curation `CURATION.hazard.dgD` BIO −0.5
+  (was −1.0 L at the engine's ÷ 2: kept, so its G is unchanged); SAFEGUARD_DG classifiers −0.0417, hardened −0.1667;
+  CONTROL_LAYER_DG −0.0833; SECTOR_PACK_DG 0.4167; `P19_RSCH_DG` 0.4167 (replaces RSCH_TASTE_PENALTY); REEVAL_DG 0.25.
+  Paradigm level offsets were already gone (P12 lint); paradigm domainG was already OOM in sD.
+- **Engine:** VersionBuild `offL` and the derived `off` → `dgD` (domain ΔG, OOM), added inside `gOfDomain`.
+  New `versionDomainG(v, d, hasP19)` (models/capability.ts) is the one domain G: workfit `domainG`, `horizonG` and
+  `domainsOf` read it. `domainsOf(w, G, build?, hasP19)` = clamp(λ(G_d) + REF_OFF[d]) (REF_OFF stays a display profile
+  until RD-U05). Deleted: LEVEL_PER_OOM, `finishBuild` (callers use gOfBuild), `sD = offL/2`, REEVAL_DL (UI and the
+  product-ops cost text show "≥ 0.25 OOM"; glossary autoEvaluate / rerunRule reworded), BaseModel.off (never written).
+- [D] **RSCH taste:** v2's display-only −0.5 L on RSCH for a lab without P19 is deleted (the fit never had it); P19 is
+  +0.4167 OOM on RSCH G for fit and display alike. So every lab's displayed RSCH level is 0.5 L higher than before
+  without P19, and with P19 rises by λ-slope × 0.4167 instead of 0.5.
+- **Schema:** SCHEMA_REV 46 → **47**; migration 46 → 47 walks player / rivals / hidden for builds (shape gPre + dgRL +
+  sD), sets dgD = offL ÷ 1.2, drops offL / off, drops BaseModel.off, recomputes the player's version domains as λ(G_d).
+  hygiene's `SCHEMA_REV === 46` literals bumped.
+- **Check:** `npx tsx scripts/v2/currency.ts` (new, registered in run.ts; 5 checks: grep for the deleted factors,
+  V0's L_d = λ(G_d), persuasion moves fit and display by the same G, P19, the migration). tsc main and scripts clean.
+  scripts/v2/effective.ts's V0 profile check rewritten on domains (it read `build.off`); evals.ts re-run test uses 0.8.
+- **Mechanics:** fit / coverage / horizon identical up to the literal rounding (≤ 4e-5 OOM: 0.4167 vs 0.41667 etc.).
+  **Displayed domain levels change:** design offsets now show as λ-slope × ΔG (persuasion SOCIAL on V0: +1.34 L, was
+  +0.8), RSCH +0.5 for labs without P19. A run-card preview's `gD` (runs.ts planRun) now includes the design ΔG.
+- **Left for later rows:** the benchmark midpoint ×2 rule (data/v2/benchmarks.ts m_L) and the distillation fit
+  (TRN-03 (b)); B_G_PER_Y (TRN-03 (e)); REF_OFF (RD-U05); RefBot level gates (RD-U07).
+- **Moves calibration: maybe.** Levels drive gates: paradigm gates on domain levels (P13 RSCH ≥ 8.5 now fires 0.5 L
+  earlier for every lab), benchmarks / danger flags / rival hazards read version domain levels (SOCIAL, RSCH), RefBot's
+  measured-level decisions. Dates and fits should move little; RSCH-gated research and danger flags may.
