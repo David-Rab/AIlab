@@ -252,3 +252,48 @@ One owner for run operations (SYNTHESIS B12; CAP-23, CAP-V1, INP-17; DD-11 sub-c
   (authors2026, fast) where engineers ran at 90–98% and about 1 t-wk/wk of run ops now goes to product upkeep and
   launches / features, so revenue and anything downstream of shipping can shift. Fixture hashes change (new readout
   field and engineer allocation). test:cal and the finance tier should be re-reported at the merge.
+
+### RD-B16
+
+One capability currency for recipes; Software progress from the lab's own research (SYNTHESIS B23, B24; CAP-06,
+CAP-V2, CAP-12 seed part). Commit bad7924.
+- **B23 (one recipeG):** `stacks.ts recipeG(rec, F = RECIPE_F)` = pre + refRlGain(F, mid, ceil) − refRlGain(F, 0, 0),
+  `RECIPE_F = FLOP_RL_REF` (3e26, fixed: a comparison never moves because a lab trained a bigger base). Parts = the
+  ones every lab has (pretraining, RL efficiency, RL ceiling); the player's training-throughput stack is left out
+  because rivals have none (they train at the fixed MFU × GOODPUT). `playerRecipe(s, F)` (pre stack at F) /
+  `playerRecipeG(s)`; rivalModel `recipeOf` and `recipeRates` call recipeG (`gEquivOfRecipe` deleted; rival values
+  bit-identical). Callers moved: theft.ts secretsLeakDaily (China gap, also security.ts's daily leak) and actions.ts
+  A4 (which rivals are behind). rivalFinance (rival vs rival) was already one unit. Diffusion (production.ts) compares
+  model G, not recipes: RD-X04's.
+- **B24 (gRate):** `research.ts softwareProgressDay` (called at the end of capResearchDay, exported for tests): Δ of
+  `researchG(s, F)` = ownRecipeG − pre.base (public knowledge lands only in the pretraining base and enters G linearly,
+  so it drops out exactly) between research days, both ends at the earlier day's base FLOP (`gLastF`, new optional
+  field): a new base changes F only for the next delta. Adoptions (build system, order 38) and tuning count. [D] F is
+  the lab's latest base, not RECIPE_F: a rival's pre increments are realised at its own base (κ), so the lab's own
+  scale is the closer match for a rate; the rate is a different quantity from the cross-lab level. Old saves: gLast
+  without gLastF is skipped once (it held the whole G).
+- **Public knowledge readout:** `pubLast` / `pubRate` (Σ stack bases, 14-day average of its daily change: diffusion,
+  C4 tacit knowledge, spillover). softwareRate → `publicPerYear`; Recipe header "· +x OOM/yr public" when ≥ 0.005,
+  tooltip row "Public knowledge"; glossary `publicKnowledge` (new), `softwareRate` body says what counts; GLOSSARY.md
+  regenerated. hist / stacksGEquiv (level at the latest base, with public and throughput) unchanged.
+- **Seed kept:** START_G_RATE is the 14-day average's warm-up so day-0 pace is not 1 − share (lead conversions, A4 /
+  C4 sizes move without it), not a mask for the jump (the jump is gone). Documented at tree.ts. It decays to the
+  measured rate (≈ 0.1 OOM/yr at day 28) within a month either way.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb16/probe.mts`, RefBot seed 2027, days 0–700): leader starts (ai2027, authors2026,
+  fast) read as before except in the month after each of the 3 base changes (old 1.01 vs new 0.73 OOM/yr at d400 and
+  3.24 vs 2.03 at d600, ai2027). The challenger (diffusion) read far faster before: d100 0.61 → 0.00, d200 3.13 →
+  0.60, d500 2.61 → 1.30 OOM/yr (public inflow 0.6–2.2 OOM/yr now shown apart). Recipe at RECIPE_F vs the old latest
+  base + throughput: 0.0–0.3 OOM lower by d700 on leaders (ai2027 2.11 vs 2.41), 1.0 lower on the challenger; China's
+  recipe is at or above the player's for most of these runs, so the secrets leak is often 0 either way.
+- **Tests:** research full 42/42 (+6: a 30× base moves G at the latest base by +0.11 OOM and Software progress not at
+  all; a 0.05 OOM diffusion inflow leaves it unchanged and adds dG/14 to the public readout; an adopted idea adds
+  x(1 − HEADROOM)/14; equal player / China recipes have zero gap whatever the base or throughput stack and a bigger
+  base leaves the secrets leak unchanged; a challenger's first 200 days put +0.44 OOM into public knowledge with
+  Software progress 0.60 vs the old measure 2.76 OOM/yr). tsc main + scripts clean. No other tier (RD test rule).
+- **Moves calibration: maybe (likely yes for follower starts).** gRate → production `rate` → paceOf (lead days, A4
+  leak, C4 tacit-knowledge size) and lead readers. Leader starts: small and transient (a month after each new base the
+  pace was inflated; now not), so capability dates probably hold. Follower starts: the pace no longer counts
+  diffusion, so their `rate` is much lower while catching up: lead conversions in days, C4 sizes and any reader of
+  rateOf('player') change. Leaks: the player-vs-China gap drops the throughput stack and is at 3e26, so it is smaller
+  (fewer secrets leaks to China, wherever the player is ahead). Fixture hashes change (new readout fields, the rate).
+  test:cal and the golden timelines should be re-reported at the merge.
