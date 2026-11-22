@@ -1859,3 +1859,31 @@ Expert data only as a suite input; P12 as a suite option (DD-07, TRN-04). Moves 
   data.ts / suites.ts / research.ts / uitest.mjs updated for the removed paths, not run.
 - **Calibration.** Bots never bought data.expert, but RefBot no longer gets P12's 0.02T into long tasks on adoption
   (it does not take the demos build): long-tasks fidelity and AGENCY gains are lower in bot runs. Not measured.
+
+### RD-T07
+
+Suite fidelity from tasks × grader quality, with decay; S2 stated directly; v1 graders chain dropped (DD-07, TRN-14,
+TRN-23, TRN-25). Commit e9b84e6. Moves calibration: maybe.
+
+- **Fidelity.** fid = FIDELITY(n), n = live tasks × grader quality ÷ START_TASKS (same bounded curve: max 1.5, γ 0.5,
+  min 0.5). Tasks = expert tokens a build buys ÷ TASK_TOKENS_T (20k tokens a task [D]; start suite 100k tasks = E₀).
+  Grader quality g = (1 − x) ÷ (1 − x₀), x₀ the start type's start exploitability: the share of tasks with a sound grader
+  against the start graders, so hardening raises it (leader SWE, one pass: fidelity 1 → 1.019). New EnvSuite.tasks.
+- **Decay.** SUITE_DECAY [D]: half the live tasks lost in 6 months at zero upkeep (tools / APIs drift, models outgrow
+  tasks; METR horizon doubling ≈ 7 months), at the unmet share of the rate when upkeep is short (`decaySuites`, called
+  daily from the build system with coverage = upkeep served ÷ needed). Met upkeep holds them; lost tasks come back only
+  with builds. Hardening and upkeep size now read live tasks (√(tasks ÷ START_TASKS)).
+- **S2.** S2_PER_EXPLOIT = 5.5 stated in data/v2/suites.ts (was solved from V1's S2_REF 0.36: 5.538); one formula
+  S2 = 5.5 · Σ share · x (× the RL budget's pressure). Broad start S2 0.3600 → 0.3575 (−0.7%).
+- **Dropped.** EXPLOIT_CHEAP, V1_HARDENED_S2, HARDENED_FACTOR, S2_REF; EXPLOIT_START stated per family (same values);
+  spinout multiplier 2.5 stated; OptionSlot 'graders'. Scripts (safetyrates.ts, suites.ts) derive their raw rates from
+  EXPLOIT_START × the spinout multiplier.
+- **Save.** SCHEMA_REV 65 → 66; migration 65 sets each stored suite's tasks from its expert asset. hygiene.ts pins → 66.
+- **UI.** Suites panel fidelity tip shows live tasks and grader quality; expert tip shows live tasks. Glossary
+  suiteFidelity / suiteExploit restated (GLOSSARY.md not regenerated).
+- **Check.** scripts/v2/_t07/check.ts: pass (start suites at fidelity 1 and the old exploitability, leader and spinout;
+  zero upkeep for a half-life halves tasks, fidelity 0.793; met upkeep holds; build system 60 days served vs upkeep
+  capped at 0: 1.000 vs 0.940; build doubles tasks; hardening raises fidelity; S2 formula and its move with x; migration).
+  tsc (app, scripts/v2) clean; npm run build ok. Nothing else run.
+- **Calibration: maybe.** Bots whose upkeep runs short now lose fidelity; hardened suites gain a little fidelity; S2
+  −0.7% at equal exploitability.
