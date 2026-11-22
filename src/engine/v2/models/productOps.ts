@@ -184,12 +184,12 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
-/** RD-B20: days of progress the strongest distiller gains in a year from the player's live products (distillationLeak,
- *  the security system's daily leak: a year's G gained ÷ the distiller's own frontier-G slope, RD-L03). */
+/** RD-B20 / RD-X04: days of progress the strongest distiller gains at its next post-training from the player's live
+ *  products (distillationLeak: rule B's lift ÷ the distiller's own frontier-G slope, RD-L03). */
 export function distillDaysPerYear(s: GameStateV2): number {
   let days = 0;
   for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
-    const dG = distillationLeak(s, lab.core.id).dGPerDay * 365;
+    const dG = distillationLeak(s, lab.core.id).dG;
     if (dG > 0) days = Math.max(days, (dG / frontierGPerYear(s, lab.core.id, PACE_WINDOW_DAYS)) * 365);
   }
   return days;

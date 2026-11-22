@@ -31,7 +31,8 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { addRivalKnowledge, clRefresh, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, setModelG, trainDay } from './rivalModel';
+import { distillLift } from '../production/diffusion';
+import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -315,8 +316,10 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // recipe (rivalModel.ts newVersionG), never below the version it replaces.
   const postVersion = () => {
     w.nextPost[id] = day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
-    const G = Math.max(gOfSimple(wl, r.internal), newVersionG(s, r, r.phys.base));
-    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
+    // RD-X04 rule B: the post-training distils the best released teacher above its own G (production/diffusion.ts).
+    const own = newVersionG(s, r, r.phys.base);
+    const G = Math.max(gOfSimple(wl, r.internal), own + distillLift(s, id, own, r.phys.base.params).dG);
+    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], recG: recipeOf(s, r) };
     setModelG(wl, r.internal, G, r.phys.base, rivalDomainDg(r));
     w.internalDay[id] = day;
     ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
@@ -329,12 +332,13 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     const months = (BASE_MONTHS[arch] ?? 12) * rng.range(0.8, 1.2);
     r.nextBaseDay = day + Math.round(months * 30.4);
     const nb = finishRun(r, day);
-    const gNew = nb ? newVersionG(s, r, nb) : -Infinity;
+    const gOwn = nb ? newVersionG(s, r, nb) : -Infinity;
+    const gNew = nb ? gOwn + distillLift(s, id, gOwn, nb.params).dG : -Infinity; // RD-X04 rule B
     if (nb && gNew >= gOfSimple(wl, r.internal)) {
       const g2 = gen + 1;
       r.phys.base = nb;
       r.phys.clDay = day;
-      r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
+      r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false, recG: recipeOf(s, r) };
       setModelG(wl, r.internal, gNew, nb, rivalDomainDg(r));
       w.internalDay[id] = day;
       ws2RivalTraitStep(s, rng, r, 'base');

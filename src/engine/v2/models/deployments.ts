@@ -8,6 +8,7 @@ import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './lab
 import { optionLocked } from './tree';
 import { agentsGate, kindOfChannel, launchEffortBlock, priceIndexOf, relaunchPacks } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
+import { distillLift } from '../production/diffusion';
 
 /** Which version variants a channel accepts (§3.3.5). */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
@@ -197,28 +198,18 @@ export function distillationAccess(s: GameStateV2, lab: LabId): number {
 }
 
 /**
- * Daily recipe gain of lab X (OOM) from distilling the player's external deployments (§3.3.5):
- *   Σ_d coef_channel · gap · DA · (1 − 0.25·kyc) · 0.5 / 365, gap = max(0, G_deployed − G_X) (model v3 F3: the G gap; the
- *   old pm gap × B, so the same OOM).
- * Returns the recipe increment and the best open-weights G (absorbed outright). WS4's security system applies it.
+ * RD-X04: the G lab X's next post-training would take from distilling the player's external deployments (rule B,
+ * production/diffusion.ts distillLift with the player's products as the only teachers; the lift applies at X's
+ * post-training, not daily), and the best open-weights G among them (absorbed outright by WS4's security system).
  */
-export function distillationLeak(s: GameStateV2, lab: LabId): { dGPerDay: number; openG: number } {
+export function distillationLeak(s: GameStateV2, lab: LabId): { dG: number; openG: number } {
   const x = rivalLab(s, lab);
-  if (!x) return { dGPerDay: 0, openG: -Infinity };
-  const gX = bestG(s, lab);
-  const DA = distillationAccess(s, lab);
-  let dG = 0;
+  if (!x) return { dG: 0, openG: -Infinity };
   let openG = -Infinity;
   for (const d of s.player.deployments) {
-    if (d.status !== 'live' || d.channel === 'internal') continue;
+    if (d.status !== 'live' || d.channel !== 'open') continue;
     const v = versionById(s, d.versionId);
-    if (!v) continue;
-    if (d.channel === 'open') {
-      openG = Math.max(openG, v.G);
-      continue;
-    }
-    const gap = Math.max(0, v.G - gX);
-    dG += (LEAK_COEF[d.channel] * gap * DA * (1 - 0.25 * d.kyc) * 0.5) / 365;
+    if (v) openG = Math.max(openG, v.G);
   }
-  return { dGPerDay: dG, openG };
+  return { dG: distillLift(s, lab, bestG(s, lab), x.phys.base.params, true).dG, openG };
 }

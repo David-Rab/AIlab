@@ -4,7 +4,7 @@ import { frontierGAt, frontierGPerYear, lagDays, PACE_WINDOW_DAYS } from '../mod
 import { REF_TPP } from '../../../data/v2/runDesign';
 import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
 import { playerRecipeG } from '../models/stacks';
-import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
+import { bestPlayerVersion, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
@@ -58,13 +58,6 @@ export function secretsLeakDaily(s: GameStateV2): number {
   const gap = Math.max(0, playerRecipeG(s) - recipeOf(s, s.china.lab)); // RD-B16: both recipeG at RECIPE_F
   const sec = s.player.security;
   return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gap;
-}
-
-export function distillFlowDaily(s: GameStateV2): number {
-  let pub = -Infinity;
-  for (const r of s.rivals) if (r.core.status === 'active' && r.publicModel) pub = Math.max(pub, r.publicModel.G);
-  const gap = Math.max(0, pub - bestG(s, 'china')); // model vs model (G, OOM a day), like WS1's distillationLeak
-  return WS4_TUNING.distillK * (s.china.meters.distillationAccess / 60) * gap;
 }
 
 /** A successful theft of `victim`'s best internal model by China (§3.6 outcome; R11 #16d). */

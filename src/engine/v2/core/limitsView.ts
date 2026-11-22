@@ -3,7 +3,6 @@
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
-import { LEADER_ID } from '../models/labs';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
@@ -39,13 +38,12 @@ export function labSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;
   if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0, binding: true, text: until > s.time.day ? `no experiment FLOP for capability projects for ${until - s.time.day} d (ideation goes on)` : 'no experiment FLOP for capability projects while paused (ideation goes on)' });
-  // Knowledge diffusion from the simulated frontier leader (follower starts).
-  const L = s.rivals.find((x) => x.core.id === LEADER_ID && x.core.status === 'active');
-  if (L) {
+  // Knowledge diffusion (RD-X04 rule A): recipe from the best public recipe above the player's.
+  {
     const dif = diffusionPerDay(s);
     const rate = (p.research.gRate ?? 0) * 365; // the lab's own recipe rate, OOM a year (RD-L03)
     const add = rate > 0 ? (dif.dG * 365) / rate : 0; // the diffusion's OOM a year over the lab's own recipe rate
-    out.push({ id: 'speed.diffusion', mult: 1 + add, binding: dif.dG > 0, text: dif.dG > 0 ? `recipe ×${(1 + add).toFixed(1)} your own rate, from ${L.core.name}` : `none (${L.core.name} not ahead)` });
+    out.push({ id: 'speed.diffusion', mult: 1 + add, binding: dif.dG > 0, text: dif.dG > 0 ? `recipe ×${(1 + add).toFixed(1)} your own rate, from ${dif.from}` : 'none (no released recipe above yours)' });
   }
   return out;
 }

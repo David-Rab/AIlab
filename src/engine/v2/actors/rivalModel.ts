@@ -35,6 +35,7 @@ import { hash32 } from '../core/rng';
 import { P05_ORCHESTRATION } from '../../../data/v2/features';
 import { domainRefShift, domainsOf, gV0, levelOfG, startLab } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
+import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
 import { tokEff } from '../worldfx/serving';
@@ -575,8 +576,10 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   const w = s.hidden.timeline;
   if (!learnsOnline(w, r) || day - (r.phys.clDay ?? -1e9) < CL_DAYS) return false;
   r.phys.clDay = day;
-  const G = clG(r.phys.base, r.phys.rec);
+  const own = clG(r.phys.base, r.phys.rec);
+  const G = own + distillLift(s, r.core.id, own, r.phys.base.params).dG; // RD-X04 rule B at each refresh
   if (G <= gOfSimple(w, r.internal) + 1e-12) return false;
   setModelG(w, r.internal, G, r.phys.base, rivalDomainDg(r));
+  r.internal.recG = recipeOf(s, r);
   return true;
 }

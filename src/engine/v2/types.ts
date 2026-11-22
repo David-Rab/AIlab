@@ -357,6 +357,8 @@ export interface ModelVersion {
   baseId: string;
   parentVersionId?: string;
   day: Day;
+  /** RD-X04: the player's recipe G (RECIPE_F) when the version was made: what releasing it reveals (diffusion.ts). */
+  recG?: number;
   variant: Variant;
   design: PostDesign;
   /** TRUE general effective compute G (OOM; hidden; benchmarks are noisy reads of its level λ(G)). Model v3 F3:
@@ -1814,6 +1816,8 @@ export interface SimpleModel {
   /** RD-X02: domain effective-compute offsets (OOM) of a rival version post-trained after its lab adopted domain ideas
    *  (P09 / P11 / P22): added to G in that domain's level (setModelG). */
   domainDg?: Partial<Record<DomainId, number>>;
+  /** RD-X04: the lab's recipe G (RECIPE_F) when the version was post-trained: what releasing it reveals (diffusion.ts). */
+  recG?: number;
 }
 
 /** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active

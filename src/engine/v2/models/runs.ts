@@ -37,7 +37,8 @@ import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
-import { ePreAt, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
+import { distillLift } from '../production/diffusion';
+import { ePreAt, playerRecipeG, gEquivOf, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
@@ -654,7 +655,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const w = s.hidden.timeline;
   const G = gOfBuild(build);
   const v: ModelVersion = {
-    id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
+    id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day, recG: playerRecipeG(s),
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
@@ -724,6 +725,8 @@ function completeRl(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, pr: PostRe
   const start = rlStartOf(base, run.grader, teacher);
   if (!start) return;
   const build = rlBuild(s, start, run.post, pr, run.flopNeeded);
+  // RD-X04 rule B: the post-training distils the best released teacher above its own G (production/diffusion.ts).
+  build.dg += distillLift(s, 'player', gOfBuild(build), base.params).dG;
   const rlDay = rlDayOf(s, run);
   if (start.on === 'version') {
     const t = start.version;

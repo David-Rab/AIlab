@@ -33,14 +33,18 @@ import type { DomainId, WorldPresetId } from '../../engine/v2/types';
  *  −0.02 fails 1.13, 0 passes 0.96, 0.03 fails 1.66). */
 export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.15, authors2026: 0.07, fast: -0.01, slow: 0.8, sampled: -0.15 };
 
-/** Knowledge diffusion to a follower (BUILD-PLAN R9, research/18 §0.2) [D, fit]: while the frontier leader lab's PUBLIC
- *  model is ahead of the player's best model, the player's know-how gains K_DIFFUSION × the gap per year (papers, staff
- *  moves, distilling public outputs). Without it a follower's lag grew without bound (its rate ∝ compute^0.4 with a
- *  fraction of the leader's compute: big tech 7 → 25 months behind in two years). Fitted on scripts/v2/starts.ts: at 1.0
- *  big tech stayed 7–13 months behind in months 9–15 (target 3–5); at 2.0 the race bot's division reaches 4–5 and the
- *  challenger 1.5–3, before takeoff pulls the leader away. Zero in the leader start (no leader lab: its calibration path
- *  is untouched). Rivals' symmetric term is WS1's distillation leak. */
-export const K_DIFFUSION = 2.0;
+/** RD-X04 (DD-17; research/RD-X04r-diffusion.md §3A) [P]: the recipe replication time constant. Every lab's pretraining
+ *  recipe gains (best public-or-open recipe G above it − its own) / τ a day (production/diffusion.ts). τ is the measured
+ *  paradigm-replication time (o1 → R1 ≈ 4.3 months, C2; "within months", C1; RoseTTAFold ≈ 7 months, C1), not a fit:
+ *  central 4 months, range 2–7 (DIFFUSION_TAU_RANGE_DAYS, uncertainty). Replaces K_DIFFUSION (2.0/yr on the model gap,
+ *  [fit]). The 3–4 month open-weight and ≈7 month China lags (L1, L2, L6) are validation checks, not targets. */
+export const DIFFUSION_TAU_DAYS = 4 * 30.44;
+export const DIFFUSION_TAU_RANGE_DAYS: readonly [number, number] = [2 * 30.44, 7 * 30.44];
+/** RD-X04 (research/RD-X04r §3B, D1) [P]: share of a model gap distillation recaptures at a post-training (IFP S ≈ 0.5). */
+export const DISTILL_S = 0.5;
+/** RD-X04 (§3B, D5) [P-r]: R1 distill student / teacher ratio by student size (active params): 1.5B ≈ 0.35, 7B ≈ 0.7,
+ *  32B ≈ 0.9; log-linear between, flat outside (≥ 32B: a near-frontier base keeps 0.9). */
+export const DISTILL_FIT: readonly [number, number][] = [[1.5e9, 0.35], [7e9, 0.7], [32e9, 0.9]];
 
 /** Synthetic data yield and quality: model v3 D1 moved them to data/v2/dataAssets.ts (SYN_OVERGEN, SYN_Q). */
 /** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead).
