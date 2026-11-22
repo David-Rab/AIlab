@@ -9,6 +9,7 @@ import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
+import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -33,7 +34,9 @@ import { fillRecipe } from '../models/runs';
  *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab).
  *  45 (RD-B02): TrainingRun.recipe is the run's whole launch snapshot (RunRecipe: + the base's DataDraw and P24 bonus, a
  *  continue run's draw, a post-train's domainG, P07 flag and serving FLOP part); completion and the trait hook read
- *  only it. Migration 44 → 45 fills what a run in flight lacks from the save's own day (the best available). */
+ *  only it. Migration 44 → 45 fills what a run in flight lacks from the save's own day (the best available). RD-B03,
+ *  same bump: a family unlocked later (computer use) has no suite until its first build; a save that knows its idea
+ *  but never stored its suite (it read as a free start-quality one) keeps it, stored, before the runs are filled. */
 export const SCHEMA_REV = 45;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
@@ -245,6 +248,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  (idempotent). Finished runs are left as they are (nothing reads their snapshot). */
   44: (raw) => {
     const s = raw as unknown as GameStateV2;
+    // RD-B03: keep the environments the save had (idempotent: a stored suite is left as it is).
+    if (s.player) for (const f of unbuiltSuiteFamilies(s)) keepUnlockedSuite(s, f);
     for (const r of s.player?.models?.runs ?? []) {
       if (r.status !== 'running' && r.status !== 'paused') continue;
       fillRecipe(s, r);

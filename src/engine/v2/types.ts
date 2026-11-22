@@ -1013,7 +1013,7 @@ export interface PlayerLab extends LabCore {
   /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
   dataPortfolio: DataPortfolio;
   /** Model v3 D5: RL environment suites by family (models/suites.ts). A family unlocked since the start (computer use,
-   *  P06) reads as a start-quality suite until the lab works on it. */
+   *  P06) has no suite until the lab builds its first one (RD-B03). */
   suites: Partial<Record<RLFamily, EnvSuite>>;
   policies: PlayerPolicies;
   /** Internal agent packages (STRUCTURE §4.9, R7): model + optional monitor + compute per internal use. */

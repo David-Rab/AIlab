@@ -1,8 +1,9 @@
 // Environment suites (model v3 D5: design/MODEL-V3.md §4.3, §11.2; data in data/v2/suites.ts). Owner: WS1.
 //
 // One suite per RL family, owned by the lab (PlayerLab.suites). A family with no suite has no environments: broad RL
-// leaves it out and a run cannot focus on it. The six start families have suites from day 0; computer use gets one
-// when P06 (computer-use environments) is known — until the lab works on it, it reads as a start-quality suite.
+// leaves it out and a run cannot focus on it, and it costs no upkeep. The six start families have suites from day 0; a
+// family unlocked later (computer use, P06) has none until the lab builds its first suite (RD-B03, DD-07): the first
+// build creates it at fidelity 1 (E₀ of expert data) with the start type's exploitability.
 //   fidelity        fid_f = FIDELITY(expert data built into the suite, the family's `expert:<f>` asset): scales the
 //                   family's RL ceiling A_f = fid_f · (A_base + a_RL) (effective.ts rlGains). The RL-ceiling stack
 //                   (research line "Environments & rewards", a_RL) is the lab-wide method for making environments and
@@ -53,15 +54,19 @@ export const expertAsset = (f: RLFamily, tokensT: number): OwnedDataAsset => ({
 /** The start portfolio's expert assets: EXPERT_START_T per start family. */
 export const startExpertAssets = (): OwnedDataAsset[] => START_SUITE_FAMILIES.map((f) => expertAsset(f, EXPERT_START_T));
 
-/** The lab's suite for a family (stored, or the start-quality suite of a family unlocked since the start), or undefined:
- *  no environments for that family. */
+/** The lab's suite for a family, or undefined: no environments for that family. Stored; a start family missing from the
+ *  state reads as its start suite. A family unlocked later has none until its first build finishes (RD-B03). */
 export function suiteOf(s: GameStateV2, f: RLFamily): EnvSuite | undefined {
   const x = s.player.suites?.[f];
   if (x) return x;
-  return familyUnlocked(s, f) ? startSuite(f, startMult(s)) : undefined;
+  return RL_FAMILY_NEEDS[f] ? undefined : startSuite(f, startMult(s));
 }
-/** Families with a suite (the families RL can use). */
+/** Families with a suite (the families RL can use, and the suites on upkeep). */
 export const suiteFamilies = (s: GameStateV2): RLFamily[] => RL_FAMILY_IDS.filter((f) => suiteOf(s, f));
+/** Families whose environments can exist (the idea is known) but have no suite yet: the lab can build the first one. */
+export const unbuiltSuiteFamilies = (s: GameStateV2): RLFamily[] => RL_FAMILY_IDS.filter((f) => familyUnlocked(s, f) && !suiteOf(s, f));
+/** The suite a family's first build creates (RD-B03): the start type's exploitability, no work done yet. */
+export const firstSuite = (s: GameStateV2, f: RLFamily): EnvSuite => startSuite(f, startMult(s));
 
 const findExpert = (s: GameStateV2, f: RLFamily) =>
   s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.kind === 'expert' && a.id === expertAssetId(f));
@@ -73,7 +78,8 @@ export function suiteExpertT(s: GameStateV2, f: RLFamily): number {
 /** Fidelity from expert data E (T): max − (max − 1)·(E₀/E)^γ, ≥ min. 1 at the start stock. */
 export const fidelityOf = (expertT: number) =>
   expertT <= 0 ? FIDELITY.min : Math.max(FIDELITY.min, FIDELITY.max - (FIDELITY.max - 1) * Math.pow(EXPERT_START_T / expertT, FIDELITY.gamma));
-export const suiteFidelity = (s: GameStateV2, f: RLFamily) => fidelityOf(suiteExpertT(s, f));
+/** A suite's fidelity; 0 without a suite (no environments: no RL on the family). */
+export const suiteFidelity = (s: GameStateV2, f: RLFamily) => (suiteOf(s, f) ? fidelityOf(suiteExpertT(s, f)) : 0);
 
 /** Fidelity and exploitability of every suite (the snapshot a post-training run freezes at launch). */
 export function suiteFidMap(s: GameStateV2): FamilyMap {
@@ -132,7 +138,7 @@ export function suiteWorkCost(s: GameStateV2, f: RLFamily, work: SuiteWork): Sui
 /** Fidelity after a build and exploitability after a hardening pass (the action's before → after). */
 export function suiteWorkEffect(s: GameStateV2, f: RLFamily, work: SuiteWork): { fid: [number, number]; exploit: [number, number] } {
   const fid = suiteFidelity(s, f);
-  const x = suiteOf(s, f)?.exploit ?? 0;
+  const x = (suiteOf(s, f) ?? firstSuite(s, f)).exploit;
   return work === 'build'
     ? { fid: [fid, fidelityOf(suiteExpertT(s, f) + SUITE_BUILD.tokensT)], exploit: [x, x] }
     : { fid: [fid, fid], exploit: [x, hardenedExploit(f, x, hardenCut(s))] };
@@ -146,7 +152,7 @@ export function parseSuiteRef(ref: string): { family: RLFamily; work: SuiteWork 
   return { family: f as RLFamily, work: w };
 }
 
-/** Store a family's suite and its expert asset (a suite unlocked since the start becomes state when the lab works on it). */
+/** Store a family's suite and its expert asset (a start family missing from the state gets its start suite). */
 export function materialiseSuite(s: GameStateV2, f: RLFamily): EnvSuite | undefined {
   const x = suiteOf(s, f);
   if (!x) return undefined;
@@ -155,12 +161,27 @@ export function materialiseSuite(s: GameStateV2, f: RLFamily): EnvSuite | undefi
   if (!findExpert(s, f)) s.player.dataPortfolio.assets.push(expertAsset(f, EXPERT_START_T));
   return suites[f];
 }
+/** Migration 44 → 45 (RD-B03): a save from before the fix read an unlocked family's missing suite as a free start
+ *  suite (fidelity 1); store it so the save keeps what it had. */
+export function keepUnlockedSuite(s: GameStateV2, f: RLFamily): void {
+  (s.player.suites ??= {})[f] ??= firstSuite(s, f);
+  if (!findExpert(s, f)) s.player.dataPortfolio.assets.push(expertAsset(f, EXPERT_START_T));
+}
+/** A family's first suite (RD-B03): stored with an empty expert asset, which the finishing build fills. */
+function createSuite(s: GameStateV2, f: RLFamily): EnvSuite {
+  const x = ((s.player.suites ??= {})[f] = firstSuite(s, f));
+  const a = findExpert(s, f);
+  if (a) a.tokensT = 0;
+  else s.player.dataPortfolio.assets.push(expertAsset(f, 0));
+  return x;
+}
 
 /** A finished build or hardening pass takes effect (build.ts complete). */
 export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
   const r = parseSuiteRef(ref);
   if (!r) return;
-  const x = materialiseSuite(s, r.family);
+  const first = r.work === 'build' && !suiteOf(s, r.family) && familyUnlocked(s, r.family);
+  const x = first ? createSuite(s, r.family) : materialiseSuite(s, r.family);
   if (!x) return;
   if (r.work === 'build') {
     const a = findExpert(s, r.family)!;
@@ -168,7 +189,9 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
     a.tokensT += SUITE_BUILD.tokensT;
     a.day = ctx.day;
     x.builds++;
-    ctx.log('research', `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
+    ctx.log('research', first
+      ? `Engineers finished the first ${RL_FAMILY_LABEL[r.family]} environments: post-training can now train on them (fidelity ${fidelityOf(a.tokensT).toFixed(2)}).`
+      : `Engineers finished building out the ${RL_FAMILY_LABEL[r.family]} environments: fidelity ${before.toFixed(2)} → ${fidelityOf(a.tokensT).toFixed(2)}.`, 1, r.family);
   } else {
     const before = x.exploit;
     x.exploit = hardenedExploit(r.family, x.exploit, hardenCut(s));
@@ -203,7 +226,8 @@ const famParam = (p: Record<string, number | string | boolean>): RLFamily => {
 };
 /** Why suite work cannot be queued (undefined = it can). One pending item per family and kind of work. */
 export function suiteWorkBlock(s: GameStateV2, f: RLFamily, work: SuiteWork): string | undefined {
-  if (!suiteOf(s, f)) return `No ${RL_FAMILY_LABEL[f]} environments yet${RL_FAMILY_NEEDS[f] ? ` (needs ${RL_FAMILY_NEEDS[f]})` : ''}`;
+  if (!familyUnlocked(s, f)) return `No ${RL_FAMILY_LABEL[f]} environments yet (needs ${RL_FAMILY_NEEDS[f]})`;
+  if (!suiteOf(s, f) && work === 'harden') return `No ${RL_FAMILY_LABEL[f]} environments yet: build a suite first`;
   if (s.player.build.queue.some((it) => it.kind === 'suite' && it.ref === suiteRef(f, work))) return `Already ${work === 'build' ? 'building' : 'hardening'} the ${RL_FAMILY_LABEL[f]} suite`;
   if (suiteWorkCost(s, f, work).cashB > s.player.finance.cash) return 'Not enough cash';
   return undefined;

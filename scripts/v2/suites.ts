@@ -16,12 +16,15 @@ import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/
 import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
-import { deserialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
+import { refPlay } from '../../src/engine/v2/bots/ref';
+import { engine } from '../../src/engine/v2';
+import { unbuiltSuites } from '../../src/engine/v2/models/suitesPreview';
 import { upkeepLines } from '../../src/engine/v2/departments/build';
 import { rlFamiliesAvailable, rlGains, rlWeights } from '../../src/engine/v2/models/effective';
-import { planRun } from '../../src/engine/v2/models/runs';
+import { planRun, playerRlWeights } from '../../src/engine/v2/models/runs';
 import {
-  S2_PER_EXPLOIT, expertAssetId, fidelityOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost,
+  S2_PER_EXPLOIT, completeSuiteWork, expertAssetId, fidelityOf, suiteExploitMap, suiteFamilies, suiteFidMap, suiteFidelity, suiteOf, suiteWorkCost, unbuiltSuiteFamilies,
 } from '../../src/engine/v2/models/suites';
 import { postSignals } from '../../src/engine/v2/safety/traits';
 import type { Candidate, GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../src/engine/v2/types';
@@ -138,6 +141,58 @@ check(up.length === START_FAMS.length && near(up.reduce((a, l) => a + l.tw, 0), 
 const pc = planRun(s0, { kind: 'post', baseId: 'B0', post: post({ rlFocus: ['computerUse'] }) });
 check(!!pc.reason && /environment/i.test(pc.reason), 'a family with no suite cannot be focused (computer use before P06)', pc.reason ?? '');
 check(act(s0, 'suite.harden', { family: 'computerUse' }) !== undefined, 'no suite, no work on it');
+check(act(s0, 'suite.build', { family: 'computerUse' }) !== undefined, 'no suite can be built before its idea (computer use needs P06)');
+
+// ---------- RD-B03: a family unlocked later has no suite until the lab builds its first one ----------
+{
+  const known = (s: GameStateV2) => {
+    s.player.tree.P06 = { ...(s.player.tree.P06 ?? {}), status: 'known', progress: 1 } as never;
+    return s;
+  };
+  const su = known(game());
+  const upCU = (s: GameStateV2) => upkeepLines(s).some((l) => l.kind === 'suite' && l.ref === 'computerUse');
+  const focusCU = (s: GameStateV2) => planRun(s, { kind: 'post', baseId: 'B0', post: post({ rlFocus: ['computerUse'] }) }).reason;
+  const wCU = (s: GameStateV2) => playerRlWeights(s, 'broad').computerUse ?? 0;
+  check(!suiteOf(su, 'computerUse') && unbuiltSuiteFamilies(su).join(',') === 'computerUse' && suiteFamilies(su).join(',') === START_FAMS.join(',')
+    && suiteFidelity(su, 'computerUse') === 0 && wCU(su) === 0 && !upCU(su) && !!focusCU(su) && act(su, 'suite.harden', { family: 'computerUse' }) !== undefined
+    && planRun(su, { kind: 'post', baseId: 'B0', post: post() }).g.rl!.general === plan0.general,
+    'RD-B03: with P06 known, computer use has no suite (fidelity 0): not in broad RL, cannot be a focus or hardened, no upkeep, a broad post-train unchanged',
+    `focus: ${focusCU(su) ?? 'allowed'}`);
+  const pv = unbuiltSuites(su, { kind: 'post', baseId: 'B0', post: post() });
+  const done = deserialize(serialize(su));
+  completeSuiteWork(done, makeCtx(done), 'computerUse:build');
+  const rlDone = planRun(done, { kind: 'post', baseId: 'B0', post: post() }).g.rl!;
+  check(near(pv[0].build.after.rl!.general, rlDone.general, 1e-12) && rlDone.general !== plan0.general,
+    'RD-B03: the first build\'s preview equals the planned run with the suite built today', `${plan0.general.toFixed(4)} → ${rlDone.general.toFixed(4)} OOM`);
+  const cash0 = su.player.finance.cash;
+  const bc = suiteWorkCost(su, 'computerUse', 'build');
+  const e = act(su, 'suite.build', { family: 'computerUse' });
+  check(!e && pv.length === 1 && !pv[0].build.block && pv[0].build.effect.fid[0] === 0 && near(pv[0].build.effect.fid[1], 1, 1e-12)
+    && near(cash0 - su.player.finance.cash, bc.cashB, 1e-9) && su.player.build.queue.some((it) => it.kind === 'suite' && it.ref === 'computerUse:build')
+    && !suiteOf(su, 'computerUse') && wCU(su) === 0 && !upCU(su),
+    'RD-B03: "Build suite" on computer use is paid when queued (fidelity none → 1.00); until it is built there is still no suite',
+    `${e ?? ''} $${(bc.cashB * 1000).toFixed(0)}M, ${bc.tw} team-weeks; preview RL ΔG ${pv[0].build.before.rl?.general.toFixed(3)} → ${pv[0].build.after.rl?.general.toFixed(3)} OOM`);
+  runTo(su, su.time.day + 60);
+  const x = suiteOf(su, 'computerUse');
+  const rl1 = planRun(su, { kind: 'post', baseId: 'B0', post: post() }).g.rl!;
+  check(!!x && x.builds === 1 && x.exploit === EXPLOIT_START.computerUse && near(expert(su, 'computerUse')?.tokensT ?? 0, SUITE_BUILD.tokensT, 1e-15)
+    && near(suiteFidelity(su, 'computerUse'), 1, 1e-12) && near(wCU(su), 1 / (START_FAMS.length + 1), 1e-12) && upCU(su) && !focusCU(su)
+    && (rl1.perFamily.computerUse ?? 0) > 0 && (pv[0].build.after.rl!.perFamily.computerUse ?? 0) > 0 && !pv[0].build.before.rl!.perFamily.computerUse,
+    'RD-B03: once built, computer use has a fidelity-1 suite (start exploitability): in broad RL, a focus, on upkeep (as the build preview showed)',
+    `broad share ${(wCU(su) * 100).toFixed(1)}%, RL ΔG ${plan0.general.toFixed(3)} → ${rl1.general.toFixed(3)} OOM`);
+  // RefBot builds it as soon as the idea is known, once.
+  const sr = known(game());
+  refPlay(sr, engine);
+  refPlay(sr, engine);
+  check(sr.player.build.queue.filter((it) => it.kind === 'suite' && it.ref === 'computerUse:build').length === 1,
+    'RD-B03: RefBot queues the first computer-use suite build when P06 is known (once)');
+  // Migration 44 → 45: a save from before the fix (P06 known, no stored suite: it read as a free start suite) keeps it.
+  const old = JSON.parse(serialize(known(game()))) as GameStateV2;
+  old.schemaRev = 44;
+  const ld = deserialize(JSON.stringify(old));
+  check(!!ld.player.suites.computerUse && near(suiteFidelity(ld, 'computerUse'), 1, 1e-12) && wCU(ld) > 0,
+    'RD-B03: a rev-44 save that knows P06 keeps its computer-use suite (stored at fidelity 1)');
+}
 
 // ---------- a run freezes its suites at launch ----------
 const sr = game();

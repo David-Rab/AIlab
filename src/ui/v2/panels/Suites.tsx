@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { Dumbbell, Hammer, Lock, ShieldCheck, type LucideIcon } from 'lucide-react';
 import {
   dateOf, exploitFloor, optionLocked, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, suitePending, suitePlanEffect, suiteS2Parts, suitesView,
-  suiteWorkPreview,
+  suiteWorkPreview, unbuiltSuites,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, PostDesign, RLFamily, SuiteRow, SuiteWorkPreview } from '../../../engine/v2';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
@@ -69,7 +69,7 @@ export function Suites({ s }: { s: GameStateV2 }) {
     const pv = Object.fromEntries(view.rows.map((r) => [r.family, {
       build: suiteWorkPreview(s, r.family, 'build', plan.lp, before), harden: suiteWorkPreview(s, r.family, 'harden', plan.lp, before),
     }])) as Record<RLFamily, { build: SuiteWorkPreview; harden: SuiteWorkPreview }>;
-    return { view, before, pv, s2: suiteS2Parts(s, plan.post), locked: lockedSuiteFamilies(s) };
+    return { view, before, pv, s2: suiteS2Parts(s, plan.post), locked: lockedSuiteFamilies(s), unbuilt: unbuiltSuites(s, plan.lp, before) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return (
@@ -87,6 +87,7 @@ export function Suites({ s }: { s: GameStateV2 }) {
           <span className="ch"><Term id="suiteBuild">Build</Term></span>
           <span className="ch"><Term id="suiteHarden">Harden</Term></span>
           {d.view.rows.map((r) => <SuiteLine key={r.family} s={s} r={r} pv={d.pv[r.family]} />)}
+          {d.unbuilt.map((u) => <UnbuiltLine key={u.family} s={s} family={u.family} pv={u.build} />)}
           {d.locked.map((l) => <LockedLine key={l.family} s={s} family={l.family} node={l.node} />)}
         </div>
         <div className="sx-chain" data-test="suites-chain">
@@ -223,6 +224,28 @@ function WorkCell({ s, r, pv, pend }: { s: GameStateV2; r: SuiteRow; pv: SuiteWo
   );
 }
 
+/** A family whose idea is known but whose first suite is not built (RD-B03): no RL on it until the build finishes. The
+ *  Build cell is the usual one (cost, ETA, the planned run's before → after); there is nothing to harden yet. */
+function UnbuiltLine({ s, family, pv }: { s: GameStateV2; family: RLFamily; pv: SuiteWorkPreview }) {
+  const I = famIcon(family);
+  const label = RL_FAMILY_LABEL[family];
+  const r: SuiteRow = { family, label, fid: 0, exploit: 0, expertT: 0, share: 0, builds: 0, hardenings: 0, pending: [] };
+  const pend = suitePending(s, family).find((x) => x.work === 'build');
+  return (
+    <div className="sx-line unbuilt" data-suite={family} data-unbuilt={family}>
+      <span className="sx-fam"><I size={14} /><b>{label}</b></span>
+      <Tip className="sx-none" content={() => <TipCard title={label} value={<span className="tag2">no suite</span>} rows={[
+        { label: <Term id="suiteFidelity">Fidelity</Term>, value: 'none' },
+        { label: 'First build', value: `${fid(pv.effect.fid[1])} · ${F.pct(pv.effect.exploit[1], 1)} exploitable` },
+      ]} footer="Runs cannot train on this family until its first suite is built.">No environments yet: broad RL leaves this family out, it cannot be a focus and it costs no upkeep.</TipCard>}>
+        <span className="small dim" data-test="suite-none">No environments yet — build a suite</span>
+      </Tip>
+      <WorkCell s={s} r={r} pv={pv} pend={pend} />
+      <span />
+    </div>
+  );
+}
+
 /** A family with no suite yet: the idea that unlocks it (click opens it in Research). */
 function LockedLine({ s, family, node }: { s: GameStateV2; family: RLFamily; node: string }) {
   const I = famIcon(family);
@@ -232,7 +255,7 @@ function LockedLine({ s, family, node }: { s: GameStateV2; family: RLFamily; nod
   return (
     <div className="sx-line locked" data-suite={family} data-locked={node}>
       <span className="sx-fam"><I size={14} /><b>{RL_FAMILY_LABEL[family]}</b></span>
-      <Tip content={() => <TipCard title={<>{RL_FAMILY_LABEL[family]} <Lock size={11} /></>} value={<span className="tag2">no suite</span>} rows={[{ label: 'Unlocked by', value: `${n?.name ?? node} (${node})` }, { label: 'Status', value: st === 'active' ? `${F.pct(pr)} researched` : st }]} footer="Click to open the idea in Research.">No environments for this family yet: runs cannot train on it. Once the idea is known it starts as a start-quality suite.</TipCard>}>
+      <Tip content={() => <TipCard title={<>{RL_FAMILY_LABEL[family]} <Lock size={11} /></>} value={<span className="tag2">no suite</span>} rows={[{ label: 'Unlocked by', value: `${n?.name ?? node} (${node})` }, { label: 'Status', value: st === 'active' ? `${F.pct(pr)} researched` : st }]} footer="Click to open the idea in Research.">No environments for this family yet: runs cannot train on it. Once the idea is known, build its first suite here.</TipCard>}>
         <button className="bp-opt locked sx-lock" data-node={node} onClick={() => { store.setTab('research.sel', node); store.goto('research', { tab: 'tree' }); }}>
           <Lock size={11} />needs {n?.name ?? node} <span className="dim">({node})</span>{st === 'active' ? <span className="dim"> · {F.pct(pr)}</span> : st === 'queued' ? <span className="dim"> · queued</span> : null}
         </button>
