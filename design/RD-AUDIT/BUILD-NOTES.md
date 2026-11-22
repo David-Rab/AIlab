@@ -1164,3 +1164,31 @@ Start state as data; one start rule for every lab (MEA-05, MEA-06; SYNTHESIS RD-
 - **moves calibration: yes.** Rolled safety nodes' speed (ℓ instead of M = X/Xh × taste × mods: no taste lift, and ℓ
   is not the throughput ratio), gov security demand / rungs (milestones instead of M thresholds), tutorial act 4 timing,
   P24 payoff and the RE AI share (1 − 1/m_EXP instead of the CES weight 1 − wH). Mix and research engine unchanged.
+
+### RD-A02
+
+Auto research mix removed (DD-11, INP-01: Auto sat at 98–99% experiments and starved the engineering agents, which
+shared the agent pool). Moves calibration: **yes**.
+
+- **Gone:** `applyBestMix`, `bestResearchMix`, `xAtMix`, `inputsAtMix` (production.ts); `LabCore.researchManual` (rivals
+  never set it; they keep their own aggregate `bestRivalMix`); the Mix Auto|Manual control (Split.tsx); the research-mix
+  chart (`researchMixCurve` / `MixChart`, INP-V02). The daily production step no longer re-splits the player.
+- **Research mix:** the player's explicit setting (always a slider). Default = the reference lab's start, experiments 5% :
+  research agents 2.4% of compute (≈ 68% experiments, `split.ts EXP_SHARE_DEFAULT`); presets keep the player's mix.
+- **Engineering line:** a seventh pool `split.engineering` (top group "Engineering agents" on Compute › Split; Company
+  pool labels). Chosen over a budget inside the agents package because the split already owns every compute line and its
+  UI is a list of top-level sliders. `playerShareRef(yr)` = shareRefAt with the reference ENG_REF_SHARE (20%) of agent
+  compute moved to engineering, so at the reference split every use has exactly the H100e it had before (0.6% of compute
+  at start). `split.agents` is now research agents only; package shares: eng = 1 (all of its line; the Agents lane hides
+  its stepper and the action blocks compute changes for it), routine / frontier renormalised (0.8125 / 0.1875,
+  `DEFAULT_CAP_SHARES`); rivals read `REF_AGENT_SHARES` (unchanged 0.65 / 0.15). Other labs: engineering 0.
+- **RefBot:** sets `playerShareRef(yr)` (with its safety share) monthly via pool keys, the research mix included (AI
+  2027's experiments : automation rows), re-applying when experiments drift > 0.1 pt. No tuning.
+- **Kept, readouts only:** the aggregate throughput, renamed `expThroughput` (Research speed ×, spare-serving effect,
+  response charts at today's mix). No mechanism reads it.
+- **Save:** SCHEMA_REV 51; migration 50 deletes researchManual, adds engineering 0 to every lab, and (only when the
+  player's split has no engineering line: idempotent) moves agents × the eng package share to engineering and
+  renormalises the research shares. hygiene's two rev pins → 51.
+- **Not done:** the optional "Suggest" button (budget). Untracked scratch `scripts/v2/_r01/check.ts` still imports
+  `researchMixCurve` (outside the scripts tsconfig). Check: untracked `scripts/v2/_a02/check.ts` (mix held over 60
+  days, engineering line live, migration).
