@@ -662,7 +662,7 @@ export interface SafProjectState {
 // ───────────────────────────── Research projects (model v3 V2: MODEL-V3 §5) ─────────────────────────────
 
 /** Lifecycle stage of a capability project (MODEL-V3 §5.3). `ideation` also covers waiting for enough candidates. */
-export type CapStage = 'ideation' | 'small' | 'scale' | 'adopting' | 'failed';
+export type CapStage = 'ideation' | 'small' | 'scale' | 'test' | 'adopting' | 'failed';
 /** A candidate idea found by ideation. Its true effect is never stored: it is recomputed from the world seed, the
  *  project, the generation and the candidate number (models/research.ts candidateTruth), so nothing hidden is saved. */
 export interface Candidate {
@@ -726,6 +726,9 @@ export interface CapProjectState {
   next: number;
   /** Times reopened as speculative (each halves the odds and widens the prior). */
   spec?: number;
+  /** RD-R05: an unlock project's one "does it work" test (stage 'test'): its work done / needed (team-months at unit
+   *  inputs, the project's whole stage work), FLOP used, and the build item once it works. No candidates, no band. */
+  trial?: { work: number; workNeed: number; flop: number; buildId?: string };
   /** Lines: results waiting for the engineers to build them in (the line moves on to its next generation). */
   pending?: CapResult[];
   /** Lines (model v3 V3): the pool's state above n₀ (reference ideas): R = n₀ + pool, advanced by each result's true effect

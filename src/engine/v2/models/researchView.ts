@@ -19,7 +19,7 @@ import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
 import { versionById } from './labs';
 import {
-  allocate, attemptOdds, capEta, capReCapacity, isCapProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
+  allocate, attemptOdds, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
 } from './research';
 import { adoptedAt, headroomAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
@@ -30,7 +30,9 @@ import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, Re
 /** The four steps of a project's life the player sees (MODEL-V3 §5.3; RD-R07: no zero-length result step): ideas, small
  *  test, big (scale) test, build-in (adoption by the engineers). */
 export const STAGES = ['ideation', 'small', 'scale', 'adoption'] as const;
-export type StageId = (typeof STAGES)[number];
+/** RD-R05: an unlock project's two steps: one "does it work" test, then the build-in. */
+export const UNLOCK_STAGES = ['test', 'adoption'] as const;
+export type StageId = (typeof STAGES)[number] | (typeof UNLOCK_STAGES)[number];
 
 export interface ProjectTeamView { id: string; specialty?: string; quality: Team['quality']; heads: number; match: boolean; why: string }
 export interface CapProjectView {
@@ -42,6 +44,8 @@ export interface CapProjectView {
   /** Stack the effect enters, or a domain effect / an unlock. */
   stack?: StackKey;
   unit: 'oom' | 'design' | 'unlock';
+  /** RD-R05: an unlock project (one works / doesn't test: no candidates, no effect band; stages UNLOCK_STAGES). */
+  unlock: boolean;
   /** Where it is: waiting (not ready / no teams), a lifecycle stage, failed, known. */
   state: 'waiting' | 'running' | 'adopting' | 'failed' | 'known';
   stage: StageId;
@@ -124,9 +128,13 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
     id: t.id, ...(t.specialty ? { specialty: t.specialty } : {}), quality: t.quality, heads: t.heads, match: t.specialty === n.column, why: t.why ?? 'Placed by the assignment',
   }));
   // Stage.
-  let stage: StageId = 'ideation';
+  const unlock = isUnlockProject(n);
+  let stage: StageId = unlock ? 'test' : 'ideation';
   let stageFrac = 0;
-  if (st) {
+  if (st && unlock) {
+    if (st.stage === 'adopting') stage = 'adoption';
+    else stageFrac = st.trial && st.trial.workNeed > 0 ? Math.min(1, st.trial.work / st.trial.workNeed) : 0;
+  } else if (st) {
     if (st.stage === 'small' || st.stage === 'scale') {
       stage = st.stage;
       stageFrac = st.test && st.test.workNeed > 0 ? Math.min(1, st.test.work / st.test.workNeed) : 0;
@@ -134,7 +142,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
     else stageFrac = Math.min(1, (st.cands.length + st.idea) / PICK_AT);
   }
   if (n.kind === 'line' && st?.pending?.length && stage === 'ideation' && !st.test) stageFrac = Math.min(1, (st.cands.length + st.idea) / PICK_AT);
-  const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test) ? 'running' : 'waiting';
+  const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test || st?.stage === 'test') ? 'running' : 'waiting';
   // Inputs today.
   const flopDay = flopOfProject(s, id);
   // When it is not experimenting today, read the inputs it would get (RE_MAX_PER_PROJECT; FLOP by need, RD-B08).
@@ -145,16 +153,16 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const { ideation, experiments } = state === 'running' || state === 'waiting' ? capEta(s, id, sci) : { ideation: 0, experiments: 0 };
   const builds = buildEtas(s).etas;
   let adoption: CapProjectView['adoption'];
-  const bid = st?.result?.buildId ?? st?.pending?.find((r) => r.buildId)?.buildId;
+  const bid = st?.result?.buildId ?? st?.trial?.buildId ?? st?.pending?.find((r) => r.buildId)?.buildId;
   if (bid) {
     const it = p.build.queue.find((q) => q.id === bid);
     if (it) adoption = { tw: Math.max(0, it.needTW - it.doneTW), eta: builds.get(bid) ?? Infinity };
   }
   const eta = state === 'adopting' ? (adoption?.eta ?? 0) : ideation + experiments;
   // Beliefs.
-  const tc = st?.test?.c;
+  const tc = unlock ? undefined : st?.test?.c;
   const belief = tc ? { mu: tc.mu, sd: tc.sd, sMu: tc.muS, sSd: tc.sdS, nov: tc.nov, b: tc.b, tested: st?.stage === 'scale' } : undefined;
-  const res = st?.result ?? st?.pending?.[st.pending.length - 1];
+  const res = unlock ? undefined : st?.result ?? st?.pending?.[st.pending.length - 1];
   // Lines: the pool.
   let line: CapProjectView['line'];
   if (n.kind === 'line') {
@@ -168,11 +176,11 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const eff = n.effect;
   return {
     id, name: n.name, kind: n.kind ?? 'idea', column: n.column, area: COLUMN_LABEL[n.column], ...(eff?.stack ? { stack: eff.stack } : {}),
-    unit: eff?.stack ? 'oom' : eff?.domains || eff?.data || eff?.expert ? 'design' : 'unlock',
+    unit: eff?.stack ? 'oom' : eff?.domains || eff?.data || eff?.expert ? 'design' : 'unlock', unlock,
     state, stage, stageFrac, ...(ready !== true && !known ? { wait: ready } : {}), rank, want: wantIsAuto(s, id) ? teams.length : teamsWanted(s, id), auto: wantIsAuto(s, id), teams,
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),
-    odds: attemptOdds(n, (st?.spec ?? 0) + (failed ? 1 : 0)), spec: st?.spec ?? 0, drops: st?.drops ?? 0, maxDrops: n.kind === 'line' ? 0 : MAX_DROPS,
+    odds: attemptOdds(n, (st?.spec ?? 0) + (failed ? 1 : 0)), spec: st?.spec ?? 0, drops: st?.drops ?? 0, maxDrops: n.kind === 'line' || unlock ? 0 : MAX_DROPS,
     re, flopDay, c: cc, l, X, eC: el.eC, eL: el.eL, bound, eta, etaParts: { ideation, experiments },
     ...(line ? { line } : {}), ...(adoption ? { adoption } : {}),
   };

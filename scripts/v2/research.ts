@@ -17,7 +17,7 @@ import { HEADROOM, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, candidateTruth, capSciTeams, completeAdoption, dropRule, giveUpText, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  allocate,assignmentValue, attemptOdds, capEta, effortClassOf, effortOfNode, isCapProject, isUnlockProject, trialWork, candidateTruth, capSciTeams, completeAdoption, dropRule, giveUpText, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
@@ -36,11 +36,54 @@ import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engin
 import { runStall } from '../../src/engine/v2/models/runs';
 import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
+import { hash32 } from '../../src/engine/v2/core/rng';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
 
 // ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
+// ---------- RD-R05 unlock projects: one works / doesn't test (run alone: `tsx scripts/v2/research.ts --rd-r05`) ----------
+if (process.argv.includes('--rd-r05')) {
+  const unlocks = Object.values(TREE_BY_ID).filter((n) => isUnlockProject(n));
+  check(unlocks.length > 0 && unlocks.every((n) => !hasTypedEffect(n) && n.kind !== 'line') && !isUnlockProject(TREE_BY_ID.elastic), 'RD-R05 unlock projects are the ideas / axes without a typed effect', `${unlocks.length}: ${unlocks.map((n) => n.id).slice(0, 12).join(', ')}…`);
+  // Run the first unlock that starts on day 0, with three teams, to its works draw.
+  const res: string[] = [];
+  let ran = 0;
+  for (const n of unlocks) {
+    if (ran >= 3) break;
+    const s = mk(7);
+    if (s.player.tree[n.id]?.cap || s.player.tree[n.id]?.status === 'known' || act(s, 'research.start', { id: n.id }) !== undefined) continue;
+    act(s, 'research.want', { id: n.id, n: 3 });
+    const seen: string[] = [];
+    let bandOrCands = false;
+    let workAtEnd = -1;
+    let needAtEnd = -1;
+    for (let d = 0; d < 900; d++) {
+      const before = s.player.tree[n.id]?.cap?.trial;
+      const bw = before ? { w: before.work, n: before.workNeed } : undefined;
+      tick(s, { skip: ['endings'] });
+      const ts = s.player.tree[n.id];
+      const st = ts?.cap;
+      const v = capProjectView(s, n.id);
+      if (st && (st.cands.length || st.test || st.result)) bandOrCands = true;
+      if (v && (v.belief || v.result || v.cands)) bandOrCands = true;
+      for (const x of [st?.stage ?? '', v?.stage ?? '']) if (x && seen[seen.length - 1] !== x) seen.push(x);
+      if (st && (st.stage === 'adopting' || st.stage === 'failed') && workAtEnd < 0) { needAtEnd = st.trial?.workNeed ?? bw?.n ?? 0; workAtEnd = st.trial?.work ?? (st.stage === 'adopting' ? needAtEnd : -1); }
+      if (ts?.status === 'known' || ts?.status === 'failed') break;
+    }
+    const ts = s.player.tree[n.id];
+    const spec = 0;
+    const expect = n.paradigm ? s.hidden.paradigmSuccess[n.id] === true : hash32(s.setup.seed, `node:${n.id}`) / 4294967296 < attemptOdds(n, spec);
+    const outcome = ts?.status === 'known' ? true : ts?.status === 'failed' ? false : undefined;
+    const ok = !bandOrCands && outcome === expect && seen.every((x) => ['test', 'adopting', 'adoption', 'failed'].includes(x)) && Math.abs(needAtEnd - trialWork(n)) < 1e-9 && workAtEnd >= needAtEnd - 1e-9;
+    res.push(`${n.id}: ${seen.join('→')} ${ts?.status} (draw ${expect}) work ${workAtEnd.toFixed(2)}/${needAtEnd.toFixed(2)}${bandOrCands ? ' BAND/CANDS' : ''}`);
+    check(ok, `RD-R05 ${n.id}: no candidates or effect band; one test of the project's effort; completes by the works draw`, res[res.length - 1]);
+    ran++;
+  }
+  check(ran > 0, 'RD-R05 at least one unlock project ran', String(ran));
+  finish('research');
+}
+
 if (process.argv.includes('--rd-r07')) {
   check(STAGES.join(',') === 'ideation,small,scale,adoption', 'RD-R07 the player sees four stages (no result step)', STAGES.join(', '));
   // Every capability idea / axis: the effort shown (effortOfNode) is stagesOf's work and the node's one effortTM.

@@ -370,7 +370,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       if (day - (st.day ?? day) >= TREE_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
       continue;
     }
-    if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale') continue;
+    if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale' && st.cap.stage !== 'test') continue;
     if (g.when && !g.when(s)) continue;
     tryAct(s, api, 'research.start', { id: g.id });
   }

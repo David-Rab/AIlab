@@ -21,6 +21,8 @@
 //                   can be reopened as speculative (a new attempt, its drop count back at 0).
 //   5 adoption      the engineers build it in (team-weeks ∝ effect); then the TRUE effect enters its stack (models/
 //                   stacks.ts; HEADROOM of it waits for routine tuning), an axis's lever unlocks, a domain effect applies.
+// Unlock projects (RD-R05: ideas and axes without a typed effect) skip 1–4: one test ('test', stepTrial) of the project's
+// stage work by its science teams and the experiment CES together, then the works() draw: build-in, or failed (reopen).
 // Lines repeat. Each line is a pool with returns r (V3 notes, derivation 1): the result that brings research input q (its
 // team's taste × the ideas it batches) to a pool at state R has prior mean r_l·log₁₀((R + q)/R), so the line's stack is
 // r_l·log₁₀ of its cumulative research input (AI Futures' SE = r·log₁₀ RS).
@@ -214,6 +216,14 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
   const sg = stagesOf(n);
   const b = n.kind === 'line' ? batchOf(x?.X ?? 1) : 1;
   const speed = researchMods(s).speed;
+  if (isUnlockProject(n)) {
+    // RD-R05: one test, science teams and the experiment CES on the same work.
+    const left = st?.trial ? Math.max(0, st.trial.workNeed - st.trial.work) : trialWork(n) * (1 - (st ? capProgress(st) : 0));
+    const { X } = projectExpInputs(s, id);
+    const rate = sciWorkRate(s, x?.mIdeas ?? 1, sci, speed) + (X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0);
+    const experiments = rate > 0 ? left / rate : Infinity;
+    return { ideation: 0, experiments, eta: experiments };
+  }
   const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * sci.q * speed) / (sg.idea * b * 30) : 0;
   const { X } = projectExpInputs(s, id);
   const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0;
@@ -263,7 +273,32 @@ export function capState(s: GameStateV2, id: string): CapProjectState {
 }
 
 /** Stages in which a project uses science teams. */
-export const takesTeams = (st: CapProjectState | undefined) => !st || st.stage === 'ideation' || st.stage === 'small' || st.stage === 'scale';
+export const takesTeams = (st: CapProjectState | undefined) => !st || st.stage === 'ideation' || st.stage === 'small' || st.stage === 'scale' || st.stage === 'test';
+
+/** RD-R05 (CAP-13, DD-14): an unlock project (an idea or axis without a typed effect: RL focus nodes, options, features'
+ *  nodes) runs one "does it work" test instead of the idea pipeline: no candidates, no effect band. */
+export const isUnlockProject = (n: TreeNodeDef | undefined): boolean => !!n && isCapProject(n) && n.kind !== 'line' && !hasTypedEffect(n);
+/** An unlock project's test work (team-months at unit inputs): the project's whole stage work (stagesOf, = effortTM). */
+export const trialWork = (n: TreeNodeDef) => {
+  const sg = stagesOf(n);
+  return PICK_AT * sg.idea + sg.small + sg.scale;
+};
+/** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × taste × speed / 30). */
+const sciWorkRate = (s: GameStateV2, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
+  sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), s.hidden.timeline.prod.lam) * sci.q * speed) / 30 : 0;
+/** An unlock project's test state, started (or restated from an older save's idea pipeline at its progress) on first use. */
+function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
+  if (!st.trial) {
+    const W = trialWork(n);
+    const done = st.stage === 'ideation' || st.stage === 'small' || st.stage === 'scale' ? capProgress(st) : 0;
+    st.trial = { work: done * W, workNeed: W, flop: 0 };
+    st.cands = [];
+    st.idea = 0;
+    delete st.test;
+    st.stage = 'test';
+  }
+  return st.trial;
+}
 
 // ───────────────────────────── allocation: scientists (V2.5) ─────────────────────────────
 
@@ -438,7 +473,7 @@ export function allocate<K extends string>(cap: number, alloc: Allocation<K>, de
 /** Projects in an experiment stage, in priority order. */
 const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
   const st = s.player.tree[id]?.cap;
-  return !!st && !!st.test;
+  return !!st && (!!st.test || st.stage === 'test');
 });
 
 /** Today's research-engineer demand per need (human team-equivalents) at the AI labour multiplier m on experiments: run
@@ -646,6 +681,15 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   const ts = s.player.tree[id];
   const st = ts?.cap;
   if (!n || !isCapProject(n) || !st) return;
+  if (st.trial?.buildId === buildId) {
+    // RD-R05: an unlock's build-in: the lever unlocks (no effect enters a stack).
+    delete st.trial;
+    ts.status = 'known';
+    ts.day = ctx.day;
+    onKnown(id);
+    ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
+    return;
+  }
   const r = n.kind === 'line' ? st.pending?.find((x) => x.buildId === buildId) : st.result?.buildId === buildId ? st.result : undefined;
   if (!r) return;
   const truth0 = candidateTruth(s, n, st, r.c);
@@ -713,8 +757,9 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: Resear
   const P = s.hidden.timeline.prod;
   const kappa = RISK(s);
   const sg = stagesOf(n);
-  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
   const sci = sciOn(s, n.id);
+  if (isUnlockProject(n)) return stepTrial(s, ctx, n, st, inp, sci, experimentRate(s, inp, p13, reCap, flopDay), flopDay, queueBuild);
+  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
   if (sci.cap > 0) {
     const b = n.kind === 'line' ? batchOf(inp.X) : 1;
     st.idea += (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * b * 30);
@@ -754,6 +799,37 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: Resear
     time -= step;
     if (t.work < t.workNeed - 1e-12) break;
     if (!resolveStage(s, ctx, n, st, t, queueBuild)) break;
+  }
+  return used;
+}
+
+/** RD-R05: one day of an unlock project's test. The science teams (at the ideation rate) and the experiment CES (research
+ *  engineers and the project's FLOP) do the same work, the project's whole stage work; when it is done the hidden
+ *  per-world draw `works()` decides: it works (the engineers build it in) or it fails (reopen at lower odds). Returns
+ *  the FLOP used. */
+function stepTrial(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, inp: ResearchInputs, sci: { cap: number; q: number }, expRate: number, flopDay: number, queueBuild: (tw: number) => string): number {
+  const tr = trialOf(n, st);
+  const rate = sciWorkRate(s, inp.mIdeas, sci, inp.speed) + expRate;
+  if (rate <= 0) return 0;
+  const need = Math.max(0, tr.workNeed - tr.work);
+  const step = Math.min(1, need / rate);
+  tr.work = rate < need ? tr.work + rate : tr.workNeed;
+  const used = expRate > 0 ? flopDay * step : 0;
+  tr.flop += used;
+  if (tr.work < tr.workNeed - 1e-12) return used;
+  const spec = st.spec ?? 0;
+  const ts = s.player.tree[n.id];
+  if (works(s, n, spec)) {
+    tr.buildId = queueBuild(adoptTW(n, 0));
+    st.stage = 'adopting';
+    ts.progress = 1;
+    ctx.log('research', `${n.name} works. The engineers are building it in.`, 2, n.id);
+  } else {
+    st.stage = 'failed';
+    ts.status = 'failed';
+    ts.day = ctx.day;
+    const pc = (x: number) => `${Math.round(x * 100)}%`;
+    ctx.log('research', `${n.name}: the test showed it does not work (this attempt's chance was ${pc(attemptOdds(n, spec))}). Reopening as speculative tries again at ${pc(attemptOdds(n, spec + 1))}.`, 2, n.id);
   }
   return used;
 }
@@ -836,6 +912,7 @@ export function capProgress(st: CapProjectState | undefined): number {
   if (!st) return 0;
   if (st.stage === 'adopting') return 1;
   if (st.stage === 'failed') return 0;
+  if (st.stage === 'test') return st.trial && st.trial.workNeed > 0 ? Math.min(1, st.trial.work / st.trial.workNeed) : 0;
   const t = st.test;
   const frac = (x: number, y: number) => (y > 0 ? Math.min(1, x / y) : 1);
   if (!t) return (0.33 * Math.min(PICK_AT, st.cands.length + st.idea)) / PICK_AT;
