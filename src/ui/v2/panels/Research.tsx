@@ -7,15 +7,15 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X } from 'lucide-react';
 import {
-  dateOf, effortClassOf, effortOfNode, fmtDate, isCapProject, missingNeeds, nodeOdds, nodeStatus, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
+  effortClassOf, effortOfNode, isCapProject, missingNeeds, nodeOdds, nodeStatus, projectCapacity, projectEta, projectReady, stagesOf, teamsOn, treeCounts,
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus } from '../../../engine/v2';
 import { PICK_AT } from '../../../data/v2/research';
-import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, TREE_RETRY_DAYS, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
+import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { COLUMNS, COLUMN_LABEL } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
-import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
+import { ActBtn, Term, Tip, TipCard } from '../ui';
 import { Card, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -101,7 +101,6 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
   else if (st === 'queued') meta = <span className="rs-qn">{qn}</span>;
   else if (st === 'active') meta = <Tip content={() => <TipCard title="Progress" value={F.pct(p)}>{isCapProject(n) ? 'Through its stages; stage, beliefs and ETA are on Projects.' : 'Share of the project done; ETA is on Safety › Research lines.'}</TipCard>}><span className="eo">{F.pct(p)}</span></Tip>;
   else if (st === 'failed' && isCapProject(n)) meta = <Tip content={() => <TipCard title={<Term id="reopenSpeculative">Failed</Term>} value={F.pct(nodeOdds(s, n.id))}>Three candidates were dropped. Reopen it as speculative at these odds.</TipCard>}><span className="eo neg">failed · reopen</span></Tip>;
-  else if (st === 'failed') meta = <Tip content={() => <TipCard title={<Term id="retryRule">Failed</Term>} value={`retry ${fmtDate(dateOf(s, ts?.retryDay ?? 0))}`}>It did not work in this world; it can be retried from that date at lower odds.</TipCard>}><span className="eo neg">retry {fmtDate(dateOf(s, ts?.retryDay ?? 0)).replace(/,? \d{4}$/, '')}</span></Tip>;
   else if (st === 'soon') meta = <span className="eo">with products</span>;
   const LayerIc = LAYER_ICON[n.layer];
   return (
@@ -287,7 +286,6 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           : cap && n.kind === 'line' ? <div className="dim small">A capability line: always produces results, each a little smaller (<Term id="linePool">ideas get harder</Term>).</div>
           : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; the result is drawn for this world' : 'chance it works'}{(ts?.cap?.spec ?? 0) > 0 ? ` · speculative ${ts?.cap?.spec}` : ''}</span>
             </div>}
-        {!line && !n.star && !cap && st !== 'known' && <Limit id="tree.retry" tone={st === 'failed' ? 'warn' : 'quiet'}>{st === 'failed' ? <>failed · <Term id="retryRule">retry</Term> from {fmtDate(dateOf(s, ts?.retryDay ?? 0))} at {F.pct(odds)}</> : <>if it fails: <Term id="retryRule">retry</Term> after {TREE_RETRY_DAYS} d at {F.pct(odds / 2)}</>}</Limit>}
       </div>
       {project && cap && (
         <div className="sec">
@@ -357,7 +355,7 @@ export function Research({ s }: { s: GameStateV2 }) {
   return (
     <div className="panel-v2 rs-panel" data-panel="research">
       <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Projects', icon: ICON.experiments }, { id: 'recipe', label: 'Recipe', icon: Layers }, { id: 'tree', label: 'Tree', icon: ICON.split }]} />}
-        right={<span className="row-i"><Ref id="researchSpeed" to={{ panel: 'company', tab: 'flow' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
+        right={<span className="row-i"><Ref id="labSpeed" to={{ panel: 'company', tab: 'flow' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
       {tab === 'projects' && <div className="rp-grid"><Priorities s={s} /><ProjectCard s={s} /></div>}
       {tab === 'recipe' && <Recipe s={s} />}
       {tab === 'tree' && <Tree s={s} />}

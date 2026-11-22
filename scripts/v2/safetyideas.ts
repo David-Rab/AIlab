@@ -44,7 +44,7 @@ const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const fixture = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
-const adopt = (s: GameStateV2, id: string) => { s.player.paradigms[id] = { status: 'adopted', progress: 1 }; resetSafAllocation(s); };
+const adopt = (s: GameStateV2, id: string) => { s.player.tree[id] = { status: 'known', progress: 1 }; resetSafAllocation(s); };
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, techniques: [], trainAgainst: [], ...o });
 /** Hand safety work to the agents: Trusted to AI t on the internal model with 20% of the safety pool. */
 function trust(s: GameStateV2, t: number) {
@@ -167,7 +167,6 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
     'P23: the faithful option costs −0.29 OOM of effective compute and × 1.2 serving FLOP per token; monitorability 0.98');
   const s = game();
   s.player.tree.P23 = { status: 'known', progress: 1 };
-  s.player.paradigms.P23 = { status: 'adopted', progress: 1 };
   const pv = planRun(s, { kind: 'post', baseId: 'B0', post: post() });
   const pf = planRun(s, { kind: 'post', baseId: 'B0', post: post({ cot: 'faithful' }) });
   check(!pf.reason && near(pf.g.G - pv.g.G, FAITHFUL_COT.dOom, 1e-9) && near(pf.prediction.fpt / pv.prediction.fpt, FAITHFUL_COT.fptMult, 1e-9),

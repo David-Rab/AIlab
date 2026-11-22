@@ -6,36 +6,25 @@
 // A node opens when its prerequisites are known (no capability gates). The player queues projects (priority order) and
 // assigns science teams of the node's department (capability columns: capabilities scientists; alignment,
 // interpretability and evals & control: safety scientists). Capabilities science teams are placed every day by the
-// priority assignment of models/research.ts (planAssignment). Safety science teams, with the auto-assign policy on
-// (J2 R2), spread over the ready queued safety projects: each goes where it cuts the most days off a project's ETA,
-// weighted by queue priority (√ capacity: every extra team on one project gains less), and the policy's teams re-spread
-// when a project finishes or a ready project has no team; a team with nothing queued joins a research line. Teams placed
-// by hand stay put. Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column.
-//  - Rolled (safety) nodes: progress/day = speed · √capacity / (effort · 30), speed = researchSpeed: the research
-//    engine's experiment labour factor ℓ (research.last.x, RD-R01) × the siloing / migration modifiers (until RD-R04,
-//    SYNTHESIS §6 Phase 3, retires the rolled path). At progress 1 the attempt resolves:
-//    paradigm nodes use the hidden paradigm draw on the first attempt; every other attempt uses hash32(seed,
-//    'node:'+id[+':'+attempt]). Success makes the node known (a paradigm is adopted at once); failure allows a retry
-//    after 180 days at half odds.
+// priority assignment of models/research.ts (planAssignment); safety science teams by the same planner (RD-R03).
+// Capacity = Σ heads/40 × quality × 1.5 in the team's specialty column. RD-R04: there is no rolled path; every safety
+// node has a research line (P27 is a project of line AG17).
 //  - Safety nodes (a node with an agenda; RD-R02b): the shared project stepper (models/research.ts stepProject, dept
 //    'saf'; rates in safety/lineProjects.ts lineRates): one "does it work" test that the safety scientists and the
 //    research engineers with compute work through. Then the hidden works draw: works → the node's own technique or
 //    finding (findings.ts nodeTestResult) and the node is known; doesn't → a dead end for this attempt (posterior toward
 //    failure, the attempt's team-months to the line's dead-end count) and the project retries at the posterior odds. A
 //    line's follow-up is its open study: each test ends in an event (findings.ts fireFinding). When a node becomes known its teams move on to the line's next
-//    open node, else the line's follow-up project. Safety teams keep the J2 auto-assign above (E1 notes: why not the
-//    capability assignment).
+//    open node, else the line's follow-up project.
 // Product-feature nodes wait for live products (R6).
 import { AG17_MIN_L, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { posteriorBand } from '../safety/agendas';
 import { START_BY_ID } from '../../../data/v2/starts';
 import {
-  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
+  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, isLineNode, lineNodeId,
   type OptionSlot, type TreeNodeDef,
 } from '../../../data/v2/tree';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
-import { fmtDate, dateOf } from '../core/time';
-import { hash32 } from '../core/rng';
 import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { PARADIGM_BY_ID } from './paradigms';
@@ -43,7 +32,7 @@ import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetS
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capProgress, capResearchDay, isCapProject, planAssignment, sciOn, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, sciOn, stepProject, takesTeams,
   type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
@@ -147,12 +136,12 @@ export function nodeStatus(s: GameStateV2, id: string): NodeStatus {
   return missingNeeds(s, id).length ? 'locked' : 'open';
 }
 
-/** Team-months at research speed 1 of a project the research system rolls (projectRate); readouts of any project's work
- *  read effortOfNode (models/research.ts), which also covers capability and research-line projects. */
+/** A node's effort number in team-months (display); readouts of a project's work read effortOfNode (models/research.ts). */
 export const effortOf = (n: TreeNodeDef): number => n.effortTM ?? EFFORT_TM[n.effort ?? 'M'];
 
-/** Odds of the next attempt: paradigm prior or the node's odds, × ½ per failure; a research-line node shows its line's
- *  estimated chance of a working result (the posterior mean, never the hidden efficacy). */
+/** Odds of the next attempt: capability projects attemptOdds (× ½ per speculative reopening); a research-line node shows
+ *  its line's estimated chance of a working result (the posterior mean, never the hidden efficacy); others the paradigm
+ *  prior or the node's odds. */
 export function nodeOdds(s: GameStateV2, id: string): number {
   const n = node(id);
   if (!n) return 0;
@@ -163,10 +152,8 @@ export function nodeOdds(s: GameStateV2, id: string): number {
     const spec = (st?.cap?.spec ?? 0) + (st?.status === 'failed' ? 1 : 0);
     return attemptOdds(n, spec);
   }
-  const base = n.paradigm ? (PARADIGM_BY_ID[id]?.prior ?? 1) : (n.odds ?? 1);
-  return base * (s.player.tree[id]?.priorMult ?? 1);
+  return n.paradigm ? (PARADIGM_BY_ID[id]?.prior ?? 1) : (n.odds ?? 1);
 }
-
 
 /** Capacity on a project (optionally with a team added or removed). */
 export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?: string): number {
@@ -178,26 +165,15 @@ export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?:
   return c;
 }
 
-/** Research speed of the rolled (safety) nodes (until RD-R04, SYNTHESIS §6 Phase 3), measured (RD-R01): the
- *  experiment labour factor ℓ = m_EXP^λ the research engine ran its last day at (humans only = 1) × the siloing /
- *  migration modifiers (a pause or treaty does not slow them, as before). */
-export function researchSpeed(s: GameStateV2): number {
-  const m = researchMods(s);
-  return (s.player.research.last?.x?.l ?? 1) * (m.speed / m.rateMult);
-}
-
-/** Progress per day of a project the research system rolls (research-line projects: results per day once the pipeline
- *  is full; any other non-capability project: √ capacity × research speed over its team-months). Capability projects run
- *  their stages (models/research.ts) and read their ETA from capEta. */
+/** Results per day of a research-line project (safety/lineProjects.ts lineCycleDays); 0 for any other project
+ *  (capability projects run their stages, models/research.ts, and read their ETA from capEta). */
 export function projectRate(s: GameStateV2, id: string, cap?: number): number {
   const n = node(id);
-  if (!n || isCapProject(n)) return 0;
+  if (!n || !isLineNode(n)) return 0;
   const now = projectCapacity(s, id);
   const c = cap ?? now;
   if (c <= 0) return 0;
-  // Model v3 E1: a line project's results per day once its pipeline is full (safety/lineProjects.ts).
-  if (isLineNode(n)) return 1 / lineCycleDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c);
-  return (researchSpeed(s) * Math.sqrt(c)) / (effortOf(n) * 30);
+  return 1 / lineCycleDays(s, id, cap === undefined || Math.abs(c - now) < 1e-9 ? undefined : c);
 }
 
 /** A staffing change a preview asks about: a team joins the project, or a team leaves it. */
@@ -215,7 +191,7 @@ export function teamGain(s: GameStateV2, teamId: string, id: string): { etaNow: 
 
 /** RD-B18 (B31): days to finish (research-line projects: to the next result) at today's inputs, the one ETA of every
  *  readout and preview: capability projects capEta (their stages as the engine runs them), research-line projects
- *  lineEtaDays, other projects their rate. `staff` previews a science capacity or a team joining / leaving. Infinity
+ *  lineEtaDays. `staff` previews a science capacity or a team joining / leaving. Infinity
  *  with no teams. */
 export function projectEta(s: GameStateV2, id: string, staff?: number | StaffChange): number {
   const n = node(id);
@@ -229,10 +205,7 @@ export function projectEta(s: GameStateV2, id: string, staff?: number | StaffCha
     const teams = s.player.teams.filter((t) => t.id !== staff.remove && t.id !== staff.add?.id);
     return capEta(s, id, sciOn(s, id, staff.add ? [...teams, { ...staff.add, projectId: id }] : teams)).eta;
   }
-  if (isLineNode(n)) return c > 0 ? lineEtaDays(s, id, same ? undefined : c) : Infinity;
-  const r = projectRate(s, id, c);
-  const left = 1 - (s.player.tree[id]?.status === 'researching' ? s.player.tree[id].progress : 0);
-  return r > 0 ? left / r : Infinity;
+  return isLineNode(n) && c > 0 ? lineEtaDays(s, id, same ? undefined : c) : Infinity;
 }
 
 /** True if a project can take teams today, else the reason it waits. */
@@ -248,7 +221,6 @@ export function projectReady(s: GameStateV2, id: string): true | string {
   const st = s.player.tree[id];
   if (isCapProject(n) && st?.status === 'failed') return 'Failed: reopen it as a speculative project';
   if (isCapProject(n) && !takesTeams(st?.cap)) return 'Finished: the engineers are building it in';
-  if (st?.status === 'failed' && (st.retryDay ?? 0) > s.time.day) return `Retry from ${fmtDate(dateOf(s, st.retryDay ?? 0))}`;
   return true;
 }
 
@@ -402,26 +374,6 @@ export function safIdleFlag(s: GameStateV2): string | undefined {
   return safReady(s).length ? `${head}: ${(idle[0].why ?? 'Idle').replace(/^Idle: /, '')}` : `${head} — add projects to the priority list`;
 }
 
-/** Roll an attempt's result. Outcomes are drawn per world (TECH-TREE §1.3): a paradigm's first attempt is the hidden
- *  draw from newGame; every other attempt is hash32(seed, 'node:'+id[+':'+attempt]) against its odds, so a result never
- *  depends on when the project ends or on other draws (before R4 paradigm retries drew from the 'runs' stream). */
-function roll(s: GameStateV2, n: TreeNodeDef, st: TreeNodeState): boolean {
-  const attempt = st.attempts ?? 1;
-  if (n.paradigm && attempt <= 1) return s.hidden.paradigmSuccess[n.id] === true;
-  const u = hash32(s.setup.seed, attempt <= 1 ? `node:${n.id}` : `node:${n.id}:${attempt}`) / 4294967296;
-  return u < nodeOdds(s, n.id);
-}
-
-/** Mirror a paradigm node's state for `adopted()` readers. */
-export function syncParadigm(s: GameStateV2, id: string) {
-  const ps = s.player.paradigms[id];
-  const st = s.player.tree[id];
-  if (!ps || !st) return;
-  ps.status = st.status === 'known' ? 'adopted' : st.status === 'failed' ? 'failed' : 'researching';
-  ps.progress = st.status === 'known' ? 1 : st.cap ? capProgress(st.cap) : st.progress;
-  if (st.day !== undefined && st.status !== 'researching') ps.revealedDay = st.day;
-}
-
 /** A safety project's test is done (RD-R02b): a node's result (`works` = the hidden draw) or its open study's event.
  *  Returns true if the project is done (its node became known); otherwise its next attempt starts. */
 function resolveLine(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: TreeNodeState, works: boolean | undefined): boolean {
@@ -459,7 +411,6 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   for (let i = q.length - 1; i >= 0; i--) if (isCapProject(node(q[i])) && p.tree[q[i]]?.status === 'failed') q.splice(i, 1);
   const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
   capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw));
-  for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   assignSafTeams(s);
   // Model v3 E1: today's safety research engineers and line compute for the line projects in experiments (a test that
   // starts today gets its engineers and FLOP from tomorrow's allocation, as capability projects).
@@ -467,58 +418,29 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   const salloc = safAllocation(s);
   for (const id of [...q]) {
     const n = node(id);
-    if (!n || isCapProject(n)) continue;
+    if (!n || !isLineNode(n)) continue;
     const cap = projectCapacity(s, id);
     if (cap <= 0) continue;
     let st = p.tree[id];
-    if (!st || st.status !== 'researching') {
-      // A new attempt starts: first ever, or a retry after the retry date (progress restarts).
-      const attempts = (st?.attempts ?? 0) + 1;
-      st = p.tree[id] = { status: 'researching', progress: 0, attempts, ...(st?.priorMult !== undefined ? { priorMult: st.priorMult } : {}) };
-      if (n.paradigm) syncParadigm(s, id);
-    }
-    if (isLineNode(n)) {
-      let tm = 0;
-      for (const t of p.teams) if (t.projectId === id) tm += t.heads / CAPACITY_UNIT / 30;
-      st.tm = (st.tm ?? 0) + tm;
-      const teams = teamsOn(s, id);
-      const ts = st;
-      let done = false;
-      const r = lineRates(s, id, salloc);
-      stepProject(s, ctx, n, {
-        dept: 'saf', trial: safState(s, ts, n), sciRate: r.sci, expRate: r.exp, flopDay: r.flop,
-        onResult: (works) => { done = resolveLine(s, ctx, n, ts, works); },
-      });
-      const live = p.tree[id];
-      if (live && live.status === 'researching') live.progress = safProgress(live.saf);
-      if (!done) continue;
-      q.splice(q.indexOf(id), 1);
-      // RD-R03: the teams are free; tomorrow's plan places them (the line's next project only if the player queues it).
-      for (const t of teams) {
-        delete t.projectId;
-        delete t.manual;
-      }
-      continue;
-    }
-    st.progress = Math.min(1, st.progress + projectRate(s, id, cap));
-    if (n.paradigm) s.player.paradigms[id].progress = st.progress;
-    if (st.progress < 1) continue;
-    const ok = roll(s, n, st);
-    st.day = ctx.day;
-    if (ok) {
-      st.status = 'known';
-      delete st.retryDay;
-      ctx.log('research', `${n.name} works.${n.layer === 'lab' ? ' It applies at once.' : ''}`, 2, id);
-    } else {
-      st.status = 'failed';
-      st.retryDay = ctx.day + TREE_RETRY_DAYS;
-      st.priorMult = (st.priorMult ?? 1) * 0.5;
-      ctx.log('research', `${n.name}: dead end for now. Retry from ${fmtDate(dateOf(s, st.retryDay))} at ${Math.round(nodeOdds(s, id) * 100)}%.`, 2, id);
-    }
-    if (n.paradigm) syncParadigm(s, id);
+    // A new attempt starts (progress restarts).
+    if (!st || st.status !== 'researching') st = p.tree[id] = { status: 'researching', progress: 0, attempts: (st?.attempts ?? 0) + 1 };
+    let tm = 0;
+    for (const t of p.teams) if (t.projectId === id) tm += t.heads / CAPACITY_UNIT / 30;
+    st.tm = (st.tm ?? 0) + tm;
+    const teams = teamsOn(s, id);
+    const ts = st;
+    let done = false;
+    const r = lineRates(s, id, salloc);
+    stepProject(s, ctx, n, {
+      dept: 'saf', trial: safState(s, ts, n), sciRate: r.sci, expRate: r.exp, flopDay: r.flop,
+      onResult: (works) => { done = resolveLine(s, ctx, n, ts, works); },
+    });
+    const live = p.tree[id];
+    if (live && live.status === 'researching') live.progress = safProgress(live.saf);
+    if (!done) continue;
     q.splice(q.indexOf(id), 1);
-    for (const t of p.teams) {
-      if (t.projectId !== id) continue;
+    // RD-R03: the teams are free; tomorrow's plan places them (the line's next project only if the player queues it).
+    for (const t of teams) {
       delete t.projectId;
       delete t.manual;
     }

@@ -37,7 +37,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  44 (RD-C01): v2's knot production function is gone — TimelineWorld.prod.knots and the dead readout fields of every
  *  lab's prodCache (Ddata, parts.base, elast.train / data, ratios.d) are removed. Migration 43 → 44 drops them (the
  *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift, and RD-C07
- *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26) and RD-C04 the unread fields
+ *  the cut paradigm P26 (its paradigm state and hidden.paradigmSuccess.P26) and RD-C04 the unread fields
  *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab).
  *  45 (RD-B02): TrainingRun.recipe is the run's whole launch snapshot (RunRecipe: + the base's DataDraw and P24 bonus, a
  *  continue run's draw, a post-train's domainG, P07 flag and serving FLOP part); completion and the trait hook read
@@ -70,8 +70,12 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  56 (RD-A04): safety research engineers by need (research.safRe, the player's order). Migration 55 → 56 adds the
  *  default order.
  *  57 (RD-R02b): a safety project is one test (SafProjectState {work, workNeed, flop}); the candidate pool, its beliefs
- *  and stages are gone. Migration 56 → 57 restates a running project's state at its progress (work = progress × T₁). */
-export const SCHEMA_REV = 57;
+ *  and stages are gone. Migration 56 → 57 restates a running project's state at its progress (work = progress × T₁).
+ *  58 (RD-R04): the rolled tree path and the paradigm mirror are gone: PlayerLab.paradigms (adopted() reads the tree),
+ *  the rolled-node fields of TreeNodeState (odds multiplier, retry day), the kyc node (the per-product KYC setting stays), P27's hidden paradigm draw.
+ *  Migration 57 → 58 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
+ *  failed: open again, next attempt). */
+export const SCHEMA_REV = 58;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -258,8 +262,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
     // RD-C02 (same unreleased bump): the derived calShift bridge is gone.
     if (s.hidden?.timeline) delete (s.hidden.timeline as unknown as Record<string, unknown>).calShift;
-    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its state and hidden draw are dropped).
-    if (s.player?.paradigms) delete s.player.paradigms.P26;
+    // RD-C07 (same bump): the cut paradigm P26 leaves the paradigm data (its hidden draw is dropped; RD-R04's 57 → 58
+    // drops the whole paradigm mirror).
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P26;
     const cores = [s.player, s.china?.lab?.core, ...(s.rivals ?? []).map((r) => r.core)];
     for (const c of cores) {
@@ -468,9 +472,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   53: (raw) => {
     const s = raw as unknown as GameStateV2;
     const p = s.player;
-    const hadP24 = p?.paradigms?.P24?.status === 'adopted';
+    const hadP24 = (p as unknown as OldParadigms | undefined)?.paradigms?.P24?.status === 'adopted';
     for (const id of ['P13', 'P19']) {
-      if (p?.paradigms) delete p.paradigms[id];
       if (p?.tree) delete p.tree[id];
       if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess[id];
     }
@@ -499,7 +502,6 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  themselves). Idempotent. */
   54: (raw) => {
     const s = raw as unknown as GameStateV2;
-    if (s.player?.paradigms) delete s.player.paradigms.P20;
     if (s.player?.tree) delete s.player.tree.P20;
     if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P20;
   },
@@ -524,7 +526,36 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       ts.saf = { work: Math.min(1, Math.max(0, ts.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
     }
   },
+  /** 57 → 58 (RD-R04): the rolled path's fields, the kyc node and the paradigm mirror go; P27 becomes a project of line
+   *  AG17 (a rolled attempt in progress: its test at that progress; a failed one: open, the next attempt). Idempotent. */
+  57: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player;
+    if (!p) return;
+    delete (p as unknown as OldParadigms).paradigms;
+    if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess.P27;
+    // Every tree record keeps only today's TreeNodeState fields (the rolled path's odds multiplier and retry day go).
+    for (const ts of Object.values(p.tree ?? {})) {
+      const o = ts as unknown as Record<string, unknown>;
+      for (const k of Object.keys(o)) if (!TREE_NODE_FIELDS.has(k)) delete o[k];
+    }
+    if (p.tree) delete p.tree.kyc;
+    if (p.research?.queue) p.research.queue = p.research.queue.filter((id) => id !== 'kyc');
+    for (const t of p.teams ?? []) if (t.projectId === 'kyc') {
+      delete t.projectId;
+      delete t.manual;
+    }
+    const st = p.tree?.P27;
+    const T1 = AGENDA_BY_ID.AG17.T1;
+    if (st?.status === 'failed') p.tree.P27 = { status: 'researching', progress: 0, attempts: (st.attempts ?? 1) + 1 };
+    else if (st?.status === 'researching' && !st.saf) st.saf = { work: Math.min(1, Math.max(0, st.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
+  },
 };
+
+/** TreeNodeState's fields since 58 (RD-R04). */
+const TREE_NODE_FIELDS = new Set(['status', 'progress', 'day', 'attempts', 'tm', 'cap', 'saf']);
+/** Saves before 58 (RD-R04) carried a per-paradigm mirror of the tree on the player. */
+type OldParadigms = { paradigms?: Record<string, { status?: string }> };
 
 type OldSplit = Record<string, number>;
 /** RD-A05a's migration (51 → 52), exported for the targeted check (scripts/v2/_a05a/check.ts). */

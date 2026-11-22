@@ -7,7 +7,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   WSL_TARGET_RANGE, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, researchSpeedLimits, researchSpeedView, revenueReadout, securityFloorView, spareServingEffect, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  rentedOnline, labSpeedLimits, labSpeedView, revenueReadout, securityFloorView, spareServingEffect, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, STAR_HIRE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
@@ -124,7 +124,7 @@ const SPEED_LIMIT_LABEL: Record<SpeedLimitLine['id'], ReactNode> = {
 };
 /** The limits on research speed (R11, LIMITS "Research speed"): one quiet line each, red / amber when binding. */
 function SpeedLimits({ s }: { s: GameStateV2 }) {
-  const lines = researchSpeedLimits(s);
+  const lines = labSpeedLimits(s);
   return (
     <div className="rs-limits" data-test="speed-limits">
       <div className="tip-cap" style={{ marginTop: 10 }}>Limits</div>
@@ -146,14 +146,14 @@ const BOUND_LABEL: Record<string, string> = { 'compute-bound': 'compute-bound', 
  *  binds), the limits. */
 function ResearchSpeed({ s }: { s: GameStateV2 }) {
   const p = engine.production(s, 'player');
-  const v = researchSpeedView(s);
+  const v = labSpeedView(s);
   const spareFx = spareServingEffect(s);
   const cl = Math.max(v.c, v.l, 1);
   const w = (x: number) => `${Math.min(100, (Math.log10(1 + x) / Math.log10(1 + cl * 1.2)) * 100)}%`;
   return (
-    <Card title={<Term id="researchSpeed">Research speed</Term>} right={<span className="tag2 warn" data-test="speed-bound"><Term id={BOUND_TERM[p.label]}>{BOUND_LABEL[p.label]}</Term></span>} home="M">
+    <Card title={<Term id="labSpeed">Research speed</Term>} right={<span className="tag2 warn" data-test="speed-bound"><Term id={BOUND_TERM[p.label]}>{BOUND_LABEL[p.label]}</Term></span>} home="M">
       <div className="rs-chain">
-        <Tip content={() => <TipCard title={<Term id="researchSpeed">Research speed</Term>} value={`×${F.short(v.rel)}`} rows={[
+        <Tip content={() => <TipCard title={<Term id="labSpeed">Research speed</Term>} value={`×${F.short(v.rel)}`} rows={[
           { label: <Term id="expCompute">Unit project compute c</Term>, value: `×${F.short(v.c)}` }, { label: <Term id="expLabour">Unit project labour ℓ</Term>, value: `×${F.short(v.l)}` },
           { label: 'Experiment throughput X', value: `×${F.short(v.X)}` },
         ]}>Your research throughput relative to the leader lab's on its first day (= 1): every project's experiments at its compute and labour, × taste.</TipCard>}>

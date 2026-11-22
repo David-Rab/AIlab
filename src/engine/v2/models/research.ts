@@ -243,7 +243,7 @@ export function effortOfNode(n: TreeNodeDef): { sci: number; exp: number; unit: 
     const sg = stagesOf(n);
     return { sci: PICK_AT * sg.idea, exp: sg.small + sg.scale, unit: 'team-months' };
   }
-  if (n.agenda && !n.paradigm) {
+  if (n.agenda) {
     const T1 = AGENDA_BY_ID[n.agenda as AgendaId].T1;
     return { sci: SAF_STAGES.idea * T1, exp: (SAF_STAGES.small + SAF_STAGES.val) * T1, unit: 'months' };
   }
@@ -778,7 +778,7 @@ function queueAdoption(n: TreeNodeDef, st: CapProjectState, queueBuild: (tw: num
 
 /** The engineers finished building a result in: its TRUE effect enters the stack (or the lever unlocks); the R&D fleet
  *  may steer the build (model v3 E7). */
-export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, buildId: string, onKnown: (id: string) => void) {
+export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, buildId: string, onKnown?: (id: string) => void) {
   const n = node(id);
   const ts = s.player.tree[id];
   const st = ts?.cap;
@@ -788,7 +788,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     delete st.trial;
     ts.status = 'known';
     ts.day = ctx.day;
-    onKnown(id);
+    onKnown?.(id);
     ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
     return;
   }
@@ -839,7 +839,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
     delete st.result;
     ts.status = 'known';
     ts.day = ctx.day;
-    onKnown(id);
+    onKnown?.(id);
     ctx.log('research', `${n.name} is built into the lab's recipe.`, 2, id);
   }
 }
@@ -1296,7 +1296,6 @@ export function reopenProject(s: GameStateV2, id: string): string | undefined {
   ts.status = 'researching';
   ts.progress = 0;
   ts.attempts = (ts.attempts ?? 1) + 1;
-  delete ts.retryDay;
   ts.cap = freshCap(spec);
   return undefined;
 }

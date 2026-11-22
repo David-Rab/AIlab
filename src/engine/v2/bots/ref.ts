@@ -47,9 +47,13 @@ import { patchFte } from '../safety/responses';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
-import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
+import { TREE_BY_ID } from '../../../data/v2/tree';
+/** RefBot's own retry pacing: it reopens a failed idea as speculative this many days after the failure (v2's retry
+ *  delay, kept as the bot's habit; the player can reopen at once). */
+const REF_RETRY_DAYS = 180;
 import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { sizedTarget, staffLines, type LinePlan } from './common';
+import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
 
@@ -353,7 +357,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (p.policies.spareServing !== spareServe) tryAct(s, api, 'serving.spare', { use: spareServe });
 
   // Research (model v3 V2): each goal goes to the top of the priority list once its start condition holds and its
-  // prerequisites are known (a failed idea is reopened as speculative after TREE_RETRY_DAYS, v2's retry pacing); the
+  // prerequisites are known (a failed idea is reopened as speculative after REF_RETRY_DAYS, v2's retry pacing); the
   // research lines follow, with teams wanted in proportion to REF_RESEARCH_LINES. The assignment places the teams.
   const goals = o.tree?.(s) ?? REF_TREE;
   const queue = p.research.queue;
@@ -361,7 +365,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
     const st = p.tree[g.id];
     if (st?.status === 'failed') {
-      if (day - (st.day ?? day) >= TREE_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
+      if (day - (st.day ?? day) >= REF_RETRY_DAYS && (!g.when || g.when(s))) tryAct(s, api, 'research.reopen', { id: g.id });
       continue;
     }
     if (st?.cap && st.cap.stage !== 'ideation' && st.cap.stage !== 'small' && st.cap.stage !== 'scale' && st.cap.stage !== 'test') continue;
@@ -389,7 +393,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // (AI 2027's Agent-3 is a neuralese model at SC).
   const baseRunning = m.runs.some((r) => r.kind === 'base' && r.status === 'running');
   const lastBase = flag(s, 'lastBase', m.bases[m.bases.length - 1]?.startDay ?? -120);
-  const latent = p.paradigms.P17?.status === 'adopted' && goals.some((g) => g.id === 'P17');
+  const latent = adopted(s, 'P17') && goals.some((g) => g.id === 'P17');
   const latentDue = latent && !m.bases.some((b) => b.design.shape === 'latent') && !m.runs.some((r) => r.status === 'running' && r.base?.shape === 'latent');
   if ((!baseRunning && day - lastBase >= BASE_EVERY) || latentDue) {
     // The bot's own staleness rule (the engine has no cap since R5): the base is sized so it trains in the target length
@@ -421,7 +425,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (!(streamOnNewest && pending)) {
       const design = known(s, o.post?.(s) ?? {});
       let cot = String(design.cot ?? 'visible');
-      if (cot === 'faithful' && p.paradigms.P23?.status !== 'adopted') cot = 'visible';
+      if (cot === 'faithful' && !adopted(s, 'P23')) cot = 'visible';
       if (newestBase.design.shape === 'latent') cot = 'latent';
       else if (cot === 'latent') cot = 'visible';
       if (tryAct(s, api, 'launchPost', { ...design, baseId: newestBase.id, cot, poolShare: 0.5 })) setFlag(s, 'lastPost', day);
@@ -435,7 +439,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const nv = newestFull(s);
   const sv = m.stream ? m.versions.find((v) => v.id === m.stream?.versionId) : undefined;
   const baseIdx = (v?: ModelVersion) => (v ? m.bases.findIndex((b) => b.id === v.baseId) : -1);
-  if (p.paradigms.P08?.status === 'adopted' && nv) {
+  if (adopted(s, 'P08') && nv) {
     if (!sv || baseIdx(nv) > baseIdx(sv)) tryAct(s, api, 'startStream', { versionId: nv.id });
     const cur = m.stream?.versionId;
     if (cur && p.agents.capRoutine.versionId !== cur) tryAct(s, api, 'agents.set', { use: 'capRoutine', versionId: cur });

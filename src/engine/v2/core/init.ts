@@ -34,7 +34,6 @@ import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
 import { labCore } from '../models/labs';
-import { initialParadigms } from '../models/paradigms';
 import { initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
@@ -211,7 +210,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     },
     deployments,
     security: initialSecurity(staff, base.start.securityLevel),
-    paradigms: initialParadigms(),
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
     finance: compute ? startFinance(def, compute) : initialFinance(setup.baseline, setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),

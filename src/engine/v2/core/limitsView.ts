@@ -33,7 +33,7 @@ export interface SpeedLimitLine {
 /** Research-speed limit lines (LIMITS "Research speed"): a pause, knowledge diffusion. Lines that
  *  cannot apply in this game (no leader lab to learn from, no pause) are omitted. Model v3 V2b: the v2 "frontier methods"
  *  ratio and the serving-cost clamp are gone (research runs on explicit compute and labour; copies follow FLOP per token). */
-export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
+export function labSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const out: SpeedLimitLine[] = [];
   const p = s.player;
   // Pause of frontier experiments.

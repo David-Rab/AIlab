@@ -34,7 +34,6 @@ import { bookCash } from '../finance/ledger';
 import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
-import { syncParadigm } from '../models/tree';
 import { completeSuiteWork, suiteFamilies, suiteUpkeepTW } from '../models/suites';
 import { evalEngDone } from '../models/evals';
 import type { EngNeed } from '../types';
@@ -217,7 +216,7 @@ export const pendingPack = (s: GameStateV2, sector: string): BuildItem | undefin
 /** A finished item takes effect. */
 function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   if (it.kind === 'adopt') {
-    completeAdoption(s, ctx, it.ref, it.id, (id) => syncParadigm(s, id));
+    completeAdoption(s, ctx, it.ref, it.id);
     return;
   }
   if (it.kind === 'suite') {

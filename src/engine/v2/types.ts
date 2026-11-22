@@ -268,7 +268,6 @@ export interface LabCore {
   models: ModelsState;
   deployments: Deployment[];
   security: SecurityState;
-  paradigms: Record<ParadigmId, ParadigmState>;
   /** Cached production readout from the last daily tick (not authoritative; recomputable). */
   prodCache?: ProductionReadout;
   milestoneDays: Partial<Record<MilestoneIdx, Day>>; // first crossings only (v1 bug #3 fix)
@@ -611,13 +610,7 @@ export interface Deployment {
 
 // ───────────────────────────── Paradigms (§3.3.5) ─────────────────────────────
 
-/** Mirror of the paradigm's tree node (R4): readers check `status === 'adopted'`. The tree (PlayerLab.tree) holds the
- *  project state. */
-export interface ParadigmState {
-  status: 'available' | 'researching' | 'failed' | 'adopted';
-  progress: number; // 0..1
-  revealedDay?: Day;
-}
+/** RD-R04: a paradigm's state is its tree node (PlayerLab.tree; known = adopted, models/paradigms.ts adopted()). */
 
 // ───────────────────────────── Tech tree (TECH-TREE.md, BUILD-PLAN R4) ─────────────────────────────
 
@@ -627,12 +620,8 @@ export interface TreeNodeState {
   progress: number; // 0..1 of the current attempt
   /** Day it became known or failed. */
   day?: Day;
-  /** Attempts started (1 = first; paradigm nodes use the hidden draw on the first). */
+  /** Attempts started (1 = first; capability paradigms use the hidden draw on the first). */
   attempts?: number;
-  /** Odds multiplier for the next attempt (halved per failure). */
-  priorMult?: number;
-  /** A failed idea can be retried from this day. */
-  retryDay?: Day;
   /** Research-line projects (R8): team-months spent on the current attempt (counted as lost if it dead-ends). */
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
@@ -1847,7 +1836,7 @@ export interface RivalFinance {
 }
 
 export interface RivalLab {
-  core: Omit<LabCore, 'deployments' | 'models' | 'paradigms'>;
+  core: Omit<LabCore, 'deployments' | 'models'>;
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;

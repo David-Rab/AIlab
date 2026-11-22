@@ -22,6 +22,9 @@ import { understanding } from '../../src/engine/v2/safety/understanding';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import type { GameStateV2, MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { refGame, runRef } from './lib';
+import { PARADIGMS } from '../../src/data/v2/paradigms';
+/** Paradigms whose adoption day is traced (RD-R04: P27 is a safety project of line AG17; known = adopted). */
+const PARADIGM_IDS = [...PARADIGMS.map((x) => x.id), 'P27'];
 
 const HERE = dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const DEFAULT_PATH = join(HERE, 'golden', 'ref-trace.json');
@@ -68,7 +71,7 @@ function recorder(id: string, preset: string, mode: Trace['mode'], s: GameStateV
       if (rec.end === undefined && (r.status === 'done' || r.status === 'failed' || r.status === 'cancelled')) rec.end = day;
       rec.status = r.status;
     }
-    for (const [pid, st] of Object.entries(p.paradigms)) if (st.status === 'adopted' && t.paradigms[pid] === undefined) t.paradigms[pid] = day;
+    for (const pid of PARADIGM_IDS) if (p.tree[pid]?.status === 'known' && t.paradigms[pid] === undefined) t.paradigms[pid] = day;
     if (day % 30 === 0) {
       const pr = production(s, 'player');
       const L = Math.max(0, ...p.models.versions.map((v) => v.Lg));

@@ -28,6 +28,7 @@ import { poolsOf } from '../compute/power';
 import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
 import { bookCash } from '../finance/ledger';
+import { adopted } from './paradigms';
 
 /** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
 const starCost = (s: GameStateV2) => STAR_HIRE.cost * startOf(s).mods.starCost;
@@ -141,7 +142,7 @@ const streamCosts = (): CostLine[] => [
   { currency: 'staffTime', amount: RE_OPS.stream, unit: 'teams', target: 'research engineers on stream operations' },
 ];
 
-const p18 = (s: GameStateV2) => (s.player.paradigms.P18?.status === 'adopted' ? true : 'Needs IDA (P18)');
+const p18 = (s: GameStateV2) => (adopted(s, 'P18') ? true : 'Needs IDA (P18)');
 
 const RUN_ACTIONS: ActionDef[] = [
   runAction('launchBase', 'Pretrain base', 'base'),
@@ -213,7 +214,7 @@ const RUN_ACTIONS: ActionDef[] = [
   },
   {
     id: 'startStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Continual learning',
-    available: (s) => (s.player.paradigms.P08?.status === 'adopted' ? true : 'Needs continual learning (P08)'),
+    available: (s) => (adopted(s, 'P08') ? true : 'Needs continual learning (P08)'),
     // RD-B19 (B37): the stream's standing load as charged and the recipe the version absorbs (streamRecipeGap, closed
     // with the 7-day lag). Its slow drift in dispositions has no one-number preview.
     preview: (s, p) => {

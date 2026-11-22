@@ -7,7 +7,7 @@ import { COGNITIVE_WORK, MILESTONE_COVER, WORK_TYPES, type WorkTypeId } from '..
 import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
-import { researchSpeedRel } from '../production/production';
+import { labSpeedRel } from '../production/production';
 import { production } from '../production/readout';
 import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
@@ -479,14 +479,14 @@ export interface ResearchSpeedView {
   researchH100e: number; expShare: number;
 }
 
-export function researchSpeedView(s: GameStateV2): ResearchSpeedView {
+export function labSpeedView(s: GameStateV2): ResearchSpeedView {
   const pr = production(s, 'player');
   const x = s.player.research.last?.x;
   const mods = researchMods(s);
   const pools = poolsOf(s);
   const r = pools.experiments + (pools.routine + pools.frontier);
   return {
-    rel: researchSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
+    rel: labSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
     c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,
     researchH100e: r, expShare: r > 0 ? pools.experiments / r : 0,
   };

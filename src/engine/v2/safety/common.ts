@@ -25,7 +25,7 @@ export function versionById(s: GameStateV2, id: string | undefined): ModelVersio
 }
 
 export function adopted(s: GameStateV2, paradigm: string): boolean {
-  return s.player.paradigms[paradigm]?.status === 'adopted';
+  return s.player.tree[paradigm]?.status === 'known';
 }
 
 /** Red flags (§4.2 E17): the traits whose measured belief is a red line, and the line: estimate above 30% with clarity

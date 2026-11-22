@@ -72,7 +72,7 @@ export interface LabInputs {
 
 /** RD-R01: the one aggregate piece left, the lab's experiment throughput at inputs (h, k, c): X(c̄, ℓ) of a unit project
  *  and the number of unit projects. READOUTS ONLY since RD-A02 (no mechanism, no Auto mix): the response charts
- *  (readout.ts), researchSpeedRel and spareServingEffect. */
+ *  (readout.ts), labSpeedRel and spareServingEffect. */
 function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number } {
   const v = inp.v3 as V3Inputs;
   const Pp = w.prod;
@@ -168,7 +168,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 
 /** The player's research speed relative to the leader lab's day-0 research (the Research speed readout): the lab's
  *  experiment throughput × taste × modifiers, ÷ the leader's day-0 value (≈ 1 at the start). */
-export function researchSpeedRel(s: GameStateV2): number {
+export function labSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
   return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);

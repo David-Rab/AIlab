@@ -18,7 +18,6 @@ import {
 } from '../../src/data/v2/dataAssets';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
-import { syncParadigm } from '../../src/engine/v2/models/tree';
 import { versionById } from '../../src/engine/v2/models/labs';
 import { freeTierOf } from '../../src/engine/v2/worldfx/serving';
 import { BASE_DATA, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
@@ -500,7 +499,7 @@ const adoptResult = (s: GameStateV2, id: string) => {
   s.hidden.paradigmSuccess[id] = true;
   const x = candidateTruth(s, TREE_BY_ID[id], freshCap(), C9).x;
   s.player.tree[id] = { status: 'researching', progress: 0, attempts: 1, cap: { ...freshCap(), stage: 'adopting', result: { c: C9, xTest: x, sHat: 0, fTest: 1e24, est: 1, estSd: 0.1, buildId: 'd9', day: s.time.day } } } as never;
-  completeAdoption(s, makeCtx(s), id, 'd9', (i) => syncParadigm(s, i));
+  completeAdoption(s, makeCtx(s), id, 'd9');
   return x;
 };
 {
@@ -510,7 +509,7 @@ const adoptResult = (s: GameStateV2, id: string) => {
   const x = adoptResult(b, 'P10');
   const cap = synQualityCap(b);
   const g0b = gV0(b.hidden.timeline);
-  check(x > 0 && b.player.paradigms.P10.status === 'adopted' && near(b.player.research.dataFx?.synQMax ?? 0, x * P10_SYN_Q_RAISE, 1e-12) && near(cap, 1 + x * P10_SYN_Q_RAISE, 1e-12) && synQualityCap(a) === 1
+  check(x > 0 && b.player.tree.P10?.status === 'known' && near(b.player.research.dataFx?.synQMax ?? 0, x * P10_SYN_Q_RAISE, 1e-12) && near(cap, 1 + x * P10_SYN_Q_RAISE, 1e-12) && synQualityCap(a) === 1
     && uniqueTokens(b) === uniqueTokens(a) && syntheticQuality(g0b + 4, g0b, cap) === Math.min(cap, 1.5) && syntheticQuality(g0b + 1, g0b, cap) === 0.75,
     'P10: adoption raises the synthetic-quality ceiling by x × 0.5 (q 1 → 1.5 as designed; Maini et al. 2024, phi-4, research/20 A3), U unchanged (no ×3)',
     `x ${x.toFixed(3)}, ceiling ${cap.toFixed(3)}; q at V0 + 1 / 2 / 3 / 4 OOM ${[1, 2, 3, 4].map((k) => syntheticQuality(g0b + k, g0b, cap).toFixed(3)).join(' / ')}`);

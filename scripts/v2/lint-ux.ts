@@ -68,7 +68,7 @@ const REQUIRED = [
   'coreLoop', 'takeoffLoop', 'verbSet', 'limit', 'startType', 'parentBudget', 'revenueRun',
   'team', 'roleEng', 'roleRE', 'roleSci', 'teamQuality', 'specialty', 'specialtyBonus', 'keepHiring', 'talentPull', 'payroll', 'morale', 'buildCapacity',
   'techTree', 'knowHow', 'trainedIn', 'depth', 'layer', 'layerBackbone', 'layerTraining', 'layerScaffold', 'layerLab', 'effortClass', 'teamMonth', 'odds',
-  'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'retryRule', 'diffusion', 'frontierMethods',
+  'researchLine', 'lineHealth', 'diminishingReturns', 'projectQueue', 'autoAssign', 'diffusion', 'frontierMethods',
   'blueprint', 'effCompute', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'goodput', 'activeParams', 'tokensPerParam', 'servingFlop', 'gGain', 'distillGap', 'graders',
   'faultTolerant', 'buildQueue', 'teamWeek', 'poolShare', 'spareTraining', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
   'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'dataSpec', 'evals', 'autoEvaluate',
@@ -78,7 +78,7 @@ const REQUIRED = [
   // model v3 V2b: research projects, recipe, work types, allocations.
   'projectStage', 'stageIdeation', 'stageSmall', 'stageScale', 'stageResult', 'stageAdoption', 'beliefBand', 'scaleBehaviour', 'projectKind', 'linePool',
   'nextPrior', 'realisedEffect', 'teamsWanted', 'riskPolicy', 'reopenSpeculative', 'scienceWhy', 'recipeStack', 'stackEfficiency',
-  'softwareRate', 'expCompute', 'expLabour', 'researchSpeed', 'workType', 'fit', 'medianExpert', 'bestHuman', 'coverage', 'pAtLength', 'winRate', 'assist',
+  'softwareRate', 'expCompute', 'expLabour', 'labSpeed', 'workType', 'fit', 'medianExpert', 'bestHuman', 'coverage', 'pAtLength', 'winRate', 'assist',
   'effectiveLabour', 'humanShare', 'reNeeds', 'engNeeds', 'allocCap', 'overflow', 'laborBound', 'humanBound', 'tasteBound', 'aiFte',
   'validatedTo', 'blind', 'detector', 'estimateBand', 'toolUpkeep', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
   // model v3 B1: serving economics on the product card.

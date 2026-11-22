@@ -187,7 +187,7 @@ const iv = internalVersion(s4)!;
 {
   // B37: the stream's recipe line is what the version absorbs; costs as charged; stopping keeps the version.
   const c = clone(s4);
-  c.player.paradigms.P08 = { ...(c.player.paradigms.P08 ?? { progress: 1 }), status: 'adopted' };
+  c.player.tree.P08 = { status: 'known', progress: 1 };
   delete c.player.models.stream;
   const v = c.player.models.versions.find((x) => x.id === iv.id)!;
   const pv = pvOf(c, 'startStream', { versionId: v.id });

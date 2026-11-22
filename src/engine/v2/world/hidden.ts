@@ -66,8 +66,10 @@ export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'
 }
 
 /** Hidden paradigm draws of deleted paradigms, keyed by the paradigm drawn right after them: the deleted ones' priors in
- *  draw order (RD-C07 P26 0.8; RD-E01a P13 0.75, P19 0.6; RD-E01b P20 0.8). */
-const SKIPPED_DRAWS: Record<string, number[]> = { P14: [0.75], P21: [0.6, 0.8], P27: [0.8] };
+ *  draw order (RD-C07 P26 0.8; RD-E01a P13 0.75, P19 0.6; RD-E01b P20 0.8). TRAILING_DRAWS come after the last one: P26
+ *  0.8 and RD-R04 P27 0.7 (P27 is now a safety project of line AG17). */
+const SKIPPED_DRAWS: Record<string, number[]> = { P14: [0.75], P21: [0.6, 0.8] };
+const TRAILING_DRAWS = [0.8, 0.7];
 
 /**
  * Sample the hidden world. `rng` must be the 'world' stream Rng; the caller stores rng.state back into s.rng.world.
@@ -101,6 +103,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
     for (const prior of SKIPPED_DRAWS[p.id] ?? []) rng.chance(prior);
     paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
   }
+  for (const prior of TRAILING_DRAWS) rng.chance(prior);
 
   // 6. Edge weights.
   const edgeWeights: Record<string, number> = {};
