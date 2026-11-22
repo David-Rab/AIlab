@@ -42,8 +42,7 @@ import { believedInternalOversight } from '../safety/believedOversight';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
-import { investigationFte, safetyReHeads } from '../safety/investigations';
-import { patchFte } from '../safety/responses';
+import { committedFte, safetyReHeads } from '../safety/investigations';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
@@ -753,7 +752,7 @@ export function refFootholds(s: GameStateV2, api: EngineApi): void {
     if (r.status === 'detected') tryAct(s, api, 'safety.respond', { kind: 'removeFoothold', footholdId: r.id });
     if (r.status !== 'suspected' || !r.caseVersionId || !r.caseTrait) continue;
     const open = s.player.safety.investigations.some((i) => !i.outcome && i.target.kind === 'trait' && i.target.versionId === r.caseVersionId && i.target.trait === r.caseTrait);
-    if (open || safetyReHeads(s) - investigationFte(s) - patchFte(s) < FOOTHOLD_CASE_FTE) continue;
+    if (open || safetyReHeads(s) - committedFte(s) < FOOTHOLD_CASE_FTE) continue;
     tryAct(s, api, 'safety.investigate', { versionId: r.caseVersionId, trait: r.caseTrait, fte: FOOTHOLD_CASE_FTE });
   }
 }

@@ -19,7 +19,7 @@ import { clamp01, flagNum, lambda2Delta, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
 import { combineTools, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
-import { investigationFte, investigationsStep, safetyReHeads } from './investigations';
+import { investigationFte, investigationsStep, safeguardFte, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import { decayAt, initialTechniques, strengthTrue } from './techniques';
 import { caseOnModel } from './footholdDetection';
@@ -76,9 +76,9 @@ export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some
 
 /** Safety research engineers (heads × quality) and what they do: investigations and patches first, then line
  *  experiments (model v3 E1: safety/lineProjects.ts safAllocation), the rest keeps tools validated (upkeep). */
-export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; experiments: number; upkeep: number } {
+export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; upkeep: number } {
   const al = safAllocation(s);
-  return { heads: safetyReHeads(s), investigations: investigationFte(s), patches: patchFte(s), experiments: al.exp, upkeep: al.upkeep };
+  return { heads: safetyReHeads(s), investigations: investigationFte(s), patches: patchFte(s), safeguards: safeguardFte(s), experiments: al.exp, upkeep: al.upkeep };
 }
 
 // ───────── compute ─────────

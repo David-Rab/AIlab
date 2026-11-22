@@ -15,7 +15,7 @@
 //   safety     SAF_EXP / SAF_IDEAS on the safety package through the same functions; Trusted to AI t is the share of
 //              the work handed to AI (handedLabour: A = t·a; t = 1 is the capabilities case exactly; model v3 E2)
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
-import { LOCKDOWN_SLOWDOWN, lockdownOn } from '../safety/safeguards';
+import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
   MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
@@ -36,7 +36,7 @@ import { spareServingToResearch } from '../worldfx/revenue';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
-import { agentSplitShare, agentVersion, monitorVersion } from './agents';
+import { agentSplitShare, agentVersion, monitorBudget, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
 
@@ -234,6 +234,9 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   let h100e = 0;
   if (!off) {
     h100e = p.computeOnline * agentSplitShare(s, use) + (use === 'capRoutine' ? spareServingToResearch(s) : 0);
+    // SR-13b: the control protocol's trusted-model compute the monitors' line cannot pay runs on the agents' own.
+    const b = monitorBudget(s);
+    if (b.controlShort > 1e-12 && b.control > 0) h100e *= 1 - (b.controlShort / b.control) * controlComputeShare(labControlSetting(s));
   }
   let mult = 1;
   if (adopted(s, 'P05')) mult *= 1.3;

@@ -1,7 +1,7 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
-import { controlOn, isRestricted } from './safeguards';
+import { LOCKDOWN_COLLUSION_MULT, LOCKDOWN_SLOWDOWN, cannotAdd, controlComputeShare, controlOn, isRestricted, lockdownOnDep } from './safeguards';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
@@ -16,8 +16,7 @@ import { lineResultsPerYear } from './agendas';
 import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
-import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, investigationFte, openInvestigation, safetyReHeads } from './investigations';
-import { patchFte } from './responses';
+import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
   DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, bestDetector, discloseScrutiny, discloseTrust,
   patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
@@ -87,7 +86,7 @@ function resolveText(gm: number): string {
 const INVESTIGATE: ActionDef = {
   id: 'safety.investigate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Investigate',
   available: (s) => {
-    const free = safetyReHeads(s) - investigationFte(s) - patchFte(s);
+    const free = safetyReHeads(s) - committedFte(s);
     return free >= INV_FTE[0] || `Not enough free safety research engineers (a case needs ${INV_FTE[0]}–${INV_FTE[1]})`;
   },
   preview(s, p) {
@@ -281,7 +280,11 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       // Model v3 E11: the preview reads E6's control protocol (the largest internal lane's tax, the miss multiplier).
       const c = controlReadout(s);
       return {
-        costs: [{ currency: 'progress', amount: -Math.round(c.tax * 100), unit: '%', target: 'of internal AI labour at most (control tax)' }],
+        costs: [
+          { currency: 'progress', amount: -Math.round(c.tax * 100), unit: '%', target: 'of internal AI labour at most (control tax)' },
+          // SR-13b: the trusted model's compute, from the monitors' line (internal) or the product's serving.
+          { currency: 'compute', amount: -Math.round(controlComputeShare('defer10') * 1000) / 10, unit: '%', target: "of the deployment's compute: from the monitors' line (internal agents) or the product's serving" },
+        ],
         gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
         exposure: [],
       };
@@ -299,6 +302,19 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         gains: [{ currency: 'progress', amount: internal ? Math.round(c.tax * 100) : 0, unit: '%', target: internal ? 'of internal AI labour back at most (control tax ends)' : 'no internal control tax on this model' }],
         exposure: dd.sites > 0 ? [{ currency: 'alignment', amount: -r2(dd.after - dd.now), probability: 1, target: `believed harmful acts ${fmt(dd.now)} → ${fmt(dd.after)} / yr at ${dd.sites} site${dd.sites === 1 ? '' : 's'}`, unit: 'acts/yr' }] : [],
       };
+    }
+    case 'addLockdown':
+    case 'removeLockdown': {
+      // SR-13b: comms lockdown on the model's internal agents: collusion penalty ×LOCKDOWN_COLLUSION_MULT, Slowdown
+      // LOCKDOWN_SLOWDOWN on internal AI work (departments/workfit.ts useLabour).
+      const add = kind === 'addLockdown';
+      const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && d.channel === 'internal' && (add ? d.status === 'live' : lockdownOnDep(d))) : [];
+      if (!deps.length) return none(add ? 'no internal agent package runs this model' : 'no comms lockdown on this model');
+      const why = add ? cannotAdd(s, deps[0], 'lockdown') : undefined;
+      if (why) return none(why);
+      const slow: CostLine = { currency: 'progress', amount: add ? -Math.round(LOCKDOWN_SLOWDOWN * 100) : Math.round(LOCKDOWN_SLOWDOWN * 100), unit: '%', target: add ? 'of internal AI work (comms lockdown Slowdown)' : 'of internal AI work back (lockdown Slowdown ends)' };
+      const coll: CostLine = { currency: 'security', amount: add ? 1 - LOCKDOWN_COLLUSION_MULT : -(1 - LOCKDOWN_COLLUSION_MULT), target: add ? `same-lineage collusion penalty ×${LOCKDOWN_COLLUSION_MULT}` : 'same-lineage collusion penalty back to full' };
+      return add ? { costs: [slow], gains: [coll], exposure: [] } : { costs: [coll], gains: [slow], exposure: [] };
     }
     case 'rollback': {
       // Apply: every deployment and agent lane (and monitor) on the model moves to its checkpoint; the model is shelved.

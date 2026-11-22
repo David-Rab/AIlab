@@ -128,9 +128,9 @@ export function safeguardLines(d: Deployment, o: { block: number; human: number;
   for (const g of d.guards ?? []) {
     if (g.kind === 'control') {
       const t = controlTerms(g.setting ?? 'defer10', o.gapOom);
-      out.push({ kind: 'control', label: `${SAFEGUARD_LABEL.control}: ${CONTROL_SETTINGS[g.setting ?? 'defer10'].label}`, setting: g.setting, stop: 1 - (1 - o.block) * t.missMult, chancesMult: 1, slowdown: t.slowdown, compute: t.deferShare * CONTROL_TRUSTED_COST, people: 0 });
+      out.push({ kind: 'control', label: `${SAFEGUARD_LABEL.control}: ${CONTROL_SETTINGS[g.setting ?? 'defer10'].label}`, setting: g.setting, stop: 1 - (1 - o.block) * t.missMult, chancesMult: 1, slowdown: t.slowdown, compute: controlComputeShare(g.setting), people: 0 });
     } else if (g.kind === 'review') {
-      out.push({ kind: 'review', label: SAFEGUARD_LABEL.review, stop: o.human, chancesMult: 1, slowdown: 0, compute: 0, people: Math.round(REVIEW_STAFF * 10 * (o.humanShare ?? 0)) });
+      out.push({ kind: 'review', label: SAFEGUARD_LABEL.review, stop: o.human, chancesMult: 1, slowdown: 0, compute: 0, people: reviewStaff(o.humanShare ?? 0) });
     } else if (g.kind === 'restrict') {
       out.push({ kind: 'restrict', label: SAFEGUARD_LABEL.restrict, stop: 0, chancesMult: RESTRICT, slowdown: 1 - RESTRICT, compute: 0, people: 0 });
     } else {
@@ -143,3 +143,23 @@ export function safeguardLines(d: Deployment, o: { block: number; human: number;
 export const totalSlowdown = (lines: readonly SafeguardLine[]) => combineStop(lines.map((l) => l.slowdown));
 /** Human review on the lab's internal work (any non-withdrawn internal deployment carrying the item). */
 export const labReviewOn = (s: GameStateV2) => s.player.deployments.some((d) => d.channel === 'internal' && d.status !== 'withdrawn' && reviewOn(d));
+
+// ───────── SR-13b: the costs each line shows are charged ─────────
+
+/** Control protocol compute as a share of the watched deployment's compute: the deferred / resampled share × the trusted
+ *  model's cost ratio (safeguardLines' `compute`). Internal: billed to the monitors' line of the flat allocation
+ *  (departments/agents.ts monitorBudget); products: to the product's serving (worldfx/revenue.ts). */
+export const controlComputeShare = (setting: ControlSetting = 'defer10') => CONTROL_SETTINGS[setting].deferShare * CONTROL_TRUSTED_COST;
+/** A product's serving overhead from its safeguards (share of its serving need): the control protocol's compute. */
+export function productSafeguardOverhead(d: Deployment): number {
+  const g = guardOf(d, 'control');
+  return g ? controlComputeShare(g.setting) : 0;
+}
+/** Usage kept on a product by its safeguards: restriction × RESTRICT and the control protocol's Slowdown at the full
+ *  trusted gap (products defer to the trusted model with no measured gap: actTable's product line). */
+export function productUsageMult(d: Deployment): number {
+  const g = guardOf(d, 'control');
+  return restrictMult(d) * (g ? 1 - controlTerms(g.setting ?? 'defer10', undefined).slowdown : 1);
+}
+/** Human-review staff (safety research engineers) at a human share of the lab's R&D work (safeguardLines' `people`). */
+export const reviewStaff = (humanShare: number) => Math.round(REVIEW_STAFF * 10 * Math.max(0, Math.min(1, humanShare)));

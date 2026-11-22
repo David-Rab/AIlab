@@ -39,8 +39,7 @@ import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeStat
 import { aiShareOf } from './agents';
 import { safetySandbag } from './covert';
 import { trueEfficacy } from './common';
-import { investigationFte, safetyReHeads } from './investigations';
-import { patchFte } from './responses';
+import { committedFte, safetyReHeads } from './investigations';
 import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -222,7 +221,7 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
     if (hit && hit.day === s.time.day) return hit.a;
   }
   const heads = safetyReHeads(s);
-  const free = Math.max(0, heads - investigationFte(s) - patchFte(s));
+  const free = Math.max(0, heads - committedFte(s));
   let left = SAF_EXP_SHARE * free;
   const ids = experimenting(s, extra);
   const re = new Map<string, number>();

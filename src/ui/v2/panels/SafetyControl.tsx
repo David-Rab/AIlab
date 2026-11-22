@@ -2,7 +2,7 @@
 // layer with its tax) and the Footholds tab (HOME of every foothold the lab knows of: symptoms of suspected ones with
 // where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
 // footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
-import { controlOn } from '../../../engine/v2/safety/safeguards';
+import { LOCKDOWN_SLOWDOWN, controlOn, lockdownOn } from '../../../engine/v2/safety/safeguards';
 import { useMemo } from 'react';
 import { believedInternalOversight, controlReadout, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
 import { CONTROL } from '../../../data/v2/danger';
@@ -87,6 +87,9 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
         <span className="sp" />
         {!c.layer && c.versionId && <ActBtn id="safety.respond" testId="control-add" params={{ kind: 'addControl', versionId: c.versionId }} label="Add control" />}
         {c.layer && c.layerVersionId && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: c.layerVersionId }} label="Remove control" />}
+        {c.versionId && s.player.safety.techniques['T-LOCK']?.unlocked && (lockdownOn(s)
+          ? <ActBtn id="safety.respond" testId="lockdown-remove" params={{ kind: 'removeLockdown', versionId: c.versionId }} label="Remove lockdown" />
+          : <ActBtn id="safety.respond" testId="lockdown-add" params={{ kind: 'addLockdown', versionId: c.versionId }} label={`Add comms lockdown (−${Math.round(LOCKDOWN_SLOWDOWN * 100)}% work)`} />)}
         <Ref id="controlTax" to={AGENTS}>Tax per lane</Ref>
       </div>
     </Card>

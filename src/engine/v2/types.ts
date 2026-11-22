@@ -1012,7 +1012,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 

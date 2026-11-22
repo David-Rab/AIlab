@@ -27,7 +27,7 @@
 // off the products keep the shares set by hand (scaled if > 100%). Capacity-bound products lose share (0.5%/day of the
 // excess, through the brand term of the logit); demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
-import { RESTRICT, isRestricted } from '../safety/safeguards';
+import { productSafeguardOverhead, productUsageMult } from '../safety/safeguards';
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
 import { AGENT_WORK, CONSUMER_MKT, MARKUP, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { AGENT_TASK_HOURS } from '../../../data/v2/features';
@@ -366,7 +366,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const fOf = (d: Deployment, en: number) => {
         let f = Math.min(en, enMax);
         if (d.channel === 'api' || d.channel === 'agents') f *= 1 - 0.02 * d.kyc;
-        if (isRestricted(d)) f *= RESTRICT;
+        f *= productUsageMult(d); // SR-13b: restriction and the control protocol's Slowdown
         return f;
       };
       // A4: the mix's ceiling factor (fill) scales every provider's agent-hours; the player's products can add more here
@@ -478,7 +478,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       offs.forEach((x, i) => {
         // RD-B11 (B14): Chat's enablers act once, in the users' app choice (worldfx/mix.ts appeal), not again here.
         let u = (users * ws[i]) / wsum;
-        if (isRestricted(x.d)) u *= RESTRICT;
+        u *= productUsageMult(x.d); // SR-13b: restriction and the control protocol's Slowdown
         const subs = u * P;
         const a = acc.get(x.d.id)!;
         a.users += u;
@@ -503,7 +503,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   // users (earning nothing, served last); a sector product's seated hours (seat revenue), then its per-hour work.
   const segsOf = (d: Deployment): Seg[] => {
     const a = acc.get(d.id)!;
-    const mon = 1 + monitorOverhead(s, d);
+    const mon = 1 + monitorOverhead(s, d) + productSafeguardOverhead(d); // SR-13b: control compute billed to serving
     if (d.channel === 'consumer') return [{ need: a.needPaid * mon, dem: a.dem }, { need: (a.need - a.needPaid) * mon, dem: 0 }];
     const work = { need: a.need * mon, dem: a.dem };
     return a.seatNeed > 0 || a.seatDem > 0 ? [{ need: a.seatNeed * mon, dem: a.seatDem }, work] : [work];
@@ -519,7 +519,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     const sg = segs.get(d.id)!;
     const sp = split.get(d.id)!;
     const h = sp.h;
-    const mon = 1 + monitorOverhead(s, d);
+    const mon = 1 + monitorOverhead(s, d) + productSafeguardOverhead(d); // SR-13b: control compute billed to serving
     const need = sp.need;
     const demand = sg.reduce((x, y) => x + y.dem, 0);
     // Segments are served in order (paying consumers before free users; seats before per-hour work).

@@ -28,9 +28,8 @@ import { clamp01, flagNum, setFlag, versionById } from './common';
 import { monitoringCatch, stackDetectionMap } from './detection';
 import { revealFalse } from './findings';
 import { FOOTHOLD_ACT, FOOTHOLD_NAME, footholdsOf, lineageOf } from './footholds';
-import { investigationFte, safetyReHeads } from './investigations';
+import { committedFte, safetyReHeads } from './investigations';
 import { versionOom } from './oversight';
-import { patchFte } from './responses';
 import { strengthTrue } from './techniques';
 
 /** Uniform in [0, 1) from the seed and a key (foothold draws never move a named RNG stream). */
@@ -196,7 +195,7 @@ function located(s: GameStateV2, id: string | undefined): Foothold | undefined {
 }
 
 /** Free safety research engineers (cases, patches and removals take theirs; the rest keep tools validated). */
-const freeRe = (s: GameStateV2) => safetyReHeads(s) - investigationFte(s) - patchFte(s);
+const freeRe = (s: GameStateV2) => safetyReHeads(s) - committedFte(s);
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
 /** Size of a located foothold as the lab now knows it (H100e, reach, steered dispositions, tool strength). */

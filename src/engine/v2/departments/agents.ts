@@ -23,6 +23,7 @@ import {
 import { versionById } from '../models/labs';
 import { collusionTrait, monitorStop, type MonitorStop } from '../models/products';
 import { researchAgents } from './split';
+import { controlComputeShare, controlOn, labControlSetting } from '../safety/safeguards';
 import type { AgentPackage, AgentUse, ComputeSplit, GameStateV2, ModelVersion, TraitId } from '../types';
 
 export function initialAgents(versionId = 'V0'): Record<AgentUse, AgentPackage> {
@@ -130,8 +131,13 @@ export interface MonitorBudget {
   budget: number;
   /** Share of total compute the monitors use (≤ the budget; the rest of the line is unused, shown). */
   used: number;
-  /** Share of the monitored fleets' forward passes the monitors watch: min(1, budget ÷ need). */
+  /** Share of the monitored fleets' forward passes the monitors watch: min((budget − control) ÷ need, 1). */
   coverage: number;
+  /** SR-13b: the internal control protocol's compute (share of total compute: Σ agent compute × deferred share × the
+   *  trusted cost ratio), paid first from the monitors' line; `controlShort` = the part the line cannot pay, taken from
+   *  the agents' own compute (departments/workfit.ts useLabour). */
+  control: number;
+  controlShort: number;
 }
 
 /** SAFMECH: monitoring coverage from monitoring compute. AI 2027, fn 51 (Sep 2027): "With a monitoring budget of 1% of
@@ -154,13 +160,24 @@ export function monitorBudget(s: GameStateV2): MonitorBudget {
   let need = 0;
   for (const u of AGENT_USES) need += monitorNeedShare(s, u);
   const budget = Math.max(0, s.player.split.monitors ?? 0);
-  if (need <= 0) return { need: 0, budget, used: 0, coverage: 1 };
-  return { need, budget, used: Math.min(budget, need), coverage: monitorCoverage(budget, need, 1) };
+  // SR-13b: the control protocol's trusted-model compute comes out of the monitors' line first.
+  const internalControl = s.player.deployments.some((d) => d.channel === 'internal' && d.status === 'live' && controlOn(d));
+  let control = 0;
+  if (internalControl) {
+    const k = controlComputeShare(labControlSetting(s));
+    for (const u of AGENT_USES) control += agentSplitShare(s, u) * k;
+  }
+  const paid = Math.min(budget, control);
+  const left = budget - paid;
+  if (need <= 0) return { need: 0, budget, used: paid, coverage: 1, control, controlShort: control - paid };
+  return { need, budget, used: paid + Math.min(left, need), coverage: monitorCoverage(left, need, 1), control, controlShort: control - paid };
 }
+/** The monitors' part of the line's used compute (without the control protocol's). */
+const monUsed = (b: MonitorBudget) => b.used - Math.min(b.budget, b.control);
 
 /** H100e the monitor on one use runs on (its part of the monitors' used compute). */
 export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)): number {
-  return b.need > 0 ? (s.player.computeOnline * b.used * monitorNeedShare(s, use)) / b.need : 0;
+  return b.need > 0 ? (s.player.computeOnline * monUsed(b) * monitorNeedShare(s, use)) / b.need : 0;
 }
 
 /** SR-12: a use's monitor through the one monitor formula (models/products.ts monitorStop): monitor compute = the use's
@@ -168,7 +185,7 @@ export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)
  *  cost ratio, so its watched share is the pooled coverage (AI 2027 fn 51). */
 export function useMonitor(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): MonitorStop {
   const need = monitorNeedShare(s, use);
-  const mine = budget.need > 0 ? (budget.used * need) / budget.need : 0;
+  const mine = budget.need > 0 ? (monUsed(budget) * need) / budget.need : 0;
   return monitorStop(s, agentVersion(s, use), monitorVersion(s, use), mine, agentSplitShare(s, use), monitorCostRatio(s, use));
 }
 

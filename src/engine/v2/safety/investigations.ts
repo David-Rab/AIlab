@@ -22,6 +22,8 @@ import { caseThreat, safetySabotage } from './covert';
 import { patchFte } from './responses';
 import { caseOnModel } from './footholdDetection';
 import { QUALITY } from '../../../data/v2/teams';
+import { labReviewOn, reviewStaff } from './safeguards';
+import { aiRdShare } from './incidents';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
 export function safetyReHeads(s: GameStateV2): number {
@@ -29,6 +31,14 @@ export function safetyReHeads(s: GameStateV2): number {
   for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') h += t.heads * QUALITY[t.quality].out;
   return h;
 }
+
+/** SR-13b: safety research engineers the safeguards need (the "safeguards" line of the safety needs list): human review
+ *  on the lab's internal work takes reviewStaff(human share of R&D), the people cost its safeguard line shows. */
+export function safeguardFte(s: GameStateV2): number {
+  return labReviewOn(s) ? reviewStaff(1 - aiRdShare(s)) : 0;
+}
+/** Safety research engineers committed before line experiments: investigations, patches and safeguards. */
+export const committedFte = (s: GameStateV2) => investigationFte(s) + patchFte(s) + safeguardFte(s);
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;
@@ -79,7 +89,7 @@ export function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
 export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Investigation['target'], fte: number, opts: OpenInvestigationOpts = {}): Investigation | string {
   const dept = s.player.safety;
   if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} research engineers`;
-  if (investigationFte(s) + patchFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
+  if (committedFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';

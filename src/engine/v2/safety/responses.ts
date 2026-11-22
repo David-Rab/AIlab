@@ -1,5 +1,5 @@
 // Response menu per confirmed finding or incident (V2-SPEC §3.5.9). Owner: WS2.
-import { addSafeguard, controlOn, isRestricted, removeSafeguard, setControl } from './safeguards';
+import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
@@ -19,6 +19,8 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
   addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, defer 10% to trusted): about 7% of the work lost at a 1-OOM trusted gap; acts slipping past monitors ×0.45; AI-control tools block.' },
   removeControl: { title: 'Remove control protocol', note: 'Remove the control-protocol safeguard: its slowdown ends; blocking and deferral end with it.' },
+  addLockdown: { title: 'Add comms lockdown', note: `Comms-lockdown safeguard on the model's internal agents (shared memory bank locked): the same-lineage collusion penalty halves; ${Math.round(LOCKDOWN_SLOWDOWN * 100)}% of internal AI work lost.` },
+  removeLockdown: { title: 'Remove comms lockdown', note: 'Remove the comms-lockdown safeguard: its slowdown ends; the collusion penalty is back to full.' },
   rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
   disclose: { title: 'Disclose', note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
   removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
@@ -194,6 +196,21 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && controlOn(d));
       if (!deps.length) return 'No control layer on this model';
       for (const d of deps) setControl(d, false);
+      break;
+    }
+    case 'addLockdown': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.channel === 'internal' && d.status === 'live');
+      if (!deps.length) return 'No internal agent package runs this model';
+      for (const d of deps) {
+        const why = addSafeguard(s, d, 'lockdown');
+        if (why) return why;
+      }
+      break;
+    }
+    case 'removeLockdown': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && lockdownOnDep(d));
+      if (!deps.length) return 'No comms lockdown on this model';
+      for (const d of deps) removeSafeguard(d, 'lockdown');
       break;
     }
     case 'rollback': {
