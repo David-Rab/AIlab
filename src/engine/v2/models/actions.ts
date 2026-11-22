@@ -10,7 +10,7 @@ import { applyBestMix } from '../production/production';
 import { STAR_HIRE } from '../../../data/v2/teams';
 import { hireStar } from '../departments/teams';
 import { TEAM_ACTIONS } from '../departments/teamActions';
-import { BUILD_ACTIONS, UPKEEP } from '../departments/build';
+import { BUILD_ACTIONS } from '../departments/build';
 import { SUITE_ACTIONS } from './suites';
 import { DATA_ACTIONS } from '../production/dataActions';
 import type {
@@ -135,11 +135,10 @@ const runAction = (id: string, title: string, kind: LaunchRunParams['kind'], ext
 /** The IDA run on version `v` (P18): a post-train with the teacher in the loop. */
 const idaParams = (v: ModelVersion | undefined): LaunchRunParams => ({ kind: 'post', ida: true, baseId: v?.baseId, teacherVersionId: v?.id, post: v?.design ?? REFERENCE_POST });
 
-/** The stream's standing load (start: costs; stop: freed): its training pool share, the engineers' upkeep
- *  (departments/build.ts upkeepLines) and the research engineers' operations (models/research.ts reDemand). */
+/** The stream's standing load (start: costs; stop: freed): its training pool share and the research engineers'
+ *  operations (models/research.ts reDemand; RD-B09: engineers no longer keep runs or the stream going). */
 const streamCosts = (): CostLine[] => [
   { currency: 'compute', amount: STREAM_POOL_SHARE, target: 'training pool share' },
-  { currency: 'staffTime', amount: UPKEEP.stream, unit: 'team-weeks / week', target: 'engineers keeping the stream running' },
   { currency: 'staffTime', amount: RE_OPS.stream, unit: 'teams', target: 'research engineers on stream operations' },
 ];
 

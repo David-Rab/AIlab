@@ -375,6 +375,10 @@ export interface ModelVersion {
   flags: { bioUplift?: boolean; cyberOffense?: boolean; replication?: boolean; persuasion?: boolean };
   /** How G was built (MODEL-V3 §2); lets the engine recompute G for streams and domains. Hidden. */
   build?: VersionBuild;
+  /** RD-B17 (readout): the recipe it took from its own run. `rlDay` = launch day of the post-training or amplify run (RL
+   *  recipe and environment suites frozen then); `post` = made by a post-training run (domain effects and the serving
+   *  stack read at its completion). Absent for distilled students, imports and older saves. */
+  trained?: { rlDay: Day; post: boolean };
   /** Consumer appeal from preference training (0.7–1.2, §3.3.2 D); visible; the consumer market reads it (worldfx/mix.ts appealOf, RD-B11: the one appeal table). */
   appeal?: number;
 }
@@ -735,10 +739,16 @@ export interface CapProjectState {
 export interface AdoptedIdea {
   id: string;
   name: string;
-  stack: StackKey;
-  /** Effect at the lab's latest base when adopted (OOM; the realised value, shown once a model trains with it). */
+  /** The stack it moved (a stack idea; a second stack it also moves is not listed). Absent for domain and data effects. */
+  stack?: StackKey;
+  /** RD-B17: 'domain' (domain capability of new versions) or 'data' (data efficiency, expert data); absent = a stack. */
+  kind?: 'domain' | 'data';
+  /** Ideas in it (a line's batch; absent = 1). */
+  b?: number;
+  /** True effect when adopted, hidden until a model trained with it is evaluated: a stack idea in its stack's OOM at the
+   *  lab's latest base; a domain or data effect in "× as designed" (1 = the project's design effect). */
   eff: number;
-  /** The believed band when the result came in. */
+  /** The believed band when the result came in (same unit). */
   est: number;
   estSd: number;
   s: number;
@@ -796,14 +806,24 @@ export interface ResearchState {
   adopted: AdoptedIdea[];
   /** Weekly samples of the stacks' G-equivalent total (OOM over the start) and ideas adopted (the recent rate). */
   hist: { day: Day; g: number; n: number }[];
-  /** Model v3 V3: yesterday's G-equivalent of the stacks and its daily growth (OOM/day, 14-day average): the research
-   *  readout's software rate. */
-  gLast?: number;
+  /** Software progress (OOM/day, 14-day average): the daily change of the lab's research recipe G (stacks.ts researchG:
+   *  adopted ideas and tuning, no public knowledge) with F held at the earlier day's base (RD-B16; models/research.ts
+   *  capResearchDay). Read by the Research view and production.ts `rate` (pace, C4). gLast = researchG at gLastF, the
+   *  latest base FLOP on the last research day (gLastF absent in older saves: their gLast is skipped once). */
   gRate?: number;
-  /** Readout of the last day: research engineers per need and per project (team-equivalents), project FLOP used and
-   *  available (FLOP/day). */
+  gLast?: number;
+  gLastF?: number;
+  /** RD-B16: the stacks' public knowledge (Σ bases) at the last research day, and its daily inflow (OOM/day, 14-day
+   *  average: diffusion, C4 tacit knowledge, safety spillover). A readout only; absent in older saves (→ 0). */
+  pubLast?: number;
+  pubRate?: number;
+  /** Readout of the last day: research engineers per need and per project (team-equivalents), experiment FLOP per
+   *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
-    re: Record<ReNeed, number>; reProj: Record<string, number>; flopUsed: number; flopAvail: number;
+    re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
+    /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
+     *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */
+    opsServed?: number;
     /** Model v3 V3: a unit project's experiment compute c and labour ℓ (leader day 0 = 1), its CES throughput X (× the
      *  speed modifiers) and the AI labour multipliers in experiments and ideas. */
     x?: { c: number; l: number; X: number; mExp: number; mIdeas: number };

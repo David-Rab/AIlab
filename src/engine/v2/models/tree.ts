@@ -108,7 +108,9 @@ export function initialCapResearch(): Pick<ResearchState, 'want' | 'wantAuto' | 
     want: {}, wantAuto: [], risk: 'balanced', re: { order: [...DEFAULT_RE_ALLOC.order], max: { ...DEFAULT_RE_ALLOC.max }, share: { ...DEFAULT_RE_ALLOC.share } },
     stacks: initialStacks(0), adopted: [], hist: [], domainG: {},
     // The software-rate readout starts at the reference lab's first-year rate (≈ 0.83 OOM/yr of G-equivalent; V3 notes)
-    // so the lead readers do not see a lab at rest on day 0.
+    // so the lead readers do not see a lab at rest on day 0. RD-B16 kept it: it is the 14-day average's warm-up, not a
+    // mask for the new-base jump (gone: the rate holds F fixed across each day). Without it production.ts `rate` is 0
+    // on day 0, so paceOf (the lead conversions, A4 / C4 sizes) starts at 1 − share and the day-0 lead readouts move.
     gRate: START_G_RATE,
   };
 }

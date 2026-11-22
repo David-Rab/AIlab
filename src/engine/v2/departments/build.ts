@@ -5,10 +5,11 @@
 // SWE coverage, never below the humans alone; no cap; departments/teams.ts buildCapacity) and spend it on three needs, in the player's order (model v3 V2: "needs +
 // priority + overflow"; default below), each up to its optional cap (team-weeks per week or a share of capacity);
 // unused capacity flows down the order:
-//   runs      operations of every training run while it trains and of the continual-learning stream, then the run
-//             setups on the queue (a run trains only once its setup is built), then adoptions of research results into
-//             the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use) and the harness
-//             work of eval suites (model v3 D7, models/evals.ts: a version waits in evaluation on it)
+//   runs      the run setups on the queue (a run trains only once its setup is built), then adoptions of research
+//             results into the recipe stacks (model v3 V2, models/research.ts: the training code the next runs use) and
+//             the harness work of eval suites (model v3 D7, models/evals.ts: a version waits in evaluation on it).
+//             Operating a run while it trains (and the continual-learning stream) is research engineers' work, not
+//             engineers' (RD-B09, DD-11: models/research.ts reOpsNeed, the 'ops' need; short of it, runs slow)
 //   upkeep    every live product (reliability, on-call, integrations; grows with revenue), every RL environment suite
 //             (model v3 D5) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
@@ -16,8 +17,8 @@
 //   builds    the rest of the queue in priority order: product launches, product features, sector packs, suite builds
 //             and hardening passes (model v3 D5)
 // Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
-// shows on Products and Company). Runs come first so the run cadence holds (the reference lab's runs never wait on
-// upkeep). Engineering agents raise capacity through the coding CES (their model's SWE coverage and their compute;
+// shows on Products and Company). Run setups come first so the run cadence holds (the reference lab's runs never wait
+// on upkeep). Engineering agents raise capacity through the coding CES (their model's SWE coverage and their compute;
 // departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
@@ -53,7 +54,8 @@ export const ENG_FLOP_REF = 1e27;
 /** Team-weeks to set up a run [D]: the incremental engineering for a new run on existing infrastructure (data
  *  pipelines, checkpointing, cluster bring-up). A base of 1e27 FLOP 0.4, scaling with √(FLOP ÷ 1e27) (cluster size and
  *  failure handling grow with the run's compute; model v3 V3 made it physical: v2 scaled with FLOP ÷ F(t)); continue
- *  0.25; post-train 0.1; distill and amplify 0.05. Operating a run while it trains is upkeep (runOpsTW, also ∝ √).
+ *  0.25; post-train 0.1; distill and amplify 0.05. Operating a run while it trains is research engineers' work
+ *  (RD-B09: models/research.ts reOpsNeed), not engineers'.
  *  Calibration (R5, kept in J2): RefBot's setups finish within a day or two in every world — the stub traces are
  *  sensitive to the run cadence (a ×4 setup moved P08 by 100 days on the fast preset). */
 export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
@@ -64,12 +66,12 @@ export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
 }
 
 /** Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.2 + 1.6 × √(revenue ÷ $10B/yr), so a $10B/yr
- *  product keeps 1.8 team-weeks a week busy; runs while they train: a base 1 × √(FLOP ÷ 1e27), continue and post-train
- *  0.5, distill and amplify 0.2; the continual-learning stream 0.5; each monitor in production 0.4. Model v3 V3: product
+ *  product keeps 1.8 team-weeks a week busy; each monitor in production 0.4 (RD-B09: runs and the continual-learning
+ *  stream are operated by research engineers, data/v2/research.ts RE_OPS, so engineers carry no run upkeep). Model v3 V3: product
  *  and monitor upkeep × 0.4 (were 0.5 + 4√… and 1): J2 tuned it to v2's build capacity, whose AI speed-up came from AI 2027's automation
  *  knots (×4.7 at the start); the physical SWE coverage of a 2025 model (≈ 0.2) gives ×1.35, and at the old upkeep the
  *  start lab's products alone needed twice its capacity. */
-export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, runBase: 1, runMid: 0.5, runSmall: 0.2, stream: 0.5, monitor: 0.4, featureYr: 0.5, featureIdle: 0.1 } as const;
+export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, monitor: 0.4, featureYr: 0.5, featureIdle: 0.1 } as const;
 /** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
 export const LAUNCH_TW = 4;
 export const SECTOR_PACK_TW = 4;
@@ -78,10 +80,8 @@ export const SECTOR_CERT_DAYS = 120;
 /** Cash booked when a sector pack is queued ($B); refunded if it is built with no live product to carry it (RD-B12). */
 export const SECTOR_PACK_CASH = 0.4;
 
-export type UpkeepKind = 'product' | 'run' | 'stream' | 'monitor' | 'feature' | 'suite';
+export type UpkeepKind = 'product' | 'monitor' | 'feature' | 'suite';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
-/** Runs (operations) come before product upkeep. */
-export const isRunLine = (l: Pick<UpkeepLine, 'kind'>) => l.kind === 'run' || l.kind === 'stream';
 
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
 
@@ -101,23 +101,14 @@ export function featureInUse(s: GameStateV2, f: FeatureDef): boolean {
   return s.player.deployments.some((d) => isLiveProduct(d) && f.products.includes(d.channel) && d.features.includes(f.id));
 }
 
-/** Engineering a training run needs each week while it trains. */
-export function runOpsTW(r: Pick<TrainingRun, 'kind' | 'flopNeeded' | 'name'>): number {
-  if (r.kind === 'base') return UPKEEP.runBase * Math.sqrt(Math.max(0.01, engScale(r.flopNeeded)));
-  if (r.kind === 'continue' || (r.kind === 'post' && !r.name.startsWith('IDA'))) return UPKEEP.runMid;
-  return UPKEEP.runSmall;
-}
-
 /** Upkeep of one live product per week (revenue in $B/yr). */
 export const productUpkeepTW = (revenue: number) => UPKEEP.product + UPKEEP.productRev * Math.sqrt(Math.max(0, revenue) / UPKEEP.revUnit);
 
-/** Standing load lines (team-weeks per week): training runs and the stream, products, monitors in production, built
- *  features. */
+/** Standing load lines (team-weeks per week): products, monitors in production, built features, RL environment suites
+ *  (no run lines: research engineers operate runs, RD-B09). */
 export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   const p = s.player;
   const out: UpkeepLine[] = [];
-  for (const r of p.models.runs) if (r.status === 'running' && !runWaiting(r)) out.push({ kind: 'run', ref: r.id, tw: runOpsTW(r) });
-  if (p.models.stream) out.push({ kind: 'stream', ref: p.models.stream.versionId, tw: UPKEEP.stream });
   for (const d of p.deployments) {
     if (!isLiveProduct(d)) continue;
     out.push({ kind: 'product', ref: d.id, tw: productUpkeepTW(d.revenueRate ?? 0) });
@@ -133,12 +124,12 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   return out;
 }
 
-/** Standing load, team-weeks per week: runs (operations) and products (upkeep incl. monitors). */
-export function upkeepSplit(s: GameStateV2): { runs: number; products: number; total: number } {
-  let runs = 0;
+/** Standing load, team-weeks per week: product upkeep (products, monitors, features, suites); the 'upkeep' need.
+ *  RD-B09: no run operations (research engineers carry them). */
+export function upkeepSplit(s: GameStateV2): { products: number; total: number } {
   let products = 0;
-  for (const l of upkeepLines(s)) if (isRunLine(l)) runs += l.tw; else products += l.tw;
-  return { runs, products, total: runs + products };
+  for (const l of upkeepLines(s)) products += l.tw;
+  return { products, total: products };
 }
 export const upkeepTW = (s: GameStateV2) => upkeepSplit(s).total;
 
@@ -160,27 +151,26 @@ export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW:
   return id;
 }
 
-/** Weekly demand of each engineer need today (team-weeks per week): run operations + the setups still to build (as if
- *  built this week), product upkeep, the other builds still to do. */
+/** Weekly demand of each engineer need today (team-weeks per week): the run setups, adoptions and eval harness work
+ *  still to build (as if built this week; RD-B09: no run operations), product upkeep, the other builds still to do. */
 export function engDemand(s: GameStateV2, u = upkeepSplit(s)): Record<EngNeed, number> {
   let setups = 0;
   let other = 0;
   for (const it of s.player.build.queue) if (isStackWork(it)) setups += remaining(it); else other += remaining(it);
-  return { runs: u.runs + 7 * setups, upkeep: u.products, builds: 7 * other };
+  return { runs: 7 * setups, upkeep: u.products, builds: 7 * other };
 }
 /** The engineers' allocation (order and caps; old saves without one get the default). */
 export const engAlloc = (s: GameStateV2) => s.player.build.alloc ?? DEFAULT_ENG_ALLOC;
 
-/** Free capacity per day for run setups (after run operations) and for other builds (after upkeep), team-weeks, under
+/** Free capacity per day for run setups (and adoptions, eval harnesses) and for other builds (after upkeep), team-weeks, under
  *  the engineers' allocation (each need's share estimated with the others at today's demand). */
 export function buildRates(s: GameStateV2): { setups: number; builds: number } {
   const cap = buildCapacity(s).capacity;
-  const u = upkeepSplit(s);
-  const d = engDemand(s, u);
+  const d = engDemand(s);
   const a = engAlloc(s);
   const runs = allocate(cap, a, { ...d, runs: Infinity }).runs;
   const builds = allocate(cap, a, { ...d, builds: Infinity }).builds;
-  return { setups: Math.max(0, runs - u.runs) / 7, builds: Math.max(0, builds) / 7 };
+  return { setups: Math.max(0, runs) / 7, builds: Math.max(0, builds) / 7 };
 }
 /** Team-weeks per day the engineers have for builds other than run setups (after upkeep). */
 export const buildPerDay = (s: GameStateV2) => buildRates(s).builds;
@@ -188,8 +178,8 @@ export const buildPerDay = (s: GameStateV2) => buildRates(s).builds;
 const remaining = (it: BuildItem) => Math.max(0, it.needTW - it.doneTW);
 const daysAt = (tw: number, perDay: number) => (tw <= 0 ? 0 : perDay > 0 ? Math.max(1, Math.ceil(tw / perDay - 1e-9)) : Infinity);
 
-/** Days until each queued item is built at today's rates: run setups in queue order on the capacity left after run
- *  operations; other items after the setups, in queue order, on the capacity left after all upkeep. `next` = a new
+/** Days until each queued item is built at today's rates: run setups (and adoptions, eval harnesses) in queue order on
+ *  the 'runs' need's capacity; other items after the setups, in queue order, on the capacity left after all upkeep. `next` = a new
  *  item of `extraTW` (not a run setup) at the back. */
 export function buildEtas(s: GameStateV2, extraTW = 0): { etas: Map<string, number>; next: number } {
   const r = buildRates(s);
@@ -292,7 +282,7 @@ function workQueue(s: GameStateV2, ctx: SystemCtx, left: number, setups: boolean
   return { left, work };
 }
 
-/** build (38, daily): run operations and setups, then product upkeep, then the other builds; records the day's rates
+/** build (38, daily): run setups (and adoptions, eval harnesses), then product upkeep, then the other builds; records the day's rates
  *  (team-weeks per week) and the utilisation (≈ 30-day average). */
 export const buildSystem: EngineSystem = {
   id: 'build', owner: 'WS1', cadence: 'daily', order: 38, system: 'people',
@@ -310,12 +300,11 @@ export const buildSystem: EngineSystem = {
     const cap = buildCapacity(s).capacity;
     const u = upkeepSplit(s);
     const al = allocate(cap, engAlloc(s), engDemand(s, u));
-    const ops = Math.min(al.runs, u.runs) / 7;
-    const a = workQueue(s, ctx, Math.max(0, al.runs / 7 - ops), true);
+    const a = workQueue(s, ctx, Math.max(0, al.runs / 7), true);
     const prod = Math.min(al.upkeep, u.products) / 7;
     const c = workQueue(s, ctx, al.builds / 7, false);
     const r3 = (x: number) => Math.round(x * 1000) / 1000;
-    const served = (ops + prod) * 7;
+    const served = prod * 7;
     const work = (a.work + c.work) * 7;
     b.last = { cap: r3(cap), upkeep: r3(u.total), served: r3(served), queue: r3(work) };
     const x = cap > 0 ? Math.min(1, (served + work) / cap) : 0;

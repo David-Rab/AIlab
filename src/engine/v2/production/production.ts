@@ -130,7 +130,9 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const mod = researchMods(s);
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > day;
   const alloc = reAllocation(s);
-  const reRes = alloc.re.exp + alloc.re.tune;
+  // Research engineers not on run operations or evals (idle ones too): what experiments + tuning held before RD-B08
+  // gave tuning a finite demand, so this lab-level proxy and its readers do not move (M goes with RD-R01 / RD-R04).
+  const reRes = Math.max(0, alloc.total - alloc.re.ops - alloc.re.evals);
   const Cag = off ? 0 : pools.agents;
   const spare = off ? 0 : spareServingToResearch(s);
   const idle = p.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;

@@ -553,3 +553,167 @@ the engine does; no engine behaviour changed except the manual mix range.
 - **Moves calibration: no** (copy; the mix range widens only the manual slider; Auto's search range is unchanged, and
   bots use Auto).
 - **Tests run:** tsc main + scripts clean; lint-ux all passed; lint-tips 0 failing; npm run build passes.
+
+### RD-B08
+
+Research-engineer allocation (SYNTHESIS B11; INP-02, INP-V01). Commits ba0776b (engine, research suite, copy), 71c0b53
+(evals EV3). Interim per DD-12: headroom stays; RD-E03 removes it.
+- **Tuning demand:** `reDemand.tune = TUNE_RE_PER_OOM × headroomTotal(s)` (stacks.ts: Σ stacks' headroom at the
+  reference run FLOP). [D] TUNE_RE_PER_OOM = 100 (one team-equivalent per 0.01 OOM; about the 2.5–4 teams tuning held
+  mid-game on ai2027 when unlimited). Human team-equivalents, not ÷ m_EXP (as the experiments need). Spare research
+  engineers are idle (reAllocView already shows idle).
+- **Served after the projects:** DEFAULT_RE_ALLOC loses `share: { exp: 0.75 }` (that cap is what starved the 7th project,
+  INP-V01). [D] The player's order and caps still apply (research.reAlloc); tuning is last only by default.
+  **Open:** existing saves keep their stored `share.exp 0.75` (no migration, no schema bump); the player can clear it in
+  Company › Work, or a later bump drops it.
+- **FLOP by need:** new `expShares(alloc, avail)`: the pool is divided over the demands (RE_PER_PROJECT per project in
+  experiments + tuning's demand); a project with any research engineers takes a full share; tuning takes the rest
+  (including the shares of projects with none). [D] A project short of RE_PER_PROJECT still gets its full FLOP share
+  (FLOP does not follow headcount). The unit project's inputs (`last.x`, line batching) use
+  max(units, RE_PER_PROJECT), i.e. a full project's share. `experimentRate` extracted from stepProject (shared with the
+  test).
+- **Readouts:** `research.last.flopProj` (new optional readout field; researchView's project FLOP and c read it; c no
+  longer scales with a project's research engineers). Deviation [D]: production.ts's M proxy keeps h = research
+  engineers not on ops / evals (idle included), i.e. what exp + tune held before, so M and its readers (non-line safety
+  nodes, gov, previews) do not move (→ RD-R01 / RD-R04). Copy: glossary routineTuning / expCompute / reNeeds, Work.tsx
+  overflow tip; GLOSSARY.md regenerated.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb08/probe.ts`, RefBot ai2027 seed 2027, +1 / +3 RE teams at days 30–600):
+  - Before: day 600 seven projects in experiments, P05 at 0 RE while tuning held 3.94 (day 450 too); tuning took 22–81%
+    of experiment FLOP; saturated projects ×0.965–0.977 (+1 team), ×0.907–0.937 (+3 teams).
+  - After: no experimenting project at 0 RE while tuning holds any (0 of 5 checkpoints); day 30 8.3 RE idle and tuning
+    0% of FLOP (no headroom); day 300 tuning 1.4 of 5.98 wanted (projects first); per-project FLOP flat with +RE; worst
+    rate ×0.998 (+3 teams, day 600). That 0.2% is m_EXP = L/H spreading the same AI labour over the extra idle humans
+    (workfit labourOf), not the allocation: with m_EXP held the ratio is ×1.000. Left for DD-11 / DD-13.
+- **Tests:** research suite +3 checks (tuning demand ∝ headroom; tuning only after every project is full over 15
+  capacities; +RE never lowers a project's RE, FLOP (exact) or rate (≥ ×0.995, the m_EXP note); tuning takes the FLOP
+  projects leave, no headroom → no tuning and idle engineers); the overflow check now expects tuning up to its demand
+  and the rest idle; evals EV3's order check reworded (behind tuning, evals get what it leaves). tsc main + scripts
+  clean; research full 33/33; evals 30/30; test:quick 31/34 (fixtures stale ×5, worldfx A2a 6.7% / W4 23.4%: known; no
+  fixtures committed); lint-ux clean.
+- **test:cal: 47 pass, 2 FAIL** (9.1 min, load 95%). T1 20-seed medians, Δ vs golden in years (M11 in brackets; Phase
+  0 was behaviour-neutral):
+
+  | preset | SC | SAR | SIAR | ASI |
+  |---|---|---|---|---|
+  | ai2027 | +0.001 (0.000) | −0.086 (−0.079) | −0.086 (−0.078) | −0.049 (−0.010) |
+  | authors2026 | +0.036 (+0.052) | −0.090 (−0.030) | **−0.270 (−0.045) FAIL** | **−0.487 (+0.004) FAIL** |
+  | fast | +0.011 (+0.022) | +0.099 (+0.096) | −0.007 (−0.022) | −0.085 (−0.103) |
+  | slow | +0.049 (+0.049) | | | |
+
+  T1L (leader lab) unchanged: authors2026 SIAR / ASI WARN −0.74 / −1.49 y as M11. **Stop rule reached:** authors2026 ASI
+  is 0.37 y past its ±44 d tolerance and no value is named for a refit, so nothing was refitted.
+- **Mechanism** (`probes/rdb08/late.ts`, RefBot authors2026 seed 2027): the slow world's lab has far more research
+  engineers (22–28) than its 5–6 experimenting projects need (10–12), and post-SAR headroom is small (0.006–0.019 OOM →
+  tuning wants 0.6–1.9). Under the headcount split tuning held 50–64% of experiment FLOP from day 900 (the projects'
+  share 22–50%); by need the projects get 87–94%. After SAR the projects are compute-bound (m_EXP 600–260 000), so
+  roughly ×2 FLOP per project shortens SAR → SIAR → ASI. ai2027's lab is short of research engineers, so it barely
+  moves. This is the fix working (DD-12: "research gets slightly faster (refit)"). For the lead: refit authors2026's
+  post-SAR pace (the preset's G_SC / CAL_SHIFT-type values, not named here), or accept and restate; TUNE_RE_PER_OOM is
+  [D] and also sets tuning's FLOP share (∝ √K at equilibrium), but tuning it to the dates would be a forcing refit.
+
+### RD-B09
+
+One owner for run operations (SYNTHESIS B12; CAP-23, CAP-V1, INP-17; DD-11 sub-call). Commit 0531318.
+- **Engineers:** the 'runs' need is run setups, research adoptions and eval harness work (`engDemand.runs = 7 ×` queued
+  stack work). Removed: the run / stream upkeep lines, `runOpsTW`, `isRunLine`, `UPKEEP.runBase / runMid / runSmall /
+  stream`, `upkeepSplit().runs` (selectors re-exports too). buildRates / buildSystem no longer subtract run ops.
+- **Research engineers:** `opsServed(alloc)` (research.ts) = re.ops ÷ demand.ops (1 with no need, 1e-3 rounding), stored
+  as `research.last.opsServed` (new optional readout field; no schema bump: absent → 1). The research system (35) writes
+  it before runs (40): `run.flopDone += share × rate × opsServed`; runEtaDays uses the same factor. [D] The stream's
+  tracking rate (advanceStream) is × opsServed too (its RE_OPS.stream is part of the ops need). [D] A slowed run keeps
+  its pool share (the compute sits idle: lost goodput), so it does not flow to experiments.
+- **Kept [D]:** RE_OPS sizes (base 1, mid 0.5, small 0.2, stream 0.5 team-eq ÷ m_EXP). The engineers' version scaled a
+  base with √(FLOP ÷ 1e27); that size scaling is gone, not moved. Open: give RE_OPS.base the √ scale if run size should
+  cost operators (it would grow late-game ops 3–10×, mostly cancelled by m_EXP).
+- **Readouts / copy:** runStall says "slowed to N%: too few research engineers on run operations" (Models run row,
+  Blueprint gantt); Work › research engineers' ops tooltip adds "Runs train at N%"; ops' term → `runOps`, engineers'
+  runs need → "Setups & adoptions" / ENG_NEED_LABEL "Run setups, research adoptions, eval harness"; BuildLoad drops the
+  runs segment and run lines (footer points to research engineers); glossary runOps / reNeeds / engNeeds / buildQueue
+  rewritten; GLOSSARY.md regenerated.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb09/probe.mts`, RefBot seed 2027, days 60–800): opsServed = 1 at every checkpoint
+  in ai2027, authors2026, fast. The engineers' removed run load was 0–3.2 t-wk/wk; on authors2026 / fast early (cap
+  4.4–4.9, util 0.90–0.98) that is about a fifth of capacity now free for product upkeep and builds.
+- **Tests:** research full 36/36 (+3: engineers' runs need = queued stack work, no run / stream upkeep line; with half
+  the ops need served a run trains ×0.5000 a day and says "slowed"; RefBot's ops served 1 on all 185 run-days to day
+  240, ai2027). tsc main + scripts clean. No other tier run (RD test rule).
+- **Moves calibration: maybe.** Capability dates: probably not, since RefBot's research engineers serve run ops in full
+  (no run slows) and setups were already first in the engineers' order. Finance / products: maybe, in the tight worlds
+  (authors2026, fast) where engineers ran at 90–98% and about 1 t-wk/wk of run ops now goes to product upkeep and
+  launches / features, so revenue and anything downstream of shipping can shift. Fixture hashes change (new readout
+  field and engineer allocation). test:cal and the finance tier should be re-reported at the merge.
+
+### RD-B16
+
+One capability currency for recipes; Software progress from the lab's own research (SYNTHESIS B23, B24; CAP-06,
+CAP-V2, CAP-12 seed part). Commit bad7924.
+- **B23 (one recipeG):** `stacks.ts recipeG(rec, F = RECIPE_F)` = pre + refRlGain(F, mid, ceil) − refRlGain(F, 0, 0),
+  `RECIPE_F = FLOP_RL_REF` (3e26, fixed: a comparison never moves because a lab trained a bigger base). Parts = the
+  ones every lab has (pretraining, RL efficiency, RL ceiling); the player's training-throughput stack is left out
+  because rivals have none (they train at the fixed MFU × GOODPUT). `playerRecipe(s, F)` (pre stack at F) /
+  `playerRecipeG(s)`; rivalModel `recipeOf` and `recipeRates` call recipeG (`gEquivOfRecipe` deleted; rival values
+  bit-identical). Callers moved: theft.ts secretsLeakDaily (China gap, also security.ts's daily leak) and actions.ts
+  A4 (which rivals are behind). rivalFinance (rival vs rival) was already one unit. Diffusion (production.ts) compares
+  model G, not recipes: RD-X04's.
+- **B24 (gRate):** `research.ts softwareProgressDay` (called at the end of capResearchDay, exported for tests): Δ of
+  `researchG(s, F)` = ownRecipeG − pre.base (public knowledge lands only in the pretraining base and enters G linearly,
+  so it drops out exactly) between research days, both ends at the earlier day's base FLOP (`gLastF`, new optional
+  field): a new base changes F only for the next delta. Adoptions (build system, order 38) and tuning count. [D] F is
+  the lab's latest base, not RECIPE_F: a rival's pre increments are realised at its own base (κ), so the lab's own
+  scale is the closer match for a rate; the rate is a different quantity from the cross-lab level. Old saves: gLast
+  without gLastF is skipped once (it held the whole G).
+- **Public knowledge readout:** `pubLast` / `pubRate` (Σ stack bases, 14-day average of its daily change: diffusion,
+  C4 tacit knowledge, spillover). softwareRate → `publicPerYear`; Recipe header "· +x OOM/yr public" when ≥ 0.005,
+  tooltip row "Public knowledge"; glossary `publicKnowledge` (new), `softwareRate` body says what counts; GLOSSARY.md
+  regenerated. hist / stacksGEquiv (level at the latest base, with public and throughput) unchanged.
+- **Seed kept:** START_G_RATE is the 14-day average's warm-up so day-0 pace is not 1 − share (lead conversions, A4 /
+  C4 sizes move without it), not a mask for the jump (the jump is gone). Documented at tree.ts. It decays to the
+  measured rate (≈ 0.1 OOM/yr at day 28) within a month either way.
+- **Probe** (`%TEMP%/ai27ux/probes/rdb16/probe.mts`, RefBot seed 2027, days 0–700): leader starts (ai2027, authors2026,
+  fast) read as before except in the month after each of the 3 base changes (old 1.01 vs new 0.73 OOM/yr at d400 and
+  3.24 vs 2.03 at d600, ai2027). The challenger (diffusion) read far faster before: d100 0.61 → 0.00, d200 3.13 →
+  0.60, d500 2.61 → 1.30 OOM/yr (public inflow 0.6–2.2 OOM/yr now shown apart). Recipe at RECIPE_F vs the old latest
+  base + throughput: 0.0–0.3 OOM lower by d700 on leaders (ai2027 2.11 vs 2.41), 1.0 lower on the challenger; China's
+  recipe is at or above the player's for most of these runs, so the secrets leak is often 0 either way.
+- **Tests:** research full 42/42 (+6: a 30× base moves G at the latest base by +0.11 OOM and Software progress not at
+  all; a 0.05 OOM diffusion inflow leaves it unchanged and adds dG/14 to the public readout; an adopted idea adds
+  x(1 − HEADROOM)/14; equal player / China recipes have zero gap whatever the base or throughput stack and a bigger
+  base leaves the secrets leak unchanged; a challenger's first 200 days put +0.44 OOM into public knowledge with
+  Software progress 0.60 vs the old measure 2.76 OOM/yr). tsc main + scripts clean. No other tier (RD test rule).
+- **Moves calibration: maybe (likely yes for follower starts).** gRate → production `rate` → paceOf (lead days, A4
+  leak, C4 tacit-knowledge size) and lead readers. Leader starts: small and transient (a month after each new base the
+  pace was inflated; now not), so capability dates probably hold. Follower starts: the pace no longer counts
+  diffusion, so their `rate` is much lower while catching up: lead conversions in days, C4 sizes and any reader of
+  rateOf('player') change. Leaks: the player-vs-China gap drops the throughput stack and is at 3e26, so it is smaller
+  (fewer secrets leaks to China, wherever the player is ahead). Fixture hashes change (new readout fields, the rate).
+  test:cal and the golden timelines should be re-reported at the merge.
+
+### RD-B17
+
+Research readouts, honest Recipe tab (SYNTHESIS B28, B29, B30; CAP-03, CAP-11, CAP-V3). Commit 33db305.
+- **B28 (units):** STACK_GROUPS deleted; `stackViews` returns one `StackView` per stack key (pre, rlMid, rlCeil, train,
+  serve) with `unit` (data/v2/research.ts STACK_UNIT, read after "OOM"), its own headroom / not-trained-in (pre, rlMid,
+  rlCeil only); Recipe.tsx shows five stack cards and a "Domain & data effects" card, no sums in the panel. Domain and
+  data effects push `res.adopted` entries with `kind: 'domain' | 'data'` (no `stack`; AdoptedIdea.stack now optional,
+  `b` = batch size); `otherEffectViews` lists them with rows in their own units (domain: est/true × weight, OOM for new
+  versions; P10 quality ceiling "web text = 1"; P21 OOM token worth; P12 B tokens). Old saves' domain entries with
+  `stack: 'pre'` are read as domain effects (the tree node has no stack). Label "true effect"; its tooltip names the
+  model ("Seen in V5's evaluation…") or says which model would reveal it. Glossary: new `oom`, `otherEffects`;
+  `realisedEffect` retitled "True effect"; `knowHow`, `recipeStack`, `stackEfficiency` say each stack is its own unit.
+  GLOSSARY.md regenerated.
+- **B29 (counts):** `addIdea(st, x, sx, fTest, count = 1)`; completeAdoption passes `r.c.b` and 0 for `also`. Readers of
+  `st.n` / hist n (softwareRate ideas/yr, Blueprint adoptedDuring) are readouts. [D] Count = Σb (all ideas in the batch,
+  not the expected survivors). Domain and data ideas are not in the stacks' count (tooltip says "into the stacks").
+  Existing saves keep their old counts (a one-off mixed hist window).
+- **B30 (who reveals):** new optional `ModelVersion.trained = { rlDay, post }` (readout only): post-training runs set
+  rlDay = launch day (frozen recipe; today if the run predates frozen recipes), post true; amplify (IDA) post false;
+  distills / imports none. `revealedBy` by EMBODIED_BY: pre = a base started after (as before); rlMid / rlCeil / expert
+  data = rlDay after; serve / domain = a post-trained version finished after (serveTechMult and domainG are read at
+  post completion; IDA and distills copy the teacher's); train = either a base started or an RL launch after;
+  P10 / P21 = a base finished after (draw read at completion). Versions without `trained` (older saves) count if
+  variant 'full' and v.day after (old rule minus minis). Streams do not reveal (the stream's model was evaluated before).
+- **Moves calibration: no** (readouts only; new state fields `trained`, `kind`, `b` and the n counts change state
+  hashes, not behaviour). No schema bump (all optional).
+- **Tests:** tsc main + scripts clean; scripts/v2/research.ts all pass with four new RD-B17 checks (P16 counts 1 and a
+  batch of 3 counts 3; P09 / P10 not under a stack, own units; one card per stack and no `.reduce(` in Recipe.tsx; a
+  mini or an earlier-launched post-train does not reveal an RL idea, a later one does and is named). lint-ux --doc run
+  to regenerate GLOSSARY.md (it passed). `npm run build` ok. No other tier (RD test rule). Not screenshotted.

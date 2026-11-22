@@ -18,7 +18,7 @@ import { govPresetOf } from './gov';
 import { addPosture, archetypeOf, openAbsorbMonths, openWeightsReleased, ownProgressDays, paceOf, publishLeakG } from './rivals';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
-import { addKnowledge, stacksGEquiv } from '../models/stacks';
+import { addKnowledge, playerRecipeG } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
 
@@ -57,9 +57,9 @@ function def(x: Spec): ActionDef {
 const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
 const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 const dealmakerMult = (s: GameStateV2) => (govPresetOf(s.gov.preset).id === 'dealmaker' ? 1.6 : 1);
-/** RD-B19 (B40): A4's recipients, the active labs (China too) whose recipe is below the player's. */
+/** RD-B19 (B40): A4's recipients, the active labs (China too) whose recipe is below the player's (RD-B16: recipeG at RECIPE_F). */
 const publishRecipients = (s: GameStateV2): RivalLab[] => {
-  const own = stacksGEquiv(s);
+  const own = playerRecipeG(s); // RD-B16: the same recipeG at RECIPE_F as recipeOf
   return [...activeRivals(s), s.china.lab].filter((r) => r.core.status === 'active' && recipeOf(s, r) < own);
 };
 /** C6's release: the G of the weights (`behind` × 0.3 of a year of the lead pace below the player's best) and the

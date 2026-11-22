@@ -10,12 +10,13 @@
 //           new versions; serveSplit, model v3 D10)
 // e_stack = base (the start recipe and public knowledge) + Σ adopted effects − remaining headroom. An adopted idea adds
 // its true effect; HEADROOM of it waits for routine tuning, which closes it at TUNE_K × tuning capacity × its experiment
-// throughput per day (models/research.ts).
+// throughput per day (models/research.ts); tuning wants research engineers in proportion to what remains (RD-B08).
 // Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
-// The lab's recipe compared with another lab's (secrets leaks, diffusion, safety tiers) is the stacks' G-equivalent
-// (stacksGEquiv, OOM over the leader's day-0 recipe; a non-player lab's is actors/rivalModel.ts recipeOf). Model v3 F3
-// removed the know-how readout `player.pa` that stood for it in progress-years.
+// The lab's recipe compared with another lab's (secrets leaks, publish-research leaks) is recipeG at the common reference
+// FLOP RECIPE_F, on the parts every lab has (pretraining, RL efficiency, RL ceiling; RD-B16): playerRecipeG for the
+// player, actors/rivalModel.ts recipeOf for a rival's aggregate recipe. Model v3 F3 removed the know-how readout
+// `player.pa` that stood for it in progress-years.
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
 import { HEADROOM, S_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
@@ -101,8 +102,9 @@ export function rlGOfBuild(b: { eRL: number; aRL?: number; flopPre: number }): n
 }
 
 /** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, scale exponent `sx` (0 for scale-invariant
- *  stacks). HEADROOM of it is headroom. */
-export function addIdea(st: StackState, x: number, sx: number, fTest: number) {
+ *  stacks). HEADROOM of it is headroom. `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
+ *  b; 0 for the second stack one idea also moves, RD-B17). */
+export function addIdea(st: StackState, x: number, sx: number, fTest: number, count = 1) {
   const sr = Math.round(sx / S_STEP) * S_STEP;
   const coef = x * Math.pow(10, -sr * lg(fTest));
   let b = st.buckets.find((y) => Math.abs(y.s - sr) < S_STEP / 2);
@@ -113,13 +115,17 @@ export function addIdea(st: StackState, x: number, sx: number, fTest: number) {
   }
   b.a += coef;
   b.h += HEADROOM * coef;
-  st.n += 1;
+  st.n += count;
 }
 
 /** Public knowledge (diffusion from a leader, tacit knowledge, safety spillover): scale-invariant, no headroom. */
 export function addPublic(st: StackState, oom: number) {
   st.base += oom;
 }
+
+/** Remaining headroom of the lab's recipe: Σ over the stacks at the reference run FLOP (OOM). Routine tuning's
+ *  research-engineer demand is proportional to it (models/research.ts reDemand, RD-B08). */
+export const headroomTotal = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + headroomAt(stacksOf(s)[k]), 0);
 
 /** One day of routine tuning: every stack's headroom shrinks by the factor exp(−k), k = TUNE_K × research-engineer
  *  team-equivalents on tuning × their experiment throughput (models/research.ts capResearchDay). */
@@ -165,11 +171,39 @@ export function latestBaseFlop(s: GameStateV2): number {
 export const gEquivOf = (flop: number, pre: number, mid: number, ceil: number, train = 0) =>
   pre + refRlGain(flop, mid, ceil) - refRlGain(flop, 0, 0) + train;
 
-/** G-equivalent of the lab's stacks today, at its latest base (OOM). */
+/** A lab's recipe in the stack units every lab has (OOM over the leader's day-0 recipe): pretraining efficiency, RL
+ *  efficiency (rlMid), RL ceiling (rlCeil). A rival's aggregate recipe (RivalPhys.rec) has this shape. */
+export interface Recipe { pre: number; mid: number; ceil: number }
+/** The common reference FLOP at which labs' recipes are compared (RD-B16): FLOP_RL_REF, the reference RL run's base
+ *  (3e26, a 2025 frontier base). Fixed, so a comparison never moves because one lab trained a bigger base. */
+export const RECIPE_F = FLOP_RL_REF;
+/** RD-B16: the one G-equivalent of any lab's recipe (OOM): pretraining + what its RL recipe adds to the reference
+ *  post-training run on a base of `F` FLOP. The player's (playerRecipeG) and a rival's (actors/rivalModel.ts recipeOf)
+ *  both go through it at RECIPE_F for every player-vs-rival comparison. Training throughput is not a part: rivals have
+ *  no such stack (they train at the fixed MFU × GOODPUT), so counting it would compare different parts. */
+export const recipeG = (rec: Recipe, F = RECIPE_F) => gEquivOf(F, rec.pre, rec.mid, rec.ceil);
+/** The player's recipe with its pretraining stack evaluated at run FLOP `F` (scale-dependent ideas at F). */
+export const playerRecipe = (s: GameStateV2, F = RECIPE_F): Recipe => ({ pre: ePreAt(s, F), mid: rlMidNow(s), ceil: rlCeilNow(s) });
+/** The player's recipe G at the common reference FLOP: the counterpart of a rival's recipeOf (secrets leaks, A4). */
+export const playerRecipeG = (s: GameStateV2) => recipeG(playerRecipe(s, RECIPE_F), RECIPE_F);
+/** The player's own recipe G at run FLOP `F`, training throughput included (OOM). */
+export const ownRecipeG = (s: GameStateV2, F: number) => recipeG(playerRecipe(s, F), F) + trainNow(s);
+/** RD-B16: the part of the player's recipe G at run FLOP `F` its own research made (OOM): ownRecipeG without the
+ *  pretraining stack's base, where all public knowledge lands (addPublic; it enters G linearly, so this removes it
+ *  exactly; the other bases hold only the fixed start lag). Software progress is its change between research days with
+ *  F held at the earlier day's base (models/research.ts capResearchDay). */
+export const researchG = (s: GameStateV2, F: number) => ownRecipeG(s, F) - stacksOf(s).pre.base;
+
+/** G-equivalent of the lab's stacks today, at its latest base (OOM; training throughput and public knowledge included):
+ *  the level the weekly recipe history samples. Not for comparisons with other labs (playerRecipeG) nor for the rate
+ *  (it jumps when a bigger base is trained). */
 export function stacksGEquiv(s: GameStateV2): number {
-  const F = latestBaseFlop(s);
-  return gEquivOf(F, ePreAt(s, F), rlMidNow(s), rlCeilNow(s), trainNow(s));
+  return ownRecipeG(s, latestBaseFlop(s));
 }
+
+/** Public knowledge in the lab's recipe (OOM): Σ of the stacks' bases (the start lag plus every diffusion, tacit
+ *  knowledge and spillover inflow, addPublic). The public-knowledge readout is its daily change (RD-B16). */
+export const publicBase = (s: GameStateV2) => STACK_KEYS.reduce((a, k) => a + stacksOf(s)[k].base, 0);
 
 /** The recipe a version embodies, as its G-equivalent (OOM, gEquivOf at its base's FLOP): the continual-learning
  *  stream's tracked recipe while the stream runs on it, else the recipe it was trained with (its base's pretraining

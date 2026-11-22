@@ -19,7 +19,7 @@ export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
-export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
+export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
 export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
 export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../models/effective';
@@ -170,9 +170,9 @@ export { spareServingEffect } from '../production/production';
 // Model v3 V2b research UI: projects, recipe stacks, allocations, AI labour per work type, milestones, research speed.
 export {
   STAGES, PROJECT_MAX_TEAMS, addableProjects, buildSplit, capPriorityList, capProjectView, engAllocView, milestoneViews,
-  reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
+  otherEffectViews, reAllocView, researchSpeedView, softwareRate, stackViews, workTypeViews,
 } from '../models/researchView';
-export type { AllocView, CapProjectView, MilestoneView, NeedView, ResearchSpeedView, StackGroupView, StageId, WorkTypeView } from '../models/researchView';
+export type { AdoptedView, AllocView, CapProjectView, EffectRowView, MilestoneView, NeedView, OtherEffectView, ResearchSpeedView, StackView, StageId, WorkTypeView } from '../models/researchView';
 // Model v3 E11: the player's danger readout per product and internal lane, and the control readout (beliefs only).
 export { CONTROL_BANDS, controlBand, controlReadout, dangerView } from '../safety/dangerView';
 export type { ControlBand, ControlRead, DangerActRead, DangerLever, DangerRead } from '../safety/dangerView';

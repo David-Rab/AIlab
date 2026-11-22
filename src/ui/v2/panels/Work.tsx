@@ -21,9 +21,9 @@ const ROLE_OF: Record<string, Role> = { SWE: 'eng', EXP: 're', IDEAS: 'sci' };
 const ROLE_NAME: Record<Role, string> = { eng: 'Engineers', re: 'Research engineers', sci: 'Scientists' };
 const ROLE_ICON: Record<Role, typeof ICON.L> = { eng: ICON.roleEng, re: ICON.roleRE, sci: ICON.roleSci };
 const ROLE_TERM: Record<Role, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
-const NEED_TERM: Record<string, string> = { ops: 'reNeeds', evals: 'evals', exp: 'reNeeds', tune: 'routineTuning', runs: 'runOps', upkeep: 'productUpkeep', builds: 'buildQueue' };
+const NEED_TERM: Record<string, string> = { ops: 'runOps', evals: 'evals', exp: 'reNeeds', tune: 'routineTuning', runs: 'engNeeds', upkeep: 'productUpkeep', builds: 'buildQueue' };
 const NEED_COLOR: Record<string, string> = { ops: '#9b6be0', evals: '#c06bb0', exp: '#7d55c0', tune: '#5aa9ff', runs: '#9b6be0', upkeep: '#b08e1a', builds: '#3a8ae0' };
-const NEED_SHORT: Record<string, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning', runs: 'Runs & adoptions', upkeep: 'Product upkeep', builds: 'Builds' };
+const NEED_SHORT: Record<string, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds' };
 const SHARES = [0.25, 0.5, 0.75, 0.9];
 const COUNTS = [1, 2, 4, 8, 16];
 const fmtH = (min: number) => (min >= 60 * 24 * 365 ? `${F.short(min / (60 * 24 * 365))} y` : min >= 60 * 24 ? `${F.short(min / (60 * 24))} d` : min >= 60 ? `${F.short(min / 60)} h` : `${Math.round(min)} min`);
@@ -99,7 +99,9 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; 
               { label: 'Gets', value: `${n.got.toFixed(1)} ${unit}` },
               { label: 'Needs', value: dem === null ? 'whatever is left' : `${dem.toFixed(1)} ${unit}` },
               ...(n.short > 0.05 ? [{ label: 'Short', value: `${n.short.toFixed(1)} ${unit}`, tone: 'neg' as const }] : []),
-            ]}>{n.capped ? 'Held by its cap: the rest flows down.' : n.short > 0.05 ? 'The needs above it took the capacity.' : 'Fully served.'}</TipCard>}>
+              // RD-B09: run operations short → running runs and the stream advance at the share served.
+              ...(n.k === 'ops' && dem !== null && n.short > 0.05 ? [{ label: 'Runs train at', value: F.pct(Math.min(1, n.got / Math.max(1e-9, dem))), tone: 'neg' as const }] : []),
+            ]}>{n.capped ? 'Held by its cap: the rest flows down.' : n.short > 0.05 ? 'The needs above it took the capacity.' : 'Fully served.'}{n.k === 'ops' && n.short > 0.05 ? ' Running runs slow to the share served.' : ''}</TipCard>}>
               <span className="wk-nbar"><i style={{ width: `${Math.min(100, (n.got / scale) * 100)}%`, background: NEED_COLOR[n.k] }} />{dem !== null && dem > n.got + 1e-6 && <i className="short" style={{ left: `${Math.min(100, (n.got / scale) * 100)}%`, width: `${Math.min(100, ((dem - n.got) / scale) * 100)}%` }} />}</span>
             </Tip>
             <Tip content={() => <TipCard title={n.label} value={`${n.got.toFixed(1)} of ${dem === null ? 'the rest' : dem.toFixed(1)}`}>{unit}</TipCard>}>
@@ -113,7 +115,7 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; 
           </div>
         );
       })}
-      <Tip content={() => <TipCard title={<Term id="overflow">Overflow</Term>} value={`${F.short(a.idle)} ${unit} idle`}>Capacity no need takes. Engineers: queue a feature or launch; research engineers always overflow into routine tuning.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="overflow">Overflow</Term>} value={`${F.short(a.idle)} ${unit} idle`}>Capacity no need takes. Engineers: queue a feature or launch; research engineers stay idle once the projects in experiments and routine tuning (while headroom is left) are full.</TipCard>}>
         <div className="small dim wk-idle" data-test={`idle.${act}`}><Term id="overflow">idle</Term> {F.short(a.idle)} {unit}</div>
       </Tip>
     </div>

@@ -92,6 +92,10 @@ export const HEADROOM = 0.3;
  *  throughput X (the projects' CES on the tuning allocation; 1 at the leader's day-0 inputs), per day, on what remains
  *  [D: ≈ 3 months with 3 teams at unit inputs]. */
 export const TUNE_K = 1 / 270;
+/** Routine tuning's research-engineer demand per OOM of remaining headroom (Σ over the stacks at the reference run
+ *  FLOP): one team-equivalent per 0.01 OOM [D, RD-B08: a finite need that falls to zero with the headroom; about the
+ *  2.5–4 teams tuning held mid-game when its demand was unlimited]. Served after the projects in experiments. */
+export const TUNE_RE_PER_OOM = 100;
 /** Scale-exponent grid of the stack buckets (adopted ideas with s within half a step share a bucket) [D]. */
 export const S_STEP = 0.02;
 /** Training throughput cap: MFU 0.75 × goodput 0.97 over the start's 0.40 × 0.90 (OOM) [R20 A4: MFU 0.30–0.55 today;
@@ -100,12 +104,21 @@ export const TRAIN_CAP = Math.log10((0.75 * 0.97) / (0.4 * 0.9));
 export const STACK_LABEL: Record<StackKey, string> = {
   pre: 'Pretraining efficiency', rlMid: 'RL compute efficiency', rlCeil: 'RL ceiling', train: 'Training throughput', serve: 'Serving efficiency',
 };
-/** The three stacks of the readout and their parts. */
-export const STACK_GROUPS: { id: 'pre' | 'rl' | 'sys'; name: string; keys: StackKey[] }[] = [
-  { id: 'pre', name: 'Pretraining', keys: ['pre'] },
-  { id: 'rl', name: 'RL', keys: ['rlMid', 'rlCeil'] },
-  { id: 'sys', name: 'Serving & systems', keys: ['train', 'serve'] },
-];
+/** RD-B17: what each stack's OOM measure (the Recipe tab shows each stack in its own unit, never summed). Read after
+ *  "OOM". */
+export const STACK_UNIT: Record<StackKey, string> = {
+  pre: 'of effective compute for new bases', rlMid: 'less RL compute for the same gain', rlCeil: 'higher RL ceiling',
+  train: 'more model FLOP per chip-day', serve: 'more serving throughput',
+};
+/** RD-B17: the model that embodies an adopted idea, by where its effect lands (a realised value is revealed only by the
+ *  evaluation of such a model). */
+export type EmbodiedBy = 'baseStart' | 'baseDone' | 'rl' | 'post' | 'baseOrRl';
+export const EMBODIED_BY: Record<StackKey, EmbodiedBy> = { pre: 'baseStart', rlMid: 'rl', rlCeil: 'rl', train: 'baseOrRl', serve: 'post' };
+/** Player text: which model trains it in ("… after it was adopted"). */
+export const EMBODIED_TEXT: Record<EmbodiedBy, string> = {
+  baseStart: 'a base run started', baseDone: 'a base run finished', rl: 'a post-training run launched', post: 'a post-trained version finished',
+  baseOrRl: 'a base or post-training run started',
+};
 
 // ───────────────────────────── adoption (engineers) ─────────────────────────────
 
@@ -122,13 +135,15 @@ export const PROJECT_MAX_TEAMS = 6;
 export const AUTO_RANK_W = 0.8;
 /** Research-engineer team-equivalents a project in experiments can use [D]. */
 export const RE_PER_PROJECT = 2;
-/** Research engineers that keep runs going (team-equivalents per running run) [D: mirrors the engineers' run upkeep;
- *  MODEL-V3 §3.3 "operations"]. */
+/** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
+ *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
+ *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (at most 75% of them, so
- *  routine tuning always has some), then tuning; engineers as before J2 (runs, upkeep, builds) [D]. Model v3 D7: eval
- *  suites come right after run operations (a release waits on them; they are small). */
-export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: { exp: 0.75 } };
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_PER_PROJECT each, no
+ *  share cap: RD-B08), then routine tuning (its demand ∝ remaining headroom, TUNE_RE_PER_OOM); the rest are idle;
+ *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
+ *  release waits on them; they are small). */
+export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp', 'tune'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', tune: 'Routine tuning' };
-export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Runs (operations, setups, research adoptions, eval harness)', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };
+export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };

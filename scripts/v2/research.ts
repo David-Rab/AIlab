@@ -3,7 +3,9 @@
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
 //   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment
 //   is deterministic and within 5% of the brute-force optimum on small cases; research engineers and engineers overflow
-//   down their needs; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
+//   down their needs; RD-B08: tuning wants research engineers ∝ headroom, after every project in experiments, and
+//   experiment FLOP goes by need (more research engineers never lower a project's rate); RD-B09: research engineers are
+//   the one owner of run operations (engineers are charged only setups) and a shortfall slows runs to the share served; RD-B16: Software progress counts only adopted ideas and tuning at a fixed F (a new base or a diffusion inflow does not move it; public knowledge is its own readout) and theft / leaks compare recipes with one recipeG at RECIPE_F; a stage without experiment FLOP waits (V3: the experiment CES is 0 without compute); headroom closes with tuning and refills on adoption; a quarter of small-scale wins of the
 //   tweaks line survive at scale; the recipe never reads the know-how readout (lint).
 // Model v3 D9: P10 / P12 / P21 are typed data and suite effects; their old flat flags are gone (lint).
 import { readFileSync, readdirSync } from 'node:fs';
@@ -11,16 +13,26 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, MAX_DROPS, PICK_AT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
-import { TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
+import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
+import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
+import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
-  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
-  planAssignment, poolMean, priorMean, reAllocation, reopenProject,
+  allocate,assignmentValue, attemptOdds, candidateTruth, capSciTeams, completeAdoption, stagesOf, expShares, experimentRate, freshCap, hasTypedEffect, linePool, newCandidate, pickCandidate,
+  planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
-import { addIdea, headroomAt, initialStacks, stackAt, tuneDay } from '../../src/engine/v2/models/stacks';
-import { buildRates } from '../../src/engine/v2/departments/build';
+import {
+  addIdea, addKnowledge, STACK_KEYS, headroomAt, headroomTotal, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv, tuneDay,
+} from '../../src/engine/v2/models/stacks';
+import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
+import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
+import { otherEffectViews, softwareRate, stackViews } from '../../src/engine/v2/models/researchView';
+import { serialize, deserialize } from '../../src/engine/v2/core/save';
+import { syncTeams } from '../../src/engine/v2/departments/teams';
+import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
+import { buildRates, engDemand, isStackWork, upkeepLines } from '../../src/engine/v2/departments/build';
+import { runStall } from '../../src/engine/v2/models/runs';
 import type { Candidate, GameStateV2, Team } from '../../src/engine/v2/types';
-import { HERE, check, finish } from './lib';
+import { HERE, check, finish, runRef } from './lib';
 
 const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
@@ -229,17 +241,224 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const s = mk(4);
   for (const id of ['L.scale', 'L.data', 'L.rlalg']) act(s, 'research.queue', { id });
   for (let d = 0; d < 60; d++) tick(s, { skip: ['endings'] });
+  // RD-B08: tuning's demand is finite (TUNE_RE_PER_OOM × headroom); an adopted idea leaves some to tune.
+  addIdea(s.player.research.stacks.pre, 0.05, 0, 1e24);
   const before = reAllocation(s);
   act(s, 'research.reAlloc', { need: 'exp', max: 0 });
   const after = reAllocation(s);
-  check(before.re.exp > 0 && after.re.exp === 0 && Math.abs(after.re.tune - (before.re.tune + before.re.exp)) < 1e-9,
-    'research engineers: with experiments capped, their capacity overflows to routine tuning', `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, tune ${before.re.tune.toFixed(1)} → ${after.re.tune.toFixed(1)}`);
+  const tuneWant = Math.min(after.demand.tune, before.re.tune + before.re.exp);
+  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp + a.re.tune;
+  check(before.re.exp > 0 && after.re.exp === 0 && after.demand.tune > 0 && Number.isFinite(after.demand.tune) && Math.abs(after.re.tune - tuneWant) < 1e-9
+    && Math.abs(after.total - sum(after) - Math.max(0, before.total - sum(before) + before.re.exp + before.re.tune - after.re.tune)) < 1e-9,
+    'research engineers: with experiments capped, their capacity flows to routine tuning up to its demand; the rest is idle',
+    `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, tune ${before.re.tune.toFixed(1)} → ${after.re.tune.toFixed(1)} (demand ${after.demand.tune.toFixed(2)}), idle ${(after.total - sum(after)).toFixed(2)}`);
   const r0 = buildRates(s);
   act(s, 'build.engAlloc', { need: 'builds', max: 0 });
   const r1 = buildRates(s);
   act(s, 'build.engAlloc', { order: 'builds,runs,upkeep', need: 'builds', max: -1 });
   const r2 = buildRates(s);
   check(r0.builds > 0 && r1.builds === 0 && r2.builds >= r0.builds - 1e-9, 'engineers: a capped need gets nothing, builds first get the most', `builds/day ${r0.builds.toFixed(2)} → ${r1.builds} → ${r2.builds.toFixed(2)}`);
+}
+
+// ---------- RD-B08: research engineers and experiment FLOP by need ----------
+{
+  const s = mk(5);
+  for (const id of ['L.scale', 'L.data', 'L.rlalg', 'L.env', 'L.opt', 'L.infer']) act(s, 'research.queue', { id });
+  let nExp = 0;
+  for (let d = 0; d < 300 && nExp < 4; d++) { tick(s, { skip: ['endings'] }); nExp = reAllocation(s).perProject.size; }
+  // Headroom to tune: an adopted 0.1 OOM leaves 0.03 OOM, i.e. 3 team-equivalents wanted on top of any already there.
+  addIdea(s.player.research.stacks.pre, 0.1, 0, 1e24);
+  const a0 = reAllocation(s);
+  check(nExp >= 4 && a0.demand.tune > 2.9 && Math.abs(a0.demand.tune - TUNE_RE_PER_OOM * headroomTotal(s)) < 1e-9,
+    'RD-B08: routine tuning wants research engineers in proportion to the remaining headroom (a finite need)',
+    `${nExp} projects in experiments; headroom ${headroomTotal(s).toFixed(4)} OOM → tuning wants ${a0.demand.tune.toFixed(2)} team-eq`);
+  // The same day with k research-engineer teams removed (k < 0) or added (k > 0).
+  const ids = s.player.teams.filter((t) => t.role === 're' && t.dept === 'cap').map((t) => t.id);
+  const variant = (k: number) => {
+    const x = deserialize(serialize(s));
+    if (k < 0) x.player.teams = x.player.teams.filter((t) => !ids.slice(0, -k).includes(t.id));
+    const tpl = x.player.teams.find((t) => t.role === 're' && t.dept === 'cap')!;
+    for (let i = 0; i < k; i++) x.player.teams.push({ ...tpl, id: `RD-B08-${i}` });
+    syncTeams(x);
+    resetWorkContext(x);
+    const a = reAllocation(x);
+    const avail = projectFlopPerDay(x);
+    const sh = expShares(a, avail);
+    const inp = researchInputs(x, Math.max(sh.units, RE_PER_PROJECT), avail);
+    const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, 1, re, sh.perProject.get(id) ?? 0)]));
+    return { k, a, sh, rate, avail, x };
+  };
+  const vs = [];
+  for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
+  // (a) Projects in experiments are served before tuning: tuning holds research engineers only when every project has
+  // its full RE_PER_PROJECT (INP-V01: the old 75% share left the 7th project at 0 while tuning kept engineers).
+  const bad = vs.filter((v) => v.a.re.tune > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
+  const short = vs.filter((v) => [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
+  check(bad.length === 0 && short.length > 0 && short.every((v) => v.a.re.tune === 0),
+    'RD-B08: tuning gets research engineers only after every project in experiments has its full need',
+    `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; ${short.length} short of the projects' need (tuning 0 in each); violations ${bad.map((v) => v.k).join(',') || 'none'}`);
+  // (b) More research engineers never lower a project's research engineers, FLOP or rate. The FLOP is by need, so it is
+  // exactly flat; the rate may dip by the AI labour multiplier m_EXP = L/H, which spreads the same AI labour over the
+  // extra (idle) humans (< 0.5%; departments/workfit.ts labourOf, DD-11 / DD-13).
+  let worstRate = Infinity;
+  let worstFlop = Infinity;
+  let worstRe = Infinity;
+  for (let i = 1; i < vs.length; i++) {
+    for (const [id, r] of vs[i - 1].rate) {
+      const re0 = vs[i - 1].a.perProject.get(id) ?? 0;
+      const re1 = vs[i].a.perProject.get(id) ?? 0;
+      worstRe = Math.min(worstRe, re1 - re0);
+      const f0 = vs[i - 1].sh.perProject.get(id) ?? 0;
+      const f1 = vs[i].sh.perProject.get(id) ?? 0;
+      if (f0 > 0) worstFlop = Math.min(worstFlop, f1 / f0);
+      if (r > 0) worstRate = Math.min(worstRate, (vs[i].rate.get(id) ?? 0) / r);
+    }
+  }
+  check(worstRe >= -1e-9 && worstFlop >= 1 - 1e-9 && worstRate >= 0.995,
+    'RD-B08: adding research engineers never lowers a project\'s research engineers, experiment FLOP or rate (FLOP by need, not headcount)',
+    `worst step: RE ${worstRe.toFixed(3)}, FLOP ×${worstFlop.toFixed(4)}, rate ×${worstRate.toFixed(4)}`);
+  // (c) Tuning's FLOP is what the projects leave: with RE to spare, the pool splits RE_PER_PROJECT per project and
+  // tuning's demand; with no headroom tuning wants nobody, the projects take the whole pool and the rest is idle.
+  const top = vs[vs.length - 1];
+  const units = top.a.perProject.size * RE_PER_PROJECT + top.a.demand.tune;
+  const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
+  const z = deserialize(serialize(top.x));
+  for (const k of ['pre', 'rlMid', 'rlCeil', 'train', 'serve'] as const) for (const b of z.player.research.stacks[k].buckets) b.h = 0;
+  resetWorkContext(z);
+  const az = reAllocation(z);
+  const shz = expShares(az, 1);
+  const usedZ = az.re.ops + az.re.evals + az.re.exp + az.re.tune;
+  check(Math.abs(top.sh.tune - top.avail * top.a.demand.tune / units) < 1e-6 * top.avail && Math.abs(projFlop + top.sh.tune - top.avail) < 1e-6 * top.avail
+    && az.demand.tune === 0 && az.re.tune === 0 && shz.tune === 0 && Math.abs([...shz.perProject.values()].reduce((x, y) => x + y, 0) - 1) < 1e-9 && az.total - usedZ > 0,
+    'RD-B08: tuning takes the FLOP the projects leave; with no headroom it wants no one and spare research engineers are idle',
+    `tuning ${(100 * top.sh.tune / top.avail).toFixed(1)}% of FLOP at demand ${top.a.demand.tune.toFixed(2)}; no headroom: idle ${(az.total - usedZ).toFixed(2)} team-eq`);
+}
+
+// ---------- RD-B09: run operations have one owner (research engineers); a shortfall slows runs ----------
+{
+  const s = mk(6);
+  s.player.finance.cash = 1e3;
+  act(s, 'launchPost', { baseId: 'B0', poolShare: 0.5 });
+  const run = s.player.models.runs[s.player.models.runs.length - 1];
+  for (let d = 0; d < 30 && run.readyDay === undefined; d++) tick(s, { skip: ['endings'] });
+  tick(s, { skip: ['endings'] });
+  // Engineers: the 'runs' need is only the setups / adoptions / eval harness work on the queue; no run upkeep line.
+  const stack = s.player.build.queue.filter(isStackWork).reduce((a, it) => a + Math.max(0, it.needTW - it.doneTW), 0);
+  const ed = engDemand(s);
+  const lines = upkeepLines(s);
+  check(run.status === 'running' && run.readyDay !== undefined && Math.abs(ed.runs - 7 * stack) < 1e-9 && !lines.some((l) => (l.kind as string) === 'run' || (l.kind as string) === 'stream'),
+    'RD-B09: engineers are not charged run operations (their runs need = setups, adoptions and eval harness work only)',
+    `engineers' runs need ${ed.runs.toFixed(2)} t-wk/wk (queue stack work ${stack.toFixed(2)} t-wk); upkeep lines: ${[...new Set(lines.map((l) => l.kind))].join(', ') || 'none'}`);
+  // Research engineers: the same day with the ops need served in full and capped at half.
+  const a = reAllocation(s);
+  const day = (half: boolean) => {
+    const x = deserialize(serialize(s));
+    if (half) x.player.research.re.max.ops = a.demand.ops / 2;
+    const r = x.player.models.runs.find((y) => y.id === run.id)!;
+    const f0 = r.flopDone;
+    tick(x, { skip: ['endings'] });
+    return { df: r.flopDone - f0, served: x.player.research.last?.opsServed ?? 1, stall: runStall(x, r), x };
+  };
+  const full = day(false);
+  const half = day(true);
+  const ratio = half.df / Math.max(1e-30, full.df);
+  check(a.demand.ops > 0 && full.served === 1 && Math.abs(half.served - 0.5) < 1e-3 && Math.abs(ratio - 0.5) < 2e-3 && /slowed/.test(half.stall ?? '') && full.stall === undefined,
+    'RD-B09: a run with half its run-operations need served trains at half speed (and says why)',
+    `ops need ${a.demand.ops.toFixed(3)} team-eq; served ${full.served} → ${half.served}; FLOP/day ×${ratio.toFixed(4)}; "${half.stall}"`);
+  // RefBot keeps its runs operated (ops first in the default order): served in full on every day a run trains.
+  const r = mk(2027);
+  let worst = 1;
+  let days = 0;
+  runRef(r, 240, (g) => {
+    if (g.player.models.runs.some((y) => y.status === 'running' && y.readyDay !== undefined)) { days++; worst = Math.min(worst, g.player.research.last?.opsServed ?? 1); }
+    return false;
+  });
+  check(days > 30 && worst === 1, "RD-B09: RefBot's runs are fully operated (research engineers serve the ops need every day a run trains)", `${days} run-days to day 240, worst served ${worst}`);
+}
+
+// ---------- RD-B16: one recipe currency; Software progress counts only the lab's own research ----------
+{
+  // A RefBot lab at day 300 (adopted ideas, scale-dependent pretraining buckets, more than one base).
+  const s = runRef(mk(2027), 300);
+  const clone = (x: GameStateV2) => deserialize(serialize(x));
+  const res = s.player.research;
+  const bases = s.player.models.bases;
+  const scaled = res.stacks.pre.buckets.some((b) => Math.abs(b.s) > 1e-9 && Math.abs(b.a) > 1e-9);
+  check(bases.length > 0 && scaled && res.gLast !== undefined && res.gLastF === latestBaseFlop(s), 'fixture: the RD-B16 lab has a base, scale-dependent pretraining ideas and a research readout', `${bases.length} bases, scaled ${scaled}`);
+
+  // Reference: one more research readout with nothing new.
+  const ref = clone(s);
+  softwareProgressDay(ref);
+  const rate = (x: GameStateV2) => x.player.research.gRate ?? 0;
+  // A new, 30× bigger base: the stacks' G at the latest base jumps, Software progress does not move.
+  const big = clone(s);
+  const last = big.player.models.bases[big.player.models.bases.length - 1];
+  big.player.models.bases.push({ ...last, id: `${last.id}-rdb16`, flop: last.flop * 30 });
+  const jump = stacksGEquiv(big) - stacksGEquiv(s);
+  softwareProgressDay(big);
+  check(Math.abs(jump) > 1e-3 && Math.abs(rate(big) - rate(ref)) < 1e-12 && big.player.research.gLastF === last.flop * 30,
+    'RD-B16: a new, bigger base does not move Software progress (the recipe G at the latest base jumps; the rate holds F fixed)',
+    `G at latest base ${jump >= 0 ? '+' : ''}${jump.toFixed(4)} OOM; rate ${(365 * rate(ref)).toFixed(4)} → ${(365 * rate(big)).toFixed(4)} OOM/yr`);
+  // A diffusion inflow: public knowledge, its own readout, not Software progress.
+  const dif = clone(s);
+  const dG = 0.05;
+  addKnowledge(dif, undefined, dG, 'knowledge diffusion', 'test');
+  softwareProgressDay(dif);
+  const dPub = (dif.player.research.pubRate ?? 0) - (ref.player.research.pubRate ?? 0);
+  check(Math.abs(rate(dif) - rate(ref)) < 1e-12 && Math.abs(dPub - dG / 14) < 1e-12 && softwareRate(dif).publicPerYear > softwareRate(ref).publicPerYear,
+    'RD-B16: a diffusion inflow does not move Software progress; it shows as public knowledge (its own 14-day average)',
+    `rate ${(365 * rate(dif)).toFixed(4)} OOM/yr (unchanged); public +${(365 * dPub).toFixed(3)} OOM/yr`);
+  // An adopted idea does count: x × (1 − HEADROOM) enters the day's change.
+  const ad = clone(s);
+  const x = 0.02;
+  addIdea(ad.player.research.stacks.pre, x, 0, latestBaseFlop(ad));
+  softwareProgressDay(ad);
+  const dRate = rate(ad) - rate(ref);
+  check(Math.abs(dRate - (x * (1 - HEADROOM)) / 14) < 1e-9, 'RD-B16: an adopted idea moves Software progress by its effect less headroom (÷ the 14-day average)', `Δrate ${(365 * dRate).toFixed(4)} OOM/yr`);
+
+  // Theft and A4 compare at one F on the same parts: a player recipe equal to China's has no gap, whatever its base or
+  // training-throughput stack; a bigger base leaves the secrets-leak gap unchanged.
+  const eq = clone(s);
+  const cn = eq.china.lab.phys.rec;
+  const st = eq.player.research.stacks;
+  for (const [k, v] of [['pre', cn.pre], ['rlMid', cn.mid], ['rlCeil', cn.ceil], ['train', 0.3]] as const) st[k] = { base: v, buckets: [], n: 0 };
+  const eqLast = eq.player.models.bases[eq.player.models.bases.length - 1];
+  eq.player.models.bases.push({ ...eqLast, id: `${eqLast.id}-rdb16`, flop: eqLast.flop * 30 });
+  const gapEq = playerRecipeG(eq) - recipeOf(eq, eq.china.lab);
+  // A China 1 OOM behind (so there is a gap to leak) and spies at work, with and without the bigger base.
+  const leaky = (x: GameStateV2) => {
+    const y = clone(x);
+    y.china.lab.phys.rec.pre -= 1;
+    y.player.security.spies = Math.max(1, y.player.security.spies);
+    y.player.security.ssl = Math.min(2, y.player.security.ssl);
+    return secretsLeakDaily(y);
+  };
+  const leakRef = leaky(s);
+  const leakBig = leaky(big);
+  check(Math.abs(gapEq) < 1e-12 && playerRecipeG(s) === recipeG(playerRecipe(s, RECIPE_F), RECIPE_F) && recipeOf(s, s.china.lab) === recipeG(s.china.lab.phys.rec, RECIPE_F) && leakRef > 0 && leakBig === leakRef,
+    'RD-B16: theft and leaks compare recipes in one unit (recipeG at RECIPE_F, same parts): equal recipes have no gap, and a bigger base leaves the leak unchanged',
+    `gap at equal recipes ${gapEq.toExponential(1)}; leak ${leakRef.toExponential(3)} → ${leakBig.toExponential(3)} OOM/day; player ${playerRecipeG(s).toFixed(3)} vs China ${recipeOf(s, s.china.lab).toFixed(3)} OOM`);
+
+  // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
+  // change of the stacks' G at the latest base) reads far faster.
+  const ch = newGame(defaultSetupV2({ world: 'ai2027', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
+  let pubMax = 0;
+  let pubSum = 0;
+  let pub0 = publicBase(ch);
+  let gl: number | undefined;
+  let old = ch.player.research.gRate ?? 0;
+  runRef(ch, 200, (g) => {
+    pubMax = Math.max(pubMax, g.player.research.pubRate ?? 0);
+    pubSum += publicBase(g) - pub0;
+    pub0 = publicBase(g);
+    const x = stacksGEquiv(g);
+    if (gl !== undefined) old += (Math.max(0, x - gl) - old) / 14;
+    gl = x;
+    return false;
+  });
+  check(pubMax > 0 && pubSum > 0.05 && rate(ch) < 0.5 * old,
+    'RD-B16: a challenger receives diffusion as public knowledge (its own readout), not as Software progress',
+    `public knowledge to day 200 +${pubSum.toFixed(3)} OOM (peak ${(365 * pubMax).toFixed(2)} OOM/yr); Software progress ${(365 * rate(ch)).toFixed(2)} OOM/yr, old measure ${(365 * old).toFixed(2)}`);
 }
 
 // ---------- a stage without FLOP waits ----------
@@ -354,6 +573,56 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   const oldText = texts.filter((t) => /synthetic data ×3|no data wall|no repetition penalty|h80 ×2|Time horizon ×2|RSCH \+0\.4|PHYS \+1/i.test(t));
   check(hits.length === 0 && oldText.length === 0, 'D9 lint: the old flags are gone (synthetic ×3, no repetition penalty / data wall, horizon ×2, RSCH +0.4, PHYS +1; no adopted() readers; no LATER(V5) markers for them)',
     [...hits, ...oldText].slice(0, 6).join(' | '));
+}
+
+// ---------- RD-B17: honest Recipe readouts (B28 units, B29 counts, B30 who reveals) ----------
+{
+  const s = mk(7);
+  const ctx = makeCtx(s);
+  let k = 0;
+  const adopt = (id: string, b = 1) => {
+    const n = TREE_BY_ID[id] ?? PROJECT_BY_ID[id];
+    const c = newCandidate(s, n, freshCap(), 1, b);
+    const fTest = stagesOf(n).testFrac * latestBaseFlop(s);
+    const buildId = `rdb17-${k++}`;
+    const r = { c, xTest: 0.05, sHat: 0, fTest, est: 0.05, estSd: 0.01, day: s.time.day, buildId };
+    s.player.tree[id] = { status: 'researching', progress: 1, cap: { ...freshCap(), ...(n.kind === 'line' ? { pending: [r] } : { stage: 'adopting' as const, result: r }) } };
+    completeAdoption(s, ctx, id, buildId, () => {});
+  };
+  const total = () => STACK_KEYS.reduce((a, x) => a + s.player.research.stacks[x].n, 0);
+  const n0 = total();
+  adopt('P16');
+  const nP16 = total() - n0;
+  adopt('L.rlalg', 3);
+  const nLine = total() - n0 - nP16;
+  check(nP16 === 1 && nLine === 3 && s.player.research.stacks.serve.n === 0, 'RD-B17 ideas adopted count ideas: P16 (two stacks) counts 1, a batch of 3 counts 3',
+    `P16 +${nP16}, batch of 3 +${nLine}, serving stack n ${s.player.research.stacks.serve.n}`);
+  adopt('P09');
+  adopt('P10');
+  const gs = stackViews(s);
+  const oth = otherEffectViews(s);
+  const p09 = oth.find((x) => x.id === 'P09');
+  const p10 = oth.find((x) => x.id === 'P10');
+  check(gs.every((g) => g.ideas.every((a) => a.stack === g.key)) && !gs.some((g) => g.ideas.some((a) => a.id === 'P09' || a.id === 'P10')) && !!p09 && p09.rows.every((r) => r.unit === 'OOM for new versions') && !!p10 && p10.rows[0]?.unit === 'web text = 1',
+    'RD-B17 P09 is not under pretraining: domain and data effects are listed apart, in their own units', `P09 rows ${p09?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}; P10 ${p10?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}`);
+  const keys = gs.map((g) => g.key);
+  const src = readFileSync(join(HERE, '../../src/ui/v2/panels/Recipe.tsx'), 'utf8');
+  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (g.key === 'pre' ? stackAt(s.player.research.stacks.pre, latestBaseFlop(s)) : g.now)) < 1e-12) && !/\.reduce\(/.test(src),
+    'RD-B17 no Recipe card sums mixed units: one card per stack, no sums in the panel', keys.join(', '));
+  // B30: who reveals an RL idea's true effect.
+  const day = s.time.day;
+  const vs = s.player.models.versions;
+  const proto = vs[vs.length - 1];
+  const add = (id: string, extra: Partial<typeof proto>) => vs.push({ ...proto, id, name: id, day: day + 10, status: 'ready', ...extra });
+  const rl = () => stackViews(s).find((g) => g.key === 'rlMid')!.ideas.find((a) => a.id === 'L.rlalg')!;
+  add('Tmini', { variant: 'mini', trained: undefined });
+  const afterMini = rl().realised;
+  add('Told', { variant: 'full', trained: { rlDay: day - 5, post: true } });
+  const afterOld = rl().realised;
+  add('Tnew', { variant: 'full', trained: { rlDay: day + 1, post: true } });
+  const after = rl();
+  check(afterMini === undefined && afterOld === undefined && after.realised !== undefined && after.seenIn === 'Tnew',
+    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.realised} seen in ${after.seenIn}`);
 }
 
 check(PICK_AT >= 2, 'fixture: teams choose among at least two candidates');
