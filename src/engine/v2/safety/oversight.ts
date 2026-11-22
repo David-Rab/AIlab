@@ -10,33 +10,21 @@
 //   monitorCatchAt(gapOom)                    a monitor's catch rate at that gap (Engels Backdoor Code)
 //   internalOversight(s, v, trait)            (safety/incidents.ts) the internal fleet's oversight of model v: monitor,
 //                                             human review, control deferral and containment, as one readout
-import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import {
   CONTROL_DEFER, CONTROL_GAP_FULL, ELO_PER_OOM, GREENBLATT_TM, HUMAN_REVIEW_L, MONITOR_ANCHOR, MONITOR_CATCH_BASE, OOM_PER_400_ELO, REF_M_LEVEL,
 } from '../../../data/v2/oversight';
 import { ASI_EXTRA, V3_CAL } from '../../../data/v2/workTypes';
 import { Rng } from '../../rng';
 import { timelineFor } from '../world/hidden';
-import { gV0, levelKnotsG, levelOfG } from '../models/capability';
+import { gOfLevel, gV0, levelOfG } from '../models/capability';
 import { measuredLOf } from '../models/labs';
 import type { GameStateV2, ModelVersion, TimelineWorld } from '../types';
 
-const LEVEL_AT = [LEVEL_KNOTS[0], LEVEL_KNOTS[3], LEVEL_KNOTS[4], LEVEL_KNOTS[5], LEVEL_KNOTS[6]];
-
-/** λ⁻¹: effective compute (OOM above the start model V0) of a model at display level L. Exact inverse of levelOfG on
- *  [0, 15) (piecewise linear through the knots, the first slope below V0); L ≥ 15 maps to the ASI knot, as λ caps. */
-export function oomOfLevel(w: TimelineWorld, L: number): number {
-  const g = levelKnotsG(w);
-  const g0 = gV0(w);
-  if (L <= LEVEL_AT[0]) {
-    const slope = (LEVEL_AT[1] - LEVEL_AT[0]) / Math.max(1e-9, g[1] - g[0]);
-    return g[0] + (L - LEVEL_AT[0]) / slope - g0;
-  }
-  for (let i = 0; i < g.length - 1; i++) {
-    if (L < LEVEL_AT[i + 1]) return g[i] + ((L - LEVEL_AT[i]) * (g[i + 1] - g[i])) / Math.max(1e-9, LEVEL_AT[i + 1] - LEVEL_AT[i]) - g0;
-  }
-  return g[g.length - 1] - g0;
-}
+/** λ⁻¹: effective compute (OOM above the start model V0) of a model at display level L: gOfLevel(L) − G_V0, the one
+ *  level map (models/capability.ts; RD-U02). Exact inverse of levelOfG on [0, 15); L ≥ 15 maps to the ASI knot, as λ
+ *  caps. Clamping below 0: gOfLevel clamps L < 0 to 0 (λ itself never goes below 0), where the old duplicate extended
+ *  the first slope linearly; no caller passes a negative level (levels come from λ or from grids ≥ 0). */
+export const oomOfLevel = (w: TimelineWorld, L: number): number => gOfLevel(w, L) - gV0(w);
 
 /** λ: display level of a model x OOM above the start model (capped at 15). */
 export const levelOfOom = (w: TimelineWorld, x: number) => levelOfG(w, gV0(w) + x);
@@ -82,9 +70,10 @@ export function oomOfRefM(M: number): number {
 /** An agenda's half-strength point in OOM above V0 (its v2 M½ on the reference path). */
 export const agendaOHalf = (a: { mHalf: number }) => oomOfRefM(a.mHalf);
 
-/** TRUE capability of a version in OOM above V0 (from its hidden general level). Engine only. */
+/** TRUE capability of a version in OOM above V0: its true G − G_V0 (RD-U02: reads G instead of λ⁻¹(λ(G)), which capped
+ *  every model past the ASI knot at one value). Equal to the old value on λ ∈ [0, 15). Engine only. */
 export function versionOom(s: GameStateV2, v: ModelVersion | undefined): number {
-  return v ? oomOfLevel(s.hidden.timeline, v.Lg) : 0;
+  return v ? v.G - gV0(s.hidden.timeline) : 0;
 }
 
 /** Believed capability of a version in OOM above V0 (from its measured level; lineage fallback while evaluating). */
