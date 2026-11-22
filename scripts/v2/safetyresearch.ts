@@ -285,7 +285,7 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   const { s: t0, id: t0id } = aiLab('AG08', { t: 0, dg: 6 });
   const qa = safSciOn(tq, tid).q;
   const qh = safSciOn(t0, t0id).q;
-  check(qa > 2 * qh && Math.abs(qh - 1) < 1e-12, "E2 AI taste from the safety model's SAF_IDEAS fit lifts the scientists' taste (cover φ = Trusted to AI)", `taste ${qh.toFixed(3)} → ${qa.toFixed(2)} (sd_AI ${safetyLabour(tq).sdAI.toFixed(1)})`);
+  check(qa > 2 * qh && Math.abs(qh - 1) < 1e-12, "E2 AI taste from the safety model's SAF_IDEAS fit lifts the scientists' taste (weight: AI's share of the SAF_IDEAS labour, DD-13)", `taste ${qh.toFixed(3)} → ${qa.toFixed(2)} (sd_AI ${safetyLabour(tq).sdAI.toFixed(1)})`);
 }
 {
   // Trusted to AI 0 → no AI labour, even with a covering model and a fleet.

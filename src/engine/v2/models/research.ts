@@ -180,7 +180,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(t, n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
+    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
   }
   return { cap, q: cap > 0 ? qw / cap : 1 };
 }
@@ -334,7 +334,7 @@ function tasteOf(s: GameStateV2): (t: Team) => number {
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
   const star = starTaste(s);
-  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
+  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
 }
 
 /** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×

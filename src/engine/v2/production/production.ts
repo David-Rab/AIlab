@@ -151,7 +151,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   for (const t of p.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
+    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
     th += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, 0, m2b, star);
   }
   const v3: V3Inputs = {

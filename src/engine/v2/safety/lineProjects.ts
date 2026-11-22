@@ -111,7 +111,7 @@ function readStage(s: GameStateV2, n: TreeNodeDef, c: SafCandidate, stage: 'smal
 
 /** Science capacity and taste of the teams on a project. Taste: each team's E[max(human, AI)] on the AIFM taste
  *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
- *  fit and cover φ = Trusted to AI while the safety agents work on ideas (model v3 E2; departments/workfit.ts); on the
+ *  fit, weighted by AI's share of the SAF_IDEAS labour (DD-13; departments/workfit.ts aiIdeasShare); on the
  *  benchmarked agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). */
 export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; heads: number } {
   const n = node(id);
@@ -128,7 +128,7 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
     const c = teamCapacity(t, n.column);
     cap += c;
     heads += t.heads;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.phi, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.sAI, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
 }
