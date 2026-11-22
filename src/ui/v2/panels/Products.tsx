@@ -592,13 +592,14 @@ function FeatureFxLine({ f, ch, right }: { f: FeatureDef; ch: Channel; right?: R
 function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: FeatureDef; eta?: number }) {
   const tip = () => <FeatureTip s={s} d={d} f={f} />;
   if (f.id === 'sectorPacks') {
-    const secs = d.sectorFocus;
+    const packs = d.packs;
+    const secs = packs.map((x) => x.sector);
     // J2 P1: packs being built (build queue) before their certification starts.
     const building = s.player.build.queue.filter((it) => it.kind === 'sectorPack' && (it.host ?? d.id) === d.id);
     const etas = buildEtas(s).etas;
     return (
       <div className="ft2" data-feature={f.id}>
-        <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...secs.map((x) => ({ label: x, value: s.world.fx.certDay[x] !== undefined && s.world.fx.certDay[x]! <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, s.world.fx.certDay[x] ?? s.time.day))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect}</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...packs.map((x) => ({ label: x.sector, value: x.certDay <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, x.certDay))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect}</TipCard>}>
           <div className="ft"><Layers size={12} /><span className="ft-n">{secs.length ? secs.join(' · ') : 'Sector packs'}{building.length > 0 && <span className="dim" data-test={`prod-pack-building.${d.id}`}> · {building.length} building</span>}</span><span className="sp" />
             <ActBtn id="wfx.sectorProduct" testId={`prod-pack.${d.id}`} params={{ deploymentId: d.id }} label="+ pack" />
           </div>

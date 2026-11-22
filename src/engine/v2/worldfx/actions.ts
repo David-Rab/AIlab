@@ -9,10 +9,11 @@ import { mSci, lSci, scienceRate, techBlocker } from './techtree';
 import { internalVersion } from '../models/labs';
 import { alphaUseOf, savedAt, useShareOf } from './use';
 import { bookCash } from '../finance/ledger';
-import { buildWaitNew, pendingPack, queueBuild, SECTOR_PACK_TW } from '../departments/build';
+import { buildWaitNew, pendingPack, queueBuild, SECTOR_CERT_DAYS, SECTOR_PACK_CASH, SECTOR_PACK_TW } from '../departments/build';
+import { sectorCertDay } from '../models/products';
 
 /** Sector product: certification time, cash and product-team time [D] (research/16 §1A.3 "costs months and money"). */
-export const PRODUCT = { days: 120, cash: 0.4, prodFTE: 15 };
+export const PRODUCT = { days: SECTOR_CERT_DAYS, cash: SECTOR_PACK_CASH, prodFTE: 15 };
 
 type P = Record<string, number | string | boolean>;
 
@@ -25,11 +26,10 @@ function productHost(s: GameStateV2, id?: string): Deployment | undefined {
 
 /** Default sector: largest US AI spend where the player has no product yet. */
 function defaultSector(s: GameStateV2): SectorId | undefined {
-  const fx = s.world.fx;
   let best: SectorId | undefined;
   let bx = -1;
   for (const id of SECTOR_IDS) {
-    if (fx.certDay[id] !== undefined || pendingPack(s, id)) continue;
+    if (sectorCertDay(s, id) !== undefined || pendingPack(s, id)) continue;
     const st = s.world.sectors.US[id];
     const x = useShareOf(st, id) * st.E0 * SECTOR_BY_ID[id].wage; // hours of AI use × wage (A2a)
     if (x > bx) {
@@ -82,7 +82,7 @@ const sectorProduct: ActionDef = {
     const sector = (typeof p.sector === 'string' && (SECTOR_IDS as string[]).includes(p.sector) ? p.sector : defaultSector(s)) as SectorId | undefined;
     const host = productHost(s, typeof p.deploymentId === 'string' ? p.deploymentId : undefined);
     if (!sector || !host) return;
-    if (s.world.fx.certDay[sector] !== undefined || pendingPack(s, sector)) throw new Error('That sector already has a product');
+    if (sectorCertDay(s, sector) !== undefined || pendingPack(s, sector)) throw new Error('That sector already has a product');
     // J2 P1: the engineers build the pack (build queue); certification (PRODUCT.days) starts when it is built.
     const wait = packWait(s);
     queueBuild(s, 'sectorPack', sector, SECTOR_PACK_TW, { host: host.id });

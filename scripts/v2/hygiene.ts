@@ -413,7 +413,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
     msg = (e as Error).message;
   }
   const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 45 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
     && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
     && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
   check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
@@ -457,7 +457,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && g.player.policies.monitorBudget === 0.2 && same,
+  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 45 && g.player.policies.monitorBudget === 0.2 && same,
     'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.policies.monitorBudget}`);
 }
 // RD-C01 (schemaRev 44): a rev-43 save carries v2's knot table and the dead readout fields; the migration drops them, and
@@ -483,6 +483,31 @@ check(threw, 'save: v1 save is rejected (no migration)');
     msg = (e as Error).message;
   }
   check(!!pc && same, 'save: a schemaRev-43 save migrates to 44 (knot table and dead readout fields dropped; then equal to the current state)', msg);
+}
+// RD-B12 (schemaRev 45): a rev-44 save keeps sector packs as the product's sectorFocus plus the world's certDay; the
+// migration puts each pack (with its certification day) on its product, drops a certified sector no product carries
+// (the lost pack of B18) and removes world.fx.certDay.
+{
+  const cur = run(detSetup, 30);
+  const old = JSON.parse(serialize(cur)) as GameStateV2;
+  old.schemaRev = 44;
+  const ent = old.player.deployments.find((d) => d.channel === 'enterprise')!;
+  for (const d of old.player.deployments) {
+    delete (d as Partial<GameStateV2['player']['deployments'][number]>).packs;
+    (d as unknown as { sectorFocus: string[] }).sectorFocus = d === ent ? ['LEGAL'] : [];
+  }
+  (old.world.fx as unknown as { certDay: Record<string, number> }).certDay = { LEGAL: 77, FIN: 12 };
+  let msg = '';
+  let g: GameStateV2 | undefined;
+  try {
+    g = deserialize(JSON.stringify(old));
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  const ge = g?.player.deployments.find((d) => d.id === ent.id);
+  const ok = !!g && JSON.stringify(ge?.packs) === JSON.stringify([{ sector: 'LEGAL', certDay: 77 }])
+    && g.player.deployments.every((d) => Array.isArray(d.packs) && !('sectorFocus' in d) && (d.id === ent.id || d.packs.length === 0)) && !('certDay' in g.world.fx);
+  check(ok, 'save: a schemaRev-44 save migrates to 45 (sector packs on their product with the certification day; an unhosted certified sector dropped; world certDay gone)', msg || JSON.stringify(ge?.packs));
 }
 
 // ---------- 6. Cadences ----------

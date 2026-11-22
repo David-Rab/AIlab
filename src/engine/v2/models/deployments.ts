@@ -6,7 +6,7 @@ import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './labs';
 import { optionLocked } from './tree';
-import { agentsGate, kindOfChannel, priceIndexOf } from './products';
+import { agentsGate, kindOfChannel, launchEffortBlock, priceIndexOf, relaunchPacks } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
 
 /** Which version variants a channel accepts (§3.3.5). */
@@ -75,7 +75,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   const usagePolicy = { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: cu.noSurveillance, noAutonomousWeapons: cu.noAutonomousWeapons, minorsProtections: p.channel === 'consumer' }) };
   const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', usagePolicy });
   if (ok !== true) return ok;
-  const lock = effortLock(s, p.effort ?? 'max');
+  const lock = effortLock(s, p.effort ?? 'max') ?? launchEffortBlock(s, p.channel, p.effort);
   if (lock) return lock;
   if (p.channel === 'internal') {
     setInternalAgent(s, v.id);
@@ -83,16 +83,19 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   }
   const n = s.player.deployments.length + 1;
   const price = p.price ?? tierOfIndex(p.priceIndex ?? 1);
+  // RD-B12 (B18): a relaunch takes over the retired product's sector packs (certification kept).
+  const re = p.packs ? { packs: p.packs } : relaunchPacks(s, p.channel);
   const d: Deployment = {
     id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`, kind: kindOfChannel(p.channel),
     versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price), effort: p.effort ?? 'max',
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', controlLayer: p.controlLayer ?? false,
-    sectorFocus: [...(p.sectorFocus ?? [])], features: [...(p.features ?? [])],
+    packs: re.packs.map((x) => ({ ...x })), features: [...(p.features ?? [])],
     ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.miniVersionId ? { miniVersionId: p.miniVersionId } : {}),
     usagePolicy,
     kyc: p.kyc ?? (p.channel === 'api' || p.channel === 'agents' ? 1 : 0), status: 'live',
   };
   s.player.deployments.push(d);
+  if ('from' in re && re.from && d.packs.length) re.from.packs = [];
   if (v.status !== 'deployed') v.status = 'deployed';
   ctx.log('company', `${v.name} launched on ${p.channel}.`, p.channel === 'open' ? 3 : 1, d.id);
   return d;
@@ -143,7 +146,7 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
     id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-    safeguards: 'standard', controlLayer: false, sectorFocus: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
+    safeguards: 'standard', controlLayer: false, packs: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
   });
   if (v.status === 'ready') v.status = 'deployed';
   return undefined;

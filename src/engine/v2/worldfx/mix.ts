@@ -410,11 +410,6 @@ function computeMix(s: GameStateV2): WorldMix {
     const st = s.world.fx.secReach?.[r];
     return providers.map((p, i) => (!sells[i] ? 0 : p.open ? row[i] : Math.min(row[i], st?.[p.key] ?? row[i] * q)));
   });
-  const fxCert = s.world.fx.certDay;
-  const certified = (sec: SectorId) => {
-    const c = fxCert[sec];
-    return c !== undefined && c <= s.time.day;
-  };
 
   const bestPublic = bestPublicFrom(cands, providers);
   let bestPublicLg = 0;
@@ -463,10 +458,10 @@ function computeMix(s: GameStateV2): WorldMix {
       for (let c = 0; c < cands.length; c++) {
         const cd = cands[c];
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
-        const o = productOffer(s, cd.dep, t.id, certified(t.id), cd.uses, cd.fx);
+        const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx);
         offerBy.set(`${cd.dep.id}|${t.id}`, o);
         // TIERS: the product's lineup (main model, lineup students of it, its mini).
-        const om = cd.mini ? productOffer(s, cd.dep, t.id, certified(t.id), cd.mini, cd.fx) : undefined;
+        const om = cd.mini ? productOffer(s, cd.dep, t.id, cd.mini, cd.fx) : undefined;
         const line = productLineup(s, cd.dep, t.id, o, om, cd.fx);
         lineupBy.set(`${cd.dep.id}|${t.id}`, line);
         for (let k = 0; k < line.length; k++) {

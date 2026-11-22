@@ -523,6 +523,8 @@ export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'tr
 export type DeploymentKind = 'product' | 'internal' | 'open';
 /** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
 export type PriceTier = 'budget' | 'standard' | 'premium';
+/** A sector pack on a product (RD-B12): the sector and the day its certification ends (built + SECTOR_CERT_DAYS). */
+export interface SectorPack { sector: SectorId; certDay: Day }
 
 /** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ optional mini free tier) and an
  *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
@@ -552,7 +554,11 @@ export interface Deployment {
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
-  sectorFocus: SectorId[]; // sectors packed onto this product: +SECTOR_PACK_DG OOM fit there once certified (worldfx/serving.ts); Enterprise ×3 channel weight (worldfx/revenue.ts)
+  /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
+   *  (worldfx/serving.ts), Enterprise ×3 channel weight there (worldfx/revenue.ts), and while live and certified US
+   *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
+   *  stop acting when the product is retired (the sector can then be packed again). */
+  packs: SectorPack[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
   status: 'live' | 'restricted' | 'withdrawn';
@@ -1944,9 +1950,6 @@ export interface WorldFxState {
   youthRel: Record<SectorId, number>;
   /** Friction added by major incidents (+0.05 each) and court rulings; decays over a year. Per sector. */
   incidentR: Record<SectorId, number>;
-  /** Day a player sector pack becomes certified: focused products gain SECTOR_PACK_DG OOM of fit in the sector
-   *  (worldfx/serving.ts) and US friction R falls by 0.1 (worldfx/sectors.ts). */
-  certDay: Partial<Record<SectorId, Day>>;
   /** AI automation output factor X (CES-bounded, research/16 §4.3), by region. 1 = no AI. */
   autoLevel: Record<RegionId, number>;
   /** GDP of the human (non-SEZ, no-automation) economy, $B, by region. */

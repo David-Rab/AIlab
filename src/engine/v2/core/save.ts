@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2 } from '../types';
+import type { GameStateV2, SectorId } from '../types';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
@@ -30,7 +30,7 @@ import { FIN } from '../actors/rivals';
  *  cache is rebuilt the next day anyway); RD-C02, in the same bump, also drops TimelineWorld.calShift, and RD-C07
  *  the cut paradigm P26 (player.paradigms.P26, hidden.paradigmSuccess.P26) and RD-C04 the unread fields
  *  TimelineWorld.prod.kappa / etaSC, BaseModel.scale and VersionBuild.misuseMult (every lab). */
-export const SCHEMA_REV = 44;
+export const SCHEMA_REV = 45;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -234,6 +234,21 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       delete pc.elast?.data;
       delete pc.ratios?.d;
     }
+  },
+  /** 44 → 45 (RD-B12): sector packs live on their product. Each product's sectorFocus becomes packs with the world's
+   *  certification day for the sector (world.fx.certDay is removed); a certified sector no product carries is dropped
+   *  (its pack was already lost; the sector can be packed again). Idempotent. */
+  44: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const fx = s.world?.fx as unknown as { certDay?: Partial<Record<string, number>> } | undefined;
+    const cert = fx?.certDay ?? {};
+    const day = s.time?.day ?? 0;
+    for (const d of s.player?.deployments ?? []) {
+      const o = d as unknown as { sectorFocus?: string[]; packs?: unknown };
+      if (!Array.isArray(o.packs)) d.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
+      delete o.sectorFocus;
+    }
+    if (fx) delete fx.certDay;
   },
 };
 

@@ -29,7 +29,7 @@ import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '.
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
-import { activeFeatures } from '../models/products';
+import { activeFeatures, packCertified } from '../models/products';
 import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
@@ -439,13 +439,13 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (d.controlLayer ? CONTROL_LAYER_DG : 0);
 
-/** A product's offer on a sector (certified sector packs add SECTOR_PACK_DG where the product focuses). RD-B11 (B16):
+/** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
  *  and the revenue read the same price. */
 export const SECTOR_PACK_DG = 0.5 / 1.2;
-export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, certified = false, uses = productUses(s, d), fx = productFx(s, d)): Offer {
+export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d)): Offer {
   const x = fxOn(fx, sid);
-  const pack = certified && d.sectorFocus.includes(sid) ? SECTOR_PACK_DG : 0;
+  const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;
   return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
 }
 

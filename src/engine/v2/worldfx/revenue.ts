@@ -294,10 +294,6 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const marketSpend = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const consumerSpendR = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const playerAgent: RevenueReadout['playerAgent'] = { US: {}, CN: {}, ROW: {} };
-  const certified = (sec: SectorId) => {
-    const c = s.world.fx.certDay[sec];
-    return c !== undefined && c <= s.time.day;
-  };
   const rate = serveDollarsPerHour(s);
   const tl = s.hidden.timeline;
 
@@ -328,19 +324,19 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     let seatSum = 0;
     sectorDeps.forEach((d, i) => {
       if (d.channel === 'gov' && !GOV_SECTORS.has(def.id)) return;
-      const focus = d.channel === 'enterprise' && d.sectorFocus.includes(def.id) ? 3 : 1;
+      const focus = d.channel === 'enterprise' && d.packs.some((p) => p.sector === def.id) ? 3 : 1;
       const x = baseW[i] * focus;
       const wAg = agW[i] * focus;
       const wSeat = (SEAT_WEIGHT[d.channel] ?? 0) * focus;
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
-      const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, certified(def.id), usesOf.get(d.id), fxs.get(d.id));
+      const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, usesOf.get(d.id), fxs.get(d.id));
       // TIERS: the product's lineup (main model, lineup students, its mini), blended per region by the hours its buyers
       // take on each tier (the mix's playerTierW).
       let line = offers ? mix.lineupBy?.get(`${d.id}|${def.id}`) : undefined;
       if (!line) {
         const mu = productMiniUses(s, d);
-        const om = mu ? productOffer(s, d, def.id, certified(def.id), mu, fxs.get(d.id)) : undefined;
+        const om = mu ? productOffer(s, d, def.id, mu, fxs.get(d.id)) : undefined;
         line = productLineup(s, d, def.id, o, om, fxs.get(d.id));
       }
       ws.push({ d, w: x, wAg, wSeat, o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
