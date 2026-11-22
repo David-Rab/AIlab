@@ -108,7 +108,7 @@ export const EFFORT_TM: Record<EffortClass, number> = { S: 3, M: 8, L: 25, XL: 5
  *  early projects fit to (P08: 150 d ≈ 31 team-months at M ≈ 1.8 with ~13 teams). */
 const OLD_EFFORT_DAYS: Record<string, number> = {
   P05: 60, P06: 90, P07: 60, P08: 150, P09: 120, P10: 120, P11: 180, P12: 180, P13: 150, P14: 120, P15: 120, P16: 90,
-  P17: 120, P18: 120, P19: 150, P20: 90, P21: 210, P22: 180, P23: 120, P24: 120, P25: 150, P26: 60, P27: 120,
+  P17: 120, P18: 120, P19: 150, P20: 90, P21: 210, P22: 180, P23: 120, P24: 120, P25: 150, P27: 120,
 };
 const TM_PER_OLD_DAY = 0.2;
 /** RefBot's projects, fitted (model v3 V2) so each successful attempt through the research lifecycle lasts as long as

@@ -92,7 +92,12 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
 
   // 5. Paradigm success.
   const paradigmSuccess: Record<string, boolean> = {};
-  for (const p of PARADIGMS) paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
+  for (const p of PARADIGMS) {
+    // RD-C07: P26 (Superhuman persuasion, cut in model v3 V2) was drawn between P25 and P27; its draw (one rng.next,
+    // prior 0.8) is consumed and discarded so every later draw keeps its value.
+    if (p.id === 'P27') rng.chance(0.8);
+    paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
+  }
 
   // 6. Edge weights.
   const edgeWeights: Record<string, number> = {};

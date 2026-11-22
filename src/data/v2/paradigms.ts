@@ -36,8 +36,7 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P23', name: 'Faithful-CoT architecture', prior: 0.75, effect: 'Faithful CoT option: monitorability 0.98, CoT pressure and controllability × 0.5 (model v3 E13)', safetyCost: '−0.29 OOM; FLOP per token ×1.2' },
   { id: 'P24', name: 'AI-designed successor', prior: 0.6, effect: 'Next base +0.8 y; new lineage', safetyCost: 'techniques may not transfer' },
   { id: 'P25', name: 'Formal verification at scale', prior: 0.5, effect: 'Weight-security defence +0.5 level (model v3 V2)' },
-  // Cut from the tree in model v3 V2 (no engine effect; superpersuasion is the SOCIAL level). Kept here so the hidden
-  // draws of the paradigms after it keep their values.
-  { id: 'P26', name: 'Superhuman persuasion', prior: 0.8, effect: 'cut (model v3 V2)' },
+  // P26 (Superhuman persuasion) was cut in model v3 V2 (superpersuasion is the SOCIAL level); its hidden draw is
+  // skipped explicitly at the draw site (world/hidden.ts, RD-C07).
   { id: 'P27', name: 'Automated alignment research', prior: 0.7, effect: 'Safety AI labour: SAF_* fit +0.3 OOM, agenda automation halfway to 1 (model v3 E13)', safetyCost: 'FALSE findings ∝ AI share × hidden sabotage' },
 ];
