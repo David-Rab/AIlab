@@ -1121,3 +1121,20 @@ Start state as data; one start rule for every lab (MEA-05, MEA-06; SYNTHESIS RD-
 - **Moves calibration: yes (small).** Player start unchanged except sampled (per-seed start → one literal); rivals' /
   DeepCent's recipe today shifts up to ±0.09 OOM, which moves their research pools and next bases. Check rival lead
   and China gap at CP2; no refit here.
+
+### RD-L03
+- **Done (commit 36aa7b8):** the progress-year unit is gone. Deleted: `B_G_PER_Y` (runDesign.ts; tree.ts re-export),
+  `modelRate` / `paceOf` / `rateOf` / `leadBetween` (rivals.ts), `ProductionReadout.rate` (player readout's e0 / gRate
+  input, rivalReadout's eRate), `START_G_RATE` (gRate starts unset and warms up over its 14-day average).
+- **New:** `PRE_GAME_G_PER_YEAR = 1.2` OOM/yr [D] (runDesign.ts; research/12 §0.2 frontier +1.1–1.3 a year): the
+  stated pace before a lab has a slope. `frontierGPerYear`'s whole-history fallback now needs two series.G points (was
+  28 d), else the constant; lagDays' pre-history and its G-above-leader floor (0.06) read it. Start gaps in months
+  (rivals initialRival, init follower starts, China's intel start estimate) convert at it, not at referenceRate × B
+  (per-world rate dropped).
+- **Readers:** C6 openReleaseG = behind × 0.3 y × the player's windowed slope; C4 tacit knowledge 0.0164 OOM and E1's
+  China leak 0.0033 OOM (old days × 1.2/365, the paceOf factor dropped); distillDaysPerYear = a year's distilled G ÷
+  each distiller's own slope; Limits diffusion = dG/yr ÷ the player's gRate in OOM/yr. Scripts: B → PRE_GAME_G_PER_YEAR,
+  leadBetween → lagDays (ws4 keeps a local alias), rivals R1 recipe growth from one applied day, starts.ts rate0.
+- **Check:** tsc main + scripts clean; the grep is empty in src; levellint ok. Nothing else run.
+- **moves calibration: yes.** Rival / follower start gaps (rate per world → 1.2), early-game pace readers (slope after
+  the second weekly point), C4 / E1 / C6 sizes, distill days and the diffusion line. For CP2 (golden dates re-reported).
