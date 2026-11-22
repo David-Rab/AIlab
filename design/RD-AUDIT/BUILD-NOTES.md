@@ -872,3 +872,21 @@ Outputs: %TEMP%/ai27ux/tests/cp1-full.txt, cp1-deep.txt; logs cp1logs/ (Phase 0 
   3 × 1.2 = 3.5999999999999996 vs the literal 3.6 is the only last-digit difference (theft clamp). Old saves with a
   pending run penalty would read it as OOM (×1/1.2 too small).
 - **Moves calibration:** no.
+
+### RD-U08
+
+- **What:** serving cost is carried once, as FLOP per token. `BaseModel.fpt` (2·N_active × the shape's token
+  multiplier, `effective.ts fptOfDesign`) and `ModelVersion.fpt` are required and set when made: post-train
+  base.fpt × the design's serve multiplier × 10^−serveOom (frozen at launch); distill teacher.fpt × N_s/N_t; IDA
+  teacher.fpt (same base); variants copy it. `RunPrediction.fpt` replaces the relative serve cost; the run card reads it.
+- **Deleted:** `ModelVersion.serveCost`, `BaseModel.serve`, `RunPrediction.serveCost`, `SERVE_REF`, `serveOfBase`,
+  `fptOfBuild`, index.ts `planFpt`, the base plan's `limits.serve`, ProductionReadout `abs.serveCost` (unread 0.5).
+  `flopPerToken(s, v)` is now `v.fpt` (signature kept for its readers). No UI reader used serveCost (Blueprint already
+  read `card.fpt`), so no UI change.
+- **Save:** SCHEMA_REV 46 → 47; migration 46 computes base fpt, a version's fpt as the old reader derived it (base fpt ×
+  serveCost ÷ base.serve) and a run prediction's, then drops the old fields (the field name is built at runtime so
+  `grep serveCost src` stays empty). hygiene.ts rev asserts bumped to 47.
+- **Checks:** tsc (app and scripts/v2) clean; grep serveCost / SERVE_REF in src empty. Targeted check (one-off,
+  not kept): new game, post-train and distill completed; every version's fpt equals the old derivation (V0, V1, V3
+  7.071e11; mini V5 8.839e10), and a rev-46-shaped save (serve / serveCost, no fpt) migrates to the same fpt.
+- **Moves calibration:** no.
