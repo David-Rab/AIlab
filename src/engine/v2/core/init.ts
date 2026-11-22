@@ -6,7 +6,7 @@ import { LEADER_FEATURES } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { B_G_PER_Y, E_B0, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, B0_START_DAY, LEVEL_KNOTS, SHARE_REF } from '../../../data/v2/calibration';
+import { B0_DAY, B0_START_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
@@ -30,7 +30,7 @@ import { startStory } from '../finance/story';
 import { recordThesisHist } from '../finance/promises';
 import { startDivision } from '../finance/parent';
 import { benchScore } from '../models/benchmarks';
-import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
+import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage, updateMilestones } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
@@ -49,7 +49,7 @@ import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
 import { initCustomerStocks } from '../worldfx/mix';
 import type {
-  Deployment, DomainId, EvalRecord, GameStateV2, MilestoneIdx, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
+  Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
 import { hash32, seedStreams, StreamRng } from './rng';
@@ -76,17 +76,6 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     start: over.start ?? 'leader',
     leaderLab: over.leaderLab ?? START_BY_ID[over.start ?? 'leader'].leaderLab,
   };
-}
-
-/** Milestones already crossed at day 0 (recorded as day 0) by a model at effective compute G: its display level λ(G) at
- *  the milestone's level knot (the milestones system's rule for the non-player labs, MODEL-V3 §2.2). */
-export function initialMilestones(w: TimelineWorld, G: number): Partial<Record<MilestoneIdx, number>> {
-  const out: Partial<Record<MilestoneIdx, number>> = {};
-  const L = levelOfG(w, G);
-  LEVEL_KNOTS.forEach((t, i) => {
-    if (L >= t - 1e-9) out[i as MilestoneIdx] = 0;
-  });
-  return out;
 }
 
 function startEvals(domains: Record<DomainId, number>, measuredL: number, day: number): EvalRecord {
@@ -240,7 +229,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     deployments,
     security: initialSecurity(staff, base.start.securityLevel),
     paradigms: initialParadigms(),
-    milestoneDays: initialMilestones(w, G0),
+    milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
     finance: compute ? startFinance(def, compute) : initialFinance(setup.baseline, setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
     sites: compute ? compute.sites : initialSites(setup.baseline, startDate),
@@ -286,9 +275,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // everything sampled from them) are the same with the flag on or off.
   if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, g0));
   const china = initialChina(worldRng, hidden, g0, base.start.chinaGapYears);
-  for (const r of [...rivals, china.lab]) {
-    r.core.milestoneDays = initialMilestones(w, Math.max(r.internal.G, r.publicModel?.G ?? -Infinity));
-  }
   // Intel starts from the player's own lag (R9): every lab's estimated lead is against the player's start model.
   if (start !== 'leader') for (const r of [...rivals, china.lab]) if (r.intel) r.intel.leadDaysEst -= Math.round((def.lagMonths * 365) / 12);
   rngState.world = worldRng.state;
@@ -326,6 +312,9 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     tutorial: { act: 1, unlocked: setup.tutorial ? ['finance', 'departments', 'models', 'relations'] : ['*'], seen: [] },
     flags: {},
   };
+  // RD-L04: day-0 milestones by the one predicate (every lab; recorded as day 0, the player's told silently), before
+  // the readouts (Stage 2 reads SC).
+  for (const i of updateMilestones(s, 0)) if (i > 0) s.flags[`seenMilestone${i}`] = 0;
   // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
   // actors/rivalModel.ts initRivalPhys).
   for (const id of labIds) {
