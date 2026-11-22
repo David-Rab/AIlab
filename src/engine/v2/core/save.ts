@@ -6,6 +6,7 @@ import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '..
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
+import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
@@ -66,7 +67,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  horizon (no stored shape changes: versions keep their frozen h80Mult). Migration 54 → 55 drops P20 state and draw.
  *  56 (RD-A05b, DD-19): the spare-training and spare-serving policies are gone (idle compute stays idle); the explicit
  *  auto-split policy replaces them. Migration 55 → 56 drops the two policies and adds autoSplit off. */
-export const SCHEMA_REV = 56;
+export const SCHEMA_REV = 57;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -505,6 +506,16 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     delete pol.spareTraining;
     delete pol.spareServing;
     if (!pol.autoSplit) pol.autoSplit = { on: false, to: ['experiments'] };
+  },
+  /** 56 → 57 (RD-A06): the internal tools equivalent to the built features (features no longer act on the internal
+   *  agents), and the control layer per agent package (on for every package when the internal deployment had it, as
+   *  that one flag ruled every internal use). Idempotent. */
+  56: (raw) => {
+    const p = (raw as unknown as GameStateV2).player;
+    if (!p) return;
+    if (!Array.isArray(p.tooling)) p.tooling = toolsFromFeatures(p.features ?? []);
+    const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
+    if (on && p.agents) for (const a of Object.values(p.agents)) a.control = true;
   },
 };
 

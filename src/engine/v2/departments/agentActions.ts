@@ -4,12 +4,19 @@
 //   agents.set      {use, versionId?, monitorId? ('' none | 'same' | id), compute?}  — next tick (D7), with preview
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 //   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
+//   agents.set {use, control: true | false}                                          — RD-A06: the control layer per package
+//   tooling.build {id}                                                               — RD-A06: queue an internal tool (Coding harness …)
 import {
   AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, type CapUse,
 } from '../../../data/v2/agents';
 import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
 import { setInternalAgent } from '../models/deployments';
+import { nodeKnown } from '../models/tree';
+import { bookCash } from '../finance/ledger';
+import { INTERNAL_TOOLS, TOOL_BY_ID, type ToolId } from '../../../data/v2/features';
+import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import { buildEtas, queueBuild } from './build';
 import { evalProduction, labInputs, tcoPerH100eYear } from '../production/production';
 import { Phi } from '../production/ces';
 import { safetyFleet } from '../safety/agents';
@@ -18,7 +25,7 @@ import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
 import type { ComputeSplit, ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
-  agentSplitShare, agentVersion, capShare, monitorBudget, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
+  agentSplitShare, agentVersion, capShare, monitorBudget, syncInternalControl, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
   type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
@@ -34,7 +41,7 @@ const live = (v: ModelVersion | undefined): v is ModelVersion => !!v && v.status
 /** A change to one package: model (null = follow routine research), monitor (null = none, 'same', id), compute (RD-A05a:
  *  written to the flat allocation, splitWithChange: routine / frontier = the routine share of the research agents'
  *  compute; safety = its line as a share of total compute, taken from / given back to the safety research line). */
-export interface AgentChange { versionId?: string | null; monitorId?: string | null; compute?: number }
+export interface AgentChange { versionId?: string | null; monitorId?: string | null; compute?: number; control?: boolean }
 
 /** The packages with one change applied (copies; the input is not mutated). Compute is not part of a package
  *  (RD-A05a): splitWithChange. */
@@ -48,6 +55,10 @@ export function withAgentChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
   if (c.monitorId !== undefined) {
     if (c.monitorId) p.monitorId = c.monitorId;
     else delete p.monitorId;
+  }
+  if (c.control !== undefined) {
+    if (c.control) p.control = true;
+    else delete p.control;
   }
   return a;
 }
@@ -94,8 +105,8 @@ export interface AgentLane {
   version?: ModelVersion;
   /** Measured level of the model (inherited while evaluating). */
   L: number;
-  /** True when the use follows the routine-research model (no own pick). */
-  follows: boolean;
+  /** RD-A06: true when the use runs the newest internal model (no own pick; departments/agents.ts newestInternal). */
+  newest: boolean;
   monitor?: ModelVersion;
   /** 'same' = a copy of the watched model. */
   monitorSame: boolean;
@@ -145,7 +156,7 @@ export interface AgentsView {
 const viewMemo = new WeakMap<object, Map<string, AgentsView>>();
 const viewKey = (s: GameStateV2) => {
   const p = s.player;
-  return `${s.time.day}|${p.computeOnline}|${(p.split.routine + p.split.frontier)}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.split.monitors}|${p.split.safetyAgents}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}`;
+  return `${s.time.day}|${p.computeOnline}|${(p.split.routine + p.split.frontier)}|${p.split.safety}|${p.split.experiments}|${p.split.engineering}|${p.policies.trustedToAI}|${p.split.monitors}|${p.split.safetyAgents}|${p.models.versions.length}|${p.teams.length}|${p.paradigms.P27?.status ?? ''}|${p.research.last?.x?.mExp ?? 0}|${JSON.stringify(p.agents)}|${underControl(s) ? 1 : 0}|${(p.tooling ?? []).join(',')}`;
 };
 
 /** Everything the Agents-at-work panel shows, for the current packages (or a hypothetical state). */
@@ -182,9 +193,9 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     // coverage has its home on Company › Work.
     const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - 1 / Math.max(1, workContext(s).slots.EXP.m) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
     lanes[u] = {
-      use: u, version: v, L: measuredLOf(s, v).L, follows: u !== 'capRoutine' && !s.player.agents[u].versionId,
+      use: u, version: v, L: measuredLOf(s, v).L, newest: u !== 'capRoutine' && !live(versionById(s, s.player.agents[u].versionId)),
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
-      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon),
+      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon, !!s.player.agents[u].control),
       compute, share: u === 'safety' ? s.player.split.safetyAgents : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
@@ -231,6 +242,7 @@ function changeOf(p: Params): AgentChange {
   if (m !== undefined) c.monitorId = m || null;
   const x = num(p, 'compute');
   if (x !== undefined) c.compute = x;
+  if (typeof p.control === 'boolean') c.control = p.control;
   return c;
 }
 
@@ -279,6 +291,8 @@ const AGENTS_SET: ActionDef = {
       next.capRoutine.versionId = s.player.agents.capRoutine.versionId;
     }
     s.player.agents = next;
+    syncInternalControl(s);
+    if (c.control !== undefined) ctx.log('company', `${AGENT_USE_DEF[use].name} agents: control layer ${c.control ? 'on' : 'off'}.`, 1);
     if (c.compute !== undefined) s.player.split = splitWithChange(s, use, c);
     const v = agentVersion(s, use);
     const mon = monitorVersion(s, use);
@@ -364,4 +378,58 @@ const AGENTS_MONITOR_BUDGET: ActionDef = {
   },
 };
 
-export const AGENT_ACTIONS: ActionDef[] = [AGENTS_SET, AGENTS_TRUSTED, AGENTS_MONITOR_BUDGET];
+// ───────────────────────────── internal tooling (RD-A06, DD-03) ─────────────────────────────
+
+/** Why an internal tool cannot be queued (undefined = fine). */
+export function toolBuildBlock(s: GameStateV2, id: string): string | undefined {
+  const t = TOOL_BY_ID[id as ToolId];
+  if (!t) return 'Unknown tool';
+  if ((s.player.tooling ?? []).includes(id)) return `${t.name} is built`;
+  if (s.player.build.queue.some((it) => it.kind === 'tooling' && it.ref === id)) return `${t.name} is being built`;
+  if (t.node && !nodeKnown(s, t.node)) return `Needs the idea ${PROJECT_BY_ID[t.node]?.name ?? t.node} (Research)`;
+  if (t.cash > s.player.finance.cash) return 'Not enough cash';
+  return undefined;
+}
+
+/** Each internal tool: owned, being built (days left) or buildable (with why not). */
+export function toolingView(s: GameStateV2): { id: ToolId; name: string; effect: string; buildTW: number; cash: number; owned: boolean; etaDays?: number; block?: string }[] {
+  const etas = buildEtas(s).etas;
+  return INTERNAL_TOOLS.map((t) => {
+    const it = s.player.build.queue.find((x) => x.kind === 'tooling' && x.ref === t.id);
+    const owned = (s.player.tooling ?? []).includes(t.id);
+    return { id: t.id, name: t.name, effect: t.effect, buildTW: t.buildTW, cash: t.cash, owned, etaDays: it ? etas.get(it.id) : undefined, block: owned || it ? undefined : toolBuildBlock(s, t.id) };
+  });
+}
+
+const TOOLING_BUILD: ActionDef = {
+  id: 'tooling.build', verb: 'launch', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Build internal tool',
+  available: () => true,
+  preview(s, p) {
+    const t = TOOL_BY_ID[(str(p, 'id') ?? 'codingHarness') as ToolId];
+    const costs: CostLine[] = [{ currency: 'cash', amount: -(t?.cash ?? 0) }, { currency: 'staffTime', amount: -(t?.buildTW ?? 0), target: 'engineer team-weeks' }];
+    const gains: CostLine[] = [];
+    if (t && !(s.player.tooling ?? []).includes(t.id)) {
+      // Once built: the research engine's AI labour multipliers and build capacity, before → after.
+      const b = agentsView(s);
+      const a = agentsView({ ...s, player: { ...s.player, tooling: [...(s.player.tooling ?? []), t.id] } });
+      for (const [k, label] of [['mExp', 'AI labour in experiments'], ['mIdeas', 'AI labour on research ideas']] as const) {
+        const d = r3(a[k] / Math.max(1e-9, b[k]) - 1);
+        if (d !== 0) (d > 0 ? gains : costs).push({ currency: 'progress', amount: r3(d * 100), unit: '%', target: `${label} once built` });
+      }
+      const dB = r3(a.build - b.build);
+      if (dB !== 0) (dB > 0 ? gains : costs).push({ currency: 'staffTime', amount: dB, unit: 'team-weeks / week', target: 'build capacity once built' });
+    }
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const id = str(p, 'id') ?? '';
+    const block = toolBuildBlock(s, id);
+    if (block) throw new Error(block);
+    const t = TOOL_BY_ID[id as ToolId];
+    queueBuild(s, 'tooling', id, t.buildTW);
+    if (t.cash > 0) bookCash(s, ctx, -t.cash, 'opex', 'tooling build', t.name);
+    ctx.log('company', `Engineers start building ${t.name} for the internal agents.`, 1, id);
+  },
+};
+
+export const AGENT_ACTIONS: ActionDef[] = [AGENTS_SET, AGENTS_TRUSTED, AGENTS_MONITOR_BUDGET, TOOLING_BUILD];

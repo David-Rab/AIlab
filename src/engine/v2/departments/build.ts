@@ -22,8 +22,7 @@
 // departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
-import { FEATURE_BY_ID, PRICE_TIERS, type FeatureDef, type FeatureId } from '../../../data/v2/features';
-import { WORK_TYPES } from '../../../data/v2/workTypes';
+import { FEATURE_BY_ID, PRICE_TIERS, TOOL_BY_ID, type FeatureDef, type FeatureId, type ToolId } from '../../../data/v2/features';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SectorId, SystemCtx, TrainingRun } from '../types';
@@ -80,7 +79,7 @@ export const SECTOR_CERT_DAYS = 120;
 /** Cash booked when a sector pack is queued ($B); refunded if it is built with no live product to carry it (RD-B12). */
 export const SECTOR_PACK_CASH = 0.4;
 
-export type UpkeepKind = 'product' | 'monitor' | 'feature' | 'suite';
+export type UpkeepKind = 'product' | 'monitor' | 'feature' | 'tooling' | 'suite';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
 
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
@@ -88,16 +87,12 @@ const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'w
 /** Model v3 C2 (MODEL-V3 §7.2 "features have upkeep") [D]: a built feature in use keeps half its build team-weeks busy
  *  each year (UPKEEP.featureYr × buildTW ÷ 52 team-weeks per week; Memory, 12 team-weeks to build, ≈0.12 a week); one
  *  built but in use nowhere costs a keep-alive of UPKEEP.featureIdle × that. In use = switched on for a live product
- *  that offers it, or a scaffold / horizon extender acting on an internal work type (it helps the internal agents once
- *  built, worldfx/serving.ts internalFx). Sector packs (0 team-weeks; each pack is its own build) cost nothing here.
+ *  that offers it (RD-A06: features no longer act on the internal agents; an internal tool is always in use, at the
+ *  same rate, data/v2/features.ts INTERNAL_TOOLS). Sector packs (0 team-weeks; each pack is its own build) cost nothing here.
  *  Charged on the 'upkeep' need, with products and monitors. */
 export const featureUpkeepTW = (f: Pick<FeatureDef, 'buildTW'>, inUse = true) => ((UPKEEP.featureYr * f.buildTW) / 52) * (inUse ? 1 : UPKEEP.featureIdle);
-/** A scaffold or horizon extender that acts on an internal work type (the lab's own agents use it once built). */
-export const featureInternal = (f: Pick<FeatureDef, 'fx'>) =>
-  f.fx.some((x) => (x.kind === 'scaffold' || x.kind === 'horizon') && (x.work === 'all' || x.work.some((w) => w in WORK_TYPES)));
-/** Whether a built feature is in use: on for a live product that offers it, or acting on the internal agents. */
+/** Whether a built feature is in use: on for a live product that offers it. */
 export function featureInUse(s: GameStateV2, f: FeatureDef): boolean {
-  if (featureInternal(f)) return true;
   return s.player.deployments.some((d) => isLiveProduct(d) && f.products.includes(d.channel) && d.features.includes(f.id));
 }
 
@@ -118,6 +113,11 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   for (const id of p.features) {
     const f = FEATURE_BY_ID[id as FeatureId];
     if (f && f.buildTW > 0) out.push({ kind: 'feature', ref: id, tw: featureUpkeepTW(f, featureInUse(s, f)) });
+  }
+  // RD-A06: internal tools, always in use by the agents.
+  for (const id of p.tooling ?? []) {
+    const t = TOOL_BY_ID[id as ToolId];
+    if (t) out.push({ kind: 'tooling', ref: id, tw: featureUpkeepTW(t) });
   }
   // Model v3 D5: every RL environment suite (maintenance as models and tools change), on the upkeep need.
   for (const f of suiteFamilies(s)) out.push({ kind: 'suite', ref: f, tw: suiteUpkeepTW(s, f) });
@@ -232,6 +232,10 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   if (r) {
     r.readyDay = ctx.day;
     if (ctx.day - r.startDay > 1) ctx.log('research', `Engineers finished setting up ${r.name}: training started.`, 1, r.id);
+  }
+  if (it.kind === 'tooling' && !(s.player.tooling ??= []).includes(it.ref)) {
+    s.player.tooling.push(it.ref);
+    ctx.log('company', `Engineers finished building ${TOOL_BY_ID[it.ref as ToolId]?.name ?? it.ref}: the internal agents use it now.`, 1, it.ref);
   }
   if (it.kind === 'feature' && !s.player.features.includes(it.ref)) {
     s.player.features.push(it.ref);

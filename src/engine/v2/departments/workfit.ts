@@ -232,7 +232,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
   if (!off) {
     h100e = p.computeOnline * agentSplitShare(s, use);
   }
-  const mult = useControl(s, v, monitorVersion(s, use)).usefulness;
+  const mult = useControl(s, v, monitorVersion(s, use), !!p.agents[use].control).usefulness;
   return { v, h100e, mult };
 }
 

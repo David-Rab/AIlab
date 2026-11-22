@@ -1045,8 +1045,12 @@ export interface PlayerLab extends LabCore {
   research: ResearchState;
   /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
   build: BuildState;
-  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features). */
+  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features);
+   *  RD-A06: they act only inside a product's offer. */
   features: string[];
+  /** RD-A06 (DD-03): internal tooling the lab owns (ids of data/v2/features.ts INTERNAL_TOOLS): built by engineers, acts
+   *  on the internal agents (worldfx/serving.ts internalFx). */
+  tooling: string[];
   morale: { overall: number; safety: number }; // 0..100
   /** Model v3 D1: the data portfolio (MODEL-V3 §9; production/data.ts). Replaces v2's dataAssets token counts. */
   dataPortfolio: DataPortfolio;
@@ -1122,13 +1126,17 @@ export type AgentUse = 'eng' | 'capRoutine' | 'capFrontier' | 'safety';
  *  (absent = none; 'same' = a copy of the watched model) and compute: for engineering and capabilities research a share
  *  of the capabilities agent pool (the three sum to 1); for safety a share of the safety pool. */
 export interface AgentPackage {
+  /** RD-A06: the package's own model; unset = the newest internal model (departments/agents.ts newestInternal), shown
+   *  as such. Routine research always names one (the internal deployment follows it). */
   versionId?: string;
   monitorId?: string;
+  /** RD-A06: the control layer (trusted monitoring with deferral, safety/oversight.ts useControl) on this package. */
+  control?: boolean;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;

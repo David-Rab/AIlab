@@ -78,7 +78,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 // ---------- stronger oversight lowers the pull ----------
 {
   const off = withFleet();
-  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; });
+  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true; });
   const vOff = off.player.models.versions.find((v) => v.id === 'VF')!;
   const vOn = on.player.models.versions.find((v) => v.id === 'VF')!;
   const oOff = successorOversight(off, vOff);
