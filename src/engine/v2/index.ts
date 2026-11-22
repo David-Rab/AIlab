@@ -158,7 +158,7 @@ export * from './core/limitsView';
 // Model v3 D5: RL environment suites (readout and costs).
 export { suitesView, suiteWorkCost, suiteWorkEffect, familyDomain, type SuiteRow } from './models/suites';
 // Model v3 D6: the suites view (Models › Suites): previews of suite work on a planned post-train (output only).
-export { suitePlanEffect, suiteS2Parts, suiteWorkPreview, suitePending, lockedSuiteFamilies, exploitFloor, type SuitePlanEffect, type SuiteWorkPreview } from './models/suitesPreview';
+export { suitePlanEffect, suiteS2Parts, suiteWorkPreview, suitePending, lockedSuiteFamilies, unbuiltSuites, exploitFloor, type SuitePlanEffect, type SuiteWorkPreview } from './models/suitesPreview';
 // Model v3 D4: the data view (Models › Data) and the Blueprint's drawn-mix row (output-only selectors).
 export {
   dataPortfolioView, drawByDomain, expertForm, licenceForm, mixTargetOf, naturalMixView, synForm, teacherRows, usageLevels,

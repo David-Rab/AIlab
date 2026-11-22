@@ -17,7 +17,7 @@ export type { MixCurve, ResponseCurves } from '../production/readout';
 export { MANUAL_MIX_RANGE, specOf, topOf, TOP_KEYS } from '../departments/split';
 export type { SplitSpec, TopKey, TopSplit } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
+export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
 export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, isRunLine, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runOpsTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
@@ -38,7 +38,7 @@ export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { teamGain } from '../departments/teamActions';
 export { aiShareByRole, buildCapacity, fillWeeks, laneWeights, fullTeamPayroll, keyOf, payrollOf, playerH, queuedOfKey, teamLabel, teamPayroll, teamsOfKey, weeklyHireCap } from '../departments/teams';
-export { baseFromParams, postFromParams } from '../models/actions';
+export { RUN_PARAM_DEFAULTS, baseFromParams, postFromParams } from '../models/actions';
 export { understanding, understandingBand } from '../safety/understanding';
 export { leadDays, riskLevers, riskSources, RISK_LEVERS } from '../actors/intel';
 export { raiseCeiling } from '../finance/equity';

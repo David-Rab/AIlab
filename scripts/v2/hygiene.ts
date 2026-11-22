@@ -7,6 +7,7 @@ import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
+import { launchRun } from '../../src/engine/v2/models/runs';
 import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
@@ -16,7 +17,7 @@ import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
-import { B_G_PER_Y } from '../../src/data/v2/runDesign';
+import { B_G_PER_Y, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { CHINA_CAL, LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
@@ -413,7 +414,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
     msg = (e as Error).message;
   }
   const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
+  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 45 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
     && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
     && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
   check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
@@ -457,7 +458,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
   } catch (e) {
     msg = (e as Error).message;
   }
-  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 44 && g.player.policies.monitorBudget === 0.2 && same,
+  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 45 && g.player.policies.monitorBudget === 0.2 && same,
     'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.policies.monitorBudget}`);
 }
 // RD-C01 (schemaRev 44): a rev-43 save carries v2's knot table and the dead readout fields; the migration drops them, and
@@ -483,6 +484,32 @@ check(threw, 'save: v1 save is rejected (no migration)');
     msg = (e as Error).message;
   }
   check(!!pc && same, 'save: a schemaRev-43 save migrates to 44 (knot table and dead readout fields dropped; then equal to the current state)', msg);
+}
+// RD-B02 (schemaRev 45): a rev-44 save's runs in flight lack the new snapshot fields (a base's draw and P24 bonus, a
+// post-train's domainG, P07 horizon and serving FLOP part); the migration fills them from the save's day, which equals a
+// launch on that day, so the loaded state equals the current one. A finished run is left alone.
+{
+  const cur = run(detSetup, 30);
+  cur.player.finance.cash += 1e3;
+  const ctx = makeCtx(cur);
+  const rb = launchRun(cur, ctx, { kind: 'base', base: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.5 });
+  const rp = launchRun(cur, ctx, { kind: 'post', baseId: cur.player.models.bases[0].id, post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] }, poolShare: 0.2 });
+  const old = JSON.parse(serialize(cur)) as GameStateV2;
+  old.schemaRev = 44;
+  const strip = (id: string, keys: string[]) => {
+    const rec = old.player.models.runs.find((r) => r.id === id)?.recipe as Record<string, unknown> | undefined;
+    for (const k of keys) delete rec?.[k];
+    return !!rec;
+  };
+  const okStrip = typeof rb !== 'string' && typeof rp !== 'string' && strip(rb.id, ['draw', 'p24']) && strip(rp.id, ['domainG', 'p07', 'serveOom']);
+  let msg = typeof rb === 'string' ? rb : typeof rp === 'string' ? rp : '';
+  let same = false;
+  try {
+    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
+  } catch (e) {
+    msg = (e as Error).message;
+  }
+  check(okStrip && same, 'save: a schemaRev-44 save migrates to 45 (runs in flight get the launch snapshot from the save\'s day; then equal to the current state)', msg);
 }
 
 // ---------- 6. Cadences ----------

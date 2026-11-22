@@ -27,3 +27,5 @@
 .sx-chain { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-2); }
 .sx-chain > span { display: inline-flex; align-items: center; gap: 6px; }
 .sx-chain .arr { color: var(--text-3); }
+.sx-line.unbuilt .sx-none { grid-column: 2 / span 4; }
+.sx-line.unbuilt .sx-fam { color: var(--text-2); }

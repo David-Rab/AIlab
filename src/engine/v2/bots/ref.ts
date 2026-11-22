@@ -51,6 +51,7 @@ import { CAL_SHIFT } from '../../../data/v2/calibration';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
 import type { TimelineWorld } from '../types';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
+import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
 import { TREE_BY_ID, TREE_RETRY_DAYS } from '../../../data/v2/tree';
 import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { sizedTarget, staffLines, type LinePlan } from './common';
@@ -411,6 +412,10 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
       setFlag(s, 'lastBase', day);
     }
   }
+
+  // RD-B03: a family unlocked later (computer use, P06) has no environments until its first suite is built; the
+  // reference lab builds it as soon as the idea is known (broad RL then trains on it, as before the fix).
+  for (const f of unbuiltSuiteFamilies(s)) if (!p.build.queue.some((it) => it.kind === 'suite' && it.ref === suiteRef(f, 'build'))) tryAct(s, api, 'suite.build', { family: f });
 
   // Post-training every 6 weeks on the newest base (≤ 2 in flight). Skipped once the stream is running on the
   // newest base (the stream already carries it); a new base still gets its first post-train.

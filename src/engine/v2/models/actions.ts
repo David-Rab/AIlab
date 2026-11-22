@@ -58,6 +58,15 @@ export function baseFromParams(p: Params): BaseDesign {
     curation: { quality: bool(p, 'quality', r.curation.quality), hazard: bool(p, 'hazard', r.curation.hazard), safetyPretrain: bool(p, 'safetyPretrain', r.curation.safetyPretrain) },  };
 }
 
+/** RD-B01 (B44): the one default design as flat params (the reference base and post recipes) — the Blueprint opens on
+ *  these, and baseFromParams / postFromParams fall back to the same values. */
+export const RUN_PARAM_DEFAULTS: Readonly<Record<string, string | number | boolean>> = {
+  params: REFERENCE_BASE.params, tpp: REFERENCE_BASE.tpp, shape: REFERENCE_BASE.shape, data: REFERENCE_BASE.data,
+  quality: REFERENCE_BASE.curation.quality, hazard: REFERENCE_BASE.curation.hazard, safetyPretrain: REFERENCE_BASE.curation.safetyPretrain,
+  pref: REFERENCE_POST.pref, rlFocus: 'broad', rlBudget: REFERENCE_POST.rlBudget, inoculation: REFERENCE_POST.inoculation,
+  cot: REFERENCE_POST.cot, safety: REFERENCE_POST.safety,
+};
+
 /** Post design from params; rlFocus is 'broad' or a comma list of ≤ 2 families. */
 export function postFromParams(p: Params): PostDesign {
   const r = REFERENCE_POST;
@@ -73,8 +82,7 @@ function runParams(s: GameStateV2, kind: LaunchRunParams['kind'], p: Params): La
   const lp: LaunchRunParams = { kind };
   if (p.poolShare !== undefined) lp.poolShare = num(p, 'poolShare', 0.5);
   if (kind === 'base') {
-    lp.base = baseFromParams(p);
-    if (p.teacherVersionId) lp.teacherVersionId = str(p, 'teacherVersionId', '');
+    lp.base = baseFromParams(p); // RD-B01: a base takes no teacher; its synthetic tokens carry their own (base.teacherData)
   } else if (kind === 'post') {
     lp.post = postFromParams(p);
     const b = str(p, 'baseId', latestBase(s)?.id ?? '');

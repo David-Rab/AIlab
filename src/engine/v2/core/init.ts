@@ -32,6 +32,7 @@ import { startDivision } from '../finance/parent';
 import { benchScore } from '../models/benchmarks';
 import { domainsOf, finishBuild, gV0, levelOfG, playerStart, startVintage } from '../models/capability';
 import { initialStacks } from '../models/stacks';
+import { fillRecipe } from '../models/runs';
 import { flopOfDesign, gPreOf, rlFamiliesAvailable, rlGains, rlWeights, serveOfBase } from '../models/effective';
 import { labCore } from '../models/labs';
 import { initialParadigms } from '../models/paradigms';
@@ -331,6 +332,9 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     const core = labCore(s, id);
     if (core) core.prodCache = computeProduction(s, id);
   }
+  // RD-B02: the start run's launch snapshot (its RL recipe is its launch day's; suites, domain effects, P07 and the
+  // serving stack are day 0's, the first day the lab can adopt anything).
+  for (const r of s.player.models.runs) fillRecipe(s, r);
   // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
   initCustomerStocks(s);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));

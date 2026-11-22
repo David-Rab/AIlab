@@ -14,7 +14,7 @@ import {
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
-  PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
+  PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, STUDENT_DEFAULT, RL_BUDGET, TPP_FREE_MAX, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
   drawByDomain, flopPerToken, liveCommitments, measuredDomains, mixTargetOf, nodeStatus, optionLocked, plannedPressure, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, successorPullView, suitesView, tppLabel,
   useHourCost, versionById,
 } from '../../../engine/v2';
@@ -36,12 +36,12 @@ type Kind = 'base' | 'post' | 'distill' | 'continue';
 type Card_ = ReturnType<typeof runCard>;
 type Val = string | boolean;
 const TPL_KEY = 'ai27.v2.runTemplates';
-const DEFAULTS: Params = {
-  params: 1e12, tpp: REF_TPP, shape: 'moe', data: 'balanced', quality: true, hazard: false, safetyPretrain: false,
-  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard',
-};
-const POOL_DEFAULT: Record<Kind, number> = { base: 0.6, post: 0.4, distill: 0.2, continue: 0.4 };
-const POOL_PILLS = [0.2, 0.4, 0.6, 0.8, 1];
+// RD-B01 (B44): the engine's one default set (reference recipes, pool shares, student size).
+const DEFAULTS: Params = { ...RUN_PARAM_DEFAULTS };
+const POOL_DEFAULT: Readonly<Record<Kind, number>> = RUN_POOL_DEFAULT;
+const POOL_PILLS = [...new Set([0.2, 0.4, 0.6, 0.8, 1, ...Object.values(RUN_POOL_DEFAULT)])].sort((a, b) => a - b);
+/** The default student size in words ("an eighth", from STUDENT_DEFAULT). */
+const STUDENT_WORDS = ({ 0.5: 'half', 0.25: 'a quarter', 0.125: 'an eighth' } as Record<number, string>)[STUDENT_DEFAULT] ?? `${F.pct(STUDENT_DEFAULT)} of`;
 const KIND_LABEL: Record<Kind, string> = { base: 'Base run', post: 'Post-train', distill: 'Distill', continue: 'Continue' };
 const KIND_TERM: Record<Kind, string> = { base: 'baseRun', post: 'postTrain', distill: 'distillRun', continue: 'continueRun' };
 const ACTION: Record<Kind, string> = { base: 'launchBase', post: 'launchPost', distill: 'launchDistill', continue: 'launchContinue' };
@@ -257,10 +257,10 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
     <label className="bp-on small dim">teacher
       <select className="text-input" data-test="bp-teacher" value={String(params.teacherVersionId)} onChange={(e) => set({ ...p, teacherVersionId: e.target.value })}>{m.versions.filter((v) => v.status !== 'retired').map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
     </label>
-    <Tip content={() => <TipCard title={<Term id="cheapTier">Student size</Term>}>{'Half the teacher by default. "Hold" sizes the smallest student that lands at that version\'s level: a [[cheapTier|cheap tier]] for the API or a free tier for Chat.'}</TipCard>}>
+    <Tip content={() => <TipCard title={<Term id="cheapTier">Student size</Term>}>{`${STUDENT_WORDS[0].toUpperCase()}${STUDENT_WORDS.slice(1)} the teacher's active parameters by default. "Hold" sizes the smallest student that lands at that version\'s level: a [[cheapTier|cheap tier]] for the API or a free tier for Chat.`}</TipCard>}>
       <label className="bp-on small dim">size
         <select className="text-input" data-test="bp-hold" value={String(p.holdVersionId ?? '')} onChange={(e) => set({ ...p, holdVersionId: e.target.value })}>
-          <option value="">half the teacher</option>
+          <option value="">{STUDENT_WORDS} the teacher</option>
           {m.versions.filter((v) => v.status !== 'retired' && v.id !== params.teacherVersionId).map((v) => <option key={v.id} value={v.id}>hold {v.name}'s level</option>)}
         </select>
       </label>
