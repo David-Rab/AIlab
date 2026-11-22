@@ -1,6 +1,8 @@
 // Training runs and continual learning (V2-SPEC §3.3.1, §3.1.3–3.1.4; model v3 V1: design/MODEL-V3.md §3–§4). Owner:
 // WS1 (continual shared with WS2).
 //
+// Two acts (RD-T01b, DD-06; see "the two acts" below): pretraining makes a base (new, continued, or a distilled
+// student on a teacher's outputs), RL makes a version (on a base, or on a version with the teacher as grader).
 // Models are built from physical quantities (models/effective.ts): a base run is N_active parameters × tokens
 // (FLOP = 6ND), a post-training run is RL FLOP (a share of the base's FLOP) on the RL curve, a distillation run trains a
 // student of N_s parameters on teacher outputs, a continue run adds pretraining FLOP to a base. Duration is work ÷
@@ -80,7 +82,7 @@ export const goodputOf = (_s: GameStateV2) => GOODPUT;
 /** Model FLOP a run of `kind` completes per day per unit of pool share: the pool's FLOP × goodput, × MFU_RL for RL
  *  (post-training, amplification) runs whose rollouts are inference [R20 A4, C1]. */
 export function runFlopPerShareDay(s: GameStateV2, r: Pick<TrainingRun, 'kind'>): number {
-  return trainingFlopPerDay(s) * goodputOf(s) * (r.kind === 'post' ? MFU_RL_FACTOR : 1);
+  return trainingFlopPerDay(s) * goodputOf(s) * (runAct(r.kind) === 'rl' ? MFU_RL_FACTOR : 1);
 }
 
 /** Serve-cost multiplier for new post-trained versions: 10^(−the serving stack's FLOP part) (model v3 V2: Inference
@@ -256,8 +258,8 @@ export function recipeAtLaunch(s: GameStateV2, run: Pick<TrainingRun, 'kind' | '
     const parent = s.player.models.bases.find((b) => b.id === run.baseId);
     return parent ? { pre: ePreAt(s, parent.flop + run.flopNeeded), draw: playerDraw(s, parent.design) } : {};
   }
-  if (run.kind === 'post') return postRecipeNow(s);
-  return {};
+  if (runAct(run.kind) === 'rl') return postRecipeNow(s);
+  return {}; // a student learns from its teacher's outputs: nothing to freeze
 }
 /** Fill the fields a run's snapshot lacks with today's values, keeping those it has (and their key order): the start
  *  run R0 at newGame (its RL recipe is its launch day's) and runs in flight in a rev-44 save (migration 44 → 45). */
@@ -273,24 +275,6 @@ function withDomainG(domainG: Partial<Record<DomainId, number>>, sD: Off): Domai
   const out: DomainMap = { ...sD };
   for (const [d, v] of Object.entries(domainG) as [DomainId, number][]) out[d] = (out[d] ?? 0) + v;
   return out;
-}
-
-/** Post-training build on `base` with design `d` at the frozen recipe `rec` (no penalty, no paradigm offsets). */
-function postBuild(s: GameStateV2, base: BaseModel, d: PostDesign, rec: PostRecipe, rlFlop: number): VersionBuild {
-  // RD-E01b: P07 (frozen at launch) multiplies the long-tasks RL family's horizon (data/v2/runDesign.ts). Long-horizon
-  // human demos (P12) act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.
-  const pe = postEffect(d, rec.p07 ? P07_LONG_TASKS_HORIZON : 1);
-  const rlW = recipeWeights(s, d.rlFocus, rec);
-  const fid = rec.fid ?? suiteFidMap(s);
-  const rl = rlGains(base.flop, rlFlop, rlW, rec.rlMid, rec.rlCeil, fid);
-  const h80Mult = pe.h80Mult;
-  // The version's signals are the engine's (model v3 E3): its base's and this run's, from their quantities.
-  const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: rlFlop / Math.max(1, base.flop) }));
-  return {
-    gPre: base.gPre, flopPre: base.flop, rlFlop, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...fid }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(rec.domainG, base.sD ?? {}),
-    dgD: { ...pe.dgD }, h80Mult,
-    signals: clampSignals(sig),
-  };
 }
 
 /** The reference post-train a new base would get (standard budget, broad, today's RL recipe): predicts a base's model. */
@@ -340,96 +324,220 @@ export function runForecast(s: GameStateV2, pred: Pick<RunPrediction, 'Lg' | 'do
   return { mid, band: [mid - sd, mid + sd], sd, gain: mid - r.evals.measuredL, refId: r.id, refName: r.name, domains };
 }
 
-/** Plan (and validate) a run without launching it: FLOP, wall time, cash, G and the run-card prediction. */
-export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
-  const w = s.hidden.timeline;
-  const m = s.player.models;
-  const poolShare = clamp(p.poolShare ?? (p.grader === 'teacher' ? 0.3 : RUN_POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
-  const effShare = shareIfLaunched(s, poolShare);
-  const rate = Math.max(1, runFlopPerShareDay(s, { kind: p.kind }) * effShare);
-  let limits: BaseLimits | undefined;
-  let flopNeeded = 0;
-  let cash = 0;
-  let reason: string | undefined;
-  let build: VersionBuild | undefined;
-  let rlOut: RlGains | undefined;
-  let gap: number | undefined;
-  let signals = {};
-  let fpt = 0;
-  let mon = 0.9;
-  let scale = 1;
-  const base = p.baseId ? m.bases.find((b) => b.id === p.baseId) : undefined;
+// ─────────────────── the two acts (RD-T01b, DD-06, TRN-06) ───────────────────
+// Every run is one of two acts. PRETRAINING makes a base from tokens: a new base on the portfolio (kind 'base', its
+// design), more tokens on an existing base (kind 'continue', added FLOP) or a small student on a teacher's outputs (kind
+// 'distill', student size). RL makes a version from a base or a version: RL budget, focus and suites, optionally with
+// the teacher as grader (kind 'post'; grader 'teacher' = the IDA cycle, P18, RL on the teacher's build). The run kinds
+// stay the save format; the engine reads them as act + source through the helpers below.
+
+/** The act a run kind belongs to. */
+export type RunAct = 'pretrain' | 'rl';
+export const runAct = (kind: RunKind): RunAct => (kind === 'post' ? 'rl' : 'pretrain');
+
+/** Where a pretraining run's tokens come from: a design on the portfolio, `addFlop` more on a parent base, or a
+ *  teacher's outputs (`tokens` of them) for a student of `nS` active parameters (the teacher has `nT`). */
+type PretrainSource =
+  | { from: 'design'; design: BaseDesign }
+  | { from: 'continue'; parent: BaseModel; addFlop: number }
+  | { from: 'teacher'; teacher: ModelVersion; nT: number; nS: number; tokens: number };
+
+/** The source of a run being planned (a failure reason when it lacks one). */
+function pretrainSourceOfParams(s: GameStateV2, p: LaunchRunParams): PretrainSource | string {
+  if (p.kind === 'base') return p.base ? { from: 'design', design: p.base } : 'No design';
+  if (p.kind === 'continue') {
+    const parent = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
+    return parent ? { from: 'continue', parent, addFlop: CONTINUE_SHARE * parent.flop } : 'Pick a base';
+  }
   const teacher = versionById(s, p.teacherVersionId);
-  if (p.kind === 'base') {
-    const d = p.base;
-    if (!d) return failPlan('No design');
+  if (!teacher) return 'Pick a teacher version';
+  const nT = paramsOfVersion(s, teacher);
+  const nS = clamp(p.studentParams ?? nT * STUDENT_DEFAULT, PARAM_RANGE[0], nT);
+  return { from: 'teacher', teacher, nT, nS, tokens: DISTILL_TPP * nS };
+}
+/** The source of a launched run (its frozen FLOP, student size and tokens), undefined when its parent is gone. */
+function pretrainSourceOfRun(s: GameStateV2, run: TrainingRun): PretrainSource | undefined {
+  if (run.kind === 'base') return run.base ? { from: 'design', design: run.base } : undefined;
+  if (run.kind === 'continue') {
+    const parent = s.player.models.bases.find((b) => b.id === run.baseId);
+    return parent ? { from: 'continue', parent, addFlop: run.flopNeeded } : undefined;
+  }
+  const teacher = versionById(s, run.teacherVersionId);
+  if (!teacher) return undefined;
+  const nT = paramsOfVersion(s, teacher);
+  const nS = run.studentParams ?? nT * STUDENT_DEFAULT;
+  return { from: 'teacher', teacher, nT, nS, tokens: run.tokens ?? DISTILL_TPP * nS };
+}
+
+/** What pretraining makes: the FLOP it needs, cash and scale, and the base's quantities. A student (teacher source)
+ *  is the teacher's build minus the distillation gap (`student`), sold as a mini version of the teacher's base. */
+interface Pretrained {
+  flopNeeded: number;
+  cash: number;
+  /** Scale vs the frontier run (public scrutiny); new and continued bases only. */
+  scale?: number;
+  flop: number;
+  params: number;
+  tokens: number;
+  gPre: number;
+  ePre: number;
+  sD: Off;
+  fpt: number;
+  monitorability: number;
+  /** New base: its design's signals and pretraining parts (readouts). */
+  signals?: ReturnType<typeof baseSignals>;
+  bg?: ReturnType<typeof baseG>;
+  /** Student: the distillation gap (OOM) and its build. */
+  gap?: number;
+  student?: VersionBuild;
+}
+/** The pretraining act: one path for every source. `rec` is the run's launch snapshot (completion); a plan reads today. */
+function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrained {
+  if (src.from === 'design') {
+    const d = src.design;
+    const be = baseEffect(d);
+    const bg = baseG(s, d, rec ? { pre: rec.pre!, draw: rec.draw! } : baseFreezeNow(s, d));
+    const flopNeeded = bg.flop * be.flopMult;
+    return {
+      flopNeeded, cash: flopCost(s, flopNeeded) * be.cashMult, scale: scaleOf(s, flopNeeded), // F6: no per-run licensed-data cost (D1/D2)
+      flop: bg.flop, params: d.params, tokens: bg.tokens, gPre: bg.parts.total, ePre: bg.parts.recipe, sD: bg.sD,
+      fpt: fptOfDesign(d.params, d.shape), monitorability: be.monitorability, signals: baseSignals(d, { gPre: bg.parts.total, draw: bg.draw }), bg,
+    };
+  }
+  if (src.from === 'continue') {
+    // Effective compute adds (continueGPre): only the added part embodies the pretraining stack at the new size.
+    const b = src.parent;
+    const flop = b.flop + src.addFlop;
+    const gPre = continueGPre(b.gPre, src.addFlop, E_START + (rec ? rec.pre! : ePreAt(s, flop)), b.design.shape);
+    // Physical part grows by the added FLOP; the recipe efficiency is what remains (a stream re-applies today's).
+    const ePre = gPre - (b.gPre - b.ePre) - Math.log10(flop / b.flop);
+    return {
+      flopNeeded: src.addFlop, cash: 0, scale: scaleOf(s, src.addFlop), flop, params: b.params, tokens: b.tokens + src.addFlop / (6 * b.params),
+      gPre, ePre, sD: b.sD ?? {}, fpt: b.fpt, monitorability: b.monitorability ?? 1,
+    };
+  }
+  const { teacher: t, nT, nS, tokens } = src;
+  const gap = distillGap(nT, nS, tokens);
+  const student = distillBuild(t, gap);
+  const flop = distillFlop(nT, nS, tokens);
+  return {
+    flopNeeded: flop, cash: 0, flop, params: nS, tokens, gPre: student.gPre, ePre: 0, sD: student.sD,
+    fpt: t.fpt * (nS / nT), monitorability: t.monitorability, gap, student,
+  };
+}
+
+/** What RL starts from: a base (fresh RL: the post-training design's effects, domain effects and the run penalty
+ *  apply) or a version (more RL on its build: its mix, design effects and signals kept). A version is the start when
+ *  the teacher grades (IDA): RL on the teacher itself. */
+type RlStart = { on: 'base'; base: BaseModel } | { on: 'version'; base: BaseModel; version: ModelVersion };
+const rlStartOf = (base: BaseModel, grader: TrainingRun['grader'], teacher: ModelVersion | undefined): RlStart | undefined =>
+  grader === 'teacher' ? (teacher ? { on: 'version', base, version: teacher } : undefined) : { on: 'base', base };
+/** RL FLOP of a run: a share of its base's pretraining FLOP (the design's budget; IDA_RL_SHARE with the teacher grading). */
+const rlFlopOf = (base: BaseModel, d: PostDesign, grader: TrainingRun['grader']) => (grader === 'teacher' ? IDA_RL_SHARE : RL_BUDGET[d.rlBudget]) * base.flop;
+
+/** The RL act: `extra` RL FLOP on the start at the frozen recipe `rec` (no penalty here). The gain comes from the RL
+ *  curve on the start's base FLOP; RL on a version adds to its RL FLOP and keeps the better of its recipe and today's
+ *  (each family's fidelity the best of its suite then and the run's; a saturated version gains little). */
+function rlBuild(s: GameStateV2, start: RlStart, d: PostDesign, rec: PostRecipe, extra: number): VersionBuild {
+  const now = rec.fid ?? suiteFidMap(s);
+  if (start.on === 'version') {
+    const tb = start.version.build ?? fallbackBuild(start.version);
+    const eRL = Math.max(tb.eRL, rec.rlMid);
+    const aRL = Math.max(tb.aRL ?? 0, rec.rlCeil);
+    const rlFlop = tb.rlFlop + extra;
+    const rlFid: FamilyMap = { ...tb.rlFid };
+    for (const [f, v] of Object.entries(now) as [RLFamily, number][]) rlFid[f] = Math.max(rlFid[f] ?? 1, v);
+    const rl = rlGains(tb.flopPre, rlFlop, tb.rlW, eRL, aRL, rlFid);
+    return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, dgD: { ...tb.dgD }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
+  }
+  const base = start.base;
+  // RD-E01b: P07 (frozen at launch) multiplies the long-tasks RL family's horizon (data/v2/runDesign.ts). Long-horizon
+  // human demos (P12) act through the long-tasks suite's expert data since model v3 D9, not as a horizon multiplier.
+  const pe = postEffect(d, rec.p07 ? P07_LONG_TASKS_HORIZON : 1);
+  const rlW = recipeWeights(s, d.rlFocus, rec);
+  const rl = rlGains(base.flop, extra, rlW, rec.rlMid, rec.rlCeil, now);
+  // The version's signals are the engine's (model v3 E3): its base's and this run's, from their quantities.
+  const sig = addSig(base.signals ?? {}, postSignals(s, d, rec.exploit, { rho: extra / Math.max(1, base.flop) }));
+  return {
+    gPre: base.gPre, flopPre: base.flop, rlFlop: extra, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...now }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(rec.domainG, base.sD ?? {}),
+    dgD: { ...pe.dgD }, h80Mult: pe.h80Mult,
+    signals: clampSignals(sig),
+  };
+}
+
+/** One act's plan: what planRun adds the shared costs, timing and prediction to. */
+interface ActPlan { flopNeeded: number; cash: number; build: VersionBuild; fpt: number; mon: number; reason?: string; signals?: ReturnType<typeof baseSignals>; limits?: BaseLimits; rl?: RlGains; gap?: number }
+
+function planPretrain(s: GameStateV2, p: LaunchRunParams, rate: number): ActPlan | string {
+  const src = pretrainSourceOfParams(s, p);
+  if (typeof src === 'string') return src;
+  let reason: string | undefined;
+  if (src.from === 'design') {
+    const d = src.design;
     reason = optionLocked(s, 'shape', d.shape) ?? optionLocked(s, 'data', d.data) ?? (d.curation.hazard ? optionLocked(s, 'curation', 'hazard') : undefined)
       ?? (d.curation.safetyPretrain ? optionLocked(s, 'curation', 'safetyPretrain') : undefined) ?? (d.tpp > TPP_FREE_MAX + 1e-9 ? optionLocked(s, 'tpp', 'over') : undefined);
     if (!(d.params >= PARAM_RANGE[0] && d.params <= PARAM_RANGE[1])) reason = 'Active parameters out of range';
     if (!(d.tpp >= TPP_RANGE[0] && d.tpp <= TPP_RANGE[1])) reason = 'Tokens per parameter out of range';
-    const bg = baseG(s, d);
-    const be = baseEffect(d);
-    flopNeeded = bg.flop * be.flopMult;
-    scale = scaleOf(s, flopNeeded);
-    cash = flopCost(s, flopNeeded) * be.cashMult; // F6: no per-run licensed-data cost (D1/D2: licences are data assets on Models › Data)
-    build = referencePostOn(s, bg.parts.total, bg.flop, bg.sD);
-    signals = baseSignals(d, { gPre: bg.parts.total, draw: bg.draw });
-    fpt = fptOfDesign(d.params, d.shape);
-    mon = be.monitorability;
-    const setupDays = buildWaitNew(s, runSetupTW('base', engScale(flopNeeded)), 'runSetup');
-    const wallDays = setupDays + Math.ceil(daysFor(flopNeeded, rate));
-    const best = Math.max(-Infinity, ...m.bases.map((b) => b.gPre));
+  }
+  // D6: an imported open-weight model is not yours to sell until you post-train it (a distilled mini would be).
+  if (src.from === 'teacher' && src.teacher.variant === 'imported') reason = 'An imported model must be post-trained before it can teach a mini';
+  const pre = pretrain(s, src);
+  let limits: BaseLimits | undefined;
+  if (pre.bg && src.from === 'design') {
+    const bg = pre.bg;
+    const setupDays = buildWaitNew(s, runSetupTW('base', engScale(pre.flopNeeded)), 'runSetup');
+    const wallDays = setupDays + Math.ceil(daysFor(pre.flopNeeded, rate));
+    const best = Math.max(-Infinity, ...s.player.models.bases.map((b) => b.gPre));
     limits = {
-      params: d.params, tpp: d.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
-      servingFlop: servingFlop(d.params), computeCost: flopCost(s, flopNeeded), scrutiny: sizeScrutiny(scale), gPre: bg.parts,
+      params: pre.params, tpp: src.design.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
+      servingFlop: servingFlop(pre.params), computeCost: flopCost(s, pre.flopNeeded), scrutiny: sizeScrutiny(pre.scale ?? 1), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
-  } else if (p.kind === 'post') {
-    if (!base) return failPlan('Pick a base');
-    const d = p.post;
-    if (!d) return failPlan('No design');
-    // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
-    if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
-    reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
-      ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
-    if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
-    if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
-    if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
-    if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
-    const pe = postEffect(d);
-    if (p.grader === 'teacher') {
-      if (!teacher) return failPlan('Pick a version to amplify');
-      flopNeeded = IDA_RL_SHARE * base.flop;
-      build = idaBuild(s, teacher, flopNeeded, rlRecipeNow(s));
-    } else {
-      flopNeeded = RL_BUDGET[d.rlBudget] * base.flop;
-      build = postBuild(s, base, d, postRecipeNow(s), flopNeeded);
-    }
-    rlOut = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
-    // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).
-    fpt = base.fpt * pe.serve * serveTechMult(s);
-    mon = Math.min(base.monitorability ?? 1, pe.monitorability);
-  } else if (p.kind === 'distill') {
-    if (!teacher) return failPlan('Pick a teacher version');
-    // D6: an imported open-weight model is not yours to sell until you post-train it (a distilled mini would be).
-    if (teacher.variant === 'imported') reason = 'An imported model must be post-trained before it can teach a mini';
-    const nT = paramsOfVersion(s, teacher);
-    const nS = clamp(p.studentParams ?? nT * STUDENT_DEFAULT, PARAM_RANGE[0], nT);
-    const tokens = DISTILL_TPP * nS;
-    flopNeeded = distillFlop(nT, nS, tokens);
-    gap = distillGap(nT, nS, tokens);
-    build = distillBuild(teacher, gap);
-    fpt = teacher.fpt * (nS / nT);
-    mon = teacher.monitorability;
-  } else {
-    if (!base) return failPlan('Pick a base');
-    flopNeeded = CONTINUE_SHARE * base.flop;
-    scale = scaleOf(s, flopNeeded);
-    const g = continueGPre(base.gPre, flopNeeded, E_START + ePreAt(s, base.flop + flopNeeded), base.design.shape);
-    build = referencePostOn(s, g, base.flop + flopNeeded, base.sD ?? {});
-    fpt = base.fpt;
-    mon = base.monitorability ?? 1;
   }
+  // A base is predicted through the reference post-train it would get; a student is its own build.
+  const build = pre.student ?? referencePostOn(s, pre.gPre, pre.flop, pre.sD);
+  return {
+    flopNeeded: pre.flopNeeded, cash: pre.cash, build, fpt: pre.fpt, mon: pre.monitorability, reason,
+    ...(pre.signals ? { signals: pre.signals } : {}), ...(limits ? { limits } : {}), ...(pre.gap !== undefined ? { gap: pre.gap } : {}),
+  };
+}
+
+function planRl(s: GameStateV2, p: LaunchRunParams): ActPlan | string {
+  const base = p.baseId ? s.player.models.bases.find((b) => b.id === p.baseId) : undefined;
+  if (!base) return 'Pick a base';
+  const d = p.post;
+  if (!d) return 'No design';
+  const start = rlStartOf(base, p.grader, versionById(s, p.teacherVersionId));
+  if (!start) return 'Pick a version to amplify';
+  // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
+  let reason: string | undefined;
+  if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
+  reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
+    ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
+  if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
+  if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
+  if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
+  if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
+  const flopNeeded = rlFlopOf(base, d, p.grader);
+  const build = rlBuild(s, start, d, postRecipeNow(s), flopNeeded);
+  const rl = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
+  // Model v3 D5: no per-run grader cash any more; the suites are assets (built and hardened on the build queue).
+  // [Q] The preview's serve cost and monitorability are the fresh-RL ones also for RL on a version (completion keeps
+  // the version's): kept from before RD-T01b.
+  const pe = postEffect(d);
+  return { flopNeeded, cash: 0, build, fpt: base.fpt * pe.serve * serveTechMult(s), mon: Math.min(base.monitorability ?? 1, pe.monitorability), reason, rl };
+}
+
+/** Plan (and validate) a run without launching it: FLOP, wall time, cash, G and the run-card prediction. */
+export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
+  const w = s.hidden.timeline;
+  const poolShare = clamp(p.poolShare ?? (p.grader === 'teacher' ? 0.3 : RUN_POOL_DEFAULT[p.kind]), POOL_SHARE_RANGE[0], POOL_SHARE_RANGE[1]);
+  const effShare = shareIfLaunched(s, poolShare);
+  const rate = Math.max(1, runFlopPerShareDay(s, { kind: p.kind }) * effShare);
+  const a = runAct(p.kind) === 'pretrain' ? planPretrain(s, p, rate) : planRl(s, p);
+  if (typeof a === 'string') return failPlan(a);
+  const { flopNeeded, cash, build, limits } = a;
+  let reason = a.reason;
   const setupTW = runSetupTW(p.kind, engScale(flopNeeded), p.grader === 'teacher');
   const setupDays = buildWaitNew(s, setupTW, 'runSetup');
   const etaDays = limits ? limits.wallDays : setupDays + Math.ceil(daysFor(flopNeeded, rate));
@@ -439,37 +547,22 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   const Lg = levelOfG(w, gPred);
   const doms = domainsOf(w, gPred, build);
   // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
-  const ws2Signals = p.kind === 'base' ? signals
-    : runSignals(s, { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
+  const ws2Signals = a.signals
+    ?? runSignals(s, { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
   const prediction: RunPrediction = {
     Lg: [Lg - 0.25, Lg + 0.25], // level-lint-ok: run-card prediction band (readout)
     domains: Object.fromEntries(Object.entries(doms).map(([k, v]) => [k, [v - 0.25, v + 0.25]])) as RunPrediction['domains'],
     signals: { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0, ...clampSignals(ws2Signals) },
-    etaDays, fpt, monitorability: monitorabilityClass(mon),
+    etaDays, fpt: a.fpt, monitorability: monitorabilityClass(a.mon),
   };
   const G = build.gPre + build.dgRL + build.dg;
   const gD = Object.fromEntries(DOMAIN_IDS.map((d) => [d, gOfDomain(build as VersionBuild, d)])) as Partial<Record<DomainId, number>>;
-  return { flopNeeded, cashCost: cash, etaDays, poolShare, effShare, setupTW, setupDays, prediction, g: { G, gD, ...(rlOut ? { rl: rlOut } : {}), ...(gap !== undefined ? { gap } : {}) }, reason, ...(limits ? { limits } : {}) };
+  return { flopNeeded, cashCost: cash, etaDays, poolShare, effShare, setupTW, setupDays, prediction, g: { G, gD, ...(a.rl ? { rl: a.rl } : {}), ...(a.gap !== undefined ? { gap: a.gap } : {}) }, reason, ...(limits ? { limits } : {}) };
 
   function failPlan(why: string): RunPlan {
     const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 };
     return { flopNeeded: 0, cashCost: 0, etaDays: 0, poolShare, effShare, setupTW: 0, setupDays: 0, reason: why, g: { G: 0 }, prediction: { Lg: [0, 0], domains: {} as RunPrediction['domains'], signals: zero, etaDays: 0, fpt: 0, monitorability: 'high' } };
   }
-}
-
-/** Amplified build (IDA, P18): the teacher's build with `extra` more RL FLOP at today's RL recipe (the gain comes from
- *  the RL curve; a saturated teacher gains little). */
-function idaBuild(s: GameStateV2, t: ModelVersion, extra: number, rec: RlRecipe): VersionBuild {
-  const tb = t.build ?? fallbackBuild(t);
-  const eRL = Math.max(tb.eRL, rec.rlMid);
-  const aRL = Math.max(tb.aRL ?? 0, rec.rlCeil);
-  const rlFlop = tb.rlFlop + extra;
-  // The extra RL runs on today's suites (model v3 D5): each family's best fidelity of the teacher's and today's.
-  const now = rec.fid ?? suiteFidMap(s);
-  const rlFid: FamilyMap = { ...tb.rlFid };
-  for (const [f, v] of Object.entries(now) as [RLFamily, number][]) rlFid[f] = Math.max(rlFid[f] ?? 1, v);
-  const rl = rlGains(tb.flopPre, rlFlop, tb.rlW, eRL, aRL, rlFid);
-  return { ...tb, rlFlop, eRL, aRL, rlFid, dgRL: rl.general, dgRLd: rl.perDomain, sD: { ...tb.sD }, dgD: { ...tb.dgD }, rlW: { ...tb.rlW }, signals: { ...tb.signals } };
 }
 
 /** Launch a run (commits cash, §3.3.1). Returns the run or a reason string. */
@@ -495,10 +588,12 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', techniques: [...p.post.techniques], trainAgainst: [...p.post.trainAgainst] };
   if (p.kind === 'base' || p.kind === 'continue') run.scale = scaleOf(s, plan.flopNeeded);
   if (p.kind === 'distill') {
-    const t = versionById(s, p.teacherVersionId);
-    const nT = t ? paramsOfVersion(s, t) : 1e12;
-    run.studentParams = clamp(p.studentParams ?? nT * STUDENT_DEFAULT, PARAM_RANGE[0], nT);
-    run.tokens = DISTILL_TPP * run.studentParams;
+    // The student's size and tokens (teacher outputs) are fixed at launch, as the plan read them.
+    const src = pretrainSourceOfParams(s, p);
+    if (typeof src !== 'string' && src.from === 'teacher') {
+      run.studentParams = src.nS;
+      run.tokens = src.tokens;
+    }
   }
   m.runs.push(run);
   run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
@@ -553,79 +648,78 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   return v;
 }
 
-/** Complete a run: create the base or version, call the WS2 trait hook, start the eval suite. */
+/** Complete a run: its act makes the base or version, calls the WS2 trait hook and starts the eval suite. */
 function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
-  const m = s.player.models;
   run.status = 'done';
   // Launch and the rev-45 save migration always set the snapshot; only a hand-built run (a script) lacks one.
   const rec = (run.recipe ??= recipeAtLaunch(s, run));
-  if (run.kind === 'base' && run.base) {
-    const d = run.base;
-    const be = baseEffect(d);
-    const nb = m.bases.length + 1;
-    const bg = baseG(s, d, { pre: rec.pre!, draw: rec.draw! });
-    const b: BaseModel = {
-      id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
-      gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs,
-      fpt: fptOfDesign(d.params, d.shape), monitorability: be.monitorability, signals: clampSignals(baseSignals(d, { gPre: bg.parts.total, draw: bg.draw })),
-      lineage: `L-player-${nb}`, traitsTrue: { ...m.bases[0].traitsTrue }, uModes: [], // placeholder: applyBaseToLineage sets them from the draw's synthetic teachers
-    };
-    m.bases.push(b);
-    applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5)
-    ctx.log('research', `Base model ${b.name} finished pretraining.`, 2, b.id);
-    return;
-  }
-  if (run.kind === 'continue') {
-    const parent = m.bases.find((b) => b.id === run.baseId);
-    if (!parent) return;
-    const nb = m.bases.length + 1;
-    const flop = parent.flop + run.flopNeeded;
-    const gPre = continueGPre(parent.gPre, run.flopNeeded, E_START + rec.pre!, parent.design.shape);
-    // Physical part grows by the added FLOP; the recipe efficiency is what remains (a stream re-applies today's).
-    const ePre = gPre - (parent.gPre - parent.ePre) - Math.log10(flop / parent.flop);
-    const b: BaseModel = {
-      ...parent, id: `B${nb}`, name: `${parent.name}c`, day: s.time.day, startDay: run.startDay, flop, tokens: parent.tokens + run.flopNeeded / (6 * parent.params),
-      gPre, ePre, parentBaseId: parent.id,
-      traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...(parent.sD ?? {}) }, signals: { ...(parent.signals ?? {}) },
-    };
-    m.bases.push(b);
-    applyBaseToLineage(s, ctx, run, b); // WS2 hook: continue runs step the lineage traits (ω 0.5)
-    ctx.log('research', `Continued pretraining: ${b.name}.`, 1, b.id);
-    return;
-  }
-  if (run.kind === 'distill') {
-    const t = versionById(s, run.teacherVersionId);
-    if (!t) return;
+  if (runAct(run.kind) === 'pretrain') completePretrain(s, ctx, run, rec);
+  else completeRl(s, ctx, run, rec as PostRecipe); // the snapshot is a PostRecipe (recipeAtLaunch, migration 44 → 45)
+}
+
+/** Pretraining finished: a new base (new lineage, or the parent's lineage continued), or the student as a mini
+ *  version of its teacher's base (it keeps no BaseModel of its own: the student build is the teacher's minus the gap). */
+function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec: RunRecipe) {
+  const m = s.player.models;
+  const src = pretrainSourceOfRun(s, run);
+  if (!src) return;
+  const pre = pretrain(s, src, rec);
+  if (src.from === 'teacher') {
+    const t = src.teacher;
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
-    const nT = paramsOfVersion(s, t);
-    const nS = run.studentParams ?? nT * STUDENT_DEFAULT;
-    const build = distillBuild(t, distillGap(nT, nS, run.tokens ?? DISTILL_TPP * nS));
-    const v = newVersion(s, run, base, build, t, { variant: 'mini', params: nS, fpt: t.fpt * (nS / nT), monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
+    const v = newVersion(s, run, base, pre.student!, t, { variant: 'mini', params: pre.params, fpt: pre.fpt, monitorability: pre.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = uniqueVersionName(s, `${t.name}-mini`);
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
     return;
   }
-  // post (incl. IDA): the snapshot is a PostRecipe (recipeAtLaunch, migration 44 → 45)
-  const pr = rec as PostRecipe;
+  const nb = m.bases.length + 1;
+  let b: BaseModel;
+  if (src.from === 'design') {
+    const d = src.design;
+    b = {
+      id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: pre.flop, params: pre.params, tokens: pre.tokens,
+      gPre: pre.gPre, ePre: pre.ePre, design: d, sD: pre.sD, epochs: pre.bg!.epochs,
+      fpt: pre.fpt, monitorability: pre.monitorability, signals: clampSignals(pre.signals!),
+      lineage: `L-player-${nb}`, traitsTrue: { ...m.bases[0].traitsTrue }, uModes: [], // placeholder: applyBaseToLineage sets them from the draw's synthetic teachers
+    };
+  } else {
+    const parent = src.parent;
+    b = {
+      ...parent, id: `B${nb}`, name: `${parent.name}c`, day: s.time.day, startDay: run.startDay, flop: pre.flop, tokens: pre.tokens,
+      gPre: pre.gPre, ePre: pre.ePre, parentBaseId: parent.id,
+      traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...pre.sD }, signals: { ...(parent.signals ?? {}) },
+    };
+  }
+  m.bases.push(b);
+  applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5); continued: step the lineage (ω 0.5)
+  if (src.from === 'design') ctx.log('research', `Base model ${b.name} finished pretraining.`, 2, b.id);
+  else ctx.log('research', `Continued pretraining: ${b.name}.`, 1, b.id);
+}
+
+/** RL finished: a new version on its base. Fresh RL on a base pays any pending run penalty and takes the design's
+ *  serve cost; RL on a version (the teacher grading) inherits that version's serving, design and traits. */
+function completeRl(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, pr: PostRecipe) {
+  const m = s.player.models;
   const base = m.bases.find((b) => b.id === run.baseId);
   if (!base || !run.post) return;
-  const pe = postEffect(run.post);
-  const parent = latestOnBase(s, base.id) ?? versionById(s, run.teacherVersionId);
-  if (run.grader === 'teacher') {
-    const t = versionById(s, run.teacherVersionId);
-    if (!t) return;
-    const build = idaBuild(s, t, run.flopNeeded, pr);
-    const v = newVersion(s, run, base, build, t, { fpt: t.fpt, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay: rlDayOf(s, run), post: false } });
+  const teacher = versionById(s, run.teacherVersionId);
+  const start = rlStartOf(base, run.grader, teacher);
+  if (!start) return;
+  const build = rlBuild(s, start, run.post, pr, run.flopNeeded);
+  const rlDay = rlDayOf(s, run);
+  if (start.on === 'version') {
+    const t = start.version;
+    const v = newVersion(s, run, base, build, t, { fpt: t.fpt, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay, post: false } });
     m.versions.push(v);
     afterVersion(s, ctx, run, v, t);
     return;
   }
-  const build = postBuild(s, base, run.post, pr, run.flopNeeded);
+  const pe = postEffect(run.post);
   build.dg -= consumeRunPenalty(s);
-  const v = newVersion(s, run, base, build, parent, {
+  const v = newVersion(s, run, base, build, latestOnBase(s, base.id) ?? teacher, {
     fpt: base.fpt * pe.serve * Math.pow(10, -pr.serveOom),
-    monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay: rlDayOf(s, run), post: true },
+    monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay, post: true },
   });
   m.versions.push(v);
   afterVersion(s, ctx, run, v);
