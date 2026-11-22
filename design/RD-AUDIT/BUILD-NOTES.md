@@ -1626,3 +1626,23 @@ Check: `npx tsx scripts/v2/_sr08/check.ts` (day400: familyDetection = combine(co
 cov · reliability value; reliability full on the validated model, falling with the gap 0.406 → 0.290 over 8 OOM). Passes.
 Moves calibration: maybe (S4/S5): tools unlocked mid-game now decay from the model they were unlocked on, not from V0
 (stronger later in the game, true and believed U up); start tools and old saves unchanged.
+
+### SR-11
+
+One **sight limit** (SAFETY-REDESIGN §2.2 concept 5, §2.3) replaces understanding U, margin, validated-to, seen-to,
+likely range, BLIND/AHEAD and the detection grid.
+- **`safety/sightLimit.ts`** (was understanding.ts): `sightLimit(s)` = { L, lo, hi, level, gap = L − level, perTrait }:
+  the highest level where the active instruments together read the hidden-goal traits (CRITICAL_TRAITS mean) at ≥ 50%
+  believed reliability (SR-08 `reliability()` at the hypothetical capability, so each decays from its validated model;
+  valAt extrapolation and EA projection kept until SR-09). Range = 10th–90th percentile over 24 Latin-hypercube draws
+  of line efficacy from the Beta posteriors (efficacy only now; EA / OBF draws dropped). `sightLimitPoint` (no range:
+  weekly series, bots, decision snapshot), `sightGapBelow` (E17 early-exit), `plannedSightLimit(s, predictedL)` (TRAINING
+  planned-run readout, not yet wired), `sightGrid` (drill-down), `trueSightLimit` (engine only: ws2.gapTrue, analysis).
+- EngineApi `understanding` → `sightLimit`; safetyView `understanding` / `nextDecay` → `sightLimit`; riskFamilies lost
+  `seenTo` (Safety's weakest family now = lowest mean reading at the model's level). Series key `U` and DecisionSnapshot
+  `U` kept as field names (now the sight limit). Glossary: U, uRange, validatedTo, blind, gap deleted; sightLimit added.
+  upkeepView.validatedTo still computed (behindInMonths) but no longer shown. Analysis scripts read it through local
+  adapters in the old shape.
+Check: `npx tsx scripts/v2/_sr11/check.ts` (day 0: efficacy posteriors up → 5.55 → 5.75; validated 3 OOM further back
+→ 5.55 → 5.45; range 5.45–5.65 brackets the point). Passes.
+Moves calibration: maybe (S5 reads U): the U range now draws efficacy only (narrower), point value unchanged.
