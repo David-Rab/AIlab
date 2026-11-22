@@ -29,7 +29,7 @@ import { securitySystem } from '../../src/engine/v2/security/security';
 import { misalignment } from '../../src/engine/v2/safety/traits';
 import { gOfLevel } from '../../src/engine/v2/models/capability';
 import { toleranceNoiseOf } from '../../src/engine/v2/world/hidden';
-import type { DomainId, EndingV2, Foothold, FootholdKind, GameStateV2, ModelVersion, TraitVector } from '../../src/engine/v2/types';
+import type { DomainId, EndingV2, Foothold, FootholdKind, GameStateV2, MilestoneIdx, ModelVersion, TraitVector } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, HERE, check, finish } from './lib';
 
 const DOMS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
@@ -258,12 +258,14 @@ for (const fx of ['day400.json', 'day900.json']) {
   const c = lab(12);
   const cv = routine(c);
   const thr = lossThreshold(c);
+  // RD-L05: "the frontier at SAR" is the SAR milestone record (the predicate on the build's work fit), not a level.
+  const md = c.player.milestoneDays;
+  for (let i = 0; i <= 4; i++) md[i as MilestoneIdx] ??= c.time.day;
   const cp = footholdFromEscape(c, c.time.day, cv, Math.min(1, thr / 1.1));
   const small = rogueCopy(c);
   cp.size = 4; // 1 + 0.25·2 = 1.5× → above θ_w
   const grown = rogueCopy(c);
-  const L4 = LEVEL_KNOTS[4];
-  for (const x of c.player.models.versions) setLevel(x, L4 - 1);
+  delete md[4];
   const early = rogueCopy(c);
   check(!small && grown === cp && !early && copyExposure(c, cp) > thr, 'process: an escaped copy takes control only once it holds ≥ 2 copies, its exposure is above θ_w and the frontier is at SAR',
     `exposure ${f3(copyExposure(c, cp))} vs θ_w ${f3(thr)}`);
@@ -341,6 +343,8 @@ for (const fx of ['day400.json', 'day900.json']) {
       const v = internalVersion(s)!;
       v.Lg = LEVEL_KNOTS[4] + 0.1;
       v.G = gOfLevel(s.hidden.timeline, LEVEL_KNOTS[4]) + 0.01;
+      // RD-L05: the rogue gate is the SAR milestone record (the predicate reads the build's work fit, not G): force it.
+      for (let i = 0; i <= 4; i++) s.player.milestoneDays[i as MilestoneIdx] ??= s.time.day;
       footholdFromEscape(s, s.time.day, v, 1).size = 4;
     },
   };

@@ -37,6 +37,7 @@ import { researchMods } from '../../src/engine/v2/departments/workfit';
 /** RD-R02b: lineSpeed is gone; a line's speed is the shared research modifiers. */
 const lineSpeed = (s: GameStateV2, _ag: string) => researchMods(s).speed;
 import { applyRunToTraits, playerEnv, postSignals, stepTraits, zeroSignals } from '../../src/engine/v2/safety/traits';
+import { gOfLevel } from '../../src/engine/v2/models/capability';
 import type { GameStateV2, ModelVersion, PostDesign, Team, TrainingRun } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
@@ -86,7 +87,8 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   check(x1.AF > TRAIT_START.AF && near(r, 1 - P14_STEER.k * 0.5, 1e-9), 'P14: a steered trait grows × (1 − k·d) on the trait step (k = 1: d 0.5 → half the growth)',
     `ΔAF ${(x1.AF - TRAIT_START.AF).toFixed(4)} → ${(x2.AF - TRAIT_START.AF).toFixed(4)} (×${r.toFixed(3)})`);
   // Decays with capability (E6): the same probes on a far more capable model.
-  const vHi = { ...v0, Lg: 14.5 };
+  // RD-U02: versionOom reads the version's true G (no longer the inverse of its Lg), so the capable model sets both.
+  const vHi = { ...v0, Lg: 14.5, G: gOfLevel(s.hidden.timeline, 14.5) };
   const dHi = probeSteer(s, vHi);
   check((dHi.AF ?? 0) < (d.AF ?? 0) * 0.6, 'P14: steering fades with capability (E6 decay in OOM: the same probes past the AG02 half point, L 14.5)', `AF d ${(d.AF ?? 0).toFixed(3)} (L ${v0.Lg}) → ${(dHi.AF ?? 0).toFixed(3)} (L 14.5)`);
   // A full post-training run: same state with and without P14.

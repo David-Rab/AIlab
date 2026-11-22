@@ -68,7 +68,9 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 
 // ---------- zero AI share: no pull ----------
 {
-  const s = withFleet(undefined, (x) => { x.player.split.routine = 0; x.player.split.frontier = 0; });
+  // RD-A02: engineering agents have their own split line (they no longer draw on routine / frontier), so "no agent
+  // compute" zeroes it too.
+  const s = withFleet(undefined, (x) => { x.player.split.routine = 0; x.player.split.frontier = 0; x.player.split.engineering = 0; });
   const p = successorPull(s);
   const x0 = clone(game().player.models.versions[0].traitsTrue);
   const x1 = applySuccessorPull(s, x0);
