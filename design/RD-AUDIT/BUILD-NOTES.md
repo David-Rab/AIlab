@@ -164,3 +164,40 @@ Stale comments and BRIDGE tags (SYNTHESIS §4.9). Commit 5a0a250. Comments only,
 - Not touched: glossary / player-facing text (B47); other stale-looking comments outside the §4.9 list
   (finance/observe.ts "until MODEL-V3 lands", runDesign serveCost readout).
 - **Tests:** tsc main + scripts clean. No test run (comments only).
+
+### RD-B11
+
+Market fixes, interim before the product redesign (SYNTHESIS B14, B15, B16, B41, B42). Commit 158228c.
+- **B14 enablers applied once, capped.** Chat: the enabler stays in the users' app choice (mix.ts, × the player's
+  appeal in the logit) and is gone from revenue.ts's users. Sector products: `fOf` takes min(1 + share, 1 / player
+  share), so hours, agent-hours and seats in a sector never exceed what the sector adopts. [D] Kept the old size of
+  the effect (× the player's share) and only capped it; the segment reading of PRD-08 (share × the market, taken from
+  rivals) and enablers as offer capabilities are RD-P07's.
+- **B15 FREE_TIER_SHARE gone** (data, `freeTierShare`, its selector export). `productUses` returns the main model;
+  `productDomains` returns the main model's record (callers kept). production/data.ts tests `channel === 'consumer'`
+  for the free-tier token split. Chat's mini is read only by chatFreeTier (free users, their app choice, their need).
+- **B16 Trusted ×3 in the offer.** `CHANNEL_PRICE = { trusted: 3 }` (data/v2/features.ts) × the tier's markup inside
+  productOffer (serving.ts `channelPriceOf`), so the mix's choice and the revenue read one price; lineup rungs inherit
+  it through o.price. revenue.ts's TRUSTED_PREMIUM and its two after-the-choice multiplications are gone. Trusted has
+  no agent-hour or seat weight, so only the per-hour price moves. UI: the Price row adds a "Trusted access channel
+  price ×3.00 → asks …" line; the lineup footer gives markup × channel price; the blurb says ×3.
+- **B41 one appeal table.** `appealOf(v) = v.appeal ?? 1` (POST_PREF, V2-SPEC §3.3.2 D: minimal 0.7, engagement 1.2,
+  constitution 1.0, persuasion 1.1). The market's second switch (0.9 / 1.25 / 1.15) is deleted, so non-constitution
+  Chat models move further (minimal −0.2, engagement −0.05, persuasion −0.05 vs before).
+- **B42 Demand modifiers row.** `demandModifiers(s, d)`: KYC, feature enablers (Chat: "app choice"; sectors: grouped
+  by share with the sector names, "≤ the sector's adoption"), Restricted, No drop-in. Trusted's price left the row.
+  limits.ts rule, glossary `freeTier` / `featEnabler`, the Chat mini tooltip and design/ux/GLOSSARY.md updated.
+- **Tests added:** serving S6 / RD-B11 companion (target ≤ ×(1 + share), same-day users unchanged; users arrive
+  through the stock); RD-B11 B15 (a Chat mini leaves the paid-share target, paying fit / coverage and bestCover
+  unchanged, only the free-tier fit moves); B14 (95% share + computer use: adopted hours ≤ the sector's; uncapped would
+  be ×1.07); B16 (Trusted offer ×3 price, same cost and fit); B41. products P7 now reads the preview's target users
+  (the same-day demand does not jump: the effect arrives through the customer stock).
+- **Readouts:** finance F8 distress-free 66.7% → 66.7% (known failure, VAL), F11 2027 $141.4B → $141.4B, F7 2026
+  revenue $53.4B → $53.4B: RefBot sells no Chat features, no Chat mini, no Trusted and keeps the constitution
+  preference, so its games are unchanged; fixtures did not move (fixtures passes in test:quick).
+- **Tests:** tsc main + scripts; test:quick (fails only worldfx A2a / W4, known); serving full 95 / 95; finance full
+  191 / 192 (F8, known); test:cal passes (golden 16 / 0, 3 WARN; calib T1 T1L T4 33 / 0, 9 WARN; games unchanged);
+  npm run build + test:ui 687 / 687; lint-ux and lint-hidden pass (in test:quick). Tooltip text only: no screenshots.
+- **Open:** a Chat feature's preview now shows no revenue change today (the product card's customer target shows
+  the gain); the same holds for any Chat quality edit. Whether previews should show the converged revenue is a UI
+  question for the product redesign.
