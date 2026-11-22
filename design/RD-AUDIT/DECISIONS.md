@@ -26,3 +26,12 @@ trusted watcher models chosen automatically (override allowed); organism realism
 research finds a range, else none; default disclosure = legal minimum; safety engineers' order set in LAB (one
 allocator); SAFETY grouped by harmful acts (Risks tab first); "train against an instrument" stays as a method with an
 honest preview. SR-01 … SR-30 (§8.2) replace RD-B04 / B05 / B06 and DD-15 / DD-16.
+
+## Calibration during the rebuild (2026-11-22)
+
+Designer: "no point in doing calibration to systems that will change." No refits while mechanisms are being replaced:
+calibration happens at CP2 (after the engine unification, Phases 2–3) or later, on the unified engine. Known failures
+carried until then are listed in BUILD-NOTES (first: authors2026 SIAR −0.27 y / ASI −0.49 y after RD-B08; the preset's
+fitted G_SC / Δ_bm / sd_SC were fitted with the bug present — RDB08-CAL.md; sd_SC 2.15 vs AIFM median 0.5 to be
+re-checked against its source at the refit). Tasks still report calibration movement ("moves calibration") so CP runs
+can attribute it.
