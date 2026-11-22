@@ -356,6 +356,9 @@ export interface ModelVersion {
   name: string; // e.g. "Atlas-3.2"
   baseId: string;
   parentVersionId?: string;
+  /** RD-P01b: a cheap tier the "Auto-make cheap tiers" policy distilled: it joins the lineup of every live product its
+   *  teacher (parentVersionId) is the main model of once ready and evaluated, then the mark is dropped. */
+  autoTier?: true;
   day: Day;
   /** RD-X04: the player's recipe G (RECIPE_F) when the version was made: what releasing it reveals (diffusion.ts). */
   recG?: number;
@@ -479,6 +482,8 @@ export interface TrainingRun {
   kind: RunKind;
   name: string;
   startDay: Day;
+  /** RD-P01b: a distillation the "Auto-make cheap tiers" policy queued (its student gets ModelVersion.autoTier). */
+  autoTier?: true;
   /** FLOP required and done; duration = FLOP ÷ rate, no minimum length (MODEL-V3 §3.3). */
   flopNeeded: number;
   flopDone: number;
@@ -1241,6 +1246,10 @@ export interface PlayerPolicies {
   /** Re-run the eval suite every 30 days on the internal model and models updated in place (R6, replaces the 30-day
    *  eval expiry that blocked launches). */
   autoEvaluate: boolean;
+  /** RD-P01b "Auto-make cheap tiers" (default on for new games): when a full model is a live product's main model and
+   *  no student of it exists or is training, distil a 1/5.7-size student of it (a real run: its compute and time); it
+   *  joins the lineup when ready and evaluated. Off: nothing automatic. */
+  autoCheapTier: boolean;
   /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
    *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
   trustedToAI: number;

@@ -103,6 +103,7 @@ export function Products({ s }: { s: GameStateV2 }) {
       <PanelHead icon={ICON.deploy} title="Products" sub="what customers buy · edit anything live"
         right={<span className="row-i prod-pol">
           <PolicySwitch on={pol.upgradeToNewest} k="upgradeToNewest" term="upgradePolicy" label="Upgrade to newest cleared model" />
+          <PolicySwitch on={pol.autoCheapTier} k="autoCheapTier" term="cheapTierPolicy" label="Auto-make cheap tiers" />
           {behind.length > 0 && !pol.upgradeToNewest && <Tip content={() => <TipCard title="Behind the newest cleared model" rows={behind.map((d) => ({ label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: nameOf(s, d.versionId) }))}>A newer version of the same kind has cleared the eval gate and measures better.</TipCard>}>
             <span className="tag2 warn" data-test="prod-behind">{behind.length} on an older model</span>
           </Tip>}

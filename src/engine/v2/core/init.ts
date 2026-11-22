@@ -4,7 +4,7 @@
 import { LEADER_FEATURES, toolsFromFeatures } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
-import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
+import { DISTILL_TPP, PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibration';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
@@ -32,7 +32,9 @@ import { benchScore } from '../models/benchmarks';
 import { domainsOf, gOfBuild, gV0, levelOfG, startLab, startStateOf, updateMilestones } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
-import { flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
+import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
+import { distilledBeliefs, distilledStart } from '../safety/traits';
+import { lineupOf } from '../worldfx/serving';
 import { labCore } from '../models/labs';
 import { initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
@@ -75,6 +77,9 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     leaderLab: over.leaderLab ?? START_BY_ID[over.start ?? 'leader'].leaderLab,
   };
 }
+
+/** RD-P01b: the start students' name suffixes, largest first (one per lineup rung). */
+const START_MINI_NAMES = ['mini', 'micro', 'nano'];
 
 function startEvals(domains: Record<DomainId, number>, measuredL: number, day: number): EvalRecord {
   const bench: EvalRecord['bench'] = {};
@@ -168,8 +173,30 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     G: G0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, fpt: sm.fpt,
     evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
+  // RD-P01b (DD-01): the start lineup is real models. V0's distilled students at the lineup sizes (data/v2/serving.ts
+  // LINEUP: 1/2.8, 1/5.7, 1/80 of its active parameters), each as a finished Distill a mini run makes it: the teacher's
+  // build less the distillation gap at full teacher-output tokens (DISTILL_TPP × N_S), FLOP per token ∝ its size, the
+  // teacher's distilled-start traits, masks, U-modes and distilled beliefs (safety/traits.ts, E19, without the run's
+  // step: no run happened in the game). Known since before the start, measured like V0.
+  const nT = REFERENCE_BASE.params;
+  const minis: ModelVersion[] = lineupOf(nT).map((rung, i) => {
+    const nS = rung.r * nT;
+    const gap = distillGap(nT, nS, DISTILL_TPP * nS);
+    const b = { ...build, dg: build.dg - gap, sD: { ...build.sD }, dgD: { ...build.dgD }, dgRLd: { ...build.dgRLd }, rlW: { ...build.rlW }, signals: { ...build.signals } };
+    const G = gOfBuild(b);
+    const L = levelOfG(w, G);
+    const ds = domainsOf(w, G, b);
+    const mk = {} as Record<TraitId, Partial<Record<ToolFamily, number>>>;
+    for (const t of TRAIT_IDS) mk[t] = { ...masks[t] };
+    return {
+      id: `V0-${i + 1}`, name: `${V0.name}-${START_MINI_NAMES[i] ?? `mini${i + 1}`}`, baseId: 'B0', parentVersionId: 'V0', day: -20, variant: 'mini', design: { ...REFERENCE_POST },
+      G, Lg: L, domains: ds, traitsTrue: distilledStart(V0.traitsTrue), masks: mk, uModes: [...uModes], monitorability: V0.monitorability, fpt: sm.fpt * rung.r,
+      params: nS, evals: startEvals(ds, Math.round(L * 100) / 100, -20), beliefs: distilledBeliefs(beliefs), status: 'deployed', flags: {}, build: b, appeal: 1,
+    };
+  });
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
+    ...(channel === 'internal' || channel === 'open' || !minis.length ? {} : { lineup: minis.map((x) => x.id) }),
     safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, packs: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
@@ -201,7 +228,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
         design: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, sD: {}, fpt: sm.fpt, monitorability: 1, signals: {},
         lineage, traitsTrue: { ...TRAIT_START }, uModes: [...uModes],
       }],
-      versions: [V0],
+      versions: [V0, ...minis],
       // A post-training run in flight on B0 (the spinout starts with none: its base is a download).
       runs: def.imported ? [] : [startRun(w, k, sm.flop, Lg, domains)],
       nextName: 1,
@@ -231,7 +258,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     morale: { overall: 70, safety: 65 },
     dataPortfolio,
     suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)
-    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, autoSplit: { on: false, to: ['experiments'] }, servingAuto: true, upgradeToNewest: false, autoEvaluate: true, trustedToAI: 0 },
+    policies: { whistleblowerChannel: false, publishSafety: 'selective', govBriefing: 1, shareWithAllies: false, transitionFund: 0, communityBenefits: false, autoSplit: { on: false, to: ['experiments'] }, servingAuto: true, upgradeToNewest: false, autoEvaluate: true, autoCheapTier: true, trustedToAI: 0 },
     agents: initialAgents('V0'),
   };
 }

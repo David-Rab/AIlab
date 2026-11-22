@@ -83,8 +83,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  Migration 61 → 62 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
  *  failed: open again, next attempt).
  *  63 (RD-P01a): a product offers a lineup of real models (Deployment.lineup, Chat's freeTierId); miniVersionId is gone.
- *  Migration 62 → 63 makes an existing mini the second lineup entry (Chat: its free tier). */
-export const SCHEMA_REV = 63;
+ *  Migration 62 → 63 makes an existing mini the second lineup entry (Chat: its free tier).
+ *  64 (RD-P01b): the "Auto-make cheap tiers" product policy (policies.autoCheapTier; TrainingRun / ModelVersion
+ *  autoTier marks); a new game starts with V0's distilled students in its products' lineups. Migration 63 → 64 sets
+ *  the policy off in an existing game. */
+export const SCHEMA_REV = 64;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -602,6 +605,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (d.channel === 'consumer' && !d.freeTierId) d.freeTierId = o.miniVersionId;
       delete o.miniVersionId;
     }
+  },
+  /** 63 → 64 (RD-P01b): the "Auto-make cheap tiers" policy; off in an existing game (nothing automatic it did not
+   *  choose). Idempotent. */
+  63: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.policies && typeof s.player.policies.autoCheapTier !== 'boolean') s.player.policies.autoCheapTier = false;
   },
 };
 

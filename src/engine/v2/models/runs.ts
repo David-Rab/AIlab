@@ -687,6 +687,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
     const v = newVersion(s, run, base, pre.student!, t, { variant: 'mini', params: pre.params, fpt: pre.fpt, monitorability: pre.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = uniqueVersionName(s, `${t.name}-mini`);
+    if (run.autoTier) v.autoTier = true; // RD-P01b: joins its teacher's lineups when ready (models/cheapTier.ts)
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
     return;

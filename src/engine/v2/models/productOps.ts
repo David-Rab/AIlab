@@ -15,6 +15,7 @@ import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, set
 import { activeRivals, versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
+import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
@@ -186,6 +187,7 @@ export const productsSystem: EngineSystem = {
     if (s.player.status !== 'active') return;
     autoEvaluate(s);
     upgradeProducts(s, ctx);
+    autoCheapTiers(s, ctx); // RD-P01b: after the upgrade policy, so a model it just deployed gets its cheap tier today
   },
 };
 
@@ -452,11 +454,13 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           costs.push({ currency: 'compute', amount: Math.round(pv.perSuite.h100eDays), target: 'H100e-days per re-run, from experiments' });
         }
       }
+      // RD-P01b: the distillation runs turning "Auto-make cheap tiers" on starts today (real FLOP, pool share, time).
+      if (p.autoCheapTier === true && !s.player.policies.autoCheapTier) costs.push(...cheapTierPreview(s));
       return { costs, gains, exposure };
     },
     apply: (s, ctx, p) => {
       const pol = s.player.policies;
-      for (const k of ['servingAuto', 'upgradeToNewest', 'autoEvaluate'] as const) if (typeof p[k] === 'boolean') pol[k] = p[k] as boolean;
+      for (const k of ['servingAuto', 'upgradeToNewest', 'autoEvaluate', 'autoCheapTier'] as const) if (typeof p[k] === 'boolean') pol[k] = p[k] as boolean;
       ctx.log('company', 'Product policies updated.', 1);
     },
   },

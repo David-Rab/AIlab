@@ -436,6 +436,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const iv = m.versions.find((v) => v.id === p.agents.capRoutine.versionId);
   if (!p.policies.autoEvaluate) tryAct(s, api, 'products.policy', { autoEvaluate: true });
   if (!p.policies.servingAuto) tryAct(s, api, 'products.policy', { servingAuto: true });
+  if (!p.policies.autoCheapTier) tryAct(s, api, 'products.policy', { autoCheapTier: true }); // RD-P01b: cheap tiers by the player's policy
 
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
