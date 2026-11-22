@@ -1943,3 +1943,23 @@ Design options through the draw (TRN-11, TRN-20, TRN-31; SYNTHESIS §5 small cal
   tpp gate in runDesign). tsc main + scripts clean; build ok. scripts/v2/data.ts: three draws rewritten to
   `{ shares: REF_SHARE, weights, kinds }` (not run; its balanced-vs-natural and quality-offset checks will need restating
   at CP3).
+
+### RD-T09
+
+Synthetic mix follows the teacher (TRN-19). Commit 14d46d5. **Moves calibration: maybe.**
+- **Rule** (production/data.ts `synMixOf`, [D]): share_d ∝ 10^(SYN_SHARP · (G_d − G)) × target_d, normalised over the
+  nine domains; G_d − G = the teacher's domain effective compute over its general G (versionDomainG); SYN_SHARP 3 per
+  OOM (a domain 0.1 OOM stronger writes ×2). target_d = the lab's generation target weight: no such setting exists yet,
+  so the optional argument is unused (weight 1). A build-less teacher is flat. Each day's tokens carry the teacher's
+  mix of that day (continual learning can move it).
+- **SYN_MIX deleted** (code / reasoning 35% each). The start asset `syn:start` (pre-game teacher) is now an even mix;
+  the reference start model's profile is flat (|G_d − G| ≤ 0.01), so a balanced teacher writes a balanced mix. This
+  shifts REF_SHARE / Q_REF slightly (20T of 310T moves from code / reasoning to even): why calibration may move.
+- **UI:** Data panel, synthetic row: "synthetic data from Atlas-1.0: an even spread of domains" / "…: mostly code and
+  math & reasoning" (largest domains until half the mix, at most three; even when none holds 1.5× an even share), from
+  the teacher writing most of today's tokens (job teacher at ≥ 50% of the pool, else the default). dataView
+  `synMixLine`, `describeSynMix`.
+- **Schema:** unchanged (stored mixes keep their old values).
+- **Check:** `npx tsx scripts/v2/rdt09.ts` (4 checks, run alone: V0 even; a teacher with CODE +0.3 / REASON +0.2 OOM
+  data specialisation writes CODE 42%, REASON 21%, others 5%; sums to 1; target weight acts). tsc main + scripts clean;
+  build ok.
