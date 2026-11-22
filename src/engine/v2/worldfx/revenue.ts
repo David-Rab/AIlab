@@ -18,8 +18,8 @@
 //   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
 //                 revenue line = subscribers × price per month × 12 (A6b: the market's flat plan price, the willingness to
 //                 pay on Standard, not cost-plus), independent of work
-//                 hours; free users (users − subscribers) run on its free tier (A7: its mini, else the cheapest student
-//                 of its model, worldfx/serving.ts chatFreeTier), pay nothing and are
+//                 hours; free users (users − subscribers) run on its free tier (A7 / RD-P01a: the real model in its free-tier slot,
+//                 default the lineup's cheapest; worldfx/serving.ts chatFreeTier), pay nothing and are
 //                 served last; need from usage per user-day (paid 30k/8k, free 7.5k/1.5k tokens)
 //   revenue     = demand $ × min(1, served ÷ need)   (consumer: paying users are served first)
 // Serving split (R6): with the Auto policy (default) each product needs its H100e; the pool serves the products earning
@@ -41,7 +41,7 @@ import { revenueToParent } from '../finance/parent';
 import { flopPerToken, pSuccess } from '../departments/workfit';
 import { h50Of } from '../models/capability';
 import {
-  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productLineup, productMiniUses, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -324,13 +324,11 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
       const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, usesOf.get(d.id), fxs.get(d.id));
-      // TIERS: the product's lineup (main model, lineup students, its mini), blended per region by the hours its buyers
+      // TIERS: the product's lineup (main model, then its real lineup entries), blended per region by the hours its buyers
       // take on each tier (the mix's playerTierW).
       let line = offers ? mix.lineupBy?.get(`${d.id}|${def.id}`) : undefined;
       if (!line) {
-        const mu = productMiniUses(s, d);
-        const om = mu ? productOffer(s, d, def.id, mu, fxs.get(d.id)) : undefined;
-        line = productLineup(s, d, def.id, o, om, fxs.get(d.id));
+        line = productLineup(s, d, def.id, o, fxs.get(d.id));
       }
       ws.push({ d, w: x, wAg, wSeat, o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
       wsum += x;
@@ -453,8 +451,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, effort: e, markup: markupOf(d), rate, ud });
         const main = versionById(s, d.versionId);
         const fMain = main ? flopPerToken(s, main) : 2e12;
-        // D10: reasoning tokens × effort × the model's τ (tokEff). A7: free users run the product's free tier (its mini,
-        // else the cheapest student of its model, chatFreeTier); paying users the main model.
+        // D10: reasoning tokens × effort × the model's τ (tokEff). A7: free users run the product's free tier
+        // (RD-P01a: the real model in its free-tier slot, chatFreeTier); paying users the main model.
         const tMain = tokEff(main);
         const ft = chatFreeTier(s, d);
         const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);

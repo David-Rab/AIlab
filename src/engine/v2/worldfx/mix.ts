@@ -38,7 +38,7 @@ import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  agentDemandOf, chatFreeTier, freeTierOf, lineupOf, paidShareTarget, productFx, productLineup, productMiniUses, productOffer, productUses, rungOffer, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, subPrice,
+  agentDemandOf, chatFreeTier, freeTierOf, lineupOf, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productUses, rungOffer, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
@@ -123,15 +123,13 @@ export interface SectorMix {
   /** A5: the buyers' surplus choice (bands, band shares, each provider's tier per band), every provider's tiers (offers
    *  before the value cap, their kind and value-capped price) and its customers' hours by tier (weight[i][k], sum 1). */
   tiers: { choice: Choice; offers: Offer[][]; kind: TierKind[][]; price: number[][]; weight: number[][] };
-  /** A5: per player product (deployment id), the share of its hours here its buyers take on its mini (cheap tier). */
-  playerMiniW: Record<string, number>;
   /** TIERS: per player product, its buyers' hours here by tier of its lineup (worldfx/serving.ts productLineup order:
-   *  main model, lineup students, its mini; sum 1). */
+   *  main model, then its real lineup entries; sum 1). */
   playerTierW: Record<string, number[]>;
 }
-/** A5: a tier is a provider's own model (the player's: a product's main model), the player's product mini (cheap tier),
- *  or a distilled student of a provider's model (TIERS: its lineup's cheap tiers, data/v2/serving.ts LINEUP; the
- *  player's under each sector product's main model). */
+/** A5: a tier is a provider's own model (the player's: a product's main model), another real model of a player product's
+ *  lineup (RD-P01a: `mini` = any lineup entry after the main model), or a distilled student of a rival's or China's model
+ *  (TIERS: their lineup's cheap tiers, data/v2/serving.ts LINEUP; RD-P02 makes them lab state). */
 export type TierKind = 'model' | 'mini' | 'student';
 
 export interface ConsumerMix {
@@ -390,13 +388,13 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // Capped domain vectors (display): non-player providers, and player candidate deployments.
   const pvec: (number[] | undefined)[] = providers.map((p) => (p.dom ? capVec(p.dom) : undefined));
-  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; ch: Deployment['channel']; uses: ModelUse[]; mini?: ModelUse[]; fx: ReturnType<typeof productFx> }[] = [];
+  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
     if (!mv) continue;
     const dom = productDomains(s, d, mv)!;
-    const mini = productMiniUses(s, d);
-    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), ch: d.channel, uses: productUses(s, d), ...(mini ? { mini } : {}), fx: productFx(s, d) });
+    const tiers = productTierUses(s, d);
+    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
   }
   // A8 multi-homing: in a sector's choice each provider is in a buyer's set with probability R (its reach: a stock in
   // fx.secReach, ≤ its access). Start (and a provider with no stock yet): access × min(1, MULTI_HOMING.providers ÷ the
@@ -460,13 +458,12 @@ function computeMix(s: GameStateV2): WorldMix {
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
         const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx);
         offerBy.set(`${cd.dep.id}|${t.id}`, o);
-        // TIERS: the product's lineup (main model, lineup students of it, its mini).
-        const om = cd.mini ? productOffer(s, cd.dep, t.id, cd.mini, cd.fx) : undefined;
-        const line = productLineup(s, cd.dep, t.id, o, om, cd.fx);
+        // TIERS / RD-P01a: the product's lineup (main model, then its real lineup entries; no phantom students).
+        const line = productLineup(s, cd.dep, t.id, o, cd.fx, cd.tiers);
         lineupBy.set(`${cd.dep.id}|${t.id}`, line);
         for (let k = 0; k < line.length; k++) {
           lines[playerIdx].push(line[k]);
-          kind[playerIdx].push(k === 0 ? 'model' : om && k === line.length - 1 ? 'mini' : 'student');
+          kind[playerIdx].push(k === 0 ? 'model' : 'mini');
           pt.push({ c, k });
         }
         const u = SHARE_SLOPE_G * o.fit - PRICE_ELASTICITY * Math.log(Math.max(1e-9, o.price));
@@ -614,7 +611,6 @@ function computeMix(s: GameStateV2): WorldMix {
       }
       // The player's products: each product's hours by tier of its lineup (per band, the product's best tier for the band
       // by the same utility; bands weighted by the player's band shares). A5's mini share is the mini tier's.
-      const miniW: Record<string, number> = {};
       const tierWOut: Record<string, number[]> = {};
       if (playerIdx >= 0 && target[playerIdx] > 1e-12) {
         const pt = pTiers[si];
@@ -641,7 +637,6 @@ function computeMix(s: GameStateV2): WorldMix {
           }
           const dep = cands[c].dep;
           tierWOut[dep.id] = w;
-          if (kinds[si][playerIdx][e - 1] === 'mini') miniW[dep.id] = w[e - j - 1];
           j = e;
         }
       }
@@ -710,7 +705,7 @@ function computeMix(s: GameStateV2): WorldMix {
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
-        tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerMiniW: miniW, playerTierW: tierWOut,
+        tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerTierW: tierWOut,
       };
     }
     sec[r] = rowOut;

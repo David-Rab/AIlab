@@ -21,7 +21,7 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, MINI_CHANNELS, P05_ORCHESTRATION, TOOL_BY_ID, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, P05_ORCHESTRATION, TOOL_BY_ID, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -331,17 +331,27 @@ export const markupOf = (d: Deployment) => MARKUP[d.price] ?? MARKUP.standard;
 export const channelPriceOf = (d: Deployment) => CHANNEL_PRICE[d.channel] ?? 1;
 export { RIVAL_MARKUP, CHINA_MARKUP };
 
-/** The model a product's paying customers use: its main version. RD-B11 (B15): Chat's mini serves only its free users
- *  (chatFreeTier) and a sector product's mini is a separate tier (productMiniUses); neither blends in here. */
+/** The model a product's paying customers use: its main version. RD-B11 (B15) / RD-P01a: Chat's free users run its
+ *  free-tier slot (chatFreeTier) and a sector product's other lineup models are tiers of their own (productTierUses);
+ *  neither blends in here. */
 export function productUses(s: GameStateV2, d: Deployment): ModelUse[] {
   const v = versionById(s, d.versionId);
   return v ? [{ v, fpt: flopPerToken(s, v), w: 1 }] : [];
 }
-/** A5: a sector product's cheap tier, its mini (API), as a model use of its own; undefined without one. */
-export function productMiniUses(s: GameStateV2, d: Deployment): ModelUse[] | undefined {
-  if (d.channel === 'consumer' || !d.miniVersionId || !MINI_CHANNELS.includes(d.channel)) return undefined;
-  const mini = versionById(s, d.miniVersionId);
-  return mini ? [{ v: mini, fpt: flopPerToken(s, mini), w: 1 }] : undefined;
+/** RD-P01a: the real versions of a product's lineup after its main model (Deployment.lineup order; unknown or retired
+ *  ids and the main model itself skipped). */
+export function lineupVersions(s: GameStateV2, d: Deployment): ModelVersion[] {
+  const out: ModelVersion[] = [];
+  for (const id of d.lineup ?? []) {
+    if (id === d.versionId) continue;
+    const v = versionById(s, id);
+    if (v && v.status !== 'retired' && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+/** RD-P01a: each lineup entry after the main model as a model use of its own (its own FLOP per token). */
+export function productTierUses(s: GameStateV2, d: Deployment): ModelUse[][] {
+  return lineupVersions(s, d).map((v) => [{ v, fpt: flopPerToken(s, v), w: 1 }]);
 }
 
 /** Coverage of a student g OOM below a teacher of sector fit `fit` and h50 `h50` (every domain shifted down by g). */
@@ -401,22 +411,12 @@ export function rungOffer(s: GameStateV2, o: Offer, sid: SectorId, h50: number, 
     priceAg: o.priceAg * r, hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
   };
 }
-/** TIERS: a product's lineup on a sector: its main model's offer `main`, then the lineup students of the main model
- *  (lineupOf on its active parameters), then its own mini when it has one (`mini`, A5). */
-export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, mini?: Offer, fx = productFx(s, d)): Offer[] {
-  const v = versionById(s, d.versionId);
+/** TIERS / RD-P01a: a product's lineup on a sector: its main model's offer `main`, then each real lineup entry
+ *  (productTierUses, Deployment.lineup order) at its own fit and serving cost, the product's settings, features and
+ *  markup (productOffer). No phantom students for the player (DD-01). */
+export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, fx = productFx(s, d), tiers = productTierUses(s, d)): Offer[] {
   const out = [main];
-  if (v) {
-    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-    const rungs = lineupOf(nT);
-    if (rungs.length) {
-      const h50 = sectorH50(s, v, sid, fxOn(fx, sid).hMult);
-      const markup = markupOf(d);
-      const rate = serveDollarsPerHour(s);
-      for (const g of rungs) out.push(rungOffer(s, main, sid, h50, g, markup, rate));
-    }
-  }
-  if (mini) out.push(mini);
+  for (const u of tiers) out.push(productOffer(s, d, sid, u, fx));
   return out;
 }
 /** TIERS: a product's offer when its buyers take its tiers by hours shares `w` (product order, sum 1): costs and prices
@@ -462,22 +462,36 @@ export function freeTierOf(nT: number): { r: number; gap: number } {
   const nS = studentParamsFor(nT, FREE_TIER.oom);
   return nS < nT ? { r: nS / nT, gap: DISTILL.a + DISTILL.b * Math.log10(nT / nS) } : { r: 1, gap: 0 };
 }
-/** A7: what the free users of the player's Chat product get: its mini when the player set one, else the free tier of
- *  its model (freeTierOf). Consumer-chat fit at the product's settings and features (no effort setting: free users get
- *  the default), FLOP per token and reasoning-token multiplier τ (a student keeps its teacher's, tokEff). */
-export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number } | undefined {
+/** RD-P01a: the model in a Chat product's free-tier slot: Deployment.freeTierId when it is in the lineup (the main model
+ *  or a lineup entry), else the lineup's cheapest model to serve (lowest FLOP per token; the main model alone: itself). */
+export function freeTierVersion(s: GameStateV2, d: Deployment): ModelVersion | undefined {
   const main = versionById(s, d.versionId);
   if (!main) return undefined;
+  const all = [main, ...lineupVersions(s, d)];
+  const set = d.freeTierId ? all.find((v) => v.id === d.freeTierId) : undefined;
+  if (set) return set;
+  let best = main;
+  let bf = flopPerToken(s, main);
+  for (const v of all) {
+    const f = flopPerToken(s, v);
+    if (f < bf) {
+      best = v;
+      bf = f;
+    }
+  }
+  return best;
+}
+/** A7 / RD-P01a: what the free users of the player's Chat product get: the real model in its free-tier slot
+ *  (freeTierVersion; with only the main model, the main model at its real serving cost). Consumer-chat fit at the
+ *  product's settings and features (no effort setting: free users get the default), FLOP per token and reasoning-token
+ *  multiplier τ (tokEff). */
+export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number; id: string } | undefined {
+  const v = freeTierVersion(s, d);
+  if (!v) return undefined;
   const x = fxOn(productFx(s, d), 'CHAT');
   const opts: OfferOpts = { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) };
-  const mini = d.miniVersionId ? versionById(s, d.miniVersionId) : undefined;
-  if (mini) {
-    const fpt = flopPerToken(s, mini);
-    return { fit: offerOf(s, [{ v: mini, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(mini) };
-  }
-  const fpt = flopPerToken(s, main);
-  const ft = freeTierOf(main.params ?? s.player.models.bases.find((b) => b.id === main.baseId)?.params ?? REFERENCE_BASE.params);
-  return { fit: offerOf(s, [{ v: main, fpt, w: 1 }], 'CHAT', opts).fit - ft.gap, fpt: fpt * ft.r, tau: tokEff(main) };
+  const fpt = flopPerToken(s, v);
+  return { fit: offerOf(s, [{ v, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(v), id: v.id };
 }
 
 /** Consumer subscription per month ($): a paying user's serving cost on the product's model (paid usage runs on the main

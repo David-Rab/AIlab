@@ -4,7 +4,7 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { FEATURE_BY_ID, MINI_CHANNELS, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
@@ -24,10 +24,13 @@ const fail = (why: string | undefined) => {
 const usable = (v: ModelVersion | undefined) => !!v && (v.status === 'ready' || v.status === 'deployed');
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
-/** A live edit: unset fields stay; `null` removes the mini free tier or the monitor. */
+/** A live edit: unset fields stay; `null` removes the free-tier choice or the monitor. */
 export interface ProductChanges {
   versionId?: string;
-  miniVersionId?: string | null;
+  /** RD-P01a: the lineup after the main model (version ids, in order; [] empties it). */
+  lineup?: string[];
+  /** RD-P01a: Chat's free-tier slot (a lineup model; null: the lineup's cheapest). */
+  freeTierId?: string | null;
   monitorId?: string | null;
   price?: PriceTier;
   safeguards?: Deployment['safeguards'];
@@ -36,11 +39,12 @@ export interface ProductChanges {
   features?: string[];
 }
 
-/** Changes from action params ('' or 'none' removes the mini / monitor; features as a comma list). */
+/** Changes from action params ('' or 'none' removes the free-tier choice / monitor; features and lineup as comma lists). */
 export function changesFromParams(p: Params): ProductChanges {
   const c: ProductChanges = {};
   if (typeof p.versionId === 'string' && p.versionId) c.versionId = p.versionId;
-  if (typeof p.miniVersionId === 'string') c.miniVersionId = p.miniVersionId && p.miniVersionId !== 'none' ? p.miniVersionId : null;
+  if (typeof p.lineup === 'string') c.lineup = p.lineup.split(',').map((x) => x.trim()).filter((x) => x && x !== 'none');
+  if (typeof p.freeTierId === 'string') c.freeTierId = p.freeTierId && p.freeTierId !== 'none' ? p.freeTierId : null;
   if (typeof p.monitorId === 'string') c.monitorId = p.monitorId && p.monitorId !== 'none' ? p.monitorId : null;
   if (typeof p.price === 'string' && (PRICE_TIER_IDS as string[]).includes(p.price)) c.price = p.price as PriceTier;
   if (typeof p.safeguards === 'string') c.safeguards = p.safeguards as Deployment['safeguards'];
@@ -54,9 +58,13 @@ export function changesFromParams(p: Params): ProductChanges {
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   const n: Deployment = { ...d, features: [...(c.features ?? d.features)], packs: d.packs.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
-  if (c.miniVersionId !== undefined) {
-    if (c.miniVersionId) n.miniVersionId = c.miniVersionId;
-    else delete n.miniVersionId;
+  if (c.lineup !== undefined) {
+    if (c.lineup.length) n.lineup = [...c.lineup];
+    else delete n.lineup;
+  }
+  if (c.freeTierId !== undefined) {
+    if (c.freeTierId) n.freeTierId = c.freeTierId;
+    else delete n.freeTierId;
   }
   if (c.monitorId !== undefined) {
     if (c.monitorId) n.monitorId = c.monitorId;
@@ -97,11 +105,23 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
       if (g !== true && g.startsWith('Blocked')) return g;
     }
   }
-  if (n.miniVersionId && n.miniVersionId !== d.miniVersionId) {
-    if (!MINI_CHANNELS.includes(d.channel)) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
-    const m = versionById(s, n.miniVersionId);
-    if (!m || m.variant !== 'mini') return 'The free tier runs a mini (distilled) model';
-    if (!usable(m)) return 'That mini is not ready';
+  if (c.lineup !== undefined) {
+    const allowed = CHANNEL_VARIANTS[d.channel] ?? [];
+    const seen = new Set<string>();
+    for (const id of c.lineup) {
+      if (id === n.versionId || seen.has(id)) return 'A model is in the lineup twice';
+      seen.add(id);
+      if ((d.lineup ?? []).includes(id)) continue;
+      const m = versionById(s, id);
+      if (!m) return 'Unknown version';
+      if (!usable(m)) return `${m.name} is not ready`;
+      if (s.player.safety.evalGate !== 'none' && m.evals.suiteDay === undefined) return `${m.name} is not evaluated yet`;
+      if (!allowed.includes(m.variant) && !(m.variant === 'mini' && allowed.includes('full'))) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} cannot sell a ${m.variant} model`;
+    }
+  }
+  if (n.freeTierId && n.freeTierId !== d.freeTierId) {
+    if (d.channel !== 'consumer') return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
+    if (n.freeTierId !== n.versionId && !(n.lineup ?? []).includes(n.freeTierId)) return 'The free tier runs a model of the lineup';
   }
   if (n.monitorId && n.monitorId !== d.monitorId) {
     const m = versionById(s, n.monitorId);
@@ -125,14 +145,15 @@ export function applyEdit(s: GameStateV2, ctx: SystemCtx | undefined, d: Deploym
   const n = editedProduct(d, c);
   const swapped = n.versionId !== d.versionId;
   Object.assign(d, n);
-  if (!n.miniVersionId) delete d.miniVersionId;
+  if (!n.lineup?.length) delete d.lineup;
+  if (!n.freeTierId) delete d.freeTierId;
   if (!n.monitorId) delete d.monitorId;
   if (swapped) {
     d.versionSince = s.time.day;
     const v = versionById(s, d.versionId);
     if (v && v.status !== 'deployed') v.status = 'deployed';
   }
-  for (const id of [d.miniVersionId, d.monitorId]) {
+  for (const id of [...(d.lineup ?? []), d.monitorId]) {
     const v = versionById(s, id);
     if (v && v.status === 'ready') v.status = 'deployed';
   }

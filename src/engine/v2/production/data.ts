@@ -417,7 +417,7 @@ export function usageTokensPerDay(s: GameStateV2, d: Deployment, share = s.playe
   const main = outputTokensPerH100eDay(fptOf(versionById(s, d.versionId)));
   // A6: Chat's free users run on its free tier (worldfx/revenue.ts: paying users are served first, on the main model),
   // so the served compute beyond the paying need serves the free tier's tokens (×N_main/N_free per H100e). A7: the free
-  // tier is its mini, else the cheapest student of its model (worldfx/serving.ts chatFreeTier).
+  // tier is the real model in its free-tier slot (RD-P01a; worldfx/serving.ts chatFreeTier).
   const free = d.needPaidH100e !== undefined && d.channel === 'consumer' ? chatFreeTier(s, d) : undefined;
   if (!free) return (h * main * elig * share) / 1e12;
   const paid = Math.min(h, d.needPaidH100e!);

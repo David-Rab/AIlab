@@ -91,7 +91,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
     versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price), effort: p.effort ?? 'max',
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', controlLayer: p.controlLayer ?? false,
     packs: re.packs.map((x) => ({ ...x })), features: [...(p.features ?? [])],
-    ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.miniVersionId ? { miniVersionId: p.miniVersionId } : {}),
+    ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.lineup?.length ? { lineup: [...p.lineup] } : {}), ...(p.freeTierId ? { freeTierId: p.freeTierId } : {}),
     usagePolicy,
     kyc: p.kyc ?? (p.channel === 'api' || p.channel === 'agents' ? 1 : 0), status: 'live',
   };
@@ -177,7 +177,7 @@ export function retireVersion(s: GameStateV2, versionId: string): string | undef
   if (Object.values(s.player.agents).some((a) => a.versionId === v.id || a.monitorId === v.id)) return 'Powers or monitors internal agents';
   if (s.player.models.stream?.versionId === v.id) return 'Is the continual-learning stream';
   if (s.player.deployments.some((d) => d.versionId === v.id && d.status !== 'withdrawn')) return 'Has live deployments';
-  if (s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.monitorId === v.id || d.miniVersionId === v.id))) return 'Monitors or serves a free tier on a live product';
+  if (s.player.deployments.some((d) => d.status !== 'withdrawn' && (d.monitorId === v.id || (d.lineup ?? []).includes(v.id)))) return 'Monitors a live product or is in its lineup';
   v.status = 'retired';
   compactRetired(s);
   return undefined;

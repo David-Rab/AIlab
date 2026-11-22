@@ -59,7 +59,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 {
   const s = game();
   const ext = s.player.deployments.filter((d) => d.channel !== 'internal');
-  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && !d.miniVersionId),
+  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && !d.lineup),
     'P1 leader start: Chat, API, Enterprise are products at the standard tier with no features, mini or monitor');
   const pol = s.player.policies;
   check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && !pol.autoSplit.on, 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; Auto-split idle compute off');

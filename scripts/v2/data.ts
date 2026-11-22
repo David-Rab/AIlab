@@ -343,8 +343,8 @@ check(usageT > 0 && usageTokensPerDay(sU, consumer) > 0 && usageTokensPerDay(sU,
   const V0 = sU.player.models.versions[0];
   const mini = { ...V0, id: 'A6mini', variant: 'mini' as const, fpt: (V0.fpt ?? 2e12) / 8 };
   sU.player.models.versions.push(mini);
-  const tiered = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini' });
-  const allPaid = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini', needPaidH100e: 1000 });
+  const tiered = usageTokensPerDay(sU, { ...c, lineup: ['A6mini'] });
+  const allPaid = usageTokensPerDay(sU, { ...c, lineup: ['A6mini'], needPaidH100e: 1000 });
   sU.player.models.versions.pop();
   check(near(tiered / flat, 0.4 + 0.6 * 8, 1e-3) && near(allPaid, flat, 1e-9) && near(auto / flat, 0.4 + 0.6 / rAuto, 1e-3), 'usage: the free tier (a Chat mini, else the cheapest student, A7) serves the free users\' tokens at its own FLOP per token (A6)',
     `all paying ${(flat * 1e3).toFixed(2)} → mini ${(tiered * 1e3).toFixed(2)} / auto free tier ${(auto * 1e3).toFixed(2)}B/day on 1000 H100e (400 paying need)`);

@@ -20,7 +20,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -52,7 +52,8 @@ const rate = (x: number) => `$${F.count(x)}/H100e-yr`;
 function editParams(id: string, c: ProductChanges): Params {
   const p: Params = { id };
   if (c.versionId) p.versionId = c.versionId;
-  if (c.miniVersionId !== undefined) p.miniVersionId = c.miniVersionId ?? '';
+  if (c.lineup !== undefined) p.lineup = c.lineup.join(',');
+  if (c.freeTierId !== undefined) p.freeTierId = c.freeTierId ?? '';
   if (c.monitorId !== undefined) p.monitorId = c.monitorId ?? '';
   if (c.price) p.price = c.price;
   if (c.safeguards) p.safeguards = c.safeguards;
@@ -67,7 +68,9 @@ function changeLines(s: GameStateV2, d: Deployment, c: ProductChanges): { k: str
   const n = editedProduct(d, c);
   const out: { k: string; from: string; to: string }[] = [];
   if (n.versionId !== d.versionId) out.push({ k: 'Model', from: nameOf(s, d.versionId), to: nameOf(s, n.versionId) });
-  if (n.miniVersionId !== d.miniVersionId) out.push({ k: 'Free tier', from: d.miniVersionId ? nameOf(s, d.miniVersionId) : 'none', to: n.miniVersionId ? nameOf(s, n.miniVersionId) : 'none' });
+  const lineTxt = (x: Deployment) => (x.lineup?.length ? x.lineup.map((id) => nameOf(s, id)).join(', ') : 'main model only');
+  if ((n.lineup ?? []).join() !== (d.lineup ?? []).join()) out.push({ k: 'Lineup', from: lineTxt(d), to: lineTxt(n) });
+  if (n.freeTierId !== d.freeTierId) out.push({ k: 'Free tier', from: d.freeTierId ? nameOf(s, d.freeTierId) : 'cheapest', to: n.freeTierId ? nameOf(s, n.freeTierId) : 'cheapest' });
   if (n.monitorId !== d.monitorId) out.push({ k: 'Monitor', from: d.monitorId ? nameOf(s, d.monitorId) : 'none', to: n.monitorId ? nameOf(s, n.monitorId) : 'none' });
   if (n.price !== d.price) out.push({ k: 'Price', from: TIER_LABEL[d.price], to: TIER_LABEL[n.price] });
   if (n.safeguards !== d.safeguards) out.push({ k: 'Safeguards', from: SG_LABEL[d.safeguards], to: SG_LABEL[n.safeguards] });
@@ -145,7 +148,6 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
   const mon = versionById(s, n.monitorId);
   const editing = !!draft && changeLines(s, d, draft).length > 0;
   const models = s.player.models.versions.filter((x) => usable(x) && CHANNEL_VARIANTS[d.channel].includes(x.variant));
-  const minis = s.player.models.versions.filter((x) => usable(x) && x.variant === 'mini');
   const monitors = s.player.models.versions.filter((x) => usable(x) && x.variant !== 'open');
   const hist = [...(d.hist ?? []), d.revenueRate ?? 0];
   const last = d.hist?.length ? d.hist[d.hist.length - 1] : undefined;
@@ -159,17 +161,10 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
         <span className="pc-st"><i />Live</span>
       </div>
 
-      {/* Package: model (+ mini free tier), monitor, run cost */}
-      <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || n.miniVersionId !== d.miniVersionId}
+      {/* Package: model (+ its lineup; Chat: the free-tier slot), monitor, run cost */}
+      <PkgChip kind="model" testId={`prod-model.${d.id}`} value={n.versionId} changed={n.versionId !== d.versionId || (n.lineup ?? []).join() !== (d.lineup ?? []).join() || n.freeTierId !== d.freeTierId}
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
-        sub={def && (d.channel === 'consumer' || d.channel === 'api') && (
-          <Tip content={() => <TipCard title={d.channel === 'consumer' ? <Term id="freeTier">Mini free tier</Term> : <Term id="cheapTier">Mini cheap tier</Term>}>{d.channel === 'consumer' ? 'The free tier serves every user without a subscription. By default it is a distilled student of the main model, a year of frontier progress below it and far cheaper to serve, as every lab\'s is; users choose an app on it. A mini of your own replaces it for the free users only: subscribers run the main model, so it does not change the paid share.' : 'A mini of your own is an extra tier in the product\'s [[lineup]]: buyers take it on the tasks it does as well, at its lower price. Its share of the hours follows from the market, not a setting.'}</TipCard>}>
-            <select className="msel sub" data-test={`prod-mini.${d.id}`} value={n.miniVersionId ?? ''} onChange={(e) => set({ miniVersionId: e.target.value || null })}>
-              <option value="">{d.channel === 'consumer' ? 'student free tier' : 'lineup only'}</option>
-              {minis.map((x) => <option key={x.id} value={x.id}>+ {x.name} {d.channel === 'consumer' ? 'free' : 'cheap'} tier</option>)}
-            </select>
-          </Tip>
-        )} />
+        sub={def && <LineupPicker s={s} d={d} n={n} set={set} />} />
       <PkgChip kind="monitor" testId={`prod-monitor.${d.id}`} value={n.monitorId ?? ''} changed={n.monitorId !== d.monitorId}
         options={[{ value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]} onPick={(x) => set({ monitorId: x || null })}
         extra={mon && <CatchX {...catchRate(s, v, mon)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />} />
@@ -403,6 +398,43 @@ const frac = (r: number) => `1/${r > 0.2 ? (1 / r).toFixed(1) : Math.round(1 / r
 const paramsTxt = (n: number) => (n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : `${n >= 1e10 ? Math.round(n / 1e9) : (n / 1e9).toFixed(1)}B`);
 const tierName = (x: LineupRow) => (x.kind === 'student' ? `student ${frac(x.ratio)}` : x.name);
 
+/** RD-P01a: the product's lineup under its Model row: the other real models it sells (in order, each removable), an
+ *  "add a model" picker over the lab's ready models the channel can sell, and on Chat the free-tier slot. */
+function LineupPicker({ s, d, n, set }: { s: GameStateV2; d: Deployment; n: Deployment; set: (c: ProductChanges) => void }) {
+  const allowed = CHANNEL_VARIANTS[d.channel];
+  const line = (n.lineup ?? []).filter((id) => id !== n.versionId);
+  const addable = s.player.models.versions.filter((x) => usable(x) && x.id !== n.versionId && !line.includes(x.id) && (allowed.includes(x.variant) || (x.variant === 'mini' && allowed.includes('full'))));
+  const chat = d.channel === 'consumer';
+  const cheapest = chat ? freeTierVersion(s, { ...n, freeTierId: undefined }) : undefined;
+  const tip = chat
+    ? 'Chat\'s [[lineup]]: paying users always run the main model. Free users (everyone without a subscription) run the model in the free-tier slot, by default the cheapest one here to serve; with only the main model, free users run the main model at its full serving cost. Add a distilled mini or an older model to serve them more cheaply.'
+    : 'Other models of yours this product also sells, each at its own fit and serving cost and this product\'s markup. In each band of task difficulty buyers take the one with the best surplus: cheaper models sell on easy work. Their share of the hours follows from the market, not a setting.';
+  return (
+    <Tip content={() => <TipCard title={<Term id="lineup">Lineup</Term>} value={`${1 + line.length} model${line.length ? 's' : ''}`}>{tip}</TipCard>}>
+      <div className="pc-lineup" data-test={`prod-lineup-pick.${d.id}`}>
+        {line.map((id) => (
+          <span key={id} className="msel sub" data-test={`prod-lineup-entry.${d.id}.${id}`}>
+            + {nameOf(s, id)}
+            <button type="button" className="x" aria-label={`Remove ${nameOf(s, id)} from the lineup`} data-test={`prod-lineup-rm.${d.id}.${id}`} onClick={() => set({ lineup: line.filter((x) => x !== id), ...(n.freeTierId === id ? { freeTierId: null } : {}) })}><X size={10} /></button>
+          </span>
+        ))}
+        {addable.length > 0 && (
+          <select className="msel sub" data-test={`prod-lineup-add.${d.id}`} value="" onChange={(e) => e.target.value && set({ lineup: [...line, e.target.value] })}>
+            <option value="">+ add a model</option>
+            {addable.map((x) => <option key={x.id} value={x.id}>{x.name} · L {F.level(mL(s, x))}</option>)}
+          </select>
+        )}
+        {chat && (
+          <select className="msel sub" data-test={`prod-free.${d.id}`} value={n.freeTierId && (n.freeTierId === n.versionId || line.includes(n.freeTierId)) ? n.freeTierId : ''} onChange={(e) => set({ freeTierId: e.target.value || null })}>
+            <option value="">free tier: cheapest ({cheapest?.name ?? '—'})</option>
+            {[n.versionId, ...line].map((id) => <option key={id} value={id}>free tier: {nameOf(s, id)}</option>)}
+          </select>
+        )}
+      </div>
+    </Tip>
+  );
+}
+
 function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow[] }) {
   const sold = rows.filter((x) => x.share > 0.005).length;
   return (
@@ -410,17 +442,18 @@ function Lineup({ d, r, rows }: { d: Deployment; r: ProductRead; rows: LineupRow
       <Tip as="div" content={() => <TipCard title={<Term id="lineup">Lineup</Term>} value={`${rows.length} tiers · ${sold} selling`} rows={rows.map((x, k) => ({
         label: <span><i className="tl-sw" style={{ background: TIER_COL[k] ?? TIER_COL[4] }} />{tierName(x)}</span>, value: `${F.pct(x.share)} of hours`,
       }))} footer={`Price tier ${TIER_LABEL[d.price]}: every tier at ×${(r.markup * (CHANNEL_PRICE[d.channel] ?? 1)).toFixed(2)} its serving cost${(CHANNEL_PRICE[d.channel] ?? 1) !== 1 ? ` (markup ×${r.markup.toFixed(2)} × channel price ×${(CHANNEL_PRICE[d.channel] ?? 1).toFixed(2)})` : ''}.`}>
-        {'Your main model and distilled students of it. In each band of task difficulty buyers take the tier with the best surplus among every provider\'s tiers: cheap tiers sell on easy work, the main model keeps the work only it does. Every lab sells the same [[lineup]].'}
+        {'Your main model and the other models you put in this product\'s [[lineup]] (Model row above). In each band of task difficulty buyers take the tier with the best surplus among every provider\'s tiers: cheaper models sell on easy work, the main model keeps the work only it does.'}
       </TipCard>}>
         <div className="tl-h"><span className="ec-k">Lineup</span><span className="sp" /><span><Term id="fit">fit</Term></span><span>price</span><span>sold</span></div>
       </Tip>
       {rows.map((x, k) => (
-        <Tip as="div" key={k} content={() => <TipCard title={x.kind === 'student' ? <><Term id="cheapTier">Student</Term> of {rows[0].name}</> : x.kind === 'mini' ? <><Term id="cheapTier">Mini</Term> {x.name}</> : <>Main model {x.name}</>} value={`${F.pct(x.share, 1)} of hours`} rows={[
-          { label: 'Active parameters', value: `${paramsTxt(x.params)}${x.kind !== 'model' ? ` (${frac(x.ratio)} of the main model)` : ''}` },
-          { label: x.kind === 'student' ? <Term id="distillGap">Fit below the main model</Term> : <Term id="fit">Fit below the main model</Term>, value: x.kind === 'model' ? '—' : `${F.num(x.gap, 2)} OOM` },
+        <Tip as="div" key={k} content={() => <TipCard title={x.kind === 'model' ? <>Main model {x.name}</> : <><Term id="lineup">Lineup model</Term> {x.name}</>} value={`${F.pct(x.share, 1)} of hours`} rows={[
+          { label: 'Active parameters', value: paramsTxt(x.params) },
+          ...(x.kind !== 'model' ? [{ label: 'Serving cost per token', value: `${frac(x.ratio)} of the main model's` }] : []),
+          { label: <Term id="fit">Fit below the main model</Term>, value: x.kind === 'model' ? '—' : `${F.num(x.gap, 2)} OOM` },
           { label: 'Price per billed hour', value: `${F.usd(x.price)}/h${x.hours > 0 ? '' : ' (if sold)'}` },
           { label: 'Billed hours a year', value: x.hours > 0 ? `${F.count(x.hours)} h` : 'none' },
-        ]} footer={x.kind === 'student' ? 'Sold under every main model by the same rule: no distil run needed.' : undefined}>
+        ]}>
           {x.kind === 'model' ? 'Does the hardest tasks the product sells.' : x.share > 0.005 ? 'Sells where it does the task at a lower price than any tier that does more.' : 'Sells nothing now: on the work it does, another tier (yours or a rival\'s) gives buyers more surplus.'}
         </TipCard>}>
           <div className="tl-row" data-test={`prod-tier.${d.id}.${k}`}>

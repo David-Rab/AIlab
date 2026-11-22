@@ -145,3 +145,11 @@
 .pc-line .tl-n.dim { font-weight: 400; color: var(--text-2); }
 .pc-line .tl-bar { min-width: 0; height: 6px; }
 .tl-sw { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+
+/* RD-P01a: the lineup under a product's Model row (entries with a remove button, add picker, Chat free-tier slot). */
+.pc-lineup { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pc-lineup > span.msel { display: inline-flex; align-items: center; gap: 3px; }
+.pc-lineup button.x { background: none; border: 0; padding: 0 1px; color: inherit; opacity: 0.6; cursor: pointer; display: inline-flex; }
+.pc-lineup button.x:hover { opacity: 1; }
+.pc .mchip > [data-tip]:has(> .pc-lineup) { flex: 1 0 100%; padding-left: 19px; }
+.pc .mchip .pc-lineup .msel.sub { width: auto; flex: 0 1 auto; }

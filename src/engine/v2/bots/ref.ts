@@ -489,7 +489,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     cheapIds.push(cheap.id);
     s.flags['ref:cheapIds'] = cheapIds.slice(-4).join(',');
   }
-  if (cheapTier && apiDep && cheap && apiDep.miniVersionId !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, miniVersionId: cheap.id });
+  if (cheapTier && apiDep && cheap && apiDep.lineup?.[0] !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, lineup: cheap.id }); // RD-P01a: the cheap tier is the API's lineup entry
 
   // Product channels (consumer, API, enterprise). 'compete': competeRelease. 'mini' / 'frontier': they move to the new
   // public model only if it measures better than what they serve (a fresh mini can trail the previous release).

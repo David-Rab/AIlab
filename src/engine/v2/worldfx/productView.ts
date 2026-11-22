@@ -5,14 +5,14 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { MINI_CHANNELS, type FeatureDef, type WorkScope } from '../../../data/v2/features';
+import { type FeatureDef, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
-import { SECTOR_PACK_DG, effortDG, lineupOf, markupOf, serveDollarsPerHour } from './serving';
-import { workFit } from '../departments/workfit';
+import { SECTOR_PACK_DG, effortDG, lineupVersions, markupOf, serveDollarsPerHour } from './serving';
+import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
@@ -58,11 +58,11 @@ export interface ProductRead {
   lineup?: LineupRow[];
 }
 
-/** TIERS: one tier of a sector product's lineup. `gap` OOM of fit below the main model (students: the distillation
- *  rule's δ; the mini: its work fit below the main model's); `ratio` its active parameters ÷ the main model's (its price
- *  per token ÷ the main model's at the product's markup); `price` $ per billed hour (adopted task-hours and agent-hours,
+/** TIERS / RD-P01a: one real model of a sector product's lineup (`id` its version). `gap` OOM of its work fit (SWE)
+ *  below the main model's; `ratio` its FLOP per token ÷ the main model's (its price per token ÷ the main model's at the
+ *  product's markup); `price` $ per billed hour (adopted task-hours and agent-hours,
  *  demand-weighted; for a tier that sells nothing, the main model's × ratio); `share` of the product's billed hours. */
-export interface LineupRow { kind: TierKind; name: string; params: number; ratio: number; gap: number; hours: number; share: number; price: number }
+export interface LineupRow { kind: TierKind; id: string; name: string; params: number; ratio: number; gap: number; hours: number; share: number; price: number }
 
 /** TIERS: the lineup rows of a sector product from its revenue readout. */
 function lineupRows(s: GameStateV2, d: Deployment, x: DeploymentRevenue): LineupRow[] | undefined {
@@ -70,12 +70,11 @@ function lineupRows(s: GameStateV2, d: Deployment, x: DeploymentRevenue): Lineup
   const v = versionById(s, d.versionId);
   if (!v) return undefined;
   const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-  const rows: Omit<LineupRow, 'hours' | 'share' | 'price'>[] = [{ kind: 'model', name: v.name, params: nT, ratio: 1, gap: 0 }];
-  for (const g of lineupOf(nT)) rows.push({ kind: 'student', name: `${v.name} student`, params: nT * g.r, ratio: g.r, gap: g.g });
-  const mini = d.miniVersionId && MINI_CHANNELS.includes(d.channel) ? versionById(s, d.miniVersionId) : undefined;
-  if (mini) {
-    const nM = mini.params ?? s.player.models.bases.find((b) => b.id === mini.baseId)?.params ?? REFERENCE_BASE.params;
-    rows.push({ kind: 'mini', name: mini.name, params: nM, ratio: nM / nT, gap: workFit(s, v, 'SWE').fit - workFit(s, mini, 'SWE').fit });
+  const rows: Omit<LineupRow, 'hours' | 'share' | 'price'>[] = [{ kind: 'model', id: v.id, name: v.name, params: nT, ratio: 1, gap: 0 }];
+  // RD-P01a: then the product's real lineup entries (no phantom students).
+  for (const m of lineupVersions(s, d)) {
+    const nM = m.params ?? s.player.models.bases.find((b) => b.id === m.baseId)?.params ?? REFERENCE_BASE.params;
+    rows.push({ kind: 'mini', id: m.id, name: m.name, params: nM, ratio: flopPerToken(s, m) / flopPerToken(s, v), gap: workFit(s, v, 'SWE').fit - workFit(s, m, 'SWE').fit });
   }
   const t = x.tiers ?? [];
   const H = t.reduce((a, y) => a + y.hours, 0);

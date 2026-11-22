@@ -568,16 +568,20 @@ export type PriceTier = 'budget' | 'standard' | 'premium';
 /** A sector pack on a product (RD-B12): the sector and the day its certification ends (built + SECTOR_CERT_DAYS). */
 export interface SectorPack { sector: SectorId; certDay: Day }
 
-/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ optional mini free tier) and an
+/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ an optional lineup of other models) and an
  *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
 export interface Deployment {
   id: string;
   kind: DeploymentKind;
   versionId: string;
-  /** Smaller model on the product. Chat: its free tier, the model Chat's free users get (worldfx/serving.ts chatFreeTier),
-   *  and nothing else (RD-B11: paying users run the main model; the old FREE_TIER_SHARE blend is gone). Sector
-   *  products (API, Agents): a separate cheap tier (productMiniUses), not blended. */
-  miniVersionId?: string;
+  /** RD-P01a (DD-01): the product's lineup after its main model (versionId): other real versions the lab owns (distilled
+   *  minis, older full models, post-trains) in the player's order. Sector products sell each entry as a tier at its own
+   *  fit and serving cost and the product's markup (worldfx/serving.ts productLineup); Chat's free users get one lineup
+   *  model (freeTierId), its paying users the main model. No entry: the main model alone. */
+  lineup?: string[];
+  /** RD-P01a: Chat's free-tier slot: the lineup model (the main one or an entry) its free users get (worldfx/serving.ts
+   *  chatFreeTier); unset or not in the lineup: the lineup's cheapest model to serve. */
+  freeTierId?: string;
   /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a
    *  serving overhead. */
   monitorId?: string;

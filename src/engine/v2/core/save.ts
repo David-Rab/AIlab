@@ -2,7 +2,7 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import type { Deployment, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
@@ -81,8 +81,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  62 (RD-R04): the rolled tree path and the paradigm mirror are gone: PlayerLab.paradigms (adopted() reads the tree),
  *  the rolled-node fields of TreeNodeState (odds multiplier, retry day), the kyc node (the per-product KYC setting stays), P27's hidden paradigm draw.
  *  Migration 61 → 62 drops them and restates P27 as a safety project of line AG17 (running: its test at its progress;
- *  failed: open again, next attempt). */
-export const SCHEMA_REV = 62;
+ *  failed: open again, next attempt).
+ *  63 (RD-P01a): a product offers a lineup of real models (Deployment.lineup, Chat's freeTierId); miniVersionId is gone.
+ *  Migration 62 → 63 makes an existing mini the second lineup entry (Chat: its free tier). */
+export const SCHEMA_REV = 63;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -588,6 +590,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const T1 = AGENDA_BY_ID.AG17.T1;
     if (st?.status === 'failed') p.tree.P27 = { status: 'researching', progress: 0, attempts: (st.attempts ?? 1) + 1 };
     else if (st?.status === 'researching' && !st.saf) st.saf = { work: Math.min(1, Math.max(0, st.progress ?? 0)) * T1, workNeed: T1, flop: 0 };
+  },
+  /** 62 → 63 (RD-P01a): a product's mini (miniVersionId) becomes the second model of its lineup (Deployment.lineup);
+   *  Chat's free tier keeps it (freeTierId). Idempotent. */
+  62: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const d of s.player?.deployments ?? []) {
+      const o = d as Deployment & { miniVersionId?: string };
+      if (!o.miniVersionId) continue;
+      if (o.miniVersionId !== d.versionId && !(d.lineup ?? []).includes(o.miniVersionId)) d.lineup = [o.miniVersionId, ...(d.lineup ?? [])];
+      if (d.channel === 'consumer' && !d.freeTierId) d.freeTierId = o.miniVersionId;
+      delete o.miniVersionId;
+    }
   },
 };
 

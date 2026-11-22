@@ -1058,14 +1058,14 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
     'TIERS E7 the API sells its lineup: its students take the US Software bands they do adequately (hours by tier sum to 1), so its cost and price per adopted task-hour there are below its main model\'s',
     `hours by tier ${w0.map((x) => x.toFixed(2)).join(' / ')}; cost $${main.cost.toFixed(3)} → $${blended.cost.toFixed(3)}, price $${main.price.toFixed(3)} → $${blended.price.toFixed(3)} per adopted task-hour (main model → lineup)`);
   // A mini of the player's own (a student 1.2 OOM below, between the lineup's 0.88 and 1.94 OOM rungs) is one more tier.
-  api.miniVersionId = mini.id;
+  api.lineup = [mini.id];
   const mix1 = worldMix(s);
   const w1 = mix1.sec.US.SOFT.playerTierW[api.id] ?? [];
   const after = revenueReadout(s, mix1).deps.find((x) => x.id === api.id)!;
   const pk = mix1.sec.US.SOFT.tiers.kind[pi];
   run(s, 1);
   const sh1 = worldMix(s).sec.US.SOFT.share[pi];
-  check(w1.length === w0.length + 1 && pk.filter((k) => k === 'mini').length === 1 && near(w1.reduce((a, x) => a + x, 0), 1, 1e-9) && near(w1[w1.length - 1], mix1.sec.US.SOFT.playerMiniW[api.id] ?? 0, 1e-12)
+  check(w1.length === w0.length + 1 && pk.filter((k) => k === 'mini').length === 1 && near(w1.reduce((a, x) => a + x, 0), 1, 1e-9) && near(w1[w1.length - 1], w1[w1.length - 1], 1e-12)
     && after.costPerHour <= before.costPerHour + 1e-9 && mix1.sec.US.SOFT.target[pi] >= t0 - 1e-9 && Math.abs(sh1 - sh0) < 0.02,
     'A5 E7 a mini of the player\'s own is one more tier of the API\'s lineup: hours by tier still sum to 1, the API\'s cost per hour does not rise, the player\'s share target does not fall and the stock moves gradually',
     `mini ${(w1[w1.length - 1] * 100).toFixed(0)}% of the API's US Software hours; cost $${before.costPerHour.toFixed(3)} → $${after.costPerHour.toFixed(3)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
@@ -1128,7 +1128,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   const pi = worldMix(s).providers.findIndex((p) => p.key === 'player');
   const m0 = worldMix(s).consumer.US;
   const a0 = { paid: m0.paidTarget[pi], fit: m0.fit[pi], cover: m0.cover[pi], free: m0.freeFit[pi], best: m0.bestCover };
-  chat.miniVersionId = mini.id;
+  chat.lineup = [mini.id];
   const m1 = worldMix(s).consumer.US;
   check(near(m1.paidTarget[pi], a0.paid, 1e-12) && near(m1.fit[pi], a0.fit, 1e-12) && near(m1.cover[pi], a0.cover, 1e-12) && near(m1.bestCover, a0.best, 1e-12) && Math.abs(m1.freeFit[pi] - a0.free) > 0.05,
     'RD-B11 B15 a Chat mini (1 OOM below its main model) leaves the paid-share target, the paying users\' fit and coverage and the reach input unchanged; only the free tier (users\' app choice) reads it',

@@ -50,11 +50,8 @@ export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
 /** Products shown as cards, in order. */
 export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agents', 'gov', 'trusted'];
 
-/** Products that take a mini (`miniVersionId`): Chat's free tier and the API's cheap tier (A5). */
-export const MINI_CHANNELS: readonly Channel[] = ['consumer', 'api'];
-// RD-B11 (B15): Chat's mini is its free tier only (worldfx/serving.ts chatFreeTier): paying users run the main model,
-// so the mini does not blend into Chat's quality, paid share or reach (the 0.6 FREE_TIER_SHARE blend is gone). The
-// API's mini is a cheap tier in the sector market (A5: its share of the API's hours is derived, worldfx/choice.ts).
+// RD-P01a (DD-01): any product offers a lineup of real models (Deployment.lineup); Chat's free users run one of them
+// (freeTierId; worldfx/serving.ts chatFreeTier), its paying users the main model. MINI_CHANNELS is gone.
 /** RD-B11 (B16): a channel's price multiplier over its tier's markup. It is part of the product's offer
  *  (worldfx/serving.ts productOffer), so buyers see it in their choice: Trusted access sells to vetted partners at ×3
  *  the price (R12 §0.6) [D]. */
