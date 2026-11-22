@@ -27,6 +27,8 @@ export const POOL_MAX = 4;
  *  target"; small-scale ablations at ≤ 1e19-ish FLOP, Gundlach]. A candidate's small-scale effect x is x·1000^s at test
  *  scale, so a quarter of small-scale wins survive when s ~ N(−0.3, 0.3) (s ≥ −0.1) [R20 B5]. */
 export const SMALL_TO_TEST = 1000;
+/** Range of a candidate's scale exponent [D] (models/research.ts; actors/rivalModel.ts line scale factors). */
+export const S_RANGE: readonly [number, number] = [-0.6, 0.25];
 /** At the scale test a candidate survives if its effect at test scale is at least this share of its small-scale
  *  estimate (R20 B5 "survives at scale") [D]. */
 export const SURVIVE_FRAC = 0.5;

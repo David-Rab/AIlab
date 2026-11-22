@@ -495,9 +495,6 @@ export interface PostDesign {
   rlFocus: RLFamily[] | 'broad'; // pick 2 or broad
   /** RL budget: RL FLOP as a share of the base's pretraining FLOP (light 0.03, standard 0.15, heavy 0.4). */
   rlBudget: 'light' | 'standard' | 'heavy';
-  /** Legacy (V1's graders option; model v3 D5 made "hardened graders" the state of the lab's environment suites,
-   *  PlayerLab.suites): read only by the schemaRev 21 → 22 save migration. */
-  graders?: 'cheap' | 'hardened';
   inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';

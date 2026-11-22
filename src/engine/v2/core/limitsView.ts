@@ -1,6 +1,6 @@
 // Read-only views of the limits the player can hit (STRUCTURE R11, data/v2/limits.ts): the live reading of each cap,
 // floor or gate where the UI shows it. Pure selectors; nothing here changes state or reads hidden truth.
-import { PROD_SPEED_CAP } from '../../../data/v2/calibration';
+import { SPEED_CAP } from '../../../data/v2/workTypes';
 import { SITE_PATHS } from '../../../data/v2/deals';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
@@ -40,7 +40,7 @@ export function researchSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   // Serial speed of research agents (R11 #23 cap).
   if (r) {
     const raw = speedOfCopy();
-    out.push({ id: 'speed.serialCap', mult: 1, binding: raw >= PROD_SPEED_CAP, text: raw >= PROD_SPEED_CAP ? `capped at ${PROD_SPEED_CAP}×` : `${Math.round(raw)}× of ${PROD_SPEED_CAP}×` });
+    out.push({ id: 'speed.serialCap', mult: 1, binding: raw >= SPEED_CAP, text: raw >= SPEED_CAP ? `capped at ${SPEED_CAP}×` : `${Math.round(raw)}× of ${SPEED_CAP}×` });
   }
   // Pause of frontier experiments.
   const until = ws4r(s).frontierPauseUntil;

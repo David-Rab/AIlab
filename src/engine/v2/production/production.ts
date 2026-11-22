@@ -17,9 +17,9 @@
 //   ℓ = Lrel^λ;  X = [u·c^(ζρ) + v·ℓ^ρ]^(1/ρ);  Tref = M_ref(q)/X(1, ℓ_ref(q));  norm = X(1, ℓ_ref(q)) / X*(q, yr)
 //   M = Tref·X·norm·eff·mods;  Stage 1: dpa/dt = share·laborSlowdown(M, yr);  Stage 2: dpa/dt = M;  × pause × treaty
 import { laborSlowdown, multiplierAt, stage1 } from '../../../data/world';
-import { CHINA_CAL, H100E_PER_COPY_SC, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY, PROD_SPEED_CAP } from '../../../data/v2/calibration';
+import { CHINA_CAL, H100E_PER_COPY_SC, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT, SPEED_CAP } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { shareRefAt } from '../departments/split';
@@ -290,7 +290,7 @@ export function tasteCurve(w: TimelineWorld, q: number): number {
   return multiplierAt(asV1World(w), q) / Xces(Pp, 1, Math.pow(Lrel(Pp, kn.A, 1, kn.R), Pp.lam)); // BRIDGE(V7): v2 knot function, identity test only (no lab reads it since F1)
 }
 
-const speedOf = (M: number) => Math.min(PROD_SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
+const speedOf = (M: number) => Math.min(SPEED_CAP, 8 + 10.8 * Math.log2(Math.max(1, M))); // R11 #23
 
 /** Full production readout (§3.2.5). Pure function of the world and inputs. `detail` = false skips the ceilings and
  *  what-ifs (reported as 1 = no change). The player's inputs (inp.v3) give the work-type readout. */

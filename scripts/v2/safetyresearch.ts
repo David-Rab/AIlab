@@ -371,15 +371,6 @@ function aiLab(ag: AgendaId, o: { t: number; pkg?: number; dg?: number; seed?: n
   results(s, id, 1);
   const back = deserialize(serialize(s));
   check(JSON.stringify(back.player.tree[id].saf) === JSON.stringify(s.player.tree[id].saf), 'E1 line project state round-trips through save');
-  // Migration 21 → 22 (schemaRev 22 after M1): a pre-E1 project at progress 0.5 keeps its work (half of T₁ of the stage chain done).
-  const { s: o, id: oid } = lab('AG02');
-  o.player.tree[oid] = { status: 'researching', progress: 0.5, attempts: 1 };
-  const raw = JSON.parse(serialize(o));
-  raw.schemaRev = 21;
-  const m = deserialize(JSON.stringify(raw));
-  const st = m.player.tree[oid].saf;
-  const T1 = AGENDA_BY_ID.AG02.T1;
-  check(st?.stage === 'small' && Math.abs((st.test?.work ?? 0) - (0.5 - SAF_STAGES.idea) * T1) < 1e-9 && Math.abs(lineEtaDays(m, oid) - 15 * T1) < 1, 'E1 migration 21 → 22: a line project half done keeps its work (ETA ½ T₁ at reference)', `${st?.stage}, ETA ${lineEtaDays(m, oid).toFixed(1)} d`);
 }
 
 finish('safetyresearch');

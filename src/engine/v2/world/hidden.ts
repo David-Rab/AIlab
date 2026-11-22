@@ -152,7 +152,7 @@ export function drawLineageUModes(rng: Pick<Rng, 'chance'>, h: Pick<HiddenWorld,
 }
 
 /** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) from a hash of the seed (no named stream moves):
- *  loss of control when exposure > doomThreshold + ε_w (safety/control.ts). Saves before schemaRev 27 get the same. */
+ *  loss of control when exposure > doomThreshold + ε_w (safety/control.ts). */
 export function toleranceNoiseOf(seed: number): number {
   const u = (hash32(seed, 'control:tolerance') + 0.5) / 4294967296;
   return CONTROL.toleranceSd * Math.log(u / (1 - u));

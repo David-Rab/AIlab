@@ -38,7 +38,7 @@ import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafCandidate, SafProjectState, TreeNodeState } from '../types';
 import { aiShareOf } from './agents';
 import { safetySandbag } from './covert';
-import { clamp01, trueEfficacy } from './common';
+import { trueEfficacy } from './common';
 import { investigationFte, safetyReHeads } from './investigations';
 import { patchFte } from './responses';
 import { aarAuto, aarFindingOom } from './ideas';
@@ -61,32 +61,9 @@ const testMonths = (T1: number) => (SAF_STAGES.small + SAF_STAGES.val) * T1;
 /** A fresh project state (ideation). */
 export const freshSaf = (): SafProjectState => ({ stage: 'ideation', idea: 0, cands: [], next: 1 });
 
-/** Stage state of a pre-E1 project at `progress` (0..1 of T₁): the same share of the stage chain, so no work is lost
- *  (schemaRev 21 → 22 migration; also when an old state is met at runtime). The candidate in test starts at the line's
- *  posterior. */
-export function safFromProgress(T1: number, progress: number, posterior: { a: number; b: number }): SafProjectState {
-  const st = freshSaf();
-  const p = Math.max(0, Math.min(1, progress));
-  if (p < SAF_STAGES.idea) {
-    st.idea = p / SAF_STAGES.idea;
-    return st;
-  }
-  const { mean, sd } = betaBand(posterior);
-  const c: SafCandidate = { k: st.next++, q: 1, mu: mean, sd };
-  const done = (p - SAF_STAGES.idea) * T1;
-  if (done < SAF_STAGES.small * T1) {
-    st.stage = 'small';
-    st.test = { c, work: done, workNeed: SAF_STAGES.small * T1 };
-  } else {
-    st.stage = 'validation';
-    st.test = { c, work: Math.min(done - SAF_STAGES.small * T1, SAF_STAGES.val * T1), workNeed: SAF_STAGES.val * T1 };
-  }
-  return st;
-}
-
-/** The project's lifecycle state (created on first use; a pre-E1 state is converted from its progress). */
-export function safState(s: GameStateV2, ts: TreeNodeState, n: TreeNodeDef): SafProjectState {
-  ts.saf ??= ts.progress > 0 ? safFromProgress(AGENDA_BY_ID[agendaOf(n)].T1, ts.progress, s.player.safety.agendas[agendaOf(n)].posterior) : freshSaf();
+/** The project's lifecycle state (created on first use: ts.saf exists since schemaRev 21, below the save floor). */
+export function safState(_s: GameStateV2, ts: TreeNodeState, _n: TreeNodeDef): SafProjectState {
+  ts.saf ??= freshSaf();
   return ts.saf;
 }
 
@@ -129,9 +106,6 @@ function readStage(s: GameStateV2, n: TreeNodeDef, c: SafCandidate, stage: 'smal
   const sd = stage === 'small' ? SAF_BELIEF.small : SAF_BELIEF.val;
   readInto(c, trueEfficacy(s, agendaOf(n)) + sd * Z(s, `${stage === 'small' ? 'ss' : 'sv'}:${n.id}:${c.k}`), sd);
 }
-
-/** The belief shown (clamped to a probability). */
-export const beliefShown = (c: Pick<SafCandidate, 'mu' | 'sd'>) => ({ mu: clamp01(c.mu), sd: c.sd });
 
 // ───────────────────────────── inputs ─────────────────────────────
 
