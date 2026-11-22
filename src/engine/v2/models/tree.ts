@@ -36,7 +36,7 @@ import { fmtDate, dateOf } from '../core/time';
 import { hash32 } from '../core/rng';
 import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
-import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
+import { PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
 import { lineCycleDays, lineEtaDays, resetSafAllocation, safAllocation, stepLineProject } from '../safety/lineProjects';
 import { queueBuild } from '../departments/build';
@@ -497,7 +497,7 @@ export function researchDay(s: GameStateV2, ctx: SystemCtx) {
   // Model v3 V2: capability projects. Failed ones leave the queue; the rest run the lifecycle.
   for (let i = q.length - 1; i >= 0; i--) if (isCapProject(node(q[i])) && p.tree[q[i]]?.status === 'failed') q.splice(i, 1);
   const capReady = q.filter((id) => isCapProject(node(id)) && projectReady(s, id) === true);
-  capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw), payoffOf(s, 'P13'));
+  capResearchDay(s, ctx, capReady, (id, tw) => queueBuild(s, 'adopt', id, tw));
   for (const id of capReady) if (p.tree[id]?.cap && node(id)?.paradigm) syncParadigm(s, id);
   if (p.research.autoAssign) autoAssign(s);
   let freed = false;
@@ -582,13 +582,11 @@ export function optionLocked(s: GameStateV2, slot: OptionSlot, value: string | b
   return nodeKnown(s, id) ? undefined : `Needs ${n.name} (Research)`;
 }
 
-/** How much a node's effect pays off now (0..1): P13 with the internal model's RSCH (6.5 → 8.5), P20 with the agent
- *  pool (2M H100e), P24 with the AI share of research labour (50% → 90%). 1 for every other node. */
+/** How much a node's effect pays off now (0..1): P20 with the agent pool (2M H100e); 1 for every other node. RD-E01a
+ *  removed P13's and P24's payoffs; P20's goes with RD-E01b (a typed AI-labour effect), and this function with it. */
 export function payoffOf(s: GameStateV2, id: string): number {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-  if (id === 'P13') return clamp01((measuredDomain(s, 'RSCH') - 6.5) / 2);
   if (id === 'P20') return clamp01((s.player.computeOnline * s.player.split.agents) / 2e6);
-  if (id === 'P24') return clamp01((1 - (s.player.prodCache?.labor.wH ?? 1) - 0.5) / 0.4);
   return 1;
 }
 

@@ -138,9 +138,10 @@ if (process.argv.includes('--rd-r07')) {
     if (Math.abs(e.sci + e.exp - sum) > 1e-9 || Math.abs(sum - (n.effortTM ?? IDEA_DEFAULT_TM)) > 1e-9) bad.push(`${n.id} ${(e.sci + e.exp).toFixed(3)} vs ${sum.toFixed(3)} vs ${n.effortTM}`);
   }
   check(!bad.length, 'RD-R07 effort shown = stagesOf sum = effortTM for every capability idea / axis', bad.join('; ') || 'all equal');
-  // Neutral: the stage work is the earlier fit's (P13 fitted E 79.62: ideation 0.25E per candidate, scale 0.42E).
-  const p13 = stagesOf(TREE_BY_ID.P13);
-  check(Math.abs(p13.idea - 0.25 * 79.62) < 1e-9 && Math.abs(p13.scale - 0.42 * 79.62) < 1e-9, 'RD-R07 stage work unchanged (P13)', `${p13.idea.toFixed(4)} · ${p13.scale.toFixed(4)}`);
+  // Neutral: the stage work is the earlier fit's (P17 fitted E 65.97: ideation 0.25E per candidate, scale 0.42E; RD-E01a
+  // deleted P13, the node this checked before).
+  const p17 = stagesOf(TREE_BY_ID.P17);
+  check(Math.abs(p17.idea - 0.25 * 65.97) < 1e-9 && Math.abs(p17.scale - 0.42 * 65.97) < 1e-9, 'RD-R07 stage work unchanged (P17)', `${p17.idea.toFixed(4)} · ${p17.scale.toFixed(4)}`);
   // No 'result' stage reachable: a working project goes from the scale test straight to the engineers' build-in.
   let seed = 1;
   for (; seed < 40; seed++) {
@@ -454,7 +455,7 @@ if (process.argv.includes('--rd-a03')) {
     const avail = projectFlopPerDay(x);
     const sh = expShares(a, avail);
     const inp = researchInputs(x, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
-    const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, 1, re, sh.perProject.get(id) ?? 0)]));
+    const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, re, sh.perProject.get(id) ?? 0)]));
     return { k, a, sh, rate, avail, x };
   };
   const vs = [];
@@ -784,15 +785,15 @@ if (process.argv.includes('--rd-a03')) {
   const apply = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => ACTION_BY_ID.get(id)!.apply(s, makeCtx(s), p);
   // B31 effort: from the stages the engine runs, not the class table.
   const sum = (n: TreeNodeDef) => { const e = effortOfNode(n); return e.sci + e.exp; };
-  const p13 = PROJECT_BY_ID.P13;
-  const p13c = pv(fx(400), 'research.queue', { id: 'P13' }).costs.filter((c) => c.currency === 'staffTime').map((c) => c.amount);
+  const p17 = PROJECT_BY_ID.P17;
+  const p17c = pv(fx(400), 'research.queue', { id: 'P17' }).costs.filter((c) => c.currency === 'staffTime').map((c) => c.amount);
   const line = PROJECT_BY_ID['L.scale'];
   const saf = PROJECT_BY_ID['T-CONFESS'];
   const safC = pv(fx(400), 'research.queue', { id: 'T-CONFESS' }).costs.filter((c) => c.currency === 'staffTime');
-  check(Math.abs(p13c[0] - Math.round(PICK_AT * stagesOf(p13).idea * 10) / 10) < 1e-9 && Math.abs(p13c[1] - Math.round((stagesOf(p13).small + stagesOf(p13).scale) * 10) / 10) < 1e-9 && effortClassOf(p13) === 'XL'
+  check(Math.abs(p17c[0] - Math.round(PICK_AT * stagesOf(p17).idea * 10) / 10) < 1e-9 && Math.abs(p17c[1] - Math.round((stagesOf(p17).small + stagesOf(p17).scale) * 10) / 10) < 1e-9 && effortClassOf(p17) === 'XL'
     && Math.abs(sum(line) - (PICK_AT * 0.8 + 1.8)) < 1e-9 && safC.length === 1 && safC[0].unit === 'months' && Math.abs(safC[0].amount - AGENDA_BY_ID[saf.agenda as AgendaId].T1) < 0.051,
-    'RD-B18 effort readouts run on the engine\'s stages: P13 science / experiment team-months from its fitted effort, a line its line stages, a safety line T₁ months',
-    `P13 ${p13c.join(' / ')} (class ${effortClassOf(p13)}); L.scale ${sum(line).toFixed(2)}; T-CONFESS ${safC.map((c) => `${c.amount} ${c.unit}`).join(', ')} (T₁ ${AGENDA_BY_ID[saf.agenda as AgendaId].T1})`);
+    'RD-B18 effort readouts run on the engine\'s stages: P17 science / experiment team-months from its fitted effort, a line its line stages, a safety line T₁ months',
+    `P17 ${p17c.join(' / ')} (class ${effortClassOf(p17)}); L.scale ${sum(line).toFixed(2)}; T-CONFESS ${safC.map((c) => `${c.amount} ${c.unit}`).join(', ')} (T₁ ${AGENDA_BY_ID[saf.agenda as AgendaId].T1})`);
   // B31 one ETA: the Projects card, the tree and the previews read capEta; one engine day takes a day off it at the
   // inputs that day ran on (the next day's experiment compute can differ: read with the day's own readout).
   const s = fx(400);

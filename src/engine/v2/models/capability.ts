@@ -1,7 +1,7 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, RSCH_TASTE_PENALTY, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
+import { B0_START_DAY, LEVEL_KNOTS, REF_OFF, DOMAIN_IDS, V0_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y, E_B0, RL_BUDGET, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { multiplierAt, stage1 } from '../../../data/world';
 import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, LEVEL_PER_OOM, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
@@ -120,22 +120,19 @@ export function finishBuild(w: TimelineWorld, b: VersionBuild): number {
 }
 
 /** Domain levels L_d = Lg − o_d + off_d, clamped to [0, 15] (MODEL-V3 §2.3): o_d = −REF_OFF[d] is the domain's
- *  constant difficulty offset (the 2025 profile; RSCH's taste penalty until P19), off_d the version's training and
+ *  constant difficulty offset (the 2025 profile; RD-E01a removed v2's RSCH taste penalty with P19), off_d the version's training and
  *  design specialisation (finishBuild). No era table: a domain lags only by what training gives it. */
-export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record<DomainId, number>> = {}, hasP19 = false): Record<DomainId, number> {
+export function domainsOf(w: TimelineWorld, G: number, designOff: Partial<Record<DomainId, number>> = {}): Record<DomainId, number> {
   const Lg = levelOfG(w, G);
   const out = {} as Record<DomainId, number>;
-  for (const d of DOMAIN_IDS) {
-    const pen = d === 'RSCH' && !hasP19 ? RSCH_TASTE_PENALTY : 0;
-    out[d] = clamp(Lg + REF_OFF[d] + pen + (designOff[d] ?? 0), 0, 15);
-  }
+  for (const d of DOMAIN_IDS) out[d] = clamp(Lg + REF_OFF[d] + (designOff[d] ?? 0), 0, 15);
   return out;
 }
 
 /** Recompute a version's derived levels from G (and its build offsets). */
-export function refreshLevels(w: TimelineWorld, v: ModelVersion, hasP19: boolean) {
+export function refreshLevels(w: TimelineWorld, v: ModelVersion) {
   v.Lg = levelOfG(w, v.G);
-  v.domains = domainsOf(w, v.G, v.build?.off ?? {}, hasP19);
+  v.domains = domainsOf(w, v.G, v.build?.off ?? {});
 }
 
 /** A version's effective compute in a horizon domain (OOM): its domain G plus its level offsets at LEVEL_PER_OOM; a

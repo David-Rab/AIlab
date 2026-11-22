@@ -20,7 +20,6 @@ import {
   LEVEL_PER_OOM, MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
-import { RSCH_TASTE_PENALTY } from '../../../data/v2/calibration';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
@@ -45,15 +44,11 @@ const sig = (x: number) => 1 / (1 + Math.exp(-x));
 // ───────────────────────────── fit and reference points ─────────────────────────────
 
 /** A version's effective compute in domain d for work (OOM): its domain G (MODEL-V3 §2.3) and its level offsets
- *  (preference, paradigms) at LEVEL_PER_OOM; with Learned research taste (P19) RSCH gains the size of v2's RSCH taste
- *  penalty (0.5 L = 0.42 OOM). The human reference points are set for a lab without P19, so the v2 penalty is not also
- *  subtracted (the display level keeps it until P19). A version without a build (an imported open model, a rival's
- *  model) reads its general G. */
-export function domainG(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
+ *  (preference, paradigms) at LEVEL_PER_OOM (RD-E01a: no RSCH taste penalty, P19 deleted). A version without a build
+ *  (an imported open model, a rival's model) reads its general G. */
+export function domainG(_s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
   const b = v.build;
-  let g = b ? gOfDomain(b, d) + (b.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
-  if (d === 'RSCH' && adopted(s, 'P19')) g -= RSCH_TASTE_PENALTY / LEVEL_PER_OOM;
-  return g;
+  return b ? gOfDomain(b, d) + (b.offL[d] ?? 0) / LEVEL_PER_OOM : v.G;
 }
 
 /** Fit F_w of a version in work type w (OOM of effective compute). */

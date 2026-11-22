@@ -52,7 +52,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
-import { adopted, PARADIGM_BY_ID } from './paradigms';
+import { PARADIGM_BY_ID } from './paradigms';
 import { idleTrainingShare } from './runs';
 import { evalReDemand, evalsDay } from './evals';
 import { addSuiteExpertData } from './suites';
@@ -626,8 +626,7 @@ export function expShares(alloc: ReAllocation, avail: number): { units: number; 
 // ───────────────────────────── research inputs in physical units (V3.4) ─────────────────────────────
 
 /** Experiment FLOP the lab's research can use per day: the experiments pool (and idle training compute unless the
- *  policy sends it to data, R5) at today's training throughput. P13's multiplier is applied by the callers
- *  (researchInputs, stepProject and routine tuning take it as `p13`). */
+ *  policy sends it to data, R5) at today's training throughput. */
 export function projectFlopPerDay(s: GameStateV2): number {
   return expPoolH100e(s) * PHI_FLOP_PER_H100E_DAY * Math.pow(10, trainNow(s));
 }
@@ -637,22 +636,19 @@ export function expPoolH100e(s: GameStateV2): number {
   const idle = s.player.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
   return pools.experiments + idle;
 }
-/** P13 (automated AI research agents): a flat experiment-FLOP multiplier, up to ×1.5 as the internal model's measured RSCH
- *  goes 6.5 → 8.5 (models/tree.ts payoffOf, passed in by the tree's day step). Deleted by RD-E01a (SYNTHESIS §6 Phase 3). */
-const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
  *  treaty, siloing, migrations), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
  *  expShares, so c is a full project's) and the X of a unit project. */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
-export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s), p13 = 1): ResearchInputs {
+export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s)): ResearchInputs {
   const wc = workContext(s);
   const P = s.hidden.timeline.prod;
   const mExp = wc.slots.EXP.m;
   const mIdeas = wc.slots.IDEAS.m;
   const speed = researchMods(s).speed;
   const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
-  const c = (flopDay * p13) / units / C_UNIT_FLOP_PER_DAY;
+  const c = flopDay / units / C_UNIT_FLOP_PER_DAY;
   const l = Math.pow(Math.max(1e-12, mExp), P.lam);
   return { mExp, mIdeas, speed, flopDay, reRes, c, l, X: reRes > 0 ? Xces(P, Math.max(1e-12, c), l) * speed : 0 };
 }
@@ -844,11 +840,11 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
 
 /** A project's experiment work per day (team-months) from its research engineers `re` and experiment FLOP `flopDay`:
  *  the CES X(c, ℓ) × the speed modifiers × √RE_LABOUR_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
-export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, p13: number, re: number, flopDay: number): number {
+export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, re: number, flopDay: number): number {
   if (re <= 0 || flopDay <= 0) return 0;
   const P = s.hidden.timeline.prod;
   const l = Math.pow(Math.max(1e-12, (inp.mExp * re) / RE_LABOUR_UNIT), P.lam);
-  return (Xces(P, (flopDay * p13) / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
+  return (Xces(P, flopDay / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
 }
 
 // ───────────────────────────── RD-R08: lines as an expected flow ─────────────────────────────
@@ -1017,21 +1013,21 @@ function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
 
 /** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
  *  share of the experiment FLOP per day (consumed while it experiments; returns what it used). */
-export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, p13: number, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
+export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: ResearchInputs, reCap: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const st = capState(s, n.id);
   if (st.stage === 'failed' || st.stage === 'adopting') return 0;
   const P = s.hidden.timeline.prod;
   const kappa = RISK(s);
   const sg = stagesOf(n);
   const sci = sciOn(s, n.id);
-  if (isUnlockProject(n)) return stepTrial(s, ctx, n, st, inp, sci, experimentRate(s, inp, p13, reCap, flopDay), flopDay, queueBuild);
+  if (isUnlockProject(n)) return stepTrial(s, ctx, n, st, inp, sci, experimentRate(s, inp, reCap, flopDay), flopDay, queueBuild);
   // RD-R08: at high experiment throughput a line runs share φ of its day as the expected flow (stepFlow), the rest as the
   // explicit pipeline below (ideation and experiment time × (1 − φ)).
   const phi = n.kind === 'line' ? flowShare(inp.X) : 0;
   const ideasFull = sci.cap > 0 ? (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * 30) : 0;
   // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
   // inputs: √RE_LABOUR_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
-  const rate = experimentRate(s, inp, p13, reCap, flopDay);
+  const rate = experimentRate(s, inp, reCap, flopDay);
   let used = phi > 0 ? stepFlow(s, ctx, n, st, phi, ideasFull, sci.q, rate, flopDay, queueBuild) : 0;
   // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
   if (sci.cap > 0 && phi < 1) {
@@ -1210,7 +1206,7 @@ export function softwareProgressDay(s: GameStateV2) {
 
 /** One day of capability research: assignment, research engineers, every ready project's lifecycle, the
  *  readouts. `ready` = capability projects in priority order that can take teams today. */
-export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], queueBuild: (id: string, tw: number) => string, p13Payoff = 0) {
+export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], queueBuild: (id: string, tw: number) => string) {
   const p = s.player;
   assignCapTeams(s, ready);
   const alloc = reAllocation(s);
@@ -1219,18 +1215,17 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const pool = expPoolH100e(s);
   const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
   const avail = projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1);
-  const p13 = p13Mult(s, p13Payoff);
   // Experiment FLOP by need (RD-B08): each project in experiments with research engineers a full share.
   const sh = expShares(alloc, avail);
   // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first
   // project when nothing else wants FLOP).
-  const inp = researchInputs(s, Math.max(sh.units, RE_MAX_PER_PROJECT), avail, p13);
+  const inp = researchInputs(s, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
   let used = 0;
   for (const id of ready) {
     const n = node(id) as TreeNodeDef;
     // A test that starts today gets research engineers (and FLOP) from tomorrow's allocation.
     const re = alloc.perProject.get(id) ?? 0;
-    used += stepProject(s, ctx, n, inp, p13, re, sh.perProject.get(id) ?? 0, (tw) => queueBuild(id, tw));
+    used += stepProject(s, ctx, n, inp, re, sh.perProject.get(id) ?? 0, (tw) => queueBuild(id, tw));
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }

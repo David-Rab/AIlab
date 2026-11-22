@@ -2,13 +2,15 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { GameStateV2, SectorId } from '../types';
+import type { GameStateV2, RunRecipe, SectorId } from '../types';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { fillRecipe } from '../models/runs';
+import { domainsOf, refreshLevels } from '../models/capability';
+import { addIdea } from '../models/stacks';
 import { keepUnlockedSuite, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 
@@ -46,8 +48,12 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
  *  computes fpt as the old reader did and drops the old fields.
  *  48 (RD-E03, DD-12): no headroom and no routine tuning: StackBucket.h and the research engineers' 'tune' need are gone.
  *  Migration 47 → 48 delivers the remaining headroom (the bucket's effect becomes its whole adopted a) and drops 'tune'
- *  from the research-engineer allocation and the last-day readout. */
-export const SCHEMA_REV = 48;
+ *  from the research-engineer allocation and the last-day readout.
+ *  49 (RD-E01a, DD-14): paradigms P13 and P19 are deleted (with v2's RSCH taste penalty) and P24 is an idea in the
+ *  pretraining stack: RunRecipe.p24 is gone. Migration 48 → 49 drops P13 / P19 state and draws, folds a run's frozen
+ *  P24 bonus into its frozen pretraining stack, gives an adopted P24 its bonus on the save's day as a stack idea, and
+ *  recomputes stored domain levels without the penalty. */
+export const SCHEMA_REV = 49;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -336,6 +342,41 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (a.share) delete a.share.tune;
     }
     if (res.last?.re) delete (res.last.re as Record<string, number>).tune;
+  },
+  /** 48 → 49 (RD-E01a): P13 / P19 leave the paradigm, tree and hidden-draw data (queues and teams drop unknown nodes
+   *  themselves). Every run's recipe.p24 moves into its recipe.pre (both add to the base's G in OOM; the total is
+   *  unchanged). An adopted P24 (an axis until now) enters the pretraining stack as one scale-invariant idea of 0.96 ×
+   *  its payoff on the save's day (the bonus the next base would have had). Stored domain levels are recomputed without
+   *  the RSCH penalty (player versions; rivals' internal and public models). Idempotent except the adopted-P24 idea,
+   *  which is added once (this step runs once, at rev 48). */
+  48: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const p = s.player;
+    const hadP24 = p?.paradigms?.P24?.status === 'adopted';
+    for (const id of ['P13', 'P19']) {
+      if (p?.paradigms) delete p.paradigms[id];
+      if (p?.tree) delete p.tree[id];
+      if (s.hidden?.paradigmSuccess) delete s.hidden.paradigmSuccess[id];
+    }
+    for (const r of p?.models?.runs ?? []) {
+      const rec = r.recipe as (RunRecipe & { p24?: number }) | undefined;
+      if (!rec || rec.p24 === undefined) continue;
+      if (rec.pre !== undefined) rec.pre += rec.p24;
+      delete rec.p24;
+    }
+    const pre = p?.research?.stacks?.pre;
+    if (hadP24 && pre) {
+      const wH = p.prodCache?.labor.wH ?? 1;
+      const payoff = Math.max(0, Math.min(1, (1 - wH - 0.5) / 0.4));
+      if (payoff > 0) addIdea(pre, 0.96 * payoff, 0, 1, 1);
+    }
+    const w = s.hidden?.timeline;
+    if (!w) return;
+    for (const v of p?.models?.versions ?? []) if (v.domains) refreshLevels(w, v);
+    for (const r of s.rivals ?? []) {
+      const o = r as unknown as { internal?: { G: number; domains?: unknown }; publicModel?: { G: number; domains?: unknown } };
+      for (const m of [o.internal, o.publicModel]) if (m && m.domains) m.domains = domainsOf(w, m.G);
+    }
   },
 };
 

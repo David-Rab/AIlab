@@ -32,8 +32,6 @@ import { effLabour, qualityZ, researchMods, resetWorkContext, speedOfCopy, starT
 import { capReCapacity, reAllocation } from '../models/research';
 import { MIX_RANGE } from '../departments/split';
 import { idleTrainingShare } from '../models/runs';
-import { adopted } from '../models/paradigms';
-import { payoffOf } from '../models/tree';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
@@ -45,7 +43,7 @@ export interface V3Inputs {
   reRes0: number; H0: number;
   /** AI labour in experiments at today's agent compute (team-eq), coverage, assist. */
   AI0: number; a: number; assist: number;
-  /** Experiment FLOP efficiency per H100e-day of the pool vs 3.46e19 FLOP (training throughput stack × P13). */
+  /** Experiment FLOP efficiency per H100e-day of the pool vs 3.46e19 FLOP (the training throughput stack). */
   flopEff: number;
   /** Capacity-weighted taste of the capabilities science teams with and without AI (research input per idea). */
   Tai: number; Th: number;
@@ -136,7 +134,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const Cag = off ? 0 : pools.agents;
   const spare = off ? 0 : spareServingToResearch(s);
   const idle = p.policies.spareTraining !== 'data' ? idleTrainingShare(s) * pools.training : 0;
-  const flopEff = Math.pow(10, trainNow(s)) * (adopted(s, 'P13') ? 1 + 0.5 * payoffOf(s, 'P13') : 1);
+  const flopEff = Math.pow(10, trainNow(s));
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
   const k = (Cag + spare) * kUnit;

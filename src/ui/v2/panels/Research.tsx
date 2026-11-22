@@ -278,7 +278,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {efRow(<ICON.capabilities size={13} style={{ color: C.cap }} />, 'Capability', n.cap ?? 'none', n.fx.cap && n.fx.cap < 0 ? 'tone-neg' : '')}
         {efRow(<ICON.safety size={13} style={{ color: C.und }} />, 'Safety', n.saf, n.fx.saf && n.fx.saf < 0 ? 'tone-neg' : 'tone-pos')}
         {efRow(<ICON.cash size={13} />, 'Cost', n.cost, 'tone-warn')}
-        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}{payoff !== undefined && n.paradigm && ['P13', 'P20', 'P24'].includes(n.id) ? <b className="num"> · now {F.pct(payoff)}</b> : null}</span></div>}
+        {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}{payoff !== undefined && n.paradigm && n.id === 'P20' ? <b className="num"> · now {F.pct(payoff)}</b> : null}</span></div>}
       </div>
       <div className="sec">
         <div className="k"><Term id="odds">Odds</Term></div>

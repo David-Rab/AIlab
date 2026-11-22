@@ -30,7 +30,7 @@ import type {
   RunRecipe, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { adopted } from './paradigms';
-import { optionLocked, payoffOf } from './tree';
+import { optionLocked } from './tree';
 import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addOff, addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
@@ -90,9 +90,6 @@ export function serveTechMult(s: GameStateV2): number {
   return Math.pow(10, -serveFlopOomOf(serveNow(s)));
 }
 
-/** AI-designed successor (P24): next base +0.96 OOM of recipe (was 0.8 progress-years), paid off with the AI share of
- *  research labour. */
-const p24Dg = (s: GameStateV2) => (adopted(s, 'P24') ? 0.96 * payoffOf(s, 'P24') : 0);
 
 /** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
 export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
@@ -226,12 +223,12 @@ export function playerRlWeights(s: GameStateV2, focus: PostDesign['rlFocus']): F
   return suiteRlWeights(s, focus);
 }
 
-/** What a base run freezes at launch (RD-B02): the pretraining stack at its FLOP, the data it draws from the portfolio
- *  and P24's design bonus. */
-type BaseFreeze = { pre: number; draw: DataDraw; p24: number };
-const baseFreezeNow = (s: GameStateV2, d: BaseDesign): BaseFreeze => ({ pre: ePreAt(s, flopOfDesign(d)), draw: playerDraw(s, d), p24: p24Dg(s) });
+/** What a base run freezes at launch (RD-B02): the pretraining stack at its FLOP (P24, an idea in that stack since
+ *  RD-E01a, included) and the data it draws from the portfolio. */
+type BaseFreeze = { pre: number; draw: DataDraw };
+const baseFreezeNow = (s: GameStateV2, d: BaseDesign): BaseFreeze => ({ pre: ePreAt(s, flopOfDesign(d)), draw: playerDraw(s, d) });
 /** A base's pretraining G for the player: recipe E_START + the frozen pretraining stack, the frozen draw (model v3 D3:
- *  repetition per slice → f_data; the drawn mix → s_d,data, plus the curation's domain offsets) and P24's bonus. `fz`
+ *  repetition per slice → f_data; the drawn mix → s_d,data, plus the curation's domain offsets). `fz`
  *  defaults to a launch today (plan); completion passes the run's snapshot (RD-B02). */
 function baseG(s: GameStateV2, d: BaseDesign, fz: BaseFreeze = baseFreezeNow(s, d)): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; fQ: number; U: number; sD: Off; draw: DataDraw } {
   const be = baseEffect(d);
@@ -243,7 +240,7 @@ function baseG(s: GameStateV2, d: BaseDesign, fz: BaseFreeze = baseFreezeNow(s, 
   const fAll = fDataEff(d.params, tokens, draw.dEff);
   const fQ = fDataEff(d.params, tokens, draw.dQual);
   const fD = Math.min(1, fAll / fQ);
-  const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + fz.pre, shape: d.shape, fData: fD, fQual: fQ, designDg: be.dg + fz.p24 });
+  const parts = gPreOf({ flop, tpp: d.tpp, recipe: E_START + fz.pre, shape: d.shape, fData: fD, fQual: fQ, designDg: be.dg });
   return { parts, flop, tokens, epochs: draw.epochs, fD, fQ, U: draw.uMix, sD: addOff(draw.sD, be.sD), draw };
 }
 
@@ -443,7 +440,7 @@ export function planRun(s: GameStateV2, p: LaunchRunParams): RunPlan {
   if ((p.kind === 'base' || p.kind === 'post') && frontierPaused(s)) reason ??= 'Frontier runs are paused';
   const gPred = finishBuild(w, build);
   const Lg = levelOfG(w, gPred);
-  const doms = domainsOf(w, gPred, build.off, adopted(s, 'P19'));
+  const doms = domainsOf(w, gPred, build.off);
   // Run-card ▲ arrows are WS2's runSignals from the run's quantities (model v3 E3): what applyRunToTraits will apply.
   const ws2Signals = p.kind === 'base' ? signals
     : runSignals(s, { kind: p.kind, name: p.ida ? 'IDA' : p.kind, flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) } as TrainingRun);
@@ -550,7 +547,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
-    G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build.off, adopted(s, 'P19')),
+    G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build.off),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, fpt: base.fpt, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),
     status: 'evaluating', flags: {}, build, ...extra,
@@ -569,7 +566,7 @@ function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
     const d = run.base;
     const be = baseEffect(d);
     const nb = m.bases.length + 1;
-    const bg = baseG(s, d, { pre: rec.pre!, draw: rec.draw!, p24: rec.p24! });
+    const bg = baseG(s, d, { pre: rec.pre!, draw: rec.draw! });
     const b: BaseModel = {
       id: `B${nb}`, name: `${PLAYER_MODEL_FAMILY}-${nb}`, day: s.time.day, startDay: run.startDay, flop: bg.flop, params: d.params, tokens: bg.tokens,
       gPre: bg.parts.total, ePre: bg.parts.recipe, design: d, sD: bg.sD, epochs: bg.epochs,
@@ -726,7 +723,7 @@ function advanceStream(s: GameStateV2) {
   v.build = nb;
   if (G > v.G) {
     v.G = G;
-    refreshLevels(s.hidden.timeline, v, adopted(s, 'P19'));
+    refreshLevels(s.hidden.timeline, v);
   }
 }
 
@@ -768,7 +765,7 @@ export function startStream(s: GameStateV2, versionId: string, day: Day = s.time
   v.build = nb;
   if (G > v.G) {
     v.G = G;
-    refreshLevels(s.hidden.timeline, v, adopted(s, 'P19'));
+    refreshLevels(s.hidden.timeline, v);
   }
   s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, track };
   return undefined;

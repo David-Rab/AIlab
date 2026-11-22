@@ -98,8 +98,8 @@ export interface CapProjectView {
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-/** Yesterday's experiment FLOP of a project (research.last.flopProj: its share of the FLOP available after evals, before
- *  P13's multiplier, as models/research.ts capResearchDay / expShares); 0 when it got none or before the first day. */
+/** Yesterday's experiment FLOP of a project (research.last.flopProj: its share of the FLOP available after evals, as
+ *  models/research.ts capResearchDay / expShares); 0 when it got none or before the first day. */
 const flopOfProject = (s: GameStateV2, id: string): number => s.player.research.last?.flopProj?.[id] ?? 0;
 
 /** CES elasticities of X(c, ℓ) to c and ℓ (research/13 §1.6): ζ·s_c and s_ℓ. */

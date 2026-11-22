@@ -134,8 +134,6 @@ export const REF_OFF: Record<DomainId, number> = {
   BIO: 0,
   PHYS: -4,
 };
-/** RSCH takes this extra offset until paradigm P19 is adopted (R12 §0.4). */
-export const RSCH_TASTE_PENALTY = -0.5;
 
 /** Expected golden dates (decimal years), research/11 §5 and V2-SPEC §7.1. null = no target; [lo, hi] = range. */
 export interface GoldenExpect { SC: number | [number, number]; SAR: number | null; SIAR: number | null; ASI: number | null; M?: Record<string, number>; h80?: { year: number; minutes: number } }

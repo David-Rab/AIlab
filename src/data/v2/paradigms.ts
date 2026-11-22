@@ -21,13 +21,14 @@ export const PARADIGMS: ParadigmDef[] = [
   { id: 'P10', name: 'Synthetic data flywheel', prior: 0.8 },
   { id: 'P11', name: 'Self-play curricula', prior: 0.6 },
   { id: 'P12', name: 'Long-horizon human demos', prior: 0.85 },
-  { id: 'P13', name: 'Automated AI research agents', prior: 0.75 },
+  // P13 (Automated AI research agents) and P19 (Learned research taste) were deleted by RD-E01a (DD-14): AI labour in
+  // the experiment slot models research agents; P19 only undid v2's RSCH taste penalty. Their hidden draws are skipped
+  // explicitly at the draw site (world/hidden.ts SKIPPED_DRAWS).
   { id: 'P14', name: 'Interp-guided training', prior: 0.6 },
   { id: 'P15', name: 'AI-assisted oversight', prior: 0.6 },
   { id: 'P16', name: 'AI kernels / HW co-design', prior: 0.8 },
   { id: 'P17', name: 'Neuralese recurrence', prior: 0.7 },
   { id: 'P18', name: 'Iterated distillation & amplification', prior: 0.65 },
-  { id: 'P19', name: 'Learned research taste', prior: 0.6 },
   { id: 'P20', name: 'Massive agent societies', prior: 0.8 },
   { id: 'P21', name: 'Brain-like sample efficiency', prior: 0.45 },
   { id: 'P22', name: 'Robotics foundation models', prior: 0.6 },

@@ -65,6 +65,10 @@ export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'
   return { ...w1, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
 }
 
+/** Hidden paradigm draws of deleted paradigms, keyed by the paradigm drawn right after them: the deleted one's prior
+ *  (RD-C07 P26 0.8; RD-E01a P13 0.75, P19 0.6). */
+const SKIPPED_DRAWS: Record<string, number> = { P14: 0.75, P20: 0.6, P27: 0.8 };
+
 /**
  * Sample the hidden world. `rng` must be the 'world' stream Rng; the caller stores rng.state back into s.rng.world.
  * Order (binding, §2.3): timeline, production, latents, agendas, paradigms, edges, U-modes, economy, actors, doom.
@@ -92,9 +96,10 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // 5. Paradigm success.
   const paradigmSuccess: Record<string, boolean> = {};
   for (const p of PARADIGMS) {
-    // RD-C07: P26 (Superhuman persuasion, cut in model v3 V2) was drawn between P25 and P27; its draw (one rng.next,
-    // prior 0.8) is consumed and discarded so every later draw keeps its value.
-    if (p.id === 'P27') rng.chance(0.8);
+    // Removed paradigms' draws (one rng.next each) are consumed and discarded where they were, so every later draw keeps
+    // its value: RD-C07 P26 (Superhuman persuasion, before P27), RD-E01a P13 (before P14) and P19 (before P20).
+    const skip = SKIPPED_DRAWS[p.id];
+    if (skip !== undefined) rng.chance(skip);
     paradigmSuccess[p.id] = p.prior >= 1 ? true : rng.chance(p.prior);
   }
 

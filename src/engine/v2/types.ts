@@ -398,7 +398,7 @@ export interface VersionBuild {
   /** RL gain: general (mean over the cognitive domains) and per domain (OOM). */
   dgRL: number;
   dgRLd: Partial<Record<DomainId, number>>;
-  /** Other design effects (preference, reasoning, alignment, run penalties, distillation gap, P24), OOM. */
+  /** Other design effects (preference, reasoning, alignment, run penalties, distillation gap), OOM. */
   dg: number;
   /** Data-mix specialisation per domain (OOM, from the base). */
   sD: Partial<Record<DomainId, number>>;
@@ -440,7 +440,7 @@ export interface EvalRecord {
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
 
-/** A run's launch snapshot (RD-B02, SYNTHESIS theme T). Base: pre, draw, p24. Continue: pre, draw (its base's design on
+/** A run's launch snapshot (RD-B02, SYNTHESIS theme T). Base: pre, draw. Continue: pre, draw (its base's design on
  *  the portfolio at launch: the trait hook's S5). Post and IDA: rlMid, rlCeil, fid, exploit, domainG, p07, serveOom.
  *  Distillation: none (its inputs are the teacher). */
 export interface RunRecipe {
@@ -448,8 +448,6 @@ export interface RunRecipe {
   pre?: number;
   /** The data the base draws from the portfolio at launch (model v3 D3 / D11; base, continue). */
   draw?: DataDraw;
-  /** P24 AI-designed successor's design bonus on a base (OOM; 0 when not adopted). */
-  p24?: number;
   /** RL stack efficiency and ceiling (OOM); the environment suites' fidelity and exploitability per family (model v3 D5). */
   rlMid?: number;
   rlCeil?: number;
