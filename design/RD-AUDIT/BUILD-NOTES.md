@@ -186,3 +186,38 @@ Delete `defaultLabPolicy` (B21 / MEA-21). Commits on `p1-riv`.
   T1L authors2026 SIAR −0.745 y, ASI −1.495 y (M11: −0.74 / −1.49). All inside tolerance; no pre-change cal run
   kept here, so day deltas vs the base are not measured (the shift is a one-day ×1.00079 on rival staff and one extra
   day of base-run FLOP, so ≲ 1 d expected).
+
+### RD-B15
+
+The now-part of B22 (MEA-25, MEA-V02): the epilogue / final score projected rival Mis at ASI with a stand-in trait
+model. Commit cd1d7a1 on `p1-riv`.
+- **Fix:** `projectedMisAtAsi` (endings/epilogue.ts) now calls `projectLabMis` (actors/rivals.ts), which fast-forwards
+  the lab's trait cadence on WS2's `rivalTraitStep` (safety/traits.ts), the rule `labDaily` runs in play: a 'post'
+  step every mean POST_DAYS (56 d, first at the lab's scheduled `nextPost`), and at each base (BASE_MONTHS by
+  archetype from `nextBaseDay`) a 'base' step then a 'post'; latent reasoning adopted once at Lg ≥ 9 with LATENT_P.
+  Deleted the stand-in `rivalTraitStep` and its private `rivalSignals` / `effSafety` / `capIndexOfLevel`, and the
+  WS4_TUNING knobs `rivalDriftK` / `rivalPullback` (no other caller). No caller of the stand-in remains.
+- **[D] The stated stand-in (DD-18):** capability rises linearly in G from the internal model's to the ASI point over
+  the projected days; every base starts a new lineage; race pressure stays at today's. Draws from
+  `Rng(hash32(seed, projectMis:<lab>:<day>))`, no stream (pure; the control.ts "no roll" check still passes). Step
+  guard 120 (the old cap was 40 posts; with bases included a 40-step cap stopped long projections short of ASI).
+  Reads the lab's hidden posture (`labPosture`, as in play), not `postureOf`'s player-action deltas.
+- **Not in scope (theme L, RD-L02):** the days to ASI still use `paceOf` (the player's rate) × 0.7, and
+  `epilogueSurvival` still weights labs by rival-vs-rival `leadBetween` with the (1 − share) term. Readout for L: on
+  RefBot and idle snapshots at day 250–500 the projected days are 1700–3700 (the player's slow early rate), so the
+  projection spans several rival base runs; this horizon, not the trait step, drives most of the drift below.
+- **Score drift** (probe scripts/v2/_b15drift.ts, gitignored; ai2027 / medium, company-loss `ousted` scored on
+  snapshots; only the survival axis moves, other axes identical). Survival old → new:
+  - RefBot seed 1: d250 28 → 44, d500 30 → 33, d750 23 → 24. Seed 7: 23 → 41, 21 → 34, 36 → 40.
+    Seed 2027: 23 → 37, 33 → 39, 5 → 10. Seed 42: 28 → 93, 56 → 88, 86 → 85.
+  - Idle seed 1: 16 → 39, 5 → 7, 1 → 7. Seed 7: 14 → 30, 3 → 11, 1 → 17. Seed 2027: 14 → 30, 4 → 5, 1 → 5.
+    Seed 42: 24 → 92, 6 → 73, 2 → 70.
+  - Epilogue misAtAsi of the leading competitor: the stand-in saturated at 0.95–1.00 on long projections; now
+    0.11–1.00 (median ≈ 0.52). Near ASI (RefBot d750, 107–297 days out) it moves −0.07 … −0.28 (seed 42 +0.07).
+  - Attribution: the same projection with posts only (no base steps) reproduces the old survival within ≈ 1 point on
+    long horizons (the stand-in's rivalDriftK was fitted to WS2's post drift); the base resets (a fresh lineage's
+    prior, as in play) carry the rise. Seed 42's large move is its low-difficulty world (rival Mis 0.06–0.15 now).
+- **Tests:** tsc main + scripts clean. test:quick 32/34: fixtures stale (from RD-B14; fixture games stop before any
+  ending, so this change cannot move them) and worldfx A2a 6.7% / W4 23.3% (known). ws4 full 25/0, control full 32/0
+  (endings "no roll", every ASI ending reachable). The deep tier has no scoring / endings suite (deep = safety S5
+  only), so no deep run.
