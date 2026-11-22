@@ -1798,3 +1798,22 @@ differs from B0).
 - **Check:** `npx tsx scripts/v2/_t04/check.ts` (V0 unchanged; reference gain 0.7; gain depends on base size at fixed
   share; bigger base reaches the reference gain at a smaller share; 10× smaller base saturates at the same absolute RL
   FLOP). tsc app + scripts/v2 clean.
+
+### RD-T05
+
+RL families as explicit lists; horizon gain from long-tasks RL (theme T, TRN-10). Commit ef7476b. Moves calibration:
+**maybe** (transfer unchanged; the reference broad and long-tasks-focus runs on B0 keep ×1 / ×2 (×2.4 with P07), but
+every other run's horizon now follows its long-task RL: bigger bases, heavy budget or a better long-tasks suite (P12)
+raise it even on broad runs; light budgets or small bases on a long-tasks focus get less than ×2).
+- **Families:** data/v2/runDesign.ts RL_FAMILIES `{ own, adjacent, taskH? }`; `v` and `h80Mult` deleted. models/
+  effective.ts TRANSFER reads own (1.0) / adjacent (0.4) / far (0.15); suites.ts familyDomain = `own`. Tree captions
+  (rl.* nodes, P06) rewritten: "Mainly improves X; also helps Y, Z; a little carries over to the rest".
+- **Horizon:** h80Mult = (LONG_TASKS_HORIZON.perFocus 2 × P07 1.2-if-frozen)^x, x = max(0, (g − g_broad) ÷ (g_focus −
+  g_broad)); g = rlGains(…).perFamily.longHorizon (its RL share on the base ceiling × suite fidelity), anchors = the
+  reference run (B0, standard, e_RL 0, fid 1) broad / long-tasks focus (effective.ts longTasksHorizonMult, set in
+  runs.ts rlBuild). postEffect / rlFocusEffect no longer carry h80Mult. On B0, standard budget, by long-task share:
+  ≤ 1/6 ×1, 0.3 ×1.49, 0.5 ×1.85, 0.7 ×2.00, 1.0 ×2.10. Floor ×1 (other focuses do not shorten the horizon).
+- **Not changed:** RL on an existing version keeps its frozen h80Mult; saves keep stored h80Mult (no schema bump).
+- **Check (scripts/v2/.tmp-rdt05.ts, run alone, untracked):** transfer matrix identical to the old v-derived one; no
+  `v` / `h80Mult` on any family; reference broad ×1, long-tasks focus ×2, with P07 ×2.4, swe focus ×1; horizon
+  monotone in long-task share. tsc main and scripts clean; `npm run build` passes.
