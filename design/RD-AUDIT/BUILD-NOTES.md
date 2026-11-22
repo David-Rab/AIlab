@@ -201,3 +201,37 @@ Market fixes, interim before the product redesign (SYNTHESIS B14, B15, B16, B41,
 - **Open:** a Chat feature's preview now shows no revenue change today (the product card's customer target shows
   the gain); the same holds for any Chat quality edit. Whether previews should show the converged revenue is a UI
   question for the product redesign.
+
+### RD-B12
+
+Product lifecycle fixes (SYNTHESIS B18, B19, B20). Schema 44 → 45.
+- **B18 packs on the product.** `Deployment.sectorFocus` → `packs: SectorPack[]` (`{ sector, certDay }`, types.ts);
+  `world.fx.certDay` deleted. A built pack is pushed onto its host with certDay = built + SECTOR_CERT_DAYS
+  (departments/build.ts). Readers: productOffer reads the product's own certified pack (`packCertified`; its `certified`
+  parameter is gone), Enterprise ×3 weight and incident sectors read `d.packs`, the US friction cut −0.1 and the "+ pack"
+  sector check read `sectorCertDay(s, sector)` = earliest certDay among live (non-withdrawn) products (models/products.ts).
+  So a retirement ends the pack's effects and frees the sector for a new pack.
+- **Relaunch [D].** Only one live product per channel, so a relaunch = retire then launch on the channel. `deploy` takes
+  over the packs of the latest retired product on the same channel (minus sectors a live product now holds), certDay
+  kept, and empties the retired one's list (`relaunchPacks`). The launch preview's temporary product carries them too.
+- **No-host completion.** A pack built with no live host (the recorded one, else any Enterprise / API / Agents product)
+  refunds SECTOR_PACK_CASH ($0.4B, moved to build.ts; `PRODUCT.cash` / `days` now read the build constants) through
+  bookCash ('sector product', "… (refund)") and logs a severity-2 company message.
+- **B19.** `launchEffortBlock`: deep effort needs Deep think built and offered on the channel (featureToggleBlock, the
+  edit path's rule); checked in product.launch's apply and in deploy (so also at build completion).
+- **B20.** `launchFeatures(s, channel, effort)`: every lab-built feature the channel offers, Deep think only at effort
+  deep, never the lab-level Sector packs feature. Used by the launch build completion and the launch preview.
+- **Migration 44 → 45:** each product's sectorFocus → packs with the world certDay of the sector (or today if none); a
+  certified sector no product carried (the B18 lost pack) is dropped; world.fx.certDay deleted; idempotent.
+- **Towards DD-04 / RD-P08:** the pack is now owned by one product with its own certification day; still left for
+  RD-P08: the sectorPacks feature, LEADER flags, the one-pack-per-sector world rule (sectorCertDay) and the action's
+  v2 preview (B39 / RD-B20).
+- **Tests added:** products RD-B12 ×7 (pack stored on host; no double pack; relaunch takes the pack over; retire →
+  re-pack; no-host refund $0.4B + log; a new launch has its channel's built features on; deep launch needs Deep think);
+  hygiene "schemaRev-44 save migrates to 45"; the two SCHEMA_REV === 44 asserts → 45; worldfx's sector-product check
+  reads `sectorCertDay` / `packs`.
+- **Moves calibration: maybe.** RefBot launches its missing channels (bots/ref.ts), which now go live with the lab's
+  built features on (B20); its packs keep their effect as before. Fixture games may move; the merge regenerates them.
+- **Tests run (section H test rule):** tsc main + scripts clean; products full 68 / 68 (the 7 RD-B12 checks pass);
+  hygiene full 197 / 197 (the migration check) ran before the rule changed; npm run build passes. test:quick was
+  stopped unfinished; test:ui not run (Products.tsx change: the pack tooltip reads `d.packs`).
