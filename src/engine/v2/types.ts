@@ -502,9 +502,6 @@ export interface TrainingRun {
   /** Everything the run's result depends on, frozen at launch (model v3 V2, D5; RD-B02): completion and the WS2 trait hook
    *  read only this. Absent only on a run-like built for a preview (a launch today). */
   recipe?: RunRecipe;
-  /** Base/continue run scale vs the reference frontier run F(t) at launch (scrutiny only; engineering reads FLOP, S5
-   *  reads G). Removed by RD-T11 (SYNTHESIS §6 Phase 6). */
-  scale?: number;
   /** Distillation: student active parameters; distillation and continued-pretraining runs: tokens. */
   studentParams?: number;
   tokens?: number;

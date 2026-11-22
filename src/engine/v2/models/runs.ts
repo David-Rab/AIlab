@@ -14,14 +14,13 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import {
   CONTINUE_SHARE, DISTILL_TPP, E_START, GOODPUT, IDA_RL_SHARE, MFU_RL_FACTOR, P07_LONG_TASKS_HORIZON, PARAM_RANGE, RL_BUDGET, RL_FAMILY_IDS,
-  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny,
+  STREAM_PERIOD_DAYS, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_FREE_MAX, TPP_RANGE, sizeScrutiny, SCRUTINY_WINDOW_DAYS,
 } from '../../../data/v2/runDesign';
 import { buildEtas, buildWaitNew, engScale, queueBuild, runSetupTW, runWaiting } from '../departments/build';
 import { TRAIT_IDS } from '../../../data/v2/traits';
 import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { playerDraw, type DataDraw } from '../production/data';
-import { frontierFlop } from '../production/ces';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
@@ -44,7 +43,8 @@ import {
   continueFData, continueGPre, daysFor, distillFlop, distillGap, fDataEff, flopOfDesign, gPreOf, longTasksHorizonMult, rlGains, rlWeights, fptOfDesign,
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
-import { internalVersion, uniqueVersionName, versionById } from './labs';
+import { internalVersion, otherLabs, uniqueVersionName, versionById } from './labs';
+import { baseFlopPerDay } from '../actors/rivalModel';
 import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
 import { poolsOf } from '../compute/power';
@@ -163,10 +163,26 @@ function flopCost(s: GameStateV2, flop: number): number {
   return (flop / PHI_FLOP_PER_H100E_DAY / 365) * tcoPerH100eYear(s, decimalYear(s));
 }
 
-/** A run's scale vs the reference frontier run F(t), read only for public scrutiny (engineering uses the physical FLOP
- *  since model v3 V3, departments/build.ts engScale; S5 the base's G and drawn data since model v3 E3). Until RD-T11
- *  (SYNTHESIS §6 Phase 6) measures scrutiny against the largest rival run. */
-export const scaleOf = (s: GameStateV2, flop: number) => flop / frontierFlop(s.hidden.timeline, decimalYear(s)); // until RD-T11
+/** RD-T11: the largest non-player training run in progress (at its planned FLOP) or finished in the last
+ *  SCRUTINY_WINDOW_DAYS (active labs, China included). None in the window: the largest current base of any lab. */
+export function rivalRunFlop(s: GameStateV2): number {
+  const day = s.time.day;
+  let best = 0;
+  let any = 0;
+  for (const r of otherLabs(s)) {
+    if (r.core.status !== 'active') continue;
+    const ph = r.phys;
+    any = Math.max(any, ph.base.flop);
+    if (day - ph.base.day <= SCRUTINY_WINDOW_DAYS) best = Math.max(best, ph.base.flop);
+    if (ph.run) best = Math.max(best, ph.run.flop + baseFlopPerDay(r) * Math.max(0, r.nextBaseDay - day));
+  }
+  return best > 0 ? best : any;
+}
+/** Public scrutiny of a base run of `flop` (RD-T11): its FLOP over the largest rival run. */
+export const runScrutiny = (s: GameStateV2, flop: number) => {
+  const ref = rivalRunFlop(s);
+  return ref > 0 ? sizeScrutiny(flop / ref) : 0;
+};
 
 /** Limits of a base run (blueprint size card). All exact readouts of what the engine will do. */
 export interface BaseLimits {
@@ -382,7 +398,6 @@ interface Pretrained {
   flopNeeded: number;
   cash: number;
   /** Scale vs the frontier run (public scrutiny); new and continued bases only. */
-  scale?: number;
   flop: number;
   params: number;
   tokens: number;
@@ -409,7 +424,7 @@ function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrai
     const bg = baseG(s, d, rec ? { pre: rec.pre!, draw: rec.draw! } : baseFreezeNow(s, d));
     const flopNeeded = bg.flop * be.flopMult;
     return {
-      flopNeeded, cash: flopCost(s, flopNeeded) * be.cashMult, scale: scaleOf(s, flopNeeded), // F6: no per-run licensed-data cost (D1/D2)
+      flopNeeded, cash: flopCost(s, flopNeeded) * be.cashMult, // F6: no per-run licensed-data cost (D1/D2)
       flop: bg.flop, params: d.params, tokens: bg.tokens, gPre: bg.parts.total, ePre: bg.parts.recipe, sD: bg.sD,
       fpt: fptOfDesign(d.params, d.shape), monitorability: be.monitorability, signals: baseSignals(d, { gPre: bg.parts.total, draw: bg.draw }), bg,
     };
@@ -428,7 +443,7 @@ function pretrain(s: GameStateV2, src: PretrainSource, rec?: RunRecipe): Pretrai
     // data factor; the stream's continued pretraining uses the same rule on a version, RD-T03).
     const ePre = gPre - (b.gPre - b.ePre) - Math.log10(flop / b.flop);
     return {
-      flopNeeded: src.addFlop, cash: 0, scale: scaleOf(s, src.addFlop), flop, params: b.params, tokens: b.tokens + addTokens,
+      flopNeeded: src.addFlop, cash: 0, flop, params: b.params, tokens: b.tokens + addTokens,
       gPre, ePre, sD: b.sD ?? {}, fpt: b.fpt, monitorability: b.monitorability ?? 1,
       ...(cd.prevDEff !== undefined ? { epochs: cd.draw.epochs, fAdd } : {}),
     };
@@ -507,7 +522,7 @@ function planPretrain(s: GameStateV2, p: LaunchRunParams, rate: number): ActPlan
     const best = Math.max(-Infinity, ...s.player.models.bases.map((b) => b.gPre));
     limits = {
       params: pre.params, tpp: src.design.tpp, tokens: bg.tokens, wallDays, behind: adoptedDuring(s, wallDays), tokensUnique: bg.U, epochs: bg.epochs, fData: bg.fD, fQual: bg.fQ, draw: bg.draw, sD: bg.sD,
-      servingFlop: servingFlop(pre.params), computeCost: flopCost(s, pre.flopNeeded), scrutiny: sizeScrutiny(pre.scale ?? 1), gPre: bg.parts,
+      servingFlop: servingFlop(pre.params), computeCost: flopCost(s, pre.flopNeeded), scrutiny: runScrutiny(s, pre.flopNeeded), gPre: bg.parts,
       gGain: Number.isFinite(best) ? bg.parts.total - best : 0,
     };
   }
@@ -603,7 +618,6 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   // suites, domain effects, P07 and the serving stack). Completion and the trait hook read only this.
   run.recipe = recipeAtLaunch(s, run);
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', techniques: [...p.post.techniques], trainAgainst: [...p.post.trainAgainst] };
-  if (p.kind === 'base' || p.kind === 'continue') run.scale = scaleOf(s, plan.flopNeeded);
   if (p.kind === 'distill') {
     // The student's size and tokens (teacher outputs) are fixed at launch, as the plan read them.
     const src = pretrainSourceOfParams(s, p);
@@ -615,8 +629,8 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   m.runs.push(run);
   run.setupId = queueBuild(s, 'runSetup', run.id, plan.setupTW);
   if (plan.cashCost > 0) bookCash(s, ctx, -plan.cashCost, 'training', 'training run', run.name);
-  const scrutiny = p.kind === 'base' && p.base ? sizeScrutiny(run.scale ?? 1) : 0;
-  if (scrutiny >= 0.5) ctx.bump('relations.scrutiny', Math.round(scrutiny * 10) / 10, 'base run above the frontier', run.name); // §3.4.3
+  const scrutiny = p.kind === 'base' && p.base ? runScrutiny(s, plan.flopNeeded) : 0;
+  if (scrutiny >= 0.5) ctx.bump('relations.scrutiny', Math.round(scrutiny * 10) / 10, 'base run above the largest rival run', run.name); // §3.4.3
   ctx.log('research', `Run launched: ${run.name} (ETA ${plan.etaDays} d).`, 1, run.id);
   return run;
 }

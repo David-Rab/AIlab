@@ -126,10 +126,12 @@ export const REFERENCE_POST: PostDesign = {
 };
 
 // ── Base choices ──
-/** A run's scale relative to the reference frontier run F(t) (TrainingRun.scale) sets the public scrutiny of a run above
- *  the frontier, until RD-T11 (SYNTHESIS §6 Phase 6) measures scrutiny against the largest rival run. Engineering setup and operations read the physical FLOP since model v3 V3 (departments/build.ts engScale); S5 reads
- *  the base's G and drawn data since model v3 E3 (safety/traits.ts baseSignals). */
-export const sizeScrutiny = (scale: number) => (scale > 1 ? (5 * Math.log(scale)) / Math.log(3) : 0);
+/** Public scrutiny of a base run from its FLOP over the largest rival training run (RD-T11, models/runs.ts
+ *  rivalRunFlop): 0 at or below it, +5 per ×3 above. */
+export const sizeScrutiny = (ratio: number) => (ratio > 1 ? (5 * Math.log(ratio)) / Math.log(3) : 0);
+/** Window of the rival reference run (RD-T11) [D]: a rival base finished in the last year counts, as does a run in
+ *  progress (at its planned FLOP: FLOP so far + the lab's base-run rate × the days to its due day). */
+export const SCRUTINY_WINDOW_DAYS = 365;
 
 /** Data-mix presets (model v3 D3): the blueprint's data option is a mix target for the draw from the data portfolio
  *  (production/data.ts drawData): domain shares from `base` × the domain tilt × the kind weights' pull (absent = 1),
