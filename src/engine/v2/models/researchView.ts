@@ -137,7 +137,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' || st?.stage === 'result' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test) ? 'running' : 'waiting';
   // Inputs today.
   const flopDay = flopOfProject(s, id);
-  // When it is not experimenting today, read the inputs it would get (RE_PER_PROJECT; FLOP by need, RD-B08).
+  // When it is not experimenting today, read the inputs it would get (RE_MAX_PER_PROJECT; FLOP by need, RD-B08).
   const { re, cc, l, X } = projectExpInputs(s, id);
   const el = elasticities(s, Math.max(1e-12, cc), l);
   const bound: CapProjectView['bound'] = cc <= 0 ? 'none' : el.eC >= el.eL ? 'compute' : 'labour';

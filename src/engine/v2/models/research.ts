@@ -32,15 +32,16 @@
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
-  AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
+  AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, TUNE_K, TUNE_RE_PER_OOM,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { C_UNIT_FLOP_PER_DAY, RE_UNIT } from '../../../data/v2/workTypes';
-import { CAPACITY_UNIT, EFFORT_TM, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, type EffortClass, type TreeNodeDef } from '../../../data/v2/tree';
+import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
+import { EFFORT_TM, PROJECT_BY_ID, TREE, type EffortClass, type TreeNodeDef } from '../../../data/v2/tree';
 import { AGENDA_BY_ID, SAF_PICK_AT, SAF_STAGES } from '../../../data/v2/agendas';
-import { COLUMN_DEPT, QUALITY, TEAM_SIZE } from '../../../data/v2/teams';
+import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { hash32 } from '../core/rng';
+import { reCapacity, teamCapacity } from '../departments/capacity';
 import type {
   AgendaId, Allocation, CapProjectState, CapResult, Candidate, GameStateV2, ReNeed, StackKey, SystemCtx, Team,
 } from '../types';
@@ -156,11 +157,6 @@ export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectSta
 /** Ideas a line candidate batches at today's experiment throughput X (1 below PACE_BATCH) [D: performance]. */
 export const batchOf = (X: number) => Math.max(1, Math.floor(X / PACE_BATCH));
 
-/** One science team's capacity on a project: heads/40 × quality × 1.5 in its specialty. */
-export const sciCapacity = (t: Pick<Team, 'heads' | 'quality' | 'specialty'>, n: Pick<TreeNodeDef, 'column'>) =>
-  (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
-/** Research-engineer team-equivalents of a team (heads/100 × quality). */
-export const reCapacity = (t: Pick<Team, 'heads' | 'quality'>) => (t.heads / TEAM_SIZE.re) * QUALITY[t.quality].out;
 
 /** Science teams of the capabilities department. */
 export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap');
@@ -180,7 +176,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
   let qw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = sciCapacity(t, n);
+    const c = teamCapacity(t, n.column);
     cap += c;
     qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.phi, m2b, star);
   }
@@ -188,7 +184,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
 }
 
 /** A project's experiment inputs as the next research day gives them: its research-engineer team-equivalents from the
- *  allocation that day runs (reAllocation; a project not yet in experiments is read at a full project's RE_PER_PROJECT,
+ *  allocation that day runs (reAllocation; a project not yet in experiments is read at a full project's RE_MAX_PER_PROJECT,
  *  what it gets when its test starts if engineers are free), its experiment compute c (a full project's share of FLOP,
  *  which goes by need, RD-B08; yesterday's unit project), labour ℓ and CES throughput X (0 for a test with no research
  *  engineers: it waits for them). */
@@ -197,9 +193,9 @@ export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAlloc
   const x = s.player.research.last?.x;
   const testing = !!s.player.tree[id]?.cap?.test;
   const re = alloc.perProject.get(id) ?? 0;
-  const reEval = re > 0 || testing ? re : RE_PER_PROJECT;
-  const cc = (x?.c ?? 0) * (RE_PER_PROJECT / RE_UNIT);
-  const l = Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_UNIT), P.lam);
+  const reEval = re > 0 || testing ? re : RE_MAX_PER_PROJECT;
+  const cc = (x?.c ?? 0) * (RE_MAX_PER_PROJECT / RE_LABOUR_UNIT);
+  const l = Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_LABOUR_UNIT), P.lam);
   return { re, reEval, cc, l, X: cc > 0 && reEval > 0 ? Xces(P, cc, l) : 0 };
 }
 
@@ -219,7 +215,7 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
   const speed = researchMods(s).speed;
   const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * sci.q * speed) / (sg.idea * b * 30) : 0;
   const { X } = projectExpInputs(s, id);
-  const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_UNIT)) / 30 : 0;
+  const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0;
   const t = st?.test;
   const ideation = t ? 0 : ideaPerDay > 0 ? Math.max(0, PICK_AT - (st?.cands.length ?? 0) - (st?.idea ?? 0)) / ideaPerDay : Infinity;
   const left = t ? Math.max(0, t.workNeed - t.work) + (st?.stage === 'small' ? sg.scale * t.c.b : 0) : (sg.small + sg.scale) * b;
@@ -282,7 +278,7 @@ export function assignmentValue(projects: string[], teams: { t: Team; p: string 
     const n = node(id);
     if (!n) continue;
     let cap = 0;
-    for (const x of teams) if (x.p === id) cap += sciCapacity(x.t, n);
+    for (const x of teams) if (x.p === id) cap += teamCapacity(x.t, n.column);
     v += Math.sqrt(cap) / stagesOf(n).idea;
   }
   return v;
@@ -304,7 +300,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
     const auto = wantIsAuto(s, id);
     let need = (auto ? 1 : teamsWanted(s, id)) - (count.get(id) ?? 0);
     while (need > 0 && left.length) {
-      left.sort((a, b) => sciCapacity(b, n) - sciCapacity(a, n) || (a.id < b.id ? -1 : 1));
+      left.sort((a, b) => teamCapacity(b, n.column) - teamCapacity(a, n.column) || (a.id < b.id ? -1 : 1));
       const t = left.shift() as Team;
       out.set(t.id, { p: id, why: `Priority ${rank + 1}: ${n.name} ${auto ? 'is on auto (first team)' : `wants ${teamsWanted(s, id)} team${teamsWanted(s, id) === 1 ? '' : 's'}`}${t.specialty === n.column ? ' (its specialty)' : ''}` });
       count.set(id, (count.get(id) ?? 0) + 1);
@@ -319,7 +315,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   const capRows: { id: string; cap: number[]; idea: number }[] = [];
   for (const id of ready) {
     const n = node(id);
-    if (n) capRows.push({ id, cap: all.map((t) => sciCapacity(t, n)), idea: stagesOf(n).idea });
+    if (n) capRows.push({ id, cap: all.map((t) => teamCapacity(t, n.column)), idea: stagesOf(n).idea });
   }
   // Each row's term √cap ÷ idea is recomputed only for the two projects a swap touches (the same ordered sum), the
   // total re-added in row order.
@@ -364,7 +360,7 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
   //    effort, × AUTO_RANK_W per rank); then the highest-priority project still under the most a project takes.
   const autos = ready.filter((id) => wantIsAuto(s, id));
   const capOn = new Map<string, number>();
-  if (autos.length) for (const t of all) { const p = out.get(t.id)?.p; if (p && autos.includes(p)) capOn.set(p, (capOn.get(p) ?? 0) + sciCapacity(t, node(p) as TreeNodeDef)); }
+  if (autos.length) for (const t of all) { const p = out.get(t.id)?.p; if (p && autos.includes(p)) capOn.set(p, (capOn.get(p) ?? 0) + teamCapacity(t, (node(p) as TreeNodeDef).column)); }
   for (const t of left) {
     let best: string | undefined;
     let bestGain = 0;
@@ -372,12 +368,12 @@ export function planAssignment(s: GameStateV2, ready: string[]): Map<string, { p
       if ((count.get(a) ?? 0) >= PROJECT_MAX_TEAMS) continue;
       const n = node(a) as TreeNodeDef;
       const c0 = capOn.get(a) ?? 0;
-      const gain = ((Math.sqrt(c0 + sciCapacity(t, n)) - Math.sqrt(c0)) / stagesOf(n).idea) * AUTO_RANK_W ** ready.indexOf(a);
+      const gain = ((Math.sqrt(c0 + teamCapacity(t, n.column)) - Math.sqrt(c0)) / stagesOf(n).idea) * AUTO_RANK_W ** ready.indexOf(a);
       if (gain > bestGain) { best = a; bestGain = gain; }
     }
     if (best) {
       count.set(best, (count.get(best) ?? 0) + 1);
-      capOn.set(best, (capOn.get(best) ?? 0) + sciCapacity(t, node(best) as TreeNodeDef));
+      capOn.set(best, (capOn.get(best) ?? 0) + teamCapacity(t, (node(best) as TreeNodeDef).column));
       out.set(t.id, { p: best, why: `Auto: ${node(best)?.name} (priority ${ready.indexOf(best) + 1}) gains the most progress from it${t.specialty === node(best)?.column ? ' (its specialty)' : ''}` });
       continue;
     }
@@ -445,11 +441,11 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
 });
 
 /** Today's research-engineer demand per need (human team-equivalents) at the AI labour multiplier m on experiments: run
- *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_PER_PROJECT per project in experiments, routine
+ *  operations ÷ m, the eval suites (model v3 D7, models/evals.ts), RE_MAX_PER_PROJECT per project in experiments, routine
  *  tuning TUNE_RE_PER_OOM per OOM of remaining headroom (RD-B08: a finite need, 0 with nothing to tune). */
 export function reDemand(s: GameStateV2, m = Math.max(1, workContext(s).slots.EXP.m)): Record<ReNeed, number> {
   return {
-    ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_PER_PROJECT,
+    ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_MAX_PER_PROJECT,
     tune: TUNE_RE_PER_OOM * headroomTotal(s),
   };
 }
@@ -467,7 +463,7 @@ export function reAllocation(s: GameStateV2): ReAllocation {
   const perProject = new Map<string, number>();
   let left = re.exp;
   for (const id of exp) {
-    const x = Math.min(RE_PER_PROJECT, left);
+    const x = Math.min(RE_MAX_PER_PROJECT, left);
     perProject.set(id, x);
     left -= x;
   }
@@ -475,16 +471,16 @@ export function reAllocation(s: GameStateV2): ReAllocation {
 }
 
 /** Experiment FLOP by need (RD-B08), not by headcount: the pool is divided over the needs' research-engineer demands,
- *  RE_PER_PROJECT for each project in experiments and routine tuning's demand. A project with research engineers takes
+ *  RE_MAX_PER_PROJECT for each project in experiments and routine tuning's demand. A project with research engineers takes
  *  its full share first; routine tuning takes what is left (with the shares of projects that got none). So more research
  *  engineers never take FLOP from a project. units = the demands' team-equivalents the pool is divided over. */
 export function expShares(alloc: ReAllocation, avail: number): { units: number; perProject: Map<string, number>; tune: number } {
-  const units = alloc.perProject.size * RE_PER_PROJECT + alloc.demand.tune;
+  const units = alloc.perProject.size * RE_MAX_PER_PROJECT + alloc.demand.tune;
   const per = units > 0 ? Math.max(0, avail) / units : 0;
   const perProject = new Map<string, number>();
   let used = 0;
   for (const [id, re] of alloc.perProject) {
-    const f = re > 0 ? RE_PER_PROJECT * per : 0;
+    const f = re > 0 ? RE_MAX_PER_PROJECT * per : 0;
     perProject.set(id, f);
     used += f;
   }
@@ -510,7 +506,7 @@ export function expPoolH100e(s: GameStateV2): number {
 const p13Mult = (s: GameStateV2, payoff: number) => (adopted(s, 'P13') ? 1 + 0.5 * payoff : 1);
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,
- *  treaty, siloing, migrations), the experiment FLOP per RE_UNIT of `reRes` (capResearchDay passes the needs' units of
+ *  treaty, siloing, migrations), the experiment FLOP per RE_LABOUR_UNIT of `reRes` (capResearchDay passes the needs' units of
  *  expShares, so c is a full project's) and the X of a unit project. */
 export interface ResearchInputs { mExp: number; mIdeas: number; speed: number; flopDay: number; reRes: number; c: number; l: number; X: number }
 export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectFlopPerDay(s), p13 = 1): ResearchInputs {
@@ -519,7 +515,7 @@ export function researchInputs(s: GameStateV2, reRes: number, flopDay = projectF
   const mExp = wc.slots.EXP.m;
   const mIdeas = wc.slots.IDEAS.m;
   const speed = researchMods(s).speed;
-  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
   const c = (flopDay * p13) / units / C_UNIT_FLOP_PER_DAY;
   const l = Math.pow(Math.max(1e-12, mExp), P.lam);
   return { mExp, mIdeas, speed, flopDay, reRes, c, l, X: reRes > 0 ? Xces(P, Math.max(1e-12, c), l) * speed : 0 };
@@ -678,12 +674,12 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
 }
 
 /** A project's experiment work per day (team-months) from its research engineers `re` and experiment FLOP `flopDay`:
- *  the CES X(c, ℓ) × the speed modifiers × √RE_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
+ *  the CES X(c, ℓ) × the speed modifiers × √RE_LABOUR_UNIT / 30 (one pair of teams at unit inputs); 0 without either. */
 export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, p13: number, re: number, flopDay: number): number {
   if (re <= 0 || flopDay <= 0) return 0;
   const P = s.hidden.timeline.prod;
-  const l = Math.pow(Math.max(1e-12, (inp.mExp * re) / RE_UNIT), P.lam);
-  return (Xces(P, (flopDay * p13) / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_UNIT)) / 30;
+  const l = Math.pow(Math.max(1e-12, (inp.mExp * re) / RE_LABOUR_UNIT), P.lam);
+  return (Xces(P, (flopDay * p13) / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
 }
 
 /** One day of one project's lifecycle. `reCap` = research-engineer team-equivalents on it today (human); `flopDay` = its
@@ -707,7 +703,7 @@ function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, inp: Resear
     st.idea = Math.min(st.idea, 1);
   }
   // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
-  // inputs: √RE_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
+  // inputs: √RE_LABOUR_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
   const rate = experimentRate(s, inp, p13, reCap, flopDay);
   let time = 1;
   let used = 0;
@@ -847,9 +843,9 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const p13 = p13Mult(s, p13Payoff);
   // Experiment FLOP by need (RD-B08): each project in experiments a full share, routine tuning what is left.
   const sh = expShares(alloc, avail);
-  // The unit project's inputs: a full project's share (RE_PER_PROJECT of the needs' units; the whole pool for the first
+  // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first
   // project when nothing else wants FLOP).
-  const inp = researchInputs(s, Math.max(sh.units, RE_PER_PROJECT), avail, p13);
+  const inp = researchInputs(s, Math.max(sh.units, RE_MAX_PER_PROJECT), avail, p13);
   let used = 0;
   for (const id of ready) {
     const n = node(id) as TreeNodeDef;
@@ -859,12 +855,12 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
     const ts = p.tree[id];
     if (ts?.cap) ts.progress = capProgress(ts.cap);
   }
-  // Routine tuning: the same CES on the tuning allocation (V3.4), at its FLOP per RE_UNIT; headroom closes at TUNE_K ×
+  // Routine tuning: the same CES on the tuning allocation (V3.4), at its FLOP per RE_LABOUR_UNIT; headroom closes at TUNE_K ×
   // its experiment throughput.
   const tune = alloc.re.tune;
   if (tune > 0) {
     const Pp = s.hidden.timeline.prod;
-    const Xt = Xces(Pp, Math.max(1e-12, ((sh.tune / tune) * RE_UNIT * p13) / C_UNIT_FLOP_PER_DAY), inp.l) * inp.speed;
+    const Xt = Xces(Pp, Math.max(1e-12, ((sh.tune / tune) * RE_LABOUR_UNIT * p13) / C_UNIT_FLOP_PER_DAY), inp.l) * inp.speed;
     tuneDay(s, TUNE_K * tune * Xt);
     used += sh.tune;
   }

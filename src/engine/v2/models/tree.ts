@@ -28,12 +28,13 @@
 import { AG17_MIN_L, AGENDAS } from '../../../data/v2/agendas';
 import { START_BY_ID } from '../../../data/v2/starts';
 import {
-  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, SPECIALTY_BONUS, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
+  CAPACITY_UNIT, EFFORT_TM, OPTION_NODE, PROJECT_BY_ID, TREE, TREE_RETRY_DAYS, isLineNode, lineNodeId,
   type OptionSlot, type TreeNodeDef,
 } from '../../../data/v2/tree';
-import { COLUMN_DEPT, QUALITY } from '../../../data/v2/teams';
+import { COLUMN_DEPT } from '../../../data/v2/teams';
 import { fmtDate, dateOf } from '../core/time';
 import { hash32 } from '../core/rng';
+import { teamCapacity } from '../departments/capacity';
 import type { AgendaId, Column, EngineSystem, GameStateV2, ResearchState, SetupV2, SystemCtx, Team, TeamDept, TreeNodeState } from '../types';
 import { measuredDomain, PARADIGM_BY_ID } from './paradigms';
 import { posteriorBand } from '../safety/agendas';
@@ -168,18 +169,14 @@ export function nodeOdds(s: GameStateV2, id: string): number {
   return base * (s.player.tree[id]?.priorMult ?? 1);
 }
 
-/** One team's capacity on a node: heads/40 × quality × 1.5 in its specialty. */
-export function teamCapacity(t: Pick<Team, 'heads' | 'quality' | 'specialty'>, n: Pick<TreeNodeDef, 'column'>): number {
-  return (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
-}
 
 /** Capacity on a project (optionally with a team added or removed). */
 export function projectCapacity(s: GameStateV2, id: string, add?: Team, remove?: string): number {
   const n = node(id);
   if (!n) return 0;
   let c = 0;
-  for (const t of s.player.teams) if (t.projectId === id && t.id !== remove && t.id !== add?.id) c += teamCapacity(t, n);
-  if (add) c += teamCapacity(add, n);
+  for (const t of s.player.teams) if (t.projectId === id && t.id !== remove && t.id !== add?.id) c += teamCapacity(t, n.column);
+  if (add) c += teamCapacity(add, n.column);
   return c;
 }
 
@@ -413,13 +410,13 @@ function autoAssignDept(s: GameStateV2, dept: TeamDept, respread: boolean) {
         const n = node(id) as TreeNodeDef;
         const c = cap.get(id) ?? 0;
         // An unstaffed project outranks any gain (queue order, then specialty); else days cut × priority weight.
-        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n))) * Math.pow(PRIORITY_W, r);
+        const score = c <= 0 ? 1e12 * (ready.length - r) + (t.specialty === n.column ? 1e11 : 0) : (eta(id, c) - eta(id, c + teamCapacity(t, n.column))) * Math.pow(PRIORITY_W, r);
         if (!best || score > best.score + 1e-9) best = { t, id, score };
       }
     }
     if (!best) break;
     best.t.projectId = best.id;
-    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, node(best.id) as TreeNodeDef));
+    cap.set(best.id, (cap.get(best.id) ?? 0) + teamCapacity(best.t, (node(best.id) as TreeNodeDef).column));
     left.splice(left.indexOf(best.t), 1);
   }
   if (dept !== 'saf') return;

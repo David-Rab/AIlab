@@ -9,8 +9,8 @@
 // health (the Beta posterior), and tool upkeep by the safety research engineers experiments leave free.
 import { AGENDAS, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
 import { OOM_PER_HALVING } from '../../../data/v2/oversight';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
-import { QUALITY } from '../../../data/v2/teams';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { teamCapacity } from '../departments/capacity';
 import { safetyLabour } from '../departments/workfit';
 import { safetyPoolClaims } from '../departments/agents';
 import { EDGES } from '../../../data/v2/edges';
@@ -54,17 +54,13 @@ export function lineOfTeam(t: Pick<Team, 'projectId'>): AgendaId | undefined {
   return n && isLineNode(n) ? n.agenda : undefined;
 }
 
-/** A team's capacity on a project column: heads/40 × quality × 1.5 in its specialty (models/tree.ts teamCapacity). */
-export const capOn = (t: Pick<Team, 'heads' | 'quality' | 'specialty'>, column: string) =>
-  (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === column ? SPECIALTY_BONUS : 1);
-
 /** Science capacity on every project of a line (Σ over its teams). */
 export function lineCapacity(s: GameStateV2, ag: AgendaId): number {
   let c = 0;
   for (const t of s.player.teams) {
     if (!t.projectId || t.role !== 'sci') continue;
     const n = PROJECT_BY_ID[t.projectId];
-    if (n && n.agenda === ag && isLineNode(n)) c += capOn(t, n.column);
+    if (n && n.agenda === ag && isLineNode(n)) c += teamCapacity(t, n.column);
   }
   return c;
 }

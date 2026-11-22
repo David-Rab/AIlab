@@ -25,7 +25,8 @@ import { DEFAULT_CAP_SHARES } from '../../../data/v2/agents';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode } from '../../../data/v2/tree';
+import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
+import { teamCapacity } from './capacity';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
 import { gOfDomain, h50Of } from '../models/capability';
 import { adopted } from '../models/paradigms';
@@ -342,13 +343,13 @@ export interface SafetyLabour {
   sdAI: number;
   phi: number;
 }
-/** AG17's science capacity (standard science units, as safSciOn: heads ÷ CAPACITY_UNIT × quality × specialty) on its
+/** AG17's science capacity (standard science units, departments/capacity.ts teamCapacity) on its
  *  research-line projects. */
 export function ag17Capacity(s: GameStateV2): number {
   let c = 0;
   for (const t of s.player.teams) {
     const n = t.role === 'sci' && t.projectId ? PROJECT_BY_ID[t.projectId] : undefined;
-    if (n && n.agenda === 'AG17' && isLineNode(n)) c += (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
+    if (n && n.agenda === 'AG17' && isLineNode(n)) c += teamCapacity(t, n.column);
   }
   return c;
 }

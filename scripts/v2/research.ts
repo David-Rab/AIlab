@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { HEADROOM, MAX_DROPS, PICK_AT, RE_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
+import { HEADROOM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC, TUNE_RE_PER_OOM } from '../../src/data/v2/research';
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
@@ -287,16 +287,16 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
     const a = reAllocation(x);
     const avail = projectFlopPerDay(x);
     const sh = expShares(a, avail);
-    const inp = researchInputs(x, Math.max(sh.units, RE_PER_PROJECT), avail);
+    const inp = researchInputs(x, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
     const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, 1, re, sh.perProject.get(id) ?? 0)]));
     return { k, a, sh, rate, avail, x };
   };
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
   // (a) Projects in experiments are served before tuning: tuning holds research engineers only when every project has
-  // its full RE_PER_PROJECT (INP-V01: the old 75% share left the 7th project at 0 while tuning kept engineers).
-  const bad = vs.filter((v) => v.a.re.tune > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
-  const short = vs.filter((v) => [...v.a.perProject.values()].some((re) => re < RE_PER_PROJECT - 1e-9));
+  // its full RE_MAX_PER_PROJECT (INP-V01: the old 75% share left the 7th project at 0 while tuning kept engineers).
+  const bad = vs.filter((v) => v.a.re.tune > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
+  const short = vs.filter((v) => [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
   check(bad.length === 0 && short.length > 0 && short.every((v) => v.a.re.tune === 0),
     'RD-B08: tuning gets research engineers only after every project in experiments has its full need',
     `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; ${short.length} short of the projects' need (tuning 0 in each); violations ${bad.map((v) => v.k).join(',') || 'none'}`);
@@ -320,10 +320,10 @@ const act = (s: GameStateV2, id: string, p: Record<string, string | number | boo
   check(worstRe >= -1e-9 && worstFlop >= 1 - 1e-9 && worstRate >= 0.995,
     'RD-B08: adding research engineers never lowers a project\'s research engineers, experiment FLOP or rate (FLOP by need, not headcount)',
     `worst step: RE ${worstRe.toFixed(3)}, FLOP ×${worstFlop.toFixed(4)}, rate ×${worstRate.toFixed(4)}`);
-  // (c) Tuning's FLOP is what the projects leave: with RE to spare, the pool splits RE_PER_PROJECT per project and
+  // (c) Tuning's FLOP is what the projects leave: with RE to spare, the pool splits RE_MAX_PER_PROJECT per project and
   // tuning's demand; with no headroom tuning wants nobody, the projects take the whole pool and the rest is idle.
   const top = vs[vs.length - 1];
-  const units = top.a.perProject.size * RE_PER_PROJECT + top.a.demand.tune;
+  const units = top.a.perProject.size * RE_MAX_PER_PROJECT + top.a.demand.tune;
   const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
   const z = deserialize(serialize(top.x));
   for (const k of ['pre', 'rlMid', 'rlCeil', 'train', 'serve'] as const) for (const b of z.player.research.stacks[k].buckets) b.h = 0;

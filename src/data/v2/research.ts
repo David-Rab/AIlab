@@ -133,13 +133,14 @@ export const PROJECT_MAX_TEAMS = 6;
 /** B4 "auto" teams wanted: a spare science team goes to the auto project where it adds the most progress (√capacity ÷
  *  ideation effort), weighted by this factor per rank down the list, so higher priority wins close calls [D]. */
 export const AUTO_RANK_W = 0.8;
-/** Research-engineer team-equivalents a project in experiments can use [D]. */
-export const RE_PER_PROJECT = 2;
+/** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
+ *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
+export const RE_MAX_PER_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
  *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
  *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (RE_PER_PROJECT each, no
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_MAX_PER_PROJECT each, no
  *  share cap: RD-B08), then routine tuning (its demand ∝ remaining headroom, TUNE_RE_PER_OOM); the rest are idle;
  *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
  *  release waits on them; they are small). */

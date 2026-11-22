@@ -17,7 +17,7 @@
 // (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
 import { CHINA_CAL, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { B_G_PER_Y } from '../../../data/v2/runDesign';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_UNIT } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
@@ -88,7 +88,7 @@ function evalV3(w: TimelineWorld, inp: LabInputs): V3Eval {
   const reRes = v.reRes0 * hs;
   const H = Math.max(1e-9, v.H0 * hs);
   const AI = v.AI0 * (inp.k / Math.max(1e-12, v.k0));
-  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
   const cbar = Math.max(1e-12, (inp.c * DAY0_REF.flop * v.flopEff) / units / C_UNIT_FLOP_PER_DAY);
   const L = effLabour(Pp, v.a, H, AI, v.assist);
   const l = Math.pow(Math.max(1e-12, L / H), Pp.lam);
@@ -112,7 +112,7 @@ function xAtMix(w: TimelineWorld, inp: LabInputs, f: number): number {
   const reRes = v.reRes0 * hs;
   const H = Math.max(1e-9, v.H0 * hs);
   const AI = v.AI0 * (k / Math.max(1e-12, v.k0));
-  const units = Math.max(1e-9, reRes / RE_UNIT);
+  const units = Math.max(1e-9, reRes / RE_LABOUR_UNIT);
   const cbar = Math.max(1e-12, (c * DAY0_REF.flop * v.flopEff) / units / C_UNIT_FLOP_PER_DAY);
   const L = effLabour(Pp, v.a, H, AI, v.assist);
   const l = Math.pow(Math.max(1e-12, L / H), Pp.lam);
@@ -222,7 +222,7 @@ export function researchSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
   const e = evalV3(s.hidden.timeline, inp);
-  return (e.X * e.units * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_UNIT);
+  return (e.X * e.units * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
 }
 
 /** M and its pieces for a set of inputs (the player's work-type research speed). Pure. */
@@ -285,7 +285,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   }
   const eRate = rates.g;
   const pools = poolsOf(s, core.id);
-  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
+  return rivalReadout(x, eRate, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: pools.agents / DAY0_REF.agents, c: x.c });
 }
 
 /** Spare serving compute lent to research agents (J2 PR1) and what it adds to research speed today (M with it ÷ M

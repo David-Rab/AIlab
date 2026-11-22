@@ -27,7 +27,7 @@ import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { B_G_PER_Y, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
-import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
+import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { domainsOf, gV0, levelOfG } from '../models/capability';
 import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
@@ -281,7 +281,7 @@ function labConstOf(w: TimelineWorld, G: number, fpt: number, staffCap: number) 
   const h50 = H50_V0_MIN * Math.pow(H50_PER_OOM, G - gV0(w));
   const sdAI = Math.min(SD_AI_MAX, sdAIOf(w, G));
   return {
-    H, S, units: H / RE_UNIT, fte: fteOfFpt(fpt),
+    H, S, units: H / RE_LABOUR_UNIT, fte: fteOfFpt(fpt),
     a: coverage(w, 'EXP', G, h50), assist: assistOf(winRate(w, 'EXP', G)),
     aI: coverage(w, 'IDEAS', G, h50), assistI: assistOf(winRate(w, 'IDEAS', G)),
     sdAI, taste: teamTaste(0, sdAI, 1, w.prod.m2b),

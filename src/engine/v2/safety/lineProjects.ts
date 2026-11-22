@@ -28,8 +28,8 @@ import {
 } from '../../../data/v2/agendas';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { RISK_KAPPA } from '../../../data/v2/research';
-import { CAPACITY_UNIT, PROJECT_BY_ID, SPECIALTY_BONUS, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
-import { QUALITY } from '../../../data/v2/teams';
+import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
+import { teamCapacity } from '../departments/capacity';
 import { hash32 } from '../core/rng';
 import { safetyPoolClaims } from '../departments/agents';
 import { handedLabour, qualityZ, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
@@ -125,7 +125,7 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
   let heads = 0;
   for (const t of s.player.teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = (t.heads / CAPACITY_UNIT) * QUALITY[t.quality].out * (t.specialty === n.column ? SPECIALTY_BONUS : 1);
+    const c = teamCapacity(t, n.column);
     cap += c;
     heads += t.heads;
     qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.phi, m2b);
