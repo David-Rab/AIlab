@@ -2169,3 +2169,54 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   vision and Companion around day 30–115 in most worlds (when the paradigm draw works) whether or not the player builds
   them, so OFFICE, FIN, LEGAL, GOV and MEDIA coverage of rival offers returns to ×1 then and rivals' Chat appeal rises;
   a player without the tools loses share there.
+
+### RD-P08
+- **Done (commit 022ae14).** DD-04 (a) / PRD-10 / PRD-23 (leader part). A sector pack is now an OWNED sector adaptation
+  of one product for one sector, all in one module, engine/v2/models/adaptations.ts: a scaffold (ADAPT_TW 4 engineer
+  team-weeks on the build queue, kind `adaptation`) that makes that product's offer cover ×(1 + ADAPT_COVER 0.15) of the
+  sector's tasks (capped at all), agent work with it (worldfx/serving.ts offerOf, OfferOpts `adapted`; productOffer
+  reads only the product's own live adaptation); plus, in CERT_SECTORS (FIN, HEALTH, GOV, MIL), a certification started
+  when the scaffold is built: CERT_DAYS 120 and CERT_CASH $0.4B booked then ('sector certification'); until it is done
+  the adaptation does not act. State `Deployment.adaptations: { sector, certDone? }[]`; any number of products may
+  adapt to the same sector, one each. Relaunch takes over the retired product's adaptations (relaunchAdaptations);
+  built with no live host: the work is lost, nothing is paid, the player is told.
+- **Rivals (DD-18, RP07b rule shape):** `rivalAdaptStep` (rivals and China, labDaily after the tool step): a lab with a
+  public model passes its own gate when the sector's US task adoption A ≥ RIVAL_ADAPT_GATE_A 0.01, builds for
+  ADAPT_TW × RIVAL_TOOL_DAYS_PER_TW = 28 d (+ CERT_DAYS where certification is needed), then sells it
+  (`RivalLab.adapts`, `adaptBuild`); mix.ts passes `adapted` to their model and lineup offers.
+- **Deleted:** the `sectorPacks` feature, the enabler `packs` flag, `FeatureDef.leader`, `LEADER_FEATURES` (init uses the
+  start's own features; the leader start's list is empty), the world one-pack-per-sector rule (`sectorCertDay`) and the
+  sector-wide US friction −0.1 (rivals no longer gain from the player's pack), `SECTOR_PACK_DG` (+0.42 OOM fit),
+  `SECTOR_PACK_TW / SECTOR_CERT_DAYS / SECTOR_PACK_CASH` and the duplicate `PRODUCT.days / cash`, `wfx.sectorProduct`
+  (→ `product.adapt`, models sphere), `packRevenueGain` (→ `adaptRevenueGain`), `pendingPack`, `relaunchPacks`,
+  `packCertified`, glossary `sectorPack` + `sectorProduct` (→ one `adaptation`). The world certDay was already gone
+  (RD-B12).
+- **UI (minimal hook):** Products card, under Features on Enterprise / API / Agents: one "Sector adaptations" row
+  (live / in certification until / building) with "+ sector" (`product.adapt`, testId `prod-adapt-add.<id>`);
+  BuildLoad names the item "<sector> adaptation"; World sectors' friction tooltip no longer claims a certification cut.
+- **Stand-ins [D]:** ADAPT_COVER 0.15 = a product tool's share (Computer use); CERT_SECTORS by the US certifications
+  buyers ask for (FedRAMP / DoD IL, HIPAA / HITRUST, SOC 2 + model-risk review), one CERT_DAYS / CERT_CASH for all
+  (kept from the old pack; real FedRAMP runs longer and costs far less than $0.4B: to source); the rival gate stands in
+  for a product strategy rivals do not have; no per-lab build difference; rivals' certification cash not booked
+  (aggregate finances).
+- **Migration 69 → 70 (SCHEMA_REV 70):** each product's packs → adaptations on the same product (certDay kept as
+  certDone in a CERT_SECTORS sector, dropped elsewhere: live); queued `sectorPack` builds → `adaptation`; 'sectorPacks'
+  dropped from the lab's and products' features and feature builds. Idempotent. Hygiene SCHEMA_REV asserts → 70 and the
+  45/44 pack migration check now ends in adaptations.
+- **Tests updated:** products.ts RD-B12 pack checks → adaptation checks (stored on product, no double, another product
+  may adapt the same sector, relaunch takes them over, no-host: no certification paid); RD-B20 preview check → the
+  adaptation preview (team-weeks, cert cash, revenue = adaptRevenueGain); worldfx.ts sector-product check removed;
+  lint-ux term list; uitest feature filter.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p08/check.ts` (run alone) 13 / 13: ai2027 seed
+  2027, Enterprise adapted to Legal: Legal coverage 0.0425 → 0.0488 (×1.15), SOFT / FIN unchanged, the API's Legal
+  unchanged; Finance via the action: built day 6, certDone 126, $0.4B booked then, no effect in certification
+  (0.0698), certified 0.0698 → 0.0802; a rival builds SOFT (live day 30) and FIN 120 d later; no sectorPacks /
+  LEADER_FEATURES / certDay / SECTOR_PACK* in src (save.ts excepted); a rev-69 save's packs → adaptations. Not run:
+  test:quick / full, products.ts / hygiene suites, uitest.
+- **Left:** a save with a pack still building paid $0.4B at queue under the old rule and pays certification again in a
+  regulated sector (rare; not refunded); per-sector certification time and cost to source; GLOSSARY.md not regenerated
+  (`lint-ux --doc`); the products-panel redesign (UI later); RefBot does not adapt sectors (it never built packs).
+- **moves calibration: yes (serving / finance / worldfx).** Rivals and China now adapt every sector whose US adoption
+  is ≥ 1% from day ~30 (regulated ones ~day 150), so their coverage there rises ×1.15 and the player's share falls
+  unless it adapts too; the US friction −0.1 in a packed sector is gone for everyone; the player's pack effect changes
+  from +0.42 OOM fit to ×1.15 coverage; the leader start no longer has a Sector packs feature (no effect alone).
