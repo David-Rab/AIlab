@@ -10,7 +10,8 @@ import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
-import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
+import { RECIPE_LEAK_SHARE } from '../production/diffusion';
+import { DISTILL_S } from '../../../data/v2/calibration';
 import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
@@ -295,27 +296,27 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     // RD-P05 (DD-02 a): open weights are a release act on a model (deployments.ts releaseOpen), not a variant copy.
     // The preview lists what follows from the release: China's absorbed recipe gap (security.ts → openWeightsReleased,
     // only above the open frontier), rivals distilling it at full access (their lift at the next post-training) and the
-    // one-way release itself (misuse safeguards reduce to the hazard filter: incidents.ts).
+    // one-way release itself (misuse safeguards reduce to the hazard filter: incidents.ts). RF-P6: it states the rules'
+    // shares and your intelligence estimates of the gaps (lab.intel), never the hidden recipes, models or the version's
+    // true G.
     id: 'releaseOpen', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Release open weights',
     available: () => true,
     preview: (s, p) => {
       const v = versionById(s, str(p, 'versionId', ''));
       const costs: CostLine[] = [];
       if (!v) return { costs, gains: [], exposure: [] };
-      if (v.G > s.knowledge.openWeightsG) {
-        const days = Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, v.recG ?? releaseRecG(s, 'player', v.G))));
-        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
+      // China: RECIPE_LEAK_SHARE.openWeights of its recipe gap to the release's recipe (openAbsorbG), if the model beats
+      // the best open-weight model; the gap shown is your estimate of China's lead gap (intel), a band.
+      const cn = s.china.lab;
+      if (cn.core.status === 'active') {
+        const est = cn.intel.leadDaysEst;
+        const sd = cn.intel.leadDaysSd;
+        costs.push({ currency: 'progress', amount: -Math.round(RECIPE_LEAK_SHARE.openWeights * 100), unit: '%', target: `of China's recipe gap to you: it absorbs the weights, if they beat the best open-weight model (you estimate China ${Math.max(0, Math.round(est - sd))}–${Math.round(est + sd)} days behind)` });
       }
-      const tmp: Deployment = {
-        id: '__open', kind: 'product', versionId: v.id, channel: 'open', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-        safeguards: 'classifiers', guards: [], adaptations: [], features: [], kyc: 0, status: 'live',
-        usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
-      };
-      // Rivals' lift at their next post-training (distillationLeak with the open deployment), in OOM: the per-year days
-      // of distillLine divide by a lab's recent pace, which is ~0 early in a game.
-      const h = hypothetical(s, [...s.player.deployments, tmp]);
-      const lift = Math.max(0, ...[...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].map((l) => distillationLeak(h, l.core.id).dG - distillationLeak(s, l.core.id).dG));
-      if (lift > 0) costs.push({ currency: 'progress', amount: -Math.round(lift * 1000) / 1000, unit: 'OOM', target: 'effective compute the best-placed rival takes at its next post-training: it distils the weights' });
+      // Rivals: each distils it at full access, closing up to DISTILL_S of its gap to this model at its next post-training
+      // (distillLift; less for a small lab); the nearest rival's gap is your estimate (intel), a band.
+      const near = activeRivals(s).reduce<typeof cn | undefined>((m, r) => (!m || r.intel.leadDaysEst < m.intel.leadDaysEst ? r : m), undefined);
+      if (near) costs.push({ currency: 'progress', amount: -Math.round(DISTILL_S * 100), unit: '%', target: `at most, of each rival's gap to this model: it distils the weights at its next post-training (you estimate the nearest, ${near.core.name}, ${Math.max(0, Math.round(near.intel.leadDaysEst - near.intel.leadDaysSd))}–${Math.round(near.intel.leadDaysEst + near.intel.leadDaysSd)} days behind)` });
       costs.push({ currency: 'progress', amount: 1, unit: 'release', target: `${v.name}'s weights are public for good: anyone runs and fine-tunes them; misuse safeguards reduce to the hazard filter` });
       return { costs, gains: [], exposure: [] };
     },

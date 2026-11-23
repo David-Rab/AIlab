@@ -4223,3 +4223,20 @@ player's starts, not DAY0_TOOLS.
   in US Software and splits its hours evenly; with the API withdrawn the share does not rise).
 - **Moves calibration: yes** (small): with API and Enterprise both live, the player's sector target shares drop by the
   log-sum's variety bonus (a few points of share where the products are close).
+
+### RF-P6 open-weights release preview without hidden truth
+- **Changed:** the `releaseOpen` preview (models/productOps.ts) no longer computes China's gained days or the
+  best-placed rival's lift from hidden state (China's recipe, rivals' models, the version's true G / recG). It states the
+  rules' shares and the player's own estimates: "30 % of China's recipe gap to you, if the weights beat the best
+  open-weight model (you estimate China a–b days behind)" (RECIPE_LEAK_SHARE.openWeights; band = China's
+  intel.leadDaysEst ± leadDaysSd) and "at most 50 % of each rival's gap to this model at its next post-training (you
+  estimate the nearest, X, a–b days behind)" (DISTILL_S at full access; nearest rival by intel). The one-way release
+  line is unchanged. The effect (openWeightsReleased, distillLift) is unchanged.
+- **Deleted:** the preview's hypothetical open deployment and its ownProgressDays / openAbsorbG / releaseRecG reads.
+- **Stand-ins:** none new (the shares are the engine's own constants; the band is the existing intel estimate).
+- **Check:** tsc (src, scripts/v2); new `scripts/v2/_rfp6/check.ts` all ok (preview unchanged when the true G of the
+  version, China and the rivals change; changes when the China estimate changes). scripts/v2/products.ts's open-release
+  assertion updated to the new lines (suite not run).
+- **Moves calibration: no.**
+- **Note:** the "if they beat the best open-weight model" condition is in words, not checked, since the version's true
+  G is hidden; the recipe gap itself is not known to the player, so the preview gives the share, not days.
