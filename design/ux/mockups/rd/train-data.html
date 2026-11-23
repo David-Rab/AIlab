@@ -1,0 +1,71 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TRAINING › Data</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.main { gap: 14px; }
+.herorow { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 14px; }
+.tile { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.tile .t { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; color: #fff; }
+.tile .big { font: 650 26px var(--mono); color: #fff; } .tile .big .u { font: 500 13px var(--sans); color: var(--text-2); margin-left: 4px; }
+.gauge { position: relative; height: 10px; border-radius: 5px; display: flex; gap: 2px; margin-top: 4px; }
+.gauge .z { height: 100%; border-radius: 3px; }
+.gauge .mk { position: absolute; top: -5px; width: 3px; height: 20px; background: #fff; border-radius: 2px; box-shadow: 0 0 0 2px var(--panel); }
+.gl { position: relative; height: 16px; font-size: 11px; color: var(--text-3); }
+.gl span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.grid { display: grid; grid-template-columns: minmax(0,1fr) 610px; gap: 14px; flex: 1; min-height: 0; }
+.lcol { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-2); align-items: center; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.dom { display: grid; grid-template-columns: 170px minmax(0,1fr) 92px; gap: 14px; align-items: center; padding: 10px 0; }
+.dom .nm { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #fff; }
+.dom .nm svg { color: var(--text-2); }
+.stk { position: relative; height: 20px; }
+.stk .segs { display: flex; gap: 2px; height: 100%; }
+.stk .segs i { height: 100%; }
+.stk .segs i:first-child { border-radius: 4px 0 0 4px; } .stk .segs i:last-child { border-radius: 0 4px 4px 0; }
+.stk .draw { position: absolute; top: -5px; bottom: -5px; border: 2px solid #fff; border-left: 0; border-top: 0; border-bottom: 0; }
+.stk .draw::after { content: ''; position: absolute; left: 0; right: -2px; bottom: -2px; height: 2px; background: #fff; }
+.dom .v { font: 600 13px var(--mono); color: var(--text-2); text-align: right; }
+.axis { position: relative; height: 18px; margin-left: 184px; margin-right: 106px; border-top: 1px solid var(--line-2); }
+.axis span { position: absolute; top: 3px; transform: translateX(-50%); font: 11px var(--mono); color: var(--text-3); }
+.src { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); align-items: start; }
+.src .si { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; color: #fff; }
+.src .sn { font-size: 15px; font-weight: 650; color: #fff; display: flex; align-items: center; gap: 8px; }
+.src .sv { font: 650 17px var(--mono); color: #fff; text-align: right; white-space: nowrap; }
+.src .sv .u { font: 500 12px var(--sans); color: var(--text-2); }
+.src .sub { font-size: 12.5px; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+.src .acts { display: flex; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.qchip { font: 600 11.5px var(--mono); padding: 0 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-2); }
+.seg3 { display: inline-flex; gap: 2px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+.seg3 span { padding: 2px 9px; border-radius: 5px; font-size: 12px; color: var(--text-2); font-weight: 600; }
+.seg3 span.on { background: #24364f; color: #fff; box-shadow: inset 0 0 0 1px var(--you); }
+.gen { position: relative; flex: 1; margin: 6px 18px 0; }
+.gen .bars { position: absolute; left: 0; right: 0; top: 4px; bottom: 34px; border-bottom: 1px solid var(--line-2); }
+.gen .b { position: absolute; bottom: 0; width: 16px; border-radius: 4px 4px 0 0; }
+.gen .xl { position: absolute; bottom: 12px; transform: translateX(-50%); font: 11px var(--mono); color: var(--text-3); white-space: nowrap; }
+.gen .era { position: absolute; top: 0; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.gen .era b { font-family: var(--mono); color: #fff; }
+.gen .tl { position: absolute; bottom: 0; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 620px; background: #111821; border-left: 1px solid #3a4c66; box-shadow: -18px 0 40px rgba(0,0,0,.55); z-index: 50; display: flex; flex-direction: column; }
+.scrim { position: absolute; inset: 0; background: rgba(5,8,12,.55); z-index: 40; }
+.drawer .dh { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); font-size: 17px; font-weight: 650; color: #fff; }
+.drawer .sec { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.drawer .k { color: var(--text-3); font-size: 13px; }
+.opt3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opt3 .o { border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 11px; font-size: 12.5px; color: var(--text-2); }
+.opt3 .o.on { border-color: var(--you); background: rgba(58,138,224,.10); }
+.opt3 .o b { display: block; color: #fff; font-size: 13.5px; margin-bottom: 2px; }
+.ba { display: grid; grid-template-columns: 180px 1fr 24px 1fr; gap: 6px 10px; align-items: center; font-size: 13.5px; }
+.ba .n { font-family: var(--mono); color: #fff; } .ba .ar { color: var(--text-3); text-align: center; }
+.up { color: var(--good); }
+.domsel { display: flex; flex-wrap: wrap; gap: 6px; }
+</style></head>
+<body data-tab="training">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="comp.js"></script>
+<script src="d2.js"></script>
+<script src="shell.js"></script>
+<script src="train-data.js"></script>
+</body></html>

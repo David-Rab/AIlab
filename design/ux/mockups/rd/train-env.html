@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TRAINING › Environments</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.main { gap: 14px; }
+.grid { display: grid; grid-template-columns: minmax(0,1fr) 600px; gap: 14px; flex: 1; min-height: 0; }
+.fh, .fam { display: grid; grid-template-columns: 200px 190px 190px 120px minmax(0,1fr); gap: 20px; align-items: center; padding: 0 20px; }
+.fh { padding-top: 14px; padding-bottom: 8px; font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 650; border-bottom: 1px solid var(--line); }
+.fam { border-bottom: 1px solid var(--line); height: 113px; }
+.fam:last-child { border-bottom: 0; }
+.fam .nm { display: flex; align-items: center; gap: 12px; }
+.fam .fi { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; background: var(--panel-3); color: #fff; flex-shrink: 0; }
+.fam .nm b { font-size: 15.5px; color: #fff; font-weight: 650; display: block; }
+.fam .nm .s { font-size: 12px; color: var(--text-3); }
+.mb { display: flex; align-items: center; gap: 12px; }
+.mb .tr { position: relative; flex: 1; height: 12px; border-radius: 4px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mb .tr i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.mb .tr .tk { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #8da2bd; }
+.mb .v { font: 650 15px var(--mono); color: #fff; width: 52px; text-align: right; }
+.mb .v.warn { color: var(--warn); }
+.ctr { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-2); }
+.ctr .cb { height: 10px; border-radius: 3px; background: var(--warn); }
+.acts { display: flex; flex-direction: column; gap: 7px; }
+.act { display: grid; grid-template-columns: 104px 1fr; gap: 10px; align-items: center; font-size: 12.5px; color: var(--text-3); }
+.act .btn { padding: 4px 10px; font-size: 12.5px; justify-content: center; }
+.act .pv b { color: #fff; font-family: var(--mono); font-weight: 600; }
+.fam.lock .fi { background: transparent; border: 1px dashed var(--line-2); color: var(--text-3); }
+.fam.lock .nm b { color: var(--text-2); }
+.press { display: flex; flex-direction: column; }
+.pg { margin: 14px 20px 0; }
+.pbar { position: relative; display: flex; gap: 2px; height: 16px; }
+.pbar i { height: 100%; }
+.pbar i:first-child { border-radius: 4px 0 0 4px; } .pbar i:last-child { border-radius: 0 4px 4px 0; }
+.needle { position: absolute; top: -8px; width: 4px; height: 32px; background: #fff; border-radius: 2px; box-shadow: 0 0 0 2px var(--panel); transform: translateX(-2px); }
+.pl { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); margin-top: 8px; }
+.sec { padding: 16px 20px; border-top: 1px solid var(--line); }
+.sec .cap { margin-bottom: 10px; }
+.mk { display: grid; grid-template-columns: 170px minmax(0,1fr) 46px; gap: 12px; align-items: center; font-size: 13.5px; padding: 4px 0; }
+.mk .bb { height: 12px; border-radius: 3px; background: var(--warn); }
+.mk .n { text-align: right; color: var(--text-2); font-size: 12.5px; }
+.fix { display: grid; grid-template-columns: minmax(0,1fr) auto 64px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.fix.first { border-top: 0; }
+.fix .ba { font: 600 13px var(--mono); color: #fff; white-space: nowrap; }
+.fix .sub { font-size: 12px; color: var(--text-3); }
+.word { font-size: 30px; font-weight: 700; color: var(--warn); }
+.rup { color: var(--warn); font-weight: 600; }
+</style></head>
+<body data-tab="training">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="comp.js"></script>
+<script src="shell.js"></script>
+<script src="train-env.js"></script>
+</body></html>

@@ -1,0 +1,764 @@
+{
+ "_note": "Player-visible only: run.forecast (runForecast at launch), evals.measuredL / measuredSd, evalQueueView. No s.hidden, no v.G / v.Lg.",
+ "A": {
+  "fixtureDay": 400,
+  "fixtureDate": "Aug 5, 2026",
+  "afterDate": "Aug 6, 2026",
+  "plan": {
+   "params": 1100000000000,
+   "data": "balanced",
+   "shape": "moe",
+   "tpp": 400,
+   "poolShare": 0.6
+  },
+  "launchForecast": {
+   "mid": 9.077,
+   "sd": 0.086,
+   "band90": [
+    8.936,
+    9.218
+   ],
+   "gain": 2.177,
+   "sdParts": {
+    "ideas": 0.046,
+    "start": 0,
+    "eval": 0.073
+   },
+   "ref": {
+    "name": "Atlas-2.8",
+    "measuredL": 6.9,
+    "measuredSd": 0.073
+   }
+  },
+  "newRun": {
+   "id": "R32",
+   "name": "Pretraining run 32",
+   "kind": "base",
+   "status": "running",
+   "launched": "Aug 5, 2026",
+   "stage": "training",
+   "progress": 0.006,
+   "flopNeeded": 2.904e+27,
+   "poolShare": 0.6,
+   "etaDays": 178,
+   "etaDate": "Jan 31, 2027",
+   "forecast": {
+    "mid": 9.077,
+    "sd": 0.086,
+    "band90": [
+     8.936,
+     9.218
+    ]
+   },
+   "stall": null
+  },
+  "allRuns": [
+   {
+    "id": "R32",
+    "name": "Pretraining run 32",
+    "kind": "base",
+    "status": "running",
+    "launched": "Aug 5, 2026",
+    "stage": "training",
+    "progress": 0.006,
+    "flopNeeded": 2.904e+27,
+    "poolShare": 0.6,
+    "etaDays": 178,
+    "etaDate": "Jan 31, 2027",
+    "forecast": {
+     "mid": 9.077,
+     "sd": 0.086,
+     "band90": [
+      8.936,
+      9.218
+     ]
+    },
+    "stall": null
+   }
+  ],
+  "evalsInProgress": [
+   {
+    "name": "Atlas-2.10",
+    "depth": "full",
+    "by": "self",
+    "why": "release",
+    "progress": 0.714,
+    "etaDays": 4,
+    "finish": "Aug 10, 2026",
+    "binds": "researchEngineers"
+   },
+   {
+    "name": "Atlas-2.8",
+    "depth": "full",
+    "by": "self",
+    "why": "policy",
+    "progress": 0.357,
+    "etaDays": 9,
+    "finish": "Aug 15, 2026",
+    "binds": "researchEngineers"
+   }
+  ]
+ },
+ "B": {
+  "simDays": 124,
+  "simSeconds": 0.886,
+  "endDate": "Dec 7, 2026",
+  "pairs": [
+   {
+    "run": {
+     "name": "Post-training run 32",
+     "kind": "post",
+     "status": "done",
+     "launched": "Aug 5, 2026",
+     "finished": "Nov 23, 2026",
+     "base": "Atlas-3"
+    },
+    "forecastAtLaunch": {
+     "mid": 8.622,
+     "sd": 0.073,
+     "band90": [
+      8.502,
+      8.742
+     ],
+     "gain": 1.722,
+     "sdParts": {
+      "ideas": 0.006,
+      "start": 0,
+      "eval": 0.073
+     },
+     "ref": {
+      "name": "Atlas-2.8",
+      "measuredL": 6.9,
+      "measuredSd": 0.073
+     }
+    },
+    "storedForecast": {
+     "mid": 8.622,
+     "sd": 0.073,
+     "band90": [
+      8.502,
+      8.742
+     ]
+    },
+    "result": {
+     "model": "Atlas-3.0",
+     "status": "ready",
+     "measuredL": 8.45,
+     "measuredSd": 0.071,
+     "range90": [
+      8.334,
+      8.566
+     ],
+     "measuredDate": "Dec 7, 2026",
+     "nSuites": 1
+    },
+    "error": {
+     "measuredMinusMid": -0.172,
+     "inSd": -2.356,
+     "inside90": false
+    }
+   },
+   {
+    "run": {
+     "name": "Distil run 33",
+     "kind": "distill",
+     "status": "done",
+     "launched": "Aug 5, 2026",
+     "finished": "Aug 7, 2026",
+     "teacher": "Atlas-2.10"
+    },
+    "forecastAtLaunch": {
+     "mid": 4.858,
+     "sd": 0.073,
+     "band90": [
+      4.738,
+      4.978
+     ],
+     "gain": -2.042,
+     "sdParts": {
+      "ideas": 0,
+      "start": 0,
+      "eval": 0.073
+     },
+     "ref": {
+      "name": "Atlas-2.8",
+      "measuredL": 6.9,
+      "measuredSd": 0.073
+     }
+    },
+    "storedForecast": {
+     "mid": 4.858,
+     "sd": 0.073,
+     "band90": [
+      4.738,
+      4.978
+     ]
+    },
+    "result": {
+     "model": "Atlas-2.10-mini",
+     "status": "ready",
+     "measuredL": 4.93,
+     "measuredSd": 0.077,
+     "range90": [
+      4.804,
+      5.056
+     ],
+     "measuredDate": "Aug 21, 2026",
+     "nSuites": 1
+    },
+    "error": {
+     "measuredMinusMid": 0.072,
+     "inSd": 0.986,
+     "inside90": true
+    }
+   }
+  ],
+  "notLaunched": [],
+  "otherRunsStarted": [],
+  "timeline": [
+   {
+    "date": "Aug 6, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.009
+     },
+     {
+      "name": "Distil run 33",
+      "status": "running",
+      "progress": 0.983
+     }
+    ]
+   },
+   {
+    "date": "Aug 16, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.1
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Aug 26, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.191
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Sep 5, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.283
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Sep 15, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.374
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Sep 25, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.465
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Oct 5, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.556
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Oct 15, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.647
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Oct 25, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.738
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Nov 4, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.829
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Nov 14, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "running",
+      "progress": 0.92
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Nov 24, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "done",
+      "progress": 1.003
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   },
+   {
+    "date": "Dec 4, 2026",
+    "runs": [
+     {
+      "name": "Post-training run 32",
+      "status": "done",
+      "progress": 1.003
+     },
+     {
+      "name": "Distil run 33",
+      "status": "done",
+      "progress": 1.965
+     }
+    ]
+   }
+  ],
+  "evalsAtEnd": [
+   {
+    "name": "Atlas-2.10",
+    "depth": "full",
+    "by": "self",
+    "why": "policy",
+    "progress": 0.071,
+    "etaDays": 13,
+    "finish": "Dec 20, 2026",
+    "binds": "researchEngineers"
+   }
+  ]
+ },
+ "C": {
+  "notes": [],
+  "simSeconds": 0.658,
+  "date": "Dec 8, 2026",
+  "day": 525,
+  "runs": [
+   {
+    "id": "R9",
+    "name": "Post-training 9",
+    "kind": "post",
+    "status": "done",
+    "launched": "Nov 4, 2025",
+    "stage": "done",
+    "progress": 1.043,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R11",
+    "name": "Distil 11",
+    "kind": "distill",
+    "status": "done",
+    "launched": "Dec 2, 2025",
+    "stage": "done",
+    "progress": 1.329,
+    "flopNeeded": 6.416946257958534e+24,
+    "poolShare": 0.1,
+    "forecast": null,
+    "stall": null,
+    "teacher": "Atlas-2.0",
+    "launchedToday": false
+   },
+   {
+    "id": "R13",
+    "name": "Post-training 13",
+    "kind": "post",
+    "status": "done",
+    "launched": "Dec 16, 2025",
+    "stage": "done",
+    "progress": 1.003,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R15",
+    "name": "Distil 15",
+    "kind": "distill",
+    "status": "done",
+    "launched": "Jan 21, 2026",
+    "stage": "done",
+    "progress": 1.155,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "forecast": null,
+    "stall": null,
+    "teacher": "Atlas-2.2",
+    "launchedToday": false
+   },
+   {
+    "id": "R17",
+    "name": "Post-training 17",
+    "kind": "post",
+    "status": "done",
+    "launched": "Jan 27, 2026",
+    "stage": "done",
+    "progress": 1.038,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R19",
+    "name": "Post-training 19",
+    "kind": "post",
+    "status": "done",
+    "launched": "Mar 10, 2026",
+    "stage": "done",
+    "progress": 1.009,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R21",
+    "name": "Pretraining 21",
+    "kind": "base",
+    "status": "done",
+    "launched": "Apr 11, 2026",
+    "stage": "done",
+    "progress": 1.007,
+    "flopNeeded": 2.3796976674111276e+27,
+    "poolShare": 0.6,
+    "forecast": null,
+    "stall": null,
+    "launchedToday": false
+   },
+   {
+    "id": "R22",
+    "name": "Post-training 22",
+    "kind": "post",
+    "status": "done",
+    "launched": "Apr 21, 2026",
+    "stage": "done",
+    "progress": 1.047,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.4,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R24",
+    "name": "Distil 24",
+    "kind": "distill",
+    "status": "done",
+    "launched": "May 27, 2026",
+    "stage": "done",
+    "progress": 1.773,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "forecast": null,
+    "stall": null,
+    "teacher": "Atlas-2.6",
+    "launchedToday": false
+   },
+   {
+    "id": "R26",
+    "name": "Post-training 26",
+    "kind": "post",
+    "status": "done",
+    "launched": "Jun 2, 2026",
+    "stage": "done",
+    "progress": 1.067,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.4,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R28",
+    "name": "Distil 28",
+    "kind": "distill",
+    "status": "done",
+    "launched": "Jul 8, 2026",
+    "stage": "done",
+    "progress": 1.018,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "forecast": null,
+    "stall": null,
+    "teacher": "Atlas-2.8",
+    "launchedToday": false
+   },
+   {
+    "id": "R30",
+    "name": "Post-training 30",
+    "kind": "post",
+    "status": "done",
+    "launched": "Jul 14, 2026",
+    "stage": "done",
+    "progress": 1.089,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "forecast": null,
+    "stall": null,
+    "base": "Atlas-2",
+    "launchedToday": false
+   },
+   {
+    "id": "R32",
+    "name": "Pretraining run 32",
+    "kind": "base",
+    "status": "running",
+    "launched": "Aug 5, 2026",
+    "stage": "training",
+    "progress": 0.7,
+    "flopNeeded": 2.904e+27,
+    "poolShare": 0.6,
+    "etaDays": 54,
+    "etaDate": "Jan 31, 2027",
+    "forecast": {
+     "mid": 9.077,
+     "sd": 0.086,
+     "band90": [
+      8.936,
+      9.218
+     ]
+    },
+    "stall": null,
+    "launchedToday": true,
+    "forecastRef": {
+     "name": "Atlas-2.8",
+     "measuredL": 6.9,
+     "measuredSd": 0.073
+    }
+   },
+   {
+    "id": "R33",
+    "name": "Post-training run 33",
+    "kind": "post",
+    "status": "done",
+    "launched": "Aug 5, 2026",
+    "stage": "done",
+    "progress": 1.003,
+    "flopNeeded": 3.569546501116691e+26,
+    "poolShare": 0.2,
+    "forecast": {
+     "mid": 8.622,
+     "sd": 0.073,
+     "band90": [
+      8.502,
+      8.742
+     ]
+    },
+    "stall": null,
+    "base": "Atlas-3",
+    "launchedToday": true,
+    "ended": "Nov 23, 2026",
+    "forecastRef": {
+     "name": "Atlas-2.8",
+     "measuredL": 6.9,
+     "measuredSd": 0.073
+    },
+    "result": {
+     "model": "Atlas-3.0",
+     "measuredL": 8.45,
+     "measuredSd": 0.071,
+     "measuredDate": "Dec 7, 2026",
+     "errorInSd": -2.356
+    }
+   },
+   {
+    "id": "R34",
+    "name": "Distil run 34",
+    "kind": "distill",
+    "status": "done",
+    "launched": "Aug 5, 2026",
+    "stage": "done",
+    "progress": 1.965,
+    "flopNeeded": 2.7588161349850454e+24,
+    "poolShare": 0.1,
+    "forecast": {
+     "mid": 4.858,
+     "sd": 0.073,
+     "band90": [
+      4.738,
+      4.978
+     ]
+    },
+    "stall": null,
+    "teacher": "Atlas-2.10",
+    "launchedToday": true,
+    "ended": "Aug 7, 2026",
+    "forecastRef": {
+     "name": "Atlas-2.8",
+     "measuredL": 6.9,
+     "measuredSd": 0.073
+    },
+    "result": {
+     "model": "Atlas-2.10-mini",
+     "measuredL": 4.93,
+     "measuredSd": 0.077,
+     "measuredDate": "Aug 21, 2026",
+     "errorInSd": 0.986
+    }
+   }
+  ],
+  "evalsInProgress": [
+   {
+    "name": "Atlas-2.10",
+    "depth": "full",
+    "by": "self",
+    "why": "policy",
+    "progress": 0.143,
+    "etaDays": 12,
+    "finish": "Dec 20, 2026",
+    "binds": "researchEngineers"
+   }
+  ],
+  "topBar": {
+   "researchSpeedRel": 2.398,
+   "speedLabel": "compute-bound",
+   "lead": {
+    "id": "r2",
+    "name": "xLab",
+    "est": -56,
+    "sd": 64
+   },
+   "cash": 56.236,
+   "runwayQ": 8,
+   "runwayState": "healthy",
+   "burnPerQ": -2.322,
+   "lossOfControlRisk": {
+    "p": 0.001,
+    "lo": 0,
+    "hi": 0.004,
+    "model": "Atlas-3.0"
+   },
+   "alerts": {
+    "last30dSev2plus": 3,
+    "byKind": {
+     "research": 1,
+     "milestone": 1,
+     "china": 1
+    },
+    "pendingDecisions": []
+   }
+  },
+  "trainingCompute": {
+   "trainingPoolH100e": 870584.702,
+   "trainingPoolShareOfOnline": 0.396,
+   "flopPerDay": 3.0122230672678214e+25,
+   "idleShare": 0.4,
+   "idleH100e": 348233.881,
+   "runShares": {
+    "Pretraining run 32": 0.6
+   }
+  }
+ }
+}
