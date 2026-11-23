@@ -3970,3 +3970,75 @@ sabotage, safetyrates pass (F6 persistence WARN 60–66%, known).
 - S5 unchanged: method strength moves traits, not the sight limit.
 - No evidence channel updates the belief about q (only trait readings correct the believed traits); a "method holds at
   scale" finding or eval comparison could narrow it later.
+
+### CP3j preset refit
+
+Per-preset V3_CAL refit after CP3g (frontier pace right), `calscan.ts t1`, 20 CAL_SEEDS, on af78cf8. Each fitted value is
+the preset's stated assumption about where the superhuman coder sits, so it may move only inside its source's range.
+Scratch in scripts/v2/_cp3j/ (untracked): scan logs, `peek.cjs` (medians per grid point read from .simcache, used
+because the CPU was shared and two early scans could not be stopped, so several points finished with fewer than 20
+seeds; n is given), `m0.ts` (start M = RefBot's day-1 m_EXP, calib's readout), `calscan-r.ts` (calscan with an `--r`
+list). tsc (app) clean. Five scans (ai2027 grid, slow G_SC, fast ×2, authors2026, slow r); T1L, calib, test:cal not run.
+
+**Source ranges in game units.** G_SC: the SC 80% horizon h80 of the preset's source, mapped through the engine's own
+horizon law G = G_V0 + ln(5·h80 / 203 min) / ln 4.2 (H50_V0_MIN, H50_PER_OOM, p80 = p50/5; base formula, the version
+horizon multipliers ×2–4.8 would lower it by ≤ 1.1). Δ_bm: AIFM's taste slope 2.3 SD [0.8, 6.6] per "2025-year" of
+effective compute; Δ_bm = 3.09·E/slope with E = 1.2 (B_G_PER_Y) to 1.56 OOM per 2025-year (AIFM 2025: software 1.02 +
+leading-lab compute 0.54 OOM/yr). sd_SC: AIFM's AI taste at AC.
+
+| Value | Source | Range (game units) | Old → new |
+|---|---|---|---|
+| ai2027 G_SC | AI 2027 timelines forecast h_SC: Eli 10 wy [1 mo, 1,200 wy], Nikola 1.5 mo [16 h, 4,000 h] | 29.9–38.2 (Nikola median 31.8, Eli 34.8) | 30.15 kept (≈ 24 h h80) |
+| ai2027 Δ_bm | AIFM taste slope | 0.56–6.0 (median 1.6–2.1) | 2.9 → **1.8** |
+| ai2027 sd_SC | AIFM Eli N(0.5, 80% −2.5…3.5); AI 2027 has none | — | 1.25 (fit) → **0.5** (sourced median); `sampled` follows |
+| authors2026 G_SC / Δ_bm / sd_SC | AIFM Eli AC horizon 125 wy [0.1, 156,250]; slope; Eli taste | 31.6–41.5; 0.56–6.0; −2.5…3.5 | 33.45 / 4.65 / 2.15 **kept** |
+| fast G_SC | AIFM Daniel AC horizon 1 wy [0.05, 20] | 31.1–35.3 (median 33.2) | 31.175 → **31.35** |
+| fast Δ_bm | AIFM taste slope | 0.56–6.0 | 0.3 (outside) → **0.6** |
+| fast sd_SC | AIFM Daniel N(0, 80% −3…3) | — | 1.5 (fit) → **0** (sourced median) |
+| slow G_SC | AI 2027 Eli h_SC 10 wy [1 mo, 1,200 wy] | 31.6–38.3 (median 34.9) | 35.575 kept |
+| slow r | Forethought (Davidson & Houlden 2025) r_cog = λα/β, median 1.2 [0.4, 3.6], λ 0.6, α 0.5 | in the game's units 1/β = r/(λα): 4.0 [1.3, 12] | 1.2 → **4.0** (units fix) |
+
+sd_SC 2.15 (authors2026): inside Eli's 80% CI (≈ 74th percentile), not its median; the source allows it but does not
+favour it. At 0.5 authors2026 does not fit near the current values ((33.85, 5.0, 0.5): SC +0.72 y, SAR +2.09 y, SIAR
++1.48, ASI +0.28, 9 seeds): a low AI taste slows pre-SC research and puts SAR a full 0.84 Δ_bm after SC, where the golden
+has 78 days. 2.15 is kept until a 20-seed refit at 2.15 runs (none finished in budget).
+
+**slow r: a units error.** The game's line law is AIFM's SE = r·log₁₀ RS over the whole research input (experiment CES
+of compute and λ-penalised labour, models/research.ts), i.e. r = 1/β (research/13 §2.2: AIFM β = 1/r ≈ 0.315).
+Forethought's r is r_cog = λα/β, per doubling of cognitive labour at fixed compute ("rcog := λα/β", "α = 0.5, λ = 0.6"):
+its β = 0.3/1.2 = 0.25, so 1/β = 4.0 — the same as ai2027's 4 and above AIFM's 3.19. The fix makes slow faster, not
+slower: SC 3062 → 2409 d (17 seeds).
+
+**Before → after (T1 medians, days; before = CP3g's T1 at the old values, 20 seeds; after at the committed values)**
+
+| Preset | Before SC / SAR / SIAR / ASI | After | Golden | After worst tol |
+|---|---|---|---|---|
+| ai2027 | 614 / 775 / 938.5 / 1033 | **628.5 / 784.5 / 914 / 937.5** (−0.026 / −0.018 / +0.085 / +0.062 y; 20 seeds) | 638 / 791 / 883 / 915 | **0.71 PASS** |
+| authors2026 | 1376.5 / 1472 / 1880.5 / 2248 | unchanged (not refit) | 1495 / 1573 / 2151 / 2975 | FAIL (ASI −2.0 y) |
+| fast | 804 / 824 / 835.5 / 842.5 | 888 / 930 / 958 / 963 (+0.022 / +0.137 / +0.090 / +0.019 y; 15 seeds) | 880 / 880 / 925 / 956 | 1.14 (SAR) |
+| slow SC | 3013.5 (CP3g); 3062 on af78cf8 (20 seeds) | 2409 (r 4.0, 17 seeds) | 4758 | far (−6.4 y) |
+
+Other grid points: ai2027 (30.15, 2.3, 0.5) SAR +0.24 y; (30.15, 1.8, 1.25) SC −0.15 / SAR −0.29 y; fast (31.35, 0.75, 0)
+SAR +0.21 y, (31.35, 1.0, 0) +0.33 y; slow (r 1.2) G_SC 37.4 SC 3023.5 (6 seeds), the same as at 35.575.
+
+**Start M:** ai2027 1.378 → **1.202** (sd_SC 0.5 lowers V0's research fit vs the median expert); fast 1.078 → 1.052;
+authors2026 1.003, slow 1.000 unchanged. Target ≈ 1 ±0.1: ai2027 still 0.1 above.
+
+**Still off**
+- **slow, 4.6 y (r 1.2) / 6.4 y (r 4.0) early against the binding golden 4758 d = 2038.5.** That golden is the v1
+  lite integrator's output (world.ts slow + AI 2027 code's 2029 compute / labour slowdowns), which golden-timelines
+  lists as KNOWN against its own source: R11 §5.5 and AIFP Dec 2025 (Daniel: "pure exponential trend ... gets to AC 5
+  years later, in 2034") give 2034–2035. On af78cf8 at r 1.2 slow's SC (2033.88) sits on that range's lower edge; with
+  r 4.0 it is 2032.1. Mechanism in v2: slow's lab follows the same reference compute path as ai2027 (market.ts
+  refTotalAt → world.ts refCapCompute, non-AIFM branch: 3.4×/yr then 1.6×/yr; slow's computeGrowth 1.8 feeds only
+  globalCompute), and the pre-SC pace is compute plus LINE_FIT's start rate, which r does not set (r sets n₀ and the
+  slowdown). G_SC barely moves its SC (35.575 → 37.4: 3062 → 3023.5 d), so no in-range G_SC (≤ 38.3) reaches 2038.5;
+  the slow preset has nothing in v2 that carries its source's premise (METR's 7-month doubling: the game's slow h50
+  doubles every 5.8 mo, CP3g-1). Needs a lead call: target the sourced 2034–2035, or give slow a sourced slower
+  compute path. Why G_SC 37.4 does not delay SC is not explained (one RefBot step crossing both? not probed).
+- **authors2026** not refit (scan too slow on the shared CPU); its CP3g misses stand (SC −0.32, ASI −2.0 y).
+- **fast SAR +0.14 y**: structural (golden SAR on SC's day; at the sourced sd_SC 0 SAR is Δ_bm after SC).
+- **ai2027 r ≈ 4** ("for each doubling of cumulative labor, r doublings") may carry the same r_cog vs 1/β ambiguity; not
+  checked.
+- T1L (leader lab) not re-run: G_SC is unchanged on ai2027, but its SAR / SIAR / ASI knots move with Δ_bm and sd_SC;
+  fast's SC knot moves +0.175. Run `calscan.ts t1l ai2027 / fast` and `npm run test:cal` next.

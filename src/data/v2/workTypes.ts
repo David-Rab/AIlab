@@ -143,7 +143,9 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  needs (OOM; the timelines model's own parameter) [fit], Δ_bm, the best-to-median human gap in OOM (AIFM's AI taste
  *  slope = 3.09/Δ_bm SD per OOM) [fit], and r, the returns to research (doublings of software efficiency per doubling of
  *  cumulative research input): AIFM golden 3.19 (authors2026), AI 2027 takeoff median ≈ 4 (ai2027, fast: its p10
- *  takeoff), Forethought 1.2 (slow) [research/13 §2.2]; and sd_SC, AIFM's AI research taste at the automated coder (median 0.5 SD,
+ *  takeoff), Forethought 4.0 (slow: its r_cog = λα/β 1.2 at λ 0.6, α 0.5 is per doubling of cognitive labour at fixed
+ *  compute; the line law SE = r·log₁₀ RS takes AIFM's 1/β over the whole research input, so 1/β = 1.2/0.3 = 4.0, range
+ *  0.4–3.6 → 1.3–12; CP3j units fix, was 1.2) [research/13 §2.2; Davidson & Houlden 2025]; and sd_SC, AIFM's AI research taste at the automated coder (median 0.5 SD,
  *  kept where (G_SC, Δ_bm) fit; fitted for authors2026, 1.8 SD, inside AIFM's 80% CI −2.5…3.5) [fit, V3b]. `sampled` uses
  *  ai2027's. Mutable so the harness can fit them. A5 refit: authors2026 Δ_bm 4.606 → 4.5 (the cheap-tier market changes
  *  rivals' revenue, so a merger offer fires on day 458 and RefBot's path shifts; ASI +59 d → −11 d, G_SC kept).
@@ -211,12 +213,24 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  33.425 / 4.65 passes at 0.75; 33.40 / 4.65 1.22 and 33.475 / 4.65 1.26 fail; at Δ_bm 4.7 every G_SC 33.40–33.45 fails
  *  on ASI +0.14…+0.17 or SC −0.09, at 4.75 ASI +0.13…+0.25). fast G_SC 31.2 → 31.175 (worst 0.86: SC +0.022 / SAR +0.096 /
  *  SIAR −0.022 / ASI −0.103 y; 31.15 passes at 0.91; 31.1 1.13, 31.2 1.10, 31.225 1.10, 31.25 1.23, 31.3 1.59 fail):
- *  structural as before. */
+ *  structural as before.
+ *  CP3j (after CP3g's RL scaling and start equilibrium; calscan.ts t1, 20 seeds; design/RD-AUDIT/BUILD-NOTES.md "CP3j
+ *  preset refit"): ai2027 (and sampled) (30.15, 2.9, 1.25) → (30.15, 1.8, 0.5): sd_SC at AIFM's sourced median 0.5 (1.25
+ *  was a fit), Δ_bm 1.8 inside AIFM's taste slope 0.8–6.6 SD per 2025-year (Δ_bm 0.56–6.0, median 1.6–2.1); G_SC 30.15
+ *  ⇔ an SC 80% horizon of ≈ 24 h (3 work-days), inside the AI 2027 timelines forecast's range (Nikola p10 16 h … Eli p90 1,200
+ *  work-years ⇔ G_SC 29.9–38.2). Median SC −0.026 / SAR −0.018 / SIAR +0.085 / ASI +0.062 y, worst 0.71 tolerances;
+ *  Δ_bm 2.3 fails (SAR +0.24 y), sd_SC 1.25 at Δ_bm 1.8 fails (SAR −0.29 y). fast (31.175, 0.3, 1.5) → (31.35, 0.6, 0):
+ *  sd_SC at Daniel's sourced 0 (AIFM q2_daniel N(0, 80% CI −3…3)), Δ_bm 0.3 was below the sourced range, 0.6 its floor;
+ *  G_SC 31.35 inside Daniel's AC horizon 1 work-year [0.05, 20] ⇔ 31.1–35.3. Median (15 of 20 seeds, run cut by the
+ *  budget) SC +0.022 / SAR +0.137 / SIAR +0.090 / ASI +0.019 y, worst 1.14: SAR sits ≈ 42 d after SC because at sd_SC 0
+ *  the research domains' best humans are a full Δ_bm above SC, while the golden puts SAR on SC's day (structural, as
+ *  before); Δ_bm 0.75 fails (SAR +0.21 y). authors2026 kept: at sd_SC 0.5 (33.85, 5.0) SC +0.7 y, SAR +2.1 y (9 seeds),
+ *  so 2.15 (inside Eli's 80% CI) stays until a 20-seed refit at sd_SC 2.15 runs. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
+  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
   authors2026: { gSC: 33.45, dBM: 4.65, r: 3.19, sdSC: 2.15 },
-  fast: { gSC: 31.175, dBM: 0.3, r: 4, sdSC: 1.5 },
-  slow: { gSC: 35.575, dBM: 1.6, r: 1.2, sdSC: SD_AT_SC },
-  sampled: { gSC: 30.15, dBM: 2.9, r: 4, sdSC: 1.25 },
+  fast: { gSC: 31.35, dBM: 0.6, r: 4, sdSC: 0 },
+  slow: { gSC: 35.575, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
+  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
 };
