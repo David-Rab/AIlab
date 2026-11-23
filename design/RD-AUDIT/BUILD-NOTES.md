@@ -3561,3 +3561,46 @@ Root causes of CP3's (d) suspected bugs (design/RD-AUDIT/CP3.md).
   pass / 4 fail (registry lists no safetyFramework / autoSplit; three performance budgets). safetyideas runs to the end:
   37 pass / 2 fail (P15 lockdown halving, P23 CoT factor: calibration / outdated). The migration checks live in hygiene
   (finance.ts not run).
+
+### CP3d fixes
+
+Root cause per item (CP3.md "Left (18)" and "Unit note"; worktree p3-d on rd + cp3-tests).
+- **disclosurePolicy (lint-tradeoffs ×6).** Setting the policy moves no meter: its scrutiny / trust / cover-up lines
+  apply per future incident, but were written as immediate lines; and a request without a policy previewed 'legal' and
+  applied nothing. Now each line carries `CostLine.condition` ("per incident disclosed", "per must-report incident
+  (withheld)", "per incident not reported"; new optional field, shown in the pill and row tooltips), the lint treats a
+  conditional line like a lagged one, and apply sets the preview's default ('legal').
+- **frameworkOverride (×6).** The preview listed morale / scrutiny / credibility for an override `overrideRule` refuses
+  (unknown rule or version, already overridden), and apply logged the refusal. `overrideRefusal` (safety/framework.ts)
+  is shared: a refused override previews its reason with no lines and apply returns the reason (ActionDef contract).
+- **wfx.moonshot @900.** Its approval line (lagged by the years saved, so immediate when 0, and a cost when winding
+  down) and +2 credibility were never applied: approval comes on discovery whether or not the lab helps
+  (techtree advanceTechs), and nothing applies credibility. The preview now states the days the moonshot moves
+  discovery (progress, days; MOONSHOT_K, not a literal 10) with the approval it brings on discovery named in the line.
+  PENDING entry dropped.
+- **RD-B19 runEvals band.** evalDepthView's band was 0.2/√(nEff + w) (pre-RD-M01 pooling), while the measured level is
+  fitted from the latest suite's table alone. `expectedFitSd` (benchmarks.ts): the fit of the lab's current readings at
+  the new suite's noise (by, depth); bandOne = bandAfter = it; the runEvals line uses the order's evaluator. The fitted
+  sd moves with the scores the suite draws (day 400: expected 0.064, drawn 0.098), so the check now asserts preview =
+  expectedFitSd and finished band = its own fitSd, not exact equality of the two.
+- **evals EV6 gate none.** Engine as SR-19 / SR-21 intend (gate none → ready at once, auto-evaluate queues a basic
+  policy suite). The check waited for `versions.length > 1`, true at day 0 since TIERS (V0 + three tiers), then read a
+  measured tier. It now waits for a version past the day-0 count.
+- **products P5.** Not an incident-path bug: RD-P10 rolls each product per model at its served usage (`servedBy`),
+  which the revenue system (60) sets before incidents (80) daily. The check ran incidentsSystem alone on a fresh game
+  (servedBy unset), and counted all incidents towards its cap of 60 while Chat is now also served by a cheap tier.
+  It now serves once (applyRevenue) and counts Chat's own non-misuse incidents.
+- **lint-ux U.** Codex STRUCTURE_LOOP and CoreLoop's Assurance node pointed to glossary `U` (deleted in SR-11); both now
+  point to `sightLimit`.
+- **Unit note.** Each needs list has one unit for capacity, demand, gets and caps (AllocView.unit): research engineers
+  team-equivalents, engineers team-weeks / week, the safety list people (heads × quality). Allocation and capParams
+  documented team-equivalents for all three; now they say the list's own unit (no engine change: the safety list was
+  consistent in people, UI shows "people").
+- **control E15 (not fixed, noted).** The 1e-8 is the human-review term: believedOversightParts reads `aiRdShare(s)`,
+  the AI share of the work from workContext, whose AI labour is computed at the true levels (Lg +2 moves IDEAS L
+  109723 → 113347; human 1.159e-5 → 1.126e-5). A believed AI share needs a measured-level work context: more than a
+  10-minute fix. Arguably observable (the lab sees its agents' output); decide with the work-context owner.
+- **Checks.** tsc (app, scripts/v2) clean; npm run build passes. lint-tradeoffs 1108 / 0 (was 14 fail); evals 26 / 1
+  (EV9 left: two release suites 30 / 33 d); products 67 / 5 (P6, M2, A5, C2c ×2: unchanged, CP3 list); lint-ux
+  U resolves, 1 fail left (tooltips); control 31 / 1 (E15, above). lint-tradeoffs and evals were re-run once after
+  their check edits.
