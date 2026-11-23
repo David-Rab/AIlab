@@ -149,7 +149,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
   const mon = versionById(s, n.monitorId);
   const editing = !!draft && changeLines(s, d, draft).length > 0;
   const models = s.player.models.versions.filter((x) => usable(x) && CHANNEL_VARIANTS[d.channel].includes(x.variant));
-  const monitors = s.player.models.versions.filter((x) => usable(x) && x.variant !== 'open');
+  const monitors = s.player.models.versions.filter((x) => usable(x));
   const hist = [...(d.hist ?? []), d.revenueRate ?? 0];
   const last = d.hist?.length ? d.hist[d.hist.length - 1] : undefined;
   const trend = last && last > 0 ? (r?.revenue ?? d.revenueRate ?? 0) / last - 1 : undefined;

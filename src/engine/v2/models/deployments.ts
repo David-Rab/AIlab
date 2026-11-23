@@ -1,19 +1,21 @@
-// Variants, deployments, the internal-agent version and distillation leakage (V2-SPEC §3.3.5). Owner: WS1
+// Deployments, the open-weights release, the internal-agent version and distillation leakage (V2-SPEC §3.3.5). Owner: WS1
 // (revenue per deployment: WS5 writes deployment.revenueRate).
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { charterReleaseBlock } from '../finance/charter';
 import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
-import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './labs';
+import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
 import { agentsGate, kindOfChannel, launchEffortBlock, priceIndexOf, relaunchPacks } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
 import { distillLift } from '../production/diffusion';
 
-/** Which version variants a channel accepts (§3.3.5). */
+/** Which version variants a channel accepts (§3.3.5). RD-P05 (DD-02 a): Government and Trusted are who a product is
+ *  offered to (its channel, usage policy and safeguards), so any full or mini version can go on them; open weights are
+ *  a release act on a version (releaseOpen), not a copy. */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
   consumer: ['full', 'mini'], api: ['full', 'mini'], agents: ['full'], enterprise: ['full'],
-  gov: ['gov'], trusted: ['trusted'], internal: ['full', 'mini', 'gov', 'trusted', 'open', 'imported'], open: ['open'],
+  gov: ['full', 'mini'], trusted: ['full', 'mini'], internal: ['full', 'mini', 'imported'], open: ['full', 'mini'],
 };
 /** Distillation leak coefficient per channel (× gap × DA), §3.3.5. Open weights = full absorption. */
 export const LEAK_COEF: Record<Channel, number> = { consumer: 0.3, api: 1.0, agents: 0.5, enterprise: 0.2, gov: 0, trusted: 0.05, internal: 0, open: 1 };
@@ -43,8 +45,9 @@ export interface GateOpts { safeguards?: Deployment['safeguards']; usagePolicy?:
  *  measured time horizon covering its tasks; commitments block only launches inside their own scope, judged on this
  *  candidate (B1/B2), and the reason names the clause; the charter's release block (FIN3b) comes before the eval gate. */
 export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, opts: GateOpts = {}): true | string {
-  if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} variant`;
+  if (!CHANNEL_VARIANTS[channel].includes(v.variant)) return `${channel} needs a ${CHANNEL_VARIANTS[channel].join('/')} model`;
   if (v.status === 'retired' || v.status === 'rolledBack') return 'Version is retired';
+  if (channel === 'open' && v.openDay !== undefined) return 'Its weights are already open';
   if (!external(channel)) return true;
   if (v.status === 'evaluating') return 'Still in evaluation';
   // FIN3b (FINANCE-V3 §7.2): the charter's release block (nonprofit PBC safety committee; PBC + trust on open weights of
@@ -153,20 +156,18 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   return undefined;
 }
 
-/** Make a gov / trusted / open variant of a version (instant copy; open weights keep only the hazard filter). */
-export function makeVariant(s: GameStateV2, versionId: string, variant: Extract<Variant, 'gov' | 'trusted' | 'open'>): ModelVersion | string {
+/** RD-P05 (DD-02 a): release a version's weights openly. One-way: the version is marked open (openDay) and an open
+ *  deployment of it goes live, which cannot be withdrawn or replaced. Its consequences run through that deployment:
+ *  China absorbs the recipe gap above the open frontier (security.ts → openWeightsReleased), rivals distil it at full
+ *  access at their next post-training (diffusion.ts, LEAK_COEF open 1), and misuse reaches everyone with only the hazard
+ *  filter as a safeguard (incidents.ts). The charter's release block and the eval gate apply (deployGate). */
+export function releaseOpen(s: GameStateV2, ctx: SystemCtx, versionId: string): Deployment | string {
   const v = versionById(s, versionId);
   if (!v) return 'Unknown version';
-  if (v.variant !== 'full' && v.variant !== 'mini') return 'Variants are made from full or mini versions';
-  const c: ModelVersion = JSON.parse(JSON.stringify(v)) as ModelVersion;
-  c.id = `V${s.player.models.nextName++}`;
-  c.name = uniqueVersionName(s, `${v.name}-${variant}`);
-  c.variant = variant;
-  c.parentVersionId = v.id;
-  c.day = s.time.day;
-  c.status = v.status === 'evaluating' ? 'evaluating' : 'ready';
-  s.player.models.versions.push(c);
-  return c;
+  const d = deploy(s, ctx, { versionId: v.id, channel: 'open' });
+  if (typeof d === 'string') return d;
+  v.openDay = s.time.day;
+  return d;
 }
 
 /** Retire a version (not if it powers the internal agent, a live deployment or the stream). Old retired versions

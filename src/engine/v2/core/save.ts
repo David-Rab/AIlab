@@ -90,7 +90,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  the policy off in an existing game.
  *  65 (RD-P02): rivals' and China's lineups are lab state (RivalLab.lineup, distilling). Migration 64 → 65 gives each
  *  lab its public model's distilled students, on sale now. */
-export const SCHEMA_REV = 65;
+export const SCHEMA_REV = 66;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -622,6 +622,46 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const w = s.hidden?.timeline;
     if (!w) return;
     for (const r of [...(s.rivals ?? []), ...(s.china?.lab ? [s.china.lab] : [])]) if (!r.lineup) seedRivalLineup(w, r);
+  },
+  /** 65 → 66 (RD-P05, DD-02 a): Gov / Trusted / Open "variant" copies of a version go. Gov and Trusted are who a
+   *  product is offered to, so every reference to a copy (the player's products and their lineups / monitors / free
+   *  tier, agents, stream, incidents, child versions; WS4's eval reports) points to the version it was copied from; an
+   *  open copy on an open deployment marks that version open (openDay = the release day). A copy whose source is gone
+   *  becomes a full version. Idempotent. */
+  65: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const vs = s.player?.models?.versions;
+    if (!vs) return;
+    const copy = (v?: { variant: string }) => !!v && (v.variant === 'gov' || v.variant === 'trusted' || v.variant === 'open');
+    const byId = new Map(vs.map((v) => [v.id, v]));
+    const to = new Map<string, string>();
+    for (const v of vs) {
+      if (!copy(v)) continue;
+      let p = v;
+      for (let i = 0; i < 20 && copy(p) && p.parentVersionId && byId.has(p.parentVersionId); i++) p = byId.get(p.parentVersionId)!;
+      if (p === v || copy(p)) (v as { variant: string }).variant = 'full';
+      else to.set(v.id, p.id);
+    }
+    for (const d of s.player.deployments ?? []) {
+      if (d.channel !== 'open') continue;
+      const v = byId.get(to.get(d.versionId) ?? d.versionId);
+      if (v && v.openDay === undefined) v.openDay = d.startDay;
+    }
+    if (!to.size) return;
+    s.player.models.versions = vs.filter((v) => !to.has(v.id));
+    const walk = (o: unknown): unknown => {
+      if (typeof o === 'string') return to.get(o) ?? o;
+      if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) o[i] = walk(o[i]); return o; }
+      if (o && typeof o === 'object') for (const k of Object.keys(o)) (o as Record<string, unknown>)[k] = walk((o as Record<string, unknown>)[k]);
+      return o;
+    };
+    walk(s.player);
+    if (s.ws4) walk(s.ws4);
+    for (const d of s.player.deployments) {
+      if (d.lineup) d.lineup = d.lineup.filter((id, i, a) => id !== d.versionId && a.indexOf(id) === i);
+      const v = byId.get(d.versionId);
+      if (d.status !== 'withdrawn' && v?.status === 'ready') v.status = 'deployed';
+    }
   },
 };
 

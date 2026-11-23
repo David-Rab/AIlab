@@ -44,7 +44,7 @@ export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
   api: { channel: 'api', name: 'API', segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
   enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
   agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
-  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (needs a gov variant).' },
+  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (any full or mini model; usage terms on the product).' },
   trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at ×3 the price (buyers see it); almost no leak.' },
   open: { channel: 'open', name: 'Open weights', segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
 };

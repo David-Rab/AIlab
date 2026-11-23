@@ -363,6 +363,9 @@ export interface ModelVersion {
   /** RD-X04: the player's recipe G (RECIPE_F) when the version was made: what releasing it reveals (diffusion.ts). */
   recG?: number;
   variant: Variant;
+  /** RD-P05 (DD-02 a): the day its weights were released openly (the `releaseOpen` act, one-way). Gov and Trusted are
+   *  who a product is offered to (its channel and usage terms), not kinds of model. */
+  openDay?: Day;
   design: PostDesign;
   /** TRUE general effective compute G (OOM; hidden; benchmarks are noisy reads of its level λ(G)). Model v3 F3:
    *  replaces the progress coordinate pm = Φ(G). */
@@ -425,7 +428,7 @@ export interface VersionBuild {
 }
 
 /** 'imported' (D6, spinout start): an open-weight model brought in from outside; post-trainable, internal use only. */
-export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'open' | 'imported';
+export type Variant = 'full' | 'mini' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 

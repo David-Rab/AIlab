@@ -501,22 +501,15 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const ltw = ln.costs.find((l) => l.currency === 'staffTime');
   check(!le && only(ln, ['revenue', 'compute', 'staffTime', 'leadDays']) && !!lq && !!ltw && near(-ltw.amount, lq.needTW, 1e-6),
     'RD-B20 launch preview: engineer team-weeks as queued, market and distillation lines only', `${le ?? ''} ${JSON.stringify(ln)}`);
-  // Make variant: a copy, nothing charged.
-  const mv = pvOf(s, 'makeVariant', { versionId: api.versionId, variant: 'gov' });
-  const m = clone(s);
-  const n0 = m.player.models.versions.length;
-  const cashM = m.player.finance.cash;
-  const me = act(m, 'makeVariant', { versionId: api.versionId, variant: 'gov' });
-  check(!me && !mv.costs.length && !mv.exposure.length && mv.gains.length === 1 && mv.gains[0].unit === 'version' && m.player.models.versions.length === n0 + 1 && m.player.finance.cash === cashM,
-    'RD-B20 make-variant preview: one new version, no cost, revenue or approval lines (the copy charges nothing)', `${me ?? ''} ${JSON.stringify(mv)}`);
-  // Open weights: the lead line is what China absorbs at the release (openWeightsReleased), or no line.
+  // RD-P05: open weights are a release act on the model (releaseOpen); China's lead line is what it absorbs at the
+  // release (openWeightsReleased), or no line; the rest is the rivals' distillation and the one-way release itself.
   const o = clone(s);
   const v = o.player.models.versions.find((x) => x.id === api.versionId)!;
-  const op = pvOf(o, 'product.launch', { channel: 'open', versionId: v.id });
-  const days = -signed(op, 'leadDays');
+  const op = pvOf(o, 'releaseOpen', { versionId: v.id });
+  const days = -(op.costs.find((l) => l.currency === 'leadDays' && /China/.test(String(l.target)))?.amount ?? 0);
   const want = v.G > o.knowledge.openWeightsG ? Math.round(ownProgressDays(o, o.china.lab.core.id, openAbsorbG(o, v.recG ?? releaseRecG(o, 'player', v.G)))) : 0;
-  check(only(op, ['leadDays', 'compute']) && days === want && op.gains.length === 0,
-    'RD-B20 open launch preview: China\'s absorbed progress from openWeightsReleased, no academia trust gain', `${days} vs ${want} ${JSON.stringify(op)}`);
+  check(only(op, ['leadDays', 'progress']) && days === want && op.gains.length === 0,
+    "RD-B20 / RD-P05 open-release preview: China's absorbed progress from openWeightsReleased, no academia trust gain", `${days} vs ${want} ${JSON.stringify(op)}`);
 }
 
 finish('products');

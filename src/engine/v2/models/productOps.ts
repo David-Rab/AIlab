@@ -4,14 +4,14 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { FEATURE_BY_ID, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
-import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
+import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
@@ -247,11 +247,6 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const costs: CostLine[] = [];
       const gains: CostLine[] = [];
       const exposure: CostLine[] = [];
-      // RD-B20: what openWeightsReleased does at release (China absorbs part of the gap above the open frontier).
-      if (ch === 'open' && v && v.G > s.knowledge.openWeightsG) {
-        const days = Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, v.recG ?? releaseRecG(s, 'player', v.G))));
-        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
-      }
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
@@ -273,12 +268,13 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     apply: (s, ctx, p) => {
       const ch = str(p, 'channel', 'api') as Channel;
       if (ch === 'internal') return fail('Internal use is set on Company (internal agents)');
+      if (ch === 'open') return fail('Open weights are a release act on a model: Models › Release open weights');
       const v = versionById(s, str(p, 'versionId', '')) ?? launchVersion(s, ch);
       if (!v) return fail('No version for this product');
-      if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn' && ch !== 'open')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
+      if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
       if (pendingLaunch(s, ch)) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already being built`);
       const price = (PRICE_TIER_IDS as string[]).includes(str(p, 'price', '')) ? (str(p, 'price', 'standard') as PriceTier) : 'standard';
-      if (ch !== 'open') {
+      {
         // J2 P1: the engineers build a product launch first (gates checked now and again at release).
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
         if (gate !== true) return fail(gate);
@@ -295,14 +291,39 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           },
         });
         ctx.log('company', `Engineers start building the ${PRODUCT_DEFS[ch]?.name ?? ch} launch (live in ${wait}).`, 1);
-        return;
       }
-      const r = deploy(s, ctx, {
-        versionId: v.id, channel: ch, price, priceIndex: PRICE_TIERS[price],
-        ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
-        ...(typeof p.effort === 'string' ? { effort: p.effort as Deployment['effort'] } : {}),
-        ...(typeof p.monitorId === 'string' && p.monitorId ? { monitorId: p.monitorId } : {}),
-      });
+    },
+  },
+  {
+    // RD-P05 (DD-02 a): open weights are a release act on a model (deployments.ts releaseOpen), not a variant copy.
+    // The preview lists what follows from the release: China's absorbed recipe gap (security.ts → openWeightsReleased,
+    // only above the open frontier), rivals distilling it at full access (their lift at the next post-training) and the
+    // one-way release itself (misuse safeguards reduce to the hazard filter: incidents.ts).
+    id: 'releaseOpen', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Release open weights',
+    available: () => true,
+    preview: (s, p) => {
+      const v = versionById(s, str(p, 'versionId', ''));
+      const costs: CostLine[] = [];
+      if (!v) return { costs, gains: [], exposure: [] };
+      if (v.G > s.knowledge.openWeightsG) {
+        const days = Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, v.recG ?? releaseRecG(s, 'player', v.G))));
+        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
+      }
+      const tmp: Deployment = {
+        id: '__open', kind: 'product', versionId: v.id, channel: 'open', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
+        safeguards: 'classifiers', controlLayer: false, packs: [], features: [], kyc: 0, status: 'live',
+        usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
+      };
+      // Rivals' lift at their next post-training (distillationLeak with the open deployment), in OOM: the per-year days
+      // of distillLine divide by a lab's recent pace, which is ~0 early in a game.
+      const h = hypothetical(s, [...s.player.deployments, tmp]);
+      const lift = Math.max(0, ...[...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].map((l) => distillationLeak(h, l.core.id).dG - distillationLeak(s, l.core.id).dG));
+      if (lift > 0) costs.push({ currency: 'progress', amount: -Math.round(lift * 1000) / 1000, unit: 'OOM', target: 'effective compute the best-placed rival takes at its next post-training: it distils the weights' });
+      costs.push({ currency: 'progress', amount: 1, unit: 'release', target: `${v.name}'s weights are public for good: anyone runs and fine-tunes them; misuse safeguards reduce to the hazard filter` });
+      return { costs, gains: [], exposure: [] };
+    },
+    apply: (s, ctx, p) => {
+      const r = releaseOpen(s, ctx, str(p, 'versionId', ''));
       if (typeof r === 'string') fail(r);
     },
   },

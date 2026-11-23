@@ -212,7 +212,7 @@ const REF_MONITORED: AgentUse[] = ['capRoutine', 'capFrontier'];
  *  (its models' sizes and its compute). */
 export function refMonitors(s: GameStateV2, api: EngineApi): void {
   if (s.time.day % 7 !== 5) return;
-  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && v.variant !== 'open');
+  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed'));
   let watched = 0;
   for (const use of REF_MONITORED) {
     const v = agentVersion(s, use);
