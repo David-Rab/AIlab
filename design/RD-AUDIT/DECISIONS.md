@@ -118,3 +118,7 @@ The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaul
   0.40–0.80) and authors2026 post-SC shape (rival diffusion) are re-judged in the rivals session.
 - S5 RefBot row is INFO only (review/S5-analysis.md option c): the ≥ 50% is a design reading, the row is a ±6 pp lottery.
   Option (a), a sourced "instruments get harder with capability even after re-fitting" term, maybe later at the designer's choice.
+- Adoption: Mansfield profitability term (CAL3-A) merged; π_ref 1.65 is a stated stand-in.
+- Last calibration task: usage intensity per adopter (revenue = breadth × intensity, sourced from measured 2025–26
+  token-per-hour growth). The Oct 2027 "25% of remote work" and "U +1 pp in 12 months" rows become INFO (AI 2027
+  scenario projections, like F11's floor). After this, calibration is closed (designer: "these really are the last things").
