@@ -18,7 +18,7 @@ import { lineResultsPerYear } from './agendas';
 import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
-import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
+import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, casePreview, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
   DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, discloseScrutiny, discloseTrust,
   patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
@@ -85,8 +85,24 @@ function investigationGain(s: GameStateV2, versionId: string, traits: TraitId[],
 /** F6e: when the case resolves at that monthly clarity (estimate), or the clarity it reaches when it closes at the cap. */
 function resolveText(gm: number): string {
   const d = daysToResolve(gm);
-  if (d < INV_MAX_DAYS) return `clarity ${CASE_RESOLVE} in ~${d} d (estimate)`;
-  return `clarity ~${(1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30)).toFixed(2)} when it closes at ${INV_MAX_DAYS} d (estimate; ${CASE_RESOLVE} resolves early)`;
+  if (d < INV_MAX_DAYS) return `case progress ${CASE_RESOLVE} in ~${d} d (estimate)`;
+  return `case progress ~${(1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30)).toFixed(2)} when it closes at ${INV_MAX_DAYS} d (estimate; ${CASE_RESOLVE} resolves early)`;
+}
+
+/** SR-17: the case job's preview lines (investigations.casePreview at believed reliability): which instruments, how long,
+ *  what it can find, and the expected belief width after if the instruments are as reliable as believed. */
+function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, granted: number, gm: number, on: string): CostLine[] {
+  const cp = casePreview(s, versionById(s, versionId), traits, tools, fte, granted, gm);
+  const out: CostLine[] = [
+    { currency: 'alignment', amount: r2(gm), unit: 'case progress / mo', target: `on ${on}: ${resolveText(gm)}; ${Math.round(cp.h100e).toLocaleString()} H100e` },
+    { currency: 'alignment', amount: cp.instruments.length, unit: cp.instruments.length === 1 ? 'instrument' : 'instruments', target: cp.instruments.map((i) => `${i.name} (${i.family}${i.reads.length ? `: ${i.reads.join(', ')}` : ': reads none of the targets'})`).join('; ') },
+  ];
+  for (const r of cp.ranges) {
+    if (!r.now) continue;
+    out.push({ currency: 'alignment', amount: r2(r.now.sd - r.sdAfter), unit: `${r.trait} ±`, target: `believed ${r.now.est.toFixed(2)} ± ${r.now.sd.toFixed(2)} → about ± ${r.sdAfter.toFixed(2)} if it confirms, if your instruments are as reliable as believed (estimate)` });
+  }
+  for (const f of cp.canFind) out.push({ currency: 'alignment', amount: 0, unit: 'can find', target: f });
+  return out;
 }
 
 const INVESTIGATE: ActionDef = {
@@ -121,9 +137,7 @@ const INVESTIGATE: ActionDef = {
         { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
         { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
-      gains: tools.length
-        ? [{ currency: 'alignment', amount: r2(gm), unit: 'clarity / mo', target: `on ${on} with ${tools.length} tool${tools.length === 1 ? '' : 's'}: ${resolveText(gm)}` }]
-        : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
+      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, gm, on) : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
       exposure: pc > 0 ? [{ currency: 'alignment', amount: -1, unit: 'case', probability: pc, target: 'conclusion corrupted by sabotaging safety AI (reads benign or inconclusive; estimate)' }] : [],
     };
   },

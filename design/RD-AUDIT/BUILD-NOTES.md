@@ -2486,3 +2486,27 @@ and control tax wherever measured ≠ true).
 - **Checks.** tsc (app, scripts/v2) clean; npm run build ok (merge and fix). After the merge, before the fix:
   `rdm01.ts` pass, `_sr10/check.ts` 16 ok, `_sr15/check.ts` 4 ok, `_sr16/check.ts` 11 ok, all exit 0 (no re-run after
   the fix).
+
+### SR-17
+Cases are jobs with a true preview; verdicts say what changed (SAFETY-REDESIGN §3.6, RD-S05; SAF-20 naming).
+- **Done.** The player picks the case's instruments (`tools`), engineers (5–40) and compute share (as before; now the
+  preview shows them). `investigations.casePreview` (believed reliability, the same caseRate the engine runs): days to
+  resolve (or progress at the 120-d cap), engineers, H100e, each chosen instrument with the target traits it reads, what
+  it can find (readings on the traits from its families; the catalogue's hidden failure-mode kinds its agendas can
+  reveal, "if the model has them"; footholds of the lineage; a false instrument when ≥ 2 families cross-check) and each
+  trait's believed est ± sd → the expected ± after a confirming verdict, "if your instruments are as reliable as
+  believed". Investigate's preview lists these (actions.ts caseGains); "clarity" in the preview → "case progress".
+- **Verdict.** `Investigation.before` (believed est / sd per target trait at open) and `readings` (monthly observations
+  added); at resolve `outcomeDetail.changes` (CaseChange: trait, from → to, believed values only, |Δ| ≥ 0.005) and
+  `outcomeDetail.evidence` (readings and families, the case conclusion, a failure mode found, footholds located or
+  suspected, an instrument shown false). The log line and the case card (Safety › Cases) show both. Nothing reads truth
+  beyond what the evidence already wrote into beliefs (the conclusion's reading is the existing noisy one).
+- **Edits.** types.ts (Investigation fields, CaseChange), safety/investigations.ts, safety/actions.ts (Investigate
+  preview), ui Safety.tsx (case verdict), glossary investigation.
+- **Check.** `npx tsx scripts/v2/_sr17/check.ts` (committed with SR-18; its migration line needs rev 79): preview names
+  the 2 chosen of 5 instruments, ~62 d, 20 engineers, four can-find lines; the case uses only them; verdict "confirmed;
+  SCHEME 0.285±0.108 → 0.395±0.070; 6 readings from WB / COT; case conclusion" equals the belief change. tsc (app) clean on
+  the staged tree.
+- **Left.** No case types (alignment audit stays in Heavy); framework auto-open on S3+ / disagreements (SR-19+); human-run
+  option on cases (validation has it); the case rate formula itself (SAF-25) is unchanged.
+- Moves calibration: no (bookkeeping and preview text only; same draws, same belief updates).

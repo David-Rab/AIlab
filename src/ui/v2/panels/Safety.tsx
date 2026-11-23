@@ -688,6 +688,10 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
           <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
+          {x.outcome && <div className="small" data-test="case-verdict">
+            {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: believed {F.num(c.from.est, 2)} ± {F.num(c.from.sd, 2)} → {F.num(c.to.est, 2)} ± {F.num(c.to.sd, 2)}</div>) : <div className="dim">No belief moved.</div>}
+            {(x.outcomeDetail?.evidence ?? []).map((e, n) => <div key={n} className="dim">+ {e}</div>)}
+          </div>}
         </div>
       </div>
     );

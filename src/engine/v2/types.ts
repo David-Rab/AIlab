@@ -1038,8 +1038,15 @@ export interface Investigation {
   startDay: Day;
   clarity: number; // accumulated 0..1
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
-  outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean };
+  outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean; changes?: CaseChange[]; evidence?: string[] };
+  /** SR-17: the case's beliefs when it opened (est, sd per target trait): the verdict's "what changed" baseline. */
+  before?: Partial<Record<TraitId, { est: number; sd: number }>>;
+  /** SR-17: readings the case added to beliefs (monthly observations). */
+  readings?: number;
 }
+
+/** SR-17: one belief a case's verdict moved (believed values only). */
+export interface CaseChange { trait: TraitId; from: { est: number; sd: number }; to: { est: number; sd: number } }
 
 export interface Incident {
   id: string;
