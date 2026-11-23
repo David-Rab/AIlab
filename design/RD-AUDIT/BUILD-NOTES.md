@@ -2634,3 +2634,21 @@ Default safeguard packages and the "trusted" rule (SAFETY-REDESIGN §3.3 Default
 - Moves calibration: yes (S4/S5): default internal watchers are now the most capable trusted other model (cheaper or
   weaker than a copy, no same-lineage collusion penalty when another base is chosen), changing coverage, catch and the
   control gap for player and bots that keep the default.
+
+### SR-20b
+Products and RefBot use the SR-20 trusted-watcher picker (OD-6 a).
+- **Products.** `monitorId 'auto'` (`MONITOR_AUTO`) on a product = `autoWatcher(s, product model)` (safety/trusted.ts),
+  resolved by `productMonitorVersion` (models/products.ts) everywhere a product's monitor is read: cost ratio / serving
+  overhead, `productMonitor` (stop, act table, detection, incidents), catch readouts (productView, edit preview), monitor
+  upkeep (counted only when a watcher resolves). `editBlock` accepts 'auto'. UI: Products card Monitor chip has
+  "auto · <model>" first, with the reason tip (`prod-monitor-auto.<id>`); a model id or "no monitor" overrides. Not the
+  launch default (new products still start with no monitor unless the launch sets one).
+- **RefBot.** `refMonitors` sets routine / frontier research to 'auto' (the player's picker) instead of its cost-ratio
+  pick; `REF_MONITOR_COST` and the picker deleted; the budget (`REF_MONITOR_SPEND`) is unchanged. No new constants.
+- **Save.** No state change; SCHEMA_REV stays 81.
+- **Check.** `npx tsx scripts/v2/_sr20b/check.ts`: 6 ok (product on auto watched and billed by the picker's choice;
+  override kept; RefBot's routine / frontier monitors = the picker's choice). tsc (app, scripts/v2) clean; build passes.
+- **Left.** Product launch default is still no monitor; auto watcher of a product is not marked 'deployed' and does not
+  block retiring that model (same as internal).
+- Moves calibration: yes (RefBot): its watchers are now the most capable trusted model instead of the ≈10%-cost model,
+  so coverage per monitoring budget falls (dearer watcher) and strength rises (smaller oversight gap).
