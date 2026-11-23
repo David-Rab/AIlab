@@ -198,7 +198,7 @@ function ExpHeld({ s }: { s: GameStateV2 }) {
     : 'frontier work is paused';
   return (
     <div className="rp-foot small" data-test="exp-held">
-      <span className="tone-bad">Experiments held: capability projects get no experiment compute while {holds.length ? <>your <Term id="safetyFramework">Safety framework</Term> holds frontier training</> : 'frontier work is paused'} ({why}). The experiment compute in your split sits unused.</span>
+      <span className="tone-warn">Experiments held: capability projects get no experiment compute while {holds.length ? <>your <Term id="safetyFramework">Safety framework</Term> holds frontier training</> : 'frontier work is paused'} ({why}). The experiment compute in your split sits unused.</span>
       {holds.length > 0 && <> <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'overview', anchor: 'ctl-policy' }}>Safety policies</Ref></>}
     </div>
   );
