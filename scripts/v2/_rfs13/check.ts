@@ -1,5 +1,5 @@
 // RF-S13 targeted check (run alone: npx tsx scripts/v2/_rfs13/check.ts).
-//  1. day-0 fixture: the misalignment rule asks control of internal AI work; the framework applies its package itself
+//  1. day-0 fixture, internal model placed at the scheming-capable level (CAL-S): the misalignment rule asks control of internal AI work; the framework applies its package itself
 //     (no training hold after the daily system), the engine charges the package preview's control compute, the log
 //     says what was applied;
 //  2. a part the player removes is not put back: the hold returns (the player's choice; override or re-apply by hand);
@@ -11,6 +11,7 @@
 //  5. RF-S13c: product update (model change, lineup entry) gets the parts, priced in its preview; with no internal
 //     deployment a training rule counts as met.
 import { readFileSync } from 'node:fs';
+import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
 import { deploy, deployGate } from '../../../src/engine/v2/models/deployments';
 import { editBlock } from '../../../src/engine/v2/models/productOps';
 import { ws4 } from '../../../src/engine/v2/actors/state';
@@ -31,6 +32,8 @@ import { safeBot } from '../../../src/engine/v2/bots/safe';
 import { mixedBot } from '../../../src/engine/v2/bots/mixed';
 import type { BotPolicy, GameStateV2 } from '../../../src/engine/v2/types';
 import { FIXTURE_DIR } from '../lib';
+import { DANGER_ACTS } from '../../../src/data/v2/danger';
+import { internalVersion } from '../../../src/engine/v2/models/labs';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
@@ -41,6 +44,11 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
 // 1. day 0: applied, not held
 {
   const x = load('day0.json');
+  // CAL-S: V0 measures below the scheming-capable level, so the default misalignment rule no longer fires on day 0;
+  // place the internal model at that level to test the package mechanics.
+  const iv = internalVersion(x)!;
+  const md = iv.evals.measuredDom ??= {} as NonNullable<typeof iv.evals.measuredDom>;
+  md[DANGER_ACTS.SCHEME!.domain] = DANGER_ACTS.SCHEME!.theta + 1;
   const before = trainingHolds(x);
   check(before.some((h) => h.missing.some((m) => m.startsWith('control'))), 'fixture: the rule asks control of internal AI work', before.map((h) => `${h.ruleId}: ${h.missing.join(', ')}`).join('; '));
   const d = internal(x)[0];
@@ -73,12 +81,12 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
     return { x, v, ch: live.channel };
   };
   {
-    const { x, v, ch } = setup(10.5);
+    const { x, v, ch } = setup(FRAMEWORK_HIGH_L + 0.5);
     const d = deploy(x, makeCtx(x), { versionId: v.id, channel: ch, safeguards: 'standard' });
     check(typeof d !== 'string' && d.safeguards === 'classifiers' && !!d.frameworkApplied?.includes(`${v.id}:classifiers`), 'BIO High launch with standard safeguards: goes live with classifiers added, recorded', typeof d === 'string' ? d : `${d.safeguards}; ${d.frameworkApplied?.join(',')}`);
   }
   {
-    const { x, v, ch } = setup(12.5);
+    const { x, v, ch } = setup(FRAMEWORK_CRITICAL_L + 0.5);
     const d = deploy(x, makeCtx(x), { versionId: v.id, channel: ch });
     check(typeof d === 'string' && d.includes('external evaluation') && !d.includes('hardened'), 'BIO Critical without an external evaluation: refused for the evaluation only', String(typeof d === 'string' ? d : d.id));
     ws4(x).reportedVersions.push(v.id);
@@ -96,7 +104,7 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
   const x = load('day400.json');
   const d = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open' && y.channel !== 'trusted')!;
   const cand = x.player.models.versions.find((y) => y.id !== d.versionId && !(d.lineup ?? []).includes(y.id) && y.evals.suiteDay !== undefined && (y.status === 'ready' || y.status === 'deployed') && deployGate(x, y, d.channel, {}) === true)!;
-  cand.evals.measuredDom = { ...(cand.evals.measuredDom ?? {}), BIO: 10.5 } as typeof cand.evals.measuredDom;
+  cand.evals.measuredDom = { ...(cand.evals.measuredDom ?? {}), BIO: FRAMEWORK_HIGH_L + 0.5 } as typeof cand.evals.measuredDom;
   d.safeguards = 'standard';
   const upd = ACTIONS.find((a) => a.id === 'product.update')!;
   const pv = upd.preview(x, { id: d.id, versionId: cand.id });
@@ -108,7 +116,7 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
   const y = load('day400.json');
   const e = y.player.deployments.find((z) => z.id === d.id)!;
   const m = y.player.models.versions.find((z) => z.id === cand.id)!;
-  m.evals.measuredDom = { ...(m.evals.measuredDom ?? {}), BIO: 10.5 } as typeof m.evals.measuredDom;
+  m.evals.measuredDom = { ...(m.evals.measuredDom ?? {}), BIO: FRAMEWORK_HIGH_L + 0.5 } as typeof m.evals.measuredDom;
   e.safeguards = 'standard';
   const lineup = [...(e.lineup ?? []), m.id];
   const why = editBlock(y, e, { lineup });

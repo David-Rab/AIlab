@@ -7,6 +7,7 @@
 //     scrutiny; credibility when published);
 //  4. a training hold (AI R&D: Critical on a measured level, no control) pauses frontier runs and refuses new ones.
 import { readFileSync } from 'node:fs';
+import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
 import { join } from 'node:path';
 import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
@@ -37,8 +38,8 @@ const ctx = makeCtx(s);
 const d = s.player.deployments.find((x) => x.status === 'live' && (x.channel === 'api' || x.channel === 'consumer' || x.channel === 'enterprise'))!;
 const v = s.player.models.versions.find((x) => x.id === d.versionId)!;
 check(!!d && !!v && v.evals.suiteDay !== undefined, 'fixture has a live external product of a measured version', `${d?.id} ${d?.channel} ${v?.name}`);
-for (const r of fw.rules) if (r.trigger.kind === 'capability' && r.trigger.domain !== 'CYBER') setMeasured(v, r.trigger.domain as 'BIO' | 'RSCH', r.trigger.level - 3); // only Cyber fires
-setMeasured(v, 'CYBER', 10.5);
+for (const dom of ['BIO', 'RSCH'] as const) setMeasured(v, dom, Math.min(...fw.rules.map((r) => r.trigger.kind === 'capability' && r.trigger.domain === dom ? r.trigger.level : 99)) - 3); // only Cyber fires
+setMeasured(v, 'CYBER', FRAMEWORK_HIGH_L + 0.5); // CAL-S: High only (below Critical)
 const held = deployGate(s, v, d.channel, { safeguards: 'standard' });
 check(typeof held === 'string' && held.includes('Cyber: High') && held.includes('classifier'), 'launch without classifier safeguards is held', String(held));
 const ok = deployGate(s, v, d.channel, { safeguards: 'classifiers' });
@@ -75,7 +76,7 @@ const top = t.player.models.versions.find((x) => x.evals.suiteDay !== undefined 
 for (const x of t.player.models.versions) for (const tr of ['SCHEME', 'AF', 'SAND'] as const) if (x.beliefs[tr]) x.beliefs[tr].est = Math.min(x.beliefs[tr].est, 0.1);
 refreshFramework(t, tc);
 const free = !trainingHeld(t);
-setMeasured(top, 'RSCH', 12.5);
+setMeasured(top, 'RSCH', FRAMEWORK_CRITICAL_L + 0.5);
 const running = t.player.models.runs.filter((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post')).length;
 refreshFramework(t, tc);
 const pausedNow = t.player.models.runs.filter((r) => r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')).length;

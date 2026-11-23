@@ -22,6 +22,10 @@ const setBel = (v: ModelVersion, est: number, sd: number) => { for (const tr of 
 const s = load('day400.json');
 const rule = frameworkOf(s).rules.find((r) => r.id === 'misalignment')!;
 const v = s.player.models.versions.find((x) => x.evals.suiteDay !== undefined)!;
+// CAL-S: the belief rule only reads models measured at the scheming-capable level; put v there for part 1.
+const sch0 = DANGER_ACTS.SCHEME!;
+const md0 = v.evals.measuredDom ??= {} as NonNullable<typeof v.evals.measuredDom>;
+md0[sch0.domain] = sch0.theta + 1;
 setBel(v, 0.1, 0.15);
 check(!!ruleTriggered(rule, v), 'best guess 10% with sd 15 pts (top ≈ 35%) triggers the 30% rule', ruleTriggered(rule, v));
 setBel(v, 0.1, 0.05);
@@ -29,6 +33,12 @@ check(!ruleTriggered(rule, v), 'best guess 10% with sd 5 pts (top ≈ 18%) does 
 setBel(v, 0.35, 0.02);
 for (const tr of ['SCHEME', 'AF', 'SAND'] as const) v.beliefs[tr].clarity = 0.1;
 check(!!ruleTriggered(rule, v), 'low clarity no longer exempts a model', ruleTriggered(rule, v));
+md0[sch0.domain] = sch0.theta - 1;
+check(!ruleTriggered(rule, v), 'CAL-S: measured below the scheming-capable level, the same wide belief does not trigger (2025 frameworks gate misalignment safeguards on capability)');
+const sd0 = v.evals.suiteDay;
+v.evals.suiteDay = undefined;
+check(!!ruleTriggered(rule, v), 'CAL-S: never measured, wide belief: triggers (no capability reading)', ruleTriggered(rule, v));
+v.evals.suiteDay = sd0;
 
 // 2. trusted rule
 const sch = DANGER_ACTS.SCHEME!;

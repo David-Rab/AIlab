@@ -7,6 +7,7 @@
 //  3. the auto watcher never picks a copy of the watched model;
 //  4. RefBot's monitor is the cheap-monitor picker (cost nearest 10% of the watched model's, or a copy when none is cheaper).
 import { readFileSync } from 'node:fs';
+import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
 import { join } from 'node:path';
 import { deserialize } from '../../../src/engine/v2/core/save';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
@@ -61,12 +62,12 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   const x = load();
   const d = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open')!;
   const v = x.player.models.versions.find((y) => y.id === d.versionId)!;
-  v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: 10.5 } as typeof v.evals.measuredDom;
+  v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: FRAMEWORK_HIGH_L + 0.5 } as typeof v.evals.measuredDom;
   v.evals.suiteDay ??= x.time.day;
   d.safeguards = 'standard';
   const pv = previewPackage(x, d);
   act('safety.package').apply(x, makeCtx(x), { deploymentId: d.id });
-  check(d.safeguards === 'classifiers' && pv.parts.length === 1, 'product at BIO 10.5: package sets classifiers only', `${pv.parts.map((p) => p.label).join(' + ')}; ${pv.meets}`);
+  check(d.safeguards === 'classifiers' && pv.parts.length === 1, 'product at BIO High (below Critical): package sets classifiers only', `${pv.parts.map((p) => p.label).join(' + ')}; ${pv.meets}`);
 }
 
 // 3. no self-copy watcher
