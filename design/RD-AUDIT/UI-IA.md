@@ -1,343 +1,489 @@
-# R&D UI: information architecture (RD-UI1..7, SR-25..30)
+# R&D UI: information architecture (revised 2026-11-23)
 
-Input for Phase 9. Designer's positions override generic guidance: **clear information first**; the UI does not mirror
-the engine; player language only; one home per datum; LAB = allocation only; one RESEARCH portfolio for capability and
-safety; SAFETY grouped by acts. Levels per the good-ui skill: **L0** always visible (≤ 7), **L1** 2–4 overview visuals
-per tab, **L2** panels / cards by click, **L3** tooltips and Codex by hover.
+good-ui step 2 (after `ui-audit/UI-AUDIT.md`, before mockups). Replaces the previous draft (in git).
 
-**Basis** (every datum states one): **Fact** = known to the lab exactly (owned, spent, counted). **Measured** = from
-evals or observation, with a band. **Believed** = an estimate built from evidence, with a range. **Estimate** = a
-forecast or intel about others, with a range. **Truth is never shown** outside the end screen.
+**Authority, in order:** SESSION-HEAD [16]–[32] and Part 2 → DECISIONS.md (UI-IA open questions, Vocabulary, DD-01..21,
+OD-1..11) → VOCAB.md (the only words used here) → good-ui skill → UI-AUDIT → SAFETY-REDESIGN.
 
-`provisional` = SAFETY / PRODUCTS rows whose engine work is still in progress (SR-17..24, Phase 7); names and readers
-may change.
+**Rules applied:** clear information first; organise by the player's questions, not the engine; player words only;
+designed fresh, not from the current screens. Tabs per [32]: COMPUTE · LAB · RESEARCH · TRAINING · MODELS · PRODUCTS ·
+SAFETY.
 
----
+**Levels:** L0 always visible (≤ 7) · L1 2–4 visuals per screen · L2 click (panel, card, drawer) · L3 hover (tooltip,
+Codex).
 
-## 0. L0 (shell, all tabs)
+**Basis** (every datum has one; never hidden truth):
+- **F** = fact: owned, spent or counted.
+- **M** = measured: by evals or observation, shown with a range.
+- **B** = belief: the lab's estimate from evidence, shown with a range. Forecasts (**B·fc**) and intel on rivals
+  (**B·intel**) are beliefs too.
 
-| # | Item | Shows | Basis | Click |
-|---|---|---|---|---|
-| 1 | Clock | pause, speeds, date, act | Fact | — |
-| 2 | **Loss-of-control risk** (hero) | `9% (3–24%)`, "if it could act now"; small beside it: `Sight L 9.1 · Frontier L 9.6` | Believed; Measured (frontier) | SAFETY › Risks |
-| 3 | Cash · runway | cash, runway gauge | Fact | Finance |
-| 4 | Lead · nearest | `+42 d vs Leader` | Estimate (intel) | Overview lead track |
-| 5 | Nav | 7 R&D tabs + Overview, Finance, World, Relations, Codex; badges: LAB idle, RESEARCH finished / failed, TRAINING run done, SAFETY new incident / framework hold | Fact | the tab |
-| 6 | Queue | decisions + one alert channel | Fact | the cause's home |
-
-Removed from L0 for R&D: research speed, compute online, the L-vs-U race as hero, catastrophe-risk gauge (replaced by 2).
+**Provisional:** SAFETY and PRODUCTS rows wait on engine work (SR-17..24, Phase 7). Their words and readouts may change.
 
 ---
 
-## 1. The seven tabs: questions and first-glance visuals
+## 0. L0 shell (every screen)
 
-### COMPUTE (RD-UI1): datacentres, chips, buying
+| # | Item | Shows | Basis | Click → | Why it is L0 |
+|---|---|---|---|---|---|
+| 1 | Clock | date, pause, speeds | F | — | Runs, deliveries and research all happen over time |
+| 2 | Navigation | 7 R&D tabs + Overview, Finance, World, Codex. One badge per tab, counting only things that need the player: LAB short / idle · RESEARCH result / failed · TRAINING run done · SAFETY incident / hold | F | the tab | Where things are |
+| 3 | Alerts | one channel with severity levels; duplicates collapse; each alert links to the home of its cause | F | the cause's home | The only interrupt |
+| 4 | Cash · runway | `$51.6B · 8 quarters`; revenue and burn in the tooltip (Q1) | F; runway B·fc | Finance | The hard limit on every buy and hire |
+| 5 | Lead · nearest | `−154 d · Meridian`, with a range on hover | B·intel (DD-10 measure) | Overview lead lanes | The race: the game's win/lose axis |
+| 6 | **Research speed** | `×3.1`, trend arrow. Tooltip: "× the leading lab, Jul 2025", AI's part ("×1.4 from AI staff"), 90-day sparkline | B | RESEARCH › Portfolio header | AI 2027's central quantity, the takeoff. It is the one number that sums people, AI staff and compute, and it moves daily. Today it has no reachable home (audit B3) |
+| 7 | Loss-of-control risk (small) | `9% (3–24%)`, or **Unknown** when the range is wider than 30 pts; "if it could act now" in the tooltip | B | SAFETY › Risks | Designer decision: the other side of the tension. The full gauge lives only on SAFETY |
 
-| Questions | L1 visual that answers it |
-|---|---|
-| How much compute do I have now, and in 6 / 12 / 24 months? | **Capacity forecast**: stacked area of H100e online (owned / rented) with ordered and building as dashed bands; rivals' estimated compute as tick marks on the right edge |
-| What stops me growing faster: chips, power, racks, cash? | **Bottleneck verdict row**: 3–4 chips (`Power: 2 sites waiting on grid`, `Chips: vendor fill 60%`, `Idle chips: 4k (no racks)`), each links to its fix |
-| What does this order / site give me, when, at what cost? | **Order pipeline timeline**: deliveries and site stages on a time axis; every buy action shows before → after on the forecast |
-| What does compute cost me? | L2 (Orders / Market tabs); cost per H100e in the order card tooltip |
+Help, settings and the menu are chrome, not information.
 
-L2 tabs: Sites · Orders · Market. COMPUTE never shows how compute is *used* (LAB).
+**Taken out of L0:**
 
-### LAB (RD-UI2): workforce and compute allocation only
-
-| Questions | L1 visual |
-|---|---|
-| Where does my compute go, and is any of it idle? | **Compute allocation bar**: one flat bar, one segment per use (Training runs, Data generation, Research experiments, Research agents, Engineering agents, Safety research, Safeguards, Products, **Idle** hatched); presets (Balanced / Race / Safety); drag to set; each segment's tooltip: what it is starved of or wastes |
-| Who is working on what, and who is idle? | **Workforce needs board**: one column per role (Scientists, Research engineers, Safety research engineers, Engineers); in each, a stacked bar of needs in the player's order (`gets / needs`), **Idle** at the end; short needs in amber |
-| What is short: people or compute? | Same board: each need row has a `short: people` / `short: compute` tag; LAB badge on the nav |
-| What will hiring X / moving Y% do? | Hire and drag previews: before → after on the receiving need (e.g. `Run operations 70% → 100%`, `Research speed ×3.1 → ×3.4`), computed on a copy |
-| What are my AI staff doing, on which model, and is it watched? | **AI staff tiles**: one per package (Engineering, Research experiments, Research ideas, Safety experiments, Safety ideas): model, copies, AI share of the job, compute; a link chip to its safeguards on SAFETY |
-| What runs automatically, and why? | **Policies row**: Auto-split idle compute, safety engineers' order, each with its objective and its cost in one line ("moves idle to Research experiments: +2% speed") |
-
-Scientists are placed by the RESEARCH priority list (see OQ-2); LAB shows their headcount, hiring and idle count only.
-
-### RESEARCH (RD-UI3): one portfolio, discoveries, know-how
-
-| Questions | L1 visual |
-|---|---|
-| What is my lab researching, in what order, and when does each finish? | **Portfolio board**: one priority list for capability and safety; each row = project, line, chance it works, a 4-step stage track (Ideas · Small test · Big test · Build-in; unlocks: Test · Build-in), ETA, teams, payoff in its own unit |
-| Why is my research slow? | **Research speed** (`×3.1 vs your day-1 lab`, sparkline) with a **what-binds bar**: compute / research engineers / scientists / ideas quality, the binding one highlighted, best lever as a Go link (to LAB) |
-| What does this project give me if it works, and how likely is that? | Row payoff chip (`+0.12 OOM pretraining` or `new instrument: internals`) and `chance 40%`; hover → band and source |
-| Is my know-how ahead of the public and rivals, and is it in my models yet? | **Know-how chart**: five bars (Pretraining efficiency, RL compute efficiency, RL ceiling, Training throughput, Serving efficiency), each split into public / yours adopted / built into your newest model / measured in evals |
-| What can I unlock next? | **Discoveries tree** (own L2 tab): known, in progress, open, locked (with "needs …") |
-| Is safety research keeping up? | Safety rows sit in the same board, tagged by output (see / stop / fix / meta); `expected vs observed results / yr` per safety line on hover |
-
-L2 tabs: Portfolio · Discoveries · Know-how.
-
-### TRAINING (RD-UI4): the next run, data, environments, runs
-
-| Questions | L1 visual |
-|---|---|
-| What will this run give me? | **Prediction card**: predicted level before → after with band, domain gains, the planned run's sight limit vs its level, traits it pushes (methods ticked), serving cost |
-| What does it cost and how long? | Same card: FLOP, days at the current training allocation (link to LAB), cash, run-operations engineers needed |
-| What do I choose? | **Run plan in two acts**: Pretraining (new / continue / distil from a teacher) → RL (focus, budget, environments, methods); every option chip shows its effect in its own unit |
-| What limits it: data, environments, compute? | **Limits strip** above Launch: data repetition, suite quality, training share; each with a Go link |
-| What is training now and when does it finish? | **Runs timeline**: running and queued runs (and the continual-learning stream as a scheduled run) with ETA and stall reason |
-| Is my data / are my environments good enough? | L2 tabs Data and Environments: data portfolio by domain; suite quality per family |
-
-What you launch is what you get: the launched run's card freezes the snapshot (recipe, data drawn, methods).
-
-### MODELS (RD-UI5): what you own and how good it is
-
-| Questions | L1 visual |
-|---|---|
-| What models do I own, and what does each do (internal work, which products)? | **Lineage tree**: every real model (full, distilled, older), size, role chips (internal / product tiers), retired greyed |
-| How capable is each, and how sure am I? | **Model card**: measured level `L 7.3 ± 0.2 from your evals` and a **domain bar per domain** with two reference ticks (median expert, best human, UI-NOTES) |
-| Which milestones has it met? | Milestone ladder on the card: criteria met / not met (work-type thresholds), date met |
-| How does it compare with rivals' known models? | Rival best public model as a reference tick on the domain bars (Estimate) |
-| What does it cost to run? | Serving cost per hour of work on the card |
-
-L2 tabs: Lineage · Card · Evals (suites run, depth, queue, policy).
-
-### PRODUCTS (RD-UI6, provisional)
-
-| Questions | L1 visual |
-|---|---|
-| Which products earn what, and why? | **Revenue by product** bars, each with a "why" breakdown (customers × hours × price, binding cause: quality / price / capacity / demand) |
-| Which of my models does each customer use, and why? | **Lineup strip** per product: the models in its tiers, share of hours each serves, cost per hour |
-| Can I serve the demand? | **Demand vs capacity** per product (serving allocation link to LAB) |
-| Am I priced right against rivals? | Price vs best rival product on the product card |
-
-### SAFETY (RD-UI7, SR-25..28, provisional)
-
-| Questions (SAFETY-REDESIGN Q1–Q6) | L1 visual |
-|---|---|
-| Q2 What could it do, what stops it, how bad is the rest? | **Header**: selected model's Loss-of-control risk, **Unstopped harm / yr** (by severity), sight limit vs its level, the framework's current hold; **Risks table** grouped by act (Misbehaviour · Against the lab · Misuse by people): Would try · Able to · Chances · Stop rate · Unstopped / yr |
-| Q1 What do I believe this model is like, how sure? | Model tab: four family bars (best guess + range), "Unknown" chips |
-| Q3 How far can I trust my instruments on it? | Instruments tab: reliability per instrument on the selected model (solid = validated, dashed = extrapolated), warning chips |
-| Q4 / Q5 How do I learn more, fix or contain it, and at what cost? | Safeguards tab (edit with before → after on the act table and headline); Incidents & cases tab (cards with cause-aware responses) |
-| Q6 Is safety capacity keeping up? | **Capacity strip** (read-only, bottom): safety jobs waiting by need, weeks to clear, idle, safety spend; links to LAB |
-
-Model picker default: riskiest running model. Research projects live in RESEARCH; methods are ticked in TRAINING;
-allocation is set in LAB.
+| Item | Goes to | Why |
+|---|---|---|
+| **Compute online** | COMPUTE L1 (forecast, "now" point) | It changes only when deliveries land, and the alert channel reports those. Buy and build decisions are monthly. Research speed and runway already carry its effect |
+| Capability `6.8 [evaluating]` + sight-limit race bar | MODELS card (skill bars); sight limit on the SAFETY header | Audit: it showed the internal model, contradicting "best" and the prediction (three numbers); the −6.8 badge was unlabelled |
+| Catastrophe risk gauge | Replaced by #7; world risk on the World screen | Audit: 27% here vs 0.0% loss-of-control: two stories |
+| Revenue · 30 d | Cash · runway tooltip; Finance (Q1) | Keeps L0 at 7; runway already reads revenue |
 
 ---
 
-## 2. IA map: every R&D datum
+## 1. Tabs: questions, L1 visuals, L2
 
-Lvl = level of its home. Reads = the engine value the UI reads (selector or state). M/B = Fact / Measured / Believed /
-Estimate.
+★ = mock up first (§6).
+
+### COMPUTE: buying and building only
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| How much compute do I have now, and in 6, 12 and 24 months? | **Capacity forecast**: stacked area of online H100e (owned / rented); ordered and building as dashed bands | F now; B·fc ahead; rivals' compute as right-edge ticks (B·intel, L3) |
+| What stops me growing faster? | **Bottleneck verdicts**: 3–4 chips (`Power: 2 sites wait for the grid`, `Unracked chips: 4k`), each linked to its fix | F |
+| What does this order or site give me, when, and at what cost? | **Order pipeline timeline**: deliveries and site stages on a time axis; every buy previews before → after on the forecast | F / B·fc |
+
+L2: Sites · Orders · Market tabs. COMPUTE never shows how compute is *used*: that is LAB.
+
+### LAB: who and what works on what ★1
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| Where does my compute go? Is any of it idle? | **Compute allocation bar**: one flat bar, one segment per use (Training · Data generation · Research experiments · AI staff: engineering / experiments / ideas / safety · Safety work · Safeguards · Products), **Idle** hatched inside each segment plus one total. Presets: Default · Race · Balanced · Safety-first. Drag to set, with a before → after preview on the receiving use | % · H100e, F |
+| Who works on what, people and AI? Where are we short? | **Workforce board**: columns Engineers · Research engineers · Scientists, in two bands (Capability / Safety). Each column reads top to bottom: People (teams, quality) → AI staff (model, copies, AI share) → Total effort (× the people alone) → Needs in priority order (gets / needs bars, short in amber, **Spare** or **Idle** last). The Scientists column holds the capability / safety split handle (OQ-2) | F; AI share M |
+| What would more of anything buy? | **Best moves**: a ranked list of the 5 best marginal moves, mixing compute and hires (`+10% to Research experiments → research speed +6%`, `+1 research-engineer team → run operations 70% → 100%`), each with a Do button (preview, then commit) (Q6) | B (believed parameters, OQ-5) |
+
+L2:
+- Hiring drawer: hiring target, offers, star hires, open positions, payroll.
+- Needs order editor, including the safety research engineers' order (OD-9).
+- AI staff detail: cost per hour of work, research taste (L3), AI share allowed and spot-checks for safety work (the Safety work package).
+- Auto-split idle compute policy, with its last move.
+- Segment detail: the sub-uses of Safety work; Safeguards is read-only here ("set by safeguards ▸").
+
+### RESEARCH: Portfolio · Discoveries · Know-how
+
+**Portfolio ★2**
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| Is research going well? What is slowing it? | **Limited by** strip: four segments (compute · research engineers · scientists · idea quality), the binding one lit; the chip jumps to the LAB best move. Shows a verdict only, no numbers (those live in LAB). A red state when an input is zero (fixes the silent stall, B10) | B |
+| What finishes next, and what will it give me? Is safety keeping up with capability? | **Portfolio board**: two columns side by side, Capability and Safety, each in priority order (drag). One card grammar: name · `ongoing` / `one-off` chip · output tag (capability / see / stop / fix) · stage track (Ideas · Small test · Big test · Build-in; projects Test · Build-in; safety adds Validate) · **next result in ~N d** · expected effect where it lands (`+1.5% pretraining (0.5–3%)`, `new instrument: internals`, `unlocks Mixture of experts`) · chance it works (project) / returns falling (programme) / outlook (safety programme) · teams. A per-card "Limited by" appears only when it differs from the strip | F stage, teams; B ETA, effect, chance |
+
+L2, the project card:
+- the idea under test, in words;
+- **Gets**: staff and compute;
+- teams wanted, and why this team;
+- idea choice: Safe / Balanced / Bold;
+- ideas tested and dropped, and how each behaves at scale;
+- where it takes effect;
+- failed, with retry at lower odds;
+- for safety programmes: expected vs observed results / yr.
+
+**Discoveries**
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| What can I unlock next, and what does it need? | **Discoveries tree** by field (Pretraining · Post-training · Systems · Alignment · Interpretability · Evals & control). Capability and safety share one tree. Each node: name, state word (Known · Available · Locked (needs …) · Queued · Researching · Failed), one effect chip. "Available" filter. A Researching node links to its Portfolio card, which is the home of its stage and ETA | F state; B effect |
+
+**Know-how**
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| How much better is our know-how than at the start, and than public know-how? | **Five area bars** (Pretraining recipe · Post-training method · Post-training ceiling · Training efficiency · Serving efficiency): × vs Jul 2025 on a log axis, **Public know-how** \| **Yours** (with a range whisker) | Public F; Yours B until measured (F8.1) |
+| How much is waiting for my next model? | On each bar, the **Waiting** part (`×2.2 waiting`) as a hatched end; it can never exceed Yours. Chip → TRAINING › Next run | B |
+
+L2:
+- the idea list per area, each idea as "+1.3%";
+- know-how growth (× per year);
+- measured effect, per model (F5: evals measure models, not single ideas);
+- domain effects;
+- publish policy;
+- **Lab tools**: the internal tools you own (coding harness, research harness, memory). For each: what it helps (the AI staff job it lifts and by how much), build time, upkeep. They sit here as owned built things (DD-03); the build itself runs in LAB's build queue.
+
+### TRAINING: Next run · Data · Environments · Runs
+
+**Next run ★3**
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| What model will this run give me? | **Prediction**: the skill bars of your best model (named) with ghost extensions per domain (range), the median-expert / best-human / superhuman ticks, and the milestone it would meet. The planned run's **sight limit** is a tick on the same ruler | B·fc |
+| What do I choose? | **Run plan in two stages**: Pretraining (new · continue · distil; size; data mix) → Post-training (focus, budget, environments, methods). Every option row has Skill · Time · Cost · Serving cost · Risk; the default option is "Standard" | F choices; B effects |
+| When will it finish, at what cost, and what holds it back? | **Limits strip** above Launch: Compute (days at the current training share) · Time · Data (re-reads) · Cash · Run operations. Each gauge says enough / short, with a chip to its home | F / B·fc |
+
+L2:
+- **Pushes** per risk family, and each ticked method's predicted change (pts), with its believed strength "tested up to …";
+- cost breakdown, setup time;
+- the launch snapshot (frozen) of a launched run.
+
+There is no allocation control here: the training share is a link to LAB, plus a preview line ("at 60%: 70 d").
+
+**Data**
+
+L1 visuals:
+- **Data by domain**: tokens, stacked by source (Public web · Licensed · Usage · Generated · Expert), against what the next run will draw, with re-reads marked. Verdict: enough / short.
+- **Generated data jobs**: teacher (model name), yield, H100e-days.
+
+L2: licence offers, quality, data mix vs Standard. The data-generation share is a link to LAB (the old "Pool share" control is removed).
+
+**Environments**
+
+L1 visual: a **family grid**. Per family: Realism bar, Loopholes %, a "used by next run" marker, and the next run's **Hacking pressure** (low … high). Expand · Harden carry previews.
+
+L2: expert data, build history. Families with no environments show as empty, not hidden (DD-07).
+
+**Runs**
+
+L1 visual: **runs timeline** (Gantt). Running and queued runs, continual learning as a scheduled row, auto-distils tagged "auto". Each has an ETA and a stall reason in amber.
+
+Done runs → MODELS card. This fixes the audit's stale runs list.
+
+### MODELS: what you own and how good it is
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| What models do I own, and what does each do? | **Family tree**: every real model (full, distilled, older, post-trained) by size. State words: Testing · Ready · In use · Retired · Rolled back. Role chips: AI staff job, product lineups. Retired models fold away | F |
+| How capable is each, and how sure am I? Which milestones has it met? | **Model card**: one skill bar per domain (Code · AI research · Math & reasoning · Long tasks · Social · Media · Cyber · Bio · Physical) with median-expert / best-human / superhuman ticks and a range; **milestone ladder** (Agent … Superintelligence), each with its date met. A rival tick appears per Q2 | M |
+| What is being tested, and when do I know? | **Evals** sub-tab: queue timeline (model, depth, time to finish), the "Re-test when" policy | F |
+
+L2 (card):
+- benchmarks (score, Maxed out);
+- jobs: skill at this job, can do alone, time horizon (home of "how close AI is to each job"; LAB shows the AI share it produces);
+- cost per hour of work, size;
+- what it was trained with: methods, data, the know-how snapshot;
+- actions: release open weights, retire.
+
+### PRODUCTS: models + tools + markets (provisional)
+
+| Player's questions | L1 visual | Data |
+|---|---|---|
+| What does each product earn, and what limits it? | **Revenue by product** bars, each with a "Limited by" chip (serving compute · quality · price · demand) | F; limit B |
+| What does each product sell, to whom, and with which models and tools? | **Product card**: Lineup (models by name, share of hours), Tools, Sector certifications ("certified on" date), Price (Low / Standard / Premium), Thinking effort | F |
+| Can I serve the demand? | **Served vs unserved** bar per product | F served; B·fc demand |
+
+L2: customers and market share target; hours of work sold and seats; price vs the best rival's (B·intel); "Serve the most profitable first"; "Auto-make smaller sizes" (the runs it creates show in TRAINING › Runs); usage policy.
+
+The serving share is a link to LAB. Safeguards and customer checks are a link to SAFETY › Safeguards.
+
+### SAFETY: Risks · Model · Instruments · Safeguards · Incidents & cases (provisional) ★5
+
+**Header** (all SAFETY tabs, L1), for the model picker's model (default: your riskiest running model):
+- **Loss-of-control risk** gauge;
+- **Unstopped harm / yr** by severity;
+- **sight limit** as a tick against this model ("1.2 levels short of Atlas-4");
+- the framework's current **Hold**, with [why].
+
+| Tab | Player's questions | L1 visual |
+|---|---|---|
+| Risks (first, OD-10) | What could it do, what stops it, and what gets through? | **Act table** grouped Misbehaviour · Against the lab · Misuse by people. Columns: Would try · Able to · Chances · Stop rate · Unstopped / yr, sorted by unstopped. Footholds line at the foot (shown once one is suspected) |
+| Model | What do I believe this model is like, and how sure am I? | **Four risk-family bars** (best guess + range), **Unknown** chips, In tests vs In real use gap |
+| Instruments | How far can I trust what I see? | **Reliability grid**: instrument × selected model (solid = validated, dashed = extrapolated) with warning chips (notices tests · trained against · not ported · disagreement); Validate buttons with previews |
+| Safeguards | What stops acts, at what cost? | **Per deployment** (each product and each AI staff job, OQ-7): safeguards with stop rate per act, Slowdown, compute; edit in place with before → after on the act table and the header. "Required by framework" marks |
+| Incidents & cases | What happened, and how do I learn more and fix it? | **Incident cards** (severity word, apparent cause, deadline, link to the act row) and **case cards** (question, progress, AI share, verdict) |
+
+L2:
+- the evidence list per trait;
+- the sight limit's detection grid (trait × level) and its history: the old race chart lives here;
+- the validation queue (instruments and methods);
+- the Safety framework editor;
+- disclosure policy;
+- foothold cards;
+- cause-aware responses.
+
+Safety staffing appears as one link chip, `Safety staff: short ▸ LAB`, with a verdict word and no copied numbers. It replaces the capacity strip.
+
+---
+
+## 2. IA map: every R&D datum → one home
+
+Columns:
+- **Home**: tab › place · level.
+- **Unit**: per VOCAB §1.
+- **Linked from**: link chips elsewhere, never copies.
 
 ### COMPUTE
 
-| Datum (player name) | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Compute online (H100e), owned vs rented | COMPUTE › forecast | L1 | hover: by site / contract | compute/forecast.ts, sites | Fact |
-| Capacity forecast (ordered, building) | COMPUTE › forecast | L1 | hover a month: deliveries | compute/forecast.ts | Estimate (vendor fill risk) |
-| Rivals' compute | COMPUTE › forecast ticks | L3 | hover: intel range | rival lab state + intel noise | Estimate |
-| Idle chips (no racks), empty racks ahead | COMPUTE › verdicts | L1 | click → Sites | compute/sites.ts | Fact |
-| Vendor fill, chip prices, export policy | COMPUTE › Market | L2 | hover: why | compute/market.ts | Fact / Estimate |
-| Orders, cloud contracts | COMPUTE › Orders | L2 | card | compute/orders.ts | Fact |
-| Sites: stage, MW, ETA, power source | COMPUTE › Sites | L2 | card → risks | compute/sites.ts, power.ts | Fact / Estimate (ETA) |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Compute online, owned / rented | COMPUTE › forecast · L1 | H100e | F | LAB bar total |
+| Forecast: ordered, building | COMPUTE › forecast · L1 | H100e by month | B·fc | — |
+| Rivals' compute | COMPUTE › forecast ticks · L3 | H100e (range) | B·intel | — |
+| Unracked chips, power waits | COMPUTE › verdicts · L1 | count · days | F | Alerts |
+| Orders, cloud contracts | COMPUTE › Orders · L2 | H100e · $ · date | F | — |
+| Sites: stage, MW, ETA | COMPUTE › Sites · L2 | MW · date | F; ETA B·fc | — |
+| Chip prices, vendor fill, export rules | COMPUTE › Market · L2 | $/H100e · % | F / B | — |
 
 ### LAB
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Compute allocation by use, incl. Idle | LAB › allocation bar | L1 | hover a segment: H100e, what it feeds, starved / wasted | `player.split`, SPLIT_LABEL, `idleTrainingShare`, `idleServing` | Fact |
-| Allocation presets | LAB › allocation bar | L1 | hover: what changes | SPLIT_PRESETS, presetSplit | Fact |
-| Auto-split idle compute (on, target, last move) | LAB › Policies | L2 | hover: last move log | `policies.autoSplit` | Fact |
-| Safety research compute by sub-use (projects, validations, cases, evals) | LAB › allocation bar (Safety research segment) | L3 | tooltip breakdown | `safetyPoolClaims`, `caseH100e` | Fact |
-| Safeguards compute (sum) | LAB › allocation bar | L1 | tooltip: per deployment → SAFETY | safety/safeguards `controlComputeShare`, monitor H100e (provisional) | Fact |
-| Headcount by role, quality, hiring queue, payroll | LAB › Workforce | L2 | hover: teams list | `player.teams`, hiring state | Fact |
-| Research engineers' needs (Run operations, Evaluations, Project experiments) gets / needs, idle | LAB › needs board | L1 | hover a need: which runs / projects | `reAllocView`, `research.last.idle` | Fact |
-| Safety research engineers' needs (Open cases, Validation jobs, Removals, Safety experiments) in player order, idle | LAB › needs board | L1 | hover: jobs behind the need | `safReAllocView`, SafAlloc.idle | Fact (provisional labels, SR §5) |
-| Engineers' needs (Run setups & build-ins, Product upkeep, Builds) and build capacity (team-weeks / wk), human vs AI | LAB › needs board | L1 | hover: build queue items, each links to its home | `engAllocView`, `buildSplit` | Fact |
-| Science teams: count placed, idle | LAB › needs board (Scientists column) | L1 | idle chip → RESEARCH (why idle) | `idleTeams`, `safIdleFlag` | Fact |
-| AI staff package: model, copies, speed, compute, AI share of the job | LAB › AI staff tiles | L1 | hover: per-job AI share, cost per work-hour | departments/agents `agentVersion`, `agentCompute`; workfit `copiesOf`, `speedOfCopy`, `aiIdeasShare` | Fact (model choice) / Measured (AI share: from measured fit) |
-| Internal tooling (Coding harness, Research harness, Agent memory) | LAB › AI staff tiles | L2 | hover: effect, build cost | `player.tooling`, INTERNAL_TOOLS | Fact |
-| Hire / move previews | LAB › controls | L3 | — | the mechanism on a copy (theme V) | Estimate |
-| Safety spend $ / yr | LAB › Workforce footer | L2 | tooltip: by line | payroll + compute cost | Fact |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Compute allocation by use | LAB › allocation bar · L1 | % · H100e | F | TRAINING limits, Data, PRODUCTS, RESEARCH card "Gets" |
+| Idle compute (per segment + total) | LAB › allocation bar · L1 | % · H100e | F | COMPUTE verdict `idle allocated ▸`, Alerts |
+| Presets | LAB › allocation bar · L1 | — | F | — |
+| Auto-split idle compute | LAB › policies · L2 | — | F | — |
+| Safety work sub-uses (research, validations, cases, evals) | LAB › Safety work segment · L3 | % | F | SAFETY staffing chip |
+| Safeguards compute (sum) | LAB › bar segment · L1 (read-only) | % | F | set via SAFETY › Safeguards |
+| People, teams, quality per role | LAB › board People row · L1 | people · teams | F | — |
+| Capability / safety scientist split | LAB › Scientists column · L1 | teams | F | RESEARCH board column heads (label-only chip) |
+| Hiring target, offers, star hires, open positions, payroll | LAB › hiring drawer · L2 | people · $ | F | — |
+| AI staff per job: model, copies | LAB › board AI staff row · L1 | copies | F | MODELS role chip |
+| AI share per job | LAB › board AI staff row · L1 | % | M | Overview (link) |
+| Total effort | LAB › board · L1 | × people alone | B | — |
+| Needs per role (gets / needs, short, Spare, Idle), in order | LAB › board Needs · L1 | staff used · time to finish | F | TRAINING Run operations, MODELS Evals queue, SAFETY chip, RESEARCH idle teams |
+| Build capacity, build queue, upkeep | LAB › Engineers needs · L1 / L2 | % in use · weeks of queue | F | PRODUCTS tools, RESEARCH lab tools |
+| Run operations coverage | LAB › Research engineers needs · L1 | % covered | F | TRAINING limits |
+| Safety RE order (Cases · Validations · Safety evals · Environment fixes · Foothold removal · Research experiments) | LAB › Safety band · L1 | staff used | F | SAFETY chip |
+| AI share allowed, spot-checks (safety work) | LAB › AI staff detail · L2 | % · staff | F | — |
+| Research taste of AI staff | LAB › Ideas AI-staff tooltip · L3 | vs your scientists | B | — |
+| Cost per hour of AI work | LAB › AI staff detail · L2 | $/h | F | — |
+| Best moves (compute and hires) | LAB › Best moves · L1 | % change of the target | B | RESEARCH Limited by, PRODUCTS Limited by |
+| Safety spend | LAB › board Safety band footer · L2 | $/yr | F | — |
 
 ### RESEARCH
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Research speed (× day-1 lab) and trend | RESEARCH › header | L1 | hover: experiments rate × ideas rate, modifiers | `labSpeedView` (.rel, mExp, mIdeas, mods) | Measured (what the engine did that day) |
-| What binds (compute / engineers / scientists / ideas) | RESEARCH › header bar | L1 | hover: elasticities as "+10% compute → +x%"; Go → LAB | `capProjectView.bound`, eC / eL (see OQ-5: reads hidden production parameters) | Believed (after OQ-5) |
-| Portfolio rows: priority, line, stage, stage progress, ETA | RESEARCH › Portfolio | L1 | click row → project card | `capPriorityList`, `capProjectView` (.stage, .stageFrac, .eta, .etaParts); safety `lineRows`, `lineEtaDays` | Fact / Estimate (ETA) |
-| Teams on a project, teams wanted, why this team | RESEARCH › project card | L2 | hover team: why | `capProjectView.teams[].why`, `research.want` | Fact |
-| Chance it works | RESEARCH › row | L1 | hover: prior, attempts so far | `nodeOdds` (cap: `attemptOdds` prior; safety: line posterior mean) | Believed |
-| Payoff if it works (OOM on a know-how area, domain, unlock, safety output) | RESEARCH › row chip | L1 | hover: band, source | treeActions effect preview; `capProjectView.belief` (mu ± sd) | Believed |
-| Candidates in test, dropped, failed | RESEARCH › project card | L2 | hover: belief band | `capProjectView.cands / drops / belief` | Believed |
-| Research inputs on a project (engineers, experiment compute) | RESEARCH › project card | L3 | tooltip | `capProjectView.re / flopDay` | Fact |
-| Line: ideas get harder, next idea's expected size, ideas found | RESEARCH › line card | L2 | hover | `capProjectView.line` (.harder, .nextPrior, .gen, .pending) | Believed |
-| Safety line: expected vs observed results / yr | RESEARCH › line card | L2 | hover: results list | `lineRows` (SR-29) | Believed vs Fact (provisional) |
-| Discoveries tree: status, needs | RESEARCH › Discoveries | L2 | hover node: effect, needs; click → project | `nodeStatus`, `missingNeeds`, `treeCounts` | Fact |
-| Know-how per area: public, adopted, in newest model, measured | RESEARCH › Know-how | L1 | hover: ideas adopted, date, measured Δ | `stackViews`, `publicBase`, `measuredDelta` | Fact (adopted) / Measured (Δ) |
-| Know-how growth (ideas / yr, public growth) | RESEARCH › Know-how | L2 | sparkline | `softwareRate`, `pubRate` | Fact |
-| Other effects (domain & data effects) | RESEARCH › Know-how | L2 | list | `otherEffectViews` | Fact |
-| Publish policy | RESEARCH › Know-how footer | L2 | hover: what leaks | publishPolicy (provisional) | Fact |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Research speed + AI's part + trend | **L0 #6** (tooltip) | × leading lab Jul 2025 | B | RESEARCH header link |
+| Limited by (lab-wide) | RESEARCH › Portfolio strip · L1 | word | B | Alerts |
+| Priority order, cap / safety | RESEARCH › board · L1 | order | F | Discoveries node |
+| Programme / project, output tag | RESEARCH › card · L1 | chip | F | — |
+| Stage | RESEARCH › card · L1 | stage track | F | Discoveries node (state word only) |
+| Next result ETA | RESEARCH › card · L1 | days | B·fc | — |
+| Expected effect | RESEARCH › card · L1 | where it lands (% know-how area · named instrument / safeguard / method · unlock); range L3 | B | — |
+| Chance it works (project) | RESEARCH › card · L1 | % | B | Discoveries node hover |
+| Returns falling (programme) | RESEARCH › card · L1 | words ("each result ≈ ⅔ of the first") | B | — |
+| Outlook (safety programme) | RESEARCH › card · L1 | Promising / Mixed / Struggling | B | — |
+| Teams on it | RESEARCH › card · L1 | teams | F | — |
+| Teams wanted, why this team | RESEARCH › card · L2 / L3 | teams · % | F / B | — |
+| Gets: staff, experiment compute | RESEARCH › card · L2 | staff · % | F | links to LAB |
+| Idea choice | RESEARCH › card · L2 | Safe / Balanced / Bold | F | — |
+| Ideas under test, dropped; at scale | RESEARCH › card · L2 / L3 | expected effect · grows / holds / shrinks | B | — |
+| Takes effect | RESEARCH › card · L2 | new base model / next post-training / a build / at once | F | — |
+| Failed, retry | RESEARCH › card · L1 state | time lost (weeks) | F | Alerts |
+| Expected vs observed results (safety) | RESEARCH › card · L2 | results / yr | B vs F | SAFETY Instruments warnings |
+| Discovery node state, needs | RESEARCH › Discoveries · L1 | state word | F | — |
+| Know-how per area: Public / Yours | RESEARCH › Know-how · L1 | × vs Jul 2025 | Public F; Yours B | — |
+| Waiting | RESEARCH › Know-how · L1 | × | B | TRAINING prediction (`×2.2 waiting ▸`) |
+| Idea list per area | RESEARCH › Know-how · L2 | +% each | B | — |
+| Know-how growth | RESEARCH › Know-how · L2 | × per year | B | — |
+| Measured effect (per model generation) | RESEARCH › Know-how · L2 | levels (Δ) | M | MODELS card |
+| Domain effects | RESEARCH › Know-how · L2 | skill-bar change | B | — |
+| Publish policy | RESEARCH › Know-how · L2 | — | F | — |
+| Lab tools owned: effect, build, upkeep | RESEARCH › Know-how › Lab tools · L2 | AI share change · time to finish · staff used | F; effect B | LAB AI staff row |
 
 ### TRAINING
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Run plan options (act, source, size, data mix, RL focus / budget, environments, methods) | TRAINING › Run plan | L1 | hover each chip: effect in its unit | `planRun`, `runAct`, design data | Fact |
-| Predicted level after the run, band, domain gains | TRAINING › Prediction card | L1 | hover: parts (pretraining, RL, know-how) | `runForecast`, `planRun` prediction | Estimate |
-| Planned run's sight limit vs its predicted level | TRAINING › Prediction card | L1 | → SAFETY › Instruments | `plannedSightLimit` | Believed (provisional) |
-| Traits this run pushes (per family), methods' predicted change | TRAINING › Prediction card | L2 | hover: per method | pressureView `plannedPressure`, `methodLines` | Believed (provisional) |
-| Run cost: FLOP, days, cash, run-op engineers | TRAINING › Prediction card | L1 | hover: training share link → LAB | `planRun`, `shareIfLaunched`, `runEtaDays` | Estimate |
-| Limits: data repetition, suite quality, training share | TRAINING › limits strip | L1 | Go → Data / Environments / LAB | `planRun` limits | Fact |
-| Runs in progress / queued, ETA, stall reason | TRAINING › Runs | L1 | click → frozen launch snapshot | `player.runs`, `runStall`, `runOpsServed` | Fact |
-| Continual-learning stream (FLOP, gain per period) | TRAINING › Runs (scheduled row) | L2 | hover | `streamFlopPerDay`, `streamPeriodGain` | Fact / Estimate |
-| Data portfolio: tokens by domain, sources, licences, synthetic jobs | TRAINING › Data | L2 | hover: repetition, quality | `dataPortfolioView`, `drawByDomain`, `teacherRows` | Fact |
-| Environment suites: quality (tasks × grader), exploitability, upkeep, expert data | TRAINING › Environments | L2 | hover: decay, next build | `suitesView`, `fidelityOfSuite`, `suiteExploitMap` | Fact / Believed (exploitability) |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Prediction: skill ghosts per domain, milestone | TRAINING › Next run · L1 | skill-bar ghosts (range) | B·fc | RESEARCH Waiting |
+| Planned run's sight limit | TRAINING › Prediction tick · L1 | tick (levels short / past) | B | SAFETY header |
+| Run plan options, two stages | TRAINING › Run plan · L1 | Skill · Time · Cost · Serving cost · Risk | F / B | — |
+| Run duration, cost, run operations | TRAINING › Limits · L1 | days · $ · % covered | B·fc | — |
+| Pushes per risk family; methods' predicted change | TRAINING › Next run · L2 | ↑ / ↓ pts | B | SAFETY › Model ("trained with") |
+| Method's believed strength (tested up to …) | TRAINING › method option · L2 | range | B | SAFETY validation queue |
+| Launch snapshot | TRAINING › Runs card · L2 | — | F | MODELS card |
+| Runs: running / queued / continual learning, ETA, stall | TRAINING › Runs · L1 | days | F; ETA B·fc | Alerts, nav badge |
+| Data by domain and source, re-reads, verdict | TRAINING › Data · L1 | T tokens · ×re-read | F | Limits strip |
+| Data quality, mix | TRAINING › Data · L2 | % by domain | M | — |
+| Generated data jobs | TRAINING › Data · L1 | tokens · H100e-days | F | — |
+| Environments: Realism, Loopholes per family | TRAINING › Environments · L1 | % | M (Loopholes B) | — |
+| Hacking pressure of the next run | TRAINING › Environments · L1 | low … high | B | Next run Risk column |
 
 ### MODELS
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Owned models, lineage, size, role (internal / product tiers), retired | MODELS › Lineage | L1 | click → card | `player.versions`, bases | Fact |
-| Measured level ± band | MODELS › card | L1 | hover: suites, depth, elicitation | `EvalRecord.measuredL`, `fitSd`, `measuredLOf` | Measured |
-| Measured domain levels vs median expert / best human | MODELS › card | L1 | hover a domain: benchmarks behind it | `EvalRecord.measuredDom`; workfit `refPoints` (see OQ-6; MEDIA / PHYS fall back to a true offset: leak) | Measured |
-| Benchmark scores | MODELS › card (more) | L2 | hover: score sd | evals bench table | Measured |
-| Milestones met (work-type criteria), date | MODELS › card | L1 | hover: each criterion | `versionMilestones`, `milestoneViews` | Measured |
-| Work types: time horizon, AI vs best human per hour | MODELS › card | L2 | hover | `workTypeViews`, `h50Of` | Measured |
-| Serving cost per work-hour, active parameters | MODELS › card | L2 | hover: FLOP per token | `costPerWorkHour`, `flopPerToken` | Fact |
-| Monitorability | MODELS › card | L2 | → SAFETY › Instruments | version monitorability | Believed |
-| Rival best public model | MODELS › card reference tick | L3 | hover: intel range | rival labs (public versions) | Estimate |
-| Evals: suites run, depth, cadence, queue, policy, cost | MODELS › Evals | L2 | hover | `evalQueueView`, `evalDepthView`, `evalMeasureView`, `evalPolicyView` | Fact |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Owned models, lineage, size, state, roles | MODELS › tree · L1 | B parameters | F | LAB, PRODUCTS, TRAINING run done |
+| Skill per domain, range | MODELS › card · L1 | skill bar ± range | M | SAFETY "Able to" |
+| Capability (overall) | MODELS › card · L1 | bar | M | — |
+| Milestones met, date | MODELS › card · L1 | met / not met · date | M | Alerts |
+| Benchmarks | MODELS › card · L2 | % · Maxed out | M | — |
+| Jobs: skill at this job, can do alone, time horizon | MODELS › card · L2 | bar · % · hours | M | LAB AI share tooltip |
+| Cost per hour of work | MODELS › card · L2 | $/h | F | PRODUCTS lineup |
+| Trained with (methods, data, know-how) | MODELS › card · L2 | — | F | SAFETY › Model |
+| Rivals' models (Q2) | MODELS › card tick · L3 | skill bar tick | M (released) | — |
+| Eval queue, depth, Re-test when | MODELS › Evals · L1 / L2 | time to finish · days | F | LAB RE needs |
 
 ### PRODUCTS (provisional)
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Revenue per product, binding cause | PRODUCTS › revenue | L1 | hover: customers × hours × price | worldfx/productView `productReadouts` | Fact |
-| Lineup: models in tiers, share of hours, cost per hour | PRODUCTS › product card | L1 | → MODELS card | product lineup (DD-01) | Fact |
-| Demand vs serving capacity | PRODUCTS › product card | L1 | serving segment → LAB | `productReadouts` | Fact / Estimate (demand) |
-| Price, rival best product price | PRODUCTS › product card | L2 | hover | `goingPrice`, bestRivalProduct | Fact / Estimate |
-| Product tools (features), sector certification | PRODUCTS › product card | L2 | hover: effect inside the offer | `featureView` | Fact |
-| Usage policy, KYC, disclosure | PRODUCTS › product card | L2 | hover | product settings | Fact |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Revenue per product, Limited by | PRODUCTS › revenue · L1 | $/yr · word | F / B | Finance |
+| Lineup: models, share of hours | PRODUCTS › card · L1 | % of hours | F | MODELS role chip |
+| Tools on the product | PRODUCTS › card · L1 | where it helps · cost per task | F / B | — |
+| Sector certification | PRODUCTS › card · L1 | date · effect | F | — |
+| Price, thinking effort | PRODUCTS › card · L1 | Low / Standard / Premium · cost × | F | — |
+| Served / unserved | PRODUCTS › served bar · L1 | % | F | LAB Products segment |
+| Customers, market share target | PRODUCTS › card · L2 | count · % · weeks to win | F / B | — |
+| Hours of work sold, seats | PRODUCTS › card · L2 | hours · $ | F | — |
+| Rival best price | PRODUCTS › card · L2 | $/h | B·intel | — |
+| Serve order; auto-make smaller sizes; usage policy | PRODUCTS › policies · L2 | — | F | TRAINING Runs ("auto") |
 
 ### SAFETY (provisional)
 
-| Datum | Home | Lvl | Drill-down | Reads | M/B |
-|---|---|---|---|---|---|
-| Loss-of-control risk, lab (max over running models) | L0 #2 | L0 | → SAFETY › Risks | `lossOfControlRisk` | Believed |
-| Sight limit vs frontier level (lab) | L0 #2 (small) | L0 | → SAFETY › Instruments | `sightLimit`, `bestMeasuredL` | Believed / Measured |
-| Loss-of-control risk of the selected model | SAFETY › header | L1 | hover: act-against-the-lab row × stop rate × footholds vs published survivable range | `modelLossRisk` | Believed |
-| Unstopped harm / yr (by severity) | SAFETY › header | L1 | hover: top acts → Risks | `unstoppedHarmPerYear` | Believed |
-| Framework hold (rule, model, override) | SAFETY › header | L1 | [why] → rule | framework (SR-19/20) | Fact |
-| Act row: Would try · Able to · Chances · Stop rate · Unstopped / yr | SAFETY › Risks | L1 | hover factor: source, "what lowers it" before → after | `actTable`, `actSite` | Believed (Would try, Stop rate) / Measured (Able to) / Fact (Chances) |
-| Footholds: suspected / located / removed, points of risk | SAFETY › Risks footer | L2 | card → open case | safety/footholds (known + expected unfound) | Believed |
-| Trait beliefs per family and trait, Unknown chip | SAFETY › Model | L1 | trait → evidence list | `beliefView` | Believed |
-| Instrument reliability on the model, validated-on, reasons | SAFETY › Instruments | L1 | reasons, validation history, disagreements | `instruments`, `reliability`, `validatedLabel`, `reliabilityReasons`, safety/disagreement | Measured (validated) / Believed (extrapolated) |
-| Detection grid (trait × level) | SAFETY › Instruments (drill-down of sight limit) | L2 | hover cell | `sightGrid` | Believed |
-| Validation jobs: queue, days left, who runs it | SAFETY › Instruments | L2 | engineers → LAB | `validationView`, `jobDaysLeft`, `humanRun` | Fact |
-| Safeguards per deployment: stop rate per act, slowdown, compute, staff | SAFETY › Safeguards | L1 | edit with before → after | `safeguardLines`, `combineStop`, `totalSlowdown`, `reviewStaff` | Believed (stop rate) / Fact (cost) |
-| Owned methods and their predicted effect | SAFETY › Safeguards (Methods list) | L2 | ticked in TRAINING | `ownedMethods`, `methodLines` | Believed |
-| Incidents: severity, apparent cause, deadline, status, act row link | SAFETY › Incidents & cases | L1 | card → responses | `incidentRows` | Fact / Believed (cause) |
-| Cases: question, progress, AI share, verdict | SAFETY › Incidents & cases | L2 | card | investigations | Fact |
-| Capacity strip: jobs waiting, weeks to clear, idle, spend | SAFETY › bottom strip | L2 | links → LAB | `safReAllocView`, `safetyPoolClaims` | Fact (breakdown of LAB data, links only) |
+| Datum | Home | Unit | Basis | Linked from |
+|---|---|---|---|---|
+| Loss-of-control risk, lab (max over running models, model named) | **L0 #7** | % (range) / Unknown | B | — |
+| Loss-of-control risk, selected model (gauge) | SAFETY › header · L1 | % (range) | B | — |
+| Unstopped harm / yr | SAFETY › header · L1 | /yr by severity | B | Incident cards |
+| Sight limit vs selected model | SAFETY › header · L1 | levels short / past | B | TRAINING planned tick |
+| Framework hold | SAFETY › header · L1 | rule → Hold | F | Alerts, MODELS release |
+| Act rows: Would try · Able to · Chances · Stop rate · Unstopped | SAFETY › Risks · L1 | % · bar · /yr · % · /yr | B · M · F · B · B | Incident cards |
+| Footholds | SAFETY › Risks foot · L1 (once suspected) / L2 card | points of risk | B | — |
+| Beliefs per family / trait, Unknown | SAFETY › Model · L1 / L2 | % (low–high) | B | MODELS card |
+| Evidence per trait | SAFETY › Model · L2 | list | M | — |
+| In tests vs in real use | SAFETY › Model · L2 | % (range) | M | — |
+| Instrument reliability, validated on, reasons | SAFETY › Instruments · L1 | % (range) · validated on … | M / B | RESEARCH safety card result |
+| Disagreement chips | SAFETY › Instruments · L1 | chip | M | — |
+| Detection grid, sight-limit history | SAFETY › Instruments · L2 | % · levels | B | — |
+| Validation queue (instruments and methods) | SAFETY › Instruments · L2 | k of n · time to finish | F | TRAINING method, LAB |
+| Safeguards per deployment: stop rate, Slowdown, compute, staff | SAFETY › Safeguards · L1 | % · % · H100e · staff | B / F | LAB AI staff, PRODUCTS card |
+| Watcher model, watched share, watcher gap | SAFETY › Safeguards · L2 | name · % · levels | F / M | — |
+| Framework safeguards (auto-applied) | SAFETY › Safeguards marks · L1 | — | F | — |
+| Incidents | SAFETY › Incidents & cases · L1 | severity word · deadline | F; cause B | Alerts |
+| Cases | SAFETY › Incidents & cases · L1 | time to finish · verdict | F | — |
+| Framework rules, disclosure policy | SAFETY › L2 editors | — | F | — |
 
-**Never read by the UI** (truth): `trueSightLimit`, `trueLeadDays`, `safetyTruth`, `trueRecall`, hidden traits, agenda
-efficacy, `hidden.*` world draws. Existing leaks to fix: `capProjectView` eC / eL read `s.hidden.timeline.prod`
-(OQ-5); measured domain fallback for MEDIA / PHYS adds the true offset (RD-M01 open item).
+### Duplicates the audit found → one home
+
+| Audit finding | Resolution |
+|---|---|
+| Allocation set in 4 places (Split, Blueprint pool share, Data pool share, Products serving) | **LAB bar only.** The other three become link chips plus read-only previews ("at 60%: 70 d") |
+| AI share: Overview 63% vs Company 0.0% | One definition (share of the job's work done by AI staff), **LAB board**. Overview links to it |
+| Three risk readouts (27% catastrophe, 0.0% loss of control, "past sight limit") | L0 loss-of-control (lab max) + SAFETY header (selected model) from one computation; catastrophe gauge deleted; **Unknown** state instead of 0% |
+| Sight limit in 6 places | **SAFETY header** (current) and TRAINING (planned run, a different datum). Race chart and trait grid → SAFETY › Instruments L2 |
+| Capability: 6.8 top strip vs 7.0 "best" vs 9.1 predicted | No capability number in L0. Every capability readout names its model; home is the **MODELS card** |
+| Idle: "0.0%" vs "46% idle now" | Idle hatched **inside each segment** plus one total, in the LAB bar |
+| Know-how: "Not trained in" > total | **Waiting is a part of Yours** (stacked), by construction ≤ total; both beliefs |
+| Monitor internal agents + Trusted to AI (Company and Safety) | Monitor → **SAFETY › Safeguards** (internal deployment, OQ-7); AI share allowed / spot-checks → **LAB** |
+| Research speed (crashing Flow tab only) | **L0 #6** |
+| Safety research split from capability (Research lines vs Projects) | **One RESEARCH board**, one card grammar |
+| Runs in progress (Models) vs bottom-bar launch | **TRAINING › Runs** only |
+| Data, environments under MODELS | **TRAINING** (they are the run's ingredients) |
+| Next-hire buys and compute levers in separate places | **LAB Best moves** (Q6) |
+| SAFETY capacity strip copying LAB numbers | One verdict chip → LAB |
+| How close AI is to each job (Work tab) vs model card | **MODELS card** (a model property); LAB shows the resulting AI share |
+| KYC on Products and on Security | A **restriction safeguard** in SAFETY › Safeguards |
+
+### Audit §4 conflicts with the old draft → resolved
+
+| # | Conflict | Now |
+|---|---|---|
+| 1 | Assumed homes that crash | Homes are designed fresh; research speed → L0 |
+| 2 | "Packages" for AI staff | AI staff **by job** (Engineering · Experiments · Ideas · Safety); "package" is gone |
+| 3 | Internal tooling in LAB | RESEARCH › Know-how › Lab tools |
+| 4 | OOM in tooltips; team-weeks | No OOM in player view; time to finish + staff used; team-weeks only in breakdown tooltips |
+| 5 | Loss of control as hero | Small L0 item; gauge on SAFETY only (decided) |
+| 6 | "Sight L 9.1" in L0 | Removed; sight limit is a tick on the capability ruler (SAFETY, TRAINING) |
+| 7 | Trait graph deleted, its explanation lost | The detection grid moves to the sight-limit drill-down; the evidence map moves to the Codex |
+| 8 | Know-how "Fact" | Belief until measured |
+| 9 | Allocation controls elsewhere | Become links (table above) |
+| 10 | Name drift | VOCAB words throughout (Next run, Post-training ceiling, Discoveries, Know-how) |
+
+### Truth guard
+
+The UI never reads:
+- true traits, true reliability or the true sight limit;
+- true lead or true know-how stacks;
+- hidden world draws or method at-scale efficacy;
+- unfound footholds or sabotage flags.
+
+Leaks to fix before mockups are built live:
+- "Waiting" / know-how growth reading the true stacks (B9);
+- the teacher table's G column;
+- the measured-domain fallback (MEDIA / PHYS true offset).
 
 ---
 
-## 3. Vocabulary (feeds RD-Z02)
+## 3. Cross-tab links (chip jumps to the home; it shows no copied number)
 
-One word per thing. **DEL** = delete the term from player text (glossary entry goes or is merged).
-
-| Current engine / UI term | Player word | Tooltip (one line) |
+| From | Chip | To |
 |---|---|---|
-| R&D multiplier M, AI R&D multiplier, rdmult, labSpeed, "Research speed ×" | **Research speed** | How fast your lab turns compute and people into know-how, × your lab on day 1. |
-| Experiment throughput X, expThroughput | DEL (tooltip part of Research speed: "experiment rate") | — |
-| prodfn "Research production", researchMix, responseCurve | DEL | — |
-| bottleneck, binding, bindingCause, computeBound / laborBound / humanBound / tasteBound | **What binds** (values: compute, engineers, scientists, ideas quality) | The input that would speed this up most per extra unit. |
-| Compute split, pools, poolTraining / poolExperiments / poolAgents / poolServing / poolSafety / poolResearch | **Compute allocation**; each use by its name | How your online compute is divided between uses. |
-| researchAgents, routine / frontier agents | **Research agents** | AI copies doing research experiments and ideas. |
-| safetyAgents, automateSafety, trustedToAI, aiDoneShare, aiShareWork, aiRdShare | **AI share** (of a job) | Share of the job's effective work done by AI copies. |
-| agentPackage "Agents at work" | **AI staff** | Your AI copies, grouped by job, each on a named model. |
-| Idle compute, idleServing, Unallocated | **Idle** | Compute no use is drawing on; it costs money and does nothing. |
-| capability level L, λ | **Level** (L) | A model's capability on a 0–15 scale; 10 = best human in the domain. |
-| measureBand, estimateBand, beliefBand | **± band** (measured) / **range** (believed) | How far the true value may be from what you see. |
-| Effective compute (G), OOM, gGain | **OOM** in tooltips only (see OQ-1) | Order of magnitude: ×10 effective compute. |
-| Recipe, knowHow, recipeStack, stackEfficiency, stacks | **Know-how** (five **areas**) | What your lab knows about training and serving, built into new models. |
-| Paradigm, axis, techTree | **Unlock**; tree = **Discoveries** | A one-off research result that opens a new option. |
-| researchLine (capability pool), linePool "Ideas get harder" | **Line** (OQ-3) | A research direction that keeps producing ideas, each harder than the last. |
-| idea, candidate | **Idea** (adopted); **candidate** (in test) | A candidate is an idea still being tested. |
-| stageIdeation / stageSmall / stageScale / stageAdoption / stageTest | **Ideas · Small test · Big test · Build-in** (unlocks: **Test · Build-in**) | Where the project is. |
-| stageResult "Result estimate" | DEL (stage removed) | — |
-| odds, lineHealth, Health | **Chance it works** | Your current odds that this works, from the attempts so far. |
-| deadEnd, seriousStaffing, followUp, retry | DEL (failed project = **Failed**) | — |
-| finding, technique, tool, detector, toolFamily, umode | DEL in RESEARCH → **Result**; on SAFETY → **Instrument / Safeguard / Method** | — |
-| agenda | **Safety line** (data name agenda) | A safety research direction with its own projects. |
-| realisedEffect, measuredDelta | **Measured effect** | The change your evals saw in the first model built with it. |
-| projectQueue | **Priority list** | Projects in order; teams go to the top first. |
-| teamsWanted, teamsWantedAuto | **Teams wanted** | How many science teams this project should get. |
-| teamMonth, teamWeek, person-month, team-equivalent | **team-weeks** (OQ-4) | One team working for one week. |
-| buildCapacity | **Build capacity** (team-weeks / week) | How much engineering work your engineers and AI can do per week. |
-| runOps | **Run operations** | Research engineers keeping training runs going; short = runs slow. |
-| postTrain, baseRun, continueRun, distillRun, idaCycle | **Pretraining** (new / continue / distil) and **RL** (option: teacher grades) | The two ways to make a model. |
-| blueprint, plannedRun | **Run plan** | The run you are designing. |
-| nextModelGate | DEL | — |
-| envSuite, suiteFidelity | **Environment**, **quality** | Tasks a model trains on in RL; quality = tasks × grader quality. |
-| suiteExploit, rewardHackPressure (S2) | **Exploitability** | How easily models game this environment's grader. |
-| dataTokens, dataPortfolio, dataWall | **Data**, **repetition** | Your training text; repetition = how often runs re-read it. |
-| stream | **Continual learning** | A scheduled run that keeps your newest model learning. |
-| evals, evalSuite, evalDepth | **Evals**, **depth** | Benchmarks run on a model; depth = how hard you try to draw out its best. |
-| version, base, variant | **Model** (base in tooltip) | A trained model you own. |
-| catchRate, monitorCoverage, effOversight, actOversight, rdOversight, oversightGap, effectiveControl, controlBand, tiers | **Stop rate** | Share of attempts at this act your safeguards stop. |
-| controlLayer, agentControl, layer* | **Control protocol** (a safeguard) | Watching, deferring or resampling an AI's actions; costs slowdown. |
-| controlTax | **Slowdown** | Useful work lost to a safeguard. |
-| danger, disposition, misBand, dangerLine | **Would try** | Your belief of how often it would try this if unwatched. |
-| actCapability | **Able to** | Its measured capability against this act's threshold. |
-| opportunity | **Chances** | How many chances its deployment gives it a year. |
-| catRisk, riskSource | **Loss-of-control risk** (own models) | Your believed chance a model could act against you with nothing able to stop it. |
-| clarity, unseen | **range**; **Unknown** (range > 30 pts) | — |
-| validation, refresh "Re-validate", halfStrength, Goodhart G | **Validation**, **Reliability** | Reliability = chance an instrument shows a trait that is present on this model. |
-| trait graph, edge, moderator, trainingPressure, traitMovement ω, successorPull | DEL from screens (Codex only); TRAINING says **pushes** | — |
-| investigation | **Case** | A time-boxed investigation of one question. |
-| evalGate, pledge, releaseClearance, runtimeMonitoring | **Safety framework** rules | Your rules: thresholds → required safeguards and holds. |
-| agentTooling | **Internal tooling** | Tools your AI staff use; built once, has upkeep. |
-| autoSplit | **Auto-split idle compute** | Sends idle compute to the uses you pick, and logs it. |
-
----
-
-## 4. Cross-tab links (a chip that jumps home, never a copy)
-
-| Shown at | Link chip | Jumps to (home) |
-|---|---|---|
-| RESEARCH header, what-binds bar | `short: research engineers ▸` | LAB › needs board, that need |
-| RESEARCH project card | `experiment compute ▸` | LAB › allocation, Research experiments segment |
-| RESEARCH Know-how, "in newest model" | `measured in V5 ▸` | MODELS › card |
-| RESEARCH safety row result | `new instrument ▸` | SAFETY › Instruments |
-| TRAINING prediction cost | `training share ▸` | LAB › allocation, Training segment |
-| TRAINING limits strip | `run operations short ▸` | LAB › needs board |
-| TRAINING sight limit of planned run | `instruments ▸` | SAFETY › Instruments |
-| TRAINING method chips | `owned methods ▸` | SAFETY › Safeguards, Methods |
-| TRAINING run done | `new model ▸` | MODELS › card |
-| MODELS card role chip | `serves Chat tier 2 ▸` | PRODUCTS › product card |
-| MODELS card | `beliefs ▸` / `risk ▸` | SAFETY › Model / Risks (picker set to it) |
-| MODELS Evals queue | `engineers ▸` | LAB › needs board, Evaluations |
-| PRODUCTS demand vs capacity | `serving share ▸` | LAB › allocation, Products segment |
+| L0 Research speed | click | RESEARCH › Portfolio strip |
+| L0 Loss-of-control risk | click | SAFETY › Risks (picker = the named model) |
+| RESEARCH Limited by | `compute ▸` / `research engineers ▸` | LAB › Best moves, that move |
+| RESEARCH card Gets | `experiment compute ▸` | LAB › bar, Research experiments |
+| RESEARCH column heads | `scientists ▸` | LAB › Scientists split |
+| RESEARCH idle teams | `3 teams idle ▸` | LAB › Scientists column |
+| RESEARCH safety result | `new instrument ▸` | SAFETY › Instruments |
+| RESEARCH Know-how Waiting | `next run ▸` | TRAINING › Next run |
+| RESEARCH Lab tools | `build queue ▸` | LAB › Engineers needs |
+| TRAINING Limits: Compute / Run operations | `training share ▸` / `run operations ▸` | LAB |
+| TRAINING Data | `data generation share ▸` | LAB › bar |
+| TRAINING planned sight limit | `instruments ▸` | SAFETY › Instruments |
+| TRAINING run done | `Atlas-4 ▸` | MODELS › card |
+| MODELS role chip | `AI staff: experiments ▸` / `in Chat lineup ▸` | LAB board / PRODUCTS card |
+| MODELS card | `beliefs ▸` / `risks ▸` | SAFETY › Model / Risks (picker set) |
+| MODELS Evals | `research engineers ▸` | LAB › RE needs |
+| PRODUCTS served bar | `serving share ▸` | LAB › bar, Products |
 | PRODUCTS card | `safeguards ▸` | SAFETY › Safeguards (that deployment) |
-| SAFETY act row Able to | `measured level ▸` | MODELS › card |
-| SAFETY capacity strip | `jobs waiting ▸`, `safety spend ▸` | LAB › needs board / Workforce |
-| SAFETY Incidents | `act row ▸` | SAFETY › Risks |
-| LAB AI staff tile | `model ▸`, `safeguards ▸` | MODELS › card; SAFETY › Safeguards |
-| LAB Scientists column | `idle: no projects ▸` | RESEARCH › Portfolio |
-| LAB allocation total | `compute online ▸` | COMPUTE › forecast |
-| COMPUTE verdict | `idle allocated compute ▸` | LAB (distinct from idle chips) |
+| SAFETY act row Able to | `skill ▸` | MODELS › card |
+| SAFETY staffing | `Safety staff: short ▸` | LAB › Safety band |
+| SAFETY incident | `act row ▸` | SAFETY › Risks |
+| LAB AI staff row | `model ▸` / `safeguards ▸` / `lab tools ▸` | MODELS / SAFETY › Safeguards / RESEARCH |
+| LAB bar total | `compute online ▸` | COMPUTE › forecast |
+| COMPUTE verdict | `idle allocated compute ▸` | LAB bar (distinct from Unracked) |
+
+---
+
+## 4. Deleted from player view
+
+| What | Where it goes |
+|---|---|
+| Symbols G, L, U, M, X, c, ℓ, λ, ω, κ, S1–S9, "SD", sci notation, formulas | Designer overlay |
+| OOM (all ~150 uses), FLOP/day, FLOP/tok, "e24" | VOCAB §1 units; overlay |
+| team-eq, t-wk, team-mo, tm, "−12 staff" | Time to finish + staff used; team-weeks in breakdown tooltips |
+| Doc refs in tooltips ("MODEL-V3 §5", "research/20 C1", "[D]", "stand-in"; ≈ 400 footers) | Designer overlay |
+| Paper citations in tooltips | Codex "Based on" line only (DQ-2) |
+| Code ids (P11, AG07, V7, post 21, SCHEME, evalGov, CODE / RSCH) | Display names |
+| Raw enums, layer badges B/T/S/L, Effort S–XL, D/C/O | VOCAB words |
+| Pool, Line, Recipe, Blueprint, Tree, Suites, Split, package, headroom, Health, "Routine / Frontier research" | VOCAB words (§5 collisions) |
+| Catastrophe risk gauge (top strip), Control card / gauge, race chart as a tab, Trait graph tab, Policies tab, Research lines tab | §2 homes; evidence map to Codex |
+| "What more of each buys" flat curves, "Binds" on every row, Teams-wanted dots, radar without scale | Best moves; per-card limit only when different; skill bars |
+| Stale systems: pledge, "U", sector add-ons, KYC picker, package selector, tool upkeep | Removed / replaced per DECISIONS |
+| Allocation controls outside LAB | Link chips |
+| Engine diagnostics (elasticities, prod fn, realised effects) | Designer overlay |
 
 ---
 
 ## 5. Open questions for the designer
 
-| # | Question | Rec. |
+| # | Question | Recommendation (first principles) |
 |---|---|---|
-| OQ-1 | Unit for research payoffs and know-how: OOM, "× effective compute", or level L? | Show **level gain** where it lands on a model (`+0.3 L at your next base`), "×1.4 effective compute" on know-how; OOM only in tooltips. OOM is engine language |
-| OQ-2 | Where are science teams placed: RESEARCH priority list or LAB? | **RESEARCH** (the priority list is the scientists' allocator); LAB shows count, hiring, idle with a link |
-| OQ-3 | One portfolio holds capability "directions" and safety "lines": one word for both? | **Line** for both (DD-21 named them differently when they lived apart); tag by output (capability / see / stop / fix) |
-| OQ-4 | One work unit: team-weeks, team-months or person-months? | **team-weeks** everywhere (builds, evals, suites, cases already use it); person-month only in Codex |
-| OQ-5 | "What binds" reads the world's hidden production parameters. Allowed? | No: derive it from the lab's **published prior** on the elasticities (or the measured response of the last 30 days) and show it as believed |
-| OQ-6 | Domain scale on MODELS (UI-NOTES: start reads 0 in five domains) | Bar per domain with **median-expert and best-human ticks**, the model's position between them; no raw 0–15 number at L1 |
-| OQ-7 | Internal AI staff control: set in LAB (tile) or SAFETY (safeguard)? | **SAFETY › Safeguards**, as for products (one stop-rate formula); LAB tile shows a link chip |
-| OQ-8 | Evals: home in MODELS (measurement) or TRAINING (after a run)? | **MODELS › Evals**: they measure models, not runs; TRAINING's run-done chip links there |
+| Q1 | Revenue in the top bar? It is the 8th item | **Drop it from L0**; put revenue and burn in the Cash · runway tooltip. Runway is what decides whether you can act; revenue is one of its causes and has a home in Finance |
+| Q2 | How do rivals' models appear on MODELS? | **Released rival models, measured by your own evals**, as ticks on the skill bars (M). Unreleased models appear only through Lead (B·intel). A lab can benchmark a public API but not see an internal model, and a measured ruler should not carry intel guesses |
+| Q3 | Show rivals' know-how on Know-how ([30] proposed a rival estimate)? | **No.** Rivals are aggregates (DD-18) with no per-area recipe, and a lab can't observe a rival's recipe, only its models. Public know-how is observable and stays; "are we ahead" is the Lead item's job |
+| Q4 | Overview screen (core loop, lead lanes, race chart, AI-share line): it sits outside the 7 tabs and duplicates R&D data | **A hub**: the core-loop diagram, each node a link chip with one verdict word; the lead lanes (home of the lead detail). Delete the race chart (now SAFETY drill-down) and the AI-share line (LAB) |
+| Q5 | Progressive disclosure: show empty panels from day 0, or reveal when relevant? | **Reveal on first relevance**: the AI staff row once AI share > 0, the footholds line once one is suspected, the Environments family once unlocked. Add a one-time coach mark; the nav stays stable. Day 0 then shows fewer, truer things (the audit's day-0 "no project ready" next to six ready projects) |
+| Q6 | [30] put "Next hire buys" under each LAB column and compute levers separately. Merge them into one ranked **Best moves** list? | **Merge.** The player's question is "what should I add?", not "what does a hire in column X buy?". One ranking across compute and people shows the true bottleneck and lets RESEARCH, TRAINING and PRODUCTS "Limited by" chips all point to one place |
+
+---
+
+## 6. Mockups: order (biggest clarity wins first)
+
+| # | Screen | Why first |
+|---|---|---|
+| 1 | **L0 shell + LAB** (allocation bar, workforce board, Best moves) | Crashes today; allocation set in 4 places; AI-share contradiction; research speed unreachable. The shell appears on every later mockup |
+| 2 | **RESEARCH › Portfolio** | The designer's core confusion: capability and safety as two games, OOM payoffs, no chain to the outcome |
+| 3 | **TRAINING › Next run** | A ~260-line Blueprint → prediction ghost bars, two-stage plan, limits strip |
+| 4 | RESEARCH › Know-how | OOM → ×; the Waiting contradiction; the truth leak |
+| 5 | SAFETY header + Risks | Already sketched in SAFETY-REDESIGN §7; draw it once the SR engine rows land |
+| 6 | MODELS card + tree | Skill bars and milestone ladder (OQ-6) |
+| later | PRODUCTS (after Phase 7), COMPUTE (only loses Split), Discoveries, Data, Environments, Runs | Smaller changes or engine-dependent |
+
+Use real numbers from the `day400.json` fixture (RefBot) and a day-0 game; mock each screen at both stages.

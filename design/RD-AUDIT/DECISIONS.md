@@ -145,3 +145,13 @@ efficiency. Internal doc references only in a designer overlay; real paper citat
 Levels as numbers only as differences, in tooltips / L2, never "L"-prefixed. Research speed = "× the leading lab in July
 2025" (AI's share in the tooltip; no "multiplier"). The run's second stage = "Post-training". "Sector certification".
 Programme / project plus an "ongoing" / "one-off" chip.
+
+## UI-IA revised + engine follow-ups (2026-11-23, designer accepted)
+
+- UI-IA.md (revised from the audit, VOCAB and decisions) approved: L0 = clock · tabs (badges) · alerts · cash·runway ·
+  lead·nearest · research speed · loss-of-control risk (small). Its six answers: revenue in the cash tooltip; MODELS shows
+  rivals' released models measured by your evals; rivals' know-how not shown; Overview = hub + lead lanes (race chart
+  deleted); panels appear when relevant; one ranked "Best moves" list. Mockup order: L0 + LAB → RESEARCH › Portfolio →
+  TRAINING › Next run → Know-how → SAFETY › Risks → MODELS.
+- A Safety framework training hold stops new frontier training runs only; research experiments keep their compute.
+- Analysis: how often the sight limit is "none" across games (before any change).
