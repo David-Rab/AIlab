@@ -188,7 +188,10 @@ const sarOf = (os: Outcome[]) => os.flatMap((o) => (o.sar ? [o.sar] : []));
 const refSar = sarOf(ref);
 const gap = refSar.map((r) => r.margin);
 const tgap = refSar.map((r) => r.trueGap);
-smokeCheck(below(gap) >= S5_BELOW_MIN, 'S5 RefBot (AI 2027 alignment share): U falls below L by SAR in ≥ 50% of worlds',
+// Designer 2026-11-23 (review/S5-analysis.md option c): INFO only. The ≥ 50% is a design reading of AI 2027's text, not a
+// sourced number, and the row swings ±6 pp between runs (a lottery over hidden draws). Option (a), a sourced "instruments
+// get harder with capability even after re-fitting" term, may come later at the designer's choice.
+console.log(`INFO  S5 RefBot (AI 2027 alignment share): U falls below L by SAR (design reading ≥ ${pct(S5_BELOW_MIN)}): ` +
   `below in ${pct(below(gap))} of ${gap.length}; median U − L ${median(gap).toFixed(2)}; true U below true L in ${pct(below(tgap))} (median ${median(tgap).toFixed(2)}); SAFMECH: the bottom of believed U's 80% range below L in ${pct(below(refSar.map((r) => (r.uLo ?? r.u) - (r.u - r.margin))))} (mean range ${mean(refSar.map((r) => (r.uHi ?? r.u) - (r.uLo ?? r.u))).toFixed(2)} levels)`);
 {
   // Paired worlds (the first N_MECH RefBot seeds). "Deepens the lag" = the mean U − L at SAR is lower, believed and true.

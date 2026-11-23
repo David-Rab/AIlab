@@ -116,3 +116,5 @@ The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaul
 - Last calibration round: (1) adoption during takeoff (a sourced mechanism for adoption speeding up with capability /
   value, keeping the 2025–26 Census fit); (2) S5 RefBot 15% analysis only. Then calibration closes; S4 (0.377 vs
   0.40–0.80) and authors2026 post-SC shape (rival diffusion) are re-judged in the rivals session.
+- S5 RefBot row is INFO only (review/S5-analysis.md option c): the ≥ 50% is a design reading, the row is a ±6 pp lottery.
+  Option (a), a sourced "instruments get harder with capability even after re-fitting" term, maybe later at the designer's choice.
