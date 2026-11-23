@@ -87,3 +87,22 @@ The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaul
   copy, train it with the method, count planted cases removed (k of n). Organism realism applies to methods too (one
   rule). The result narrows the lab's belief about the method's at-scale strength most at the tested capability, widening
   again above it.
+
+## Calibration decisions after CAL1 refits (2026-11-23, designer accepted all lead recommendations)
+
+1. One isolated run of the AI Futures timelines model (AIFM) on Eli's medians, to source authors2026 G_SC and its takeoff shape.
+2. S4 target re-sourced to the AI Futures authors' credences (≈ 0.40–0.80); re-judge after item 9.
+3. Start research-speed M target = each preset's source value (ai2027 1.25, authors2026 1.10, fast 1.15, slow 1.01; ± 0.1).
+4. S5 Mixed-bot check restated for the sight limit (e.g. Mixed's sight limit at SAR above RefBot's).
+5. Adoption (Bass q / p) fitted to the measured Census BTOS growth; then check the revenue floor's own source if they clash.
+6. hireSlope 1.2 (once-fitted stand-in, lands HireRate_SOFT on Jul 2027).
+7. Slow preset keeps G_SC 38.3 (top of its source range) as a stated stand-in; no slow-horizon mechanism now.
+8. One focused task: world gates still reading v2 level thresholds on the RD-U05 shifted scale (persuasion, tier gate,
+   INFRA CYBER, risk exposure, tech gates, PHYS gate, mSci), plus V0 measuring BIO 0.
+9. Graders at the median expert (L 6.4), not the best human.
+10. DISAGREE_DROP deleted (the disagreement record stays).
+11. Framework "High" level per world (the world's own median expert).
+12. At-scale q upper end 2 stays a stand-in.
+13. Memory's chat appeal deleted.
+14. KYC_REFUSE 0.25 kept (sourced, high end).
+15. DISTILL_HARVEST_SHARE into its sourced range: 0.0015.
