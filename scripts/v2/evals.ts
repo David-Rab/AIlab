@@ -199,7 +199,9 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   // Gate none: released at once; auto-evaluate gives it a basic suite that blocks nothing.
   const g = game();
   act(g, 'safety.frameworkEvals', { depth: 'none', external: false });
-  daysUntil(g, () => g.player.models.versions.length > 1, 300);
+  // CP3d: since TIERS the day-0 lineup has several versions (V0 and its tiers, already measured): wait for a new one.
+  const n0 = g.player.models.versions.length;
+  daysUntil(g, () => g.player.models.versions.length > n0, 300);
   run(g, 1);
   const nv = g.player.models.versions[g.player.models.versions.length - 1];
   const nt = openEval(g, nv.id);
