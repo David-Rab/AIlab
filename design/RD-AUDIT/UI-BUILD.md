@@ -19,3 +19,10 @@ know-how area; next result in the tooltip); "Chances" shown as chances / yr.
 Lead calls (2026-11-23): safety programme stage track uses the engine's three stages (Ideas · Small test · Validate),
 not the mockup's four; programme rate = at current staffing (as planned); Best moves ranked by "days of progress a year"
 (365 × gain ÷ the target's current rate).
+
+## For CP4 (noted during the build)
+- Golden canary seed 2027 fails on SAR / SIAR after the UB merges (UB-3 report; sim doesn't call save code): find which
+  change moved it (UB-1 measurement scale is the likeliest) at CP4.
+- After UB-3: 14 one-off `_xxx` checks fail at their migration step and `_rfs5` / `_rfs8` / `_rfs14` pin rev 103 —
+  delete or update at cleanup.
+- Leftover temp worktree AI27-ub2base (node_modules link → delete the link first).
