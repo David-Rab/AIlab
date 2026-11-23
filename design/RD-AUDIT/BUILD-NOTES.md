@@ -2486,3 +2486,24 @@ and control tax wherever measured ≠ true).
 - **Checks.** tsc (app, scripts/v2) clean; npm run build ok (merge and fix). After the merge, before the fix:
   `rdm01.ts` pass, `_sr10/check.ts` 16 ok, `_sr15/check.ts` 4 ok, `_sr16/check.ts` 11 ok, all exit 0 (no re-run after
   the fix).
+
+### RD-M01b
+
+MEDIA and PHYS benchmark rows, so their measured levels are fitted (RD-M01 follow-up; UI-IA leak). Moves calibration: yes.
+
+- **Sources** (research/RD-MEDIA-PHYS-bench.md). MEDIA `mmmu` "SeeAndTell" ↔ MMMU val (Yue et al., CVPR 2024: random
+  22.1, best expert 88.6; OpenAI o1 post: GPT-4o 69.1, o1 78.2; GPT-5 launch 84.2): floor 22, ceil 89, mL −0.2,
+  kL 0.5. PHYS `embodied` "RobotHands" ↔ EmbodiedBench EB-Manipulation (Yang et al., ICML 2025: GPT-4o 28.9,
+  Claude-3.7-Sonnet 28.5, Claude-3.5-Sonnet 25.4, GPT-4o-mini 4.8): floor 0, ceil 100, mL 4.9, kL 0.5. Stand-ins [D]:
+  MMMU ceil = best expert; PHYS slope k_G 1.0 and ceil 100 (no human baseline); MMMU reads understanding, not generation.
+  Both rows `dangerous` [D judgement] so sandbagging (−1.5·SAND) hides them.
+- **Edits.** `data/v2/benchmarks.ts` two rows. Readers `actors/commitments.measuredDomain`, `models/paradigms.measuredDomain`,
+  `safety/actTable.measuredDomainL` (dangerView's reader): code unchanged (fit first), fallback (measured general + true
+  offset) now fires only for a record with no fit for the domain (no suite yet, or a pre-RD-M01b suite), comments say so.
+  fitDomains / dangerView comments restated. No state shape change, SCHEMA_REV stays 78.
+- **Calibration.** Two more 'runs' draws per suite (after the old rows, so their scores are unchanged; safety-eval draws
+  shift), suite size 27 → 29 benchmarks (eval cost), MEDIA now feeds fitGeneral once above the 0 clamp, MEDIA / PHYS
+  thresholds read the noisier single-row fit.
+- **Check.** `npx tsx scripts/v2/rdm01b.ts` (run alone, pass: V0 with true MEDIA 4 / PHYS 3 over 12 seeds reads honest
+  4.14 / 3.02 from the fits, SAND 1 reads 2.51 / 1.52). `rdm01.ts` pass, numbers unchanged (5.09 / 4.83 / RSCH 0.60).
+  tsc (app, scripts/v2) clean; npm run build ok.
