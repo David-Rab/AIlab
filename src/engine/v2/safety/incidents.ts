@@ -11,7 +11,8 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
-import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
+import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
+import { reviewCatch } from './lineProjects';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -258,7 +259,7 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
   const trait = row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
   if (d.channel === 'internal') {
     const mon = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
-    const human = reviewOn(d) ? HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v) : 0;
+    const human = reviewOn(d) ? reviewCatch(s) * (1 - aiRdShare(s)) * humanReviewFactor(s, v) : 0; // RF-S11: at its staffing
     const miss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
     return 1 - (1 - mon) * (1 - human) * miss;
   }
@@ -527,7 +528,7 @@ export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitI
     ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const block = dep ? deploymentContain(s, v, dep) : 0;
   const monitor = monitoringCatch(s, v, trait);
-  const human = reviewOn(dep) ? HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v) : 0;
+  const human = reviewOn(dep) ? reviewCatch(s) * (1 - aiShare) * humanReviewFactor(s, v) : 0; // RF-S11: at its staffing
   const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   const c = 1 - (1 - monitor) * (1 - human) * controlMiss;
   return { oversight: 1 - (1 - block) * (1 - c), block, catch: c, monitor, human, controlMiss };

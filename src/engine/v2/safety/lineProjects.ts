@@ -21,6 +21,7 @@
 // rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
 // its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
 // the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
+import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { TEAM_SIZE } from '../../../data/v2/teams';
@@ -179,6 +180,9 @@ export function needServed(s: GameStateV2, k: SafReNeed): number {
   const a = safAllocation(s);
   return a.demand[k] > 1e-12 ? Math.min(1, a.got[k] / a.demand[k]) : 1;
 }
+/** RF-S11 (SR-21): human review's catch at the staffing it gets: HUMAN_REVIEW × the 'review' need's served share (an
+ *  unstaffed review stops nothing). Staffing is the player's own quantity, so the believed readouts use it too. */
+export const reviewCatch = (s: GameStateV2): number => HUMAN_REVIEW * needServed(s, 'review');
 /** SR-21: the cases' compute granted ÷ asked with `extraShare` more asked (the Investigate preview): the line minus what
  *  the needs ahead of cases in the order (eval suites) took, over the cases' ask. */
 export function caseComputeScale(s: GameStateV2, extraShare = 0): number {

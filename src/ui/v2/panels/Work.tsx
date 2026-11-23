@@ -208,18 +208,19 @@ function SafReCard({ s }: { s: GameStateV2 }) {
   );
 }
 
-/** SR-21: the safety needs' compute and the one safety spend total (staff + compute of the filled needs). */
+/** SR-21: the safety needs' compute and their spend total (staff + compute the needs got). RF-S11: named for what it
+ *  covers ("needs spend"), with what it leaves out. */
 function SafetySpendLine({ s }: { s: GameStateV2 }) {
   const sp = safetySpend(s);
   return (
-    <Tip content={() => <TipCard title="Safety spend" value={F.money(sp.total, { perYear: true })} rows={[
+    <Tip content={() => <TipCard title="Safety needs spend" value={F.money(sp.total, { perYear: true })} rows={[
       ...sp.rows.filter((r) => r.staffAsk > 0 || r.computeAsk > 0 || r.staffGot > 0 || r.computeGot > 0).map((r) => ({
         label: <>{r.label}{r.filled ? '' : <span className="tone-warn"> · short</span>}</>,
         value: `${F.short(r.staffGot)}/${F.short(r.staffAsk)} people · ${F.short(r.computeGot)}/${F.short(r.computeAsk)} H100e · ${F.money(r.staffCost + r.computeCost, { perYear: true })}`,
       })),
       { label: 'Idle (not in the total)', value: `${F.short(sp.idleStaff)} people · ${F.short(sp.idleCompute)} H100e · ${F.money(sp.idleCost, { perYear: true })}` },
-    ]}>Every safety use of people and compute is a need here, in this order (compute: cases and eval suites first, validation and line experiments share the rest; monitoring and control use their own compute line, set in Safety). The total is the people and compute the needs got: payroll share plus compute at the rental rate.</TipCard>}>
-      <div className="small dim">Safety spend {F.money(sp.total, { perYear: true })} · people {F.money(sp.staffCost, { perYear: true })} + compute {F.money(sp.computeCost, { perYear: true })}</div>
+    ]} footer="Not in this total: safety scientists' pay, idle engineers (above) and product monitors (billed to serving).">Every safety use of people and compute is a need here, in this order (compute: cases and eval suites first, validation and line experiments share the rest; monitoring and control use their own compute line, set in Safety). The total is the people and compute the needs got: payroll share plus compute at the rental rate.</TipCard>}>
+      <div className="small dim">Safety needs spend {F.money(sp.total, { perYear: true })} · people {F.money(sp.staffCost, { perYear: true })} + compute {F.money(sp.computeCost, { perYear: true })}</div>
     </Tip>
   );
 }

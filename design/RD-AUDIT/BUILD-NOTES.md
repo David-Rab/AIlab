@@ -4196,3 +4196,18 @@ hygiene.ts's calibration shift drops it).
   Not changed: the METHODS effect strings still carry edge ids (E04, AF): pre-existing.
 - **moves calibration: yes** (S4: methods past their tested scale now hold or strengthen in half the worlds; CP3i's
   one-sided draw pushed P_mis up, 0.329 → 0.487).
+
+### RF-S11 Review at its staffing; safety spend named for what it covers
+- **Changed:** safety/lineProjects.ts `reviewCatch(s) = HUMAN_REVIEW × needServed(s, 'review')`, read wherever human
+  review stops acts: the engine (incidents.ts catchOf, internalOversight) and the believed readouts
+  (believedOversight.ts believedOversightParts, pressureView.ts successor-pull view). An unstaffed review stops
+  nothing; a half-staffed one half. Staffing is the player's own quantity, so readouts use the same value.
+  The Work tab's total is renamed **"Safety needs spend"** (tooltip, line, glossary safReNeeds, spend.ts docs) with a
+  footer saying what is not in it: safety scientists' pay, idle engineers (listed above it) and product monitors
+  (billed to serving). Chosen over completing it: completing needs the product-monitor share of serving cost, which no
+  helper gives as one number; tell me if you want the complete total instead.
+- **Deleted:** nothing (the need's served share had no reader).
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs11/check.ts all ok: day 400 with review on, fully served → engine
+  catch 0.093; review need capped at 0 → engine 0 and believed 0.150 → 0.
+- **moves calibration: maybe** (only when the review need is short: by default it is first in the list and served).

@@ -5,7 +5,7 @@
 import { controlOn, labControlSetting, labReviewOn } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
-import { HUMAN_REVIEW } from '../../../data/v2/danger';
+import { reviewCatch } from './lineProjects';
 import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { planRun, type LaunchRunParams } from '../models/runs';
@@ -252,7 +252,7 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
   for (const k of CAP_SLOTS) L += Math.max(w[k].H, w[k].L);
   const r = aiRdShare(s);
   const parts: SuccessorPartView[] = [];
-  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) };
+  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: (labReviewOn(s) ? reviewCatch(s) : 0) * (1 - r) };
   if (L <= 1e-12) return out;
   const tl = s.hidden.timeline; // the public level → OOM map (as catchRate); no hidden trait or capability
   const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
@@ -269,7 +269,7 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
       ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
     const block = dep ? containment(s, x, controlOn(dep), true) : 0;
     const mon = believedCatchSucc(s, v, x, Lv);
-    const human = (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
+    const human = (labReviewOn(s) ? reviewCatch(s) : 0) * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
     const caught = clamp01(1 - (1 - mon) * (1 - human) * controlMiss);
     const oversight = clamp01(1 - (1 - block) * (1 - caught));
     const b = v.beliefs.SUCC ?? { est: 0, sd: 0.35 };
