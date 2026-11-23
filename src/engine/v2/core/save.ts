@@ -107,8 +107,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  all known methods", on by default). Migration 69 → 70 rewrites every post design in the save and turns the policy on.
  *  71 (SR-14b / SR-15): PostDesign.inoculation (a boolean) is the method T-INOC in PostDesign.methods. Migration 70 → 71
  *  adds T-INOC to every post design that had inoculation on and drops the field.
+ *  72 (SR-10): SafetyDept.disagreements (independent instruments' conflicting readings), TechniqueState.trust (trust
+ *  factor on believed reliability with its evidence), ValidationJob.human / ValidationResult.human (who ran it).
+ *  Migration 71 → 72 adds an empty disagreement list and marks earlier measurements human-run (they read true recall).
  */
-export const SCHEMA_REV = 71;
+export const SCHEMA_REV = 72;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -737,6 +740,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       for (const v of Object.values(r)) walk(v, depth + 1);
     };
     walk(raw, 0);
+  },
+  71: (raw) => {
+    // 71 → 72 (SR-10): disagreement list; earlier validation results measured true recall, i.e. were human-run.
+    const dept = (raw as { player?: { safety?: { disagreements?: unknown[]; techniques?: Record<string, { measured?: { human?: boolean } | null }> } } }).player?.safety;
+    if (!dept) return;
+    dept.disagreements ??= [];
+    for (const t of Object.values(dept.techniques ?? {})) if (t?.measured) t.measured.human ??= true;
   },
 };
 

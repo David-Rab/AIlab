@@ -19,6 +19,7 @@ import { clamp01, versionById } from './common';
 import { instrumentName, instrumentReads, instruments, reliability } from './instruments';
 import { versionOom } from './oversight';
 import { safAllocation } from './lineProjects';
+import { disagreementsOn, setTrust, trustOf } from './disagreement';
 
 export const initialValidation = (): NonNullable<SafetyDept['validation']> => ({ jobs: [], autoNew: true, lastModel: null });
 
@@ -28,8 +29,11 @@ export function validationOf(s: GameStateV2): NonNullable<SafetyDept['validation
 }
 
 /** Engineers (heads × quality) one job needs at full speed: VAL_ENGINEERS ÷ m of safety experiments (AI labour carries the
- *  rest, as line experiments). */
-export const jobEngineers = (s: GameStateV2) => VAL_ENGINEERS / Math.max(1, safetyLabour(s).exp.m);
+ *  rest, as line experiments); a human-run job (SR-10) takes all VAL_ENGINEERS. */
+export const jobEngineers = (s: GameStateV2, j?: Pick<ValidationJob, 'human'>) => (j?.human ? VAL_ENGINEERS : VAL_ENGINEERS / Math.max(1, safetyLabour(s).exp.m));
+
+/** SR-10: whether a job is run by humans only: chosen so, or the lab has no AI share in safety experiments (m = 1). */
+export const humanRun = (s: GameStateV2, j: Pick<ValidationJob, 'human'>) => !!j.human || safetyLabour(s).exp.m <= 1 + 1e-9;
 
 /** Live jobs (their model still exists and is not retired; their instrument owned). */
 export function liveJobs(s: GameStateV2): ValidationJob[] {
@@ -42,7 +46,7 @@ export function liveJobs(s: GameStateV2): ValidationJob[] {
 }
 
 /** The 'validation' need's demand: every live job at full staffing. */
-export const validationDemand = (s: GameStateV2) => liveJobs(s).length * jobEngineers(s);
+export const validationDemand = (s: GameStateV2) => liveJobs(s).reduce((a, j) => a + jobEngineers(s, j), 0);
 
 /** A job's compute need, in the line projects' need units (shared by need with them): VAL_COMPUTE_FRAC of a serious
  *  project's on the instrument's line. */
@@ -50,10 +54,10 @@ export const jobComputeNeed = (s: GameStateV2, j: ValidationJob) => VAL_COMPUTE_
 
 /** Engineers per live job in queue order from what the need got (the first jobs are staffed first). */
 export function jobStaffing(s: GameStateV2, got: number): Map<string, number> {
-  const per = jobEngineers(s);
   const out = new Map<string, number>();
   let left = got;
   for (const j of liveJobs(s)) {
+    const per = jobEngineers(s, j);
     const x = Math.max(0, Math.min(per, left));
     left -= x;
     out.set(j.id, x);
@@ -76,10 +80,10 @@ export function canValidate(s: GameStateV2, tool: TechniqueId, model: string): t
 }
 
 /** Queue a job (player or policy). */
-export function queueValidation(s: GameStateV2, tool: TechniqueId, model: string, by: ValidationJob['by'], day: number): ValidationJob | string {
+export function queueValidation(s: GameStateV2, tool: TechniqueId, model: string, by: ValidationJob['by'], day: number, human = false): ValidationJob | string {
   const ok = canValidate(s, tool, model);
   if (ok !== true) return ok;
-  const job: ValidationJob = { id: `VJ-${tool}-${model}-${day}`, tool, model, progress: 0, by, day };
+  const job: ValidationJob = { id: `VJ-${tool}-${model}-${day}`, tool, model, progress: 0, by, day, ...(human ? { human: true } : {}) };
   validationOf(s).jobs.push(job);
   return job;
 }
@@ -101,15 +105,25 @@ function binomial(rng: RngLike, n: number, p: number): number {
   return k;
 }
 
-/** Finish a job: the instrument is validated (ported) on the model, then its planted-case recall is sampled. */
+/** Finish a job: the instrument is validated (ported) on the model, then its planted-case recall is sampled.
+ *  SR-10: a false (sabotaged) instrument validated with an AI share of the work reports what it is believed to find (the
+ *  AI doing the work hides it, §3.10 "validations that pass when AI-run but fail when human-run"); human-run, it finds
+ *  what it really finds. The result sets the instrument's trust factor to measured ÷ believed on that model. */
 export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j: ValidationJob): void {
   const t = s.player.safety.techniques[j.tool];
   const v = versionById(s, j.model);
   if (!t || !v) return;
   t.validatedOn = v.id;
   t.validatedOom = versionOom(s, v);
-  const found = binomial(rng, VAL_N, trueRecall(s, t, v));
-  t.measured = { on: v.id, found, n: VAL_N, day };
+  const human = humanRun(s, j);
+  const prior = t.trust;
+  t.trust = undefined;
+  const believed = clamp01(believedOn(s, t, v)); // what it is believed to find, before this evidence
+  t.trust = prior;
+  const found = binomial(rng, VAL_N, t.falseValidated && !human ? believed : trueRecall(s, t, v));
+  t.measured = { on: v.id, found, n: VAL_N, day, human };
+  const f = believed > 1e-6 ? found / VAL_N / believed : trustOf(t);
+  setTrust(t, f, { day, source: 'validation', model: v.id, note: `${human ? 'human-run' : 'AI-assisted'} validation on ${v.name}: found ${found} of ${VAL_N} planted (believed ${Math.round(believed * 100)}%)` });
 }
 
 /** One day: the policy queues every owned instrument on a new internal model; staffed jobs progress (VAL_DAYS at full
@@ -125,9 +139,9 @@ export function validationStep(s: GameStateV2, ctx: SystemCtx, got?: number): vo
   val.jobs = val.jobs.filter((j) => live.has(j.id));
   if (!val.jobs.length) return;
   const staff = jobStaffing(s, got ?? safAllocationGot(s));
-  const per = jobEngineers(s);
   const done: ValidationJob[] = [];
   for (const j of val.jobs) {
+    const per = jobEngineers(s, j);
     j.progress = Math.min(1, j.progress + (per > 0 ? (staff.get(j.id) ?? 0) / per : 0) / VAL_DAYS);
     if (j.progress >= 1 - 1e-9) done.push(j);
   }
@@ -135,7 +149,7 @@ export function validationStep(s: GameStateV2, ctx: SystemCtx, got?: number): vo
     completeValidation(s, ctx.rng('safety'), ctx.day, j);
     const t = s.player.safety.techniques[j.tool];
     const v = versionById(s, j.model);
-    if (t?.measured) ctx.log('research', `Validation: ${instrumentName(t)} found ${t.measured.found} of ${t.measured.n} planted on ${v?.name ?? j.model} (reliability ${Math.round((100 * t.measured.found) / t.measured.n)}%).`, 1);
+    if (t?.measured) ctx.log('research', `Validation (${t.measured.human ? 'human-run' : 'AI-assisted'}): ${instrumentName(t)} found ${t.measured.found} of ${t.measured.n} planted on ${v?.name ?? j.model} (reliability ${Math.round((100 * t.measured.found) / t.measured.n)}%).`, 1);
   }
   val.jobs = val.jobs.filter((j) => !done.includes(j));
 }
@@ -167,6 +181,8 @@ export interface ReliabilityRange {
   from: string | null;
   /** OOM of capability between this model and `from`. */
   gap: number;
+  /** SR-10: who ran the measurement (null = never measured). */
+  human: boolean | null;
 }
 
 /**
@@ -182,22 +198,22 @@ export function validationRange(s: GameStateV2, t: TechniqueState, v: ModelVersi
   if (m && mv) {
     const r = sampleRange(m.found, m.n);
     const gap = Math.abs(x - versionOom(s, mv));
-    if (mv.id === v.id) return { value: r.mean, lo: clamp01(r.mean - r.half), hi: clamp01(r.mean + r.half), basis: 'measured', from: mv.id, gap: 0 };
+    if (mv.id === v.id) return { value: r.mean, lo: clamp01(r.mean - r.half), hi: clamp01(r.mean + r.half), basis: 'measured', from: mv.id, gap: 0, human: m.human ?? null };
     const at = believedOn(s, t, mv);
     const ratio = at > 1e-9 ? believedOn(s, t, v, x) / at : 0;
     const value = clamp01(r.mean * ratio);
     const half = r.half + VAL_WIDEN_PER_OOM * gap;
-    return { value, lo: clamp01(value - half), hi: clamp01(value + half), basis: 'extrapolated', from: mv.id, gap };
+    return { value, lo: clamp01(value - half), hi: clamp01(value + half), basis: 'extrapolated', from: mv.id, gap, human: m.human ?? null };
   }
   const value = clamp01(believedOn(s, t, v, x));
   const gap = Math.max(0, x - (t.validatedOom ?? 0));
   const half = VAL_UNMEASURED_HALF + VAL_WIDEN_PER_OOM * gap;
-  return { value, lo: clamp01(value - half), hi: clamp01(value + half), basis: 'unmeasured', from: t.validatedOn, gap };
+  return { value, lo: clamp01(value - half), hi: clamp01(value + half), basis: 'unmeasured', from: t.validatedOn, gap, human: null };
 }
 
 /** Days a queued job would take to finish at today's staffing of the queue (Infinity when unstaffed). */
 export function jobDaysLeft(s: GameStateV2, j: ValidationJob): number {
-  const per = jobEngineers(s);
+  const per = jobEngineers(s, j);
   const e = jobStaffing(s, safAllocationGot(s)).get(j.id) ?? 0;
   return e > 0 && per > 0 ? Math.ceil(((1 - j.progress) * VAL_DAYS * per) / e) : Infinity;
 }
@@ -213,12 +229,16 @@ export function validationView(s: GameStateV2) {
     model: iv?.name,
     jobs: liveJobs(s).map((j) => ({
       id: j.id, tool: j.tool, name: instrumentName(s.player.safety.techniques[j.tool]), model: versionById(s, j.model)?.name ?? j.model,
-      progress: j.progress, by: j.by, engineers: staff.get(j.id) ?? 0, daysLeft: jobDaysLeft(s, j),
+      progress: j.progress, by: j.by, human: humanRun(s, j), engineers: staff.get(j.id) ?? 0, daysLeft: jobDaysLeft(s, j),
     })),
     perJob: jobEngineers(s),
     days: VAL_DAYS,
     n: VAL_N,
     instruments: own.length,
     notOnCurrent: iv ? own.filter((t) => t.measured?.on !== iv.id).length : 0,
+    /** SR-10: disagreements between independent instruments on the internal model (newest first). */
+    disagreements: iv ? disagreementsOn(s, iv.id) : [],
+    /** SR-10: each instrument's trust factor and its last piece of evidence. */
+    trust: own.map((t) => ({ id: t.id, name: instrumentName(t), f: trustOf(t), last: t.trust?.evidence.at(-1)?.note ?? null })),
   };
 }

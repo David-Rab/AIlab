@@ -137,3 +137,17 @@ export const AG09_LATENT = { oHalf: 2.492, k: 2 };
 export const AG17_MIN_L = 10;
 /** Tool verifiability for investigation corruption (§3.5.8). */
 export const VERIFIABILITY: Record<ToolFamily, number> = { WB: 0.7, OR: 0.9, BB: 0.5, COT: 0.6 };
+
+/** SR-10 (SAFETY-REDESIGN §4.3 channels 1–2): instrument trust. A reading of a trait disagrees with the latest reading
+ *  of an INDEPENDENT instrument (another kind and another family) on the same model when |a − b| > DISAGREE_Z ·
+ *  √(σa² + σb²) (the two readings' 90% test of a difference) [D]. A disagreement says one of them is wrong without
+ *  saying which, so every owned instrument of both families that reads the trait loses DISAGREE_DROP of its believed
+ *  reliability (symmetric), recorded once per (model, trait, pair), never below DISAGREE_FLOOR from disagreements alone
+ *  (only a validation measures how wrong) [D]. A validation sets the trust factor to measured ÷ believed (capped at
+ *  TRUST_MAX); TRUST_EVIDENCE_CAP entries per instrument, DISAGREE_CAP disagreements kept [D]. */
+export const DISAGREE_Z = 1.64;
+export const DISAGREE_DROP = 0.1;
+export const DISAGREE_FLOOR = 0.5;
+export const TRUST_MAX = 1.5;
+export const TRUST_EVIDENCE_CAP = 20;
+export const DISAGREE_CAP = 40;

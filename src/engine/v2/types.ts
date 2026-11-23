@@ -883,13 +883,33 @@ export interface SafetyDept {
   validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null };
   /** SR-14: the policy "Use all known methods" (on by default): new run plans list every owned method. */
   useAllMethods?: boolean;
+  /** SR-10: disagreements between independent instruments' readings (newest last, DISAGREE_CAP kept). */
+  disagreements?: Disagreement[];
 }
 
+/** SR-10: one reading in a disagreement: instrument kind (instruments.ts InstrumentKind), family, reading, its noise. */
+export interface DisagreementSide { kind: string; family: ToolFamily; reading: number; noise: number; day: number }
+/** SR-10: two independent instruments read the same trait of the same model outside each other's ranges. */
+export interface Disagreement { day: number; model: string; trait: TraitId; a: DisagreementSide; b: DisagreementSide }
+
+/** SR-10: one update of an instrument's believed reliability (trust factor f after it). */
+export interface TrustEvidence { day: number; source: 'validation' | 'disagreement'; model: string; note: string; f: number }
+/** SR-10: the player's trust factor on an instrument (multiplies its BELIEVED reliability; absent = 1). */
+export interface InstrumentTrust { f: number; evidence: TrustEvidence[] }
+
 /** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */
-export interface ValidationJob { id: string; tool: TechniqueId; model: string; progress: number; by: 'player' | 'policy'; day: number }
+export interface ValidationJob {
+  id: string; tool: TechniqueId; model: string; progress: number; by: 'player' | 'policy'; day: number;
+  /** SR-10: human-run (no AI share of the work: VAL_ENGINEERS heads, not ÷ m); absent = AI-assisted at the lab's m. */
+  human?: boolean;
+}
 
 /** SR-09: a validation result: found of n planted cases on model `on` (measured reliability = found ÷ n). */
-export interface ValidationResult { on: string; found: number; n: number; day: number }
+export interface ValidationResult {
+  on: string; found: number; n: number; day: number;
+  /** SR-10: who ran it: true = humans only (an AI share of the work can corrupt the result). */
+  human?: boolean;
+}
 
 /** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
  *  successor, an exfiltrated copy, a corrupted safety tool. */
@@ -974,6 +994,8 @@ export interface TechniqueState {
   /** SR-09: the last validation's measurement (null / absent = never measured: reliability extrapolated, wider range). */
   measured?: ValidationResult | null;
   falseValidated: boolean; // hidden: came from an F49 FALSE finding (masks, does not detect)
+  /** SR-10: trust in this instrument from evidence (validations, disagreements); absent = 1. Believed only. */
+  trust?: InstrumentTrust;
   coverage: Partial<Record<TraitId, number>>;
 }
 

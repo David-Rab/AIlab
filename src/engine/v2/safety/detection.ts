@@ -12,6 +12,7 @@ import { measuredOom, oomOfLevel, versionOom } from './oversight';
 import { cotAlive } from './latents';
 import { believedMask, techniqueRole } from './techniques';
 import { reliability } from './instruments';
+import { noteReading } from './disagreement';
 import { hiddenUModes } from './umodes';
 import { cotResist } from './ideas';
 import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
@@ -229,6 +230,7 @@ export function observeVersion(s: GameStateV2, rng: RngLike, day: number, v: Mod
   const pen = familyPenalty(s, v, trait, family) * (1 - falseMask(s, trait, family));
   const o = clamp(v.traitsTrue[trait] * pen + rng.normal(0, sigma), 0, 1); // a measured rate lies in [0, 1]
   const prior: TraitBelief = v.beliefs[trait] ?? { est: 0.2, sd: SD_MAX, clarity: 0, evidence: [] };
+  noteReading(s, day, v, trait, family, kind, o, sigma, prior.evidence); // SR-10: disagreement with independent kinds
   v.beliefs[trait] = updateBelief(prior, o, sigma, day, `${kind}/${family}`);
   return o;
 }

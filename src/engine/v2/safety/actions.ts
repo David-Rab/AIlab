@@ -28,7 +28,7 @@ import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
 import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } from './dangerView';
 import { VAL_DAYS, VAL_N } from '../../../data/v2/agendas';
-import { canValidate, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
+import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
 import { instrumentName, instruments } from './instruments';
 
 type P = Record<string, number | string | boolean>;
@@ -504,17 +504,20 @@ const VALIDATE: ActionDef = {
     // SR-09: what apply does: queue one job per instrument (at the end of the validation queue). Each takes the engineers
     // and days below at full staffing (the 'validation' need in the engineers' list) and some line compute while it runs;
     // on finishing, the instrument is validated on the model and its reliability there is measured from VAL_N planted
-    // cases. Believed inputs only (the range shown is today's believed range and the sample's width).
+    // cases. Believed inputs only (the range shown is today's believed range and the sample's width). SR-10: p.human
+    // runs it with humans only (all VAL_ENGINEERS, no AI share: an AI share of the work can corrupt the result).
     const { model, tools } = validateTargets(s, p);
+    const human = p.human === true;
     const v = versionById(s, model);
     if (!v || !tools.length) return { costs: [{ currency: 'staffTime', amount: 0, target: v ? `nothing to validate on ${v.name}: every instrument is measured or queued` : 'no such model' }], gains: [], exposure: [] };
     const ahead = s.player.safety.validation?.jobs.length ?? 0;
-    const per = jobEngineers(s);
+    const per = jobEngineers(s, { human });
+    const who = humanRun(s, { human }) ? 'human-run' : 'AI-assisted';
     const r0 = validationRange(s, tools[0], v);
     const sr = sampleRange(Math.round(r0.value * VAL_N), VAL_N);
     return {
       costs: [
-        { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
+        { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${who}; ${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
         { currency: 'compute', amount: 0, target: "a quarter of a serious line project's experiment compute per job while it runs (the lines get less)" },
       ],
       gains: [{ currency: 'alignment', amount: tools.length, unit: 'instruments', target: `validated on ${v.name}: reliability measured from ${VAL_N} planted cases (e.g. ${instrumentName(tools[0])} now ${Math.round(r0.lo * 100)}–${Math.round(r0.hi * 100)}%, ${r0.basis}; after: about ±${Math.round(sr.half * 100)} points)` }],
@@ -524,7 +527,7 @@ const VALIDATE: ActionDef = {
   apply(s, ctx, p) {
     const { model, tools } = validateTargets(s, p);
     if (!tools.length) return void ctx.log('alert', 'Validate: nothing to validate on that model.');
-    for (const t of tools) queueValidation(s, t.id, model, 'player', ctx.day);
+    for (const t of tools) queueValidation(s, t.id, model, 'player', ctx.day, p.human === true);
     ctx.log('research', `Validation queued: ${tools.length} instrument${tools.length === 1 ? '' : 's'} on ${versionById(s, model)?.name ?? model}.`, 1);
   },
 };

@@ -37,7 +37,8 @@ export function reliabilityBase(s: GameStateV2, t: TechniqueState, x: number, be
   const efficacy = eff ?? (believed ? believedEfficacy(s, t.agenda) : trueEfficacy(s, t.agenda));
   const decay = decayAt(s, t, x, lambda2Delta(s) <= -2);
   const goodhart = goodhartFactor(t);
-  const base = !believed && t.falseValidated ? 0 : t.s0 * efficacy * decay * goodhart;
+  // SR-10: the believed side carries the player's trust factor from evidence (validations, disagreements); true unchanged.
+  const base = believed ? Math.min(1, t.s0 * efficacy * decay * goodhart * (t.trust?.f ?? 1)) : t.falseValidated ? 0 : t.s0 * efficacy * decay * goodhart;
   return { base, efficacy, decay, goodhart };
 }
 
