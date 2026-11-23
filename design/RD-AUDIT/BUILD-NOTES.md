@@ -3347,3 +3347,36 @@ p3-d (forked from rd at d951d09, rev 78: SR-17, SR-18, SR-19, SR-20, SR-20b, SR-
   Hygiene and heavy runs not run.
 - Moves calibration: possibly (held products leave the market mix; lineup models face framework holds; p3-d's SR-21
   needs list now on rd's products).
+
+### RD-P10
+- **Done (commit 1a85e9f).** PRD-21. Misuse exposure comes from served usage per model, not `servingShare` (now only the
+  compute allocation). New derived `Deployment.servedBy` (version id → output tokens a day), set daily in applyRevenue
+  from revenueReadout's `servedBy`: sector products' need per lineup tier (adopted, agent and seated hours × each tier's
+  own hph / hphAg / hphAs, split by playerTierW: `addTierNeed`) × the served share of the product's need; Chat's paying
+  users on the main model first, then free users on the free-tier model, in serving order; each model at its own FLOP
+  per token. Spare H100e beyond the need serve nobody. `servedTokensDay` = Σ servedBy (RD-P09's leak now counts lineup
+  tiers at their own FLOP per token and no spare); `servedTokensPerDay` deleted.
+- **Incidents (safety/incidents.ts).** `misuseReach(d, v)` = v's served tokens ÷ MISUSE_TOKENS_REF × MISUSE_REACH (open
+  releases 1 × reach, as before); restriction / Slowdown act through usage (productUsageMult cuts users), so the extra
+  `restrictMult` on misuse reach is gone. `forEachIncidentSite` visits every model in a product's servedBy (main, lineup,
+  Chat free tier) as its own site: trait acts and misuse on its own true traits / domains, incidents carry its version
+  id through the existing incident / case path. `usageOf(s, d, v?)` = the model's (or product's) share of the player's
+  served tokens (open 0, as servingShare 0 there before). actTable productSite (danger view) reads the same usage.
+- **Stand-in:** MISUSE_TOKENS_REF 3e12 tokens/day [D] (≈ the player's day-0 total, 2.9e12, so Σ reach starts near the
+  old Σ servingShare × reach); to source from abuse rates per query.
+- **Feature hazards (RD-P11):** site terms and the Companion multiplier apply per product, so they multiply each of its
+  models' rows (the usage they apply to); no per-work-type split of usage.
+- **State:** SCHEMA_REV 92 → 93 (optional derived field; migration 92 no-op; until the next tick a product has no
+  exposure). hygiene.ts pins → 93.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p10/check.ts` (run alone) all ok: day-0
+  tokens D1 Chat V0 4.7e11 + nano 1.8e12, API V0 2.3e11 + minis, Enterprise V0 3.0e11 + minis; zero usage → zero
+  misuse and no site; doubling a model's tokens doubles its misuse h; the Chat nano is its own site (usage 0.62) with its
+  own exposure, raising its CYBER level raises only its rows; servingShare ×3 leaves rows / sites unchanged, and under
+  Auto servedBy is identical after a recompute. Not run: test:quick / full.
+- **Left:** the danger view / act table still shows the main model's rows only (lineup models' incidents reach the
+  player through incidents and cases); rivals' lineups carry no incidents; siteOf's restricted factor still multiplies
+  a usage that restriction has already cut (as before under Auto); usage is tokens, not users (a nano's cheap tokens
+  count as much as the main model's).
+- **moves calibration: yes (safety).** Misuse shifts toward Chat (most tokens, mostly the free-tier nano) and away from
+  the API (0.28 → ~0.07 reach at day 0), grows with usage instead of being capped by the pool share, and lineup models
+  now raise their own trait-act and misuse incidents.
