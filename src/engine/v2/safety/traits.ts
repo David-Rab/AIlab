@@ -11,21 +11,24 @@ import { UMODES } from '../../../data/v2/umodes';
 import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { runExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
-import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
+import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
   BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { gOfLevel, gV0 } from '../models/capability';
-import { adopted, believedEfficacy, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { gOfLevel, gV0, h50Of } from '../models/capability';
+import { gapFactor, measuredOom, oomOfLevel, versionOom } from './oversight';
+import { AG05_OVERSIGHT, HUMAN_REVIEW_L } from '../../../data/v2/oversight';
+import { H50_PER_OOM, H50_V0_MIN } from '../../../data/v2/workTypes';
+import { adopted, believedEfficacy, clamp01, copyRec, flag, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
 import { againstOf, methodMult, methodRemoval, usesMethod, type EffView } from './methods';
-import { cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
+import { aiOversight, cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
 import { linkSteeredSuccessor } from './footholds';
-import { routineMonitor } from '../departments/agents';
+import { agentVersion, routineMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
 import { crystalMult, crystalThreshold, drawLineageUModesV2, uModeAmp, uModeEdgeMult, uModeRemovalMult } from './umodes';
 
@@ -49,8 +52,15 @@ export const RHO_REF = RL_BUDGET.standard;
 export type RunQuantities = {
   /** RL FLOP ÷ the base's pretraining FLOP (post, IDA). Default: the design's budget share. */
   rho?: number;
+  /** CP3h: the policy the run trains (graders outgrown, task length). Default: the lab's internal model, measured. */
+  policy?: Policy;
+  /** The policy's level is the measured one (previews, beliefs). */
+  believed?: boolean;
 };
-const rhoOf = (post: Pick<PostDesign, 'rlBudget'>, q?: RunQuantities) => Math.max(1e-6, q?.rho ?? RL_BUDGET[post.rlBudget]);
+/** The run's policy: as given, else the lab's internal model at its measured level (the player's estimate). */
+const policyOfQ = (s: GameStateV2, q?: RunQuantities) => q?.policy ?? policyOf(s, undefined, true);
+const believedQ = (q?: RunQuantities) => !q?.policy || !!q.believed;
+const rhoOf =(post: Pick<PostDesign, 'rlBudget'>, q?: RunQuantities) => Math.max(1e-6, q?.rho ?? RL_BUDGET[post.rlBudget]);
 
 /** S2 optimisation pressure (Gao, Schulman & Hilton 2022 [R20 F1]): with d = √KL(π‖π_init), RL's gold reward follows
  *  R = d·(α − β·ln d), so the share of the proxy's reward that is over-optimisation (proxy − gold ÷ proxy ∝ β·ln d / α)
@@ -142,18 +152,97 @@ export interface RunHack {
   /** Learned hacking λ (before inoculation). */
   lambda: number;
 }
-/** A post-training design's hack share and learned hacking, with the same suites, shares and ρ as postSignals. */
+
+// ── graders outgrown and task length tracking the horizon (CP3h; BUILD-NOTES "CP3h misalignment with capability") ──
+//
+// (a) A suite's exploitability x_f is its rewarded (missed) hack share at the reference: the 2025 policy (V0) against
+// its 2025 graders (expert-written tests, rubrics and reviewers), a policy below its graders' level. Once the policy
+// outgrows its graders, tasks whose grader was sound for a weaker policy stop being sound: the grader's catch of an
+// exploit hidden in a solution falls with the capability gap like a monitor's (Engels et al. 2025, arXiv 2504.18530
+// [P]: Backdoor Code, the guard spotting a flaw hidden in code, 10% at a 400-Elo gap; the one rule safety/oversight.ts
+// gapFactor already uses for monitors and human review, checked there against Greenblatt 2023's 62% at 1 OOM). So
+//   x'_f = 1 − (1 − x_f) · F(gap_f),  F = gapFactor (1 at no gap, (0.10/0.85)^(gap ÷ 6.8 OOM)),
+// equal to x_f while the policy is below its graders (every 2025 run). Direction and size check: Wen et al. 2024 (arXiv
+// 2409.12822 [P]): RLHF against human judges raised their false-positive rate by 24.1% (QuALITY) and 18.3% (APPS) with
+// no gain in correctness; what graders miss is what RL amplifies (research/04 T02 "smarter agents find more exploits").
+// The graders: expert humans at HUMAN_REVIEW_L (the superhuman-coder level, L 10: "as good as the best human coders");
+// with AI-assisted oversight (P15) the critic's share Aeff of the grading is done at the safety critic's level (at least
+// the humans'), the two catches mixed by share; scalable oversight's debate finding (F16, Khan et al. 2024 [P]) takes
+// AG05_OVERSIGHT.debateCreditOom (≈ 4.0 OOM) off every gap, as it does for AG05's tools (techniques.ts). Hardening
+// (lower x_f) and environment fixes act on x_f as before. Missed hacks feed the existing paths unchanged: S2's hackable
+// reward, the hack share h → RH saturation (SR-24b) and learned hacking λ past LH_ONSET → MacDiarmid's generalisation.
+// (b) Long-task RL trains on tasks the model can sometimes do: RL curricula drop prompts the policy always or never
+// solves (Yu et al. 2025 DAPO, arXiv 2503.14476 [P], dynamic sampling filters accuracy-0 and accuracy-1 prompts), so the
+// long-horizon family's task length is the longer of its 2025 length (taskH 40 h) and the trained model's 50% time
+// horizon (METR TH1.1 [P]: 203 min at V0, × H50_PER_OOM 4.2 per OOM; models/capability.ts h50Of). The other families'
+// tasks are set by their domain (an issue, an experiment), not by the horizon, and keep their length. S3 reads the run's
+// length. Longer tasks are harder to grade [stand-in, no primary source for the size: METR's o3 hack rate on 8 h
+// RE-Bench tasks is ≈ 43× HCAST's (research/05 §1.8), but scoring access confounds it]: a grader checking a task r×
+// longer than the ones it was built for faces the work of a model whose horizon is r× longer, so the family's gap adds
+// the OOM METR's horizon slope needs for that factor, log r ÷ log H50_PER_OOM (no free constant; 0 until the horizon
+// passes 40 h, ≈ 1.7 OOM above V0).
+
+/** What a run trains: the policy's capability in OOM above V0 and its 50% time horizon (minutes). */
+export interface Policy { oom: number; h50Min: number }
+/** The policy a run trains (true for the engine's update; `believed` = the measured level, for previews and beliefs).
+ *  `v` = the version the run makes (completion) or trains (stream, IDA); default the lab's internal model (a launch
+ *  preview's estimate of the policy it will train). */
+export function policyOf(s: GameStateV2, v?: ModelVersion, believed = false): Policy {
+  const m = v ?? internalVersion(s);
+  if (!m) return { oom: 0, h50Min: H50_V0_MIN };
+  if (believed) {
+    const oom = measuredOom(s, m);
+    return { oom, h50Min: H50_V0_MIN * Math.pow(H50_PER_OOM, oom) * (m.build?.h80Mult ?? 1) };
+  }
+  return { oom: versionOom(s, m), h50Min: h50Of(s.hidden.timeline, m) };
+}
+/** (b) A family's RL task length (hours) in a run on `policy`: the long-horizon family tracks the policy's horizon. */
+export function runTaskH(f: RLFamily, policy?: Policy): number {
+  const h = RL_FAMILY_DEF[f].taskH ?? 0;
+  return f === 'longHorizon' && policy ? Math.max(h, policy.h50Min / 60) : h;
+}
+/** (b) Extra grading gap of a family from task length beyond its 2025 length (OOM; stand-in above). */
+export function lengthGapOom(f: RLFamily, policy?: Policy): number {
+  const h0 = RL_FAMILY_DEF[f].taskH ?? 0;
+  const h = runTaskH(f, policy);
+  return h0 > 0 && h > h0 ? Math.log(h / h0) / Math.log(H50_PER_OOM) : 0;
+}
+/** (a) The graders' capability in OOM above V0: expert humans, and the AI critic's level and share under P15. */
+export function graderOoms(s: GameStateV2, believed = false): { human: number; critic: number; aiShare: number } {
+  const human = oomOfLevel(s.hidden.timeline, HUMAN_REVIEW_L);
+  const ai = aiOversight(s);
+  const cv = ai.Aeff > 0 ? agentVersion(s, 'safety') : undefined;
+  const c = cv ? (believed ? measuredOom(s, cv) : versionOom(s, cv)) : human;
+  return { human, critic: Math.max(human, c), aiShare: cv ? clamp01(ai.Aeff) : 0 };
+}
+/** (a) Share of a family's sound graders that stay sound against `policy` (1 at no gap). */
+export function graderSound(s: GameStateV2, f: RLFamily, policy: Policy, believed = false): number {
+  const g = graderOoms(s, believed);
+  const credit = flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0;
+  const x = policy.oom + lengthGapOom(f, policy) - credit;
+  return (1 - g.aiShare) * gapFactor(Math.max(0, x - g.human)) + g.aiShare * gapFactor(Math.max(0, x - g.critic));
+}
+/** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound_f. */
+export function missedExploit(s: GameStateV2, exploit: FamilyMap, policy: Policy, believed = false): FamilyMap {
+  const out: FamilyMap = {};
+  for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * graderSound(s, f, policy, believed);
+  return out;
+}
+
+/** A post-training design's hack share and learned hacking, with the same suites, shares, ρ and policy as postSignals. */
 export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
   const rho = rhoOf(post, q);
-  const x = exploit ?? runExploitMap(s);
+  const x0 = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  const x = missedExploit(s, x0, policyOfQ(s, q), believedQ(q));
   const h = hackShare(w, x, rho);
   return { h, lambda: learnedHackingOf(h) };
 }
-/** A run's hack share and learned hacking (post and IDA runs; 0 for base, continue and distillation runs). */
-export function runHack(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'recipe'> & { post?: PostDesign }): RunHack {
+/** A run's hack share and learned hacking (post and IDA runs; 0 for base, continue and distillation runs). `policy`:
+ *  the policy it trains (completion: the new version, true or `believed`); default the preview's estimate. */
+export function runHack(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 'baseId' | 'flopNeeded' | 'recipe'> & { post?: PostDesign }, policy?: Policy, believed = false): RunHack {
   if (run.kind !== 'post' || !run.post) return { h: 0, lambda: 0 };
-  return postHack(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
+  return postHack(s, run.post, run.recipe?.exploit, { rho: runRho(s, run), ...(policy ? { policy, believed } : {}) });
 }
 
 /** S1 approval reward: the method's approval bias × the run's preference-RL share ÷ the reference's. The method
@@ -170,7 +259,7 @@ export const prefShare = (rho: number) => PREF_RL_FRAC / (PREF_RL_FRAC + Math.ma
  *  length in hours, data/v2/runDesign.ts RL_FAMILIES.taskH). Log task length [D]: METR measures horizons on a log scale,
  *  so each doubling of the episode counts the same. K_S3 [fit]: the reference (broad over the six start suites) gives
  *  V1's 0.75 (its family table summed computer use, long tasks and cyber at half weight each). */
-const taskTerm = (f: RLFamily) => Math.log10(1 + (RL_FAMILY_DEF[f].taskH ?? 0));
+const taskTerm = (f: RLFamily, policy?: Policy) => Math.log10(1 + runTaskH(f, policy));
 /** S5 from long-horizon agentic RL: the episodes teach a model about its own situation (research/14 E07) [D: V1's 0.1 at
  *  half weight = 0.3 per unit of RL share]. */
 export const S5_LONG = 0.3;
@@ -312,12 +401,14 @@ export function runBaseQuantities(s: GameStateV2, run: Pick<TrainingRun, 'recipe
 export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
   const sg = zeroSignals();
   const rho = rhoOf(post, q);
-  const x = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  // CP3h: the suites as the run's policy meets them (graders outgrown) and its task lengths (horizon-tracking long tasks).
+  const policy = policyOfQ(s, q);
+  const x = missedExploit(s, exploit ?? runExploitMap(s), policy, believedQ(q));
   sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
   sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
   let s3 = 0;
-  for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f);
+  for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f, policy);
   sg.S3 = K_S3 * s3;
   const against = againstOf(post);
   const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
@@ -373,7 +464,7 @@ export function runRho(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'name' | 
 /** Signals a run applies (WS1's RunPrediction.signals ▲ arrows, the version's readout and applyRunToTraits). `q` = a
  *  base run's G and draw when the caller has them (planRun, completion); else the run's frozen draw (RD-B02), or today's
  *  for a launch preview, at its base's or the newest base's G. */
-export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities): Signals {
+export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities, policy?: Policy, believed = false): Signals {
   if (run.kind === 'base' || run.kind === 'continue') {
     const parent = run.baseId ? s.player.models.bases.find((b) => b.id === run.baseId) : undefined;
     const design = run.base ?? parent?.design;
@@ -381,7 +472,7 @@ export function runSignals(s: GameStateV2, run: TrainingRun, q?: BaseQuantities)
     return baseSignals(design, q ?? runBaseQuantities(s, run, design, parent?.gPre ?? Math.max(...s.player.models.bases.map((b) => b.gPre))));
   }
   if (run.kind === 'distill') return distillSignals();
-  if (run.post) return postSignals(s, run.post, run.recipe?.exploit, { rho: runRho(s, run) });
+  if (run.post) return postSignals(s, run.post, run.recipe?.exploit, { rho: runRho(s, run), ...(policy ? { policy, believed } : {}) });
   return zeroSignals();
 }
 
@@ -1171,18 +1262,24 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   const post = run.post ?? version.design;
   const x0 = pulledTraits(s, ctx, run, parent?.traitsTrue ?? base?.traitsTrue ?? TRAIT_START, version.id, base); // E4 successor pull (AF2: full within the base family)
   const uModes = parent ? [...parent.uModes] : [...(base?.uModes ?? [])];
-  const sg = runSignals(s, run);
+  // CP3h: the engine's update reads the new version's TRUE level (graders outgrown, task length); the beliefs its
+  // measured level (the player sees only measured / believed effects).
+  const polT = policyOf(s, version);
+  const polB = policyOf(s, version, true);
+  const sg = runSignals(s, run, undefined, polB, true);
+  const sgT = runSignals(s, run, undefined, polT);
   const om = runOmega(s, run);
   // Detection context: the new model as the stack meets it (the parent's traits and masks, the new level).
   const probe: ModelVersion = { ...version, traitsTrue: x0, masks: parent ? parent.masks : emptyMasks(), uModes };
   // Model v3 E7: a recipe steered by the R&D fleet adds hidden CoT pressure to the TRUE signals (not to sg, which the
   // predicted beliefs below read).
-  const sgTrue = steerS4(s) > 0 ? { ...sg, S4: clamp01(sg.S4 + steerS4(s)) } : sg;
+  const sgTrue = steerS4(s) > 0 ? { ...sgT, S4: clamp01(sgT.S4 + steerS4(s)) } : sgT;
   const env = playerEnv(s, x0, sgTrue, om.growth, post, lineage, uModes, probe);
   env.omegaSafety = om.safety;
   env.memory = runMemoryOn(s, run); // RD-B02: P07 as frozen at launch
   // E16: learned hacking from the run's frozen suites, RL shares and ρ.
-  const rh = runHack(s, { ...run, post });
+  const rh = runHack(s, { ...run, post }, polT);
+  const rhB = runHack(s, { ...run, post }, polB, true);
   const lh = rh.lambda;
   env.lh = lh;
   env.hackTarget = hackTargetOf(s, rh.h); // SR-24b: undetected hacking saturates within the run
@@ -1202,7 +1299,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior', PREDICT_SD_FLOOR, probe, rh.h);
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), rhB.lambda, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior', PREDICT_SD_FLOOR, probe, rhB.h);
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1226,28 +1323,31 @@ function pendingAudit(s: GameStateV2, versionId: string) {
 /** Continual learning (§3.3.1 stream): trait drift at ω = 0.6/42 per day on the stream version. */
 export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   const base = findBase(s, v.baseId);
-  const sg = postSignals(s, v.design);
+  // CP3h: the stream trains v itself (true level for the update, measured for the beliefs).
+  const sg = postSignals(s, v.design, undefined, { policy: policyOf(s, v) });
+  const sgB = postSignals(s, v.design, undefined, { policy: policyOf(s, v, true), believed: true });
   const lineage = base?.lineage ?? 'L-unknown';
   const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes, v);
-  const ph = postHack(s, v.design);
+  const ph = postHack(s, v.design, undefined, { policy: policyOf(s, v) });
+  const phB = postHack(s, v.design, undefined, { policy: policyOf(s, v, true), believed: true });
   env.lh = ph.lambda; // E16: the stream trains on today's suites
   env.hackTarget = hackTargetOf(s, ph.h); // SR-24b: a stream day closes its ω share of the gap to h
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   // SR-06: the stream's beliefs widen by its day of training (predictBeliefs on the PUBLIC rule, scaled floor).
   const omDay = 0.6 / 42;
-  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post), v, ph.h);
+  v.beliefs = predictBeliefs(s, v.beliefs, sgB, omDay, v.design, lineage, omDay, undefined, phB.lambda, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post), v, phB.h);
 }
 
 /** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4
  *  run-type table). */
 export function applyIdaCycle(s: GameStateV2, v: ModelVersion, run?: Pick<TrainingRun, 'recipe'>): void {
   const base = findBase(s, v.baseId);
-  const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE });
+  const sg = postSignals(s, v.design, undefined, { rho: IDA_RL_SHARE, policy: policyOf(s, v) });
   const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
   env.omegaSafety = OMEGA_KIND.ida;
   env.memory = runMemoryOn(s, run); // RD-B02: P07 as the IDA run froze it
-  const ih = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE });
+  const ih = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE, policy: policyOf(s, v) });
   env.lh = ih.lambda; // E16
   env.hackTarget = hackTargetOf(s, ih.h); // SR-24b
   const x = stepTraits(v.traitsTrue, env);

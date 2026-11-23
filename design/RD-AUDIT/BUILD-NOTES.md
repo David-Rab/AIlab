@@ -3749,3 +3749,56 @@ sabotage, danger, footholds all pass; safetyrates all pass (WARN: F5 EA 2026-12-
 - EV9: lead decision whether pre-release evals rank above ports in the default order, or ports cover only the
   instruments the release gate reads.
 - Acts on clamped domains (SOCIAL, CYBER) rise later than v2 (they leave the clamp only near the expert range).
+
+### CP3h misalignment with capability
+
+Worktree p3-d (on CP3f ffa60c4). Targets: CP3f "Still off" S4 / S5 candidates (a), (b); EV9 lead decision.
+
+**Mechanisms (sources)**
+- **(a) Graders outgrown** (safety/traits.ts `graderSound`, `missedExploit`): a suite's x_f is its missed hack share
+  for the 2025 policy against 2025 graders. As the policy outgrows its graders, x'_f = 1 − (1 − x_f)·F(gap), F the
+  one gap rule monitors and human review already use (safety/oversight.ts gapFactor: Engels et al. 2025 Backdoor Code,
+  10% catch at 400 Elo = 6.8 OOM; checked against Greenblatt 2023 62% at 1 OOM). Graders = expert humans at
+  HUMAN_REVIEW_L (L 10); P15 AI-assisted oversight grades the critic's share Aeff at the safety critic's level; AG05's
+  debate finding F16 (Khan 2024) takes debateCreditOom ≈ 4.0 OOM off the gap (as for AG05's tools). Size / direction
+  check: Wen et al. 2024 (arXiv 2409.12822) RLHF raised human judges' false positives +24.1% / +18.3%; research/04 T02.
+  No new constant. x' feeds the existing paths: S2, the hack share h → RH saturation (SR-24b), λ past LH_ONSET →
+  MacDiarmid generalisation (inoculation still × INOC_MULT). Zero effect while the policy is below L 10 (all 2025–26
+  probes: F2 / F5 / MO unchanged by construction).
+- **(b) Long-task length follows the horizon** (`runTaskH`, `lengthGapOom`): the long-horizon family trains at
+  max(40 h, the policy's h50) (DAPO, Yu et al. 2025 arXiv 2503.14476: dynamic sampling drops always / never solved
+  prompts, so RL trains at the edge of ability; h50 = METR TH1.1 203 min × 4.2 per OOM). Other families keep their
+  domain-set lengths. S3 reads it. Longer tasks are harder to grade: **stand-in** (no primary source for the size;
+  METR o3 RE-Bench ≈ 43× HCAST hack rate is confounded by scoring access): the family's gap adds log r ÷ log 4.2 OOM
+  for a task r× its 2025 length (METR's horizon slope; no free constant; 0 until h50 > 40 h, ≈ 1.7 OOM above V0).
+- **Believed vs true:** the engine's update reads the trained version's true G and h50 (completion, stream, IDA); the
+  player's beliefs, run previews (selectors runHack, predictBeliefs default) and the pressure view read the measured
+  level (policyOf(…, believed)); completion beliefs now get the believed λ / h instead of the true ones. Rivals unchanged.
+- **EV9 (lead decision)** data/v2/research.ts SAF_RE_NEEDS: review, spotCheck, cases, **evals, validation**, envFix,
+  removal, safExp (the release gate needs the eval suites first). Saves keep the player's order (no migration).
+
+**Before → after** (safety.ts 40 + 40 + 20 games; safetyrates default 12 seeds / 40 worlds, CP3f's was 4 / 12, so F2
+moves are sample)
+
+| Check | CP3f | CP3h | target |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI | 0.117 | 0.329 | 0.55–0.85 |
+| S4 safe recipe | 0.028 | 0.099 | ≤ 0.25 |
+| S5 U below L by SAR | 23% (median +0.35) | 18% (median +0.37) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −4.47 / 30% | −3.54 / 35% | median holds |
+| F2 sabotage after learned hacking | 12.9% | 11.2% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | 87.8 / 87.1 / 87.8 / 93.4% | 86.6 / 84.9 / 85.5 / 92.9% | in band |
+| F5 EA 2026-12-31 | 51.2% (WARN) | 44.7% | 20–50% |
+| MO anchor (sabotage.ts) | 12.0% | 12.0% | 12% |
+| EV9 release suites | 30 / 33 d | 14 d (all 13) | ≈ 14 |
+
+sabotage, danger, footholds, evals, safetyrates all pass (F6 persistence WARN 63–66%, known). tsc (both), build pass.
+
+**Still off, suspected mechanism**
+- S4 0.33: RefBot's recipe uses T-INOC on every run, so learned hacking past onset reaches PERSONA / AF / SCHEME at
+  × 0.15 (MacDiarmid's sourced inoculation cut); diag (scripts/v2/_cp3h/diag.ts, seed 500 / 503): post-SC runs reach
+  h 0.18–0.44, λ 0.05–0.94, the stream saturates RH 0.86, yet ASI Mis 0.10 / 0.18 (seed 503 was 0.24 before: draw-path
+  variance, AF / SAND lower). The gap opens only past L 10 (SC), and RefBot ships 1–2 post runs between SC and ASI.
+  Open: whether inoculation keeps its full cut on hacks the lab's graders never saw (no source either way); CP3f (c)
+  RefBot never scales RL nor builds suites; (d) F6 healing.
+- S5: unchanged in kind (−5 pp, within sampling); the grader gap moves traits, not the sight limit.

@@ -6,7 +6,7 @@ import { controlOn, labControlSetting, labReviewOn } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
-import { RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS } from '../../../data/v2/runDesign';
+import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { planRun, type LaunchRunParams } from '../models/runs';
 import { runExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
@@ -23,7 +23,7 @@ import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { againstOf, methodMult, usesMethod } from './methods';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
-  INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
+  INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, missedExploit, policyOf, runTaskH, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
 } from './traits';
 
 export type FamilyId = (typeof RISK_FAMILIES)[number]['id'];
@@ -85,7 +85,9 @@ const famTerms = (w: FamilyMap, f: (k: RLFamily, wf: number) => { x: number; ter
 /** Post-training signals with their quantities (traits.ts `postSignals`, term by term). `exploit` = a run's frozen
  *  suites (else today's); `rho` = RL FLOP ÷ the base's FLOP; `s8` = the applied S8 when known (finished runs). */
 export function postPressure(s: GameStateV2, post: PostDesign, rho: number, exploit?: FamilyMap, s8?: number): PressureRow[] {
-  const x = exploit ?? runExploitMap(s);
+  // CP3h: the suites as the lab's internal model (measured) meets them: graders outgrown, horizon-tracking long tasks.
+  const policy = policyOf(s, undefined, true);
+  const x = missedExploit(s, exploit ?? runExploitMap(s), policy, true);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const p = optimisationPressure(rho);
   const p11 = adopted(s, 'P11');
@@ -94,7 +96,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   // E16: the share of the run's RL episodes that are rewarded hacks (hackRates, × the pressure) and its learned hacking.
   const hacked = hackShare(w, x, rho);
   const learned = learnedHackingOf(hacked);
-  const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
+  const s3f = famTerms(w, (f, wf) => { const h = runTaskH(f, policy); return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
   const against = againstOf(post);
   const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
   const bb = against.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
