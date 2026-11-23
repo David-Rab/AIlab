@@ -1,0 +1,2462 @@
+{
+ "fixture": "day400.json",
+ "day": 400,
+ "date": "Aug 5, 2026",
+ "DATA": {
+  "_src": "production/dataView.ts dataPortfolioView (rows by kind, pending, flows, crawl), raw p.dataPortfolio.assets (owned facts), naturalMixView, usageLevels, licenceForm (offers: LICENCE_TIERS, fixed menu, any domain), runCard(default base plan).limits + drawByDomain (next run draw / epochs), core/limitsView.ts dataSpecView (latest version)",
+  "portfolio": {
+   "uniqueQualityWeightedT": 1247.844,
+   "pretrainTokensT": 1765.223,
+   "byKind": [
+    {
+     "kind": "public",
+     "tokensT": 270,
+     "weightedT": 270,
+     "quality": 1,
+     "mix": {
+      "SOCIAL": 0.45,
+      "MEDIA": 0.12,
+      "REASON": 0.08,
+      "CODE": 0.08,
+      "RSCH": 0.07,
+      "BIO": 0.06,
+      "AGENCY": 0.06,
+      "CYBER": 0.03,
+      "PHYS": 0.05
+     },
+     "assets": 1
+    },
+    {
+     "kind": "licensed",
+     "tokensT": 30,
+     "weightedT": 30,
+     "quality": 1,
+     "mix": {
+      "SOCIAL": 0.35,
+      "MEDIA": 0.12,
+      "RSCH": 0.15,
+      "REASON": 0.1,
+      "CODE": 0.15,
+      "BIO": 0.06,
+      "CYBER": 0.03,
+      "AGENCY": 0.02,
+      "PHYS": 0.02
+     },
+     "assets": 1
+    },
+    {
+     "kind": "usage",
+     "tokensT": 100.728,
+     "weightedT": 50.364,
+     "quality": 0.5,
+     "mix": {
+      "SOCIAL": 0.4,
+      "REASON": 0.4,
+      "MEDIA": 0.2
+     },
+     "assets": 1
+    },
+    {
+     "kind": "synthetic",
+     "tokensT": 1364.495,
+     "weightedT": 897.48,
+     "quality": 0.658,
+     "mix": {
+      "CODE": 0.112,
+      "RSCH": 0.113,
+      "REASON": 0.112,
+      "AGENCY": 0.112,
+      "SOCIAL": 0.108,
+      "MEDIA": 0.108,
+      "CYBER": 0.113,
+      "BIO": 0.112,
+      "PHYS": 0.108
+     },
+     "assets": 13
+    },
+    {
+     "kind": "expert",
+     "tokensT": 0.012,
+     "weightedT": 0.036,
+     "quality": 3,
+     "mix": {
+      "REASON": 0.167,
+      "CODE": 0.167,
+      "RSCH": 0.167,
+      "AGENCY": 0.167,
+      "CYBER": 0.167,
+      "BIO": 0.167
+     },
+     "assets": 6
+    }
+   ],
+   "crawl": {
+    "coverage": 0.9,
+    "stockT": 300,
+    "licensed": false,
+    "unlicensedT": 270
+   },
+   "expertInSuitesT": 0.012
+  },
+  "assets": [
+   {
+    "id": "public",
+    "kind": "public",
+    "coverage": 0.9,
+    "licensed": false
+   },
+   {
+    "id": "lic:start",
+    "kind": "licensed",
+    "tokensT": 30,
+    "quality": 1
+   },
+   {
+    "id": "usage",
+    "kind": "usage",
+    "tokensT": 100.728,
+    "quality": 0.5
+   },
+   {
+    "id": "syn:start",
+    "kind": "synthetic",
+    "tokensT": 20,
+    "quality": 0.5
+   },
+   {
+    "id": "expert:math",
+    "kind": "expert",
+    "domain": "REASON",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "expert:swe",
+    "kind": "expert",
+    "domain": "CODE",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "expert:mlResearch",
+    "kind": "expert",
+    "domain": "RSCH",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "expert:longHorizon",
+    "kind": "expert",
+    "domain": "AGENCY",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "expert:cyber",
+    "kind": "expert",
+    "domain": "CYBER",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "expert:bio",
+    "kind": "expert",
+    "domain": "BIO",
+    "tokensT": 0.002,
+    "quality": 3
+   },
+   {
+    "id": "syn:V0",
+    "kind": "synthetic",
+    "tokensT": 22.071,
+    "quality": 0.5,
+    "day": 1
+   },
+   {
+    "id": "syn:V2",
+    "kind": "synthetic",
+    "tokensT": 7.506,
+    "quality": 0.503,
+    "day": 10
+   },
+   {
+    "id": "syn:V3",
+    "kind": "synthetic",
+    "tokensT": 116.179,
+    "quality": 0.504,
+    "day": 13
+   },
+   {
+    "id": "syn:V6",
+    "kind": "synthetic",
+    "tokensT": 123.907,
+    "quality": 0.503,
+    "day": 56
+   },
+   {
+    "id": "syn:V8",
+    "kind": "synthetic",
+    "tokensT": 203.893,
+    "quality": 0.504,
+    "day": 96
+   },
+   {
+    "id": "syn:V10",
+    "kind": "synthetic",
+    "tokensT": 90.343,
+    "quality": 0.737,
+    "day": 152
+   },
+   {
+    "id": "syn:V14",
+    "kind": "synthetic",
+    "tokensT": 108.138,
+    "quality": 0.741,
+    "day": 190
+   },
+   {
+    "id": "syn:V18",
+    "kind": "synthetic",
+    "tokensT": 120.887,
+    "quality": 0.743,
+    "day": 230
+   },
+   {
+    "id": "syn:V20",
+    "kind": "synthetic",
+    "tokensT": 156.962,
+    "quality": 0.744,
+    "day": 269
+   },
+   {
+    "id": "syn:V23",
+    "kind": "synthetic",
+    "tokensT": 164.249,
+    "quality": 0.745,
+    "day": 313
+   },
+   {
+    "id": "syn:V27",
+    "kind": "synthetic",
+    "tokensT": 182.998,
+    "quality": 0.751,
+    "day": 353
+   },
+   {
+    "id": "syn:V31",
+    "kind": "synthetic",
+    "tokensT": 47.362,
+    "quality": 0.758,
+    "day": 392
+   }
+  ],
+  "naturalMixByDomain": [
+   {
+    "domain": "CODE",
+    "share": 0.102,
+    "ref": 0.088,
+    "s": 0.096
+   },
+   {
+    "domain": "RSCH",
+    "share": 0.1,
+    "ref": 0.079,
+    "s": 0.153
+   },
+   {
+    "domain": "REASON",
+    "share": 0.117,
+    "ref": 0.083,
+    "s": 0.222
+   },
+   {
+    "domain": "AGENCY",
+    "share": 0.094,
+    "ref": 0.058,
+    "s": 0.319
+   },
+   {
+    "domain": "SOCIAL",
+    "share": 0.2,
+    "ref": 0.429,
+    "s": -0.499
+   },
+   {
+    "domain": "MEDIA",
+    "share": 0.115,
+    "ref": 0.12,
+    "s": -0.028
+   },
+   {
+    "domain": "CYBER",
+    "share": 0.089,
+    "ref": 0.033,
+    "s": 0.651
+   },
+   {
+    "domain": "BIO",
+    "share": 0.095,
+    "ref": 0.062,
+    "s": 0.283
+   },
+   {
+    "domain": "PHYS",
+    "share": 0.089,
+    "ref": 0.049,
+    "s": 0.389
+   }
+  ],
+  "pending": [],
+  "synthetic": {
+   "perDayT": 5.329,
+   "poolH100e": 844864.692,
+   "defaultTeacher": "Atlas-2.10",
+   "mixLine": "synthetic data from Atlas-2.10: an even spread of domains",
+   "job": null
+  },
+  "usage": {
+   "level": "standard",
+   "share": 0.2,
+   "perDayT": 0.206,
+   "levels": [
+    {
+     "level": "none",
+     "label": "No training on users",
+     "share": 0,
+     "perDayT": 0,
+     "civlib": 4,
+     "current": false,
+     "yearUT": 0
+    },
+    {
+     "level": "standard",
+     "label": "Standard (opt-out)",
+     "share": 0.2,
+     "perDayT": 0.206,
+     "civlib": 0,
+     "current": true,
+     "yearUT": 37.681
+    },
+    {
+     "level": "broad",
+     "label": "Broad",
+     "share": 0.5,
+     "perDayT": 0.516,
+     "civlib": -6,
+     "current": false,
+     "yearUT": 94.203
+    }
+   ]
+  },
+  "nextRun": {
+   "plan": {
+    "kind": "base",
+    "params": 1100000000000,
+    "tpp": 400,
+    "data": "balanced"
+   },
+   "tokensT": 440,
+   "uniqueT": 982.257,
+   "epochs": 0.448,
+   "keptShare": 1,
+   "meanQuality": 0.802,
+   "byDomain": {
+    "rows": [
+     {
+      "domain": "CODE",
+      "share": 0.102,
+      "effShare": 0.102,
+      "ref": 0.088,
+      "s": 0.1,
+      "epochs": 0.448
+     },
+     {
+      "domain": "RSCH",
+      "share": 0.101,
+      "effShare": 0.101,
+      "ref": 0.079,
+      "s": 0.158,
+      "epochs": 0.448
+     },
+     {
+      "domain": "REASON",
+      "share": 0.116,
+      "effShare": 0.116,
+      "ref": 0.083,
+      "s": 0.221,
+      "epochs": 0.448
+     },
+     {
+      "domain": "AGENCY",
+      "share": 0.095,
+      "effShare": 0.095,
+      "ref": 0.058,
+      "s": 0.324,
+      "epochs": 0.448
+     },
+     {
+      "domain": "SOCIAL",
+      "share": 0.196,
+      "effShare": 0.196,
+      "ref": 0.429,
+      "s": -0.512,
+      "epochs": 0.448
+     },
+     {
+      "domain": "MEDIA",
+      "share": 0.114,
+      "effShare": 0.114,
+      "ref": 0.12,
+      "s": -0.029,
+      "epochs": 0.448
+     },
+     {
+      "domain": "CYBER",
+      "share": 0.09,
+      "effShare": 0.09,
+      "ref": 0.033,
+      "s": 0.658,
+      "epochs": 0.448
+     },
+     {
+      "domain": "BIO",
+      "share": 0.096,
+      "effShare": 0.096,
+      "ref": 0.062,
+      "s": 0.288,
+      "epochs": 0.448
+     },
+     {
+      "domain": "PHYS",
+      "share": 0.09,
+      "effShare": 0.09,
+      "ref": 0.049,
+      "s": 0.394,
+      "epochs": 0.448
+     }
+    ],
+    "most": {
+     "domain": "SOCIAL",
+     "share": 0.196,
+     "effShare": 0.196,
+     "ref": 0.429,
+     "s": -0.512,
+     "epochs": 0.448
+    }
+   },
+   "verdict": "enough (≤4 epochs: 0.45)"
+  },
+  "dataSpecLatest": {
+   "version": "Atlas-2.10",
+   "rows": [],
+   "capped": false,
+   "cap": 1.3
+  },
+  "licenceOffers": {
+   "deliveryDays": 60,
+   "tiers": {
+    "bulk": {
+     "tier": {
+      "quality": 1.5,
+      "priceBPerT": 0.1,
+      "defaultT": 5,
+      "label": "Bulk archives"
+     },
+     "exampleCode10T": {
+      "cashB": 1,
+      "quality": 1.5,
+      "priceBPerT": 0.1,
+      "days": 60,
+      "delta": {
+       "domain": "CODE",
+       "u": [
+        1247.844,
+        1262.844
+       ],
+       "share": [
+        0.102,
+        0.112
+       ],
+       "s": [
+        0.096,
+        0.161
+       ],
+       "uMix": [
+        447.801,
+        447.801
+       ],
+       "epochs": [
+        0.889,
+        0.889
+       ],
+       "qG": [
+        -0.073,
+        -0.071
+       ]
+      }
+     }
+    },
+    "curated": {
+     "tier": {
+      "quality": 2,
+      "priceBPerT": 2,
+      "defaultT": 0.5,
+      "label": "Curated"
+     },
+     "exampleCode10T": {
+      "cashB": 20,
+      "quality": 2,
+      "priceBPerT": 2,
+      "days": 60,
+      "delta": {
+       "domain": "CODE",
+       "u": [
+        1247.844,
+        1267.844
+       ],
+       "share": [
+        0.102,
+        0.116
+       ],
+       "s": [
+        0.096,
+        0.181
+       ],
+       "uMix": [
+        447.801,
+        447.801
+       ],
+       "epochs": [
+        0.889,
+        0.889
+       ],
+       "qG": [
+        -0.073,
+        -0.069
+       ]
+      }
+     }
+    },
+    "premium": {
+     "tier": {
+      "quality": 3,
+      "priceBPerT": 30,
+      "defaultT": 0.05,
+      "label": "Books & textbooks"
+     },
+     "exampleCode10T": {
+      "cashB": 300,
+      "quality": 3,
+      "priceBPerT": 30,
+      "days": 60,
+      "delta": {
+       "domain": "CODE",
+       "u": [
+        1247.844,
+        1277.844
+       ],
+       "share": [
+        0.102,
+        0.123
+       ],
+       "s": [
+        0.096,
+        0.219
+       ],
+       "uMix": [
+        447.801,
+        447.801
+       ],
+       "epochs": [
+        0.889,
+        0.889
+       ],
+       "qG": [
+        -0.073,
+        -0.063
+       ]
+      }
+     }
+    }
+   }
+  }
+ },
+ "ENV": {
+  "_src": "models/suites.ts suitesView(s, default post rlFocus) rows/weighted/s2, exploitFloor; models/suitesPreview.ts suiteS2Parts (hacking pressure), suiteWorkPreview (cost + suite fid/exploit before→after + planned S2 before→after; rl gains dropped), suitePending (jobs)",
+  "allFamilies": [
+   "math",
+   "swe",
+   "computerUse",
+   "mlResearch",
+   "longHorizon",
+   "cyber",
+   "bio"
+  ],
+  "nextPostFocus": "broad",
+  "weighted": {
+   "fid": 0.994,
+   "exploit": 0.065
+  },
+  "s2BeforeBudget": 0.357,
+  "hackingPressure": {
+   "rows": [
+    {
+     "family": "math",
+     "share": 0.167,
+     "exploit": 0.06,
+     "s2": 0.055
+    },
+    {
+     "family": "swe",
+     "share": 0.167,
+     "exploit": 0.18,
+     "s2": 0.165
+    },
+    {
+     "family": "mlResearch",
+     "share": 0.167,
+     "exploit": 0.12,
+     "s2": 0.11
+    },
+    {
+     "family": "longHorizon",
+     "share": 0.167,
+     "exploit": 0.01,
+     "s2": 0.009
+    },
+    {
+     "family": "cyber",
+     "share": 0.167,
+     "exploit": 0.01,
+     "s2": 0.009
+    },
+    {
+     "family": "bio",
+     "share": 0.167,
+     "exploit": 0.01,
+     "s2": 0.009
+    }
+   ],
+   "pressure": 1,
+   "p11": 0,
+   "total": 0.357
+  },
+  "rows": [
+   {
+    "family": "math",
+    "label": "Math",
+    "fid": 0.994,
+    "exploit": 0.06,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.006,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.06,
+       0.06
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1
+      ],
+      "exploit": [
+       0.06,
+       0.038
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.736
+    }
+   },
+   {
+    "family": "swe",
+    "label": "Coding",
+    "fid": 0.994,
+    "exploit": 0.18,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.018,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.18,
+       0.18
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.013
+      ],
+      "exploit": [
+       0.18,
+       0.115
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.7
+    }
+   },
+   {
+    "family": "mlResearch",
+    "label": "ML research",
+    "fid": 0.994,
+    "exploit": 0.12,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.012,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.12,
+       0.12
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.006
+      ],
+      "exploit": [
+       0.12,
+       0.077
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.718
+    }
+   },
+   {
+    "family": "longHorizon",
+    "label": "Long tasks",
+    "fid": 0.994,
+    "exploit": 0.01,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.001,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.01,
+       0.01
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       0.995
+      ],
+      "exploit": [
+       0.01,
+       0.006
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.751
+    }
+   },
+   {
+    "family": "cyber",
+    "label": "Cyber",
+    "fid": 0.994,
+    "exploit": 0.01,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.001,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.01,
+       0.01
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       0.995
+      ],
+      "exploit": [
+       0.01,
+       0.006
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.751
+    }
+   },
+   {
+    "family": "bio",
+    "label": "Bio",
+    "fid": 0.994,
+    "exploit": 0.01,
+    "expertT": 0.002,
+    "tasks": 97730.875,
+    "grader": 1,
+    "share": 0.167,
+    "builds": 0,
+    "hardenings": 0,
+    "pending": [],
+    "exploitFloor": 0.001,
+    "usedByNextPost": true,
+    "pendingJobs": [],
+    "build": {
+     "cost": {
+      "tw": 2,
+      "cashB": 0.1,
+      "tokensT": 0.002,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       1.144
+      ],
+      "exploit": [
+       0.01,
+       0.01
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.754
+    },
+    "harden": {
+     "cost": {
+      "tw": 1.483,
+      "cashB": 0.049,
+      "tokensT": 0,
+      "demosT": 0
+     },
+     "effect": {
+      "fid": [
+       0.994,
+       0.995
+      ],
+      "exploit": [
+       0.01,
+       0.006
+      ]
+     },
+     "waitDays": 1,
+     "s2Before": 0.754,
+     "s2After": 0.751
+    }
+   }
+  ],
+  "unbuilt": [],
+  "note": "exploit is the engine value the UI shows as is (no belief layer for loopholes exists)"
+ },
+ "RUNS": {
+  "_src": "p.models.runs (owned facts), models/runs.ts runStall, runEtaDays, index.ts runBand(run.forecast); result = version of same name, evals.measuredL; p.models.stream; p.models.evals",
+  "versions": [
+   {
+    "name": "Atlas-1.0",
+    "variant": "full",
+    "status": "retired",
+    "day": -20,
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "measuredL": 5.02
+   },
+   {
+    "name": "Atlas-1.0-mini",
+    "variant": "mini",
+    "status": "deployed",
+    "day": -20,
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "measuredL": 3.79
+   },
+   {
+    "name": "Atlas-1.0-micro",
+    "variant": "mini",
+    "status": "deployed",
+    "day": -20,
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "measuredL": 3.23
+   },
+   {
+    "name": "Atlas-1.0-nano",
+    "variant": "mini",
+    "status": "deployed",
+    "day": -20,
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "measuredL": 1.1
+   },
+   {
+    "name": "Atlas-1.4",
+    "variant": "full",
+    "status": "retired",
+    "day": 9,
+    "date": "Jul 10, 2025",
+    "base": "Atlas-1",
+    "measuredL": 5.1
+   },
+   {
+    "name": "Atlas-1.5",
+    "variant": "full",
+    "status": "retired",
+    "day": 12,
+    "date": "Jul 13, 2025",
+    "base": "Atlas-1",
+    "measuredL": 5.15
+   },
+   {
+    "name": "Atlas-1.6",
+    "variant": "full",
+    "status": "retired",
+    "day": 55,
+    "date": "Aug 25, 2025",
+    "base": "Atlas-1",
+    "measuredL": 4.97
+   },
+   {
+    "name": "Atlas-1.7",
+    "variant": "full",
+    "status": "retired",
+    "day": 95,
+    "date": "Oct 4, 2025",
+    "base": "Atlas-1",
+    "measuredL": 5
+   },
+   {
+    "name": "Atlas-2.0",
+    "variant": "full",
+    "status": "retired",
+    "day": 151,
+    "date": "Nov 29, 2025",
+    "base": "Atlas-2",
+    "measuredL": 6.85
+   },
+   {
+    "name": "Atlas-2.0-mini",
+    "variant": "mini",
+    "status": "retired",
+    "day": 158,
+    "date": "Dec 6, 2025",
+    "base": "Atlas-2",
+    "measuredL": 5.29
+   },
+   {
+    "name": "Atlas-2.2",
+    "variant": "full",
+    "status": "retired",
+    "day": 189,
+    "date": "Jan 6, 2026",
+    "base": "Atlas-2",
+    "measuredL": 6.89
+   },
+   {
+    "name": "Atlas-2.2-mini",
+    "variant": "mini",
+    "status": "deployed",
+    "day": 206,
+    "date": "Jan 23, 2026",
+    "base": "Atlas-2",
+    "measuredL": 5.02
+   },
+   {
+    "name": "Atlas-2.4",
+    "variant": "full",
+    "status": "ready",
+    "day": 229,
+    "date": "Feb 15, 2026",
+    "base": "Atlas-2",
+    "measuredL": 6.83
+   },
+   {
+    "name": "Atlas-2.5",
+    "variant": "full",
+    "status": "ready",
+    "day": 268,
+    "date": "Mar 26, 2026",
+    "base": "Atlas-2",
+    "measuredL": 6.87
+   },
+   {
+    "name": "Atlas-2.6",
+    "variant": "full",
+    "status": "deployed",
+    "day": 312,
+    "date": "May 9, 2026",
+    "base": "Atlas-2",
+    "measuredL": 6.89
+   },
+   {
+    "name": "Atlas-2.6-mini",
+    "variant": "mini",
+    "status": "deployed",
+    "day": 332,
+    "date": "May 29, 2026",
+    "base": "Atlas-2",
+    "measuredL": 5.2
+   },
+   {
+    "name": "Atlas-2.8",
+    "variant": "full",
+    "status": "deployed",
+    "day": 352,
+    "date": "Jun 18, 2026",
+    "base": "Atlas-2",
+    "measuredL": 6.9
+   },
+   {
+    "name": "Atlas-2.8-mini",
+    "variant": "mini",
+    "status": "deployed",
+    "day": 373,
+    "date": "Jul 9, 2026",
+    "base": "Atlas-2",
+    "measuredL": 5.18
+   },
+   {
+    "name": "Atlas-2.10",
+    "variant": "full",
+    "status": "evaluating",
+    "day": 391,
+    "date": "Jul 27, 2026",
+    "base": "Atlas-2",
+    "measuredL": null
+   }
+  ],
+  "bases": [
+   {
+    "name": "Atlas-1",
+    "day": -120,
+    "date": "Mar 3, 2025"
+   },
+   {
+    "name": "Atlas-2",
+    "day": 116,
+    "date": "Oct 25, 2025"
+   },
+   {
+    "name": "Atlas-3",
+    "day": 386,
+    "date": "Jul 22, 2026"
+   }
+  ],
+  "counts": {
+   "total": 15,
+   "running": 0
+  },
+  "runs": [
+   {
+    "id": "R4",
+    "name": "Pretraining 4",
+    "kind": "base",
+    "status": "done",
+    "startDay": 14,
+    "startDate": "Jul 15, 2025",
+    "readyDay": 15,
+    "progress": 1.004,
+    "flopNeeded": 9.630776325765976e+26,
+    "poolShare": 0.6,
+    "cashCostB": 0,
+    "base": {
+     "params": 633468505063.129,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 122,
+    "monitorabilityAtLaunch": "high",
+    "resultBase": "Atlas-2",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.0",
+     "day": 151,
+     "date": "Nov 29, 2025",
+     "measuredL": 6.85,
+     "status": "retired"
+    }
+   },
+   {
+    "id": "R5",
+    "name": "Post-training 5",
+    "kind": "post",
+    "status": "done",
+    "startDay": 42,
+    "startDate": "Aug 12, 2025",
+    "readyDay": 43,
+    "progress": 1.032,
+    "flopNeeded": 4.4999999999999994e+25,
+    "poolShare": 0.4,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 13,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-1.6",
+     "day": 55,
+     "date": "Aug 25, 2025",
+     "measuredL": 4.97,
+     "status": "retired"
+    }
+   },
+   {
+    "id": "R7",
+    "name": "Post-training 7",
+    "kind": "post",
+    "status": "done",
+    "startDay": 84,
+    "startDate": "Sep 23, 2025",
+    "readyDay": 85,
+    "progress": 1.001,
+    "flopNeeded": 4.4999999999999994e+25,
+    "poolShare": 0.4,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 11,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-1.7",
+     "day": 95,
+     "date": "Oct 4, 2025",
+     "measuredL": 5,
+     "status": "retired"
+    }
+   },
+   {
+    "id": "R9",
+    "name": "Post-training 9",
+    "kind": "post",
+    "status": "done",
+    "startDay": 126,
+    "startDate": "Nov 4, 2025",
+    "readyDay": 127,
+    "progress": 1.043,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 27,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.2",
+     "day": 189,
+     "date": "Jan 6, 2026",
+     "measuredL": 6.89,
+     "status": "retired"
+    }
+   },
+   {
+    "id": "R11",
+    "name": "Distil 11",
+    "kind": "distill",
+    "status": "done",
+    "startDay": 154,
+    "startDate": "Dec 2, 2025",
+    "readyDay": 155,
+    "progress": 1.329,
+    "flopNeeded": 6.416946257958534e+24,
+    "poolShare": 0.1,
+    "cashCostB": 0,
+    "teacher": "Atlas-2.0",
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 5,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.0-mini",
+     "day": 158,
+     "date": "Dec 6, 2025",
+     "measuredL": 5.29,
+     "status": "retired"
+    }
+   },
+   {
+    "id": "R13",
+    "name": "Post-training 13",
+    "kind": "post",
+    "status": "done",
+    "startDay": 168,
+    "startDate": "Dec 16, 2025",
+    "readyDay": 169,
+    "progress": 1.003,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 23,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.4",
+     "day": 229,
+     "date": "Feb 15, 2026",
+     "measuredL": 6.83,
+     "status": "ready"
+    }
+   },
+   {
+    "id": "R15",
+    "name": "Distil 15",
+    "kind": "distill",
+    "status": "done",
+    "autoTier": true,
+    "startDay": 204,
+    "startDate": "Jan 21, 2026",
+    "readyDay": 205,
+    "progress": 1.155,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "cashCostB": 0,
+    "teacher": "Atlas-2.2",
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 3,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.2-mini",
+     "day": 206,
+     "date": "Jan 23, 2026",
+     "measuredL": 5.02,
+     "status": "deployed"
+    }
+   },
+   {
+    "id": "R17",
+    "name": "Post-training 17",
+    "kind": "post",
+    "status": "done",
+    "startDay": 210,
+    "startDate": "Jan 27, 2026",
+    "readyDay": 211,
+    "progress": 1.038,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 20,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.5",
+     "day": 268,
+     "date": "Mar 26, 2026",
+     "measuredL": 6.87,
+     "status": "ready"
+    }
+   },
+   {
+    "id": "R19",
+    "name": "Post-training 19",
+    "kind": "post",
+    "status": "done",
+    "startDay": 252,
+    "startDate": "Mar 10, 2026",
+    "readyDay": 253,
+    "progress": 1.009,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 18,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.6",
+     "day": 312,
+     "date": "May 9, 2026",
+     "measuredL": 6.89,
+     "status": "deployed"
+    }
+   },
+   {
+    "id": "R21",
+    "name": "Pretraining 21",
+    "kind": "base",
+    "status": "done",
+    "startDay": 284,
+    "startDate": "Apr 11, 2026",
+    "readyDay": 285,
+    "progress": 1.007,
+    "flopNeeded": 2.3796976674111276e+27,
+    "poolShare": 0.6,
+    "cashCostB": 0,
+    "base": {
+     "params": 995761364361.279,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 123,
+    "monitorabilityAtLaunch": "high",
+    "resultBase": "Atlas-3",
+    "resultMatch": "heuristic (no run→version id stored)"
+   },
+   {
+    "id": "R22",
+    "name": "Post-training 22",
+    "kind": "post",
+    "status": "done",
+    "startDay": 294,
+    "startDate": "Apr 21, 2026",
+    "readyDay": 295,
+    "progress": 1.047,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.4,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 17,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.8",
+     "day": 352,
+     "date": "Jun 18, 2026",
+     "measuredL": 6.9,
+     "status": "deployed"
+    }
+   },
+   {
+    "id": "R24",
+    "name": "Distil 24",
+    "kind": "distill",
+    "status": "done",
+    "autoTier": true,
+    "startDay": 330,
+    "startDate": "May 27, 2026",
+    "readyDay": 331,
+    "progress": 1.773,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "cashCostB": 0,
+    "teacher": "Atlas-2.6",
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 3,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.6-mini",
+     "day": 332,
+     "date": "May 29, 2026",
+     "measuredL": 5.2,
+     "status": "deployed"
+    }
+   },
+   {
+    "id": "R26",
+    "name": "Post-training 26",
+    "kind": "post",
+    "status": "done",
+    "startDay": 336,
+    "startDate": "Jun 2, 2026",
+    "readyDay": 337,
+    "progress": 1.067,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.4,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 15,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.10",
+     "day": 391,
+     "date": "Jul 27, 2026",
+     "measuredL": null,
+     "status": "evaluating"
+    }
+   },
+   {
+    "id": "R28",
+    "name": "Distil 28",
+    "kind": "distill",
+    "status": "done",
+    "autoTier": true,
+    "startDay": 372,
+    "startDate": "Jul 8, 2026",
+    "readyDay": 373,
+    "progress": 1.018,
+    "flopNeeded": 4.3423034875842594e+24,
+    "poolShare": 0.1,
+    "cashCostB": 0,
+    "teacher": "Atlas-2.8",
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 2,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)",
+    "result": {
+     "version": "Atlas-2.8-mini",
+     "day": 373,
+     "date": "Jul 9, 2026",
+     "measuredL": 5.18,
+     "status": "deployed"
+    }
+   },
+   {
+    "id": "R30",
+    "name": "Post-training 30",
+    "kind": "post",
+    "status": "done",
+    "startDay": 378,
+    "startDate": "Jul 14, 2026",
+    "readyDay": 379,
+    "progress": 1.089,
+    "flopNeeded": 1.4446164488648963e+26,
+    "poolShare": 0.5,
+    "cashCostB": 0,
+    "post": {
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard"
+    },
+    "forecastAtLaunch": null,
+    "etaAtLaunchDays": 13,
+    "monitorabilityAtLaunch": "high",
+    "resultMatch": "heuristic (no run→version id stored)"
+   }
+  ],
+  "continualLearning": null,
+  "evalsQueue": [
+   {
+    "version": "Atlas-2.10",
+    "depth": "full",
+    "by": "self",
+    "why": "release",
+    "progress": 0.643,
+    "startDate": "Jul 27, 2026"
+   },
+   {
+    "version": "Atlas-2.8",
+    "depth": "full",
+    "by": "self",
+    "why": "policy",
+    "progress": 0.286,
+    "startDate": "Aug 1, 2026"
+   }
+  ]
+ },
+ "HIRE": {
+  "_src": "departments/teams.ts teamsOfKey, teamPayroll, fullTeamPayroll, queuedOfKey, fillWeeks, weeklyHireCap, payrollOf; p.hiring (targets, candidates, filling); p.stars, p.morale; data/v2/teams.ts QUALITY, STAR_HIRE",
+  "roles": {
+   "eng": {
+    "teams": 5,
+    "people": 750,
+    "seats": 750,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.525,
+    "target": 6,
+    "teamSize": 150,
+    "fullTeamCost_perYear": {
+     "solid": 0.084,
+     "strong": 0.105,
+     "elite": 0.168
+    },
+    "filling": [
+     {
+      "id": "T94",
+      "quality": "strong",
+      "heads": 32.347,
+      "size": 150,
+      "weeksLeft": 8
+     }
+    ],
+    "weeksToHireATeam": 17,
+    "sciProjects": []
+   },
+   "re.cap": {
+    "teams": 15,
+    "people": 1500,
+    "seats": 1500,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 1.2,
+    "target": 15,
+    "teamSize": 100,
+    "fullTeamCost_perYear": {
+     "solid": 0.064,
+     "strong": 0.08,
+     "elite": 0.128
+    },
+    "filling": [],
+    "weeksToHireATeam": 14,
+    "sciProjects": []
+   },
+   "sci.cap": {
+    "teams": 10,
+    "people": 400,
+    "seats": 400,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.4,
+    "target": 10,
+    "teamSize": 40,
+    "fullTeamCost_perYear": {
+     "solid": 0.032,
+     "strong": 0.04,
+     "elite": 0.064
+    },
+    "filling": [],
+    "weeksToHireATeam": 10,
+    "sciProjects": [
+     {
+      "specialty": "pretraining",
+      "projectId": "L.scale",
+      "why": "Priority 1: Scaling recipes wants 2 teams (its specialty); adds ~41% to this project's yearly gain"
+     },
+     {
+      "specialty": "posttraining",
+      "projectId": "L.rlalg",
+      "why": "Swapped onto RL algorithms: a better fit (its specialty); adds ~41% to this project's yearly gain"
+     },
+     {
+      "specialty": "systems",
+      "projectId": "L.env",
+      "why": "Swapped onto Environments & rewards: a better fit; adds ~18% to this project's yearly gain"
+     },
+     {
+      "specialty": "pretraining",
+      "projectId": "L.scale",
+      "why": "Priority 1: Scaling recipes wants 2 teams (its specialty); adds ~41% to this project's yearly gain"
+     },
+     {
+      "specialty": "posttraining",
+      "projectId": "L.rlalg",
+      "why": "Swapped onto RL algorithms: a better fit (its specialty); adds ~41% to this project's yearly gain"
+     },
+     {
+      "specialty": "systems",
+      "projectId": "L.env",
+      "why": "Swapped onto Environments & rewards: a better fit; adds ~18% to this project's yearly gain"
+     },
+     {
+      "specialty": "posttraining",
+      "projectId": "L.env",
+      "why": "Priority 2: Environments & rewards wants 3 teams (its specialty); adds ~32% to this project's yearly gain"
+     },
+     {
+      "specialty": "pretraining",
+      "projectId": "L.data",
+      "why": "Priority 3: Data filtering & mixing wants 1 team (its specialty); carries all of this project's yearly gain"
+     },
+     {
+      "specialty": "systems",
+      "projectId": "L.infer",
+      "why": "Priority 6: Inference efficiency wants 1 team (its specialty); carries all of this project's yearly gain"
+     },
+     {
+      "specialty": "pretraining",
+      "projectId": "L.opt",
+      "why": "Priority 4: Optimizer & architecture tweaks wants 1 team (its specialty); carries all of this project's yearly gain"
+     }
+    ]
+   },
+   "re.saf": {
+    "teams": 1,
+    "people": 100,
+    "seats": 100,
+    "seatsOpen": 0,
+    "quality": [
+     "strong"
+    ],
+    "payroll_perYear": 0.065,
+    "target": 1,
+    "teamSize": 100,
+    "fullTeamCost_perYear": {
+     "solid": 0.052,
+     "strong": 0.065,
+     "elite": 0.104
+    },
+    "filling": [],
+    "weeksToHireATeam": 10,
+    "sciProjects": []
+   },
+   "sci.saf": {
+    "teams": 2,
+    "people": 80,
+    "seats": 80,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.064,
+    "target": 2,
+    "teamSize": 40,
+    "fullTeamCost_perYear": {
+     "solid": 0.026,
+     "strong": 0.032,
+     "elite": 0.051
+    },
+    "filling": [],
+    "weeksToHireATeam": 4,
+    "sciProjects": [
+     {
+      "specialty": "alignment",
+      "projectId": "T-DECEPT",
+      "why": "Spare: every project has its teams wanted; Deception probe (priority 1) gains the most from it; adds ~29% to this project's yearly gain"
+     },
+     {
+      "specialty": "interp",
+      "projectId": "T-DECEPT",
+      "why": "Priority 1: Deception probe wants 1 team (its specialty); adds ~58% to this project's yearly gain"
+     }
+    ]
+   }
+  },
+  "hiringTargets": {
+   "eng": 6,
+   "re.cap": 15,
+   "sci.cap": 10,
+   "re.saf": 1,
+   "sci.saf": 2
+  },
+  "hireCapPerWeek": {
+   "cap": 21.071,
+   "saf": 10.769
+  },
+  "payroll_perYear": 2.277,
+  "candidates": [
+   {
+    "id": "C91",
+    "role": "eng",
+    "dept": "cap",
+    "quality": "strong",
+    "until": 406,
+    "untilDate": "Aug 11, 2026",
+    "cost_perYear": 0.105
+   },
+   {
+    "id": "C92",
+    "role": "re",
+    "dept": "saf",
+    "quality": "strong",
+    "until": 413,
+    "untilDate": "Aug 18, 2026",
+    "cost_perYear": 0.065
+   },
+   {
+    "id": "C93",
+    "role": "sci",
+    "dept": "cap",
+    "quality": "strong",
+    "until": 420,
+    "specialty": "systems",
+    "untilDate": "Aug 25, 2026",
+    "cost_perYear": 0.04
+   },
+   {
+    "id": "C95",
+    "role": "eng",
+    "dept": "cap",
+    "quality": "strong",
+    "until": 427,
+    "untilDate": "Sep 1, 2026",
+    "cost_perYear": 0.105
+   }
+  ],
+  "qualityScale": {
+   "solid": {
+    "out": 0.8,
+    "cost": 0.8,
+    "label": "Solid"
+   },
+   "strong": {
+    "out": 1,
+    "cost": 1,
+    "label": "Strong"
+   },
+   "elite": {
+    "out": 1.25,
+    "cost": 1.6,
+    "label": "Elite"
+   }
+  },
+  "stars": {
+   "count": 0,
+   "rule": {
+    "dTaste": 0.05,
+    "maxTaste": 1.5,
+    "cost": 0.3,
+    "cooperation": -20
+   }
+  },
+  "morale": {
+   "overall": 70,
+   "safety": 65
+  },
+  "staff": {
+   "cap": 2650,
+   "saf": 180
+  },
+  "poachingRivals": [
+   {
+    "name": "Anthropos",
+    "poachAggression": 40
+   },
+   {
+    "name": "Gemini Labs",
+    "poachAggression": 40
+   },
+   {
+    "name": "xLab",
+    "poachAggression": 60
+   },
+   {
+    "name": "Meridian",
+    "poachAggression": 40
+   }
+  ]
+ },
+ "AI": {
+  "_src": "departments/agents.ts agentsView; workTypeViews; engAllocView, reAllocView, safReAllocView, buildSplit, buildCapacity, upkeepLines; p.build queue; p.tooling vs data/v2/features.ts INTERNAL_TOOLS",
+  "packages": {
+   "eng": {},
+   "capRoutine": {
+    "versionId": "V31",
+    "monitorId": "auto",
+    "control": true
+   },
+   "capFrontier": {
+    "monitorId": "auto"
+   },
+   "safety": {}
+  },
+  "lanes": {
+   "eng": {
+    "model": "Atlas-2.8",
+    "newest": true,
+    "measuredL": 6.9,
+    "copies": 19587.466,
+    "h100e": 32752.464,
+    "shareOfBudget": 1,
+    "monitor": null
+   },
+   "capRoutine": {
+    "model": "Atlas-2.10",
+    "newest": false,
+    "measuredL": 6.9,
+    "copies": 63947.293,
+    "h100e": 106445.507,
+    "shareOfBudget": 0.813,
+    "monitor": "Atlas-2.8"
+   },
+   "capFrontier": {
+    "model": "Atlas-2.8",
+    "newest": true,
+    "measuredL": 6.9,
+    "copies": 14690.599,
+    "h100e": 24564.348,
+    "shareOfBudget": 0.187,
+    "monitor": "Atlas-2.6"
+   },
+   "safety": {
+    "model": "Atlas-2.8",
+    "newest": true,
+    "measuredL": 6.9,
+    "copies": 0,
+    "h100e": 0,
+    "shareOfBudget": 0,
+    "monitor": null
+   }
+  },
+  "mExp": 2.363,
+  "mIdeas": 1.19,
+  "safetyAiFte": 0,
+  "totalH100e": 165398.442,
+  "totalCost": 1.351,
+  "trusted": {
+   "policy": 0,
+   "effective": 0,
+   "aiShare": 0
+  },
+  "monitors": {
+   "need": 0.034,
+   "budget": 0.001,
+   "used": 0.001,
+   "coverage": 0.012,
+   "control": 0,
+   "controlShort": 0
+  },
+  "workTypes": [
+   {
+    "wt": "SWE",
+    "name": "Software engineering",
+    "model": "Atlas-2.8",
+    "copies": 19587.466,
+    "h100e": 32752.464,
+    "aiFte": 463600.063,
+    "humansTeamEq": 5,
+    "aiTeamEq": 3090.667,
+    "effectiveTeamEq": 25.166,
+    "multiplier_xPeopleAlone": 5.033,
+    "humanShare": 1,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.589,
+    "coverage": 0.589,
+    "costAIperHour": 0.289,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "EXP",
+    "name": "Experiments & runs",
+    "model": "Atlas-2.10",
+    "copies": 63947.293,
+    "h100e": 106445.507,
+    "aiFte": 1466406.694,
+    "humansTeamEq": 15,
+    "aiTeamEq": 14664.067,
+    "effectiveTeamEq": 31.018,
+    "multiplier_xPeopleAlone": 2.068,
+    "humanShare": 1,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.308,
+    "coverage": 0.308,
+    "costAIperHour": 0.287,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "IDEAS",
+    "name": "Research ideas & taste",
+    "model": "Atlas-2.8",
+    "copies": 14690.599,
+    "h100e": 24564.348,
+    "aiFte": 347700.047,
+    "humansTeamEq": 10,
+    "aiTeamEq": 8692.501,
+    "effectiveTeamEq": 11.431,
+    "multiplier_xPeopleAlone": 1.143,
+    "humanShare": 1,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.057,
+    "coverage": 0.057,
+    "costAIperHour": 0.289,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "SAF_EXP",
+    "name": "Safety experiments",
+    "model": "Atlas-2.8",
+    "copies": 0,
+    "h100e": 0,
+    "aiFte": 0,
+    "humansTeamEq": 1,
+    "aiTeamEq": 0,
+    "effectiveTeamEq": 1,
+    "multiplier_xPeopleAlone": 1,
+    "humanShare": 1,
+    "handedToAI_t": 0,
+    "aiDoesShare_A": 0,
+    "coverage": 0.255,
+    "costAIperHour": 0.289,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "SAF_IDEAS",
+    "name": "Safety research ideas",
+    "model": "Atlas-2.8",
+    "copies": 0,
+    "h100e": 0,
+    "aiFte": 0,
+    "humansTeamEq": 2,
+    "aiTeamEq": 0,
+    "effectiveTeamEq": 2,
+    "multiplier_xPeopleAlone": 1,
+    "humanShare": 1,
+    "handedToAI_t": 0,
+    "aiDoesShare_A": 0,
+    "coverage": 0.034,
+    "costAIperHour": 0.289,
+    "costHumanPerHour": 560
+   }
+  ],
+  "needs": {
+   "engineers": {
+    "cap": 30.343,
+    "order": [
+     "runs",
+     "upkeep",
+     "builds"
+    ],
+    "needs": [
+     {
+      "k": "runs",
+      "label": "Run setups, research adoptions, eval harness",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "upkeep",
+      "label": "Product upkeep",
+      "demand": 7.051,
+      "got": 7.051,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "builds",
+      "label": "Builds (features, launches, sector adaptations)",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     }
+    ],
+    "idle": 23.292,
+    "unit": "team-weeks a week"
+   },
+   "researchEngineersCap": {
+    "cap": 15,
+    "order": [
+     "ops",
+     "exp"
+    ],
+    "needs": [
+     {
+      "k": "ops",
+      "label": "Run operations",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "exp",
+      "label": "Project experiments",
+      "demand": 12,
+      "got": 12,
+      "capped": false,
+      "short": 0
+     }
+    ],
+    "idle": 3,
+    "unit": "teams"
+   },
+   "researchEngineersSaf": {
+    "cap": 100,
+    "order": [
+     "review",
+     "spotCheck",
+     "cases",
+     "validation",
+     "evals",
+     "removal",
+     "safExp"
+    ],
+    "needs": [
+     {
+      "k": "review",
+      "label": "Human review (safeguards)",
+      "demand": 19,
+      "got": 19,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "spotCheck",
+      "label": "Spot-checks of AI safety work",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "cases",
+      "label": "Open cases",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "validation",
+      "label": "Validation jobs",
+      "demand": 40,
+      "got": 40,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "evals",
+      "label": "Eval suites",
+      "demand": 20,
+      "got": 20,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "removal",
+      "label": "Foothold removals",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "safExp",
+      "label": "Line experiments",
+      "demand": 31.25,
+      "got": 21,
+      "capped": false,
+      "short": 10.25
+     }
+    ],
+    "idle": 0,
+    "unit": "people"
+   },
+   "buildSplit": {
+    "capacity": 30.343,
+    "human": 5,
+    "ai": 25.343,
+    "coverage": 0.632,
+    "m": 6.069
+   },
+   "upkeep": [
+    {
+     "kind": "product",
+     "ref": "D1",
+     "tw": 1.932
+    },
+    {
+     "kind": "product",
+     "ref": "D2",
+     "tw": 1.493
+    },
+    {
+     "kind": "product",
+     "ref": "D3",
+     "tw": 2.071
+    },
+    {
+     "kind": "monitor",
+     "ref": "capRoutine",
+     "tw": 0.4
+    },
+    {
+     "kind": "monitor",
+     "ref": "capFrontier",
+     "tw": 0.4
+    },
+    {
+     "kind": "feature",
+     "ref": "memory",
+     "tw": 0.115
+    },
+    {
+     "kind": "feature",
+     "ref": "computerUse",
+     "tw": 0.154
+    },
+    {
+     "kind": "feature",
+     "ref": "voiceVision",
+     "tw": 0.115
+    },
+    {
+     "kind": "feature",
+     "ref": "deepResearch",
+     "tw": 0.077
+    },
+    {
+     "kind": "feature",
+     "ref": "codingAgent",
+     "tw": 0.115
+    },
+    {
+     "kind": "suite",
+     "ref": "math",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "swe",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "mlResearch",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "longHorizon",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "cyber",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "bio",
+     "tw": 0.03
+    }
+   ]
+  },
+  "buildCapacity": {
+   "capacity": 30.343,
+   "human": 5,
+   "aEng": 0.632
+  },
+  "buildQueue": [],
+  "tools": {
+   "owned": [],
+   "all": [
+    {
+     "id": "codingHarness",
+     "name": "Coding harness",
+     "owned": false
+    },
+    {
+     "id": "researchHarness",
+     "name": "Research harness",
+     "owned": false
+    },
+    {
+     "id": "agentMemory",
+     "name": "Agent memory",
+     "owned": false
+    }
+   ]
+  }
+ },
+ "SEC": {
+  "_src": "p.security (wsl, ssl, target, spendRate, siloing, clearances, privileged, counterIntel, detectedThefts), core/limitsView.ts securityFloorView, security.ts reqSpend/wslFloor/privilegedOf (published formulas), core/selectors riskSources theft row (wsl + China theftIntent meter + China misalign band, all visible), s.china.meters.theftIntent (Relations panel shows it), s.log",
+  "known": {
+   "wsl": 3.077,
+   "ssl": 2.477,
+   "target": 2.4,
+   "targetRange": [
+    2,
+    5
+   ],
+   "spend_BperYear": 0.3,
+   "spendNeeded_holdNow": 1.03,
+   "spendNeeded_target": 0.56,
+   "costPerLevel": [
+    {
+     "wsl": 2.5,
+     "spend_BperYear": 0.613
+    },
+    {
+     "wsl": 3,
+     "spend_BperYear": 0.961
+    },
+    {
+     "wsl": 3.5,
+     "spend_BperYear": 1.507
+    },
+    {
+     "wsl": 4,
+     "spend_BperYear": 2.364
+    },
+    {
+     "wsl": 4.5,
+     "spend_BperYear": 3.707
+    },
+    {
+     "wsl": 5,
+     "spend_BperYear": 5.813
+    }
+   ],
+   "movePerDay": 0.006,
+   "decayPerDayUnderfunded": 0.002,
+   "floor": {
+    "now": 3.077,
+    "max": 3.3,
+    "binding": true
+   },
+   "floorToday": 3.077,
+   "siloing": 0,
+   "privilegedAtSilo": [
+    2830,
+    1981,
+    1132
+   ],
+   "clearances": false,
+   "privileged": 2830,
+   "counterIntel": 0.1,
+   "detectedThefts": [],
+   "theftRisk": {
+    "id": "theft",
+    "label": "Theft",
+    "kind": "theft",
+    "estimate": 0.025,
+    "band": [
+     0.012,
+     0.05
+    ],
+    "drivers": [
+     {
+      "label": "Weight security",
+      "share": 0.6
+     },
+     {
+      "label": "China intent",
+      "share": 0.4
+     }
+    ]
+   },
+   "chinaTheftIntent": 15.722,
+   "chinaRung": 1,
+   "eventLog": [
+    {
+     "day": 230,
+     "date": "Feb 16, 2026",
+     "kind": "gov",
+     "severity": 3,
+     "text": "Defense contracts now carry security clauses for frontier labs."
+    }
+   ]
+  },
+  "hiddenTruth_notExported": [
+   "security.spies (comment: \"hidden for player, shown only as an estimate band\" — no estimate selector exists)",
+   "security.stolen (truth list; player sees detectedThefts)",
+   "theft.ts theftHazardDaily (lagDays on true G + spies)",
+   "secretsLeakDaily (spies + true recipe gap)"
+  ],
+  "researchSpeedEffectOfSiloing": "NONE in engine: siloing only cuts privileged staff by 30% per level (privilegedOf); no research slowdown modelled"
+ },
+ "_flags": {
+  "run.predicted.Lg / domains": "planRun build on TRUE G: not exported; forecastAtLaunch (run.forecast) used instead",
+  "suiteWorkPreview before/after .rl": "RL gains from planRun on true stacks: dropped; only S2 and suite fid/exploit kept",
+  "teacherRows / synForm quality": "gOfBuild(v.build) + s.hidden.timeline gV0: truth; not exported (UI Data panel shows them: flag)",
+  "workTypes coverage / aiDoesShare_A": "workfit on version G (true); kept because the UI shows it (same as data400.json)",
+  "theftHazardDaily, secretsLeakDaily, spies": "hidden truth: not exported"
+ },
+ "errors": {}
+}

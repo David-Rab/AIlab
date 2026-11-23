@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LAB › Security</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.main { gap: 14px; }
+.top2 { display: grid; grid-template-columns: minmax(0,1fr) 720px; gap: 14px; flex: 1; min-height: 0; }
+.col { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1; min-height: 0; }
+.bot { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; flex: 0 0 330px; }
+.ruler { position: relative; margin: 76px 30px 0; height: 30px; }
+.ruler .tr { position: absolute; inset: 0; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ruler .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px 0 0 6px; background: var(--you); }
+.ruler .bl { position: absolute; top: -10px; bottom: -10px; width: 0; border-left: 2px dashed #c9d4e2; }
+.ruler .tg { position: absolute; top: -8px; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid #fff; transform: translateX(-7px); }
+.ruler .lab { position: absolute; font-size: 12px; color: var(--text-2); white-space: nowrap; transform: translateX(-50%); }
+.ruler .lab b { color: #fff; }
+.sl { position: relative; margin: 14px 30px 0; height: 60px; }
+.sl .z { position: absolute; top: 0; border-left: 1px solid var(--line-2); padding: 0 8px; font-size: 12px; color: var(--text-3); line-height: 1.35; height: 100%; }
+.sl .z b { display: block; color: var(--text-2); font-family: var(--mono); font-size: 12.5px; }
+.lvr { display: grid; grid-template-columns: 56px minmax(0,1fr) 84px 96px 84px 64px; gap: 14px; align-items: center; padding: 17px 18px; border-top: 1px solid var(--line); font-size: 14px; }
+.lvr.hd2 { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); font-weight: 650; padding-top: 12px; padding-bottom: 8px; }
+.lvr .L { font: 650 15px var(--mono); color: #fff; }
+.lvr .cb { position: relative; height: 12px; border-radius: 3px; background: var(--bg-2); }
+.lvr .cb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: #6f8fb5; }
+.lvr .cb .bud { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--warn); }
+.lvr .n { text-align: right; font-family: var(--mono); color: #fff; }
+.lvr.cur { background: rgba(58,138,224,.10); }
+.big { font: 650 30px var(--mono); color: #fff; } .big .u { font: 500 13px var(--sans); color: var(--text-2); margin-left: 4px; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; padding: 12px 18px; font-size: 13.5px; align-items: center; }
+.kv .v { font: 600 14px var(--mono); color: #fff; text-align: right; }
+.kv .v.s { font-family: var(--sans); font-weight: 500; }
+.seg3 { display: inline-flex; gap: 2px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+.seg3 span { padding: 2px 10px; border-radius: 5px; font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+.seg3 span.on { background: #24364f; color: #fff; box-shadow: inset 0 0 0 1px var(--you); }
+.drv { display: grid; grid-template-columns: 150px minmax(0,1fr) 40px; gap: 10px; align-items: center; font-size: 13px; padding: 3px 0; }
+.drv .bb { height: 10px; border-radius: 3px; background: var(--rival); }
+.log { padding: 10px 18px; border-top: 1px solid var(--line); font-size: 13px; display: grid; grid-template-columns: 96px 1fr; gap: 10px; }
+.log .d { font: 12px var(--mono); color: var(--text-3); }
+</style></head>
+<body data-tab="lab">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="comp.js"></script>
+<script src="shell.js"></script>
+<script src="lab-security.js"></script>
+</body></html>
