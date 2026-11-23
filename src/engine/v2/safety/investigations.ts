@@ -131,7 +131,8 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
 
 /** RF-S12: a case's work in engineer-days [stand-in, proxy: research/RD-SR24-safety-params.md C1, C3: an audit is
  *  0.2–30 person-days (Marks et al. 2025: 1.5–70+ researcher-hours; Taylor et al. 2025: blue budget ≈ 240
- *  person-hours)]. */
+ *  person-hours)]. CAL-S: kept, no primary source gives a case size; 30 = the top of the audit range (Taylor 2025 blue
+ *  budget 240 person-hours), research/CAL-safety-sources.md §2 [proxy, low]. */
 export const CASE_WORK = 30;
 
 /** Combined reliability of the case's instruments on its traits (the best target trait): combineTools over the tools'
