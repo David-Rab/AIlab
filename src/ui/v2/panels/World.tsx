@@ -7,7 +7,7 @@ import { REGIONS } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
 import {
   automationShare, CONTROL_DOMAINS, dateOf, dowYtd, firmAdoption, fmtDate, internalVersion, LEVERAGE_THRESHOLDS, leverageAll, measuredDomains,
-  remoteWorkAutomation, techBlockerAtLevels, unemploymentChange12m, youthExposedEmployment,
+  remoteWorkAutomation, techBlockerAtLevels, techGateLevels, unemploymentChange12m, youthExposedEmployment,
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
@@ -88,7 +88,7 @@ export function World({ s }: { s: GameStateV2 }) {
             const cls = disc ? (st.ramp >= 0.99 ? 'done' : 'ramp') : block ? 'locked' : 'avail';
             return (
               <Tip as="div" key={t.id} content={() => <TipCard title={`${t.id} ${t.name}`} value={disc ? `found ${fmtDate(dateOf(s, st.discoveredDay!))}` : pct(st.prog)} rows={[
-                { label: 'Gates', value: Object.entries(t.gates).map(([d, x]) => `${d} ${x}`).join(', ') || '—' },
+                { label: 'Gates', value: techGateLevels(s, t) || '—' },
                 { label: 'Prereqs', value: t.prereqs.join(', ') || '—' }, { label: 'Blocker', value: block ?? 'none', tone: block ? 'neg' : 'pos' },
                 { label: 'Ramp', value: pct(st.ramp) }, ...(t.risk ? [{ label: 'Risk', value: t.risk, tone: 'neg' as const }] : []),
                 ...(st.playerProject ? [{ label: 'Your moonshot', value: pct(st.playerProject.computeShare) }] : []),

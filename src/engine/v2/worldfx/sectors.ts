@@ -6,7 +6,7 @@
 //              (1 − w_PHYS)·Σ share·a_cog + w_PHYS·σ((Le_PHYS − fMid − θ_s)/fSpread)
 //   3 K      = Σ share·σ(ln(Wage·W0 / (price + review))/0.7)   price per work-hour from each provider's physical cost
 //   4 A*     = F·K·(1 − R)                   R = R0·frictionScale + policy + incidents − certification
-//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult;  A* < A → decays at 0.5/yr
+//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult (p, q: R16's × ECON.bassFit, CAL2-X);  A* < A → decays at 0.5/yr
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
@@ -14,10 +14,10 @@
 //              share-weighted AGENCY domain G, OOM; v2's L 8 / 1.5 L restated through the one λ)
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
-//   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
+//   8 Hire   = 1 − hireSlope·ΔF (1.2, CAL2-X; ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
 //   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr (×3 with UBI); U = U_base + Pool/LF
 import {
-  AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U05_SHIFT_G, U_BASE, US_EMPLOYMENT,
+  AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,
   type SectorDef,
 } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
@@ -34,7 +34,7 @@ import { costReduction, demandExpansion, workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
-import { gOfLevel, levelGate, oomPerLevel } from '../models/capability';
+import { gOfLevel, levelGate, oomPerLevel, v2LevelGate } from '../models/capability';
 import { CERT_FRICTION_CUT, certifiedBuyerShare, needsCert } from '../models/adaptations';
 
 export { REGIONS };
@@ -241,14 +241,16 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     st.R = frictionOf(s, r, def, pol, certShare);
     st.Astar = st.F * st.K * (1 - st.R);
     // RD-P04a: v2's +0.15 per AGENCY level above 8, per OOM of AGENCY G above λ⁻¹(8) (the slope at L 8).
-    let q = def.q * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
+    // CAL2-X: R16's p, q × ECON.bassFit (fitted to the BTOS growth).
+    const p = def.p * ECON.bassFit;
+    let q = def.q * ECON.bassFit * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
-    if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
+    if (st.A < st.Astar) st.A += (p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
     st.A = clamp01(st.A);
     // A2a: workers who use AI at work (Bass at the sector's p and q toward W*; slow disadoption as for A).
     const Wstar = workerTarget(def, r, st.F, st.A);
-    if (st.W < Wstar) st.W += (def.p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
+    if (st.W < Wstar) st.W += (p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
     else st.W -= 0.5 * (st.W - Wstar) * dt;
     st.W = clamp01(Math.max(st.W, st.A));
     // A2c: paid seats, a share σ of those workers: imitation (SEATS.q) toward σ* = K_seat·(1 − R) (the seat's cost gate
@@ -363,7 +365,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * levelGate(s.hidden.timeline, cons.socialG + (U05_SHIFT_G.SOCIAL ?? 0), FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
+    const friendStar = 0.03 + 0.18 * v2LevelGate(s.hidden.timeline, 'SOCIAL', cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

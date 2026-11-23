@@ -5066,3 +5066,98 @@ scenario's "50% faster" in early 2026.
 T1 authors2026: SC 2029.638 (+0.047) pass; SAR −0.148 (tol 0.12), SIAR −1.290, ASI −3.423 fail (CAL-T: SC pass, SAR
 +0.60, SIAR −0.75, ASI −2.91). T1L authors2026 SC / SAR 1462 / 1475 d (CAL-T 1577 / 1675; want 1495 / 1573): now early,
 the leader lab's SC → SAR 13 d. Other presets unchanged (T1L ai2027 ×4, T1L fast SAR, T1L slow SC: rivals deferred).
+### CAL2-X (calibration round 2, world / products; branch cal2-wfx from rd 0397bd2; DECISIONS "after CAL1" 5, 6, 8, 13, 15)
+Checks: `worldfx.ts --smoke` (seed 2027) before / after each step; probes `scripts/v2/_cal2x/` (shift.ts per-world shifts
+and V0's domain G, bass.ts the Bass fit on one RefBot run).
+
+**1. Units leftover (decision 8).** One conversion replaces CAL-X's ai2027-only `U05_SHIFT_G`: models/capability.ts
+`gOfV2Level(w, d, L)` = λ⁻¹(L − off_d) − domainRefShift(w, d) and `v2LevelGate(w, d, x, L, s)`. The shift depends on the
+world (δ_d·Δ_bm of its own references; shift.ts): REASON / SOCIAL-class ai2027 1.51 / 3.85, authors2026 1.82 / 4.64,
+fast 0.60 / 1.38, slow 1.34 / 3.42 OOM, so the constant was wrong outside ai2027 (fast read its friend / Accept gates
+2.5 OOM early). off_d = v2's level profile on the shifted domains RD-U05 deleted with REF_OFF (`V2_DOMAIN_OFF` CYBER −1,
+PHYS −4; REASON / SOCIAL / MEDIA / BIO 0): v2's level of a domain was λ(G_d) + off_d. V0's builds carry no domain
+profile (raw domain G = general G in all four worlds), so with the conversion every gate below fires where v2 put it.
+Rule applied: a threshold is "beats the best human" only if its source sets it by a human comparison independent of
+research/16's profile table; a number placed on that table (each row dated to an AI 2027 model) or fitted later is a v2
+level. **All 13 gates are v2 levels; none qualified as best-human** (R16's anchors "10 = top expert, 12 = Agent-4
+class" are themselves dated to AI 2027 models, and its profile puts e.g. CYBER 8 at Agent-2, "a little worse than the
+best human hackers", which RD-U05 puts ~4 OOM later).
+
+| Gate (file) | Threshold | Source / meaning | Decision |
+|---|---|---|---|
+| AI-friend share (sectors.ts) | SOCIAL 6.5 / 1 | M2 fit to AI 2027 Jul 2027 (Agent-3-mini) | v2 (was CAL-X constant; now per world) |
+| T1 Accept (control.ts) | REASON 11.5 / 0.8 | G1 fit, adviser between SAR and SIAR | v2 (idem) |
+| Persuasion (control.ts) | SOCIAL 10 / 1.5 | R16 §2.1; profile SOCIAL 10 = Agent-4 | v2 |
+| GOV / MIL adviser targets (control.ts) | REASON 12 / 1 | "Cabinet talks to the model", AI 2027 Dec 2027 | v2 |
+| Tier gate (control.ts) | REASON 12 / 0.5 | R16 §2.2 "superhuman advice", 12 = Agent-4 class | v2 |
+| INFRA cyber (control.ts) | CYBER 11 / 1 | R16 INFRA "Agent-4 runs OB's security" (profile CYBER 12) | v2 (+ off −1) |
+| Risk exposure bio / cyber / persuasion (techtree.ts) | BIO 10, CYBER 8, SOCIAL 12 | R16 §3.1–3.2 T25 / T24 / T23, Agent-1 / Agent-2 / Safer-3 quotes | v2 |
+| Tech gates, 29 techs (techtree.ts techBlocker) | data/v2/techs.ts gates | R16 §3.2: "calibrated so that AI 2027 Classic produces 2028–29" | v2 |
+| PHYS gate (mix.ts) | fMid + θ, W16 floor 10, W19 +3, cap 15·robots | v2 robot-bound PHYS level (V0 PHYS 1) | v2 (+ off −4; full cap does not bind) |
+| M_sci (techtree.ts) | L_sci 8 / 5 (REASON part) | R16 §3.1 [D] on the profile | v2 (REASON + shift) |
+
+Not converted, AGENCY (RD-U05 shift 0): tier AGENCY 9.5, internal ops 10, ν gate 10, α mid 8, Bass q boost 8, macro
+boost 10. RD-U05 also dropped v2's AGENCY −1 profile, so these gates read AGENCY one level higher than v2 did at the same
+G (CP3f's danger U05_SHIFT applied +1 for the same reason; sectors.ts ALPHA_START_SIG still reads v2's AGENT0 AGENCY 4
+while day 1 reads 5). Not changed here: research/16 ties AGENCY to the METR horizon (L = 3 + 0.8·log2(h/15) → V0's 203
+min reads 6.0), so neither 4 nor 5 is its own value: **designer question**. danger.ts U05_SHIFT (safety lane) is the same
+ai2027-only constant pattern for act thresholds; it could read gOfV2Level's shift per world.
+UI: the World panel's tech "Gates" row and the blocker message show the converted gate on the measured domain scale
+(`techGateLevels`), e.g. BIO 10 → BIO 2.3 on ai2027, not R16's number.
+
+**V0 measures BIO 0: a measurement-scale design matter, not this leftover.** V0's raw BIO G equals its general G
+(27.66, L 5 on ai2027). RD-U05 measures BIO against best_BIO = G_SC + (r + ASI_EXTRA 1.3)·Δ_bm: the five expert domains
+(SOCIAL, MEDIA, CYBER, BIO, PHYS) share one reference, "the work AI is worst at" (AIFM's ASI gap, data/v2/workTypes.ts
+refDelta), 3.85 OOM above the coding best human, and λ reaches 0 only 2.5 OOM below V0, so all five clamp to 0. Measured
+BIO says otherwise (VCT: o3 beat 94% of expert virologists; Anthropic ASL-3 May 2025, OpenAI "High" bio Jul 2025,
+research/16 T25). A fix needs per-domain sourced best-human references (BIO and CYBER at least) in refDelta, which moves
+the work fit, danger thresholds and display: designer decision.
+
+Before → after (worldfx --smoke, seed 2027, ai2027): AI-friend 8.2 → 8.1%; Accept ≥ 0.85 2028-03-30 → 2028-03-09
+(in window); firm adoption Jul 2026 18.9 → 19.4%; hours of use mid-2026 6.9 → 7.0%, saved 2.7 → 2.8%; W4 U +0.20 →
++0.21 pp; W2 +1.9 → +2.0%; F11 2026 $51.9B → $52.3B, 2027 $102.8B → $102.9B; three more headlines fire (H13, H16, H18:
+techs now open on the v2 schedule). Same pass / fail set.
+
+**2. Adoption (decision 5): Bass p / q fitted to the measured BTOS growth.** Source, primary: Census story "AI use
+among businesses" (census.gov/library/stories/2026/05/ai-use-businesses.html, 26 May 2026), Figure 1, current AI use
+(last two weeks, new "any business function" question since Nov 2025): 17.3% (14 Dec 2025) → 19.8% (3 May 2026), ×1.42
+a year (research/22 §7: ×1.2–1.4; the 21.7% Jul / 23.8% Sep 2026 readings are still press only, not found on census.gov).
+On the reference path the game's readout grew ×2.4 a year over the same window (A tracks A* = F·K·(1 − R), which steps
+with each release, at R16's [D] p / q). Fit: one factor on every sector's p and q, `ECON.bassFit` **0.33** (sector ratios
+kept; probe _cal2x/bass.ts): window growth ×2.41 → ×1.37–1.43 (seed 2027; seed 5 ×2.53 → ×1.48). The readout's own k
+was fitted on the old, too-fast path, so it is refitted with it to the same BTOS release: `firmK` 10 → **19** (19.8% on
+3 May 2026). Readout shape left as a stand-in: SOFT ≈ 66% vs BTOS Information 39.7%, FIN ≈ 41% vs Finance 33.9%.
+
+Before → after (worldfx --smoke, seed 2027; task 1 included; the after run also had step 4's product edits in the tree, which move only revenue and Accept here: without them F11 $46.7B / $104.2B, Accept 2028-03-09):
+
+| Target | before | after | want |
+|---|---|---|---|
+| W4 firm adoption, Jan / Jul / Nov 2026 | 12.4 / 19.4 / 25.0% | 17.7 / 20.9 / 23.4% | BTOS 17.7 (Jan), 19.8 (May) |
+| A2a hours of use, mid-2026 | 7.0% FAIL | 5.9% pass | 5–6.5% |
+| A2a hours saved, mid-2026 | 2.8% FAIL | 2.2% pass | 1.7–2.7% |
+| A2a workers using AI 2026 | 40.8% | 39.2% | 35–45% |
+| W4 aggregate U, Nov 2026 | +0.21 pp FAIL | +0.07 pp pass | ≈ 0 ±0.15 |
+| W2 Normal Technology TFP / decade | +2.0% FAIL | +1.0% pass | +0.5–1% |
+| F11 2026 / 2027 revenue | $52.3B / $102.9B | $46.2B / $105.4B | $36–67B / ≥ $98B |
+| AI-friend Jul 2027; Accept ≥ 0.85 | 8.1%; 2028-03-09 | 8.1%; 2028-03-11 | 10 ±3; Dec 2027 ±3 mo |
+worldfx --smoke: 29 pass, 0 fail (was 4 fail).
+**Revenue floor:** 2027 revenue does not fall: by 2027 the player's revenue is agent spend, not the adopted-hour Bass
+stock (seed 5: $96.9B at R16's p / q, $96.5B fitted, both under the floor; seed 2027 $105.4B). The floor's own source:
+F11 "$140B 2027 (±30%)" = AI 2027's compute forecast §5 OpenBrain revenue table ($14B / $45B / $140B for 2025–27,
+research/02 F6, V2-SPEC §9 row 9), a scenario projection, not a measurement; ±30% is [D]. Measured since (research/22
+§7): Anthropic run-rate $14B (Feb 2026) → $81B (Oct 2026), i.e. reality runs at or above the scenario's path.
+
+**3. hireSlope 1.5 → 1.2 (decision 6), a once-fitted stand-in** (R16's 1.5 [D] has no source; the WS5 probe fit 1.2).
+HireRate_SOFT = 1 − slope·ΔF reads F only, so the first day ≤ 10% follows from the ΔF path (probe _cal2x/hire.ts, five
+RefBot classic seeds 2027 / 1 / 2 / 3 / 5): 1.5 → 2026-12-04 … 2027-03-17, median 2027-01-10; **1.2 → 2027-05-12 …
+2027-07-19, median 2027-05-21** (target Jul 2027 ±3 mo: in window). worldfx --smoke (seed 2027): 2027-08-01, pass;
+exposed 22–25 −21.3% → −18.4% (band −19 ±5), SOFT hire Nov 2026 0.21 → 0.36; 0 fails. finance --smoke: 168 pass, only
+the 2 CAL1-known FIN3c fails (as at rd 0397bd2).
+
+**4. Products (decisions 13, 15).** Memory's Chat appeal term (enabler, consumer share 0.1) deleted; the horizon ×1.3 and
+its text stay (research/CAL-products-sources.md T3: the appeal had neither mechanism nor source). Checks with step 4
+(--smoke): products 62 pass, the same 10 fails as rd 0397bd2 (P1, P7 ×2, M2, A5, A6, C2b, C2c ×2, RD-B20: fixture-era, none
+about these two values); worldfx 0 fails, F11 2026 / 2027 $46.7B / $104.2B → $46.2B / $105.4B, paid share 5.3 → 5.2%. DISTILL_HARVEST_SHARE
+0.01 → **0.0015**, inside the sourced bracket 3e-4 (MiniMax's ~1e11 tokens over 90 days of OpenAI's 6B API tokens/min) –
+7e-3 (the game's day-0 API) (CAL-products-sources D1). Effect on the day-0 player API (3.4e11 tokens/day, anonymous ½):
+a distiller's access 1.00 → 0.84 with no KYC, 0.80 → 0.59 at KYC 1, so KYC now matters on a big API (review products F1).

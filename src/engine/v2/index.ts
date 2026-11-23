@@ -134,7 +134,7 @@ export { spotPrice, cloudPricePerYear, expectedListPrice, expectedCloudPrice, ca
 export { liveCommitments, keptShare } from './actors/commitments';
 export { leverageAll, leverageTier, LEVERAGE_THRESHOLDS, CONTROL_DOMAINS } from './worldfx/control';
 export { revenueReadout } from './worldfx/revenue';
-export { techBlocker, techBlockerAtLevels } from './worldfx/techtree';
+export { techBlocker, techBlockerAtLevels, techGateLevels } from './worldfx/techtree';
 export { canonicalKey } from './core/causes';
 export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.

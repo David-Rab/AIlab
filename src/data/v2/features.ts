@@ -112,11 +112,12 @@ export interface FeatureDef {
 }
 
 export const FEATURES: FeatureDef[] = [
-  // CAL-P [D stand-in]: no primary source measures what cross-session memory adds to the time horizon or to an app's
-  // appeal (research/CAL-products-sources.md T3); both numbers are assumptions, and the text says so.
+  // CAL-P [D stand-in]: no primary source measures what cross-session memory adds to the time horizon (research/
+  // CAL-products-sources.md T3); the number is an assumption, and the text says so. CAL2-X (decision 13): the Chat appeal
+  // term (×1.1, share 0.1) deleted: it had neither a mechanism nor a source.
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back; both assumed, no measurement exists); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
-    fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product (assumed, no measurement exists); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
+    fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }],
     risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
     effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (an assumed 13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',

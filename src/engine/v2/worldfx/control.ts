@@ -4,10 +4,10 @@
 //   Lev_X    = Σ_dom W_dom · Ctrl_dom · Share_X,dom      W: ECON .25, GOV .20, MIL .30, INFRA .25
 //   P_dom   += k_dom·(Target_dom − P_dom)/365;  Target = f(adoption, contracts, briefings, race, techs)
 // Thresholds: Lev ≥ 0.15 Entrenched, ≥ 0.35 Indispensable, ≥ 0.6 (+ robots > 10% of labor or W25) Decisive.
-import { SECTORS, U05_SHIFT_G } from '../../../data/v2/sectors';
+import { SECTORS } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { internalVersion } from '../models/labs';
-import { domainScaleG, gOfLevel, levelGate, levelOfG } from '../models/capability';
+import { domainScaleG, gOfLevel, levelGate, levelOfG, v2LevelGate } from '../models/capability';
 import type { ControlDomainId, ControlState, GameStateV2, LabId, SectorId, SystemCtx } from '../types';
 import { paidDeployments, productGVec, type WorldMix } from './mix';
 import { clamp01, techRamp, type PolicyState } from './policy';
@@ -69,7 +69,8 @@ export function leverageTier(s: GameStateV2, lev: number): LeverageTier {
 }
 
 /** Persuasion_X = INFO_share_X · σ((L_SOCIAL − 10)/1.5), ×(1 + W23 ramp effect) (R16 §2.1). RD-P04b: on the consumer
- *  model's SOCIAL domain G (OOM), the L 10 / 1.5 L gate through the one λ (models/capability.ts levelGate). */
+ *  model's SOCIAL domain G (OOM), the L 10 / 1.5 L gate through the one λ. CAL2-X: R16's SOCIAL 10 is a v2 level (its profile's
+ *  Agent-4) → v2LevelGate. */
 export function persuasion(s: GameStateV2, lab: LabId, mix?: WorldMix): number {
   const share = s.world.infoShare[lab] ?? 0;
   const w = s.hidden.timeline;
@@ -78,7 +79,7 @@ export function persuasion(s: GameStateV2, lab: LabId, mix?: WorldMix): number {
     const i = mix.providers.findIndex((p) => p.key === lab);
     if (i >= 0) social = mix.consumer.US.socialGs[i];
   } else social = mixSocialFallback(s, lab);
-  return share * levelGate(w, social, 10, 1.5) * (1 + 0.5 * techRamp(s, 'W23'));
+  return share * v2LevelGate(w, 'SOCIAL', social, 10, 1.5) * (1 + 0.5 * techRamp(s, 'W23'));
 }
 const SOCIAL_IX = DOMAIN_IDS.indexOf('SOCIAL');
 function mixSocialFallback(s: GameStateV2, lab: LabId): number {
@@ -167,7 +168,8 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const iv = internalVersion(s);
   const w = s.hidden.timeline;
   const hasInternal = s.player.deployments.some((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-  // RD-P04b: the internal model's AGENCY / REASON domain G (OOM); v2's level gates through the one λ (levelGate).
+  // RD-P04b: the internal model's AGENCY / REASON domain G (OOM); v2's level gates through the one λ (levelGate). CAL2-X:
+  // the REASON / CYBER gates are v2 levels read through the per-world conversion (v2LevelGate); AGENCY has no RD-U05 shift.
   const ivAg = iv ? domainScaleG(w, iv, 'AGENCY') : 0;
   const ivR = iv ? domainScaleG(w, iv, 'REASON') : 0;
   const internalOps = hasInternal && iv ? 0.15 * levelGate(w, ivAg, 10, 1) : 0;
@@ -185,9 +187,9 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const target: Record<ControlDomainId, number> = {
     ECON: econP,
     // Officials adopt superhuman advisers (AI 2027 Dec 2027: Cabinet talks to the model "for hours a day") [D].
-    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * levelGate(w, govAdv, 12, 1),
-    MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * levelGate(w, govAdv, 12, 1),
-    INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * levelGate(w, mix.bestPublic.CYBER, 11, 1),
+    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * v2LevelGate(w, 'REASON', govAdv, 12, 1),
+    MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * v2LevelGate(w, 'REASON', govAdv, 12, 1),
+    INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * v2LevelGate(w, 'CYBER', mix.bestPublic.CYBER, 11, 1),
   };
 
 
@@ -211,10 +213,10 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
     if (dom === 'MIL' && !pol.milLoopRemoved && !pol.armsRace) cap = 1;
     if (pol.humanInLoop && cap > 2) cap = 2;
     c.tierCap = cap;
-    const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * levelGate(w, Lr, 12, 0.5) - 0.03);
+    const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * v2LevelGate(w, 'REASON', Lr, 12, 0.5) - 0.03);
     const tgt = tierMix(a, cap);
     for (let k = 0; k < 4; k++) c.tiers[k] += (tgt[k] - c.tiers[k]) * 2 * dt;
-    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * levelGate(w, Lr + (U05_SHIFT_G.REASON ?? 0), ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
+    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * v2LevelGate(w, 'REASON', Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
     c.accept += (accStar - c.accept) * ACCEPT.rate * dt;
     // Shares by lineage key.
     let sh: Record<LabId, number>;

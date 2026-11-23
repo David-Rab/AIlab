@@ -171,6 +171,20 @@ export function domainScaleGs(w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'bui
   return out;
 }
 
+/** CAL2-X: v2's level profile on the domains RD-U05 moved (data/v2/calibration.ts REF_OFF, deleted in RD-U05): v2 showed
+ *  a domain at λ(G_d) + off_d, so V0 read CYBER 4, PHYS 1. Only the shifted domains' entries: AGENCY's −1 (shift 0) is
+ *  not applied (its gates read the RD-U05 score; BUILD-NOTES CAL2-X). A unit, not a parameter. */
+export const V2_DOMAIN_OFF: Partial<Record<DomainId, number>> = { CYBER: -1, PHYS: -4 };
+/** CAL2-X: the one conversion for world gates whose thresholds are v2 levels (research/16's profile scale, dated to AI 2027
+ *  models), read on the RD-U05 domain scale G (domainScaleG). v2's domain level was λ(G_d) + off_d on the raw domain G;
+ *  RD-U05 reads G_d − domainRefShift(w, d). So a v2 threshold L* in domain d is the scale G λ⁻¹(L* − off_d) − shift_d(w),
+ *  per world (the shift is δ_d·Δ_bm of the world's own references: ai2027 REASON 1.51 / SOCIAL 3.85, authors2026 1.82 /
+ *  4.64, fast 0.60 / 1.38, slow 1.34 / 3.42 OOM). Replaces CAL-X's ai2027-only U05_SHIFT_G. */
+export const gOfV2Level = (w: TimelineWorld, d: DomainId, L: number) => gOfLevel(w, L - (V2_DOMAIN_OFF[d] ?? 0)) - domainRefShift(w, d);
+/** CAL2-X: a v2 gate σ((L_v2,d − L*)/s) on a domain-scale G x (see gOfV2Level): levelGate on the raw domain G at L* − off_d. */
+export const v2LevelGate = (w: TimelineWorld, d: DomainId, x: number, L: number, s: number) =>
+  levelGate(w, x + domainRefShift(w, d), L - (V2_DOMAIN_OFF[d] ?? 0), s);
+
 /** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain
  *  effective compute (versionDomainG: training, data and design specialisation, all in OOM) measured against that
  *  domain's best human, best_d = G_SC + δ_d·Δ_bm, on the general 0–15 scale. So L_d = 10 exactly when the model
