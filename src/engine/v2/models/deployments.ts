@@ -18,8 +18,31 @@ export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
   consumer: ['full', 'mini'], api: ['full', 'mini'], agents: ['full'], enterprise: ['full'],
   gov: ['full', 'mini'], trusted: ['full', 'mini'], internal: ['full', 'mini', 'imported'], open: ['full', 'mini'],
 };
-/** Distillation leak coefficient per channel (× gap × DA), §3.3.5. Open weights = full absorption. */
-export const LEAK_COEF: Record<Channel, number> = { consumer: 0.3, api: 1.0, agents: 0.5, enterprise: 0.2, gov: 0, trusted: 0.05, internal: 0, open: 1 };
+/** RD-P09 (PRD-18): share of a channel's usage bought by unverified buyers (self-serve accounts with no identity check),
+ *  the only usage a distiller can hide in [stand-in]: Chat's free and paid accounts are anonymous but rate-limited per
+ *  account; API / Agents keys are mostly self-serve; Enterprise, Government and Trusted buyers are named under contract.
+ *  Open weights: anyone (diffusion.ts gives them access 1). */
+export const ANON_SHARE: Record<Channel, number> = { consumer: 0.3, api: 0.5, agents: 0.5, enterprise: 0, gov: 0, trusted: 0, internal: 0, open: 1 };
+/** RD-P09: the part of the anonymous share left at each KYC level (0–3): each level verifies ten times more of the
+ *  self-serve accounts [D, the access formula's tenfold cut per level, research/RD-X04r D2]. */
+export const KYC_ANON_LEFT = [1, 0.1, 0.01, 0.001] as const;
+/** RD-P09: share of the anonymous buyers asked to verify who leave instead [stand-in]. */
+export const KYC_REFUSE = 0.1;
+/** RD-P09: review cost, as a share of the revenue of the buyers it verifies [stand-in]. */
+export const KYC_REVIEW_COST = 0.02;
+/** RD-P09: the share of this product's usage still bought anonymously after its KYC level. */
+export function anonShare(d: Pick<Deployment, 'channel' | 'kyc'>): number {
+  return ANON_SHARE[d.channel] * (d.channel === 'open' ? 1 : KYC_ANON_LEFT[d.kyc ?? 0]);
+}
+/** RD-P09: the anonymous share KYC asks to verify (0 at KYC 0 or on a channel with no anonymous buyers). */
+const kycAsked = (d: Pick<Deployment, 'channel' | 'kyc'>) => (d.channel === 'open' ? 0 : ANON_SHARE[d.channel] * (1 - KYC_ANON_LEFT[d.kyc ?? 0]));
+/** RD-P09: the product's demand left after KYC: the asked buyers who refuse to verify are lost. */
+export const kycDemandFactor = (d: Pick<Deployment, 'channel' | 'kyc'>) => 1 - kycAsked(d) * KYC_REFUSE;
+/** RD-P09: share of the product's revenue spent reviewing the buyers who verify. */
+export const kycReviewShare = (d: Pick<Deployment, 'channel' | 'kyc'>) => {
+  const f = kycDemandFactor(d);
+  return f > 0 ? (KYC_REVIEW_COST * kycAsked(d) * (1 - KYC_REFUSE)) / f : 0;
+};
 /** Default serving-pool reservation per channel [D]. */
 export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, agents: 0.2, enterprise: 0.15, gov: 0.05, trusted: 0.03, internal: 0, open: 0 };
 
@@ -160,7 +183,7 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
 /** RD-P05 (DD-02 a): release a version's weights openly. One-way: the version is marked open (openDay) and an open
  *  deployment of it goes live, which cannot be withdrawn or replaced. Its consequences run through that deployment:
  *  China absorbs the recipe gap above the open frontier (security.ts → openWeightsReleased), rivals distil it at full
- *  access at their next post-training (diffusion.ts, LEAK_COEF open 1), and misuse reaches everyone with only the hazard
+ *  access at their next post-training (diffusion.ts, open access 1), and misuse reaches everyone with only the hazard
  *  filter as a safeguard (incidents.ts). The charter's release block and the eval gate apply (deployGate). */
 export function releaseOpen(s: GameStateV2, ctx: SystemCtx, versionId: string): Deployment | string {
   const v = versionById(s, versionId);

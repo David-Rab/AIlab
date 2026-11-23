@@ -4,10 +4,10 @@
 // Both read recipeG at RECIPE_F (RD-B16) / model G, so the same functions serve every lab.
 import { DIFFUSION_TAU_DAYS, DISTILL_FIT, DISTILL_S } from '../../../data/v2/calibration';
 import { recipeOf } from '../actors/rivalModel';
-import { LEAK_COEF } from '../models/deployments';
+import { anonShare } from '../models/deployments';
 import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab, versionById } from '../models/labs';
 import { playerRecipeG } from '../models/stacks';
-import type { GameStateV2, LabId } from '../types';
+import type { Deployment, GameStateV2, LabId } from '../types';
 
 /** A lab's own recipe G at RECIPE_F (the player's playerRecipeG, a rival's recipeOf). */
 export function labRecipeG(s: GameStateV2, lab: LabId): number {
@@ -59,14 +59,31 @@ export function distillFit(params: number | undefined): number {
   return t[t.length - 1][1];
 }
 
-/** Access to a served teacher (research/RD-X04r §3B, D2): open weights 1; an API product
- *  LEAK_COEF[channel] (how much of its output a distiller can harvest) × (1 − 0.25·log10(1/(1 − c))), c = 1 − 10^−kyc
- *  (each KYC level cuts harvested data tenfold [D]: = 1 − 0.25·kyc). China reaches US APIs through its
- *  distillationAccess meter (/60, ≤ 1). */
-export function teacherAccess(s: GameStateV2, student: LabId, open: boolean, channelCoef = 1, kyc = 0): number {
+/** RD-P09: output tokens a distiller harvesting at full access collects [P-r, research/RD-X04r D4: MiniMax's campaign
+ *  ≈ 13M exchanges ≈ 100B tokens, the scale behind IFP's S ≈ 0.5]. */
+export const DISTILL_FULL_TOKENS = 1e11;
+/** RD-P09: share of a product's anonymous usage a distiller can take before it is noticed [stand-in]. */
+export const DISTILL_HARVEST_SHARE = 0.01;
+/** RD-P09: days of usage a distiller harvests before the post-training it feeds [stand-in: a quarter, about a rival's
+ *  post-training cadence]. */
+export const DISTILL_HARVEST_DAYS = 90;
+/** RD-P09: output tokens a distiller can harvest from a served product: its tokens served per day (worldfx/revenue.ts
+ *  servedTokensPerDay) × its anonymous share after KYC (models/deployments.ts anonShare) × DISTILL_HARVEST_SHARE ×
+ *  DISTILL_HARVEST_DAYS. 0 with no usage. */
+export function harvestTokens(d: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
+  return Math.max(0, d.servedTokensDay ?? 0) * anonShare(d) * DISTILL_HARVEST_SHARE * DISTILL_HARVEST_DAYS;
+}
+/** Access to a served teacher (research/RD-X04r §3B, D2): open weights 1. A served product (RD-P09): D2's
+ *  1 − 0.25·log10(D_full / D) on the harvested tokens D (harvestTokens; DISTILL_FULL_TOKENS), in [0, 1]: no usage, no
+ *  access; each tenfold cut of the harvest (one KYC level) −0.25. China reaches US APIs through its distillationAccess
+ *  meter (/60, ≤ 1). A rival's served teacher (`d` absent) has access 1 (rivals' usage is not tracked). */
+export function teacherAccess(s: GameStateV2, student: LabId, open: boolean, d?: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
   if (open) return 1;
   const china = student === CHINA_ID ? Math.min(1, s.china.meters.distillationAccess / 60) : 1;
-  return Math.max(0, channelCoef * (1 - 0.25 * kyc) * china);
+  if (!d) return china;
+  const D = harvestTokens(d);
+  if (!(D > 0)) return 0;
+  return Math.max(0, Math.min(1, 1 - 0.25 * Math.log10(DISTILL_FULL_TOKENS / D))) * china;
 }
 
 /** Rule B: the G a lab's post-training at own G `ownG` (student of `params` active params) gains by distilling the best
@@ -85,7 +102,7 @@ export function distillLift(s: GameStateV2, lab: LabId, ownG: number, params: nu
     for (const d of s.player.deployments) {
       if (d.status !== 'live' || d.channel === 'internal') continue;
       const v = versionById(s, d.versionId);
-      if (v) take(v.G, teacherAccess(s, lab, d.channel === 'open', LEAK_COEF[d.channel], d.kyc), s.player.name);
+      if (v) take(v.G, teacherAccess(s, lab, d.channel === 'open', d), s.player.name);
     }
   }
   if (!onlyPlayer) {

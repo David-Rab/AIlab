@@ -103,8 +103,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  70 (RD-P08): sector packs become sector adaptations (Deployment.adaptations, models/adaptations.ts); the Sector packs
  *  feature goes. Migration 69 → 70: each product's packs → adaptations on the same product (certification end kept in a
  *  sector that needs one, none elsewhere); queued pack builds → adaptation builds; 'sectorPacks' dropped from the lab's
- *  and the products' features and the build queue. */
-export const SCHEMA_REV = 70;
+ *  and the products' features and the build queue.
+ *  71 (RD-P09): the distillation leak through a product scales with its tokens served to anonymous buyers
+ *  (Deployment.servedTokensDay, derived daily; optional, so 70 → 71 changes nothing: the next daily tick fills it). */
+export const SCHEMA_REV = 71;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -716,6 +718,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       pl.build.queue.forEach((x, i) => (x.priority = i + 1));
     }
   },
+  70: () => {},
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */

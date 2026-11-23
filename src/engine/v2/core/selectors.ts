@@ -32,7 +32,7 @@ export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
 export type { EvalCost, EvalDepthRow, EvalMeasureRow, EvalTaskView } from '../models/evals';
-export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess, kycDemandFactor, kycReviewShare } from '../models/deployments';
 export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';

@@ -20,7 +20,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationLive, adaptationsBuilding, CERT_CASH, CERT_DAYS, needsCert,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationLive, adaptationsBuilding, CERT_CASH, CERT_DAYS, needsCert, kycDemandFactor, kycReviewShare,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -218,7 +218,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
           </select>
         </div>
         {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
-            <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level cuts distillation access by a quarter and this product's demand by 2%.</TipCard>}><span className="pc-k">KYC</span></Tip>
+            <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; a tenth of those asked leave (demand ×{F.num(kycDemandFactor(n), 3)}) and review costs {F.pct(kycReviewShare(n), 1)} of revenue.</TipCard>}><span className="pc-k">KYC</span></Tip>
             <Seg testId={`prod-kyc.${d.id}`} value={n.kyc} options={[0, 1, 2, 3].map((k) => ({ v: k as Deployment['kyc'], label: String(k) }))} onChange={(k) => set({ kyc: k })} />
         </div>}
         <div className="pc-row">

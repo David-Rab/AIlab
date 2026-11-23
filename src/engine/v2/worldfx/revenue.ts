@@ -42,6 +42,8 @@ import {
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
+import { kycDemandFactor, kycReviewShare } from '../models/deployments';
+import { PEAK_FLOPS } from '../../../data/v2/workTypes';
 
 // RD-P03 (DD-02): the player's sector hours split between its products by the buyers' choice (each product its own
 // seller, worldfx/mix.ts playerProdW), not by channel weights. Trusted access's ×3 price is in its offer (RD-B11 B16).
@@ -325,7 +327,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       // hours only through the buyers' choice; no multiplier here (the RD-B11 capped ×(1 + enabler) is gone).
       const fOf = (d: Deployment) => {
         let f = 1;
-        if (d.channel === 'api' || d.channel === 'agents') f *= 1 - 0.02 * d.kyc;
+        f *= kycDemandFactor(d); // RD-P09: anonymous buyers asked to verify who refuse are lost
         if (d.status === 'restricted') f *= 0.3;
         return f;
       };
@@ -490,6 +492,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       revenue += x.need > 0 ? (x.dem * got) / x.need : x.dem;
       left -= got;
     }
+    revenue *= 1 - kycReviewShare(d); // RD-P09: reviewing the buyers who verify
     // Capacity ($B/yr the served H100e could earn): consumers at the paying users' rate; sector products in serving order
     // (seats, then per-hour work), H100e beyond the need at the per-hour work's rate.
     let capacity: number;
@@ -522,6 +525,15 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     C += capacity;
   }
   return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent };
+}
+
+/** RD-P09: output tokens a product serves per day on `h100e` served H100e: decode throughput (PEAK_FLOPS × the lab's
+ *  decode utilisation ÷ the main model's FLOP per token) × 86 400 s. Prefill time is ignored (decode dominates serving
+ *  time), so this is a slight upper bound; lineup tiers are counted at the main model's FLOP per token. */
+export function servedTokensPerDay(s: GameStateV2, d: Deployment, h100e: number): number {
+  const v = versionById(s, d.versionId);
+  if (!v || !(h100e > 0)) return 0;
+  return (h100e * PEAK_FLOPS * decodeUtilNow(s) * 86400) / flopPerToken(s, v);
 }
 
 /** Revenue rate ($B/yr) of a deployment, as last computed by the revenue system. */
@@ -574,6 +586,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     const x = byId.get(d.id);
     if (!x) {
       if (d.revenueRate !== undefined) d.revenueRate = 0;
+      if (d.servedTokensDay !== undefined) d.servedTokensDay = 0;
       continue;
     }
     d.revenueRate = Math.round(x.revenue * 1e4) / 1e4;
@@ -582,6 +595,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     d.servedH100e = Math.round(x.servingH100e);
     d.cutH100e = Math.round(x.cutH100e);
     if (x.needPaid !== undefined) d.needPaidH100e = Math.round(x.needPaid);
+    d.servedTokensDay = servedTokensPerDay(s, d, x.servingH100e);
     if (ctx.day % 30 === 0) {
       (d.hist ??= []).push(d.revenueRate);
       if (d.hist.length > 12) d.hist.shift();

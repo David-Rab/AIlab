@@ -614,7 +614,7 @@ export interface Deployment {
    *  to the next launch on the channel (a relaunch) and stop acting when the product is retired. */
   adaptations: Adaptation[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
-  kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
+  kyc: 0 | 1 | 2 | 3; // RD-P09: buyer verification (api/agents): each level verifies 10× more of the anonymous buyers
   status: 'live' | 'restricted' | 'withdrawn';
   // derived each day
   revenueRate?: Money; // $B/yr
@@ -626,6 +626,9 @@ export interface Deployment {
   /** Chat: the part of needH100e its paying users need (served first, on the main model; the rest is free users on the
    *  mini when it has one). A6: usage data counts each tier's tokens at its own model's FLOP per token. */
   needPaidH100e?: number;
+  /** RD-P09: output tokens served per day (served H100e at the main model's decode throughput); the distillation leak
+   *  through this product reads its anonymous share (production/diffusion.ts teacherAccess). */
+  servedTokensDay?: number;
   /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
   hist?: number[];
 }

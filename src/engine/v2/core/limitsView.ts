@@ -10,6 +10,7 @@ import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
 import { leaseAvailableGW } from '../compute/sites';
 import { revenueReadout, servingPool } from '../worldfx/revenue';
+import { kycDemandFactor } from '../models/deployments';
 import { chatToolAppeal, productTools, toolGap } from '../worldfx/serving';
 import { SECTOR_CHANNELS } from '../worldfx/mix';
 import { SECTORS } from '../../../data/v2/sectors';
@@ -101,7 +102,7 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
  *  them, over the same offer without them, inside the buyers' choice); Trusted's ×3 is a price, in its offer and the Price row, not here. */
 export function demandModifiers(s: GameStateV2, d: Deployment): { label: string; mult: number }[] {
   const out: { label: string; mult: number }[] = [];
-  if ((d.channel === 'api' || d.channel === 'agents') && d.kyc > 0) out.push({ label: `KYC ${d.kyc}`, mult: 1 - 0.02 * d.kyc });
+  if (kycDemandFactor(d) < 1) out.push({ label: `KYC ${d.kyc}`, mult: kycDemandFactor(d) });
   const tools = productTools(s, d);
   if (d.channel === 'consumer') {
     const e = chatToolAppeal(tools);
