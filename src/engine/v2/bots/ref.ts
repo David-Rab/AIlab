@@ -24,7 +24,7 @@ import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models
 import { sectorFit, studentParamsFor } from '../worldfx/serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
-import { MONITOR_SAME } from '../../../data/v2/agents';
+import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
 import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
@@ -52,7 +52,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
  *  delay, kept as the bot's habit; the player can reopen at once). */
 const REF_RETRY_DAYS = 180;
 import { COLUMN_DEPT } from '../../../data/v2/teams';
-import { sizedTarget, staffLines, type LinePlan } from './common';
+import { answerFramework, sizedTarget, staffLines, type LinePlan } from './common';
 import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
@@ -200,35 +200,23 @@ export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
  *  with an average inference cost around 10x lower … checking roughly half of all input/output tokens" ("divide by 20 to
  *  get our estimate for the share of compute on monitoring"), and the main text monitors with weaker, cheaper models
  *  (Apr 2027: "monitoring Agent-3's outputs using a series of weaker AI systems including Agent-2"; fn 51: "a distilled
- *  system that has 10% of the cost as Agent-4"). RefBot spends REF_MONITOR_SPEND of the watched fleets' compute and picks
- *  as each monitor the live model whose cost (FLOP per token) is nearest REF_MONITOR_COST of the watched model's (a copy of
- *  it while it has nothing cheaper); the coverage follows (departments/agents.ts monitorBudget): ½ at the source's cost
- *  ratio, less with a dearer monitor. */
+ *  system that has 10% of the cost as Agent-4"). RefBot spends REF_MONITOR_SPEND of the watched fleets' compute; SR-20b:
+ *  each monitor is the player's own trusted-watcher picker (monitorId 'auto', safety/trusted.ts autoWatcher: the most
+ *  capable live model the lab trusts other than the watched one), no bot-only choice; the coverage follows
+ *  (departments/agents.ts monitorBudget). */
 export const REF_MONITOR_SPEND = 1 / 20;
-export const REF_MONITOR_COST = 0.1;
 const REF_MONITORED: AgentUse[] = ['capRoutine', 'capFrontier'];
 
 /** SAFMECH: RefBot's monitors (weekly; the budget when it moves by more than a tenth). Reads only what the lab knows
- *  (its models' sizes and its compute). */
+ *  (its beliefs about its models and its compute). */
 export function refMonitors(s: GameStateV2, api: EngineApi): void {
   if (s.time.day % 7 !== 5) return;
-  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed'));
   let watched = 0;
   for (const use of REF_MONITORED) {
     const v = agentVersion(s, use);
     if (!v) continue;
     watched += agentCompute(s, use);
-    const fv = flopPerToken(s, v);
-    let best: ModelVersion = v;
-    let gap = Math.abs(Math.log(REF_MONITOR_COST));
-    for (const m of live) {
-      const r = flopPerToken(s, m) / Math.max(1e-9, fv);
-      if (!(r <= 1)) continue;
-      const g = Math.abs(Math.log(r / REF_MONITOR_COST));
-      if (g < gap - 1e-9) { gap = g; best = m; }
-    }
-    const want = best.id === v.id ? MONITOR_SAME : best.id;
-    if (s.player.agents[use].monitorId !== want) tryAct(s, api, 'agents.set', { use, monitorId: want });
+    if (s.player.agents[use].monitorId !== MONITOR_AUTO) tryAct(s, api, 'agents.set', { use, monitorId: MONITOR_AUTO });
   }
   const online = s.player.computeOnline;
   const tot = safetyTotal(s.player.split);
@@ -422,7 +410,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
 
   // Internal agents: the newest full version on routine research; engineering, frontier and safety research follow it
-  // (default packages: monitors 'same' on routine and frontier research), so the reference lab uses its newest model
+  // (default packages: monitors 'auto', the most capable trusted model, on routine and frontier research), so the reference lab uses its newest model
   // everywhere with a standard monitor (R7, calibration neutral). With continual learning (P08) the stream runs on it and moves to the
   // first version on each newer base (carrying its know-how); other versions on the stream's base are ignored.
   const nv = newestFull(s);
@@ -694,10 +682,10 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
   return i >= 0 ? i : (def?.defaultChoice ?? 0);
 }
 
-/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; everything else takes the event's default. (The
+/** RefBot's decisions (§7.4): E20 Accept, E23 Reject (E17 Continue is now an override of the framework's training
+ *  holds, answerFramework); everything else takes the event's default. (The
  *  board is handled by the finance autopilot: FIN3b dropped E37 for the critics' seat action.) */
 export function refDecide(_s: GameStateV2, d: PendingDecision): number {
-  if (d.id === 'E17') return choiceByLabel(d, 'Continue');
   if (d.id === 'E20') return choiceByLabel(d, 'Accept');
   if (d.id === 'E23') return choiceByLabel(d, 'Reject');
   return EVENT_BY_ID.get(d.id)?.defaultChoice ?? 0;
@@ -760,6 +748,7 @@ export const REF_PLAY: RefPlayOpts = { safetyShare: refSafetyShare };
 export function refAct(s: GameStateV2, api: EngineApi, o: RefPlayOpts = REF_PLAY, lines: LinePlan[] = REF_LINES, sciTeams = REF_SAFETY_SCI_TEAMS): void {
   if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, sciTeams) });
   staffLines(s, api, lines);
+  answerFramework(s, api, 'override');
   refTrusted(s, api);
   refFootholds(s, api);
   refPlay(s, api, o);

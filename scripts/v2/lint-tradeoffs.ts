@@ -146,9 +146,9 @@ const iv = internalVersion(s4)!;
     && (v.evals.suiteDay ?? -1) > day0 && near(measuredSd(v), row.bandAfter, 1e-9),
     'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the finished suite narrows the band to the previewed ±',
     `${e ?? ''} ${JSON.stringify(pv.gains)} sd ${measuredSd(v)} vs ${row.bandAfter}`);
-  // External evaluators under the 'full + external' gate: the release check is previewed and the finished suite meets it.
+  // External evaluators under the framework's external review: the release check is previewed and the finished suite meets it.
   const x = clone(s4);
-  x.player.safety.evalGate = 'fullPlusExternal';
+  x.player.safety.framework.evalDepth = 'deep'; x.player.safety.framework.externalReview = true;
   const xv = x.player.models.versions.find((y) => y.id === ev.id)!;
   const before = externallyEvaluated(x, xv);
   const px = pvOf(x, 'runEvals', { versionId: ev.id, by: 'evalIndep', depth: 'full' });

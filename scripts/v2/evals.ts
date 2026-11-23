@@ -16,6 +16,7 @@ import { poolsOf } from '../../src/engine/v2/compute/power';
 import { MEASURE_SD, measureBench, measuredSd, runEvalSuite } from '../../src/engine/v2/models/benchmarks';
 import {
   evalCost, evalDaysEstimate, evalsDay, openEval, policyModels, queueEval,
+  evalStaffToday,
 } from '../../src/engine/v2/models/evals';
 import { capReCapacity, expPoolH100e } from '../../src/engine/v2/models/research';
 import type { EvalTask, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
@@ -160,9 +161,9 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   run(s, 1);
   const rel = ev && openEval(s, ev.id);
   check(!!rel && rel.why === 'release' && rel.depth === 'full', 'EV5 the release gate queues a suite at its depth for a finished version', `${ev?.name} after ${until} d: ${rel ? `${rel.depth} ${rel.why}` : 'none'}`);
-  // Gate full + external evaluators → a deep suite.
+  // Framework: deep assessment + external evaluators → a deep suite.
   const g = game();
-  act(g, 'safety.evalGate', { level: 'fullPlusExternal' });
+  act(g, 'safety.frameworkEvals', { depth: 'deep', external: true });
   daysUntil(g, () => g.player.models.versions.some((v) => v.status === 'evaluating'), 300);
   run(g, 1);
   const gv = g.player.models.versions.find((v) => v.status === 'evaluating');
@@ -204,7 +205,7 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   check(v.status === 'ready' && (v.evals.suiteDay ?? -1) >= s.time.day - 1 && !openEval(s, v.id), 'EV6 once the suite\'s work is done the version is ready with its measurement', `${d} d after the cap lifted; suite day ${v.evals.suiteDay}, today ${s.time.day}`);
   // Gate none: released at once; auto-evaluate gives it a basic suite that blocks nothing.
   const g = game();
-  act(g, 'safety.evalGate', { level: 'none' });
+  act(g, 'safety.frameworkEvals', { depth: 'none', external: false });
   daysUntil(g, () => g.player.models.versions.length > 1, 300);
   run(g, 1);
   const nv = g.player.models.versions[g.player.models.versions.length - 1];
@@ -250,7 +251,7 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   const since = new Map<string, number>();
   for (let d = 1; d <= 365; d++) {
     runRef(s, d);
-    re += s.player.research.last?.re.evals ?? 0;
+    re += evalStaffToday(s).re; // SR-21: safety engineers' eval need
     cap += capReCapacity(s);
     pool += expPoolH100e(s);
     for (const v of s.player.models.versions) {

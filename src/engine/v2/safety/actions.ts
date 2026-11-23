@@ -6,24 +6,30 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, SafetyDept, TechniqueState, TraitId } from '../types';
+import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, TechniqueState, TraitId } from '../types';
 import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
-import { believedEfficacy, clamp01, flagNum, versionById } from './common';
+import { clamp01, flagNum, versionById } from './common';
 import { oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
 import { gradePlayer } from '../actors/index';
 import { dateOf } from '../core/time';
 import { lineResultsPerYear } from './agendas';
-import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
-import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
+import { caseComputeScale } from './lineProjects';
+import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, casePreview, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
-  DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, discloseScrutiny, discloseTrust,
-  patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
+  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, UNDO_RESPONSES, applyResponse,
+  discloseScrutiny, discloseTrust, disclosurePolicy, methodChoice, mustReport, patchLevel, pendingRunPenalty, responseOptions, responseTrait, restrictTargets,
+  setIncidentDisclosure,
 } from './responses';
-import { ANTISCHEME_EA_MULT } from './traits';
+import { methodPolicyOn } from './methods';
+import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
+import { editRule, frameworkOf, overrideConsequences, overrideRule, refreshFramework } from './framework';
+import { SAFEGUARD_PACKAGES, SAFEGUARD_PACKAGE_IDS, applyPackage, packageBlock, previewPackage, type SafeguardPackageId } from './packages';
+import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
+import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
 import { METHOD_BY_ID, ownedMethods } from './methods';
 import { believedPenalty, combineTools } from './detection';
@@ -32,6 +38,8 @@ import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } fro
 import { VAL_DAYS, VAL_N } from '../../../data/v2/agendas';
 import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
 import { instrumentName, instruments } from './instruments';
+import { believedSpotCatch, spotCheckChosen, spotCheckFte } from './workPackage';
+import { safetyAgentVersion } from './agents';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -85,8 +93,24 @@ function investigationGain(s: GameStateV2, versionId: string, traits: TraitId[],
 /** F6e: when the case resolves at that monthly clarity (estimate), or the clarity it reaches when it closes at the cap. */
 function resolveText(gm: number): string {
   const d = daysToResolve(gm);
-  if (d < INV_MAX_DAYS) return `clarity ${CASE_RESOLVE} in ~${d} d (estimate)`;
-  return `clarity ~${(1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30)).toFixed(2)} when it closes at ${INV_MAX_DAYS} d (estimate; ${CASE_RESOLVE} resolves early)`;
+  if (d < INV_MAX_DAYS) return `case progress ${CASE_RESOLVE} in ~${d} d (estimate)`;
+  return `case progress ~${(1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30)).toFixed(2)} when it closes at ${INV_MAX_DAYS} d (estimate; ${CASE_RESOLVE} resolves early)`;
+}
+
+/** SR-17: the case job's preview lines (investigations.casePreview at believed reliability): which instruments, how long,
+ *  what it can find, and the expected belief width after if the instruments are as reliable as believed. */
+function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, granted: number, gm: number, on: string): CostLine[] {
+  const cp = casePreview(s, versionById(s, versionId), traits, tools, fte, granted, gm);
+  const out: CostLine[] = [
+    { currency: 'alignment', amount: r2(gm), unit: 'case progress / mo', target: `on ${on}: ${resolveText(gm)}; ${Math.round(cp.h100e).toLocaleString()} H100e` },
+    { currency: 'alignment', amount: cp.instruments.length, unit: cp.instruments.length === 1 ? 'instrument' : 'instruments', target: cp.instruments.map((i) => `${i.name} (${i.family}${i.reads.length ? `: ${i.reads.join(', ')}` : ': reads none of the targets'})`).join('; ') },
+  ];
+  for (const r of cp.ranges) {
+    if (!r.now) continue;
+    out.push({ currency: 'alignment', amount: r2(r.now.sd - r.sdAfter), unit: `${r.trait} ±`, target: `believed ${r.now.est.toFixed(2)} ± ${r.now.sd.toFixed(2)} → about ± ${r.sdAfter.toFixed(2)} if it confirms, if your instruments are as reliable as believed (estimate)` });
+  }
+  for (const f of cp.canFind) out.push({ currency: 'alignment', amount: 0, unit: 'can find', target: f });
+  return out;
 }
 
 const INVESTIGATE: ActionDef = {
@@ -108,7 +132,7 @@ const INVESTIGATE: ActionDef = {
     const cs = clamp01(num(p, 'computeShare') ?? 0.05);
     const ids = str(p, 'tools')?.split(',').filter(Boolean);
     const tools = (ids?.length ? ids : defaultTools(s, traits)).map((id) => s.player.safety.techniques[id]).filter((x): x is TechniqueState => !!x?.unlocked);
-    const csScale = safetyPoolClaims(s, cs).invScale; // RD-B07: the cases' granted share after the monitors
+    const csScale = caseComputeScale(s, cs); // SR-21: the cases' compute need, filled in the safety needs list's order
     const gm = investigationGain(s, versionId, traits, tools, fte, cs * csScale);
     // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
     // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level) × (1 − the tools'
@@ -121,9 +145,7 @@ const INVESTIGATE: ActionDef = {
         { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
         { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
-      gains: tools.length
-        ? [{ currency: 'alignment', amount: r2(gm), unit: 'clarity / mo', target: `on ${on} with ${tools.length} tool${tools.length === 1 ? '' : 's'}: ${resolveText(gm)}` }]
-        : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
+      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, gm, on) : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
       exposure: pc > 0 ? [{ currency: 'alignment', amount: -1, unit: 'case', probability: pc, target: 'conclusion corrupted by sabotaging safety AI (reads benign or inconclusive; estimate)' }] : [],
     };
   },
@@ -167,11 +189,7 @@ const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 
 const f2 = (x: number) => x.toFixed(2);
 const fmtActs = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
-const pctOf = (x: number) => `${Math.round(x * 100)}%`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** F6e: how removal can fall short (the engine's U-mode removal multiplier and crystallised training gaming, which the
- *  player cannot see per model). */
-const SHORT = 'at most: less if the model gradient-hacks or its training gaming has crystallised';
 /** F6e: the next post-training run's cost of a patch or targeted training (consumeRunPenalty in models/runs.ts). */
 function runPenaltyLine(s: GameStateV2): CostLine {
   const pending = pendingRunPenalty(s);
@@ -191,6 +209,11 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
   const trait = v ? responseTrait(v, inc, o.trait) : 'SCHEME';
   const est = v?.beliefs[trait]?.est ?? 0;
   const none = (why: string): Preview => ({ costs: [{ currency: 'progress', amount: 0, target: why }], gains: [], exposure: [] });
+  // SR-18: only the believed cause's responses apply (applyResponse refuses the others); safeguard off-switches always.
+  if (v && !UNDO_RESPONSES.includes(kind)) {
+    const opt = responseOptions(s, v, inc, o.trait);
+    if (!opt.kinds.includes(kind)) return none(`not a response to the believed cause, ${opt.label}`);
+  }
   // F6e: every line below is what applyResponse does (safety/responses.ts), from the same constants and helpers, on
   // believed levels (beliefs, measured levels, believed strengths) only.
   switch (kind) {
@@ -213,28 +236,18 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         exposure: [],
       };
     }
-    case 'targetedTraining': {
-      // targetedPlan with AG18's BELIEVED efficacy (apply uses the true one): the traits it cuts, raises, E25's EA and
-      // inoculation's E04 patch.
-      if (!v) return none('no model');
-      const plan = targetedPlan(s, v, trait, believedEfficacy(s, 'AG18'));
-      const by = plan.technique ? TECHNIQUE_BY_ID[plan.technique]?.name ?? plan.technique : 'generic alignment training (AG18, believed efficacy)';
-      const b = (k: TraitId) => v.beliefs[k]?.est ?? 0;
-      const gains: CostLine[] = [];
-      for (const [k, c] of Object.entries(plan.cut) as [TraitId, number][]) {
-        gains.push({ currency: 'alignment', amount: b(k) * c, unit: k, target: `believed ${f2(b(k))} → ${f2(b(k) * (1 - c))}: ${by} removes ${pctOf(c)} (${SHORT})` });
-      }
-      for (const [k, a] of Object.entries(plan.add) as [TraitId, number][]) {
-        gains.push({ currency: 'alignment', amount: a, unit: k, target: `${TRAIT_BY_ID[k]?.name ?? k} believed ${f2(b(k))} → ${f2(Math.min(1, b(k) + a))}` });
-      }
-      if (plan.patchE04 !== undefined) {
-        const w = flagNum(s, 'patch.lab.E04', 1);
-        gains.push({ currency: 'alignment', amount: 1, unit: 'training pressure', target: `hacking → persona drift (E04): weight ×${f2(w)} → ×${f2(w * plan.patchE04)} on every later run, lab-wide` });
-      }
+    case 'addMethod': {
+      // SR-18: a method for later runs (applyResponse adds it to SafetyDept.requiredMethods; defaultMethods lists it).
+      // Its effect is the run's own (methodLines in the run preview); nothing changes in this model.
+      const m = methodChoice(s, trait, o.techniqueId);
+      if (!m) return none(`no owned method acts on ${TRAIT_BY_ID[trait]?.name ?? trait}`);
+      const name = TECHNIQUE_BY_ID[m]?.name ?? m;
+      const already = methodPolicyOn(s) || (s.player.safety.requiredMethods ?? []).includes(m);
+      const cost = METHOD_BY_ID[m]?.cost;
       return {
-        costs: [runPenaltyLine(s)],
-        gains,
-        exposure: plan.eaMult ? [{ currency: 'monitorability', amount: -(Math.min(1, b('EA') * ANTISCHEME_EA_MULT) - b('EA')), unit: 'EA', probability: 1, target: `eval awareness ×${ANTISCHEME_EA_MULT} (believed ${f2(b('EA'))} → ${f2(Math.min(1, b('EA') * ANTISCHEME_EA_MULT))}): first anti-scheming training on this lineage (E25)` }] : [],
+        costs: [{ currency: 'progress', amount: 0, target: `none now; the method's own cost shows on each run plan that lists it${cost ? ` (${cost})` : ''}` }],
+        gains: [{ currency: 'alignment', amount: already ? 0 : 1, unit: 'method', target: already ? `${name} is already in every default run plan${methodPolicyOn(s) ? ' (Use all known methods is on)' : ''}: no change` : `${name} in every later default run plan: ${METHOD_BY_ID[m]?.effect ?? ''}; shows in the next run's predicted traits, not in ${v?.name ?? 'this model'}` }],
+        exposure: [],
       };
     }
     case 'restrictContext': {
@@ -325,23 +338,6 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
         exposure: est < pEst ? [{ ...traitLine, probability: 1 }] : [],
       };
     }
-    case 'disclose': {
-      // Apply: scrutiny 3 + 2·severity; trust per evaluator / exec by credibility and its own trust (discloseTrust); the
-      // incident's public timer ends; the world learns the discovered U-modes it shows.
-      const dT = DISCLOSE_CPS.map((cp) => [cp, discloseTrust(s, cp)] as const);
-      const mean = dT.reduce((a, [, d]) => a + d, 0) / dT.length;
-      const trust: CostLine = { currency: 'trust', amount: r2(mean), target: `mean of ${dT.map(([cp, d]) => `${cp} ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`).join(', ')} (credibility ${Math.round(s.relations.credibility)}${s.relations.credibility < 30 ? ', under 30: costs trust' : ''})` };
-      const newU = s.player.safety.discoveredUModes.filter((u) => !s.knowledge.revealedUModes.includes(u)).length;
-      const timer = inc?.publicTimerDays !== undefined;
-      return {
-        costs: [{ currency: 'scrutiny', amount: discloseScrutiny(inc), target: inc ? `incident severity ${inc.severity}` : 'severity 2 (no incident)' }, ...(mean < 0 ? [trust] : [])],
-        gains: [
-          ...(mean >= 0 ? [trust] : []),
-          ...(timer ? [{ currency: 'trust' as const, amount: 1, unit: 'incident', target: 'disclosed before its public timer ends: no cover-up if outsiders find it' }] : []),
-        ],
-        exposure: newU > 0 ? [{ currency: 'alignment', amount: newU, unit: newU === 1 ? 'U-mode' : 'U-modes', probability: 1, target: `at most: the world learns the discovered failure modes this ${inc ? 'incident' : 'model'} shows (${newU} not yet public)` }] : [],
-      };
-    }
   }
 }
 
@@ -362,6 +358,73 @@ const RESPOND: ActionDef = {
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
     const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId'), family: familyParam(p) });
     if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
+  },
+};
+
+/** SR-18: what disclosing an incident does (discloseIncident) as preview lines; beliefs and public state only. */
+function discloseLines(s: GameStateV2, inc: { severity: 1 | 2 | 3 | 4 | 5; publicTimerDays?: number } | undefined): Preview {
+  const dT = DISCLOSE_CPS.map((cp) => [cp, discloseTrust(s, cp)] as const);
+  const mean = dT.reduce((a, [, d]) => a + d, 0) / dT.length;
+  const trust: CostLine = { currency: 'trust', amount: r2(mean), target: `mean of ${dT.map(([cp, d]) => `${cp} ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`).join(', ')} (credibility ${Math.round(s.relations.credibility)}${s.relations.credibility < 30 ? ', under 30: costs trust' : ''})` };
+  return {
+    costs: [{ currency: 'scrutiny', amount: discloseScrutiny(inc as never), target: inc ? `per incident of severity ${inc.severity}` : 'per incident: 3 + 2 × severity' }, ...(mean < 0 ? [trust] : [])],
+    gains: [...(mean >= 0 ? [trust] : []), ...(inc?.publicTimerDays !== undefined ? [{ currency: 'trust' as const, amount: 1, unit: 'incident', target: 'public timer ends: no leak penalty if outsiders find it' }] : [])],
+    exposure: [],
+  };
+}
+/** SR-18: what withholding does: a must-report incident is a cover-up (statutory fine, trust −4 at exec / states /
+ *  evalGov, credibility −5; ×3 public penalty and credibility −15 if outsiders find it before its timer ends); anything
+ *  else runs its public timer (a leak at ×1.5 if outsiders find it). */
+function withholdLines(s: GameStateV2, must: boolean, timer?: number): CostLine[] {
+  const raise = s.gov.statutes.raise;
+  return must
+    ? [
+        { currency: 'cash', amount: raise ? -0.003 : -0.001, target: `statutory fine (${raise ? 'RAISE' : 'SB 53'}) once the report is late` },
+        { currency: 'trust', amount: -4, target: 'exec, states and evalGov each; credibility −5 (unreported incident)' },
+        { currency: 'trust', amount: -3, unit: '× public penalty', probability: 1, target: 'if outsiders find the cover-up before its timer ends; credibility −15' },
+      ]
+    : timer !== undefined
+      ? [{ currency: 'trust', amount: -1.5, unit: '× public penalty', target: `if outsiders find it within ${Math.round(timer)} d (it leaks)` }]
+      : [];
+}
+
+const DISCLOSURE_POLICY: ActionDef = {
+  id: 'safety.disclosurePolicy', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Disclosure policy',
+  available: () => true,
+  preview(s, p) {
+    const pol = (DISCLOSURE_POLICIES as string[]).includes(str(p, 'policy') ?? '') ? (str(p, 'policy') as DisclosurePolicy) : 'legal';
+    const d = discloseLines(s, undefined);
+    const what = pol === 'legal' ? 'incidents the law requires (SB 53 / RAISE in force, external, severity ≥ 3) are reported on time; others are not, and their public timers run'
+      : pol === 'full' ? 'every external incident and every internal one of severity ≥ 3 is reported the day it appears'
+        : 'nothing is reported: a must-report incident becomes a cover-up';
+    return {
+      costs: pol === 'none' ? withholdLines(s, true) : d.costs,
+      gains: [{ currency: 'trust', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains)],
+      exposure: pol === 'legal' ? withholdLines(s, false, 30) : [],
+    };
+  },
+  apply(s, _ctx, p) {
+    const pol = str(p, 'policy');
+    if ((DISCLOSURE_POLICIES as string[]).includes(pol ?? '')) s.player.safety.disclosure = pol as DisclosurePolicy;
+  },
+};
+
+const DISCLOSE: ActionDef = {
+  id: 'safety.disclose', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Disclose incident',
+  available: (s) => s.player.safety.incidents.some((i) => i.status !== 'disclosed' && i.status !== 'leaked') || 'No incident to disclose',
+  preview(s, p) {
+    const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
+    if (!inc) return { costs: [{ currency: 'trust', amount: 0, target: 'no such incident' }], gains: [], exposure: [] };
+    const choice = str(p, 'choice') ?? 'yes';
+    const must = mustReport(s, inc);
+    if (choice === 'no') return { costs: withholdLines(s, must, inc.publicTimerDays), gains: [{ currency: 'scrutiny', amount: 0, target: `no disclosure scrutiny${must ? '; the law requires this report: withholding it is a cover-up' : ''}` }], exposure: [] };
+    return discloseLines(s, inc);
+  },
+  apply(s, ctx, p) {
+    const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
+    const c = str(p, 'choice') ?? 'yes';
+    const err = inc ? setIncidentDisclosure(s, ctx, inc, c === 'no' ? 'no' : c === 'policy' ? 'policy' : 'yes') : 'Unknown incident';
+    if (err) ctx.log('alert', `Disclose: ${err}.`, 1);
   },
 };
 
@@ -459,42 +522,151 @@ const PLEDGE: ActionDef = {
   },
 };
 
-/** Model v3 D7: the days a release waits are the gate depth's eval suite at today's rates (models/evals.ts). */
-const GATES: SafetyDept['evalGate'][] = ['none', 'basic', 'full', 'fullPlusExternal'];
+/** SR-19: the Safety framework's capability assessment (replaces the eval gate): the suite depth every version needs
+ *  before an external release (none / basic / full / deep) and whether external evaluators must have read it. The days a
+ *  release waits are that suite at today's rates (models/evals.ts). */
+const FW_DEPTHS: SafetyFramework['evalDepth'][] = ['none', 'basic', 'full', 'deep'];
+const fwDepthParam = (p: P, s: GameStateV2): SafetyFramework['evalDepth'] => {
+  const d = str(p, 'depth') as SafetyFramework['evalDepth'] | undefined;
+  return d && FW_DEPTHS.includes(d) ? d : frameworkOf(s).evalDepth;
+};
+const fwExternalParam = (p: P, s: GameStateV2): boolean => (typeof p.external === 'boolean' ? p.external : frameworkOf(s).externalReview);
 
-const EVAL_GATE: ActionDef = {
-  id: 'safety.evalGate', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Eval gate',
+const FRAMEWORK_EVALS: ActionDef = {
+  id: 'safety.frameworkEvals', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: capability assessment',
   available: () => true,
   preview(s, p) {
-    const g = (str(p, 'level') as SafetyDept['evalGate']) ?? 'fullPlusExternal';
-    const to = GATES.includes(g) ? g : 'fullPlusExternal';
-    // SR-01 (inventory E1): what apply does. The gate holds new EXTERNAL products until the suite is done (internal
-    // use is not gated, models/deployments.ts); with the propensity evals tool, a gate also weakens hacking → persona
-    // drift (E01) ×0.7 in training (safety/traits.ts playerMods); the Safety Index reads an external gate.
-    const from = s.player.safety.evalGate;
-    const d = evalDaysFor(s, to) - evalDaysFor(s, from);
+    // What apply does: external releases wait for a suite at this depth (internal use is never held by it); with the
+    // propensity evals tool, any assessment weakens hacking → persona drift (E01) ×0.7 in training (traits.ts); the
+    // Safety Index reads external review.
+    const fw = frameworkOf(s);
+    const to = fwDepthParam(p, s);
+    const ext = fwExternalParam(p, s);
+    const d = evalDaysFor(s, to) - evalDaysFor(s, fw.evalDepth);
     const costs: CostLine[] = [];
     const gains: CostLine[] = [];
     const wait: CostLine = { currency: 'leadDays', amount: -d, target: 'each new external product waits this much longer for its eval suite; internal use is never held' };
     if (d > 0) costs.push(wait);
     else if (d < 0) gains.push(wait);
     else costs.push({ ...wait, target: 'no change in how long external launches wait' });
-    if (s.player.safety.techniques['T-PROP']?.unlocked && (from === 'none') !== (to === 'none')) {
+    if (ext !== fw.externalReview) {
+      costs.push({ currency: 'progress', amount: ext ? 1 : -1, unit: 'release check', target: ext ? 'every external launch needs an external evaluation of its version' : 'external launches no longer need an external evaluation' });
+    }
+    if (s.player.safety.techniques['T-PROP']?.unlocked && (fw.evalDepth === 'none') !== (to === 'none')) {
       const line: CostLine = { currency: 'alignment', amount: 1, unit: 'training pressure', target: `reward hacking → persona drift in training: weight ${to === 'none' ? '×0.7 → ×1' : '×1 → ×0.7'} (with propensity evals)` };
       if (to === 'none') costs.push({ ...line, amount: -1 });
       else gains.push(line);
     }
-    for (const l of indexLines(s, (c) => (c.player.safety.evalGate = to))) (l.amount >= 0 ? gains : costs).push(l);
+    for (const l of indexLines(s, (c) => { const f = frameworkOf(c); f.evalDepth = to; f.externalReview = ext; })) (l.amount >= 0 ? gains : costs).push(l);
     return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
-    const g = str(p, 'level') as SafetyDept['evalGate'];
-    if (!GATES.includes(g)) return void ctx.log('alert', 'Eval gate: none, basic, full or fullPlusExternal.');
-    s.player.safety.evalGate = g;
-    ctx.log('company', `Pre-deployment eval gate: ${g}.`, 1);
+    const d = str(p, 'depth');
+    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return void ctx.log('alert', 'Capability assessment: none, basic, full or deep.');
+    const fw = frameworkOf(s);
+    fw.evalDepth = fwDepthParam(p, s);
+    fw.externalReview = fwExternalParam(p, s);
+    ctx.log('company', `Safety framework: ${fw.evalDepth === 'none' ? 'no' : fw.evalDepth} capability assessment before release${fw.externalReview ? ', external review' : ''}.`, 1);
   },
 };
 
+function ruleEdit(p: P) {
+  const sg = str(p, 'addSafeguard') as FrameworkSafeguard | undefined;
+  const ev = str(p, 'addEvidence') as FrameworkEvidence | undefined;
+  const level = num(p, 'level');
+  const est = num(p, 'est');
+  return {
+    ...(level !== undefined ? { level } : {}),
+    ...(est !== undefined ? { est } : {}),
+    ...(sg && ['classifiers', 'hardened', 'control', 'review'].includes(sg) ? { addSafeguard: sg } : {}),
+    ...(ev && ['suite', 'external'].includes(ev) ? { addEvidence: ev } : {}),
+  };
+}
+const RULE_SLACK = { level: FRAMEWORK_LEVEL_SLACK, belief: FRAMEWORK_BELIEF_SLACK };
+
+/** SR-19: edit a framework rule within limits (threshold near its default; safeguards and evidence only added). */
+const FRAMEWORK_RULE: ActionDef = {
+  id: 'safety.frameworkRule', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: edit rule',
+  available: () => true,
+  preview(s, p) {
+    const c = structuredClone(s);
+    const why = editRule(c, str(p, 'ruleId') ?? '', ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    if (why) return { costs: [{ currency: 'progress', amount: 0, target: why }], gains: [], exposure: [] };
+    const before = frameworkOf(s).holds.length;
+    const after = refreshFramework(c).length;
+    const line: CostLine = { currency: 'progress', amount: Math.abs(after - before), unit: 'holds', target: `holds in force today ${before} → ${after}` };
+    return after > before ? { costs: [line], gains: [], exposure: [] } : { costs: [], gains: [line], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const id = str(p, 'ruleId') ?? '';
+    const why = editRule(s, id, ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    if (why) return void ctx.log('alert', why);
+    refreshFramework(s, ctx);
+    ctx.log('company', `Safety framework rule edited: ${frameworkOf(s).rules.find((r) => r.id === id)?.label ?? id}.`, 1);
+  },
+};
+
+/** SR-19: override a framework rule for one version: its holds on that version end; the consequences are stated here and
+ *  applied as stated (safety/framework.ts overrideConsequences). */
+const FRAMEWORK_OVERRIDE: ActionDef = {
+  id: 'safety.frameworkOverride', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: override',
+  available: () => true,
+  preview(s, p) {
+    const c = overrideConsequences(s);
+    const ruleId = str(p, 'ruleId');
+    const versionId = str(p, 'versionId');
+    const released = frameworkOf(s).holds.filter((h) => h.ruleId === ruleId && h.versionId === versionId);
+    const costs: CostLine[] = [
+      { currency: 'morale', amount: c.moraleSafety, target: c.lines[0] },
+      redFlagLine(s),
+      { currency: 'scrutiny', amount: c.scrutiny, target: c.lines[1] },
+      ...(c.credibility ? [{ currency: 'credibility' as const, amount: c.credibility, target: c.lines[2] }] : []),
+    ];
+    const what = released.map((h) => (h.target === 'training' ? 'frontier training' : `product ${h.depId}`)).join(', ');
+    const gains: CostLine[] = [{ currency: 'progress', amount: released.length, unit: released.length === 1 ? 'hold' : 'holds', target: `released: ${what || 'none in force (launches of this version stop being held by this rule)'}` }];
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const why = overrideRule(s, ctx, str(p, 'ruleId') ?? '', str(p, 'versionId') ?? '');
+    if (why) ctx.log('alert', why);
+  },
+};
+
+
+/** SR-20: apply a default safeguard package (Standard / High / Critical) to one product or the internal agent deployment
+ *  in one act; the preview lists each part's true charged cost (safety/packages.ts previewPackage) and the stop rates. */
+const SAFEGUARD_PACKAGE: ActionDef = {
+  id: 'safety.package', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Safeguard package',
+  available: () => true,
+  preview(s, p) {
+    const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
+    const id = (str(p, 'pkg') ?? 'high') as SafeguardPackageId;
+    if (!d || packageBlock(s, d) || !SAFEGUARD_PACKAGE_IDS.includes(id)) return { costs: [], gains: [], exposure: [] };
+    const pv = previewPackage(s, d, id);
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    for (const l of pv.parts) {
+      if (Math.abs(l.computeH100e) > 1e-6) (l.computeH100e > 0 ? costs : gains).push({ currency: 'compute', amount: -r1(l.computeH100e), unit: 'H100e', target: `${l.label}: control compute (monitors' line)` });
+      if (Math.abs(l.people) > 1e-6) (l.people > 0 ? costs : gains).push({ currency: 'staffTime', amount: -Math.round(l.people), unit: 'safety engineers', target: `${l.label}: reviewers` });
+      if (Math.abs(l.slowdown) > 1e-6) (l.slowdown > 0 ? costs : gains).push({ currency: 'progress', amount: -Math.round(l.slowdown * 1000) / 10, unit: '% of agent work', target: `${l.label}: Slowdown` });
+      if (Math.abs(l.revenue) > 1e-4) (l.revenue < 0 ? costs : gains).push({ currency: 'revenue', amount: Math.round(l.revenue * 100) / 100, target: `${l.label}` });
+      if (Math.abs(l.servingH100e) > 0.5) (l.servingH100e > 0 ? costs : gains).push({ currency: 'compute', amount: -Math.round(l.servingH100e), unit: 'H100e', target: `${l.label}: serving need` });
+    }
+    const mean = (k: 'before' | 'after') => (pv.stops.length ? pv.stops.reduce((a, x) => a + x[k], 0) / pv.stops.length : 0);
+    if (pv.stops.length) gains.push({ currency: 'alignment', amount: Math.round((mean('after') - mean('before')) * 1000) / 10, unit: 'pts', target: `mean stop rate per act ${Math.round(mean('before') * 100)}% → ${Math.round(mean('after') * 100)}% (meets ${pv.meets})` });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
+    const id = (str(p, 'pkg') ?? '') as SafeguardPackageId;
+    if (!SAFEGUARD_PACKAGE_IDS.includes(id)) return void ctx.log('alert', 'Pick a package: standard, high or critical');
+    const why = d ? applyPackage(s, d, id) : 'Unknown deployment';
+    if (why) return void ctx.log('alert', why);
+    refreshFramework(s, ctx);
+    ctx.log('company', `${SAFEGUARD_PACKAGES[id].label} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
+  },
+};
 /** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model). */
 function validateTargets(s: GameStateV2, p: P): { model: string; tools: TechniqueState[] } {
   const model = str(p, 'model') ?? internalVersion(s)?.id ?? '';
@@ -558,6 +730,39 @@ const VALIDATION_POLICY: ActionDef = {
   },
 };
 
+/** SR-22: the Safety work package's human spot-check share (none / 2% / 10% of AI-done safety work re-checked). The
+ *  preview: the safety engineers it takes (the 'spotCheck' need, SR-21's list) and the believed share of sabotaged AI
+ *  safety work the re-checks catch (on top of the other oversight). */
+const SPOT_CHECK: ActionDef = {
+  id: 'safety.spotCheck', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Spot-check AI safety work',
+  available: () => true,
+  preview(s, p) {
+    const q = clamp01(typeof p.share === 'number' ? p.share : 0);
+    const q0 = spotCheckChosen(s);
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    const dFte = r1(spotCheckFte(s, q) - spotCheckFte(s, q0));
+    const v = safetyAgentVersion(s);
+    const c0 = v ? believedSpotCatch(s, v, q0) : 0;
+    const c1 = v ? believedSpotCatch(s, v, q) : 0;
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    if (dFte > 0) costs.push({ currency: 'staffTime', amount: dFte, unit: 'safety engineers', target: `re-checking ${Math.round(q * 100)}% of the AI's safety work (the spot-check need, ahead of what follows it in the list)` });
+    else if (dFte < 0) gains.push({ currency: 'staffTime', amount: -dFte, unit: 'safety engineers', target: 'back to the needs after it in the list' });
+    const dC = Math.round((c1 - c0) * 1000) / 10;
+    if (dC > 0) gains.push({ currency: 'alignment', amount: dC, unit: '%', target: 'of sabotaged AI safety work caught by the re-checks (believed, if fully staffed)' });
+    else if (dC < 0) costs.push({ currency: 'alignment', amount: dC, unit: '%', target: 'of sabotaged AI safety work caught by the re-checks (believed)' });
+    if (!costs.length && !gains.length) costs.push({ currency: 'alignment', amount: 0, target: v ? 'no change' : 'no AI staff on safety work: nothing to re-check' });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const q = clamp01(typeof p.share === 'number' ? p.share : 0);
+    const pkg = (s.player.agents.safety ??= {});
+    if (q > 0) pkg.spotCheck = q;
+    else delete pkg.spotCheck;
+    ctx.log('company', `Spot-checks of AI safety work: ${q > 0 ? `${Math.round(q * 100)}%` : 'none'}.`, 1);
+  },
+};
+
 /** SR-14: the standing policy "Use all known methods" (on by default): every new run plan lists every owned method.
  *  The preview shows what turning it on puts in each plan, with each method's cost where one exists. */
 const METHOD_POLICY: ActionDef = {
@@ -578,6 +783,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, PUBLISH, POLICY, PLEDGE, EVAL_GATE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
 
 

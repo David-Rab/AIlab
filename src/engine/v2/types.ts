@@ -466,6 +466,9 @@ export interface EvalRecord {
   recipeAt?: number;
   /** Model v3 D7: depth of the last suite. */
   depth?: EvalDepth;
+  /** SR-22: the last suite's AI share, spot-check, expected (believed mean misbehaviour rate over the safety evals)
+   *  vs observed (the measured mean rate). */
+  suiteJob?: SafJobResult;
 }
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
@@ -613,6 +616,8 @@ export interface Deployment {
   monitorId?: string;
   channel: Channel;
   startDay: Day;
+  /** SR-19: the Safety framework hold stopping this deployment today (usage 0 while set; refreshed daily). */
+  held?: string;
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
   /** Price tier (R6); priceIndex is kept equal to its index. */
@@ -802,13 +807,13 @@ export interface StackState {
   n: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
-/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
- *  none of them takes is idle (RD-E03 removed routine tuning). */
-export type ReNeed = 'ops' | 'evals' | 'exp';
-/** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
- *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
- *  capacity none takes is idle. */
-export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'validation';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments. Capacity none of them takes is idle
+ *  (RD-E03 removed routine tuning; SR-21 moved evaluations to the safety engineers' needs list). */
+export type ReNeed = 'ops' | 'exp';
+/** Safety research-engineer needs (RD-A04, SR-21, SAFETY-REDESIGN §5): human review on the safeguards, open cases,
+ *  validation jobs, eval suites, environment fixes, foothold removals, line-project experiments (by project priority).
+ *  Each has a real staff (and compute) demand; capacity none takes is idle. */
+export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -885,6 +890,39 @@ export interface ProductionReadout {
 
 // ───────────────────────────── Safety (§3.5) ─────────────────────────────
 
+/** SR-19: what a framework rule requires before the thing it holds may go ahead. Safeguards: on the deployment
+ *  ('classifiers' = classifier or hardened misuse safeguards, 'hardened'), or on the lab's live internal deployments for
+ *  a training hold ('control' = control protocol, 'review' = human review). Evidence: 'suite' (an eval suite read the
+ *  version), 'external' (external evaluators read it). */
+export type FrameworkSafeguard = 'classifiers' | 'hardened' | 'control' | 'review';
+export type FrameworkEvidence = 'suite' | 'external';
+/** SR-19: a framework rule. Trigger on a MEASURED domain level (the benchmark fit, RD-M01) or on a believed trait
+ *  (estimate and clarity of the player's own beliefs, never truth). `holds`: external deployments of the version, or the
+ *  lab's frontier training (base / post runs and frontier experiments). */
+export interface FrameworkRule {
+  id: string;
+  label: string;
+  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number; clarity: number };
+  holds: 'deploy' | 'training';
+  safeguards: FrameworkSafeguard[];
+  evidence: FrameworkEvidence[];
+  /** Source of the default rule (primary framework documents). */
+  src: string;
+}
+/** SR-19: an explicit override of a rule for one version, with the consequences that were stated and applied. */
+export interface FrameworkOverride { ruleId: string; versionId: string; day: Day; consequences: string[] }
+/** SR-19: a hold in force today (refreshed daily; a deploy hold names the live deployment it stops). */
+export interface FrameworkHold { ruleId: string; versionId: string; target: 'deploy' | 'training'; depId?: string; missing: string[]; since: Day }
+export interface SafetyFramework {
+  /** Capability assessment every version needs before an external release: the suite depth ('none' = no release suite)
+   *  and whether external evaluators must have read it. */
+  evalDepth: EvalDepth | 'none';
+  externalReview: boolean;
+  rules: FrameworkRule[];
+  overrides: FrameworkOverride[];
+  holds: FrameworkHold[];
+}
+
 export interface SafetyDept {
   agendas: Record<AgendaId, AgendaState>;
   techniques: Record<TechniqueId, TechniqueState>;
@@ -892,8 +930,9 @@ export interface SafetyDept {
   investigations: Investigation[];
   incidents: Incident[];
   discoveredUModes: UModeId[]; // known to the player (cards visible)
-  /** Pre-deployment eval gate level: what runs before any external deployment. */
-  evalGate: 'none' | 'basic' | 'full' | 'fullPlusExternal';
+  /** SR-19: the lab's Safety framework (its own rules: capability thresholds on measured levels, required safeguards and
+   *  evidence, holds, overrides; safety/framework.ts). Replaces the eval gate. */
+  framework: SafetyFramework;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world
@@ -914,6 +953,10 @@ export interface SafetyDept {
   /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
    *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
   envFixes?: Partial<Record<RLFamily, EnvFix>>;
+  /** SR-18: the disclosure policy (default legal minimum, OD-8). */
+  disclosure?: DisclosurePolicy;
+  /** SR-18: methods a response added to every later default run plan (the "method for the next run" response). */
+  requiredMethods?: TechniqueId[];
 }
 
 /** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
@@ -942,6 +985,8 @@ export interface ValidationResult {
   on: string; found: number; n: number; day: number;
   /** SR-10: who ran it: true = humans only (an AI share of the work can corrupt the result). */
   human?: boolean;
+  /** SR-22: AI share, spot-check, expected (believed recall before this result) vs observed (found ÷ n). */
+  job?: SafJobResult;
 }
 
 /** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
@@ -1034,6 +1079,13 @@ export interface TechniqueState {
 
 export type FindingType = 'TECH' | 'EVAL' | 'DISC' | 'DEAD' | 'NEG' | 'SPILL' | 'FALSE';
 
+/** SR-22 (RD-S08, SAF-26): one safety job's record: the share of its work AI staff did, the share of that work humans
+ *  spot-checked (served), its expected result from the lab's beliefs before the job's own evidence and its observed
+ *  result once done (both 0–1 in the job's unit: chance it works / works; believed / measured recall; believed /
+ *  measured misbehaviour rate; believed level of the trait / found it). A gap is evidence the player reads; it feeds
+ *  beliefs only through the job's own result (nothing true is stored here). */
+export interface SafJobResult { aiShare: number; spot: number; expected: number; observed?: number }
+
 export interface FindingRecord {
   id: FindingId;
   agenda: AgendaId;
@@ -1044,6 +1096,8 @@ export interface FindingRecord {
   revealedFalseDay?: Day;
   /** The project whose result it was (R8). */
   nodeId?: string;
+  /** SR-22: AI share, spot-check, expected (believed chance it works) vs observed (1 = a working result). */
+  job?: SafJobResult;
 }
 
 export interface Investigation {
@@ -1055,8 +1109,18 @@ export interface Investigation {
   startDay: Day;
   clarity: number; // accumulated 0..1
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
-  outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean };
+  outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean; changes?: CaseChange[]; evidence?: string[] };
+  /** SR-17: the case's beliefs when it opened (est, sd per target trait): the verdict's "what changed" baseline. */
+  before?: Partial<Record<TraitId, { est: number; sd: number }>>;
+  /** SR-17: readings the case added to beliefs (monthly observations). */
+  readings?: number;
+  /** SR-22: AI share, spot-check, expected (believed level of the most severe target trait at opening) vs observed
+   *  (1 if the verdict found it: confirmed or a discovery; else 0). */
+  job?: SafJobResult;
 }
+
+/** SR-17: one belief a case's verdict moved (believed values only). */
+export interface CaseChange { trait: TraitId; from: { est: number; sd: number }; to: { est: number; sd: number } }
 
 export interface Incident {
   id: string;
@@ -1071,9 +1135,14 @@ export interface Incident {
   publicTimerDays?: number; // days until it goes public unless resolved/disclosed
   status: 'open' | 'investigating' | 'resolved' | 'disclosed' | 'covered' | 'leaked';
   responses: ResponseKind[];
+  /** SR-18: per-incident disclosure override (absent = the lab's disclosure policy). */
+  disclose?: 'yes' | 'no';
 }
 
-export type ResponseKind = 'patchSignal' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
+/** SR-18: incident responses (cause-aware, safety/responses.ts responseOptions). Disclosure is a separate policy. */
+export type ResponseKind = 'patchSignal' | 'addMethod' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'removeFoothold';
+/** SR-18: disclosure policy (OD-8 default 'legal': report what SB 53 / RAISE require, on time). */
+export type DisclosurePolicy = 'legal' | 'full' | 'none';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 
@@ -1201,6 +1270,9 @@ export interface AgentPackage {
   monitorId?: string;
   /** RD-A06: the control layer (trusted monitoring with deferral, safety/oversight.ts useControl) on this package. */
   control?: boolean;
+  /** SR-22 (safety package only): the human spot-check share, the fraction of AI-done safety work the safety engineers
+   *  re-check (0, 0.02 or 0.1; absent = 0). Its staff are the 'spotCheck' need in the safety needs list. */
+  spotCheck?: number;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────

@@ -13,6 +13,7 @@
 // reliability is extrapolated with a range that widens with the gap (validationRange).
 import { AGENDA_BY_ID, VAL_COMPUTE_FRAC, VAL_DAYS, VAL_ENGINEERS, VAL_N, VAL_UNMEASURED_HALF, VAL_WIDEN_PER_OOM } from '../../../data/v2/agendas';
 import { safetyLabour } from '../departments/workfit';
+import { jobAiShare, jobRecord } from './workPackage';
 import { internalVersion } from '../models/labs';
 import type { GameStateV2, ModelVersion, RngLike, SafetyDept, SystemCtx, TechniqueId, TechniqueState, ValidationJob } from '../types';
 import { clamp01, versionById } from './common';
@@ -120,8 +121,13 @@ export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j:
   t.trust = undefined;
   const believed = clamp01(believedOn(s, t, v)); // what it is believed to find, before this evidence
   t.trust = prior;
-  const found = binomial(rng, VAL_N, t.falseValidated && !human ? believed : trueRecall(s, t, v));
-  t.measured = { on: v.id, found, n: VAL_N, day, human };
+  // SR-22: the package's spot-checks re-run a share of an AI-assisted job's planted cases by hand: those find what the
+  // instrument really finds, so a spot-checked false instrument comes out below its expected recall.
+  const job = jobRecord(s, jobAiShare(s, 'validation', { human }), believed);
+  const real = trueRecall(s, t, v);
+  const p = t.falseValidated && !human ? job.spot * real + (1 - job.spot) * believed : real;
+  const found = binomial(rng, VAL_N, p);
+  t.measured = { on: v.id, found, n: VAL_N, day, human, job: { ...job, observed: Math.round((found / VAL_N) * 1000) / 1000 } };
   const f = believed > 1e-6 ? found / VAL_N / believed : trustOf(t);
   setTrust(t, f, { day, source: 'validation', model: v.id, note: `${human ? 'human-run' : 'AI-assisted'} validation on ${v.name}: found ${found} of ${VAL_N} planted (believed ${Math.round(believed * 100)}%)` });
 }
@@ -230,6 +236,7 @@ export function validationView(s: GameStateV2) {
     jobs: liveJobs(s).map((j) => ({
       id: j.id, tool: j.tool, name: instrumentName(s.player.safety.techniques[j.tool]), model: versionById(s, j.model)?.name ?? j.model,
       progress: j.progress, by: j.by, human: humanRun(s, j), engineers: staff.get(j.id) ?? 0, daysLeft: jobDaysLeft(s, j),
+      aiShare: jobAiShare(s, 'validation', { human: humanRun(s, j) }),
     })),
     perJob: jobEngineers(s),
     days: VAL_DAYS,
@@ -240,5 +247,7 @@ export function validationView(s: GameStateV2) {
     disagreements: iv ? disagreementsOn(s, iv.id) : [],
     /** SR-10: each instrument's trust factor and its last piece of evidence. */
     trust: own.map((t) => ({ id: t.id, name: instrumentName(t), f: trustOf(t), last: t.trust?.evidence.at(-1)?.note ?? null })),
+    /** SR-22: each instrument's last validation: AI share, spot-check, expected vs observed recall. */
+    results: own.filter((t) => t.measured?.job).map((t) => ({ id: t.id, name: instrumentName(t), on: versionById(s, t.measured!.on)?.name ?? t.measured!.on, human: !!t.measured!.human, job: t.measured!.job! })),
   };
 }

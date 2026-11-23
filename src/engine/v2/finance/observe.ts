@@ -110,7 +110,7 @@ export function computeFirm(s: GameStateV2): H100e {
 }
 
 /** Red flags the player's own safety evals show on a version: scheming, alignment faking or sandbagging believed above
- *  `minEst` with clarity above 0.4 (E17's traits; beliefs, never truth). The safety committee's release block reads it
+ *  `minEst` with clarity above 0.4 (the red-flag traits; beliefs, never truth). The safety committee's release block reads it
  *  (FINANCE-V3 §7.2, FIN3b). */
 export function safetyRedFlags(v: ModelVersion, minEst?: number): { trait: string; name: string; est: number }[] {
   return redFlags(v, minEst).map((x) => ({ trait: x.trait, name: TRAIT_BY_ID[x.trait]?.name ?? x.trait, est: x.est }));

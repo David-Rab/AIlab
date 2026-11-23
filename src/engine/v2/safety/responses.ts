@@ -1,13 +1,17 @@
-// Response menu per confirmed finding or incident (V2-SPEC §3.5.9). Owner: WS2.
+// Response menu per incident or believed finding, cause-aware (SAFETY-REDESIGN §3.7, SR-18). Owner: WS2.
+// What the player can do depends on the BELIEVED cause (the incident's apparent source after any case, or the trait a
+// response names): a training signal → an environment fix; a trait in the model → a method for later runs, roll back,
+// restrict, safeguards; misuse → product-side restriction; a located foothold → remove it; unknown → contain. Disclosure
+// is a separate policy (legal minimum by default, OD-8) with a per-incident override; fixing never closes it.
 import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, labControlSetting, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
-import type { GameStateV2, Incident, ModelVersion, ResponseKind, RLFamily, SystemCtx, TraitId, UModeId } from '../types';
+import type { DisclosurePolicy, GameStateV2, Incident, ModelVersion, ResponseKind, RLFamily, SystemCtx, TechniqueId, TraitId, UModeId } from '../types';
 import { envFixMult, runExploitMap } from '../models/suites';
-import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
+import { flagNum, setFlag, versionById } from './common';
 import { measuredOom } from './oversight';
-import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
-import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
+import { revealToWorld } from './umodes';
+import { ownedMethods } from './methods';
 import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -15,7 +19,7 @@ import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
   patchSignal: { title: 'Fix environment', note: 'Patch the RL environments, grader or reward model of one family so it stops rewarding the hack: the family’s rewarded hacks × 0.3–0.6 on every later run that trains on it (an owned environment fix, floor × 0.2); 10 safety research engineers are busy 30–90 days.' },
-  targetedTraining: { title: 'Targeted training', note: 'Technique-specific alignment training (inoculation, anti-scheming…). Takes effect at once.' },
+  addMethod: { title: 'Add method to later runs', note: 'Every later run plan that takes the default methods lists this owned safety method (persona vectors, anti-scheming, inoculation…); its effect shows in the next run\'s predicted traits, not in this model.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
   addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, defer 10% to trusted): about 7% of the work lost at a 1-OOM trusted gap; acts slipping past monitors ×0.45; AI-control tools block.' },
@@ -23,7 +27,6 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }
   addLockdown: { title: 'Add comms lockdown', note: `Comms-lockdown safeguard on the model's internal agents (shared memory bank locked): the same-lineage collusion penalty halves; ${Math.round(LOCKDOWN_SLOWDOWN * 100)}% of internal AI work lost.` },
   removeLockdown: { title: 'Remove comms lockdown', note: 'Remove the comms-lockdown safeguard: its slowdown ends; the collusion penalty is back to full.' },
   rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
-  disclose: { title: 'Disclose', note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
   removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
 };
 
@@ -78,13 +81,11 @@ export function consumeRunPenalty(s: GameStateV2): number {
   return p;
 }
 
-/** Safety FTE tied up by patch projects and foothold removals (released when they end). */
+/** SR-21: safety engineers an environment fix being built takes (the 'envFix' need; released when it ends). */
+export const envFixFte = (s: GameStateV2): number => (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0);
+/** Safety FTE tied up by environment fixes and foothold removals (released when they end). */
 export function patchFte(s: GameStateV2): number {
-  return (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0) + removalFte(s);
-}
-
-function removal(v: ModelVersion): number {
-  return uModeRemovalMult(v.uModes) * crystalMult(v.traitsTrue.TGAME, v.uModes);
+  return envFixFte(s) + removalFte(s);
 }
 
 // ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────
@@ -97,20 +98,68 @@ export const PATCH_FTE = 10;
 /** OOM of G the next post-training run loses after a patch or a targeted training. Was 0.02 progress-years. */
 export const RUN_PENALTY_OOM = 0.024;
 
-/** What targeted training does with the lab's unlocked techniques: the share `cut` of each trait removed (× the U-mode
- *  removal multiplier when applied), traits raised by `add`, E25's EA × ANTISCHEME_EA_MULT, inoculation's E04 patch.
- *  `eff` is AG18's efficacy: true in the engine, believed in the preview. */
-export interface TargetedPlan { technique?: string; cut: Partial<Record<TraitId, number>>; add: Partial<Record<TraitId, number>>; eaMult: boolean; patchE04?: number }
-export function targetedPlan(s: GameStateV2, v: ModelVersion, trait: TraitId, eff: number): TargetedPlan {
-  const has = (id: string) => !!s.player.safety.techniques[id]?.unlocked;
-  if (has('T-ANTISCHEME') && (trait === 'SCHEME' || trait === 'AF' || trait === 'SAND')) {
-    // EA × ANTISCHEME_EA_MULT the first time a lineage gets anti-scheming training (same rule as heavy-safety runs).
-    return { technique: 'T-ANTISCHEME', cut: { SCHEME: ANTISCHEME_REMOVAL }, add: {}, eaMult: s.flags[`ws2.e25.${lineageOf(s, v)}`] === undefined }; // F47 / E25
-  }
-  if (has('T-INOC') && (trait === 'PERSONA' || trait === 'RH' || trait === 'CONCEAL')) return { technique: 'T-INOC', cut: { PERSONA: 0.3 }, add: {}, eaMult: false, patchE04: 0.15 }; // F46
-  if (has('T-PERSONA') && (trait === 'SYC' || trait === 'PERSONA')) return { technique: 'T-PERSONA', cut: { [trait]: 0.35 }, add: {}, eaMult: false }; // F10 20–40%
-  if (has('T-CAST') && (trait === 'POWER' || trait === 'AF')) return { technique: 'T-CAST', cut: { [trait]: 0.3 }, add: { CORRIG: 0.15 }, eaMult: false }; // F35
-  return { cut: { [trait]: 0.35 * eff }, add: {}, eaMult: false }; // generic AG18 training
+// ───────────── SR-18: believed cause → the responses offered ─────────────
+
+/** What the player believes caused an incident (or a finding on a trait). */
+export type BelievedCause = 'signal' | 'trait' | 'misuse' | 'foothold' | 'unknown';
+/** Traits whose believed cause is a training signal (an exploitable environment, grader or reward model). */
+const SIGNAL_TRAITS: readonly TraitId[] = ['RH', 'TGAME', 'PROXY'];
+
+/** The believed cause from what the player can see: the incident's apparent source (a case may have named it), a located
+ *  foothold of the model's lineage, else the trait the response is about. Never reads trueSource or true traits. */
+export function believedCause(s: GameStateV2, v: ModelVersion, inc?: Incident, trait?: TraitId): BelievedCause {
+  if (inc?.apparent === 'misuse') return 'misuse';
+  const lin = lineageOf(s, v);
+  if (s.player.safety.footholds.some((f) => f.status === 'detected' && f.lineage === lin)) return 'foothold';
+  if (inc?.apparent === 'unexplained' && !trait) return 'unknown';
+  const k = trait ?? (inc && inc.apparent !== 'unexplained' ? (inc.apparent as TraitId) : undefined);
+  if (!k) return 'unknown';
+  return SIGNAL_TRAITS.includes(k) ? 'signal' : 'trait';
+}
+
+/** Responses offered per believed cause (§3.7 table). Safeguard off-switches (lift / remove) are not cause responses:
+ *  they stay available on the safeguards themselves. */
+export const CAUSE_RESPONSES: Record<BelievedCause, ResponseKind[]> = {
+  signal: ['patchSignal'],
+  trait: ['addMethod', 'rollback', 'restrictContext', 'addControl', 'addLockdown'],
+  misuse: ['restrictContext'],
+  foothold: ['removeFoothold', 'restrictContext', 'addControl', 'addLockdown'],
+  unknown: ['restrictContext', 'addControl'],
+};
+export const UNDO_RESPONSES: readonly ResponseKind[] = ['liftRestriction', 'removeControl', 'removeLockdown'];
+export const CAUSE_LABEL: Record<BelievedCause, string> = {
+  signal: 'a training signal (an exploitable environment, grader or reward model)',
+  trait: 'a trait in this model',
+  misuse: 'misuse by a user',
+  foothold: 'a located foothold',
+  unknown: 'unknown (a case can name it; contain meanwhile)',
+};
+
+/** The cause-aware response list for a model (and incident): the cause, its responses, and whether a case would help. */
+export function responseOptions(s: GameStateV2, v: ModelVersion, inc?: Incident, trait?: TraitId): { cause: BelievedCause; label: string; kinds: ResponseKind[]; investigate: boolean } {
+  const cause = believedCause(s, v, inc, trait);
+  return { cause, label: CAUSE_LABEL[cause], kinds: CAUSE_RESPONSES[cause], investigate: cause === 'unknown' || (!!inc && inc.status === 'open') };
+}
+
+/** Owned safety methods that act on a trait (the "method for later runs" response), strongest fit first. */
+const METHOD_TRAITS: Record<string, readonly TraitId[]> = {
+  'T-ANTISCHEME': ['SCHEME', 'AF', 'SAND', 'CONCEAL'],
+  'T-INOC': ['PERSONA', 'RH', 'CONCEAL', 'PROXY', 'SAND', 'SCHEME', 'AF'],
+  'T-PERSONA': ['SYC', 'PERSONA'],
+  'T-CAST': ['POWER', 'AF', 'SUCC'],
+  'T-W2S': ['SYC', 'PROXY'],
+  'T-CONFESS': ['CONCEAL', 'TGAME', 'EA'],
+};
+export function methodsFor(s: GameStateV2, trait: TraitId): TechniqueId[] {
+  return ownedMethods(s).filter((m) => METHOD_TRAITS[m]?.includes(trait));
+}
+/** The method the addMethod response adds: the one asked for (if owned and fitting), else the first fitting one not
+ *  already required. */
+export function methodChoice(s: GameStateV2, trait: TraitId, id?: string): TechniqueId | undefined {
+  const fit = methodsFor(s, trait);
+  if (id) return fit.includes(id as TechniqueId) ? (id as TechniqueId) : undefined;
+  const req = new Set(s.player.safety.requiredMethods ?? []);
+  return fit.find((m) => !req.has(m)) ?? fit[0];
 }
 
 /** The live external deployments Restrict context restricts (the incident's own deployment when it names one). */
@@ -131,9 +180,8 @@ export const discloseScrutiny = (inc?: Incident) => 3 + 2 * (inc?.severity ?? 2)
 export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string; /** patchSignal (SR-16): the RL family to fix. */ family?: RLFamily }
 
 /**
- * Apply a response to a version (and optionally an incident). Returns an error string if it cannot apply.
- * A non-disclosing fix on a customer incident whose public timer is still running is a quiet fix ('covered'):
- * if outsiders discover it before the timer ends, it is a cover-up (×3 trust loss, §3.9.3).
+ * Apply a response to a version (and optionally an incident). Returns an error string if it cannot apply, or if the
+ * response is not one offered for the believed cause (SR-18). Disclosure is separate (disclosureStep).
  */
 export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind, versionId: string, incidentId?: string, opts: ResponseOpts = {}): string | undefined {
   if (kind === 'removeFoothold') return removeFoothold(s, ctx, opts.footholdId ?? '');
@@ -142,8 +190,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   const inc = incidentId ? s.player.safety.incidents.find((i) => i.id === incidentId) : undefined;
   if (incidentId && !inc) return 'Unknown incident';
   const trait = responseTrait(v, inc, opts.trait);
+  // SR-18: only the responses for the believed cause apply (safeguard off-switches always do).
+  const opt = responseOptions(s, v, inc, opts.trait);
+  if (!UNDO_RESPONSES.includes(kind) && !opt.kinds.includes(kind)) return `not a response to ${opt.label}`;
   const rng = ctx.rng('safety');
-  const lineage = lineageOf(s, v);
   switch (kind) {
     case 'patchSignal': {
       // SR-16: an owned environment fix on one RL family (the patched environment / grader / reward model is the
@@ -159,22 +209,13 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
       break;
     }
-    case 'targetedTraining': {
-      // F6e: the plan (targetedPlan) is the one the preview shows, with AG18's true efficacy here.
-      const t = v.traitsTrue;
-      const r = removal(v);
-      const plan = targetedPlan(s, v, trait, trueEfficacy(s, 'AG18'));
-      for (const [k, c] of Object.entries(plan.cut) as [TraitId, number][]) t[k] = clamp01(t[k] * (1 - c * r));
-      if (plan.eaMult) {
-        t.EA = clamp01(t.EA * ANTISCHEME_EA_MULT);
-        setFlag(s, `e25.${lineage}`, ctx.day);
-      }
-      if (plan.patchE04 !== undefined) {
-        const key = `patch.lab.E04`;
-        setFlag(s, key, Math.round(flagNum(s, key, 1) * plan.patchE04 * 1000) / 1000);
-      }
-      for (const [k, a] of Object.entries(plan.add) as [TraitId, number][]) t[k] = clamp01(t[k] + a);
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
+    case 'addMethod': {
+      // SR-18: a method for later runs (SR-14 methods): every later default run plan lists it (safety/methods.ts
+      // defaultMethods); its effect is the run's, shown in that run's preview and predicted traits. No instant change.
+      const m = methodChoice(s, trait, opts.techniqueId);
+      if (!m) return 'No owned method acts on this trait';
+      const req = (s.player.safety.requiredMethods ??= []);
+      if (!req.includes(m)) req.push(m);
       break;
     }
     case 'restrictContext': {
@@ -235,28 +276,72 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       v.status = 'rolledBack';
       break;
     }
-    case 'disclose': {
-      ctx.bump('relations.scrutiny', discloseScrutiny(inc), 'disclosure', inc?.id ?? v.id);
-      for (const cp of DISCLOSE_CPS) ctx.bump(`trust:${cp}`, discloseTrust(s, cp), 'disclosure', inc?.id ?? v.id);
-      const us: UModeId[] = [];
-      if (inc && typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) us.push(inc.trueSource as UModeId);
-      if (!inc) for (const u of v.uModes) if (s.player.safety.discoveredUModes.includes(u)) us.push(u);
-      for (const u of us) revealToWorld(s, u);
-      if (inc) {
-        inc.status = 'disclosed';
-        delete inc.publicTimerDays;
-      }
-      break;
-    }
   }
   if (inc) {
     inc.responses.push(kind);
-    if (kind !== 'disclose' && (inc.status === 'open' || inc.status === 'investigating')) {
-      inc.status = inc.publicTimerDays !== undefined ? 'covered' : 'resolved';
-    }
+    // SR-18: a fix resolves the incident's handling but never its disclosure: an incident with a public timer stays open
+    // until the timer ends or it is disclosed (the disclosure policy decides; a fix is not a quiet cover-up).
+    if ((inc.status === 'open' || inc.status === 'investigating') && inc.publicTimerDays === undefined) inc.status = 'resolved';
   }
   ctx.log('company', `${RESPONSE_INFO[kind].title}: ${v.name}${inc ? ` (incident ${inc.id})` : ''}, ${trait}.`, 2, inc?.id ?? v.id);
   return undefined;
+}
+
+// ───────────── SR-18: disclosure, a separate policy (OD-8: legal minimum by default) ─────────────
+
+export const DISCLOSURE_POLICIES: readonly DisclosurePolicy[] = ['legal', 'full', 'none'];
+export const DISCLOSURE_LABEL: Record<DisclosurePolicy, string> = { legal: 'Legal minimum', full: 'Full', none: 'None' };
+export const disclosurePolicy = (s: GameStateV2): DisclosurePolicy => s.player.safety.disclosure ?? 'legal';
+
+/** Must this incident be reported by law (statutoryDaily's rule: SB 53 / RAISE in force, not internal, severity ≥ 3)? */
+export function mustReport(s: GameStateV2, inc: Incident): boolean {
+  return (s.gov.statutes.sb53 || s.gov.statutes.raise) && inc.exposure !== 'internal' && inc.severity >= 3;
+}
+/** Will the lab disclose this incident: the per-incident override, else the policy (legal = only what must be reported). */
+export function willDisclose(s: GameStateV2, inc: Incident): boolean {
+  if (inc.disclose) return inc.disclose === 'yes';
+  const p = disclosurePolicy(s);
+  return p === 'full' ? inc.exposure !== 'internal' || inc.severity >= 3 : p === 'legal' ? mustReport(s, inc) : false;
+}
+/** Incidents whose disclosure is still to apply (a new incident is decided the day it appears; the override action applies at once). */
+const undecided = (inc: Incident) => inc.status === 'open' || inc.status === 'investigating';
+
+/** The per-incident override (player): 'yes' discloses now; 'no' withholds (a cover-up if it must be reported); 'policy' clears it. */
+export function setIncidentDisclosure(s: GameStateV2, ctx: SystemCtx, inc: Incident, choice: 'yes' | 'no' | 'policy'): string | undefined {
+  if (inc.status === 'disclosed' || inc.status === 'leaked') return 'Already public';
+  if (choice === 'policy') delete inc.disclose;
+  else inc.disclose = choice;
+  if (willDisclose(s, inc)) discloseIncident(s, ctx, inc);
+  else if (mustReport(s, inc) && inc.status !== 'covered') {
+    inc.status = 'covered';
+    ctx.log('company', 'Incident ' + inc.id + ' withheld: a cover-up under SB 53 / RAISE.', 3, inc.id);
+  }
+  return undefined;
+}
+
+/** Disclose an incident: scrutiny 3 + 2·severity, trust per evaluator / exec by credibility, the world learns the
+ *  discovered failure mode it shows, its public timer ends. */
+export function discloseIncident(s: GameStateV2, ctx: SystemCtx, inc: Incident): void {
+  ctx.bump('relations.scrutiny', discloseScrutiny(inc), 'disclosure', inc.id);
+  for (const cp of DISCLOSE_CPS) ctx.bump(`trust:${cp}`, discloseTrust(s, cp), 'disclosure', inc.id);
+  if (typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) revealToWorld(s, inc.trueSource as UModeId);
+  inc.status = 'disclosed';
+  delete inc.publicTimerDays;
+  ctx.log('company', `Incident ${inc.id} disclosed to government and evaluators.`, 2, inc.id);
+}
+
+/** Daily (incidents step): apply each undecided incident's disclosure. Disclose → discloseIncident. Not disclosing a
+ *  must-report incident is the explicit cover-up (status 'covered': statutory fine, and ×3 if outsiders find it);
+ *  not disclosing anything else lets its public timer run (it leaks at ×1.5 if outsiders find it first). */
+export function disclosureStep(s: GameStateV2, ctx: SystemCtx): void {
+  for (const inc of s.player.safety.incidents) {
+    if (!undecided(inc)) continue;
+    if (willDisclose(s, inc)) discloseIncident(s, ctx, inc);
+    else if (mustReport(s, inc)) {
+      inc.status = 'covered';
+      ctx.log('company', `Incident ${inc.id} not reported (disclosure ${inc.disclose === 'no' ? 'withheld' : 'policy none'}): a cover-up under SB 53 / RAISE.`, 3, inc.id);
+    }
+  }
 }
 
 

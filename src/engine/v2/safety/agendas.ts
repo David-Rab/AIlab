@@ -12,6 +12,8 @@ import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
 import { EDGES } from '../../../data/v2/edges';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team } from '../types';
+import { defaultFramework } from '../../../data/v2/framework';
+import { frameworkOf } from './framework';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
@@ -33,7 +35,7 @@ export function initialSafetyDept(): SafetyDept {
     investigations: [],
     incidents: [],
     discoveredUModes: [],
-    evalGate: 'full',
+    framework: defaultFramework(),
     monitorabilityCommitment: false,
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
@@ -41,6 +43,8 @@ export function initialSafetyDept(): SafetyDept {
     effectiveControl: { level: 1, exposure: 0, lowest: 1, believed: 1 },
     validation: initialValidation(),
     useAllMethods: true,
+    disclosure: 'legal',
+    requiredMethods: [],
   };
 }
 
@@ -75,9 +79,9 @@ export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some
 
 /** Safety research engineers (heads × quality) and what each need got today (RD-A04: one needs list in the player's
  *  order, safety/lineProjects.ts safAllocation; SR-13b: the safeguards' staff first); idle = what no need takes. */
-export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; validation: number; idle: number } {
+export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; validation: number; evals: number; idle: number } {
   const al = safAllocation(s);
-  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.patches, safeguards: al.safeguards, experiments: al.exp, validation: al.got.validation, idle: al.idle };
+  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.envFix + al.got.removal, safeguards: al.safeguards, experiments: al.exp, validation: al.got.validation, evals: al.got.evals, idle: al.idle };
 }
 
 // ───────── compute ─────────
@@ -165,7 +169,7 @@ function suiteHook(s: GameStateV2, ctx: SystemCtx) {
     const key = `suite.${v.id}`;
     if (flagNum(s, key, -1e9) >= v.evals.suiteDay) continue;
     setFlag(s, key, v.evals.suiteDay);
-    if (s.player.safety.evalGate === 'none' && v.evals.suiteDay > 0) continue;
+    if (frameworkOf(s).evalDepth === 'none' && v.evals.suiteDay > 0) continue;
     safetyEvalSuite(s, ctx.rng('safety'), ctx.day, v);
   }
 }

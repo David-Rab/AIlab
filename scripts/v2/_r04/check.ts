@@ -45,7 +45,7 @@ const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'ai2027', alignment
   const g = deserialize(JSON.stringify(s));
   const T1 = AGENDA_BY_ID.AG17.T1;
   const t = g.player.tree as unknown as Record<string, Record<string, unknown>>;
-  check(g.schemaRev === SCHEMA_REV && SCHEMA_REV === 58 && !('paradigms' in g.player) && !t.kyc && !g.player.research.queue.includes('kyc')
+  check(g.schemaRev === SCHEMA_REV && SCHEMA_REV >= 58 && !('paradigms' in g.player) && !t.kyc && !g.player.research.queue.includes('kyc')
     && !('P27' in g.hidden.paradigmSuccess) && !('priorMult' in t.P27) && !('retryDay' in t.T_X)
     && Math.abs((g.player.tree.P27.saf?.work ?? -1) - 0.5 * T1) < 1e-12 && g.player.tree.P27.saf?.workNeed === T1,
   'rev 57 → 58: mirror, kyc, P27 draw and rolled fields dropped; P27 restated as its AG17 test at its progress', JSON.stringify(g.player.tree.P27));

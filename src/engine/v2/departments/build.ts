@@ -27,7 +27,7 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SystemCtx, TrainingRun } from '../types';
 import { agentSplitShare, monitorVersion } from './agents';
 import { deploy } from '../models/deployments';
-import { launchFeatures } from '../models/products';
+import { launchFeatures, productMonitorVersion } from '../models/products';
 import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
@@ -100,7 +100,7 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   for (const d of p.deployments) {
     if (!isLiveProduct(d)) continue;
     out.push({ kind: 'product', ref: d.id, tw: productUpkeepTW(d.revenueRate ?? 0) });
-    if (d.monitorId) out.push({ kind: 'monitor', ref: d.id, tw: UPKEEP.monitor });
+    if (productMonitorVersion(s, d)) out.push({ kind: 'monitor', ref: d.id, tw: UPKEEP.monitor });
   }
   for (const u of AGENT_USES) if (monitorVersion(s, u) && agentSplitShare(s, u) > 0) out.push({ kind: 'monitor', ref: u, tw: UPKEEP.monitor });
   for (const id of p.features) {

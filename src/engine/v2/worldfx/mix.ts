@@ -375,6 +375,7 @@ export function bestPublicOf(s: GameStateV2): Record<DomainId, number> {
   const ver = versionMap(s);
   const cands: { g: number[] }[] = [];
   for (const d of paid) {
+    if (d.held) continue; // SR-19: a held product is not public
     const mv = ver.get(d.versionId);
     if (mv) cands.push({ g: productGVec(s, d, mv) });
   }
@@ -401,6 +402,7 @@ function computeMix(s: GameStateV2): WorldMix {
   const pg: (number[] | undefined)[] = providers.map((p) => (p.model ? gvecOf(s, p.model) : undefined));
   const cands: { dep: Deployment; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx>; tools: string[] }[] = [];
   for (const d of paid) {
+    if (d.held) continue; // SR-19 x RD-P03: a product the Safety framework holds serves nobody, so it is no seller
     const mv = ver.get(d.versionId);
     if (!mv) continue;
     const tiers = productTierUses(s, d);

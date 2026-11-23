@@ -2,13 +2,14 @@
 // Everything here is what the PLAYER knows: posteriors, believed strengths, beliefs, apparent incidents, discovered
 // U-modes, revealed edge weights. `safetyTruth` is the only truth selector and is for the END SCREEN only.
 import { AGENDAS, AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { lineExpectedObserved } from './workPackage';
 import { EDGES, EDGE_NOTES } from '../../../data/v2/edges';
 import { FINDING_BY_ID } from '../../../data/v2/findings';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAITS_V2 } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { AgendaId, FindingType, GameStateV2, Incident, TraitBelief, TraitId, UModeId } from '../types';
+import type { AgendaId, FindingType, GameStateV2, SafJobResult, Incident, TraitBelief, TraitId, UModeId } from '../types';
 import { flagNum, versionById } from './common';
 import { levelOfOom, oomOfLevel } from './oversight';
 import { deadEndTotal, lineCapacity, lineMult, lineResultsPerYear, lineTeams, posteriorBand, promisingIdle, safetyRe, type LineHealth } from './agendas';
@@ -17,9 +18,9 @@ import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate }
 import { sightLimit } from './sightLimit';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
-import { lineLabour } from './lineProjects';
+import { lineLabour, safAllocation } from './lineProjects';
 import { validationView } from './validation';
-import { monitorBudget, safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
+import { monitorBudget } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { PROJECT_BY_ID, TREE, isLineNode, lineNodeId } from '../../../data/v2/tree';
@@ -33,13 +34,15 @@ export interface LineRow {
   heads: number; capacity: number; mult: number; computeShare: number; aiLabour: number;
   /** Results so far by shown type, and the total. */
   results: Partial<Record<FindingType, number>>; findings: number; resultsPerYear: number; deadEndTM: number;
+  /** SR-22: the line's tests over the last year: Σ expected chance it works (beliefs before each) vs working results. */
+  expObs: { n: number; expected: number; observed: number; aiShare: number };
   /** Projects with teams: progress, ETA to the next result (days). */
   projects: { id: string; name: string; progress: number; eta: number; followUp: boolean }[];
   /** Ideas of the line on the tree: known / total; the next project teams would take. */
   ideasKnown: number; ideasTotal: number; next?: string; nextReason?: string;
 }
 export interface TechniqueRow { id: string; name: string; agenda: AgendaId; family: string; role: string; unlocked: boolean; active: boolean; strength: number; decay: number; /** Half-strength point in OOM above V0 and as a display level (undefined = does not decay with capability; AG05 follows the overseer gap). */ oHalf: number; halfL: number | undefined; trainedAgainst: number }
-export interface FindingRow { id: string; agenda: AgendaId; type: FindingType; title: string; day: number; published: boolean; retracted: boolean; nodeId?: string }
+export interface FindingRow { id: string; agenda: AgendaId; type: FindingType; title: string; day: number; published: boolean; retracted: boolean; nodeId?: string; job?: SafJobResult }
 
 export function lineRows(s: GameStateV2): LineRow[] {
   const dept = s.player.safety;
@@ -57,7 +60,7 @@ export function lineRows(s: GameStateV2): LineRow[] {
       id: a.id, name: a.name, column: a.column, T1: a.T1, band: posteriorBand(st), status: st.status,
       teams: teams.map((t) => ({ id: t.id, specialty: t.specialty, heads: t.heads, quality: t.quality, projectId: t.projectId })),
       heads: teams.reduce((x, t) => x + t.heads, 0), capacity: lineCapacity(s, a.id), mult: lineMult(s, a.id), computeShare: st.computeShare,
-      aiLabour: teams.length ? lineLabour(s, a.id).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100,
+      aiLabour: teams.length ? lineLabour(s, a.id).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100, expObs: lineExpectedObserved(s, a.id),
       deadEndTM: st.deadEndTM ?? 0,
       projects: projIds.map((id) => {
         const n = id === lineNodeId(a.id) ? undefined : TREE.find((x) => x.id === id);
@@ -141,7 +144,7 @@ function genericTitle(f: { id: string; agenda: AgendaId; type: FindingType; node
 export function findingRows(s: GameStateV2): FindingRow[] {
   return s.player.safety.findings.map((f) => ({
     id: f.id, agenda: f.agenda, type: f.type, title: FINDING_BY_ID[f.id]?.title ?? genericTitle(f),
-    day: f.day, published: f.published, retracted: f.revealedFalseDay !== undefined, ...(f.nodeId ? { nodeId: f.nodeId } : {}),
+    day: f.day, published: f.published, retracted: f.revealedFalseDay !== undefined, ...(f.nodeId ? { nodeId: f.nodeId } : {}), ...(f.job ? { job: f.job } : {}),
   }));
 }
 
@@ -181,7 +184,7 @@ export function traitGraph(s: GameStateV2) {
 export interface SafetyUtilisation {
   staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; validation: number; idleRe: number };
   /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
-  compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number; claims: SafetyPoolClaims };
+  compute: { pool: number; monitoring: number; investigations: number; evals: number; agents: number; idle: number };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
 }
 
@@ -203,9 +206,10 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const sp = s.player.split;
   const line = online * sp.safety;
   const pool = online * (sp.safety + sp.monitors + sp.safetyAgents);
-  const claims = safetyPoolClaims(s);
   const monitoring = online * monitorBudget(s).used;
-  const invC = line * claims.investigations.granted;
+  const al = safAllocation(s); // SR-21: the safety line's sub-uses come from the needs list
+  const invC = al.compute.cases.got;
+  const evC = al.compute.evals.got;
   const agents = online * sp.safetyAgents;
   let got = 0;
   for (const a of AGENDAS) {
@@ -216,7 +220,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
     staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, validation: re.validation, idleRe: re.idle },
-    compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got), claims },
+    compute: { pool, monitoring, investigations: invC, evals: evC, agents, idle: Math.max(0, pool - monitoring - invC - evC - agents - got) },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };
 }
@@ -233,7 +237,7 @@ export function safetyView(s: GameStateV2) {
     incidents: incidentRows(s),
     uModes: uModeCards(s),
     beliefs: beliefView(s),
-    evalGate: s.player.safety.evalGate,
+    framework: s.player.safety.framework,
     utilisation: safetyUtilisation(s),
     validation: validationPanel(s),
     monitorabilityCommitment: s.player.safety.monitorabilityCommitment,

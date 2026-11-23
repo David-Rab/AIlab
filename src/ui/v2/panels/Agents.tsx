@@ -3,11 +3,13 @@
 // use: model chip, monitor chip with catch rate, compute bar with its budget, AI share of the role's work, cost, the
 // model's four risk families. A model or monitor pick opens a before → after preview (applies at the next tick).
 import { controlOn } from '../../../engine/v2/safety/safeguards';
+import { SPOT_SHARES, believedSpotCatch, spotCheckChosen, spotCheckFte, spotShare } from '../../../engine/v2/safety/workPackage';
+import { safetyAgentVersion } from '../../../engine/v2/safety/agents';
 // RD-A06: every package names its model (no pick = the newest internal model, said so), has its own control switch, and
 // the agents' tooling (Coding harness, Research harness, Agent memory) is built here, not taken from product features.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
-import { AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
+import { AGENT_USES, AGENT_USE_DEF, MONITOR_AUTO, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
   agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, newestInternal, previewAgentChange, previewTrusted, toolingView, versionById,
 } from '../../../engine/v2';
@@ -137,6 +139,28 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   );
 }
 
+/** SR-22: the Safety work package's human spot-check share (none / 2% / 10% of AI-done safety work re-checked). */
+function SpotCheck({ s }: { s: GameStateV2 }) {
+  const q = spotCheckChosen(s);
+  const inEffect = spotShare(s);
+  const sv = safetyAgentVersion(s);
+  const tip = () => (
+    <TipCard title={<Term id="spotCheck">Spot-checks</Term>} value={q > 0 ? F.pct(q) : 'none'} rows={[
+      { label: 'In effect (staffed)', value: F.pct(inEffect) },
+      { label: 'Safety engineers it takes', value: F.count(spotCheckFte(s)) },
+      { label: 'Sabotaged AI work caught by re-checks', value: sv ? `${F.pct(believedSpotCatch(s, sv, inEffect))} (believed)` : 'no AI staff on safety work' },
+    ]} footer="Greenblatt et al. audited 2% of an untrusted model's work by hand.">Share of the safety work AI staff do that your safety engineers re-check by hand. It takes engineers from the safety needs list (Company › Work) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
+  );
+  return (
+    <div className="ag-trust" data-home="spotCheck">
+      <Tip content={tip}><span className="row-i"><Term id="spotCheck">Spot-checks</Term> <b className="num" data-test="spot-share">{q > 0 ? F.pct(q) : 'none'}</b></span></Tip>
+      <span className="stepper">
+        {SPOT_SHARES.map((x) => <ActBtn key={x} id="safety.spotCheck" testId={`spot.${x}`} params={{ share: x }} label={x > 0 ? `${Math.round(x * 100)}%` : 'none'} block={Math.abs(x - q) < 1e-9 ? 'Already chosen' : undefined} />)}
+      </span>
+    </div>
+  );
+}
+
 function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: AgentsView; use: AgentUse; danger?: DangerRead; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
   const l = v.lanes[use];
   const def = AGENT_USE_DEF[use];
@@ -148,7 +172,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
     ...(isRoutine ? [] : [{ value: '', label: `newest · ${newest?.name ?? '—'}` }]),
     ...modelOptions(s, () => true),
   ];
-  const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, () => true)];
+  const monitors = [{ value: MONITOR_AUTO, label: `auto · ${pkg.monitorId === MONITOR_AUTO && l.monitor ? (l.monitor.id === l.version?.id ? 'copy' : l.monitor.name) : 'most capable trusted'}` }, { value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, () => true)];
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';
   const monVal = draft?.monitorId !== undefined ? draft.monitorId ?? '' : pkg.monitorId ?? '';
   const budget = def.budget === 'saf' ? 'SAF' : 'CAP';
@@ -164,6 +188,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
       {/* F6b: catch rate and the same-model tag on a line under the picker (inline they squeezed the picker to its arrow). */}
       <div className="ag-mon">
       <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })} />
+      {l.monitorReason && <Tip content={() => <TipCard title="Automatic watcher">{l.monitorReason} A model is trusted when none of its red-flag traits (scheming, alignment faking, sandbagging) is believed above your Safety framework's misalignment line. Pick a model to override.</TipCard>}><div className="small dim" data-test={`monitor-auto.${use}`}>{l.monitor ? 'auto: most capable trusted' : 'auto: no trusted model'}</div></Tip>}
       {l.monitor && <div className="ag-mon-x small">
           <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
           {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}
@@ -186,7 +211,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
         </div>
       </div>
       <div className="ag-ai">
-        {use === 'safety' ? <Trusted s={s} v={v} /> : (
+        {use === 'safety' ? <><Trusted s={s} v={v} /><SpotCheck s={s} /></> : (
           <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share of the work</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "The agents' part of the engineers' labour margin (1 − the humans' share in the coding CES). More compute or a better-fitting model raises it, and build capacity with it." : use === 'capRoutine' ? "The agents' part of the research engineers' labour margin (1 − the humans' share)." : "The share of human scientists this model's research taste beats. The frontier model sets research taste."} Fit, coverage and effective labour: Company › Work.</TipCard>}>
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>

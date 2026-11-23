@@ -18,7 +18,7 @@ const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 const NEEDS: SafReNeed[] = ['cases', 'patches', 'safExp', 'reval'];
 
 const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 56, 'schema 56; an older save migrates');
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV >= 56, 'schema 56; an older save migrates');
 check(s.player.research.safRe?.order.join(',') === DEFAULT_SAF_RE_ALLOC.order.join(',') && DEFAULT_SAF_RE_ALLOC.order.join(',') === 'cases,patches,safExp,reval',
   'migrated save has the default order (cases, patches, line experiments, re-validation)');
 

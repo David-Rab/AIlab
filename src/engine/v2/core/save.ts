@@ -22,6 +22,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import { defaultFramework } from '../../../data/v2/framework';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -152,8 +153,24 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  sector that needs one, none elsewhere); queued pack builds → adaptation builds; 'sectorPacks' dropped from the lab's
  *  and the products' features and the build queue.
  *  87 (RD-P09): the distillation leak through a product scales with its tokens served to anonymous buyers
- *  (Deployment.servedTokensDay, derived daily; optional, so 86 → 87 changes nothing: the next daily tick fills it). */
-export const SCHEMA_REV = 87;
+ *  (Deployment.servedTokensDay, derived daily; optional, so 86 → 87 changes nothing: the next daily tick fills it).
+ *  Merge p3-d → rd: p3-d's revs 79 … 83 (SR-17 … SR-22; its migrations 78→79 … 82→83) follow rd's chain as 88 … 92
+ *  (migrations 87→88 … 91→92).
+ *  88 (SR-17 / SR-18): Investigation.before / readings and outcomeDetail.changes / evidence (verdicts say what changed);
+ *  SafetyDept.disclosure (policy, default legal minimum, OD-8) and requiredMethods; Incident.disclose (override).
+ *  ResponseKind loses targetedTraining and disclose (addMethod added). Migration 87 → 88 sets the policy to legal
+ *  minimum, an empty required-method list, and drops the two old kinds from incidents' response records.
+ *  90 (SR-20): AgentPackage.monitorId 'auto' (the most capable trusted model, safety/trusted.ts; the new default).
+ *  Migration 89 → 90 moves routine and frontier research packages on the old default 'same' to 'auto'.
+ *  91 (SR-21): one safety needs list. SafReNeed gains 'review' (human review, was committed before the list), 'evals'
+ *  (eval suites, was the capability engineers' ReNeed 'evals') and splits 'patches' into 'envFix' and 'removal'.
+ *  Migration 90 → 91 rewrites research.safRe (review first, patches → envFix, removal in place, evals before line
+ *  experiments; patches' caps go to envFix) and drops 'evals' from research.re.
+ *  92 (SR-22): the Safety work package's spot-check share (AgentPackage.spotCheck, absent = none) and its staff, the
+ *  'spotCheck' need; safety jobs carry SafJobResult records (optional). Migration 91 → 92 puts 'spotCheck' after 'review'
+ *  in research.safRe (first when there is no review).
+ */
+export const SCHEMA_REV = 92;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -974,6 +991,62 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     }
   },
   86: () => {},
+  87: (raw) => {
+    // 87 → 88 (SR-17 / SR-18): disclosure policy (legal minimum), required methods; old bundled response kinds go.
+    const dept = (raw as { player?: { safety?: { disclosure?: string; requiredMethods?: string[]; incidents?: { responses?: string[] }[] } } }).player?.safety;
+    if (!dept) return;
+    dept.disclosure ??= 'legal';
+    dept.requiredMethods ??= [];
+    for (const i of dept.incidents ?? []) if (i.responses) i.responses = i.responses.filter((k) => k !== 'targetedTraining' && k !== 'disclose');
+  },
+  88: (raw) => {
+    // 88 → 89 (SR-19): the eval gate becomes the Safety framework's capability assessment (none → none, basic → basic,
+    // full → full, full + external → deep with external review), with the default rules; holds start empty (refreshed on
+    // the next day).
+    const dept = (raw as { player?: { safety?: { evalGate?: string; framework?: unknown } } }).player?.safety;
+    if (!dept) return;
+    const g = dept.evalGate ?? 'full';
+    if (!dept.framework) dept.framework = defaultFramework(g === 'none' ? 'none' : g === 'basic' ? 'basic' : g === 'fullPlusExternal' ? 'deep' : 'full', g === 'fullPlusExternal');
+    delete dept.evalGate;
+  },
+  89: (raw) => {
+    // 89 → 90 (SR-20, OD-6): the default watcher on routine and frontier research becomes automatic (the most capable
+    // trusted model) instead of a copy of the watched model; packages on the old default 'same' move to 'auto'.
+    const agents = (raw as { player?: { agents?: Record<string, { monitorId?: string }> } }).player?.agents;
+    if (!agents) return;
+    for (const u of ['capRoutine', 'capFrontier']) if (agents[u]?.monitorId === 'same') agents[u].monitorId = 'auto';
+  },
+  90: (raw) => {
+    // 90 → 91 (SR-21): one safety needs list (see SCHEMA_REV's note).
+    type A = { order?: string[]; max?: Record<string, number>; share?: Record<string, number> };
+    const res = (raw as { player?: { research?: { re?: A; safRe?: A } } }).player?.research;
+    if (!res) return;
+    if (res.re) {
+      res.re.order = (res.re.order ?? []).filter((k) => k !== 'evals');
+      for (const cap of [res.re.max, res.re.share]) if (cap) delete cap.evals;
+    }
+    const sr = res.safRe;
+    if (!sr) return;
+    const out: string[] = ['review'];
+    for (const k of sr.order ?? []) {
+      if (k === 'patches') out.push('envFix', 'removal');
+      else if (k === 'safExp') out.push('evals', 'safExp');
+      else out.push(k);
+    }
+    for (const k of ['cases', 'validation', 'evals', 'envFix', 'removal', 'safExp']) if (!out.includes(k)) out.push(k);
+    sr.order = [...new Set(out)]; // an older migration may already have written today's default order
+    for (const cap of [sr.max, sr.share]) if (cap && cap.patches !== undefined) { cap.envFix = cap.patches; delete cap.patches; }
+  },
+  91: (raw) => {
+    // 91 → 92 (SR-22): the spot-check need in the safety needs list (see SCHEMA_REV's note).
+    const sr = (raw as { player?: { research?: { safRe?: { order?: string[] } } } }).player?.research?.safRe;
+    if (!sr) return;
+    const order = sr.order ?? [];
+    if (order.includes('spotCheck')) return;
+    const i = order.indexOf('review');
+    order.splice(i >= 0 ? i + 1 : 0, 0, 'spotCheck');
+    sr.order = order;
+  },
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */
@@ -1013,7 +1086,7 @@ export function migrateFlatSplit(s: GameStateV2): void {
   p.split = { ...flatOf(o, o.agents * fr, o.agents * (1 - fr)), safetyAgents: ps * A };
   for (const u of ['eng', 'capRoutine', 'capFrontier', 'safety']) delete pk[u]?.compute;
   delete pol.monitorBudget;
-  // RD-B07's claims on the old pool (shares of it), as safetyPoolClaims computed them.
+  // RD-B07's claims on the old pool (shares of it), as RD-B07's claim rule computed them.
   let needCap = 0;
   for (const u of CAP_USES) needCap += monitorNeedShare(s, u);
   const nc = ps > 0 ? needCap / ps : 0;

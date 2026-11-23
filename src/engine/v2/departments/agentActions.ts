@@ -1,13 +1,13 @@
 // Internal agent packages: readouts, before → after preview and actions (STRUCTURE §4.9, BUILD-PLAN R7). Owner: WS1.
 //
 // Home of every internal package and of Trusted to AI: Company › Agents at work (D4). Actions:
-//   agents.set      {use, versionId?, monitorId? ('' none | 'same' | id), compute?}  — next tick (D7), with preview
+//   agents.set      {use, versionId?, monitorId? ('' none | 'auto' most capable trusted (SR-20 default) | 'same' | id), compute?}  — next tick (D7), with preview
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 //   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
 //   agents.set {use, control: true | false}                                          — RD-A06: the control layer per package
 //   tooling.build {id}                                                               — RD-A06: queue an internal tool (Coding harness …)
 import {
-  AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, type CapUse,
+  AGENT_USES, AGENT_USE_DEF, MONITOR_AUTO, MONITOR_SAME, SAFETY_AGENT_DEFAULT_SHARE, type CapUse,
 } from '../../../data/v2/agents';
 import { decimalYear } from '../core/time';
 import { measuredLOf, versionById } from '../models/labs';
@@ -23,6 +23,7 @@ import { safetyFleet } from '../safety/agents';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { resultsPerYearAt } from '../safety/agendas';
 import { underControl, useControl, type ControlReadout } from '../safety/oversight';
+import { autoWatcher } from '../safety/trusted';
 import type { ComputeSplit, ActionDef, AgentPackage, AgentUse, CostLine, GameStateV2, ModelVersion, ProductionReadout } from '../types';
 import {
   agentSplitShare, agentVersion, capShare, monitorBudget, syncInternalControl, monitorH100e, monitorStrength, monitorVersion, riskBadges, type MonitorBudget,
@@ -87,7 +88,7 @@ export function agentChangeBlock(s: GameStateV2, use: AgentUse, c: AgentChange):
     const v = versionById(s, c.versionId);
     if (!live(v)) return 'Pick a live model';
   }
-  if (c.monitorId && c.monitorId !== MONITOR_SAME && !live(versionById(s, c.monitorId))) return 'Pick a live monitor model';
+  if (c.monitorId && c.monitorId !== MONITOR_SAME && c.monitorId !== MONITOR_AUTO && !live(versionById(s, c.monitorId))) return 'Pick a live monitor model';
   return undefined;
 }
 
@@ -111,6 +112,9 @@ export interface AgentLane {
   monitor?: ModelVersion;
   /** 'same' = a copy of the watched model. */
   monitorSame: boolean;
+  /** SR-20: the watcher is chosen automatically (monitorId 'auto'), with the reason (trust line, skipped models). */
+  monitorAuto: boolean;
+  monitorReason?: string;
   /** Catch rate (× coverage), monitor strength (1 = standard), oversight gap (model v3 E6: OOM of effective compute). */
   catch: number;
   /** J2 AG1: the monitor is of the watched model's lineage; its catch on collusion-relevant incidents. */
@@ -195,7 +199,8 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - 1 / Math.max(1, workContext(s).slots.EXP.m) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, newest: u !== 'capRoutine' && !live(versionById(s, s.player.agents[u].versionId)),
-      monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
+      monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME || (s.player.agents[u].monitorId === MONITOR_AUTO && !!mon && mon.id === v?.id),
+      monitorAuto: s.player.agents[u].monitorId === MONITOR_AUTO, monitorReason: s.player.agents[u].monitorId === MONITOR_AUTO ? autoWatcher(s, v).reason : undefined,
       catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon, !!s.player.agents[u].control, true),
       compute, share: u === 'safety' ? s.player.split.safetyAgents : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
@@ -297,7 +302,7 @@ const AGENTS_SET: ActionDef = {
     if (c.compute !== undefined) s.player.split = splitWithChange(s, use, c);
     const v = agentVersion(s, use);
     const mon = monitorVersion(s, use);
-    if (c.versionId !== undefined || c.monitorId !== undefined) ctx.log('company', `${AGENT_USE_DEF[use].name} agents: ${v?.name ?? 'none'}${mon ? `, monitored by ${s.player.agents[use].monitorId === MONITOR_SAME ? 'a copy of itself' : mon.name}` : ', no monitor'}.`, 1);
+    if (c.versionId !== undefined || c.monitorId !== undefined) ctx.log('company', `${AGENT_USE_DEF[use].name} agents: ${v?.name ?? 'none'}${mon ? `, monitored by ${mon.id === v?.id ? 'a copy of itself' : mon.name}${s.player.agents[use].monitorId === MONITOR_AUTO ? ' (auto: most capable trusted model)' : ''}` : ', no monitor'}.`, 1);
   },
 };
 

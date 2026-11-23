@@ -14,24 +14,25 @@
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
 // The default package (initialAgents): routine research on the start model, the other uses on the newest internal
-// model (RD-A06: named in the UI, no hidden "as routine" fallback), control off per package, monitors 'same' on routine and frontier research,
+// model (RD-A06: named in the UI, no hidden "as routine" fallback), control off per package, monitors 'auto' (SR-20: the most capable trusted model) on routine and frontier research,
 // the reference compute shares (DEFAULT_CAP_SHARES).
 import { flopPerToken } from './workfit';
 import {
-  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
+  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_AUTO, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
 import { versionById } from '../models/labs';
 import { collusionTrait, monitorStop, type MonitorStop } from '../models/products';
 import { researchAgents } from './split';
 import { controlComputeShare, controlOn, labControlSetting, setControl } from '../safety/safeguards';
+import { autoWatcher } from '../safety/trusted';
 import type { AgentPackage, AgentUse, ComputeSplit, GameStateV2, ModelVersion, TraitId } from '../types';
 
 export function initialAgents(versionId = 'V0'): Record<AgentUse, AgentPackage> {
   return {
     eng: {},
-    capRoutine: { versionId, monitorId: MONITOR_SAME },
-    capFrontier: { monitorId: MONITOR_SAME },
+    capRoutine: { versionId, monitorId: MONITOR_AUTO },
+    capFrontier: { monitorId: MONITOR_AUTO },
     safety: {},
   };
 }
@@ -76,11 +77,13 @@ export function syncInternalControl(s: GameStateV2): void {
   }
 }
 
-/** Monitor model of an internal use ('same' = a copy of the watched model). */
+/** Monitor model of an internal use ('same' = a copy of the watched model; SR-20 'auto' = the most capable trusted
+ *  model, safety/trusted.ts autoWatcher, the default). */
 export function monitorVersion(s: GameStateV2, use: AgentUse): ModelVersion | undefined {
   const id = s.player.agents[use].monitorId;
   if (!id) return undefined;
   if (id === MONITOR_SAME) return agentVersion(s, use);
+  if (id === MONITOR_AUTO) return autoWatcher(s, agentVersion(s, use)).v;
   const v = versionById(s, id);
   return live(v) ? v : undefined;
 }
@@ -101,32 +104,8 @@ export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
   return s.player.split[AGENT_LINE[use]] ?? 0;
 }
 
-/** A claim on the safety research line: what it asks for and what it gets, both shares of the line. */
-export interface PoolClaim { requested: number; granted: number }
-/** RD-A05a: the safety research line (split.safety) serves open cases first (cut pro rata when they ask for more than
- *  the line), the research lines take the rest. Monitors and safety agents have their own allocation lines. */
-export interface SafetyPoolClaims {
-  investigations: PoolClaim;
-  lines: PoolClaim;
-  /** granted ÷ requested of every investigation (1 when not cut). */
-  invScale: number;
-  /** Σ requested (may exceed 1); Σ granted (≤ 1). */
-  requested: number;
-  granted: number;
-}
-
-const openInvShare = (s: GameStateV2) => s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-
-/** The safety research line's claims (`extraInv` adds a case being previewed, Investigate). */
-export function safetyPoolClaims(s: GameStateV2, extraInv = 0): SafetyPoolClaims {
-  const I = openInvShare(s) + Math.max(0, extraInv);
-  const inv = Math.min(I, 1);
-  const lines = Math.max(0, 1 - inv);
-  return {
-    investigations: { requested: I, granted: inv }, lines: { requested: lines, granted: lines },
-    invScale: I > 0 ? inv / I : 1, requested: I + lines, granted: inv + lines,
-  };
-}
+// SR-21: the safety line's claims (cases first, lines the rest) are the needs list's compute (safety/lineProjects.ts
+// safAllocation): no separate claim pool.
 
 /** H100e running a use. */
 export const agentCompute = (s: GameStateV2, use: AgentUse) => s.player.computeOnline * agentSplitShare(s, use);

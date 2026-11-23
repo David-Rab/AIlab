@@ -53,7 +53,7 @@ import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
-import { evalReDemand, evalsDay } from './evals';
+import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
@@ -602,7 +602,7 @@ const experimenting = (s: GameStateV2, q: string[]) => q.filter((id) => {
  *  is finite; spare research engineers are idle (RD-E03: no routine tuning). */
 export function reDemand(s: GameStateV2, m = Math.max(1, workContext(s).slots.EXP.m)): Record<ReNeed, number> {
   return {
-    ops: reOpsNeed(s) / m, evals: evalReDemand(s, m), exp: experimenting(s, s.player.research.queue).length * RE_MAX_PER_PROJECT,
+    ops: reOpsNeed(s) / m, exp: experimenting(s, s.player.research.queue).length * RE_MAX_PER_PROJECT,
   };
 }
 
@@ -1253,11 +1253,11 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   const p = s.player;
   assignCapTeams(s, ready);
   const alloc = reAllocation(s);
-  // Model v3 D7: eval suites take their research engineers (the 'evals' need) and their inference compute from the
-  // experiments pool before the projects.
-  const pool = expPoolH100e(s);
-  const evH = evalsDay(s, ctx, alloc.re.evals, Math.max(1, workContext(s).slots.EXP.m), pool);
-  const avail = expFlopAllowed(s, 'cap', projectFlopPerDay(s) * (pool > 0 ? Math.max(0, 1 - evH / pool) : 1)); // RD-A07: a pause = none
+  // SR-21: eval suites take their engineers and inference compute from the safety needs list (safety engineers, the
+  // safety compute line), no longer from the capability engineers and the experiments pool.
+  const ev = evalStaffToday(s);
+  evalsDay(s, ctx, ev.re, evalM(s), ev.h100e);
+  const avail = expFlopAllowed(s, 'cap', projectFlopPerDay(s)); // RD-A07: a pause = none
   // Experiment FLOP by need (RD-B08): each project in experiments with research engineers a full share.
   const sh = expShares(alloc, avail);
   // The unit project's inputs: a full project's share (RE_MAX_PER_PROJECT of the needs' units; the whole pool for the first
@@ -1275,8 +1275,8 @@ export function capResearchDay(s: GameStateV2, ctx: SystemCtx, ready: string[], 
   softwareProgressDay(s);
   const g = stacksGEquiv(s);
   p.research.last = {
-    re: { ops: r3(alloc.re.ops), evals: r3(alloc.re.evals), exp: r3(alloc.re.exp) },
-    idle: r3(Math.max(0, alloc.total - alloc.re.ops - alloc.re.evals - alloc.re.exp)),
+    re: { ops: r3(alloc.re.ops), exp: r3(alloc.re.exp) },
+    idle: r3(Math.max(0, alloc.total - alloc.re.ops - alloc.re.exp)),
     opsServed: opsServed(alloc),
     reProj: Object.fromEntries([...alloc.perProject.entries()].map(([k, v]) => [k, r3(v)])),
     flopProj: Object.fromEntries(sh.perProject), flopUsed: used, flopAvail: avail,

@@ -13,7 +13,7 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
   projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
   FOLDED_METHODS,
 } from '../../../engine/v2';
@@ -31,10 +31,11 @@ import './safety.css';
 type SV = ReturnType<typeof safetyView>;
 const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const RESPONSES: { k: ResponseKind; label: string }[] = [
-  { k: 'patchSignal', label: 'Fix environment' }, { k: 'targetedTraining', label: 'Targeted training' },
-  { k: 'restrictContext', label: 'Restrict context' }, { k: 'liftRestriction', label: 'Lift restriction' }, { k: 'addControl', label: 'Add control' }, { k: 'rollback', label: 'Roll back' }, { k: 'disclose', label: 'Disclose' },
-];
+/** SR-18: short button labels; which responses an incident offers comes from its believed cause (responseOptions). */
+const RESPONSE_LABEL: Record<ResponseKind, string> = {
+  patchSignal: 'Fix environment', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
+  addControl: 'Add control', removeControl: 'Remove control', addLockdown: 'Comms lockdown', removeLockdown: 'Lift lockdown', rollback: 'Roll back', removeFoothold: 'Remove foothold',
+};
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
   TECH: { icon: Wrench, label: 'Tool', tone: 'good' }, EVAL: { icon: Ruler, label: 'Eval', tone: 'good' }, DISC: { icon: Telescope, label: 'Discovery', tone: 'warn' },
   DEAD: { icon: Ban, label: 'Dead end', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
@@ -444,8 +445,8 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
 }
 
 function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const gate = sv.evalGate;
-  const on = gate !== 'none';
+  const fw = sv.framework;
+  const on = fw.evalDepth !== 'none';
   const mon = monitoredUses(s);
   const budget = s.player.split.monitors; // RD-A05a: the monitors' allocation line, a share of total compute
   const at = (x: number) => Math.max(0, Math.min(1, Math.round(x * 1e4) / 1e4));
@@ -459,12 +460,19 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${evalDaysFor(s)} d`}>Days a new version waits in evaluation before it can be used or sold: its eval suite's work at today's research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
+        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `believed > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new version waits for its capability assessment: its eval suite&apos;s work at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} held` : 'nothing held'}</span></Tip></span>
         <span className="sp" />
         <Ref id="evalPolicy" to={{ panel: 'models', tab: 'evals' }}>Evals</Ref>
-        {on && <span className={`sf-mini ${gate === 'fullPlusExternal' ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.external" params={{ level: gate === 'fullPlusExternal' ? 'full' : 'fullPlusExternal' }} label="external" /></span>}
-        <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.toggle" params={{ level: on ? 'none' : 'full' }} label={<i />} /></span>
+        {on && <span className={`sf-mini ${fw.externalReview ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.external" params={{ external: !fw.externalReview }} label="external" /></span>}
+        <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.toggle" params={{ depth: on ? 'none' : 'full' }} label={<i />} /></span>
       </div>
+      {fw.holds.map((h) => (
+        <div className="sf-prow" key={`${h.ruleId}-${h.versionId}-${h.depId ?? 't'}`} data-test="framework-hold">
+          <span className="small"><b>{fw.rules.find((r) => r.id === h.ruleId)?.label ?? h.ruleId}</b>: {h.target === 'training' ? 'frontier training held' : `product ${h.depId} held`}; needs {h.missing.join(', ')}</span>
+          <span className="sp" />
+          <ActBtn id="safety.frameworkOverride" testId="safety.frameworkOverride" params={{ ruleId: h.ruleId, versionId: h.versionId }} label="override" />
+        </div>
+      ))}
       <div className="sf-prow">
         <ICON.agents size={18} />
         <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="monitorCoverage">Monitoring coverage</Term>} value={F.pct(mb.coverage)} rows={[
@@ -565,7 +573,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
           </span>
         )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
       </span>
-      <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }]} />}>
+      <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }, ...(l.expObs.n ? [{ label: <Term id="expectedObserved">Expected vs observed (last year)</Term>, value: `${F.num(l.expObs.expected, 1)} expected · ${F.num(l.expObs.observed, 0)} working of ${l.expObs.n} tests` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.expObs.aiShare) }] : [])]} />}>
         <span className="sf-res">{resTypes.filter((t) => l.results[t]).map((t) => { const I = FTYPE[t].icon; return <span key={t} className={`ftype2 ${FTYPE[t].tone}`}><I size={11} />{l.results[t]}</span>; })}{!l.findings && <span className="dim small">—</span>}</span>
       </Tip>
       <Tip content={() => <TipCard title={<Term id="deadEnd">Dead ends</Term>} value={`${F.num(l.deadEndTM, 1)} team-months`}>Team time spent on results that went nowhere in this line.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM, 1)} tm` : <span className="dim">—</span>}</span></Tip>
@@ -600,8 +608,9 @@ function ValidationCard({ sv }: { sv: SV }) {
       <Tip as="div" content={() => <TipCard title={<Term id="validation">Validation</Term>} value={`${up.jobs.length} queued`} rows={[
         { label: 'Per job', value: `${F.count(up.perJob)} engineers · ${up.days} d · ${up.n} planted cases` },
         { label: `Not validated on ${up.model ?? 'the model'}`, value: `${up.notOnCurrent} of ${up.instruments}` },
+        ...up.results.slice(0, 6).map((r) => ({ label: <>{r.name} on {r.on} <span className="dim">{r.human ? 'human-run' : `AI ${F.pct(r.job.aiShare)}, spot-checked ${F.pct(r.job.spot)}`}</span></>, value: `expected ${F.pct(r.job.expected)} · found ${F.pct(r.job.observed ?? 0)}` })),
       ]}>A job plants known behaviour in a test copy of the model and counts how often the instrument finds it: that sets its measured reliability on that model. Elsewhere reliability is extrapolated, with a wider range.</TipCard>}>
-        <div className="small" data-test="validation-queue">{up.jobs.length ? up.jobs.slice(0, 4).map((j) => <div key={j.id} className="row-i"><ICON.revalidate size={13} /> {j.name} on {j.model} <span className="sp" /><HBar v={j.progress} max={1} w={60} /> <span className="num dim">{Number.isFinite(j.daysLeft) ? F.days(j.daysLeft) : 'waiting'}</span></div>) : (up.notOnCurrent ? `${up.notOnCurrent} instruments not validated on ${up.model}` : 'all instruments validated on the model')}</div>
+        <div className="small" data-test="validation-queue">{up.jobs.length ? up.jobs.slice(0, 4).map((j) => <div key={j.id} className="row-i"><ICON.revalidate size={13} /> {j.name} on {j.model} <span className="dim" data-test={`val-ai.${j.id}`}>{j.human ? 'human-run' : `AI ${F.pct(j.aiShare)}`}</span> <span className="sp" /><HBar v={j.progress} max={1} w={60} /> <span className="num dim">{Number.isFinite(j.daysLeft) ? F.days(j.daysLeft) : 'waiting'}</span></div>) : (up.notOnCurrent ? `${up.notOnCurrent} instruments not validated on ${up.model}` : 'all instruments validated on the model')}</div>
       </Tip>
       <div className="btn-row">
         <ActBtn id="safety.validate" params={{ tool: 'all' }} label={`Validate all on ${up.model ?? 'model'}`} testId="validate-all" />
@@ -624,7 +633,7 @@ function ResultsCard({ s, sv }: { s: GameStateV2; sv: SV }) {
           return (
             <div className="sf-find" key={f.id + f.day} data-finding={f.id}>
               <span className={`ftype2 ${ft.tone}`}><ft.icon size={12} />{ft.label}</span>
-              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Line', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
+              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Line', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }, ...(f.job ? [{ label: <Term id="expectedObserved">Expected vs observed</Term>, value: `${F.pct(f.job.expected)} chance it works · ${f.job.observed ? 'worked' : 'did not'}` }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(f.job.aiShare)}${f.job.aiShare > 0 ? ` · spot-checked ${F.pct(f.job.spot)}` : ''}` }] : [])]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
               {f.published ? <span className="tag2 good">published</span> : f.retracted ? <span className="tag2 bad">retracted</span> : <ActBtn id="safety.publish" testId={`safety.publish.${f.id}`} params={{ findingId: f.id }} label="Publish" />}
             </div>
           );
@@ -687,6 +696,13 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come before validation jobs in the default order.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
+          {x.job && <Tip content={() => <TipCard title={<Term id="expectedObserved">Expected vs observed</Term>} rows={[{ label: 'Believed level at opening', value: F.pct(x.job!.expected) }, { label: 'Verdict found it', value: x.job!.observed === undefined ? 'open' : x.job!.observed ? 'yes' : 'no' }, { label: <Term id="spotCheck">Spot-checked</Term>, value: F.pct(x.job!.spot) }]}>What the case expected from your beliefs when it opened, and what it found. A case run with much AI help that keeps finding nothing where you expected something is a sign to re-run it with humans.</TipCard>}>
+            <span className="small" data-test="case-ai">AI share {F.pct(x.job.aiShare)}{x.job.aiShare > 0 ? `, spot-checked ${F.pct(x.job.spot)}` : ''} · expected {F.pct(x.job.expected)}{x.job.observed !== undefined ? ` · found: ${x.job.observed ? 'yes' : 'no'}` : ''}</span>
+          </Tip>}
+          {x.outcome && <div className="small" data-test="case-verdict">
+            {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: believed {F.num(c.from.est, 2)} ± {F.num(c.from.sd, 2)} → {F.num(c.to.est, 2)} ± {F.num(c.to.sd, 2)}</div>) : <div className="dim">No belief moved.</div>}
+            {(x.outcomeDetail?.evidence ?? []).map((e, n) => <div key={n} className="dim">+ {e}</div>)}
+          </div>}
           <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
         </div>
       </div>
@@ -835,16 +851,34 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           {i.publicTimerDays !== undefined && i.status === 'open' && (() => { const pr = publicTimerRules(s); return <Limit id="incident.publicTimer" tone="bind">public in {F.days(i.publicTimerDays)}{pr.raise ? ' · RAISE ≤ 3 d' : pr.sb53 ? ' · SB 53 ≤ 15 d' : ''}</Limit>; })()}
           <span className={`tag2 ${isLive ? 'warn' : ''}`}>{i.status}</span>
         </div>
-        {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSES.find((x) => x.k === r)?.label ?? r).join(', ')}</div>}
-        {isLive && (
-          <div className="inc-menu">
-            <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{(() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
-            <div className="btn-row wrap">
-              {RESPONSES.map((r) => <ActBtn key={r.k} id="safety.respond" testId={`safety.respond.${r.k}`} params={{ kind: r.k, incidentId: i.id, versionId: i.versionId }} label={r.label} />)}
-              <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />
+        {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSE_LABEL[r] ?? r).join(', ')}</div>}
+        {isLive && (() => {
+          const v = versionById(s, i.versionId);
+          const opt = v ? responseOptions(s, v, s.player.safety.incidents.find((x) => x.id === i.id)) : undefined;
+          return (
+            <div className="inc-menu">
+              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
+              <div className="btn-row wrap">
+                {(opt?.kinds ?? []).filter((k) => k !== 'removeFoothold').map((k) => <ActBtn key={k} id="safety.respond" testId={`safety.respond.${k}`} params={{ kind: k, incidentId: i.id, versionId: i.versionId }} label={RESPONSE_LABEL[k]} />)}
+                <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
+        {(i.status !== 'disclosed' && i.status !== 'leaked') && (() => {
+          const inc = s.player.safety.incidents.find((x) => x.id === i.id);
+          if (!inc) return null;
+          const yes = willDisclose(s, inc);
+          return (
+            <div className="row-i small" data-test="inc-disclosure">
+              <span className="tip-cap"><Term id="disclosure">Disclosure</Term></span>
+              <span className="dim">{inc.disclose ? `your choice: ${inc.disclose === 'yes' ? 'disclose' : 'withhold'}` : `policy ${DISCLOSURE_LABEL[disclosurePolicy(s)]}: ${yes ? 'reported' : 'not reported'}`}{mustReport(s, inc) ? ' · the law requires a report' : ''}</span>
+              <span className="sp" />
+              {!yes && <ActBtn id="safety.disclose" params={{ incidentId: i.id, choice: 'yes' }} label="Disclose" testId={`inc-disclose.${i.id}`} />}
+              {yes || inc.status === 'covered' ? null : !inc.disclose && <ActBtn id="safety.disclose" params={{ incidentId: i.id, choice: 'no' }} label="Withhold" testId={`inc-withhold.${i.id}`} />}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -854,6 +888,10 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
         {live.map(card)}
         {!live.length && <div className="row-i small"><ICON.check size={14} className="tone-pos" /> No open incidents</div>}
         {past.length > 0 && <><div className="tip-cap" style={{ marginTop: 10 }}>Closed</div>{past.map(card)}</>}
+        <div className="row-i small" style={{ marginTop: 10 }} data-test="disclosure-policy">
+          <span className="tip-cap"><Term id="disclosure">Disclosure policy</Term></span>
+          <div className="btn-row">{DISCLOSURE_POLICIES.map((p) => <ActBtn key={p} id="safety.disclosurePolicy" params={{ policy: p }} label={DISCLOSURE_LABEL[p]} primary={disclosurePolicy(s) === p} testId={`disclosure.${p}`} />)}</div>
+        </div>
       </Card>
     </div>
   );

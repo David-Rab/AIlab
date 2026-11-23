@@ -151,13 +151,17 @@ export const RE_MAX_PER_PROJECT = 2;
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
 /** Default allocations: research engineers keep runs going first, then project experiments (RE_MAX_PER_PROJECT each, no
  *  share cap: RD-B08); the rest are idle (RD-E03: no routine tuning);
- *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. Model v3 D7: eval suites come right after run operations (a
- *  release waits on them; they are small). */
-export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'exp'], max: {}, share: {} };
+ *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. SR-21: eval suites are a safety engineers' need. */
+export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'exp'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
-/** RD-A04: the safety research engineers' default order is the pre-RD-A04 sequence (cases and patches first, then line
- *  experiments, the rest on tool re-validation), without the old SAF_EXP_SHARE cap. */
-export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: ['cases', 'patches', 'safExp', 'validation'], max: {}, share: {} };
-export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = { cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', validation: 'Validation jobs' };
-export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments' };
+/** SR-21 (SAFETY-REDESIGN §5): the safety research engineers' default order: human review on the safeguards (SR-13b took
+ *  it before the list), SR-22 spot-checks of AI-done safety work, cases, validations and ports, pre-release eval suites, environment fixes, foothold removals,
+ *  research experiments. The player reorders it in LAB (OD-9). */
+export const SAF_RE_NEEDS: SafReNeed[] = ['review', 'spotCheck', 'cases', 'validation', 'evals', 'envFix', 'removal', 'safExp'];
+export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: [...SAF_RE_NEEDS], max: {}, share: {} };
+export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = {
+  review: 'Human review (safeguards)', spotCheck: 'Spot-checks of AI safety work', cases: 'Open cases', validation: 'Validation jobs', evals: 'Eval suites',
+  envFix: 'Environment fixes', removal: 'Foothold removals', safExp: 'Line experiments',
+};
+export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', exp: 'Project experiments' };
 export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector adaptations)' };

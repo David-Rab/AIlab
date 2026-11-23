@@ -34,6 +34,7 @@ import { adopted } from './paradigms';
 import { optionLocked } from './tree';
 import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
+import { trainingHeld } from '../safety/framework';
 import { addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
 import { distillLift } from '../production/diffusion';
@@ -94,8 +95,9 @@ export function serveTechMult(s: GameStateV2): number {
 }
 
 
-/** Frontier (base/post) runs are paused until this day by WS4 (E17 Pause & investigate, pause pledges). */
-export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day;
+/** Frontier (base/post) runs are paused: until a day by WS4 (the pause pledge), or while the Safety framework holds
+ *  frontier training (SR-19, safety/framework.ts; refreshed daily before runs). */
+export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day || trainingHeld(s);
 
 /** RD-B09 (DD-11): share of the run-operations need the research engineers served today (models/research.ts
  *  opsServed, written by the research system before runs advance; 1 in older saves). Running runs and the
@@ -794,7 +796,7 @@ export const runsSystem: EngineSystem = {
   id: 'runs', owner: 'WS1', cadence: 'daily', order: 40, system: 'models',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
-    // WS4 pauses frontier runs (status 'paused'); they resume when the pause ends.
+    // WS4 and the Safety framework pause frontier runs (status 'paused'); they resume when the pause ends.
     if (!frontierPaused(s, ctx.day)) for (const r of s.player.models.runs) if (r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')) r.status = 'running';
     const alloc = poolAllocation(s);
     const ops = runOpsServed(s);

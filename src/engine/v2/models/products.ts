@@ -19,6 +19,8 @@ import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { flopPerToken } from '../departments/workfit';
+import { MONITOR_AUTO } from '../../../data/v2/agents';
+import { autoWatcher } from '../safety/trusted';
 
 
 /** Products customers buy (external, paid). */
@@ -108,10 +110,19 @@ export function monitorStop(
   };
 }
 
+/** SR-20b: a product's monitor model. monitorId 'auto' (MONITOR_AUTO) = the same trusted-watcher picker as internal
+ *  deployments (safety/trusted.ts autoWatcher: the most capable live model the lab trusts other than the product's
+ *  model); a model id overrides. */
+export function productMonitorVersion(s: GameStateV2, d: Pick<Deployment, 'versionId' | 'monitorId'>): ModelVersion | undefined {
+  if (!d.monitorId) return undefined;
+  if (d.monitorId === MONITOR_AUTO) return autoWatcher(s, versionById(s, d.versionId)).v;
+  return versionById(s, d.monitorId);
+}
+
 /** Cost ratio of a product's monitor: its FLOP per token ÷ the watched model's (0 with no monitor). */
 export function productMonitorCostRatio(s: GameStateV2, d: Deployment): number {
   if (!d.monitorId) return 0;
-  const mon = versionById(s, d.monitorId);
+  const mon = productMonitorVersion(s, d);
   const v = versionById(s, d.versionId);
   if (!mon || !v) return 0;
   return flopPerToken(s, mon) / Math.max(1e-6, flopPerToken(s, v));
@@ -126,7 +137,7 @@ export function monitorOverhead(s: GameStateV2, d: Deployment): number {
 /** SR-12: a product's monitor through the one formula: monitor compute = its billed overhead × the product's serving
  *  (both scale with what is served, so the watched share is PRODUCT_MONITOR_WATCH). Open weights: no monitor. */
 export function productMonitor(s: GameStateV2, d: Deployment, controlled = controlOn(d), believed = false): MonitorStop {
-  const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
+  const mon = d.monitorId && d.channel !== 'open' ? productMonitorVersion(s, d) : undefined;
   const r = productMonitorCostRatio(s, d);
   return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled, believed);
 }

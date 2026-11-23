@@ -17,6 +17,9 @@ import { AGENT_TASK_HOURS, CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS
 import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, SAFEGUARD_DG, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
+import { MONITOR_AUTO } from '../../../data/v2/agents';
+import { productMonitorVersion } from '../../../engine/v2/models/products';
+import { autoWatcher } from '../../../engine/v2/safety/trusted';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
@@ -32,6 +35,7 @@ import { C } from '../theme';
 import './products.css';
 import { CatchX, PkgChip } from './chips';
 import { DangerChip } from './Danger';
+import { PackageRow } from './SafetyControl';
 
 const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Briefcase, trusted: ShieldCheck, open: Unlock };
 const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifiers', 'hardened'];
@@ -43,7 +47,7 @@ const BOUND_WHY: Record<string, string> = { capacity: 'serving compute is short'
 /** Product hue: serving compute is a Products-sphere pool. */
 const PROD = '#b08e1a';
 const usable = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed';
-const nameOf = (s: GameStateV2, id?: string) => (id ? versionById(s, id)?.name ?? id : '—');
+const nameOf = (s: GameStateV2, id?: string) => (id === MONITOR_AUTO ? 'auto (most capable trusted)' : id ? versionById(s, id)?.name ?? id : '—');
 const mL = (s: GameStateV2, v?: ModelVersion) => measuredLOf(s, v).L;
 /** Revenue per serving H100e-year, e.g. "$43K/H100e-yr". */
 const rate = (x: number) => `$${F.count(x)}/H100e-yr`;
@@ -146,7 +150,8 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
   const n = draft ? editedProduct(d, draft) : d;
   const set = (c: ProductChanges) => setDraft({ ...(draft ?? {}), ...c });
   const v = versionById(s, n.versionId);
-  const mon = versionById(s, n.monitorId);
+  const mon = productMonitorVersion(s, n);
+  const autoWhy = n.monitorId === MONITOR_AUTO ? autoWatcher(s, v).reason : undefined;
   const editing = !!draft && changeLines(s, d, draft).length > 0;
   const models = s.player.models.versions.filter((x) => usable(x) && CHANNEL_VARIANTS[d.channel].includes(x.variant));
   const monitors = s.player.models.versions.filter((x) => usable(x));
@@ -167,8 +172,8 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
         options={models.map((x) => ({ value: x.id, label: `${x.name} · L ${F.level(mL(s, x))}` }))} onPick={(x) => set({ versionId: x })}
         sub={def && <LineupPicker s={s} d={d} n={n} set={set} />} />
       <PkgChip kind="monitor" testId={`prod-monitor.${d.id}`} value={n.monitorId ?? ''} changed={n.monitorId !== d.monitorId}
-        options={[{ value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]} onPick={(x) => set({ monitorId: x || null })}
-        extra={mon && <CatchX {...catchRate(s, v, mon, false, true)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />} />
+        options={[{ value: MONITOR_AUTO, label: `auto · ${n.monitorId === MONITOR_AUTO && mon ? mon.name : 'most capable trusted'}` }, { value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]} onPick={(x) => set({ monitorId: x || null })}
+        extra={<>{autoWhy && <Tip content={() => <TipCard title="Automatic watcher">{autoWhy} A model is trusted when none of its red-flag traits (scheming, alignment faking, sandbagging) is believed above your Safety framework's misalignment line. Pick a model to override.</TipCard>}><div className="small dim" data-test={`prod-monitor-auto.${d.id}`}>{mon ? 'auto: most capable trusted' : 'auto: no trusted model'}</div></Tip>}{mon && <CatchX {...catchRate(s, v, mon, false, true)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />}</>} />
       <Tip content={() => <TipCard title={<Term id="runCost">Run cost</Term>} value={r ? F.money(r.runCost, { perYear: true }) : '—'} rows={r ? [
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
@@ -216,6 +221,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
           <select className="msel small" data-test={`prod-sg.${d.id}`} value={n.safeguards} onChange={(e) => set({ safeguards: e.target.value as Deployment['safeguards'] })}>
             {SAFEGUARDS.map((g) => <option key={g} value={g}>{SG_LABEL[g]}</option>)}
           </select>
+          <PackageRow depId={d.id} testId={`prod-package.${d.id}`} />
         </div>
         {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
             <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; a tenth of those asked leave (demand ×{F.num(kycDemandFactor(n), 3)}) and review costs {F.pct(kycReviewShare(n), 1)} of revenue.</TipCard>}><span className="pc-k">KYC</span></Tip>
@@ -694,8 +700,8 @@ function EditPop({ s, d, c, close }: { s: GameStateV2; d: Deployment; c: Product
   const b = pv?.before;
   const a = pv?.after;
   const n = editedProduct(d, c);
-  const catchB = d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId), false, true).rate : 0;
-  const catchA = n.monitorId ? catchRate(s, versionById(s, n.versionId), versionById(s, n.monitorId), false, true).rate : 0;
+  const catchB = d.monitorId ? catchRate(s, versionById(s, d.versionId), productMonitorVersion(s, d), false, true).rate : 0;
+  const catchA = n.monitorId ? catchRate(s, versionById(s, n.versionId), productMonitorVersion(s, n), false, true).rate : 0;
   const def = PRODUCT_DEFS[d.channel];
   const row = (k: ReactNode, x: number | undefined, y: number | undefined, fmt: (v: number) => string, goodUp = true) => {
     if (x === undefined || y === undefined) return null;

@@ -124,7 +124,7 @@ export function demandModifiers(s: GameStateV2, d: Deployment): { label: string;
 }
 
 export { PENALTY_MAX } from '../worldfx/revenue';
-export { PATCH_FLOOR, patchLevel } from '../safety/responses';
+export { DISCLOSURE_LABEL, DISCLOSURE_POLICIES, PATCH_FLOOR, RESPONSE_INFO, disclosurePolicy, mustReport, patchLevel, responseOptions, willDisclose } from '../safety/responses';
 export { bestPlayerVersion } from '../models/labs';
 
 // ───────── Idle stocks (STRUCTURE R5 and §8 idle test) ─────────

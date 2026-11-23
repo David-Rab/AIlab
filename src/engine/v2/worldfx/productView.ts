@@ -8,7 +8,7 @@
 import { ENABLER_TOOLS, TOOL_LAG_DAYS, enablerNeed, type FeatureDef, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
-import { catchRate, monitorOverhead } from '../models/products';
+import { catchRate, monitorOverhead, productMonitorVersion } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
 import { lineupVersions, markupOf, serveDollarsPerHour } from './serving';
@@ -382,7 +382,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       margin: (d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour) > 0 ? 1 - (d.channel === 'consumer' ? (x.subCost ?? 0) / (x.subPrice ?? 1) : x.costPerHour / x.pricePerHour) : 0,
       valueCapped: x.valueCapped, hours: x.hours, capHours: x.capHours, ...(x.users !== undefined ? { users: x.users, subs: x.subs } : {}),
       monitorOverhead: monitorOverhead(s, d),
-      catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId), false, true).rate : 0,
+      catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), productMonitorVersion(s, d), false, true).rate : 0,
       markup: markupOf(d), econ: econOf(x, going),
       cust: d.channel === 'consumer' && pi >= 0 ? { ...seg.cust, users: x.users ?? 0, usersTarget: usersAtTarget(s, mix, pi, x.users ?? 0) } : seg.cust,
       ...(d.channel !== 'consumer' ? { lineup: lineupRows(s, d, x) } : {}),

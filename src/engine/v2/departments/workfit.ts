@@ -34,6 +34,7 @@ import { decimalYear } from '../core/time';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
 import { ws4r } from '../actors/state';
+import { trainingHeld } from '../safety/framework';
 import { agentSplitShare, agentVersion, monitorBudget, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
 import type { DomainId, GameStateV2, ModelVersion, ProdParams, TeamQuality, TimelineWorld, VersionBuild } from '../types';
@@ -269,7 +270,7 @@ export function researchMods(s: GameStateV2): ResearchMods {
   let mods = 1 - 0.05 * p.security.siloing;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
   const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
-  const frontierExp = s.flags.paused || ws4r(s).frontierPauseUntil > day ? 0 : 1;
+  const frontierExp = s.flags.paused || ws4r(s).frontierPauseUntil > day || trainingHeld(s) ? 0 : 1;
   const sidelined = Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day ? SIDELINE_SHARE : 0;
   return { speed: mods * rateMult, rateMult, frontierExp, sidelined };
 }

@@ -3080,3 +3080,270 @@ RD-X03, safety redesign SR-01 … SR-16). Base 729404c. Every BUILD-NOTES block 
 - **Checks.** tsc (app, scripts/v2) clean; npm run build ok. rdm01.ts pass (5.09 / 4.83 / RSCH 0.60, unchanged);
   _x03/check.ts pass; _p07b/check.ts pass; _p08/check.ts pass; _sr16/check.ts pass (after the rev pin). Nothing else run.
 - **Moves calibration: yes** (both sides' rival changes now compound: X03 builds + X02 ideas + X04 lifts + P02 lineups).
+
+### SR-17
+Cases are jobs with a true preview; verdicts say what changed (SAFETY-REDESIGN §3.6, RD-S05; SAF-20 naming).
+- **Done.** The player picks the case's instruments (`tools`), engineers (5–40) and compute share (as before; now the
+  preview shows them). `investigations.casePreview` (believed reliability, the same caseRate the engine runs): days to
+  resolve (or progress at the 120-d cap), engineers, H100e, each chosen instrument with the target traits it reads, what
+  it can find (readings on the traits from its families; the catalogue's hidden failure-mode kinds its agendas can
+  reveal, "if the model has them"; footholds of the lineage; a false instrument when ≥ 2 families cross-check) and each
+  trait's believed est ± sd → the expected ± after a confirming verdict, "if your instruments are as reliable as
+  believed". Investigate's preview lists these (actions.ts caseGains); "clarity" in the preview → "case progress".
+- **Verdict.** `Investigation.before` (believed est / sd per target trait at open) and `readings` (monthly observations
+  added); at resolve `outcomeDetail.changes` (CaseChange: trait, from → to, believed values only, |Δ| ≥ 0.005) and
+  `outcomeDetail.evidence` (readings and families, the case conclusion, a failure mode found, footholds located or
+  suspected, an instrument shown false). The log line and the case card (Safety › Cases) show both. Nothing reads truth
+  beyond what the evidence already wrote into beliefs (the conclusion's reading is the existing noisy one).
+- **Edits.** types.ts (Investigation fields, CaseChange), safety/investigations.ts, safety/actions.ts (Investigate
+  preview), ui Safety.tsx (case verdict), glossary investigation.
+- **Check.** `npx tsx scripts/v2/_sr17/check.ts` (committed with SR-18; its migration line needs rev 79): preview names
+  the 2 chosen of 5 instruments, ~62 d, 20 engineers, four can-find lines; the case uses only them; verdict "confirmed;
+  SCHEME 0.285±0.108 → 0.395±0.070; 6 readings from WB / COT; case conclusion" equals the belief change. tsc (app) clean on
+  the staged tree.
+- **Left.** No case types (alignment audit stays in Heavy); framework auto-open on S3+ / disagreements (SR-19+); human-run
+  option on cases (validation has it); the case rate formula itself (SAF-25) is unchanged.
+- Moves calibration: no (bookkeeping and preview text only; same draws, same belief updates).
+
+### SR-18
+Cause-aware responses; disclosure is a separate policy (SAFETY-REDESIGN §3.7; OD-8 default legal minimum).
+- **Done.** `responses.believedCause(s, v, inc?, trait?)` from what the player sees (the incident's apparent source, a
+  located foothold of the lineage, else the trait named): signal (RH / TGAME / PROXY: an exploitable environment, grader
+  or reward model), trait, misuse, foothold, unknown. `CAUSE_RESPONSES`: signal → Fix environment (SR-16); trait →
+  Method for later runs, Roll back, Restrict context, Add control, Comms lockdown; misuse → Restrict context (product
+  side; KYC stays on the product); foothold → Remove foothold + containment; unknown → Restrict, Add control (+ open a
+  case). `responseOptions` feeds the incident card (believed cause shown, only its buttons); applyResponse and the
+  Respond preview refuse a kind outside the list ("not a response to …"); safeguard off-switches (lift / remove) always
+  apply.
+- **New response `addMethod`.** Adds an owned method fitting the trait (anti-scheming, inoculation, persona vectors,
+  CAST, W2S, confession) to `SafetyDept.requiredMethods`; `methods.defaultMethods` lists them when "Use all known
+  methods" is off. No instant change; the preview says where it lands (the next run's predicted traits) and "already in
+  every default run plan" when the policy is on.
+- **Disclosure.** `SafetyDept.disclosure` legal (default) / full / none, `Incident.disclose` override (yes / no).
+  `disclosureStep` (daily, incidents step, before timers) on open incidents: willDisclose → `discloseIncident` (the old
+  disclose effects: scrutiny 3 + 2·sev, trust by credibility, the discovered failure mode goes public, timer ends); not
+  disclosing a must-report incident (SB 53 / RAISE in force, external, sev ≥ 3: statutoryDaily's rule) → 'covered' (the
+  explicit cover-up: fine, trust, ×3 if found); anything else runs its public timer. Actions `safety.disclosurePolicy`
+  (preview: what gets reported, the cover-up's costs under none) and `safety.disclose` {incidentId, choice yes / no /
+  policy} (preview: disclosure lines or the withholding consequences). Fixing no longer sets 'covered' / ends the timer:
+  a fixed incident with a running timer stays open; without one it resolves.
+- **Deleted.** Response kinds `targetedTraining` (instant true-trait cuts, targetedPlan) and `disclose`; their previews,
+  RESPONSE_INFO rows, the UI's fixed seven-button menu. Bots (mixed, safe) and safety-emu call `addMethod` instead.
+- **Save.** SCHEMA_REV 79; migration 78 → 79 (policy legal, empty requiredMethods, old kinds dropped from incident
+  response records); hygiene pins → 79; `_sr16/check.ts` pin → ≥ 78 and its repeated fixes name trait RH.
+- **Edits.** types.ts, safety/responses.ts, safety/actions.ts, safety/incidents.ts, safety/methods.ts, safety/agendas.ts,
+  core/save.ts, core/limitsView.ts (exports), ui Safety.tsx (cause line, cause buttons, per-incident disclosure row,
+  policy buttons), glossary response / disclosure, bots.
+- **Check.** `npx tsx scripts/v2/_sr17/check.ts`: 14 ok (migration; case job; RH incident → patchSignal only; SCHEME →
+  addMethod / rollback / restrict / control / lockdown, no fix; misuse → restrict; addMethod refused on the RH incident in
+  apply and preview; fix applies; fix leaves a timed incident open; legal minimum reports the sev-3 customer incident and
+  not the sev-1 one; none → covered; override yes discloses; policy preview names the fine). tsc (app, scripts/v2) clean;
+  npm run build passes.
+- **Left.** Per-cause responses for footholds offered only via the foothold tab button (removeFoothold needs its id);
+  'full' also reports internal sev ≥ 3 (a choice, [D]); the incident's apparent cause is still the hidden-table guess
+  until a case names it (I11 card note not written); no rollback / restrict "effects land at date X" lines beyond the
+  existing previews; framework automation (SR-19+); _sr13 / _sr16 checks not re-run.
+- Moves calibration: yes (S4/S5 and relations): bots lose targeted training's instant trait cuts (addMethod is a no-op
+  with the method policy on) and their patches apply only to signal traits; must-report incidents are now disclosed by
+  default (scrutiny up, statutory fines down); fixes no longer turn timed incidents into quiet cover-ups (they leak at
+  ×1.5 unless disclosed).
+
+### SR-19
+Safety framework replaces the eval gate and the E17 "Red flags" event (SAFETY-REDESIGN §3.8, OD-5).
+- **Done.** `SafetyDept.framework` (types `SafetyFramework`, `FrameworkRule`, `FrameworkOverride`, `FrameworkHold`):
+  capability assessment (`evalDepth` none / basic / full / deep, `externalReview`) = the base rule every external release
+  needs (the old gate's job); rules with a trigger on a MEASURED domain level (`measuredDomain`, the benchmark fit) or on
+  beliefs (red-flag traits' est / clarity, internal model), required safeguards (classifiers / hardened on the product;
+  control / review on live internal deployments for training rules) and evidence (suite, external evaluation).
+  `safety/framework.ts`: `deployHolds`, `frameworkDeployBlock` (deployGate, launch and swap; GateOpts gains `guards`),
+  `trainingHolds`, `refreshFramework` (new `frameworkSystem`, order 39, before runs): sets `Deployment.held` on live external
+  products (productUsageMult → 0: they serve nobody), pauses running base / post runs, logs new and released holds;
+  `frontierPaused` and workfit's frontier experiments also read `trainingHeld`. `overrideRule` (per rule and version):
+  safety morale −5, one red flag (whistleblower odds), scrutiny +3, credibility −5 only if published (= the framework
+  commitment is live); the consequences are stated in the preview and stored on the override. `editRule`: threshold
+  within ±2 L (beliefs ±20 pts) of the default, safeguards / evidence only added. Actions `safety.frameworkEvals`,
+  `safety.frameworkRule`, `safety.frameworkOverride`. Default rules (data/v2/framework.ts): Bio High / Cyber High ≥ 10 →
+  classifiers + suite (launches); Bio / Cyber Critical ≥ 12 → hardened + external (launches); AI R&D (RSCH) Critical ≥ 12
+  → control + review + external (training); Misalignment signs (est > 30%, clarity > 0.4) → control (training).
+- **Deleted.** `SafetyDept.evalGate`, action `safety.evalGate`, event E17 and its helpers (frontierRunsGo,
+  controlLayerGo, pledgeBreakLines), refDecide / mixed E17 branches, glossary `evalGate` (→ `safetyFramework`),
+  DecisionModal E17 hint. ws4.frontierPauseUntil stays for the pauseIfRedline pledge.
+- **Edits.** types, data/v2/framework.ts, safety/framework.ts, models/deployments.ts (externallyEvaluated re-exported from
+  framework), models/evals.ts (gateDepth / policyDepth / evalDaysFor read the framework depth), models/runs.ts,
+  departments/workfit.ts, safety/{actions, agendas, traits, view, safeguards, common}.ts, actors/index.ts (Index reads
+  externalReview), models/actions.ts (external-eval preview line), events/catalog/safety.ts, core/{registry, save}.ts,
+  bots (common `answerFramework`: ref / race / capex override training holds = old E17 Continue; safe / mixed add control
+  where the rule asks for it, else the hold stands = old Continue + control / Pause), UI Safety › Policies row
+  (framework summary tooltip, depth / external toggles, one row per hold with an override button), Evals policy card,
+  RiskSources, scripts (evals, lint-tradeoffs, lint-ux, safety-emu, ws4, hygiene pins 80, _sr17 pin ≥ 79).
+- **Sources.** OpenAI Preparedness Framework v2 (15 Apr 2025: High → safeguards before deployment, Critical →
+  safeguards during development); Anthropic RSP v2.2 (2025: CBRN-3/4, AI R&D-4/5, ASL-3 standard, pause if the standard
+  cannot be met); Google DeepMind Frontier Safety Framework v3.0 (Sep 2025: CCLs incl. cyber, ML R&D, misalignment). The
+  levels and override costs are [D].
+- **Save.** SCHEMA_REV 80; migration 79 → 80: evalGate none / basic / full / fullPlusExternal → depth none / basic / full /
+  deep (+ external review), default rules, empty holds; evalGate deleted.
+- **Check.** `npx tsx scripts/v2/_sr19/check.ts`: 12 ok (migration; no eval-gate action or E17; measured CYBER 10.5 with
+  standard safeguards → launch held, classifiers → not held; live product held, usage 0; product.update to classifiers
+  releases it; override preview states morale / red flag / scrutiny and what it releases; override releases, records
+  three consequence lines, applies morale 65 → 60, scrutiny +3, red flag +1; AI R&D Critical without control holds
+  training). tsc (app, scripts/v2) clean; npm run build passes.
+- **Left.** No internal-deployment holds (GDM's "large-scale internal deployment" rule); no case evidence ("alignment
+  audit passed"); pledges (monitorability, pause) not yet folded into rules; publishing is still the separate BIO ≥ 10
+  commitment; the story beat when a rule first fires on hidden-goal evidence (§3.8) not written; editor UI (SR-28);
+  default safeguard packages / trusted rule (SR-20); bots do not add classifier safeguards when a launch is held;
+  MOOD_BASE.pause now has no reader; GLOSSARY.md not regenerated; scratch `scripts/v2/_sr19/*.cjs, *.txt` untracked.
+- Moves calibration: yes (S4/S5, relations, products): E17's pause / control / continue are gone; RefBot / race / capex
+  now pay override costs (morale, scrutiny, red flags) each time a training rule fires; mixed / safe keep frontier
+  training paused while a misalignment or AI R&D rule lacks more than control; products of models measured ≥ 10 in BIO
+  or CYBER on standard safeguards, and ≥ 12 without hardened safeguards and an external evaluation, stop serving.
+
+### SR-20
+Default safeguard packages and the "trusted" rule (SAFETY-REDESIGN §3.3 Defaults, OD-6 a).
+- **Packages** (`safety/packages.ts`, action `safety.package` {deploymentId, pkg}): Standard / High / Critical set exactly
+  their parts in one act. Products: misuse safeguards standard / classifiers / hardened + control defer 10% (Critical).
+  Internal deployment: human review / review + control defer 10% / review + control defer 20% (the internal control item
+  follows the packages running its model: their `control` flags are set, then `syncInternalControl`). Each meets the
+  default framework rules of its tier (High: Bio / Cyber High classifiers, Misalignment signs control; Critical: Bio /
+  Cyber Critical hardened, AI R&D Critical control + review). `previewPackage` runs each part in order on a copy and
+  reads the engine's own charges before → after (internal: `monitorBudget().control` × compute, `safeguardFte`, the
+  compute-weighted `useControl` Slowdown; products: `previewDeployments` revenue and serving need), so part lines sum to
+  the total; stop rates are the believed act table before → after. Nothing invented. UI: buttons on the Safety Control
+  card (internal) and each product's Safeguards row; parts stay editable on their own controls.
+- **Trusted rule** (`safety/trusted.ts`): a model is trusted when no red-flag trait (SCHEME / AF / SAND) is believed
+  above the trust line = the player's framework Misalignment-signs estimate (30% default, `TRUST_EST_DEFAULT`); beliefs
+  only. `monitorId 'auto'` (`MONITOR_AUTO`, the new default on routine and frontier research): the most capable
+  (measured L) live trusted model other than the watched one; a copy of the watched model only if it is the only trusted
+  one; none if nothing is trusted. Reason (incl. the more capable model skipped and why) on the Agents lane and in the
+  log; a model id or 'same' overrides. The 'same' default (self-monitor, M4) is replaced.
+- **Save.** SCHEMA_REV 81; migration 80 → 81 moves routine / frontier research packages on 'same' to 'auto'. hygiene
+  pins 81; _sr19 check pin ≥ 80.
+- **Check.** `npx tsx scripts/v2/_sr20/check.ts`: 12 ok (migration; High on internal sets review + control defer 10% and
+  the engine then charges the previewed +43 H100e control compute; stop rates rise; High on a product sets classifiers and
+  the preview revenue equals the engine's; auto picks the most capable trusted, skips a more capable model believed 50%
+  scheming with the reason, flips back when the belief drops; override kept). tsc (app, scripts/v2) clean; build passes.
+- **Left.** Products' monitor has no 'auto' option (still manual / none); RefBot keeps its own cost-ratio monitor picker
+  (a bot override); no OD-6 "below the scheming-capable level" clause (belief line only); no package for lockdown;
+  glossary has no `safeguardPackage` / `trustedModel` terms; retire block does not count a model that is only an auto
+  watcher.
+- Moves calibration: yes (S4/S5): default internal watchers are now the most capable trusted other model (cheaper or
+  weaker than a copy, no same-lineage collusion penalty when another base is chosen), changing coverage, catch and the
+  control gap for player and bots that keep the default.
+
+### SR-20b
+Products and RefBot use the SR-20 trusted-watcher picker (OD-6 a).
+- **Products.** `monitorId 'auto'` (`MONITOR_AUTO`) on a product = `autoWatcher(s, product model)` (safety/trusted.ts),
+  resolved by `productMonitorVersion` (models/products.ts) everywhere a product's monitor is read: cost ratio / serving
+  overhead, `productMonitor` (stop, act table, detection, incidents), catch readouts (productView, edit preview), monitor
+  upkeep (counted only when a watcher resolves). `editBlock` accepts 'auto'. UI: Products card Monitor chip has
+  "auto · <model>" first, with the reason tip (`prod-monitor-auto.<id>`); a model id or "no monitor" overrides. Not the
+  launch default (new products still start with no monitor unless the launch sets one).
+- **RefBot.** `refMonitors` sets routine / frontier research to 'auto' (the player's picker) instead of its cost-ratio
+  pick; `REF_MONITOR_COST` and the picker deleted; the budget (`REF_MONITOR_SPEND`) is unchanged. No new constants.
+- **Save.** No state change; SCHEMA_REV stays 81.
+- **Check.** `npx tsx scripts/v2/_sr20b/check.ts`: 6 ok (product on auto watched and billed by the picker's choice;
+  override kept; RefBot's routine / frontier monitors = the picker's choice). tsc (app, scripts/v2) clean; build passes.
+- **Left.** Product launch default is still no monitor; auto watcher of a product is not marked 'deployed' and does not
+  block retiring that model (same as internal).
+- Moves calibration: yes (RefBot): its watchers are now the most capable trusted model instead of the ≈10%-cost model,
+  so coverage per monitoring budget falls (dearer watcher) and strength rises (smaller oversight gap).
+
+### SR-21
+Safety needs list in LAB's one allocator (SAFETY-REDESIGN §5, OD-9 (a)). Commit 7f57afc.
+- **Done.** `SafReNeed` = review (human review on the safeguards; SR-13b took it before the list), cases, validation,
+  evals (eval suites; was the capability engineers' ReNeed 'evals'), envFix, removal (was 'patches'), safExp. Default
+  order (§5): review, cases, validation, evals, envFix, removal, safExp; the player reorders it in Company › Work.
+  `safAllocation` fills staff in that order (one `allocate()`); compute = sub-uses of the Safety line: cases (their
+  chosen shares) and eval suites (`evalH100eAsk` at the engineers they got) ask fixed H100e, filled in the same order;
+  validation jobs and line experiments share the rest by need (RD-B08). `SafAlloc.compute` per need {ask, got},
+  `computeIdle`, `caseScale`. Eval suites: `evalsDay` gets the 'evals' need (÷ TEAM_SIZE.re, m of safety experiments)
+  and its H100e; the capability experiment pool no longer pays for them. No separate eval team exists as a hire type
+  (the science column 'evals' is a safety science team column, not suite staff).
+- **Readout.** `safetySpend(s)` (safety/spend.ts): a row per need in the order plus "Monitoring & control (deployments)"
+  (the monitors' line, compute only, set in SAFETY), each with staff / compute ask and got, cost (payroll share of the
+  safety research engineers, H100e at the rental rate) and filled; idle staff / compute / cost beside; total = Σ filled.
+  Company › Work's safety card shows "Safety spend $/yr · people + compute" with the rows in its tooltip. Glossary
+  safReNeeds rewritten (GLOSSARY.md not regenerated).
+- **Deleted.** departments/agents.ts `safetyPoolClaims` / `SafetyPoolClaims` / `PoolClaim` (RD-B07 claim pool; readers:
+  investigations caseRate, Investigate preview → `caseComputeScale`, safety view), SR-13b's pre-list commit of the
+  review staff, ReNeed 'evals' (reDemand, research.last, production's reRes, evalQueueView / evalPolicyView /
+  evalDaysEstimate now read the safety list). `linePoolH100e` stays as a readout (= the pool after cases and evals).
+- **Save.** SCHEMA_REV 82; migration 81 → 82 rewrites research.safRe (review first, patches → envFix + removal in
+  place, evals before line experiments, patches' caps → envFix, deduped) and drops 'evals' from research.re; hygiene
+  pins → 82.
+- **Check.** `npx tsx scripts/v2/_sr21/check.ts` (13 ok): day-400 migrates to the seven needs; 30 people vs 123.5 asked
+  → filled in the order, the rest unfilled, none idle; reorder (evals, envFix first) → served follows; evals staffed
+  from the safety list; line = Σ sub-uses + idle; spend total = Σ filled costs ($56.8M/yr); no claim pool / pre-commit /
+  capability evals need in src. tsc (app, scripts/v2) clean; npm run build passes.
+- **Left.** Human review below its staffing still reviews fully (`labReviewOn` is a switch; needServed('review')
+  exists but no reader); a case keeps its chosen compute when its engineers are short; product monitors bill to serving
+  (not in the spend rows); per-job reordering inside validation / evals; AI staff package share per job (SR-22).
+- Moves calibration: yes (safety, research): eval suites now take safety engineers (they compete with cases and line
+  experiments; the capability engineers and experiment pool get theirs back); human review is in the list (defaults
+  first, as before); cases' compute is cut only by evals ahead of them; production's reRes no longer subtracts evals.
+
+### SR-22
+Safety work package: spot-checks, AI share per job, expected vs observed (SAFETY-REDESIGN §3.10, §4.3 channel 5; RD-S08 /
+SAF-26). Commit 19c7fd1.
+- **Package.** The safety agent package (player.agents.safety) keeps its model (RD-A06) and compute; new
+  `AgentPackage.spotCheck` (0 / 0.02 / 0.1; absent = none), action `safety.spotCheck {share}` (preview: safety engineers
+  taken, believed catch at the model's measured level). Company › Agents at work, safety lane: "Spot-checks" none / 2% /
+  10% beside Trusted to AI (tooltip: in effect, engineers, believed catch). Module `safety/workPackage.ts`.
+- **Staff.** SafReNeed 'spotCheck' (default order: review, spotCheck, cases, …): demand = q × SPOT_COST × the human
+  heads the AI's share of safety work would take (Σ A·H·heads over SAF_EXP, SAF_IDEAS); SPOT_COST = 1 [D] (a re-check
+  takes the time of the work). In effect q·σ, σ = needServed('spotCheck').
+- **Catch.** `safetySabotage` (every SAFSAB: line results, open-study results, cases): catch = 1 − (1 − catch)(1 − spot),
+  spot = q·σ · HUMAN_REVIEW · humanReviewFactor (the same human-review rule as E6) × oversightOpen. AI-assisted
+  validation of a false instrument: each planted case re-run by humans with prob q·σ finds the true recall (SR-10's
+  "AI-run hides it" now leaks in proportion to the spot-checks).
+- **Jobs.** `SafJobResult {aiShare, spot, expected, observed}` on FindingRecord (line tests and open-study results:
+  expected = believed efficacy before the result, observed = shown TECH / EVAL / DISC), ValidationResult.job (believed
+  recall vs found ÷ n), Investigation.job (believed level of the most severe target trait at opening vs found it:
+  confirmed / discovery), EvalRecord.suiteJob (believed vs measured mean misbehaviour rate over the safety evals).
+  AI share: lines `lineLabour().aiShare`, validation / case / self-run suite the SAF_EXP A (0 human-run / external).
+  Readouts: line row Results tooltip (last year Σ expected vs working, AI share), Results card tooltips, validation
+  queue rows ("AI x%" / human-run) and the Validation card tooltip (last results expected vs found), case card line,
+  Evals queue tooltip (AI share, last suite expected vs observed). No truth stored: expected from beliefs, observed =
+  what the player is shown. Glossary spotCheck, expectedObserved; safReNeeds mentions spot-checks.
+- **Save.** SCHEMA_REV 83; migration 82 → 83 puts 'spotCheck' after 'review' in research.safRe (first if no review);
+  hygiene pins → 83. scripts/v2/_sr21/check.ts still pins 82 (and the order length 7): fixture drift.
+- **Check.** `npx tsx scripts/v2/_sr22/check.ts` (all ok): migrates; A 0.23 at Trusted 80%; spot ask 0 → 0.5 → 2.5
+  engineers, SAFSAB catch 0.483 → 0.486 → 0.499 (uncaught rate down); case / suite / validation report AI share; false
+  instrument AI-assisted: unchecked observed 0.438 vs expected 0.444, 10% spot-checked 0.375 vs 0.444. tsc (app,
+  scripts/v2) clean; npm run build passes.
+- **Left.** The spot-check catch is small (human review's 0.3 × gap factor on 10%); no separate "spot-check
+  disagreement" chip (a caught SAFSAB is the existing internal incident); the sandbag slow-down (safetySandbag) is not
+  touched by spot-checks; expected is taken just before each job's own result (cases: at opening), not at queue time;
+  no picker UI for re-ordering the new need beyond the existing list.
+- Moves calibration: no (spot-checks default to none; the new need asks 0 at q = 0).
+
+### Merge p3-d (SR-17..22) → rd
+p3-d (forked from rd at d951d09, rev 78: SR-17, SR-18, SR-19, SR-20, SR-20b, SR-21, SR-22) merged into rd after p3-c2
+(a17a087, revs 79 … 87) and RD-M01b. Both sides' BUILD-NOTES blocks kept (rd's P/X/M01b blocks, then p3-d's SR blocks).
+- **Renumbering.** p3-d's revs follow rd's chain: 79 (SR-17 / SR-18) → 88, 80 (SR-19) → 89, 81 (SR-20) → 90,
+  82 (SR-21) → 91, 83 (SR-22) → 92; migrations 78→79 … 82→83 become 87→88 … 91→92 (core/save.ts keys and notes).
+  SCHEMA_REV 92. Hygiene pins → 92. Check-script pins made `>=` their own (renumbered) rev: _sr17 ≥ 88, _sr19 ≥ 89,
+  _sr20 ≥ 90, _sr22 ≥ 92 (were exact 81 / 83); _sr16 ≥ 78 (p3-d's form); _a04 ≥ 56, _r04 ≥ 58 (were exact).
+  No _sr21 check exists.
+- **Conflicts and resolutions.** save.ts (both note blocks and both migration sets, renumbered); research.ts / types.ts
+  (SR-21's needs list and labels; rd's "sector adaptations" wording in the engineers' builds label); glossary
+  (SR-21's safReNeeds, rd's engNeeds); bots/ref.ts (SR-20b: the picker; rd's unused `live` list dropped);
+  departments/build.ts (SR-20b's productMonitorVersion; bookCash import dropped, P08 removed the pack refund);
+  productOps.ts imports (rd's relaunchAdaptations, no launchEffortBlock after P06, plus MONITOR_AUTO); Agents.tsx
+  (SR-20 auto watcher option; rd's P05 `() => true` model filter, no open variant any more); _sr16 / hygiene pins.
+- **Cross-lane fixes (not conflicts, needed for both intents).** (1) p3-c2's evalGate reads (cheapTier.ts auto-join,
+  productOps lineup edit) → the Safety framework: a lineup entry must pass `frameworkDeployBlock` on the product's
+  channel and safeguards (assessment + rule holds), and an auto cheap tier joins a product only if it passes there.
+  (2) SR-19 holds × RD-P01a / P03: refreshFramework checks every model a product sells (main + lineup); a hold on any
+  holds the product; a held product is no seller in the market mix (worldfx/mix.ts computeMix / bestPublicOf skip
+  `d.held`), so its buyers go elsewhere instead of choosing a product that serves nobody. (3) RD-P05 releaseOpen: the
+  framework judges an open release with no safeguards (minimal, no guards: classifiers / hardened / control / review do
+  not count); a live open release is never held (nothing left to hold). Gov and Trusted are channels: Gov is external
+  (held like any product), Trusted stays outside the framework's external rules as SR-19 had it. (4) SR-20b × P03:
+  productUpdate marks the resolved watcher ('auto' included) as deployed. P08 adaptations act through their host
+  product, so a held host's adaptations stop with it (no extra rule).
+- **Checks.** tsc (app, scripts/v2) clean; npm run build ok. _sr17, _sr19, _sr20, _sr20b, _sr22, _p07b, _p08 checks
+  all ok (exit 0). lint-ux --doc regenerated GLOSSARY.md (560 terms); lint-ux reports 3 failures (U, gap, validatedTo,
+  blind, toolUpkeep, featEffort missing; untipped numbers), not chased (the required terms are also absent on rd).
+  Hygiene and heavy runs not run.
+- Moves calibration: possibly (held products leave the market mix; lineup models face framework holds; p3-d's SR-21
+  needs list now on rd's products).

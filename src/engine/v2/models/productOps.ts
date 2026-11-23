@@ -13,9 +13,11 @@ import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
 import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf } from './products';
+import { MONITOR_AUTO } from '../../../data/v2/agents';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf, productMonitorVersion } from './products';
 import { relaunchAdaptations } from './adaptations';
 import { evalPolicyView } from './evals';
+import { frameworkDeployBlock } from '../safety/framework';
 import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
 type Params = Record<string, number | string | boolean>;
@@ -109,7 +111,9 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
       const m = versionById(s, id);
       if (!m) return 'Unknown version';
       if (!usable(m)) return `${m.name} is not ready`;
-      if (s.player.safety.evalGate !== 'none' && m.evals.suiteDay === undefined) return `${m.name} is not evaluated yet`;
+      // SR-19 x RD-P01a: every lineup model is sold, so it passes the Safety framework as the main model does.
+      const held = frameworkDeployBlock(s, m, d.channel, { safeguards: n.safeguards, guards: n.guards ?? [] });
+      if (held) return `${m.name}: ${held}`;
       if (!allowed.includes(m.variant) && !(m.variant === 'mini' && allowed.includes('full'))) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} cannot sell a ${m.variant} model`;
     }
   }
@@ -117,7 +121,7 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
     if (d.channel !== 'consumer') return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
     if (n.freeTierId !== n.versionId && !(n.lineup ?? []).includes(n.freeTierId)) return 'The free tier runs a model of the lineup';
   }
-  if (n.monitorId && n.monitorId !== d.monitorId) {
+  if (n.monitorId && n.monitorId !== d.monitorId && n.monitorId !== MONITOR_AUTO) {
     const m = versionById(s, n.monitorId);
     if (!usable(m)) return 'The monitor must be a ready model';
   }
@@ -147,7 +151,7 @@ export function applyEdit(s: GameStateV2, ctx: SystemCtx | undefined, d: Deploym
     const v = versionById(s, d.versionId);
     if (v && v.status !== 'deployed') v.status = 'deployed';
   }
-  for (const id of [...(d.lineup ?? []), d.monitorId]) {
+  for (const id of [...(d.lineup ?? []), productMonitorVersion(s, d)?.id]) { // SR-20b: the resolved watcher ('auto' included)
     const v = versionById(s, id);
     if (v && v.status === 'ready') v.status = 'deployed';
   }

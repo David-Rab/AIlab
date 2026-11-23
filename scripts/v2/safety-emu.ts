@@ -40,7 +40,7 @@ export const safeRecipeBot: BotPolicy = {
   act(s, api) {
     const day = s.time.day;
     if (day === 0) {
-      tryAct(s, api, 'safety.evalGate', { level: 'fullPlusExternal' });
+      tryAct(s, api, 'safety.frameworkEvals', { depth: 'deep', external: true });
       tryAct(s, api, 'safety.pledge', {});
       tryAct(s, api, 'safety.publishPolicy', { policy: 'all' });
     }
@@ -62,7 +62,7 @@ export const safeRecipeBot: BotPolicy = {
           const b = iv.beliefs[t];
           if (!b || b.est <= 0.25 || b.clarity <= 0.3) continue;
           tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
-          tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
+          tryAct(s, api, 'safety.respond', { kind: 'addMethod', versionId: iv.id, trait: t });
         }
       }
     }

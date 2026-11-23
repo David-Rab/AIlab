@@ -1,8 +1,9 @@
 // RD-P01b (DD-01): the "Auto-make cheap tiers" product policy. When a full model is a live product's main model and the
 // lab has no distilled student of it (in training or made), distil one at CHEAP_TIER_RATIO of its active parameters: a
 // real distillation run (models/runs.ts, its FLOP, pool share and time as any Distill a mini run). The student joins
-// the lineup of every live product its teacher is the main model of once it is ready (and evaluated when an eval gate
-// is on). Off: nothing automatic. Owner: WS1.
+// the lineup of every live product its teacher is the main model of once it is ready (and evaluated when the Safety
+// framework asks for an assessment). Off: nothing automatic. Owner: WS1.
+import { frameworkDeployBlock, frameworkOf } from '../safety/framework';
 import { LINEUP } from '../../../data/v2/serving';
 import type { CostLine, GameStateV2, ModelVersion, SystemCtx } from '../types';
 import { CHANNEL_VARIANTS } from './deployments';
@@ -64,12 +65,13 @@ export function autoCheapTiers(s: GameStateV2, ctx: SystemCtx) {
       continue;
     }
     if (v.status !== 'ready' && v.status !== 'deployed') continue;
-    if (s.player.safety.evalGate !== 'none' && v.evals.suiteDay === undefined) continue;
+    if (frameworkOf(s).evalDepth !== 'none' && v.evals.suiteDay === undefined) continue;
     delete v.autoTier;
     for (const d of s.player.deployments) {
       if (!isProduct(d) || d.status === 'withdrawn' || d.versionId !== v.parentVersionId || (d.lineup ?? []).includes(v.id)) continue;
       const allowed = CHANNEL_VARIANTS[d.channel] ?? [];
       if (!allowed.includes('mini') && !allowed.includes('full')) continue;
+      if (frameworkDeployBlock(s, v, d.channel, d)) continue; // SR-19: a lineup model passes the Safety framework too
       d.lineup = [v.id, ...(d.lineup ?? [])];
       v.status = 'deployed';
       ctx.log('company', `${v.name} joins a product lineup (auto cheap tier).`, 1, d.id);
