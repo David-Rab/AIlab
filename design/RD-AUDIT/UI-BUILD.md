@@ -9,7 +9,8 @@ VOCAB.md, UI-IA.md, good-ui standard. Player-facing content only (no dev state o
 | UB-2 | Readouts on beliefs/measured only: bestPlayerVersion, measuredDomain fallback + act table for unmeasured versions, stackViews "waiting", softwareRate, AI share / work done; new readouts from DATA.md (NEW) incl. programme rate (≈ × / yr), chances / yr, research speed history, certainty word | engine views; after UB-1 |
 | UB-3 | Z01 save break (MIN_SCHEMA_REV → current; drop old migrations) | after UB-2 |
 | UB-4 | Vocabulary pass (Z02): glossary, tooltips, labels, view strings per VOCAB.md; fix the doc-citation filter (ui.tsx playerSource) — doc refs only in a designer overlay | UI strings; parallel with UB-1 |
-| UB-5..10 | Screens: LAB (+L0 shell) · RESEARCH Portfolio · TRAINING Next run · Know-how · SAFETY Risks · MODELS | after UB-2/4; each with UI tests + screenshots checked |
+| UB-1b | Skill-bar marks per skill from the same test as its reference (median + best), replacing the fixed 6.4 / 10 pair | after UB-1 |
+| UB-5..10 | Screens (skill bars labelled "on tests", milestones "doing the job"): LAB (+L0 shell) · RESEARCH Portfolio · TRAINING Next run · Know-how · SAFETY Risks · MODELS | after UB-2/4; each with UI tests + screenshots checked |
 
 Mockup changes accepted with the plan: Portfolio cards show the programme's rate at current staffing (≈ × / yr to its
 know-how area; next result in the tooltip); "Chances" shown as chances / yr.

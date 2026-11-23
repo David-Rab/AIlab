@@ -163,3 +163,9 @@ meaning or moved to the tooltip; lead reads "154 d behind Meridian"; risk item w
 the effect where it lands (next model's skills / × effective compute), no ambiguous "+1.3% recipe" or "returns falling
 ×0.75"; VOCAB words only (no "RL algorithms", "Applied interp"). Keep the magnified inset for small allocations; keep
 honest Best moves + "Won't help now"; drop allocation presets (auto-split policy exists).
+
+## Measurement scale (UB-1, 2026-11-23, designer accepted)
+- Per-skill best-human references from tests with human baselines (research/UB1-skill-references.md). Skill-bar marks
+  (median and best) per skill come from the same test as its reference, so bar, tooltip and source agree.
+- Two references stay distinct on purpose: skill bars = standing "on tests"; milestones / work fit = "doing the job".
+  The UI labels them that way.
