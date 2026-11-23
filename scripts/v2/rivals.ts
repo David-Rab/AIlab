@@ -221,7 +221,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
 
 // ───────── R9 (F2): the lead before the history reaches back ─────────
 {
-  // Seed 4: DeepCent's first new base is due on day 194, so it has no new base in the first two months; the lead is
+  // Seed 4 (CP3k: DeepCent's first new base is due days 172–318, one cadence after its start base), so it has no new base in the first two months; the lead is
   // then the start gap plus the days since the start (the pre-game frontier line), not gap ÷ a few weeks' research rate.
   const s = mk(4, false);
   tick(s, { skip: ['endings'] });

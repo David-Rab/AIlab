@@ -17,6 +17,7 @@ import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
 import { initialLeaderLab, initialRival } from '../actors/rivals';
+import { startDistillEquilibrium } from '../actors/rivalModel';
 import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
@@ -328,6 +329,8 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // RD-L04: day-0 milestones by the one predicate (every lab; recorded as day 0, the player's told silently), before
   // the readouts (Stage 2 reads SC).
   for (const i of updateMilestones(s, 0)) if (i > 0) s.flags[`seenMilestone${i}`] = 0;
+  // CP3k: the non-player labs start in distillation equilibrium (actors/rivalModel.ts startDistillEquilibrium).
+  for (const r of [...s.rivals, s.china.lab]) startDistillEquilibrium(s, r);
   // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
   // actors/rivalModel.ts initRivalPhys).
   for (const id of labIds) {

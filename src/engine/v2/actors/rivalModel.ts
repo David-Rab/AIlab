@@ -670,6 +670,37 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
     r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (v.pre * start) / 365 };
   }
 }
+/** CP3k: the start in distillation equilibrium (RD-X04 rule B; research/RD-X04r §3B). Every post-training lifts a lab's
+ *  own G by S × access × fit × (best released teacher − own), so its day-0 model (its G set by the start gap) already
+ *  carries that lift: its own G (what its base and recipe give) solves own + lift(own) = G. The difference sits in the
+ *  start base's own G_pre (as CP3g's start residual: gone with the lab's next base) and the start models' builds carry
+ *  it as general ΔG, so no day-0 G changes. Without it the lab's first post-training added the whole lift at once
+ *  (DeepCent +0.33 G on day 65, ai2027 seed 1). Needs the state (the teachers), so core/init.ts calls it once all labs
+ *  exist. */
+export function startDistillEquilibrium(s: GameStateV2, r: RivalLab) {
+  const G = r.internal.G;
+  const params = r.phys.base.params;
+  const f = (own: number) => own + distillLift(s, r.core.id, own, params).dG;
+  if (f(G) - G < 1e-9) return;
+  let a = G - 3;
+  let b = G;
+  for (let i = 0; i < 50; i++) {
+    const m = (a + b) / 2;
+    if (f(m) < G) a = m;
+    else b = m;
+  }
+  const d = G - a;
+  r.phys.base = { ...r.phys.base, gPre: r.phys.base.gPre - d };
+  const shift = (m?: SimpleModel) => {
+    if (m?.build) m.build = { ...m.build, gPre: m.build.gPre - d, dg: m.build.dg + d };
+  };
+  const shared = r.publicModel?.build === r.internal.build;
+  shift(r.internal);
+  if (r.publicModel) {
+    if (shared) r.publicModel.build = r.internal.build;
+    else shift(r.publicModel);
+  }
+}
 /** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
  *  share 0.4) it was sized on. */
 const START_BASE_FLOP = flopOfDesign(REFERENCE_BASE);

@@ -9,15 +9,20 @@ import { initialSecurity } from '../security/security';
 import { drawLineageUModes } from '../world/hidden';
 import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, SystemCtx } from '../types';
 import { cash, drift } from './fx';
-import { PHYS_PLACEHOLDER, goalpostsQ, rivalFinanceQ, simpleModel } from './rivals';
+import { BASE_MONTHS, PHYS_PLACEHOLDER, goalpostsQ, rivalFinanceQ, simpleModel } from './rivals';
 import { lagDays } from '../models/capability';
 import { initRivalPhys } from './rivalModel';
 import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
-import { CHINA_CAL } from '../../../data/v2/calibration';
+import { B0_DAY } from '../../../data/v2/calibration';
 import { request, ws4 } from './state';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
 import { copyrightExposure } from '../finance/observe';
+
+/** DeepCent's compute (H100e): China's accessible compute × its AGI share (AI 2027 compute forecast: 40% → 90% as the
+ *  collective centralizes, research/11 #16) × the R&D share 0.6. CP3k: the start uses the same rule (it used 0.35 of
+ *  the stock, 1.46× day 1's 0.24, so DeepCent's start base and its run in flight were sized on compute it never had). */
+export const deepCentCompute = (m: Pick<ChinaActor['meters'], 'computeAbs' | 'centralization'>) => m.computeAbs * (0.4 + 0.5 * Math.min(1, m.centralization / 75)) * 0.6;
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
@@ -39,7 +44,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
     lab: {
       core: {
         id: CHINA_ID, name: CHINA_LAB_NAME, kind: 'china', status: 'active',
-        computeOnline: meters.computeAbs * 0.35,
+        computeOnline: deepCentCompute(meters),
         split: normalizeSplit({ ...shareRefAt(2025.5), safety: h.chinaPosture.safetyInvestment * 0.15 }),
         staff, tasteHire: 1,
         security: initialSecurity(staff, 2.0),
@@ -48,7 +53,10 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
       archetype: 'deepcent',
       internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, G, uModes, false),
       publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - START_PUBLIC_GAP_OOM, uModes, true, true),
-      nextBaseDay: Math.round(rng.range(60, 240)),
+      // CP3k: the start base is dated B0_DAY, so the next is due one DeepCent base cadence after it (rivals.ts labDaily's
+      // rule for every later base: 12 months × U(0.8, 1.2) → days 172–318; was U(60, 240), a base 6–12 months after
+      // the last). Check: DeepSeek V3 (Dec 2024) → V4 (CAISI evaluation May 2026, research/10 L9) ≈ day 290.
+      nextBaseDay: B0_DAY + Math.round(BASE_MONTHS.deepcent * rng.range(0.8, 1.2) * 30.4),
       phys: PHYS_PLACEHOLDER(),
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
       visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
@@ -65,7 +73,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
     presetWeights: Object.fromEntries(CHINA_PRESETS.map((x) => [x.id, 0.4 * (x.weight / total) + (x.id === p.id ? 0.6 : 0)])),
   };
   // Model v3 F1: DeepCent's last base, recipe and models in G (its research efficiency effLab applies at run time).
-  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_OOM, h.timeline.chinaEfficiency * p.efficiency * CHINA_CAL.effScale);
+  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_OOM, h.timeline.chinaEfficiency * p.efficiency);
   return out;
 }
 
@@ -131,7 +139,7 @@ export function chinaDaily(s: GameStateV2, ctx: SystemCtx) {
   const g = Math.pow(2, 1 / 365) - 1;
   const exportF = s.market.exportPolicy === 'strict' ? 0.8 : s.market.exportPolicy === 'open' ? 1.1 : 1;
   m.computeAbs *= 1 + g * exportF;
-  c.lab.core.computeOnline = m.computeAbs * (0.4 + 0.5 * Math.min(1, m.centralization / 75)) * 0.6;
+  c.lab.core.computeOnline = deepCentCompute(m);
   // policy.chinaSez (WS5 POLICY_FLAGS, H32): China opens its own AI zones once the US has SEZs and Beijing has
   // centralised its AI effort [D]; closed again if the US SEZs close or a verified treaty is signed.
   if (day % 30 === 0) {
