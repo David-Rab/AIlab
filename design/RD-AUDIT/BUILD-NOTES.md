@@ -5022,7 +5022,7 @@ scripts at the end (`run.ts --tier full --only safety,safetyrates`, 14.2 min wal
 
 **S4 gap and driving draws** (probe `_cals2/s4dist.ts`, 40 cache hits): still bimodal, 15 / 40 worlds P_mis > 0.5,
 18 < 0.1. Mis correlates with the hidden at-scale draws q of T-W2S (r −0.48) and T-UNDO (−0.24); ≈ 0 with
-anti-scheming / inoculation (RefBot leans on neither). The grader move added +0.02 Mis on average (Mis 0.319 → 0.342):
+anti-scheming / inoculation (RefBot leans on neither). Mis 0.319 → 0.342 is tasks 1–3 plus base drift together (not separated, no bisect); the expected main part is the grader move:
 RefBot's graders now fall behind from L 6.4, but the missed-hack path into Mis passes through inoculation (×0.15,
 MacDiarmid) and the q draws. The 0.018 miss is within one or two worlds flipping across the 0.06-wide P_mis curve
 (se of the 40-world mean ≈ 0.07). No further tuning (task rule).
