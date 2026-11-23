@@ -4779,3 +4779,59 @@ framework thresholds from the real 2025 frameworks). Quotes, mappings and confid
   on the base (RF-S13b auto-parts; superseded), setup reads the lowest rule level per domain. _cp3i: pre-existing FAILs
   (U[0, 1] superseded by RF-S10's U[0, 2]). New probes `scripts/v2/_cals/fresh.ts` (day-0 triggers), `medexp.ts`
   (median expert level per world). Old saves keep their stored rule levels (no migration; development branch).
+
+### CAL-T refit (calibration step 4, timelines and presets; branch cal-time)
+
+Worktree AI27-rf-r on rd 399f212. Targets: CAL1.md "Timelines and presets". Allowed knobs: each preset's fitted G_SC
+(as CP3j) inside its source range; CAL-W's sourced values (sd_SC 0.5, authors2026 Δ_bm 2.17, slow r 4.0, China
+efficiency 1) kept; no rival / China change. Runs: three `calscan.ts t1` scans (20 seeds; scratch logs in .scratch/,
+untracked) and one `npm run test:cal` (12.5 min) at the committed values. tsc (app, scripts/v2) clean.
+
+| Parameter | Old → new | Why |
+|---|---|---|
+| fast `gSC` | 31.35 → **31.25** | Scan 31.2 / 31.25 / 31.3: worst 1.16 (SC −0.093) / **0.84** / 1.29 (SAR +0.137, SIAR +0.155). Inside Daniel's AC horizon range 31.1–35.3 and the golden-run 31.23–31.39 (CAL-W). Narrow window (one passing grid point). |
+| authors2026 `gSC` | 33.45 → **33.1** | Fitted to SC (what the value means): SC −0.029 / +0.079 / +0.168 y at 33.0 / 33.2 / 33.35; 33.1 is the middle. Still the CAL-W stand-in (needs AIFM's progress at AC on Eli's medians). Range 31.6–41.5. |
+| slow `gSC` | 35.575 → **38.3** | The top of its source range (AI 2027 Eli h_SC 1 mo … 1,200 work-years ⇔ 31.6–38.3): SC 2466 / 2856 / 3121 d at 35.575 / 37.4 / 38.3. Only the top reaches the sourced window. A stand-in for the source's slower horizon trend (below). |
+| slow SC **target** (calib / calscan) | golden 4758 d (2038.5) → **2034–2035** (middle 3289 d, ±212 d = half width + SC tol) | 4758 was the v1 integrator's output (world.ts slow + the AI 2027 code's 2029 slowdowns), KNOWN against its own source in golden-timelines. Sourced: research/11 §5.5; AIFP Dec 2025 (Daniel: "Pure exponential trend, keeping my other parameters fixed, gets to AC 5 years later, in 2034") = GOLDEN_EXPECTED.slow.SC. scripts/v2/lib.ts `calGolden` / `calTol`; timelines.json unchanged. |
+
+**Before (CAL1) → after (test:cal at 9bc1b09; T1 median of 20 seeds, T1L of 5; days from 2025-07-01)**
+
+| Target | CAL1 | CAL-T | want | |
+|---|---|---|---|---|
+| T1 ai2027 SC / SAR / SIAR / ASI | 616 / 788 / 900 / 949 | unchanged | 638 / 791 / 883 / 915 | pass ×4 |
+| T1 authors2026 SC / SAR / SIAR / ASI | 1585 / 1893 / 1981.5 / 2020 | **1506** / 1790 / 1877 / 1912 | 1495 / 1573 / 2151 / 2975 | SC pass; SAR +0.60, SIAR −0.75, ASI −2.91 y fail |
+| T1 fast SC / SAR / SIAR / ASI | 884.5 / 944 / 980.5 / 1007 | **860 / 916 / 951 / 993** | 880 / 880 / 925 / 956 | **pass ×4** (worst 0.84) |
+| T1 slow SC | 2466 (2032.25) | **3121 (2034.04)** | 2034–2035 | **pass** (p10 −1.64, p90 +1.54 y around the middle; 6/20 seeds in the window) |
+| T1L ai2027 | 576 / 745 / 794 / 815 | unchanged | 638 / 791 / 883 / 915 | fail ×4 (−0.17 / −0.13 / −0.24 / −0.27 y) |
+| T1L authors2026 SC / SAR (SIAR / ASI WARN) | 1654 / 1759 | 1577 / 1675 (1745 / 1773) | 1495 / 1573 | fail ×2 (+0.23 / +0.28 y) |
+| T1L fast | 925 / 954 / 968 / 982 | **895** / 931 / **939 / 952** | 880 / 880 / 925 / 956 | SC, SIAR, ASI pass; SAR +51 d (tol 44) |
+| T1L slow SC | 2235 | 2614 (2032.66) | 2034–2035 | fail (−1.85 y from the middle) |
+| start M (ai2027) | 1.202 | 1.202 | 1 ± 0.1 | fail (diagnosed, not changed) |
+
+h50 doubling 4.2 mo, frontier G path 0.17 G, T4 unchanged (pass). test:cal: 37 passed, 12 failed (CAL1: 31 / 18).
+
+**What can't be met with the allowed knobs, and the mechanism suspected**
+- **authors2026 SAR → ASI shape.** RefBot's SC → SAR is 284 d (golden 78) and SAR → ASI 122 d (golden 1,402) at every
+  G_SC; G_SC only slides all four together. With sd_SC 0.5 and Δ_bm 2.17 (both sourced) the work-type ladder (SAR
+  0.84·Δ_bm above SC, ASI 1.3 more gaps) is crossed by a takeoff far faster than AIFM-Eli's: the golden's slow post-SAR
+  stretch needs what slows AIFM's takeoff on Eli's medians (its compute bottleneck on experiments / the parallel-labour
+  penalty in the research CES, PROD_PRESETS authors2026 La 15, slow10 2.8, m2b 3.7, r 3.19), not checked against AIFM
+  here. Needs one AIFM run on Eli's medians (also sources G_SC).
+- **T1L (leader lab) early on ai2027 and slow, late on authors2026 SC / SAR.** The simplified aggregate leader
+  (actors/rivals.ts initialLeaderLab, rivalModel.ts) runs SC 40 d (ai2027) to 1.4 y (slow) ahead of RefBot on the same
+  V3_CAL; G_SC is shared with T1 (which binds), so no allowed knob separates them. Rival mechanics: deferred to the
+  rivals session.
+- **slow** passes only at the top of G_SC's source range and on the lower edge of the window (2034.04; a 3-y seed
+  spread). The preset's own premise is h_SC 120 work-months (G_SC ≈ 34.9) on a METR 7-month doubling; the game's slow
+  h50 doubles every 5.5 months on the AI 2027 compute path. G_SC 38.3 makes SC harder instead of making progress slower;
+  if the designer gives slow its slower horizon trend, G_SC should go back to ≈ 34.9.
+- **start M 1.202 (ai2027):** not a bug and not a mis-tuned sourced parameter. M is the EXP slot's AI-labour
+  multiplier on day 1 (departments/workfit.ts labourOf: V0's EXP coverage and GDPval win rate vs the median expert,
+  whose fit sits at G_SC + (δ − 1)·Δ_bm). It rose from 1.01 (V3: G_SC 31.394) to 1.20 when CP3g / CP3j's pace refit
+  put ai2027's G_SC at 30.15: V0 sits 1.2 OOM nearer the superhuman coder. The preset's own source gives about this:
+  the AI 2027 takeoff integrator (v1 world.ts multiplierAt at p0) starts at 1.25 for ai2027 (authors2026 1.10, fast
+  1.15, slow 1.01; the game: 1.20 / 1.00 / 1.06 / 1.00). The "≈ 1 ± 0.1" target is V3.7's [D].
+
+**Designer questions:** (1) start M: retarget to each preset's source (ai2027 1.25 ± 0.1), or keep ≈ 1 (then ai2027's
+G_SC / Δ_bm would have to move against T1)? (2) slow: accept G_SC 38.3 as the stand-in until the slow-horizon mechanism
+question is decided? (3) authors2026: allow one AIFM run on Eli's medians (G_SC and the post-SAR takeoff)?
