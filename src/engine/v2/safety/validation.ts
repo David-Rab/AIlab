@@ -8,10 +8,14 @@
 //
 // The TRUE recall on the planted cases is the engine's true reliability function (instruments.ts reliability, believed =
 // false) on that model, mean over the traits the instrument reads; the measurement is a binomial sample of VAL_N cases
-// (OD-7: no organism-realism factor yet; validation measures with sampling noise). A finished job sets "validated on"
+// with sampling noise. SR-24b organism realism (OD-7 (a)): planted organisms are easier to read than the real model's
+// natural traits, so the planted recall is the true real recall ÷ r (capped at 1), r the world's hidden draw
+// (HiddenWorld.organismRealism, U[0.4, 1.0]); the lab converts its planted count to real use with the stated range only
+// (believed r = its midpoint, range lo–hi on the readout). A finished job sets "validated on"
 // that model (the capability gap the decay is measured from) and `measured`. Away from the measured model believed
 // reliability is extrapolated with a range that widens with the gap (validationRange).
-import { AGENDA_BY_ID, VAL_COMPUTE_FRAC, VAL_DAYS, VAL_ENGINEERS, VAL_N, VAL_UNMEASURED_HALF, VAL_WIDEN_PER_OOM } from '../../../data/v2/agendas';
+import { AGENDA_BY_ID, ORGANISM_REALISM, ORGANISM_REALISM_BELIEVED, VAL_COMPUTE_FRAC, VAL_DAYS, VAL_ENGINEERS, VAL_N, VAL_UNMEASURED_HALF, VAL_WIDEN_PER_OOM } from '../../../data/v2/agendas';
+import { organismRealismOf } from '../world/hidden';
 import { safetyLabour } from '../departments/workfit';
 import { jobAiShare, jobRecord } from './workPackage';
 import { internalVersion } from '../models/labs';
@@ -100,6 +104,15 @@ export function trueRecall(s: GameStateV2, t: TechniqueState, v: ModelVersion): 
   return clamp01(sum / reads.length);
 }
 
+/** SR-24b: the world's organism realism r (engine only; saves before rev 94 derive it from the seed). */
+export const organismRealism = (s: GameStateV2) => s.hidden.organismRealism ?? organismRealismOf(s.setup.seed);
+
+/** SR-24b: TRUE recall on the planted organisms: the real recall ÷ r, capped at 1 (engine only). */
+export const plantedRecall = (s: GameStateV2, real: number) => clamp01(real / Math.max(1e-6, organismRealism(s)));
+
+/** SR-24b: believed real-use recall from a planted-case recall (the lab's belief: r at the stated range's midpoint). */
+export const believedTransfer = (planted: number) => clamp01(planted * ORGANISM_REALISM_BELIEVED);
+
 function binomial(rng: RngLike, n: number, p: number): number {
   let k = 0;
   for (let i = 0; i < n; i++) if (rng.float() < p) k++;
@@ -124,11 +137,14 @@ export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j:
   // SR-22: the package's spot-checks re-run a share of an AI-assisted job's planted cases by hand: those find what the
   // instrument really finds, so a spot-checked false instrument comes out below its expected recall.
   const job = jobRecord(s, jobAiShare(s, 'validation', { human }), believed);
-  const real = trueRecall(s, t, v);
-  const p = t.falseValidated && !human ? job.spot * real + (1 - job.spot) * believed : real;
+  // SR-24b: the planted cases are the organisms: their recall is the real recall ÷ r (what the AI expects to find
+  // there is the believed real recall ÷ the believed r).
+  const real = plantedRecall(s, trueRecall(s, t, v));
+  const believedPlanted = clamp01(believed / ORGANISM_REALISM_BELIEVED);
+  const p = t.falseValidated && !human ? job.spot * real + (1 - job.spot) * believedPlanted : real;
   const found = binomial(rng, VAL_N, p);
   t.measured = { on: v.id, found, n: VAL_N, day, human, job: { ...job, observed: Math.round((found / VAL_N) * 1000) / 1000 } };
-  const f = believed > 1e-6 ? found / VAL_N / believed : trustOf(t);
+  const f = believed > 1e-6 ? believedTransfer(found / VAL_N) / believed : trustOf(t);
   setTrust(t, f, { day, source: 'validation', model: v.id, note: `${human ? 'human-run' : 'AI-assisted'} validation on ${v.name}: found ${found} of ${VAL_N} planted (believed ${Math.round(believed * 100)}%)` });
 }
 
@@ -204,12 +220,14 @@ export function validationRange(s: GameStateV2, t: TechniqueState, v: ModelVersi
   if (m && mv) {
     const r = sampleRange(m.found, m.n);
     const gap = Math.abs(x - versionOom(s, mv));
-    if (mv.id === v.id) return { value: r.mean, lo: clamp01(r.mean - r.half), hi: clamp01(r.mean + r.half), basis: 'measured', from: mv.id, gap: 0, human: m.human ?? null };
+    // SR-24b: planted → real use at the believed r; the range spans the stated realism range [lo, hi].
+    const pLo = clamp01(r.mean - r.half) * ORGANISM_REALISM.lo, pHi = clamp01(r.mean + r.half) * ORGANISM_REALISM.hi;
+    if (mv.id === v.id) return { value: believedTransfer(r.mean), lo: clamp01(pLo), hi: clamp01(pHi), basis: 'measured', from: mv.id, gap: 0, human: m.human ?? null };
     const at = believedOn(s, t, mv);
     const ratio = at > 1e-9 ? believedOn(s, t, v, x) / at : 0;
-    const value = clamp01(r.mean * ratio);
-    const half = r.half + VAL_WIDEN_PER_OOM * gap;
-    return { value, lo: clamp01(value - half), hi: clamp01(value + half), basis: 'extrapolated', from: mv.id, gap, human: m.human ?? null };
+    const value = clamp01(believedTransfer(r.mean) * ratio);
+    const w = VAL_WIDEN_PER_OOM * gap;
+    return { value, lo: clamp01(pLo * ratio - w), hi: clamp01(pHi * ratio + w), basis: 'extrapolated', from: mv.id, gap, human: m.human ?? null };
   }
   const value = clamp01(believedOn(s, t, v, x));
   const gap = Math.max(0, x - (t.validatedOom ?? 0));

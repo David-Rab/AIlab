@@ -4,7 +4,9 @@
 // beliefs update by the Gaussian rule. Eval awareness, masks and undiscovered U-modes bias the observation; the
 // player only ever sees beliefs (est ± sd), safety-eval rates and incidents.
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
-import { SAFETY_EVALS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
+import { TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
+import { runAlignmentEvals } from './alignmentEvals';
+import { evalAwarenessFactor } from '../models/benchmarks';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { BeliefEvidence, GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
@@ -248,28 +250,20 @@ export function familyDetection(s: GameStateV2, _v: ModelVersion, trait: TraitId
 }
 
 /**
- * Safety eval suite (§3.5.6 "an eval suite: all active BB/COT tools, once per suite"). Writes the behavioural safety
- * eval rates (§3.3.4: observed = true·(1 − 0.8·EA)·(1 − mask_BB) + noise) into evals.safety and updates beliefs.
- * WS1's runEvalSuite should call this; safetyResearch also runs it whenever a version's suiteDay advances.
+ * Safety eval suite (§3.5.6 "an eval suite: all active BB/COT tools, once per suite"): each active behavioural / reasoning
+ * instrument reads its traits (beliefs update). SR-07: the alignment-eval results (k of n scenarios) are written by the
+ * suite itself (models/benchmarks.ts runEvalSuite → safety/alignmentEvals.ts), not averaged from these readings.
+ * safetyResearch runs this whenever a version's suiteDay advances.
  */
 export function safetyEvalSuite(s: GameStateV2, rng: RngLike, day: number, v: ModelVersion, by: 'self' | 'evalGov' | 'evalIndep' = 'self'): void {
   const X = versionOom(s, v);
-  const bbObs: Partial<Record<TraitId, { o: number; sigma: number }>> = {};
   for (const trait of TRAIT_IDS) {
     for (const fam of ['BB', 'COT'] as ToolFamily[]) {
       let d = familyDetection(s, v, trait, fam, X);
       if (by === 'evalIndep' && fam === 'BB') d = Math.max(d, 0.35); // external elicitation (+) [D]
       if (d <= 0.02) continue;
-      const o = observeVersion(s, rng, day, v, trait, fam, d, 1, by === 'self' ? 'suite' : 'external');
-      if (fam === 'BB') bbObs[trait] = { o, sigma: 0.12 / Math.max(0.1, d) };
+      observeVersion(s, rng, day, v, trait, fam, d, 1, by === 'self' ? 'suite' : 'external');
     }
-  }
-  for (const ev of SAFETY_EVALS) {
-    const obs = ev.traits.map((t) => bbObs[t]).filter((x): x is { o: number; sigma: number } => !!x);
-    if (!obs.length) continue;
-    const rate = clamp(obs.reduce((a, x) => a + x.o, 0) / obs.length, 0, 1);
-    const sd = obs.reduce((a, x) => a + x.sigma, 0) / obs.length;
-    v.evals.safety[ev.id] = { rate: Math.round(rate * 1000) / 1000, sd: Math.round(sd * 1000) / 1000, day, by };
   }
 }
 
@@ -278,6 +272,8 @@ export function observeExternal(s: GameStateV2, ctx: SystemCtx, versionId: strin
   const v = versionById(s, versionId);
   if (!v || by === 'evalGov') return;
   safetyEvalSuite(s, ctx.rng('safety'), ctx.day, v, by);
+  // SR-07: the evaluator's own scenario set (k of n per alignment eval, one full suite's worth).
+  runAlignmentEvals(s, ctx.rng('safety'), ctx.day, v, by, 1, evalAwarenessFactor(v));
 }
 
 /**

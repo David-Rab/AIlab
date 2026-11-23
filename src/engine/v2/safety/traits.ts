@@ -108,6 +108,25 @@ export const K_LH = 1.7;
  *  chart-read, 75–90% in the paper's text; research/14 F46 ×0.1–0.25) [P]. */
 export const INOC_MULT = 0.15;
 
+// ── undetected hacking reinforced (SR-24b; SAFETY-REDESIGN OD-3 (b); research/RD-SR24-safety-params.md §3) ──
+//
+// An exploitable, unpenalised hack saturates inside one RL run: Chen et al. 2025 (arXiv 2505.05410 §5.2) find the model
+// exploits a rewarded hack on > 99% of prompts within 30 RL steps; MacDiarmid et al. 2025 (arXiv 2511.18397) see the
+// hack rate go from ≈ 0 to ≈ 1 after onset. The share that saturates is the share the graders miss: a suite's
+// exploitability x_f is its rewarded (undetected) hack rate, and hacks that graders catch become environment fixes
+// (hardened suites) instead of reinforcement (Baker et al. 2025 arXiv 2503.11926; Wen et al. 2024 arXiv 2409.12822). So
+// a run's RH moves toward its hack share h = Σ_f w_f·x_f·p(ρ) (+ the self-play curricula term of S2) and gets there
+// within one reference post-train, instead of E02's per-run / per-day accumulation toward 1 (the stream and IDA move
+// by their share of a reference run's ω, so 42 stream days = one post-train).
+
+/** Share of the gap to the run's hack share closed by one reference post-train (ω = OMEGA_KIND.post) [S: Chen et al. 2025
+ *  arXiv 2505.05410 §5.2 "> 99% within 30 steps"; research/RD-SR24-safety-params.md §3 H1, H2]. */
+export const HACK_SAT_PER_RUN = 0.99;
+/** Share of the gap closed by a run (or stream day) of weight ω: 1 − (1 − HACK_SAT_PER_RUN)^(ω / ω_post). */
+export const hackSaturation = (omega: number) => 1 - Math.pow(1 - HACK_SAT_PER_RUN, Math.max(0, omega) / 0.6);
+/** The RH a run saturates toward: its hack share h plus self-play curricula's hackable reward (S2's P11 term). */
+export const hackTargetOf = (s: GameStateV2, h: number) => clamp01(h + (adopted(s, 'P11') ? 0.2 : 0));
+
 /** RL-weighted hack rate h = Σ_f w_f · h_f (share of the run's RL episodes that are rewarded hacks). */
 export function hackShare(w: FamilyMap, exploit: FamilyMap, rho: number): number {
   const hr = hackRates(w, exploit, rho);
@@ -409,6 +428,10 @@ export interface TraitEnv {
   /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
    *  E13, E14 and E27, learned-hacking term included; default 1). */
   afGate?: number;
+  /** SR-24b: the run's rewarded (undetected) hack share h + the self-play curricula term (hackTarget): when set, RH
+   *  saturates toward it within the run (hackSaturation) in place of E02's open-ended growth. Unset: E02 as before
+   *  (rivals' and base runs). */
+  hackTarget?: number;
   /** Model v3 E20: a pretraining run (a new base, continued pretraining, a rival's base): E13 and E27 do not fire
    *  (PRETRAIN_OFF). Default false (post-training, IDA, stream, distillation). */
   pretrain?: boolean;
@@ -509,10 +532,12 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
       if (env.pretrain && PRETRAIN_OFF.has(e.id)) continue; // E20: no AF growth in pretraining
+      if (e.id === 'E02' && env.hackTarget !== undefined) continue; // SR-24b: the within-run saturating rule below
       g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
-    const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0)) * (env.growthBy?.[j] ?? 1);
+    const sat = j === 'RH' && env.hackTarget !== undefined ? Math.max(0, env.hackTarget - x.RH) * hackSaturation(omega) : 0;
+    const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0) + sat) * (env.growthBy?.[j] ?? 1);
     const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
     x[j] = clamp01(x[j] + grow - rem);
   }
@@ -783,7 +808,7 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
  *  noise = w): a new model's list starts with it ("inherit:<parent>"); `from` 'stream' keeps the version's list and
  *  folds into a trailing 'stream' entry (noise = √(old² + w²)). */
 export const PREDICT_SD_FLOOR = 0.04;
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s), from = 'predicted', floor = PREDICT_SD_FLOOR, v?: ModelVersion): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s), from = 'predicted', floor = PREDICT_SD_FLOOR, v?: ModelVersion, hackH: number | undefined = post && !pretrain ? postHack(s, post).h : undefined): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
   // SR-15 (P6): the engine's mechanism (runEnv) on the believed estimates in the believed view: methods at believed
@@ -795,6 +820,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     omegaSafety, memory,
     lh, // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget)
     pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)
+    ...(hackH !== undefined ? { hackTarget: hackTargetOf(s, hackH) } : {}), // SR-24b: public rule, the player's own suites
     ...(growthBy ? { growthBy } : {}),
   };
   const next = stepTraits(est, env);
@@ -1143,8 +1169,10 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
   env.omegaSafety = om.safety;
   env.memory = runMemoryOn(s, run); // RD-B02: P07 as frozen at launch
   // E16: learned hacking from the run's frozen suites, RL shares and ρ.
-  const lh = runHack(s, { ...run, post }).lambda;
+  const rh = runHack(s, { ...run, post });
+  const lh = rh.lambda;
   env.lh = lh;
+  env.hackTarget = hackTargetOf(s, rh.h); // SR-24b: undetected hacking saturates within the run
   // P14 interp-guided training (E13): the white-box probes steer the run's trait growth away from what they read.
   const steer = probeSteer(s, probe);
   env.growthBy = steerGrowth(steer);
@@ -1161,7 +1189,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior', PREDICT_SD_FLOOR, probe);
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior', PREDICT_SD_FLOOR, probe, rh.h);
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1188,12 +1216,14 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   const sg = postSignals(s, v.design);
   const lineage = base?.lineage ?? 'L-unknown';
   const env = playerEnv(s, v.traitsTrue, sg, 0.6 / 42, v.design, lineage, v.uModes, v);
-  env.lh = postHack(s, v.design).lambda; // E16: the stream trains on today's suites
+  const ph = postHack(s, v.design);
+  env.lh = ph.lambda; // E16: the stream trains on today's suites
+  env.hackTarget = hackTargetOf(s, ph.h); // SR-24b: a stream day closes its ω share of the gap to h
   v.traitsTrue = stepTraits(v.traitsTrue, env);
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   // SR-06: the stream's beliefs widen by its day of training (predictBeliefs on the PUBLIC rule, scaled floor).
   const omDay = 0.6 / 42;
-  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post), v);
+  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post), v, ph.h);
 }
 
 /** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4
@@ -1204,7 +1234,9 @@ export function applyIdaCycle(s: GameStateV2, v: ModelVersion, run?: Pick<Traini
   const env = playerEnv(s, v.traitsTrue, sg, OMEGA_KIND.ida * rlMovement(IDA_RL_SHARE), v.design, base?.lineage ?? 'L-unknown', v.uModes, v);
   env.omegaSafety = OMEGA_KIND.ida;
   env.memory = runMemoryOn(s, run); // RD-B02: P07 as the IDA run froze it
-  env.lh = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE }).lambda; // E16
+  const ih = postHack(s, v.design, undefined, { rho: IDA_RL_SHARE });
+  env.lh = ih.lambda; // E16
+  env.hackTarget = hackTargetOf(s, ih.h); // SR-24b
   const x = stepTraits(v.traitsTrue, env);
   for (const t of TRAIT_ORDER) if (t !== 'SA') x[t] = clamp01(x[t] * 1.1);
   v.traitsTrue = x;

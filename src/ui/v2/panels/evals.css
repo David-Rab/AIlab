@@ -47,3 +47,8 @@
 .ev-axis { padding-bottom: 0 !important; }
 .ev-tick { font-size: 9.5px; fill: var(--text-3); }
 .ev-band { display: block; }
+
+/* alignment evals (SR-07) */
+.ev-algrid { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, max-content); column-gap: 14px; row-gap: 4px; font-size: 12px; }
+.ev-alline { display: contents; }
+.ev-algrid .r { text-align: right; }

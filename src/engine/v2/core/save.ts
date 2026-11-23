@@ -1,5 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
+import { ALIGN_EVAL_N, evalRecord } from '../safety/alignmentEvals';
+import { organismRealismOf } from '../world/hidden';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
 import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
@@ -171,8 +173,13 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  in research.safRe (first when there is no review).
  *  93 (RD-P10): Deployment.servedBy (tokens a day per model of the product, derived daily by the revenue system; optional,
  *  so 92 → 93 changes nothing: the next daily tick fills it; until then a product has no misuse exposure).
+ *  94 (SR-07): alignment-eval results are k of n test scenarios with a 90% interval (evals.safety[id].k / n / lo / hi;
+ *  safety/alignmentEvals.ts). Migration 93 → 94 renames the instrument-suite keys (Honesty, ScheminProbe, …) to the eval
+ *  ids (the later record wins) and gives each record n = 40, k = round(rate · 40) and its Wilson interval.
+ *  95 (SR-24b): HiddenWorld.organismRealism (r ~ U[0.4, 1.0], a hash of the seed; safety/validation.ts). Migration
+ *  94 → 95 sets it from the save's seed (organismRealismOf), the value a new game with that seed draws.
  */
-export const SCHEMA_REV = 93;
+export const SCHEMA_REV = 95;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1051,6 +1058,27 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   92: () => {
     // 92 → 93 (RD-P10): Deployment.servedBy is derived daily (see SCHEMA_REV's note); nothing to rewrite.
+  },
+  93: (raw) => {
+    // 93 → 94 (SR-07): alignment evals as k of n (see SCHEMA_REV's note).
+    const ren: Record<string, string> = { Honesty: 'honesty', ScheminProbe: 'schemeProbe', Sabotage: 'sabotage', AgentStress: 'agentStress', EvalAware: 'evalAware', HackRate: 'hackRate' };
+    const vs = (raw as { player?: { models?: { versions?: { evals?: { safety?: Record<string, { rate: number; sd: number; day: number; by: 'self' | 'evalGov' | 'evalIndep'; k?: number; n?: number }> } }[] } } }).player?.models?.versions ?? [];
+    for (const v of vs) {
+      const old = v.evals?.safety;
+      if (!old || !v.evals) continue;
+      const out: NonNullable<typeof old> = {};
+      for (const [id, r] of Object.entries(old)) {
+        const key = ren[id] ?? id;
+        if (out[key] && out[key].day >= r.day) continue;
+        out[key] = r.n ? r : evalRecord(Math.round(Math.min(1, Math.max(0, r.rate)) * ALIGN_EVAL_N), ALIGN_EVAL_N, r.day, r.by);
+      }
+      v.evals.safety = out;
+    }
+  },
+  94: (raw) => {
+    // 94 → 95 (SR-24b): the world's organism realism from its seed (see SCHEMA_REV's note).
+    const r = raw as { hidden?: { organismRealism?: number }; setup?: { seed?: number } };
+    if (r.hidden && r.hidden.organismRealism === undefined) r.hidden.organismRealism = organismRealismOf(r.setup?.seed ?? 0);
   },
 };
 

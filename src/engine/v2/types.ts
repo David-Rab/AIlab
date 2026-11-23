@@ -223,6 +223,9 @@ export interface HiddenWorld {
   /** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) (a hash of the seed, no stream draw): control is
    *  lost when exposure > doomThreshold + ε_w (safety/control.ts lossThreshold). */
   toleranceNoise: number;
+  /** SR-24b: organism realism r ~ U[0.4, 1.0] (a hash of the seed): real recall of an instrument = its recall on planted
+   *  model organisms × r (safety/validation.ts). Hidden: the lab knows only the range. */
+  organismRealism: number;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
   actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
   rivalPostures: Record<LabId, SafetyPosture>;
@@ -449,7 +452,9 @@ export interface TraitBelief { est: number; sd: number; clarity: number; lastObs
 export interface EvalRecord {
   suiteDay?: Day; // last full suite run
   bench: Record<BenchmarkId, { score: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
-  safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
+  /** Alignment evals (SR-07): k of n test scenarios with misbehaviour, rate = k/n, 90% Wilson interval lo–hi, sd = the
+   *  interval's sd (safety/alignmentEvals.ts). k / n / lo / hi absent only on records from before rev 93. */
+  safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep'; k?: number; n?: number; lo?: number; hi?: number }>;
   /** Measured general level (RD-M01, DD-08): fitted from the last suite's benchmark scores (models/benchmarks.ts fitDomains, fitGeneral). */
   measuredL?: number;
   /** RD-M01: fitted level per domain with a benchmark reading (MEDIA, PHYS have none). */

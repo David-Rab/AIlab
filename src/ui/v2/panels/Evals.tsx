@@ -8,7 +8,7 @@
 import { ListChecks } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { dateOf, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, fmtDate, versionById } from '../../../engine/v2';
+import { alignmentEvalView, dateOf, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, fmtDate, versionById } from '../../../engine/v2';
 import type { EvalDepthRow, EvalMeasureRow, EvalTaskView, GameStateV2, ModelVersion } from '../../../engine/v2';
 import { EVAL_DEPTHS } from '../../../data/v2/evals';
 import { store } from '../store';
@@ -60,6 +60,7 @@ export function Evals({ s, v }: { s: GameStateV2; v?: ModelVersion }) {
         <div className="ev-left">
           <QueueCard s={s} q={q} />
           <MeasureCard s={s} rows={rows} sel={v?.id} />
+          {v && <AlignCard s={s} v={v} />}
         </div>
         <OrderCard s={s} v={v} />
       </div>
@@ -155,7 +156,7 @@ function QueueRow({ s, t }: { s: GameStateV2; t: EvalTaskView }) {
       { label: <Term id="roleEng">Engineers</Term>, value: t.engDays > 0 ? `${tw(t.engTW)} team-wk on the build queue · ${daysTxt(t.engDays)}` : 'harness ready' },
       { label: <Term id="h100e">Compute</Term>, value: `${F.count((1 - t.progress) * t.h100eDays)} of ${F.count(t.h100eDays)} H100e-days left · ${daysTxt(t.computeDays)}` },
       ...(t.by === 'self' ? [{ label: 'Research engineers on it', value: `${F.num(t.reNow, 2)} of ${F.num(t.reMax, 2)} teams it can use` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(t.aiShare) }] : []),
-      ...(() => { const j = versionById(s, t.versionId)?.evals.suiteJob; return j ? [{ label: <Term id="expectedObserved">Last suite: expected vs observed</Term>, value: `${F.pct(j.expected)} believed misbehaviour · ${F.pct(j.observed ?? 0)} measured` }] : []; })(),
+      ...(() => { const j = versionById(s, t.versionId)?.evals.suiteJob; return j ? [{ label: <Term id="expectedObserved">Last suite: expected vs observed</Term>, value: `${F.pct(j.expected)} believed misbehaviour · ${F.pct(j.observed ?? 0)} in test scenarios (mean of k / n)` }] : []; })(),
     ]} footer="The slowest part sets the finish date. Shares of the evaluations need go to suites in queue order.">Work left on this suite at today&apos;s rates.</TipCard>
   );
   return (
@@ -168,6 +169,42 @@ function QueueRow({ s, t }: { s: GameStateV2; t: EvalTaskView }) {
       <Tip content={workTip}><span className={`num small ${stalled ? 'tone-neg' : ''}`} data-test="eval-eta" data-eta={Number.isFinite(t.etaDays) ? t.etaDays : -1}>{finish(s, t.etaDays)}{!stalled && <span className="dim"> · {F.days(t.etaDays)}</span>}</span></Tip>
       <Tip content={workTip}><span className={`row-i small ${t.waiting ? 'tone-warn' : 'dim'}`} data-test="eval-binds" data-binds={t.waiting ?? t.binds}><bind.icon size={12} />{t.waiting ? `waits: ${bind.label}` : bind.label}</span></Tip>
     </div>
+  );
+}
+
+// ───────── alignment evals (SR-07) ─────────
+const pr = (lo: number, hi: number) => `${F.pct(lo)}–${F.pct(hi)}`;
+/** Alignment-eval results of the selected version: k of n test scenarios with the 90% interval (evidence on beliefs),
+ *  the believed real-use band and the test-vs-real gap. Reads measured records and beliefs only. */
+function AlignCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const { rows, gap } = alignmentEvalView(v);
+  const gapTip = () => (
+    <TipCard title={<Term id="testGap">Test vs real use</Term>} value={`×${F.num(gap.gLo, 2)}–${F.num(gap.gHi, 2)}`} rows={[
+      { label: <Term id="evalaware">Believed eval awareness</Term>, value: pr(gap.eaLo, gap.eaHi) },
+      ...(gap.measured ? [{ label: 'Eval-awareness eval', value: `${gap.measured.k} of ${gap.measured.n} scenarios · ${pr(gap.measured.lo, gap.measured.hi)}` }] : []),
+      ...(gap.logs ?? []).map((l) => ({ label: `${l.trait}: real-use reading vs test`, value: `${F.pct(l.real)} vs ${F.pct(l.test)} (×${F.num(l.ratio, 2)})` })),
+    ]} footer="A model that notices it is being tested behaves better in tests. The band comes from your belief about its awareness (1 ÷ (1 − 0.8 × awareness), published confound) and widens when monitor logs or cases read more than the tests.">How much behaviour in tests may understate behaviour in real use.</TipCard>
+  );
+  return (
+    <Card title={<span><Term id="alignmentEval">Alignment evals</Term> <span className="dim">· {v.name}</span></span>} home="evalAlign" className="ev-al"
+      sub={<Tip content={gapTip}><span className="small dim" data-test="test-gap">tests may understate real use ×{F.num(gap.gLo, 2)}–{F.num(gap.gHi, 2)} (believed)</span></Tip>}>
+      {!rows.length ? <div className="dim small ev-empty">No alignment evals run on this version yet.</div> : (
+        <div className="ev-algrid">
+          <span className="ch">Eval</span><span className="ch r">In tests</span><span className="ch r">90% range</span><span className="ch r">Real use (believed)</span>
+          {rows.map((r) => (
+            <Tip key={r.id} content={() => <TipCard title={r.name} value={`${r.k} of ${r.n}`} rows={[
+              { label: 'Scenarios with the behaviour', value: `${r.k} of ${r.n} · ${fmtDate(dateOf(s, r.day))}` },
+              { label: '90% range (Wilson)', value: pr(r.lo, r.hi) },
+              { label: 'Real use (believed)', value: r.hidden ? `${pr(r.realLo, r.realHi)} (test range × the gap)` : `${pr(r.realLo, r.realHi)} (awareness does not hide this)` },
+            ]} footer="Each result is one piece of evidence on the traits it reads; your beliefs move only through it.">Test scenarios, not real use.</TipCard>}>
+              <span className="ev-alline" data-align={r.id} data-k={r.k} data-n={r.n}>
+                <span>{r.name}</span><span className="num r">{r.k} / {r.n}</span><span className="num r dim">{pr(r.lo, r.hi)}</span><span className="num r">{pr(r.realLo, r.realHi)}</span>
+              </span>
+            </Tip>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

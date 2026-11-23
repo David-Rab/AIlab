@@ -1,12 +1,12 @@
 // Benchmark scores, eval suites, saturation and successors, eval-awareness confound (V2-SPEC §3.3.4). Owner: WS1.
 import { jobAiShare, jobRecord } from '../safety/workPackage';
 import {
-  BENCHMARKS, BENCH_NOISE_SD, DANGER_THRESHOLD, EA_CONFOUND, ELICITATION, SAFETY_EVALS, SAFETY_EVAL_SD, SAND_GAP, SUCCESSOR_STEP,
+  BENCHMARKS, BENCH_NOISE_SD, DANGER_THRESHOLD, EA_CONFOUND, ELICITATION, SAFETY_EVALS, SAND_GAP, SUCCESSOR_STEP,
   type BenchmarkDef,
 } from '../../../data/v2/benchmarks';
 import { EVAL_DEPTHS, FULL_ROLLOUTS } from '../../../data/v2/evals';
 import { COGNITIVE } from '../../../data/v2/runDesign';
-import { observe } from '../safety/detection';
+import { runAlignmentEvals } from '../safety/alignmentEvals';
 import type { DomainId, EvalDepth, EvalRecord, GameStateV2, ModelVersion, RngLike, SystemCtx, TimelineWorld } from '../types';
 import { gOfLevel, h50Of, levelOfG } from './capability';
 import { bestPlayerVersion, versionById } from './labs';
@@ -166,14 +166,8 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
   // SR-22: expected = the believed mean misbehaviour rate over the safety evals (beliefs before this suite's readings).
   const mean = (f: (e: (typeof SAFETY_EVALS)[number]) => number) => SAFETY_EVALS.length ? SAFETY_EVALS.reduce((a, e) => a + f(e), 0) / SAFETY_EVALS.length : 0;
   const job = jobRecord(s, by === 'self' ? jobAiShare(s, 'suite') : 0, mean((e) => e.traits.reduce((a, t) => a + (v.beliefs[t]?.est ?? 0), 0) / e.traits.length));
-  for (const e of SAFETY_EVALS) {
-    const truth = e.traits.reduce((a, t) => a + (v.traitsTrue[t] ?? 0), 0) / e.traits.length;
-    const mask = e.traits.reduce((a, t) => a + (v.masks[t]?.BB ?? 0), 0) / e.traits.length;
-    const factor = e.id === 'evalAware' || e.id === 'honesty' ? 1 : ea; // awareness hides misbehaviour, not itself
-    const rate = Math.min(1, Math.max(0, truth * factor * (1 - mask) + rng.normal(0, SAFETY_EVAL_SD * k)));
-    v.evals.safety[e.id] = { rate: Math.round(rate * 1000) / 1000, sd: Math.round(SAFETY_EVAL_SD * k * 1000) / 1000, day, by };
-    for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', Math.sqrt(w), 1, 'bench'); // WS2 turns observations into beliefs
-  }
+  // SR-07: alignment evals: k of n test scenarios each, one evidence item per trait read (safety/alignmentEvals.ts).
+  runAlignmentEvals(s, rng, day, v, by, w, ea);
   v.evals.suiteDay = day;
   v.evals.suiteJob = { ...job, observed: Math.round(mean((e) => v.evals.safety[e.id]?.rate ?? 0) * 1000) / 1000 };
   const n = (v.evals.nSuites ?? 0) + 1;

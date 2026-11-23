@@ -122,10 +122,26 @@ export const LINE_MULT_MAX = 2.5;
  *  project's experiment compute on the instrument's line while it runs; it plants VAL_N cases. A port (a validated
  *  instrument on a new model) is the same job. [D: costs; [R] pending, research/20 §G gives eval costs, not organism
  *  costs (§6 row 17).] */
-export const VAL_ENGINEERS = 15;
-export const VAL_DAYS = 30;
+/** SR-24b: 8 × 15 = 120 engineer-days per job (was 15 × 30 = 450, above every sourced figure) [D: proxy C1, C3 in
+ *  research/RD-SR24-safety-params.md §1a: audit labour 0.2–30 person-days per validation (Marks et al. 2025 arXiv
+ *  2503.10965 Table 1; Taylor et al. 2025 arXiv 2512.07810 Table 1, ≈240 blue-team person-hours); about 2× C3's blue
+ *  budget, leaving room for the unreported organism build on a frontier model]. */
+export const VAL_ENGINEERS = 8;
+export const VAL_DAYS = 15;
+/** [D: no sourced range (research/RD-SR24-safety-params.md §1a): an organism is a LoRA or small SFT+RL (C2, C4); kept as
+ *  a stand-in]. */
 export const VAL_COMPUTE_FRAC = 0.25;
+/** [S: inside the sourced 5–56 planted cases per validation, research/RD-SR24-safety-params.md §1a C1, C3, C4, C5]. */
 export const VAL_N = 20;
+/** SR-24b organism realism (OD-7 (a)): recall on planted model organisms overstates recall on the real model's natural
+ *  traits: real recall = planted recall × r, r a hidden per-world draw from U[lo, hi] (HiddenWorld.organismRealism); the
+ *  lab knows only the range [D: proxy, research/RD-SR24-safety-params.md §1b R3, R4: low end AuditBench arXiv 2602.22755
+ *  §4 Fig. 4 (TD+KTO 22.2% ÷ SDF+SFT 51.3% = 0.43); high end Goldowsky-Dill et al. 2025 arXiv 2502.03407 (AUROC
+ *  0.96–0.999 from simple to realistic prompted deception); R2: no measured organism → natural ratio exists (Smith,
+ *  Chughtai, Nanda 2025 arXiv 2511.22662)]. */
+export const ORGANISM_REALISM = { lo: 0.4, hi: 1.0 } as const;
+/** The lab's belief about r: the stated range's midpoint (a uniform belief over [lo, hi]). */
+export const ORGANISM_REALISM_BELIEVED = (ORGANISM_REALISM.lo + ORGANISM_REALISM.hi) / 2;
 /** SR-09: believed reliability away from the measured model is extrapolated: its 90% range widens by VAL_WIDEN_PER_OOM
  *  per OOM of capability gap; never measured (start tools, unlocked tools before a job): VAL_UNMEASURED_HALF on top [D]. */
 export const VAL_WIDEN_PER_OOM = 0.06;

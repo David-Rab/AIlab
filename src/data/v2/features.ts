@@ -67,8 +67,10 @@ export { MONITOR_CATCH_BASE } from './oversight';
 /** J2 AG1: a monitor from the watched model's own lineage (the same base: the model itself, a post-train or the
  *  continual-learning stream on that base, or a mini distilled from it) shares its blind spots and may collude with it.
  *  On incidents from the collusion-relevant traits (behaviour when unobserved) its catch rate × (1 − COPY_COLLUSION);
- *  an active comms lockdown (T-LOCK, AI control) halves the penalty [D: Greenblatt et al. 2023 "AI Control" — untrusted
- *  monitoring needs collusion-busting measures; E21 peer-preservation 38% vs 8% (research/14), comms lockdown −50%]. */
+ *  an active comms lockdown (T-LOCK, AI control) halves the penalty. SR-24b: [S: Greenblatt, Shlegeris, Sachan, Roger
+ *  2023/24 "AI Control" arXiv 2312.06942 §3.4.2 Table 6, worst collusion signal with no redaction: safety 97% → 57.5%,
+ *  a loss of 0.41 of the catch; research/RD-SR24-safety-params.md §2 K2]: the red-team bound (perfect coordination),
+ *  right for a scheming model. */
 export const COPY_COLLUSION = 0.4;
 export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
 

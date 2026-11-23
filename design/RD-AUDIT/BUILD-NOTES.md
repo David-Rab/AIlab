@@ -3401,3 +3401,78 @@ p3-d (forked from rd at d951d09, rev 78: SR-17, SR-18, SR-19, SR-20, SR-20b, SR-
   engine values computed with the truth (λ is never drawn, so only X / ETA carry La); other UI `hidden.timeline` reads
   (World.tsx gOfLevel, milestoneViews, techniqueCurve) are level-scale conversions, not production parameters.
 - **moves calibration: no** (readouts only; bots that read the label now see the believed one).
+
+### SR-07
+Alignment-eval results as evidence, and the test-vs-real gap (SAFETY-REDESIGN §3.5, §4.3 channel 3; E2).
+- **`safety/alignmentEvals.ts`**: each alignment eval (data/v2/benchmarks SAFETY_EVALS: honesty, schemeProbe, sabotage,
+  agentStress, evalAware, hackRate) runs n = ALIGN_EVAL_N 40 × suite weight (floor 10) test scenarios [D: binomial sd at
+  20% ≈ the old SAFETY_EVAL_SD 0.06]; k ~ Binomial(n, true trait × (1 − 0.8·EA) × (1 − BB mask)) (same physics; awareness
+  not applied to evalAware / honesty). Stored as evals.safety[id] = {rate k/n, sd = 90% Wilson interval ÷ 3.29 (floor
+  0.02), k, n, lo, hi}. Each result is one evidence item per trait read (`eval/BB/<id>`, noteReading + updateBelief);
+  it replaces runEvalSuite's separate `observe(…, 'bench')` per trait. External evaluators (observeExternal) run the same
+  sampler. `safetyEvalSuite` (instrument readings) no longer overwrites the records with averaged readings (that
+  instrument path used other ids, Honesty / ScheminProbe …).
+- **Gap**: `testGapView(v)` = believed factor 1 ÷ (1 − 0.8·EA) over the EA belief's 90% band (fed by the evalAware k / n),
+  widened up when a trait's latest real-use reading (monitor logs, case verdict) ÷ its latest test reading is larger.
+  `alignmentEvalView(v)` rows: k / n, interval, believed real-use band = interval × gap (not for evalAware / honesty).
+  Beliefs and measured records only (no truth).
+- **UI**: Models › Evals "Alignment evals" card for the selected version (k / n, 90% range, real use believed; gap in the
+  sub-line with its tooltip). The queue tooltip's "x% measured" now says "in test scenarios (mean of k / n)". Glossary
+  alignmentEval, testGap.
+- **Save**: SCHEMA_REV 93; migration 92 → 93 renames instrument-suite keys to the eval ids (later wins), n = 40,
+  k = round(rate · 40), Wilson interval; hygiene pins → 93.
+Check: `npx tsx scripts/v2/_sr07/check.ts` (all ok: migrates, 72 records k / n; a suite writes six k of 40 with Wilson
+intervals, SCHEME gets schemeProbe + sabotage items; believed EA 0.1±0.03 → 0.5±0.1 moves the gap ×1.04–1.14 →
+×1.37–2.14 and widens hackRate's real-use band 0.28 → 0.62; readout unchanged with true traits rewritten). tsc (app,
+scripts/v2) clean; npm run build passes.
+Left: the gap does not yet widen the trait beliefs themselves (only the real-use readout); incidents are not used as
+real-use readings (cases and monitor logs only); external evaluators add evidence twice (instrument readings + scenarios).
+Moves calibration: yes (S4/S5): eval evidence noise is now the binomial interval (often tighter than 0.12/√w), on the
+'runs' stream; other scripts pinning rev 92 drift.
+
+### SR-24b
+The research's recommendations (research/RD-SR24-safety-params.md, brought from `rd`), each constant with its source.
+- **Organism realism** (OD-7 (a), DECISIONS "only if research finds a range": a proxy range): `HiddenWorld.organismRealism`
+  r ~ U[0.4, 1.0] (`ORGANISM_REALISM`, data/v2/agendas.ts; AuditBench §4 0.43, Goldowsky-Dill 2025 0.96–1.0), a hash
+  of the seed (`organismRealismOf`, no named stream moves). Physics (safety/validation.ts): a validation samples the
+  planted recall = true real recall ÷ r (cap 1; `plantedRecall`); a false AI-run job reports believed ÷ believed r.
+  Belief: found / n × the stated range's midpoint 0.7 (`believedTransfer`; trust factor and validationRange value), range
+  = planted interval × [0.4, 1.0] (extrapolated: × the believed ratio ± VAL_WIDEN_PER_OOM · gap). Never reads the draw.
+- **Validation cost** 15 × 30 = 450 → `VAL_ENGINEERS` 8 × `VAL_DAYS` 15 = 120 engineer-days [proxy C1, C3];
+  VAL_COMPUTE_FRAC 0.25 kept (no sourced range); VAL_N 20 kept (inside 5–56).
+- **Collusion** `COPY_COLLUSION` 0.4 [S: Greenblatt 2023 Table 6, worst signal, no redaction] and
+  `LOCKDOWN_COLLUSION_MULT` 0.5 [proxy: Table 6 redaction 0.41 → 0.18] kept, re-tagged.
+- **Undetected hacking reinforced** (OD-3 (b)): player post runs, stream days and IDA cycles set `TraitEnv.hackTarget` =
+  the run's rewarded hack share h (+ P11's 0.2; `hackTargetOf`); E02 is skipped and RH closes `hackSaturation(ω)` =
+  1 − 0.01^(ω / 0.6) of the gap to it (`HACK_SAT_PER_RUN` 0.99 [S: Chen 2025 > 99% within 30 steps]): one reference
+  post-train (or 42 stream days) saturates, more training does not accumulate past h; RH above h is not pushed up
+  (removal still lowers it). Exploitability x_f is the graders' missed (rewarded) share; caught hacks are the suites'
+  hardening. Predicted beliefs use the same rule (predictBeliefs `hackH`, default the design's postHack h). Rivals and
+  base / distillation runs keep E02.
+- **Save**: SCHEMA_REV 94; migration 93 → 94 sets organismRealism from the save's seed; hygiene pins → 94.
+Check: `npx tsx scripts/v2/_sr24b/check.ts` (all ok: 2,000 draws span 0.400–1.000, mean 0.700; fixture migrates, r 0.975
+from its seed; planted recall 0.201 real → 0.504 at r 0.4; 14 of 20 planted → believed 0.49 [0.216, 0.859] unchanged
+when the draw is rewritten; RH 0.01 → 0.297 in one run toward 0.3, then 0.300; 42 stream days 0.297, +84 days 0.300;
+E02 alone at S2 0.3 gave 0.164). tsc (app, scripts/v2) clean; npm run build passes.
+Left: no training-time hack monitor (miss share = suite exploitability only); the spill to SAND / AF / SCHEME stays E16's
+λ coupling (re-check S4/S5 first); VAL_COMPUTE_FRAC unsourced; the realism range has no tooltip text yet (R2 caveat).
+Moves calibration: yes (S4/S5: RH now sits at the run's hack share, believed reliabilities × 0.7, cheaper validation);
+scripts pinning rev 93 (e.g. _sr07/check.ts) drift.
+
+### SR-07b
+The believed test-vs-real gap widens the trait beliefs themselves (SR-07's "Left"), through the evidence path.
+- **`safety/alignmentEvals.ts`** `runAlignmentEvals`: the k of n draws first (order unchanged), then the evidence:
+  evalAware / honesty first (raw test rate: the EA belief the gap reads), then each misbehaviour eval as a real-use
+  reading via `realUseReading(rate, sd, testGapView(v))`: reading = rate × the gap band's midpoint, noise =
+  √((sd·g_mid)² + (rate·(gHi − gLo) ÷ 3.29)²) (floor 0.02, cap SD_MAX), into updateBelief as before. A known small gap
+  leaves the test reading; an unknown awareness (wide EA belief) or real-use logs above the tests give a noisier,
+  higher reading and so a wider, higher trait belief. Stored records (evals.safety k / n / interval) stay test-scale.
+- `testGapView`'s real ÷ test ratio now takes the test side from the latest k / n record reading the trait (eval
+  evidence is real-use scale), else the latest other test reading.
+Check: `npx tsx scripts/v2/_sr07b/check.ts` (all ok: same draws, EA believed 0.05±0.01 vs 0.5±0.2 → gap ×1.03–1.06 vs
+×1.34–1.79; 90% intervals SCHEME 0.152 → 0.229, SAND 0.203 → 0.297, RH 0.217 → 0.317, POWER 0.203 → 0.297; records
+identical; evalAware evidence = 17/40; hackRate 10/40 → reading 0.391±0.11). tsc (app, scripts/v2) clean; npm run build
+passes. No state change (no SCHEMA_REV bump).
+Left: external evaluators still add evidence twice (SR-07's note); incidents are not real-use readings.
+Moves calibration: yes (S4/S5: eval evidence raises believed misbehaviour by the gap midpoint and is noisier early,
+when EA is unknown; red flags and gates on believed traits move).
