@@ -725,10 +725,14 @@ export function runMemoryOn(s: GameStateV2, run?: Pick<TrainingRun, 'recipe'>) {
  * training-signal design. SR-14 (SAF-04c): it reads the run's own safety training, not AG18 staffing. Removal fraction
  * per post-run = HEAL_K · e_AG18(true) · √(min(2.5, 1 + AG18 methods the run uses)) · preference factor · safety-training
  * factor; the AG18 methods are honesty / confession, anti-scheming training and inoculation prompting (all run methods).
+ * CP3f: anti-scheming and inoculation no longer add to healing. Their sourced anchors are each method's whole effect
+ * (Schoen 2025: covert actions 13% → 0.4% with vs without the training; MacDiarmid 2025: misalignment 0.115 → 0.02 with
+ * vs without the inoculation prompt), applied once as ANTISCHEME_REMOVAL / E19 · E28 ×0.1 and INOC_MULT; the healing bump
+ * counted the same training a second time (safetyrates F5 cut 99.4%, F2 inoculation cuts 90–95%, above the sources).
  */
 export const HEAL_K = 0.35;
 /** SR-14: AG18 methods that add to healing, and the cap of 1 + their count (the old line-multiplier cap 2.5) [D]. */
-const HEAL_METHODS = ['T-CONFESS', 'T-ANTISCHEME', 'T-INOC'];
+const HEAL_METHODS = ['T-CONFESS'];
 const HEAL_MAX = 2.5;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };

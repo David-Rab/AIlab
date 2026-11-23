@@ -33,6 +33,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
     acts.map((k) => `${k} ×${(rate(by[13], k) / Math.max(1e-30, rate(by[4], k))).toFixed(0)}`).join(' '));
   // Each act reads its own domain.
   atLevel(v, 5);
+  v.domains.CYBER = 1; // CP3f: scheming's θ is CYBER 5 on the RD-U05 score (v2 9), so the base sits 4 below it as before
   const base = dangerOf(s, d, v, 1);
   v.domains.CYBER = 11;
   const cy = dangerOf(s, d, v, 1);
