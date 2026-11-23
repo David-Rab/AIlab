@@ -4113,3 +4113,15 @@ hygiene.ts's calibration shift drops it).
   evals.ts EV9 ("release suites about two weeks") is expected to fail again (30 / 33 d, as before 8aae8b7); the review's
   cause is upstream (the validation policy ports every instrument at 120 engineer-days), not fixed here.
 - **moves calibration: yes** (release-eval timing, so first releases and what follows).
+
+### RF-S7 Revert CP3h(b) length grading gap
+- **Changed:** safety/traits.ts: `lengthGapOom` deleted; `graderSound(s, policy, believed)` loses its family argument
+  (the gap is policy vs graders only, the same for every family) and `missedExploit` computes it once. The CP3h(b)
+  stand-in comment is gone.
+- **Kept:** the rest of CP3h(b), the long-horizon family's task length following the policy's h50 (`runTaskH`, DAPO +
+  METR, sourced), which S3 reads. CP3h(a) (graders outgrown) unchanged, pending the designer's yes / no (review §4).
+- **Stand-ins:** none (one removed).
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs7/check.ts: at +0 / +3 / +6 OOM policies the long-horizon
+  family's missed share equals SWE's at the same exploitability (0.100 / 0.233 / 0.702).
+- **moves calibration: yes** (safety S4: less missed hacking on long tasks past ≈ 1.7 OOM above V0; CP3h's S4
+  0.117 → 0.329 included this gap).

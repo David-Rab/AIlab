@@ -162,7 +162,7 @@ export interface RunHack {
 // exploit hidden in a solution falls with the capability gap like a monitor's (Engels et al. 2025, arXiv 2504.18530
 // [P]: Backdoor Code, the guard spotting a flaw hidden in code, 10% at a 400-Elo gap; the one rule safety/oversight.ts
 // gapFactor already uses for monitors and human review, checked there against Greenblatt 2023's 62% at 1 OOM). So
-//   x'_f = 1 − (1 − x_f) · F(gap_f),  F = gapFactor (1 at no gap, (0.10/0.85)^(gap ÷ 6.8 OOM)),
+//   x'_f = 1 − (1 − x_f) · F(gap),  F = gapFactor (1 at no gap, (0.10/0.85)^(gap ÷ 6.8 OOM)),
 // equal to x_f while the policy is below its graders (every 2025 run). Direction and size check: Wen et al. 2024 (arXiv
 // 2409.12822 [P]): RLHF against human judges raised their false-positive rate by 24.1% (QuALITY) and 18.3% (APPS) with
 // no gain in correctness; what graders miss is what RL amplifies (research/04 T02 "smarter agents find more exploits").
@@ -177,11 +177,7 @@ export interface RunHack {
 // long-horizon family's task length is the longer of its 2025 length (taskH 40 h) and the trained model's 50% time
 // horizon (METR TH1.1 [P]: 203 min at V0, × H50_PER_OOM 4.2 per OOM; models/capability.ts h50Of). The other families'
 // tasks are set by their domain (an issue, an experiment), not by the horizon, and keep their length. S3 reads the run's
-// length. Longer tasks are harder to grade [stand-in, no primary source for the size: METR's o3 hack rate on 8 h
-// RE-Bench tasks is ≈ 43× HCAST's (research/05 §1.8), but scoring access confounds it]: a grader checking a task r×
-// longer than the ones it was built for faces the work of a model whose horizon is r× longer, so the family's gap adds
-// the OOM METR's horizon slope needs for that factor, log r ÷ log H50_PER_OOM (no free constant; 0 until the horizon
-// passes 40 h, ≈ 1.7 OOM above V0).
+// length. Task length adds no grading gap (RF-S7 reverted CP3h's unsourced length gap).
 
 /** What a run trains: the policy's capability in OOM above V0 and its 50% time horizon (minutes). */
 export interface Policy { oom: number; h50Min: number }
@@ -202,12 +198,6 @@ export function runTaskH(f: RLFamily, policy?: Policy): number {
   const h = RL_FAMILY_DEF[f].taskH ?? 0;
   return f === 'longHorizon' && policy ? Math.max(h, policy.h50Min / 60) : h;
 }
-/** (b) Extra grading gap of a family from task length beyond its 2025 length (OOM; stand-in above). */
-export function lengthGapOom(f: RLFamily, policy?: Policy): number {
-  const h0 = RL_FAMILY_DEF[f].taskH ?? 0;
-  const h = runTaskH(f, policy);
-  return h0 > 0 && h > h0 ? Math.log(h / h0) / Math.log(H50_PER_OOM) : 0;
-}
 /** (a) The graders' capability in OOM above V0: expert humans, and the AI critic's level and share under P15. */
 export function graderOoms(s: GameStateV2, believed = false): { human: number; critic: number; aiShare: number } {
   const human = oomOfLevel(s.hidden.timeline, HUMAN_REVIEW_L);
@@ -216,17 +206,18 @@ export function graderOoms(s: GameStateV2, believed = false): { human: number; c
   const c = cv ? (believed ? measuredOom(s, cv) : versionOom(s, cv)) : human;
   return { human, critic: Math.max(human, c), aiShare: cv ? clamp01(ai.Aeff) : 0 };
 }
-/** (a) Share of a family's sound graders that stay sound against `policy` (1 at no gap). */
-export function graderSound(s: GameStateV2, f: RLFamily, policy: Policy, believed = false): number {
+/** (a) Share of the sound graders that stay sound against `policy` (1 at no gap; the same for every family). */
+export function graderSound(s: GameStateV2, policy: Policy, believed = false): number {
   const g = graderOoms(s, believed);
   const credit = flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0;
-  const x = policy.oom + lengthGapOom(f, policy) - credit;
+  const x = policy.oom - credit;
   return (1 - g.aiShare) * gapFactor(Math.max(0, x - g.human)) + g.aiShare * gapFactor(Math.max(0, x - g.critic));
 }
-/** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound_f. */
+/** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound. */
 export function missedExploit(s: GameStateV2, exploit: FamilyMap, policy: Policy, believed = false): FamilyMap {
   const out: FamilyMap = {};
-  for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * graderSound(s, f, policy, believed);
+  const sound = graderSound(s, policy, believed);
+  for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * sound;
   return out;
 }
 
