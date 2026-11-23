@@ -2220,3 +2220,33 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   is ≥ 1% from day ~30 (regulated ones ~day 150), so their coverage there rises ×1.15 and the player's share falls
   unless it adapts too; the US friction −0.1 in a packed sector is gone for everyone; the player's pack effect changes
   from +0.42 OOM fit to ×1.15 coverage; the leader start no longer has a Sector packs feature (no effect alone).
+
+### RD-P09
+- **Done (commit ccb60f3).** PRD-18. The leak through a served product scales with the tokens it serves to anonymous
+  buyers. `Deployment.servedTokensDay` (derived daily in applyRevenue, `servedTokensPerDay`: served H100e × PEAK_FLOPS ×
+  decode util ÷ the main model's FLOP per token × 86 400; prefill ignored). production/diffusion.ts `harvestTokens` =
+  tokens/day × `anonShare(d)` × DISTILL_HARVEST_SHARE × DISTILL_HARVEST_DAYS; `teacherAccess(s, student, open, d)` =
+  clamp(1 − 0.25·log10(DISTILL_FULL_TOKENS ÷ harvest), 0, 1) × China's meter (D2's formula on the harvested data). No
+  usage, no access, no leak; the access saturates at 1 once the harvest reaches DISTILL_FULL_TOKENS.
+- **KYC (models/deployments.ts).** `ANON_SHARE` per channel; `KYC_ANON_LEFT` [1, 0.1, 0.01, 0.001] of it is left per
+  level (−0.25 access per level below saturation); `kycDemandFactor` = 1 − asked share × KYC_REFUSE (worldfx/revenue.ts
+  fOf, limitsView's demand modifier); `kycReviewShare` nets the review cost from revenue. Products KYC tooltip and
+  glossary `kyc` / `distillLeak` state the mechanism and its cost from the same functions.
+- **Deleted:** `LEAK_COEF` (0.3 / 1 / 0.5 / 0.2 / 0.05), the flat 2% demand cut per KYC level, the (1 − 0.25·kyc)
+  access term, China's `distillTarget` × 0.75^kyc (KYC now acts per product, not on China's meter).
+- **Stand-ins:** ANON_SHARE consumer 0.3 (anonymous but rate-limited accounts) / API 0.5 / Agents 0.5 / Enterprise, Gov,
+  Trusted 0; KYC_REFUSE 0.1; KYC_REVIEW_COST 0.02; DISTILL_HARVEST_SHARE 0.01; DISTILL_HARVEST_DAYS 90.
+  [D] KYC_ANON_LEFT (D2's tenfold cut per level, kept). [P-r] DISTILL_FULL_TOKENS 1e11 (D4: MiniMax ≈ 100B tokens).
+- **State:** SCHEMA_REV 70 → 71 (optional derived field; migration 70 no-op). hygiene.ts schema asserts → 71.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp09.ts` (untracked, run alone) 5 / 5,
+  seed 2027 day 20, API only, rival distilling with a 1 OOM gap: API serves 6.9e11 tokens/day; access 0 / 0.87 / 1 at
+  0 / T / 10T tokens (lift 0 / 0.39 / 0.45); KYC 0–3 at T: lift 0.45 / 0.39 / 0.28 / 0.17; KYC 0 → 2: API hours
+  1.98B → 1.88B, revenue $1.45B → $1.37B/yr. Not run: test:quick / full.
+- **Left:** at large volumes the harvest saturates, so KYC 1 changes nothing on a big API product (KYC 2–3 needed);
+  rivals' served teachers keep access 1 (their usage is not tracked); Chat has no KYC setting (its anonymous share is
+  fixed); the review cost is netted from revenue rather than booked as its own cost line; RiskMap's "distillation access"
+  edge still shows the lab's meter (China /60, US 0.3), not the per-product access.
+- **moves calibration: yes (diffusion / serving / finance).** Distillation lift now saturates at full access for a
+  busy API at default KYC 1 (was 0.75 × channel coefficient), Chat leaks at 0.3 anonymous share via usage, Enterprise
+  and Trusted leak nothing; China's distillation meter target no longer falls with KYC (IFP gap display moves); KYC
+  costs ≈ 4.5% of API / Agents demand per level (was 2%) plus review cost. Lead days, T3 China lead → CP2.
