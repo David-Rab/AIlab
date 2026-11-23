@@ -86,7 +86,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
           <span className="sp" />
           <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {F.num(gap, 1, true)}</span>
           <span className="sp" />
-          <b className="num" style={{ color: C.und }} data-home="U">{F.level(U)}</b>
+          <b className="num" style={{ color: C.und }} data-home="U">{u.none ? 'none' : F.level(U)}</b>
           <span className="race2-und">SIGHT LIMIT <ICON.U size={12} /></span>
         </div>
         <svg width={W} height={28} className="race2-svg">
