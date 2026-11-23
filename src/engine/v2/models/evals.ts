@@ -32,7 +32,7 @@ import { frameworkOf } from '../safety/framework';
 import { flopPerToken, safetyLabour } from '../departments/workfit';
 import { buildEtas, queueBuild } from '../departments/build';
 import { agentVersion } from '../departments/agents';
-import { MEASURE_SD, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
+import { expectedFitSd, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
 import { allocate } from './research';
@@ -334,13 +334,13 @@ export interface EvalDepthRow {
   benchSd: number; elic: number;
 }
 export function evalDepthView(s: GameStateV2, v: ModelVersion): EvalDepthRow[] {
-  const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
   return EVAL_DEPTH_IDS.map((depth) => {
     const D = EVAL_DEPTHS[depth];
     const w = D.rollouts / FULL_ROLLOUTS;
     return {
       depth, label: D.label, rollouts: D.rollouts, cost: evalCost(s, v, depth), days: evalDaysEstimate(s, depth),
-      bandOne: MEASURE_SD / Math.sqrt(w), bandNow: measuredSd(v), bandAfter: MEASURE_SD / Math.sqrt(n + w),
+      // CP3d: the fitted band (RD-M01): the measured level is fitted from the latest suite alone, so one suite's band is the band after it.
+      ...(() => { const b = expectedFitSd(s, v, 'self', depth); return { bandOne: b, bandNow: measuredSd(v), bandAfter: b }; })(),
       benchSd: BENCH_NOISE_SD.self / Math.sqrt(w), elic: D.elic,
     };
   });

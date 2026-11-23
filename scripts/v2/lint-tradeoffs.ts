@@ -131,7 +131,8 @@ const run = (s: GameStateV2, days: number) => {
 };
 const iv = internalVersion(s4)!;
 {
-  // B36: a self suite gives a new reading and narrows the band as previewed; no meter lines. On a live version with no
+  // B36: a self suite gives a new reading and leaves the band previewed; no meter lines. CP3d: the band is the fit of the
+  // new suite's scores (RD-M01), so the preview is its expectation at today's readings: within 25%, not exact. On a live version with no
   // open suite.
   const ev = s4.player.models.versions.find((v) => (v.status === 'ready' || v.status === 'deployed') && !openEval(s4, v.id) && !openEval(s4, v.id, 'evalIndep'))!;
   const pv = pvOf(s4, 'runEvals', { versionId: ev.id, by: 'self', depth: 'full' });
@@ -142,7 +143,7 @@ const iv = internalVersion(s4)!;
   for (let i = 0; i < 200 && (c.player.models.evals ?? []).some((t) => t.versionId === ev.id && t.why === 'order'); i++) run(c, 1);
   const v = c.player.models.versions.find((x) => x.id === ev.id)!;
   check(!e && !pv.exposure.length && pv.gains.length === 1 && pv.gains[0].unit === 'reading' && pv.gains[0].currency === 'progress'
-    && (v.evals.suiteDay ?? -1) > day0 && near(measuredSd(v), row.bandAfter, 1e-9),
+    && (v.evals.suiteDay ?? -1) > day0 && near(measuredSd(v), row.bandAfter, 0.25 * row.bandAfter),
     'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the finished suite narrows the band to the previewed ±',
     `${e ?? ''} ${JSON.stringify(pv.gains)} sd ${measuredSd(v)} vs ${row.bandAfter}`);
   // External evaluators under the framework's external review: the release check is previewed and the finished suite meets it.
