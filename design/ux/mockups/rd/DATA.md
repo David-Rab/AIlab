@@ -117,3 +117,31 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
   | CoT monitorability | Readable reasoning | |
   | Auditing agents | AI auditors | |
   | Monitorability suite | Reasoning-readability evals | "suite" removed |
+
+## Second data pass (`_data2.ts` → `data400b.json`)
+
+**Hidden-truth leaks found in functions the current UI calls** (from the data pass; the mockups avoid them):
+- `models/labs.ts:bestPlayerVersion` ranks models by true G. By measurement the best model is Atlas-2.6 (6.97); Atlas-2.10 is untested.
+- `actors/commitments.ts:measuredDomain` and `actTable.ts` `measuredDomainL` fall back to the true domain offsets for a model with no benchmark fit. That covers Atlas-2.10 (in testing), its act table, unstopped harm and the danger view.
+- `researchView.ts:stackViews` (waiting, gap) and `softwareRate` read the true stacks. `_data2.ts` replaces them with believed sums of the adopted ideas' estimates.
+- The planned run's "G gained", `medianExpertLevel`, `milestoneViews`, `workFit` and `tokEff` read hidden values.
+
+### TRAINING › Next run (`training.png`)
+
+| On screen | Value | From | Basis |
+|---|---|---|---|
+| Bars: today | Atlas-2.8 measured per domain (range) | model card `domains` (fitted) | M |
+| Ghosts: this run | e.g. Code 9.36 (9.30–9.43), AI research 6.46 | `index.ts:runCard` → `runForecast` (default plan: new base) | B·fc |
+| Would meet · ready | Research agent · Feb 3, 2027 | `runCard.prediction.milestone`, `limits.readyDate` | B·fc |
+| Median-expert tick | 6.4 | stand-in: the framework's High trigger level. **NEW**: a non-hidden median-expert readout (`medianExpertLevel` reads hidden values) | — |
+| Best human · milestone axis | 10 · Agent 5 … Superhuman AI researcher 12 (met dates) | `MILESTONE_NAMES` + `LEVEL_KNOTS` | F |
+| Superhuman tick | not shown | **NEW**: no defined level | — |
+| ×1.5 pretraining know-how waiting | 13 ideas | believed sum (see Know-how) | B |
+| Instruments read ~40% / ~3% | mean detection at 6.79 / 9.16 | `sightLimit.ts:sightGrid` mean row | B (flag: level ↔ OOM map uses a hidden world parameter) |
+| Start-from options | Use Atlas-3: ▼ skill (8.69 vs 9.16), −103 d (ready Oct 23) | `runCard` for the post-train plan on base Atlas-3 | B·fc |
+| Option effects (Skill / Time / Serving / Risk) | e.g. Heavy budget +0.33 levels, +105 d, deception ↑ | `Blueprint.tsx effectOf` replica | B |
+| Pushes | Deception ↑ (0.37), Gaming ↑ (0.13), Power 0.01, People-pleasing 0 | `pressureView.ts:plannedPressure` (predicted belief change) | B |
+| Limits | 104 d at 60% of training compute · ready Feb 3 · 0.45 reads per token · $0 cash (compute worth $1.9B) · 1 d setup, 3 RE teams spare | `runCard.limits` | F / B·fc |
+
+- On screen, skill changes appear only as ▲ / ▼. The level deltas go in the tooltip (DQ-3).
+- The new base's name is not shown: Atlas-3 is already used by the pretrained base from Jul 22.

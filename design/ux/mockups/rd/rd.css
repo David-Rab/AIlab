@@ -89,3 +89,20 @@ u { text-decoration: none; border-bottom: 1px dotted rgba(159,176,195,.55); }
 .brk .sum { border-top: 1px solid var(--line-2); padding-top: 4px; margin-top: 2px; font-weight: 650; }
 .lv { position: absolute; z-index: 90; font: 700 10.5px var(--mono); color: #1a1400; background: #ffd84d; border-radius: 4px; padding: 1px 6px; }
 .lv.l1 { background: #7fe0cf; } .lv.l2 { background: #bcd8ff; } .lv.l3 { background: #f3b6ff; }
+
+/* skill ruler (comp.js) */
+.sk { display: grid; grid-template-columns: 170px minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 7px 0; }
+.sk .skn { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #fff; white-space: nowrap; }
+.sk .skn svg { color: var(--text-2); }
+.skr { position: relative; height: 18px; background: var(--bg-2); border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line); }
+.skr .sb { position: absolute; left: 0; top: 3px; bottom: 3px; background: var(--cap); border-radius: 3px; }
+.skr .wh { position: absolute; top: 7px; height: 4px; background: rgba(255,255,255,.55); border-radius: 2px; }
+.skr .gh { position: absolute; top: 3px; bottom: 3px; border-radius: 0 3px 3px 0; background: repeating-linear-gradient(135deg, rgba(155,107,224,.55) 0 4px, rgba(155,107,224,.18) 4px 8px); box-shadow: inset 0 0 0 1px rgba(196,165,245,.7); }
+.skr .ghr { position: absolute; top: -4px; height: 3px; background: #c4a5f5; border-radius: 2px; opacity: .9; }
+.skr .tk { position: absolute; top: -5px; bottom: -5px; width: 2px; }
+.skr .tk.med { background: #8da2bd; } .skr .tk.best { background: #fff; } .skr .tk.sup { background: #f3b6ff; }
+.skr .rv { position: absolute; top: -6px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--rival); transform: translateX(-5px); }
+.skh .tl { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.skv { font: 600 12.5px var(--mono); color: var(--text-2); white-space: nowrap; }
+.anno { position: absolute; z-index: 80; background: #fff3b0; color: #2a2300; font-size: 12px; line-height: 1.35; padding: 6px 9px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.4); max-width: 280px; }
+.anno b { font-weight: 700; }
