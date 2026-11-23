@@ -1,0 +1,36 @@
+/* Skill bars (UB-7 / UB-10; mockups rd/training.png, rd/models.png): one component for TRAINING and MODELS. */
+.skb { display: flex; flex-direction: column; --skb-cap: #9b6be0; }
+.skb-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; align-items: center; padding: 8px 0; }
+.skb-row.strong { border-bottom: 1px solid var(--line); margin-bottom: 4px; padding-bottom: 12px; }
+.skb-row.strong .skb-n { font-weight: 650; }
+.skb-n { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #fff; white-space: nowrap; }
+.skb-n svg { color: var(--text-2); flex: none; }
+.skb-n .u { text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
+.skb-track { position: relative; height: 20px; background: var(--bg-2); border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line); }
+.skb-track.bare { background: none; box-shadow: none; height: 16px; }
+.skb-bar { position: absolute; left: 0; top: 4px; bottom: 4px; background: var(--skb-cap); border-radius: 3px; }
+.skb-wh { position: absolute; top: 8px; height: 4px; background: rgba(255,255,255,.6); border-radius: 2px; min-width: 3px; }
+.skb-gh { position: absolute; top: 4px; bottom: 4px; border-radius: 0 3px 3px 0; background: repeating-linear-gradient(135deg, rgba(155,107,224,.6) 0 4px, rgba(155,107,224,.18) 4px 8px); box-shadow: inset 0 0 0 1px rgba(196,165,245,.75); }
+.skb-ghr { position: absolute; top: -5px; height: 3px; background: #c4a5f5; border-radius: 2px; min-width: 3px; }
+.skb-tk { position: absolute; top: -5px; bottom: -5px; width: 2px; transform: translateX(-1px); }
+.skb-tk.med { background: #8da2bd; }
+.skb-tk.best { background: #fff; }
+.skb-rv { position: absolute; top: -7px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--rival); transform: translateX(-5px); }
+.skb-none { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text-3); }
+.skb-tl { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.skb-axisrow { padding-top: 0; }
+.skb-axis { position: relative; height: 40px; border-top: 1px solid var(--line-2); }
+.skb-axis > .skb-ax { position: absolute; top: 4px; transform: translateX(-50%); font-size: 11.5px; color: var(--text-3); white-space: nowrap; padding-top: 6px; }
+.skb-axis > .skb-ax.lo { top: 20px; }
+.skb-axis > .skb-ax::before { content: ''; position: absolute; left: 50%; top: -5px; width: 1px; height: 8px; background: #5d6f88; }
+.skb-axis > .skb-ax.lo::before { top: -21px; height: 24px; }
+.skb-axis > .skb-ax.met { color: var(--pos); }
+.skb-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); align-items: center; }
+.skb-legend i { display: inline-block; width: 16px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.skb-legend .lg-bar { background: #9b6be0; }
+.skb-legend .lg-gh { background: repeating-linear-gradient(135deg, rgba(155,107,224,.6) 0 3px, rgba(155,107,224,.2) 3px 6px); box-shadow: inset 0 0 0 1px #c4a5f5; }
+.skb-legend .lg-rg { background: #c4a5f5; height: 3px; }
+.skb-legend .lg-med { background: #8da2bd; width: 2px; height: 12px; }
+.skb-legend .lg-best { background: #fff; width: 2px; height: 12px; }
+.skb-axis > .skb-ax.end { transform: translateX(-85%); }
+.skb-axis > .skb-ax.end::before { left: 85%; }

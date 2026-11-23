@@ -30,10 +30,10 @@ const DOMS = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'B
 const S2_BAR_PX = 400;
 const BUDGET_LABEL: Record<string, string> = { light: 'Light', standard: 'Standard', heavy: 'Heavy' };
 
-/** Open Models › Suites; with `p` (the Blueprint's post-train params) as the planned run. */
+/** Open Training › Environments; with `p` (the Blueprint's post-train params) as the planned run. */
 export function openSuites(p?: Params) {
   if (p) store.setTab(PLAN_KEY, JSON.stringify(Object.fromEntries(PLAN_FIELDS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]))));
-  store.goto('models', { tab: 'suites' });
+  store.goto('blueprint', { tab: 'suites' });
 }
 function readPlan(): { p: Params; fromBp: boolean } {
   try {
@@ -116,7 +116,7 @@ function PlanCard({ s, plan, rows, s2, reason }: { s: GameStateV2; plan: Plan; r
   return (
     <Card title={<Term id="plannedRun">Next run</Term>} home="suitePlan" className="sx-plan"
       sub={<>{plan.baseName ?? 'no base model'} · <Term id="postTrain">post-training</Term> · <Term id="rlBudget">{BUDGET_LABEL[plan.post.rlBudget] ?? plan.post.rlBudget} budget</Term>{plan.fromBp ? ' · from Next run' : ' · standard design'}</>}
-      right={<button className="btn btn-sm" data-go="blueprint" onClick={() => store.goto('blueprint')}>Next run ›</button>}>
+      right={<button className="btn btn-sm" data-go="blueprint" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run ›</button>}>
       <div className="sx-plan-body">
         <div className="sx-focus">
           <span className="tip-cap"><Term id="rlFocus">Focus</Term></span>

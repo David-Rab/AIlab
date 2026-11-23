@@ -139,10 +139,10 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
           <span className="row-i small">
             <Tip content={() => <TipCard title={<Term id="expertData">Expert data</Term>} rows={[
               { label: 'Built into environments', value: tokT(v.expertInSuitesT) },
-            ]} footer="Each family's expert data and realism: Models › Environments.">Not pretraining data. Bought only by expanding environments.</TipCard>}>
+            ]} footer="Each family's expert data and realism: Training › Environments.">Not pretraining data. Bought only by expanding environments.</TipCard>}>
               <span>{tokT(v.expertInSuitesT)} in environments</span>
             </Tip>
-            <Ref id="expertData" to={{ panel: 'models', tab: 'suites' }}>Environments</Ref>
+            <Ref id="expertData" to={{ panel: 'blueprint', tab: 'suites' }}>Environments</Ref>
           </span>
         );
       }
@@ -176,7 +176,7 @@ function NaturalMix({ rows }: { rows: DomainMixRow[] }) {
   const f = (x: number) => `${(Math.min(SPEC_CAP, Math.abs(x)) / SPEC_CAP) * 50}%`;
   return (
     <Card title={<Term id="naturalMix">Natural mix</Term>} sub={<>vs <Term id="refShare">reference shares</Term></>} home="naturalMix" className="dv-nat"
-      right={<button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint')}>Next run ›</button>}>
+      right={<button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run ›</button>}>
       <div className="dv-natgrid" data-test="data-natural">
         <span className="ch">Domain</span><span className="ch c"><Term id="dataSpec">Specialisation</Term> (effective compute in the domain)</span><span className="ch r">Share / standard</span>
         {rows.map((r) => {

@@ -159,14 +159,14 @@ await page.click('[data-test=coach-skip]').catch(() => {});
 // Model v3 D5: the post-train card shows the environment suites read-only (fidelity and exploitability for the focus).
 {
   const suites = await page.$eval('[data-panel=blueprint] [data-test=bp-suites]', (e) => e.innerText).catch(() => '');
-  ok('Blueprint: environment suites row (read-only fidelity, exploitable share)', /fidelity/.test(suites) && /exploitable/.test(suites) && !(await page.$('[data-panel=blueprint] [data-opt^="graders:"]')), suites.replace(/\s+/g, ' '));
+  ok('Training: environments row (families, realism, loopholes)', /realism/.test(suites) && /loopholes/.test(suites) && !(await page.$('[data-panel=blueprint] [data-opt^="graders:"]')), suites.replace(/\s+/g, ' '));
   await page.$eval('[data-panel=blueprint] [data-test=bp-suites]', (e) => e.scrollIntoView({ block: 'center' })).catch(() => {});
-  await page.hover('[data-panel=blueprint] [data-test=bp-suites] .dch').catch(() => {});
+  await page.hover('[data-panel=blueprint] [data-test=bp-suites]').catch(() => {});
   await wait(400);
   await shot('d5-blueprint-suites');
   await clearTips();
 }
-await check('Blueprint: pick a training card (light RL budget)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlBudget:light"]'));
+await check('Training: pick a post-training option (light budget)', 'document.querySelector("[data-panel=blueprint]").innerText', () => page.click('[data-panel=blueprint] [data-opt="rlBudget:light"]'));
 await check('Launch post-train', `s.player.models.runs.filter(r => r.status === 'running').length`, () => page.click('[data-act=launchPost]'));
 
 // FF to run completion
@@ -359,59 +359,65 @@ await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80); // J1 F
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
 await page.click('[data-tabs=finance] [data-tab=deals]'); await wait(80);
 await check('Debt kind', `document.querySelector('[data-panel=finance]').innerHTML`, () => page.click('[data-panel=finance] [data-debt-kind=gpuTerm]'));
-// R5 blueprint: size card with its limit tiles (before → after on a size change), slot table by layer with locked
-// cards linking to Research, predicted and plan cards; run queue with actual share and ETA; spare-training policy.
+// UB-7 TRAINING › Next run: Prediction (nine skill rows with their marks and the run's ghost, milestone axis, "would
+// meet …, ready"), Run plan in two stages (start-from table, size snaps, option pills with previews, locked options
+// that open Research), the Limits strip (five tiles) and Launch; Runs tab: running runs with share and ETA.
 await nav('blueprint');
-await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
-await wait(80);
-ok('Blueprint: size card with 7 limit tiles', (await page.$$('[data-panel=blueprint] [data-tile]')).length === 7);
-ok('Blueprint: slot table by layer (Backbone, Training, Scaffold)', JSON.parse(await get(`(() => { const t = document.querySelector('[data-home=blueprintSlots]')?.innerText ?? ''; return /BACKBONE/.test(t) && /TRAINING/.test(t) && /SCAFFOLD/.test(t); })()`)));
-// Model v3 V1: size = active parameters (√2 snaps) × tokens per parameter. Two snaps up = 2× parameters = 4× FLOP.
+await tabTo('next');
+await page.click('[data-panel=blueprint] [data-start=new]').catch(() => {});
+await wait(120);
+ok('Training: limits strip with 5 tiles (compute, ready, data, cash, run operations)', JSON.stringify(await page.$$eval('[data-panel=blueprint] [data-tile]', (els) => els.map((e) => e.getAttribute('data-tile')))) === JSON.stringify(['compute', 'ready', 'data', 'cash', 'ops']));
+ok('Training: prediction has 9 skill rows with median-expert and best-human marks, and the milestone axis', JSON.parse(await get(`(() => { const r = [...document.querySelectorAll('[data-home=runPrediction] [data-test=pred-row]')]; return r.length === 9 && r.every((x) => x.querySelector('.skb-tk.med') && x.querySelector('.skb-tk.best')) && !!document.querySelector('[data-home=runPrediction] [data-test=milestone-axis]'); })()`)));
+{
+  const ms = await page.$eval('[data-test=pred-milestone]', (e) => e.textContent ?? '').catch(() => '');
+  ok('Training: prediction says the milestone and the ready date', /(Would meet|No new milestone)/.test(ms) && /ready [A-Z][a-z]{2} \d+, \d{4}/.test(ms), ms);
+  ok('Training: no raw level numbers at L1 on the prediction', !/\b\d+\.\d+ levels\b/.test(await page.$eval('[data-home=runPrediction]', (e) => e.innerText)));
+}
+ok('Training: start-from table shows each start with its effects', (await page.$$('[data-test=start-table] .or')).length >= 2);
 const paramSnap = (k) => `(() => { const b = [...document.querySelectorAll('[data-panel=blueprint] [data-test=bp-params]')]; const i = b.findIndex((x) => x.classList.contains('on')); b[Math.max(0, Math.min(b.length - 1, i + ${k}))].click(); return true; })()`;
-await check('Blueprint: 2× active parameters changes the wall time', `document.querySelector('[data-panel=blueprint] [data-tile=wall]').innerText`, () => page.evaluate(paramSnap(2)));
-ok('Blueprint: tiles show before → after on a size change', (await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length >= 4, `${(await page.$$('[data-panel=blueprint] .bp-lim.chg .was')).length} tiles`);
-ok('Blueprint: 2× active parameters = 2× serving FLOP per token', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=serve] .lv').innerText; const m = t.match(/([0-9.]+)e(\\d+)\\s*→\\s*([0-9.]+)e(\\d+)/); return !!m && Math.abs((Number(m[3]) * 10 ** Number(m[4])) / (Number(m[1]) * 10 ** Number(m[2])) - 2) < 0.1; })()`)));
-ok('Blueprint: 2× active parameters = 4× FLOP', JSON.parse(await get(`(() => { const t = document.querySelector('[data-panel=blueprint] [data-tile=flop] .lv').innerText; const m = t.match(/([0-9.]+)e(\\d+)\\s*→\\s*([0-9.]+)e(\\d+)/); return !!m && Math.abs((Number(m[3]) * 10 ** Number(m[4])) / (Number(m[1]) * 10 ** Number(m[2])) - 4) < 0.4; })()`)));
+await check('Training: 2× active parameters changes the run time', `document.querySelector('[data-panel=blueprint] [data-tile=compute]').innerText`, () => page.evaluate(paramSnap(2)));
+await check('Training: tokens per parameter changes the data reads', `document.querySelector('[data-panel=blueprint] [data-tile=data]').innerText`, () => page.selectOption('[data-panel=blueprint] [data-test=bp-tpp]', '20'));
+await page.selectOption('[data-panel=blueprint] [data-test=bp-tpp]', '400').catch(() => {});
+await page.evaluate(paramSnap(-2));
 await clearTips();
-await shot('43-blueprint-x4');
-await page.hover('[data-panel=blueprint] [data-tile=data] .lv');
+await shot('43-training-next');
+await page.hover('[data-panel=blueprint] [data-tile=data] .val');
 await wait(500);
-ok('Blueprint: limit tile tooltip states its rule', JSON.parse(await get(`/epochs|Muennighoff/.test(document.querySelector('.tip')?.innerText ?? '')`)));
-ok('D3 Blueprint: the data tile reads the draw (unique tokens for this mix, quality drawn)', JSON.parse(await get(`/Unique tokens for this mix/.test(document.querySelector('.tip')?.innerText ?? '') && /Mean quality drawn/.test(document.querySelector('.tip')?.innerText ?? '')`)));
+ok('D3 Training: the data tile reads the draw (unique tokens for this mix, quality drawn)', JSON.parse(await get(`/Unique tokens for this mix/.test(document.querySelector('.tip')?.innerText ?? '') && /Mean quality drawn/.test(document.querySelector('.tip')?.innerText ?? '')`)));
 await clearTips();
-// D3: picking the code & math mix gives the base a CODE specialisation from the draw (shown on the data tile).
 if (await page.$eval('[data-panel=blueprint] [data-opt="data:codeMath"]', (b) => !b.classList.contains('locked')).catch(() => false)) {
-  await page.click('[data-panel=blueprint] [data-opt="data:codeMath"]');
-  await wait(150);
-  const dt = await page.$eval('[data-panel=blueprint] [data-test=bp-draw] [data-dom=CODE]', (e) => e.getAttribute('data-s')).catch(() => '');
-  ok('D3 Blueprint: code & math draws a CODE specialisation (drawn-mix row, D4)', Number(dt) > 0.3, String(dt));
-  await clearTips();
+  await check('D3 Training: code & math moves the Code prediction', `document.querySelector('[data-home=runPrediction] [data-skill=CODE] .skb-ghr')?.style.cssText ?? ''`, () => page.click('[data-panel=blueprint] [data-opt="data:codeMath"]'), 200);
   await page.click('[data-panel=blueprint] [data-opt="data:balanced"]');
   await wait(100);
-} else ok('D3 Blueprint: code & math is known at the start', false);
+} else ok('D3 Training: code & math is known at the start', false);
+await page.hover('[data-panel=blueprint] [data-opt="shape:dense"]');
+await wait(600);
+ok('Training: an option previews Skill · Time · Cash · Serving · risk families', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Skill/.test(t) && /Time/.test(t) && /Serving cost/.test(t) && /Deception/.test(t); })()`)));
 await clearTips();
-await check('Blueprint: tokens per parameter snap', `document.querySelector('[data-panel=blueprint] [data-tile=serve]').innerText`, () => page.click('[data-panel=blueprint] [data-test=bp-tpp][data-size="20"]'));
-await page.evaluate(paramSnap(-2));
-ok("Blueprint: locked card names its idea", await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node && b.innerText.length > 12));
-await check("Blueprint: architecture dense", `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
-// Model v3 V2: overtraining is 2025 public knowledge (★): no snap is locked; the latent shape stays behind its idea (P17).
-ok("Blueprint: overtraining is known at the start (200 tokens per parameter not locked)", JSON.parse(await get(`(() => { const b = document.querySelector('[data-panel=blueprint] [data-test=bp-tpp][data-size="200"]'); return !!b && !b.classList.contains('locked'); })()`)));
-await check('Blueprint: locked card opens Research on its idea', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:latent"]'));
-ok('Blueprint: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=P17]')));
+ok('Training: locked option names its discovery', await page.$eval(`[data-panel=blueprint] [data-opt="shape:latent"]`, (b) => b.classList.contains('locked') && !!b.dataset.node).catch(() => false));
+await check('Training: architecture dense', `document.querySelector("[data-panel=blueprint]").innerHTML`, () => page.click(`[data-panel=blueprint] [data-opt="shape:dense"]`));
+await check('Training: locked option opens Research on its discovery', `store.panel + ':' + (store.tab['research.sel'] || '')`, () => page.click('[data-panel=blueprint] [data-opt="shape:latent"]'));
+ok('Training: Research shows the idea card', !!(await page.$('[data-test=node-card][data-card=P17]')));
 await page.click('[data-test=node-close]').catch(() => {});
 await nav('blueprint');
-await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+await tabTo('next');
+await page.click('[data-panel=blueprint] [data-start=new]').catch(() => {});
 await page.click('[data-panel=blueprint] [data-opt="shape:dense"]');
-await check('Blueprint: pool share pill', `document.querySelector('[data-panel=blueprint] [data-home=runPlan]').innerText`, () => page.click('[data-panel=blueprint] [data-pool="0.8"]'));
-await check('Blueprint: save', 'localStorage.getItem("ai27.v2.runTemplates")', () => page.click('[data-test=bp-save]'));
+await check('Training: run share pill', `document.querySelector('[data-panel=blueprint] [data-tile=compute]').innerText`, () => page.click('[data-panel=blueprint] [data-pool="0.8"]'));
+await page.click('[data-panel=blueprint] [data-test=bp-push-details]');
+await wait(80);
+ok('Training: Pushes details open the signal rows (L2)', !!(await page.$('[data-test=bp-pressure]')));
+await check('Training: Reset to Standard', `document.querySelector('[data-panel=blueprint] [data-home=runPlan]').innerText`, () => page.click('[data-test=bp-reset]'));
+await page.click('[data-panel=blueprint] [data-opt="shape:dense"]');
 await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'base').length`, () => page.click('[data-act=launchBase]'));
-await nav('models');
+await nav('blueprint');
+await tabTo('runs');
 {
-  const rq = JSON.parse(await get(`(() => { const q = document.querySelector('[data-home=runQueue]'); return [!!q && q.querySelectorAll('[data-test=run-share]').length >= 1 && q.innerText.includes(' · '), (q?.innerText ?? store.panel).slice(0, 160), s.player.policies.spareTraining]; })()`));
-  ok('Run queue: actual share and ETA per run', rq[0], rq[1] + ' | spare ' + rq[2]);
+  const rq = JSON.parse(await get(`(() => { const q = document.querySelector('[data-home=runQueue]'); const live = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').length; return [!!q && q.querySelectorAll('[data-run]:not([data-run=stream]):not([data-run=spare])').length === live && live >= 1 && q.querySelectorAll('[data-test=run-share]').length === live, (q?.innerText ?? store.panel).slice(0, 160)]; })()`));
+  ok('Runs: every running run with its share and ETA (no finished ones)', rq[0], rq[1]);
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
-ok('Run queue: idle row links to Auto-split on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=idleCompute]')));
+ok('Run queue: idle row links to Lab', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=idleCompute]')));
 await nav('lab');
 await tabTo('board');
 ok('LAB: idle training compute shows inside the training segment (RD-A05b)', !!(await page.$('[data-test=alloc-bar] [data-seg=training] .idle')));
@@ -438,7 +444,8 @@ await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0
 await wait(60);
 ok('Split: zero training warns before apply', !!(await page.$('[data-test=split-warn]')));
 await check('Split: zero training share applies (no rejection)', 'JSON.stringify(s.player.split.training < 1e-6)', () => page.click('[data-act=setSplit]'));
-await nav('models');
+await nav('blueprint');
+await tabTo('runs');
 ok('Run queue: paused, no training compute', ((await page.$eval('[data-test=run-stall]', (e) => e.textContent).catch(() => '')) ?? '').includes('no training compute'));
 // Presets are dropped (DECISIONS mockups round 1); restore the training share by hand.
 await nav('lab');
@@ -449,7 +456,7 @@ await page.click('[data-panel=lab] [data-act=setSplit]');
 await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
-if (vids.length > 1) await check('Select version in lineage', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
+if (vids.length > 1) await check('Select version in the family tree', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
 // ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
 await nav('products');
 ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
@@ -827,21 +834,22 @@ async function b4Check(where) {
   const cl = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
   ok(`B4 ${where}: Core loop customers tooltip shows the customer stock → target and real counts`, /share [\d.]+% → [\d.]+%/.test(cl) && !FAKE_NOUNS.test(cl) && (!chatLive || /weekly users/.test(cl)), cl.replace(/\n/g, ' ').slice(0, 200));
   await clearTips();
-  // Blueprint serving tile and Models card: FLOP per token and cost per hour of use.
+  // UB-10: cost per hour of work is on the MODELS card (tooltip: per agent-hour, $ per H100e-hour); no "serve cost".
   await nav('blueprint');
-  const tile = await page.evaluate(() => document.querySelector('[data-panel=blueprint] [data-tile=serve]')?.innerText ?? '');
-  ok(`B4 ${where}: Blueprint serving tile shows FLOP per token and cost per hour of use`, /\de\d+/.test(tile) && /FLOP\/tok/.test(tile) && /(\$[\d.]+|[\d.]+¢)\/h( · today)?/.test(tile), tile.replace(/\n/g, ' '));
-  await page.hover('[data-panel=blueprint] [data-tile=serve] .lv');
-  await wait(400);
-  const tt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
-  ok(`B4 ${where}: serving tile tooltip: cost per hour of use, per agent-hour, $ per H100e-hour`, /Cost per hour of use/.test(tt) && /Cost per agent-hour/.test(tt) && /per H100e-hour/.test(tt), tt.replace(/\n/g, ' ').slice(0, 160));
-  await clearTips();
+  await tabTo('next');
   const bpText = await page.locator('[data-panel=blueprint]').innerText();
   await nav('models');
   const mText = await page.locator('[data-panel=models]').innerText();
-  ok(`B4 ${where}: no relative "serve cost" on Blueprint or Models; the model card shows FLOP per token and $/h`, !/serve cost/i.test(bpText + mText) && /FLOP\/tok · (\$[\d.]+|[\d.]+¢)\/h/.test(mText), (mText.match(/Serving[^\n]*/) ?? [''])[0]);
-  // D3: the V1 "Research boost" readout is gone; the model card shows the base's data specialisation instead.
-  ok(`D3 ${where}: model card shows "Data specialisation" (no "Research boost")`, /Data specialisation/.test(mText) && !/Research boost/i.test(mText), (mText.match(/Data specialisation[^\n]*\n?[^\n]*/) ?? [''])[0].replace(/\n/g, ' '));
+  ok(`B4 ${where}: no relative "serve cost" on Training or Models; the model card shows the cost per hour of work`, !/serve cost/i.test(bpText + mText) && /Cost per hour of work\s*(\$[\d.]+|[\d.]+¢)/.test(mText), (mText.match(/Cost per hour[^\n]*/) ?? [''])[0]);
+  await page.hover('[data-test=card-cost] b');
+  await wait(400);
+  const tt = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  ok(`B4 ${where}: cost tooltip: per agent-hour, $ per H100e-hour`, /Cost per agent-hour/.test(tt) && /per H100e-hour/.test(tt), tt.replace(/\n/g, ' ').slice(0, 160));
+  await clearTips();
+  await page.click('[data-test=card-trained]');
+  await wait(100);
+  const trained = await page.$eval('[data-test=card-trained-list]', (e) => e.innerText).catch(() => '');
+  ok(`D3 ${where}: model card › Trained with shows the data specialisation (no "Research boost")`, /Data/.test(trained) && !/Research boost/i.test(mText + trained), trained.replace(/\n/g, ' ').slice(0, 160));
   // Products: launch card and serving split in the side column when there are ≤ 3 products.
   await nav('products');
   const pr = await page.evaluate(() => {
@@ -1047,7 +1055,7 @@ async function e11Check(where, plant = false) {
   });
 }
 
-const toSuites = async () => { await nav('models'); await tabTo('suites'); await wait(120); };
+const toSuites = async () => { await nav('blueprint'); await tabTo('suites'); await wait(120); };
 async function d6Check(where, complete) {
   await toSuites();
   const tag = where.replace(' ', '');
@@ -1060,7 +1068,7 @@ async function d6Check(where, complete) {
   })));
   const fams = JSON.parse(await get(`Object.keys(s.player.suites ?? {}).length`));
   const good = rows.filter((r) => /×\d\.\d\d/.test(r.fid) && /\d+\.\d%/.test(r.x) && /\d+(\.\d)?[BT] tok/.test(r.ex) && /\d+%/.test(r.sh) && r.b && r.h);
-  ok(`D6 ${where}: Models › Suites shows every suite with fidelity, exploitable %, expert data, RL share, build and harden`, rows.length >= Math.max(6, fams) && good.length === rows.length,
+  ok(`D6 ${where}: Training › Environments shows every suite with fidelity, exploitable %, expert data, RL share, build and harden`, rows.length >= Math.max(6, fams) && good.length === rows.length,
     rows.map((r) => `${r.f} ${r.fid} ${r.x} ${r.ex} ${r.sh}`).join(' | ').slice(0, 200));
   const cuKnown = JSON.parse(await get(`!!(s.player.tree.P06 && s.player.tree.P06.status === 'known')`));
   const lockTxt = await page.$eval('[data-test=suites] [data-locked=P06]', (e) => e.textContent ?? '').catch(() => '');
@@ -1151,7 +1159,7 @@ const d4Tip = async (sel) => {
   for (const x of t.terms) d4Seen.add(x);
   return t.text;
 };
-const dv = (sel) => `[data-panel=models] [data-test=data-view] ${sel}`;
+const dv = (sel) => `[data-panel=blueprint] [data-test=data-view] ${sel}`;
 const attr = (sel, a) => page.$eval(sel, (e, k) => e.getAttribute(k), a).catch(() => null);
 const deltaOf = async (what, k) => {
   const a = await attr(dv(`[data-test=delta-${what}] [data-k=${k}]`), 'data-a');
@@ -1162,11 +1170,11 @@ const U_STATE = `(() => { const p = s.player.dataPortfolio; const p10 = s.player
 const CODE_NAT = `(() => { const p = s.player.dataPortfolio; const w = {}; let t = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const tok = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; const mix = a.kind === 'public' ? { SOCIAL: 0.45, MEDIA: 0.12, REASON: 0.08, CODE: 0.08, RSCH: 0.07, BIO: 0.06, AGENCY: 0.06, CYBER: 0.03, PHYS: 0.05 } : a.mix; if (!(q * tok > 0)) continue; for (const [d, v] of Object.entries(mix)) w[d] = (w[d] || 0) + q * tok * v; t += q * tok; } return (w.CODE || 0) / t; })()`;
 async function d4Check(where, act, stepOk = true) {
   const tag = where.replace(/ /g, '');
-  await nav('models');
+  await nav('blueprint');
   await tabTo('data');
   await clearTips();
-  ok(`D4 ${where}: Models › Data opens the data view`, !!(await page.$('[data-panel=models] [data-test=data-view]')));
-  for (const x of await page.$$eval('[data-panel=models] [data-test=data-view] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
+  ok(`D4 ${where}: Training › Data opens the data view`, !!(await page.$('[data-panel=blueprint] [data-test=data-view]')));
+  for (const x of await page.$$eval('[data-panel=blueprint] [data-test=data-view] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
   const kinds = await page.$$eval(dv('[data-kind]'), (els) => els.map((e) => ({ k: e.getAttribute('data-kind'), t: e.innerText.replace(/\n/g, ' ') })));
   ok(`D4 ${where}: portfolio rows for the five kinds with tokens, quality and today's flow`, kinds.length === 5 && kinds.every((r) => /\d/.test(r.t)) && /crawled/.test(kinds[0].t) && /\/day/.test(kinds.find((r) => r.k === 'synthetic')?.t ?? ''), kinds.map((r) => r.t.slice(0, 60)).join(' ; '));
   const uState = JSON.parse(await get(U_STATE));
@@ -1193,7 +1201,7 @@ async function d4Check(where, act, stepOk = true) {
   await clearTips();
   if (act) {
     // A day first, so the fixture's cached readouts (compute online, prodCache) are today's before the previews are read.
-    if (stepOk) { await page.evaluate(() => window.ai27v2.step(1)); await closeModals(); await pause(); await nav('models'); await tabTo('data'); }
+    if (stepOk) { await page.evaluate(() => window.ai27v2.step(1)); await closeModals(); await pause(); await nav('blueprint'); await tabTo('data'); }
     // Licence (PHYS bulk 5T): a deal of the previewed U, at the previewed cash.
     await page.click(dv('[data-test=lic-domain] [data-opt=PHYS]')); await wait(60);
     const du = await deltaOf('licence', 'u');
@@ -1220,7 +1228,7 @@ async function d4Check(where, act, stepOk = true) {
     const t1 = JSON.parse(await get(synT));
     const perDay = sTok / Math.max(1, sDays);
     if (stepOk) ok(`D4 ${where}: a day of the job adds the previewed tokens per day (${perDay.toFixed(2)}T)`, perDay > 0 && Math.abs((t1 - t0) / perDay - 1) < 0.15, `${(t1 - t0).toFixed(3)}T`);
-    await nav('models'); await tabTo('data');
+    await nav('blueprint'); await tabTo('data');
     await check(`D4 ${where}: Stop job ends it`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.click(dv('[data-act="data.synthesize.stop"]')));
     // Usage policy → broad: 50% kept, Civil Liberties approval moves by the previewed difference.
     const civ = Number((await attr(dv('[data-level=broad]'), 'data-civlib')) ?? '0');
@@ -1231,17 +1239,20 @@ async function d4Check(where, act, stepOk = true) {
     ok(`D4 ${where}: broad usage keeps 50% and moves Civil Liberties approval as previewed (${civ - cur})`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5 && (Math.abs(a1 - a0 - (civ - cur)) < 1e-6 || Math.abs(a1) === 100), `${a0} → ${a1}`);
     await shot(`d4-${tag}-data-after`);
   }
-  // Blueprint: the data slot's drawn mix; the mix control changes the drawn shares and the specialisation.
+  // Training › Next run: the Data mix row's drawn mix (L2); the mix control changes the drawn shares and the specialisation.
   await nav('blueprint');
-  await page.click('[data-panel=blueprint] [data-bp-kind=base]').catch(() => {});
+  await tabTo('next');
+  await page.click('[data-panel=blueprint] [data-start=new]').catch(() => {});
+  await wait(120);
+  if (!(await page.$('[data-test=bp-draw]'))) await page.click('[data-test=bp-draw-open]').catch(() => {});
   await wait(120);
   const drawOf = () => page.$$eval('[data-panel=blueprint] [data-test=bp-draw] [data-dom]', (els) => Object.fromEntries(els.map((e) => [e.getAttribute('data-dom'), { sh: Number(e.getAttribute('data-share')), s: Number(e.getAttribute('data-s')) }])));
-  ok(`D4 ${where}: the Blueprint's data slot shows the drawn mix (9 domains) and the most-repeated domain`, Object.keys(await drawOf()).length === 9 && /\d\.\d\d/.test(await page.$eval('[data-test=bp-draw-rep]', (e) => e.textContent ?? '').catch(() => '')));
+  ok(`D4 ${where}: the Data mix row shows the drawn mix (9 domains) and the most-repeated domain`, Object.keys(await drawOf()).length === 9 && /\d\.\d\d/.test(await page.$eval('[data-test=bp-draw-rep]', (e) => e.textContent ?? '').catch(() => '')));
   for (const x of await page.$$eval('[data-panel=blueprint] [data-test=bp-draw] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
   const bTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw] [data-dom=CODE]');
   const rTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw-rep]');
   const pTip = await d4Tip('[data-panel=blueprint] [data-test=bp-draw-q]');
-  ok(`D4 ${where}: drawn-mix tooltips (share vs reference, specialisation and its cap; domain epochs; the preset)`, /Reference share/.test(bTip) && /capped at ±1\.3/.test(bTip) && /epochs/.test(rTip) && /Starts from/.test(pTip), `${bTip.slice(0, 80)} | ${rTip.slice(0, 60)}`);
+  ok(`D4 ${where}: drawn-mix tooltips (share vs reference, specialisation and its cap; domain epochs; the preset)`, /Standard share/.test(bTip) && /Specialisation from the mix/.test(bTip) && /Re-reading/.test(rTip) && /Starts from/.test(pTip), `${bTip.slice(0, 80)} | ${rTip.slice(0, 60)}`);
   await clearTips();
   const bal = await drawOf();
   if (await page.$eval('[data-panel=blueprint] [data-opt="data:codeMath"]', (b) => !b.classList.contains('locked')).catch(() => false)) {
@@ -1249,16 +1260,9 @@ async function d4Check(where, act, stepOk = true) {
     const cm = await drawOf();
     ok(`D4 ${where}: Code & math raises CODE's drawn share and specialisation`, cm.CODE.sh > bal.CODE.sh + 0.01 && cm.CODE.s > bal.CODE.s + 0.1 && cm.SOCIAL.s < 0, `CODE ${bal.CODE.sh.toFixed(3)} → ${cm.CODE.sh.toFixed(3)}, s ${bal.CODE.s} → ${cm.CODE.s}`);
   }
-  if (!(await page.$('[data-panel=blueprint] [data-opt="data:natural"]'))) await page.click('[data-panel=blueprint] [data-line^="data:"] ~ .bp-line .bp-more').catch(() => {});
-  await page.click('[data-panel=blueprint] [data-opt="data:natural"]');
-  await wait(150);
-  const nat = await drawOf();
-  const natSt = JSON.parse(await get(CODE_NAT));
-  const p10on = JSON.parse(await get(`s.player.paradigms.P10?.status === 'adopted'`));
-  ok(`D4 ${where}: Natural draws the portfolio's own mix (CODE ${(natSt * 100).toFixed(1)}%)`, p10on || Math.abs(nat.CODE.sh - natSt) < 0.005, `drawn ${(nat.CODE.sh * 100).toFixed(1)}%, s ${nat.CODE.s}`);
-  await shot(`d4-${tag}-blueprint-natural`);
+  await shot(`d4-${tag}-training-drawn`);
   await page.click('[data-panel=blueprint] [data-opt="data:balanced"]').catch(() => {});
-  await check(`D4 ${where}: "Data ›" opens Models › Data`, `store.panel + ':' + (store.tab.models || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-to-data]'));
+  await check(`D4 ${where}: "Data ›" opens Training › Data`, `store.panel + ':' + (store.tab.blueprint || '')`, () => page.click('[data-panel=blueprint] [data-test=bp-to-data]'));
   await shot(`d4-${tag}-data`);
 }
 // ── E12 (model v3): trait families with traits one level down, training pressure per run, successor pull ──
@@ -1306,17 +1310,20 @@ async function e12Check(where) {
   await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
   await nav('blueprint');
+  await tabTo('next');
   const kinds = await page.$$eval('[data-bp-kind]', (els) => els.map((e) => e.getAttribute('data-bp-kind')));
   for (const k of ['post', 'base'].filter((x) => kinds.includes(x))) {
     await page.click(`[data-bp-kind=${k}]`);
     await wait(250);
+    if (!(await page.$('[data-test=bp-pressure]'))) await page.click('[data-test=bp-push-details]').catch(() => {});
+    await wait(80);
     const pr = await page.$$eval('[data-test=bp-pressure] [data-signal]', (els) => els.map((e) => ({ id: e.getAttribute('data-signal'), v: e.querySelector('[data-test=pr-value]')?.textContent ?? '', c: e.querySelector('[data-test=pr-cause]')?.textContent ?? '', p: e.querySelectorAll('[data-push]').length })));
     const omega = await page.$eval('[data-home=runPressure] [data-test=pr-omega]', (e) => e.textContent ?? '').catch(() => '');
     const good = pr.filter((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10 && (!['S1', 'S2', 'S3', 'S7'].includes(x.id) || /\d/.test(x.c)) && x.p > 0);
     const s2 = pr.find((x) => x.id === 'S2')?.c ?? '';
     const s5 = pr.find((x) => x.id === 'S5')?.c ?? '';
     const want = k === 'post' ? pr.length >= 4 && /\d+% of RL on .+ at \d+% exploitable/.test(s2) && /RL \d+(\.\d)?× the reference/.test(s2) : /AI-related data \d+\.\d% of tokens/.test(s5) && /scale G \d+\.\d/.test(s5);
-    ok(`E12 ${where}: Blueprint ${k} shows the planned run's signals with causes, the families they push and ω`, want && good.length === pr.length && /ω\s*\d\.\d\d/.test(omega),
+    ok(`E12 ${where}: Training ${k} shows the planned run's signals with causes, the families they push and ω`, want && good.length === pr.length && /ω\s*\d\.\d\d/.test(omega),
       `${omega} · ${pr.map((x) => `${x.id} ${x.v}: ${x.c}`).join(' | ').slice(0, 260)}`);
     const tip = await tipText(`[data-test=bp-pressure] [data-signal=${pr[0]?.id}]`);
     ok(`E12 ${where}: a ${k} signal's tooltip breaks it down and names what it pushes`, /pushes/.test(tip), tip.replace(/\n/g, ' ').slice(0, 160));
@@ -1325,7 +1332,7 @@ async function e12Check(where) {
     await shot(`e12-${tag}-blueprint-${k}`);
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  ok(`E12 ${where}: Training links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
   if (where === 'day 400') {
     await page.click('[data-test=bp-succ] [data-ref=successorPull]');
     await wait(150);
@@ -1335,6 +1342,8 @@ async function e12Check(where) {
   await collectTerms();
   // Model card: what the finished run applied, one click down.
   await nav('models');
+  await page.click('[data-test=card-trained]').catch(() => {});
+  await wait(60);
   await page.click('[data-test=mc-pressure-open]').catch(() => {});
   await wait(80);
   const mc = await page.$$eval('[data-test=mc-pressure-rows] [data-signal]', (els) => els.map((e) => ({ v: e.querySelector('[data-test=pr-value]')?.textContent ?? '', c: e.querySelector('[data-test=pr-cause]')?.textContent ?? '' })));
@@ -1429,6 +1438,8 @@ async function d8Check(where, complete, depth) {
   } else ok(`D8 ${where}: a measured version to order on`, false);
   // Links: the model card's order button and the "evaluating" chip open Models › Evals.
   await nav('models');
+  await page.click('[data-test=card-bench]').catch(() => {});
+  await wait(60);
   await page.click('[data-test=card-order-evals]').catch(() => {});
   await wait(120);
   ok(`D8 ${where}: the model card's "Order a suite" opens Models › Evals`, JSON.parse(await get(`store.panel === 'models' && store.tab.models === 'evals'`)));
@@ -1454,15 +1465,16 @@ await d8Check('day 1', true, 'basic');
 await d6Check('day 1', true);
 await e12Check('day 1');
 {
-  // D6: the Blueprint's post-train suites row links to Models › Suites with its design as the planned run.
+  // D6: the post-training plan's Environments row opens Training › Environments with this design as the planned run.
   await nav('blueprint');
+  await tabTo('next');
   await page.click('[data-panel=blueprint] [data-bp-kind=post]').catch(() => {});
   await wait(150);
-  await page.click('[data-panel=blueprint] [data-test=bp-to-suites]');
+  await page.click('[data-panel=blueprint] [data-test=bp-suites]');
   await wait(150);
   const sub = await page.$eval('[data-home=suitePlan]', (e) => e.innerText).catch(() => '');
-  ok('D6: Blueprint › Suites link opens Models › Suites with the Blueprint design as the planned run', JSON.parse(await get(`store.panel === 'models' && store.tab.models === 'suites'`)) && /from Blueprint/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
-  await page.evaluate(() => window.ai27v2.setTab('models', 'versions'));
+  ok('D6: the Environments row opens Training › Environments with the plan as the planned run', JSON.parse(await get(`store.panel === 'blueprint' && store.tab.blueprint === 'suites'`)) && /from Next run/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
+  await page.evaluate(() => window.ai27v2.setTab('blueprint', 'next'));
 }
 await d4Check('day 1', true);
 await nav('products');
@@ -1555,7 +1567,7 @@ await d8Check('day 900', false, 'deep');
 await e11Check('day 900', true);
 {
   const miss = D6_TERMS.filter((x) => !d6Seen.has(x));
-  ok(`D6: every new suites term has a tooltip in Models › Suites (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));
+  ok(`D6: every new suites term has a tooltip in Training › Environments (${D6_TERMS.length})`, miss.length === 0, miss.join(', '));
 }
 await d4Check('day 900', true, false);
 {
@@ -1569,7 +1581,7 @@ await shot('28-day900-products-b2');
   const miss2 = B2_TERMS.filter((t) => !b2Seen.has(t));
   ok(`B2: every new term has a tooltip on the product cards (${B2_TERMS.length})`, miss2.length === 0, miss2.join(', '));
   const miss4 = D4_TERMS.filter((t) => !d4Seen.has(t));
-  ok(`D4: every data term has a tooltip on Models › Data or the Blueprint (${D4_TERMS.length})`, miss4.length === 0, miss4.join(', '));
+  ok(`D4: every data term has a tooltip on Training › Data or Next run (${D4_TERMS.length})`, miss4.length === 0, miss4.join(', '));
   const miss3 = B3_TERMS.filter((t) => !b3Seen.has(t));
   ok(`B3: every new term has a tooltip in World › Sectors (${B3_TERMS.length})`, miss3.length === 0, miss3.join(', '));
 }
@@ -1590,10 +1602,10 @@ for (const p of PANELS) {
 }
 // J1: jank fixes on the day-900 fixture.
 await nav('blueprint');
-ok('J1 B1: blueprint layer note is not squeezed (one line)', await page.evaluate(() => { const e = document.querySelector('.bp-grp .bp-rebuild'); return !!e && e.getBoundingClientRect().height < 24; }));
-ok('J1 B2: every card line shows its own effect (no "ref" on alternatives)', await page.evaluate(() => {
-  const lines = [...document.querySelectorAll('.bp-line[data-line]')];
-  return lines.length > 4 && lines.some((l) => !l.classList.contains('sel') && /[+−]\d/.test(l.textContent ?? ''));
+await tabTo('next');
+ok('UB-7: the start-from table shows each other start\'s effect against the plan', await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('[data-test=start-table] .or')];
+  return rows.length >= 2 && rows.some((l) => !l.classList.contains('on') && /[▲▼]|[+−]\d/.test(l.textContent ?? ''));
 }));
 await nav('finance');
 await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80);
@@ -1604,11 +1616,11 @@ ok('J1 RL1: Retire stands apart behind a confirm', !!(await page.$('[data-test=r
 ok('J1 RL2: no security actions in the Relations catalogue', !(await page.$('[data-panel=relations] [data-act^="SEC_"]')));
 // D4: the data actions moved from Relations to Models › Data (one home per control); Relations links there.
 await page.click('[data-test=rel-groups] [data-opt=D]'); await wait(80);
-ok('D4 Relations: no data actions in the catalogue, a link to Models › Data, old "License data" (D3) gone', !(await page.$('[data-panel=relations] [data-act^="data."]')) && !(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-panel=relations] [data-ref=dataPortfolio]')) && !(await page.$('[data-act=D3]')));
-await check('D4 Relations: the data link opens Models › Data', "store.panel + ':' + (store.tab.models || '')", () => page.click('[data-panel=relations] [data-ref=dataPortfolio]'));
+ok('D4 Relations: no data actions in the catalogue, a link to Training › Data, old "License data" (D3) gone', !(await page.$('[data-panel=relations] [data-act^="data."]')) && !(await page.$('[data-test=data-pickers]')) && !!(await page.$('[data-panel=relations] [data-ref=dataPortfolio]')) && !(await page.$('[data-act=D3]')));
+await check('D4 Relations: the data link opens Training › Data', "store.panel + ':' + (store.tab.blueprint || '')", () => page.click('[data-panel=relations] [data-ref=dataPortfolio]'));
 await nav('relations');
 await nav('models');
-ok('J1 M4: a best badge per variant in the lineage', (await page.$$('[data-test=best-badge]')).length >= 1);
+ok('UB-10: the family tree shows a state word on every model and folds retired ones', await page.evaluate(() => { const n = [...document.querySelectorAll('[data-home=lineage] [data-version]')]; return n.length >= 1 && n.every((x) => !!x.querySelector('[data-state]')) && ![...n].some((x) => x.querySelector('[data-state=retired]')); }));
 ok('J1 M5: runs are named by their target', !(await page.locator('[data-panel=models]').innerText()).match(/\b(post|base|distill) \d+ (post|base|distill)\b/));
 await nav('compute');
 await tabTo('overview');

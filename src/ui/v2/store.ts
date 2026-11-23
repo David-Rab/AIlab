@@ -273,7 +273,9 @@ class StoreV2 {
   /** Click = go (IA §4): open the panel (and tab), scroll to #ctl-<anchor> and pulse it once. */
   goto(panel: string, opts: { tab?: string; anchor?: string } = {}) {
     if (panel === 'company') { panel = 'lab'; if (opts.tab === 'flow') opts = { ...opts, tab: 'board' }; }
-    const tab = opts.tab ?? (opts.anchor ? ANCHOR_TAB[`${panel}#${opts.anchor}`] : undefined);
+    // UB-7: data, environments and runs moved from MODELS to TRAINING; TRAINING opens on Next run by default.
+    if (panel === 'models' && (opts.tab === 'data' || opts.tab === 'suites' || opts.tab === 'runs')) panel = 'blueprint';
+    const tab = opts.tab ?? (opts.anchor ? ANCHOR_TAB[`${panel}#${opts.anchor}`] : undefined) ?? (panel === 'blueprint' ? 'next' : undefined);
     if (tab) this.tab = { ...this.tab, [panel]: tab };
     const sub = opts.anchor ? ANCHOR_SUB[`${panel}#${opts.anchor}`] : undefined;
     if (sub) this.tab = { ...this.tab, [sub[0]]: sub[1] };

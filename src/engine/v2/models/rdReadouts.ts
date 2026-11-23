@@ -1,17 +1,19 @@
 // UB-2: R&D readouts the approved mockups need (design/ux/mockups/rd/DATA.md items marked NEW). Pure view functions:
 // each reads beliefs, measurements and facts only (UI-IA §2 basis), never hidden truth; one function per readout, one
 // home (UI-IA §2), units per VOCAB §1. Display thresholds are stated where used; no engine number depends on them.
-import { DOMAIN_IDS, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { DOMAIN_IDS, LEVEL_KNOTS, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { RL_BUDGET } from '../../../data/v2/runDesign';
 import { STACK_LABEL } from '../../../data/v2/research';
 import { aiStaffSpeedPart, labSpeedRel } from '../production/production';
 import { resultsPerYearAt } from '../safety/agendas';
 import { sizeCertainty, type Certainty } from '../core/certainty';
-import { skillMarks } from './capability';
+import { MILESTONE_NAMES, skillMarks, type SkillMarks } from './capability';
+import { daysFor } from './effective';
 import { internalVersion, measuredDomainOf, versionById } from './labs';
 import { believedAdoptedSince, capPriorityList, stackViews, type CapProjectView } from './researchView';
 import { believedSciOn, capEta } from './research';
-import { runForecast, type LaunchRunParams } from './runs';
-import type { DomainId, GameStateV2, ModelVersion, StackKey } from '../types';
+import { runFlopPerShareDay, runForecast, RUN_POOL_DEFAULT, type LaunchRunParams } from './runs';
+import type { DomainId, GameStateV2, MilestoneIdx, ModelVersion, StackKey } from '../types';
 
 const Z90 = 1.64;
 const X = (oom: number) => Math.pow(10, oom);
@@ -188,4 +190,34 @@ export function skillGains(s: GameStateV2, plan: LaunchRunParams, ref?: ModelVer
     return { d, now, next, mid, dLevels: mid - now, median: m.median, best: m.best, posNow: pos(now), posNext: pos(mid), measured: !!rv?.evals.measuredDom?.[d] };
   });
   return { ref: fc.refName, gains };
+}
+
+// ───────────────────────────── TRAINING / MODELS: skill-bar scale and milestones (UB-7, UB-10) ─────────────────────────────
+
+/** The marks of one skill bar (UB-1b, job scale): median expert and best human doing the job, with the test facts for
+ *  the tooltip. Home: TRAINING › Prediction and MODELS › card (one SkillBars component) · L1 ticks, facts L3. Unit:
+ *  levels (never shown as numbers at L1). Basis: F (public reference values, per preset). */
+export const skillMarksOf = (s: GameStateV2, d: DomainId): SkillMarks => skillMarks(s.hidden.timeline, d); // public reference points only
+
+/** One milestone on the capability ruler: its level (LEVEL_KNOTS, the milestone axis) and the day the lab met it (its
+ *  evaluations showed it; s.player.milestoneDays). Home: TRAINING › Prediction axis · L1; MODELS › card ladder · L1.
+ *  Unit: — / date. Basis: F (level knots) · M (met day). */
+export interface MilestoneMark { idx: number; name: string; level: number; metDay?: number }
+export function milestoneMarks(s: GameStateV2): MilestoneMark[] {
+  return MILESTONE_NAMES.map((name, idx) => ({ idx, name, level: LEVEL_KNOTS[idx], ...(s.player.milestoneDays[idx as MilestoneIdx] !== undefined ? { metDay: s.player.milestoneDays[idx as MilestoneIdx] } : {}) }));
+}
+/** The highest milestone a forecast level reaches that the lab has not met yet (TRAINING › Prediction "Would meet …"),
+ *  else the next one with the levels still missing. Basis: B·fc (runForecast's mid; milestones on the level axis). */
+export function planMilestone(s: GameStateV2, mid: number): { meets?: MilestoneMark; next?: MilestoneMark; short?: number } {
+  const ms = milestoneMarks(s);
+  const meets = [...ms].reverse().find((m) => m.metDay === undefined && mid >= m.level);
+  const next = ms.find((m) => m.metDay === undefined && mid < m.level);
+  return { ...(meets ? { meets } : {}), ...(next ? { next, short: next.level - mid } : {}) };
+}
+
+/** Days the standard post-training of a planned new base would take after the base is done (TRAINING › Limits "Ready"):
+ *  the standard budget's FLOP at today's training compute and the post-training default share. Unit: days. Basis: B·fc
+ *  (today's compute; chips on order shorten it). */
+export function postDaysAfterBase(s: GameStateV2, baseFlop: number): number {
+  return Math.ceil(daysFor(RL_BUDGET.standard * baseFlop, runFlopPerShareDay(s, { kind: 'post' }) * RUN_POOL_DEFAULT.post));
 }

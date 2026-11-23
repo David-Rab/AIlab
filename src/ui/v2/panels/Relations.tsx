@@ -173,7 +173,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
         </table>
       </Section>
 
-      <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'lab', tab: 'security' }}>Lab › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'models', tab: 'data' }}>Models › Data</Ref></span>}>
+      <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'lab', tab: 'security' }}>Lab › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'blueprint', tab: 'data' }}>Training › Data</Ref></span>}>
         <div className="rel-groups" data-test="rel-groups"><Seg value={grp} options={ACT_GROUPS.map((x) => ({ v: x, label: GROUPS[x] }))} onChange={setGrp} /></div>
         <div className="catalog">
           <div className="cat-group">
