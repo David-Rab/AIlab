@@ -147,12 +147,6 @@ export const MARKET_BANDS = 8;
  *  in a year (66% upgraded within their provider), ρ ≈ 0.11/y (Menlo Ventures, "2025 Mid-Year LLM Market Update", Jul
  *  2025 [P]). Was 0.25 [D]. */
 export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as const;
-/** RD-P11 (PRD-24): brand appeal from the customer stock. Buyers prefer what they and others already use (switching
- *  costs, integrations, word of mouth): in each segment a provider's choice weight is × (1 + BRAND_INSTALLED × its
- *  customer stock share there), the same rule for every provider (worldfx/mix.ts installedBrand). 0.5 [D stand-in]:
- *  at the ~40% stock the player's start holds it gives the ×1.2 the old flat incumbent brand had; to source from
- *  retention or switching-cost data. */
-export const BRAND_INSTALLED = 0.5;
 /** A8: multi-homing (design/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
  *  its cloud), not from every lab: in a sector's surplus choice (worldfx/choice.ts) each provider is in a buyer's set
  *  with probability R, its reach (≤ its access), independently. A lab whose model alone does the hardest tasks wins

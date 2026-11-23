@@ -24,7 +24,7 @@
 // bestPublic (max) are what α, the PHYS gate, control and the tech tree read; no display levels here.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { BRAND_INSTALLED, CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
@@ -86,8 +86,6 @@ export interface Provider {
   /** RD-P07: the tools (enabler features) a non-player lab has acquired (RivalLab.tools); none for the player's open
    *  release (a release carries no product tools). The player's products read their own (productTools). */
   tools?: readonly string[];
-  /** RD-P08: the sectors a non-player lab sells an adaptation in (RivalLab.adapts); none for the player's open release. */
-  adapts?: readonly SectorId[];
 }
 
 export interface SectorMix {
@@ -209,18 +207,9 @@ function access(p: Provider, r: RegionId): number {
 }
 
 function playerBrand(s: GameStateV2): number {
-  // ±0.1 with approval (§3.11.1). RD-P11: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
-  // stock (installedBrand), by the same rule as every provider.
+  // ±0.1 with approval (§3.11.1). RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
+  // stock (CUSTOMER_TAU switching inertia), the same for every provider.
   return 1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50));
-}
-
-/** RD-P11: each provider's brand in one segment: its base brand × (1 + BRAND_INSTALLED × its customer stock share there)
- *  (data/v2/serving.ts BRAND_INSTALLED; no stock yet: ×1). */
-export function installedBrand(s: GameStateV2, providers: readonly Provider[], r: RegionId, seg: string, base: readonly number[]): number[] {
-  const st = s.world.fx.cust?.[r]?.[seg];
-  let sum = 0;
-  if (st) for (const p of providers) sum += st[p.key] ?? 0;
-  return base.map((b, i) => (sum > 1e-12 ? b * (1 + (BRAND_INSTALLED * (st![providers[i].key] ?? 0)) / sum) : b));
 }
 
 /** Compute the world mix (memoised per tick when a ctx is given). */
@@ -340,10 +329,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, adapts: r.adapts, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, adapts: s.china.lab.adapts, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -448,7 +437,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const kind: TierKind[][] = [];
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, adapted: p.adapts?.includes(t.id) });
+      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
     }
@@ -485,7 +474,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const p = providers[i];
       if (!row[i] || !p.tiers?.length) continue;
       for (const x of p.tiers) {
-        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, adapted: p.adapts?.includes(t.id) }));
+        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }));
         kind[i].push('student');
       }
     }
@@ -572,7 +561,7 @@ function computeMix(s: GameStateV2): WorldMix {
       }
       // RD-P03 (DD-02): each player product is its own seller (its lineup's tiers a group), sharing the player's brand and
       // reach.
-      const ch = surplusChoice(lineups, installedBrand(s, providers, r, t.id, brandPow), accSec[ri], value, aTops[si], B, groups[si]);
+      const ch = surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si]);
       const target = ch.target;
       const tierW: number[][] = [];
       for (let i = 0; i < n; i++) {
@@ -760,7 +749,7 @@ function computeMix(s: GameStateV2): WorldMix {
   const consumer = {} as Record<RegionId, ConsumerMix>;
   const cOnes = filled(n, 1);
   REGIONS.forEach((r, ri) => {
-    const cBrand = installedBrand(s, providers, r, 'consumer', providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1)));
+    const cBrand = providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1));
     // A5: users choose an app by quality alone: most pay nothing (free users ≈ 95%), so the subscription price is not in
     // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock. A7: the quality
     // they choose on is the free tier's, the offer they get (each lab's cheapest real model; RD-P02).

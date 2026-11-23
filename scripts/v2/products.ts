@@ -44,7 +44,7 @@ import { evalDaysFor } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { adaptRevenueGain } from '../../src/engine/v2/models/adaptations';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
-import { openAbsorbG, ownProgressDays, releaseRecG } from '../../src/engine/v2/actors/rivals';
+import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
 
 const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
@@ -506,15 +506,15 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const ltw = ln.costs.find((l) => l.currency === 'staffTime');
   check(!le && only(ln, ['revenue', 'compute', 'staffTime', 'leadDays']) && !!lq && !!ltw && near(-ltw.amount, lq.needTW, 1e-6),
     'RD-B20 launch preview: engineer team-weeks as queued, market and distillation lines only', `${le ?? ''} ${JSON.stringify(ln)}`);
-  // RD-P05: open weights are a release act on the model (releaseOpen); China's lead line is what it absorbs at the
-  // release (openWeightsReleased), or no line; the rest is the rivals' distillation and the one-way release itself.
+  // RD-P05: open weights are a release act on the model (releaseOpen). RF-P6: China's line is the share of its recipe
+  // gap it absorbs (openWeightsReleased's RECIPE_LEAK_SHARE.openWeights) with your estimate of its gap, not the hidden
+  // gap; the rest is the rivals' distillation and the one-way release itself.
   const o = clone(s);
   const v = o.player.models.versions.find((x) => x.id === api.versionId)!;
   const op = pvOf(o, 'releaseOpen', { versionId: v.id });
-  const days = -(op.costs.find((l) => l.currency === 'leadDays' && /China/.test(String(l.target)))?.amount ?? 0);
-  const want = v.G > o.knowledge.openWeightsG ? Math.round(ownProgressDays(o, o.china.lab.core.id, openAbsorbG(o, v.recG ?? releaseRecG(o, 'player', v.G)))) : 0;
-  check(only(op, ['leadDays', 'progress']) && days === want && op.gains.length === 0,
-    "RD-B20 / RD-P05 open-release preview: China's absorbed progress from openWeightsReleased, no academia trust gain", `${days} vs ${want} ${JSON.stringify(op)}`);
+  const cnLine = op.costs.find((l) => /China/.test(String(l.target)));
+  check(only(op, ['progress']) && cnLine?.amount === -Math.round(RECIPE_LEAK_SHARE.openWeights * 100) && cnLine.unit === '%' && op.gains.length === 0,
+    "RD-B20 / RD-P05 / RF-P6 open-release preview: China absorbs the open-weights share of its recipe gap (no hidden gap), no academia trust gain", JSON.stringify(op));
 }
 
 finish('products');

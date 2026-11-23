@@ -35,6 +35,7 @@ import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from 
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
 import { gOfLevel, levelGate, oomPerLevel } from '../models/capability';
+import { CERT_FRICTION_CUT, certifiedBuyerShare, needsCert } from '../models/adaptations';
 
 export { REGIONS };
 
@@ -85,7 +86,9 @@ const F_PRE_START: Record<SectorId, number> = (() => {
 })();
 
 /** Friction R_s for a region (research/16 §1A.2 step 4). */
-export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, pol: PolicyState): number {
+/** certShare (RF-P3, DD-04): the share of the sector's US buyers who buy from a certified player product; their friction
+ *  is CERT_FRICTION_CUT lower, so the sector's is that x the share lower. */
+export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, pol: PolicyState, certShare = 0): number {
   let R = def.R0 * econOf(s).frictionScale * REGION_SCALE[r].R;
   const id = def.id;
   if (r === 'US') {
@@ -94,6 +97,7 @@ export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, pol: Pol
     if (pol.schoolBan && id === 'EDU') R += 0.3;
     if (pol.armsRace && id === 'MIL') R -= 0.3;
     if (pol.sez && (id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;
+    R -= CERT_FRICTION_CUT * certShare;
   }
   if (r === 'ROW' && pol.euCode) R += 0.03;
   R += s.world.fx.incidentR[id] ?? 0;
@@ -233,7 +237,8 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     const g = m.g;
     st.F = m.F;
     st.K = m.K;
-    st.R = frictionOf(s, r, def, pol);
+    const certShare = r === 'US' && playerIdx >= 0 && needsCert(def.id) ? (m.share[playerIdx] ?? 0) * certifiedBuyerShare(s, def.id, m.playerProdW) : 0;
+    st.R = frictionOf(s, r, def, pol, certShare);
     st.Astar = st.F * st.K * (1 - st.R);
     // RD-P04a: v2's +0.15 per AGENCY level above 8, per OOM of AGENCY G above λ⁻¹(8) (the slope at L 8).
     let q = def.q * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));

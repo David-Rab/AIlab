@@ -1,7 +1,6 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
-import { toolsFromFeatures } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { DISTILL_TPP, PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
@@ -208,7 +207,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   });
   // Products at the start: the leader's three (as before) or the start type's; the internal deployment last.
   const deployments = leader
-    ? [dep('D1', 'consumer', 0.45, 0), dep('D2', 'api', 0.35, 1), dep('D3', 'enterprise', 0.2, 0), dep('D4', 'internal', 0, 0)]
+    ? [dep('D1', 'consumer', 0.45, 0), dep('D2', 'api', 0.35, 1), dep('D3', 'enterprise', 0.2, 0)].map((d, i): Deployment => ({ ...d, features: [...(def.products[i]?.features ?? [])] })).concat(dep('D4', 'internal', 0, 0))
     : [
         ...def.products.map((x, i) => ({ ...dep(`D${i + 1}`, x.channel, x.servingShare, x.channel === 'api' ? 1 : 0), features: [...(x.features ?? [])] })),
         dep(`D${def.products.length + 1}`, 'internal', 0, 0),
@@ -257,8 +256,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     research: { ...initialResearch(roster.teams), stacks: initialStacks(k) },
     build: initialBuild(),
     features: [...def.features],
-    // RD-A06: the internal tools equivalent to the start's built features (the start's internal agents do not change).
-    tooling: toolsFromFeatures(def.features),
+    // RD-A06: the start's internal tools (RF-P1: listed per start, no longer derived from its product features).
+    tooling: [...def.tooling],
     morale: { overall: 70, safety: 65 },
     dataPortfolio,
     suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)

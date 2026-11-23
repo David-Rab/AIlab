@@ -113,18 +113,18 @@ export interface FeatureDef {
 
 export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
-    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
+    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
     // RD-P11 [D stand-in]: acting on any desktop or website is one of the four affordances (+¼ of F).
     risk: 'Affordances +0.25 (acts on desktops and websites): raises the odds of incidents that need real access (overreach, cover-ups)', afford: 0.25 },
   // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
   // is where its Media segment acts; on Chat it opens the Chat users.
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.15 (on Chat); on the API it does the media tasks (13% of Media work) offers without it cannot; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
+    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.15 (on Chat); on the API it does the media tasks (13% of Media work) offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
   // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
@@ -137,7 +137,7 @@ export const FEATURES: FeatureDef[] = [
     // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
     risk: 'Cost per work-hour ×2 where it applies (longer agent runs; their incident exposure is in the product usage)' },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
+    effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
     // RD-P11 [D stand-in]: ×1.5 stands for the longer, personal conversations a persona has with each user (time per
     // user), which the product's serving share does not count; to replace with time per user once Chat models it.
     risk: 'Sycophancy incidents ×1.5 [D stand-in: longer personal conversations per user]', hazard: { SYC: 1.5 } },
@@ -182,15 +182,27 @@ export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTE
  *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector adaptations are per product (models/adaptations.ts),
  *  not tools. */
 export const enablerNeed = (share: number) => share / (1 + share);
-/** RD-P07 (DD-03 rival part, DD-18 stand-in): every rival and China gets a tool TOOL_LAG_DAYS after the first lab ships
- *  it on a live product (world.fx.toolShip: the player or a rival; RD-P07b: a rival or China may ship it first, by the
- *  feature's own gate, actors/rivalModel.ts rivalToolStep). 120 days [D]: 2024–25 launches followed each other by about
- *  50–270 days (computer use: Anthropic Oct 2024, Google Project Mariner Dec 2024, OpenAI Operator Jan 2025; memory:
- *  ChatGPT Feb 2024, Gemini Nov 2024). */
+/** RD-P07 (DD-03 rival part, DD-18 stand-in), RF-P1: for a tool NEW in this game (no lab of the world had it at the
+ *  start, DAY0_TOOLS and the player's start), every rival and China gets it TOOL_LAG_DAYS after the player first ships
+ *  it on a live product (world.fx.toolShip; actors/rivalModel.ts rivalToolStep). Tools some lab had at the start: each
+ *  lab keeps what it had. 120 days [D]: 2024–25 launches followed each other by about 50–270 days (computer use:
+ *  Anthropic Oct 2024, OpenAI Operator Jan 2025, Google Mariner May 2025; memory: ChatGPT Feb 2024, Meta AI Jan 2025,
+ *  Gemini Feb 2025). */
 export const TOOL_LAG_DAYS = 120;
-/** RD-P07b [D stand-in]: a rival that passes a tool's gate builds it in the feature's engineer team-weeks done by one team
- *  (buildTW × 7 days: Computer use 112 d), the player's build time at one team; a rival has no build queue. */
-export const RIVAL_TOOL_DAYS_PER_TW = 7;
+/** RF-P1 (designer decision 2, 2026-11-23): the product tools (enablers) each rival and China starts with: what its real
+ *  counterpart had shipped by the 2025-07-01 start (research/07 §2.3 archetypes: leader OpenAI, safety Anthropic,
+ *  bigtech Google, maverick xAI, openweights Meta, upstart SSI / Thinking Machines; deepcent DeepSeek). Vendor sources
+ *  per cell: design/RD-AUDIT/BUILD-NOTES.md RF-P1. A cell with no primary source is left off (xAI's memory, voice and
+ *  companions). The player's starts list theirs in data/v2/starts.ts by the same table. */
+export const DAY0_TOOLS: Record<string, FeatureId[]> = {
+  leader: ['memory', 'computerUse', 'voiceVision'],
+  safety: ['computerUse', 'voiceVision'],
+  bigtech: ['memory', 'computerUse', 'voiceVision'],
+  maverick: [],
+  openweights: ['memory', 'voiceVision', 'companion'],
+  upstart: [],
+  deepcent: [],
+};
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
-/** RD-P07: the features that are tools (enablers): the ones rivals acquire after a lag. */
+/** RD-P07: the features that are tools (enablers): the ones rivals and China sell with (RivalLab.tools). */
 export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler')).map((f) => f.id);

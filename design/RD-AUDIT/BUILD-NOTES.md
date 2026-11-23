@@ -4205,3 +4205,143 @@ hygiene.ts's calibration shift drops it).
   checks updated (`now` = base + believed; B30 reads `seenIn`). Own check: day-400 fixture migrates to rev 98 (pre believed
   0.174 ± 0.011 from 14 listed results, n 32), grows to 0.205 after 120 days.
 - **Moves calibration:** no (readouts only).
+
+## RF fix batch, lane P (products; branch rf-p)
+
+### RF-P2 rival sector adaptations deleted
+- **Changed / deleted:** the automatic rival rule of RD-P08 is gone: `rivalAdaptStep`, `RIVAL_ADAPT_GATE_A`,
+  `RivalLab.adapts` / `adaptBuild`, the providers' `adapts` and the rival offers' `adapted` flag (worldfx/mix.ts). Rival
+  and China offers no longer get the scaffold's ×(1 + ADAPT_COVER) in any sector; only the player's adapted products do.
+  Glossary `adaptation` says rivals do not adapt. Nothing else read the rival adaptations (only the two offer calls in
+  mix.ts), so nothing critical depended on it.
+- **Save:** SCHEMA_REV 98 (one rev for lane P); migration 97 → 98 drops `adapts` / `adaptBuild` from rivals and China.
+  hygiene.ts rev checks 97 → 98.
+- **Stand-ins:** none new.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p08/check.ts` all ok (rival section removed; the src scan now also
+  rejects `rivalAdaptStep` / `RIVAL_ADAPT_GATE_A` / `adaptBuild` / `.adapts`).
+- **Moves calibration: yes** (small): rival coverage in every sector above 1 % adoption drops by the ×1.15 it had from
+  about day 30 (regulated sectors about day 150), so the player's sector shares and revenue rise somewhat.
+
+### RF-P3 certification lifts friction for the product's buyers (DD-04)
+- **Changed:** certification no longer gates the scaffold: an adaptation acts from its build on (`adaptedHere` reads
+  only that it exists). Once certified (FIN / HEALTH / GOV / MIL, same CERT_DAYS / CERT_CASH, started when the scaffold
+  is built), US sector friction is cut by `CERT_FRICTION_CUT × the player's customer share × the certified products'
+  part of the player's hours there` (`certifiedBuyerShare`, SectorMix.playerProdW; worldfx/sectors.ts frictionOf's new
+  `certShare` argument): the certified product's buyers face R − 0.1, the sector's friction is the buyers' average.
+  Preview: the revenue line's lag is the build only, and says the friction cut is not in it; the certification cost line
+  says what it does. Products adaptation rows: "live" / "live; certified from …" / "live, certified"; tooltip and
+  glossary `adaptation` in player words.
+- **Deleted:** `adaptationLive` (replaced by `certified`).
+- **Stand-ins:** CERT_FRICTION_CUT 0.1 is research/16 §1A.3's number (the old pack's sector-wide −0.1), not new. The
+  extra adoption it causes is shared among all providers by the buyers' choice (sector-level adoption; a stated
+  simplification). US only, as before.
+- **Save:** no field changes; adaptations still in certification in an old save act at once.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p08/check.ts` all ok (scaffold acts during certification; no cut before
+  it is done; cut = 0.1 × buyers' share in US Finance; none outside the US).
+- **Moves calibration: maybe** (only where the player builds certified adaptations: earlier scaffold effect, small
+  friction cut).
+
+### RF-P1 day-0 product tools from history; RD-P07b deleted
+- **Changed:** every lab starts with the product tools its real counterpart had shipped by 2025-07-01 (designer
+  decision 2). Rivals and China: `DAY0_TOOLS` by archetype (data/v2/features.ts; mapping research/07 §2.3: leader
+  OpenAI, safety Anthropic, bigtech Google, maverick xAI, openweights Meta, upstart SSI / Thinking Machines, deepcent
+  DeepSeek), set at creation. Player starts (data/v2/starts.ts): leader = OpenAI, challenger = Anthropic, big tech =
+  Google, spinout none; each feature switched on for every start product whose channel offers it (the launch rule).
+  The leader's hard-coded start products now take the table's features. P07's lag rule stays only for a tool no lab
+  of the world had at the start (`toolNewInGame`): rivals and China get it TOOL_LAG_DAYS after the player first
+  ships it. A tool some lab had at the start does not spread: each lab keeps what it had.
+- **Deleted:** RD-P07b: `rivalKnowsNode`, `RivalLab.toolBuild`, `RIVAL_TOOL_DAYS_PER_TW`, `toolShip.by` (toolShip is a
+  day again, recorded only for new tools), its 84 → 85 migration (now a no-op), scripts/v2/_p07b. The feature tooltip's
+  "first shipped by" row; feature effect texts and glossary `featEnabler` reworded.
+- **Internal tools unchanged:** starts now list `tooling` explicitly (challenger codingHarness, others none: what
+  `toolsFromFeatures` gave before), so adding product features does not change the start's internal agents (RD-A06).
+- **Save:** in SCHEMA_REV 98 (one rev with RF-P2): drops toolBuild, adds each lab's DAY0_TOOLS to its tools, keeps
+  only new-in-game tools in toolShip as a day. The player's features in an old save are not changed.
+- **Stand-ins:** none new (TOOL_LAG_DAYS 120 kept). Mapping a sampled archetype to one real lab is the repo's own.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p07/check.ts` rewritten, all ok (start tools, offer ×1.15 OFFICE /
+  SOFT unchanged, historical tool records no ship, a new tool (Companion in a world with no Meta-like rival) reaches a
+  rival at ship + 120 d, not at + 119); ad-hoc 97 → 98 migration check ok. scripts/v2/_p07 is not in scripts/v2's
+  tsconfig (tsc does not cover it).
+- **Moves calibration: yes.** The leader start (the calibration anchor) gains Memory, Computer use, Voice & vision,
+  Deep research and the Coding agent on its products (coverage, fit, horizon, Chat appeal, the Computer use
+  affordance in incident odds, ≈ 0.58 engineer team-weeks a week of feature upkeep). Rivals start with tools (OFFICE /
+  FIN / LEGAL / GOV / MEDIA coverage, Chat appeal) and no longer all ship on about day 113.
+- **Open (designer):** under this rule a lab never catches up on a tool it lacked at the start (Anthropic never gets
+  Memory, xAI and DeepSeek never get Computer use or Voice & vision), as products F2 proposed. Say if laggards should
+  catch up.
+
+Sources (vendor pages only; fetched and dated by a research subagent; "by 2025-07-01" = public, a paid tier or a
+public beta; waitlist or trusted-tester previews not counted):
+
+| Tool | Lab | Had it | First shipped | Source |
+|---|---|---|---|---|
+| Memory | OpenAI | yes | 2024-02-13 test; 2024-09-05 all tiers | https://openai.com/index/memory-and-new-controls-for-chatgpt/ |
+| Memory | Anthropic | no | 2025-09-11 (after the start) | https://claude.com/blog/memory |
+| Memory | Google | yes | 2025-02-13 (Gemini Advanced) | https://blog.google/feed/gemini-referencing-past-chats/ |
+| Memory | xAI | off: no primary source | — | none on x.ai |
+| Memory | Meta | yes | 2025-01-27 (US, Canada) | https://about.fb.com/news/2025/01/building-toward-a-smarter-more-personalized-assistant/ |
+| Memory | DeepSeek | no | — | no vendor announcement |
+| Computer use | OpenAI | yes | 2025-01-23 (Operator, Pro US) | https://openai.com/index/introducing-operator/ |
+| Computer use | Anthropic | yes | 2024-10-22 (API beta) | https://www.anthropic.com/news/3-5-models-and-computer-use |
+| Computer use | Google | yes | 2025-05-20 (Mariner, AI Ultra US) | https://blog.google/products/google-one/google-ai-ultra/ |
+| Computer use | xAI, Meta, DeepSeek | no | — | none |
+| Voice & vision | OpenAI | yes | 2023-09-25 | https://openai.com/index/chatgpt-can-now-see-hear-and-speak |
+| Voice & vision | Anthropic | yes | vision 2024-03-04; voice 2025-05-27 (beta; date from Anthropic's own post, help page undated) | https://www.anthropic.com/news/claude-3-family ; https://support.claude.com/en/articles/11101966-use-voice-mode |
+| Voice & vision | Google | yes | images 2023-07-13; Gemini Live 2024-08-13 | https://blog.google/products/gemini/made-by-google-gemini-ai-updates/ |
+| Voice & vision | xAI | off: no dated primary source for voice | — | x.ai/news/grok-4 (2025-07-09) calls voice "upgraded", undated before |
+| Voice & vision | Meta | yes | 2024-09-25 | https://about.fb.com/news/2024/09/metas-ai-product-news-connect/ |
+| Voice & vision | DeepSeek | no | first vision API 2026-08-21 | https://api-docs.deepseek.com/news/news260821/ |
+| Companion | Meta | yes | 2024-07-29 (AI Studio characters) | https://about.fb.com/news/2024/07/create-your-own-custom-ai-with-ai-studio/ |
+| Companion | OpenAI, Google | no (custom GPTs, Gems are not companion personas) | — | https://openai.com/index/introducing-gpts/ ; https://blog.google/products/gemini/google-gemini-update-august-2024/ |
+| Companion | xAI | off: no primary source (companions launched after the start) | — | none on x.ai |
+| Companion | Anthropic, DeepSeek | no | — | none |
+| Deep research | OpenAI | yes | 2025-02-02 | https://openai.com/index/introducing-deep-research/ |
+| Deep research | Anthropic | yes | 2025-04-15 (beta, Max / Team / Enterprise) | https://claude.com/blog/research |
+| Deep research | Google | yes | 2024-12-11 | https://blog.google/products/gemini/google-gemini-deep-research/ |
+| Coding agent | OpenAI | yes | Codex CLI 2025-04-16; Codex 2025-05-16 (page not fetchable, date from its search entry) | https://openai.com/index/introducing-o3-and-o4-mini/ ; https://openai.com/index/introducing-codex/ |
+| Coding agent | Anthropic | yes | 2025-02-24 (Claude Code preview); GA 2025-05-22 | https://www.anthropic.com/news/claude-3-7-sonnet |
+| Coding agent | Google | yes | Jules 2025-05-20; Gemini CLI 2025-06-25 | https://blog.google/technology/google-labs/jules/ |
+
+Deep research and the Coding agent are player features only (rival offers read enabler tools only), so they enter the
+player's starts, not DAY0_TOOLS.
+
+### RF-P4 brand counted once
+- **Deleted:** `BRAND_INSTALLED` (data/v2/serving.ts) and `installedBrand` (worldfx/mix.ts): the second, fitted term that
+  multiplied each provider's choice weight by its customer stock share, on top of the stock's own switching inertia
+  (CUSTOMER_TAU, sourced from Menlo's switching data). Sector and Chat choices now use the base brand (player: 1 ± 0.1
+  with approval; rivals 1, inactive 0.5) × Chat appeal, as before RD-P11's brand part. Nothing replaces it.
+- **Stand-ins:** none new.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p11/check.ts` all ok (section 2 now checks that the SOFT and Chat
+  target shares do not move with the customer stock, and that no installed-brand term is left).
+- **Moves calibration: yes.** The incumbent (the player's leader start, ~40 % stock) loses about ×1.2 of choice weight in
+  every segment, rivals with small stocks lose less: the player's target shares and revenue fall somewhat.
+
+### RF-P5 one nest per provider (duplicate-seller exploit)
+- **Changed:** in the surplus choice (worldfx/choice.ts) a provider with several products is one nest: its band utility is
+  its best product's (the same as with one product), and its band share splits among its products by e^u_g as before
+  (Choice.sub, SectorMix.playerProdW). The log-sum term `u + ln Σ e^(u_g − u)` that let identical products raise the
+  player's share (0.384 → 0.403 in RD-P03's note) is deleted. Products still compete by offer band by band, so a product
+  that is better on some tasks still wins them.
+- **Stand-ins:** none (the nest has no parameter: the limit where products of one lab are perfect substitutes for a
+  buyer who picks a lab).
+- **Check:** tsc (src, scripts/v2); new `scripts/v2/_rfp5/check.ts` all ok (an exact copy of the API adds no player share
+  in US Software and splits its hours evenly; with the API withdrawn the share does not rise).
+- **Moves calibration: yes** (small): with API and Enterprise both live, the player's sector target shares drop by the
+  log-sum's variety bonus (a few points of share where the products are close).
+
+### RF-P6 open-weights release preview without hidden truth
+- **Changed:** the `releaseOpen` preview (models/productOps.ts) no longer computes China's gained days or the
+  best-placed rival's lift from hidden state (China's recipe, rivals' models, the version's true G / recG). It states the
+  rules' shares and the player's own estimates: "30 % of China's recipe gap to you, if the weights beat the best
+  open-weight model (you estimate China a–b days behind)" (RECIPE_LEAK_SHARE.openWeights; band = China's
+  intel.leadDaysEst ± leadDaysSd) and "at most 50 % of each rival's gap to this model at its next post-training (you
+  estimate the nearest, X, a–b days behind)" (DISTILL_S at full access; nearest rival by intel). The one-way release
+  line is unchanged. The effect (openWeightsReleased, distillLift) is unchanged.
+- **Deleted:** the preview's hypothetical open deployment and its ownProgressDays / openAbsorbG / releaseRecG reads.
+- **Stand-ins:** none new (the shares are the engine's own constants; the band is the existing intel estimate).
+- **Check:** tsc (src, scripts/v2); new `scripts/v2/_rfp6/check.ts` all ok (preview unchanged when the true G of the
+  version, China and the rivals change; changes when the China estimate changes). scripts/v2/products.ts's open-release
+  assertion updated to the new lines (suite not run).
+- **Moves calibration: no.**
+- **Note:** the "if they beat the best open-weight model" condition is in words, not checked, since the version's true
+  G is hidden; the recipe gap itself is not known to the player, so the preview gives the share, not days.

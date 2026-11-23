@@ -2072,16 +2072,10 @@ export interface RivalLab {
   lineup?: SimpleModel[];
   /** RD-P02: students its aggregate distill step is making; each goes on sale on its `day`. */
   distilling?: SimpleModel[];
-  /** RD-P07 (DD-03 rival part): the product tools (enabler feature ids) the lab sells with, acquired TOOL_LAG_DAYS after
-   *  the first lab shipped each (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
+  /** RD-P07 (DD-03 rival part), RF-P1: the product tools (enabler feature ids) the lab sells with: what it had at the
+   *  start (data/v2/features.ts DAY0_TOOLS), plus a tool new in the game TOOL_LAG_DAYS after the player first shipped it
+   *  (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
   tools?: string[];
-  /** RD-P07b: tools it is building itself (it passed the feature's gate): the day each build finishes and it ships. */
-  toolBuild?: Record<string, Day>;
-  /** RD-P08 (DD-04 rival part): sectors the lab sells an adaptation in (models/adaptations.ts rivalAdaptStep); its
-   *  offers there cover more of the sector's tasks. */
-  adapts?: SectorId[];
-  /** RD-P08: adaptations it is building (and certifying): the day each goes on sale. */
-  adaptBuild?: Partial<Record<SectorId, Day>>;
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;
@@ -2256,9 +2250,9 @@ export interface WorldFxState {
    *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
    *  even spread (data/v2/serving.ts MULTI_HOMING). */
   secReach?: Record<RegionId, Record<string, number>>;
-  /** RD-P07 / RD-P07b: the first ship of each product tool (enabler feature id) by any lab: the day and who ('player' or
-   *  the lab id; actors/rivalModel.ts recordToolShips, rivalToolStep). */
-  toolShip?: Record<string, { day: Day; by: string }>;
+  /** RD-P07, RF-P1: the day the player first shipped each product tool new in this game (no lab had it at the start;
+   *  actors/rivalModel.ts recordToolShips). */
+  toolShip?: Record<string, Day>;
 }
 
 export interface SectorState {

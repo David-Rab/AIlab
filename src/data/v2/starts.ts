@@ -6,7 +6,7 @@
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
 import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey, TeamQuality } from '../../engine/v2/types';
-import type { FeatureId } from './features';
+import type { FeatureId, ToolId } from './features';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Impossible';
 
@@ -35,9 +35,14 @@ export interface StartDef {
   /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
-  /** Live products and the features built at the start. */
+  /** Live products and the features built at the start. RF-P1: the features are the tools the analogue lab had shipped
+   *  by 2025-07-01 (leader OpenAI, challenger Anthropic, big tech Google; sources: design/RD-AUDIT/BUILD-NOTES.md RF-P1),
+   *  each switched on for every start product whose channel offers it. */
   products: StartProduct[];
   features: FeatureId[];
+  /** RD-A06 internal tools at the start (the start's internal agents; RF-P1 keeps them as they were when they followed
+   *  the start's features). */
+  tooling: ToolId[];
   /** Cash on hand ($B), revenue run-rate ($B/yr) and the last four quarterly run-rates (oldest first). */
   cash: number;
   revenueRun: number;
@@ -68,7 +73,7 @@ export const STARTS: StartDef[] = [
     specialties: { cap: ['posttraining', 'pretraining', 'systems'], saf: ['alignment', 'interp', 'evals'] },
     quality: { 'sci.cap': 'elite' },
     known: ['rl.math', 'T-PROBE'],
-    products: [], features: [],
+    products: [], features: [], tooling: [],
     // Valued through position (FIN5a): no public model, so investors place it at the best open-weight model (SSI $32B
     // and TML $12B with no product [R21 A8]).
     cash: 3, revenueRun: 0, revenueHistory: [0, 0, 0, 0],
@@ -87,11 +92,12 @@ export const STARTS: StartDef[] = [
     specialties: { cap: ['posttraining', 'pretraining', 'systems', 'posttraining'], saf: ['interp', 'alignment', 'evals'] },
     known: ['rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
     products: [
-      { channel: 'consumer', servingShare: 0.3 },
-      { channel: 'api', servingShare: 0.45, features: ['codingAgent'] },
-      { channel: 'enterprise', servingShare: 0.25 },
+      { channel: 'consumer', servingShare: 0.3, features: ['voiceVision'] },
+      { channel: 'api', servingShare: 0.45, features: ['computerUse', 'voiceVision', 'codingAgent'] },
+      { channel: 'enterprise', servingShare: 0.25, features: ['deepResearch'] },
     ],
-    features: ['codingAgent'],
+    features: ['computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    tooling: ['codingHarness'],
     cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5],
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
     owned: 100e3, rented: 300e3,
@@ -106,11 +112,12 @@ export const STARTS: StartDef[] = [
     specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
     known: ['multimodal', 'rl.math'],
     products: [
-      { channel: 'consumer', servingShare: 0.55, features: ['voiceVision'] },
-      { channel: 'api', servingShare: 0.2 },
-      { channel: 'enterprise', servingShare: 0.25 },
+      { channel: 'consumer', servingShare: 0.55, features: ['memory', 'voiceVision'] },
+      { channel: 'api', servingShare: 0.2, features: ['computerUse', 'voiceVision', 'codingAgent'] },
+      { channel: 'enterprise', servingShare: 0.25, features: ['memory', 'deepResearch'] },
     ],
-    features: ['voiceVision'],
+    features: ['memory', 'computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    tooling: [],
     // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
     cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
     ownership: { founder: 0, fin: 0 },
@@ -126,8 +133,13 @@ export const STARTS: StartDef[] = [
     teams: { eng: 4, 're.cap': 11, 'sci.cap': 8, 're.saf': 1, 'sci.saf': 2 },
     specialties: { cap: [], saf: [] },
     known: [],
-    products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
-    features: [],
+    products: [
+      { channel: 'consumer', servingShare: 0.45, features: ['memory', 'voiceVision'] },
+      { channel: 'api', servingShare: 0.35, features: ['computerUse', 'voiceVision', 'codingAgent'] },
+      { channel: 'enterprise', servingShare: 0.2, features: ['memory', 'deepResearch'] },
+    ],
+    features: ['memory', 'computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    tooling: [],
     cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,

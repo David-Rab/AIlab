@@ -4,12 +4,13 @@ import { ALIGN_EVAL_N, evalRecord } from '../safety/alignmentEvals';
 import { methodScaleOf, organismRealismOf } from '../world/hidden';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, StartType, VersionBuild } from '../types';
 import { needsCert } from '../models/adaptations';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
-import { toolsFromFeatures } from '../../../data/v2/features';
+import { DAY0_TOOLS, toolsFromFeatures } from '../../../data/v2/features';
+import { START_BY_ID } from '../../../data/v2/starts';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
@@ -147,9 +148,7 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  84 (RD-P07): product tools act in the offer's coverage; rivals and China acquire them after a lag (RivalLab.tools,
  *  world.fx.toolShip: optional, so 83 → 84 changes nothing: the next daily tick records the tools on live products as
  *  shipped that day).
- *  85 (RD-P07b): a rival or China may ship a tool first (its own gate and build, RivalLab.toolBuild); world.fx.toolShip
- *  records who shipped first. Migration 84 → 85 turns each recorded day into { day, by: 'player' } (only the player
- *  shipped first before).
+ *  85 (RD-P07b, deleted by RF-P1): its migration 84 → 85 is a no-op now (98 converts what it wrote).
  *  86 (RD-P08): sector packs become sector adaptations (Deployment.adaptations, models/adaptations.ts); the Sector packs
  *  feature goes. Migration 85 → 86: each product's packs → adaptations on the same product (certification end kept in a
  *  sector that needs one, none elsewhere); queued pack builds → adaptation builds; 'sectorPacks' dropped from the lab's
@@ -185,8 +184,12 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  98 (RF-R5): StackState.est / estVar, the believed adopted total of each recipe stack (Σ the results' estimates when
  *  adopted) and its variance, for the know-how readouts. Migration 97 → 98 sums the adopted list (research.adopted, the
  *  last 30 results; older ones are not kept, so a long save's believed total starts low).
+ *  99 (RF-P2, RF-P1): rivals and China have no sector adaptations; each lab starts with the product tools it had
+ *  shipped by 2025-07-01 (data/v2/features.ts DAY0_TOOLS) and only tools new in the game follow the lag rule.
+ *  Migration 98 → 99 drops RivalLab.adapts / adaptBuild / toolBuild, adds each lab's DAY0_TOOLS to its tools, and keeps
+ *  in world.fx.toolShip only the tools new in that game, as a day (RD-P07b's { day, by } → day).
  */
-export const SCHEMA_REV = 98;
+export const SCHEMA_REV = 99;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -984,12 +987,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   /** 83 → 84 (RD-P07): no field to convert (RivalLab.tools and world.fx.toolShip are optional and start empty). */
   83: () => {},
-  /** 84 → 85 (RD-P07b): world.fx.toolShip day → { day, by: 'player' }. */
-  84: (s) => {
-    const fx = (s.world as { fx?: { toolShip?: Record<string, unknown> } } | undefined)?.fx;
-    const ship = fx?.toolShip;
-    if (ship) for (const k of Object.keys(ship)) if (typeof ship[k] === 'number') ship[k] = { day: ship[k], by: 'player' };
-  },
+  /** 84 → 85 (RD-P07b, deleted by RF-P1): no-op. */
+  84: () => {},
   /** 85 → 86 (RD-P08): sector packs → sector adaptations on the product that had them; the Sector packs feature goes.
    *  Idempotent. */
   85: (raw) => {
@@ -1110,6 +1109,29 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       const xs = (res.adopted ?? []).filter((a) => a.stack === k);
       st.est = Math.round(xs.reduce((a, x) => a + (x.est ?? 0), 0) * 1e4) / 1e4;
       st.estVar = Math.round(xs.reduce((a, x) => a + (x.estSd ?? 0) ** 2, 0) * 1e8) / 1e8;
+    }
+  },
+  98: (raw) => {
+    // 98 → 99 (RF-P2): rival and China labs lose their sector adaptations (see SCHEMA_REV's note).
+    const r = raw as { rivals?: Record<string, unknown>[]; china?: { lab?: Record<string, unknown> } };
+    const labs = [...(r.rivals ?? []), ...(r.china?.lab ? [r.china.lab] : [])];
+    for (const lab of labs) {
+      delete lab.adapts;
+      delete lab.adaptBuild;
+      delete lab.toolBuild;
+      const have = new Set([...((lab.tools as string[] | undefined) ?? []), ...(DAY0_TOOLS[lab.archetype as string] ?? [])]);
+      lab.tools = [...have];
+    }
+    const w = raw as { world?: { fx?: { toolShip?: Record<string, unknown> } }; setup?: { start?: string } };
+    const ship = w.world?.fx?.toolShip;
+    if (ship) {
+      const old = new Set<string>([...(START_BY_ID[(w.setup?.start ?? 'leader') as StartType]?.features ?? []), ...labs.flatMap((l) => DAY0_TOOLS[l.archetype as string] ?? [])]);
+      for (const k of Object.keys(ship)) {
+        const v = ship[k] as number | { day?: number } | undefined;
+        const day = typeof v === 'number' ? v : v?.day;
+        if (old.has(k) || typeof day !== 'number') delete ship[k];
+        else ship[k] = day;
+      }
     }
   },
 };
