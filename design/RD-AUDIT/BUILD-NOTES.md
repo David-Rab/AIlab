@@ -2011,3 +2011,22 @@ Measured level fitted from benchmark scores (DD-08; TRN-05, MEA-17). Moves calib
 - **Check.** `npx tsx scripts/v2/rdm01.ts` (run alone, pass: no stored error draw on 48 suites; honest full suite
   5.09 vs true 5.00; SAND 1 reads 4.83 < true and < honest − 0.15, RSCH 0.60 vs 1.76 honest; basic 5.08 < full 5.09 <
   deep 5.19; start model fitted). tsc (app, scripts/v2) clean; npm run build ok.
+
+### RD-M02
+
+Recipe "realised" from the measured eval delta (CAP-03, RD-B17 follow-up). Moves calibration: no (readout only).
+
+- **Readout.** `models/researchView.measuredDelta(s, v)`: for the first evaluated model `v` that embodies an idea
+  (`revealedBy`, unchanged), ΔL = `v.evals.measuredL` − that of the comparable model without it: the latest evaluated
+  version before `v` on the same base, else the latest evaluated version before it (every earlier version lacks the
+  idea). Band = hypot of the two `measuredSd` (fitSd). Domain rows read the `measuredDom` delta of their domain; data
+  rows the general ΔL. `AdoptedView.realised` (the true `eff`) is gone: `measured` / `seenIn`; `eff` never leaves the engine.
+- **UI.** Recipe: "Adopted · believed → measured (OOM → L)", each idea "→ ±x ±sd L" or "→ not yet measured"; tooltip
+  names both models and says the delta holds everything else that differs between them. No pos/warn tone (units differ
+  from the believed OOM). Glossary `realisedEffect` = "Measured effect"; `otherEffects` text; the line's "Realised so
+  far" (pool readout, CAP-10) now links `linePool`, not `realisedEffect`.
+- **Open.** The delta is not a clean counterfactual (a new base or other ideas in the same model are in it).
+  GLOSSARY.md not regenerated.
+- **Check.** `npx tsx scripts/v2/rdm02.ts` (run alone, all pass: not yet measured before; ΔL 0.31 ± 0.117 from the fits;
+  no true value in the view; domain row reads Δ REASON; changing the true value leaves it unchanged). research.ts
+  RD-B17 B30 check reads `measured`. tsc (app, scripts/v2) clean; npm run build ok.
