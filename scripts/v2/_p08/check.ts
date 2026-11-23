@@ -1,6 +1,6 @@
 // RD-P08 targeted check: a sector adaptation raises only its own product's coverage in its own sector; in a sector that
-// requires certification it acts only once certified (a timed process, its cash booked when it starts); rivals adapt by
-// their own gate and a build delay; no sectorPacks / LEADER_FEATURES / world certDay left in src; a rev-69 save's packs
+// requires certification it acts only once certified (a timed process, its cash booked when it starts); rivals have no
+// adaptations (RF-P2); no sectorPacks / LEADER_FEATURES / world certDay left in src; a rev-69 save's packs
 // become adaptations on the product that had them.
 // Run alone: npx tsx scripts/v2/_p08/check.ts
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -9,8 +9,7 @@ import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { act, tick } from '../../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../../src/engine/v2/core/save';
 import { productOffer } from '../../../src/engine/v2/worldfx/serving';
-import { ADAPT_COVER, ADAPT_TW, CERT_DAYS, RIVAL_ADAPT_GATE_A } from '../../../src/engine/v2/models/adaptations';
-import { RIVAL_TOOL_DAYS_PER_TW } from '../../../src/data/v2/features';
+import { ADAPT_COVER, ADAPT_TW, CERT_DAYS } from '../../../src/engine/v2/models/adaptations';
 import type { Deployment, GameStateV2 } from '../../../src/engine/v2/types';
 
 let fails = 0;
@@ -52,24 +51,12 @@ const fNo2 = productOffer(s, { ...ent, adaptations: [] }, 'FIN').a;
 check(Math.abs(fYes - Math.min(1, fNo2 * (1 + ADAPT_COVER))) < 1e-12 && fYes > fNo2, 'certified: Finance coverage ×(1 + ADAPT_COVER)', `${fNo2.toFixed(4)} → ${fYes.toFixed(4)}`);
 s.time.day = day0;
 
-// 3. Rivals: own gate (sector US adoption ≥ RIVAL_ADAPT_GATE_A) + build (+ certification).
-const r = s.rivals.find((x) => x.core.status === 'active' && x.publicModel)!;
-const gated = (Object.keys(s.world.sectors.US) as (keyof typeof s.world.sectors.US)[]).filter((sid) => s.world.sectors.US[sid].A >= RIVAL_ADAPT_GATE_A);
-const b = r.adaptBuild ?? {};
-const soft = b.SOFT;
-check(gated.includes('SOFT') && (r.adapts?.includes('SOFT') || (soft !== undefined && soft > 0)), 'a rival passing the gate builds a Software adaptation', `build ${soft} adapts ${r.adapts?.join(',')}`);
-const fin = b.FIN;
-check(!gated.includes('FIN') || r.adapts?.includes('FIN') || (fin !== undefined && soft !== undefined && fin - soft === CERT_DAYS), `a regulated sector takes ${CERT_DAYS} d more`, `FIN ${fin} SOFT ${soft}`);
-while ((r.adaptBuild?.SOFT ?? -1) >= s.time.day) tick(s);
-tick(s);
-check(!!r.adapts?.includes('SOFT'), `the rival sells it after ${ADAPT_TW * RIVAL_TOOL_DAYS_PER_TW} d`, `day ${s.time.day}`);
-
 // 4. Old names gone from src (the save migrations excepted).
 const files: string[] = [];
 const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(f)) files.push(p); } };
 walk('src');
-const hits = files.filter((f) => !f.endsWith(join('core', 'save.ts'))).filter((f) => /sectorPacks|LEADER_FEATURES|certDay|SECTOR_PACK|SECTOR_CERT_DAYS|wfx\.sectorProduct/.test(readFileSync(f, 'utf8')));
-check(hits.length === 0, 'no sectorPacks / LEADER_FEATURES / certDay / SECTOR_PACK* in src (save.ts migrations excepted)', hits.join(', '));
+const hits = files.filter((f) => !f.endsWith(join('core', 'save.ts'))).filter((f) => /sectorPacks|LEADER_FEATURES|certDay|SECTOR_PACK|SECTOR_CERT_DAYS|wfx\.sectorProduct|rivalAdaptStep|RIVAL_ADAPT_GATE_A|adaptBuild|\.adapts\b/.test(readFileSync(f, 'utf8')));
+check(hits.length === 0, 'no sectorPacks / LEADER_FEATURES / certDay / SECTOR_PACK* / rival adaptations in src (save.ts migrations excepted)', hits.join(', '));
 
 // 5. Migration 69 → 70: packs → adaptations on the product that had them.
 const g = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));

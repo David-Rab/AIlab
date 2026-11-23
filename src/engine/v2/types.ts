@@ -2070,11 +2070,6 @@ export interface RivalLab {
   tools?: string[];
   /** RD-P07b: tools it is building itself (it passed the feature's gate): the day each build finishes and it ships. */
   toolBuild?: Record<string, Day>;
-  /** RD-P08 (DD-04 rival part): sectors the lab sells an adaptation in (models/adaptations.ts rivalAdaptStep); its
-   *  offers there cover more of the sector's tasks. */
-  adapts?: SectorId[];
-  /** RD-P08: adaptations it is building (and certifying): the day each goes on sale. */
-  adaptBuild?: Partial<Record<SectorId, Day>>;
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;

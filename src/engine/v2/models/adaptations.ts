@@ -4,11 +4,10 @@
 //    `adapted`) and of nothing else;
 //  - a certification where the sector requires one (CERT_SECTORS): a timed process with its cost, started when the
 //    scaffold is built and held by the product. Until it is done the adaptation does not act in that sector.
-// Rivals and China adapt sectors by the same rule shape as product tools (RD-P07b): their own gate, then a build delay
-// (and the certification time) before it acts. Everything about adaptations lives here; Products shows one row.
+// Rivals and China have no sector adaptations (RF-P2: rivals are simplified aggregates with no product strategy; the
+// automatic rival rule is deleted). Everything about adaptations lives here; Products shows one row.
 import { SECTOR_BY_ID, SECTOR_IDS } from '../../../data/v2/sectors';
-import { RIVAL_TOOL_DAYS_PER_TW } from '../../../data/v2/features';
-import type { ActionDef, Adaptation, BuildItem, CostLine, Deployment, GameStateV2, RivalLab, SectorId, SystemCtx } from '../types';
+import type { ActionDef, Adaptation, BuildItem, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { buildWaitNew, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import { revenueReadout } from '../worldfx/revenue';
@@ -28,11 +27,6 @@ export const CERT_SECTORS: readonly SectorId[] = ['FIN', 'HEALTH', 'GOV', 'MIL']
 export const CERT_DAYS = 120;
 /** Certification cost ($B), booked when certification starts [D] (research/16 §1A.3; the old pack's $0.4B). */
 export const CERT_CASH = 0.4;
-/** Rival gate [D stand-in for the player's choice of sectors: rivals have no product strategy]: a lab with a public
- *  model adapts a sector once the sector's US task adoption A reaches this share (enough buyers to pay for the
- *  integration work). */
-export const RIVAL_ADAPT_GATE_A = 0.01;
-
 export const needsCert = (sector: SectorId) => CERT_SECTORS.includes(sector);
 /** Channels whose products can carry an adaptation (the sector products). */
 const HOST_CHANNELS: readonly Deployment['channel'][] = ['enterprise', 'api', 'agents'];
@@ -74,28 +68,6 @@ export function completeAdaptation(s: GameStateV2, ctx: SystemCtx, it: BuildItem
   } else {
     host.adaptations.push({ sector });
     ctx.log('company', `${name} adaptation built: it is live.`, 1, host.id);
-  }
-}
-
-// ───────────────────────────── rivals (DD-18 stand-in, RD-P07b rule shape) ─────────────────────────────
-
-/** A rival's (or China's) adaptations: a lab with a public model that passes the gate (RIVAL_ADAPT_GATE_A on the
- *  sector's US adoption) builds the scaffold in ADAPT_TW × RIVAL_TOOL_DAYS_PER_TW days (the player's build at one
- *  team), plus CERT_DAYS where the sector requires certification, then sells it. It keeps an adaptation once it has
- *  it. Stand-ins: no per-lab difference in the build; the rival's certification cost is not booked (its finances are
- *  aggregate). */
-export function rivalAdaptStep(s: GameStateV2, r: RivalLab, day: number) {
-  if (!r.publicModel) return;
-  for (const sid of SECTOR_IDS) {
-    if (r.adapts?.includes(sid)) continue;
-    const b = r.adaptBuild?.[sid];
-    if (b === undefined) {
-      if ((s.world.sectors.US[sid]?.A ?? 0) >= RIVAL_ADAPT_GATE_A) (r.adaptBuild ??= {})[sid] = day + ADAPT_TW * RIVAL_TOOL_DAYS_PER_TW + (needsCert(sid) ? CERT_DAYS : 0);
-      continue;
-    }
-    if (day < b) continue;
-    (r.adapts ??= []).push(sid);
-    delete r.adaptBuild![sid];
   }
 }
 

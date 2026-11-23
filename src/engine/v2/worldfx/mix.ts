@@ -86,8 +86,6 @@ export interface Provider {
   /** RD-P07: the tools (enabler features) a non-player lab has acquired (RivalLab.tools); none for the player's open
    *  release (a release carries no product tools). The player's products read their own (productTools). */
   tools?: readonly string[];
-  /** RD-P08: the sectors a non-player lab sells an adaptation in (RivalLab.adapts); none for the player's open release. */
-  adapts?: readonly SectorId[];
 }
 
 export interface SectorMix {
@@ -340,10 +338,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, adapts: r.adapts, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, adapts: s.china.lab.adapts, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -448,7 +446,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const kind: TierKind[][] = [];
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, adapted: p.adapts?.includes(t.id) });
+      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
     }
@@ -485,7 +483,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const p = providers[i];
       if (!row[i] || !p.tiers?.length) continue;
       for (const x of p.tiers) {
-        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, adapted: p.adapts?.includes(t.id) }));
+        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }));
         kind[i].push('student');
       }
     }

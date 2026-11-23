@@ -4100,3 +4100,19 @@ hygiene.ts's calibration shift drops it).
   3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
   for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
   compute ratio is ≈ 2.7×.
+
+## RF fix batch, lane P (products; branch rf-p)
+
+### RF-P2 rival sector adaptations deleted
+- **Changed / deleted:** the automatic rival rule of RD-P08 is gone: `rivalAdaptStep`, `RIVAL_ADAPT_GATE_A`,
+  `RivalLab.adapts` / `adaptBuild`, the providers' `adapts` and the rival offers' `adapted` flag (worldfx/mix.ts). Rival
+  and China offers no longer get the scaffold's ×(1 + ADAPT_COVER) in any sector; only the player's adapted products do.
+  Glossary `adaptation` says rivals do not adapt. Nothing else read the rival adaptations (only the two offer calls in
+  mix.ts), so nothing critical depended on it.
+- **Save:** SCHEMA_REV 98 (one rev for lane P); migration 97 → 98 drops `adapts` / `adaptBuild` from rivals and China.
+  hygiene.ts rev checks 97 → 98.
+- **Stand-ins:** none new.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p08/check.ts` all ok (rival section removed; the src scan now also
+  rejects `rivalAdaptStep` / `RIVAL_ADAPT_GATE_A` / `adaptBuild` / `.adapts`).
+- **Moves calibration: yes** (small): rival coverage in every sector above 1 % adoption drops by the ×1.15 it had from
+  about day 30 (regulated sectors about day 150), so the player's sector shares and revenue rise somewhat.
