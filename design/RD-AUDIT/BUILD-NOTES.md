@@ -5784,3 +5784,30 @@ here (left to the parallel SAFETY task). (2) Idea choice is one lab-wide policy 
 (UI-IA asks for a per-programme choice: an engine change). (3) Day 900: safety teams exist but 0 of 18 programmes are
 staffed (teams on safety projects off the programmes), and day 0 shows all capability programmes unstaffed until the
 first research day: both engine state, shown as is. (4) Domain / data effects need a Know-how L2 home.
+
+### SCI (science-team allocation: idle teams on RESEARCH; branch bug-sci from rd 9fbf223; UB-6 note (3))
+**Moves calibration: no** (day-0 fix: a 60-day run from day 0 hashes identical before / after, teams' `why` aside;
+the safety rule is unchanged). The safety recommendation below, if taken: **yes**.
+
+- **One allocator, two calls.** `planAssignment(s, ready, dept, valueOf?)` (models/research.ts) is the one planner;
+  capability runs it via `assignCapTeams` (capResearchDay, and `assignCapNow` after priority-list actions), safety via
+  `assignSafTeams` (`planSafAssignment` over `safReady`: queued, ready safety projects). Both run each research day
+  (models/tree.ts researchDay) before any project steps. No readiness gate, stale filter or department mismatch.
+- **Day 0 (bug, fixed).** `initialResearch` lists the six default lines and their teams wanted but places no
+  capability team (it runs before the state exists), so a new game showed 8 idle teams with the fallback "no
+  capability project is ready" until the first tick. `newGame` (core/init.ts) now ends with `assignCapNow(s)` and
+  `assignSafTeams(s)`: day 0 shows the plan the first tick would make (8 of 8 teams on the 6 lines, each with its why;
+  the safety teams on T-CONFESS / T-DECEPT with a why). Saved day0.json predates this (regenerating changes only team
+  projectId / why there).
+- **Day 900 (deliberate rule, not changed).** RD-R03 / SAF-23 (BUILD-NOTES "Safety science teams on the capability
+  planner"): safety teams work only on safety projects on the priority list; a finished safety project leaves the list
+  and its programme's next project waits for the player (continueLine deleted). The fixture's two start projects are
+  done and nothing else was queued, so both teams are idle with "no safety project on the priority list", and the
+  Portfolio's 18 programmes (one per agenda) read 0 staffed. Queueing a programme's next project staffs it at once
+  (check). **Design fit:** matches SAF-23 (never staff a line the player did not choose) but not the Portfolio / OQ-2
+  model, where a programme is a standing entry in the priority order like a capability line: a programme the player
+  ordered falls off its order whenever a result lands, unlike capability lines, which persist. Designer call; a
+  minimal fix would put `nextLineProject(s, agenda)` into the queue at the finished project's place (tree.ts
+  researchDay, where `q.splice` drops it), so only programmes the player queued continue (SAF-23 intact).
+- **Check.** `npx tsx scripts/v2/_sci/check.ts`: 13 ok (day 0 capability and safety staffing; day 900 rule, why,
+  queue two programmes → 2 of 18 staffed). tsc app + scripts/v2 clean.
