@@ -4210,3 +4210,16 @@ player's starts, not DAY0_TOOLS.
   target shares do not move with the customer stock, and that no installed-brand term is left).
 - **Moves calibration: yes.** The incumbent (the player's leader start, ~40 % stock) loses about ×1.2 of choice weight in
   every segment, rivals with small stocks lose less: the player's target shares and revenue fall somewhat.
+
+### RF-P5 one nest per provider (duplicate-seller exploit)
+- **Changed:** in the surplus choice (worldfx/choice.ts) a provider with several products is one nest: its band utility is
+  its best product's (the same as with one product), and its band share splits among its products by e^u_g as before
+  (Choice.sub, SectorMix.playerProdW). The log-sum term `u + ln Σ e^(u_g − u)` that let identical products raise the
+  player's share (0.384 → 0.403 in RD-P03's note) is deleted. Products still compete by offer band by band, so a product
+  that is better on some tasks still wins them.
+- **Stand-ins:** none (the nest has no parameter: the limit where products of one lab are perfect substitutes for a
+  buyer who picks a lab).
+- **Check:** tsc (src, scripts/v2); new `scripts/v2/_rfp5/check.ts` all ok (an exact copy of the API adds no player share
+  in US Software and splits its hours evenly; with the API withdrawn the share does not rise).
+- **Moves calibration: yes** (small): with API and Enterprise both live, the player's sector target shares drop by the
+  log-sum's variety bonus (a few points of share where the products are close).

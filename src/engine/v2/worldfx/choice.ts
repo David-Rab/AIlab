@@ -285,8 +285,9 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
  * (the old logit's weights and these shares agree for small shares) [D].
  * RD-P03 (DD-02): `groups[i][k]` (optional) puts provider i's tier k in seller group g. Each group is its own seller in
  * the logit (its best tier for the band), sharing the provider's brand and access (a buyer who can buy from the lab can
- * buy each of its products). The provider's band utility is then the groups' log-sum, ln Σ_g e^u_g (the set's share is
- * the sum of the separate sellers' shares), and its band share splits e^u_g ÷ Σ e^u (Choice.sub).
+ * buy each of its products). RF-P5: the provider is one nest: its band utility is its best group's (as with one
+ * product), so a second product with the same offer adds no share (the log-sum ln Σ_g e^u_g did: a duplicate-seller
+ * artefact); its band share splits e^u_g ÷ Σ e^u among its products (Choice.sub).
  */
 export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[]): Choice {
   const n = lineups.length;
@@ -377,14 +378,13 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
         }
       }
       if (gi) {
-        // RD-P03: the groups as separate sellers: log-sum utility, the band's share split by e^u_g.
+        // RD-P03 / RF-P5: one nest per provider: its utility stays its best group's (u1); the band's share splits by e^u_g.
         const tw = packed(j1 - j0, 0);
         const u1 = u[i];
         if (u1 > -Infinity) {
           let z = 0;
           for (let g = 0; g < gu.length; g++) if (gu[g] > -Infinity) z += Math.exp(gu[g] - u1);
           for (let g = 0; g < gu.length; g++) if (gu[g] > -Infinity) tw[gk[g]] += Math.exp(gu[g] - u1) / z;
-          u[i] = u1 + Math.log(z);
         }
         sub[i]![b] = tw;
       }
