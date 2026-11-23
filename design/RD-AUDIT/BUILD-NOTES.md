@@ -2652,3 +2652,37 @@ Products and RefBot use the SR-20 trusted-watcher picker (OD-6 a).
   block retiring that model (same as internal).
 - Moves calibration: yes (RefBot): its watchers are now the most capable trusted model instead of the ≈10%-cost model,
   so coverage per monitoring budget falls (dearer watcher) and strength rises (smaller oversight gap).
+
+### SR-21
+Safety needs list in LAB's one allocator (SAFETY-REDESIGN §5, OD-9 (a)). Commit 7f57afc.
+- **Done.** `SafReNeed` = review (human review on the safeguards; SR-13b took it before the list), cases, validation,
+  evals (eval suites; was the capability engineers' ReNeed 'evals'), envFix, removal (was 'patches'), safExp. Default
+  order (§5): review, cases, validation, evals, envFix, removal, safExp; the player reorders it in Company › Work.
+  `safAllocation` fills staff in that order (one `allocate()`); compute = sub-uses of the Safety line: cases (their
+  chosen shares) and eval suites (`evalH100eAsk` at the engineers they got) ask fixed H100e, filled in the same order;
+  validation jobs and line experiments share the rest by need (RD-B08). `SafAlloc.compute` per need {ask, got},
+  `computeIdle`, `caseScale`. Eval suites: `evalsDay` gets the 'evals' need (÷ TEAM_SIZE.re, m of safety experiments)
+  and its H100e; the capability experiment pool no longer pays for them. No separate eval team exists as a hire type
+  (the science column 'evals' is a safety science team column, not suite staff).
+- **Readout.** `safetySpend(s)` (safety/spend.ts): a row per need in the order plus "Monitoring & control (deployments)"
+  (the monitors' line, compute only, set in SAFETY), each with staff / compute ask and got, cost (payroll share of the
+  safety research engineers, H100e at the rental rate) and filled; idle staff / compute / cost beside; total = Σ filled.
+  Company › Work's safety card shows "Safety spend $/yr · people + compute" with the rows in its tooltip. Glossary
+  safReNeeds rewritten (GLOSSARY.md not regenerated).
+- **Deleted.** departments/agents.ts `safetyPoolClaims` / `SafetyPoolClaims` / `PoolClaim` (RD-B07 claim pool; readers:
+  investigations caseRate, Investigate preview → `caseComputeScale`, safety view), SR-13b's pre-list commit of the
+  review staff, ReNeed 'evals' (reDemand, research.last, production's reRes, evalQueueView / evalPolicyView /
+  evalDaysEstimate now read the safety list). `linePoolH100e` stays as a readout (= the pool after cases and evals).
+- **Save.** SCHEMA_REV 82; migration 81 → 82 rewrites research.safRe (review first, patches → envFix + removal in
+  place, evals before line experiments, patches' caps → envFix, deduped) and drops 'evals' from research.re; hygiene
+  pins → 82.
+- **Check.** `npx tsx scripts/v2/_sr21/check.ts` (13 ok): day-400 migrates to the seven needs; 30 people vs 123.5 asked
+  → filled in the order, the rest unfilled, none idle; reorder (evals, envFix first) → served follows; evals staffed
+  from the safety list; line = Σ sub-uses + idle; spend total = Σ filled costs ($56.8M/yr); no claim pool / pre-commit /
+  capability evals need in src. tsc (app, scripts/v2) clean; npm run build passes.
+- **Left.** Human review below its staffing still reviews fully (`labReviewOn` is a switch; needServed('review')
+  exists but no reader); a case keeps its chosen compute when its engineers are short; product monitors bill to serving
+  (not in the spend rows); per-job reordering inside validation / evals; AI staff package share per job (SR-22).
+- Moves calibration: yes (safety, research): eval suites now take safety engineers (they compete with cases and line
+  experiments; the capability engineers and experiment pool get theirs back); human review is in the list (defaults
+  first, as before); cases' compute is cut only by evals ahead of them; production's reRes no longer subtracts evals.
