@@ -1409,6 +1409,9 @@ export interface PlayerPolicies {
    *  On: once a day the idle shares (unallocated, training no run uses, serving no product needs, monitors beyond full
    *  coverage) move to the listed uses in equal parts, logged. */
   autoSplit: AutoSplitPolicy;
+  /** UB-5c "Lend idle training compute" (DECISIONS; off by default, absent = off): training compute no run uses goes
+   *  to research experiments and returns the moment a run trains (models/runs.ts lentTrainingH100e). */
+  lendTraining?: boolean;
   /** Auto serving (R6): serve the products earning most per H100e first; the cut is recorded. Off = shares by hand. */
   servingAuto: boolean;
   /** Move products to the newest cleared model of the same kind when it measures better (R6). */

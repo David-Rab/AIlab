@@ -6,7 +6,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import {
-  AUTO_SPLIT_USES, autoSplitPlan, engAllocView, fillWeeks, fullTeamPayroll, idleShares, idleTeams, queuedOfKey, rankMoves, reAllocView,
+  AUTO_SPLIT_USES, autoSplitPlan, engAllocView, lentTrainingH100e, fillWeeks, fullTeamPayroll, idleShares, idleTeams, queuedOfKey, rankMoves, reAllocView,
   responseCurves, RESPONSE_SCALES, safReAllocView, SPLIT_KEYS, SPLIT_LABEL, teamGain, teamsOfKey, workTypeViews,
 } from '../../../engine/v2';
 import type { AutoSplitUse } from '../../../engine/v2/departments/autoSplit';
@@ -56,17 +56,18 @@ const GROUP_COLOR: Record<Exclude<Group, 'idle'>, string> = { cap: SPHERE.cap, s
 /** Percent of compute, at a precision that keeps small uses readable. */
 const pc = (x: number) => (x <= 0 ? '0%' : x < 0.001 ? '< 0.1%' : F.pct(x, x < 0.1 ? 1 : 0));
 
-interface Seg { k: Key; share: number; idle: number; why?: string; h: number }
+interface Seg { k: Key; share: number; idle: number; lent: number; why?: string; h: number }
 function segments(s: GameStateV2): { segs: Seg[]; online: number; idle: ReturnType<typeof idleShares> } {
   const p = s.player;
   const online = Math.max(0, p.computeOnline);
   const idle = idleShares(s);
   const runQueued = p.models.runs.some((r) => r.status === 'running' || r.status === 'paused');
+  const lent = online > 0 ? lentTrainingH100e(s) / online : 0;
   const segs = ORDER.map((k) => {
     const share = Math.max(0, p.split[k]);
     const id = k === 'training' ? idle.training : k === 'serving' ? idle.serving : k === 'monitors' ? idle.monitors : k === 'idle' ? idle.unallocated : 0;
     const why = k === 'training' && id > 0 ? (runQueued ? 'no run uses it' : 'no run queued') : k === 'serving' && id > 0 ? 'no product needs it' : k === 'monitors' && id > 0 ? 'beyond full watch' : undefined;
-    return { k, share, idle: Math.min(share, id), ...(why ? { why } : {}), h: share * online };
+    return { k, share, idle: Math.min(share, id), lent: k === 'training' ? Math.min(share, lent) : 0, ...(why ? { why } : {}), h: share * online };
   });
   return { segs, online, idle };
 }
@@ -74,25 +75,28 @@ function segments(s: GameStateV2): { segs: Seg[]; online: number; idle: ReturnTy
 function SegTip({ g, online }: { g: Seg; online: number }) {
   return (
     <TipCard title={<Term id={TERM[g.k]}>{LABEL(g.k)}</Term>} value={`${pc(g.share)} · ${F.h100e(g.h)} H100e`} rows={[
-      { label: 'In use', value: `${F.h100e((g.share - g.idle) * online)} H100e` },
+      { label: 'In use', value: `${F.h100e((g.share - g.idle - g.lent) * online)} H100e` },
+      ...(g.lent > 0 ? [{ label: <Term id="lendTraining">Lent to research experiments</Term>, value: `${F.h100e(g.lent * online)} H100e · returns when a run launches` }] : []),
       ...(g.idle > 0 ? [{ label: <Term id="idleCompute">Idle</Term>, value: `${F.h100e(g.idle * online)} H100e${g.why ? ` · ${g.why}` : ''}`, tone: 'neg' as const }] : []),
     ]} footer={g.k === 'monitors' ? 'Set on Safety › Safeguards.' : 'Click to change the allocation.'}>{WHAT[g.k]}</TipCard>
   );
 }
 
 function SegBox({ g, online, inset, label, onPick }: { g: Seg; online: number; inset?: boolean; label?: boolean; onPick: (k: Key) => void }) {
-  const used = g.share > 0 ? 1 - g.idle / g.share : 0;
+  const lentW = g.share > 0 ? g.lent / g.share : 0;
+  const used = g.share > 0 ? Math.max(0, 1 - (g.idle + g.lent) / g.share) : 0;
   const flex = inset ? 1 : Math.max(g.share, 0.0001) * 1000;
   if (g.share <= 0) return <div className="lab-s empty" style={{ flex: `${inset ? 1000 : 0.1} 0 0` }} data-seg={g.k} />;
   return (
     <Tip as="div" className={`lab-s ${AI[g.k] ? 'ai' : ''}`} style={{ flex: `${flex} 0 0` }} content={() => <SegTip g={g} online={online} />}>
       <div className="lab-s-in" data-seg={g.k} onClick={() => onPick(g.k)}>
         <div className="used" style={{ width: `${used * 100}%`, background: COLOR[g.k] }} />
-        <div className="idle hatch" style={{ width: `${(1 - used) * 100}%`, backgroundColor: COLOR[g.k] }} />
+        {lentW > 0 && <div className="lent" data-test="lent" style={{ width: `${lentW * 100}%`, backgroundColor: COLOR.experiments }} />}
+        <div className="idle hatch" style={{ width: `${Math.max(0, 1 - used - lentW) * 100}%`, backgroundColor: COLOR[g.k] }} />
         {label && (
           <span className="lbl2">
             <b>{SHORT[g.k] ?? LABEL(g.k)}</b>
-            <span>{pc(g.share)} · {F.h100e(g.h)}{g.idle > 0 && <> · <span className="idw">{g.idle >= g.share - 1e-9 ? `all idle${g.why ? `: ${g.why}` : ''}` : `${F.h100e(g.idle * online)} idle`}</span></>}</span>
+            <span>{pc(g.share)} · {F.h100e(g.h)}{g.lent > 0 && <> · <span className="lnw">{F.h100e(g.lent * online)} lent to experiments</span></>}{g.idle > 0 && <> · <span className="idw">{g.idle >= g.share - 1e-9 ? `all idle${g.why ? `: ${g.why}` : ''}` : `${F.h100e(g.idle * online)} idle`}</span></>}</span>
           </span>
         )}
       </div>
@@ -147,6 +151,7 @@ function AllocBar({ s, edit, setEdit }: { s: GameStateV2; edit: Key | 'auto' | n
         <Tip content={() => <TipCard title={<Term id="idleCompute">Idle</Term>} value={`${pc(idle.total)} · ${F.h100e(idle.total * online)} H100e`} rows={[
           { label: 'Training no run uses', value: pc(idle.training) }, { label: 'Products: serving no product needs', value: pc(idle.serving) },
           { label: 'Safeguards beyond full watch', value: pc(idle.monitors) }, { label: 'Not allocated', value: pc(idle.unallocated) },
+          { label: <Term id="lendTraining">Lend idle training compute</Term>, value: s.player.policies.lendTraining ? `on · ${F.h100e(lentTrainingH100e(s))} H100e lent` : 'off' },
           { label: <Term id="autoSplit">Auto-split</Term>, value: auto.on ? `on → ${auto.to.map((k) => SPLIT_LABEL[k]).join(', ')}` : 'off' },
         ]} footer="Click to set Auto-split.">Compute no use draws on: it costs money and does nothing. It stays idle unless you move it or Auto-split is on.</TipCard>}>
           <button className={`lab-idlechip ${idle.total > 0.05 ? 'warn' : ''}`} data-test="alloc-idle" onClick={() => setEdit(edit === 'auto' ? null : 'auto')}>
@@ -210,12 +215,30 @@ function AllocEditor({ s, focus, close }: { s: GameStateV2; focus: Key | 'auto';
           </div>
         ))}
       </div>
+      <LendRow s={s} />
       <AutoSplitRow s={s} focus={focus === 'auto'} />
       {warns.map((w) => <div key={w} className="small tone-warn" data-test="split-warn">{w}</div>)}
       <div className="btn-row">
         <ActBtn id="setSplit" params={{ ...norm }} label={changed ? 'Apply allocation' : 'Allocation (no change)'} primary={changed} onDone={() => setAlloc(s.player.split)} />
         <button className="btn btn-sm" data-test="alloc-reset" onClick={() => setAlloc(s.player.split)}>Reset</button>
         <button className="btn btn-sm" data-test="alloc-close" onClick={close}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/** UB-5c: Lend idle training compute (a policy, off by default): training compute no run uses goes to research
+ *  experiments and returns the moment a run trains. */
+function LendRow({ s }: { s: GameStateV2 }) {
+  const on = !!s.player.policies.lendTraining;
+  const lent = lentTrainingH100e(s);
+  return (
+    <div className="split-auto" id="ctl-lendTraining" data-home="lendTraining">
+      <div className="row-i">
+        <ActBtn id="compute.lendTraining" testId="lendTraining.toggle" params={{ on: !on }} label={<span className="psw"><span className={`sw ${on ? 'on' : ''}`}><i /></span><Term id="lendTraining">Lend idle training compute to research</Term></span>} />
+        <Tip content={() => <TipCard title={<Term id="lendTraining">Lent now</Term>} value={`${F.h100e(lent)} H100e`}>Training compute no run uses goes to research experiments. It returns automatically when a run launches: a run always gets its full share.</TipCard>}>
+          <span className="num small dim" data-test="lendTraining.now">{on ? `${F.h100e(lent)} H100e lent now` : 'off'} · returns when a run launches</span>
+        </Tip>
       </div>
     </div>
   );
@@ -454,7 +477,7 @@ function at(curve: number[], x: number): number {
   return curve[curve.length - 1];
 }
 
-interface MoveCard { id: string; kind: 'compute' | 'hire'; what: string; target: string; eff: string; pre?: string; cost: string; warn?: string; act: { id: string; params: Record<string, number | string | boolean> }; rank?: RankedMove; other?: boolean }
+interface MoveCard { id: string; kind: 'compute' | 'hire'; what: string; target: string; eff: string; pre?: string; cost: string; act: { id: string; params: Record<string, number | string | boolean> }; rank?: RankedMove; other?: boolean }
 const MIN_GAIN = 0.005;
 function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   const p = s.player;
@@ -465,7 +488,23 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   const rc = responseCurves(s);
   const idle = idleShares(s);
   // Compute: idle compute → a research use (up to ×4 of that use: the believed curve's range).
-  const src: [Key, number][] = ([['idle', idle.unallocated], ['training', idle.training], ['serving', idle.serving]] as [Key, number][]).filter(([, x]) => x > 1e-4);
+  // UB-5c: idle training compute is lent by the policy (Do = turn it on), never moved as a share.
+  if (rc && speed > 0 && idle.training > 1e-4 && !p.policies.lendTraining && p.split.experiments > 1e-6) {
+    const base = p.split.experiments;
+    const g = at(rc.experiments, (base + idle.training) / base) - 1;
+    if (g >= MIN_GAIN) {
+      moves.push({ id: 'lend', target: 'research', gain: g * speed });
+      cards.push({
+        id: 'lend', kind: 'compute', what: 'Lend idle Training compute → Research experiments', target: 'Research speed',
+        // The believed curve reaches ×4 of experiment compute: beyond it the gain shown is a floor.
+        eff: `${(base + idle.training) / base > 4 ? '≥ ' : ''}+${F.pct(g)}`,
+        pre: `×${speed.toFixed(1)} → ${(base + idle.training) / base > 4 ? '≥ ' : ''}×${(speed * (1 + g)).toFixed(1)}`,
+        cost: `+${pc(idle.training)} of compute while no run needs it · returns automatically when a run launches`,
+        act: { id: 'compute.lendTraining', params: { on: true } },
+      });
+    }
+  }
+  const src: [Key, number][] = ([['idle', idle.unallocated], ['serving', idle.serving]] as [Key, number][]).filter(([, x]) => x > 1e-4);
   const free = src.reduce((a, [, x]) => a + x, 0);
   const mainSrc = [...src].sort((a, b) => b[1] - a[1])[0]?.[0];
   const toUse = (to: 'experiments' | 'agents') => {
@@ -477,8 +516,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     if (g < MIN_GAIN) { wont.push(to === 'experiments' ? 'More experiment compute: no gain' : 'More AI staff compute: no gain'); return; }
     const next = { ...p.split };
     let left = mv;
-    let fromTraining = 0;
-    for (const [k, x] of src) { const take = Math.min(left, x); next[k] -= take; left -= take; if (k === 'training') fromTraining = take; }
+    for (const [k, x] of src) { const take = Math.min(left, x); next[k] -= take; left -= take; }
     if (to === 'experiments') next.experiments += mv;
     else { const r = p.split.routine / Math.max(1e-9, base); next.routine += mv * r; next.frontier += mv * (1 - r); }
     const id = `idle>${to}`;
@@ -487,9 +525,6 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
       id, kind: 'compute', what: `Idle ${mainSrc === 'idle' ? '' : `${SPLIT_LABEL[mainSrc!]} `}compute → ${to === 'experiments' ? 'Research experiments' : 'AI staff research'}`,
       target: 'Research speed', eff: `+${F.pct(g)}`, pre: `×${speed.toFixed(1)} → ×${(speed * (1 + g)).toFixed(1)}`,
       cost: `+${pc(mv)} of compute (${to === 'experiments' ? 'experiments' : 'AI staff'} ×${F.short((base + mv) / base)}) · idle now`,
-      // UB-5b: no policy lends idle training compute and returns it at launch (Auto-split moves it for good), so this
-      // is a share move: the preview says what a queued run will need back.
-      ...(fromTraining > 1e-4 ? { warn: `A queued run will need ${pc(fromTraining)} of compute back (Training ${pc(p.split.training)} → ${pc(next.training)})` } : {}),
       act: { id: 'setSplit', params: { ...next } },
     });
   };
@@ -542,7 +577,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
 }
 
 function BestMoves({ s }: { s: GameStateV2 }) {
-  const { cards, wont } = useMemo(() => bestMoves(s), [s, s.time.day, JSON.stringify(s.player.split), s.player.teams.length, s.player.hiring.filling.length, JSON.stringify(s.player.hiring.targets)]);
+  const { cards, wont } = useMemo(() => bestMoves(s), [s, s.time.day, JSON.stringify(s.player.split), s.player.teams.length, s.player.hiring.filling.length, JSON.stringify(s.player.hiring.targets), s.player.policies.lendTraining]);
   return (
     <Card id="ctl-bestMoves" className="lab-moves" home="bestMoves" title={<span className="row-i"><ICON.revenue size={16} /><Term id="bestMoves">Best moves</Term></span>}
       right={<Tip content={() => <TipCard title="From your estimates">Gains come from what your lab believes about how compute and people turn into results, not from the truth. Ranked by days of progress a year: a move that raises a rate by a share f of today's gives f × 365 more days of today's progress each year.</TipCard>}><span className="dim small">from your estimates</span></Tip>}>
@@ -557,7 +592,6 @@ function BestMoves({ s }: { s: GameStateV2 }) {
             <div className="what">{m.what}</div>
             <div className="eff"><Term id={m.target === 'Research speed' ? 'labSpeed' : m.target === 'Safety results' ? 'safetyResults' : m.target === 'Build capacity' ? 'buildCapacity' : 'roleSci'}>{m.target}</Term> <b className="num">{m.eff}</b>{m.pre && <Tip content={() => <TipCard title={<Term id="labSpeed">Research speed</Term>} value={m.pre}>Today → after the move, × the leading lab in July 2025 (your estimate).</TipCard>}><span className="pre num">{m.pre}</span></Tip>}</div>
             <div className="cost">{m.cost}</div>
-            {m.warn && <Tip content={() => <TipCard title="Training compute" value={m.warn}>This move lowers the Training share. Training no run uses is idle today, but a run you queue later draws on the Training share: move this compute back first, or the run waits. No policy hands it back by itself.</TipCard>}><div className="cost tone-warn" data-test="move-warn"><ICON.alert size={11} /> {m.warn}</div></Tip>}
           </div>
           <ActBtn id={m.act.id} params={m.act.params} testId={`move.${m.id}`} label="Do" primary={i === 0} />
         </div>

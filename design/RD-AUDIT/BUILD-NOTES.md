@@ -5688,3 +5688,24 @@ way in the bottom bar's headline and alerts (`fmt.runText`).
   (c) The level map λ(G) is the world's (`s.hidden.timeline` knots), as before. (d) Domain effects of adopted ideas
   (`research.domainG`) and environment-suite fidelity still enter the believed view at engine values; the stream's
   continued pretraining on an unmeasured streamed version is not in its believed build.
+
+### UB-5c (lend idle training compute policy; branch ub5c-lend from rd a8b0ca1; DECISIONS "Lend idle training compute")
+
+**Engine.** New optional policy `player.policies.lendTraining` (absent = off; no migration). `lentTrainingH100e(s)`
+(models/runs.ts) = idle training share (runs that train now) × the training pool while on; read fresh each time, so the
+compute returns the moment a run trains, and the training pool itself is never reduced (a run always draws its full
+share). Readers: `expPoolH100e` (experiment FLOP for projects), `playerInputs` c (research speed), `labSpeedView`
+research compute; `idleShares` counts lent training compute as not idle, so Auto-split does not move it. Action
+`compute.lendTraining` (policy · compute, "Lend idle training compute"): preview = believed research-speed gain from the
+response curve ("at least" past its ×4 range) and "returns automatically when a run launches"; log line.
+
+**UI (LAB).** The Training segment draws the lent part dotted in the experiments colour with "1.5M lent to
+experiments" (tooltip row); the editor and the Idle chip tooltip show the policy; Best move 1 is now "Lend idle
+Training compute → Research experiments" (Do = the policy on; "≥ +66%" when past the curve's range), the amber "move it
+back" line is gone; share moves remain only for unallocated / idle serving compute. Glossary `lendTraining`.
+
+**Check** (`scripts/v2/_ub5c/check.ts`, all pass): policy off, day-400 fixture + RefBot 60 days hashes as on rd
+(7c7639d2088b2e4d); on: experiments get exactly the idle training compute (267k + 1.51M H100e), Training shows no idle;
+a launched run that trains gets the same training FLOP per day as with the policy off, and the lent compute falls to
+what the run leaves idle (1.51M → 1.21M) the same day. tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux and
+lint-structure: the same pre-existing failures. Screenshots scripts/v2/shots/ub5/d400-lab.png, d400-lab-lent.png.
