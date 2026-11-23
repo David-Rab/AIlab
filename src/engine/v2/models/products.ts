@@ -42,7 +42,20 @@ export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
   return out;
 }
 
-/** Incident-hazard multiplier of a trait on a product from its features. */
+/** RD-P11: the product's incident-site terms from its features: the task-horizon multiplier of its horizon extenders on
+ *  all work (Memory ×1.3: the tasks its model runs alone; autonomy A = H/(H + H_HALF)) and the affordances they add
+ *  (FeatureDef.afford, Computer use +0.25). */
+export function productSiteTerms(s: GameStateV2, d: Deployment): { hMult: number; afford: number } {
+  let hMult = 1;
+  let afford = 0;
+  for (const f of activeFeatures(s, d)) {
+    afford += f.afford ?? 0;
+    for (const x of f.fx) if (x.kind === 'horizon' && x.work === 'all') hMult *= x.mult;
+  }
+  return { hMult, afford };
+}
+
+/** Incident-hazard multiplier of a trait on a product from its features (RD-P11: only stated [D] stand-ins, Companion). */
 export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId): number {
   let m = 1;
   for (const f of activeFeatures(s, d)) m *= f.hazard?.[trait] ?? 1;

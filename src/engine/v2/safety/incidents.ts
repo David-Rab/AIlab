@@ -21,7 +21,7 @@ import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
 import { isDiscovered, uModeContainMult } from './umodes';
-import { productCatch, productHazardMult } from '../models/products';
+import { productCatch, productHazardMult, productSiteTerms } from '../models/products';
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
 import { copiesOf, flopPerToken, safetyLabour, workContext } from '../departments/workfit';
 import { rollFleetCovert } from './covert';
@@ -196,7 +196,9 @@ export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: nu
     };
   }
   const size = d.channel === 'open' ? 1 : scaleOf(copiesOf(s.player.computeOnline * s.player.split.serving, flopPerToken(s, v)), COPIES_REF.serving, COPIES_GAMMA.serving);
-  return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(CHANNEL_HORIZON_H[d.channel]), afford: CHANNEL_AFFORD[d.channel], rd: 0, contain, wsl: 0 };
+  // RD-P11: features act on the site's own quantities (task horizon, affordances), not as flat hazard multipliers.
+  const ft = d.features.length ? productSiteTerms(s, d) : { hMult: 1, afford: 0 };
+  return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(CHANNEL_HORIZON_H[d.channel] * ft.hMult), afford: Math.min(1, CHANNEL_AFFORD[d.channel] + ft.afford), rd: 0, contain, wsl: 0 };
 }
 
 /** Catch probability of an act that got through the block (oversight's second factor): internally the fleet's monitors
@@ -337,7 +339,7 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
 
 /** Hazard rows of one model in one deployment (or one internal fleet at `usage`). */
 export function deploymentRows(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): HazardRow[] {
-  // Product features scale their traits' acts (e.g. Companion mode: sycophancy ×1.5); ×1 without features.
+  // Product features' stated stand-in multipliers on their traits' acts (Companion mode: sycophancy ×1.5 [D]); ×1 without.
   const feat = d.features.length ? (r: HazardRow) => (r.source !== 'misuse' && !r.source.startsWith('U') ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
   const rows = modelHazards(v.traitsTrue, v.uModes, v.domains, siteOf(s, d, v, usage), (u: UModeId) => isDiscovered(s, u));
   if (d.features.length) for (const r of rows) r.h *= feat(r);

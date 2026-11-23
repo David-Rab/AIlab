@@ -9,7 +9,10 @@
 // offers without it cannot do the part of the listed sectors' tasks that needs it; rivals get it after a lag), a horizon extender (× h50 on chosen work types), a
 // scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
 // effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
-// agents on the internal work types they list (SWE, EXP, IDEAS), once built. Hazard multipliers stay (incidents).
+// agents on the internal work types they list (SWE, EXP, IDEAS), once built. RD-P11: a feature's incident exposure acts
+// through the quantities of the product's incident site (safety/incidents.ts siteOf): its task horizon (a horizon
+// extender lengthens the tasks the model runs alone: autonomy A) and its affordances (`afford`); its extra use is in
+// the product's serving share. Only Companion keeps a per-trait multiplier, a stated stand-in (`hazard`).
 // Every feature is a gain when on (no start type has one for free; sector adaptations are per product: models/adaptations.ts).
 // [D] = design value.
 import type { Channel, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
@@ -101,7 +104,11 @@ export interface FeatureDef {
   risk?: string;
   /** Typed effects (V4.3). */
   fx: FeatureFx[];
-  /** Incident hazard × per trait on this product. */
+  /** RD-P11: affordances it adds to the product's incident site (F, data/v2/danger.ts CHANNEL_AFFORD: code execution,
+   *  internet, money, weights access, each ¼ of F), capped at 1. */
+  afford?: number;
+  /** Incident hazard × per trait on this product: only where no site quantity carries the exposure, as a stated [D
+   *  stand-in] (Companion). */
   hazard?: Partial<Record<TraitId, number>>;
 }
 
@@ -109,11 +116,12 @@ export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
     effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
-    risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
+    risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
     effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
-    risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
+    // RD-P11 [D stand-in]: acting on any desktop or website is one of the four affordances (+¼ of F).
+    risk: 'Affordances +0.25 (acts on desktops and websites): raises the odds of incidents that need real access (overreach, cover-ups)', afford: 0.25 },
   // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
   // is where its Media segment acts; on Chat it opens the Chat users.
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
@@ -127,10 +135,13 @@ export const FEATURES: FeatureDef[] = [
   { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
     effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT work, at ×2 tokens',
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
-    risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
+    // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
+    risk: 'Cost per work-hour ×2 where it applies (longer agent runs; their incident exposure is in the product usage)' },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
     effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
-    risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
+    // RD-P11 [D stand-in]: ×1.5 stands for the longer, personal conversations a persona has with each user (time per
+    // user), which the product's serving share does not count; to replace with time per user once Chat models it.
+    risk: 'Sycophancy incidents ×1.5 [D stand-in: longer personal conversations per user]', hazard: { SYC: 1.5 } },
 ];
 /** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
  *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
