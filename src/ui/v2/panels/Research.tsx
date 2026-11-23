@@ -25,20 +25,24 @@ import { Recipe } from './Recipe';
 import './research.css';
 
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const LAYER_BADGE: Record<Layer, string> = { backbone: 'B', training: 'T', scaffold: 'S', lab: 'L' };
 const LAYER_TERM: Record<Layer, string> = { backbone: 'layerBackbone', training: 'layerTraining', scaffold: 'layerScaffold', lab: 'layerLab' };
-const LAYER_NAME: Record<Layer, string> = { backbone: 'Backbone', training: 'Training', scaffold: 'Scaffold', lab: 'Lab' };
+/** VOCAB: where an idea takes effect, in words (no layer badges). */
+const LAYER_NAME: Record<Layer, string> = { backbone: 'new base model', training: 'next post-training', scaffold: 'a build', lab: 'at once' };
+/** VOCAB node states in words. */
+const STATUS_WORD: Record<NodeStatus, string> = { known: 'Known', open: 'Available', locked: 'Locked', queued: 'Queued', active: 'Researching', failed: 'Failed', soon: 'Needs a product' };
+/** Staff time in team-weeks (VOCAB §1: one spelling; the engine counts team-months). */
+const tw = (months: number) => `${F.num(months * 52 / 12, 0)} team-weeks`;
 const LAYER_ICON: Record<Layer, typeof Layers> = { backbone: Layers, training: WandSparkles, scaffold: Wrench, lab: Building2 };
 const EFFORT_WORD: Record<string, string> = { S: 'small', M: 'medium', L: 'large', XL: 'very large' };
 const EFFORT_DOTS: Record<string, string> = { S: '·', M: '··', L: '···', XL: '····' };
-const SLOT_LABEL: Record<string, string> = { shape: 'Architecture', data: 'Data', curation: 'Data filter', pref: 'Preference', rlFocus: 'RL focus', graders: 'Graders', tpp: 'Tokens per parameter', cot: 'Reasoning', effort: 'Inference effort' };
+const SLOT_LABEL: Record<string, string> = { shape: 'Architecture', data: 'Data', curation: 'Data filter', pref: 'Preference', rlFocus: 'Post-training focus', graders: 'Graders', tpp: 'Tokens per parameter', cot: 'Reasoning', effort: 'Thinking effort' };
 const capCol = (c: Column) => !SAFETY_COLUMNS.includes(c);
 const laneColor = (c: Column) => (capCol(c) ? C.cap : C.und);
 
 const ui = (k: string, d = '') => store.tab[`research.${k}`] ?? d;
 const setUi = (k: string, v: string) => store.setTab(`research.${k}`, v);
 const eta = (d: number) => (Number.isFinite(d) ? F.days(d) : '—');
-/** A research line's health label from its estimated chance of a working result (Safety › Research lines is home). */
+/** A safety programme's outlook from its estimated chance of a working result (Safety › Research is home). */
 const health = (p: number) => (p >= 0.55 ? 'Promising' : p >= 0.3 ? 'Mixed' : 'Struggling');
 
 /** Steps from what you know: 0 known, 1 = all prerequisites known, 2 = one unknown step away … */
@@ -79,10 +83,10 @@ function StatusIcon({ st, p }: { st: NodeStatus; p?: number }) {
 function effortRows(n: TreeNodeDef): { label: ReactNode; value: string }[] {
   const e = effortOfNode(n);
   if (e.unit === 'months') return [{ label: <Term id="seriousStaffing">To a result at serious staffing</Term>, value: `${F.num(e.sci + e.exp, 1)} mo (ideas ${F.num(e.sci, 1)}, tests ${F.num(e.exp, 1)})` }];
-  if (!isCapProject(n)) return [{ label: <Term id="teamMonth">Team-months</Term>, value: F.num(e.sci, 1) }];
+  if (!isCapProject(n)) return [{ label: <Term id="teamMonth">Staff time</Term>, value: tw(e.sci) }];
   return [
-    { label: <Term id="stageIdeation">{`Science: ideas for ${PICK_AT} candidates`}</Term>, value: `${F.num(e.sci, 1)} team-months` },
-    { label: <Term id="stageSmall">Experiments: small and big tests</Term>, value: `${F.num(e.exp, 1)} team-months` },
+    { label: <Term id="stageIdeation">{`Scientists: ${PICK_AT} ideas to test`}</Term>, value: tw(e.sci) },
+    { label: <Term id="stageSmall">Research engineers: small and big tests</Term>, value: tw(e.exp) },
   ];
 }
 
@@ -93,20 +97,20 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
   const miss = st === 'locked' ? missingNeeds(s, n.id) : [];
   let meta: ReactNode = null;
   // Jank R3/R4: layer and effort as icons with tooltips, odds as the only number; nothing truncated without a tooltip.
-  const odds = !n.soon ? (isLineNode(n) ? health(nodeOdds(s, n.id)) : n.kind === 'line' ? 'line' : F.pct(nodeOdds(s, n.id))) : '';
+  const odds = !n.soon ? (isLineNode(n) ? health(nodeOdds(s, n.id)) : n.kind === 'line' ? 'programme' : F.pct(nodeOdds(s, n.id))) : '';
   const cls = effortClassOf(n);
-  const effortTip = () => <TipCard title={<Term id="effortClass">Effort</Term>} value={EFFORT_WORD[cls]} rows={effortRows(n)}>{effortOfNode(n).unit === 'months' ? 'Months to a result with serious staffing; more teams, safety research engineers, compute and AI help shorten it.' : "At the leader lab's day-0 inputs; more teams, research engineers and compute shorten it."}</TipCard>;
-  if (st === 'open') meta = <>{n.effort && <Tip content={effortTip}><span className="eff" data-effort={cls}><Hourglass size={10} />{EFFORT_DOTS[cls]}</span></Tip>}{odds && <Tip content={() => <TipCard title={<Term id="odds">Odds</Term>} value={odds}>{isLineNode(n) ? 'Line health: how likely a result here is a working tool.' : n.kind === 'line' ? 'A capability line: it always produces results, each a little smaller.' : 'Chance the idea works in this world.'}</TipCard>}><span className="eo">{odds}</span></Tip>}</>;
-  else if (st === 'locked') meta = <Tip content={() => <TipCard title="Needs first" rows={miss.map((m) => ({ label: PROJECT_BY_ID[m]?.name ?? m, value: nodeStatus(s, m) }))} />}><span className="eo warn">needs {miss.length > 1 ? `${miss.length} ideas` : PROJECT_BY_ID[miss[0]]?.name ?? miss[0]}</span></Tip>;
+  const effortTip = () => <TipCard title={<Term id="effortClass">Size</Term>} value={EFFORT_WORD[cls]} rows={effortRows(n)}>{effortOfNode(n).unit === 'months' ? 'Months to a result with serious staffing; more teams, safety research engineers, compute and AI staff shorten it.' : "At the leading lab's July 2025 inputs; more teams, research engineers and compute shorten it."}</TipCard>;
+  if (st === 'open') meta = <>{n.effort && <Tip content={effortTip}><span className="eff" data-effort={cls}><Hourglass size={10} />{EFFORT_DOTS[cls]}</span></Tip>}{odds && <Tip content={() => <TipCard title={<Term id="odds">{isLineNode(n) ? 'Outlook' : 'Chance it works'}</Term>} value={odds}>{isLineNode(n) ? 'Outlook: how likely this programme is to produce working results.' : n.kind === 'line' ? 'A capability programme: it always produces results, each worth less than the last.' : 'Your current odds this works.'}</TipCard>}><span className="eo">{odds}</span></Tip>}</>;
+  else if (st === 'locked') meta = <Tip content={() => <TipCard title="Needs first" rows={miss.map((m) => ({ label: PROJECT_BY_ID[m]?.name ?? m, value: STATUS_WORD[nodeStatus(s, m)] }))} />}><span className="eo warn">needs {miss.length > 1 ? `${miss.length} ideas` : PROJECT_BY_ID[miss[0]]?.name ?? miss[0]}</span></Tip>;
   else if (st === 'queued') meta = <span className="rs-qn">{qn}</span>;
-  else if (st === 'active') meta = <Tip content={() => <TipCard title="Progress" value={F.pct(p)}>{isCapProject(n) ? 'Through its stages; stage, beliefs and ETA are on Projects.' : 'Share of the project done; ETA is on Safety › Research lines.'}</TipCard>}><span className="eo">{F.pct(p)}</span></Tip>;
-  else if (st === 'failed' && isCapProject(n)) meta = <Tip content={() => <TipCard title={<Term id="reopenSpeculative">Failed</Term>} value={F.pct(nodeOdds(s, n.id))}>Three candidates were dropped. Reopen it as speculative at these odds.</TipCard>}><span className="eo neg">failed · reopen</span></Tip>;
-  else if (st === 'soon') meta = <span className="eo">with products</span>;
+  else if (st === 'active') meta = <Tip content={() => <TipCard title="Progress" value={F.pct(p)}>{isCapProject(n) ? 'Through its stages; stage, expected effect and ETA are on Portfolio.' : 'Share of the project done; ETA is on Safety › Research.'}</TipCard>}><span className="eo">{F.pct(p)}</span></Tip>;
+  else if (st === 'failed' && isCapProject(n)) meta = <Tip content={() => <TipCard title={<Term id="reopenSpeculative">Failed</Term>} value={F.pct(nodeOdds(s, n.id))}>Three ideas were dropped. Retry it at this chance.</TipCard>}><span className="eo neg">failed · retry</span></Tip>;
+  else if (st === 'soon') meta = <span className="eo">needs a product</span>;
   const LayerIc = LAYER_ICON[n.layer];
   return (
     <div className={`rs-node st-${st} ${sel ? 'sel' : ''}`} data-node={n.id} data-status={st} onClick={() => setUi('sel', sel ? '' : n.id)}>
       <Tip as="div" content={() => <TipCard title={n.name} />}><div className="nm"><StatusIcon st={st} p={p} /><span>{n.name}</span></div></Tip>
-      <div className="mt"><Fx n={n} /><Tip content={() => <TipCard title={<Term id={LAYER_TERM[n.layer]}>{LAYER_NAME[n.layer]} layer</Term>} />}><span className="lay"><LayerIc size={10} /></span></Tip>{meta}</div>
+      <div className="mt"><Fx n={n} /><Tip content={() => <TipCard title={<Term id={LAYER_TERM[n.layer]}>{`Takes effect: ${LAYER_NAME[n.layer]}`}</Term>} />}><span className="lay"><LayerIc size={10} /></span></Tip>{meta}</div>
       {st === 'active' && <div className="pb"><i style={{ width: `${p * 100}%` }} /></div>}
     </div>
   );
@@ -172,8 +176,8 @@ function Tree({ s }: { s: GameStateV2 }) {
   }, [key]);
 
   return (
-    <Card className="rs-tree" home="tree" title={<span className="row-i"><ICON.experiments size={14} /> <Term id="techTree">Tree</Term></span>}
-      sub={<span data-test="tree-count">{view === 'frontier' ? 'around what you know' : 'whole tree'} · {known} of {total} ideas known</span>}
+    <Card className="rs-tree" home="tree" title={<span className="row-i"><ICON.experiments size={14} /> <Term id="techTree">Discoveries</Term></span>}
+      sub={<span data-test="tree-count">{view === 'frontier' ? 'around what you know' : 'all discoveries'} · {known} of {total} known</span>}
       right={(
         <span className="rs-tools">
           <span className="seg" data-test="tree-filter">
@@ -183,7 +187,7 @@ function Tree({ s }: { s: GameStateV2 }) {
             <span className="rs-fx cu"><ICON.capabilities size={11} />▲</span>capability
             <span className="rs-fx su"><ICON.safety size={11} />▲</span>safety
             <span className="rs-fx dn">▼</span>cost
-            <Term id="layer">layer</Term>
+            <Term id="layer">takes effect</Term>
             <span className="warn">- - needs</span>
           </span>
           <Minimap rel={rel} st={st} view={view} />
@@ -228,7 +232,7 @@ function Minimap({ rel, st, view }: { rel: Record<string, number>; st: Record<st
   const slot: Record<string, number> = {};
   const color: Record<NodeStatus, string> = { known: C.good, active: '#5aa9ff', queued: C.watch, open: C.text2, locked: C.line2, failed: C.bad, soon: C.line2 };
   return (
-    <Tip content={() => <TipCard title="Whole tree" value={view === 'frontier' ? 'click: show all' : 'click: around what you know'}>Every idea, by specialty (rows) and steps from what you know (columns). Green known, blue active, amber queued, grey open, dark locked.</TipCard>}>
+    <Tip content={() => <TipCard title="All discoveries" value={view === 'frontier' ? 'click: show all' : 'click: around what you know'}>Every discovery, by field (rows) and steps from what you know (columns). Green known, blue researching, amber queued, grey available, dark locked.</TipCard>}>
       <svg className="rs-mini" width={W} height={H} data-test="minimap" onClick={() => setUi('view', view === 'frontier' ? 'all' : 'frontier')}>
         {TREE.map((n) => {
           const li = COLUMNS.indexOf(n.column);
@@ -268,8 +272,8 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
       </div>
       <div className="row-i chips">
         <span className="rs-chip" style={{ color: laneColor(n.column) }}>{COLUMN_LABEL[n.column]}</span>
-        <span className="rs-chip"><Term id={LAYER_TERM[n.layer]}>{`${LAYER_BADGE[n.layer]} ${LAYER_NAME[n.layer]} layer`}</Term></span>
-        <span className={`rs-chip st-${st}`}>{st === 'soon' ? 'with products' : st}{queued && st === 'queued' ? ` #${s.player.research.queue.indexOf(n.id) + 1}` : ''}</span>
+        <span className="rs-chip"><Term id={LAYER_TERM[n.layer]}>{`Takes effect: ${LAYER_NAME[n.layer]}`}</Term></span>
+        <span className={`rs-chip st-${st}`}>{STATUS_WORD[st]}{queued && st === 'queued' ? ` #${s.player.research.queue.indexOf(n.id) + 1}` : ''}</span>
       </div>
       <div className="sec">
         <div className="k">Effect</div>
@@ -279,37 +283,37 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {n.payoff && <div className="rs-efrow"><span><ICON.M size={13} /></span><span className="dim">Pays off</span><span>{n.payoff}</span></div>}
       </div>
       <div className="sec">
-        <div className="k"><Term id="odds">Odds</Term></div>
+        <div className="k"><Term id="odds">{line && !n.star ? 'Outlook' : 'Chance it works'}</Term></div>
         {line && !n.star
-          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} a result here is a working tool</span><Ref id="lineHealth" to={{ panel: 'safety', tab: 'lines' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Research line'}</Ref></div>
+          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} that a result here works</span><Ref id="lineHealth" to={{ panel: 'safety', tab: 'lines' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Safety programme'}</Ref></div>
           : n.star ? <div className="dim">Known by every lab</div>
-          : cap && n.kind === 'line' ? <div className="dim small">A capability line: always produces results, each a little smaller (<Term id="linePool">ideas get harder</Term>).</div>
-          : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; the result is drawn for this world' : 'chance it works'}{(ts?.cap?.spec ?? 0) > 0 ? ` · speculative ${ts?.cap?.spec}` : ''}</span>
+          : cap && n.kind === 'line' ? <div className="dim small">A capability programme: always produces results, each worth less than the last (<Term id="linePool">returns falling</Term>).</div>
+          : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; whether it works is drawn at the start' : 'chance it works'}{(ts?.cap?.spec ?? 0) > 0 ? ` · retry ${ts?.cap?.spec}` : ''}</span>
             </div>}
       </div>
       {project && cap && (
         <div className="sec">
-          <div className="k"><Term id="projectKind">{n.kind === 'line' ? 'Line' : n.kind === 'axis' ? 'Axis' : 'Idea'}</Term></div>
+          <div className="k"><Term id="projectKind">{n.kind === 'line' ? 'Programme' : 'Project'}</Term></div>
           <Tip as="div" content={() => <TipCard title={<Term id="projectStage">Stages</Term>} rows={[
-            { label: <Term id="stageIdeation">Ideas, per candidate</Term>, value: `${F.num(sg.idea, 1)} team-months` },
-            { label: <Term id="stageSmall">Small test</Term>, value: `${F.num(sg.small, 1)} team-months` },
-            { label: <Term id="stageScale">Big test</Term>, value: `${F.num(sg.scale, 1)} team-months` },
-          ]}>At the leader lab's day-0 inputs; your teams, research engineers and compute set the speed (Projects tab).</TipCard>}>
-            <div className="row-i small"><span className="lay">{effortClassOf(n)}</span><span><Term id="teamMonth">team-months</Term> per stage: <b className="num">{F.num(sg.idea, 1)} · {F.num(sg.small, 1)} · {F.num(sg.scale, 1)}</b></span></div>
+            { label: <Term id="stageIdeation">Ideas, for each test</Term>, value: tw(sg.idea) },
+            { label: <Term id="stageSmall">Small test</Term>, value: tw(sg.small) },
+            { label: <Term id="stageScale">Big test</Term>, value: tw(sg.scale) },
+          ]}>At the leading lab's July 2025 inputs; your teams, research engineers and compute set the speed (Portfolio tab).</TipCard>}>
+            <div className="row-i small"><span className="lay">{EFFORT_WORD[effortClassOf(n)] ?? effortClassOf(n)}</span><span><Term id="teamMonth">team-weeks</Term> per stage: <b className="num">{F.num(sg.idea * 52 / 12, 0)} · {F.num(sg.small * 52 / 12, 0)} · {F.num(sg.scale * 52 / 12, 0)}</b></span></div>
           </Tip>
         </div>
       )}
       {project && !cap && (
         <div className="sec">
-          <div className="k"><Term id="effortClass">Effort</Term></div>
+          <div className="k"><Term id="effortClass">Size</Term></div>
           <Tip as="div" content={() => (
             <TipCard title="ETA" value={eta(etaNow)} rows={[
               { label: 'Capacity', value: projectCapacity(s, n.id).toFixed(2) },
-              ...(line ? [] : [{ label: <Term id="diminishingReturns">Progress ∝ √capacity</Term>, value: `×${Math.sqrt(projectCapacity(s, n.id)).toFixed(2)}` }]),
+              ...(line ? [] : [{ label: <Term id="diminishingReturns">Speed (more teams help less each)</Term>, value: `×${Math.sqrt(projectCapacity(s, n.id)).toFixed(2)}` }]),
               ...effortRows(n),
-            ]}>Capacity = Σ team people ÷ 40 × quality × 1.5 in the team's specialty. {line ? 'ETA to the next result; safety research engineers, compute and Trusted to AI speed it up.' : "ETA at today's research speed."}</TipCard>
+            ]}>Capacity: your teams' people and quality, ×1.5 for a team in its own field. {line ? 'ETA to the next result; safety research engineers, compute and AI share allowed speed it up.' : "ETA at today's research speed."}</TipCard>
           )}>
-            <div className="row-i"><span className="lay">{effortClassOf(n)}</span><b className="num">{F.num(effortOfNode(n).sci + effortOfNode(n).exp, 0)}</b>{line ? <Term id="seriousStaffing">months at serious staffing</Term> : <Term id="teamMonth">team-months</Term>}<span className="sp" />
+            <div className="row-i"><span className="lay">{EFFORT_WORD[effortClassOf(n)] ?? effortClassOf(n)}</span><b className="num">{F.num((effortOfNode(n).sci + effortOfNode(n).exp) * (line ? 1 : 52 / 12), 0)}</b>{line ? <Term id="seriousStaffing">months at serious staffing</Term> : <Term id="teamMonth">team-weeks</Term>}<span className="sp" />
               <span className="dim small">{teams.length ? `${teams.length} team${teams.length > 1 ? 's' : ''} · ETA ${eta(etaNow)}` : `one team ≈ ${eta(etaOne)}`}</span></div>
           </Tip>
         </div>
@@ -320,7 +324,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           {n.needs.map((r) => {
             const rs = nodeStatus(s, r);
             const rp = s.player.tree[r];
-            return <div key={r} className="rs-prq" onClick={() => setUi('sel', r)}><StatusIcon st={rs} p={rp?.progress} /><span>{PROJECT_BY_ID[r]?.name ?? r}</span><span className="sp" /><span className="dim small">{rs === 'active' ? F.pct(rp?.progress ?? 0) : rs}</span></div>;
+            return <div key={r} className="rs-prq" onClick={() => setUi('sel', r)}><StatusIcon st={rs} p={rp?.progress} /><span>{PROJECT_BY_ID[r]?.name ?? r}</span><span className="sp" /><span className="dim small">{rs === 'active' ? F.pct(rp?.progress ?? 0) : STATUS_WORD[rs]}</span></div>;
           })}
         </div>
       )}
@@ -329,21 +333,21 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           <div className="k">Unlocks</div>
           {optionsOf(n.id).map(([slot, v]) => (
             <div key={slot + v} className="row-i small">{slot === 'effort' ? <ICON.deploy size={12} /> : <ICON.run size={12} />}<span>{SLOT_LABEL[slot]}: <b>{v === 'true' ? 'on' : F.words(v)}</b></span><span className="sp" />
-              <Ref id="designOption" to={{ panel: slot === 'effort' ? 'products' : 'blueprint' }}>{slot === 'effort' ? 'Products' : 'Blueprint'}</Ref></div>
+              <Ref id="designOption" to={{ panel: slot === 'effort' ? 'products' : 'blueprint' }}>{slot === 'effort' ? 'Products' : 'Next run'}</Ref></div>
           ))}
           {children.length > 0 && <div className="dim small">Leads to {children.map((c) => PROJECT_BY_ID[c]?.name ?? c).join(', ')}</div>}
         </div>
       ) : null}
       <div className="sec btn-row">
-        {cap && st === 'failed' && <ActBtn id="research.reopen" params={{ id: n.id }} label="Reopen as speculative" testId={`research.reopen.${n.id}`} />}
-        {project && st !== 'known' && st !== 'failed' && !queued && <ActBtn id="research.queue" params={{ id: n.id }} label={cap ? 'Add to priorities' : 'Queue'} testId={`research.queue.${n.id}`} />}
+        {cap && st === 'failed' && <ActBtn id="research.reopen" params={{ id: n.id }} label="Retry (lower odds)" testId={`research.reopen.${n.id}`} />}
+        {project && st !== 'known' && st !== 'failed' && !queued && <ActBtn id="research.queue" params={{ id: n.id }} label={cap ? 'Add to priority list' : 'Queue'} testId={`research.queue.${n.id}`} />}
         {project && st !== 'known' && st !== 'failed' && <ActBtn id="research.start" params={{ id: n.id }} label={cap ? 'Top priority' : 'Start now'} testId={`research.start.${n.id}`} />}
         {queued && <ActBtn id="research.dequeue" params={{ id: n.id }} label="Remove" testId={`research.dequeue.${n.id}`} />}
-        {cap && queued && <button className="btn btn-sm" data-test="open-project" onClick={() => { setUi('proj', n.id); store.setTab('research', 'projects'); }}>Open in Projects ›</button>}
+        {cap && queued && <button className="btn btn-sm" data-test="open-project" onClick={() => { setUi('proj', n.id); store.setTab('research', 'projects'); }}>Open in Portfolio ›</button>}
         {!cap && project && !n.star && st !== 'known' && <Ref id="researchLine" to={{ panel: 'safety', tab: 'lines' }}>Safety teams</Ref>}
         {project && ready !== true && st !== 'known' && <span className="dim small">{ready}</span>}
-        {line && st !== 'known' && <span className="dim small">Each result is a working tool, a weaker result, a dead end or a discovery; the project repeats until the tool works.</span>}
-        {n.soon && <span className="dim small">A product feature: it becomes a project with live products.</span>}
+        {line && st !== 'known' && <span className="dim small">Each result is a working instrument, a weaker result, a dead end or a discovery; the programme goes on until an instrument works.</span>}
+        {n.soon && <span className="dim small">A product tool: it becomes a project once you have live products.</span>}
       </div>
     </div>
   );
@@ -354,7 +358,7 @@ export function Research({ s }: { s: GameStateV2 }) {
   const tab = tabOf('research', 'projects');
   return (
     <div className="panel-v2 rs-panel" data-panel="research">
-      <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Projects', icon: ICON.experiments }, { id: 'recipe', label: 'Recipe', icon: Layers }, { id: 'tree', label: 'Tree', icon: ICON.split }]} />}
+      <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'recipe', label: 'Know-how', icon: Layers }, { id: 'tree', label: 'Discoveries', icon: ICON.split }]} />}
         right={<span className="row-i"><Ref id="labSpeed" to={{ panel: 'company', tab: 'flow' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
       {tab === 'projects' && <div className="rp-grid"><Priorities s={s} /><ProjectCard s={s} /></div>}
       {tab === 'recipe' && <Recipe s={s} />}

@@ -11,7 +11,9 @@
 import { safetyLabour } from '../departments/workfit';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
-import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
+import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
+/** A case verdict in player words (log lines). */
+const OUTCOME_WORD: Record<string, string> = { confirmed: 'confirmed', benign: 'harmless', inconclusive: 'inconclusive', falseAlarm: 'false alarm', discovery: 'new failure mode found' };
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { CaseChange, GameStateV2, Incident, Investigation, ModelVersion, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
 import { clamp01, flag, versionById } from './common';
@@ -101,7 +103,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
     const incId = target.incidentId;
     const inc = dept.incidents.find((i) => i.id === incId);
     if (!inc) return 'Unknown incident';
-    if (inc.status === 'investigating') return 'Already under investigation';
+    if (inc.status === 'investigating') return 'A case is already open on it';
     inc.status = 'investigating';
   }
   const same = dept.investigations.find((i) => !i.outcome && JSON.stringify(i.target) === JSON.stringify(target));
@@ -109,7 +111,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   const tmp: Investigation = { id: '', target, fte, computeShare: 0, tools: [], startDay: ctx.day, progress: 0 };
   const traits = targetTraits(s, tmp);
   const tools = (opts.tools?.length ? opts.tools : defaultTools(s, traits)).filter((id) => s.player.safety.techniques[id]?.unlocked);
-  if (!tools.length) return 'No unlocked tools cover this';
+  if (!tools.length) return 'No owned instrument reads this';
   let n = dept.investigations.length + 1;
   while (dept.investigations.some((i) => i.id === `INV${n}`)) n++;
   const v0 = targetVersion(s, tmp);
@@ -125,7 +127,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
     job: jobRecord(s, jobAiShare(s, 'case'), Math.max(0, ...Object.values(before).map((b) => b?.est ?? 0))),
   };
   dept.investigations.push(inv);
-  ctx.log('research', `Investigation opened (${traits.length === 1 ? traits[0] : 'unexplained'}).`, 2, inv.id);
+  ctx.log('research', `Case opened: ${traits.length === 1 ? TRAIT_BY_ID[traits[0]]?.name ?? traits[0] : 'unexplained behaviour'}.`, 2, inv.id);
   return inv;
 }
 
@@ -208,7 +210,7 @@ function caseReadings(s: GameStateV2, ctx: SystemCtx, inv: Investigation, v: Mod
 /** Close a case early (player). It concludes with the share of its work done so far. */
 export function closeInvestigation(s: GameStateV2, ctx: SystemCtx, id: string): string | undefined {
   const inv = s.player.safety.investigations.find((i) => i.id === id);
-  if (!inv) return 'Unknown investigation';
+  if (!inv) return 'Unknown case';
   if (inv.outcome) return 'Already closed';
   resolveInvestigation(s, ctx, inv);
   return undefined;
@@ -301,7 +303,7 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   // Model v3 E8: the case may locate footholds of the model's lineage (or find traces of hidden ones); a corrupted case
   // finds nothing.
   const fhBefore = located(s);
-  if (!corrupted) caseOnModel(s, ctx, v, traits, c, inv.id, `investigation ${inv.id}`);
+  if (!corrupted) caseOnModel(s, ctx, v, traits, c, inv.id, `a case on ${v.name}`);
   // Independent-family cross-check exposes false-validated tools used in the case (§3.5.3).
   const exposed: string[] = [];
   for (const t of tools) {
@@ -322,8 +324,9 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   for (const n of exposed) ev.push(`instrument shown false by an independent family: ${n}`);
   if (!ev.length) ev.push('no new evidence');
   detail.evidence = ev;
-  const moved = detail.changes.map((x) => `${x.trait} ${x.from.est.toFixed(2)}±${x.from.sd.toFixed(2)} → ${x.to.est.toFixed(2)}±${x.to.sd.toFixed(2)}`).join(', ');
-  ctx.log('research', `Investigation ${inv.id}: ${outcome}${moved ? `; beliefs: ${moved}` : '; no belief moved'}; evidence: ${ev.join('; ')}.`, outcome === 'confirmed' || outcome === 'discovery' ? 3 : 2, inv.id);
+  const pc = (x: number) => `${Math.round(Math.max(0, Math.min(1, x)) * 100)}%`;
+  const moved = detail.changes.map((x) => `${TRAIT_BY_ID[x.trait]?.name ?? x.trait} ${pc(x.from.est)} → ${pc(x.to.est)} (range ±${pc(1.64 * x.to.sd)})`).join(', ');
+  ctx.log('research', `Case on ${v.name} closed: ${OUTCOME_WORD[outcome] ?? outcome}${moved ? `; best guess: ${moved}` : '; no belief moved'}; evidence: ${ev.join('; ')}.`, outcome === 'confirmed' || outcome === 'discovery' ? 3 : 2, inv.id);
 }
 
 /** Footholds the player knows of (located or suspected): the verdict's foothold evidence. */
@@ -361,7 +364,7 @@ export function casePreview(s: GameStateV2, v: ModelVersion | undefined, traits:
   if (reads.length) canFind.push(`readings on ${reads.join(', ')} from ${[...fams].join(' / ')}`);
   const kinds = Object.values(UMODE_BY_ID).filter((u) => !isDiscovered(s, u.id) && u.revealedBy.some((a) => ags.has(a))).map((u) => u.name);
   if (kinds.length) canFind.push(`hidden failure modes these instruments can reveal, if the model has them: ${kinds.join(', ')}`);
-  canFind.push("footholds of this model's lineage, if any, at the case's strength");
+  canFind.push("footholds of this model's lineage, if any, as far as the case gets");
   if (fams.size >= 2) canFind.push('a false instrument among those used (independent families cross-check)');
   const ranges = traits.map((k) => {
     const b = v?.beliefs[k];

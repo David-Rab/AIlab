@@ -121,7 +121,7 @@ export function techniqueRows(s: GameStateV2): TechniqueRow[] {
   const w = s.hidden.timeline;
   const x = oomOfLevel(w, measuredLOf(s, v).L);
   return Object.values(s.player.safety.techniques).map((t) => ({
-    id: t.id, name: TECHNIQUE_BY_ID[t.id]?.name ?? `AI-validated ${AGENDA_BY_ID[t.agenda].name} tool`, agenda: t.agenda, family: t.family,
+    id: t.id, name: TECHNIQUE_BY_ID[t.id]?.name ?? `AI-validated ${AGENDA_BY_ID[t.agenda].name} instrument`, agenda: t.agenda, family: t.family,
     role: techniqueRole(t), unlocked: t.unlocked, active: t.active, strength: Math.round(strengthBelieved(s, t, x) * 100) / 100,
     decay: Math.round(decayAt(s, t, x, false) * 100) / 100, oHalf: t.oHalf,
     halfL: t.k > 0 && t.oHalf < 1e8 && t.agenda !== 'AG05' ? Math.round(levelOfOom(w, t.oHalf) * 100) / 100 : undefined, trainedAgainst: t.trainedAgainst,
@@ -134,9 +134,9 @@ function genericTitle(f: { id: string; agenda: AgendaId; type: FindingType; node
   const line = AGENDA_BY_ID[f.agenda]?.name ?? f.agenda;
   const tech = f.nodeId ? PROJECT_BY_ID[f.nodeId]?.technique : undefined;
   if ((f.type === 'TECH' || f.type === 'EVAL') && tech && TECHNIQUE_BY_ID[tech]?.unlockedBy === 'generic') return `${TECHNIQUE_BY_ID[tech].name} validated`;
-  if (f.type === 'TECH') return `${line}: tools sharpened`;
+  if (f.type === 'TECH') return `${line}: instruments sharpened`;
   if (f.type === 'EVAL') return `${line}: evals sharpened`;
-  if (f.type === 'DEAD') return `${line}: a line of attack dead-ends`;
+  if (f.type === 'DEAD') return `${line}: a project failed`;
   if (f.type === 'NEG') return `${line}: negative result`;
   return `${line}: result`;
 }

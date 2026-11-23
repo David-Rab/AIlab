@@ -16,69 +16,69 @@ import './pressure.css';
 
 /** Plain-words name of each signal (the glossary `sig:` entry has the research name). */
 export const SIGNAL_LABEL: Record<SignalId, string> = {
-  S1: 'Approval reward', S2: 'Reward-hacking pressure', S3: 'Long agentic tasks', S4: 'Reasoning pressure',
-  S5: 'Situational data', S6: 'Narrow harmful fine-tunes', S7: 'Eval-like training', S8: 'Copies & shared memory', S9: 'Monitored-only reward',
+  S1: 'Rater approval', S2: 'Hacking pressure', S3: 'Long tasks', S4: 'Reasoning pressure',
+  S5: 'Self-knowledge data', S6: 'Narrow harmful fine-tunes', S7: 'Test-like training', S8: 'Many copies', S9: 'Reward only when watched',
 };
 export const TARGET_LABEL: Record<PushTarget, string> = { ...Object.fromEntries(RISK_FAMILIES.map((f) => [f.id, f.label])), awareness: 'Awareness' } as Record<PushTarget, string>;
 const PREF_LABEL: Record<string, string> = { constitution: 'Constitution feedback', engagement: 'Engagement reward', persuasion: 'Persuasion reward', minimal: 'Minimal preference stage' };
-const COT_LABEL: Record<string, string> = { visible: 'Visible reasoning, not trained against', pressured: 'Reasoning trained under pressure', faithful: 'Faithful-reasoning training', latent: 'Latent reasoning (no readable CoT)' };
-const rel = (rho: number, ref: number) => `RL ${F.num(rho / ref, rho / ref >= 10 ? 0 : 1)}× the reference`;
+const COT_LABEL: Record<string, string> = { visible: 'Visible reasoning, not trained against', pressured: 'Reasoning trained under pressure', faithful: 'Faithful-reasoning training', latent: 'Hidden reasoning (nothing readable)' };
+const rel = (rho: number, ref: number) => `post-training ${F.num(rho / ref, rho / ref >= 10 ? 0 : 1)}× the standard amount`;
 const n = (x: number | string | boolean | undefined) => Number(x ?? 0);
 
 /** One line of cause in plain words, with the quantities behind the value. */
 export function causeText(r: PressureRow, kind: RunPressure['kind']): string {
   const q = r.q;
   switch (r.id) {
-    case 'S1': return `${PREF_LABEL[String(q.method)] ?? String(q.method)} (bias ${F.num(n(q.bias), 2)}) on ${F.pct(n(q.prefShare), 1)} of RL (reference ${F.pct(n(q.prefShareRef), 1)})`;
+    case 'S1': return `${PREF_LABEL[String(q.method)] ?? String(q.method)} (bias ${F.num(n(q.bias), 2)}) on ${F.pct(n(q.prefShare), 1)} of post-training (standard ${F.pct(n(q.prefShareRef), 1)})`;
     case 'S2': {
       const top = r.fams?.[0];
-      const lead = top ? `${F.pct(top.share)} of RL on ${RL_FAMILY_LABEL[top.family]} at ${F.pct(top.x)} exploitable` : 'no RL';
-      return `${lead}, ${F.pct(n(q.hackRate), 1)} hackable overall × ${rel(n(q.rho), n(q.rhoRef))}${q.p11 ? ' · +0.2 automated research (P11)' : ''}${q.todaySuites ? ' (suites as of today: the run’s own were not recorded)' : ''}${n(q.learned) > 0 ? ` · learned hacking ${F.num(n(q.learned), 2)}${q.inoculated ? ' (inoculated)' : ''}` : ''}`;
+      const lead = top ? `${F.pct(top.share)} of post-training on ${RL_FAMILY_LABEL[top.family]} at ${F.pct(top.x)} loopholes` : 'no post-training';
+      return `${lead}, ${F.pct(n(q.hackRate), 1)} loopholes overall, ${rel(n(q.rho), n(q.rhoRef))}${q.p11 ? ' · automated research adds more' : ''}${q.todaySuites ? ' (environments as of today: the run’s own were not recorded)' : ''}${n(q.learned) > 0 ? ` · learned hacking ${F.num(n(q.learned), 2)}${q.inoculated ? ' (inoculated)' : ''}` : ''}`;
     }
     case 'S3': {
       const top = [...(r.fams ?? [])].sort((a, b) => b.x - a.x)[0];
-      return n(q.agentic) > 0 ? `${F.pct(n(q.agentic))} of RL on agentic tasks; longest tasks ${top ? `${F.num(top.x, 0)} h (${RL_FAMILY_LABEL[top.family]})` : ''}` : 'no agentic RL';
+      return n(q.agentic) > 0 ? `${F.pct(n(q.agentic))} of post-training on long agent tasks; longest tasks ${top ? `${F.num(top.x, 0)} h (${RL_FAMILY_LABEL[top.family]})` : ''}` : 'no long agent tasks';
     }
-    case 'S4': return `${COT_LABEL[String(q.cot)] ?? String(q.cot)}${q.cotMonitor ? ' · trained against a CoT monitor' : ''}`;
-    case 'S5': return kind === 'post' ? (n(q.longShare) > 0 ? `${F.pct(n(q.longShare))} of RL on long tasks` : 'no long-task RL')
-      : q.legacy ? `scale G ${F.num(n(q.gPre), 1)} (AI-data share not recorded for this base)` : `AI-related data ${F.pct(n(q.ai), 1)} of tokens (reference ${F.pct(n(q.aiRef), 1)})${q.safetyPretrain ? ' after safety pretraining' : ''} + scale G ${F.num(n(q.gPre), 1)}`;
-    case 'S6': return 'no fine-tune on narrow harmful or deceptive data (none of the run kinds is one)';
-    case 'S7': return `${rel(n(q.rho), n(q.rhoRef))} · ${F.pct(n(q.mlShare))} of RL on ML research${n(q.bb) ? ` · ${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against` : ''}`;
-    case 'S8': return `${F.count(n(q.agentFte))} research-agent AI FTE (full at ${F.count(n(q.fteRef))})${q.p05 ? ' · shared memory (P05)' : ''}${q.applied ? '' : ' (today)'}`;
-    case 'S9': return n(q.bb) ? `${n(q.bb)} behavioural detector${n(q.bb) > 1 ? 's' : ''} trained against: penalised only where seen` : 'every training episode graded alike';
+    case 'S4': return `${COT_LABEL[String(q.cot)] ?? String(q.cot)}${q.cotMonitor ? ' · trained against a reasoning monitor' : ''}`;
+    case 'S5': return kind === 'post' ? (n(q.longShare) > 0 ? `${F.pct(n(q.longShare))} of post-training on long tasks` : 'no long tasks')
+      : q.legacy ? 'from the model’s scale (AI-data share not recorded for this base model)' : `AI-related data ${F.pct(n(q.ai), 1)} of tokens (standard ${F.pct(n(q.aiRef), 1)})${q.safetyPretrain ? ' after safety pretraining' : ''}, plus the model’s scale`;
+    case 'S6': return 'no fine-tune on narrow harmful or deceptive data (no run kind does one)';
+    case 'S7': return `${rel(n(q.rho), n(q.rhoRef))} · ${F.pct(n(q.mlShare))} of post-training on AI research${n(q.bb) ? ` · ${n(q.bb)} behaviour instrument${n(q.bb) > 1 ? 's' : ''} trained against` : ''}`;
+    case 'S8': return `${F.count(n(q.agentFte))} AI staff on research (full at ${F.count(n(q.fteRef))})${q.p05 ? ' · shared memory' : ''}${q.applied ? '' : ' (today)'}`;
+    case 'S9': return n(q.bb) ? `${n(q.bb)} behaviour instrument${n(q.bb) > 1 ? 's' : ''} trained against: penalised only where seen` : 'every training episode graded alike';
   }
 }
 
-/** Breakdown of one signal (L3): the formula's terms. */
+/** Breakdown of one signal (L3): what adds to it, in words. */
 function SignalTip({ r, kind }: { r: PressureRow; kind: RunPressure['kind'] }) {
   const q = r.q;
   const rows: { label: React.ReactNode; value: React.ReactNode }[] = [];
   if (r.id === 'S2') {
-    for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of RL × ${F.pct(f.x, 1)} exploitable`, value: F.num(f.term, 3) });
-    rows.push({ label: <Term id="rlBudget">Optimisation pressure</Term>, value: `×${F.num(n(q.pressure), 2)}` });
-    if (q.p11) rows.push({ label: 'Automated research (P11)', value: '+0.20' });
+    for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of post-training, ${F.pct(f.x, 1)} loopholes`, value: F.num(f.term, 3) });
+    rows.push({ label: <Term id="rlBudget">Post-training budget</Term>, value: `×${F.num(n(q.pressure), 2)}` });
+    if (q.p11) rows.push({ label: 'Automated research', value: '+0.20' });
     // E16: hacking learned as a policy generalises (MacDiarmid 2025); below the onset it stays incidental.
     rows.push({ label: <>Episodes hacked (onset of <Term id="learnedHacking">learned hacking</Term> {F.pct(n(q.lhOnset), 0)}, full at {F.pct(n(q.lhFull), 0)})</>, value: F.pct(n(q.hacked), 1) });
     rows.push({ label: <><Term id="learnedHacking">Learned hacking</Term>{q.inoculated ? <> × {F.num(n(q.inocMult), 2)} <Term id="inoculation">inoculated</Term></> : null}</>, value: F.num(n(q.learned) * (q.inoculated ? n(q.inocMult) : 1), 2) });
   } else if (r.id === 'S3') {
-    for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of RL, ${F.num(f.x, 0)} h tasks`, value: F.num(f.term, 3) });
+    for (const f of r.fams ?? []) rows.push({ label: `${RL_FAMILY_LABEL[f.family]}: ${F.pct(f.share)} of post-training, ${F.num(f.x, 0)} h tasks`, value: F.num(f.term, 3) });
   } else if (r.id === 'S5' && kind !== 'post') {
-    rows.push({ label: `AI-related data ${F.pct(n(q.ai), 1)} ÷ ${F.pct(n(q.aiRef), 1)} × 0.2`, value: F.num(n(q.aiTerm), 3) });
-    rows.push({ label: `Scale: 0.05 × (G ${F.num(n(q.gPre), 2)} − ${F.num(n(q.g0), 1)})`, value: F.num(n(q.gTerm), 3) });
+    rows.push({ label: `AI-related data ${F.pct(n(q.ai), 1)} (standard ${F.pct(n(q.aiRef), 1)})`, value: F.num(n(q.aiTerm), 3) });
+    rows.push({ label: 'Model scale', value: F.num(n(q.gTerm), 3) });
   } else if (r.id === 'S7') {
-    rows.push({ label: 'Baseline', value: F.num(n(q.base), 2) });
+    rows.push({ label: 'Every run', value: F.num(n(q.base), 2) });
     rows.push({ label: rel(n(q.rho), n(q.rhoRef)), value: F.num(n(q.rl), 3) });
-    rows.push({ label: `ML research ${F.pct(n(q.mlShare))} of RL × 0.6`, value: F.num(n(q.mlShare) * n(q.kMl), 3) });
-    if (n(q.bb)) rows.push({ label: `${n(q.bb)} detector(s) trained against × 0.3`, value: F.num(n(q.bb) * n(q.kBb), 2) });
+    rows.push({ label: `AI research ${F.pct(n(q.mlShare))} of post-training`, value: F.num(n(q.mlShare) * n(q.kMl), 3) });
+    if (n(q.bb)) rows.push({ label: `${n(q.bb)} instrument(s) trained against`, value: F.num(n(q.bb) * n(q.kBb), 2) });
   } else if (r.id === 'S9') {
-    rows.push({ label: `${n(q.bb)} detector(s) trained against × ${F.num(n(q.kBb), 1)}`, value: F.num(n(q.bb) * n(q.kBb), 2) });
+    rows.push({ label: `${n(q.bb)} instrument(s) trained against`, value: F.num(n(q.bb) * n(q.kBb), 2) });
   }
   const pushes = signalPushes(r.id);
   return (
     <TipCard title={<Term id={`sig:${r.id}`}>{SIGNAL_LABEL[r.id]}</Term>} value={F.num(r.value, 2)} rows={[
       ...rows,
       ...pushes.map((p) => ({ label: <>pushes {TARGET_LABEL[p.target]}</>, value: p.traits.map((t) => TRAIT_BY_ID[t].name).join(', ') })),
-    ]} footer="0–1. The trait graph turns signals into trait changes, scaled by the run's ω.">{causeText(r, kind)}.</TipCard>
+    ]} footer="0 (none) to 1 (strongest). How far it moves traits grows with the run's size (Pushes).">{causeText(r, kind)}.</TipCard>
   );
 }
 
@@ -86,12 +86,12 @@ function SignalTip({ r, kind }: { r: PressureRow; kind: RunPressure['kind'] }) {
 export function OmegaChip({ p }: { p: RunPressure }) {
   const o = p.omega;
   return (
-    <Tip content={() => <TipCard title={<Term id="traitMovement">Trait movement ω</Term>} value={F.num(o.growth, 2)} rows={[
-      { label: `${p.kind === 'base' ? 'Base run' : p.kind === 'post' ? 'Post-training' : p.kind === 'distill' ? 'Distillation' : 'Continued pretraining'} at the reference`, value: F.num(o.kind, 2) },
-      ...(o.rlFactor !== undefined && o.rho !== undefined ? [{ label: <>RL compute {F.pct(o.rho)} of the base's FLOP: ×(ρ ÷ 15%)^¼</>, value: `×${F.num(o.rlFactor, 2)}` }] : []),
-      { label: <Term id="safetyTraining">Safety training ω</Term>, value: F.num(o.safety, 2) },
-    ]}>How far this run moves the traits along the graph's edges: the signals' push × ω.</TipCard>}>
-      <span className="pr-omega" data-test="pr-omega"><Term id="traitMovement">ω</Term> <b className="num">{F.num(o.growth, 2)}</b></span>
+    <Tip content={() => <TipCard title={<Term id="traitMovement">Pushes</Term>} value={F.num(o.growth, 2)} rows={[
+      { label: `${p.kind === 'base' ? 'New pretraining' : p.kind === 'post' ? 'Post-training' : p.kind === 'distill' ? 'Distil' : 'Continued pretraining'}, standard size`, value: F.num(o.kind, 2) },
+      ...(o.rlFactor !== undefined && o.rho !== undefined ? [{ label: <>Post-training compute {F.pct(o.rho)} of the base model's</>, value: `×${F.num(o.rlFactor, 2)}` }] : []),
+      { label: <Term id="safetyTraining">Safety training</Term>, value: F.num(o.safety, 2) },
+    ]}>How far this run moves the model's traits: bigger runs push harder.</TipCard>}>
+      <span className="pr-omega" data-test="pr-omega"><Term id="traitMovement">Pushes</Term> <b className="num">{F.num(o.growth, 2)}</b></span>
     </Tip>
   );
 }

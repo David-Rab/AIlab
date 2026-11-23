@@ -41,9 +41,9 @@ export const pp = (x: number, d = 1) => `${sign(x, true)}${Math.abs(x).toFixed(d
 export const num = (x: number, d = 1, signed = false) => `${sign(x, signed)}${Math.abs(x).toFixed(d)}`;
 /** Capability / understanding level. */
 export const level = (x: number) => x.toFixed(1);
-/** Sight limit readout: "L 6.8 (6.2–7.1)", or "none (0–6.8)" when no level is read at 50% (the engine's L 0 is a floor). */
+/** Sight limit readout: "level 6.8 (6.2–7.1)" (UB-4: no L prefix), or "none (0–6.8)" when no level is read at 50% (the engine's L 0 is a floor). */
 export const sight = (u: { none: boolean; L: number; lo: number; hi: number }) =>
-  u.none ? `none${u.hi > 0 ? ` (0–${level(u.hi)})` : ''}` : `L ${level(u.L)} (${level(u.lo)}–${level(u.hi)})`;
+  u.none ? `none${u.hi > 0 ? ` (0–${level(u.hi)})` : ''}` : `level ${level(u.L)} (${level(u.lo)}–${level(u.hi)})`;
 /** Signed level change. */
 export const dLevel = (x: number) => num(x, 1, true);
 /** Days: 12 d, 3.4 mo, 2.1 yr. */

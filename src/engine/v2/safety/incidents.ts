@@ -388,12 +388,12 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
         inc.status = 'leaked';
         publicPenalty(s, ctx, inc, 3, `cover-up ${inc.id}`);
         ctx.bump('relations.credibility', -15, 'cover-up', inc.id);
-        ctx.log('alert', `Cover-up exposed: incident ${inc.id} leaks.`, 4, inc.id);
+        ctx.log('alert', `Cover-up exposed: the incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} leaks.`, 4, inc.id);
       } else inc.status = 'resolved';
     } else {
       inc.status = 'leaked';
       publicPenalty(s, ctx, inc, 1.5, `leak ${inc.id}`);
-      ctx.log('alert', `Incident ${inc.id} goes public.`, Math.min(5, inc.severity + 1) as 1 | 2 | 3 | 4 | 5, inc.id);
+      ctx.log('alert', `The incident on ${versionById(s, inc.versionId)?.name ?? 'a model'} goes public.`, Math.min(5, inc.severity + 1) as 1 | 2 | 3 | 4 | 5, inc.id);
     }
   }
 }

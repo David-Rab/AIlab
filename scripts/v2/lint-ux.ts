@@ -109,13 +109,13 @@ ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', 
   ok(`Numbers have a tooltip (${total - sites.length}/${total} sites tipped, ${sites.length - bad.length} allow-listed)`, bad.length === 0, bad.slice(0, 10).map((x) => `${x.file}:${x.line} ${x.text}`).join(' | '));
 }
 
-// ── 4. B4: no removed v2 concept in the glossary, the limits registry or the UI's text (model v3 V2b–V4: know-how and
-//    know-how months → recipe; "× frontier"; relative serve cost → FLOP per token and cost per hour of use; revenue per
+// ── 4. B4: no removed v2 concept in the glossary, the limits registry or the UI's text (model v3 V2b–V4: know-how months
+//    → recipe (UB-4: "Know-how" is again the player word for the recipe, VOCAB §3); "× frontier"; relative serve cost → FLOP per token and cost per hour of use; revenue per
 //    H100e × M^0.3; the research-speed cap row; 26% price capture; flat "+0.5 L" feature bonuses). ──
 {
   const REMOVED: [string, RegExp][] = [
     ['serve cost', /\bserve[- ]?cost\b|\bserveCost\b/i], ['M^0.3', /M\s*\^\s*\(?0\.3|M⁰·³/], ['research-speed cap', /research[- ]speed cap|revenue\.speedCap/i],
-    ['price capture', /price capture|captures? 26\s?%|26\s?% of the wage/i], ['flat +0.5 L bonus', /\+0\.5 ?(L|levels?)\b/], ['know-how', /know[- ]how/i],
+    ['price capture', /price capture|captures? 26\s?%|26\s?% of the wage/i], ['flat +0.5 L bonus', /\+0\.5 ?(L|levels?)\b/], ['know-how months', /know[- ]how[- ]months?/i],
     ['× frontier', /×\s?frontier\b/],
   ];
   const hits: string[] = [];

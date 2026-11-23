@@ -57,21 +57,32 @@ export function Limit({ id, children, tone, block }: { id: string; children: Rea
   const body = <span className={`limit ${tone ?? 'quiet'}`} data-limit={id}><Ban size={10} />{children}</span>;
   if (!d) return body;
   return (
-    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Source: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
+    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Designer: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
       {body}
     </Tip>
   );
 }
 
-/** Jank O5: player-facing sources. Internal design documents (V2-SPEC, STRUCTURE, TECH-TREE, design/…) are developer
- *  references, not sources: they are dropped; a design value ([D]) with no research source reads "design choice". */
-const DEV_DOC = /^(design\/|V2-SPEC|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|PROPOSALS|COMPUTE|DESIGN|PLAN|M\d|WS\d|R\d+\b|v2-interfaces)/i;
-export function playerSource(src?: string): string | undefined {
+/** UB-4 (VOCAB DQ-2): no source reaches a player tooltip. Internal design-doc references (MODEL-V3 §5, research/20
+ *  C1, "[D]", "stand-in") show only with the designer overlay on (`?designer` in the URL, or localStorage
+ *  `ai27.designer` = '1'; off by default). Real paper citations appear only on the Codex "Based on" line. */
+export function designerOverlay(): boolean {
+  try {
+    if (typeof location !== 'undefined' && /[?&]designer\b/.test(location.search)) return true;
+    return typeof localStorage !== 'undefined' && localStorage.getItem('ai27.designer') === '1';
+  } catch { return false; }
+}
+/** Internal design documents, audits and notes: never player-facing. */
+const DEV_DOC = /^(design\/|research\/|review\/|V2-SPEC|V3-|MODEL-V3|FINANCE-V3|SAFETY-REDESIGN|SAFETY|RD-|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|UI-IA|PROPOSALS|COMPUTE|DESIGN|PLAN|DECISIONS|SESSION|AUDIT|REVIEW|M\d|WS\d|SR-?\d|R\d+\b|DQ-|OQ-|v2-interfaces|engine|src\/|data\/)/i;
+/** A source string's real citations (papers, official frameworks), with every internal reference dropped. */
+export function paperSources(src?: string): string | undefined {
   if (!src) return undefined;
-  const parts = src.split(';').map((x) => x.trim()).filter(Boolean);
-  const keep = parts.filter((x) => !DEV_DOC.test(x)).map((x) => x.replace(/\s*\[D\]\s*/g, ' ').trim()).filter(Boolean);
-  if (keep.length) return keep.join('; ');
-  return /\[D\]|design value/i.test(src) ? 'design choice' : undefined;
+  const keep = src.split(';').map((x) => x.trim()).filter(Boolean).filter((x) => !DEV_DOC.test(x) && !/stand-in|\[D\]|design value|§/i.test(x));
+  return keep.length ? keep.join('; ') : undefined;
+}
+/** A tooltip footer's source: the raw string with the designer overlay on, nothing otherwise. */
+export function playerSource(src?: string): string | undefined {
+  return src && designerOverlay() ? src : undefined;
 }
 
 // ───────────────────────── glossary ─────────────────────────
@@ -79,7 +90,7 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
   const g = termEntry(id);
   if (!g) return <span data-term={id} data-term-missing="1">{children ?? id}</span>;
   return (
-    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src)}><Rich text={g.body} /></TipCard>}>
+    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src) ? `Designer: ${playerSource(g.src)}` : undefined}><Rich text={g.body} /></TipCard>}>
       <span data-term={id}>{children ?? g.title}</span>
     </Tip>
   );
@@ -88,11 +99,11 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
 export function termEntry(id: string): { title: string; body: string; src?: string } | undefined {
   if (id.startsWith('trait:')) {
     const t = TRAIT_BY_ID[id.slice(6) as keyof typeof TRAIT_BY_ID];
-    return t && { title: t.name, body: `${t.desc} ${t.protective ? 'Protective: higher is better.' : 'A [[traits|hidden trait]]: you see a [[belief]] band, never the truth.'}`, src: `research/04 ${t.r04}` };
+    return t && { title: t.name, body: `${t.desc} ${t.protective ? 'Protective: higher is better.' : 'A [[traits|hidden trait]]: you see your [[belief]] (best guess and range), never the truth.'}`, src: `research/04 ${t.r04}` };
   }
   if (id.startsWith('sig:')) {
     const x = SIGNALS.find((q) => q.id === id.slice(4));
-    return x && { title: `${x.id} ${x.name}`, body:'A [[signal|training signal]]: how strongly your run recipes push this pressure into the model. It feeds the [[traitGraph|trait graph]].' };
+    return x && { title: x.name, body: "A [[signal|training signal]]: how strongly this run pushes the model's tendencies this way." };
   }
   return GLOSSARY_V2[id];
 }
@@ -138,6 +149,10 @@ function amt(c: CostLine): string {
   }
 }
 export function lineText(c: CostLine, sign = true): string {
+  // UB-4 (VOCAB §1): engine units never reach the player. An OOM line reads as a multiplier (+0.12 OOM → ×1.32);
+  // a capability-level line reads in "levels".
+  if (c.unit === 'OOM') { const m = 10 ** c.amount; return `×${m >= 10 ? m.toFixed(0) : m >= 1.995 ? m.toFixed(1) : m.toFixed(m > 0.995 && m < 1.005 ? 3 : 2)}`; }
+  if (c.unit === 'L') c = { ...c, unit: 'levels' };
   const sg = sign ? (c.amount < 0 ? '−' : '+') : '';
   // F6b: '%' sits on its number (+5% research speed). RD-B19: `progress` lines carry a unit (lint-tradeoffs).
   const label = c.unit === '%' ? '%' : c.unit ? ` ${c.unit}` : c.currency === 'cash' ? '' : ` ${CUR_LABEL[c.currency]}`;

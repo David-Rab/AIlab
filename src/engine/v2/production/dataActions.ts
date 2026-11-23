@@ -109,16 +109,16 @@ const SYNTHESIZE: ActionDef = {
     const j = synJobTerms(s, p);
     if (j.days === 0) {
       const cur = s.player.dataPortfolio.synJob;
-      return pv([L('compute', 0, cur ? `the pool goes back to ${j.dflt?.id ?? 'the default teacher'}` : 'no job running', { unit: 'M H100e-days' })], [L('progress', 0, 'stop the generation job', { unit: UNIQUE_T })]);
+      return pv([L('compute', 0, cur ? `data generation goes back to ${j.dflt?.name ?? 'the default teacher'}` : 'no job running', { unit: 'M H100e-days' })], [L('progress', 0, 'stop the generation job', { unit: UNIQUE_T })]);
     }
     const a = synAssetFor(s, j.teacher, j.tokensT);
     const dflt = synAssetFor(s, j.dflt, j.defaultTokensT);
     const d = dataDelta(s, (x) => addAsset(x, a), 'CODE');
     const dD = dataDelta(s, (x) => addAsset(x, dflt), 'CODE');
     return pv(
-      [L('compute', -r2(j.h100eDays / 1e6), `${Math.round(j.share * 100)}% of the synthetic pool for ${j.days} d`, { unit: 'M H100e-days' })],
-      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.id ?? 'the start model'} at q ${a.quality.toFixed(2)} (default ${j.dflt?.id ?? '–'}: ${fmtTok(j.defaultTokensT)} at q ${dflt.quality.toFixed(2)}, unique +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`, { unit: UNIQUE_T })],
-      [L('alignment', 0, `the data carries ${j.teacher?.id ?? 'its teacher'}'s traits into bases trained on it`)],
+      [L('compute', -r2(j.h100eDays / 1e6), `${Math.round(j.share * 100)}% of data generation compute for ${j.days} d`, { unit: 'M H100e-days' })],
+      [L('progress', r2(d.u[1] - d.u[0]), `${fmtTok(j.tokensT)} tokens from ${j.teacher?.name ?? 'the start model'} at quality ${a.quality.toFixed(2)} (default ${j.dflt?.name ?? '–'}: ${fmtTok(j.defaultTokensT)} at quality ${dflt.quality.toFixed(2)}, unique +${(dD.u[1] - dD.u[0]).toFixed(1)}T): ${dataDeltaText(d)}`, { unit: UNIQUE_T })],
+      [L('alignment', 0, `the data carries ${j.teacher?.name ?? 'its teacher'}'s traits into bases trained on it`)],
     );
   },
   apply(s, ctx, p) {
@@ -127,12 +127,12 @@ const SYNTHESIZE: ActionDef = {
     if (j.days === 0) {
       if (!pf.synJob) throw new Error('No generation job running');
       delete pf.synJob;
-      ctx.log('research', 'The synthetic pool goes back to the default teacher.', 1);
+      ctx.log('research', 'Data generation goes back to the default teacher.', 1);
       return;
     }
     if (!j.teacher) throw new Error('No teacher model');
     pf.synJob = { teacherId: j.teacher.id, share: j.share, until: s.time.day + j.days };
-    ctx.log('research', `${Math.round(j.share * 100)}% of the synthetic pool generates data with ${j.teacher.id} for ${j.days} days.`, 1, j.teacher.id);
+    ctx.log('research', `${Math.round(j.share * 100)}% of data generation compute writes data with ${j.teacher.name} for ${j.days} days.`, 1, j.teacher.id);
   },
 };
 

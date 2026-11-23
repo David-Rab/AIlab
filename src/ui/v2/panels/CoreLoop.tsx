@@ -19,6 +19,8 @@ import { customerCount, customerShare, divisionStatus } from '../shell/selectors
 
 type Tone = 'good' | 'watch' | 'bad' | 'neutral';
 const TONE: Record<Tone, string> = { good: C.good, watch: C.watch, bad: C.bad, neutral: C.text3 };
+const LIMITED_BY: Record<string, string> = { 'compute-bound': 'limited by compute', 'labor-bound': 'limited by research engineers', 'human-bound': 'limited by research engineers', 'taste-bound': 'limited by idea quality' };
+const PRODUCT_LIMIT: Record<string, string> = { capacity: 'limited by serving compute', quality: 'limited by quality', price: 'limited by price', demand: 'limited by demand', none: 'no demand' };
 
 interface LoopNode { id: string; n?: number; name: string; term: string; sub: string; icon: typeof ICON.L; to: GoTarget; x: number; y: number; w?: number; store?: boolean }
 const W = 1500;
@@ -28,11 +30,11 @@ const Y0 = 60;
 const NODES: LoopNode[] = [
   { id: 'financing', name: 'Financing', term: 'raiseCeiling', sub: 'raises · debt · deals', icon: ICON.raise, to: { panel: 'finance' }, x: 8, y: Y0 },
   { id: 'cash', name: 'Cash', term: 'cash', sub: 'buys people and compute', icon: ICON.cash, to: { panel: 'finance' }, x: 196, y: Y0, store: true },
-  { id: 'teams', n: 1, name: 'Teams', term: 'team', sub: 'engineers · RE · scientists', icon: ICON.staff, to: { panel: 'company', tab: 'people' }, x: 384, y: Y0 },
-  { id: 'research', n: 2, name: 'Research', term: 'techTree', sub: 'projects · recipe', icon: ICON.research, to: { panel: 'research' }, x: 572, y: Y0 },
-  { id: 'models', n: 3, name: 'Models', term: 'blueprint', sub: 'blueprint → training run', icon: ICON.models, to: { panel: 'models' }, x: 760, y: Y0 },
+  { id: 'teams', n: 1, name: 'Teams', term: 'team', sub: 'engineers · research engineers · scientists', icon: ICON.staff, to: { panel: 'company', tab: 'people' }, x: 384, y: Y0 },
+  { id: 'research', n: 2, name: 'Research', term: 'techTree', sub: 'portfolio · know-how', icon: ICON.research, to: { panel: 'research' }, x: 572, y: Y0 },
+  { id: 'models', n: 3, name: 'Models', term: 'blueprint', sub: 'next run → training', icon: ICON.models, to: { panel: 'models' }, x: 760, y: Y0 },
   { id: 'assurance', n: 4, name: 'Assurance', term: 'sightLimit', sub: 'sight limit', icon: ICON.U, to: { panel: 'safety' }, x: 948, y: Y0 },
-  { id: 'products', n: 5, name: 'Products', term: 'product', sub: 'features · price · safeguards', icon: ICON.product, to: { panel: 'products' }, x: 1136, y: Y0 },
+  { id: 'products', n: 5, name: 'Products', term: 'product', sub: 'tools · price · safeguards', icon: ICON.product, to: { panel: 'products' }, x: 1136, y: Y0 },
   { id: 'customers', n: 6, name: 'Customers', term: 'customerStock', sub: 'share of spend', icon: ICON.staff, to: { panel: 'products' }, x: 1324, y: Y0, w: 168 },
   { id: 'compute', name: 'Compute', term: 'computeOnline', sub: 'H100e online', icon: ICON.compute, to: { panel: 'compute' }, x: 384, y: Y0 + 82, store: true },
 ];
@@ -70,16 +72,16 @@ function readings(s: GameStateV2): Record<string, Reading> {
   };
   const active = p.research.queue.filter((id) => p.teams.some((t) => t.projectId === id)).length;
   const pr = engine.production(s, 'player');
-  out.research = { text: `${active} project${active === 1 ? '' : 's'} active`, tone: active > 0 ? 'good' : 'watch', tip: [{ label: <Term id="rdmult">Research speed</Term>, value: pr ? `AI labour ${F.mult(p.research.last?.x?.mExp ?? 1)} in experiments · ${pr.label}` : '—' }] };
+  out.research = { text: `${active} project${active === 1 ? '' : 's'} active`, tone: active > 0 ? 'good' : 'watch', tip: [{ label: <Term id="rdmult">Research speed</Term>, value: pr ? `total effort ${F.mult(p.research.last?.x?.mExp ?? 1)} in experiments · ${LIMITED_BY[pr.label] ?? pr.label}` : '—' }] };
   const best = bestPlayerVersion(s);
   const running = p.models.runs.filter((r) => r.status === 'running').length;
-  out.models = { text: best ? `${best.name}${running ? ` · ${running} run${running > 1 ? 's' : ''}` : ''}` : 'no model', tone: best ? (running ? 'good' : 'watch') : 'bad', tip: best ? [{ label: 'Best model', value: `${best.name} · L ${F.level(measuredLOf(s, best).L)}` }, { label: 'Runs in progress', value: String(running) }] : [] };
+  out.models = { text: best ? `${best.name}${running ? ` · ${running} run${running > 1 ? 's' : ''}` : ''}` : 'no model', tone: best ? (running ? 'good' : 'watch') : 'bad', tip: best ? [{ label: 'Best model', value: `${best.name} · level ${F.level(measuredLOf(s, best).L)}` }, { label: 'Runs in progress', value: String(running) }] : [] };
   const u = engine.sightLimit(s);
-  out.assurance = { text: u.none ? 'sight limit none' : `sight limit L ${F.level(u.L)}`, tone: u.gap >= 0.3 ? 'good' : u.gap >= 0 ? 'watch' : 'bad', tip: [{ label: <Term id="sightLimit">Sight limit</Term>, value: `${F.sight(u)} · ${F.num(u.gap, 1, true)} vs capability` }] };
+  out.assurance = { text: u.none ? 'sight limit none' : `sight limit ${F.num(u.gap, 1, true)} levels`, tone: u.gap >= 0.3 ? 'good' : u.gap >= 0 ? 'watch' : 'bad', tip: [{ label: <Term id="sightLimit">Sight limit</Term>, value: `${F.sight(u)} · ${u.gap >= 0 ? `${F.num(u.gap, 1)} levels past` : `${F.num(-u.gap, 1)} levels short of`} your best model` }] };
   const rd = productReadouts(s);
   const live = p.deployments.filter((d) => d.status === 'live' && rd.has(d.id));
   const capBound = live.filter((d) => rd.get(d.id)!.bound === 'capacity').length;
-  out.products = { text: `${live.length} live${capBound ? ` · ${capBound} capacity-bound` : ''}`, tone: !live.length ? 'bad' : capBound ? 'watch' : 'good', tip: live.map((d) => ({ label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: rd.get(d.id)!.bound })) };
+  out.products = { text: `${live.length} live${capBound ? ` · ${capBound} short of serving compute` : ''}`, tone: !live.length ? 'bad' : capBound ? 'watch' : 'good', tip: live.map((d) => ({ label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: PRODUCT_LIMIT[rd.get(d.id)!.bound] ?? rd.get(d.id)!.bound })) };
   const shares = live.map((d) => rd.get(d.id)!.share);
   const top = shares.length ? Math.max(...shares) : 0;
   const behind = live.filter((d) => { const r = rd.get(d.id)!; return !!r.rival && r.rival.share > r.share; }).length;
@@ -88,8 +90,8 @@ function readings(s: GameStateV2): Record<string, Reading> {
     tip: live.map((d) => { const r = rd.get(d.id)!; return { label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, value: [customerCount(r), customerShare(r), r.rival ? `best rival ${r.rival.name} ${F.pct(r.rival.share, 1)}` : ''].filter(Boolean).join(' · ') }; }),
   };
   const ic = idleChips(s);
-  out.compute = { text: ic > 1 ? `${F.count(ic)} chips idle` : 'all chips powered', tone: ic > 1 ? 'watch' : 'good', tip: [{ label: <Term id="computeOnline">Online</Term>, value: `${F.count(p.computeOnline)} H100e` }] };
-  out.takeoff = { text: `AI share: engineers ${F.pct(ai.eng)} · research eng. ${F.pct(ai.re)} · scientists ${F.pct(ai.sci)}`, tone: 'neutral' };
+  out.compute = { text: ic > 1 ? `${F.count(ic)} chips unracked` : 'all chips powered', tone: ic > 1 ? 'watch' : 'good', tip: [{ label: <Term id="computeOnline">Online</Term>, value: `${F.count(p.computeOnline)} H100e` }] };
+  out.takeoff = { text: `AI share: engineers ${F.pct(ai.eng)} · research engineers ${F.pct(ai.re)} · scientists ${F.pct(ai.sci)}`, tone: 'neutral' };
   return out;
 }
 
@@ -115,7 +117,7 @@ export function CoreLoop({ s, live }: { s: GameStateV2; live: boolean }) {
       <text x={(BY.cash.x + BY.customers.x) / 2 + 80} y={10} textAnchor="middle" className="cl-edge">customers pay</text>
       {/* takeoff loop: models → teams (dotted) */}
       <Edge dashed color={C.cap} d={`M${BY.models.x + 40},${Y0} C${BY.models.x + 20},${Y0 - 40} ${BY.teams.x + 110},${Y0 - 40} ${BY.teams.x + 100},${Y0 - 3}`} />
-      <text x={(BY.teams.x + BY.models.x) / 2 + 70} y={Y0 - 34} textAnchor="middle" className="cl-edge takeoff">takeoff loop: internal agents do more of the teams' work{rd ? ` · ${rd.takeoff.text}` : ''}</text>
+      <text x={(BY.teams.x + BY.models.x) / 2 + 70} y={Y0 - 34} textAnchor="middle" className="cl-edge takeoff">takeoff loop: AI staff do more of the teams' work{rd ? ` · ${rd.takeoff.text}` : ''}</text>
       {/* cash → compute; compute → research, models, products */}
       <Edge d={`M${BY.cash.x + 79},${Y0 + NH} L${BY.cash.x + 79},${MY('compute')} L${L('compute') - 3},${MY('compute')}`} />
       {(['research', 'models', 'products'] as const).map((id) => <Edge key={id} d={`M${R('compute')},${MY('compute')} L${BY[id].x + 60},${MY('compute')} L${BY[id].x + 60},${Y0 + NH + 3}`} />)}

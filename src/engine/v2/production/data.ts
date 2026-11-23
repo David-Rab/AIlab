@@ -481,10 +481,11 @@ export function dataDelta(s: GameStateV2, change: (p: DataPortfolio) => void, do
 }
 /** One line of text for a preview: "U 310.0 → 317.5T · PHYS 4.6% → 6.8% of the stock (s +0.00 → +0.25 OOM) · base epochs 0.16 → 0.16 ·
  *  data quality +0.000 → +0.004 OOM". */
+/** A data preview's before → after in player words (UB-4: domain names, re-reads, quality as ×; no OOM, no codes). */
+const DELTA_DOMAIN: Record<string, string> = { CODE: 'code', RSCH: 'AI research', REASON: 'math & reasoning', AGENCY: 'long tasks', SOCIAL: 'social & general text', MEDIA: 'media', CYBER: 'cyber', BIO: 'bio', PHYS: 'physical' };
 export function dataDeltaText(d: DataDelta): string {
   const f1 = (x: number) => (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2));
   const pc = (x: number) => `${(100 * x).toFixed(1)}%`;
-  const sg = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
-  const sg3 = (x: number) => `${x >= -5e-4 ? '+' : ''}${(Math.abs(x) < 5e-4 ? 0 : x).toFixed(3)}`;
-  return `unique tokens ${f1(d.u[0])} → ${f1(d.u[1])}T · ${d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock (s ${sg(d.s[0])} → ${sg(d.s[1])} OOM) · base epochs ${d.epochs[0].toFixed(2)} → ${d.epochs[1].toFixed(2)} · data quality ${sg3(d.qG[0])} → ${sg3(d.qG[1])} OOM`;
+  const mx = (oom: number) => `×${(10 ** oom).toFixed(3)}`;
+  return `unique tokens ${f1(d.u[0])} → ${f1(d.u[1])}T · ${DELTA_DOMAIN[d.domain] ?? d.domain} ${pc(d.share[0])} → ${pc(d.share[1])} of the stock · a new base re-reads its data ×${d.epochs[0].toFixed(2)} → ×${d.epochs[1].toFixed(2)} · data quality ${mx(d.qG[0])} → ${mx(d.qG[1])}`;
 }

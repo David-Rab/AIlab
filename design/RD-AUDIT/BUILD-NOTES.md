@@ -5449,3 +5449,24 @@ careful bots that leave holds standing now keep researching).
   6.9–9.7 (below their job medians: the work AI is worst at).
 - **Check:** domainref.ts row per world (V0 below every median, CODE best = 10 = the SC model's CODE, a test or stand-in
   per skill) passes in 4 worlds; tsc app and scripts/v2 clean.
+### UB-4 (vocabulary pass, VOCAB.md; branch ub4-vocab from rd bfa46a9)
+
+**Citation leak.** `playerSource` (src/ui/v2/ui.tsx) now returns nothing unless the designer overlay is on
+(`designerOverlay()`: `?designer` in the URL or localStorage `ai27.designer` = '1'; off by default). Glossary and limit
+tooltips show "Designer: <raw src>" only with the overlay. Codex: "Based on:" line from `paperSources()` (internal doc
+refs, `§` refs, [D] and stand-in dropped); [D] chips, limit "Enforced in", agenda Goodhart / half-strength rows and the
+trait-edge category are designer-only; Codex titles lose their code ids.
+
+**Words.** Glossary rewritten to VOCAB titles and player bodies (~640 lines; ids kept; GLOSSARY.md regenerated with
+lint-ux --doc). Panels: LAB/RESEARCH 14 files, TRAINING/MODELS 10, SAFETY + Products 7. Engine: player strings only
+(action titles, previews, log lines, view labels) in 19 engine files plus STACK_LABEL (DQ-1 names), AI-staff job names,
+SPLIT labels, SIGNALS names (one set). CostLine: an OOM line reads as ×, an "L" line as "levels" (ui.tsx lineText).
+lint-ux B4 now bans "know-how months", not "know-how" (VOCAB reinstates Know-how). Logic unchanged.
+
+**Check.** tsc app + scripts/v2 clean; build ok. lint-ux: 1 fail, pre-existing (untipped numbers 10 → 6 sites);
+lint-hidden ok; lint-tradeoffs ok; lint-structure 1 pre-existing (safReAlloc title 5 words). test:quick: 16 jobs fail,
+the same FAIL lines as bfa46a9 job by job (fixtures stale on bfa46a9 too). test:ui not run.
+
+**Left.** Code identifiers only (domain-code keys, S-ids in switch cases, icon maps). Not R&D: WorldSectors (θ, OOM
+fit), EndScreen λ, finance glossary `sectorValue` κ formula. Engine OOM CostLines still carry OOM amounts (shown as ×);
+an honest "+x levels in Code" ghost needs the UB-2 readouts.

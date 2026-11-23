@@ -10,6 +10,7 @@ import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS, TRAIT_MEANING } from '../../../data/v2/traits';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
@@ -35,12 +36,12 @@ const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, int
 /** SR-18: short button labels; which responses an incident offers comes from its believed cause (responseOptions). */
 const RESPONSE_LABEL: Record<ResponseKind, string> = {
   patchSignal: 'Harden environments', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
-  addControl: 'Add control', removeControl: 'Remove control', addLockdown: 'Comms lockdown', removeLockdown: 'Lift lockdown', rollback: 'Roll back', removeFoothold: 'Remove foothold',
+  addControl: 'Add control protocol', removeControl: 'Remove control protocol', addLockdown: 'Comms lockdown', removeLockdown: 'Lift lockdown', rollback: 'Roll back', removeFoothold: 'Remove foothold',
 };
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
-  TECH: { icon: Wrench, label: 'Tool', tone: 'good' }, EVAL: { icon: Ruler, label: 'Eval', tone: 'good' }, DISC: { icon: Telescope, label: 'Discovery', tone: 'warn' },
-  DEAD: { icon: Ban, label: 'Dead end', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
-  FALSE: { icon: Wrench, label: 'Tool', tone: 'good' },
+  TECH: { icon: Wrench, label: 'Instrument', tone: 'good' }, EVAL: { icon: Ruler, label: 'Eval', tone: 'good' }, DISC: { icon: Telescope, label: 'Discovery', tone: 'warn' },
+  DEAD: { icon: Ban, label: 'Failed', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
+  FALSE: { icon: Wrench, label: 'Instrument', tone: 'good' },
 };
 const HEALTH_TONE: Record<string, string> = { Promising: 'good', Mixed: 'warn', Struggling: 'bad' };
 const tname = (t: string) => TRAIT_BY_ID[t as TraitId]?.name ?? F.words(t);
@@ -57,7 +58,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
   const lineBadge = (lb.promisingIdle.length || lb.deadEndTM >= 0.5) ? (
     <span className="sf-tbadges">
       {lb.promisingIdle.length > 0 && <span className="sf-tb warn" data-test="badge-idle">{lb.promisingIdle.length} idle</span>}
-      {lb.deadEndTM >= 0.5 && <span className="sf-tb" data-test="badge-dead">{F.num(lb.deadEndTM, 0)} team-mo lost</span>}
+      {lb.deadEndTM >= 0.5 && <span className="sf-tb" data-test="badge-dead">{F.num(lb.deadEndTM * 4.3, 0)} team-weeks lost</span>}
     </span>
   ) : undefined;
   return (
@@ -66,7 +67,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
         icon={ICON.safety}
         title="Safety"
         tabs={<Tabs panel="safety" def="overview" tabs={[
-          { id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'lines', label: 'Research lines', icon: ListChecks, badge: lineBadge },
+          { id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'lines', label: 'Programmes', icon: ListChecks, badge: lineBadge },
           { id: 'cases', label: 'Cases', icon: ICON.incident, badge: openCases + openInc || undefined }, { id: 'graph', label: 'Trait graph', icon: Waypoints },
           { id: 'footholds', label: 'Footholds', icon: ICON.foothold, badge: fv.suspected + fv.located || undefined },
         ]} />}
@@ -109,7 +110,7 @@ function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
 const sideTab = () => (store.tab['safety.side'] === 'successor' ? 'successor' : 'families');
 function SideSwitch() {
   const cur = sideTab();
-  const opts = [{ id: 'families', label: 'Risk families', term: 'riskFamily' }, { id: 'successor', label: 'Successor pull', term: 'successorPull' }] as const;
+  const opts = [{ id: 'families', label: 'Risk families', term: 'riskFamily' }, { id: 'successor', label: 'Successor steering', term: 'successorPull' }] as const;
   return (
     <div className="sf-side-tabs" role="tablist" data-test="sf-side-tabs">
       {opts.map((o) => <button key={o.id} role="tab" aria-selected={cur === o.id} className={`sf-side-tab ${cur === o.id ? 'on' : ''}`} data-test={`sf-side.${o.id}`} onClick={() => store.setTab('safety.side', o.id)}>{o.label}</button>)}
@@ -150,7 +151,7 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
   const tone = m < 0 ? 'bad' : m < 0.5 || fams.some((f) => f.unseen) ? 'warn' : 'good';
   // Jank S1: the verdict counts what the tools cannot see.
   const unseen = fams.filter((f) => f.unseen);
-  const title = m < 0 ? 'Model past your sight limit' : m < 0.5 ? 'Sight limit barely above the model' : unseen.length ? `Sight limit above the model, but ${unseen.length} of ${fams.length} risk families unseen` : 'Sight limit above the model';
+  const title = m < 0 ? 'Model past your sight limit' : m < 0.5 ? 'Sight limit barely above the model' : unseen.length ? `Sight limit above the model, but ${unseen.length} of ${fams.length} risk families unknown` : 'Sight limit above the model';
   const widening = up.capPerMo > 0.02;
   const unval = up.notOnCurrent > 0 && !up.jobs.length;
   const sub = [`Sight limit ${F.sight(sl)}`, m < 0 ? `${F.num(-m, 1)} levels past it` : `${F.num(m, 1)} levels above the model`, widening ? 'gap widening' : 'holding',
@@ -161,12 +162,12 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
   if (weak && weakRead < 0.6) {
     chains.push([
       { label: <>{weak.label} {weakRead < 0.5 ? 'unread' : 'barely read'}</>, icon: FAM_ICON[weak.id], kind: 'bad', to: { panel: 'safety', tab: 'overview' } },
-      cand ? { label: cand.name, icon: ICON.research, kind: 'root', tip: () => <TipCard title={cand.name} value={cand.active ? 'in progress' : 'not started'}>A detection idea that covers {weak.label.toLowerCase()}. Its odds are the research line's estimate.</TipCard> }
-        : { label: 'Research lines', icon: ListChecks, kind: 'root', to: { panel: 'safety', tab: 'lines' } },
+      cand ? { label: cand.name, icon: ICON.research, kind: 'root', tip: () => <TipCard title={cand.name} value={cand.active ? 'in progress' : 'not started'}>An instrument project that reads {weak.label.toLowerCase()}. Its chance it works is the programme's estimate.</TipCard> }
+        : { label: 'Safety programmes', icon: ListChecks, kind: 'root', to: { panel: 'safety', tab: 'lines' } },
     ]);
   }
-  if (unval) chains.push([{ label: 'Instruments not validated', icon: ICON.revalidate, kind: 'bad' }, { label: 'Validation jobs', icon: ICON.roleRE, kind: 'root' }]);
-  else if (!sv.lines.some((l) => l.teams.length)) chains.push([{ label: 'No line staffed', icon: ListChecks, kind: 'bad' }, { label: 'Research lines', icon: ICON.roleSci, kind: 'root', to: { panel: 'safety', tab: 'lines' } }]);
+  if (unval) chains.push([{ label: 'Instruments not validated', icon: ICON.revalidate, kind: 'bad' }, { label: 'Validate', icon: ICON.roleRE, kind: 'root' }]);
+  else if (!sv.lines.some((l) => l.teams.length)) chains.push([{ label: 'No programme staffed', icon: ListChecks, kind: 'bad' }, { label: 'Safety programmes', icon: ICON.roleSci, kind: 'root', to: { panel: 'safety', tab: 'lines' } }]);
   return (
     <div className={`sf-verdict ${tone}`} data-home="safetyVerdict" data-test="verdict">
       {m < 0 ? <ICON.blind size={22} /> : <Eye size={22} />}
@@ -174,7 +175,7 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
         <b>{title}</b>
         <Tip content={() => <TipCard title={<Term id="sightLimit">Sight limit vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
           { label: 'Capability (measured)', value: F.level(up.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: F.sight(sl) },
-          { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} L` }, { label: <Term id="validation">Validation jobs queued</Term>, value: F.count(up.jobs.length) },
+          { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} levels` }, { label: <Term id="validation">Validations queued</Term>, value: F.count(up.jobs.length) },
         ]}>Positive: your instruments read the model past its level. Instruments lose reliability as the model outgrows the one they were validated on; research raises it, validation measures it.</TipCard>}><span className="small">{sub}</span></Tip>
       </div>
       <span className="sp" />
@@ -289,7 +290,7 @@ function UTip({ s, sv, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: 
   return (
     <TipCard title={<><Term id="sightLimit">Sight limit</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={F.sight(sv.sightLimit)} rows={[
       { label: <>capability {F.num(up.capPerMo, 2, true)}/mo</>, value: up.notOnCurrent ? `${up.notOnCurrent} not validated on ${up.model ?? 'the model'}` : 'all validated on the model', tone: up.notOnCurrent ? 'neg' : 'pos' },
-      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `${sv.sightLimit.none ? 'none' : `L ${F.num(sv.sightLimit.L, 1)}`} → L ${F.num(ifU, 1)}` }] : []),
+      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `${sv.sightLimit.none ? 'none' : `level ${F.num(sv.sightLimit.L, 1)}`} → level ${F.num(ifU, 1)}` }] : []),
     ]}>The highest level at which your instruments together still read the hidden-goal traits at 50% or better; the range is what your uncertainty about each instrument allows. From what you believe, not the truth.</TipCard>
   );
 }
@@ -300,7 +301,9 @@ const famCol = (est: number) => riskColor(est, 'level');
 /** Traits outside the four families: situational awareness (an awareness) and the protective traits. */
 const OTHER_TRAITS: TraitId[] = TRAIT_IDS.filter((t) => !RISK_FAMILIES.some((f) => f.traits.includes(t)));
 
-/** One trait one level below its family: icon, name, what its number means, believed estimate with its 90% band. */
+/** A belief as a best guess with its range (VOCAB §1): "12% (4–20%)". */
+const guess = (est: number, sd: number) => `${F.pct(est)} (${F.pct(Math.max(0, est - 1.64 * sd))}–${F.pct(Math.min(1, est + 1.64 * sd))})`;
+/** One trait one level below its family: icon, name, what its number means, best guess with its range. */
 function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) {
   const b = v?.beliefs[t];
   const est = b?.est ?? 0;
@@ -311,10 +314,9 @@ function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) 
   const Ic = TRAIT_ICON[t];
   const prot = meaning === 'protective';
   return (
-    <Tip as="div" content={() => <TipCard title={<Term id={`trait:${t}`}>{tname(t)}</Term>} value={`${F.num(est, 2)} ± ${F.num(sd, 2)}`} rows={[
+    <Tip as="div" content={() => <TipCard title={<Term id={`trait:${t}`}>{tname(t)}</Term>} value={hi - lo > 0.3 ? 'Unknown' : guess(est, sd)} rows={[
       { label: <Term id={MEANING_TERM[meaning]}>Kind</Term>, value: meaning },
-      { label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` },
-      { label: <Term id="clarity">Clarity</Term>, value: F.pct(b?.clarity ?? 0) },
+      { label: <Term id="clarity">Range</Term>, value: `${F.pct(lo)}–${F.pct(hi)}${hi - lo > 0.3 ? ' (Unknown: over 30 pts)' : ''}` },
     ]} footer="Your belief, not the truth.">{TRAIT_BY_ID[t].desc}{prot ? ' Higher is better.' : ''}</TipCard>}>
       <div className="sf-trait" data-trait={t}>
         {Ic ? <Ic size={13} /> : <span />}
@@ -324,7 +326,7 @@ function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) 
           <span className="sf-fam-band" style={{ left: `${(Math.min(FAM_MAX, lo) / FAM_MAX) * 100}%`, width: `${(Math.min(FAM_MAX, hi) - Math.min(FAM_MAX, lo)) / FAM_MAX * 100}%`, background: prot ? C.neutral : famCol(est), opacity: (b?.clarity ?? 0) < 0.3 ? 0.35 : 0.55 }} />
           <span className="sf-fam-est" style={{ left: `${(Math.min(FAM_MAX, est) / FAM_MAX) * 100}%` }} />
         </span>
-        <span className="num small">{F.num(est, 2)} <span className="dim">±{F.num(sd, 2)}</span></span>
+        <span className="num small">{F.pct(est)} <span className="dim">({F.pct(lo)}–{F.pct(hi)})</span></span>
       </div>
     </Tip>
   );
@@ -344,7 +346,7 @@ function Families({ s }: { s: GameStateV2 }) {
           {vs.map((v) => <button key={v.id} className={`sf-vt ${sel?.id === v.id ? 'on' : ''}`} data-test={`fam-v.${v.id}`} onClick={() => store.select({ versionId: v.id })}>{v.name}{v.id === iv?.id ? <span className="dim"> internal</span> : null}</button>)}
         </span>
       )}>
-      <div className="sf-fam-axis small dim"><span /><span className="sf-fam-scale"><i style={{ left: '0%' }}>0</i><i style={{ left: `${(0.25 / max) * 100}%` }}>0.25</i><i style={{ left: `${(0.5 / max) * 100}%` }}>0.5</i></span><span>est. ± band</span><span /></div>
+      <div className="sf-fam-axis small dim"><span /><span className="sf-fam-scale"><i style={{ left: '0%' }}>0%</i><i style={{ left: `${(0.25 / max) * 100}%` }}>25%</i><i style={{ left: `${(0.5 / max) * 100}%` }}>50%</i></span><span>best guess (range)</span><span /></div>
       {fams.map((f) => {
         const Ic = FAM_ICON[f.id];
         const st = f.investigating ? 'inv' : f.unseen ? 'unseen' : 'seen';
@@ -353,10 +355,10 @@ function Families({ s }: { s: GameStateV2 }) {
         return (
           <div key={f.id} className={`sf-fam-grp ${isOpen ? 'open' : ''}`}>
             <Tip as="div" content={() => (
-              <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={`${F.num(f.est, 2)} ± ${F.num(f.sd, 2)}`} rows={[
+              <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={st === 'unseen' ? 'Unknown' : guess(f.est, f.sd)} rows={[
                 { label: 'Highest trait', value: tname(f.worst) },
-                { label: <Term id="clarity">Mean clarity</Term>, value: F.pct(f.clarity), tone: f.unseen ? 'neg' : 'neutral' },
-              ]} footer="Click for its traits.">{st === 'unseen' ? 'Your evidence on this family is thin (clarity under 30%): the estimate may be far off.' : st === 'inv' ? 'A case is open on it.' : 'Your tools read it.'} The bar shows the highest trait estimate and its 90% band.</TipCard>
+                { label: <Term id="clarity">Range</Term>, value: `${F.pct(f.lo)}–${F.pct(f.hi)}`, tone: f.unseen ? 'neg' : 'neutral' },
+              ]} footer="Click for its traits.">{st === 'unseen' ? 'Unknown: your evidence on this family is thin, so the best guess may be far off.' : st === 'inv' ? 'A case is open on it.' : 'Your instruments read it.'} The bar shows the highest trait&apos;s best guess and its range.</TipCard>
             )}>
               <div className="sf-fam-row" data-family={f.id} data-state={st} data-test={`fam-open.${f.id}`} onClick={() => setOpen(isOpen ? undefined : f.id)}>
                 <Ic size={18} />
@@ -365,7 +367,7 @@ function Families({ s }: { s: GameStateV2 }) {
                   <span className="sf-fam-band" style={{ left: `${(f.lo / max) * 100}%`, width: `${(Math.min(max, f.hi) - Math.min(max, f.lo)) / max * 100}%`, background: col, opacity: st === 'unseen' ? 0.35 : 0.55 }} />
                   <span className="sf-fam-est" style={{ left: `${(Math.min(max, f.est) / max) * 100}%` }} />
                 </span>
-                <span className="num">{F.num(f.est, 2)} <span className="dim small">±{F.num(f.sd, 2)}</span></span>
+                <span className="num">{F.pct(f.est)} <span className="dim small">({F.pct(f.lo)}–{F.pct(f.hi)})</span></span>
                 <span className={`sf-st ${st}`}>{st === 'inv' ? <ICON.investigate size={14} /> : st === 'unseen' ? <ICON.blind size={14} /> : <Eye size={14} />}</span>
               </div>
             </Tip>
@@ -379,12 +381,12 @@ function Families({ s }: { s: GameStateV2 }) {
         </button>
         {open === 'other' && <div className="sf-traits" data-test="fam-traits.other">{OTHER_TRAITS.map((t) => <TraitRow key={t} v={sel} t={t} />)}</div>}
       </div>
-      <div className="sf-fam-leg small dim"><span className="row-i"><Eye size={11} /> tools see it</span><span className="row-i"><ICON.blind size={11} /> unseen (thin evidence)</span><span className="row-i"><ICON.investigate size={11} /> under investigation</span></div>
+      <div className="sf-fam-leg small dim"><span className="row-i"><Eye size={11} /> instruments read it</span><span className="row-i"><ICON.blind size={11} /> Unknown (thin evidence)</span><span className="row-i"><ICON.investigate size={11} /> case open</span></div>
     </Card>
   );
 }
 
-const SLOT_LABEL: Record<string, string> = { SWE: 'Software', EXP: 'Experiments', IDEAS: 'Research ideas' };
+const SLOT_LABEL: Record<string, string> = { SWE: 'Engineering', EXP: 'Experiments', IDEAS: 'Ideas' };
 const SLOT_ICON: Record<string, LucideIcon> = { SWE: ICON.roleEng, EXP: ICON.roleRE, IDEAS: ICON.roleSci };
 /** Successor pull (model v3 E4/E12, home `successorPull`): how far the next model's dispositions move toward the models
  *  doing your R&D. Believed: κ from your estimate of each model's successor steering, oversight from believed tools. */
@@ -396,42 +398,42 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
   const tone = riskClass(sp.omega, 'pull');
   const agents = { panel: 'company', tab: 'people', anchor: 'agents' };
   return (
-    <Card title={<Term id="successorPull">Successor pull</Term>} home="successorPull" id="ctl-successorPull" className="sf-succ"
-      right={<Tip content={() => <TipCard title={<Term id="successorPull">Successor pull ω</Term>} value={F.num(sp.omega, 3)} rows={[
-        { label: '90% band (successor-steering belief)', value: `${F.num(sp.omegaBand[0], 2)}–${F.num(sp.omegaBand[1], 2)}` },
+    <Card title={<Term id="successorPull">Successor steering</Term>} home="successorPull" id="ctl-successorPull" className="sf-succ"
+      right={<Tip content={() => <TipCard title={<Term id="successorPull">Successor steering</Term>} value={`${F.pct(sp.omega, 1)} pull`} rows={[
+        { label: 'Range', value: `${F.pct(sp.omegaBand[0], 1)}–${F.pct(sp.omegaBand[1], 1)}` },
         { label: <Term id="aiRdShare">AI share of R&amp;D</Term>, value: F.pct(sp.r) },
-        { label: <>Not caught by <Term id="rdOversight">oversight</Term></>, value: F.pct(unwatched) },
-        { label: 'κ (pull per unit)', value: F.num(kappa, 2) },
-      ]} footer="Estimated from your beliefs; the true pull can differ.">The next run's new model starts this far along the way from its own dispositions to its makers'.</TipCard>}>
-        <span className={`num big ${tone}`} data-test="succ-omega">ω {F.num(sp.omega, 2)}</span>
+        { label: <>Not stopped by <Term id="rdOversight">safeguards</Term></>, value: F.pct(unwatched) },
+        { label: 'How hard it steers', value: F.pct(kappa) },
+      ]} footer="Estimated from your beliefs; the true pull can differ.">The next run&apos;s new model starts this far along the way from its own traits to its makers&apos;.</TipCard>}>
+        <span className={`num big ${tone}`} data-test="succ-omega">{F.pct(sp.omega, 1)} pull</span>
       </Tip>}>
       <div className="sf-succ-eq small" data-test="succ-eq">
-        <Tip content={() => <TipCard title={<Term id="aiRdShare">AI share of R&amp;D</Term>} value={F.pct(sp.r)}>Share of the lab's software, experiment and research-idea labour done by AI agents.</TipCard>}><span><b className="num" data-test="succ-r">{F.pct(sp.r)}</b> AI share of R&amp;D</span></Tip>
+        <Tip content={() => <TipCard title={<Term id="aiRdShare">AI share of R&amp;D</Term>} value={F.pct(sp.r)}>Share of the lab&apos;s engineering, experiment and idea work done by AI staff.</TipCard>}><span><b className="num" data-test="succ-r">{F.pct(sp.r)}</b> AI share of R&amp;D</span></Tip>
         <span className="dim">×</span>
-        <Tip content={() => <TipCard title={<Term id="rdOversight">Not caught</Term>} value={F.pct(unwatched)} rows={sp.parts.map((x) => ({ label: SLOT_LABEL[x.slot], value: `blocked ${F.pct(x.block)} · caught ${F.pct(x.caught)}` }))}>Share of the AI R&amp;D work no containment blocks and no monitor or human review catches.</TipCard>}><span><b className="num" data-test="succ-unwatched">{F.pct(unwatched)}</b> unwatched</span></Tip>
+        <Tip content={() => <TipCard title={<Term id="rdOversight">Not stopped</Term>} value={F.pct(unwatched)} rows={sp.parts.map((x) => ({ label: SLOT_LABEL[x.slot], value: `blocked ${F.pct(x.block)} · caught ${F.pct(x.caught)}` }))}>Share of the AI R&amp;D work no containment blocks and no monitor or human review catches.</TipCard>}><span><b className="num" data-test="succ-unwatched">{F.pct(unwatched)}</b> unwatched</span></Tip>
         <span className="dim">×</span>
-        <Tip content={() => <TipCard title="κ" value={F.num(kappa, 2)}>0.4 for a model with no wish to steer its successor, up to 1 for one that fully wants to (from your successor-steering estimate).</TipCard>}><span>κ <b className="num">{F.num(kappa, 2)}</b></span></Tip>
+        <Tip content={() => <TipCard title="How hard it steers" value={F.pct(kappa)}>40% for a model with no wish to steer its successor, up to 100% for one that fully wants to (from your successor-steering belief).</TipCard>}><span>steers <b className="num">{F.pct(kappa)}</b></span></Tip>
       </div>
-      {sp.parts.length > 0 && <div className="sf-succ-hd"><span /><span /><span /><span>share</span><span><Term id="rdOversight">oversight</Term></span><span>ω</span></div>}
+      {sp.parts.length > 0 && <div className="sf-succ-hd"><span /><span /><span /><span>share</span><span><Term id="rdOversight">stop rate</Term></span><span>pull</span></div>}
       {sp.parts.map((x) => {
         const I = SLOT_ICON[x.slot];
         const v = versionById(s, x.versionId);
         return (
-          <Tip key={x.slot} as="div" content={() => <TipCard title={<>{v?.name ?? x.versionId} on {SLOT_LABEL[x.slot].toLowerCase()}</>} value={`ω ${F.num(x.omega, 3)}`} rows={[
+          <Tip key={x.slot} as="div" content={() => <TipCard title={<>{v?.name ?? x.versionId} on {SLOT_LABEL[x.slot].toLowerCase()}</>} value={`${F.pct(x.omega, 1)} pull`} rows={[
             { label: <Term id="aiRdShare">Share of the lab's R&amp;D</Term>, value: F.pct(x.share, 1) },
-            { label: <Term id="rdOversight">Oversight</Term>, value: F.pct(x.oversight) },
-            { label: 'blocked (control layer)', value: F.pct(x.block) }, { label: 'caught (monitors, human review, control)', value: F.pct(x.caught) },
+            { label: <Term id="rdOversight">Stop rate</Term>, value: F.pct(x.oversight) },
+            { label: 'blocked (control protocols)', value: F.pct(x.block) }, { label: 'caught (monitors, human review, control protocols)', value: F.pct(x.caught) },
             { label: 'human review on this model', value: F.pct(x.human) },
             ...(x.controlMiss < 1 ? [{ label: 'control protocols: misses', value: `×${F.num(x.controlMiss, 2)}` }] : []),
-            { label: <Term id="trait:SUCC">Successor steering</Term>, value: `${F.num(x.succ.est, 2)} ± ${F.num(x.succ.sd, 2)}` },
-            { label: 'κ', value: `${F.num(x.kappa, 2)} (${F.num(x.kappaBand[0], 2)}–${F.num(x.kappaBand[1], 2)})` },
-          ]}>ω = κ × share × (1 − oversight).</TipCard>}>
+            { label: <Term id="trait:SUCC">Successor steering</Term>, value: guess(x.succ.est, x.succ.sd) },
+            { label: 'How hard it steers', value: `${F.pct(x.kappa)} (${F.pct(x.kappaBand[0])}–${F.pct(x.kappaBand[1])})` },
+          ]}>Pull: how hard it steers, times its share of your R&amp;D, times the part your safeguards do not stop.</TipCard>}>
             <div className="sf-succ-row" data-slot={x.slot} data-test="succ-part">
               <I size={13} /><span className="ellip">{SLOT_LABEL[x.slot]} <span className="dim">· {v?.name ?? x.versionId}</span></span>
               <HBar v={x.omega} max={Math.max(0.05, sp.omega)} w={60} color={C.watch} />
               <span className="num small" data-test="succ-part-share">{F.pct(x.share)}</span>
               <span className="num small dim">{F.pct(x.oversight)}</span>
-              <span className="num small" data-test="succ-part-omega">{F.num(x.omega, 2)}</span>
+              <span className="num small" data-test="succ-part-omega">{F.pct(x.omega, 1)}</span>
             </div>
           </Tip>
         );
@@ -439,7 +441,7 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
       {!sp.parts.length && <div className="small dim">No AI model does your R&amp;D: nothing pulls the next model.</div>}
       <div className="sf-succ-foot small"><span className="dim">Lower it:</span>
         <Ref id="agentMonitor" to={agents}>Monitors</Ref><Ref id="aiRdShare" to={agents}>Less AI R&amp;D</Ref>
-        <Tip content={() => <TipCard title="Cleaner models">Put models with lower believed dispositions on R&amp;D, or train them down: κ and the dispositions passed on fall.</TipCard>}><span className="dim">cleaner models</span></Tip>
+        <Tip content={() => <TipCard title="Cleaner models">Put models with lower believed traits on R&amp;D, or train them down: the pull and the traits passed on fall.</TipCard>}><span className="dim">cleaner models</span></Tip>
       </div>
     </Card>
   );
@@ -461,7 +463,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `top of belief range > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new version waits for its capability assessment: its eval suite&apos;s work at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} held` : 'nothing held'}</span></Tip></span>
+        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `top of belief range > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new model waits for its evals at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} on hold` : 'no hold'}</span></Tip></span>
         <span className="sp" />
         <Ref id="evalPolicy" to={{ panel: 'models', tab: 'evals' }}>Evals</Ref>
         {on && <span className={`sf-mini ${fw.externalReview ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.external" params={{ external: !fw.externalReview }} label="external" /></span>}
@@ -469,31 +471,31 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
       </div>
       {fw.holds.map((h) => (
         <div className="sf-prow" key={`${h.ruleId}-${h.versionId}-${h.depId ?? 't'}`} data-test="framework-hold">
-          <span className="small"><b>{fw.rules.find((r) => r.id === h.ruleId)?.label ?? h.ruleId}</b>: {h.target === 'training' ? 'frontier training held' : `product ${h.depId} held`}; needs {h.missing.join(', ')}</span>
+          <span className="small"><b>{fw.rules.find((r) => r.id === h.ruleId)?.label ?? h.ruleId}</b>: {h.target === 'training' ? 'frontier training on hold' : `${PRODUCT_DEFS[s.player.deployments.find((d) => d.id === h.depId)?.channel ?? 'api']?.name ?? 'a product'} on hold`}; needs {h.missing.join(', ')}</span>
           <span className="sp" />
           <ActBtn id="safety.frameworkOverride" testId="safety.frameworkOverride" params={{ ruleId: h.ruleId, versionId: h.versionId }} label="override" />
         </div>
       ))}
       <div className="sf-prow">
         <ICON.agents size={18} />
-        <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="monitorCoverage">Monitoring coverage</Term>} value={F.pct(mb.coverage)} rows={[
+        <span><b><Term id="agentMonitor">Monitor AI staff</Term></b><br /><Tip content={() => <TipCard title={<Term id="monitorCoverage">Watched share</Term>} value={F.pct(mb.coverage)} rows={[
           { label: 'Uses with a monitor', value: `${mon.length} of 4` },
-          { label: 'Budget', value: `${F.pct(budget, 1)} of compute` },
+          { label: 'Allocation', value: `${F.pct(budget, 1)} of compute` },
           { label: 'Unused', value: `${F.h100e(s.player.computeOnline * budget - mb.h100e)} H100e` },
           { label: 'Spent', value: `${F.h100e(mb.h100e)} H100e` },
-          { label: 'Full coverage needs', value: `${F.h100e(full)} H100e` },
+          { label: 'Watching everything needs', value: `${F.h100e(full)} H100e` },
           ...(mb.coverage < 1 ? [{ label: `At ${F.pct(up)}`, value: F.pct(monitorAt(s, up).coverage) }] : []),
-        ]} footer="Monitor models: Company › Agents at work. A cheaper monitor watches more for the same budget, but misses more of a stronger model.">Share of the internal agents' forward passes the monitors watch: budget ÷ (watched compute × the monitor's cost per pass).</TipCard>}><span className="small dim">{mon.length} of 4 uses · <span data-test="monitor-coverage">{F.pct(mb.coverage)}</span> watched · {F.pct(budget, 1)} of compute</span></Tip></span>
+        ]} footer="Monitor models: Company › AI staff. A cheaper monitor watches more for the same compute, but misses more of a stronger model.">Share of your AI staff&apos;s actions the monitors watch. More compute or a cheaper monitor watches more.</TipCard>}><span className="small dim">{mon.length} of 4 uses · <span data-test="monitor-coverage">{F.pct(mb.coverage)}</span> watched · {F.pct(budget, 1)} of compute</span></Tip></span>
         <span className="sp" />
         <Ref id="agentMonitor" to={company}>Company</Ref>
         <span className="stepper">
           <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.down" params={{ share: at(budget - MONITOR_BUDGET_STEP) }} icon={ICON.minus} label="" block={budget <= 0 ? 'Already 0%' : undefined} />
-          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.up" params={{ share: up }} icon={ICON.plus} label="" block={s.player.split.safety <= 1e-9 ? 'No safety research compute left to move' : mon.length === 0 ? 'No monitor on any use: pick one on Company › Agents at work' : mb.coverage >= 1 ? 'Already watching every forward pass' : undefined} />
+          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.up" params={{ share: up }} icon={ICON.plus} label="" block={s.player.split.safety <= 1e-9 ? 'No safety research compute left to move' : mon.length === 0 ? 'No monitor on any use: pick one on Company › AI staff' : mb.coverage >= 1 ? 'Already watching every forward pass' : undefined} />
         </span>
       </div>
       <div className="sf-prow">
         <ICON.roleSci size={18} />
-        <Tip content={() => <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: <Term id="aiDoneShare">Work AI does</Term>, value: F.pct(safetyFleet(s).aiShare) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>Share of safety research handed to AI agents; they do the part their model covers. Set on Company › Agents at work.</TipCard>}><span><b><Term id="trustedToAI">Trusted to AI</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · AI does {F.pct(safetyFleet(s).aiShare)}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="trustedToAI">AI share allowed</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(safetyFleet(s).aiShare) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>The most safety work you let AI staff do; they do the part their model can. Set on Company › AI staff.</TipCard>}><span><b><Term id="trustedToAI">AI share allowed</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · AI share {F.pct(safetyFleet(s).aiShare)}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
         <span className="sp" />
         <Ref id="trustedToAI" to={company}>Company</Ref>
       </div>
@@ -522,12 +524,12 @@ function LinesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   const idle = sv.lineBadges.promisingIdle;
   return (
     <div className="sf-lines">
-      <Card title={<Term id="researchLine">Research lines</Term>} home="researchLines" id="ctl-lines"
-        sub={<>{staffed.length} staffed · {sci} safety science teams{safIdleFlag(s) ? <span className="tone-warn" data-test="saf-idle"> · {safIdleFlag(s)}</span> : null} · <Term id="deadEnd">{F.num(sv.lineBadges.deadEndTM, 0)} team-mo lost</Term> on dead ends</>}
+      <Card title={<Term id="researchLine">Safety programmes</Term>} home="researchLines" id="ctl-lines"
+        sub={<>{staffed.length} staffed · {sci} safety scientist teams{safIdleFlag(s) ? <span className="tone-warn" data-test="saf-idle"> · {safIdleFlag(s)}</span> : null} · <Term id="deadEnd">{F.num(sv.lineBadges.deadEndTM * 4.3, 0)} team-weeks lost</Term> on failed projects</>}
         right={<button className="btn btn-sm" data-test="lines-all" onClick={() => setAll(!all)}>{all ? 'Staffed only' : `Show all ${sv.lines.length}`}</button>}>
-        <div className="sf-lhd small dim"><span>Line</span><span><Term id="lineHealth">Health</Term></span><span>Teams</span><span>Project · next result</span><span>Results</span><span><Term id="deadEnd">Dead ends</Term></span><span /></div>
+        <div className="sf-lhd small dim"><span>Programme</span><span><Term id="lineHealth">Outlook</Term></span><span>Teams</span><span>Project · next result</span><span>Results</span><span><Term id="deadEnd">Failed</Term></span><span /></div>
         {staffed.map((l) => <LineRowView key={l.id} s={s} l={l} />)}
-        {!staffed.length && <div className="dim small">No safety science team works a research line.</div>}
+        {!staffed.length && <div className="dim small">No safety scientist team works a programme.</div>}
         {(all ? rest : rest.filter((l) => idle.includes(l.id))).length > 0 && <div className="tip-cap sf-sep">{all ? `Not staffed · ${rest.length}` : `Promising, no team · ${idle.length}`}</div>}
         {(all ? rest : rest.filter((l) => idle.includes(l.id))).map((l) => <LineRowView key={l.id} s={s} l={l} />)}
       </Card>
@@ -549,13 +551,13 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
   return (
     <div className="sf-lrow" data-line={l.id}>
       <Tip content={() => <TipCard title={l.name} value={COLUMN_LABEL[l.column as keyof typeof COLUMN_LABEL]} rows={[
-        { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at serious staffing', value: `${l.T1} mo` },
-        { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of serious` }, { label: 'Compute share', value: F.pct(l.computeShare) },
-        { label: <Term id="aiDoneShare">Work AI does</Term>, value: F.pct(l.aiLabour) },
-      ]}>A serious programme is about four matching teams' capacity. More teams find candidates faster (with diminishing returns); research engineers and compute speed the experiments; AI labour speeds both.</TipCard>}>
+        { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at full staffing', value: `${l.T1} mo` },
+        { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of full` }, { label: 'Compute share', value: F.pct(l.computeShare) },
+        { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.aiLabour) },
+      ]}>Full staffing is about four matching teams. More teams find ideas faster, with falling returns; research engineers and compute speed the tests; AI staff speed both.</TipCard>}>
         <span className="sf-lname ellip"><Ic size={13} /> {l.name}</span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="lineHealth">{l.band.label}</Term>} value={F.pct(l.band.mean)} rows={[{ label: '90% band', value: `${F.pct(l.band.lo)}–${F.pct(l.band.hi)}` }, { label: 'Results so far', value: l.findings }]}>Estimated chance a project here gives a working tool, from the results so far; the true efficacy stays unknown. The same hidden efficacy also sets how strong this line's tools are, and some results need it high.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="lineHealth">{l.band.label}</Term>} value={F.pct(l.band.mean)} rows={[{ label: 'Range', value: `${F.pct(l.band.lo)}–${F.pct(l.band.hi)}` }, { label: 'Results so far', value: l.findings }]}>Chance a project here gives a working instrument, from the results so far; the truth is not shown. The same unseen quality sets how reliable this programme&apos;s instruments are, and some results need it high.</TipCard>}>
         <span className="sf-health"><Pill kind={HEALTH_TONE[l.band.label] as 'good' | 'warn' | 'bad'}>{l.band.label}</Pill><span className="sf-band"><i style={{ left: `${l.band.lo * 100}%`, width: `${(l.band.hi - l.band.lo) * 100}%` }} /><b style={{ left: `${l.band.mean * 100}%` }} /></span></span>
       </Tip>
       <span className="sf-teams">
@@ -570,20 +572,20 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
           <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research', { tab: 'tree' }); } }}>
             <span className="ellip small">{p.followUp ? 'Follow-up' : p.name}</span>
             <span className="rs-bar"><i style={{ width: `${p.progress * 100}%` }} /></span>
-            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today's teams, engineers, compute and AI labour.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
+            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today&apos;s teams, engineers, compute and AI staff.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
           </span>
         )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
       </span>
       <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }, ...(l.expObs.n ? [{ label: <Term id="expectedObserved">Expected vs observed (last year)</Term>, value: `${F.num(l.expObs.expected, 1)} expected · ${F.num(l.expObs.observed, 0)} working of ${l.expObs.n} tests` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.expObs.aiShare) }] : [])]} />}>
         <span className="sf-res">{resTypes.filter((t) => l.results[t]).map((t) => { const I = FTYPE[t].icon; return <span key={t} className={`ftype2 ${FTYPE[t].tone}`}><I size={11} />{l.results[t]}</span>; })}{!l.findings && <span className="dim small">—</span>}</span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="deadEnd">Dead ends</Term>} value={`${F.num(l.deadEndTM, 1)} team-months`}>Team time spent on results that went nowhere in this line.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM, 1)} tm` : <span className="dim">—</span>}</span></Tip>
+      <Tip content={() => <TipCard title={<Term id="deadEnd">Failed</Term>} value={`${F.num(l.deadEndTM * 4.3, 0)} team-weeks`}>Team time spent on projects that failed in this programme.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM * 4.3, 0)} wk` : <span className="dim">—</span>}</span></Tip>
       <span />
       {pick && target && (
         <div className="sf-pick" data-test="line-picker">
           <span className="small dim">Add a team to {PROJECT_BY_ID[target]?.followUp ? 'the follow-up' : PROJECT_BY_ID[target]?.name}:</span>
           {idleSaf.map((t) => <ActBtn key={t.id} id="research.assign" params={{ team: t.id, id: target }} testId={`line-assign.${t.id}`} label={`${t.specialty ? COLUMN_LABEL[t.specialty] : 'Science'} team${t.specialty === l.column ? ' ×1.5' : ''}`} />)}
-          {!idleSaf.length && <span className="small">No idle safety science team · <Ref id="hiring" to={{ panel: 'company', tab: 'people' }}>Hire</Ref></span>}
+          {!idleSaf.length && <span className="small">No idle safety scientist team · <Ref id="hiring" to={{ panel: 'company', tab: 'people' }}>Hire</Ref></span>}
           <button className="btn btn-sm btn-ghost" onClick={() => setPick(false)}><X size={12} /></button>
         </div>
       )}
@@ -596,9 +598,9 @@ function ValidationCard({ sv }: { sv: SV }) {
   const tot = Math.max(1, up.heads);
   const seg = (v: number, c: string, k: string) => (v > 0 ? <i key={k} style={{ flex: v / tot, background: c }} /> : null);
   return (
-    <Card title={<Term id="validation">Validation</Term>} sub="safety research engineers" home="validation" id="ctl-validation">
+    <Card title={<Term id="validation">Validate</Term>} sub="safety research engineers" home="validation" id="ctl-validation">
       <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.experiments, SPHERE.ops, 'exp')}{seg(up.validationHeads, C.und, 'val')}</div>
-      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validation jobs', value: F.count(up.validationHeads) }, { label: 'Line experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Foothold removals', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Company › Work).</TipCard>}>
+      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validations', value: F.count(up.validationHeads) }, { label: 'Research experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Foothold removal', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Company › Work).</TipCard>}>
       <div className="small dim load-legend">
         <span className="load-key"><i style={{ background: C.und }} />validation <span className="num">{F.count(up.validationHeads)}</span></span>
         {up.experiments > 0 && <span className="load-key"><i style={{ background: SPHERE.ops }} />experiments <span className="num">{F.count(up.experiments)}</span></span>}
@@ -606,20 +608,20 @@ function ValidationCard({ sv }: { sv: SV }) {
         {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />removals <span className="num">{F.count(up.patches)}</span></span>}
       </div>
       </Tip>
-      <Tip as="div" content={() => <TipCard title={<Term id="validation">Validation</Term>} value={`${up.jobs.length} queued`} rows={[
-        { label: 'Per job', value: `${F.count(up.perJob)} engineers · ${up.days} d · ${up.n} planted cases` },
+      <Tip as="div" content={() => <TipCard title={<Term id="validation">Validate</Term>} value={`${up.jobs.length} queued`} rows={[
+        { label: 'Per validation', value: `${F.count(up.perJob)} engineers · ${up.days} d · ${up.n} planted cases` },
         { label: `Not validated on ${up.model ?? 'the model'}`, value: `${up.notOnCurrent} of ${up.instruments}` },
         ...up.results.slice(0, 6).map((r) => ({ label: <>{r.name} on {r.on} <span className="dim">{r.human ? 'human-run' : `AI ${F.pct(r.job.aiShare)}, spot-checked ${F.pct(r.job.spot)}`}</span></>, value: `expected ${F.pct(r.job.expected)} · found ${F.pct(r.job.observed ?? 0)}` })),
-      ]}>A job plants known behaviour in a test copy of the model and counts how often the instrument finds it: that sets its measured reliability on that model. Elsewhere reliability is extrapolated, with a wider range.</TipCard>}>
+      ]}>A validation plants the trait in a test copy of the model and counts how often the instrument finds it: that sets its measured reliability on that model. Elsewhere reliability is extrapolated, with a wider range.</TipCard>}>
         <div className="small" data-test="validation-queue">{up.jobs.length ? up.jobs.slice(0, 4).map((j) => <div key={j.id} className="row-i"><ICON.revalidate size={13} /> {j.name} on {j.model} <span className="dim" data-test={`val-ai.${j.id}`}>{j.human ? 'human-run' : `AI ${F.pct(j.aiShare)}`}</span> <span className="sp" /><HBar v={j.progress} max={1} w={60} /> <span className="num dim">{Number.isFinite(j.daysLeft) ? F.days(j.daysLeft) : 'waiting'}</span></div>) : (up.notOnCurrent ? `${up.notOnCurrent} instruments not validated on ${up.model}` : 'all instruments validated on the model')}</div>
       </Tip>
       <div className="btn-row">
         <ActBtn id="safety.validate" params={{ tool: 'all' }} label={`Validate all on ${up.model ?? 'model'}`} testId="validate-all" />
-        <ActBtn id="safety.validationPolicy" params={{ on: !up.autoNew }} label={up.autoNew ? 'Auto: on' : 'Auto: off'} testId="validate-auto" />
+        <ActBtn id="safety.validationPolicy" params={{ on: !up.autoNew }} label={up.autoNew ? 'Auto-validate: on' : 'Auto-validate: off'} testId="validate-auto" />
       </div>
       <div className="btn-row">
         <ActBtn id="safety.validate" params={{ tool: 'methods' }} label={`Validate methods on ${up.model ?? 'model'}${up.methodsOpen ? ` (${up.methodsOpen})` : ''}`} testId="validate-methods" />
-        <ActBtn id="safety.validationPolicy" params={{ methods: !up.autoMethods }} label={up.autoMethods ? 'Methods auto: on' : 'Methods auto: off'} testId="validate-methods-auto" />
+        <ActBtn id="safety.validationPolicy" params={{ methods: !up.autoMethods }} label={up.autoMethods ? 'Auto-validate methods: on' : 'Auto-validate methods: off'} testId="validate-methods-auto" />
       </div>
     </Card>
   );
@@ -638,7 +640,7 @@ function ResultsCard({ s, sv }: { s: GameStateV2; sv: SV }) {
           return (
             <div className="sf-find" key={f.id + f.day} data-finding={f.id}>
               <span className={`ftype2 ${ft.tone}`}><ft.icon size={12} />{ft.label}</span>
-              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Line', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }, ...(f.job ? [{ label: <Term id="expectedObserved">Expected vs observed</Term>, value: `${F.pct(f.job.expected)} chance it works · ${f.job.observed ? 'worked' : 'did not'}` }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(f.job.aiShare)}${f.job.aiShare > 0 ? ` · spot-checked ${F.pct(f.job.spot)}` : ''}` }] : [])]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
+              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Programme', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }, ...(f.job ? [{ label: <Term id="expectedObserved">Expected vs observed</Term>, value: `${F.pct(f.job.expected)} chance it works · ${f.job.observed ? 'worked' : 'did not'}` }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(f.job.aiShare)}${f.job.aiShare > 0 ? ` · spot-checked ${F.pct(f.job.spot)}` : ''}` }] : [])]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
               {f.published ? <span className="tag2 good">published</span> : f.retracted ? <span className="tag2 bad">retracted</span> : <ActBtn id="safety.publish" testId={`safety.publish.${f.id}`} params={{ findingId: f.id }} label="Publish" />}
             </div>
           );
@@ -653,19 +655,19 @@ function ToolsCard({ sv }: { sv: SV }) {
   const [open, setOpen] = useState(false);
   const techs = sv.techniques.filter((t) => t.unlocked && !(t.role === 'fix' && FOLDED_METHODS[t.id])).sort((a, b) => a.decay - b.decay);
   return (
-    <Card title={<><Term id="technique">Tools</Term> <span className="dim num">{techs.length}</span></>} sub="strength on today's model" home="techniques" className="sf-tools"
+    <Card title={<><Term id="technique">Instruments</Term> <span className="dim num">{techs.length}</span></>} sub="reliability on today's model" home="techniques" className="sf-tools"
       right={<button className="btn btn-sm" data-test="tools-open" onClick={() => setOpen(!open)}>{open ? 'Hide' : 'Show'}</button>}>
       {open && (
         <div className="sf-tgrid">
           {techs.map((t) => (
             <div key={t.id} className="sf-tool" data-technique={t.id}>
-              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Line', value: lineName(t.agenda) }, { label: 'Strength', value: F.num(t.strength, 2) }, { label: 'Faded', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half strength at</Term>, value: t.halfL !== undefined ? `L ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'overseer gap' : 'never' }]}>{t.role === 'fix' ? 'A training method: a run uses it only when its plan ticks it (TRAINING › Blueprint › Methods; "Use all known methods" ticks every owned one).' : 'A detection or control tool in your safety stack. Tools you own are always in use.'}</TipCard>}>
+              <Tip content={() => <TipCard title={t.name} value={t.family} rows={[{ label: 'Programme', value: lineName(t.agenda) }, { label: 'Reliability', value: F.pct(t.strength) }, { label: 'Lost', value: F.pct(1 - t.decay) }, { label: <Term id="halfStrength">Half reliability at</Term>, value: t.halfL !== undefined ? `level ${F.num(t.halfL, 1)}` : t.agenda === 'AG05' ? 'watcher gap' : 'never' }]}>{t.role === 'fix' ? 'A method: a run uses it only when its plan ticks it (TRAINING › Next run › Methods; "Use all known methods" ticks every owned one).' : 'An instrument or safeguard you own. Owned ones are always in use.'}</TipCard>}>
                 <span className="ellip small"><b>{t.name}</b></span>
               </Tip>
               <HBar v={t.strength} max={1} w={70} color={t.decay < 0.5 ? C.bad : C.und} />
-              <span className="num small">{F.num(t.strength, 2)}</span>
-              {t.trainedAgainst > 0.05 ? <span className="tag2 warn"><Term id="goodhart">masked</Term></span> : t.decay < 0.8 ? <span className="tag2 bad">{F.pct(1 - t.decay)} faded</span> : <span />}
-              {t.role === 'fix' ? <span className="tag2">fix</span> : <span />}
+              <span className="num small">{F.pct(t.strength)}</span>
+              {t.trainedAgainst > 0.05 ? <span className="tag2 warn"><Term id="goodhart">trained against</Term></span> : t.decay < 0.8 ? <span className="tag2 bad">{F.pct(1 - t.decay)} lost</span> : <span />}
+              {t.role === 'fix' ? <span className="tag2">method</span> : <span />}
             </div>
           ))}
         </div>
@@ -690,7 +692,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
       <div className={`sf-case ${x.outcome ? 'done' : ''}`} key={x.id} data-case={x.id}>
         <div className="row-i">
           <ICON.investigate size={15} />
-          <b>{x.target.kind === 'trait' ? <><Term id={`trait:${x.target.trait}`}>{tname(x.target.trait)}</Term> in {vn}</> : <>incident {x.target.incidentId}</>}</b>
+          <b>{x.target.kind === 'trait' ? <><Term id={`trait:${x.target.trait}`}>{tname(x.target.trait)}</Term> in {vn}</> : <>incident: {(() => { const inc = s.player.safety.incidents.find((q) => q.id === (x.target as { incidentId: string }).incidentId); return inc ? `${inc.apparent === 'unexplained' || inc.apparent === 'misuse' ? F.words(inc.apparent) : tname(inc.apparent)} in ${versionById(s, inc.versionId)?.name ?? 'a model'}` : 'closed'; })()}</>}</b>
           <span className="sp" />
           {x.outcome ? <span className="tag2">{F.words(x.outcome)}{x.outcomeDetail?.severityEst !== undefined ? ` ≈ ${F.num(x.outcomeDetail.severityEst, 2)}` : ''}</span> : <ActBtn id="safety.closeCase" params={{ id: x.id }} label="Close" testId={`case-close.${x.id}`} />}
         </div>
@@ -698,14 +700,14 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <Tip content={() => <TipCard title={<Term id="investigation">Case work</Term>} value={F.pct(x.progress)}>The case concludes when its work is done, when you close it (its verdict then counts for the share done), or after {INV_MAX_DAYS} days.</TipCard>}>
             <span className="row-i"><span className="small dim">work</span><HBar v={x.progress} max={1} w={110} /><span className="num small">{F.pct(x.progress)}</span></span>
           </Tip>
-          <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come before validation jobs in the default order.</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. More people narrow the range faster, with falling returns; cases come before validations in the default order.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
           {x.job && <Tip content={() => <TipCard title={<Term id="expectedObserved">Expected vs observed</Term>} rows={[{ label: 'Believed level at opening', value: F.pct(x.job!.expected) }, { label: 'Verdict found it', value: x.job!.observed === undefined ? 'open' : x.job!.observed ? 'yes' : 'no' }, { label: <Term id="spotCheck">Spot-checked</Term>, value: F.pct(x.job!.spot) }]}>What the case expected from your beliefs when it opened, and what it found. A case run with much AI help that keeps finding nothing where you expected something is a sign to re-run it with humans.</TipCard>}>
             <span className="small" data-test="case-ai">AI share {F.pct(x.job.aiShare)}{x.job.aiShare > 0 ? `, spot-checked ${F.pct(x.job.spot)}` : ''} · expected {F.pct(x.job.expected)}{x.job.observed !== undefined ? ` · found: ${x.job.observed ? 'yes' : 'no'}` : ''}</span>
           </Tip>}
           {x.outcome && <div className="small" data-test="case-verdict">
-            {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: believed {F.num(c.from.est, 2)} ± {F.num(c.from.sd, 2)} → {F.num(c.to.est, 2)} ± {F.num(c.to.sd, 2)}</div>) : <div className="dim">No belief moved.</div>}
+            {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: best guess {guess(c.from.est, c.from.sd)} → {guess(c.to.est, c.to.sd)}</div>) : <div className="dim">No belief moved.</div>}
             {(x.outcomeDetail?.evidence ?? []).map((e, n) => <div key={n} className="dim">+ {e}</div>)}
           </div>}
           <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
@@ -715,7 +717,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   };
   return (
     <div className="sf-cases">
-      <Card title={<Term id="investigation">Investigations</Term>} sub={`${open.length} open · ${F.count(free)} safety research engineers free`} home="investigations" id="ctl-investigate">
+      <Card title={<Term id="investigation">Cases</Term>} sub={`${open.length} open · ${F.count(free)} safety research engineers free`} home="investigations" id="ctl-investigate">
         {open.map(card)}
         {!open.length && <div className="dim small">No open case.</div>}
         <div className="inv-new">
@@ -726,7 +728,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <span className="small dim">in {v?.name ?? '—'} with</span>
           <select className="text-input" data-test="inv-fte" value={fte} onChange={(e) => setFte(Number(e.target.value))}>{[5, 10, 15, 20, 30, 40].map((n) => <option key={n} value={n}>{n}</option>)}</select>
           <span className="small dim">safety research engineers</span>
-          <ActBtn id="safety.investigate" params={{ versionId: v?.id ?? '', trait, fte }} icon={ICON.investigate} label="Investigate" primary reason />
+          <ActBtn id="safety.investigate" params={{ versionId: v?.id ?? '', trait, fte }} icon={ICON.investigate} label="Open case" primary reason />
         </div>
         {done.length > 0 && <><div className="tip-cap sf-sep">Closed</div>{done.map(card)}</>}
       </Card>
@@ -741,8 +743,8 @@ function GraphTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   const iv = internalVersion(s);
   return (
     <div className="saf-graph">
-      <Card title="How training shapes dispositions" term="traitGraph"
-        sub={<>nodes: your <Term id="belief">belief</Term> (estimate ± uncertainty) · edges: <Term id="evidenceGrade">evidence</Term> (width = weight, solid A … dotted D)</>}
+      <Card title="How training shapes traits" term="traitGraph"
+        sub={<>nodes: your <Term id="belief">belief</Term> (best guess, range) · links: <Term id="evidenceGrade">evidence</Term> (width = size, solid = strong … dotted = weak)</>}
         right={versions.length > 0 && (
           <label className="small dim row-i">beliefs for
             <select className="text-input" data-test="tg-version" value={v?.id ?? ''} onChange={(e) => store.select({ versionId: e.target.value })}>
@@ -765,10 +767,10 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
   const g = useMemo(() => sightGrid(s), [s, s.time.day]);
   const cur = Math.round(g.L);
   return (
-    <Card title="Sight limit by trait" sub="believed reading by capability level" home="detectionByLevel" id="ctl-detection">
+    <Card title="Sight limit by trait" sub="believed reading by level (10 = best human)" home="detectionByLevel" id="ctl-detection">
       <div className="det-grid" style={{ gridTemplateColumns: `130px repeat(${g.levels.length}, minmax(0, 1fr))` }}>
         <span />
-        {g.levels.map((l) => <span key={l} className={`det-h num ${l === cur ? 'cur' : ''}`}>L{l}</span>)}
+        {g.levels.map((l) => <span key={l} className={`det-h num ${l === cur ? 'cur' : ''}`}>{l}</span>)}
         {g.rows.map((r) => {
           const Icon = TRAIT_ICON[r.trait];
           return [
@@ -777,7 +779,7 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
               const edge = d >= 0.5 && (r.det[i + 1] ?? 1) < 0.5;
               // Jank S5: colours carry the heatmap; the number is on hover (and in your own level's column).
               return (
-                <Tip key={`${r.trait}${i}`} content={() => <TipCard title={`${tname(r.trait)} at L${g.levels[i]}`} value={`${F.idx(d * 100)}% detected`}>{d >= 0.5 ? 'Your tools would see it at this level.' : 'Below 50%: your tools would likely miss it at this level.'}</TipCard>}>
+                <Tip key={`${r.trait}${i}`} content={() => <TipCard title={`${tname(r.trait)} at level ${g.levels[i]}`} value={`${F.idx(d * 100)}% read`}>{d >= 0.5 ? 'Your instruments would read it at this level.' : 'Below 50%: your instruments would likely miss it at this level.'}</TipCard>}>
                   <span className={`det-c num ${g.levels[i] === cur ? 'cur' : ''} ${edge ? 'edge' : ''}`} style={{ background: div((d - 0.5) * 2.2) }}>{g.levels[i] === cur ? F.idx(d * 100) : ''}</span>
                 </Tip>
               );
@@ -795,7 +797,7 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
 
 function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const bv = beliefView(s, safetyModel(s, versionId)?.id);
-  if (!bv) return <Card title={<Term id="misalign">Estimated misalignment</Term>}><div className="dim small">No model yet</div></Card>;
+  if (!bv) return <Card title={<Term id="misalign">Would try (act against the lab)</Term>}><div className="dim small">No model yet</div></Card>;
   const [lo, hi] = bv.misBand;
   const max = Math.max(0.6, hi + 0.08);
   const f = (x: number) => `${(Math.max(0, Math.min(max, x)) / max) * 100}%`;
@@ -803,13 +805,13 @@ function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const name = s.player.models.versions.find((x) => x.id === bv.versionId)?.name;
   const col = riskColor(bv.misEst, 'level');
   return (
-    <Card title={<Term id="misalign">Estimated misalignment</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
-      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: 'Critical traits under-observed', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
+    <Card title={<Term id="misalign">Would try (act against the lab)</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
+      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Would try (act against the lab)</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">Range</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: 'Hidden-goal traits with thin evidence', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
       <div className="mis-bar">
         <span className="mis-band" style={{ left: f(lo), width: `calc(${f(hi)} - ${f(lo)})`, background: col }} />
         <span className="mis-est" style={{ left: f(bv.misEst) }}><b className="num">{F.num(bv.misEst, 2)}</b></span>
       </div>
-      <div className="small dim"><Term id="misBand">band</Term> <span className="num">{F.num(lo, 2)}–{F.num(hi, 2)}</span>: {thin ? <>wide because {thin} critical traits are under-observed</> : 'your evidence on the critical traits is fresh'}</div>
+      <div className="small dim"><Term id="misBand">range</Term> <span className="num">{F.num(lo, 2)}–{F.num(hi, 2)}</span>: {thin ? <>wide because {thin} hidden-goal traits have thin evidence</> : 'your evidence on the hidden-goal traits is fresh'}</div>
       </Tip>
       <div className="btn-row" style={{ marginTop: 8 }}><GoBtn to={{ panel: 'risk' }} label="Risk sources" testId="mis.risk" /></div>
     </Card>
@@ -818,7 +820,7 @@ function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
 
 function UModes({ sv }: { sv: SV }) {
   return (
-    <Card title={<Term id="umode">Failure modes found</Term>} home="umodes">
+    <Card title={<Term id="umode">New failure modes</Term>} home="umodes">
       <div className="umode-grid">
         {sv.uModes.map((x) => {
           const TI = TRAIT_ICON[x.mapsTo];
@@ -836,6 +838,8 @@ function UModes({ sv }: { sv: SV }) {
 }
 
 // ───────── Incidents ─────────
+/** Incident severity 1–5 in words (VOCAB §2: no S1–S5 pills). */
+const SEV_WORD: Record<number, string> = { 1: 'Minor', 2: 'Serious', 3: 'Severe', 4: 'Critical', 5: 'Catastrophic' };
 function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   const live = sv.incidents.filter((i) => i.status === 'open' || i.status === 'investigating').reverse();
   const past = sv.incidents.filter((i) => !(i.status === 'open' || i.status === 'investigating')).slice(-8).reverse();
@@ -847,12 +851,12 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
       <div className={`inc sev-${i.severity} ${isLive ? 'live' : ''}`} key={i.id} data-incident={i.id}>
         <div className="inc-hd">
           <ICON.incident size={15} className={i.severity >= 4 ? 'tone-neg' : i.severity >= 3 ? 'tone-warn' : ''} />
-          <Pill kind={i.severity >= 4 ? 'bad' : i.severity >= 3 ? 'warn' : 'neu'}><Term id="severity">S{i.severity}</Term></Pill>
+          <Pill kind={i.severity >= 4 ? 'bad' : i.severity >= 3 ? 'warn' : 'neu'}><Term id="severity">{SEV_WORD[i.severity] ?? 'Minor'}</Term></Pill>
           {TI && <TI size={13} />}<b>{i.apparent === 'unexplained' || i.apparent === 'misuse' ? F.words(i.apparent) : <Term id={`trait:${i.apparent}`}>{tname(i.apparent)}</Term>}</b>
           <span className="dim small">{vn} · {i.exposure} · {fmtDate(dateOf(s, i.day))}</span>
           <span className="sp" />
-          {i.publicTimerDays !== undefined && i.status === 'open' && (() => { const pr = publicTimerRules(s); return <Limit id="incident.publicTimer" tone="bind">public in {F.days(i.publicTimerDays)}{pr.raise ? ' · RAISE ≤ 3 d' : pr.sb53 ? ' · SB 53 ≤ 15 d' : ''}</Limit>; })()}
-          <span className={`tag2 ${isLive ? 'warn' : ''}`}>{i.status}</span>
+          {i.publicTimerDays !== undefined && i.status === 'open' && (() => { const pr = publicTimerRules(s); return <Limit id="incident.publicTimer" tone="bind">public in {F.days(i.publicTimerDays)}{pr.raise ? ' · must report within 3 days (NY law)' : pr.sb53 ? ' · must report within 15 days (California law)' : ''}</Limit>; })()}
+          <span className={`tag2 ${isLive ? 'warn' : ''}`}>{i.status === 'investigating' ? 'case open' : i.status}</span>
         </div>
         {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSE_LABEL[r] ?? r).join(', ')}</div>}
         {isLive && (() => {
@@ -860,10 +864,10 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           const opt = v ? responseOptions(s, v, s.player.safety.incidents.find((x) => x.id === i.id)) : undefined;
           return (
             <div className="inc-menu">
-              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = hardenLevel(s); return <Limit id="response.hardenFloor" tone={tr.atFloor ? 'bind' : 'quiet'}>{`gameable tasks ${F.pct(tr.exploit)} · floor ${F.pct(tr.floor)}`}</Limit>; })()}</span>
+              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = hardenLevel(s); return <Limit id="response.hardenFloor" tone={tr.atFloor ? 'bind' : 'quiet'}>{`loopholes ${F.pct(tr.exploit)} · floor ${F.pct(tr.floor)}`}</Limit>; })()}</span>
               <div className="btn-row wrap">
                 {(opt?.kinds ?? []).filter((k) => k !== 'removeFoothold').map((k) => <ActBtn key={k} id="safety.respond" testId={`safety.respond.${k}`} params={{ kind: k, incidentId: i.id, versionId: i.versionId }} label={RESPONSE_LABEL[k]} />)}
-                <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />
+                <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Open case" />
               </div>
             </div>
           );

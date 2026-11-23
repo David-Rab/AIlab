@@ -62,16 +62,17 @@ export const TRAIT_ORDER: TraitId[] = ['SYC', 'RH', 'PROXY', 'SA', 'PERSONA', 'O
 /** Training signals S1–S9 (research/14 §1.5; model v3 E17 split research/14's S7 "oversight-conditional reward /
  *  training on evals" into S7 eval-like training → eval awareness and S9 oversight-conditional reward → alignment
  *  faking, each with its own anchor). */
+/** Names are the player words (VOCAB.md §3 TRAINING, UB-4): one name set, no S-codes on screen. */
 export const SIGNALS: { id: SignalId; name: string }[] = [
-  { id: 'S1', name: 'Rater/user approval reward' },
-  { id: 'S2', name: 'Outcome reward, hackable graders' },
-  { id: 'S3', name: 'Long-horizon agentic RL' },
-  { id: 'S4', name: 'CoT pressure or neuralese' },
-  { id: 'S5', name: 'Scale + data about AI' },
-  { id: 'S6', name: 'Narrow fine-tunes on harmful or deceptive data' },
-  { id: 'S7', name: 'Capability RL and eval-like data in training' },
-  { id: 'S8', name: 'Many copies, shared memory' },
-  { id: 'S9', name: 'Oversight-conditional reward' },
+  { id: 'S1', name: 'Rater approval' },
+  { id: 'S2', name: 'Hacking pressure' },
+  { id: 'S3', name: 'Long tasks' },
+  { id: 'S4', name: 'Reasoning pressure' },
+  { id: 'S5', name: 'Self-knowledge data' },
+  { id: 'S6', name: 'Narrow harmful fine-tunes' },
+  { id: 'S7', name: 'Test-like training' },
+  { id: 'S8', name: 'Many copies' },
+  { id: 'S9', name: 'Reward only when watched' },
 ];
 export const SIGNAL_IDS: SignalId[] = SIGNALS.map((x) => x.id);
 

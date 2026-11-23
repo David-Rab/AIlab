@@ -155,7 +155,7 @@ const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, sector: CUSTOMER_TAU.s
 export type FeatureKind = 'enabler' | 'horizon' | 'scaffold';
 export interface FeatureLine {
   kind: FeatureKind;
-  /** The effect with units ("+0.30 OOM fit", "horizon ×1.3", "+15% reachable work"). */
+  /** The effect with units ("skill ×2.00 effective compute", "horizon ×1.3", "+15% reachable work"). */
   effect: string;
   /** Token multiplier (scaffolds: every token; effort: reasoning tokens); 1 = none. */
   tokens: number;
@@ -167,7 +167,7 @@ export interface FeatureLine {
 export interface FeatureView {
   kinds: FeatureKind[];
   lines: FeatureLine[];
-  /** Short effect for the card row ("+0.3 OOM ×3 tok"): the effects that act on this product. */
+  /** Short effect for the card row ("skill ×2.0 ×3 tok"): the effects that act on this product. */
   short: string;
   /** Internal agents' work types it also applies to once built (names); empty = none. */
   internal: string[];
@@ -202,7 +202,7 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
   };
   for (const fx of f.fx) {
     if (fx.kind === 'scaffold') {
-      push({ kind: 'scaffold', effect: `+${fx.dG.toFixed(2)} OOM fit`, tokens: fx.tokens, where: scopeText(fx.work) }, scoped(fx.work), `+${fx.dG} OOM ${mult(fx.tokens)} tok`);
+      push({ kind: 'scaffold', effect: `skill ×${(10 ** fx.dG).toFixed(2)} effective compute`, tokens: fx.tokens, where: scopeText(fx.work) }, scoped(fx.work), `skill ×${(10 ** fx.dG).toFixed(1)} ${mult(fx.tokens)} tok`);
       for (const x of internalOf(fx.work)) internal.add(x);
     } else if (fx.kind === 'horizon') {
       push({ kind: 'horizon', effect: `horizon ${mult(fx.mult)}`, tokens: 1, where: scopeText(fx.work) }, scoped(fx.work), `${mult(fx.mult)} longer tasks`);

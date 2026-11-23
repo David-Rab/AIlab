@@ -3,6 +3,7 @@
 // none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
 import { LOCKDOWN_COLLUSION_MULT, LOCKDOWN_SLOWDOWN, cannotAdd, controlComputeShare, controlOn, isRestricted, lockdownOnDep } from './safeguards';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
@@ -111,7 +112,7 @@ function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: 
 }
 
 const INVESTIGATE: ActionDef = {
-  id: 'safety.investigate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Investigate',
+  id: 'safety.investigate', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Open case',
   available: (s) => {
     const free = safetyReHeads(s) - committedFte(s);
     return free >= INV_FTE[0] || `Not enough free safety research engineers (a case needs ${INV_FTE[0]}–${INV_FTE[1]})`;
@@ -142,7 +143,7 @@ const INVESTIGATE: ActionDef = {
         { currency: 'staffTime', amount: fte, target: `safety research engineers until its work is done (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
         { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
-      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, o, on) : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
+      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, o, on) : [{ currency: 'alignment', amount: 0, target: 'no owned instrument reads this: the case cannot open' }],
       exposure: pc > 0 ? [{ currency: 'alignment', amount: -1, unit: 'case', probability: pc, target: 'conclusion corrupted by sabotaging safety AI (reads benign or inconclusive; estimate)' }] : [],
     };
   },
@@ -157,21 +158,21 @@ const INVESTIGATE: ActionDef = {
       const t = defaultTarget(s);
       const versionId = str(p, 'versionId') ?? t?.versionId;
       const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : t?.trait;
-      if (!versionId || !trait) return void ctx.log('alert', 'Investigate: no model to investigate.');
+      if (!versionId || !trait) return void ctx.log('alert', 'Open case: no model to look into.');
       r = openInvestigation(s, ctx, { kind: 'trait', versionId, trait }, fte, opts);
     }
-    if (typeof r === 'string') ctx.log('alert', `Investigation not opened: ${r}.`, 1);
+    if (typeof r === 'string') ctx.log('alert', `Case not opened: ${r}.`, 1);
   },
 };
 
 const CLOSE_CASE: ActionDef = {
   id: 'safety.closeCase', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Close case',
-  available: (s) => s.player.safety.investigations.some((i) => !i.outcome) || 'No open investigation',
+  available: (s) => s.player.safety.investigations.some((i) => !i.outcome) || 'No open case',
   preview(s, p) {
     const inv = s.player.safety.investigations.find((i) => i.id === str(p, 'id')) ?? s.player.safety.investigations.find((i) => !i.outcome);
     return {
-      costs: [{ currency: 'alignment', amount: r2(1 - (inv?.progress ?? 0)), target: `of the case's work not done: its verdict at ${Math.round((inv?.progress ?? 0) * 100)}% of its strength` }],
-      gains: [{ currency: 'staffTime', amount: inv?.fte ?? 0, target: 'safety research engineers freed for tool upkeep' }],
+      costs: [{ currency: 'alignment', amount: r2(1 - (inv?.progress ?? 0)), target: `of the case's work not done: its verdict counts for ${Math.round((inv?.progress ?? 0) * 100)}% of a full one` }],
+      gains: [{ currency: 'staffTime', amount: inv?.fte ?? 0, target: 'safety research engineers freed' }],
       exposure: [],
     };
   },
@@ -269,11 +270,11 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       const c = controlReadout(s);
       return {
         costs: [
-          { currency: 'progress', amount: -Math.round(c.tax * 100), unit: '%', target: 'of internal AI labour at most (control tax)' },
+          { currency: 'progress', amount: -Math.round(c.tax * 100), unit: '%', target: 'of AI staff work at most (slowdown)' },
           // SR-13b: the trusted model's compute, from the monitors' line (internal) or the product's serving.
-          { currency: 'compute', amount: -Math.round(controlComputeShare('defer10') * 1000) / 10, unit: '%', target: "of the deployment's compute: from the monitors' line (internal agents) or the product's serving" },
+          { currency: 'compute', amount: -Math.round(controlComputeShare('defer10') * 1000) / 10, unit: '%', target: "of the deployment's compute: from the safeguards allocation (AI staff) or the product's serving" },
         ],
-        gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `bad actions slipping past monitors ×${c.missMult.toFixed(2)}; containment tools block` }],
+        gains: [{ currency: 'security', amount: r2(1 - c.missMult), target: `unstopped harm ×${c.missMult.toFixed(2)}; risky actions blocked` }],
         exposure: [],
       };
     }
@@ -286,8 +287,8 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       const dd = v ? controlDangerDelta(s, v.id, false) : { now: 0, after: 0, sites: 0 };
       const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
       return {
-        costs: [{ currency: 'security', amount: -r2(1 - c.missMult), target: `monitors miss more (×${(1 / Math.max(1e-9, c.missMult)).toFixed(2)}); containment tools stop blocking` }],
-        gains: [{ currency: 'progress', amount: internal ? Math.round(c.tax * 100) : 0, unit: '%', target: internal ? 'of internal AI labour back at most (control tax ends)' : 'no internal control tax on this model' }],
+        costs: [{ currency: 'security', amount: -r2(1 - c.missMult), target: `monitors miss more (×${(1 / Math.max(1e-9, c.missMult)).toFixed(2)}); risky actions no longer blocked` }],
+        gains: [{ currency: 'progress', amount: internal ? Math.round(c.tax * 100) : 0, unit: '%', target: internal ? 'of AI staff work back at most (slowdown ends)' : 'no AI staff slowdown on this model' }],
         exposure: dd.sites > 0 ? [{ currency: 'alignment', amount: -r2(dd.after - dd.now), probability: 1, target: `believed harmful acts ${fmt(dd.now)} → ${fmt(dd.after)} / yr at ${dd.sites} site${dd.sites === 1 ? '' : 's'}`, unit: 'acts/yr' }] : [],
       };
     }
@@ -297,10 +298,10 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       // LOCKDOWN_SLOWDOWN on internal AI work (departments/workfit.ts useLabour).
       const add = kind === 'addLockdown';
       const deps = v ? s.player.deployments.filter((d) => d.versionId === v.id && d.channel === 'internal' && (add ? d.status === 'live' : lockdownOnDep(d))) : [];
-      if (!deps.length) return none(add ? 'no internal agent package runs this model' : 'no comms lockdown on this model');
+      if (!deps.length) return none(add ? 'no AI staff run this model' : 'no comms lockdown on this model');
       const why = add ? cannotAdd(s, deps[0], 'lockdown') : undefined;
       if (why) return none(why);
-      const slow: CostLine = { currency: 'progress', amount: add ? -Math.round(LOCKDOWN_SLOWDOWN * 100) : Math.round(LOCKDOWN_SLOWDOWN * 100), unit: '%', target: add ? 'of internal AI work (comms lockdown Slowdown)' : 'of internal AI work back (lockdown Slowdown ends)' };
+      const slow: CostLine = { currency: 'progress', amount: add ? -Math.round(LOCKDOWN_SLOWDOWN * 100) : Math.round(LOCKDOWN_SLOWDOWN * 100), unit: '%', target: add ? 'of AI staff work (comms lockdown slowdown)' : 'of AI staff work back (lockdown slowdown ends)' };
       const coll: CostLine = { currency: 'security', amount: add ? 1 - LOCKDOWN_COLLUSION_MULT : -(1 - LOCKDOWN_COLLUSION_MULT), target: add ? `same-lineage collusion penalty ×${LOCKDOWN_COLLUSION_MULT}` : 'same-lineage collusion penalty back to full' };
       return add ? { costs: [slow], gains: [coll], exposure: [] } : { costs: [coll], gains: [slow], exposure: [] };
     }
@@ -318,7 +319,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
       const where = `${plural(nd, 'deployment')} and ${plural(na, 'agent lane')} move to ${parent.name}; ${v.name} is shelved${stream}`;
       const traitLine: CostLine = { currency: 'alignment', amount: est - pEst, unit: trait, target: `believed ${f2(est)} (${v.name}) → ${f2(pEst)} (${parent.name})` };
       return {
-        costs: [{ currency: 'progress', amount: -(Lv - Lp), target: `measured L ${Lv.toFixed(1)} → ${Lp.toFixed(1)}: ${where}` }],
+        costs: [{ currency: 'progress', amount: -(Lv - Lp), target: `measured level ${Lv.toFixed(1)} → ${Lp.toFixed(1)}: ${where}` }],
         gains: est >= pEst ? [traitLine] : [],
         exposure: est < pEst ? [{ ...traitLine, probability: 1 }] : [],
       };
@@ -352,7 +353,7 @@ function discloseLines(s: GameStateV2, inc: { severity: 1 | 2 | 3 | 4 | 5; publi
   const mean = dT.reduce((a, [, d]) => a + d, 0) / dT.length;
   const trust: CostLine = { currency: 'trust', amount: r2(mean), target: `mean of ${dT.map(([cp, d]) => `${cp} ${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}`).join(', ')} (credibility ${Math.round(s.relations.credibility)}${s.relations.credibility < 30 ? ', under 30: costs trust' : ''})` };
   return {
-    costs: [{ currency: 'scrutiny', amount: discloseScrutiny(inc as never), target: inc ? `per incident of severity ${inc.severity}` : 'per incident: 3 + 2 × severity' }, ...(mean < 0 ? [trust] : [])],
+    costs: [{ currency: 'scrutiny', amount: discloseScrutiny(inc as never), target: inc ? `per incident (${['', 'minor', 'serious', 'severe', 'critical', 'catastrophic'][inc.severity] ?? 'minor'})` : 'per incident, more for severe ones' }, ...(mean < 0 ? [trust] : [])],
     gains: [...(mean >= 0 ? [trust] : []), ...(inc?.publicTimerDays !== undefined ? [{ currency: 'trust' as const, amount: 1, unit: 'incident', target: 'public timer ends: no leak penalty if outsiders find it' }] : [])],
     exposure: [],
   };
@@ -365,7 +366,7 @@ function withholdLines(s: GameStateV2, must: boolean, timer?: number): CostLine[
   return must
     ? [
         { currency: 'cash', amount: raise ? -0.003 : -0.001, target: `statutory fine (${raise ? 'RAISE' : 'SB 53'}) once the report is late` },
-        { currency: 'trust', amount: -4, target: 'exec, states and evalGov each; credibility −5 (unreported incident)' },
+        { currency: 'trust', amount: -4, target: 'the executive, states and government evaluators each; credibility −5 (unreported incident)' },
         { currency: 'trust', amount: -3, unit: '× public penalty', probability: 1, target: 'if outsiders find the cover-up before its timer ends; credibility −15' },
       ]
     : timer !== undefined
@@ -455,7 +456,7 @@ const POLICY: ActionDef = {
         { currency: 'credibility', amount: 2, unit: 'per result', lagDays: lag, target: `each new result is published when it lands (${pace})` },
         { currency: 'talent', amount: 1, unit: 'per result', lagDays: lag, target: 'safety researchers like labs that publish' },
       );
-      costs.push({ currency: 'alignment', amount: 0, target: "rivals learn each result too: the shared safety pool +0.02 per tool or eval, +0.04 per discovery" });
+      costs.push({ currency: 'alignment', amount: 0, target: "rivals learn each result too: shared safety know-how +0.02 per instrument or eval, +0.04 per discovery" });
     } else {
       costs.push({ currency: 'credibility', amount: 0, target: pol === 'none' ? 'nothing is published unless you press Publish on a result' : 'you choose each result to publish (Publish on the result)' });
     }
@@ -488,7 +489,7 @@ const PLEDGE: ActionDef = {
       ],
       gains: [
         { currency: 'credibility', amount: 8 },
-        { currency: 'trust', amount: 4, target: 'evalGov' },
+        { currency: 'trust', amount: 4, target: 'government evaluators' },
         { currency: 'monitorability', amount: 0.5, unit: '×', target: 'training pushes toward obfuscated reasoning half as hard' },
         ...idx.filter((l) => l.amount >= 0),
       ],
@@ -521,7 +522,7 @@ const fwDepthParam = (p: P, s: GameStateV2): SafetyFramework['evalDepth'] => {
 const fwExternalParam = (p: P, s: GameStateV2): boolean => (typeof p.external === 'boolean' ? p.external : frameworkOf(s).externalReview);
 
 const FRAMEWORK_EVALS: ActionDef = {
-  id: 'safety.frameworkEvals', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: capability assessment',
+  id: 'safety.frameworkEvals', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: release evals',
   available: () => true,
   preview(s, p) {
     // What apply does: external releases wait for a suite at this depth (internal use is never held by it); with the
@@ -550,11 +551,11 @@ const FRAMEWORK_EVALS: ActionDef = {
   },
   apply(s, ctx, p) {
     const d = str(p, 'depth');
-    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return void ctx.log('alert', 'Capability assessment: none, basic, full or deep.');
+    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return void ctx.log('alert', 'Release evals: none, basic, full or deep.');
     const fw = frameworkOf(s);
     fw.evalDepth = fwDepthParam(p, s);
     fw.externalReview = fwExternalParam(p, s);
-    ctx.log('company', `Safety framework: ${fw.evalDepth === 'none' ? 'no' : fw.evalDepth} capability assessment before release${fw.externalReview ? ', external review' : ''}.`, 1);
+    ctx.log('company', `Safety framework: ${fw.evalDepth === 'none' ? 'no' : fw.evalDepth} evals before release${fw.externalReview ? ', external review' : ''}.`, 1);
   },
 };
 
@@ -653,7 +654,7 @@ const SAFEGUARD_PACKAGE: ActionDef = {
     const why = d ? applyPackage(s, d) : 'Unknown deployment';
     if (why) return void ctx.log('alert', why);
     refreshFramework(s, ctx);
-    ctx.log('company', `${PACKAGE_LABEL} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
+    ctx.log('company', `${PACKAGE_LABEL} added to ${d!.channel === 'internal' ? 'AI staff' : PRODUCT_DEFS[d!.channel]?.name ?? 'a product'}.`, 1, d!.id);
   },
 };
 /** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model).
@@ -687,8 +688,8 @@ const VALIDATE: ActionDef = {
     const per = jobEngineers(s, { human });
     const who = humanRun(s, { human }) ? 'human-run' : 'AI-assisted';
     const costs: CostLine[] = [
-      { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${who}; ${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
-      { currency: 'compute', amount: 0, target: "a quarter of a serious line project's experiment compute per job while it runs (the lines get less)" },
+      { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${who}; ${tools.length} validation${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
+      { currency: 'compute', amount: 0, target: "a quarter of a fully staffed programme's experiment compute per validation while it runs (the programmes get less)" },
     ];
     // RF-S14: a method's job plants the trait in a test copy, trains it with the method and counts the planted cases removed;
     // the result narrows how strong the lab believes the method is on this model and larger ones (methods.ts methodQRange).

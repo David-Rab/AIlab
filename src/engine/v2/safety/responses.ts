@@ -15,18 +15,21 @@ import { ownedMethods } from './methods';
 import { removeFoothold } from './footholdDetection';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
+import { TRAIT_BY_ID } from '../../../data/v2/traits';
+/** An incident's model, by name, for log lines (VOCAB §4: names, never ids). */
+const incModel = (s: GameStateV2, inc: Incident) => versionById(s, inc.versionId)?.name ?? 'a model';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
-  patchSignal: { title: 'Harden environments', note: 'Harden the RL environments of one family (the Harden pass of Training › Environments): expert red-teamers close the holes in its graders, cutting the share of gameable tasks by 40% of what is left above the floor (10% of the family’s start share) on every later run that trains on it. Cash and engineer team-weeks; in force when the pass is done.' },
+  patchSignal: { title: 'Harden environments', note: 'Harden the post-training environments of one family (the Harden pass of Training › Environments): expert red-teamers close the loopholes in its graders, cutting them by 40% of what is left above the floor (10% of the family’s start) on every later run that trains on it. Costs cash and engineer time; in force when the pass is done.' },
   addMethod: { title: 'Add method to later runs', note: 'Every later run plan that takes the default methods lists this owned safety method (persona vectors, anti-scheming, inoculation…); its effect shows in the next run\'s predicted traits, not in this model.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
-  addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, defer 10% to trusted): about 7% of the work lost at a 1-OOM trusted gap; acts slipping past monitors ×0.45; AI-control tools block.' },
+  addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, the most suspicious 10% deferred to a trusted model): about 7% slowdown at a typical watcher gap; acts slipping past monitors ×0.45; risky actions blocked.' },
   removeControl: { title: 'Remove control protocol', note: 'Remove the control-protocol safeguard: its slowdown ends; blocking and deferral end with it.' },
-  addLockdown: { title: 'Add comms lockdown', note: `Comms-lockdown safeguard on the model's internal agents (shared memory bank locked): the same-lineage collusion penalty halves; ${Math.round(LOCKDOWN_SLOWDOWN * 100)}% of internal AI work lost.` },
-  removeLockdown: { title: 'Remove comms lockdown', note: 'Remove the comms-lockdown safeguard: its slowdown ends; the collusion penalty is back to full.' },
-  rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
-  removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
+  addLockdown: { title: 'Add comms lockdown', note: `Comms-lockdown safeguard on the model's AI staff (shared memory locked): copies of one model cover for each other half as much; ${Math.round(LOCKDOWN_SLOWDOWN * 100)}% slowdown of AI staff work.` },
+  removeLockdown: { title: 'Remove comms lockdown', note: 'Remove the comms-lockdown safeguard: its slowdown ends; copies cover for each other fully again.' },
+  rollback: { title: 'Roll back', note: 'Return to the earlier checkpoint; lose the newer model.' },
+  removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, AI staff off for the downtime; its effect ends.' },
 };
 
 /** The family the environment-fix response hardens: the one asked for (if the lab has its environments), else the
@@ -226,7 +229,7 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
     }
     case 'addLockdown': {
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.channel === 'internal' && d.status === 'live');
-      if (!deps.length) return 'No internal agent package runs this model';
+      if (!deps.length) return 'No AI staff run this model';
       for (const d of deps) {
         const why = addSafeguard(s, d, 'lockdown');
         if (why) return why;
@@ -258,7 +261,7 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
     // until the timer ends or it is disclosed (the disclosure policy decides; a fix is not a quiet cover-up).
     if ((inc.status === 'open' || inc.status === 'investigating') && inc.publicTimerDays === undefined) inc.status = 'resolved';
   }
-  ctx.log('company', `${RESPONSE_INFO[kind].title}: ${v.name}${inc ? ` (incident ${inc.id})` : ''}, ${trait}.`, 2, inc?.id ?? v.id);
+  ctx.log('company', `${RESPONSE_INFO[kind].title}: ${v.name}${inc ? ' (after an incident)' : ''}, ${TRAIT_BY_ID[trait]?.name ?? trait}.`, 2, inc?.id ?? v.id);
   return undefined;
 }
 
@@ -289,7 +292,7 @@ export function setIncidentDisclosure(s: GameStateV2, ctx: SystemCtx, inc: Incid
   if (willDisclose(s, inc)) discloseIncident(s, ctx, inc);
   else if (mustReport(s, inc) && inc.status !== 'covered') {
     inc.status = 'covered';
-    ctx.log('company', 'Incident ' + inc.id + ' withheld: a cover-up under SB 53 / RAISE.', 3, inc.id);
+    ctx.log('company', `Incident on ${incModel(s, inc)} withheld: a cover-up under the incident-reporting laws (California, New York).`, 3, inc.id);
   }
   return undefined;
 }
@@ -302,7 +305,7 @@ export function discloseIncident(s: GameStateV2, ctx: SystemCtx, inc: Incident):
   if (typeof inc.trueSource === 'string' && s.player.safety.discoveredUModes.includes(inc.trueSource as UModeId)) revealToWorld(s, inc.trueSource as UModeId);
   inc.status = 'disclosed';
   delete inc.publicTimerDays;
-  ctx.log('company', `Incident ${inc.id} disclosed to government and evaluators.`, 2, inc.id);
+  ctx.log('company', `Incident on ${incModel(s, inc)} disclosed to government and evaluators.`, 2, inc.id);
 }
 
 /** Daily (incidents step): apply each undecided incident's disclosure. Disclose → discloseIncident. Not disclosing a
@@ -314,7 +317,7 @@ export function disclosureStep(s: GameStateV2, ctx: SystemCtx): void {
     if (willDisclose(s, inc)) discloseIncident(s, ctx, inc);
     else if (mustReport(s, inc)) {
       inc.status = 'covered';
-      ctx.log('company', `Incident ${inc.id} not reported (disclosure ${inc.disclose === 'no' ? 'withheld' : 'policy none'}): a cover-up under SB 53 / RAISE.`, 3, inc.id);
+      ctx.log('company', `Incident on ${incModel(s, inc)} not reported (${inc.disclose === 'no' ? 'you withheld it' : 'disclosure policy: none'}): a cover-up under the incident-reporting laws (California, New York).`, 3, inc.id);
     }
   }
 }

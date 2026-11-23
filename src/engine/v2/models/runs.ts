@@ -556,7 +556,7 @@ function planRl(s: GameStateV2, p: LaunchRunParams): ActPlan | string {
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
   if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
   if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
-  if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 RL families';
+  if (d.rlFocus !== 'broad' && d.rlFocus.length > 2) reason = 'Pick at most 2 environment families';
   const flopNeeded = rlFlopOf(base, d, p.grader);
   const build = rlBuild(s, start, d, postRecipeNow(s), flopNeeded);
   const rl = rlGains(build.flopPre, build.rlFlop, build.rlW, build.eRL, build.aRL ?? 0, build.rlFid);
@@ -610,7 +610,8 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   if (plan.reason) return plan.reason;
   const m = s.player.models;
   const n = m.nextName++;
-  const kindName = p.grader === 'teacher' ? 'IDA' : p.kind;
+  // UB-4 (VOCAB §3 Training): run names in player words, never 'post 21' / 'IDA 21'.
+  const kindName = p.grader === 'teacher' ? 'Amplify' : ({ base: 'Pretraining', post: 'Post-training', continue: 'Continued pretraining', distill: 'Distil' } as const)[p.kind];
   const run: TrainingRun = {
     id: `R${n}`, kind: p.kind, name: `${kindName} ${n}`, startDay: s.time.day,
     flopNeeded: plan.flopNeeded, flopDone: 0, poolShare: plan.poolShare, cashCost: plan.cashCost,
@@ -913,7 +914,7 @@ function advanceStream(s: GameStateV2, day: Day) {
 /** Start a continual-learning stream on a version (needs P08). Returns an error string or undefined. Nothing changes
  *  until the first period's FLOP is spent. */
 export function startStream(s: GameStateV2, versionId: string, day: Day = s.time.day): string | undefined {
-  if (!adopted(s, 'P08')) return 'Needs continual learning (P08)';
+  if (!adopted(s, 'P08')) return 'Needs the discovery Continual learning';
   const v = versionById(s, versionId);
   if (!v || v.variant !== 'full') return 'Pick a full version';
   s.player.models.stream = { versionId, startedDay: day, lastAuditDay: day, periodDay: day, flop: 0 };

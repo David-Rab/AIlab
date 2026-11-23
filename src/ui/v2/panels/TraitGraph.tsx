@@ -7,15 +7,14 @@ import { beliefView, traitGraph, sightLimit, versionSignals } from '../../../eng
 import type { GameStateV2, TraitId } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
 import { GoBtn, HBar, Ref } from '../kit';
-import { ActBtn, Term } from '../ui';
+import { ActBtn, designerOverlay, Term } from '../ui';
+import { SIGNAL_LABEL } from './Pressure';
 import * as F from '../fmt';
 import { ICON, SIGNAL_ICON, TRAIT_ICON } from '../icons';
 import { C, sev } from '../theme';
 
-export const SIGNAL_SHORT: Record<string, string> = {
-  S1: 'Rater approval', S2: 'Hackable graders', S3: 'Long-horizon RL', S4: 'CoT pressure', S5: 'Scale + AI data', S6: 'Narrow harmful FT',
-  S7: 'Evals in training', S8: 'Many copies', S9: 'Oversight-cond. reward', teacher: 'Teacher model',
-};
+/** UB-4: the one signal name set (Pressure.tsx SIGNAL_LABEL), plus the teacher node. */
+export const SIGNAL_SHORT: Record<string, string> = { ...SIGNAL_LABEL, teacher: 'Teacher model' };
 export const GRADE_DASH: Record<string, string | undefined> = { A: undefined, B: '7 4', C: '3 3', D: '1 4' };
 /** Belief severity: high is bad, except for protective traits. */
 export const traitSev = (id: string, est: number) => sev(TRAIT_BY_ID[id as TraitId]?.protective ? 1 - est : est);
@@ -110,7 +109,7 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
         <rect x={p.x} y={p.y} width={PW} height={PH} rx={6} className="tg-pill" stroke={hot ? C.bad : bad || (lit && on && focus) ? col : C.line2} strokeWidth={hot ? 2 : 1} />
         <Icon x={p.x + 8} y={p.y + 6} width={13} height={13} color={C.text2} />
         <text x={p.x + 26} y={p.y + 16} className="tg-name">{TRAIT_BY_ID[id].name.replace('Successor alignment to self', 'Successor alignment')}</text>
-        {b && <text x={p.x + PW - 8} y={p.y + 16} className="tg-val" textAnchor="end">{F.num(b.est, 2)}</text>}
+        {b && <text x={p.x + PW - 8} y={p.y + 16} className="tg-val" textAnchor="end">{F.pct(b.est)}</text>}
         <rect x={p.x + 10} y={p.y + 25} width={bw} height={4} rx={2} fill={C.line} />
         {b && <rect x={fx(b.est - b.sd)} y={p.y + 25} width={Math.max(2, fx(b.est + b.sd) - fx(b.est - b.sd))} height={4} rx={2} fill={col} opacity={0.75} />}
         {b && <rect x={fx(b.est) - 1} y={p.y + 22} width={2} height={10} fill="#fff" />}
@@ -144,7 +143,7 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
         <line x1={p.x + PW} x2={COL.T} y1={p.y + PH / 2} y2={p.y + PH / 2} stroke={ok ? C.und : C.bad} strokeDasharray="2 3" opacity={0.6} />
         <rect x={COL.T} y={p.y + 7} width={70} height={24} rx={5} fill={ok ? 'rgba(34,163,148,.15)' : 'rgba(239,107,107,.14)'} stroke={ok ? C.und : C.bad} />
         {ok ? <ICON.scrutiny x={COL.T + 8} y={p.y + 12} width={13} height={13} color={C.und} /> : <ICON.blind x={COL.T + 8} y={p.y + 12} width={13} height={13} color={C.bad} />}
-        <text x={COL.T + 26} y={p.y + 23} className="tg-see" fill={ok ? C.und : C.bad}>{ok ? 'sees' : 'blind'}</text>
+        <text x={COL.T + 26} y={p.y + 23} className="tg-see" fill={ok ? C.und : C.bad}>{ok ? 'reads' : 'blind'}</text>
       </g>
     );
   };
@@ -157,7 +156,7 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
           <marker id="tg-arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="#5d6f86" /></marker>
           <marker id="tg-arr-hot" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill={C.bad} /></marker>
         </defs>
-        {([['S', 'TRAINING SIGNALS'], ['L', 'LEARNED'], ['A', 'AWARENESS'], ['B', 'HIDDEN BEHAVIOUR'], ['T', 'TOOLS SEE']] as const).map(([k, t]) => <text key={k} x={COL[k]} y={22} className="tg-cap">{t}</text>)}
+        {([['S', 'TRAINING SIGNALS'], ['L', 'LEARNED'], ['A', 'AWARENESS'], ['B', 'HIDDEN BEHAVIOUR'], ['T', 'INSTRUMENTS']] as const).map(([k, t]) => <text key={k} x={COL[k]} y={22} className="tg-cap">{t}</text>)}
         <rect x={COL.A} y={TOP} width={PW + 24} height={150} rx={8} className="tg-protect" />
         <text x={COL.A + 12} y={TOP + 22} className="tg-cap prot">PROTECTIVE</text>
         {sorted.flatMap((e) => e.from.map((f, k) => {
@@ -180,7 +179,7 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
           const same = Math.abs(a.x - b.x) < 30;
           const x = same ? a.x + PW + 30 : (a.x + PW + b.x) / 2;
           const y = (a.y + b.y) / 2 + PH / 2 - 4;
-          return <text key={`l-${e.id}`} x={x} y={y} className="tg-elbl" textAnchor="middle">{e.id} {e.grade}</text>;
+          return <text key={`l-${e.id}`} x={x} y={y} className="tg-elbl" textAnchor="middle">{designerOverlay() ? `${e.id} ${e.grade}` : ''}</text>;
         })}
         {SIG_IDS.map(sigPill)}
         {LEARNED.map(pill)}
@@ -194,11 +193,11 @@ export function TraitGraph({ s, versionId }: { s: GameStateV2; versionId?: strin
         </div>
       )}
       <div className="tg-legend">
-        <span className="dim"><Term id="evidenceGrade">evidence grade</Term></span>
-        {(['A', 'B', 'C', 'D'] as const).map((gr) => <span key={gr} className="row-i"><svg width={30} height={6}><line x1={0} x2={30} y1={3} y2={3} stroke={C.text2} strokeWidth={2} strokeDasharray={GRADE_DASH[gr]} /></svg>{gr}</span>)}
-        <span className="dim"><Term id="edge">edge</Term> width = weight</span>
+        {designerOverlay() && <span className="dim"><Term id="evidenceGrade">evidence grade</Term></span>}
+        {designerOverlay() && (['A', 'B', 'C', 'D'] as const).map((gr) => <span key={gr} className="row-i"><svg width={30} height={6}><line x1={0} x2={30} y1={3} y2={3} stroke={C.text2} strokeWidth={2} strokeDasharray={GRADE_DASH[gr]} /></svg>{gr}</span>)}
+        <span className="dim">thicker arrow = stronger push · dashed = less certain</span>
         <span className="dim"><Term id="belief">belief</Term></span>
-        {([[0.05, 'low'], [0.2, 'watch'], [0.4, 'elevated'], [0.7, 'high']] as const).map(([x, l]) => <span key={l} className="row-i"><i className="tg-sw" style={{ background: sev(x) }} />{l}</span>)}
+        {([[0.05, 'low'], [0.4, 'elevated'], [0.7, 'high']] as const).map(([x, l]) => <span key={l} className="row-i"><i className="tg-sw" style={{ background: sev(x) }} />{l}</span>)}
         <span className="dim">· <Term id="protective">protective</Term>: high is good</span>
         <span className="sp" />
         <span className="dim">{focus ? <>{TRAIT_BY_ID[focus as TraitId]?.name ?? SIGNAL_SHORT[focus]}: upstream paths lit{pin ? ' · pinned' : ''}</> : 'hover a node to light its causes · click to pin'}</span>
@@ -222,37 +221,37 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
         <Icon size={15} color={b ? traitSev(id, b.est) : C.text2} />
         <b><Term id={`trait:${id}`}>{t.name}</Term></b>
         <span className="sp" />
-        {b && <span className="num">{F.num(b.est, 2)} <span className="dim">± {F.num(b.sd, 2)}</span></span>}
+        {b && <span className="num">{F.pct(b.est)} <span className="dim">({F.pct(Math.max(0, b.est - b.sd))}–{F.pct(Math.min(1, b.est + b.sd))})</span></span>}
         {pinned && <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="close">✕</button>}
       </div>
       <div className="dim small">{t.desc}</div>
       {critical && det !== undefined && (
         <div className="tg-det">
-          <span className="small">Your tools catch it</span>
+          <span className="small">Instruments find it</span>
           <HBar v={det} max={1} w={150} h={6} color={det >= 0.5 ? C.und : C.bad} mark={0.5} />
           <span className={`num ${det >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(det)}</span>
-          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% at your level · counts toward the <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>sight limit</Ref></div>
+          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% on your best model · counts toward the <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>sight limit</Ref></div>
         </div>
       )}
       {inc.length > 0 && (
         <div className="tip-sec">
-          <div className="tip-cap">Evidence into this node</div>
+          <div className="tip-cap">What pushes it</div>
           {inc.map((e) => (
             <div className="tg-ev" key={e.id}>
-              <span className="tag2">{e.id}</span>
+              {designerOverlay() && <span className="tag2">{e.id}</span>}
               <span>{e.from.map(name).join(' + ')} → {name(e.to)}</span>
-              <span className="num">{F.num(e.weight, 2)} · <Term id="evidenceGrade">{e.grade}</Term></span>
-              <span className="tg-cite">{e.cite}{e.moderator ? <span className="dim"> · <Term id="moderator">moderator</Term>: {e.moderator}</span> : null}</span>
+              <span className="num">{e.weight >= 0.25 ? 'strong' : e.weight >= 0.1 ? 'moderate' : e.weight > 0 ? 'weak' : 'lowers it'}{designerOverlay() ? <> · {F.num(e.weight, 2)} · <Term id="evidenceGrade">{e.grade}</Term></> : null}</span>
+              <span className="tg-cite">{designerOverlay() ? e.cite : ''}{e.moderator ? <span className="dim"> · <Term id="moderator">moderator</Term>: {e.moderator}</span> : null}</span>
             </div>
           ))}
         </div>
       )}
-      {!inc.length && <div className="dim small tip-sec">No known causes in the graph: it moves through training and the tools you use.</div>}
+      {!inc.length && <div className="dim small tip-sec">Nothing known pushes it: it moves only through training and the instruments you use.</div>}
       <div className="tip-sec btn-row wrap">
-        {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Investigate · 15 engineers" />}
+        {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Open a case · 15 engineers" />}
         {sigIn && <GoBtn to={{ panel: 'blueprint' }} label={`Less ${SIGNAL_SHORT[sigIn].toLowerCase()}`} testId={`tg.recipe.${sigIn}`} />}
-        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Tool upkeep" testId="tg.upkeep" />}
-        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="tg.lines" />
+        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Validate instruments" testId="tg.upkeep" />}
+        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Safety programmes" testId="tg.lines" />
       </div>
     </div>
   );

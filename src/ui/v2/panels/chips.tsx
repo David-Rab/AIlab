@@ -17,7 +17,7 @@ export function modelOptions(s: GameStateV2, filter: (v: ModelVersion) => boolea
     .filter((v) => v.status !== 'retired' && v.status !== 'rolledBack' && filter(v))
     .map((v) => {
       const why = lock?.(v);
-      return { value: v.id, label: `${v.name} · L ${F.level(measuredLOf(s, v).L)}${why ? ' · locked' : ''}`, ...(why ? { disabled: why } : {}) };
+      return { value: v.id, label: `${v.name} · level ${F.level(measuredLOf(s, v).L)}${why ? ' · locked' : ''}`, ...(why ? { disabled: why } : {}) };
     });
 }
 
@@ -40,19 +40,19 @@ export function PkgChip({ kind, value, options, onPick, changed, extra, testId, 
 
 /** Catch-rate readout for a monitor chip with its breakdown (model v3 E6: 85% at no oversight gap, Engels' 10% at a
  *  400-Elo ≈ 6.8 OOM gap; AG07 control tools; deferral under the control layer). */
-export function CatchX({ rate, gap, gapL, elo, base, control, defer, coverage, testId, note, copy, collusion }: { rate: number; gap: number; gapL?: number; elo?: number; base?: number; control?: number; defer?: number; coverage?: number; testId?: string; note?: ReactNode; copy?: boolean; collusion?: number }) {
+export function CatchX({ rate, gap, gapL, base, control, defer, coverage, testId, note, copy, collusion }: { rate: number; gap: number; gapL?: number; elo?: number; base?: number; control?: number; defer?: number; coverage?: number; testId?: string; note?: ReactNode; copy?: boolean; collusion?: number }) {
   const coll = copy && collusion !== undefined && collusion < rate - 1e-6;
   return (
-    <Tip content={() => <TipCard title={<Term id="catchRate">Catch rate</Term>} value={F.pct(rate)} rows={[
+    <Tip content={() => <TipCard title={<Term id="catchRate">Stop rate</Term>} value={F.pct(rate)} rows={[
       { label: 'Monitor as capable as the model', value: '85%' },
-      { label: <Term id="oversightGap">Oversight gap</Term>, value: gap > 1e-6 ? `${gap.toFixed(1)} OOM${gapL !== undefined ? ` (${gapL.toFixed(1)} levels${elo !== undefined ? `, ≈${Math.round(elo)} Elo` : ''})` : ''} → ${F.pct(monitorCatchAt(gap))}` : 'none' },
-      ...(base !== undefined ? [{ label: 'Before control tools', value: F.pct(base) }] : []),
-      ...(control !== undefined ? [{ label: 'AI-control tools (AG07)', value: `+${F.pct(control * 0.5)} of the rest` }] : []),
-      ...(defer !== undefined && defer < 1 ? [{ label: <Term id="controlTax">Deferral (control layer)</Term>, value: `misses ×${defer.toFixed(2)}` }] : []),
-      ...(coverage !== undefined && coverage < 1 ? [{ label: <Term id="monitorCoverage">Coverage (passes watched)</Term>, value: F.pct(coverage) }] : []),
+      { label: <Term id="oversightGap">Watcher gap</Term>, value: gap > 1e-6 ? `${gapL !== undefined ? `${gapL.toFixed(1)} levels below` : 'below the model'} → ${F.pct(monitorCatchAt(gap))}` : 'none' },
+      ...(base !== undefined ? [{ label: 'Before AI-control research', value: F.pct(base) }] : []),
+      ...(control !== undefined ? [{ label: 'AI-control research', value: `+${F.pct(control * 0.5)} of the rest` }] : []),
+      ...(defer !== undefined && defer < 1 ? [{ label: <Term id="controlTax">Deferral (control protocol)</Term>, value: `misses ×${defer.toFixed(2)}` }] : []),
+      ...(coverage !== undefined && coverage < 1 ? [{ label: <Term id="monitorCoverage">Watched share</Term>, value: F.pct(coverage) }] : []),
       ...(coll ? [{ label: <Term id="collusion">Same lineage: scheming-type incidents</Term>, value: F.pct(collusion ?? 0), tone: 'neg' as const }] : []),
     ]}>{note ?? 'Model-behaviour incidents it catches stay internal.'}</TipCard>}>
-      <span className="mchip-x">catch <b data-test={testId}>{F.pct(rate)}</b>{coll && <span className="tone-neg" data-test={testId ? `${testId}.coll` : undefined}> · {F.pct(collusion ?? 0)} scheming</span>}</span>
+      <span className="mchip-x">stops <b data-test={testId}>{F.pct(rate)}</b>{coll && <span className="tone-neg" data-test={testId ? `${testId}.coll` : undefined}> · {F.pct(collusion ?? 0)} scheming</span>}</span>
     </Tip>
   );
 }

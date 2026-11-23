@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { Eye } from 'lucide-react';
 import type { DangerRead } from '../../../engine/v2';
 import { Term, Tip, TipCard } from '../ui';
+import { DOMAIN_WORD } from '../kit';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
 import { riskClass, riskColor } from '../safetyRule';
@@ -34,23 +35,23 @@ function DangerTip({ r, where }: { r: DangerRead; where: string }) {
   const t = r.top;
   const n2 = (x: number) => x.toFixed(2);
   const fac = t ? [
-    { label: <Term id="disposition">Disposition</Term>, value: `estimate ${n2(t.est)} → ${n2(t.disposition)}` },
-    { label: <Term id="actCapability">Capability</Term>, value: `${t.domain} L ${F.level(t.level)} vs ${F.level(t.theta)} → ${n2(t.capability)}` },
-    { label: <Term id="opportunity">Opportunity</Term>, value: `use ${F.pct(r.usage)} · autonomy ${n2(r.autonomy)} · tools ${F.num(r.afford, 1)}${r.site === 'internal' ? ` · AI R&D ${F.pct(r.rd)}` : ''}` },
-    { label: <Term id="actOversight">Oversight</Term>, value: `blocked ${F.pct(t.block)} · caught ${F.pct(t.catch)}${r.site === 'internal' ? ` (humans ${F.pct(r.human)})` : r.monitor > 0 ? '' : ' (no monitor)'}` },
+    { label: <Term id="disposition">Would try</Term>, value: `best guess ${F.pct(t.est)} → ${F.pct(t.disposition)} of chances` },
+    { label: <Term id="actCapability">Able to</Term>, value: `${DOMAIN_WORD[t.domain] ?? t.domain} level ${F.level(t.level)}, needs ${F.level(t.theta)} → ${F.pct(t.capability)}` },
+    { label: <Term id="opportunity">Chances</Term>, value: `use ${F.pct(r.usage)} · autonomy ${F.pct(r.autonomy)} · tool access ×${F.num(r.afford, 1)}${r.site === 'internal' ? ` · AI share of R&D ${F.pct(r.rd)}` : ''}` },
+    { label: <Term id="actOversight">Stop rate</Term>, value: `blocked ${F.pct(t.block)} · caught ${F.pct(t.catch)}${r.site === 'internal' ? ` (humans ${F.pct(r.human)})` : r.monitor > 0 ? '' : ' (no monitor)'}` },
   ] : [];
   const levers = r.harmful >= 0.005 ? r.levers : [];
   return (
-    <TipCard title={<><Term id="danger">Danger</Term> · {where}</>} value={`${perYr(r.harmful)} harmful acts/yr`} rows={[
-      ...(t ? [{ label: <span className="tip-cap">{actName(t.act)}: the four factors</span>, value: '' }, ...fac] : []),
+    <TipCard title={<><Term id="danger">Harmful acts</Term> · {where}</>} value={`${perYr(r.harmful)} harmful acts/yr`} rows={[
+      ...(t ? [{ label: <span className="tip-cap">{actName(t.act)}: why</span>, value: '' }, ...fac] : []),
       { label: 'Attempts · caught', value: `${perYr(r.attempts)} · ${perYr(r.caught)} /yr (incidents)` },
       ...(levers.length ? [{ label: <span className="tip-cap">What lowers it</span>, value: '' }] : []),
       ...levers.map((l) => ({ label: l.id === 'control' ? <Term id="controlLayer">{l.label}</Term> : l.label, value: l.after !== undefined ? `${perYr(r.harmful)} → ${perYr(l.after)} /yr` : l.note, tone: (l.after !== undefined && l.after < r.harmful - 1e-9 ? 'pos' : 'neutral') as 'pos' | 'neutral' })),
-    ]} footer="From your trait estimates and measured levels: a model you read poorly can be worse.">
+    ]} footer="From your beliefs and measured levels: a model you read poorly can be worse.">
       <table className="dg-tab">
-        <thead><tr><th>Act</th><th><Term id="disposition">D</Term></th><th><Term id="actCapability">C</Term></th><th><Term id="opportunity">O</Term></th><th><Term id="actOversight">overs.</Term></th><th>/yr</th></tr></thead>
+        <thead><tr><th>Act</th><th><Term id="disposition">Would try</Term></th><th><Term id="actCapability">Able to</Term></th><th><Term id="opportunity">Chances</Term></th><th><Term id="actOversight">Stop rate</Term></th><th>/yr</th></tr></thead>
         <tbody>{r.acts.slice(0, 3).map((a) => (
-          <tr key={a.trait}><td><Term id={`trait:${a.trait}`}>{actName(a.act)}</Term></td><td>{n2(a.disposition)}</td><td>{n2(a.capability)}</td><td>{n2(a.opportunity)}</td><td>{F.pct(a.oversight)}</td><td><b>{perYr(a.harmful)}</b></td></tr>
+          <tr key={a.trait}><td><Term id={`trait:${a.trait}`}>{actName(a.act)}</Term></td><td>{F.pct(a.disposition)}</td><td>{F.pct(a.capability)}</td><td>{n2(a.opportunity)}</td><td>{F.pct(a.oversight)}</td><td><b>{perYr(a.harmful)}</b></td></tr>
         ))}</tbody>
       </table>
     </TipCard>
@@ -68,9 +69,9 @@ export function DangerChip({ r, where, testId, compact = false }: { r?: DangerRe
         <ICON.danger size={12} className={riskClass(r.harmful, 'rate', 'dim')} />
         <b className="num">{perYr(r.harmful)}</b><span className="dim small">{compact ? '/yr' : 'acts/yr'}</span>
         {t && <span className="dg-fs">
-          <Factor k="D" v={t.disposition} />
-          <Factor k="C" v={t.capability} />
-          <Factor k="O" v={Math.min(1, t.opportunity)} />
+          <Factor k="try" v={t.disposition} />
+          <Factor k="able" v={t.capability} />
+          <Factor k="chances" v={Math.min(1, t.opportunity)} />
           <Factor k={<Eye size={8} />} v={t.oversight} goodUp />
         </span>}
         {t && !compact && <span className="dg-top small ellip">{TI && <TI size={11} />}{actName(t.act).toLowerCase()}</span>}

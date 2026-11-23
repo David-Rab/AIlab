@@ -27,6 +27,9 @@ import { controlOn, reviewOn } from './safeguards';
 import { schemingReading } from './trusted';
 import { internalVersion } from '../models/labs';
 import { medianExpertLevel } from '../models/capability';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
+/** A product's display name for log lines (VOCAB §4: names, never ids). */
+const depName = (s: GameStateV2, id?: string) => PRODUCT_DEFS[s.player.deployments.find((d) => d.id === id)?.channel ?? 'api']?.name ?? 'a product';
 
 /** CAL2-S (decision 11): the world's High level, its own median expert. */
 export const worldHighL = (s: GameStateV2) => frameworkHighL(medianExpertLevel(s.hidden.timeline));
@@ -112,7 +115,7 @@ export function deployHolds(s: GameStateV2, v: ModelVersion, cand: FrameworkCand
 export function assessmentBlock(s: GameStateV2, v: ModelVersion): string | undefined {
   const fw = frameworkOf(s);
   if (fw.evalDepth === 'none') return undefined;
-  if (v.evals.suiteDay === undefined) return 'Not evaluated yet (your Safety framework asks for a capability assessment)';
+  if (v.evals.suiteDay === undefined) return 'Not evaluated yet (your Safety framework asks for evals)';
   if (fw.externalReview && !externallyEvaluated(s, v)) return 'Needs an external evaluation (your Safety framework)';
   return undefined;
 }
@@ -205,8 +208,8 @@ export function refreshFramework(s: GameStateV2, ctx?: SystemCtx): FrameworkHold
   const label = (id: string) => fw.rules.find((r) => r.id === id)?.label ?? id;
   if (ctx) {
     const nextKeys = new Set(next.map(holdKey));
-    for (const h of next) if (!prev.has(holdKey(h))) ctx.log('alert', `Safety framework hold (${label(h.ruleId)}): ${h.target === 'training' ? 'frontier training paused' : `product ${h.depId} stopped`}; needs ${h.missing.join(', ')}.`, 2, h.versionId);
-    for (const h of fw.holds) if (!nextKeys.has(holdKey(h))) ctx.log('company', `Safety framework hold released (${label(h.ruleId)}${h.depId ? `, product ${h.depId}` : ''}).`, 1, h.versionId);
+    for (const h of next) if (!prev.has(holdKey(h))) ctx.log('alert', `Safety framework hold (${label(h.ruleId)}): ${h.target === 'training' ? 'frontier training on hold' : `${depName(s, h.depId)} on hold`}; needs ${h.missing.join(', ')}.`, 2, h.versionId);
+    for (const h of fw.holds) if (!nextKeys.has(holdKey(h))) ctx.log('company', `Safety framework hold released (${label(h.ruleId)}${h.depId ? `, ${depName(s, h.depId)}` : ''}).`, 1, h.versionId);
   }
   fw.holds = next;
   if (trainingHeld(s)) for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
@@ -258,7 +261,7 @@ export function editRule(s: GameStateV2, ruleId: string, edit: { level?: number;
   if (!rule || !def) return 'Unknown framework rule';
   if (edit.level !== undefined) {
     if (rule.trigger.kind !== 'capability' || def.trigger.kind !== 'capability') return 'Not a capability threshold';
-    if (Math.abs(edit.level - def.trigger.level) > slack.level + 1e-9) return `Threshold must stay within ${slack.level} L of ${def.trigger.level}`;
+    if (Math.abs(edit.level - def.trigger.level) > slack.level + 1e-9) return `Threshold must stay within ${slack.level} levels of ${def.trigger.level}`;
     rule.trigger.level = edit.level;
   }
   if (edit.est !== undefined) {

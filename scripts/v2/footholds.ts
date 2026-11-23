@@ -271,7 +271,7 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   const inv: Investigation = { id: 'INV-T', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 15, computeShare: 0.05, tools: ['T-MO'], startDay: s.time.day - 60, progress: 1 };
   s.player.safety.investigations.push(inv);
   resolveInvestigation(s, makeCtx(s), inv);
-  check((f.status as string) === 'detected' && /investigation INV-T/.test(f.symptom ?? ''), 'location: an investigation resolving on the maker (SCHEME, clarity 1) locates a suspected backdoor', `${inv.outcome}; ${f.symptom}`);
+  check((f.status as string) === 'detected' && /a case on /.test(f.symptom ?? ''), 'location: an investigation resolving on the maker (SCHEME, clarity 1) locates a suspected backdoor', `${inv.outcome}; ${f.symptom}`);
 }
 
 // ───────────── removal: the effect ends, the cost is the preview ─────────────

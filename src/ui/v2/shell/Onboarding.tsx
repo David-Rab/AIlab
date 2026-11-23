@@ -22,17 +22,17 @@ function goals(s: GameStateV2): Goal[] {
   if (s.tutorial.act <= 1) {
     return [
       { id: 'race', text: <>Read the race: <Term id="L">capability</Term> vs <Term id="sightLimit">sight limit</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
-      { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
+      { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'blueprint' }, goLabel: 'Next run' },
       { id: 'ff', text: <>Fast-forward to the result <span className="kbd">F</span></>, done: postDone },
-      { id: 'finding', text: 'Decide on your first finding', done: s.decisions.some((d) => d.eventId === 'E01') },
+      { id: 'finding', text: 'Decide on your first result', done: s.decisions.some((d) => d.eventId === 'E01') },
       { id: 'runway', text: <>Check how long the money lasts (<Term id="runway">runway</Term>)</>, done: seen(s, 'panel:finance'), go: { panel: 'finance' }, goLabel: 'Finance' },
       { id: 'ship', text: <>Put a new model on a <Term id="product">product</Term></>, done: p.deployments.some((d) => d.channel !== 'internal' && ((d.versionSince ?? d.startDay) > 0 || d.startDay > 0)), go: { panel: 'products' }, goLabel: 'Products' },
     ];
   }
   return [
     { id: 'chips', text: 'Order chips or start a site', done: p.orders.some((o) => o.qty > 0) || p.sites.length > 1, go: { panel: 'compute' }, goLabel: 'Compute' },
-    { id: 'base', text: <>Launch a <Term id="baseRun">base run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Blueprint' },
-    { id: 'agenda', text: <>Staff a safety <Term id="researchLine">research line</Term></>, done: p.teams.some((t) => t.role === 'sci' && t.dept === 'saf' && !!t.projectId), go: { panel: 'safety', tab: 'lines' }, goLabel: 'Research lines' },
+    { id: 'base', text: <>Launch a <Term id="baseRun">pretraining run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Next run' },
+    { id: 'agenda', text: <>Staff a safety <Term id="researchLine">programme</Term></>, done: p.teams.some((t) => t.role === 'sci' && t.dept === 'saf' && !!t.projectId), go: { panel: 'safety', tab: 'lines' }, goLabel: 'Safety research' },
     { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:company'), go: { panel: 'company' }, goLabel: 'Company' },
     { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'relations' }, goLabel: 'Relations' },
   ];
@@ -66,12 +66,12 @@ export function Goals({ s }: { s: GameStateV2 }) {
 // ───────── coach cards ─────────
 interface Step { id: string; act: number; target: string; title: string; body: ReactNode; when?: (s: GameStateV2) => boolean; action?: { label: string; go: GoTarget; test: string } }
 const STEPS: Step[] = [
-  { id: 'race', act: 1, target: '[data-test=race]', title: 'Keep understanding ahead', body: <>Violet is how capable your best model is. Teal is the highest level your safety tools can still read. If violet passes teal, you are flying blind.</> },
-  { id: 'runs', act: 1, target: '[data-nav=blueprint]', title: 'Train your first model', body: <>A starter recipe is ready. Every choice shows what it pushes, so try one change and watch the arrows.</>, when: (s) => !s.player.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0), action: { label: 'Open Blueprint', go: { panel: 'blueprint' }, test: 'firstRun' } },
+  { id: 'race', act: 1, target: '[data-test=race]', title: 'Keep understanding ahead', body: <>Violet is how capable your best model is. Teal is the highest level your instruments can still read. If violet passes teal, you are flying blind.</> },
+  { id: 'runs', act: 1, target: '[data-nav=blueprint]', title: 'Train your first model', body: <>A starter run is ready. Every option shows what it pushes, so try one change and watch the arrows.</>, when: (s) => !s.player.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0), action: { label: 'Open Next run', go: { panel: 'blueprint' }, test: 'firstRun' } },
   { id: 'why', act: 1, target: '[data-test=cash]', title: 'Hover for why, click to go', body: <>Hover any number to see what moved it. Click it to open the panel that changes it. Dotted words explain themselves.</> },
   { id: 'watch', act: 1, target: '#watch', title: 'Watch: what needs you', body: <>When something goes wrong, it shows up here as cause → fix, with a button to the control.</>, when: () => store.panel === 'overview' },
-  { id: 'act2', act: 2, target: '[data-nav=compute]', title: 'Act 2: the frontier race', body: <>Chips, sites and base runs are open. Money starts to bind: watch the runway gauge.</> },
-  { id: 'act3', act: 3, target: '[data-nav=world]', title: 'Act 3: automation', body: <>Your agents now do research. The World panel shows jobs and who controls the economy.</> },
+  { id: 'act2', act: 2, target: '[data-nav=compute]', title: 'Act 2: the frontier race', body: <>Chips, sites and pretraining runs are open. Money starts to bind: watch the runway gauge.</> },
+  { id: 'act3', act: 3, target: '[data-nav=world]', title: 'Act 3: automation', body: <>Your AI staff now do research. The World panel shows jobs and who controls the economy.</> },
   { id: 'act4', act: 4, target: '[data-nav=risk]', title: 'Act 4: takeoff', body: <>Progress is fast now. The Risk panel shows where catastrophe could come from.</> },
 ];
 function currentStep(s: GameStateV2): Step | undefined {
@@ -141,7 +141,7 @@ export function QuarterRecap({ s }: { s: GameStateV2 }) {
             </div>
           ))}
         </div>
-        <div className="small" style={{ marginTop: 8 }}>{gap1 < 0 ? <span className="tone-neg">You are {Math.abs(gap1).toFixed(1)} levels past what your tools can read{gap1 < gap0 ? ', and the gap grew' : ''}.</span> : <span className="tone-pos">Understanding is {gap1.toFixed(1)} levels ahead of capability.</span>}</div>
+        <div className="small" style={{ marginTop: 8 }}>{gap1 < 0 ? <span className="tone-neg">You are {Math.abs(gap1).toFixed(1)} levels past what your instruments can read{gap1 < gap0 ? ', and the gap grew' : ''}.</span> : <span className="tone-pos">Your sight limit is {gap1.toFixed(1)} levels past your best model.</span>}</div>
         <div className="btn-row" style={{ marginTop: 10 }}>
           <span className="sp" />
           <button className="btn btn-primary" data-test="recap-ok" onClick={() => store.closeRecap()} autoFocus>Continue</button>

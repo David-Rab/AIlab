@@ -16,7 +16,7 @@ import {
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
-import { Card, HBar, Ref } from '../kit';
+import { Card, DOMAIN_WORD, effMult, effX, HBar, Ref } from '../kit';
 import * as F from '../fmt';
 import { DOMAIN_ICON } from '../icons';
 import { C, seq } from '../theme';
@@ -30,7 +30,7 @@ const KIND: Record<Kind, { label: string; term: string; icon: LucideIcon }> = {
   synthetic: { label: 'Synthetic', term: 'syntheticData', icon: Sparkles },
   expert: { label: 'Expert', term: 'expertData', icon: GraduationCap },
 };
-const DOM_NAME: Record<string, string> = { CODE: 'Code', RSCH: 'AI research', REASON: 'Math & reasoning', AGENCY: 'Long tasks', SOCIAL: 'Social & general text', MEDIA: 'Media', CYBER: 'Cyber', BIO: 'Bio', PHYS: 'Physical' };
+const DOM_NAME = DOMAIN_WORD;
 
 /** Tokens given in trillions: 310T, 7.5T, 50B, 2.0B, 400M. */
 export const tokT = (t: number) => {
@@ -41,7 +41,8 @@ export const tokT = (t: number) => {
   if (a === 0) return '0';
   return `${Math.round(t * 1e6)}M`;
 };
-const oom = (x: number) => (Math.abs(x) < 0.005 ? '0.00' : `${x > 0 ? '+' : '−'}${Math.abs(x).toFixed(2)}`);
+/** UB-4: domain display name, never the code. */
+const dn = (d?: string) => (d ? DOM_NAME[d] ?? d : '');
 const perDay = (t: number) => `${tokT(t)}/day`;
 
 export function DataView({ s }: { s: GameStateV2 }) {
@@ -66,9 +67,9 @@ function Portfolio({ s, v }: { s: GameStateV2; v: DataPortfolioView }) {
   const maxU = Math.max(1e-9, ...v.rows.filter((r) => r.kind !== 'expert').map((r) => r.weightedT));
   const uTip = () => (
     <TipCard title={<Term id="uniqueTokens">Unique tokens</Term>} value={tokT(v.uT)} rows={[
-      ...v.rows.filter((r) => r.kind !== 'expert').map((r) => ({ label: <>{KIND[r.kind].label}: {tokT(r.tokensT)} × q {r.quality.toFixed(2)}</>, value: tokT(r.weightedT) })),
+      ...v.rows.filter((r) => r.kind !== 'expert').map((r) => ({ label: <>{KIND[r.kind].label}: {tokT(r.tokensT)} at quality {r.quality.toFixed(2)}</>, value: tokT(r.weightedT) })),
       { label: 'Pretraining tokens', value: tokT(v.tokensT) },
-    ]} footer="Expert data is not pretraining data (it lives in the RL suites).">Σ [[dataQuality|quality]] × tokens over the pretraining kinds.</TipCard>
+    ]} footer="Expert data is not pretraining data (it lives in the post-training environments).">Pretraining tokens weighted by their [[dataQuality|quality]], over every kind.</TipCard>
   );
   return (
     <Card title={<span className="row-i"><Database size={15} /><Term id="dataPortfolio">Data portfolio</Term></span>} home="dataPortfolio" className="dv-port"
@@ -77,8 +78,8 @@ function Portfolio({ s, v }: { s: GameStateV2; v: DataPortfolioView }) {
         <span className="ch">Kind</span>
         <span className="ch r">Tokens</span>
         <span className="ch r"><Term id="dataQuality">Quality</Term></span>
-        <span className="ch"><Term id="uniqueTokens">Unique</Term> (q × tokens)</span>
-        <span className="ch dv-doms">{DOMAIN_IDS.map((dm) => { const I = DOMAIN_ICON[dm]; return <Tip key={dm} content={() => <TipCard title={<Term id="domains">{dm}</Term>}>{DOM_NAME[dm]} data. Each cell is the kind&apos;s share of its quality-weighted tokens in this domain.</TipCard>}><I size={12} /></Tip>; })}</span>
+        <span className="ch"><Term id="uniqueTokens">Unique tokens</Term> (quality-weighted)</span>
+        <span className="ch dv-doms">{DOMAIN_IDS.map((dm) => { const I = DOMAIN_ICON[dm]; return <Tip key={dm} content={() => <TipCard title={<Term id="domains">{dn(dm)}</Term>}>{dn(dm)} data. Each cell is the kind&apos;s share of its quality-weighted tokens in this domain.</TipCard>}><I size={12} /></Tip>; })}</span>
         <span className="ch">Today</span>
         {v.rows.map((r) => <KindLine key={r.kind} s={s} r={r} v={v} maxU={maxU} />)}
       </div>
@@ -88,11 +89,11 @@ function Portfolio({ s, v }: { s: GameStateV2; v: DataPortfolioView }) {
           const I = p.domain ? DOMAIN_ICON[p.domain] : Database;
           return (
             <Tip key={i} content={() => <TipCard title={<Term id={p.kind === 'expert' ? 'expertData' : 'licensedData'}>{p.label}</Term>} value={tokT(p.tokensT)} rows={[
-              { label: 'Domain', value: p.domain ?? 'mixed' }, { label: <Term id="dataQuality">Quality</Term>, value: p.quality.toFixed(1) },
+              { label: 'Domain', value: p.domain ? dn(p.domain) : 'mixed' }, { label: <Term id="dataQuality">Quality</Term>, value: p.quality.toFixed(1) },
               { label: 'Arrives', value: `${fmtDate(dateOf(s, p.due))} (in ${F.days(Math.max(0, p.due - s.time.day))})` },
               ...(p.kind === 'expert' ? [] : [{ label: <Term id="uniqueTokens">Unique tokens</Term>, value: `+${tokT(p.quality * p.tokensT)}` }]),
             ]}>Paid at signing; joins the portfolio on the due day.</TipCard>}>
-              <span className="dch" data-pending={p.kind}><I size={11} /><span className="k">{p.domain ?? ''} {p.kind === 'expert' ? 'expert' : p.label.toLowerCase()}</span><b>{tokT(p.tokensT)}</b><span className="k">in {F.days(Math.max(0, p.due - s.time.day))}</span></span>
+              <span className="dch" data-pending={p.kind}><I size={11} /><span className="k">{dn(p.domain)} {p.kind === 'expert' ? 'expert' : p.label.toLowerCase()}</span><b>{tokT(p.tokensT)}</b><span className="k">in {F.days(Math.max(0, p.due - s.time.day))}</span></span>
             </Tip>
           );
         }) : <span className="dim small">no deliveries due</span>}
@@ -126,10 +127,10 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
       );
       case 'synthetic': return (
         <Tip content={() => <TipCard title={<Term id="syntheticData">Synthetic data</Term>} value={perDay(v.synPerDayT)} rows={[
-          { label: <Term id="poolSynthetic">Generation pool</Term>, value: `${F.count(v.synPoolH100e)} H100e` },
+          { label: <Term id="poolSynthetic">Data generation</Term>, value: `${F.count(v.synPoolH100e)} H100e` },
           { label: 'Default teacher', value: v.defaultTeacher ?? '–' },
-          ...(job ? [{ label: <Term id="synJob">Job</Term>, value: `${F.pct(job.share)} of the pool until ${fmtDate(dateOf(s, job.until))}` }] : []),
-        ]} footer="Pool size is set on Compute › Split; the teacher on Generate data below.">Tokens kept per day from the data-generation pool. A teacher writes most in the domains it is strongest at.</TipCard>}>
+          ...(job ? [{ label: <Term id="synJob">Job</Term>, value: `${F.pct(job.share)} of data generation until ${fmtDate(dateOf(s, job.until))}` }] : []),
+        ]} footer="Its compute is set on Compute allocation; the teacher on Generate data below.">Tokens kept per day from data-generation compute. A teacher writes most in the domains it is strongest at.</TipCard>}>
           <span className="small">+{perDay(v.synPerDayT)}{job ? ' · job' : ''}{v.synMixLine ? <span className="dim" data-test="syn-mix"> · {v.synMixLine}</span> : null}</span>
         </Tip>
       );
@@ -137,11 +138,11 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
         return (
           <span className="row-i small">
             <Tip content={() => <TipCard title={<Term id="expertData">Expert data</Term>} rows={[
-              { label: 'Built into suites', value: tokT(v.expertInSuitesT) },
-            ]} footer="Each suite's expert data and fidelity: Models › Suites.">Not pretraining data. Bought only by suite builds (Build suite).</TipCard>}>
-              <span>{tokT(v.expertInSuitesT)} in suites</span>
+              { label: 'Built into environments', value: tokT(v.expertInSuitesT) },
+            ]} footer="Each family's expert data and realism: Models › Environments.">Not pretraining data. Bought only by expanding environments.</TipCard>}>
+              <span>{tokT(v.expertInSuitesT)} in environments</span>
             </Tip>
-            <Ref id="expertData" to={{ panel: 'models', tab: 'suites' }}>Suites</Ref>
+            <Ref id="expertData" to={{ panel: 'models', tab: 'suites' }}>Environments</Ref>
           </span>
         );
       }
@@ -175,21 +176,21 @@ function NaturalMix({ rows }: { rows: DomainMixRow[] }) {
   const f = (x: number) => `${(Math.min(SPEC_CAP, Math.abs(x)) / SPEC_CAP) * 50}%`;
   return (
     <Card title={<Term id="naturalMix">Natural mix</Term>} sub={<>vs <Term id="refShare">reference shares</Term></>} home="naturalMix" className="dv-nat"
-      right={<button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint')}>Blueprint ›</button>}>
+      right={<button className="btn btn-sm btn-ghost" data-go="blueprint" onClick={() => store.goto('blueprint')}>Next run ›</button>}>
       <div className="dv-natgrid" data-test="data-natural">
-        <span className="ch">Domain</span><span className="ch c">−{SPEC_CAP} <Term id="dataSpec">specialisation</Term> +{SPEC_CAP} OOM</span><span className="ch r">Share / ref</span>
+        <span className="ch">Domain</span><span className="ch c"><Term id="dataSpec">Specialisation</Term> (effective compute in the domain)</span><span className="ch r">Share / standard</span>
         {rows.map((r) => {
           const I = DOMAIN_ICON[r.domain];
           const tip = () => (
-            <TipCard title={<><Term id="naturalMix">Natural mix</Term> · {r.domain}</>} value={`${oom(r.s)} OOM`} rows={[
+            <TipCard title={<><Term id="naturalMix">Natural mix</Term> · {dn(r.domain)}</>} value={effX(r.s)} rows={[
               { label: 'Share of your stock', value: F.pct(r.share, 1) }, { label: <Term id="refShare">Reference share</Term>, value: F.pct(r.ref, 1) },
-              { label: <Term id="dataSpec">Specialisation</Term>, value: `${oom(r.s)} OOM${Math.abs(r.s) >= SPEC_CAP - 1e-6 ? ' (cap)' : ''}` },
-            ]} footer="A Balanced base draws the reference shares; a Natural base draws these.">{`1.5 OOM per tenfold share against the reference, at most ±${SPEC_CAP} OOM.`}</TipCard>
+              { label: <Term id="dataSpec">Specialisation</Term>, value: `${effX(r.s)}${Math.abs(r.s) >= SPEC_CAP - 1e-6 ? ' (cap)' : ''}` },
+            ]} footer="A Balanced base model draws the standard shares; a Natural one draws these.">{`A domain with ten times the standard share gets ${effX(1.5)} effective compute in it, at most ${effX(SPEC_CAP)}.`}</TipCard>
           );
           return (
             <Tip key={r.domain} as="div" content={tip}>
               <div className="dv-natline" data-dom={r.domain}>
-                <span className="row-i small"><I size={12} />{r.domain}</span>
+                <span className="row-i small"><I size={12} />{dn(r.domain)}</span>
                 <span className="dv-div"><i className="mid" />{Math.abs(r.s) > 0.005 && <i className={`bar ${r.s > 0 ? 'pos' : 'neg'}`} style={r.s > 0 ? { left: '50%', width: f(r.s) } : { right: '50%', width: f(r.s) }} />}</span>
                 <span className="num small r">{F.pct(r.share, 1)} <span className="dim">/ {F.pct(r.ref, 1)}</span></span>
               </div>
@@ -204,14 +205,13 @@ function NaturalMix({ rows }: { rows: DomainMixRow[] }) {
 // ───────── before → after (token units) ─────────
 function DeltaRows({ d, what }: { d: DataDelta; what: string }) {
   const pc = (x: number) => F.pct(x, 1);
-  const q3 = (x: number) => { const r = Math.round(x * 1000) / 1000; return `${r >= 0 ? '+' : '−'}${Math.abs(r).toFixed(3)}`; };
   const rows: { k: string; raw: [number, number]; label: ReactNode; a: string; b: string; tip: string; ch: boolean; neg?: boolean }[] = [
     { k: 'u', raw: d.u, label: <Term id="uniqueTokens">Unique tokens</Term>, a: tokT(d.u[0]), b: tokT(d.u[1]), tip: 'Quality-weighted unique tokens of the portfolio.', ch: Math.abs(d.u[1] - d.u[0]) > 1e-6 },
-    { k: 'share', raw: d.share, label: <>{d.domain} share of stock</>, a: pc(d.share[0]), b: pc(d.share[1]), tip: `${DOM_NAME[d.domain]}'s share of the natural mix.`, ch: Math.abs(d.share[1] - d.share[0]) > 5e-5 },
-    { k: 's', raw: d.s, label: <>{d.domain} <Term id="dataSpec">spec.</Term> (natural)</>, a: `${oom(d.s[0])}`, b: `${oom(d.s[1])} OOM`, tip: 'Specialisation a Natural-mix base of your latest size would get in this domain.', ch: Math.abs(d.s[1] - d.s[0]) > 5e-3 },
-    { k: 'epochs', raw: d.epochs, label: <>Latest base <Term id="dataTokens">epochs</Term></>, a: d.epochs[0].toFixed(2), b: d.epochs[1].toFixed(2), tip: 'Epochs of the most-repeated slice for a base like your latest one, with its data mix.', ch: Math.abs(d.epochs[1] - d.epochs[0]) > 5e-3 },
+    { k: 'share', raw: d.share, label: <>{dn(d.domain)} share of stock</>, a: pc(d.share[0]), b: pc(d.share[1]), tip: `${dn(d.domain)}'s share of the natural mix.`, ch: Math.abs(d.share[1] - d.share[0]) > 5e-5 },
+    { k: 's', raw: d.s, label: <>{dn(d.domain)} <Term id="dataSpec">specialisation</Term> (natural)</>, a: effX(d.s[0]), b: effX(d.s[1]), tip: 'Effective compute in this domain a Natural-mix base model of your latest size would get.', ch: Math.abs(d.s[1] - d.s[0]) > 5e-3 },
+    { k: 'epochs', raw: d.epochs, label: <>Latest base model <Term id="dataTokens">re-reads</Term></>, a: `×${d.epochs[0].toFixed(2)}`, b: `×${d.epochs[1].toFixed(2)}`, tip: 'How often a base model like your latest one re-reads its most-repeated data, with its data mix.', ch: Math.abs(d.epochs[1] - d.epochs[0]) > 5e-3 },
     // model v3 D11 (M3): the quality of the drawn tokens is a G term; data below the draw's mean quality dilutes it.
-    { k: 'qG', raw: d.qG, label: <>Latest base <Term id="dataQuality">data quality</Term></>, a: q3(d.qG[0]), b: `${q3(d.qG[1])} OOM`, tip: 'Effective compute the drawn tokens’ quality gives a base like your latest one, with its data mix, against the 2025 reference draw (G’s data-quality term). Data worse than what the base already draws lowers it.', ch: Math.abs(d.qG[1] - d.qG[0]) > 5e-4, neg: d.qG[1] < d.qG[0] - 5e-4 },
+    { k: 'qG', raw: d.qG, label: <>Latest base model <Term id="dataQuality">data quality</Term></>, a: effX(d.qG[0]), b: effX(d.qG[1]), tip: 'Effective compute the quality of its data gives a base model like your latest one, against the 2025 standard. Data worse than what it already draws lowers it.', ch: Math.abs(d.qG[1] - d.qG[0]) > 5e-4, neg: d.qG[1] < d.qG[0] - 5e-4 },
   ];
   return (
     <div className="dv-delta" data-test={`delta-${what}`}>
@@ -235,7 +235,7 @@ function Pills<T extends string | number>({ value, opts, onPick, test }: { value
 function DomainPills({ value, onPick, test, web }: { value: string; onPick: (d: string) => void; test: string; web?: boolean }) {
   const opts = [
     ...(web ? [{ v: 'web', label: <><Globe size={11} />Web crawl</>, tip: () => <TipCard title={<Term id="publicWeb">Web crawl</Term>}>License the crawled public web: no tokens, ends copyright suits over it.</TipCard> }] : []),
-    ...DOMAIN_IDS.map((d) => { const I = DOMAIN_ICON[d]; return { v: d as string, label: <><I size={11} />{d}</>, tip: () => <TipCard title={<Term id="domains">{d}</Term>}>{DOM_NAME[d]}</TipCard> }; }),
+    ...DOMAIN_IDS.map((d) => { const I = DOMAIN_ICON[d]; return { v: d as string, label: <><I size={11} />{dn(d)}</>, tip: () => <TipCard title={<Term id="domains">{dn(d)}</Term>}>Data in {dn(d)}.</TipCard> }; }),
   ];
   return <Pills value={value} opts={opts} onPick={onPick} test={test} />;
 }
@@ -258,8 +258,8 @@ function LicenceCard({ s }: { s: GameStateV2 }) {
       {dom !== 'web' && <>
         <FormRow label={<Term id="licenceTier">Tier</Term>}>
           <Pills value={tier} test="lic-tier" onPick={setTier} opts={(Object.keys(LICENCE_TIERS) as LicenceTier[]).map((t) => ({
-            v: t, label: <>{LICENCE_TIERS[t].label} <span className="dim">q {LICENCE_TIERS[t].quality} · ${LICENCE_TIERS[t].priceBPerT}B/T</span></>,
-            tip: () => <TipCard title={<Term id="licenceTier">{LICENCE_TIERS[t].label}</Term>} rows={[{ label: <Term id="dataQuality">Quality</Term>, value: String(LICENCE_TIERS[t].quality) }, { label: 'Price', value: `$${LICENCE_TIERS[t].priceBPerT}B per T tokens` }]}>Quality multiplies the tokens in U.</TipCard>,
+            v: t, label: <>{LICENCE_TIERS[t].label} <span className="dim">quality {LICENCE_TIERS[t].quality} · ${LICENCE_TIERS[t].priceBPerT}B/T</span></>,
+            tip: () => <TipCard title={<Term id="licenceTier">{LICENCE_TIERS[t].label}</Term>} rows={[{ label: <Term id="dataQuality">Quality</Term>, value: String(LICENCE_TIERS[t].quality) }, { label: 'Price', value: `$${LICENCE_TIERS[t].priceBPerT}B per T tokens` }]}>Quality multiplies the tokens it adds to your unique tokens.</TipCard>,
           }))} />
         </FormRow>
         <FormRow label="Size"><Pills value={mi} test="lic-size" onPick={setMi} opts={sizes.map((t, i) => ({ v: i, label: tokT(t), tip: () => <TipCard title={`${tokT(t)} tokens`} value={F.money(t * LICENCE_TIERS[tier].priceBPerT)}>Tokens × the tier&apos;s price.</TipCard> }))} /></FormRow>
@@ -272,7 +272,7 @@ function LicenceCard({ s }: { s: GameStateV2 }) {
         ) : (
           <>
             <Tip content={() => <TipCard title="Cost" value={F.money(f.cashB)} rows={[{ label: 'Tokens', value: tokT(f.tokensT) }, { label: 'Price', value: `$${f.priceBPerT}B/T` }]}>Paid at signing; delivered in {f.days} days.</TipCard>}>
-              <span className="small" data-test="lic-sum" data-cash={f.cashB} data-tokens={f.tokensT} data-q={f.quality}><b className="num">{F.money(f.cashB)}</b> for {tokT(f.tokensT)} {f.domain} at q {f.quality}</span>
+              <span className="small" data-test="lic-sum" data-cash={f.cashB} data-tokens={f.tokensT} data-q={f.quality}><b className="num">{F.money(f.cashB)}</b> for {tokT(f.tokensT)} {dn(f.domain)} at quality {f.quality}</span>
             </Tip>
             {f.delta && <DeltaRows d={f.delta} what="licence" />}
           </>
@@ -299,35 +299,36 @@ function SynCard({ s }: { s: GameStateV2 }) {
   const maxY = Math.max(1e-9, ...rows.map((r) => r.weightedPerH100eDay));
   // The strongest five, plus the default and the best-yield teacher (the trade the table is for) and the picked one.
   const top = [...rows].sort((a, b) => b.g - a.g).slice(0, 5).map((r) => r.id);
+  const gDef = rows.find((r) => r.isDefault)?.g ?? rows[0]?.g ?? 0;
   const shown = rows.filter((r) => top.includes(r.id) || r.isDefault || r.id === best || r.id === t).sort((a, b) => b.g - a.g);
   return (
     <Card title={<span className="row-i"><Sparkles size={14} /><Term id="synJob">Generate data</Term></span>} home="synJobForm" className="dv-form"
-      sub={f.job ? <Tip content={() => <TipCard title={<Term id="synJob">Running job</Term>} rows={[{ label: 'Teacher', value: f.job!.teacher }, { label: 'Share of pool', value: F.pct(f.job!.share) }, { label: 'Until', value: fmtDate(dateOf(s, f.job!.until)) }]}>The rest of the pool keeps the default teacher.</TipCard>}><span data-test="syn-job">job: {f.job.teacher} · {F.pct(f.job.share)} until {fmtDate(dateOf(s, f.job.until))}</span></Tip> : 'no job: the pool uses the default teacher'}
+      sub={f.job ? <Tip content={() => <TipCard title={<Term id="synJob">Running job</Term>} rows={[{ label: 'Teacher', value: rows.find((r) => r.id === f.job!.teacher)?.name ?? f.job!.teacher }, { label: 'Share of data generation', value: F.pct(f.job!.share) }, { label: 'Until', value: fmtDate(dateOf(s, f.job!.until)) }]}>The rest of data generation keeps the default teacher.</TipCard>}><span data-test="syn-job">job: {rows.find((r) => r.id === f.job!.teacher)?.name ?? f.job.teacher} · {F.pct(f.job.share)} until {fmtDate(dateOf(s, f.job.until))}</span></Tip> : 'no job: data generation uses the default teacher'}
       right={f.job ? <ActBtn id="data.synthesize" testId="data.synthesize.stop" params={{ days: 0 }} label="Stop job" /> : undefined}>
       <div className="dv-teach" data-test="syn-teachers">
-        <span className="ch">Teacher</span><span className="ch r"><Term id="effCompute">G</Term></span><span className="ch r"><Term id="dataQuality">q</Term></span><span className="ch r">tokens / H100e-day</span><span className="ch"><Term id="teacherYield">yield</Term> (q × tokens)</span>
+        <span className="ch">Teacher</span><span className="ch r"><Term id="effCompute">Effective compute</Term></span><span className="ch r"><Term id="dataQuality">Quality</Term></span><span className="ch r">tokens / H100e-day</span><span className="ch"><Term id="teacherYield">Yield</Term> (quality-weighted)</span>
         {shown.map((r) => (
-          <Tip key={r.id} as="div" content={() => <TipCard title={r.name} value={`${F.short(r.weightedPerH100eDay / 1e6)}M q-tokens / H100e-day`} rows={[
-            { label: <Term id="effCompute">G</Term>, value: `${r.g.toFixed(2)} OOM` }, { label: <Term id="dataQuality">Quality</Term>, value: r.quality.toFixed(2) },
+          <Tip key={r.id} as="div" content={() => <TipCard title={r.name} value={`${F.short(r.weightedPerH100eDay / 1e6)}M quality-weighted tokens / H100e-day`} rows={[
+            { label: <><Term id="effCompute">Effective compute</Term> vs the default teacher</>, value: effMult(r.g - gDef) }, { label: <Term id="dataQuality">Quality</Term>, value: r.quality.toFixed(2) },
             { label: 'Kept tokens per H100e-day', value: `${F.short(r.tokensPerH100eDay / 1e6)}M` },
           ]} footer={r.isDefault ? 'The default teacher (your internal research model).' : undefined}>Bigger teachers write fewer tokens per H100e-day; stronger ones write better tokens.</TipCard>}>
             <button className={`dv-trow ${r.id === t ? 'on' : ''}`} data-teacher={r.id} onClick={() => setTeacher(r.id)}>
               <span className="ellip">{r.name}{r.isDefault && <span className="tag2">default</span>}{r.id === best && <span className="tag2 good">best yield</span>}</span>
-              <span className="num r">{r.g.toFixed(2)}</span><span className="num r">{r.quality.toFixed(2)}</span><span className="num r">{F.short(r.tokensPerH100eDay / 1e6)}M</span>
+              <span className="num r">{effMult(r.g - gDef)}</span><span className="num r">{r.quality.toFixed(2)}</span><span className="num r">{F.short(r.tokensPerH100eDay / 1e6)}M</span>
               <span className="dv-u"><HBar v={r.weightedPerH100eDay} max={maxY} w={90} h={7} color={r.id === best ? C.good : C.und} /><b className="num">{F.short(r.weightedPerH100eDay / 1e6)}M</b></span>
             </button>
           </Tip>
         ))}
       </div>
-      <FormRow label="Pool share"><Pills value={share} test="syn-share" onPick={setShare} opts={SHARES.map((x) => ({ v: x, label: F.pct(x), tip: () => <TipCard title={<Term id="poolSynthetic">Share of the generation pool</Term>} value={F.pct(x)}>The rest keeps the default teacher.</TipCard> }))} /></FormRow>
-      <FormRow label="Days"><Pills value={days} test="syn-days" onPick={setDays} opts={DAYS.map((x) => ({ v: x, label: `${x} d`, tip: () => <TipCard title="Job length" value={F.days(x)}>The job ends after this; the pool goes back to the default teacher.</TipCard> }))} /></FormRow>
+      <FormRow label="Share"><Pills value={share} test="syn-share" onPick={setShare} opts={SHARES.map((x) => ({ v: x, label: F.pct(x), tip: () => <TipCard title={<Term id="poolSynthetic">Share of data generation</Term>} value={F.pct(x)}>The rest keeps the default teacher.</TipCard> }))} /></FormRow>
+      <FormRow label="Days"><Pills value={days} test="syn-days" onPick={setDays} opts={DAYS.map((x) => ({ v: x, label: `${x} d`, tip: () => <TipCard title="Job length" value={F.days(x)}>The job ends after this; data generation goes back to the default teacher.</TipCard> }))} /></FormRow>
       <div className="dv-sum">
         <Tip content={() => <TipCard title="What the job makes" rows={[
           { label: 'Compute', value: `${F.short(f.h100eDays / 1e6)}M H100e-days` },
-          { label: `${f.teacherName ?? '–'}`, value: `${tokT(f.tokensT)} at q ${f.quality.toFixed(2)} → unique +${tokT(f.delta.u[1] - f.delta.u[0])}` },
-          { label: `Default (${f.defaultName ?? '–'})`, value: `${tokT(f.defaultTokensT)} at q ${f.defaultQuality.toFixed(2)} → unique +${tokT(f.defaultDelta.u[1] - f.defaultDelta.u[0])}` },
-        ]} footer="The compute is the generation pool, already paid for; the cost is what the default teacher would have made.">The data carries its teacher&apos;s traits into bases trained on it.</TipCard>}>
-          <span className="small" data-test="syn-sum" data-tokens={f.tokensT} data-days={f.days} data-share={f.share} data-teacher={f.teacher}><b className="num">{F.short(f.h100eDays / 1e6)}M</b> H100e-days → {tokT(f.tokensT)} at q {f.quality.toFixed(2)} <span className="dim">(default: unique +{tokT(f.defaultDelta.u[1] - f.defaultDelta.u[0])})</span></span>
+          { label: `${f.teacherName ?? '–'}`, value: `${tokT(f.tokensT)} at quality ${f.quality.toFixed(2)} → unique +${tokT(f.delta.u[1] - f.delta.u[0])}` },
+          { label: `Default (${f.defaultName ?? '–'})`, value: `${tokT(f.defaultTokensT)} at quality ${f.defaultQuality.toFixed(2)} → unique +${tokT(f.defaultDelta.u[1] - f.defaultDelta.u[0])}` },
+        ]} footer="The compute is data generation's, already paid for; the cost is what the default teacher would have made.">The data carries its teacher&apos;s traits into base models trained on it.</TipCard>}>
+          <span className="small" data-test="syn-sum" data-tokens={f.tokensT} data-days={f.days} data-share={f.share} data-teacher={f.teacher}><b className="num">{F.short(f.h100eDays / 1e6)}M</b> H100e-days → {tokT(f.tokensT)} at quality {f.quality.toFixed(2)} <span className="dim">(default: unique +{tokT(f.defaultDelta.u[1] - f.defaultDelta.u[0])})</span></span>
         </Tip>
         <DeltaRows d={f.delta} what="syn" />
       </div>
