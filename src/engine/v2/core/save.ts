@@ -10,6 +10,7 @@ import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
+import { rivalVersionBuild, setModelG } from '../actors/rivalModel';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
@@ -98,8 +99,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  BaseDesign.mixShares carries RefBot's fixed shares); the "Overtrained compact" node goes (tokens per parameter is
  *  ungated). Migration 66 → 67 renames the preset in every stored base design and drops the node's tree state.
  *  68 (RD-M01, DD-08): the measured level is fitted from the benchmark scores (EvalRecord.measuredDom, fitSd); the
- *  stored error draw errTrue goes. Migration 67 → 68 refits every player version with a bench table and drops errTrue. */
-export const SCHEMA_REV = 68;
+ *  stored error draw errTrue goes. Migration 67 → 68 refits every player version with a bench table and drops errTrue.
+ *  69 (RD-X03): a non-player lab's models carry a reference-profile build (SimpleModel.build: baseG + rlGains on the
+ *  lab's reference portfolio). Migration 68 → 69 builds one for every stored rival, leader-lab and China model. */
+export const SCHEMA_REV = 69;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -673,6 +676,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (!v.evals) continue;
       delete (v.evals as { errTrue?: number }).errTrue;
       if (Object.keys(v.evals.bench ?? {}).length && s.flags && s.setup) refitMeasured(s, v);
+    }
+  },
+  /** 68 → 69 (RD-X03): every non-player lab's internal and public model gets its reference-profile build (the version
+   *  build on the lab's current base at its RL recipe today; the rest of its stored G as general ΔG) and its domain
+   *  levels from it. G unchanged. Idempotent (a model with a build is kept). */
+  68: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const tw = s.hidden?.timeline;
+    if (!tw) return;
+    for (const r of [...(s.rivals ?? []), s.china?.lab]) {
+      if (!r?.phys?.base) continue;
+      for (const m of [r.internal, r.publicModel]) {
+        if (!m || m.build) continue;
+        m.build = rivalVersionBuild(r.phys.base, r.phys.rec.mid, r.phys.rec.ceil);
+        setModelG(tw, m, m.G);
+      }
     }
   },
 };

@@ -15,7 +15,7 @@ import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, frontierGAt, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
+import { domainsOf, frontierGAt, frontierGPerYear, gOfBuild, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
 import { LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
@@ -31,7 +31,7 @@ import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { addRivalKnowledge, clRefresh, clReset, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, clReset, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionBuild, setModelBuild, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -312,11 +312,13 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const wl = s.hidden.timeline;
 
   // Post-training cadence (6–10 weeks, research/12 §0.1): same lineage, new version on the current base at today's
-  // recipe (rivalModel.ts newVersionG), never below the version it replaces.
+  // recipe (rivalModel.ts newVersionBuild: baseG + rlGains on the reference portfolio, RD-X03), never below the version it replaces.
   const postVersion = () => {
     w.nextPost[id] = day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
-    const G = Math.max(gOfSimple(wl, r.internal), newVersionG(s, r, r.phys.base));
+    const nbld = newVersionBuild(s, r, r.phys.base);
+    const G = Math.max(gOfSimple(wl, r.internal), gOfBuild(nbld));
     r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes] };
+    r.internal.build = nbld; // the new version's build (a weaker one kept as general ΔG: setModelG)
     setModelG(wl, r.internal, G, r.phys.base);
     clReset(r);
     w.internalDay[id] = day;
@@ -330,13 +332,14 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     const months = (BASE_MONTHS[arch] ?? 12) * rng.range(0.8, 1.2);
     r.nextBaseDay = day + Math.round(months * 30.4);
     const nb = finishRun(r, day);
-    const gNew = nb ? newVersionG(s, r, nb) : -Infinity;
+    const nbld = nb ? newVersionBuild(s, r, nb) : undefined;
+    const gNew = nbld ? gOfBuild(nbld) : -Infinity;
     if (nb && gNew >= gOfSimple(wl, r.internal)) {
       const g2 = gen + 1;
       r.phys.base = nb;
       r.phys.clDay = day;
       r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false };
-      setModelG(wl, r.internal, gNew, nb);
+      setModelBuild(wl, r.internal, nbld!, nb);
       clReset(r);
       w.internalDay[id] = day;
       ws2RivalTraitStep(s, rng, r, 'base');

@@ -101,10 +101,17 @@ export interface WorkFit { fit: number; best: number; med: number; h50: number; 
 /** Fit with the typed feature effects of a deployment (V4.3: scaffolds add ΔG, horizon extenders × h50); milestones read
  *  the model alone. */
 export function workFit(s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId, fx?: { dG: number; hMult: number }): WorkFit {
-  const w = s.hidden.timeline;
-  const fit = fitOf(s, v, wt) + (fx?.dG ?? 0);
+  return workFitW(s.hidden.timeline, v, wt, fx);
+}
+/** workFit in world `w` (the same expressions; the state is read only for its world). RD-X03: a rival's aggregate
+ *  research reads its model's work fit through this, on the model's reference-profile build (actors/rivalModel.ts). */
+export function workFitW(w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, wt: WorkTypeId, fx?: { dG: number; hMult: number }): WorkFit {
+  let f0 = 0;
+  const ws = WORK_TYPES[wt].w as Record<DomainId, number>;
+  for (const d in ws) f0 += ws[d as DomainId] * versionDomainG(v, d as DomainId); // as fitOf (domainG)
+  const fit = f0 + (fx?.dG ?? 0);
   const r = refPoints(w, wt);
-  const h50 = h50Min(s, v, wt) * (fx?.hMult ?? 1);
+  const h50 = h50Of(w, v, WORK_TYPES[wt].horizon) * (fx?.hMult ?? 1);
   const win = winRate(w, wt, fit);
   return { fit, best: r.best, med: r.med, h50, a: coverage(w, wt, fit, h50), win, assist: assistOf(win) };
 }
@@ -442,8 +449,9 @@ export const versionMilestones = (s: GameStateV2, v: ModelVersion): boolean[] =>
 
 /** A model known only by its general G (a rival's or China's aggregate model) as a version for the milestone predicate
  *  (RD-L04): its G with the reference RL profile (every domain's RL gain = the reference run's, so each domain reads
- *  G_pre + 0 = G, gOfDomain), no data or design specialisation, horizon multiplier 1. Rivals train on the reference
- *  recipe (actors/rivalModel.ts), so this is the build their G stands for. */
+ *  G_pre + 0 = G, gOfDomain), no data or design specialisation, horizon multiplier 1. RD-X03: a rival model made by
+ *  its training carries its own reference-profile build (actors/rivalModel.ts rivalVersionBuild); this is the fallback
+ *  for a model known by G alone. */
 export function referenceProfileModel(G: number, flopPre = 0): Pick<ModelVersion, 'G' | 'build'> {
   const build: VersionBuild = {
     gPre: G, flopPre, rlFlop: 0, rlW: {}, eRL: 0, dgRL: 0, dgRLd: { ...REF_RL_PROFILE }, dg: 0, sD: {}, dgD: {}, h80Mult: 1, signals: {},

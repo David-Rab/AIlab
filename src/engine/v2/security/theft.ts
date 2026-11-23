@@ -2,7 +2,7 @@
 import { clamp } from '../../rng';
 import { frontierGAt, frontierGPerYear, lagDays, PACE_WINDOW_DAYS } from '../models/capability';
 import { REF_TPP } from '../../../data/v2/runDesign';
-import { baseParams, fptOfBase, gOfSimple, recipeOf, rlOnBase, setModelG } from '../actors/rivalModel';
+import { baseParams, fptOfBase, gOfSimple, recipeOf, rivalRlGains, rivalVersionBuild, setModelBuild } from '../actors/rivalModel';
 import { playerRecipeG } from '../models/stacks';
 import { bestPlayerVersion, bestG, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
@@ -85,10 +85,10 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   // know-how (recipe) does not jump: the secrets leak (secretsLeakDaily) is the recipe channel.
   const holdStolen = (m: SimpleModel, G: number, flop: number, params: number) => {
     const rec = cn.phys.rec;
-    const base: RivalBase = { gen: cn.phys.base.gen, day: ctx.day, flop, params, tpp: REF_TPP, gPre: G - rlOnBase(flop, rec.mid, rec.ceil), ePre: rec.pre };
+    const base: RivalBase = { gen: cn.phys.base.gen, day: ctx.day, flop, params, tpp: REF_TPP, gPre: G - rivalRlGains(flop, rec.mid, rec.ceil).general, ePre: rec.pre };
     cn.phys.base = base;
     cn.phys.clDay = ctx.day;
-    setModelG(tw, m, G, base);
+    setModelBuild(tw, m, rivalVersionBuild(base, rec.mid, rec.ceil), base); // RD-X03: G = its gPre + rlGains (G to fp)
     m.fpt = fptOfBase(base);
   };
   if (victim === 'player') {

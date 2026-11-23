@@ -21,7 +21,7 @@ import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { POST_DAYS, PRE_RATE0, RIVAL_TPP } from '../../src/data/v2/rivalModel';
 import { B0_PARAMS, PRE_GAME_G_PER_YEAR, PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
 import {
-  bestGOf, evalAggregate, fptOfBase, gOfSimple, lineScaleFactor, makeBase, postG, recipeOf, recipeParts, recipeRates, versionG,
+  bestGOf, evalAggregate, fptOfBase, gOfSimple, lineScaleFactor, makeBase, postG, v0ModelOf, recipeOf, recipeParts, recipeRates, versionG,
 } from '../../src/engine/v2/actors/rivalModel';
 import { rivalResearch } from '../../src/engine/v2/production/production';
 import { gV0, levelOfG } from '../../src/engine/v2/models/capability';
@@ -166,7 +166,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   for (const r of [...s.rivals, s.china.lab]) if (!near(r.internal.G ?? NaN, postG(r.phys.base, r.phys.rec), 0.05)) ok = false;
   check(ok, 'R5 every lab\'s start model is a version on its start base (within the start post\'s staleness)');
   // At the leader's day-0 inputs (V0, 2,050 staff, the day-0 experiment and agent compute) rs = 1.
-  const x = evalAggregate(w, gV0(w), 2 * B0_PARAMS * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
+  const x = evalAggregate(w, v0ModelOf(w), 2 * B0_PARAMS * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
   const v = recipeRates(w, { rec: L.phys.rec, pool: { pre: 0, mid: 0, ceil: 0 } }, x.rs).rec;
   check(near(x.rs, 1, 1e-9) && near(v.pre, PRE_RATE0, 1e-9) && near(v.mid / v.ceil, 0.08 / 0.12, 1e-9), 'R5 at the leader\'s day-0 inputs research speed is 1, the pretraining part grows at PRE_RATE0 and the RL parts by their shares', `rs ${x.rs.toFixed(6)} (E ${x.E.toFixed(3)}, I ${x.I.toFixed(3)}); pre ${v.pre.toFixed(3)}, mid ${v.mid.toFixed(3)}, ceil ${v.ceil.toFixed(3)} OOM/yr`);
   // κ: the scale factor of the reference lines' results, from their scale priors and the survival rule (design/V3-BUILD.md, F2 notes).
@@ -271,7 +271,7 @@ if (process.argv.includes('--ref')) {
       const fpt = v.fpt ?? 4e12;
       const pools = poolsOf(x);
       const C = pools.experiments + pools.routine + pools.frontier;
-      const a = evalAggregate(w, G, fpt, x.player.staff.cap, bestRivalMix(w, G, fpt, x.player.staff.cap, C), C, 1, 1);
+      const a = evalAggregate(w, { G, build: v.build }, fpt, x.player.staff.cap, bestRivalMix(w, { G, build: v.build }, fpt, x.player.staff.cap, C), C, 1, 1);
       const pool = { pre: u(x, ['L.scale', 'L.data', 'L.opt']), mid: u(x, ['L.rlalg']), ceil: u(x, ['L.env']) };
       const F = latestBaseFlop(x);
       const mid = rlMidNow(x);

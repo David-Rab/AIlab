@@ -289,12 +289,13 @@ export const MILESTONE_CRITERIA = [
 ];
 
 /** Milestones a non-player lab (rival, China, the leader lab) meets today: the one predicate (departments/workfit.ts
- *  milestonesOf) on a reference-profile build of its internal and public model (referenceProfileModel), at the FLOP
+ *  milestonesOf) on the reference-profile build of its internal and public model (RD-X03: the build its training made;
+ *  referenceProfileModel for a model known by G alone), at the FLOP
  *  per token the lab serves it at (its serving stack). Any of the two meeting it counts. */
 export function otherLabMilestones(s: GameStateV2, r: RivalLab): boolean[] {
   const out = [false, false, false, false, false, false, false];
   for (const m of r.publicModel ? [r.internal, r.publicModel] : [r.internal]) {
-    const x = milestonesOf(s, referenceProfileModel(m.G, m.flop ?? 0), rivalServeFpt(r, m));
+    const x = milestonesOf(s, m.build ? m : referenceProfileModel(m.G, m.flop ?? 0), rivalServeFpt(r, m));
     for (let i = 0; i < 7; i++) out[i] ||= x[i];
   }
   return out;

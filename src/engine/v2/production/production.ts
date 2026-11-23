@@ -19,7 +19,7 @@ import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
-import { advanceRecipe, bestRivalMix, evalRival, gOfSimple, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
+import { advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { poolsOf } from '../compute/power';
 import { withResearchAgents } from '../departments/split';
@@ -202,13 +202,12 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;
   const core = r.core;
-  const G = gOfSimple(w, r.internal);
   const fpt = rivalAgentFpt(r);
   const res = core.split.experiments + (core.split.routine + core.split.frontier);
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
   if (apply && res > 0) {
-    f = bestRivalMix(w, G, fpt, core.staff.cap, C);
+    f = bestRivalMix(w, r.internal, fpt, core.staff.cap, C);
     core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;

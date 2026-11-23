@@ -1820,6 +1820,9 @@ export interface SimpleModel {
   /** Model v3 D10: the RL part of G (OOM over the leader's day-0 recipe: G − the base's G_pre − the reference RL gain on
    *  it), set with the design; the model's reasoning tokens for the same answer fall with it (worldfx/serving.ts tokEff). */
   rlG?: number;
+  /** RD-X03: the reference-profile build its training made (actors/rivalModel.ts rivalVersionBuild: baseG and rlGains
+   *  on the lab's reference portfolio); its work fit, horizon and domain levels read it. Absent: a model known by G alone. */
+  build?: VersionBuild;
 }
 
 /** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active

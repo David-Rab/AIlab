@@ -238,12 +238,18 @@ export function playerRlWeights(s: GameStateV2, focus: PostDesign['rlFocus']): F
 
 /** What a base run freezes at launch (RD-B02): the pretraining stack at its FLOP (P24, an idea in that stack since
  *  RD-E01a, included) and the data it draws from the portfolio. */
-type BaseFreeze = { pre: number; draw: DataDraw };
+export type BaseFreeze = { pre: number; draw: DataDraw };
 const baseFreezeNow = (s: GameStateV2, d: BaseDesign): BaseFreeze => ({ pre: ePreAt(s, flopOfDesign(d)), draw: playerDraw(s, d) });
 /** A base's pretraining G for the player: recipe E_START + the frozen pretraining stack, the frozen draw (model v3 D3:
  *  repetition per slice → f_data; the drawn mix → s_d,data, plus the curation's domain offsets). `fz`
  *  defaults to a launch today (plan); completion passes the run's snapshot (RD-B02). */
-function baseG(s: GameStateV2, d: BaseDesign, fz: BaseFreeze = baseFreezeNow(s, d)): { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; fQ: number; U: number; sD: Off; draw: DataDraw } {
+function baseG(s: GameStateV2, d: BaseDesign, fz: BaseFreeze = baseFreezeNow(s, d)): BaseGOut {
+  return baseGOf(d, fz);
+}
+export type BaseGOut = { parts: GPreParts; flop: number; tokens: number; epochs: number; fD: number; fQ: number; U: number; sD: Off; draw: DataDraw };
+/** baseG on an explicit launch freeze (pure: the design and the frozen inputs only). RD-X03: a rival's base goes through
+ *  this same function on its reference design and reference draw (actors/rivalModel.ts rivalBaseG). */
+export function baseGOf(d: BaseDesign, fz: BaseFreeze): BaseGOut {
   const be = baseEffect(d);
   const tokens = d.params * d.tpp;
   const flop = flopOfDesign(d);
