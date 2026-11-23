@@ -202,16 +202,12 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
   resetSafAllocation(s);
   const m = lineLabourMult(s, 'AG08');
   const r1 = lineRates(s, id, safAllocation(s, id));
-  // The same lab without AI but with m × the engineers and m × the science capacity.
-  // (Engineers on a project follow its science staffing, so ℓ is compared at m_exp × both and ideation at m_ideas ×
-  // capacity: since E2 the two work types have their own multipliers.)
-  const { s: h, id: hid } = lab('AG08', { re: 0.5 * m.exp, cap: 0.5 * m.exp });
-  const { s: hi, id: hiid } = lab('AG08', { re: 0.5, cap: 0.5 * m.ideas });
-  const ri = lineRates(hi, hiid, safAllocation(hi, hiid));
-  const rh = { l: lineRates(h, hid, safAllocation(h, hid)).l, sci: ri.sci, q: ri.q };
+
   check(m.exp > 1 && r1.sci > r0.sci && r1.X > r0.X, 'E1 AI labour (stub: a covering safety model) speeds ideation and experiments', `m ${m.exp.toFixed(2)}: ideation ×${(r1.sci / r0.sci).toFixed(2)}, X ×${(r1.X / r0.X).toFixed(2)}`);
   // Ideation also gets the safety model's AI taste (E2), so compare it with the taste divided out.
-  check(Math.abs(r1.l - rh.l) < 1e-9 && Math.abs(r1.sci / r1.q / (rh.sci / rh.q) - 1) < 1e-6, 'E1 AI labour is the same input as human labour (m × engineers in ℓ, m × capacity in ideation)', `ℓ ${r1.l.toFixed(4)} vs ${rh.l.toFixed(4)}`);
+  // CP3: "E1 AI labour is the same input as human labour (m × engineers in ℓ)" deleted (SR-21: the safety engineers go
+  // through one needs list, so m × the engineers no longer all reach the line; the comparison has no single-line twin).
+
 }
 
 // ───────────────────────────── 5b. E2: AI labour from the safety work types ─────────────────────────────

@@ -61,7 +61,7 @@ ok(`UI terms resolve (${used.size} used)`, missing.length === 0, missing.join(',
 
 /** IA.md rule 4: the terms the user named, plus the core vocabulary of every panel. */
 const REQUIRED = [
-  'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlBudget', 'distill', 'spv', 'lta', 'wsl', 'U', 'L', 'gap',
+  'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlBudget', 'distill', 'spv', 'lta', 'wsl', 'L',
   'bottleneck', 'computeBound', 'catRisk', 'lead', 'idleChips', 'computeOnline', 'pool', 'split', 'burn', 'netBurn', 'liquidity', 'ledger',
   'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'safetyFramework',
   'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'trust', 'credibility', 'scrutiny', 'access', 'commitment', 'watch',
@@ -81,11 +81,11 @@ const REQUIRED = [
   'nextPrior', 'realisedEffect', 'teamsWanted', 'riskPolicy', 'reopenSpeculative', 'scienceWhy', 'recipeStack', 'stackEfficiency',
   'softwareRate', 'expCompute', 'expLabour', 'labSpeed', 'workType', 'fit', 'medianExpert', 'bestHuman', 'coverage', 'pAtLength', 'winRate', 'assist',
   'effectiveLabour', 'humanShare', 'reNeeds', 'engNeeds', 'allocCap', 'overflow', 'laborBound', 'humanBound', 'tasteBound', 'aiFte',
-  'validatedTo', 'blind', 'detector', 'estimateBand', 'toolUpkeep', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
+  'detector', 'estimateBand', 'deadEnd', 'seriousStaffing', 'followUp', 'investigation', 'caseStaffing', 'clarity',
   // model v3 B1: serving economics on the product card.
   'paidSeat', 'unseatedUse', 'supervisingHour', 'agentHour', 'agentLeverage', 'weeklyReach', 'paidShare', 'goingPrice', 'wtp', 'valueCap', 'markup', 'serveOrder', 'adoptedHour',
   // model v3 B2: customers as a stock, typed features.
-  'customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold', 'featEffort',
+  'customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold',
   // model v3 B3: the World panel's sector view.
   'workersUsingAI', 'hoursOfUse', 'savedPerHour', 'unseatedUse', 'seatShare', 'agentLeverage', 'costGate', 'feasibility', 'aiWorkHourCost', 'verifiability',
   // model v3 B4: serving as FLOP per token and cost per hour of use (replaces the relative serve cost).

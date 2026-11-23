@@ -33,6 +33,7 @@ import { cotControllability, familyPenalty } from '../../src/engine/v2/safety/de
 import { oomOfLevel } from '../../src/engine/v2/safety/oversight';
 import { aarAuto, aarFindingOom, aiOversight, probeSteer, steerGrowth } from '../../src/engine/v2/safety/ideas';
 import { lineLabour, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
+import { addSafeguard } from '../../src/engine/v2/safety/safeguards';
 import { researchMods } from '../../src/engine/v2/departments/workfit';
 /** RD-R02b: lineSpeed is gone; a line's speed is the shared research modifiers. */
 const lineSpeed = (s: GameStateV2, _ag: string) => researchMods(s).speed;
@@ -136,14 +137,18 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   check(o.collusion && sv.baseId === iv.baseId && near(o.Aeff, A * (1 - COPY_COLLUSION), 1e-12) && near(hardenCut(s), SUITE_HARDEN.cut * (1 + P15_OVERSIGHT.criticGain * A * (1 - COPY_COLLUSION)), 1e-12),
     'P15 collusion: a critic of the trained model\'s lineage counts × (1 − 0.4) (E6/J2 same-lineage rule); cut = 0.4 × (1 + 0.5·A_eff)',
     `cut ${SUITE_HARDEN.cut} → ${hardenCut(s).toFixed(4)}`);
+  // CP3 rewrite (SR-13): the comms lockdown is a safeguard item on the internal deployment (replaces owning T-LOCK).
   const lock = s.player.safety.techniques['T-LOCK'];
-  if (lock) {
-    const was = { u: lock.unlocked, a: lock.active };
+  const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live');
+  if (lock && dep) {
+    const was = { u: lock.unlocked, a: lock.active, g: [...(dep.guards ?? [])] };
     lock.unlocked = true;
     lock.active = true;
-    check(near(aiOversight(s).Aeff, A * (1 - COPY_COLLUSION * 0.5), 1e-12), 'P15 collusion: an active comms lockdown halves the penalty (as for monitors)');
+    const why = addSafeguard(s, dep, 'lockdown');
+    check(!why && near(aiOversight(s).Aeff, A * (1 - COPY_COLLUSION * 0.5), 1e-12), 'P15 collusion: a comms lockdown (safeguard item) halves the penalty (as for monitors)', why ?? '');
     lock.unlocked = was.u;
     lock.active = was.a;
+    dep.guards = was.g;
   }
   // A critic from another lineage: full credit.
   const other: ModelVersion = { ...clone(sv), id: 'V-other', baseId: 'B-other' };

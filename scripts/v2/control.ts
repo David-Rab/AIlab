@@ -143,7 +143,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const r1 = controlReadout(p);
   check(after.believed === before.believed && after.versionId === before.versionId && r1.oversight === r0.oversight && r1.mis === r0.mis && p.player.safety.effectiveControl.level !== s.player.safety.effectiveControl.level,
     `E15 (${fx}): perturbing hidden truth (tool strengths, masks, undiscovered U-modes, traits, levels) leaves believed control and its model unchanged (true control moves)`,
-    `believed ${before.believed} (${before.versionId}) → ${after.believed} (${after.versionId}); true ${s.player.safety.effectiveControl.level} → ${p.player.safety.effectiveControl.level}`);
+    `believed ${before.believed} (${before.versionId}) → ${after.believed} (${after.versionId}); readout oversight ${r0.oversight} → ${r1.oversight}, mis ${r0.mis} → ${r1.mis}; true ${s.player.safety.effectiveControl.level} → ${p.player.safety.effectiveControl.level}`);
 }
 
 // ───────────── footholds grow once control is low ─────────────

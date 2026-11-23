@@ -50,7 +50,7 @@ import {
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
-import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../src/data/v2/runDesign';
+import { REFERENCE_BASE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -393,8 +393,10 @@ for (const d of [400, 900]) {
   const v = versionById(s, chat.versionId)!;
   const pi = mix.providers.findIndex((p) => p.key === 'player');
   const gap = v ? mix.consumer.US.fit[pi] - ft.fit : 0;
-  check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - PRE_GAME_G_PER_YEAR) < 1e-9,
-    'A7 every lab\'s free tier is the student of its consumer model one year of frontier progress below it; users choose on it',
+  // CP3 rewrite (RD-P01a / P02): the free tier is a real model (freeTierId, else the lineup's cheapest to serve), not a
+  // student one year below; with a lineup it sits below the consumer model's fit.
+  check(bad === 0 && near(mix.consumer.US.freeFit[pi], ft.fit, 1e-6) && gap >= -1e-9 && (!chat.lineup?.length || gap > 0),
+    'A7 every lab\'s free tier is a real model of its lineup at or below its consumer model\'s fit (below with a lineup); users choose on it',
     `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
   const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
   const msgS = (h100eHoursPer(ft.fpt, CONSUMER_MKT.perDay.free, decodeUtilNow(s)) * 3600) / CONSUMER_MKT.messagesPerDay;
@@ -564,7 +566,9 @@ for (const d of [400, 900]) {
   s.player.features.push('deepResearch');
   api.features.push('deepResearch'); // scaffold: × 3 tokens per hour on Science, Finance, Legal
   const x2 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
-  check((x1.agentHours ?? 0) > (x0.agentHours ?? 0) * 1.05 && x1.needH100e > x0.needH100e && near(humans(s), H0, 1e-12) && near(x1.adoptedHours ?? 0, x0.adoptedHours ?? 0, 1e-9),
+  // CP3 rewrite (RD-P07 / P11): a horizon feature also widens the product's coverage in the buyers' choice, so its adopted
+  // hours may rise; the human hours of use still do not.
+  check((x1.agentHours ?? 0) > (x0.agentHours ?? 0) * 1.05 && x1.needH100e > x0.needH100e && near(humans(s), H0, 1e-12),
     'B6 a longer horizon (memory ×1.3 h50) raises agent-hours and the serving need, not the human hours of use',
     `agent-hours ${((x0.agentHours ?? 0) / 1e9).toFixed(3)}B → ${((x1.agentHours ?? 0) / 1e9).toFixed(3)}B, need ${Math.round(x0.needH100e / 1e3)}k → ${Math.round(x1.needH100e / 1e3)}k H100e; human hours ${(H0 / 1e9).toFixed(1)}B unchanged`);
   check(x2.needH100e > x1.needH100e && near(humans(s), H0, 1e-12), 'B6 token intensity (deep-research scaffold × tokens) raises the serving need, not the human hours', `need ${Math.round(x1.needH100e / 1e3)}k → ${Math.round(x2.needH100e / 1e3)}k H100e`);
@@ -1057,17 +1061,20 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
     'TIERS E7 the API sells its lineup: its students take the US Software bands they do adequately (hours by tier sum to 1), so its cost and price per adopted task-hour there are below its main model\'s',
     `hours by tier ${w0.map((x) => x.toFixed(2)).join(' / ')}; cost $${main.cost.toFixed(3)} → $${blended.cost.toFixed(3)}, price $${main.price.toFixed(3)} → $${blended.price.toFixed(3)} per adopted task-hour (main model → lineup)`);
   // A mini of the player's own (a student 1.2 OOM below, between the lineup's 0.88 and 1.94 OOM rungs) is one more tier.
-  api.lineup = [mini.id];
+  // CP3 rewrite (RD-P01a): the lineup is an explicit list of the lab's versions; one more tier = the mini appended.
+  api.lineup = [...(api.lineup ?? []), mini.id];
   const mix1 = worldMix(s);
   const w1 = mix1.sec.US.SOFT.playerTierW[api.id] ?? [];
   const after = revenueReadout(s, mix1).deps.find((x) => x.id === api.id)!;
   const pk = mix1.sec.US.SOFT.tiers.kind[pi];
   run(s, 1);
   const sh1 = worldMix(s).sec.US.SOFT.share[pi];
-  check(w1.length === w0.length + 1 && pk.filter((k) => k === 'mini').length === 1 && near(w1.reduce((a, x) => a + x, 0), 1, 1e-9) && near(w1[w1.length - 1], w1[w1.length - 1], 1e-12)
+  // CP3 rewrite (RD-P01a): the start lineups are already kind 'mini' tiers, so the appended mini adds exactly one.
+  const minis0 = mix0.sec.US.SOFT.tiers.kind[pi].filter((k) => k === 'mini').length;
+  check(w1.length === w0.length + 1 && pk.filter((k) => k === 'mini').length === minis0 + 1 && near(w1.reduce((a, x) => a + x, 0), 1, 1e-9) && near(w1[w1.length - 1], w1[w1.length - 1], 1e-12)
     && after.costPerHour <= before.costPerHour + 1e-9 && mix1.sec.US.SOFT.target[pi] >= t0 - 1e-9 && Math.abs(sh1 - sh0) < 0.02,
     'A5 E7 a mini of the player\'s own is one more tier of the API\'s lineup: hours by tier still sum to 1, the API\'s cost per hour does not rise, the player\'s share target does not fall and the stock moves gradually',
-    `mini ${(w1[w1.length - 1] * 100).toFixed(0)}% of the API's US Software hours; cost $${before.costPerHour.toFixed(3)} → $${after.costPerHour.toFixed(3)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
+    `tiers ${w0.length} → ${w1.length}, kinds ${pk.join('/')}; mini ${(w1[w1.length - 1] * 100).toFixed(0)}% of the API's US Software hours; cost $${before.costPerHour.toFixed(3)} → $${after.costPerHour.toFixed(3)} per hour; target ${t0.toFixed(3)} → ${mix1.sec.US.SOFT.target[pi].toFixed(3)}, stock ${sh0.toFixed(3)} → ${sh1.toFixed(3)}`);
 }
 {
   // TIERS E8 parity: every provider's lineup is its model and the LINEUP students of it (data/v2/serving.ts): rivals'
@@ -1108,8 +1115,10 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
     });
   }
   const rr = lineupSizes(1e12);
-  check(n > 0 && nP > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupSizes(2e9).length === 1 && lineupSizes(1e9).length === 0,
-    'TIERS E8 day 400: every provider sells its model and the LINEUP students of it (rivals and China under their model, the player under each sector product\'s main model): each at r × the model\'s cost and price, DISTILL.a + DISTILL.b·log₁₀(1/r) below its fit, covering no more; the bottom rung 1/80 above the 1B floor',
+  // CP3 rewrite (RD-P01a / P02): the player's lineup entries are its own versions (kind 'mini', not 'student'), so any
+  // player student tier is checked on the r rule but none is required; rivals' students are real models at or below the fit.
+  check(n > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupSizes(2e9).length === 1 && lineupSizes(1e9).length === 0,
+    'TIERS E8 day 400: every rival and China sells its model and its real lineup students at or below its fit (any player student tier at r × cost and price, DISTILL below its fit); the bottom rung 1/80 above the 1B floor',
     `${n} rival and China student tiers, ${nP} of the player's, ${bad} off; rungs under a 1T model ${rr.map((x) => `1/${(1 / x).toFixed(1)}`).join(', ')}`);
 }
 
@@ -1151,8 +1160,10 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   const mine = rd.deps.filter((x) => x.channel !== 'consumer').reduce((a, x) => a + (x.adoptedHours ?? 0), 0);
   const sectorH = workHoursOf(s.world.sectors.US.OFFICE, 'OFFICE').adopted;
   const en = FEATURE_BY_ID.computerUse.fx.find((x) => x.kind === 'enabler')!.share;
-  check(mine <= sectorH * (1 + 1e-9) && mine > sectorH * 0.95 * (1 - 1e-9) && 0.95 * (1 + en) > 1,
-    'RD-B11 B14 a sector enabler (computer use, +15% in Admin) is held to the sector\'s adoption: at a 95% share the player sells at most the sector\'s adopted hours, not 95% × 1.15',
+  // CP3 rewrite (RD-P07): the tool now acts in the buyers' choice (coverage), not as a capped ×(1 + share) after it, so
+  // only the bound stands: never more than the sector adopts.
+  check(mine <= sectorH * (1 + 1e-9) && mine > 0 && 0.95 * (1 + en) > 1,
+    'RD-B11 B14 a sector tool (computer use) is held to the sector\'s adoption: at a 95% share the player sells at most the sector\'s adopted hours, not 95% × (1 + share)',
     `player ${(mine / 1e6).toFixed(1)}M vs sector ${(sectorH / 1e6).toFixed(1)}M adopted task-hours a year (uncapped ×${(0.95 * (1 + en)).toFixed(3)})`);
 }
 {

@@ -13,7 +13,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { StreamRng } from '../../src/engine/v2/core/rng';
 import { poolsOf } from '../../src/engine/v2/compute/power';
-import { MEASURE_SD, measureBench, measuredSd, runEvalSuite } from '../../src/engine/v2/models/benchmarks';
+import { measureBench, measuredSd, runEvalSuite } from '../../src/engine/v2/models/benchmarks';
 import {
   evalCost, evalDaysEstimate, evalsDay, openEval, policyModels, queueEval,
   evalStaffToday,
@@ -22,6 +22,7 @@ import { capReCapacity, expPoolH100e } from '../../src/engine/v2/models/research
 import type { EvalTask, GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { check, finish, refGame, runRef } from './lib';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
+import { TEAM_SIZE } from '../../src/data/v2/teams';
 
 const previewOf = (s: GameStateV2, id: string, p: Record<string, string | number | boolean>) => ACTION_BY_ID.get(id)!.preview(s, p);
 
@@ -77,23 +78,10 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
     }
     rms[depth] = Math.sqrt(se / N);
   }
-  check(rms.basic > rms.full && rms.full > rms.deep, 'EV2 deeper suites measure the level with lower error (RMS over 300 versions)',
-    `basic ${rms.basic.toFixed(3)}, full ${rms.full.toFixed(3)}, deep ${rms.deep.toFixed(3)} L (bands ${sds.basic.toFixed(2)} / ${sds.full.toFixed(2)} / ${sds.deep.toFixed(2)})`);
-  check(Math.abs(rms.full - MEASURE_SD) < 0.03, 'EV2 a full suite keeps v2\'s measured-level error (0.2 L)', rms.full.toFixed(3));
+  // CP3: the two RMS-by-depth checks (drawn error shrunk by weight, 0.2 L at full) are deleted: RD-M01 deleted errTrue and
+  // fits the level from the scores (band = fitSd; honesty is rdm01.ts's check).
   check(sds.basicBench > sds.fullBench && sds.fullBench > sds.deepBench, 'EV2 benchmark scores are noisier on shallower suites', `PatchBench sd ${sds.basicBench} / ${sds.fullBench} / ${sds.deepBench} points`);
-  // Drawn once, shrinking with suites: an unchanged model's reading moves monotonically toward the truth.
-  const s = game(7);
-  const v = v0(s);
-  v.evals = { bench: {}, safety: {} };
-  const ctx = makeCtx(s);
-  const errs: number[] = [];
-  for (const depth of ['basic', 'full', 'deep', 'full'] as const) {
-    runEvalSuite(s, ctx, v.id, 'self', depth);
-    errs.push(Math.abs((v.evals.measuredL ?? 0) - v.Lg));
-  }
-  const mono = errs.every((e, i) => i === 0 || e <= errs[i - 1] + 0.006);
-  check(mono && v.evals.nEff !== undefined && Math.abs(v.evals.nEff - 6.2) < 1e-9, 'EV2 the error is drawn once and shrinks with each suite by its weight (basic 0.2 + full 1 + deep 4 + full 1 = 6.2)',
-    `|error| ${errs.map((e) => e.toFixed(3)).join(' → ')}, nEff ${v.evals.nEff}`);
+  // CP3: "the error is drawn once and shrinks by weight" deleted (RD-M01: no stored error draw; the fit re-reads the scores).
 }
 
 // ───────── EV3 no fixed days: research engineers on evals set the duration ─────────
@@ -106,7 +94,10 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
     s.player.models.runs = [];
     s.player.build.queue = [];
     // Evaluate the start model (deployed) on the player's order; cap the evals need to `cap` team-equivalents.
-    act(s, 'research.reAlloc', { need: 'evals', max: cap });
+    // CP3 rewrite (SR-21): eval suites are a need on the safety research engineers' list. That list allocates heads
+    // (evalDaysEstimate: allocate(al.heads, …)), so its cap is in people: cap team-eq × TEAM_SIZE.re. (The action's
+    // doc says team-equivalents: a unit question for src, see CP3.md.)
+    act(s, 'research.safReAlloc', { need: 'evals', max: cap * TEAM_SIZE.re });
     est.push(evalDaysEstimate(s, 'full'));
     const t = queueEval(s, v0(s), 'full', 'self', 'order') as EvalTask;
     days.push(daysUntil(s, () => !s.player.models.evals.some((x) => x.id === t.id)));
@@ -117,9 +108,9 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   // With the evals need put last, the suite gets what the needs above leave (RD-E03: no routine tuning; the start has
   // research engineers to spare); with experiments taking every research engineer it gets nothing.
   const s = game();
-  act(s, 'research.reAlloc', { order: 'ops,exp,evals' });
+  act(s, 'research.safReAlloc', { order: 'review,spotCheck,cases,validation,envFix,removal,safExp,evals' });
   const idleLast = evalDaysEstimate(s, 'full');
-  act(s, 'research.reAlloc', { need: 'evals', max: 0 });
+  act(s, 'research.safReAlloc', { need: 'evals', max: 0 });
   const capped = evalDaysEstimate(s, 'full');
   check(capped === Infinity && Number.isFinite(idleLast), 'EV3 the player\'s order and caps apply: evals last get what the needs above leave; capped at 0, nothing',
     `${idleLast} days last in the order; ${capped} capped at 0`);
@@ -147,8 +138,10 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   const pool = expPoolH100e(b); // today's pool (the auto mix moves compute on day 1)
   const ev = b.player.models.evalSpent.h100eDays - h0;
   const ratio = (b.player.research.last?.flopAvail ?? 0) / (a.player.research.last?.flopAvail ?? 1);
-  check(ev > 0 && Math.abs(ratio - (1 - ev / pool)) < 1e-6 && poolsOf(a).serving === poolsOf(b).serving,
-    'EV4 eval compute comes out of the experiments pool (projects get less), not serving',
+  // CP3 rewrite (SR-21): eval suites' H100e are a sub-use of the Safety line; the capability experiment pool and serving
+  // no longer pay for them.
+  check(ev > 0 && Math.abs(ratio - 1) < 1e-6 && poolsOf(a).serving === poolsOf(b).serving,
+    'EV4 eval compute comes out of the safety line (projects keep the experiments pool), not serving',
     `eval ${ev.toFixed(1)} H100e-days of ${Math.round(pool)}: project FLOP ×${ratio.toFixed(6)}; serving ${Math.round(poolsOf(b).serving)} H100e in both`);
 }
 
@@ -194,13 +187,13 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
 // ───────── EV6 promotion waits for the eval ─────────
 {
   const s = game();
-  act(s, 'research.reAlloc', { need: 'evals', max: 0 });
+  act(s, 'research.safReAlloc', { need: 'evals', max: 0 }); // CP3 rewrite (SR-21): the safety list's evals need
   daysUntil(s, () => s.player.models.versions.some((v) => v.status === 'evaluating'), 300);
   const v = s.player.models.versions.find((x) => x.status === 'evaluating') as ModelVersion;
   run(s, 60);
   const t = openEval(s, v.id);
   check(v.status === 'evaluating' && !!t && t.progress === 0, 'EV6 with no research engineers on evals the version stays in evaluation (no fixed days)', `${v.name} ${v.status} after 60 d, progress ${t?.progress}`);
-  act(s, 'research.reAlloc', { need: 'evals', max: -1 });
+  act(s, 'research.safReAlloc', { need: 'evals', max: -1 });
   const d = daysUntil(s, () => v.status !== 'evaluating', 60);
   check(v.status === 'ready' && (v.evals.suiteDay ?? -1) >= s.time.day - 1 && !openEval(s, v.id), 'EV6 once the suite\'s work is done the version is ready with its measurement', `${d} d after the cap lifted; suite day ${v.evals.suiteDay}, today ${s.time.day}`);
   // Gate none: released at once; auto-evaluate gives it a basic suite that blocks nothing.
