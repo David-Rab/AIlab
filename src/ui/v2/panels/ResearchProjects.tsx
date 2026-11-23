@@ -5,7 +5,7 @@
 // One home per datum: research speed lives on Company › Flow, research engineers' needs on Company › Work (links).
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
-import { addableProjects, capPriorityList, dateOf, fmtDate, PROJECT_MAX_TEAMS, STAGES, UNLOCK_STAGES } from '../../../engine/v2';
+import { addableProjects, capPriorityList, dateOf, fmtDate, PROJECT_MAX_TEAMS, researchMods, STAGES, UNLOCK_STAGES } from '../../../engine/v2';
 import type { CapProjectView, GameStateV2, StageId } from '../../../engine/v2';
 import { COLUMN_LABEL, QUALITY } from '../../../data/v2/teams';
 import type { Column } from '../../../engine/v2';
@@ -188,6 +188,22 @@ function AddProject({ s }: { s: GameStateV2 }) {
   );
 }
 
+/** A frontier pause or a Safety framework training hold gives capability projects no experiment compute (RD-A07):
+ *  say so where the projects stall, with the cause and where to act. */
+function ExpHeld({ s }: { s: GameStateV2 }) {
+  if (researchMods(s).frontierExp > 0) return null;
+  const holds = (s.player.safety.framework?.holds ?? []).filter((h) => h.target === 'training');
+  const why = holds.length
+    ? holds.map((h) => `${h.versionId}: needs ${h.missing.join(', ')}`).join('; ')
+    : 'frontier work is paused';
+  return (
+    <div className="rp-foot small" data-test="exp-held">
+      <span className="tone-bad">Experiments held: capability projects get no experiment compute while {holds.length ? <>your <Term id="safetyFramework">Safety framework</Term> holds frontier training</> : 'frontier work is paused'} ({why}). The experiment compute in your split sits unused.</span>
+      {holds.length > 0 && <> <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'overview', anchor: 'ctl-policy' }}>Safety policies</Ref></>}
+    </div>
+  );
+}
+
 export function Priorities({ s }: { s: GameStateV2 }) {
   const pl = capPriorityList(s);
   const selId = ui('proj', pl.list[0]?.id ?? '');
@@ -211,6 +227,7 @@ export function Priorities({ s }: { s: GameStateV2 }) {
         </span>
       )}>
       <div className="rp-head"><span /><span>#</span><span>Project</span><span><Term id="projectStage">Stage</Term></span><span><Term id="teamsWanted">Teams wanted</Term></span><span><Term id="bottleneck">Binds</Term></span><span>Next</span><span /></div>
+      <ExpHeld s={s} />
       {pl.list.length === 0 && <div className="dim small rs-empty">No capability projects. Add one with + Add project, or from the Tree tab.</div>}
       {pl.list.map((v) => <Row key={v.id} s={s} v={v} sel={v.id === selId} capQ={capQ} onDrop={onDrop} />)}
       {pl.failed.map((v) => (
