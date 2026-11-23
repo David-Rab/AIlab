@@ -59,6 +59,13 @@ export function techBlocker(s: GameStateV2, t: WorldTechDef, g: Record<DomainId,
   for (const [d, min] of GATES[t.id]) if (g[d] < gOfLevel(w, min)) return `${d} ${min}`;
   return undefined;
 }
+/** The tech blocker at measured display levels (the UI's readout: the player's measured domain levels, not domain G).
+ *  The level → G conversion (λ⁻¹ on the world's timeline) stays in the engine, so the UI reads no hidden state. */
+export function techBlockerAtLevels(s: GameStateV2, t: WorldTechDef, L: Partial<Record<DomainId, number>>): string | undefined {
+  const w = s.hidden.timeline;
+  const g = Object.fromEntries(Object.entries(L).map(([d, x]) => [d, gOfLevel(w, x as number)])) as Record<DomainId, number>;
+  return techBlocker(s, t, g);
+}
 const GATES: Record<string, [DomainId, number][]> = Object.fromEntries(WORLD_TECHS.map((t) => [t.id, Object.entries(t.gates) as [DomainId, number][]]));
 
 /** Gate domain G (OOM): best public model, or the player's internal model on a moonshot. */

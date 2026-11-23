@@ -7,10 +7,9 @@ import { REGIONS } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
 import {
   automationShare, CONTROL_DOMAINS, dateOf, dowYtd, firmAdoption, fmtDate, internalVersion, LEVERAGE_THRESHOLDS, leverageAll, measuredDomains,
-  remoteWorkAutomation, techBlocker, unemploymentChange12m, youthExposedEmployment,
+  remoteWorkAutomation, techBlockerAtLevels, unemploymentChange12m, youthExposedEmployment,
 } from '../../../engine/v2';
-import type { DomainId, GameStateV2 } from '../../../engine/v2';
-import { gOfLevel } from '../../../engine/v2/models/capability';
+import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
 import { PanelHead, Tabs, tabOf } from '../kit';
 import { WorldSectors } from './WorldSectors';
@@ -23,8 +22,8 @@ export function World({ s }: { s: GameStateV2 }) {
   const [tech, setTech] = useState('');
   const [share, setShare] = useState(0.03);
   const v = internalVersion(s);
-  // RD-P04b: the tech gates read domain G (OOM); your measured levels convert through the one λ.
-  const levels = Object.fromEntries(Object.entries(v ? measuredDomains(v) : {}).map(([d, L]) => [d, gOfLevel(s.hidden.timeline, L as number)])) as Record<DomainId, number>;
+  // RD-P04b: the tech gates read domain G (OOM); your measured levels convert through the one λ in the engine.
+  const levels = v ? measuredDomains(v) : {};
   const lev = leverageAll(s);
   const us = s.world.macro.US;
   const tab = tabOf('world', 'sectors');
@@ -85,7 +84,7 @@ export function World({ s }: { s: GameStateV2 }) {
             const st = s.world.techs[t.id];
             if (!st) return null;
             const disc = st.discoveredDay !== undefined;
-            const block = disc ? undefined : techBlocker(s, t, levels);
+            const block = disc ? undefined : techBlockerAtLevels(s, t, levels);
             const cls = disc ? (st.ramp >= 0.99 ? 'done' : 'ramp') : block ? 'locked' : 'avail';
             return (
               <Tip as="div" key={t.id} content={() => <TipCard title={`${t.id} ${t.name}`} value={disc ? `found ${fmtDate(dateOf(s, st.discoveredDay!))}` : pct(st.prog)} rows={[
