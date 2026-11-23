@@ -144,7 +144,7 @@ function build(label: string, o: BuildOpts): World {
   return {
     label, h0: o.h0, hSC, T: o.T, growth: o.growth, decay: o.decay, g0, cs: o.cs, base0: Math.max(2, g0 + o.cs),
     share: o.share, pEx: o.pEx, sEx: o.sEx, G: o.G, p0: 0, aifm: false,
-    computeElasticity: 0.5, computeGrowth: 2.25, alignDifficulty: 1, doomThreshold: 0.4, chinaEfficiency: 0.7, neuraleseBoost: 1.3,
+    computeElasticity: 0.5, computeGrowth: 2.25, alignDifficulty: 1, doomThreshold: 0.4, chinaEfficiency: 1, neuraleseBoost: 1.3,
   };
 }
 
@@ -217,7 +217,9 @@ export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, _
       w0.base0 = Math.max(w0.base0, w0.p0 * 12 + 3);
       w0.computeGrowth = 2.25;
       w0.computeElasticity = rng.range(0.35, 0.7);
-      w0.chinaEfficiency = rng.range(0.6, 0.9); // AI 2027: DeepCent at ~half OB's pace with half its compute
+      // CAL-W: no draw. AI 2027 (Aug 2027): DeepCent at "half the pace of OpenBrain, mainly due to the compute deficit"
+      // on 10% vs 20% of world compute: no research efficiency separable from compute (research/CAL-world-sources.md).
+      w0.chinaEfficiency = 1;
       w0.neuraleseBoost = rng.range(1.15, 1.5);
       w = w0;
     }

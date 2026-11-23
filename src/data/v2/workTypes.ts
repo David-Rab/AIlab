@@ -146,7 +146,7 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  takeoff), Forethought 4.0 (slow: its r_cog = λα/β 1.2 at λ 0.6, α 0.5 is per doubling of cognitive labour at fixed
  *  compute; the line law SE = r·log₁₀ RS takes AIFM's 1/β over the whole research input, so 1/β = 1.2/0.3 = 4.0, range
  *  0.4–3.6 → 1.3–12; CP3j units fix, was 1.2) [research/13 §2.2; Davidson & Houlden 2025]; and sd_SC, AIFM's AI research taste at the automated coder (median 0.5 SD,
- *  kept where (G_SC, Δ_bm) fit; fitted for authors2026, 1.8 SD, inside AIFM's 80% CI −2.5…3.5) [fit, V3b]. `sampled` uses
+ *  kept where (G_SC, Δ_bm) fit; authors2026's fit 2.15 replaced by the sourced 0.5 in CAL-W) [R13 §2.2, CAL-W]. `sampled` uses
  *  ai2027's. Mutable so the harness can fit them. A5 refit: authors2026 Δ_bm 4.606 → 4.5 (the cheap-tier market changes
  *  rivals' revenue, so a merger offer fires on day 458 and RefBot's path shifts; ASI +59 d → −11 d, G_SC kept).
  *  M1 refit (merge of D1/D3 and E1 onto A5; `--fit-v3`, sd_SC kept): authors2026 G_SC 33.62 → 33.632, Δ_bm 4.5 → 4.6
@@ -225,11 +225,17 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  budget) SC +0.022 / SAR +0.137 / SIAR +0.090 / ASI +0.019 y, worst 1.14: SAR sits ≈ 42 d after SC because at sd_SC 0
  *  the research domains' best humans are a full Δ_bm above SC, while the golden puts SAR on SC's day (structural, as
  *  before); Δ_bm 0.75 fails (SAR +0.21 y). authors2026 kept: at sd_SC 0.5 (33.85, 5.0) SC +0.7 y, SAR +2.1 y (9 seeds),
- *  so 2.15 (inside Eli's 80% CI) stays until a 20-seed refit at sd_SC 2.15 runs. */
+ *  so 2.15 (inside Eli's 80% CI) stays until a 20-seed refit at sd_SC 2.15 runs.
+ *  CAL-W (sourced, not fitted; research/CAL-world-sources.md §3): authors2026 sd_SC 2.15 → 0.5 and Δ_bm 4.65 → 2.17, the
+ *  AIFM Q2-Eli medians (config/sampling_config_q2_eli.yaml inherits `ai_research_taste_at_coding_automation_anchor_sd`
+ *  N, 80% CI [−2.5, 3.5] → 0.5; `ai_research_taste_slope` lognormal [0.8, 6.6125] → 2.3 SD per progress-year; AIFM converts
+ *  per progress-year to per OOM by its present-day progress rate, 1.618 OOM/yr in its golden run, so Δ_bm = 3.09·1.618/2.3).
+ *  G_SC 33.45 kept [D stand-in]: Eli's AC is anchored by uplift (the horizon "has no effect on AC" in that mode), so the
+ *  horizon-law mapping does not give it; it needs AIFM's progress at AC for Eli's medians (not run). Not refitted. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.45, dBM: 4.65, r: 3.19, sdSC: 2.15 },
+  authors2026: { gSC: 33.45, dBM: 2.17, r: 3.19, sdSC: SD_AT_SC },
   fast: { gSC: 31.35, dBM: 0.6, r: 4, sdSC: 0 },
   slow: { gSC: 35.575, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
   sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },

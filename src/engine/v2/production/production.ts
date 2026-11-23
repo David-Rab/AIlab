@@ -185,7 +185,8 @@ export function tcoPerH100eYear(s: GameStateV2, yr: number): number {
   return r > 0 ? (r * 8760) / 1e9 : (14e3 * Math.pow(0.8, yr - 2025.5)) / 1e9;
 }
 
-/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency (CP3k: no fitted scale). */
+/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency, both 1 since CAL-W (equal recipe
+ *  efficiency, designer CP3k; AI 2027 gives none separable from compute). */
 export function effLab(s: GameStateV2, lab: LabId): number {
   if (lab !== CHINA_ID) return 1;
   return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency;

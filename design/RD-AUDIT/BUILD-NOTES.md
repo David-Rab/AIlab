@@ -4727,3 +4727,24 @@ not touched; rivals read the same tool shares through DAY0_TOOLS.
 - **For the designer:** delete Memory's Chat appeal (no mechanism, no source) and Companion's appeal (now ×1.025)?
   KYC_REFUSE 0.25 is an upper-end analogue. DISTILL_HARVEST_SHARE: lowering it toward 1e-3 makes KYC 1 matter on a big
   API.
+
+### CAL-W sourcing (world / presets, calibration steps 1–2; branch cal-world)
+
+Sources, quotes and mappings: research/CAL-world-sources.md. tsc (app, scripts/v2) clean; quick check only (newGame per
+preset: chinaEfficiency 1, effLab(china) 1, V3_CAL values). No scans or full runs (next step).
+
+| Number | Old → new | Source | Moves calibration |
+|---|---|---|---|
+| China `chinaEfficiency` (presets; `sampled` draw) and CHINA_PRESETS `efficiency` | 0.7; U(0.6, 0.9); 1.1 / 1.05 / 1 → **1** everywhere | AI 2027 scenario: DeepCent "half the pace of OpenBrain, mainly due to the compute deficit" on 10% vs 20% of world compute; compute forecast gives shares only. Nothing separable from compute, so the designer's CP3k "equal recipe efficiency" applies | yes: China T3 lead (DeepCent faster); `sampled` worlds' later draws shift one RNG step |
+| slow `r` | 4.0 **kept** | Forethought (Davidson & Houlden 2025): r_cog = λα/β, median 1.2, "α=0.5, λ=0.6, β=0.25" ⇒ game r = 1/β = 4.0. Not a units error. The slow preset's own sources give no r | no |
+| authors2026 `sdSC` | 2.15 → **0.5** | AIFM `sampling_config_q2_eli.yaml` (inherits N, 80% CI −2.5…3.5) | yes, strongly (T1 / T1L authors2026) |
+| authors2026 `dBM` | 4.65 → **2.17** | AIFM Eli taste slope lognormal [0.8, 6.6125] → 2.3 SD per progress-year ÷ AIFM's present-day rate 1.618 OOM/yr ⇒ 3.09·1.618/2.3 | yes, strongly |
+| authors2026 `gSC` | 33.45 **kept [D stand-in]** | Eli's AC is uplift-anchored; needs AIFM's progress at AC on Eli's medians (running the AIFM code was not permitted this session) | refit at the next step |
+| fast `sdSC` / `dBM` / `gSC` | 0 / 0.6 / 31.35 **kept** | AIFM Daniel: sd 0 median; slope [1, 9] ⇒ Δ_bm 0.56–5.0, 0.6 its fast end (the preset's p10-takeoff identity); golden run AC 3.63–3.79 OOM above V0 ⇒ G_SC 31.23–31.39 | no |
+| CP3l (slow lab on the preset's compute growth) | **not ported** | AIFP Dec 2025 (Daniel): "Pure exponential trend, keeping my other parameters fixed, gets to AC … in 2034"; research/11 #18 puts slow on the AI 2027 compute path. slow `computeGrowth` 1.8 is itself unsourced [D] (feeds only worldfx/macro.ts) | no |
+
+**For the designer:** (1) should slow stay a low-returns world (Forethought's tail, r 1.3–1.7) now that its median maps
+to ai2027's 4.0? (2) slow's premise (METR 7-month doubling) has no sourced carrier in v3: target the sourced 2034–2035
+with what is there, or decide a mechanism; slow `computeGrowth` 1.8 → 2.25 per research/11 #18 if it should be sourced.
+(3) fast's Δ_bm 0.6 is Daniel's p90 taste slope, chosen for the preset's identity: confirm. (4) authors2026 G_SC needs
+one AIFM run on Eli's medians to be sourced.
