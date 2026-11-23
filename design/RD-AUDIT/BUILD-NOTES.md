@@ -4170,3 +4170,29 @@ hygiene.ts's calibration shift drops it).
   four post runs (h plus E03 / E07b on top; before, E02 alone would have kept growing toward 1).
 - **moves calibration: yes** (rivals' RH, and through it rival misalignment and endings, falls: they no longer
   accumulate reward hacking toward 1 run after run).
+
+### RF-S10 Method efficacy at scale: two-sided, player-language preview (partial: no validation channel yet)
+- **Changed:** data/v2/agendas.ts `METHOD_SCALE` U[0, 1] → **U[0, 2]** (decision 8: either way around the tested
+  effect, q = 1): a method may stop working at scale or work up to twice as strongly (exponent doubled). Believed q̄ =
+  1, so the lab's expectation at scale is the tested effect; predictBeliefs' range spread uses the new ends unchanged.
+  Run preview method line (safety/methods.ts methodLines) in player language: "… as published; yours about N% as
+  strong (from your research on it). Only tested on weaker models than this one, so how well it holds here is unknown:
+  anywhere from 0% to M% of the published strength (expected N%)". No arXiv cites, no "typical agenda" (sources stay in
+  METHOD_TESTED_OOM).
+- **Save:** folded into rev 98 (same lane, unreleased): migration 97 → 98 also redraws `HiddenWorld.methodScale` from
+  the seed on the new range.
+- **Stand-in:** the upper end 2 (mirrors CP3i's downside; no source gives either end). k = 2 OOM and the tested OOMs
+  unchanged.
+- **Not done: "validation narrows the belief".** Nothing in the design says what validating a method is, and it would sit
+  in safety/validation.ts, which lane S1 (RF-S5) is rewriting now. Proposal for the designer: a validation job on a
+  *method* (same job, need, cost and VAL_N as an instrument's): plant the trait in a test copy of the model, train it
+  with the method, count the planted cases it removes (k of VAL_N; true share from the method's true strength at that
+  model's capability). The lab's q range becomes the q values whose predicted removal (believed efficacy) lies in the
+  k-of-n interval; preview and predicted beliefs read that range instead of [0, 2] for that method. Open: whether
+  organism realism applies to methods too, and whether a measurement at one capability narrows q for larger models.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs10/check.ts all ok: 2,000 seeds q in [0, 2], mean 0.99, 50%
+  above 1; day-400 migrates to the seed's new draw; believed strength 1 at and far above the tested model; preview at +4
+  OOM prints "from 0% to 223% … (expected 111%)", no citations. scripts/v2/_cp3i/check.ts (pins U[0, 1]) will drift.
+  Not changed: the METHODS effect strings still carry edge ids (E04, AF): pre-existing.
+- **moves calibration: yes** (S4: methods past their tested scale now hold or strengthen in half the worlds; CP3i's
+  one-sided draw pushed P_mis up, 0.329 → 0.487).

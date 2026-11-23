@@ -184,7 +184,8 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  96 → 97 sets it from the save's seed (methodScaleOf), the values a new game with that seed draws.
  *  98 (RF-S8): an environment fix is a hardening pass on the family's suite (one verb, Harden). Migration 97 → 98 drops
  *  SafetyDept.envFixes / envFixJobs (fixes in force and being built are lost: the planned save break) and the 'envFix'
- *  need from research.safRe (order and caps).
+ *  need from research.safRe (order and caps). RF-S10: it also redraws HiddenWorld.methodScale from the seed on the
+ *  two-sided range U[0, 2] (methodScaleOf).
  */
 export const SCHEMA_REV = 98;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
@@ -1102,7 +1103,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (r.hidden && r.hidden.methodScale === undefined) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
   },
   97: (raw) => {
-    // 97 → 98 (RF-S8): environment fixes fold into hardening (see SCHEMA_REV's note).
+    // 97 → 98 (RF-S8): environment fixes fold into hardening; RF-S10: method strengths at scale on the two-sided range
+    // (see SCHEMA_REV's note).
+    const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
+    if (r.hidden) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
     const p = (raw as { player?: { safety?: Record<string, unknown>; research?: { safRe?: { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } } } }).player;
     if (p?.safety) { delete p.safety.envFixes; delete p.safety.envFixJobs; }
     const sr = p?.research?.safRe;

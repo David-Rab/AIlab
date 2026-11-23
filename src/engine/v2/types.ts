@@ -226,8 +226,8 @@ export interface HiddenWorld {
   /** SR-24b: organism realism r ~ U[0.4, 1.0] (a hash of the seed): real recall of an instrument = its recall on planted
    *  model organisms × r (safety/validation.ts). Hidden: the lab knows only the range. */
   organismRealism: number;
-  /** CP3i: per run method, its hidden strength q ~ U[0, 1] on models well above the capability its source tested (a hash
-   *  of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
+  /** CP3i / RF-S10: per run method, its hidden strength q ~ U[0, 2] (1 = as tested) on models well above the capability
+   *  its source tested (a hash of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
   methodScale: Record<string, number>;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
   actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
