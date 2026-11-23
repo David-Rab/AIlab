@@ -751,7 +751,7 @@ export interface AdoptedIdea {
   kind?: 'domain' | 'data';
   /** Ideas in it (a line's batch; absent = 1). */
   b?: number;
-  /** True effect when adopted, hidden until a model trained with it is evaluated: a stack idea in its stack's OOM at the
+  /** True effect when adopted (engine only: never shown; RD-M02 the readout is a measured eval delta): a stack idea in its stack's OOM at the
    *  lab's latest base; a domain or data effect in "× as designed" (1 = the project's design effect). */
   eff: number;
   /** The believed band when the result came in (same unit). */

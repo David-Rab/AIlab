@@ -764,13 +764,13 @@ if (process.argv.includes('--rd-a03')) {
   const add = (id: string, extra: Partial<typeof proto>) => vs.push({ ...proto, id, name: id, day: day + 10, status: 'ready', ...extra });
   const rl = () => stackViews(s).find((g) => g.key === 'rlMid')!.ideas.find((a) => a.id === 'L.rlalg')!;
   add('Tmini', { variant: 'mini', trained: undefined });
-  const afterMini = rl().realised;
+  const afterMini = rl().measured;
   add('Told', { variant: 'full', trained: { rlDay: day - 5, post: true } });
-  const afterOld = rl().realised;
+  const afterOld = rl().measured;
   add('Tnew', { variant: 'full', trained: { rlDay: day + 1, post: true } });
   const after = rl();
-  check(afterMini === undefined && afterOld === undefined && after.realised !== undefined && after.seenIn === 'Tnew',
-    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.realised} seen in ${after.seenIn}`);
+  check(afterMini === undefined && afterOld === undefined && after.measured !== undefined && after.seenIn === 'Tnew',
+    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.measured} seen in ${after.seenIn}`);
 }
 
 

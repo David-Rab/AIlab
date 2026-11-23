@@ -21,6 +21,7 @@ import { versionById } from './labs';
 import {
   allocate, attemptOdds, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
 } from './research';
+import { measuredSd } from './benchmarks';
 import { adoptedAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
@@ -208,10 +209,23 @@ export { PROJECT_MAX_TEAMS };
 
 // ───────────────────────────── recipe stacks ─────────────────────────────
 
+/** RD-M02: a measured eval delta: the fitted level of the first evaluated model that embodies an idea minus that of
+ *  the comparable model without it (its predecessor on the same base, else the latest evaluated version before it). */
+export interface MeasuredDelta {
+  /** Δ measured general level (L). */
+  dL: number;
+  /** Band (L): the two fits' sd combined. */
+  sd: number;
+  /** Δ measured level per domain with a benchmark reading on both. */
+  dDom: Partial<Record<string, number>>;
+  /** Name of the model it is compared with. */
+  vs: string;
+}
 export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> {
-  /** The true effect, once a model that embodies it has been evaluated (hidden before); same unit as `est`. */
-  realised?: number;
-  /** Name of the first evaluated model that embodies it (whose evaluation reveals the true effect). */
+  /** RD-M02: the measured eval delta of the first evaluated model that embodies it (absent: not yet measured). Never the
+   *  true effect. Everything else that changed between the two models is in it too. */
+  measured?: MeasuredDelta;
+  /** Name of the first evaluated model that embodies it. */
   seenIn?: string;
   /** Player text: which model trains it in ("a post-training run launched"…, after it was adopted). */
   embodiedBy: string;
@@ -226,7 +240,7 @@ export interface StackView {
   ideas: AdoptedView[];
 }
 /** One row of a domain or data effect in its own unit. */
-export interface EffectRowView { label: string; unit: string; est: number; estSd: number; realised?: number }
+export interface EffectRowView { label: string; unit: string; est: number; estSd: number; /** RD-M02: Δ measured level (L) of the row's domain, or general. */ measured?: { d: number; sd: number } }
 /** RD-B17: an adopted domain or data effect (not a stack): its rows in their own units. */
 export interface OtherEffectView extends AdoptedView { kind: 'domain' | 'data'; rows: EffectRowView[] }
 
@@ -248,10 +262,29 @@ function revealedBy(s: GameStateV2, day: number, by: EmbodiedBy): ModelVersion |
   const b = rl();
   return a && b ? (m.versions.indexOf(a) <= m.versions.indexOf(b) ? a : b) : (a ?? b);
 }
+/** RD-M02: the measured eval delta of `v` (the first model that embodies an idea) over a comparable model without it:
+ *  the latest evaluated version before it on the same base, else the latest evaluated version before it (every earlier
+ *  version lacks the idea: `v` is the first that embodies it). Reads only the EvalRecord fits. */
+export function measuredDelta(s: GameStateV2, v: ModelVersion): MeasuredDelta | undefined {
+  const vs = s.player.models.versions;
+  const i = vs.indexOf(v);
+  if (i < 0 || v.evals.measuredL === undefined) return undefined;
+  const prior = vs.slice(0, i).filter((x) => x.evals.measuredL !== undefined && x.status !== 'evaluating' && x.status !== 'rolledBack');
+  const p = prior.filter((x) => x.baseId === v.baseId).pop() ?? prior.pop();
+  if (!p || p.evals.measuredL === undefined) return undefined;
+  const sd = Math.hypot(measuredSd(v), measuredSd(p));
+  const dDom: Partial<Record<string, number>> = {};
+  for (const [d, x] of Object.entries(v.evals.measuredDom ?? {})) {
+    const y = p.evals.measuredDom?.[d as keyof typeof p.evals.measuredDom];
+    if (x !== undefined && y !== undefined) dDom[d] = x - y;
+  }
+  return { dL: v.evals.measuredL - p.evals.measuredL, sd, dDom, vs: p.name };
+}
 function adoptedView(s: GameStateV2, a: AdoptedIdea, by: EmbodiedBy): AdoptedView {
-  const { eff, ...rest } = a;
+  const { eff: _true, ...rest } = a; // eslint-disable-line @typescript-eslint/no-unused-vars
   const v = revealedBy(s, a.day, by);
-  return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v ? { realised: eff, seenIn: v.name } : {}) };
+  const m = v ? measuredDelta(s, v) : undefined;
+  return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v && m ? { measured: m, seenIn: v.name } : {}) };
 }
 /** Where a domain or data effect lands, all frozen at a run's launch (RD-B02 snapshot): domain effects and serving in
  *  a post-training run's recipe; the data pipeline (synthetic quality, token worth) in a base run's data draw. */
@@ -296,9 +329,13 @@ export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
     if (!eff || eff.stack) continue;
     const kind = a.kind ?? (eff.domains ? 'domain' : 'data');
     const av = adoptedView(s, a, otherEmbodiedBy(n));
-    const row = (label: string, unit: string, k: number): EffectRowView => ({ label, unit, est: a.est * k, estSd: a.estSd * k, ...(av.realised !== undefined ? { realised: av.realised * k } : {}) });
+    const m = av.measured;
+    const row = (label: string, unit: string, k: number, dom?: string): EffectRowView => {
+      const d = m ? (dom ? m.dDom[dom] : m.dL) : undefined;
+      return { label, unit, est: a.est * k, estSd: a.estSd * k, ...(m && d !== undefined ? { measured: { d, sd: m.sd } } : {}) };
+    };
     const rows: EffectRowView[] = [];
-    for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0));
+    for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0, d));
     if (eff.data?.synQMax) rows.push(row('Synthetic data quality ceiling', 'web text = 1', eff.data.synQMax));
     if (eff.data?.worthOom) rows.push(row('Worth of each training token', 'OOM', eff.data.worthOom));
     out.push({ ...av, kind, rows });

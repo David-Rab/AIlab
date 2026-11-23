@@ -124,7 +124,7 @@ function Next({ v }: { v: CapProjectView }) {
 
 function SubLine({ v }: { v: CapProjectView }) {
   const bits: ReactNode[] = [<span key="a">{v.area}</span>];
-  if (v.line) bits.push(<Tip key="l" content={() => <TipCard title={<Term id="linePool">Line so far</Term>} rows={[{ label: 'Ideas adopted or in build', value: String(v.line?.gen ?? 0) }, { label: <Term id="realisedEffect">Realised</Term>, value: `${fmtEff(v.line?.realised ?? 0)} OOM` }]} />}><span>{v.line.gen} ideas · {fmtEff(v.line.realised)} OOM</span></Tip>);
+  if (v.line) bits.push(<Tip key="l" content={() => <TipCard title={<Term id="linePool">Line so far</Term>} rows={[{ label: 'Ideas adopted or in build', value: String(v.line?.gen ?? 0) }, { label: <Term id="linePool">Realised</Term>, value: `${fmtEff(v.line?.realised ?? 0)} OOM` }]} />}><span>{v.line.gen} ideas · {fmtEff(v.line.realised)} OOM</span></Tip>);
   else bits.push(<Tip key="o" content={() => <TipCard title={<Term id="odds">Odds</Term>} value={F.pct(v.odds)}>{v.spec ? `Speculative reopening ${v.spec}: odds halved each time.` : 'Chance the direction works in this world.'}</TipCard>}><span>odds {F.pct(v.odds)}</span></Tip>);
   if (v.wait && v.state === 'waiting') bits.push(<span key="w" className="tone-warn">{v.wait}</span>);
   return <span className="small dim rp-sub">{bits.map((b, i) => <span key={i}>{i > 0 && ' · '}{b}</span>)}</span>;
@@ -291,7 +291,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
       )}
       {v.line && (
         <Sec k="Pool · ideas get harder" term="linePool">
-          <KVr k={<Term id="realisedEffect">Realised so far</Term>} v={`${fmtEff(v.line.realised)} OOM · ${v.line.gen} ideas`} tip={() => <TipCard title={<Term id="linePool">Line</Term>} rows={[{ label: 'Returns r of the line', value: v.line?.r.toFixed(2) ?? '' }, { label: 'Research input so far', value: F.short(v.line?.input ?? 0) }]}>r × log₁₀ of the research input over the start.</TipCard>} />
+          <KVr k={<Term id="linePool">Realised so far</Term>} v={`${fmtEff(v.line.realised)} OOM · ${v.line.gen} ideas`} tip={() => <TipCard title={<Term id="linePool">Line</Term>} rows={[{ label: 'Returns r of the line', value: v.line?.r.toFixed(2) ?? '' }, { label: 'Research input so far', value: F.short(v.line?.input ?? 0) }]}>r × log₁₀ of the research input over the start.</TipCard>} />
           <KVr k="Ideas harder than at the start" v={`×${F.short(v.line.harder)}`} tip={() => <TipCard title={<Term id="linePool">Ideas get harder</Term>} value={`×${F.short(v.line?.harder ?? 1)}`}>Each result raises the line's research input; the next idea's prior falls with it.</TipCard>} />
         </Sec>
       )}
