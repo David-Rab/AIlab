@@ -7,11 +7,11 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   WSL_TARGET_RANGE, engine, fillWeeks, fullTeamPayroll, idleChips, ownedOnline, payrollOf, poolsOf, queuedOfKey,
-  rentedOnline, labSpeedLimits, labSpeedView, revenueReadout, securityFloorView, SPLIT_KEYS, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  rentedOnline, labSpeedLimits, labSpeedView, revenueReadout, securityFloorView, SPLIT_KEYS, SPLIT_LABEL, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
 } from '../../../engine/v2';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { COLUMN_LABEL, MOVE_SAFETY_MORALE, QUALITY, STAR_HIRE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
-import type { Column, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
+import type { Column, ComputeSplit, GameStateV2, SpeedLimitLine, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AgentsAtWork } from './Agents';
 import { Work } from './Work';
 import { store } from '../store';
@@ -21,10 +21,22 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C, POOL_COLOR, SPHERE } from '../theme';
 
-const POOL_TERM: Record<string, string> = { training: 'poolTraining', experiments: 'poolExperiments', agents: 'poolAgents', synthetic: 'poolSynthetic', serving: 'poolServing', safety: 'poolSafety', engineering: 'engAgents' };
+// Total over the engine's split keys: a new use is a type error here, not a crash in Flow.
+type PoolKey = keyof ComputeSplit;
+const POOL_TERM: Record<PoolKey, string | undefined> = {
+  training: 'poolTraining', synthetic: 'poolSynthetic', experiments: 'poolExperiments', routine: 'poolAgents', frontier: 'poolAgents',
+  engineering: 'engAgents', safetyAgents: 'safetyAgents', monitors: 'agentMonitor', safety: 'poolSafety', serving: 'poolServing', idle: undefined,
+};
 type Dept = 'cap' | 'serve' | 'saf';
-const POOL_DEPT: Record<string, Dept> = { training: 'cap', experiments: 'cap', agents: 'cap', synthetic: 'cap', serving: 'serve', safety: 'saf', engineering: 'cap' };
-const POOL_LABEL: Record<string, string> = { training: 'Training runs', experiments: 'Experiments', agents: 'Research agents', synthetic: 'Data generation', serving: 'Serving', safety: 'Safety', engineering: 'Engineering agents' };
+/** Department each use feeds; idle feeds none (drawn as a pool with no band onward). */
+const POOL_DEPT: Record<PoolKey, Dept | null> = {
+  training: 'cap', synthetic: 'cap', experiments: 'cap', routine: 'cap', frontier: 'cap', engineering: 'cap',
+  safetyAgents: 'saf', monitors: 'saf', safety: 'saf', serving: 'serve', idle: null,
+};
+const POOL_FILL: Record<PoolKey, string> = {
+  training: POOL_COLOR.training, synthetic: POOL_COLOR.synthetic, experiments: POOL_COLOR.experiments, routine: POOL_COLOR.agents, frontier: POOL_COLOR.agents,
+  engineering: POOL_COLOR.engineering, safetyAgents: POOL_COLOR.safety, monitors: POOL_COLOR.safety, safety: POOL_COLOR.safety, serving: POOL_COLOR.serving, idle: '#8a8f98',
+};
 
 // ───────── Flow: compute online → pools → departments → outputs ─────────
 function Flow({ s }: { s: GameStateV2 }) {
@@ -55,8 +67,8 @@ function Flow({ s }: { s: GameStateV2 }) {
   // column 2 departments
   const depts: { id: Dept; label: string; color: string; v: number }[] = [
     { id: 'cap', label: 'Capabilities', color: SPHERE.cap, v: keys.filter((x) => POOL_DEPT[x] === 'cap').reduce((a, x) => a + pools[x], 0) },
-    { id: 'serve', label: 'Serving', color: SPHERE.prod, v: pools.serving },
-    { id: 'saf', label: 'Safety', color: SPHERE.saf, v: pools.safety },
+    { id: 'serve', label: 'Serving', color: SPHERE.prod, v: keys.filter((x) => POOL_DEPT[x] === 'serve').reduce((a, x) => a + pools[x], 0) },
+    { id: 'saf', label: 'Safety', color: SPHERE.saf, v: keys.filter((x) => POOL_DEPT[x] === 'saf').reduce((a, x) => a + pools[x], 0) },
   ];
   let y2 = top;
   const pos2: Record<string, { y: number; h: number; fill: number }> = {};
@@ -67,8 +79,8 @@ function Flow({ s }: { s: GameStateV2 }) {
     return <path key={id} d={`M${xa},${ya} C${m},${ya} ${m},${yb} ${xb},${yb} L${xb},${yb + h} C${m},${yb + h} ${m},${ya + h} ${xa},${ya + h} Z`} fill={col} opacity={dim} />;
   };
   let y0 = top;
-  const bands0 = keys.map((x) => { const b = band(cx[0] + nodeW, y0, cx[1], pos1[x].y, Math.max(1, pools[x] * k), POOL_COLOR[x], `on>${x}`); y0 += pools[x] * k; return b; });
-  const bands1 = keys.map((x) => { const d = POOL_DEPT[x]; const p2 = pos2[d]; const h = Math.max(1, pools[x] * k); const b = band(cx[1] + nodeW, pos1[x].y, cx[2], p2.y + p2.fill, h, POOL_COLOR[x], `${x}>${d}`); p2.fill += h; return b; });
+  const bands0 = keys.map((x) => { const b = band(cx[0] + nodeW, y0, cx[1], pos1[x].y, Math.max(1, pools[x] * k), POOL_FILL[x], `on>${x}`); y0 += pools[x] * k; return b; });
+  const bands1 = keys.map((x) => { const d = POOL_DEPT[x]; if (!d) return null; const p2 = pos2[d]; const h = Math.max(1, pools[x] * k); const b = band(cx[1] + nodeW, pos1[x].y, cx[2], p2.y + p2.fill, h, POOL_FILL[x], `${x}>${d}`); p2.fill += h; return b; });
   const out: Record<string, { label: string; tag?: { t: string; tone: string }; ref: string; to: { panel: string; tab?: string } }> = {
     cap: { label: 'Research speed', tag: { t: prod.label.replace('labor', 'labour'), tone: 'warn' }, ref: 'M', to: { panel: 'company' } },
     serve: { label: 'Revenue', tag: capped ? { t: `${capped} capped`, tone: 'bad' } : undefined, ref: 'revenueRun', to: { panel: 'finance' } },
@@ -92,10 +104,10 @@ function Flow({ s }: { s: GameStateV2 }) {
           </Tip>
         )}
         {keys.map((x) => (
-          <Tip as="g" key={x} content={() => <TipCard title={<Term id={POOL_TERM[x]}>{POOL_LABEL[x]}</Term>} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
+          <Tip as="g" key={x} content={() => <TipCard title={POOL_TERM[x] ? <Term id={POOL_TERM[x] as string}>{SPLIT_LABEL[x]}</Term> : SPLIT_LABEL[x]} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
             <g onMouseEnter={() => setHover(x)} onClick={() => store.goto('compute', { tab: 'split', anchor: `split-${x}` })} className="flow-click" data-pool={x}>
-              <rect x={cx[1]} y={pos1[x].y} width={nodeW} height={pos1[x].h} rx={3} fill={POOL_COLOR[x]} />
-              <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{POOL_LABEL[x]} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
+              <rect x={cx[1]} y={pos1[x].y} width={nodeW} height={pos1[x].h} rx={3} fill={POOL_FILL[x]} />
+              <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{SPLIT_LABEL[x]} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
             </g>
           </Tip>
         ))}
