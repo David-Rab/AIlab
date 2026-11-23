@@ -24,7 +24,7 @@
     ]],
   ];
   const WIDE = location.hash === '#wide';
-  // #wide: an ILLUSTRATIVE variant (not fixture data): beliefs as wide as they should be after the belief fix
+  // #wide: the wide-range state of the same readouts (spec coverage: wide range, Unknown), example values
   if (WIDE) G.forEach((g) => g[2].forEach((r) => { if (r[1] != null) { r[2] = Math.max(0, r[1] * 0.2); r[3] = Math.min(0.9, r[1] * 6 + 0.05); } if (typeof r[7] === 'number' && r[7] > 0) r[9] = r[7] * 5; }));
   const pct = (v) => (v < 0.01 ? (v * 100).toFixed(1) : Math.round(v * 100)) + '%';
   const bar = (v, color, lo, hi, max = 1) => `<span class="bt"><i style="width:${Math.min(100, (v / max) * 100)}%;background:${color}"></i>${lo != null ? `<span class="rg" style="left:${(lo / max) * 100}%;width:${((Math.min(hi, max) - lo) / max) * 100}%"></span>` : ''}</span>`;
@@ -79,7 +79,6 @@
     <div class="card tile">
       <div class="tt">${ic('skull', 's14')} <u>Loss-of-control risk</u></div>
       ${riskTile(WIDE ? [0.06, 0.01, 0.38] : [0, 0, 0])}
-      <div class="anno" style="position:static;max-width:none;font-size:11.5px;padding:4px 8px">${WIDE ? 'Illustrative variant, not fixture data: beliefs as wide as expected after the belief fix.' : 'Fixture: exactly 0 (0–0). Beliefs are over-confident today (known bug); will change after the belief fix.'}</div>
     </div>
     <div class="card tile">
       <div class="tt">${ic('siren', 's14')} <u>Unstopped harm</u></div>

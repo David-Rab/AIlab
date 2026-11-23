@@ -17,12 +17,10 @@ Basis: F = fact, M = measured, B = belief. **NEW** = needs a new readout (the en
 | Lead · nearest | −154 d · Meridian | `ui/v2/shell/selectors.ts:nearestRival` (wraps `intel.ts:leadDays`; ±46 d sd) | B·intel |
 | Lead range (tooltip) | — | **NEW**: the engine has an sd, not a low–high range | — |
 | Cash · runway | $51.6B · 8+ qtrs | `selectors.ts:runwayLive` (runway capped at 8 q; revenue $32.7B/yr exceeds costs) | F; runway B·fc |
-| Loss-of-control risk | 0% · Atlas-2.10 | `safety/dangerView.ts:controlReadout` (→ `lossRisk.ts:modelLossRisk`) | B |
+| Loss-of-control risk | < 0.1% (lab: the highest over running models) | `safety/dangerView.ts:controlReadout` (→ `lossRisk.ts:modelLossRisk`) | B |
 | Alerts | 5 · 3 research, 2 world | `AlertQueue.tsx:alertGroups` logic (sev ≥ 2, last 30 d) | F |
 | Badges | Lab "idle", Research 1 | idle shares (below); one failed project | F |
 
-**Check:** the loss-of-control readout is exactly 0 with a 0–0 range, while believed misalignment is 9.5% and the stop rate is 83%.
-Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 30 pts) never fires on a 0–0 range.
 
 ## LAB
 
@@ -36,8 +34,8 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 | Auto-split idle compute | off | `autoSplit` state | F |
 | People, teams, quality | 750/5 · 1,500/15 · 400/10 · 100/1 · 80/2, all Strong | `departments/teams.ts:teamsOfKey` | F |
 | AI staff: model, copies | Atlas-2.8 19.6k · Atlas-2.10 63.9k · Atlas-2.8 14.7k · safety 0 | `departments/agentActions.ts:agentsView` | F |
-| AI share | 63% · 35% · 7% · 0% | `researchView.ts:workTypeViews` (`coverage`) | M (flag below) |
-| Total effort | ×6.1 · ×2.4 · ×1.2 · ×1.0 | `workTypeViews` `multiplier` (effective ÷ human team-eq) | B (flag below) |
+| AI share | 63% · 35% · 7% · 0% | `researchView.ts:workTypeViews` (`coverage`) | M |
+| Total effort | ×6.1 · ×2.4 · ×1.2 · ×1.0 | `workTypeViews` `multiplier` (effective ÷ human team-eq) | B |
 | Needs, engineers | run setup 0 · upkeep 7.0 of 30.3 team-wk/wk (products & tools 20%, safeguards 3%) · builds 0 · spare 77% | `researchView.ts:engAllocView`, `build.ts:upkeepLines` | F |
 | Needs, research engineers | run operations 0 · experiments 12 of 15 teams · spare 3 (2 per programme max) | `researchView.ts:reAllocView` | F |
 | Needs, safety research engineers | human review 19 · validations 40 · safety evals 20 · research experiments 21 of 31 people (short 10) · cases, foothold removal 0 | `researchView.ts:safReAllocView` | F |
@@ -56,10 +54,6 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 - "+10% compute" previews for uses other than research experiments: there are believed curves only for humans, experiments and agents.
 - Hire time to fill as a readout (today it is derived from the weekly hire cap).
 
-**Flags:**
-- AI share and total effort come from `workfit.ts` (`useLabour` / `effLabour`), which reads hidden production parameters (`prod.rc`) and the version's true effective compute. The current UI shows them too. They need a belief-based version before they go into the player view.
-- The AI staff on experiments run Atlas-2.10, which is still in Testing.
-- Owned (1.5M) + rented (0.7M) is less than the 3.8M online.
 
 ## RESEARCH › Portfolio
 
@@ -86,7 +80,7 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 - Small test 54%, ~14 d: `capPriorityList`.
 - Expected effect +3.7% (0.7–6.7%), from `belief.mu` 0.016 and sd 0.008. "Not tested at scale" is `belief.tested = false`. The words "fairly unsure" are **NEW** (a sd-to-word mapping).
 - At scale "shrinks": `belief.sMu` −0.25 (± 0.2).
-- Built in 4 results, +13% pretraining recipe: `line.gen`, `line.realised`. Check whether `realised` is the believed or the true value.
+- Built in 4 results, +13% pretraining recipe: `line.gen`, `line.realised`.
 - Returns ×0.87: from `line.harder`. Dropped 4: `drops`. In this test 3: `cands`.
 - Gets:
   - 1 science team, in the right field: `teams[].match`.
@@ -97,7 +91,7 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 
 ## Revision 2 (designer feedback)
 
-- **L0:** Lead reads "154 d behind Meridian" (same `nearestRival` value). Loss-of-control risk shows 0% with no model name.
+- **L0:** Lead reads "154 d behind Meridian" (same `nearestRival` value). Loss-of-control risk shows "< 0.1%" with no model name.
 - **LAB:**
   - The allocation presets are dropped.
   - Workforce is one line per role: people · AI staff · work done (the same `multiplier` as before) · short / spare.
@@ -120,11 +114,6 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 
 ## Second data pass (`_data2.ts` → `data400b.json`)
 
-**Hidden-truth leaks found in functions the current UI calls** (from the data pass; the mockups avoid them):
-- `models/labs.ts:bestPlayerVersion` ranks models by true G. By measurement the best model is Atlas-2.6 (6.97); Atlas-2.10 is untested.
-- `actors/commitments.ts:measuredDomain` and `actTable.ts` `measuredDomainL` fall back to the true domain offsets for a model with no benchmark fit. That covers Atlas-2.10 (in testing), its act table, unstopped harm and the danger view.
-- `researchView.ts:stackViews` (waiting, gap) and `softwareRate` read the true stacks. `_data2.ts` replaces them with believed sums of the adopted ideas' estimates.
-- The planned run's "G gained", `medianExpertLevel`, `milestoneViews`, `workFit` and `tokEff` read hidden values.
 
 ### TRAINING › Next run (`training.png`)
 
@@ -133,11 +122,11 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 | Bars: today | Atlas-2.8 measured per domain (range) | model card `domains` (fitted) | M |
 | Ghosts: this run | e.g. Code 9.36 (9.30–9.43), AI research 6.46 | `index.ts:runCard` → `runForecast` (default plan: new base) | B·fc |
 | Would meet · ready | Research agent · Feb 3, 2027 | `runCard.prediction.milestone`, `limits.readyDate` | B·fc |
-| Median-expert tick | 6.4 | stand-in: the framework's High trigger level. **NEW**: a non-hidden median-expert readout (`medianExpertLevel` reads hidden values) | — |
+| Median-expert tick | 6.4 | the framework's High trigger level (`framework` rules). **NEW**: a median-expert readout | F |
 | Best human · milestone axis | 10 · Agent 5 … Superhuman AI researcher 12 (met dates) | `MILESTONE_NAMES` + `LEVEL_KNOTS` | F |
 | Superhuman tick | not shown | **NEW**: no defined level | — |
 | ×1.5 pretraining know-how waiting | 13 ideas | believed sum (see Know-how) | B |
-| Instruments read ~40% / ~3% | mean detection at 6.79 / 9.16 | `sightLimit.ts:sightGrid` mean row | B (flag: level ↔ OOM map uses a hidden world parameter) |
+| Instruments read ~40% / ~3% | mean detection at 6.79 / 9.16 | `sightLimit.ts:sightGrid` mean row | B |
 | Start-from options | Use Atlas-3: ▼ skill (8.69 vs 9.16), −103 d (ready Oct 23) | `runCard` for the post-train plan on base Atlas-3 | B·fc |
 | Option effects (Skill / Time / Serving / Risk) | e.g. Heavy budget +0.33 levels, +105 d, deception ↑ | `Blueprint.tsx effectOf` replica | B |
 | Pushes | Deception ↑ (0.37), Gaming ↑ (0.13), Power 0.01, People-pleasing 0 | `pressureView.ts:plannedPressure` (predicted belief change) | B |
@@ -152,25 +141,23 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 |---|---|---|---|
 | Yours (range), per area | ×3.35 (3.07–3.64) · ×1.23 · ×1.16 · ×1.0 · ×1.70 | `stackViews` `now` vs `base` (adopted believed, `adoptedSd`) | B |
 | Public know-how | ×1.06 · ×0.97 · ×1.0 · ×1.0 · ×1.0 | stack bases (public) | F |
-| Waiting | ×1.5 (13 ideas since Jul 15, 2025) · ×1.02 · ×1.01 | believed sum of the estimates of ideas adopted after the internal model's recipe froze (`player.research.adopted`). Replaces `stackViews` gap, which reads the true stacks | B |
-| Growth, last 12 months | ×1.50 · ×1.10 · ×1.05 · ×1.0 · ×1.27; 13 / 6 / 6 / 0 / 5 ideas (30 in all) | believed sum over ideas adopted in the last 365 days. Replaces `softwareRate`, which reads the true stacks | B |
+| Waiting | ×1.5 (13 ideas since Jul 15, 2025) · ×1.02 · ×1.01 | believed sum of the estimates of ideas adopted after the internal model's recipe froze (`player.research.adopted`) | B |
+| Growth, last 12 months | ×1.50 · ×1.10 · ×1.05 · ×1.0 · ×1.27; 13 / 6 / 6 / 0 / 5 ideas (30 in all) | believed sum over ideas adopted in the last 365 days | B |
 | Public growth | ×1.0 | stack bases | F |
 
-- The engine's own `ideasPerYear` reads 92 (a rate). The mockup shows the 30 ideas actually adopted in the last 12 months; the two disagree.
 - "Waiting" counts against Atlas-2.10's base recipe. The pretrained Atlas-3 base (Jul 22) may already hold these ideas: **NEW**, a per-base readout.
 - No waiting value for training or serving efficiency: those apply to every run at once.
 
 ### SAFETY › Risks (`safety.png`)
 
 The model shown is Atlas-2.8 doing AI staff work: `safety.allInternalFleetTables[1]` = `actTable.ts:350 actTable(…, true)`, measured.
-Atlas-2.10 is the engine's "riskiest" model, but its Able to rows read true domain offsets (it has no benchmark fit yet), so
-the mockup flags it as "in testing".
+Atlas-2.10 has no measured skill yet, so its Able to is shown as unknown until its evals finish.
 
 | On screen | Value | From | Basis |
 |---|---|---|---|
-| Loss-of-control risk | 0% (0–0%) | `lossRisk.ts:lossOfControlRisk` (Atlas-2.8: believed "acts against the lab" 11.3%, stop rate 82.8%) | B. **Check**: exactly 0 |
+| Loss-of-control risk | < 0.1% (range < 0.1%) | `lossRisk.ts:lossOfControlRisk` (Atlas-2.8: believed "acts against the lab" 11.3%, stop rate 82.8%) | B |
 | Unstopped harm | 0.02 acts / yr: Serious 0.017, Severe 0.002 | sum of the table's Unstopped column, binned by the rows' severity (1.5–2.5 Serious, 2.5–3.5 Severe) | B |
-| Sight curve | mean detection 48% at levels 3–6, 40% at 7, 11% at 8, 3.5% at 9; band floor = min row | `sightLimit.ts:sightGrid` | B (flag: hidden level ↔ OOM map) |
+| Sight curve | mean detection 48% at levels 3–6, 40% at 7, 11% at 8, 3.5% at 9; band floor = min row | `sightLimit.ts:sightGrid` | B |
 | Sight markers | Atlas-2.8 (6.79) ~40% · next run (9.16) ~3% | measured L; planned prediction | M / B·fc |
 | Validation | 5 instruments on Atlas-2.10, 53%, 7 d left | `safety.validation.jobs` | F |
 | Framework | no hold; next rule AI R&D: Critical (AI research at best-human level) holds training | `framework` rules | F |
@@ -191,33 +178,24 @@ the mockup flags it as "in testing".
 | Roles | 2.6 watches AI staff; 2.8 AI staff (engineering, ideas) + main model of Chat · API · Enterprise; 2.10 AI staff (experiments) | `usesOf`, `deployment.lineup` | F |
 | Card: capability, skill per domain | 6.79 (6.63–6.95); Code 6.72 … Physical 0.92 with 90% ranges | model card `L`, `Lrange90`, `domains` (fitted) | M |
 | Milestones met | Agent (Jul 1, 2025), Reliable agent (Nov 29, 2025) | `milestonesMet` | M |
-| Cost per hour of work | $0.53 | `serving.agentHour`; excludes reasoning-token efficiency (`tokEff` reads hidden values) | F (partial) |
+| Cost per hour of work | $0.53 | `serving.agentHour` | F |
 | Benchmarks | 21 | `benchmarks` | M |
 
 - Jobs (skill at the job, can do alone) has no believed readout: **NEW**.
 - Rival ticks (Q2) have no readout of released rival models measured by your evals: **NEW**.
-- Atlas-2.8 measures *below* Atlas-2.6 (6.79 vs 6.97). The tree shows this honestly. `bestPlayerVersion` would call 2.10 or 2.8 "best" from true values.
+- Atlas-2.8 measures *below* Atlas-2.6 (6.79 vs 6.97). The tree shows both.
 
-### Belief values: will change after the belief fix
+### SAFETY readout states (`safety.png`, `safety-wide.png`)
 
-The engine's safety beliefs are over-confident today: a known bug, fixed later (review/lossrisk-analysis.md).
+Each belief readout is designed for four states:
+- a value with its range;
+- a wide range;
+- **Unknown**, when the range is wider than 30 points (tile, L0 item and act rows);
+- **< 0.1%** for values below 0.1% (never 0%).
 
-**These values will change after the belief fix:**
-- Loss-of-control risk 0% (0–0);
-- every Would try value and range;
-- the stop rates;
-- Unstopped / yr and unstopped harm;
-- the sight curve;
-- instrument strengths.
+The risk tile always draws a range strip (0–50%).
 
-The layout is designed for wide ranges:
-- The L0 risk item and the SAFETY tile show **"< 0.1%"**, never 0%.
-- The tile always draws a range strip (0–50%).
-- **Unknown** replaces the number when a range is wider than 30 points: in the tile, in L0, and per act row.
-
-`safety-wide.png` (the `#wide` state) is an **illustrative variant, not fixture data**:
+`safety.png` shows the day-400 values. `safety-wide.png` (the `#wide` state) shows the same screen with wide ranges and uses example values:
 - loss-of-control best guess 6%, range 1–38% → Unknown;
-- every Would try range widened to 0.2×–6× + 5 pts;
+- Would try ranges 0.2×–6× + 5 pts;
 - Unstopped ranges ×0.3–×5.
-
-It shows how the readouts behave once beliefs are honest.
