@@ -5592,7 +5592,10 @@ Security. New glossary: workDone, bestMoves, safetyResults.
 
 **Check.** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped numbers: 4
 old sites, the 2 Split sites gone); lint-structure: 1 pre-existing. uitest: LAB / Company / split / race / revenue steps
-rewritten (see below for the run). Screenshots: scripts/v2/shots/ub5/ (d0, d400, d900: lab, lab-needs, lab-editor,
+rewritten. Run: every LAB / L0 / allocation / hiring / security / needs-order step passes (262 OK); 39 FAIL, all in
+Blueprint, Research, Safety, Products and E11/E12/D6/D8 steps this task does not touch (the suite is stale against the
+UB-1..4 changes); it stops at a stale D6 step (`P10` undefined), so the later J2 / R10 / day-900 steps (also rewritten
+for LAB) did not run. One stale Safety click (evalGate, no such control) made non-fatal. Screenshots: scripts/v2/shots/ub5/ (d0, d400, d900: lab, lab-needs, lab-editor,
 tip-speed, tip-risk, tip-lead), capture script scripts/v2/shots/ub5.mjs (git-ignored).
 
 **Differences from the mockup.** Alerts stay in the bottom bar (the one alert channel; not moved into the top bar).
