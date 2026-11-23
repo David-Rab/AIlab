@@ -5061,3 +5061,8 @@ presets (authors2026 0.1, fast 0.15) "[D] calibration knobs" of the v1 integrato
 scenario's "50% faster" in early 2026.
 
 **slow G_SC 38.3 (item 7):** marked a stated stand-in at V3_CAL (workTypes.ts); no change.
+
+**test:cal at e844d55** (11.6 min): 41 passed, 11 failed (CAL-T 37 / 12). The four V3.7 start-M checks pass (as above).
+T1 authors2026: SC 2029.638 (+0.047) pass; SAR −0.148 (tol 0.12), SIAR −1.290, ASI −3.423 fail (CAL-T: SC pass, SAR
++0.60, SIAR −0.75, ASI −2.91). T1L authors2026 SC / SAR 1462 / 1475 d (CAL-T 1577 / 1675; want 1495 / 1573): now early,
+the leader lab's SC → SAR 13 d. Other presets unchanged (T1L ai2027 ×4, T1L fast SAR, T1L slow SC: rivals deferred).
