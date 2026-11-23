@@ -35,7 +35,6 @@
     <h1>${ic('workflow', 's22')} Lab</h1>
     <div class="sp"></div>
     <span class="link">${ic('user-plus', 's14')} Hiring</span>
-    <span class="link">${ic('list-checks', 's14')} Needs order</span>
   </div>
 
   <div class="card alloc">
@@ -45,7 +44,6 @@
       <span class="glegend">${['cap', 'saf', 'prod'].map((g) => `<span><i style="background:${GROUP[g][1]}"></i>${GROUP[g][0]} <b class="n">${gsum[g] < 1 ? gsum[g].toFixed(1) : Math.round(gsum[g])}%</b></span>`).join('')}</span>
       <div class="sp"></div>
       <div class="idlechip">${ic('plug-zap', 's14')} <u>Idle</u> <b>${L.alloc.idlePct}%</b> <span class="n" style="color:var(--text-2)">${L.alloc.idle} H100e</span><span class="t3">·</span><span style="color:var(--text-2)"><u>Auto-split</u> ${L.alloc.autoSplit}</span></div>
-      <div class="presets">${['Default', 'Race', 'Balanced', 'Safety-first', 'Custom'].map((p) => `<span class="p ${p === L.alloc.preset ? 'on' : ''}">${p}</span>`).join('')}</div>
     </div>
     <div class="barwrap">
       <div class="bar" id="bar">${barHtml}</div>
@@ -61,12 +59,6 @@
   <div class="lower">
     <div class="card board">
       <div class="hd"><span class="ttl">${ic('users', 's18')} <u>Workforce</u></span>
-        <span class="row t3" style="font-size:12.5px;gap:14px;margin-left:10px">
-          <span class="row" style="gap:5px"><span style="width:14px;height:10px;border-radius:2px;background:var(--human)"></span>People</span>
-          <span class="row" style="gap:5px"><span style="width:14px;height:10px;border-radius:2px;background:var(--ai)"></span><u>AI staff</u></span>
-          <span class="row" style="gap:5px"><span style="width:14px;height:8px;border-radius:2px;background:var(--warn)"></span>Short</span>
-          <span class="row" style="gap:5px"><span class="sparesw"></span>Spare</span>
-        </span>
         <div class="sp"></div>
       </div>
       <div class="wgrid" id="wgrid"></div>
@@ -104,32 +96,37 @@
   ln.setAttribute('width', W); ln.setAttribute('height', y2 + 2);
   ln.innerHTML = `<path d="M${cr.left - bw.left} ${y1} L${lr.left - bw.left} ${y2} M${cr.right - bw.left} ${y1} L${lr.right - bw.left} ${y2}" stroke="#5d6f88" stroke-width="1.2" stroke-dasharray="3 3" fill="none"/>`;
 
-  // workforce grid
+  // workforce: one line per role (people · AI staff · work done · short / spare); the needs list opens on click (#needs)
   const Wk = L.work;
-  const effort = (c) => `
-    <div class="effort">
-      <div class="top2"><span><u>Total effort</u></span><b>×${c.effort}</b></div>
-      <div class="ebar"><div class="hp" style="flex:1 0 0"></div>${c.effortNum > 1 ? `<div class="ap" style="flex:${c.effortNum - 1} 0 0"></div>` : ''}<div style="flex:${Wk.maxEffort - c.effortNum} 0 0"></div></div>
-      <div class="aistaff">${c.ai ? `<span class="mchip">${ic('bot', 's12')} ${c.ai.model}</span><span class="n">${c.ai.copies}</span> copies <span class="t3">·</span> <u>AI share</u> <b class="n w">${c.ai.share}</b>` : `<span class="t3">No AI staff · ${c.aiNote}</span>`}</div>
-    </div>`;
+  const ST = Wk.status;
   const needs = (c) => `
-    <div class="needs"><div class="cap"><u>Needs</u>, in order</div>
+    <div class="needs">
     ${c.needs.map((n) => `<div class="nd ${n.short ? 'short' : ''} ${n.spare ? 'spare' : ''} ${!n.fill && !n.spare ? 'nil' : ''}"><span class="nm">${n.short ? ic('triangle-alert', 's12') + ' ' : ''}${n.name}</span><span class="gb"><i style="width:${Math.min(100, n.fill * 100)}%"></i></span><span class="st">${n.st}</span></div>`).join('')}
     ${c.quiet ? `<div class="t3" style="font-size:12px">${c.quiet}</div>` : ''}</div>`;
-  const people = (c) => `<div class="ppl"><b>${c.people}</b> people · ${c.teams} team${c.teams > 1 ? 's' : ''} ${qp(c.q)}</div>`;
-  const cell = (c, pos, cls, extra = '') => `<div class="cell ${cls}" style="${pos}">${people(c)}${effort(c)}${needs(c)}${extra}</div>`;
-  const col = (icon, name, pos) => `<div class="colh" style="${pos}"><span class="ri">${ic(icon, 's18')}</span><u>${name}</u></div>`;
+  const open = location.hash === '#needs' ? 'reSaf' : null;
+  const row = (key, icon, name, c) => {
+    const st = ST[key];
+    return `<div class="wr ${open === key ? 'open' : ''}">
+      <span class="rn">${ic(icon, 's18')}<u>${name}</u></span>
+      <span class="pp"><b class="n">${c.people}</b> <span class="t3">people · ${c.teams} team${c.teams > 1 ? 's' : ''}</span> ${qp(c.q)}</span>
+      <span class="ais">${c.ai ? `<span class="mchip">${ic('bot', 's12')} ${c.ai.model}</span> <span class="t3"><u>AI share</u></span> <b class="n w">${c.ai.share}</b>` : `<span class="t3">No AI staff</span>`}</span>
+      <span class="wd"><span class="ebar"><span class="hp" style="flex:1 0 0"></span>${c.effortNum > 1 ? `<span class="ap" style="flex:${c.effortNum - 1} 0 0"></span>` : ''}<span style="flex:${Wk.maxEffort - c.effortNum} 0 0"></span></span><b class="n">×${c.effort}</b></span>
+      <span class="stc ${st[0]}">${st[0] === 'short' ? ic('triangle-alert', 's14') : st[0] === 'spare' ? '<i class="sparesw"></i>' : ic('check', 's14')} ${st[1]}</span>
+      <span class="t3">${ic(open === key ? 'chevron-down' : 'chevron-right', 's16')}</span>
+    </div>
+    ${open === key ? `<div class="wopen"><div class="row" style="margin-bottom:8px"><span class="cap"><u>Needs</u>, in priority order</span><span class="t3" style="font-size:12px">staff go to the top first</span><div class="sp"></div><span class="link sm">${ic('list-checks', 's12')} Change order</span></div>${needs(c)}<div class="row" style="margin-top:10px;gap:8px"><span class="t3" style="font-size:12.5px">${c.aiNote}</span><span class="link sm">AI staff ${ic('chevron-right', 's12')}</span><span class="link sm">Hiring ${ic('chevron-right', 's12')}</span></div></div>` : ''}`;
+  };
+  const engAll = { ...Wk.eng, needs: [...Wk.eng.needs.slice(0, 2), Wk.engSaf.needs[0], Wk.eng.needs[2], Wk.engSaf.needs[1]] };
   document.getElementById('wgrid').innerHTML = `
-    ${col('wrench', 'Engineers', 'grid-area:1/2')}${col('test-tube-diagonal', 'Research engineers', 'grid-area:1/3')}${col('telescope', 'Scientists', 'grid-area:1/4')}
-    <div class="band" style="grid-area:2/1;color:var(--cap)"><span class="bt">${ic('brain', 's14')} Capability</span></div>
-    <div class="band" style="grid-area:3/1;color:var(--saf)"><span class="bt">${ic('microscope', 's14')} Safety</span></div>
-    ${cell(Wk.eng, 'grid-area:2/2', 'capb')}
-    <div class="cell safb" style="grid-area:3/2">${needs(Wk.engSaf)}</div>
-    ${cell(Wk.reCap, 'grid-area:2/3', 'capb')}
-    ${cell(Wk.sciCap, 'grid-area:2/4', 'capb', `<span class="link sm" style="align-self:flex-start">${Wk.sciCap.link} ${ic('chevron-right', 's12')}</span>`)}
-    ${cell(Wk.reSaf, 'grid-area:3/3', 'safb')}
-    ${cell(Wk.sciSaf, 'grid-area:3/4', 'safb')}
-    <div class="split" style="grid-area:4/4">${ic('grip-vertical', 's14')}<span><u>Split</u></span><div class="hbar"><div style="flex:${Wk.split[0]} 0 0;background:var(--cap);border-radius:3px 0 0 3px"></div><div style="flex:${Wk.split[1]} 0 0;background:var(--saf);border-radius:0 3px 3px 0"></div></div><span class="n w">${Wk.split[0]}</span><span class="t3">|</span><span class="n w">${Wk.split[1]}</span><span class="t3">teams</span></div>
+    <div class="wh"><span></span><span>People</span><span><u>AI staff</u></span><span><u>Work done</u> <span class="t3" style="text-transform:none;letter-spacing:0">vs the people alone</span></span><span>Short / spare</span><span></span></div>
+    ${row('eng', 'wrench', 'Engineers', engAll)}
+    <div class="wg" style="color:var(--cap)">${ic('brain', 's14')} Capability</div>
+    ${row('reCap', 'test-tube-diagonal', 'Research engineers', Wk.reCap)}
+    ${row('sciCap', 'telescope', 'Scientists', Wk.sciCap)}
+    <div class="wg" style="color:var(--saf)">${ic('microscope', 's14')} Safety</div>
+    ${row('reSaf', 'test-tube-diagonal', 'Research engineers', Wk.reSaf)}
+    ${row('sciSaf', 'telescope', 'Scientists', Wk.sciSaf)}
+    <div class="wfoot"><span class="t3">Scientists</span><div class="split">${ic('grip-vertical', 's14')}<span style="color:var(--cap)">Capability</span><div class="hbar"><div style="flex:${Wk.split[0]} 0 0;background:var(--cap);border-radius:3px 0 0 3px"></div><div style="flex:${Wk.split[1]} 0 0;background:var(--saf);border-radius:0 3px 3px 0"></div></div><span class="n w">${Wk.split[0]}</span><span class="t3">|</span><span class="n w">${Wk.split[1]}</span><span style="color:var(--saf)">Safety</span><span class="t3">teams</span></div><span class="link sm">Portfolio ${ic('chevron-right', 's12')}</span></div>
   `;
 
   if (location.hash === '#tip') {

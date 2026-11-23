@@ -19,6 +19,7 @@
         ${c.out !== 'capability' ? `<span class="otag ${c.out}">${c.out}</span>` : ''}
         <span class="fld">${c.field}</span>
         <div class="sp"></div>
+        ${c.ret ? `<span class="retp">${c.ret}</span>` : ''}
         ${c.lim ? `<span class="plim">${ic('triangle-alert', 's12')} limited by ${c.lim}</span>` : ''}
         <span class="teams">${c.teams ? pips(c.teams, c.wanted) + ` ${c.teams} team${c.teams > 1 ? 's' : ''}` : `${pips(0, c.wanted || 1)} <span class="${c.dim ? 'warn' : ''}">no team</span>`}</span>
       </div>

@@ -94,3 +94,26 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
   - ⅙ of experiment compute (44k H100e): equal `flopDay` across the six programmes. A per-programme compute readout is **NEW** (today it is derived).
 - Idea choice Balanced: the lab-wide risk policy. A per-programme choice is **NEW** (UI-IA L2).
 - Takes effect "new base model": the know-how area (pretraining recipe).
+
+## Revision 2 (designer feedback)
+
+- **L0:** Lead reads "154 d behind Meridian" (same `nearestRival` value). Loss-of-control risk shows 0% with no model name.
+- **LAB:**
+  - The allocation presets are dropped.
+  - Workforce is one line per role: people · AI staff · work done (the same `multiplier` as before) · short / spare.
+  - Short / spare comes from the needs views above: engineers spare 23.3 of 30.3 = 77%; capability research engineers 3 teams idle; safety research engineers short 10.25 people on research experiments.
+  - The needs list opens on click (`lab-needs.png`). It shows staff used per need: 19 · 40 · 20 · 21 of 31 people (`safReAllocView`).
+- **Portfolio, capability cards:** the effect is shown where it lands, as × effective compute on the next model in that area: × = 10^`belief.mu`. Scaling 0.006 → ×1.013 (it reads ×1.014 at full precision); env 0.004 → ×1.009; opt 0.016 → ×1.037; post-training method 0.007 → ×1.016; serving 0.016 → ×1.038 work per chip. The range moves to the tooltip and the drawer.
+- **Portfolio, returns:** "results now ~¾ of the first" = 1 ÷ `line.harder` rounded to a simple fraction (0.75, 0.73, 0.72 → ¾; 0.87 → ⅞; 0.51 → ½; 0.43 → ⅖).
+- **Display names** (engine name → VOCAB-safe name; **NEW**: the engine and glossary need these names):
+
+  | Engine name | Shown as | Why |
+  |---|---|---|
+  | RL algorithms | Post-training algorithms | no "RL" |
+  | Inference efficiency | Faster serving | "Serving efficiency" is the know-how area |
+  | Multi-agent orchestration | Coordinating many copies | "Agents" = the product only |
+  | Applied interp | Applied interpretability | |
+  | AI control | Control protocols | "control" = the safeguard kind |
+  | CoT monitorability | Readable reasoning | |
+  | Auditing agents | AI auditors | |
+  | Monitorability suite | Reasoning-readability evals | "suite" removed |

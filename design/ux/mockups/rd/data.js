@@ -1,7 +1,7 @@
 // Day-400 RefBot fixture (scripts/v2/fixtures/day400.json), read by _data.ts → data400.json. Provenance: DATA.md.
 window.SHELL = {
   date: 'Aug 5, 2026', day: 400, speed: '3.0',
-  lead: '−154 d', leadColor: 'var(--bad)', rival: 'Meridian', cash: '$51.6B', runway: '8+ qtrs', loc: '0%', locModel: 'Atlas-2.10',
+  lead: '154 d', leadWord: 'behind', leadColor: 'var(--bad)', rival: 'Meridian', cash: '$51.6B', runway: '8+ qtrs', loc: '0%', locModel: '',
   alertCount: 5, alertText: '3 research · 2 world',
   badges: { lab: ['idle', 'warn'], research: ['1', 'warn'], training: null, safety: null },
 };
@@ -32,10 +32,14 @@ window.D = {
       sciCap: { people: 400, teams: 10, q: 2, effort: '1.2', effortNum: 1.19, ai: { model: 'Atlas-2.8', copies: '14.7k', share: '7%' },
         needs: [{ name: '6 programmes', fill: 1, st: '10 teams' }, { name: 'Idle', fill: 0, st: '0', spare: true }], link: 'Portfolio' },
       reSaf: { people: 100, teams: 1, q: 2, effort: '1.0', effortNum: 1, ai: null, aiNote: 'AI share allowed 0%',
-        needs: [{ name: 'Human review', fill: 1, st: 'met' }, { name: 'Validations', fill: 1, st: 'met' }, { name: 'Safety evals', fill: 1, st: 'met' }, { name: 'Research experiments', fill: 0.67, st: '−10 ppl', short: true }], quiet: 'Cases, foothold removal: none open' },
+        needs: [{ name: 'Human review', fill: 1, st: '19 people' }, { name: 'Validations', fill: 1, st: '40 people' }, { name: 'Safety evals', fill: 1, st: '20 people' }, { name: 'Research experiments', fill: 0.67, st: '21 of 31', short: true }], quiet: 'Cases, foothold removal: none open' },
       sciSaf: { people: 80, teams: 2, q: 2, effort: '1.0', effortNum: 1, ai: null, aiNote: 'AI share allowed 0%',
         needs: [{ name: '1 programme', fill: 1, st: '2 teams' }, { name: 'Idle', fill: 0, st: '0', spare: true }] },
       split: [10, 2],
+      status: {
+        eng: ['spare', '77% spare'], reCap: ['spare', '3 teams spare'], sciCap: ['ok', 'All on programmes'],
+        reSaf: ['short', 'Short 10 people'], sciSaf: ['ok', 'All on programmes'],
+      },
     },
     moves: [
       { kind: 'compute', what: 'Idle Training compute → Research experiments', target: 'Research speed', eff: '+66%', pre: '×3.0 → ×5.0', w: 1, cost: '+21% of compute (experiments ×4) · free until a run is queued' },

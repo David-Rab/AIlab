@@ -5,17 +5,17 @@
   const X = (v) => 16 + (v / 8) * 560;
   const rangeSvg = `<svg width="600" height="58" style="display:block;margin-top:2px">
     <line x1="16" y1="26" x2="576" y2="26" stroke="#33435a" stroke-width="2"/>
-    ${[0, 2, 4, 6, 8].map((t) => `<line x1="${X(t)}" y1="22" x2="${X(t)}" y2="30" stroke="#4a5b72"/><text x="${X(t)}" y="48" fill="#6b7c91" font-size="11.5" font-family="Cascadia Mono, Consolas, monospace" text-anchor="middle">${t}%</text>`).join('')}
+    ${[0, 2, 4, 6, 8].map((t) => `<line x1="${X(t)}" y1="22" x2="${X(t)}" y2="30" stroke="#4a5b72"/><text x="${X(t)}" y="48" fill="#6b7c91" font-size="11.5" font-family="Cascadia Mono, Consolas, monospace" text-anchor="middle">×${(1 + t / 100).toFixed(2)}</text>`).join('')}
     <rect x="${X(0.69)}" y="17" width="${X(6.66) - X(0.69)}" height="18" rx="5" fill="rgba(155,107,224,.28)" stroke="#9b6be0"/>
     <line x1="${X(3.7)}" y1="11" x2="${X(3.7)}" y2="41" stroke="#fff" stroke-width="2.5"/>
-    <text x="${X(3.7) + 7}" y="12" fill="#fff" font-size="12.5" font-weight="650" font-family="Segoe UI, sans-serif">+3.7% best guess</text>
+    <text x="${X(3.7) + 7}" y="12" fill="#fff" font-size="12.5" font-weight="650" font-family="Segoe UI, sans-serif">×1.037 best guess</text>
     <text x="${X(0.69)}" y="12" fill="#9fb0c3" font-size="11.5" font-family="Segoe UI, sans-serif">likely</text>
   </svg>`;
-  const results = `<svg width="230" height="70" style="display:block">
+  const results = `<svg width="270" height="70" style="display:block">
     <rect x="0" y="10" width="56" height="44" rx="3" fill="#9b6be0"/><text x="28" y="66" fill="#9fb0c3" font-size="11" text-anchor="middle" font-family="Segoe UI, sans-serif">first</text>
     <rect x="72" y="${10 + 44 * 0.13}" width="56" height="${44 * 0.87}" rx="3" fill="#7a52b8"/><text x="100" y="66" fill="#9fb0c3" font-size="11" text-anchor="middle" font-family="Segoe UI, sans-serif">next</text>
-    <text x="146" y="30" fill="#fff" font-size="15" font-weight="650" font-family="Cascadia Mono, Consolas, monospace">×0.87</text>
-    <text x="146" y="48" fill="#9fb0c3" font-size="11.5" font-family="Segoe UI, sans-serif">of the first</text>
+    <text x="146" y="30" fill="#fff" font-size="18" font-weight="650" font-family="Segoe UI, sans-serif">~⅞</text>
+    <text x="146" y="48" fill="#9fb0c3" font-size="11.5" font-family="Segoe UI, sans-serif">the size of the first</text>
   </svg>`;
   window.D.res.drawer = `
     <div class="row" style="gap:10px">
@@ -38,7 +38,7 @@
       <div class="cap">The idea under test</div>
       <div style="font-size:14.5px;color:#fff">A mid-sized change to the training recipe. It looks good in small tests but has not been tried at scale, and may shrink there.</div>
       <div class="kv" style="margin-top:2px">
-        <span class="k"><u>Expected effect</u></span><span><b class="n w">+3.7%</b> <u>pretraining recipe</u> <span class="t3 n">(0.7–6.7%)</span> · fairly unsure</span>
+        <span class="k"><u>Expected effect</u></span><span>next base model <b class="n w">×1.037</b> <u>pretraining compute</u> <span class="t3 n">(×1.007–×1.067)</span> · fairly unsure</span>
       </div>
       ${rangeSvg}
       <div class="kv">
@@ -52,7 +52,7 @@
       <div class="row" style="gap:22px;align-items:center">
         ${results}
         <div class="kv" style="grid-template-columns:130px 1fr;flex:1">
-          <span class="k">Built in</span><span><b class="n w">4</b> results · <b class="n w">+13%</b> pretraining recipe</span>
+          <span class="k">Built in</span><span><b class="n w">4</b> results · <b class="n w">×1.13</b> pretraining compute</span>
           <span class="k">Dropped</span><span><b class="n w">4</b> ideas</span>
           <span class="k">In this test</span><span><b class="n w">3</b> ideas</span>
         </div>

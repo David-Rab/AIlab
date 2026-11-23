@@ -14,10 +14,10 @@
       <div class="def">How fast your lab turns compute and people into research results, against the leading lab in Jul 2025.</div>
       <div class="cap" style="margin-bottom:5px">What it runs on</div>
       <div class="brk">
-        <span>${ic('cpu', 's14')} <u>Research compute</u></span><span class="n">398k H100e</span>
+        <span>${ic('cpu', 's14')} <u>Compute on research</u></span><span class="n">398k H100e</span>
         <span class="t3" style="padding-left:22px">Experiments 267k · AI staff 131k</span><span></span>
-        <span>${ic('test-tube-diagonal', 's14')} Research engineers <span class="t3">15 teams</span></span><span class="n">×2.4 with AI</span>
-        <span>${ic('telescope', 's14')} Scientists <span class="t3">10 teams</span></span><span class="n">×1.2 with AI</span>
+        <span>${ic('test-tube-diagonal', 's14')} Research engineers <span class="t3">15 teams</span></span><span class="n">work ×2.4</span>
+        <span>${ic('telescope', 's14')} Scientists <span class="t3">10 teams</span></span><span class="n">work ×1.2</span>
       </div>
       <div class="cap" style="margin:11px 0 5px">AI staff's part</div>
       <div class="row" style="gap:14px;align-items:flex-end">

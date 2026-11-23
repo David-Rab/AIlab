@@ -21,7 +21,7 @@
     </div>
     <div class="stat">
       <div class="ic">${ic('timer', 's18')}</div>
-      <div><div class="l"><u>Lead</u> · nearest</div><div class="v" style="color:${S.leadColor}">${S.lead}<span class="u">${S.rival}</span></div></div>
+      <div><div class="l"><u>Lead</u></div><div class="v" style="color:${S.leadColor}">${S.lead}<span class="u" style="color:var(--text)">${S.leadWord} ${S.rival}</span></div></div>
     </div>
     <div class="stat">
       <div class="ic">${ic('wallet', 's18')}</div>
