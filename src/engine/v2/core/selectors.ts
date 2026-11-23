@@ -58,7 +58,7 @@ export type { FamilyId, ImitationView, PressureRow, PushTarget, RunPressure, Suc
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
 export { safetyAgentVersion, safetyFleet, trustedShare } from '../safety/agents';
 export { lineLabour } from '../safety/lineProjects';
-// R7 internal agent packages (Company › Agents at work).
+// R7 internal agent packages (Lab › AI staff & needs).
 export { agentVersion, newestInternal, monitorBudget, monitoredUses, monitorVersion, riskBadges, usesOf } from '../departments/agents';
 export type { RiskBadge } from '../departments/agents';
 export { agentChangeBlock, agentsView, toolingView, MONITOR_BUDGET_STEP, monitorAt, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';

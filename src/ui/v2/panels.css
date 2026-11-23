@@ -96,7 +96,7 @@
 .offer-main b { color: #fff; font-size: 12.5px; }
 .offer-main .row-i { flex-wrap: wrap; }
 
-/* Package chips (model / monitor), shared by Products and Company › Agents at work (R7, panels/chips.tsx) */
+/* Package chips (model / monitor), shared by Products and Lab › AI staff & needs (R7, panels/chips.tsx) */
 .mchip { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); font-size: 12.5px; color: #fff; min-width: 0; }
 .mchip.chg { border-style: dashed; border-color: var(--watch); }
 .mchip-x { margin-left: auto; color: var(--text-3); font-size: 11.5px; white-space: nowrap; }

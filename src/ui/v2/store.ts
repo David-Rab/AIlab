@@ -28,6 +28,7 @@ interface Sig {
 const RUNWAY_RANK: Record<string, number> = { healthy: 0, tight: 1, distress: 2, insolvent: 3 };
 /** Anchors that live on a tab other than the panel's first (links name the anchor, the store opens its tab). */
 const ANCHOR_TAB: Record<string, string> = {
+  'lab#split': 'board', 'lab#split-auto': 'board', 'lab#agents': 'work', 'lab#sciSplit': 'board', 'lab#bestMoves': 'board',
   'finance#raise': 'cash', 'finance#parent': 'cash', 'finance#ledger': 'contracts', 'finance#board': 'owners', 'finance#partner': 'deals', 'finance#borrow': 'deals',
 };
 
@@ -258,8 +259,9 @@ class StoreV2 {
     this.notify();
   }
   setPanel(id: string) {
-    this.panel = id === 'map' ? 'overview' : id === 'departments' ? 'company' : id;
-    if (id === 'departments') this.tab.company = 'people';
+    // UB-5: the Company panel became LAB (its Flow tab is the LAB board); old links land there.
+    this.panel = id === 'map' ? 'overview' : id === 'departments' || id === 'company' ? 'lab' : id;
+    if (id === 'departments') this.tab.lab = 'people';
     const s = this.state;
     if (s && !s.tutorial.seen.includes(`panel:${this.panel}`)) s.tutorial.seen.push(`panel:${this.panel}`);
     this.notify();
@@ -270,6 +272,7 @@ class StoreV2 {
   }
   /** Click = go (IA §4): open the panel (and tab), scroll to #ctl-<anchor> and pulse it once. */
   goto(panel: string, opts: { tab?: string; anchor?: string } = {}) {
+    if (panel === 'company') { panel = 'lab'; if (opts.tab === 'flow') opts = { ...opts, tab: 'board' }; }
     const tab = opts.tab ?? (opts.anchor ? ANCHOR_TAB[`${panel}#${opts.anchor}`] : undefined);
     if (tab) this.tab = { ...this.tab, [panel]: tab };
     const sub = opts.anchor ? ANCHOR_SUB[`${panel}#${opts.anchor}`] : undefined;

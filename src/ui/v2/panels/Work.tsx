@@ -1,4 +1,4 @@
-// Company › Work (model v3 V2b; mockups-v3/v3-v2b-work, IA v3-v2b-IA.md): who does each kind of work. One card per role
+// Lab › AI staff & needs (model v3 V2b; mockups-v3/v3-v2b-work, IA v3-v2b-IA.md): who does each kind of work. One card per role
 // and work type (engineers · software engineering, research engineers · experiments & runs, scientists · research ideas &
 // taste): effective labour of people + AI agents (home; for engineers that is build capacity), the model's fit against
 // the median expert and the best human, coverage, and where the labour goes (needs in priority order with caps and
@@ -155,7 +155,7 @@ function RoleCard({ s, w }: { s: GameStateV2; w: WorkTypeView }) {
   const sci = role === 'sci' ? capPriorityList(s) : undefined;
   return (
     <Card className="wk-role" home={`work.${w.wt}`} title={<span className="row-i"><Ic size={15} /><Term id={ROLE_TERM[role]}>{ROLE_NAME[role]}</Term></span>}
-      sub={<span className="row-i"><Term id="workType">{w.name.toLowerCase()}</Term> · {w.version ? <Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>{w.version}</Ref> : <span className="dim">no model</span>}</span>}>
+      sub={<span className="row-i"><Term id="workType">{w.name.toLowerCase()}</Term> · {w.version ? <Ref id="agentPackage" to={{ panel: 'lab', tab: 'work', anchor: 'agents' }}>{w.version}</Ref> : <span className="dim">no model</span>}</span>}>
       <div className="wk-hero" data-wt={w.wt} {...(role === 'eng' ? { 'data-home': 'buildCapacity' } : {})}>
         <Tip content={labourTip}><b className="num" data-test={`labour.${w.wt}`}>{F.short(L)}</b></Tip>
         <span className="dim">{unit}{role === 'eng' ? ' build' : ''}</span>

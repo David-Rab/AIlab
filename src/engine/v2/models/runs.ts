@@ -613,7 +613,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   // UB-4 (VOCAB §3 Training): run names in player words, never 'post 21' / 'IDA 21'.
   const kindName = p.grader === 'teacher' ? 'Amplify' : ({ base: 'Pretraining', post: 'Post-training', continue: 'Continued pretraining', distill: 'Distil' } as const)[p.kind];
   const run: TrainingRun = {
-    id: `R${n}`, kind: p.kind, name: `${kindName} ${n}`, startDay: s.time.day,
+    id: `R${n}`, kind: p.kind, name: `${kindName} run ${n}`, startDay: s.time.day,
     flopNeeded: plan.flopNeeded, flopDone: 0, poolShare: plan.poolShare, cashCost: plan.cashCost,
     predicted: plan.prediction, status: 'running', signals: { ...plan.prediction.signals },
   };

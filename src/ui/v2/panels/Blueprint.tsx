@@ -519,7 +519,7 @@ function Limits({ s, card, prev }: { s: GameStateV2; card?: Card_; prev?: Card_ 
     tip: () => <TipCard title={<Term id="runSetup">Setup</Term>} value={`${card.setupTW.toFixed(2)} team-weeks`} rows={[
       { label: <Term id="buildQueue">Build queue ahead</Term>, value: `${s.player.build.queue.length} item${s.player.build.queue.length === 1 ? '' : 's'}` },
       { label: 'Ready in', value: F.days(card.setupDays) },
-    ]} footer="Capacity and the queue live on Company › People.">The run trains once your engineers have set it up.</TipCard>,
+    ]} footer="Capacity and the queue live on Lab › Hiring & teams.">The run trains once your engineers have set it up.</TipCard>,
   });
   return (
     <div className={`bp-lims n${tiles.length}`}>

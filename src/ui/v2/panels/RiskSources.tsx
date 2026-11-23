@@ -16,11 +16,11 @@ type Lever = { label: string; act?: { id: string; params?: Record<string, string
 const LEVERS: Record<RiskSource['kind'], Lever[]> = {
   ownModel: [{ label: 'Safety programmes', go: { panel: 'safety', tab: 'lines' } }, { label: 'Full evals', act: { id: 'safety.frameworkEvals', params: { depth: 'full' } } }, { label: 'Open a case on scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
   rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
-  // Jank RL2: security controls have one home (Company › Security); Risk links there.
-  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'company', tab: 'security' } }],
+  // Jank RL2: security controls have one home (Lab › Security); Risk links there.
+  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'lab', tab: 'security' } }],
   misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
-  theft: [{ label: 'Security target, siloing, counter-intel', go: { panel: 'company', tab: 'security' } }],
-  rogue: [{ label: 'Safeguard research', go: { panel: 'safety', tab: 'lines' } }, { label: 'Monitors', go: { panel: 'company', tab: 'people', anchor: 'agents' } }],
+  theft: [{ label: 'Security target, siloing, counter-intel', go: { panel: 'lab', tab: 'security' } }],
+  rogue: [{ label: 'Safeguard research', go: { panel: 'safety', tab: 'lines' } }, { label: 'Monitors', go: { panel: 'lab', tab: 'work', anchor: 'agents' } }],
   war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
 };
 const KIND_ICON: Record<RiskSource['kind'], typeof ICON.risk> = { ownModel: ICON.ownModel, rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
@@ -28,7 +28,7 @@ const KIND_LABEL: Record<RiskSource['kind'], string> = { ownModel: 'your models'
 /** Where each kind's main driver has its home (a reference, never the value). */
 const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string; to: GoTarget }>> = {
   ownModel: { id: 'misBand', label: 'Would try (range)', to: { panel: 'safety', tab: 'graph' } },
-  theft: { id: 'wsl', label: 'Weight security', to: { panel: 'company', tab: 'security' } },
+  theft: { id: 'wsl', label: 'Weight security', to: { panel: 'lab', tab: 'security' } },
   rival: { id: 'leadTrack', label: 'Lead track', to: { panel: 'overview' } },
   misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },
 };

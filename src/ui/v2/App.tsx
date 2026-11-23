@@ -6,7 +6,7 @@ import type { GameStateV2 } from '../../engine/v2';
 import { TooltipProvider } from './Tooltip';
 import { EndScreen } from './end/EndScreen';
 import { Codex } from './panels/Codex';
-import { Company } from './panels/Company';
+import { Lab } from './panels/Lab';
 import { Compute } from './panels/Compute';
 import { Products } from './panels/Products';
 import { Finance } from './panels/Finance';
@@ -35,7 +35,7 @@ import './base.css';
 import './layout.css';
 
 const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
-  overview: Overview, research: Research, company: Company, finance: Finance, compute: Compute, models: Models, blueprint: Blueprint,
+  overview: Overview, research: Research, lab: Lab, finance: Finance, compute: Compute, models: Models, blueprint: Blueprint,
   products: Products, safety: Safety, relations: Relations, world: World, risk: RiskSources, codex: Codex,
 };
 

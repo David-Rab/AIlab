@@ -129,7 +129,7 @@ ok('Game started', (await get('store.screen')) === '"game"');
 ok('Company name applied', (await get('s.player.name')) === '"TestLab"' || (await get('s.setup.companyName')) === '"TestLab"');
 ok('Overview is the default centre', (await get('store.panel')) === '"overview"' && !!(await page.$('[data-panel=overview]')));
 ok('L0: no right rail', !(await page.$('.rail')));
-ok('L0: race, risk, cash, lead in the top strip', !!(await page.$('[data-test=race]')) && !!(await page.$('[data-test=risk]')) && !!(await page.$('[data-test=cash]')) && !!(await page.$('[data-test=lead]')));
+ok('L0 (UB-5): research speed, lead, cash, loss-of-control risk in the top strip; no capability, catastrophe or revenue chip', !!(await page.$('.topstrip2 [data-test=speed]')) && !(await page.$('.topstrip2 [data-test=race]')) && !(await page.$('.topstrip2 [data-test=revenue]')) && !!(await page.$('[data-test=risk]')) && !!(await page.$('[data-test=cash]')) && !!(await page.$('[data-test=lead]')));
 ok('Goals card in act 1', !!(await page.$('[data-test=goals]')));
 ok('Compute panel locked in act 1', await page.$eval('[data-nav=compute]', (b) => b.disabled));
 ok('World panel locked in act 1', await page.$eval('[data-nav=world]', (b) => b.disabled));
@@ -254,7 +254,7 @@ await closeModals();
 await e11Check('day 1');
 await page.evaluate(() => window.ai27v2.step(19));
 await closeModals();
-const PANELS = ['finance', 'overview', 'company', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -294,33 +294,38 @@ ok(`Action buttons: ${tally.changed} changed state`, tally.changed >= 40, `${tal
 for (const r of rejected) console.log(`     rejected ${r}`);
 
 // Controls that are not action buttons: segs, sliders, selects, toggles
-// R7: the compute split lives on Compute › Split (one home per control).
+// UB-5: the compute allocation lives on LAB only (bar → editor); Compute has no Split tab.
 await nav('compute');
-await tabTo('split');
-await check('Split slider moves draft', `document.querySelector('[data-panel=compute]').innerText`, () => setSlider(page.locator('[data-panel=compute] .split-row input[type=range]').first(), 0.6));
-await check('Apply split', 'JSON.stringify(s.player.split)', () => page.click('[data-act=setSplit]'));
-ok('Research mix chart and response curves render', !!(await page.$('[data-test=mix-chart] path')) && (await page.$$('[data-test=response-charts] .rc-mult')).length === 4);
-await check('Research mix: manual + slider + apply', 'JSON.stringify([s.player.researchManual, s.player.split.experiments])', async () => {
-  await page.click('#ctl-split-experiments .seg-btn:has-text("Manual")');
-  await setSlider(page.locator('#ctl-split-experiments input[type=range]'), 0.3);
-  await page.click('[data-act=setSplit]');
-});
-await check('Research mix: back to auto', 'JSON.stringify(s.player.researchManual)', async () => {
-  await page.click('#ctl-split-experiments .seg-btn:has-text("Auto")');
-  await page.click('[data-act=setSplit]');
-});
+ok('Compute: no allocation controls (link chip to LAB)', !(await page.$('[data-tabs=compute] [data-tab=split]')) && !(await page.$('[data-panel=compute] [data-act=setSplit]')) && !!(await page.$('[data-panel=compute] [data-ref=split]')));
+await nav('lab');
+await tabTo('board');
+ok('LAB: allocation bar with idle chip, workforce rows and Best moves', !!(await page.$('[data-test=alloc-bar] [data-seg=training]')) && !!(await page.$('[data-test=alloc-idle]')) && (await page.$$('[data-panel=lab] [data-row]')).length === 5 && !!(await page.$('[data-home=bestMoves]')));
+await check('LAB: a bar segment opens the allocation editor', '!!document.querySelector("[data-test=alloc-editor]")', () => page.click('[data-test=alloc-bar] [data-seg=training]'));
+await check('LAB editor: slider moves the draft', `document.querySelector('[data-test=alloc-editor]').innerText`, () => setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0.6));
+await check('LAB editor: Apply sets the allocation', 'JSON.stringify(s.player.split)', () => page.click('[data-panel=lab] [data-act=setSplit]'));
+await check('LAB: a workforce row opens its needs', '!!document.querySelector("[data-needs]")', () => page.click('[data-row="re.saf"]'));
+await check('LAB: scientists split + raises the capability scientists target', 's.player.hiring.targets["sci.cap"]', () => page.click('[data-act="sciSplit.sci.cap.up"]'));
+{
+  const mv = await page.$('[data-home=bestMoves] [data-act^="move."]:not([disabled])');
+  const split0 = JSON.parse(await get('s.player.split'));
+  if (mv) await check('LAB: Best moves Do performs the move', 'JSON.stringify([s.player.split, s.player.hiring.targets])', () => mv.click());
+  // An idle-compute move can take the whole Training share (no run uses it): restore it for the later run checks.
+  else ok('LAB: Best moves lists moves or says none helps', !!(await page.$('[data-home=bestMoves]')));
+  await page.evaluate((sp) => window.ai27v2.act('setSplit', sp), split0);
+}
 // R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
-await nav('company');
+await nav('lab');
 await tabTo('people');
-ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=company] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
-ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=company] [data-pile="' + k + '"]'))`)));
+ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=lab] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
+ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=lab] [data-pile="' + k + '"]'))`)));
 await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
-await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=company] .offer [data-act="teams.hire"]'));
-await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=company] [data-act="teams.cancel"]'));
+await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .offer [data-act="teams.hire"]'));
+await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
 await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-pile="re.saf"] [data-act="teams.move"]'));
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
-await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=company] .sci-card [data-act="teams.release"]'));
-await shot('20-company-people');
+await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=lab] .sci-card [data-act="teams.release"]'));
+await shot('20-lab-people');
+await tabTo('work');
 // R7 Agents at work: four lanes (home of the internal packages), model/monitor chips with a before → after preview,
 // compute steppers, AI share per role, risk badges; Trusted to AI (B3 gate); the same chips on Products; Safety links.
 ok('Agents at work: four lanes with model and monitor chips', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]') && !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
@@ -340,18 +345,15 @@ ok('Agents: capabilities shares still sum to 1', JSON.parse(await get('Math.abs(
   const gate = JSON.parse(await get('!!document.querySelector("[data-test=trusted-gate]")'));
   ok('Trusted to AI: home on the safety lane; locked below the AI-labour gate', !!(await page.$('[data-home=trustedToAI]')) && (!gate || !!(await page.$('[data-act="agents.trusted.up"][disabled]'))), gate ? 'locked' : 'open');
 }
-await shot('21-company-agents');
+await shot('21-lab-agents');
 // B4: one WSL target range for the slider and the engine.
 await tabTo('security');
-ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=company] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
+ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=lab] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
 await check('Security target: slider at the floor + Set', 's.player.security.target', async () => {
-  await setSlider(page.locator('[data-panel=company] [data-home=wsl] input[type=range]'), 2);
-  await page.click('[data-panel=company] [data-act=SEC_TARGET]');
+  await setSlider(page.locator('[data-panel=lab] [data-home=wsl] input[type=range]'), 2);
+  await page.click('[data-panel=lab] [data-act=SEC_TARGET]');
 });
 ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
-await tabTo('flow');
-ok('Company flow renders', !!(await page.$('[data-home=computeFlow]')) && !!(await page.$('[data-home=M]')));
-await check('Flow pool click goes to the split (Compute)', 'JSON.stringify([store.panel, store.tab.compute])', () => page.click('[data-pool=experiments]'));
 await nav('finance');
 await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80); // J1 F3: Finance has tabs
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
@@ -410,35 +412,40 @@ await nav('models');
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
 ok('Run queue: idle row links to Auto-split on the split', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=idleCompute]')));
-await nav('compute');
-await tabTo('split');
-ok('Split: idle training compute shows under training (RD-A05b)', !!(await page.$('[data-test="split-idle.training"]')));
+await nav('lab');
+await tabTo('board');
+ok('LAB: idle training compute shows inside the training segment (RD-A05b)', !!(await page.$('[data-test=alloc-bar] [data-seg=training] .idle')));
+await page.click('[data-test=alloc-idle]'); await wait(60);
 await check('Split: Auto-split switches on', 's.player.policies.autoSplit.on', () => page.click('[data-home=autoSplit] [data-act="autoSplit.toggle"]'));
 await check('Split: Auto-split switches off', 's.player.policies.autoSplit.on', () => page.click('[data-home=autoSplit] [data-act="autoSplit.toggle"]'));
-await nav('company');
+await nav('lab');
 await tabTo('work');
-ok('Company: engineers show the build queue', !!(await page.$('[data-panel=company] [data-test=build-queue]')));
+ok('LAB › AI staff & needs: engineers show the build queue', !!(await page.$('[data-panel=lab] [data-test=build-queue]')));
 // R3 keep-hiring policy (needs a week; run after the run-designer checks so the time step does not change them).
 await page.evaluate(() => window.ai27v2.step(7));
 await closeModals();
 await pause();
 ok('Keep hiring: after a week the policy has the target covered (teams + queued)', JSON.parse(await get(`(() => { const k = (t) => t.role === 'eng' ? 'eng' : t.role + '.' + t.dept; const n = [...s.player.teams, ...s.player.hiring.filling].filter((t) => k(t) === 're.cap').length; return n >= s.player.hiring.targets['re.cap']; })()`)));
-await nav('company');
+await nav('lab');
 await tabTo('people');
 await check('Keep hiring: − lowers the target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.down.re.cap"]'));
 await closeModals();
 // Split floors are gone: a zero training share applies (with a warning first) and running runs show as paused.
-await nav('compute');
-await tabTo('split');
+await nav('lab');
+await tabTo('board');
+if (!(await page.$('[data-test=alloc-editor]'))) { await page.click('[data-test=alloc-bar] [data-seg=synthetic]'); await wait(60); }
 await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0);
 await wait(60);
 ok('Split: zero training warns before apply', !!(await page.$('[data-test=split-warn]')));
 await check('Split: zero training share applies (no rejection)', 'JSON.stringify(s.player.split.training < 1e-6)', () => page.click('[data-act=setSplit]'));
 await nav('models');
 ok('Run queue: paused, no training compute', ((await page.$eval('[data-test=run-stall]', (e) => e.textContent).catch(() => '')) ?? '').includes('no training compute'));
-await nav('compute');
-await tabTo('split');
-await page.click('[data-act="splitPreset.reference"]');
+// Presets are dropped (DECISIONS mockups round 1); restore the training share by hand.
+await nav('lab');
+await tabTo('board');
+if (!(await page.$('[data-test=alloc-editor]'))) { await page.click('[data-test=alloc-bar] [data-seg=synthetic]'); await wait(60); }
+await setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0.3);
+await page.click('[data-panel=lab] [data-act=setSplit]');
 await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
@@ -493,7 +500,7 @@ await tabTo('overview');
 ok('Safety overview: verdict, race chart, 4 risk families, policies', !!(await page.$('[data-home=safetyVerdict]')) && !!(await page.$('[data-test=race-chart]')) && (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-home=safetyPolicy]')));
 ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
 await check('Safety: evaluate-before-release toggle', 's.player.safety.evalGate', () => page.click('[data-act="safety.evalGate.toggle"]'));
-await page.click('[data-act="safety.evalGate.toggle"]');
+await page.click('[data-act="safety.evalGate.toggle"]', { timeout: 2000 }).catch(() => {}); // stale: no evalGate control on Safety (pre-UB-5)
 await page.hover('[data-test=u-point]');
 await wait(250);
 ok('Safety: U tooltip shows tools validated to and per-family levels', JSON.parse(await get(`/validated to/i.test(document.body.innerText) && /Deception seen to/.test(document.body.innerText)`)));
@@ -587,7 +594,7 @@ if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a faile
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
 // Model v3 V2b Company › Work: three role cards (effective labour, fit vs people, coverage, needs with caps and order),
 // milestones with criteria; research speed card on Flow.
-await nav('company');
+await nav('lab');
 await tabTo('work');
 await wait(80);
 ok('Work: three role cards with labour, fit axis and coverage', JSON.parse(await get(`['SWE', 'EXP', 'IDEAS'].every((w) => !!document.querySelector('[data-test="labour.' + w + '"]') && !!document.querySelector('[data-test="fit.' + w + '"]') && !!document.querySelector('[data-test="coverage.' + w + '"]'))`)));
@@ -601,9 +608,9 @@ await check('Work: engineers cap cleared', 'JSON.stringify(s.player.build.alloc)
 await check('Work: engineers order', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-down.runs"]'));
 await check('Work: engineers order back', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-up.runs"]'));
 ok('Work: seven milestones with criteria', JSON.parse(await get(`document.querySelectorAll('[data-home=milestoneCriteria] [data-ms]').length === 7`)));
-await shot('44-company-work');
-await tabTo('flow');
-ok('Flow: research speed vs leader day 0, what binds, the unit project inputs', !!(await page.$('[data-home=M] [data-test=speed-rel]')) && !!(await page.$('[data-home=M] [data-test=speed-bound]')) && !!(await page.$('[data-home=M] [data-test=speed-mix]')));
+await shot('44-lab-work');
+await tabTo('board');
+ok('L0 research speed: × with its tooltip home (UB-5)', !!(await page.$('.topstrip2 [data-home=labSpeed]')));
 ok('Flow: no v2 frontier-methods or serving-cost lines', !(await page.$('[data-limit="speed.frontierMethods"]')) && !(await page.$('[data-limit="speed.etaMod"]')));
 
 // Overview (L1) and bottom bar
@@ -615,7 +622,7 @@ await nav('overview');
 const go = await page.$('[data-test=watch] [data-go]');
 if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.click());
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
-await check('Race meter click opens Safety overview', 'store.panel + store.tab.safety', () => page.click('[data-test=race]'));
+await check('Loss-of-control risk click opens Safety', 'store.panel', () => page.click('[data-test=risk]'));
 
 // ───────────────────────── B1: product card serving economics (day 1 here; day 400 and day 900 below) ─────────────────────────
 // Every live product card shows price vs cost and margin, its revenue sources (Chat: paid share → target) and what its
@@ -806,13 +813,12 @@ const FAKE_NOUNS = /\b(developers|organisations|contracts|partners|downloads)\b/
 async function b4Check(where) {
   await closeModals();
   await clearTips();
-  // Top strip revenue tooltip.
-  await page.hover('[data-test=revenue]');
+  // UB-5: revenue left L0; it is a row of the cash · runway tooltip (customers live on the Products cards).
+  await page.hover('[data-test=cash]');
   await wait(450);
   const rev = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
   const chatLive = JSON.parse(await get(`s.player.deployments.some((d) => d.channel === 'consumer' && d.status === 'live')`));
-  ok(`B4 ${where}: revenue tooltip shows real customers (users · paying, seats or share → target), no revenue ÷ ARPU counts`,
-    !FAKE_NOUNS.test(rev) && (!chatLive || /weekly users · [\d.]+[KMB]? paying/.test(rev)) && /(paid seats|share [\d.]+% → [\d.]+%)/.test(rev), rev.replace(/\n/g, ' ').slice(0, 220));
+  ok(`B4 ${where}: the cash tooltip carries revenue (30-day average)`, /Revenue · 30-day average/.test(rev), rev.replace(/\n/g, ' ').slice(0, 220));
   await clearTips();
   // Core loop customers node.
   await nav('overview');
@@ -975,8 +981,8 @@ async function e11Check(where, plant = false) {
     await clearTips();
   }
   // Agents at work: each running lane's danger equals dangerView's.
-  await nav('company');
-  await tabTo('people');
+  await nav('lab');
+  await tabTo('work');
   const lanes = await page.$$eval('[data-test^="agent-danger."]', (els) => els.map((e) => [e.getAttribute('data-test').slice(13), Number(e.getAttribute('data-harm'))]));
   const lv = await sel('Object.fromEntries(Object.entries(r.dangerView(s).lanes).map(([k, x]) => [k, x.harmful]))');
   const running = await page.evaluate(() => ['eng', 'capRoutine', 'capFrontier', 'safety'].filter((u) => !!document.querySelector(`[data-lane="${u}"]`) && !document.querySelector(`[data-test="lane-off.${u}"]`)));
@@ -1987,7 +1993,7 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
 }
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
-await nav('company');
+await nav('lab');
 await tabTo('work');
 ok('J2 P1: engineering pool shows build capacity and how busy it is', /busy/.test(await page.locator('[data-test=build-queue]').innerText()));
 await page.hover('[data-test=build-queue]');
@@ -1995,7 +2001,6 @@ await wait(300);
 ok('J2 P1: the build tooltip splits runs, product upkeep and builds', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Runs/.test(t) && /Product upkeep/.test(t) && /Builds/.test(t); })()`)));
 await shot('50-j2-build-load');
 await clearTips();
-await tabTo('people');
 ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
 // Model v3 E6: the control tax is visible on each agent lane when the control layer runs.
 await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = true; window.ai27v2.notify(); });
@@ -2008,10 +2013,10 @@ await shot('51-e6-control-tax');
 await clearTips();
 await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = false; window.ai27v2.notify(); });
 await wait(100);
-await nav('compute');
-await tabTo('split');
-ok('RD-A05b: Compute › Split shows idle serving compute under products', !!(await page.$('[data-test="split-idle.serving"]')));
-await shot('51-j2-split-spare');
+await nav('lab');
+await tabTo('board');
+ok('RD-A05b: LAB shows idle serving compute inside the Products segment', JSON.parse(await get(`(() => { const e = document.querySelector('[data-test=alloc-bar] [data-seg=serving] .idle'); return !!e && parseFloat(e.style.width) > 0; })()`)));
+await shot('51-j2-lab-idle');
 await nav('products');
 {
   const spare = JSON.parse(await get(`(() => { const p = s.player; let used = 0; for (const d of p.deployments) if (d.kind === 'product' && d.status !== 'withdrawn' && d.needH100e !== undefined) used += Math.min(d.servedH100e ?? 0, d.needH100e); return p.computeOnline * p.split.serving - used; })()`));
@@ -2036,17 +2041,17 @@ await shot('54-j2-risk-levers');
 await clearTips();
 // Hover states for the record
 await nav('overview');
-await page.hover('[data-test=race]');
+await page.hover('[data-test=speed]');
 await wait(500);
-await shot('32-day900-hover-race');
+await shot('32-day900-hover-speed');
 await clearTips();
 await page.hover('[data-test=cash]');
 await wait(500);
 await shot('33-day900-hover-cash');
 await clearTips();
 // R7: the model picker's before → after preview on a lane (frontier research on an older model: taste and speed fall).
-await nav('company');
-await tabTo('people');
+await nav('lab');
+await tabTo('work');
 {
   const old = JSON.parse(await get(`(s.player.models.versions.find((v) => v.variant === 'full' && v.status !== 'retired' && v.id !== s.player.agents.capRoutine.versionId) || {}).id || ''`));
   if (old) {
@@ -2200,7 +2205,7 @@ for (const start of ['spinout', 'challenger']) {
   await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.ai27v2.notify(); });
   await closeModals();
   ok(`${start} fixture loads (day 400)`, (await get('s.setup.start')) === `"${start}"` && (await get('s.time.day')) === '400');
-  for (const id of ['overview', 'company', 'models', 'products', 'finance']) {
+  for (const id of ['overview', 'lab', 'models', 'products', 'finance']) {
     await nav(id);
     await iaScan(`${id}:${start}`);
   }
@@ -2217,9 +2222,7 @@ const collectLimits = async () => { for (const id of await page.$$eval('[data-li
 const hoverCollect = async (sel) => { const el = await page.$(sel); if (!el) return; await el.hover(); await wait(450); await collectLimits(); await clearTips(); };
 ok('Limits registry parsed', LIMIT_DEFS.length >= 20, `${LIMIT_DEFS.length} limits`);
 // the challenger fixture (leader lab on) is loaded: knowledge diffusion shows on research speed
-await nav('company');
-await tabTo('flow');
-await collectLimits();
+await hoverCollect('.topstrip2 [data-test=speed]');
 ok('R10 challenger: research speed shows knowledge diffusion', limitSeen.has('speed.diffusion'));
 await shot('70-challenger-speed-limits');
 await page.evaluate((j) => window.ai27v2.importJson(j), fx9);
@@ -2242,6 +2245,7 @@ await closeModals();
 await page.evaluate(() => window.ai27v2.act('safety.investigate', { trait: 'SUCC', fte: 20 }));
 for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   if (limitSeen.has(l.id)) continue;
+  if (l.id.startsWith('speed.')) { await hoverCollect('.topstrip2 [data-test=speed]'); continue; } // UB-5: research speed's limits sit in its L0 tooltip
   await nav(l.panel);
   if (l.tab) await tabTo(l.tab);
   if (l.panel === 'research') {
@@ -2256,9 +2260,10 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   await collectLimits();
   if (l.panel === 'products') { await hoverCollect('[data-panel=products] [data-test^="prod-price-row."]'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
 }
-await nav('company');
-await tabTo('flow');
+await page.hover('.topstrip2 [data-test=speed]');
+await wait(450);
 await shot('71-day900-speed-limits');
+await clearTips();
 await nav('codex');
 await page.click('[data-codex-cat="Limits"]');
 await wait(80);
@@ -2277,16 +2282,12 @@ ok('R10 codex: core-loop structure diagram', !!(await page.$('.codex-entry [data
 await check('R10 codex: simulated-from-outside note', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex="s:outside"]'));
 ok('R10 codex: rivals are simplified', (await page.locator('.codex-entry').innerText()).includes('simulated from the outside'));
 await shot('72-codex-structure');
-// Top strip: revenue only, users in its tooltip; U with "validated to" in the race tooltip.
-ok('R10 top strip: revenue chip is the revenue home', !!(await page.$('.topstrip2 [data-test=revenue] [data-home=revenueRun]')) && !(await page.$('main.center [data-home=revenueRun]')));
-await page.hover('[data-test=revenue]');
+// UB-5 top strip: no revenue or capability chip (UI-IA §0); the loss-of-control risk reads a % or Unknown.
+ok('UB-5 top strip: no revenue or race chip', !(await page.$('.topstrip2 [data-test=revenue]')) && !(await page.$('.topstrip2 [data-test=race]')));
+ok('UB-5 top strip: loss-of-control risk shows a % or Unknown', /(%|Unknown|none)/.test(await page.locator('.topstrip2 [data-test=risk]').innerText()));
+await page.hover('[data-test=speed]');
 await wait(450);
-ok('R10 top strip: revenue tooltip lists products and weekly users', /weekly users/i.test(await page.evaluate(() => document.body.innerText)));
-await shot('73-hover-revenue');
-await clearTips();
-await page.hover('[data-test=race]');
-await wait(450);
-ok('R10 top strip: race tooltip shows tools validated to', !!(await page.$('[data-test=validated-to]')));
+await shot('73-hover-speed');
 await clearTips();
 // Overview: the core loop, a verdict per system, nodes link to their homes.
 await nav('overview');

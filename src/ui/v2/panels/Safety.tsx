@@ -3,7 +3,7 @@
 // chart (U only; its breakdown, tools validated to and upkeep live in the U tooltip, L3), the four risk families of a
 // model, and the policies. One click deeper: Research lines (HOME of line health, teams, results, dead ends, tool
 // upkeep, tools, results feed), Investigations, Trait graph (beliefs, detection by level, misalignment band, failure
-// modes) and Incidents. Trusted to AI and the monitors live on Company › Agents at work (D4): links only.
+// modes) and Incidents. Trusted to AI and the monitors live on Lab › AI staff & needs (D4): links only.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Ban, ClipboardCheck, Droplets, Eye, ListChecks, Ruler, Telescope, TrendingDown, Waypoints, Wrench, X, type LucideIcon } from 'lucide-react';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
@@ -396,7 +396,7 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
   const unwatched = sp.r > 1e-9 ? free / sp.r : 1;
   const kappa = free > 1e-9 ? sp.omega / free : 0;
   const tone = riskClass(sp.omega, 'pull');
-  const agents = { panel: 'company', tab: 'people', anchor: 'agents' };
+  const agents = { panel: 'lab', tab: 'work', anchor: 'agents' };
   return (
     <Card title={<Term id="successorPull">Successor steering</Term>} home="successorPull" id="ctl-successorPull" className="sf-succ"
       right={<Tip content={() => <TipCard title={<Term id="successorPull">Successor steering</Term>} value={`${F.pct(sp.omega, 1)} pull`} rows={[
@@ -458,7 +458,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
   const full = s.player.computeOnline * mb.need;
   const sm = safetyAgentVersion(s);
   const pol = s.player.policies.publishSafety;
-  const company = { panel: 'company', tab: 'people', anchor: 'agents' };
+  const company = { panel: 'lab', tab: 'work', anchor: 'agents' };
   return (
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
@@ -485,17 +485,17 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
           { label: 'Spent', value: `${F.h100e(mb.h100e)} H100e` },
           { label: 'Watching everything needs', value: `${F.h100e(full)} H100e` },
           ...(mb.coverage < 1 ? [{ label: `At ${F.pct(up)}`, value: F.pct(monitorAt(s, up).coverage) }] : []),
-        ]} footer="Monitor models: Company › AI staff. A cheaper monitor watches more for the same compute, but misses more of a stronger model.">Share of your AI staff&apos;s actions the monitors watch. More compute or a cheaper monitor watches more.</TipCard>}><span className="small dim">{mon.length} of 4 uses · <span data-test="monitor-coverage">{F.pct(mb.coverage)}</span> watched · {F.pct(budget, 1)} of compute</span></Tip></span>
+        ]} footer="Monitor models: Lab › AI staff & needs. A cheaper monitor watches more for the same compute, but misses more of a stronger model.">Share of your AI staff&apos;s actions the monitors watch. More compute or a cheaper monitor watches more.</TipCard>}><span className="small dim">{mon.length} of 4 uses · <span data-test="monitor-coverage">{F.pct(mb.coverage)}</span> watched · {F.pct(budget, 1)} of compute</span></Tip></span>
         <span className="sp" />
         <Ref id="agentMonitor" to={company}>Company</Ref>
         <span className="stepper">
           <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.down" params={{ share: at(budget - MONITOR_BUDGET_STEP) }} icon={ICON.minus} label="" block={budget <= 0 ? 'Already 0%' : undefined} />
-          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.up" params={{ share: up }} icon={ICON.plus} label="" block={s.player.split.safety <= 1e-9 ? 'No safety research compute left to move' : mon.length === 0 ? 'No monitor on any use: pick one on Company › AI staff' : mb.coverage >= 1 ? 'Already watching every forward pass' : undefined} />
+          <ActBtn id="agents.monitorBudget" testId="agents.monitorBudget.up" params={{ share: up }} icon={ICON.plus} label="" block={s.player.split.safety <= 1e-9 ? 'No safety research compute left to move' : mon.length === 0 ? 'No monitor on any use: pick one on Lab › AI staff & needs' : mb.coverage >= 1 ? 'Already watching every forward pass' : undefined} />
         </span>
       </div>
       <div className="sf-prow">
         <ICON.roleSci size={18} />
-        <Tip content={() => <TipCard title={<Term id="trustedToAI">AI share allowed</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(safetyFleet(s).aiShare) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>The most safety work you let AI staff do; they do the part their model can. Set on Company › AI staff.</TipCard>}><span><b><Term id="trustedToAI">AI share allowed</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · AI share {F.pct(safetyFleet(s).aiShare)}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="trustedToAI">AI share allowed</Term>} value={F.pct(s.player.policies.trustedToAI)} rows={[{ label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(safetyFleet(s).aiShare) }, { label: 'Safety-research model', value: sm?.name ?? '—' }]}>The most safety work you let AI staff do; they do the part their model can. Set on Lab › AI staff & needs.</TipCard>}><span><b><Term id="trustedToAI">AI share allowed</Term></b> <span className="num">{F.pct(s.player.policies.trustedToAI)}</span> <span className="small dim">of safety work · AI share {F.pct(safetyFleet(s).aiShare)}</span><br /><span className="small dim">safety-research model {sm?.name ?? '—'}</span></span></Tip>
         <span className="sp" />
         <Ref id="trustedToAI" to={company}>Company</Ref>
       </div>
@@ -585,7 +585,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
         <div className="sf-pick" data-test="line-picker">
           <span className="small dim">Add a team to {PROJECT_BY_ID[target]?.followUp ? 'the follow-up' : PROJECT_BY_ID[target]?.name}:</span>
           {idleSaf.map((t) => <ActBtn key={t.id} id="research.assign" params={{ team: t.id, id: target }} testId={`line-assign.${t.id}`} label={`${t.specialty ? COLUMN_LABEL[t.specialty] : 'Science'} team${t.specialty === l.column ? ' ×1.5' : ''}`} />)}
-          {!idleSaf.length && <span className="small">No idle safety scientist team · <Ref id="hiring" to={{ panel: 'company', tab: 'people' }}>Hire</Ref></span>}
+          {!idleSaf.length && <span className="small">No idle safety scientist team · <Ref id="hiring" to={{ panel: 'lab', tab: 'people' }}>Hire</Ref></span>}
           <button className="btn btn-sm btn-ghost" onClick={() => setPick(false)}><X size={12} /></button>
         </div>
       )}
@@ -600,7 +600,7 @@ function ValidationCard({ sv }: { sv: SV }) {
   return (
     <Card title={<Term id="validation">Validate</Term>} sub="safety research engineers" home="validation" id="ctl-validation">
       <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.experiments, SPHERE.ops, 'exp')}{seg(up.validationHeads, C.und, 'val')}</div>
-      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validations', value: F.count(up.validationHeads) }, { label: 'Research experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Foothold removal', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Company › Work).</TipCard>}>
+      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validations', value: F.count(up.validationHeads) }, { label: 'Research experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Foothold removal', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Lab › AI staff & needs).</TipCard>}>
       <div className="small dim load-legend">
         <span className="load-key"><i style={{ background: C.und }} />validation <span className="num">{F.count(up.validationHeads)}</span></span>
         {up.experiments > 0 && <span className="load-key"><i style={{ background: SPHERE.ops }} />experiments <span className="num">{F.count(up.experiments)}</span></span>}

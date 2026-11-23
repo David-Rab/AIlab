@@ -1,7 +1,7 @@
 // Watch rules (IA.md L1, PLAN U1.10): each rule reads visible selectors only and yields a cause chain
 // (root ▸ symptom), a consequence line and a Go target to the control that fixes it. UI-only; no engine state.
 import type { LucideIcon } from 'lucide-react';
-import { describeTarget, divisionView, engine, eventDef, idleChips, idleStocks, idleTeams, internalVersion, revenueReadout, safetyView, whatWeOwe } from '../../../engine/v2';
+import { describeTarget, divisionView, engine, eventDef, idleChips, idleShares, idleStocks, idleTeams, internalVersion, revenueReadout, safReAllocView, safetyView, whatWeOwe } from '../../../engine/v2';
 import type { GameStateV2, IdleStockId } from '../../../engine/v2';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { ICON } from '../icons';
@@ -34,7 +34,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     if (st.id === 'serving') out.push({
       id: 'idleServing', sphere: 'company', sev: 1.5 + st.share,
       chain: [{ label: 'demand below serving', icon: ICON.serving, kind: 'root', detail: `Products need ${F.pct(1 - st.share)} of the serving pool` }, { label: `${F.count(st.amount)} H100e idle`, icon: ICON.idle, kind: 'bad', detail: 'Idle on the serving line (headroom)' }],
-      why: 'lower the serving share or turn on Auto-split on Compute › Split', go: { panel: 'compute', tab: 'split', anchor: 'split-idle-serving' }, goLabel: 'Split',
+      why: 'lower the serving share or turn on Auto-split on Lab', go: { panel: 'lab', anchor: 'split' }, goLabel: 'Lab',
     });
   }
   // 2. products capped by serving capacity (R6: what the Auto split cuts, lowest $ per H100e first)
@@ -45,7 +45,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'capped', sphere: 'models', sev: 2 + Math.min(2, (rd.demand - rd.total) / Math.max(1, rd.total)),
       chain: [{ label: 'serving compute short', icon: ICON.serving, kind: 'root', detail: `Serving pool gets ${F.pct(p.split.serving)} of compute; ${p.policies.servingAuto ? 'Auto' : 'your shares'} cut ${F.count(cutH)} H100e` }, { label: `${capped.length} product${capped.length > 1 ? 's' : ''} capped`, icon: ICON.product, kind: 'bad', detail: `Demand ${F.money(rd.demand, { perYear: true })} vs capacity ${F.money(rd.capacity, { perYear: true })}` }],
-      why: 'demand you are not booking', go: { panel: 'compute', tab: 'split', anchor: 'split-serving' }, goLabel: 'Split',
+      why: 'demand you are not booking', go: { panel: 'lab', anchor: 'split' }, goLabel: 'Lab',
     });
   }
   // 3. critical traits the stack can no longer read at L
@@ -117,7 +117,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'morale', sphere: 'company', sev: 2,
       chain: [{ label: 'morale low', icon: ICON.morale, kind: 'root', detail: `Morale ${Math.round(p.morale.overall)}` }, { label: 'staff leaving', icon: ICON.staff, kind: 'bad' }],
-      why: 'productivity drops and attrition rises', go: { panel: 'company', tab: 'people' }, goLabel: 'People',
+      why: 'productivity drops and attrition rises', go: { panel: 'lab', tab: 'people' }, goLabel: 'People',
     });
   }
   // 8. an incident about to go public
@@ -133,7 +133,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
 }
 
 // ───────── nav badges (moved from Nav.tsx so node scripts can read the alert channel) ─────────
-const EVENT_PANEL: Record<string, string> = { finance: 'finance', company: 'company', model: 'safety', incident: 'safety', research: 'safety', alert: 'risk', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations', world: 'world', milestone: 'models', security: 'company' };
+const EVENT_PANEL: Record<string, string> = { finance: 'finance', company: 'lab', model: 'safety', incident: 'safety', research: 'safety', alert: 'risk', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations', world: 'world', milestone: 'models', security: 'lab' };
 
 /** Badge per nav id: number, '!' or undefined. */
 export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'warn' | 'info' | 'bad' }> {
@@ -147,6 +147,11 @@ export function navBadges(s: GameStateV2): Record<string, { n: string; tone: 'wa
   if (fresh && !b.safety) b.safety = { n: String(fresh), tone: 'info' };
   const idleSci = idleTeams(s).length;
   if (idleSci) b.research = { n: String(idleSci), tone: 'warn' };
+  // UB-5: LAB badge: idle compute (over 5% of compute online) or a short safety research-engineer need.
+  if (!b.lab) {
+    if (idleShares(s).total > 0.05) b.lab = { n: 'idle', tone: 'warn' };
+    else if (safReAllocView(s).needs.some((n) => n.short >= 1)) b.lab = { n: 'short', tone: 'warn' };
+  }
   if (w.some((x) => x.id === 'idle') && !b.compute) b.compute = { n: '!', tone: 'warn' };
   if (w.some((x) => x.id === 'capped') && !b.products) b.products = { n: '!', tone: 'warn' };
   return b;

@@ -17,12 +17,12 @@ const WHY_BY_KIND: Record<string, string[]> = { finance: ['runway', 'board'], co
 /** Lasting fixes per kind when no Watch rule matches. */
 const FIXES: Record<string, { to: GoTarget; label: string }[]> = {
   finance: [{ to: { panel: 'finance', anchor: 'raise' }, label: 'Raise capital' }, { to: { panel: 'finance', anchor: 'ledger' }, label: 'Cut contracts' }],
-  company: [{ to: { panel: 'company', tab: 'people' }, label: 'People' }, { to: { panel: 'compute', tab: 'split' }, label: 'Compute split' }],
+  company: [{ to: { panel: 'lab', tab: 'people' }, label: 'People' }, { to: { panel: 'lab', anchor: 'split' }, label: 'Compute allocation' }],
   model: [{ to: { panel: 'safety', tab: 'graph' }, label: 'Trait graph' }, { to: { panel: 'blueprint' }, label: 'Safer recipe' }],
-  incident: [{ to: { panel: 'safety', tab: 'cases' }, label: 'Incident responses' }, { to: { panel: 'company', tab: 'people', anchor: 'agents' }, label: 'Monitors' }],
+  incident: [{ to: { panel: 'safety', tab: 'cases' }, label: 'Incident responses' }, { to: { panel: 'lab', tab: 'work', anchor: 'agents' }, label: 'Monitors' }],
   gov: [{ to: { panel: 'relations' }, label: 'Government relations' }],
   public: [{ to: { panel: 'relations' }, label: 'Public' }],
-  china: [{ to: { panel: 'relations' }, label: 'China' }, { to: { panel: 'company', tab: 'security' }, label: 'Security' }],
+  china: [{ to: { panel: 'relations' }, label: 'China' }, { to: { panel: 'lab', tab: 'security' }, label: 'Security' }],
   rival: [{ to: { panel: 'overview', anchor: 'leadtrack' }, label: 'Lead track' }],
   world: [{ to: { panel: 'world' }, label: 'World' }],
 };

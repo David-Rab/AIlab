@@ -4,7 +4,7 @@
 // band, suites, last suite's depth and date, next policy re-run). L1: the queue and the measurement bands. L2: the
 // policy row and the order card. L3: tooltips (work left per part, depth trade-offs, the band's arithmetic).
 // The gate itself is a safety policy (Safety › Policies, linked); the research engineers' evaluations need lives on
-// Company › Work (linked). The measured level's home stays the model card; here it is drawn as a band only.
+// Lab › AI staff & needs (linked). The measured level's home stays the model card; here it is drawn as a band only.
 import { ListChecks } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -119,10 +119,10 @@ function PolicyCard({ s }: { s: GameStateV2 }) {
           { label: 'Research-engineer team-weeks', value: tw(p.spent?.reTW ?? 0) },
           { label: 'Engineer team-weeks', value: tw(p.spent?.engTW ?? 0) },
           { label: 'H100e-days', value: F.count(p.spent?.h100eDays ?? 0) },
-        ]} footer="Research engineers on evals today are on Company › Work (the Evals need).">All eval rounds finished since the start.</TipCard>}>
+        ]} footer="Research engineers on evals today are on Lab › AI staff & needs (the Evals need).">All eval rounds finished since the start.</TipCard>}>
           <span className="ev-pol-item" data-test="eval-spent"><span className="tip-cap">Run so far</span><b className="num">{F.count(p.spent?.suites ?? 0)}</b><span className="dim small">rounds</span></span>
         </Tip>
-        <Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>Work</Ref>
+        <Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}>Work</Ref>
       </div>
     </Card>
   );

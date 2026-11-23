@@ -178,7 +178,7 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
       <div className="act-groups">
         <div className="act-group"><span className="tip-cap">Use</span>
           <span className="small" data-test="model-uses"><ICON.agents size={12} /> {internal ? [...uses.model.map((u) => AGENT_USE_DEF[u].name), ...uses.monitor.map((u) => `safeguard on ${AGENT_USE_DEF[u].name.toLowerCase()}`)].join(' · ') : 'not used inside the company'}</span>
-          <Ref id="agentPackage" to={{ panel: 'company', tab: 'people', anchor: 'agents' }}>AI staff</Ref>
+          <Ref id="agentPackage" to={{ panel: 'lab', tab: 'work', anchor: 'agents' }}>AI staff</Ref>
           <ActBtn id="startStream" params={{ versionId: v.id }} label="Continual learning" />
           <ActBtn id="stopStream" label="Stop continual learning" />
           <ActBtn id="idaCycle" params={{ versionId: v.id }} label="Amplify" />
@@ -280,7 +280,7 @@ export function RunQueue({ s }: { s: GameStateV2 }) {
         <Tip content={() => <TipCard title={<Term id="idleCompute">Idle</Term>} value={F.pct(spare)}>Share of training compute no run uses now. It stays idle{auto.on && !auto.to.includes('training') ? ', unless Auto-split idle compute moves it (on)' : ''}; lower the Training share or turn on Auto-split idle compute in Compute allocation.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
         <span className="run-spare">
           <span className="dim">{auto.on && !auto.to.includes('training') ? '→ Auto-split' : 'idle'}</span>
-          <Ref id="idleCompute" to={{ panel: 'compute', tab: 'split', anchor: 'split-auto' }}>Compute allocation</Ref>
+          <Ref id="idleCompute" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref>
         </span>
       </div>
     </Card>

@@ -30,7 +30,7 @@ const Y0 = 60;
 const NODES: LoopNode[] = [
   { id: 'financing', name: 'Financing', term: 'raiseCeiling', sub: 'raises · debt · deals', icon: ICON.raise, to: { panel: 'finance' }, x: 8, y: Y0 },
   { id: 'cash', name: 'Cash', term: 'cash', sub: 'buys people and compute', icon: ICON.cash, to: { panel: 'finance' }, x: 196, y: Y0, store: true },
-  { id: 'teams', n: 1, name: 'Teams', term: 'team', sub: 'engineers · research engineers · scientists', icon: ICON.staff, to: { panel: 'company', tab: 'people' }, x: 384, y: Y0 },
+  { id: 'teams', n: 1, name: 'Teams', term: 'team', sub: 'engineers · research engineers · scientists', icon: ICON.staff, to: { panel: 'lab', tab: 'people' }, x: 384, y: Y0 },
   { id: 'research', n: 2, name: 'Research', term: 'techTree', sub: 'portfolio · know-how', icon: ICON.research, to: { panel: 'research' }, x: 572, y: Y0 },
   { id: 'models', n: 3, name: 'Models', term: 'blueprint', sub: 'next run → training', icon: ICON.models, to: { panel: 'models' }, x: 760, y: Y0 },
   { id: 'assurance', n: 4, name: 'Assurance', term: 'sightLimit', sub: 'sight limit', icon: ICON.U, to: { panel: 'safety' }, x: 948, y: Y0 },

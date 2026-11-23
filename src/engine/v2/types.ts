@@ -857,7 +857,7 @@ export interface ResearchState {
   risk: RiskPolicy;
   /** Research engineers (capabilities) by need. */
   re: Allocation<ReNeed>;
-  /** Safety research engineers by need (RD-A04; OD-9: the order is set in LAB, Company › Work). */
+  /** Safety research engineers by need (RD-A04; OD-9: the order is set in LAB, Lab › AI staff & needs). */
   safRe: Allocation<SafReNeed>;
   /** Recipe stacks. */
   stacks: Record<StackKey, StackState>;

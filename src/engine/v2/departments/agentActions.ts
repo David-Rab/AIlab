@@ -1,6 +1,6 @@
 // Internal agent packages: readouts, before → after preview and actions (STRUCTURE §4.9, BUILD-PLAN R7). Owner: WS1.
 //
-// Home of every internal package and of Trusted to AI: Company › Agents at work (D4). Actions:
+// Home of every internal package and of Trusted to AI: Lab › AI staff & needs (D4). Actions:
 //   agents.set      {use, versionId?, monitorId? ('' none | 'auto' most capable trusted (SR-20 default) | 'same' | id), compute?}  — next tick (D7), with preview
 //   agents.trusted  {share}                                                          — Trusted to AI (0–100%)
 //   agents.monitorBudget {share}                                                     — SAFMECH: monitoring budget (share of the safety pool)
@@ -83,7 +83,7 @@ export function splitWithChange(s: GameStateV2, use: AgentUse, c: AgentChange): 
 
 /** Why a change cannot apply (undefined = fine). */
 export function agentChangeBlock(s: GameStateV2, use: AgentUse, c: AgentChange): string | undefined {
-  if (use === 'eng' && c.compute !== undefined) return 'Engineering agents have their own line: set it on Compute › Split';
+  if (use === 'eng' && c.compute !== undefined) return 'Engineering agents have their own line: set it on Lab';
   if (c.versionId) {
     const v = versionById(s, c.versionId);
     if (!live(v)) return 'Pick a live model';
@@ -195,7 +195,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     const compute = s.player.computeOnline * agentSplitShare(s, u);
     const monH = monitorH100e(s, u, budget);
     // Model v3 V2b: engineers' AI share is the AI part of the labour margin (1 − humans' share), as for research engineers;
-    // coverage has its home on Company › Work.
+    // coverage has its home on Lab › AI staff & needs.
     const aiShare = u === 'eng' ? 1 - workContext(s).slots.SWE.wH : u === 'capRoutine' ? 1 - 1 / Math.max(1, workContext(s).slots.EXP.m) : u === 'capFrontier' ? Phi(pr?.sdAI ?? -3) : tr;
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, newest: u !== 'capRoutine' && !live(versionById(s, s.player.agents[u].versionId)),
