@@ -78,7 +78,8 @@ function estTraits(v: ModelVersion): TraitVector {
 }
 
 /** Measured level of an act's domain: the measured general level plus the version's domain offset. */
-const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => measuredLOf(s, v).L + (v.domains[d] - v.Lg);
+// RD-M01: the domain's benchmark fit; lineage fallback (measured general + offset) while the version is in evaluation.
+const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => v.evals.measuredDom?.[d] ?? measuredLOf(s, v).L + (v.domains[d] - v.Lg);
 
 /** control: undefined = as it is, true = the layer on, false = off (model v3 F6: the remove-control preview). */
 interface Opts { control?: boolean; restrict?: boolean }

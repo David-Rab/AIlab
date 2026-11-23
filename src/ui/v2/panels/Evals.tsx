@@ -245,7 +245,7 @@ function MeasureRow({ s, r, on, x, W, ticks }: { s: GameStateV2; r: EvalMeasureR
     <TipCard title={<Term id="L">Measured level</Term>} value={L !== undefined ? `L ${F.level(L)} ${band(r.sd)}` : 'not yet measured'} rows={[
       { label: '±1 SD band', value: L !== undefined ? `${F.level(L - r.sd)} – ${F.level(L + r.sd)}` : '—' },
       { label: '±2 SD (faint)', value: L !== undefined ? `${F.level(L - 2 * r.sd)} – ${F.level(L + 2 * r.sd)}` : '—' },
-    ]} footer="Your evals' reading, not the truth: the error is drawn once per version and each suite narrows the band around it.">Band = 0.2 / √(full-suite equivalents).</TipCard>
+    ]} footer="Your evals' reading, not the truth: fitted from the last suite's benchmark scores, so weak elicitation or a sandbagging model reads low.">Band = the score noise of the last suite, carried into the fit.</TipCard>
   );
   return (
     <div className={`ev-mline ${on ? 'on' : ''}`} data-measure={r.versionId} onClick={() => store.select({ versionId: r.versionId })}>
@@ -266,7 +266,7 @@ function MeasureRow({ s, r, on, x, W, ticks }: { s: GameStateV2; r: EvalMeasureR
         </svg>
       </Tip>
       <Tip content={levelTip}><span className="num small ev-r" data-test="eval-sd">{L !== undefined ? band(r.sd) : '—'}</span></Tip>
-      <Tip content={() => <TipCard title="Suites behind the reading" rows={[{ label: 'Suites run', value: String(r.nSuites) }, { label: 'Full-suite equivalents', value: F.num(r.nEff, 1) }]}>Basic counts 0.2, full 1, deep 4: the band is 0.2/√(equivalents).</TipCard>}>
+      <Tip content={() => <TipCard title="Suites behind the reading" rows={[{ label: 'Suites run', value: String(r.nSuites) }, { label: 'Full-suite equivalents', value: F.num(r.nEff, 1) }]}>Basic counts 0.2, full 1, deep 4.</TipCard>}>
         <span className="num small ev-r">{r.nSuites}<span className="dim"> · {F.num(r.nEff, 1)}</span></span>
       </Tip>
       <Tip content={() => <TipCard title="Last suite" rows={[{ label: <Term id="evalDepth">Depth</Term>, value: r.depth ? EVAL_DEPTHS[r.depth].label : '—' }, { label: 'Date', value: r.suiteDay !== undefined ? fmtDate(dateOf(s, r.suiteDay)) : '—' }]} />}>

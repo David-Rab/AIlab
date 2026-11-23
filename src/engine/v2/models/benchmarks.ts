@@ -4,9 +4,10 @@ import {
   type BenchmarkDef,
 } from '../../../data/v2/benchmarks';
 import { EVAL_DEPTHS, FULL_ROLLOUTS } from '../../../data/v2/evals';
+import { COGNITIVE } from '../../../data/v2/runDesign';
 import { observe } from '../safety/detection';
-import type { EvalDepth, GameStateV2, ModelVersion, RngLike, SystemCtx } from '../types';
-import { h50Of } from './capability';
+import type { DomainId, EvalDepth, EvalRecord, GameStateV2, ModelVersion, RngLike, SystemCtx, TimelineWorld } from '../types';
+import { gOfLevel, h50Of, levelOfG } from './capability';
 import { bestPlayerVersion, versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
 
@@ -56,11 +57,85 @@ export function measureBench(s: GameStateV2, v: ModelVersion, b: BenchmarkDef, b
   return Math.round(Math.min(b.ceil, Math.max(b.floor, x)) * 10) / 10;
 }
 
-/** SD of a version's measured level (L) after one full suite; deeper suites count as more (model v3 D7: nEff). */
+/** RD-M01: a reading's score is kept off the floor and ceiling by this share of the span before it is inverted (a score
+ *  at the floor or ceiling says only "below" or "above"; its weight there is tiny anyway). */
+const P_EDGE = 0.005;
+/** RD-M01: the smallest score sd (points) a reading is weighted with (the stored sd is rounded to 0.1). */
+const MIN_SCORE_SD = 0.5;
+
+/** RD-M01: the domain level a benchmark score reads (benchScore inverted at no elicitation and no gap) and its sd in L
+ *  (score sd ÷ the curve's slope at that score). Special rows (horizon, speedrun) and multi-domain rows read none. */
+export function benchReading(b: BenchmarkDef, score: number, sd: number, gen = 0, hard = false): { L: number; sd: number } | undefined {
+  if (b.special || Array.isArray(b.domain)) return undefined;
+  const span = b.ceil - b.floor;
+  const p = Math.min(1 - P_EDGE, Math.max(P_EDGE, (score - b.floor) / span));
+  const mL = (hard && b.mLHard !== undefined ? b.mLHard : b.mL) + gen * SUCCESSOR_STEP;
+  return { L: mL + Math.log(p / (1 - p)) / b.kL, sd: Math.max(sd, MIN_SCORE_SD) / (span * b.kL * p * (1 - p)) };
+}
+
+/** RD-M01 (DD-08): per-domain levels fitted from a bench table. A domain's benchmark readings combine by inverse
+ *  variance. Elicitation and sandbagging lower the scores, so they lower the fit. `genOf`: the edition each score was
+ *  taken on; `hard`: alignment 'hard'. Domains no single-domain benchmark reads (MEDIA, PHYS) are absent. */
+export function fitDomains(bench: EvalRecord['bench'], genOf: (id: string) => number, hard = false): { dom: Partial<Record<DomainId, number>>; sd: Partial<Record<DomainId, number>> } {
+  const acc: Partial<Record<DomainId, { w: number; wl: number }>> = {};
+  for (const b of BENCHMARKS) {
+    const r = bench[b.id];
+    const x = r && benchReading(b, r.score, r.sd, genOf(b.id), hard && b.id === 'survive');
+    if (!x) continue;
+    const a = (acc[b.domain as DomainId] ??= { w: 0, wl: 0 });
+    const w = 1 / (x.sd * x.sd);
+    a.w += w;
+    a.wl += w * x.L;
+  }
+  const dom: Partial<Record<DomainId, number>> = {};
+  const sd: Partial<Record<DomainId, number>> = {};
+  for (const [d, a] of Object.entries(acc) as [DomainId, { w: number; wl: number }][]) {
+    dom[d] = a.wl / a.w;
+    sd[d] = 1 / Math.sqrt(a.w);
+  }
+  return { dom, sd };
+}
+
+/** RD-M01: the general level the domain fits imply. A version's domain levels are λ of its effective compute plus its
+ *  per-domain offsets (its build, known to the lab), so each cognitive domain's fit reads an effective-compute offset
+ *  ΔG_d = λ⁻¹(fit_d) − λ⁻¹(L_d); the offsets combine by inverse variance (in G) and the general level is λ(G + ΔG).
+ *  Domains at the 0 / 15 clamp carry no reading. Undefined when no cognitive domain reads. */
+export function fitGeneral(w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'domains'>, dom: Partial<Record<DomainId, number>>, sd: Partial<Record<DomainId, number>>): { L: number; sd: number } | undefined {
+  let W = 0, WG = 0;
+  for (const d of COGNITIVE) {
+    const x = dom[d], e = sd[d], L = v.domains[d];
+    if (x === undefined || e === undefined || !(L > 0 && L < 15)) continue;
+    const slope = (gOfLevel(w, L + 0.1) - gOfLevel(w, L)) / 0.1; // OOM per L at the domain's level
+    const wt = 1 / Math.max(1e-6, e * slope) ** 2;
+    W += wt;
+    WG += wt * (gOfLevel(w, Math.min(15, x)) - gOfLevel(w, L));
+  }
+  if (W <= 0) return undefined;
+  const G = v.G + WG / W;
+  const L = levelOfG(w, G);
+  const sdL = (levelOfG(w, G + 0.05) - levelOfG(w, G - 0.05)) / 0.1 / Math.sqrt(W);
+  return { L, sd: sdL };
+}
+
+/** RD-M01: fit a version's stored bench table into its measured level (general, per domain, sd). No-op without readings. */
+export function refitMeasured(s: Pick<GameStateV2, 'flags' | 'setup' | 'hidden'>, v: ModelVersion): void {
+  applyFit(s.hidden.timeline, v, (id) => benchGen(s, id), s.setup.alignment === 'hard');
+}
+/** RD-M01: store the fit of `v`'s bench table (editions `genOf`, `hard` survive row) as its measured level. */
+export function applyFit(w: TimelineWorld, v: ModelVersion, genOf: (id: string) => number, hard: boolean): void {
+  const f = fitDomains(v.evals.bench, genOf, hard);
+  const g = fitGeneral(w, v, f.dom, f.sd);
+  if (!g) return;
+  v.evals.measuredL = Math.round(g.L * 100) / 100;
+  v.evals.measuredDom = Object.fromEntries(Object.entries(f.dom).map(([d, x]) => [d, Math.round(Math.max(0, x) * 100) / 100]));
+  v.evals.fitSd = Math.round(g.sd * 1000) / 1000;
+}
+
+/** SD of a version's measured level when its suite gave no fit sd (old records): 0.2/√nEff. */
 export const MEASURE_SD = 0.2;
-/** Band (±1 SD, L) of a version's measured level after its suites so far: 0.2/√nEff, nEff = the suites' weights summed
- *  (full = 1, basic 0.2, deep 4); one full suite's band before any (the start models count as long known). */
+/** Band (±1 SD, L) of a version's measured level: the fit's sd (RD-M01); old records 0.2/√nEff. */
 export const measuredSd = (v: Pick<ModelVersion, 'evals'>) => {
+  if (v.evals.fitSd !== undefined) return v.evals.fitSd;
   const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
   return MEASURE_SD / Math.sqrt(n > 0 ? n : 1);
 };
@@ -70,11 +145,9 @@ export const measuredSd = (v: Pick<ModelVersion, 'evals'>) => {
  * benchmarks (noisy, sandbagging-biased on dangerous ones), safety evals (traits through the eval-awareness confound and
  * BB masks), the measured level, flags. `depth` sets the noise of every reading (1/√weight) and the elicitation.
  *
- * Measured level (jank M1, STRUCTURE R9; D7): the error of a version's measurement is drawn once, at its first suite,
- * e ~ N(0, MEASURE_SD), and each suite adds its weight w (full 1) to the version's precision nEff: measuredL = Lg + e/√nEff.
- * So for an unchanged model the reading never re-rolls; it moves monotonically toward the truth and its band
- * (MEASURE_SD/√nEff, `measuredSd`) narrows; a basic first suite reads with √5 × a full one's error, a deep one with half.
- * The normal is drawn on every suite so the 'runs' stream stays aligned with the draws other systems take from it.
+ * Measured level (RD-M01, DD-08): fitted from this suite's benchmark scores (fitDomains, fitGeneral), so the suite's noise, its
+ * elicitation, the evaluator's and sandbagging all flow into it. nEff still sums the suites' weights (the re-run policy
+ * reads it). No stored error draw.
  */
 export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, by: Evaluator = 'self', depth: EvalDepth = 'full'): void {
   const v = versionById(s, versionId);
@@ -98,15 +171,13 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
     for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', Math.sqrt(w)); // WS2 turns observations into beliefs
   }
   v.evals.suiteDay = day;
-  const z = rng.normal(0, MEASURE_SD);
   const n = (v.evals.nSuites ?? 0) + 1;
   const nEff = (v.evals.nEff ?? v.evals.nSuites ?? 0) + w;
-  if (v.evals.errTrue === undefined) v.evals.errTrue = z;
   v.evals.nSuites = n;
   v.evals.nEff = Math.round(nEff * 1000) / 1000;
   v.evals.recipeAt = inPlaceRecipe(s, v);
   v.evals.depth = depth;
-  v.evals.measuredL = Math.round((v.Lg + v.evals.errTrue / Math.sqrt(nEff)) * 100) / 100;
+  refitMeasured(s, v);
   checkSaturation(s, ctx);
 }
 

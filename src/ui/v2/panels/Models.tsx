@@ -98,7 +98,7 @@ function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel
     </button>
   );
 }
-/** Measured level with its band (jank M1): drawn once per version, narrowing with each eval suite. */
+/** Measured level with its band (RD-M01): fitted from the last suite's benchmark scores. */
 function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   if (v.evals.measuredL === undefined) return <TipCard title={<Term id="L">Measured level</Term>} value="evaluating">The eval suite reports a level when it finishes.</TipCard>;
   const sd = measuredSd(v);
@@ -106,7 +106,7 @@ function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
     <TipCard title={<Term id="L">Measured level</Term>} value={`L ${F.level(v.evals.measuredL)} ± ${sd.toFixed(2)}`} rows={[
       { label: 'Eval suites run', value: String(v.evals.nSuites ?? 1) },
       { label: 'Last suite', value: v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : '—' },
-    ]} footer="A model does not change between suites; each new suite narrows the band (±0.2 after one, ±0.1 after four).">The estimate your evals give of this version's general level.</TipCard>
+    ]} footer="Fitted from the last suite's benchmark scores: weak elicitation or a sandbagging model reads low.">The estimate your evals give of this version's general level.</TipCard>
   );
 }
 

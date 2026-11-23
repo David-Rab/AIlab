@@ -16,7 +16,7 @@ export function measuredDomain(s: GameStateV2, d: DomainId): number {
   let best = 0;
   for (const v of s.player.models.versions) {
     if (v.status === 'retired' || v.evals.measuredL === undefined) continue;
-    best = Math.max(best, v.domains[d] + (v.evals.measuredL - v.Lg)); // measured offset applied to the domain
+    best = Math.max(best, v.evals.measuredDom?.[d] ?? v.domains[d] + (v.evals.measuredL - v.Lg)); // RD-M01: the benchmark fit
   }
   return best;
 }

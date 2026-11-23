@@ -13,6 +13,7 @@ import { FIN } from '../actors/rivals';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
+import { refitMeasured } from '../models/benchmarks';
 import { creditSuiteExpertData, familyDomain, keepUnlockedSuite, restateSuiteTasks, suiteFamilies, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
@@ -95,8 +96,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  upkeep). Migration 65 → 66 sets each stored suite's tasks from its expert data (nothing stale yet).
  *  67 (RD-T08): the 'natural' data preset merges into 'balanced' (every preset now weights the lab's own mix;
  *  BaseDesign.mixShares carries RefBot's fixed shares); the "Overtrained compact" node goes (tokens per parameter is
- *  ungated). Migration 66 → 67 renames the preset in every stored base design and drops the node's tree state. */
-export const SCHEMA_REV = 67;
+ *  ungated). Migration 66 → 67 renames the preset in every stored base design and drops the node's tree state.
+ *  68 (RD-M01, DD-08): the measured level is fitted from the benchmark scores (EvalRecord.measuredDom, fitSd); the
+ *  stored error draw errTrue goes. Migration 67 → 68 refits every player version with a bench table and drops errTrue. */
+export const SCHEMA_REV = 68;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -661,6 +664,15 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const t of p.teams ?? []) if (t.projectId === 'overtrained') {
       delete t.projectId;
       delete t.manual;
+    }
+  },
+  /** 67 → 68 (RD-M01): refit each player version's measured level from its bench table; drop the stored error draw. Idempotent. */
+  67: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const v of s.player?.models?.versions ?? []) {
+      if (!v.evals) continue;
+      delete (v.evals as { errTrue?: number }).errTrue;
+      if (Object.keys(v.evals.bench ?? {}).length && s.flags && s.setup) refitMeasured(s, v);
     }
   },
 };

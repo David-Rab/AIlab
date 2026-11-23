@@ -186,7 +186,7 @@ export function compactRetired(s: GameStateV2, keep = 12) {
   const retired = s.player.models.versions.filter((v) => v.status === 'retired').sort((a, b) => b.day - a.day);
   for (const v of retired.slice(keep)) {
     if (!Object.keys(v.evals.bench).length && !Object.keys(v.evals.safety).length) continue;
-    v.evals = { bench: {}, safety: {}, ...(v.evals.suiteDay !== undefined ? { suiteDay: v.evals.suiteDay } : {}), ...(v.evals.measuredL !== undefined ? { measuredL: v.evals.measuredL } : {}) };
+    v.evals = { bench: {}, safety: {}, ...(v.evals.suiteDay !== undefined ? { suiteDay: v.evals.suiteDay } : {}), ...(v.evals.measuredL !== undefined ? { measuredL: v.evals.measuredL } : {}), ...(v.evals.measuredDom ? { measuredDom: v.evals.measuredDom } : {}) };
     for (const t of Object.keys(v.masks)) v.masks[t as keyof typeof v.masks] = {};
   }
 }

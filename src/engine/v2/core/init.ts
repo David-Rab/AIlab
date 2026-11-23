@@ -28,7 +28,7 @@ import { initialFinance } from '../finance/ledger';
 import { startStory } from '../finance/story';
 import { recordThesisHist } from '../finance/promises';
 import { startDivision } from '../finance/parent';
-import { benchScore } from '../models/benchmarks';
+import { applyFit, benchScore } from '../models/benchmarks';
 import { domainsOf, gOfBuild, gV0, levelOfG, startLab, startStateOf, updateMilestones } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
@@ -76,7 +76,8 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
   };
 }
 
-function startEvals(domains: Record<DomainId, number>, measuredL: number, day: number): EvalRecord {
+/** The start model's evals; RD-M01: its measured level is fitted from these scores (refitMeasured) once it is built. */
+function startEvals(domains: Record<DomainId, number>, day: number): EvalRecord {
   const bench: EvalRecord['bench'] = {};
   for (const b of BENCHMARKS) {
     if (b.special) continue;
@@ -84,8 +85,8 @@ function startEvals(domains: Record<DomainId, number>, measuredL: number, day: n
     const Ld = ds.reduce((a, d) => a + domains[d], 0) / ds.length;
     bench[b.id] = { score: Math.round(benchScore(b, Ld) * 10) / 10, sd: 2, day, by: 'self' };
   }
-  // M1: the start model is long known: its reading is exact and counts as 16 suites (band ±0.05).
-  return { suiteDay: day, bench, safety: {}, measuredL, nSuites: 16, errTrue: 0 };
+  // M1: the start model is long known: noiseless scores, counted as 16 suites. RD-M01: its level is fitted from them.
+  return { suiteDay: day, bench, safety: {}, nSuites: 16 };
 }
 
 /** A reference post-training run on B0 already in flight at the start (launched three days ago, 30% of its RL FLOP
@@ -166,8 +167,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const V0: ModelVersion = {
     id: 'V0', name: def.imported ? 'Open-weight import' : `${PLAYER_MODEL_FAMILY}-1.0`, baseId: 'B0', day: -20, variant: def.imported ? 'imported' : 'full', design: { ...REFERENCE_POST },
     G: G0, Lg, domains, traitsTrue: { ...TRAIT_START }, masks, uModes, monitorability: 0.9, fpt: sm.fpt,
-    evals: startEvals(domains, Math.round(Lg * 100) / 100, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
+    evals: startEvals(domains, -20), beliefs, status: 'deployed', flags: {}, build, appeal: 1,
   };
+  applyFit(hidden.timeline, V0, () => 0, false); // RD-M01: the start scores are the original editions, survive not 'hard'
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
     safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, packs: [], features: [],
