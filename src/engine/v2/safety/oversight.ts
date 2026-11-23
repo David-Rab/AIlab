@@ -117,11 +117,13 @@ export function controlProtocol(gapOom: number | undefined, setting: ControlSett
 /** Greenblatt's table at deferral d (kept for readouts that sweep d). */
 export const greenblattAt = lerpTable;
 
-/** Control on one internal use (its model watched, its monitor the trusted model; a copy of itself = no gap). Measured
- *  levels: the tax is a design readout. Off when the package's control layer is off (`on`, RD-A06). */
-export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined, on: boolean): ControlReadout {
+/** Control on one internal use (its model watched, its monitor the trusted model; a copy of itself = no gap). True
+ *  levels (Lg): the usefulness tax applies to the lab's work; `believed` (readouts) reads the measured levels (RD-M01
+ *  follow-up). Off when the package's control layer is off (`on`, RD-A06). */
+export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined, on: boolean, believed = false): ControlReadout {
   if (!on || !model) return NO_CONTROL;
   const w = s.hidden.timeline;
-  const gap = monitor ? oversightGap(w, measuredLOf(s, model).L, measuredLOf(s, monitor).L).oom : undefined;
+  const lv = (v: ModelVersion) => (believed ? measuredLOf(s, v).L : v.Lg);
+  const gap = monitor ? oversightGap(w, lv(model), lv(monitor)).oom : undefined;
   return controlProtocol(gap, labControlSetting(s));
 }

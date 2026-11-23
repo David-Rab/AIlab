@@ -25,7 +25,7 @@ import { sightAt } from './sightLimit';
 export function believedMonitorCatch(s: GameStateV2, v: ModelVersion, trait: TraitId, L = measuredLOf(s, v).L): number {
   const tools = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && techniqueRole(t) !== 'fix' && (t.family === 'COT' || t.family === 'WB'));
   const det = tools.length ? sightAt(s, v, trait, L, tools) : 0;
-  return Math.max(0, Math.min(1, det * (0.5 + 0.5 * fleetMonitor(s, v, trait))));
+  return Math.max(0, Math.min(1, det * (0.5 + 0.5 * fleetMonitor(s, v, trait, true))));
 }
 
 /** The trait-independent parts: believed containment (`layer` = the control layer on the overseeing deployment), human

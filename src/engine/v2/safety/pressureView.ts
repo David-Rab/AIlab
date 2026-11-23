@@ -239,7 +239,7 @@ function believedCatchSucc(s: GameStateV2, v: ModelVersion, x: number, L: number
     }
     if (items.length) miss *= 1 - combineTools(items) * believedPenalty(s, v, 'SUCC', fam, L);
   }
-  return clamp01((1 - miss) * (0.5 + 0.5 * fleetMonitor(s, v, 'SUCC')));
+  return clamp01((1 - miss) * (0.5 + 0.5 * fleetMonitor(s, v, 'SUCC', true)));
 }
 
 /** The successor pull a run finishing today would get, as the player can estimate it: per R&D work type, the model

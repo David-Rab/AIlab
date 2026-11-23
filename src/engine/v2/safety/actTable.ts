@@ -142,7 +142,7 @@ export function actSite(s: GameStateV2, target: ActTarget, believed: boolean, o:
   }
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
-  return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss) };
+  return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: p.block, monitor: fleetMonitor(s, v, undefined, true), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss) };
 }
 
 function productSite(s: GameStateV2, d: Deployment, believed: boolean, o: ActOpts): ActSite | undefined {
@@ -155,7 +155,7 @@ function productSite(s: GameStateV2, d: Deployment, believed: boolean, o: ActOpt
   const contain = believed ? containment(s, measuredOom(s, v), layer, true) : containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
   const site: Site = { ...base, scale: base.scale * (o.restrict && !isRestricted(d) ? RESTRICT : 1), contain };
   // SR-12: the product's monitor through the one monitor formula (watched share × flag rate × acted-on rate).
-  const m = d.monitorId && d.channel !== 'open' ? productMonitor(s, d, layer) : undefined;
+  const m = d.monitorId && d.channel !== 'open' ? productMonitor(s, d, layer, believed) : undefined;
   const mon = m && m.watched > 0 ? m : undefined;
   const catchOf = believed ? (t: TraitId) => (mon ? (collusionTrait(t) ? mon.stopColl : mon.stop) : 0) : (t: TraitId) => engineCatch(s, d, v, { source: t, apparent: t });
   return { d, v, site, usage, layer, restricted, monitored: !!mon, contain, monitor: mon?.stop ?? 0, human: 0, controlMiss: mon?.c.defer ?? 1, catchOf, monitorParts: mon };
@@ -174,7 +174,7 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
     afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: 0, wsl: s.player.security.wsl,
   };
   const monitored = !!monitorVersion(s, use);
-  const monitorParts = monitored ? useMonitor(s, use) : undefined;
+  const monitorParts = monitored ? useMonitor(s, use, undefined, believed) : undefined;
   if (!believed) {
     site.contain = containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
     return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
@@ -182,7 +182,7 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
   // E15: the same believed oversight as E9's believed control (believedOversight.ts).
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
-  return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss), monitorParts };
+  return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v, undefined, true), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss), monitorParts };
 }
 
 /** Would try's 90% range from a belief (est ± 1.64 sd, clamped) through `f`. */
@@ -349,6 +349,6 @@ export function actTable(s: GameStateV2, target: ActTarget, believed: boolean, o
   if (!a) return undefined;
   const rows = siteActs(s, a, believed);
   if (!o.core) rows.push(...(a.site.internal ? labRows(s, a, believed) : misuseRows(s, a, believed)));
-  const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use), true).gapOom : undefined;
+  const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use), true, believed).gapOom : undefined;
   return { site: a, rows, guards: safeguardLines(a.d, { block: a.contain, human: a.human, gapOom: gap, humanShare: a.site.internal ? 1 - a.site.rd : 0 }) };
 }

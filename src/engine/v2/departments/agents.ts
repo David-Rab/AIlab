@@ -206,17 +206,17 @@ export function monitorH100e(s: GameStateV2, use: AgentUse, b = monitorBudget(s)
 /** SR-12: a use's monitor through the one monitor formula (models/products.ts monitorStop): monitor compute = the use's
  *  part of the monitors' used allocation (monitorH100e's share), watched compute = the use's compute, at the monitor's
  *  cost ratio, so its watched share is the pooled coverage (AI 2027 fn 51). */
-export function useMonitor(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): MonitorStop {
+export function useMonitor(s: GameStateV2, use: AgentUse, budget = monitorBudget(s), believed = false): MonitorStop {
   const need = monitorNeedShare(s, use);
   const mine = budget.need > 0 ? (monUsed(budget) * need) / budget.need : 0;
-  return monitorStop(s, agentVersion(s, use), monitorVersion(s, use), mine, agentSplitShare(s, use), monitorCostRatio(s, use));
+  return monitorStop(s, agentVersion(s, use), monitorVersion(s, use), mine, agentSplitShare(s, use), monitorCostRatio(s, use), false, believed);
 }
 
 /** A use's monitor (SR-12 useMonitor): its stop contribution (`catch` = watched share × flag rate × acted-on) and its
  *  strength (watched share × min(1, flag ÷ 85%)). Strength 1 = today's runtime monitoring; 0 = no monitor. */
-export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s)): { catch: number; strength: number; gap: number; copy: boolean; catchColl: number; strengthColl: number; watched: number } {
+export function monitorStrength(s: GameStateV2, use: AgentUse, budget = monitorBudget(s), believed = false): { catch: number; strength: number; gap: number; copy: boolean; catchColl: number; strengthColl: number; watched: number } {
   if (!monitorVersion(s, use) || !agentVersion(s, use)) return { catch: 0, strength: 0, gap: 0, copy: false, catchColl: 0, strengthColl: 0, watched: 0 };
-  const m = useMonitor(s, use, budget);
+  const m = useMonitor(s, use, budget, believed);
   return { catch: m.stop, strength: m.strength, gap: m.c.gap, copy: m.c.copy, catchColl: m.stopColl, strengthColl: m.strengthColl, watched: m.watched };
 }
 
@@ -244,13 +244,13 @@ export function internalFleets(s: GameStateV2): { v: ModelVersion; usage: number
 
 /** Monitor strength on the fleet running version `v`: the strongest monitor on an internal use running it (0 when none).
  *  With `trait` (an incident's source): a same-lineage monitor's lower strength on collusion-relevant traits (J2 AG1). */
-export function fleetMonitor(s: GameStateV2, v: ModelVersion, trait?: TraitId): number {
+export function fleetMonitor(s: GameStateV2, v: ModelVersion, trait?: TraitId, believed = false): number {
   let best = 0;
   let budget: MonitorBudget | undefined;
   const coll = collusionTrait(trait);
   for (const u of AGENT_USES) {
     if (!s.player.agents[u].monitorId || agentSplitShare(s, u) <= 0 || agentVersion(s, u)?.id !== v.id) continue;
-    const m = monitorStrength(s, u, (budget ??= monitorBudget(s)));
+    const m = monitorStrength(s, u, (budget ??= monitorBudget(s)), believed);
     best = Math.max(best, coll ? m.strengthColl : m.strength);
   }
   return best;

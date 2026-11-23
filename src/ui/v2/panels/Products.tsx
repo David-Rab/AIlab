@@ -172,7 +172,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
         )} />
       <PkgChip kind="monitor" testId={`prod-monitor.${d.id}`} value={n.monitorId ?? ''} changed={n.monitorId !== d.monitorId}
         options={[{ value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]} onPick={(x) => set({ monitorId: x || null })}
-        extra={mon && <CatchX {...catchRate(s, v, mon)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />} />
+        extra={mon && <CatchX {...catchRate(s, v, mon, false, true)} testId={`prod-catch.${d.id}`} note="Model-behaviour incidents it catches stay internal: customers never see them." />} />
       <Tip content={() => <TipCard title={<Term id="runCost">Run cost</Term>} value={r ? F.money(r.runCost, { perYear: true }) : '—'} rows={r ? [
         { label: 'Serving it uses', value: `${F.h100e(Math.min(r.servedH100e, r.needH100e))} H100e` },
         { label: <Term id="monitor">Monitor overhead</Term>, value: d.monitorId ? `+${F.pct(r.monitorOverhead, 1)} of serving` : 'no monitor' },
@@ -652,8 +652,8 @@ function EditPop({ s, d, c, close }: { s: GameStateV2; d: Deployment; c: Product
   const b = pv?.before;
   const a = pv?.after;
   const n = editedProduct(d, c);
-  const catchB = d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId)).rate : 0;
-  const catchA = n.monitorId ? catchRate(s, versionById(s, n.versionId), versionById(s, n.monitorId)).rate : 0;
+  const catchB = d.monitorId ? catchRate(s, versionById(s, d.versionId), versionById(s, d.monitorId), false, true).rate : 0;
+  const catchA = n.monitorId ? catchRate(s, versionById(s, n.versionId), versionById(s, n.monitorId), false, true).rate : 0;
   const def = PRODUCT_DEFS[d.channel];
   const row = (k: ReactNode, x: number | undefined, y: number | undefined, fmt: (v: number) => string, goodUp = true) => {
     if (x === undefined || y === undefined) return null;

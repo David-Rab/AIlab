@@ -121,9 +121,9 @@ export interface MonitorStop {
  */
 export function monitorStop(
   s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined,
-  monitorCompute: number, watchedCompute: number, costRatio: number, controlled = false,
+  monitorCompute: number, watchedCompute: number, costRatio: number, controlled = false, believed = false,
 ): MonitorStop {
-  const c = catchRate(s, watched, monitor, controlled);
+  const c = catchRate(s, watched, monitor, controlled, believed);
   const need = watchedCompute * costRatio;
   const w = !watched || !monitor ? 0 : need > 0 ? Math.min(1, Math.max(0, monitorCompute) / need) : 1;
   const a = MONITOR_ACTED_ON;
@@ -153,15 +153,15 @@ export function monitorOverhead(s: GameStateV2, d: Deployment): number {
 
 /** SR-12: a product's monitor through the one formula: monitor compute = its billed overhead × the product's serving
  *  (both scale with what is served, so the watched share is PRODUCT_MONITOR_WATCH). Open weights: no monitor. */
-export function productMonitor(s: GameStateV2, d: Deployment, controlled = controlOn(d)): MonitorStop {
+export function productMonitor(s: GameStateV2, d: Deployment, controlled = controlOn(d), believed = false): MonitorStop {
   const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
   const r = productMonitorCostRatio(s, d);
-  return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled);
+  return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled, believed);
 }
 
 export interface CatchRate {
   rate: number;
-  /** Model v3 E6: oversight gap watched − monitor in OOM of effective compute (measured levels through λ⁻¹), the same
+  /** Model v3 E6: oversight gap watched − monitor in OOM of effective compute (levels through λ⁻¹: true, or measured when believed), the same
    *  gap in display levels and in Chatbot-Arena Elo (Engels et al. 2025: 400 Elo ≈ 6.8 OOM). */
   gap: number;
   gapL: number;
@@ -180,16 +180,18 @@ export interface CatchRate {
 
 /**
  * Catch rate of a monitor watching a model (model v3 E6): monitorCatchAt(gap) = 85% × (10%/85%)^(gap ÷ 6.8 OOM), the
- * gap in OOM of effective compute between the measured levels (Engels et al. 2025's Backdoor Code rate at a 400-Elo
- * gap; safety/oversight.ts), then the AG07 containment tools halve what slips through at full strength. Uses measured
- * levels and believed tool strength: what the player sees is what the engine rolls. `controlled`: the deployment runs
- * under the control layer, whose deferral cuts the misses by Greenblatt's 0.17/0.38.
+ * gap in OOM of effective compute between the two models' levels (Engels et al. 2025's Backdoor Code rate at a 400-Elo
+ * gap; safety/oversight.ts), then the AG07 containment tools halve what slips through at full strength (believed tool
+ * strength). Levels: true (Lg) for the engine's rolls; `believed` (readouts, beliefs) reads the measured levels instead
+ * (RD-M01 follow-up, merge p3-d → rd). `controlled`: the deployment runs under the control layer, whose deferral cuts
+ * the misses by Greenblatt's 0.17/0.38.
  */
-export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined, controlled = false): CatchRate {
+export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined, controlled = false, believed = false): CatchRate {
   if (!watched || !monitor) return { rate: 0, gap: 0, gapL: 0, elo: 0, base: 0, control: 0, defer: 1, copy: false, collusion: 0 };
   const w = s.hidden.timeline;
-  const Lw = measuredLOf(s, watched).L;
-  const g = oversightGap(w, Lw, measuredLOf(s, monitor).L);
+  const lv = (v: ModelVersion) => (believed ? measuredLOf(s, v).L : v.Lg);
+  const Lw = lv(watched);
+  const g = oversightGap(w, Lw, lv(monitor));
   const base = monitorCatchAt(g.oom);
   const control = containment(s, oomOfLevel(w, Lw), true, true);
   const defer = controlled ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;

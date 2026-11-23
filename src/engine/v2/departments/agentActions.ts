@@ -187,7 +187,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
   for (const u of AGENT_USES) {
     const v = agentVersion(s, u);
     const mon = monitorVersion(s, u);
-    const ms = monitorStrength(s, u, budget);
+    const ms = monitorStrength(s, u, budget, true);
     const compute = s.player.computeOnline * agentSplitShare(s, u);
     const monH = monitorH100e(s, u, budget);
     // Model v3 V2b: engineers' AI share is the AI part of the labour margin (1 − humans' share), as for research engineers;
@@ -196,7 +196,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
     lanes[u] = {
       use: u, version: v, L: measuredLOf(s, v).L, newest: u !== 'capRoutine' && !live(versionById(s, s.player.agents[u].versionId)),
       monitor: mon, monitorSame: s.player.agents[u].monitorId === MONITOR_SAME,
-      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon, !!s.player.agents[u].control),
+      catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon, !!s.player.agents[u].control, true),
       compute, share: u === 'safety' ? s.player.split.safetyAgents : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
       aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
