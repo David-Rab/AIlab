@@ -3802,3 +3802,66 @@ sabotage, danger, footholds, evals, safetyrates all pass (F6 persistence WARN 63
   Open: whether inoculation keeps its full cut on hacks the lab's graders never saw (no source either way); CP3f (c)
   RefBot never scales RL nor builds suites; (d) F6 healing.
 - S5: unchanged in kind (−5 pp, within sampling); the grader gap moves traits, not the sight limit.
+
+### CP3i method efficacy at scale
+
+Worktree p3-d (on CP3h 8cca224). Designer decision (2026-11-23): a safety method keeps its sourced effect at the
+capability its source tested; on much stronger models its hidden efficacy is a wide per-world draw (holds in some
+worlds, fails in others); P_mis is emergent from that; S4's band applies to the mean over worlds; no forcing.
+
+**Mechanism**
+- data/v2/agendas.ts `METHOD_TESTED_OOM` [D]: the source's largest model in OOM of effective compute relative to V0
+  (log10 of its training FLOP ÷ V0's ≈ 3e26 where reported; 2025 frontier models ≈ V0): T-ANTISCHEME 0 (Schoen 2025:
+  o3, o4-mini), T-INOC 0 (MacDiarmid 2025: production Claude RL, the F2 organism), T-CONFESS 0 (OpenAI 2025:
+  GPT-5-Thinking), T-PERSONA −2.6 (Chen 2025: Qwen2.5-7B, Llama-3.1-8B), T-W2S −1.2 (Burns 2023: GPT-4 student),
+  T-UNDO −3 (open models ≤ ~8B, [D]: tested size not re-checked against the paper), T-CAST 0 (no empirical test: its
+  ×0.7 is already a stand-in for today's models).
+- safety/methods.ts `methodStrength`: the log-space exponent s0·e (SR-15 / CP3f) × (1 − τ + τ·q), τ = smoothstep((oom −
+  tested) ÷ k), oom = the trained model's G − G(V0). So at or below the tested capability nothing changes (F2 / F5 / MO
+  probes run at V0: unchanged by construction); by +k OOM the strength is the world's q.
+- **Stand-ins (no source gives either)**: q ~ U[0, 1] per world per method (`METHOD_SCALE`; q = 1 the method holds
+  fully, q = 0 it stops working), independent across methods; k = 2 OOM ≈ one frontier generation of training compute
+  (GPT-3 3.1e23 → GPT-4 2.1e25 FLOP, Epoch AI). V0 → SC is 2.5 OOM and V0 → ASI 13.8, so every method is fully in the
+  draw by SC. Chosen as stated, not tuned to S4.
+- Hidden: `HiddenWorld.methodScale` (hash of the seed and method id, `methodScaleOf`; no named stream moves).
+- Applied where the methods act: playerMods (all run-method moderators), anti-scheming SCHEME removal, inoculation's
+  hackGen (runEnv reads the trained model's G, the same G the E18 AF gate reads); T-UNDO misuse cut at the version's
+  OOM (believed rows now use believed efficacy, q̄ and the measured level; before they read true efficacy).
+- **Beliefs**: the believed view reads q̄ = 0.5 (the range's midpoint), never the draw. predictBeliefs runs the same
+  mechanism at both ends of the range when a listed method has been outgrown, and adds the uniform spread
+  |x(q 0) − x(q 1)| ÷ √12 in quadrature to the prediction noise (both ends move together: an upper bound for several
+  methods). The run preview's method line says "tested on weaker models (source), so on this model its strength is
+  unknown: ×a–×b (expected ×c)". Pressure view's inoculation multiplier at the policy's measured OOM.
+- **Save**: SCHEMA_REV 97; migration 96 → 97 sets methodScale from the seed; hygiene pins → 97.
+
+Check: `npx tsx scripts/v2/_cp3i/check.ts` (all ok: 2,000 draws span 0–1, mean 0.51 / 0.49, methods uncorrelated;
+fixture migrates with its seed's draws; strength 1 at ≤ tested, 0.875 / 0.6 / 0.325 at +0.5 / 1 / 1.5 OOM, q from +2;
+believed reads 0.5 whatever the draw; inoculation ×0.075 at V0 unchanged, ×0.595 at ASI in a q 0.2 world; predicted sd
+at +6 OOM wider (AF 0.142 → 0.155, SCHEME 0.161 → 0.170) and unchanged when the draws are rewritten). tsc (app,
+scripts/v2) clean; npm run build passes; lint-hidden passes.
+
+**Before → after** (safety.ts 40 + 40 + 20 games; safetyrates default; sabotage.ts)
+
+| Check | CP3h | CP3i | target |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI | 0.329 (Mis 0.33) | 0.487 (Mis 0.394, range 0.08–0.88) | 0.55–0.85 |
+| S4 safe recipe | 0.099 | 0.161 | ≤ 0.25 |
+| safetyrates S4 info (12 seeds) | 0.244 | 0.385 | — |
+| S5 U below L by SAR | 18% (median +0.37) | 18% (median +0.39) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −3.54 / 35% | −3.54 / 35% | median holds |
+| F2 sabotage after learned hacking | 11.2% | 11.2% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | 86.6 / 84.9 / 85.5 / 92.9% | same | in band |
+| F5 anti-scheming cut / EA ×2 / EA 2026-12-31 | 93.2% / ×2.00 / 44.7% | same | 90–98 / 1.9–6.1 / 20–50 |
+| F5 AF at ASI (info) | 24.0% | 41.3% | no source |
+| MO anchor (sabotage.ts) | 12.0% | 12.0% | 12% |
+
+sabotage, safetyrates pass (F6 persistence WARN 60–66%, known).
+
+**Still off**
+- S4 0.49, below 0.55: P_mis now spreads with the draws (worlds where inoculation / anti-scheming hold stay low).
+  Remaining candidates as CP3h: RefBot never scales RL nor builds suites (CP3f (c)); F6 healing (d); healing
+  (HEAL_K · e_AG18) and generic safety-training removal are not methods and keep full strength at any scale (not in
+  this decision's scope; a source on safety-training transfer with scale would decide it).
+- S5 unchanged: method strength moves traits, not the sight limit.
+- No evidence channel updates the belief about q (only trait readings correct the believed traits); a "method holds at
+  scale" finding or eval comparison could narrow it later.
