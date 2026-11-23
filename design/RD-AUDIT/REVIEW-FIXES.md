@@ -64,3 +64,15 @@ gap, CP3f U05_SHIFT, misuse per token vs per user, uncommitted CP3l edits on p3-
 |---|---|---|
 | RF-S13 | Framework applies its computed package automatically when a rule requires safeguards (no day-0 hold; bots don't override); RF-S13b launches / swaps, RF-S13c update product, lineup, cheap tier, no-internal-work rule | DECISIONS follow-ups — done 76729b0, d894f60, a04b96a |
 | RF-S14 | Method validation job narrows the at-scale belief (proposal in BUILD-NOTES RF-S10) | DECISIONS follow-ups — done a4da920 (method auto-validation off by default) |
+
+## Calibration closed (2026-11-23)
+Final state: CAL2.md plus CAL3-A (Mansfield adoption term) and CAL3-I (intensity already at measured rate; Oct 2027
+labour rows INFO). Still off, not reopened:
+- Finance F7 / FC1 / FC2 (2026 valuation / marks / multiples): player revenue is serving-capacity bound (demand $221B vs
+  revenue $45B, seed 2027 Jan 2027) and loses share to rivals in H2 2026 (rivals deferred). Consider in the rivals session
+  and when bots' serving allocation is revisited.
+- S4 0.377 vs 0.40–0.80; authors2026 post-SC shape (rival diffusion); T1L leader-lab timelines; China start lead / theft
+  gap: rivals session.
+- Optional later (designer's choice): S5 option (a), interpretability difficulty with capability; slow-horizon mechanism;
+  measurement scale (per-domain best-human references; V0 BIO 0; AGENCY −1).
+- H2 2025 token growth lags Google's (×1.56 vs ×2.3; affects 2025 revenue only).
