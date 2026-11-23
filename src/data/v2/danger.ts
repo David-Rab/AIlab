@@ -50,11 +50,11 @@ export interface ActDef {
  *  on the 2025 start model's observed behaviour (research/05 §1.1–1.10: sycophancy and test gaming common, cover-ups
  *  barely, overreach / sabotage / collusion / escape not; MacDiarmid's organism is V0), so each keeps its distance from
  *  V0's level in its domain: θ = θ_v2 + (L_new(V0) − L_v2(V0)), V0 on ai2027 (the reference world the [C] κ were fitted
- *  in): CODE 5.00 vs 5 (0), RSCH 1.55 vs 4.5 (−2.95), AGENCY 5.00 vs 4 (+1), SOCIAL 0 vs 5 (−5), CYBER 0 vs 4 (−4).
+ *  in): CODE 5.00 vs 5 (0), RSCH 1.97 vs 4.5 (−2.53; CAL-S2: was 1.55 / −2.95 on the pre-CP3j ai2027 fit, which moved V0's RSCH score when Δ_bm 2.9 → 1.8 and sd_SC 1.25 → 0.5), AGENCY 5.00 vs 4 (+1), SOCIAL 0 vs 5 (−5), CYBER 0 vs 4 (−4).
  *  SOCIAL and CYBER are clamped at 0 at V0 (best human 5.5 OOM up), so those acts keep V0's capability exactly and rise
  *  only once the domain leaves the clamp (later than v2 by the clamped part). Misuse / exfiltration keep their θ (fitted
  *  to v2's absolute 1e-4·max(0, L − 7) curves, not to the start model). */
-export const U05_SHIFT: Partial<Record<DomainId, number>> = { CODE: 0, RSCH: -2.95, AGENCY: 1, SOCIAL: -5, CYBER: -4 };
+export const U05_SHIFT: Partial<Record<DomainId, number>> = { CODE: 0, RSCH: -2.53, AGENCY: 1, SOCIAL: -5, CYBER: -4 };
 const th = (d: DomainId, v2: number) => v2 + (U05_SHIFT[d] ?? 0);
 export const DANGER_ACTS: Partial<Record<TraitId, ActDef>> = {
   SYC: { act: 'Sycophancy: tells users what they want to hear', kappa: 3.6e-3, domain: 'SOCIAL', theta: th('SOCIAL', 4), s: 1, alpha: 0, floor: 1, span: 1 },
@@ -141,7 +141,7 @@ export const COVERT_ANCHOR = 0.12;
  *  (scripts/v2/safetyrates.ts). E7 had put the anchor at x = 1, which no run produces (E10: the organism read 0.2%).
  *  E16 0.37; E17 0.44 (the organism refit: K_LH 1.3 → 1.7 after E14 moved from S7 to S9). */
 export const COVERT_ANCHOR_X = 0.44;
-/** Start model's RSCH level (ai2027 V0: v2 4.5, RD-U05 score 1.55) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
+/** Start model's RSCH level (ai2027 V0: v2 4.5, RD-U05 score 1.97) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
  *  holds (θ = V0 + 0.5 on either scale, CP3f): κ_SAFSAB = 0.12 ÷ (0.44^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.36 [C] (E16: 1.77 at x 0.37; E7: 0.395 at x = 1). */
 const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 /** κ of the R&D acts STEER and SUCCSTEER (model v3 E17) [D]. MacDiarmid's 12% measures sabotage of safety-research code
@@ -152,7 +152,7 @@ const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + M
  *  (E16 had moved them ×4.5 with SAFSAB's organism anchor). */
 const KAPPA_RD = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 
-/** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = V0's RSCH + 0.5 (v2 5; 2.05 on the RD-U05 score: the anchor
+/** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = V0's RSCH + 0.5 (v2 5; 2.47 on the RD-U05 score: the anchor
  *  model's capability is about half of the full act's: crude, visible attempts; 3.5 levels above V0 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
  *  share of the work are small (research/05 §1.8, research/20 F: no spontaneous sabotage found in 2025 deployments). */
 export const COVERT_ACTS: Record<CovertActId, CovertActDef> = {

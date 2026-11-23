@@ -130,14 +130,20 @@ const f3 = (x: number) => x.toFixed(3);
   check(dLo.opportunity < dHi.opportunity && dLo.attempts < dHi.attempts, 'opportunity: daily acts rise with the AI share of R&D and the fleet (agent compute ×0.001 → ×1)', `O ${f3(dLo.opportunity)} → ${f3(dHi.opportunity)}`);
 
   // Oversight: the AG07 control layer on the internal deployment (containment blocks, deferral cuts misses).
-  const off = itemTerms(s, v, 'STEER', 1, 8);
-  const ctl = clone(s);
-  for (const d of ctl.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(ctl.player.agents)) a.control = true;
-  resetWorkContext(ctl);
-  const on = itemTerms(ctl, ctl.player.models.versions.find((x) => x.id === v.id)!, 'STEER', 1, 8);
+  // CAL-S2: both arms set the layer explicitly. The regenerated day-400 fixture already runs the framework's control on
+  // its internal deployments (RF-S13 auto-apply once a version measures CYBER ≥ θ_SCHEME), so the fixture itself is "on".
+  const arm = (ctlOn: boolean, share = 1) => {
+    const c = clone(s);
+    for (const d of c.player.deployments) if (d.channel === 'internal') setControl(d, ctlOn);
+    for (const a of Object.values(c.player.agents)) a.control = ctlOn;
+    resetWorkContext(c);
+    return itemTerms(c, c.player.models.versions.find((x) => x.id === v.id)!, 'STEER', share, 8);
+  };
+  const off = arm(false);
+  const on = arm(true);
   check(on.oversight > off.oversight && on.rate < off.rate && Math.abs(on.attempts - off.attempts) < 1e-12, 'oversight: the control layer raises oversight and cuts the acts that get through (attempts unchanged)', `oversight ${f3(off.oversight)} → ${f3(on.oversight)}; uncaught ${pct(off.rate)} → ${pct(on.rate)}`);
   // Human review covers the work humans still do: a larger AI share leaves less of it.
-  const lo = itemTerms(s, v, 'STEER', 0.1, 8);
+  const lo = arm(false, 0.1);
   check(lo.catch > off.catch, 'oversight: human review covers the human share of the work (AI share 0.1 vs 1)', `catch ${f3(lo.catch)} vs ${f3(off.catch)}`);
 }
 
@@ -329,16 +335,22 @@ const f3 = (x: number) => x.toFixed(3);
   for (const v of s.player.models.versions) { v.traitsTrue.SCHEME = 1; v.traitsTrue.POWER = 1; v.uModes = []; atLevel(v, 12); }
   resetWorkContext(s);
   const ctx = makeCtx(s);
-  const terms = fleetCovertTerms(s);
   const inc0 = s.player.safety.incidents.length;
   const u0 = Number(s.flags['ws2.uncaughtInternal'] ?? 0);
   const D = 20000;
-  for (let d = 0; d < D; d++) { s.time.day += 1; rollFleetCovert(s, ctx); }
+  // CAL-S2: the expectation sums each day's own terms. Uncaught backdoors (E8) lower block and catch on their lineage's
+  // later acts, and the regenerated fixture's internal deployment runs the framework's control (RF-S13: block ≈ 0.7),
+  // so the start-of-loop terms (23.5 acts) understate the rolled days (block ≈ 0.07 once two footholds stand: ≈ 65).
+  let want = 0;
+  for (let d = 0; d < D; d++) {
+    s.time.day += 1;
+    want += fleetCovertTerms(s).reduce((x, t) => x + t.attempts * (1 - t.block), 0);
+    rollFleetCovert(s, ctx);
+  }
   const recs = (['BACKDOOR', 'HIDCOMP'] as CovertActId[]).map((a) => ({ a, ...covertRecord(s, a) }));
   const incs = s.player.safety.incidents.slice(inc0);
   const caught = recs.reduce((x, r) => x + r.caught, 0);
   const n = recs.reduce((x, r) => x + r.n, 0);
-  const want = terms.reduce((x, t) => x + t.attempts * (1 - t.block), 0) * D;
   check(caught > 0 && n > 0 && Math.abs(caught + n - want) < 4 * Math.sqrt(want) + 2, 'backdoors and hidden compute: daily attempts at the formula\'s rate, blocked ones leave nothing', `${caught} caught + ${n} uncaught over ${D} days vs ${want.toFixed(1)} expected`);
   check(incs.length >= caught && incs.every((x) => x.exposure === 'internal'), 'backdoors and hidden compute: every caught act is an internal incident', `${incs.length} incidents`);
   check(recs.every((r) => r.n === 0 || r.sev >= r.n) && Number(s.flags['ws2.uncaughtInternal'] ?? 0) - u0 === n,
