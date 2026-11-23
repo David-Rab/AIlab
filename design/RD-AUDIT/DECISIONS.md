@@ -122,3 +122,18 @@ The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaul
 - Last calibration task: usage intensity per adopter (revenue = breadth × intensity, sourced from measured 2025–26
   token-per-hour growth). The Oct 2027 "25% of remote work" and "U +1 pp in 12 months" rows become INFO (AI 2027
   scenario projections, like F11's floor). After this, calibration is closed (designer: "these really are the last things").
+
+## UI-IA open questions (2026-11-23, designer accepted the lead's re-thought recommendations)
+
+Rethought from what the player needs, not from the current UI:
+- OQ-1 units: effect shown where it lands (change in the next model's skill bars); know-how as "× effective compute"; OOM only in tooltips / never L0–L1.
+- OQ-2 scientists: LAB sets the department split (capability vs safety scientists); RESEARCH's priority order assigns them to work automatically.
+- OQ-3 naming: "programme" (ongoing, falling returns) and "project" (one-off, works or not) for both capability and safety, tagged by output; final words via VOCAB.
+- OQ-4 work: primary = time to finish with current staff + staff used; team-weeks only in breakdown tooltips.
+- OQ-5 "What binds" from the lab's beliefs (built, RD-UI0a) confirmed.
+- OQ-6 skills: bars between median-expert and best-human ticks (+ superhuman mark); no raw 0–15 at L1.
+- OQ-7 internal AI staff safeguards: home SAFETY › Safeguards (one stop-rate formula); LAB links.
+- OQ-8 evals: home MODELS › Evals; TRAINING links.
+- Loss-of-control risk: small L0 top-bar item linking to SAFETY; full gauge = SAFETY headline only.
+- Top-bar contents (research speed, compute online): decided after the UI audit.
+- Internal tooling (AI-staff boosts): RESEARCH, as an owned built thing (DD-03); not LAB.
