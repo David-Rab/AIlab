@@ -468,12 +468,16 @@ check(threw, 'save: v1 save is rejected (no migration)');
   const old = JSON.parse(serialize(cur)) as GameStateV2;
   old.schemaRev = 43;
   (old.hidden.timeline.prod as unknown as Record<string, unknown>).knots = [{ p: 0, Mref: 1.25, A: 0.5, R: 2.6, Tref: 1, sdAI: -2 }];
-  const pc = old.player.prodCache as unknown as { Ddata?: number; parts: Record<string, number>; elast: Record<string, number>; ratios: Record<string, number> } | undefined;
+  // RD-R01 removed ProductionReadout.parts and .elast (the readout is rebuilt from research.last): the dead fields are
+  // planted only in the objects the current readout still has.
+  const pc = old.player.prodCache as unknown as { Ddata?: number; parts?: Record<string, number>; elast?: Record<string, number>; ratios: Record<string, number> } | undefined;
   if (pc) {
     pc.Ddata = 1;
-    pc.parts.base = 1;
-    pc.elast.train = 0;
-    pc.elast.data = 0;
+    if (pc.parts) pc.parts.base = 1;
+    if (pc.elast) {
+      pc.elast.train = 0;
+      pc.elast.data = 0;
+    }
     pc.ratios.d = 1;
   }
   let msg = '';
