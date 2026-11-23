@@ -1,7 +1,8 @@
 // Research › Recipe (model v3 V2b; mockups-v3/v3-v2b-recipe; RD-B17): one card per recipe stack, each in its own unit
 // (OOM of its own quantity: stacks are never summed), and a card for the domain and data effects in theirs. Home of stack
-// efficiency, the recipe not trained into the internal model, the adopted ideas (believed band → the measured eval
-// delta once a model that embodies it has been evaluated, RD-M02) and the software rate.
+// efficiency (RF-R5: believed, the sum of the adopted results' estimates ± their band), the recipe not trained into the
+// internal model, the adopted ideas (believed band, and the first evaluated model trained with each: its measured gain is
+// on that model's card) and the software rate.
 import { dateOf, fmtDate, otherEffectViews, softwareRate, stackViews } from '../../../engine/v2';
 import type { AdoptedView, GameStateV2, OtherEffectView, StackView } from '../../../engine/v2';
 import { Term, Tip, TipCard } from '../ui';
@@ -20,16 +21,14 @@ const sig = (x: number, signed = true) => `${signed && x > 0 ? '+' : x < 0 ? '�
 const batch = (a: AdoptedView) => (a.b && a.b > 1 ? ` (${a.b} ideas)` : '');
 const short = (s: GameStateV2, day: number) => fmtDate(dateOf(s, day)).replace(/,? \d{4}$/, '');
 
-/** The measured effect of an adopted idea (RD-M02): the eval delta of the first evaluated model that embodies it over
- *  the comparable model without it, with the fit band, in measured level L. "Not yet measured" until such a model is
- *  evaluated. Never the engine's true value. */
-function MeasuredEffect({ a, m, what }: { a: AdoptedView; m?: { d: number; sd: number }; what: string }) {
-  const vs = a.measured?.vs;
+/** RF-R5: where an adopted idea has been measured: the first evaluated model trained with it (its measured gain is on
+ *  that model's card, Models), or not yet. An idea has no measured number of its own. */
+function SeenIn({ a }: { a: AdoptedView }) {
   return (
-    <Tip content={() => <TipCard title={<Term id="realisedEffect">Measured effect</Term>} value={m ? `${sig(m.d)} ± ${sig(m.sd, false)} L` : 'not yet measured'}>
-      {m && a.seenIn ? `Measured ${what} of ${a.seenIn}, the first model trained with it, minus that of ${vs}, which lacks it: the two evaluations' fits, ± their combined band. Everything else that differs between the two models is in it too.` : `Measured once ${a.embodiedBy} after it was adopted has been evaluated. Until then you have only the believed band.`}
+    <Tip content={() => <TipCard title={<Term id="realisedEffect">Measured in</Term>} value={a.seenIn ?? 'not yet'}>
+      {a.seenIn ? `${a.seenIn} is the first evaluated model trained with it. Its measured gain over the model before it is on its card under Models; that gain includes everything else that differs between the two models.` : `Trained in once ${a.embodiedBy} after it was adopted has been evaluated. Until then you have only the believed band.`}
     </TipCard>}>
-      <span className={`num small ${m ? '' : 'dim'}`}>{m ? `→ ${sig(m.d)} ±${sig(m.sd, false)} L` : '→ not yet measured'}</span>
+      <span className={`num small ${a.seenIn ? '' : 'dim'}`}>{a.seenIn ? `in ${a.seenIn}` : 'not in a model yet'}</span>
     </Tip>
   );
 }
@@ -42,12 +41,12 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
     <Card className="rc-card" home={`stack.${g.key}`} title={<span className="row-i"><Ic size={15} /><Term id="recipeStack">{g.name}</Term></span>}
       sub={<Tip content={() => <TipCard title="Ideas adopted" value={String(g.n)}>Every idea counts once: a line's batch counts each idea in it; an idea that also moves another stack counts in its main stack only.</TipCard>}><span>{g.n} ideas adopted</span></Tip>}>
       <div className="rc-hero">
-        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={oom(g.now)}>{`Over the start recipe, at your latest base's FLOP: start and public knowledge + adopted. In OOM ${g.unit}: not comparable with the other stacks.`}</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="stackEfficiency">Stack efficiency</Term>} value={`${oom(g.now)} ± ${fmtEff(g.adoptedSd, 'oom', false)}`}>{`Believed, over the start recipe: start and public knowledge + the sum of your adopted results' estimates (each at your latest base when it came in), ± their combined band. In OOM ${g.unit}: not comparable with the other stacks.`}</TipCard>}>
           <b className="num" data-test={`stack-now.${g.key}`}>{fmtEff(g.now)}</b>
         </Tip>
         <span className="dim"><Term id="oom">OOM</Term> {g.unit}</span>
       </div>
-      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(g.base) }, { label: 'Adopted', value: oom(g.adopted) }]} />}>
+      <Tip content={() => <TipCard title="Make-up" rows={[{ label: 'Start and public knowledge', value: oom(g.base) }, { label: 'Adopted (believed)', value: `${oom(g.adopted)} ± ${fmtEff(g.adoptedSd, 'oom', false)}` }]} />}>
         <span className="rc-bar">{g.base > 0 && <i className="base" style={{ width: w(g.base) }} />}<i className="ad" style={{ width: w(g.adopted) }} /></span>
       </Tip>
       {g.gap !== undefined && (
@@ -58,7 +57,7 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
           <Ref id="blueprint" to={{ panel: 'blueprint' }}>Train</Ref>
         </div>
       )}
-      <div className="rp-k" style={{ marginTop: 8 }}><Term id="realisedEffect">Adopted · believed → measured</Term> <span className="dim">(<Term id="oom">OOM</Term> → <Term id="L">L</Term>)</span></div>
+      <div className="rp-k" style={{ marginTop: 8 }}><Term id="beliefBand">Adopted · believed</Term> <span className="dim">(<Term id="oom">OOM</Term>)</span></div>
       {g.ideas.length === 0 && <div className="small dim">Nothing adopted yet. Add a {ADD_KIND[g.key]} project on Projects.</div>}
       <div className="rc-ideas">
         {g.ideas.slice(0, 8).map((a, i) => (
@@ -66,7 +65,7 @@ function StackCard({ s, g }: { s: GameStateV2; g: StackView }) {
             <span className="ellip">{a.name}{batch(a)}</span>
             <span className="dim small">{short(s, a.day)}</span>
             <Tip content={() => <TipCard title={<Term id="beliefBand">Believed</Term>} value={`${fmtEff(a.est)} ± ${fmtEff(a.estSd, 'oom', false)} OOM`}>The result's estimate band at your latest base when it came in.</TipCard>}><span className="num small">{sig(a.est)} ±{sig(a.estSd, false)}</span></Tip>
-            <MeasuredEffect a={a} m={a.measured ? { d: a.measured.dL, sd: a.measured.sd } : undefined} what="level" />
+            <SeenIn a={a} />
           </div>
         ))}
       </div>
@@ -89,7 +88,7 @@ function OtherCard({ s, xs }: { s: GameStateV2; xs: OtherEffectView[] }) {
                 <span className="ellip dim">{r.label} ({r.unit.startsWith('OOM') ? <><Term id="oom">OOM</Term>{r.unit.slice(3)}</> : r.unit})</span>
                 <span />
                 <Tip content={() => <TipCard title={<Term id="beliefBand">Believed</Term>} value={`${sig(r.est)} ± ${sig(r.estSd, false)} ${r.unit}`}>The result's estimate band when it came in.</TipCard>}><span className="num small">{sig(r.est)} ±{sig(r.estSd, false)}</span></Tip>
-                <MeasuredEffect a={a} m={r.measured} what={r.unit.startsWith('OOM for') ? `${r.label} level` : 'level'} />
+                <SeenIn a={a} />
               </div>
             ))}
           </div>

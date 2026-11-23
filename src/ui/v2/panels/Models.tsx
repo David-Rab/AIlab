@@ -7,7 +7,7 @@
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
-  POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
+  POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDelta, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
   deployGate, flopPerToken, tokEff, useHourCost, usesOf, versionById, versionPressure,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
@@ -103,11 +103,13 @@ function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel
 function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   if (v.evals.measuredL === undefined) return <TipCard title={<Term id="L">Measured level</Term>} value="evaluating">The eval suite reports a level when it finishes.</TipCard>;
   const sd = measuredSd(v);
+  const gain = measuredDelta(s, v); // RF-R5: the measured gain, once per model (not per idea)
   return (
     <TipCard title={<Term id="L">Measured level</Term>} value={`L ${F.level(v.evals.measuredL)} ± ${sd.toFixed(2)}`} rows={[
       { label: 'Eval suites run', value: String(v.evals.nSuites ?? 1) },
       { label: 'Last suite', value: v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : '—' },
-    ]} footer="Fitted from the last suite's benchmark scores: weak elicitation or a sandbagging model reads low.">The estimate your evals give of this version's general level.</TipCard>
+      ...(gain ? [{ label: `Measured gain over ${gain.vs}`, value: `${gain.dL >= 0 ? '+' : '−'}${Math.abs(gain.dL).toFixed(2)} ± ${gain.sd.toFixed(2)} L` }] : []),
+    ]} footer="Fitted from your eval suites' benchmark scores: weak elicitation or a sandbagging model reads low. The gain includes everything that differs between the two models.">The estimate your evals give of this version's general level.</TipCard>
   );
 }
 

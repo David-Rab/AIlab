@@ -55,7 +55,7 @@ import { believedProd, observedScale } from '../production/believed';
 import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
-import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
+import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
 
@@ -821,7 +821,11 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   if (eff?.stack) {
     // RD-B17: a batch counts its b ideas; the second stack an idea also moves adds no idea.
     addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, count);
-    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
+    addBelief(res.stacks[eff.stack], r.est, r.estSd);
+    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) {
+      addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
+      addBelief(res.stacks[k], r.est * ratio, r.estSd * Math.abs(ratio));
+    }
     realised = xTest * Math.pow(latestBaseFlop(s) / r.fTest, truth.s);
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);

@@ -4178,3 +4178,30 @@ hygiene.ts's calibration shift drops it).
   differ only in the hidden draw, with the same observations, give the same readouts).
 - **Moves calibration:** no (readouts and previews only; no bot reads capEta or labSpeedRel for decisions — calib.ts
   prints labSpeedRel).
+
+## RF-R5: know-how shown from believed estimates; measured gain once per model (research review F5, F8.1)
+
+- **Changed (engine):** each recipe stack keeps a believed adopted total next to its true buckets (`StackState.est`,
+  `estVar`: Σ the adopted results' estimates when adopted, in the stack's OOM at the then-latest base, and Σ estSd²;
+  `addBelief` in stacks.ts, called where research.ts adds the idea, with an `also` stack's share). The engine's stacks
+  and physics keep the true effects. `stackViews` `now` / `adopted` read the believed total (+ new `adoptedSd`).
+- **Changed (readouts, minimal labels):** an adopted idea shows its believed band and "in <first evaluated model trained
+  with it>" / "not in a model yet" (Recipe.tsx `SeenIn`, replacing `MeasuredEffect`); domain / data rows likewise.
+  The measured gain is shown once per model: Models LevelTip row "Measured gain over <comparable model>" (± the two fits'
+  band) from `measuredDelta` (now exported, per model). Stack hero and make-up tooltips say "believed" with the band.
+  Glossary: `realisedEffect` is now "Measured gain" (per model), `stackEfficiency` and `otherEffects` say believed.
+- **Deleted:** `AdoptedView.measured`, `EffectRowView.measured` (the per-idea model delta in L), `MeasuredEffect`.
+- **Save:** SCHEMA_REV 97 → 98; migration 97 → 98 sums each stack's `est` / `estVar` from `research.adopted` (only the
+  last 30 results are kept, so a long save starts with a low believed total). hygiene.ts's rev constants → 98.
+- **Left (needs a decision; bigger than the row):** "Not trained in" (`gap`, `inModel`) still reads the engine's values
+  (true stack now vs the true recipe the internal model took). A believed version needs a believed recipe snapshot at
+  launch carried through the run recipe, the base, the RL build and the stream's FLOP-weighted mixing (runs.ts
+  rlAddOnVersion), plus init. `softwareRate` (Software progress OOM/yr, `research.gRate` from `researchG`) also reads
+  the true stacks. Train stack: the believed total is not capped at TRAIN_CAP as the true one is.
+- **Stand-ins:** none.
+- **Check:** tsc (app + scripts). scripts/v2/rdm02.ts rewritten as the RF-R5 check (stack total = Σ estimates ± band
+  while the buckets hold a different true effect; an idea names its model and has no measured number; the model's
+  measured gain 0.31 ± 0.163; changing true effects leaves the believed readouts unchanged): all pass. research.ts RD-B17
+  checks updated (`now` = base + believed; B30 reads `seenIn`). Own check: day-400 fixture migrates to rev 98 (pre believed
+  0.174 ± 0.011 from 14 listed results, n 32), grows to 0.205 after 120 days.
+- **Moves calibration:** no (readouts only).

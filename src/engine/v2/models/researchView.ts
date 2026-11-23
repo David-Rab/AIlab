@@ -23,7 +23,7 @@ import {
   allocate, attemptOdds, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
 } from './research';
 import { measuredSd } from './benchmarks';
-import { adoptedAt, latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
+import { latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey, Team } from '../types';
@@ -205,8 +205,8 @@ export { PROJECT_MAX_TEAMS };
 
 // ───────────────────────────── recipe stacks ─────────────────────────────
 
-/** RD-M02: a measured eval delta: the fitted level of the first evaluated model that embodies an idea minus that of
- *  the comparable model without it (its predecessor on the same base, else the latest evaluated version before it). */
+/** RD-M02, RF-R5: a model's measured gain: its fitted level minus that of the comparable earlier model (its predecessor
+ *  on the same base, else the latest evaluated version before it). Shown once per model (Models), never per idea. */
 export interface MeasuredDelta {
   /** Δ measured general level (L). */
   dL: number;
@@ -218,17 +218,17 @@ export interface MeasuredDelta {
   vs: string;
 }
 export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> {
-  /** RD-M02: the measured eval delta of the first evaluated model that embodies it (absent: not yet measured). Never the
-   *  true effect. Everything else that changed between the two models is in it too. */
-  measured?: MeasuredDelta;
-  /** Name of the first evaluated model that embodies it. */
+  /** Name of the first evaluated model that embodies it (RF-R5: its measured gain is on that model's card; an idea has
+   *  only its believed band). Never the true effect. */
   seenIn?: string;
   /** Player text: which model trains it in ("a post-training run launched"…, after it was adopted). */
   embodiedBy: string;
 }
-/** RD-B17: one recipe stack in its own unit (OOM of its own quantity, STACK_UNIT; stacks are never summed). */
+/** RD-B17: one recipe stack in its own unit (OOM of its own quantity, STACK_UNIT; stacks are never summed). RF-R5: `now`
+ *  and `adopted` are BELIEVED (start and public knowledge + Σ the adopted results' estimates), `adoptedSd` their band;
+ *  the engine's stacks hold the true effects. */
 export interface StackView {
-  key: StackKey; name: string; unit: string; now: number; adopted: number; base: number;
+  key: StackKey; name: string; unit: string; now: number; adopted: number; adoptedSd: number; base: number;
   /** What the internal model embodies and the stack beyond it (pretraining, RL efficiency, RL ceiling only). */
   inModel?: number; gap?: number;
   /** Ideas adopted into it (a batch counts its ideas; a second stack an idea also moves does not count it). */
@@ -236,7 +236,7 @@ export interface StackView {
   ideas: AdoptedView[];
 }
 /** One row of a domain or data effect in its own unit. */
-export interface EffectRowView { label: string; unit: string; est: number; estSd: number; /** RD-M02: Δ measured level (L) of the row's domain, or general. */ measured?: { d: number; sd: number } }
+export interface EffectRowView { label: string; unit: string; est: number; estSd: number }
 /** RD-B17: an adopted domain or data effect (not a stack): its rows in their own units. */
 export interface OtherEffectView extends AdoptedView { kind: 'domain' | 'data'; rows: EffectRowView[] }
 
@@ -279,8 +279,7 @@ export function measuredDelta(s: GameStateV2, v: ModelVersion): MeasuredDelta | 
 function adoptedView(s: GameStateV2, a: AdoptedIdea, by: EmbodiedBy): AdoptedView {
   const { eff: _true, ...rest } = a; // eslint-disable-line @typescript-eslint/no-unused-vars
   const v = revealedBy(s, a.day, by);
-  const m = v ? measuredDelta(s, v) : undefined;
-  return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v && m ? { measured: m, seenIn: v.name } : {}) };
+  return { ...rest, embodiedBy: EMBODIED_TEXT[by], ...(v && v.evals.measuredL !== undefined ? { seenIn: v.name } : {}) };
 }
 /** Where a domain or data effect lands, all frozen at a run's launch (RD-B02 snapshot): domain effects and serving in
  *  a post-training run's recipe; the data pipeline (synthetic quality, token worth) in a base run's data draw. */
@@ -289,8 +288,9 @@ function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
   return 'baseStart';
 }
 
-/** Recipe readout (RD-B17): per stack, in its own unit, its value now (at the latest base), what the internal
- *  model embodies, and the adopted ideas (believed band; the true effect once a model that embodies it is evaluated). */
+/** Recipe readout (RD-B17): per stack, in its own unit, its believed value now (RF-R5: start and public knowledge + Σ the
+ *  adopted results' estimates, ± their band), what the internal model embodies, and the adopted ideas (believed band, and
+ *  the first evaluated model trained with each). */
 export function stackViews(s: GameStateV2): StackView[] {
   const res = s.player.research;
   const F = latestBaseFlop(s);
@@ -304,11 +304,13 @@ export function stackViews(s: GameStateV2): StackView[] {
   }
   const nowOf = (k: StackKey) => (k === 'pre' ? stackAt(res.stacks.pre, F) : k === 'rlMid' ? rlMidNow(s) : k === 'rlCeil' ? rlCeilNow(s) : k === 'train' ? trainNow(s) : stackAt(res.stacks.serve));
   return STACK_KEYS.map((k) => {
-    const now = nowOf(k);
+    const st = res.stacks[k];
+    const est = st.est ?? 0;
     const im = inModel[k];
     return {
-      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now, adopted: adoptedAt(res.stacks[k], F), base: res.stacks[k].base,
-      ...(im !== undefined ? { inModel: im, gap: Math.max(0, now - im) } : {}), n: res.stacks[k].n,
+      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: st.base + est, adopted: est, adoptedSd: Math.sqrt(st.estVar ?? 0), base: st.base,
+      // "Not trained in" still reads the engine's values (the true stack now vs the true recipe the model took; RF-R5 left).
+      ...(im !== undefined ? { inModel: im, gap: Math.max(0, nowOf(k) - im) } : {}), n: st.n,
       ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };
   });
@@ -325,13 +327,9 @@ export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
     if (!eff || eff.stack) continue;
     const kind = a.kind ?? (eff.domains ? 'domain' : 'data');
     const av = adoptedView(s, a, otherEmbodiedBy(n));
-    const m = av.measured;
-    const row = (label: string, unit: string, k: number, dom?: string): EffectRowView => {
-      const d = m ? (dom ? m.dDom[dom] : m.dL) : undefined;
-      return { label, unit, est: a.est * k, estSd: a.estSd * k, ...(m && d !== undefined ? { measured: { d, sd: m.sd } } : {}) };
-    };
+    const row = (label: string, unit: string, k: number): EffectRowView => ({ label, unit, est: a.est * k, estSd: a.estSd * k });
     const rows: EffectRowView[] = [];
-    for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0, d));
+    for (const [d, w] of Object.entries(eff.domains ?? {})) rows.push(row(DOMAIN_NAME[d] ?? d, 'OOM for new versions', w ?? 0));
     if (eff.data?.synQMax) rows.push(row('Synthetic data quality ceiling', 'web text = 1', eff.data.synQMax));
     if (eff.data?.worthOom) rows.push(row('Worth of each training token', 'OOM', eff.data.worthOom));
     out.push({ ...av, kind, rows });

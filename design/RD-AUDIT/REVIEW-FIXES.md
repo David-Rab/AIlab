@@ -41,7 +41,7 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 | RF-R2 | Measured level pools all suites per version (inverse variance, current edition); band shrinks with suites; restore EV2 monotone-precision check | research F4 — done |
 | RF-R3 | Restore a real runEvals preview-vs-result check (016a173 made it a tautology) | research F6 — done (check fails on the CP1 fixture: drift, see BUILD-NOTES) |
 | RF-R4 | Research speed and capEta from observed progress; believed elasticities stay | research F7 — done |
-| RF-R5 | Know-how: totals shown from believed estimates until measured (stackViews truth leak); measured gain shown once per model, not per idea | research F5, F8.1 |
+| RF-R5 | Know-how: totals shown from believed estimates until measured (stackViews truth leak); measured gain shown once per model, not per idea | research F5, F8.1 — done (Not trained in / Software progress still true: see BUILD-NOTES) |
 
 ## Analysis (no code)
 | ID | Task |

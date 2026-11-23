@@ -821,6 +821,10 @@ export interface StackState {
   buckets: StackBucket[];
   /** Ideas adopted. */
   n: number;
+  /** RF-R5: the BELIEVED adopted total (Σ the results' estimates when adopted, this stack's OOM at the then-latest base)
+   *  and its variance (Σ estSd²), readouts only; the buckets hold the true effects. Absent on saves before rev 98. */
+  est?: number;
+  estVar?: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
 /** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments. Capacity none of them takes is idle

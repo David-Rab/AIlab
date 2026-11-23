@@ -182,8 +182,11 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force).
  *  97 (CP3i): HiddenWorld.methodScale (per run method q ~ U[0, 1], a hash of the seed; safety/methods.ts). Migration
  *  96 → 97 sets it from the save's seed (methodScaleOf), the values a new game with that seed draws.
+ *  98 (RF-R5): StackState.est / estVar, the believed adopted total of each recipe stack (Σ the results' estimates when
+ *  adopted) and its variance, for the know-how readouts. Migration 97 → 98 sums the adopted list (research.adopted, the
+ *  last 30 results; older ones are not kept, so a long save's believed total starts low).
  */
-export const SCHEMA_REV = 97;
+export const SCHEMA_REV = 98;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1097,6 +1100,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     // 96 → 97 (CP3i): the world's hidden method strengths at scale from its seed (see SCHEMA_REV's note).
     const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
     if (r.hidden && r.hidden.methodScale === undefined) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
+  },
+  97: (raw) => {
+    // 97 → 98 (RF-R5): each stack's believed adopted total from the adopted list's estimates (see SCHEMA_REV's note).
+    const res = (raw as { player?: { research?: { stacks?: Record<string, { est?: number; estVar?: number }>; adopted?: { stack?: string; est?: number; estSd?: number }[] } } }).player?.research;
+    if (!res?.stacks) return;
+    for (const [k, st] of Object.entries(res.stacks)) {
+      if (st.est !== undefined) continue;
+      const xs = (res.adopted ?? []).filter((a) => a.stack === k);
+      st.est = Math.round(xs.reduce((a, x) => a + (x.est ?? 0), 0) * 1e4) / 1e4;
+      st.estVar = Math.round(xs.reduce((a, x) => a + (x.estSd ?? 0) ** 2, 0) * 1e8) / 1e8;
+    }
   },
 };
 
