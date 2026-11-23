@@ -78,7 +78,7 @@ function RiskTile({ r }: { r?: LossRisk }) {
   const sub = !r ? 'no model runs yet' : unk ? `best guess ${chance(r.p)} · range ${chance(r.lo)}–${chance(r.hi)}` : r.hi < 0.001 ? 'range < 0.1%' : `range ${chance(r.lo)} – ${chance(r.hi)}`;
   return (
     <Tip as="div" className="card2 sfh-tile" content={() => <TipCard title={<Term id="lossRisk">Loss-of-control risk</Term>} value={big} rows={r ? [
-      { label: 'Best guess', value: chance(r.p) }, { label: '90% range', value: `${chance(r.lo)} – ${chance(r.hi)}` },
+      { label: 'Best guess', value: chance(r.p) }, { label: '90% range', value: r.hi < 0.001 ? '< 0.1%' : `${chance(r.lo)} – ${chance(r.hi)}` },
       { label: 'Certainty', value: cert!.unknown ? 'Unknown (range wider than 30 points)' : cert!.word },
       { label: <Term id="misalign">Would try (act against the lab)</Term>, value: `${F.pct(r.mis)} (${F.pct(Math.max(0, r.mis - 1.64 * r.misSd))}–${F.pct(Math.min(1, r.mis + 1.64 * r.misSd))})` },
       { label: <Term id="effOversight">Stop rate</Term>, value: F.pct(r.stopRate) },

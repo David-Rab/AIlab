@@ -518,8 +518,10 @@ ok('SAFETY header: the risk tooltip gives its range, certainty and parts', JSON.
 await clearTips();
 {
   const ids = await page.$$eval('[data-test=sf-model] option', (els) => els.map((e) => e.value));
-  if (ids.length > 1) {
-    await check('SAFETY header: picking another model changes the table', 'store.sel.versionId || ""', () => page.selectOption('[data-test=sf-model]', ids[1]));
+  const cur = await page.$eval('[data-test=sf-model]', (e) => e.value);
+  const other = ids.find((x) => x !== cur);
+  if (other) {
+    await check('SAFETY header: picking another model changes the table', 'store.sel.versionId || ""', () => page.selectOption('[data-test=sf-model]', other));
     ok('SAFETY header: the table names the picked model', (await page.$eval('[data-home=actTable]', (e) => e.innerText)).includes(await page.$eval('[data-test=sf-model] option:checked', (e) => e.textContent.split(' · ')[0])));
     await page.evaluate(() => { window.ai27v2.sel.versionId = undefined; window.ai27v2.notify(); });
   }
@@ -1307,7 +1309,7 @@ async function e12Check(where) {
     await wait(60);
     const tr = await page.$$eval(`[data-test="fam-traits.${f}"] [data-trait]`, (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), m: e.querySelector('.sf-mean')?.textContent ?? '', v: e.querySelector('.num')?.textContent ?? '' })));
     rows += tr.length;
-    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d\.\d\d ±\d\.\d\d/.test(x.v)).length;
+    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d+(\.\d)?% \(\d+(\.\d)?%–\d+(\.\d)?%\)/.test(x.v)).length;
     await collectTerms();
     if (f === 'deception') { await page.mouse.move(1, 1); await shot(`e12-${tag}-families`); }
   }
@@ -1316,14 +1318,14 @@ async function e12Check(where) {
   // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
   ok(`UB-9 ${where}: SAFETY › Model shows the risk families and the successor pull side by side`, !!(await page.$('[data-home=successorPull]')) && !!(await page.$('[data-home=riskFamilies]')));
   const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
-  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
+  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d+\.\d%/)?.[0];
   const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
   const parts = await page.$$eval('[data-test=succ-part]', (els) => els.map((e) => ({ slot: e.getAttribute('data-slot'), sh: e.querySelector('[data-test=succ-part-share]')?.textContent ?? '', om: e.querySelector('[data-test=succ-part-omega]')?.textContent ?? '' })));
-  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === p.omega.toFixed(2));
-  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === sp.omega.toFixed(2) && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
+  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === `${(p.omega * 100).toFixed(1)}%`);
+  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === `${(sp.omega * 100).toFixed(1)}%` && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
     `ω ${om} vs ${sp.omega.toFixed(3)} · r ${r}% vs ${(sp.r * 100).toFixed(1)} · ${parts.map((p) => `${p.slot} ${p.sh} ${p.om}`).join(' ')}`);
   const sTip = await tipText('[data-test=succ-omega]');
-  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /90% band/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
+  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /Range/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
   await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
@@ -1348,7 +1350,7 @@ async function e12Check(where) {
     await shot(`e12-${tag}-blueprint-${k}`);
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor steering from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
   if (where === 'day 400') {
     await page.click('[data-test=bp-succ] [data-ref=successorPull]');
     await wait(150);
