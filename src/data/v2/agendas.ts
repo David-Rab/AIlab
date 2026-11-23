@@ -161,7 +161,10 @@ export const METHOD_TESTED_OOM: Record<string, { oom: number; src: string }> = {
  *  Epoch AI), i.e. by the next generation the tested effect says nothing beyond the range. RF-S10 (designer decision 8,
  *  2026-11-23): the range is two-sided around the tested effect (q = 1): a method may stop working at scale (q = 0) or
  *  work up to twice as strongly (q = 2, the exponent doubled) [stand-in: the width mirrors CP3i's downside]; the lab's
- *  expectation is the tested effect. */
+ *  expectation is the tested effect. CAL-S (research/CAL-safety-sources.md §3): lo = 0 is observed (Hubinger et al. 2024
+ *  arXiv 2401.05566: "The backdoor behavior is most persistent in the largest models": safety training that works on
+ *  small models fails at scale); hi = 2 and k = 2 stay [D stand-in]: no primary source measures a method growing
+ *  stronger at scale by a stated factor, nor the width of the transition. */
 export const METHOD_SCALE = { lo: 0, hi: 2, k: 2 } as const;
 /** The lab's belief about q: the range's midpoint (a uniform belief over [lo, hi]). */
 export const METHOD_SCALE_BELIEVED = (METHOD_SCALE.lo + METHOD_SCALE.hi) / 2;
