@@ -53,3 +53,8 @@ Source or refit: product tool shares, Companion ×1.2, Memory ×1.3, Computer us
 KYC_REVIEW_COST, KYC_REFUSE, DISTILL_HARVEST_SHARE, BRAND (if kept), DISAGREE_DROP, organism realism range, China
 `chinaEfficiency` (designer was told equal efficiency), preset `efficiency`, slow preset r 1.2 → 4.0, CP3h(a) grader
 gap, CP3f U05_SHIFT, misuse per token vs per user, uncommitted CP3l edits on p3-d (slow compute path).
+
+## For the rivals session (not this session)
+- Rival safety physics gaps: review/rival-safety.md (options A/B/C).
+- Day-0 tools from history (RF-P1): a lab that lacked a tool at the start never catches up (Anthropic never gets Memory;
+  xAI / DeepSeek never get computer use or voice & vision). Should laggards catch up after the lag rule?
