@@ -18,7 +18,7 @@ import { gV0 } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
-import { CHINA_CAL, LEADER_CAL } from '../../src/data/v2/calibration';
+import { LEADER_CAL } from '../../src/data/v2/calibration';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
@@ -77,16 +77,14 @@ const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'ai2027', alignment: 'medium
 const HIST_DAYS = 30;
 /** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
 function shiftCalibration(): () => void {
-  const saved = { v3: JSON.stringify(V3_CAL), asi: ASI_EXTRA.gaps, lc: JSON.stringify(LEADER_CAL), cn: CHINA_CAL.effScale };
+  const saved = { v3: JSON.stringify(V3_CAL), asi: ASI_EXTRA.gaps, lc: JSON.stringify(LEADER_CAL) };
   for (const c of Object.values(V3_CAL)) Object.assign(c, { gSC: c.gSC - 0.4, dBM: c.dBM + 0.3, sdSC: c.sdSC + 0.5 });
   ASI_EXTRA.gaps += 0.2;
   for (const k of Object.keys(LEADER_CAL) as (keyof typeof LEADER_CAL)[]) LEADER_CAL[k] += 0.1;
-  CHINA_CAL.effScale += 0.3;
   return () => {
     for (const [k, c] of Object.entries(JSON.parse(saved.v3) as typeof V3_CAL)) Object.assign(V3_CAL[k as keyof typeof V3_CAL], c);
     ASI_EXTRA.gaps = saved.asi;
     Object.assign(LEADER_CAL, JSON.parse(saved.lc));
-    CHINA_CAL.effScale = saved.cn;
   };
 }
 if (process.argv.includes('--history-child')) {
@@ -284,7 +282,7 @@ check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 
   }
   check(bad.length === 0, `readouts: a classic RefBot game read with every selector every ${READ_EVERY} days keeps the same state hash every day as the same game unread (seeds ${READ_SEEDS.join(', ')}, ${READ_DAYS} days)`, bad.join('; '));
   // (c) Process history: a game at other calibration values (every harness-mutable table: V3_CAL, ASI_EXTRA,
-  //     LEADER_CAL, CHINA_CAL, set as the harnesses do, between games) hashes the same in this process, after every game
+  //     LEADER_CAL, set as the harnesses do, between games) hashes the same in this process, after every game
   //     above, as in a fresh process that set them first; and after the values are restored, as before.
   const h1 = stateHash(run(HIST_SETUP, HIST_DAYS));
   const restore = shiftCalibration();

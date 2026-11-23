@@ -14,7 +14,7 @@
 // Rivals, China and the leader lab (model v3 F1): the same experiment CES at aggregate level with their own models' AI
 // labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
 // (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
-import { CHINA_CAL, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { recipeDiffusionPerDay } from './diffusion';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
@@ -182,10 +182,10 @@ export function tcoPerH100eYear(s: GameStateV2, yr: number): number {
   return r > 0 ? (r * 8760) / 1e9 : (14e3 * Math.pow(0.8, yr - 2025.5)) / 1e9;
 }
 
-/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency × CHINA_CAL.effScale [fit]. */
+/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency (CP3k: no fitted scale). */
 export function effLab(s: GameStateV2, lab: LabId): number {
   if (lab !== CHINA_ID) return 1;
-  return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency * CHINA_CAL.effScale;
+  return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency;
 }
 
 /** Build the player's production inputs from state on day `day` (default today; model v3 V3). The other labs have none

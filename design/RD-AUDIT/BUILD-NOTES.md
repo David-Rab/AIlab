@@ -4042,3 +4042,61 @@ authors2026 1.003, slow 1.000 unchanged. Target ≈ 1 ±0.1: ai2027 still 0.1 ab
   checked.
 - T1L (leader lab) not re-run: G_SC is unchanged on ai2027, but its SAR / SIAR / ASI knots move with Δ_bm and sd_SC;
   fast's SC knot moves +0.175. Run `calscan.ts t1l ai2027 / fast` and `npm run test:cal` next.
+
+### CP3k China
+
+Worktree p3-d (on rd af78cf8). **Sign: "China lead" = the US player's lead over DeepCent in days, lagDays(s, 'china',
+'player') (ws4.ts leadBetween(player, china)); positive = US ahead.** T3 = ws4.ts's metric (RefBot, no theft, daily days
+30–540, 8 seeds, then executeTheft on day 540); R9 = rivals.ts (seed 4, lead change at days 30 / 60). Probe
+scripts/v2/_cp3k/probe.ts (same code as ws4 T3 + R9, plus a 60-day trace and 120 days after the theft), diag.ts (DeepCent
+base / recipe / compute trace); logs scripts/v2/_cp3k/*.txt (untracked). tsc (app, scripts/v2) clean.
+
+**Cause (diag seed 1).** Between bases the mechanisms hold China ≈ 0.25–0.4 G behind; the T3 mean was pulled down by
+DeepCent's *first* base, which landed (days 60–240) while the player was still on B0's line and passed it by 0.2–0.45 G
+(lead −100 d, p10 −27 d). Three start inconsistencies, no recipe-rate problem (DeepCent's recipe stayed 0.02–0.15 OOM
+behind the player's throughout):
+1. **Start compute**: initialChina set computeOnline = 0.35 × the stock, the daily rule (AI 2027 compute forecast: AGI
+   share 40% → 90% with centralization, × the R&D share 0.6; research/11 #16) gives 0.24 from day 1. The start base and
+   the run in flight were sized on 1.46× the compute DeepCent has. Now one function, china.ts deepCentCompute.
+2. **Start cadence**: the start base is dated B0_DAY (−120) but the next base was drawn U(60, 240), i.e. 6–12 months
+   after it against DeepCent's 12-month cadence; its run had launched before day 0 at the day-0 recipe. Now the next
+   base is B0_DAY + BASE_MONTHS.deepcent × U(0.8, 1.2) × 30.4 (days 172–318; labDaily's rule for every later base; one
+   draw, the China stream unchanged). Check: DeepSeek V3 (Dec 2024) → V4 (CAISI evaluation May 2026, research/10 L9) ≈
+   day 290.
+3. **Start not in distillation equilibrium** (rule B is a level at every post-training): the day-0 model's G is the
+   start gap, so the first post-training added the whole lift at once (DeepCent +0.33 G on day 65; R9 −42 d at day 60).
+   Now actors/rivalModel.ts startDistillEquilibrium (core/init.ts, every non-player lab once all labs exist): own G
+   solves own + lift(own) = G; the difference sits in the start base's own G_pre (CP3g's start residual, gone with the
+   next base) and the start models' builds carry it as general ΔG, so no day-0 G changes.
+
+**CHINA_CAL tested at 1 and deleted** (fixes 1 and 3 in, old cadence; 8 seeds): mean 135 d at 1.5, 138 at 1; after
+theft 30–94 at 1.5, 80–99 at 1. 1 is as good or better, so the fit is gone (effLab = chinaEfficiency × the preset's;
+hygiene.ts's calibration shift drops it).
+
+**Before → after (8 seeds; days, US lead over China):**
+
+| Check | CP3j (rd af78cf8) | fixes 1 + 3, CHINA_CAL 1 | CP3k (all) | want |
+|---|---|---|---|---|
+| T3 lead at start | 220 (all seeds) | 220 | 220 | 150–200 |
+| T3 mean lead days 30–540 | 128 (p10 −27, p50 126, p90 259) | 138 (p10 −25) | **197** (p10 80, p50 213, p90 289) | 150–200 |
+| T3 after a theft (day 540) | 30–94 (82, 84, 82, 94, 30, 44, 79, 84) | 80–99 | 83–98 | ≈ 60 (40–80) |
+| R9 lead change at days 30 / 60 | +29 / −42 (FAIL) | +29 / −16 | **+29 / −16 (PASS)** | ≤ +30·n, ≥ −30 |
+| rivals.ts | — | — | R1–R4, R5 (start), R6, R9, R10, R7 pass; R5 day-0 rates and R8 fail as before (CP3.md) | |
+
+**Still off, and the mechanism suspected:**
+- **Start lead 220 d** (150–200): set by the world's chinaGapOom (0.72 G, BASELINES) at the pre-game frontier rate, not
+  by these mechanisms; untouched.
+- **After theft 83–98 d** (≈ 60): THEFT_GAP_CLOSED 2/3 (AI 2027 6 → 2 months) closes the G gap, but the day-540 gap is
+  0.5–1.0 G (the player has just taken a base step) and the lead clock reads the player's stepped history, so the
+  remaining third maps to at least the days since the player's step. A metric / timing question (theft day vs the
+  player's base cycle), not a missing transfer; after it the gap re-opens to 100–200 d within 120 days.
+- **The G gap is ≈ 3 months of frontier pace, the days come from the cadence.** Mid-run DeepCent sits 0.17–0.33 G behind
+  (≈ 1.5–3 months at 1.36 G/yr); the 150–200-d mean comes from the lead clock on the player's ≈ 10-month base steps. The
+  model reproduces IFP's conversion (1 OOM of training FLOP ≈ 1.18 G ≈ 10.4 months; IFP 10.8; distillation S 0.5
+  halves it), so with DeepCent at 1/3–1/5 of the player's compute the emergent G lag is IFP's for a 3–5× ratio, not the
+  16× IFP uses for 6.5 months (US 41.5M vs China 4.6M H100e, end-2026). The sources disagree: AI 2027's shares (China
+  AGI 2–3% of world compute vs the leader's 5%, end-2024; ai-2027.com compute forecast) give DeepCent ≈ the leader / 3,
+  while the in-repo primary runs give Chinese pretraining ≈ 100× smaller (DeepSeek-V3 3.3e24 FLOP, research/20, vs B0
+  3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
+  for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
+  compute ratio is ≈ 2.7×.

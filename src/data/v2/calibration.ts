@@ -51,19 +51,8 @@ export const DISTILL_S = 0.5;
 export const DISTILL_FIT: readonly [number, number][] = [[1.5e9, 0.35], [7e9, 0.7], [32e9, 0.9]];
 
 /** Synthetic data yield and quality: model v3 D1 moved them to data/v2/dataAssets.ts (SYN_OVERGEN, SYN_Q). */
-/** China research efficiency scale on chinaEfficiency × preset.efficiency (§3.2.2; [fit] to T3: 150–200 d lead).
- *  Mutable so the T3 fit can sweep it; game code only reads it. M2: refit on integrated RefBot play (real compute and
- *  finance, WS4's China compute path, WS1 distillation leak applied) — see scripts/v2/ws4.ts T3. */
-// M2 step 5: refit with leakK 3e-4 (see WS4_TUNING) and the corner-line lead metric: mean 172 d, band 88–263 d.
-// Model v3 V3b: 2.4 → 3.2 after the rival alignment (calShift derived per world): China's mean lead over days 30–540 was
-// 223 d at 2.4, 199 at 2.9, 174 at 3.4 (scripts/v2/ws4.ts T3, 8 seeds).
-// Model v3 F1: 3.2 → 1 (no scale: DeepCent's efficiency is the world's chinaEfficiency × the preset's): on the physical
-// rival model China's research runs through the same aggregate function as every lab, and its lead is set mostly by its
-// base FLOP and cadence; mean lead over days 30–540 (3 seeds) 132 d at 3.2, 153 at 1.5, 167 at 1.
-// Model v3 F2: 1 → 1.5 on the three-part recipe (the RL parts saturate and the know-how leaks now feed only the
-// pretraining part, so DeepCent's versions gain less between bases): daily mean lead days 30–540, 8 seeds, 247 d at 1,
-// 181 at 1.5, 161 at 2 (design/V3-BUILD.md, F2 notes).
-export const CHINA_CAL = { effScale: 1.5 };
+// CP3k: CHINA_CAL (a [fit] scale on DeepCent's research efficiency, last 1.5) deleted: at 1 the T3 lead is as good or
+// better (8 seeds, design/RD-AUDIT/BUILD-NOTES.md "CP3k China"); DeepCent's efficiency is chinaEfficiency × the preset's.
 /** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
 export const B0_DAY = -120;
 /** B0 run start: completed day −120 after a reference-length run, so its age equals the average base age under the

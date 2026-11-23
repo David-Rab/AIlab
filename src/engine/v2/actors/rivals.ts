@@ -56,7 +56,7 @@ export const FIN: Record<string, { cash: number; revenueRun: number; valuation: 
 /** Public-model release lag behind the internal model, days (§3.10.3). Safety = 90 d + ~30 d of evals. */
 export const RELEASE_LAG: Record<string, number> = { safety: 120, bigtech: 60, maverick: 15, openweights: 60, upstart: 60, deepcent: 45, leader: 30 };
 /** Base-model cadence, months (§3.10.3: 9–15 by archetype) [D]. */
-const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12, leader: 9 };
+export const BASE_MONTHS: Record<string, number> = { safety: 13, bigtech: 12, maverick: 9, openweights: 12, upstart: 15, deepcent: 12, leader: 9 };
 /** P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4). */
 /** RD-L05: the latent-reasoning era in OOM of effective compute above the start model V0 (was display L 9 = 1.99 OOM
  *  on ai2027, where V0 → SC is 2.49 OOM); a capability dose, not a milestone. */
