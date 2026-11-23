@@ -135,7 +135,7 @@ export function keepLockdown(s: GameStateV2, api: EngineApi) {
 
 /** SR-19 (replaces the E17 "Red flags" decision): RefBot, race and capex override each training hold in force (the old
  *  E17 Continue). RF-S13: the framework applies its own package (safety/packages.ts autoApplyPackages), so a hold here
- *  is one the package cannot meet (evidence, no internal AI work to control); the safe / mixed bots' 'control' answer
+ *  is one the package cannot meet (evidence: an eval suite, an external evaluation); the safe / mixed bots' 'control' answer
  *  (add control where a hold lacked it) is gone with it, and they leave such holds (the old Pause). */
 export function answerFramework(s: GameStateV2, api: EngineApi) {
   for (const h of s.player.safety.framework?.holds ?? []) {

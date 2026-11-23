@@ -191,6 +191,17 @@ export function applyFrameworkParts(s: GameStateV2, d: Deployment, ctx?: SystemC
   return true;
 }
 
+/** RF-S13c: an edited product `n` (a copy, models/productOps editedProduct; main model and lineup) with the parts the
+ *  framework will add when the edit goes live (applyEdit / cheap tier → applyFrameworkParts). Mutates only `n`;
+ *  returns the parts' labels. The edit's gate and preview read this copy. */
+export function withFrameworkParts(s: GameStateV2, n: Deployment): string[] {
+  if (n.channel === 'open' || n.channel === 'internal' || n.channel === 'trusted') return [];
+  n.guards = (n.guards ?? []).map((g) => ({ ...g }));
+  const todo = pendingParts(s, n);
+  for (const st of todo) st.run(s, n);
+  return todo.map((st) => st.label);
+}
+
 /** RF-S13b: a launch / swap candidate of `v` on a product channel with the parts the framework will add when it goes
  *  live (applyFrameworkParts; `record` = the deployment's frameworkApplied on a swap). Pure: works on a copy. The gate
  *  (models/deployments.ts deployGate) judges this candidate, so a deploy rule refuses only what the package cannot meet;
@@ -204,8 +215,8 @@ export function frameworkCandidate(s: GameStateV2, v: ModelVersion, channel: Cha
 }
 
 /** frameworkSystem (39, daily, before runs): the framework applies its package where a rule asks (RF-S13), then the
- *  holds are refreshed: what is still held is what the package cannot meet (evidence, no internal AI work to put under
- *  control) or a part the player removed. */
+ *  holds are refreshed: what is still held is what the package cannot meet (evidence: an eval suite, an external
+ *  evaluation) or a part the player removed. */
 export const frameworkSystem: EngineSystem = {
   id: 'safetyFramework', owner: 'WS2', cadence: 'daily', order: 39, system: 'safety',
   run(s: GameStateV2, ctx: SystemCtx) {

@@ -19,7 +19,7 @@ import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchF
 import { relaunchAdaptations } from './adaptations';
 import { evalPolicyView } from './evals';
 import { frameworkDeployBlock } from '../safety/framework';
-import { PACKAGE_LABEL, frameworkCandidate } from '../safety/packages';
+import { PACKAGE_LABEL, applyFrameworkParts, frameworkCandidate, withFrameworkParts } from '../safety/packages';
 import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
 type Params = Record<string, number | string | boolean>;
@@ -90,10 +90,12 @@ export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
 export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): string | undefined {
   if (!isProduct(d) || d.status === 'withdrawn') return 'Not a live product';
   const n = editedProduct(d, c);
+  // RF-S13c: judged as it will go live, with the parts the Safety framework adds (applyEdit applies them).
+  withFrameworkParts(s, n);
   if (c.versionId && c.versionId !== d.versionId) {
     const v = versionById(s, c.versionId);
     if (!v) return 'Unknown version';
-    const g = deployGate(s, v, d.channel, { safeguards: n.safeguards, usagePolicy: n.usagePolicy });
+    const g = deployGate(s, v, d.channel, { safeguards: n.safeguards, guards: n.guards, usagePolicy: n.usagePolicy, frameworkApplied: n.frameworkApplied });
     if (g !== true) return g;
   }
   if (c.safeguards && c.safeguards !== d.safeguards) {
@@ -158,12 +160,19 @@ export function applyEdit(s: GameStateV2, ctx: SystemCtx | undefined, d: Deploym
     if (v && v.status === 'ready') v.status = 'deployed';
   }
   ctx?.log('company', `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} updated (live).`, 1, d.id);
+  applyFrameworkParts(s, d, ctx); // RF-S13c: the parts editBlock counted on (withFrameworkParts)
   return undefined;
+}
+
+/** The edited product as it goes live: the edit plus the Safety framework's parts (RF-S13c; a copy) and their labels. */
+export function editedLive(s: GameStateV2, d: Deployment, c: ProductChanges): { n: Deployment; parts: string[] } {
+  const n = editedProduct(d, c);
+  return { n, parts: withFrameworkParts(s, n) };
 }
 
 /** Before → after of an edit (pure). */
 export function previewEdit(s: GameStateV2, d: Deployment, c: ProductChanges): EditPreview {
-  const n = editedProduct(d, c);
+  const { n } = editedLive(s, d, c);
   return previewDeployments(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)), d.id);
 }
 
@@ -172,7 +181,7 @@ export function upgradeProducts(s: GameStateV2, ctx: SystemCtx) {
   if (!s.player.policies.upgradeToNewest) return;
   for (const d of s.player.deployments) {
     if (!isProduct(d) || d.status !== 'live') continue;
-    const v = newestCleared(s, d, (x) => deployGate(s, x, d.channel, { safeguards: d.safeguards, usagePolicy: d.usagePolicy }));
+    const v = newestCleared(s, d, (x) => deployGate(s, x, d.channel, { safeguards: d.safeguards, guards: d.guards, usagePolicy: d.usagePolicy, frameworkApplied: d.frameworkApplied }));
     if (v) applyEdit(s, ctx, d, { versionId: v.id });
   }
 }
@@ -344,7 +353,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           const dl = deltaLines(previewEdit(s, d, c));
           costs.push(...dl.costs);
           gains.push(...dl.gains);
-          const n = editedProduct(d, c);
+          const { n, parts } = editedLive(s, d, c);
+          if (parts.length) costs.push({ currency: 'revenue', amount: 0, target: `your Safety framework adds "${PACKAGE_LABEL}": ${parts.join(', ')} (its cost is in the revenue and serving lines)` });
           for (const l of distillLine(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)))) (l.amount < 0 ? costs : gains).push(l);
         }
       }

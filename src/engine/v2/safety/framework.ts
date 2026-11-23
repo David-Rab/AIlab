@@ -9,8 +9,8 @@
 //              runs cannot start, running ones pause, frontier experiments stop (models/runs.frontierPaused).
 //   package    RF-S13: before the holds are refreshed each day, the framework applies its "Meet my framework" package
 //              to live deployments a triggered rule asks safeguards of (safety/packages.ts autoApplyPackages, which also
-//              holds the daily frameworkSystem); a hold remains for what the package cannot meet (evidence; no live
-//              internal deployment) or a part the player removed afterwards.
+//              holds the daily frameworkSystem); a hold remains for what the package cannot meet (evidence: an eval suite,
+//              an external evaluation) or a part the player removed afterwards.
 //   override   explicit, per rule and version; its consequences are stated in the preview and applied as stated
 //              (safety morale, one red flag, scrutiny, credibility when the framework is published).
 //   base rule  every external release needs a capability assessment: a suite at `evalDepth` (none = no release
@@ -58,15 +58,16 @@ export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | un
 export interface FrameworkCandidate { safeguards: Deployment['safeguards']; guards?: Deployment['guards'] }
 
 /** Requirements of `rule` not met for `v` (deploy rules: on the candidate deployment; training rules: on the lab's live
- *  internal deployments). Labels in player language. */
+ *  internal deployments; RF-S13c: with none there is no internal AI work to guard, so control / review count as met).
+ *  Labels in player language. */
 export function missingFor(s: GameStateV2, rule: FrameworkRule, v: ModelVersion, cand?: FrameworkCandidate): string[] {
   const out: string[] = [];
   const internal = liveInternal(s);
   for (const g of rule.safeguards) {
     const ok = g === 'classifiers' ? !!cand && (cand.safeguards === 'classifiers' || cand.safeguards === 'hardened')
       : g === 'hardened' ? cand?.safeguards === 'hardened'
-      : g === 'control' ? (rule.holds === 'deploy' ? controlOn(cand as Deployment) : internal.length > 0 && internal.every(controlOn))
-      : rule.holds === 'deploy' ? reviewOn(cand as Deployment) : internal.length > 0 && internal.every(reviewOn);
+      : g === 'control' ? (rule.holds === 'deploy' ? controlOn(cand as Deployment) : internal.every(controlOn))
+      : rule.holds === 'deploy' ? reviewOn(cand as Deployment) : internal.every(reviewOn);
     if (!ok) out.push(SAFEGUARD_NEED_LABEL[g]);
   }
   for (const e of rule.evidence) {

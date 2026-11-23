@@ -8,8 +8,11 @@
 //  4. RF-S13b, launches: a product launch whose chosen safeguards miss a deploy rule gets the missing parts (BIO High →
 //     classifiers; Critical → hardened once externally evaluated), recorded once per version; the launch preview names
 //     them; only what the package cannot meet (Critical without an external evaluation) is refused.
+//  5. RF-S13c: product update (model change, lineup entry) gets the parts, priced in its preview; with no internal
+//     deployment a training rule counts as met.
 import { readFileSync } from 'node:fs';
-import { deploy } from '../../../src/engine/v2/models/deployments';
+import { deploy, deployGate } from '../../../src/engine/v2/models/deployments';
+import { editBlock } from '../../../src/engine/v2/models/productOps';
 import { ws4 } from '../../../src/engine/v2/actors/state';
 import { join } from 'node:path';
 import { engine } from '../../../src/engine/v2';
@@ -86,6 +89,35 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
     const d2 = deploy(x, makeCtx(x), { versionId: v.id, channel: ch });
     check(typeof d2 !== 'string' && d2.safeguards === 'hardened', 'externally evaluated: goes live with hardened safeguards added', typeof d2 === 'string' ? d2 : d2.safeguards);
   }
+}
+
+// 5. RF-S13c: product update (model change, lineup entry) gets the parts instead of a refusal; no internal deployment
+{
+  const x = load('day400.json');
+  const d = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open' && y.channel !== 'trusted')!;
+  const cand = x.player.models.versions.find((y) => y.id !== d.versionId && !(d.lineup ?? []).includes(y.id) && y.evals.suiteDay !== undefined && (y.status === 'ready' || y.status === 'deployed') && deployGate(x, y, d.channel, {}) === true)!;
+  cand.evals.measuredDom = { ...(cand.evals.measuredDom ?? {}), BIO: 10.5 } as typeof cand.evals.measuredDom;
+  d.safeguards = 'standard';
+  const upd = ACTIONS.find((a) => a.id === 'product.update')!;
+  const pv = upd.preview(x, { id: d.id, versionId: cand.id });
+  const line = pv.costs.find((c) => String(c.target).includes('Safety framework adds'));
+  check(!editBlock(x, d, { versionId: cand.id }) && !!line && String(line.target).includes('classifiers'), 'update to a BIO High model on standard safeguards: allowed, preview names classifiers', String(editBlock(x, d, { versionId: cand.id }) ?? line?.target));
+  upd.apply(x, makeCtx(x), { id: d.id, versionId: cand.id });
+  check(d.versionId === cand.id && d.safeguards === 'classifiers', 'applied: model changed, classifiers added', `${d.versionId} ${d.safeguards}`);
+
+  const y = load('day400.json');
+  const e = y.player.deployments.find((z) => z.id === d.id)!;
+  const m = y.player.models.versions.find((z) => z.id === cand.id)!;
+  m.evals.measuredDom = { ...(m.evals.measuredDom ?? {}), BIO: 10.5 } as typeof m.evals.measuredDom;
+  e.safeguards = 'standard';
+  const lineup = [...(e.lineup ?? []), m.id];
+  const why = editBlock(y, e, { lineup });
+  upd.apply(y, makeCtx(y), { id: e.id, lineup: lineup.join(',') });
+  check(!why && (e.lineup ?? []).includes(m.id) && e.safeguards === 'classifiers', 'lineup entry measured BIO High: added, classifiers added', `${why ?? ''} ${e.lineup?.join(',')} ${e.safeguards}`);
+
+  const z = load('day0.json');
+  for (const dep of z.player.deployments) if (dep.channel === 'internal') dep.status = 'withdrawn';
+  check(trainingHolds(z).length === 0, 'no internal deployment: nothing to control, the training rule counts as met', trainingHolds(z).map((h) => h.missing.join('/')).join('; '));
 }
 
 // 3. bots: no overrides from the start

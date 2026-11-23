@@ -4656,3 +4656,17 @@ cap 1.5 kept, decision 1).
   live hardened). `_rfs2` 12 ok. tsc (app, scripts/v2) clean.
 - Moves calibration: **maybe** (launches of High / Critical models get classifiers / hardened instead of a refusal; the
   launch default is already classifiers, so only Critical changes in practice).
+
+### RF-S13c: product edits, lineup, no internal work
+- **Changed.** `packages.withFrameworkParts` (the same steps and once-per-version record, on a copy of the edited
+  product, main model and lineup). `editBlock` judges the edit with those parts (model change via `deployGate`, lineup
+  entries via `frameworkDeployBlock`); `applyEdit` adds them (`applyFrameworkParts`); the product.update preview prices
+  the edit with them and names them (`editedLive`); the upgrade policy's gate passes the product's guards and record.
+  Auto cheap tier: judged on the product with the new entry and its parts, then adds them. `missingFor`: a training
+  rule's control / review on internal AI work counts as met when the lab has no live internal deployment (the
+  "at least one" term dropped). Comments that listed "no internal AI work" as unmeetable now say evidence only.
+- **Checks.** `_rfs13` 17 ok (new part 5: update to a BIO High model on standard safeguards allowed, preview names
+  classifiers, applied with classifiers; lineup entry likewise; no internal deployment → no training hold). Cheap tier
+  not exercised directly (same helpers). `_rfs2` 12 ok. tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (edits / lineups of High / Critical models now go through with added safeguards; a lab
+  with no internal agents is no longer held).

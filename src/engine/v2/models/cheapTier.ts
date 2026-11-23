@@ -4,6 +4,7 @@
 // the lineup of every live product its teacher is the main model of once it is ready (and evaluated when the Safety
 // framework asks for an assessment). Off: nothing automatic. Owner: WS1.
 import { frameworkDeployBlock, frameworkOf } from '../safety/framework';
+import { applyFrameworkParts, withFrameworkParts } from '../safety/packages';
 import { LINEUP } from '../../../data/v2/serving';
 import type { CostLine, GameStateV2, ModelVersion, SystemCtx } from '../types';
 import { CHANNEL_VARIANTS } from './deployments';
@@ -71,10 +72,14 @@ export function autoCheapTiers(s: GameStateV2, ctx: SystemCtx) {
       if (!isProduct(d) || d.status === 'withdrawn' || d.versionId !== v.parentVersionId || (d.lineup ?? []).includes(v.id)) continue;
       const allowed = CHANNEL_VARIANTS[d.channel] ?? [];
       if (!allowed.includes('mini') && !allowed.includes('full')) continue;
-      if (frameworkDeployBlock(s, v, d.channel, d)) continue; // SR-19: a lineup model passes the Safety framework too
-      d.lineup = [v.id, ...(d.lineup ?? [])];
+      // SR-19: a lineup model passes the Safety framework too, judged with the parts the framework adds (RF-S13c).
+      const n = { ...d, lineup: [v.id, ...(d.lineup ?? [])] };
+      withFrameworkParts(s, n);
+      if (frameworkDeployBlock(s, v, d.channel, n)) continue;
+      d.lineup = n.lineup;
       v.status = 'deployed';
       ctx.log('company', `${v.name} joins a product lineup (auto cheap tier).`, 1, d.id);
+      applyFrameworkParts(s, d, ctx);
     }
   }
 }
