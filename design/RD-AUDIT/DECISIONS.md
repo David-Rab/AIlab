@@ -65,8 +65,8 @@ Three independent reviews of the post-compaction work (design/RD-AUDIT/review/*.
    deleted unless something critical depends on it.
 4. **Not knowing counts as risk.** The Safety framework hold and the trusted-watcher rule read the upper end of the
    belief, not the best guess; no clarity gate.
-5. **Rival safety physics: same laws in principle**, but whether to simplify is open: the lead brings a proposal for a
-   simplified rival version with the right shape.
+5. **Rival safety physics: left as is for now** (designer, after review/rival-safety.md options A/B/C): a dedicated
+   rivals session later decides. Known gaps are listed in review/rival-safety.md.
 6. China efficiency and 7. slow preset r: see 1 (source at calibration).
 8. **Safety methods at scale:** the hidden at-scale efficacy can go either way around the tested effect, and validation
    narrows the player's belief about it.
