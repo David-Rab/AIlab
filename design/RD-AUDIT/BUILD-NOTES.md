@@ -3700,3 +3700,84 @@ stale reading (a calscan run on code before the CP3c fixes); its "PASS 0.92" no 
   0.1 y" is out of date). The leader's earliness is the same frontier-pace excess CP3c lists under "Still off".
 
 tsc (app, scripts/v2) clean.
+
+### CP3g RL scaling and start equilibrium
+
+Two mechanism changes from research (no fitted constant), then the measurements. Commits e6d8e80 (CP3g-1), 8cff98c
+(CP3g-2), then a LEADER_CAL / notes commit. tsc (app, scripts/v2) clean. Probe scripts/v2/_cp3g/start.ts (day-0 recipes,
+base G_pre, diffusion inflow per lab); raw logs scripts/v2/_cp3g/*.txt (untracked).
+
+**CP3g-1, RL scaling** (research/RD-RL-scaling.md §5 option (c); data/v2/runDesign.ts RL_CURVE, models/effective.ts
+rlMidOf). ΔG = A/(1 + (C_mid/C)^B) in G units: **A0 1.0 → 2.0** (≈ 100×: top of Epoch's CEG range 1–100×, Ord's
+"GPT-level" step; range 1.5–2.5), **a1 0.1 → 0** (the base dependence lives in the midpoint; Yue et al.'s relative
+ceiling is the gain added to the base's G), **B 1.8 → 0.33** (≈ 0.35 G per OOM of RL FLOP at the reference: OpenAI o1
+chart via Ord 2025 × Villalobos & Atkinson 2023, 0.25–0.5; 1.8 was Khatri's pass-rate fit, a units error), **C_mid =
+c0·(FLOP_pre/FLOP_RL_REF)^kMid/10^e_RL, kMid 0.5** (a fixed RL episode count under Chinchilla D ∝ FLOP^0.5; range
+0.35–0.7, Khatri's Scout ≈ N^0.7, Tan's saturation). c0 solved as before (reference run 0.700). DD-06's intent kept,
+sub-linearly: at the standard share a 10× base gains 0.881 vs 0.700 (RD-T04: 1.092); fixed-recipe G per OOM of training
+FLOP ≈ 1.18 (was ≈ 1.6). Rivals' X03 builds, refRlGain / recipe G-equivalent and the horizon anchors read the same
+rlGains. scripts/v2/effective.ts: "a bigger base raises the ceiling" → "at the same share a bigger base gains more,
+sub-linearly". Side effect seen: with the flatter curve, small rival bases need far less recipe lag to land at their
+start G (startLab): Anthropos's solved day-0 recipe lead fell from +0.31 recipe G (CP3c) to 0.038 OOM of lag; r1 0.227,
+r2 0.19, r3 0.16, DeepCent 0.317 behind.
+
+**CP3g-2, start in equilibrium** (designer decision; models/capability.ts equilibriumLagRange, actors/rivalModel.ts
+initRivalPhys). Rule A is dR_i/dt = g_i + (R_pub − R_i)/τ; the gap holds steady when the inflow closes the rate gap, so
+the sustained day-0 gap is **Δ*_i = (g_L − g_i)·τ** (signed: a lab slower than the leader cannot hold a recipe lead, its
+lag ∈ [0, Δ*]; a faster one could lead by up to (g_i − g_L)·τ). g_i = the lab's own day-0 G-equivalent recipe growth
+(recipeRates at its day-0 research speed rs, evalAggregate with its staff, compute, model, efficiency) on research pools
+that far back; since the catch-up term raises g_i with the lag, the cap is the fixed point lag = Δ*(g_i(lag)) (bisection
+between 0 and the solved lag). g_L = the day-0 reference lab (rs 1, lag 0); τ = DIFFUSION_TAU_DAYS (4 months [P],
+RD-X04r §3A). What the capped recipe does not explain goes into the start base's own G_pre (more / less trained, better /
+worse data on that base): carried by its versions and stream, gone with the lab's next base, never diffused. ai2027 seed
+2027, day 0: g_L 0.506 OOM/yr; own g at lag 0: r0 0.373, r1 0.435, r2 0.486, r3 0.398, DeepCent 0.432; capped lags r0 0
+(was −0.038), r1 0.022 (0.227), r2 0.006 (0.19), r3 0.034 (0.16), DeepCent 0.023 (0.317). The equilibrium gaps are
+small because the catch-up raises a follower's own rate ≈ 0.34 OOM/yr per OOM of lag: under rule A labs start with
+near-equal recipes (IFP's equal-efficiency premise) and differ by compute and base. Day-0 diffusion into the player
+0.060 OOM/yr (from Anthropos; the player's own RL stack starts 0.02 below its recipe) and into rivals ≤ 0.14 OOM/yr,
+i.e. the rate gap, not a jump. **Not applied to the player's follower starts** (lagMonths 3–6.5): its own day-0 rate
+comes from its research lines, not the aggregate; the cal games use the leader start (lag 0).
+
+**LEADER_CAL tested at 0** (`calscan.ts t1l`, 20 seeds, after both commits): ai2027 0: SC −0.212 / SAR −0.121 / SIAR
++0.011 / ASI +0.089 y, worst 2.65 tol; −0.15: −0.071 / +0.060 / +0.199 / +0.318, worst 2.65 tol (equal worst, larger
+total miss); authors2026 0: −0.049 / +0.066 / −0.586 / −1.922, worst 16.0; 0.07: −0.153 / −0.088 / −0.745 / −2.048, worst
+17.1; slow 0: SC −5.76 y; 0.8: −6.55 y (both fail far). 0 is as good or better on every preset scanned (fast −0.01 ≈ 0,
+not rescanned), so **LEADER_CAL set to 0** (the aggregate function as is). **CHINA_CAL not tested** (T3 runs only in the
+full calib; no run budget left).
+
+**Before → after (T1 20 seeds; T1L: CP3c / CP3g-1 5 seeds calib, CP3g 20 seeds calscan; days):**
+
+| Target | CP3c | CP3g-1 | CP3g (both) | want |
+|---|---|---|---|---|
+| frontier G path (ai2027 line) | 0.61 G, 1.69 G/yr | **0.18 G (pass)**, 1.35 | **0.19 G (pass)**, 1.36; authors2026 1.33, fast 1.39, slow 1.15 (CP3g-1) | ±0.2, 1.1–1.3 |
+| METR h50 doubling (ai2027) | 3.3 mo | 4.1; authors2026 5.0, fast 4.7, slow 5.8 | **4.1 (pass)** | 4.2 ±1 |
+| start M (ai2027) | 1.379 | 1.378 | 1.378 | ≈ 1 ±0.1 |
+| pretraining stack, first year (ai2027) | 0.71 | **0.54 (pass)** | **0.53 (pass)** | 0.48 ±30% |
+| T1 ai2027 SC / SAR / SIAR / ASI | 524 / 669 / 802 / 907 | **620 / 791.5** / 938.5 / 1026 | **614 / 775** / 938.5 / 1033 | 638 / 791 / 883 / 915 |
+| T1 authors2026 SC / SAR / SIAR / ASI | 1280.5 / 1360.5 / 1763.5 / 2103.5 | 1404.5 / 1474.5 / 1880 / 2243 | 1376.5 / 1472 / 1880.5 / 2248 | 1495 / 1573 / 2151 / 2975 |
+| T1 fast SC / SAR / SIAR / ASI | 727 / 748 / 762 / 762 | 835 / **856.5** / 866.5 / 868 | 804 / 824 / 835.5 / 842.5 | 880 / 880 / 925 / 956 |
+| T1 slow SC | 3566.5 | 3001.5 | 3013.5 | 4758 |
+| T1L ai2027 SC / SAR / SIAR / ASI | 529 / 698 / 812 / 870 | **629 / 821 / 926** / 975 | −0.15: **612 / 813** / 956 / 1031; 0: 561 / **747 / 887 / 948** | 638 / 791 / 883 / 915 |
+| T1L authors2026 SC / SAR | 1312 / 1403 | 1312 / 1396 | 0.07: 1439 / 1541; 0: **1477 / 1597** (SIAR 1937, ASI 2273) | 1495 / 1573 |
+| T1L fast SC / SAR / SIAR / ASI | 754 / 762 / 769 / 769 | 819 / 828 / 828 / 835 | not rescanned | 880 / 880 / 925 / 956 |
+| T1L slow SC | 1924 | (not reached) | 0.8: 2367; 0: 2653 | 4758 |
+| T4 rival gaps | 3.3–5.0 mo (pass) | — | 3.3, 4.6, 4.3, 5.0 (pass; 40 seeds 3.1–8.4) | 3–9 mo |
+| T3 China lead | — | — | **52 d (FAIL)**; monthly 249 → −176 → 5 | 150–200 d |
+
+**Still off, and the mechanism suspected:**
+- **Late milestones now late on ai2027, early on authors2026 / slow** (T1 ai2027 SIAR +0.15 y, ASI +0.30 y; authors2026
+  ASI −2.0 y; slow SC −4.8 y). The frontier pace to 2026 is now right (G path, h50, pretraining stack), so what is left
+  is the post-SC take-off shape and the per-preset V3_CAL (G_SC, Δ_bm, sd_SC), which were fitted on the old 1.6 G/OOM
+  pace: refit them with `calscan t1` now (CP3c's order: pace first, then V3_CAL). A forcing constant would not help.
+- **slow** fails by 5–7 y either way: its RefBot reaches SC in 2033 against 2038; its preset's research returns r / the
+  compute path, not the start or the RL curve (unchanged by CP3g in sign).
+- **M 1.378 (ai2027 only)**: unchanged; CP3c's mechanism (V0's EXP win rate vs the median expert under ai2027's V3_CAL)
+  stands, and the V3_CAL refit above moves it.
+- **G path slope 1.33–1.39 G/yr** (fit band 1.1–1.3; the ±0.2 G check passes): the residual sits on RefBot's base-3
+  step; the RL gain from a rising share and the recipe stacks both in it.
+- **T3 China lead 52 d** (want 150–200): DeepCent's day-0 recipe lag fell 0.317 → 0.023 (its deficit now sits in its
+  start base, gone at its next base), so China closes on the leader once it trains a new base; the lead even turns
+  negative mid-run. Mechanism suspected: China's own recipe rate vs the leader's (effLab × CHINA_CAL, compute, export
+  controls) is what should hold the gap; CHINA_CAL (effScale 1.5, a fit) was not retested (no run budget).
+- **Player follower starts** keep the uncapped recipe lag (above).
+- The calib T1L rows above are at the old LEADER_CAL (5 seeds: ai2027 611 / 803 / 908 / 964); the 0 column is calscan's.

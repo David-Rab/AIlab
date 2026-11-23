@@ -30,8 +30,12 @@ import type { DomainId, WorldPresetId } from '../../engine/v2/types';
  *  (33.45, 4.7) and fast G_SC 31.2 moved the level knots; `calscan.ts t1l`, 20 seeds): authors2026 0.11 → 0.07 (SC
  *  +0.004, SAR +0.047, 20/20 seeds each; the SC/SAR window ≈ 0.05–0.09: 0.05 SC +0.078, 0.08 −0.036, 0.11 SC −0.156 fails;
  *  SIAR / ASI −0.70 / −1.35 y, the known WARN); fast −0.045 → −0.01 (+0.059 / +0.089 / −0.007 / −0.082, worst 0.74;
- *  −0.02 fails 1.13, 0 passes 0.96, 0.03 fails 1.66). */
-export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: -0.15, authors2026: 0.07, fast: -0.01, slow: 0.8, sampled: -0.15 };
+ *  −0.02 fails 1.13, 0 passes 0.96, 0.03 fails 1.66). CP3g (RL curve in G units with an episode midpoint, start in
+ *  rule-A equilibrium): **removed, 0 everywhere** (the aggregate function as is). `calscan.ts t1l`, 20 seeds: ai2027 0
+ *  worst 2.65 tol (SC −0.212 y, later within 0.12 y) = −0.15's worst 2.65 (ASI +0.318 y) with a smaller total miss;
+ *  authors2026 0 worst 16.0 < 0.07's 17.1 (SC −0.049 passes); slow 0 SC −5.76 y < 0.8's −6.55 y; fast −0.01 ≈ 0. No
+ *  value is better than none, so no fit is kept (design/RD-AUDIT/BUILD-NOTES.md, CP3g). */
+export const LEADER_CAL: Record<WorldPresetId, number> = { ai2027: 0, authors2026: 0, fast: 0, slow: 0, sampled: 0 };
 
 /** RD-X04 (DD-17; research/RD-X04r-diffusion.md §3A) [P]: the recipe replication time constant. Every lab's pretraining
  *  recipe gains (best public-or-open recipe G above it − its own) / τ a day (production/diffusion.ts). τ is the measured
