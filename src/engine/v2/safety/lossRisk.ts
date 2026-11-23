@@ -175,8 +175,9 @@ export function lossOfControlRisk(s: GameStateV2, model?: string, m: LossMods = 
   return worst;
 }
 
-/** Expected severity of a per-year row (the incident severity rule's mean, before clamping to 1..5). */
-function rowSev(id: string, ableTo: number, af: number): number {
+/** Expected severity of a per-year row (the incident severity rule's mean, before clamping to 1..5). UB-9: exported for
+ *  the SAFETY header's Unstopped harm by severity (safetyReadouts.ts unstoppedBySeverity). */
+export function rowSev(id: string, ableTo: number, af: number): number {
   if (id === 'EXFIL') return 5;
   if (id === 'MISUSE_BIO' || id === 'MISUSE_CYBER') return Math.min(5, MISUSE.floor + MISUSE.span * ableTo);
   const def = DANGER_ACTS[id as TraitId] ?? COVERT_ACTS[id as keyof typeof COVERT_ACTS];

@@ -27,7 +27,7 @@ const KIND_ICON: Record<RiskSource['kind'], typeof ICON.risk> = { ownModel: ICON
 const KIND_LABEL: Record<RiskSource['kind'], string> = { ownModel: 'your models', rival: 'rival lab', china: 'China', misuse: 'misuse', theft: 'theft', rogue: 'rogue AI', war: 'conflict' };
 /** Where each kind's main driver has its home (a reference, never the value). */
 const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string; to: GoTarget }>> = {
-  ownModel: { id: 'misBand', label: 'Would try (range)', to: { panel: 'safety', tab: 'graph' } },
+  ownModel: { id: 'actTable', label: 'Acts against the lab', to: { panel: 'safety', tab: 'risks' } },
   theft: { id: 'wsl', label: 'Weight security', to: { panel: 'lab', tab: 'security' } },
   rival: { id: 'leadTrack', label: 'Lead track', to: { panel: 'overview' } },
   misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },

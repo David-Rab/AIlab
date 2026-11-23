@@ -6,7 +6,10 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { chanceCertainty, isUnknown, type Certainty } from '../core/certainty';
-import { agentVersion, monitorVersion } from '../departments/agents';
+import { agentVersion, internalFleets, monitorVersion, usesOf } from '../departments/agents';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
+import { modelLossRisk, rowSev, runningModels, type LossRisk } from './lossRisk';
+import { actTable } from './actTable';
 import { internalVersion, measuredLOf, versionById } from '../models/labs';
 import { believedEfficacy, clamp01 } from './common';
 import { instrumentName, instrumentReads, instruments, reliability, reliabilityReasons, validatedLabel } from './instruments';
@@ -124,7 +127,9 @@ export function sightGaps(s: GameStateV2, plannedL?: number, plannedName = 'the 
  *  Chances / yr = κ × chances × 365 (per item: κ × chances), so Would try × Able to × Chances / yr = attempts / yr; the
  *  escape row (no κ) reads attempts ÷ (Would try × Able to). `unknown`: VOCAB's rule on the Would-try range.
  *  `ableToMeasured` false = the model has no measured skill of its own in the act's skill yet (show "not measured yet"). */
-export interface ActReadout { id: string; name: string; group: string; per: ActRow['per']; chancesPerYear?: number; chancesUnit: '/ yr' | '/ item' | ''; wouldTry: number; wouldTryRange: [number, number]; unknown: boolean; certainty: Certainty; ableTo: number; ableToMeasured: boolean; stopRate: number; unstopped: number }
+export interface ActReadout { id: string; name: string; group: string; per: ActRow['per']; chancesPerYear?: number; chancesUnit: '/ yr' | '/ item' | ''; wouldTry: number; wouldTryRange: [number, number]; unknown: boolean; certainty: Certainty; ableTo: number; ableToMeasured: boolean; stopRate: number; unstopped: number;
+  /** UB-9: Unstopped's 90% range (unstoppedRange) and, on per-year rows, the expected severity word. */
+  unstoppedRange: [number, number]; severity?: (typeof SEVERITY_WORDS)[number] }
 export function chancesPerYear(r: ActRow): number | undefined {
   if (r.per === 'exposure') return undefined;
   if (r.kappa !== undefined) return r.kappa * r.chances * (r.per === 'year' ? 365 : 1);
@@ -132,12 +137,14 @@ export function chancesPerYear(r: ActRow): number | undefined {
   return wa > 0 ? r.attempts / wa : undefined;
 }
 export function actReadouts(t: ActTable): ActReadout[] {
+  const af = t.site.site.autonomy * t.site.site.afford;
   return t.rows.map((r) => {
     const c = chancesPerYear(r);
     return {
       id: String(r.id), name: r.name, group: r.group, per: r.per, ...(c !== undefined ? { chancesPerYear: c } : {}), chancesUnit: r.per === 'year' ? '/ yr' : r.per === 'item' ? '/ item' : '',
       wouldTry: r.wouldTry, wouldTryRange: [r.wouldTryLo, r.wouldTryHi], unknown: isUnknown(r.wouldTryLo, r.wouldTryHi), certainty: chanceCertainty(r.wouldTryLo, r.wouldTryHi),
       ableTo: r.ableTo, ableToMeasured: r.measured !== false, stopRate: r.stopRate, unstopped: r.unstopped,
+      unstoppedRange: unstoppedRange(r), ...(r.per === 'year' ? { severity: severityWord(rowSev(r.id, r.ableTo, af)) } : {}),
     };
   });
 }
@@ -165,3 +172,68 @@ export function oversightGaps(s: GameStateV2): OversightGapRow[] {
   return out;
 }
 
+
+// ───────────────────────────── SAFETY header (UB-9) ─────────────────────────────
+
+/** The SAFETY model picker: every model you run (lossRisk.ts runningModels) with its AI staff jobs, the products it
+ *  serves, whether its evals are still running, and its Loss-of-control risk; riskiest first (the default pick). Home:
+ *  SAFETY header picker · L1. Basis: F (jobs, products), B (risk). */
+export interface SafetyModelOption { id: string; name: string; jobs: string[]; products: number; evaluating: boolean; risk: LossRisk }
+export function safetyModels(s: GameStateV2): SafetyModelOption[] {
+  return runningModels(s).map((v) => ({
+    id: v.id, name: v.name, jobs: usesOf(s, v.id).model.map((u) => USE_NAME[u]),
+    products: s.player.deployments.filter((d) => d.channel !== 'internal' && d.status !== 'withdrawn' && d.versionId === v.id).length,
+    evaluating: measuredLOf(s, v).evaluating, risk: modelLossRisk(s, v),
+  })).sort((a, b) => b.risk.p - a.risk.p);
+}
+
+/** The act table SAFETY › Risks shows for a model: its internal fleet (AI staff work) when it has one, else its first live
+ *  product. Home: SAFETY › Risks · L1. Basis: B · M · F (actTable believed). */
+export interface RiskTable { table: ActTable; where: 'staff' | 'product'; deploymentId: string; product?: string }
+export function riskTableOf(s: GameStateV2, versionId: string | undefined): RiskTable | undefined {
+  const v = versionById(s, versionId);
+  if (!v) return undefined;
+  const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
+  const fl = internalFleets(s).find((f) => f.v.id === v.id);
+  if (d && fl) {
+    const t = actTable(s, { deploymentId: d.id, versionId: v.id, usage: fl.usage }, true);
+    if (t) return { table: t, where: 'staff', deploymentId: d.id };
+  }
+  const pd = s.player.deployments.find((x) => x.channel !== 'internal' && x.status !== 'withdrawn' && x.versionId === v.id);
+  const t = pd ? actTable(s, { deploymentId: pd.id }, true) : undefined;
+  return pd && t ? { table: t, where: 'product', deploymentId: pd.id, product: PRODUCT_DEFS[pd.channel]?.name ?? pd.channel } : undefined;
+}
+
+/** Severity words of the incident scale (VOCAB §2), 1..5. */
+export const SEVERITY_WORDS = ['Minor', 'Serious', 'Severe', 'Critical', 'Catastrophic'] as const;
+/** A per-year row's expected severity word: the incident severity rule's mean (lossRisk.ts rowSev), rounded. */
+export const severityWord = (sev: number) => SEVERITY_WORDS[Math.max(0, Math.min(4, Math.round(sev) - 1))];
+
+/** A row's Unstopped / yr range: Unstopped scales with Would try (attempts = Would try × Able to × Chances), so its 90%
+ *  range is Unstopped × the Would-try range ÷ the best guess. */
+export function unstoppedRange(r: ActRow): [number, number] {
+  if (r.wouldTry <= 1e-9) return [0, r.unstopped];
+  return [r.unstopped * (r.wouldTryLo / r.wouldTry), r.unstopped * (r.wouldTryHi / r.wouldTry)];
+}
+
+/** Unstopped harm / yr of one act table, by severity word: Σ of the per-year rows' Unstopped (the composite and per-item
+ *  rows are left out, as in unstoppedHarmPerYear), each binned by its expected severity; with the 90% range (rows' ranges
+ *  summed, the same Would-try uncertainty on every row). Home: SAFETY header tile · L1. Unit: acts / yr. Basis: B. */
+export interface HarmBySeverity { acts: number; lo: number; hi: number; bins: { word: (typeof SEVERITY_WORDS)[number]; acts: number }[] }
+export function unstoppedBySeverity(t: ActTable): HarmBySeverity {
+  const af = t.site.site.autonomy * t.site.site.afford;
+  const by = new Map<(typeof SEVERITY_WORDS)[number], number>();
+  let acts = 0;
+  let lo = 0;
+  let hi = 0;
+  for (const r of t.rows) {
+    if (r.per !== 'year') continue;
+    const [a, b] = unstoppedRange(r);
+    acts += r.unstopped;
+    lo += a;
+    hi += b;
+    const w = severityWord(rowSev(r.id, r.ableTo, af));
+    by.set(w, (by.get(w) ?? 0) + r.unstopped);
+  }
+  return { acts, lo, hi, bins: SEVERITY_WORDS.filter((w) => by.has(w)).map((w) => ({ word: w, acts: by.get(w)! })) };
+}

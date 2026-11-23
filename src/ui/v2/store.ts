@@ -2,7 +2,7 @@
 // auto-stop rules (V2-SPEC §1.4), autosave, save slots, export/import, and UI-only selection state.
 import { useSyncExternalStore } from 'react';
 import {
-  act as engineAct, activeRivals, controlReadout, dangerView, footholdView, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
+  act as engineAct, activeRivals, controlReadout, dangerView, footholdView, lossOfControlRisk, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
   serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
@@ -94,7 +94,7 @@ class StoreV2 {
   /** UI selections shared across panels. */
   sel: { versionId?: string; codex?: string } = {};
   /** Model v3 E11 (UI tests): the player-view selectors the Safety, Products and Agents readouts show. */
-  readouts = { dangerView, controlReadout, footholdView };
+  readouts = { dangerView, controlReadout, footholdView, lossOfControlRisk };
   draftSetup: SetupV2 = defaultSetupV2();
   private listeners = new Set<() => void>();
   private acc = 0;

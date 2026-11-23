@@ -230,7 +230,7 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
           <span className="small">Instruments find it</span>
           <HBar v={det} max={1} w={150} h={6} color={det >= 0.5 ? C.und : C.bad} mark={0.5} />
           <span className={`num ${det >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(det)}</span>
-          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% on your best model · counts toward the <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>sight limit</Ref></div>
+          <div className="dim small" style={{ gridColumn: '1 / -1' }}>{det >= 0.5 ? 'Above' : 'Below'} 50% on your best model · counts toward the <Ref id="sightLimit" to={{ panel: 'safety', tab: 'risks' }}>sight limit</Ref></div>
         </div>
       )}
       {inc.length > 0 && (

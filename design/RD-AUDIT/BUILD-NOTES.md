@@ -5644,3 +5644,64 @@ Research experiments" stays a share move (`setSplit`) and its card now says, in 
 will need N% of compute back (Training a → b)". Nothing new in the engine. (2) Run names: new runs are named
 "<kind> run N" ("Post-training run 30"); runs from older saves and the fixtures ("post 30", "distill 64") show the same
 way in the bottom bar's headline and alerts (`fmt.runText`).
+
+### UB-9 (SAFETY header + Risks; branch ub9-safety from rd 241bdb7; mockups rd/safety.png, safety-wide.png)
+
+**Header (all SAFETY tabs; panels/SafetyRisks.tsx).** Model picker (native select over `safetyModels`: every running
+model with its AI staff jobs and products, riskiest first; the pick is `store.sel.versionId` when it is a running model,
+else the riskiest, the one L0 names) · "<model> in testing: Able to unknown until evals finish" chip when a running model's
+evals are not done · **Loss-of-control risk** tile (`modelLossRisk` of the pick: "< 0.1%", %, or **Unknown** via
+`isUnknown`; 0–50% range strip with best-guess tick; "range … · if it could act now"; tooltip: 90% range, certainty word,
+Would try (acts against the lab), stop rate, footholds known + unfound, the published survivability range) ·
+**Unstopped harm** tile (`unstoppedBySeverity` of the pick's table: acts / yr, "about 1 in N years", or the 90% range when
+it spans over ×3; bars per severity word) · **Sight** curve (`sightCurve` mean with the lowest trait as the band floor,
+the 50% line, milestone names on the axis, markers for the pick's measured level and, while a run trains, its forecast
+mid-point; side text and the validation queue line; tooltip: `sightGaps`) · **Safety framework** tile (Hold with rule
+and what is missing, else No hold and the capability rule closest to the pick: rule, level, the pick's measured skill;
+link to the framework controls on Safeguards).
+
+**Risks tab.** The act table of the pick (`riskTableOf`: its internal fleet as AI staff work, else its first product)
+grouped Misbehaviour · Against the lab · Misuse by people (on AI staff work a line with a Products link; on a product its
+misuse rows). Columns Would try (bar, 90% range tick, value or **Unknown** chip) · Able to (dim with "?" when not measured
+yet) · Chances / yr (per item on the two item acts) · Stop rate · Unstopped / yr (bar with its range, "~0" below 0.0005).
+The composite "Acts against the lab" row: "any capability", its stop rate, "feeds Loss-of-control risk ▸". Order: the
+composite row, the item acts, then per-year acts by Unstopped. Footholds line at the foot once one is suspected or
+located (→ Safeguards). Safeguards footer from `table.guards` (label, people, slowdown; tooltip with each one's stop)
+with a Safeguards link. Every factor has its tooltip (term, value, range, certainty word).
+
+**New readouts (safetyReadouts.ts).** `safetyModels`, `riskTableOf`, `unstoppedBySeverity` (+ `SEVERITY_WORDS`,
+`severityWord`, `unstoppedRange` = Unstopped × the Would-try range ÷ the best guess, since attempts scale with Would try);
+`actReadouts` rows carry `unstoppedRange` and (per-year rows) `severity`. lossRisk.ts exports `rowSev`; selectors export
+`measuredDomainOf`; the store's test readouts add `lossOfControlRisk`.
+
+**Other tabs (regrouped, not redesigned).** Tabs: Risks · Model · Instruments · Safeguards · Incidents & cases ·
+Programmes. Model: risk families, trait graph, successor steering, new failure modes. Instruments: instruments list,
+detection by level, the capability vs sight-limit history chart (L2 home of the old race chart), validation, results.
+Safeguards: **AI staff safeguards** card (the old Control card without the risk: blocked / caught by monitors / caught by
+human review bars, watcher, control protocol and lockdown buttons, framework package), footholds and what to watch,
+policies. Programmes stays until RESEARCH holds the safety programmes. Old tab ids still open (`overview` → risks, `graph`
+→ model, `footholds` → safeguards, `incidents` → cases); links in Blueprint, Evals, TraitGraph, Risk updated.
+
+**Deleted (one home per datum).** The Overview verdict banner (sight-limit verdict and its cause chains: the sight curve
+is the home), the Control card's Loss-of-control gauge and its Would try / Stop rate / Footholds drivers (header tile and
+its tooltip), the "Would try (act against the lab)" card (the composite act row), the side switch (families / successor),
+the families' and trait graph's own model pickers (the header picker), the Overview tab itself.
+
+**Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
+numbers in ResearchProjects / Work); lint-structure: 1 fail, pre-existing (action title length). Own test
+`scripts/v2/_ub9/check.ts` (day 400 and 900): picker's first = the L0 model; tile = Σ per-year rows = Σ severity bins;
+Would try × Able to × Chances / yr × (1 − Stop rate) = Unstopped on every per-year row; composite row on AI staff work
+only; nothing moves when hidden values are rewritten: all pass. uitest SAFETY steps rewritten (R8 section, E11 Safety
+part, E12 model tab). Screenshots: scripts/v2/shots/ub9/ (d0, d400, d900 risks; wide = the day-400 fixture with every
+trait belief's sd tripled, at least 0.12; d400 tooltips and the other tabs), script scripts/v2/shots/ub9.mjs (ignored).
+
+**Differences from the mockup.** "Next rule" names the capability rule closest to the picked model (day 400: Biological:
+High at Bio 6.4, Atlas-2.8 at 5.6), not AI R&D: Critical. The "next run" sight marker shows only while a run trains (its
+forecast): the TRAINING draft plan is local to that screen. The wide-belief copy does not reach an Unknown
+Loss-of-control risk (best guess < 0.1%, range to 0.3%): the tile's Unknown state is built but only rows show Unknown in
+the shots. Unstopped harm reads 0.020 (3 decimals below 0.1). The picker is a native select.
+
+**Left / designer.** The Risk panel (Company & world) still shows a "your models" risk source built on the same
+Loss-of-control readout: a second display of the datum (its driver link now points to SAFETY › Risks). The Unknown state
+of the risk tile needs a belief state wide enough to move the risk itself (a fresh model with no evidence). Able to "?"
+on unmeasured rows reads a relative's skill; a separate "not measured" look may read better.
