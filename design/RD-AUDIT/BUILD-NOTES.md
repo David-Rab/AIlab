@@ -3530,3 +3530,34 @@ One "which model" rule and one colour scale in the safety views (src/ui/v2/safet
 - **Left.** Models › Evals and other non-safety panels keep their own version pick; the views do not yet say which model
   they read beside the title (SR-25..30); the trait-family colour cut moved 0.15 / 0.3 → 0.2 / 0.4.
 - Moves calibration: no (UI only).
+
+### CP3b fixes
+
+Root causes of CP3's (d) suspected bugs (design/RD-AUDIT/CP3.md).
+
+- **safetyresearch E1 ×NaN (rig).** `lab()` scaled `split.safety` against `linePoolH100e`, which reads the per-day
+  memoised `safAllocation`, so the pool never moved and the compute fixed point drifted (c 0.064 at the reference). And
+  SR-21 put human review (35 heads at the start) ahead of line experiments in LAB's needs list: at 1e-6 engineer units
+  review took all of them, the line got 0 engineers, X = 0, and the labour-bound ratio was 0 / 0. The rig resets the
+  allocation after each split change and staffs the other needs on top of the line's engineers; the doubling-engineers
+  check starts below the ask (since RD-A04 a line takes no more than its ask, so 0.5 → 1 could not help). No engine change.
+- **World.tsx read `s.hidden.timeline`.** Only a level-scale conversion: measured levels → domain G for `techBlocker`,
+  which converts the gate levels back through the same monotone λ, so it revealed nothing beyond the measured levels. The
+  conversion moved into the engine: `techBlockerAtLevels(s, t, L)` (worldfx/techtree.ts, exported from engine/v2).
+- **Migration idempotence (33 → 42 and the 42 → 43 check).** The check labels a current state 33 (or 42) and runs every
+  migration to SCHEMA_REV; its assumption is right (each migration must leave an already-migrated state unchanged). Four
+  migrations wrote fields a current state does not carry: 42 → 43 added `policies.monitorBudget` to a flat split (51 → 52
+  deletes it, but only on a nested split): now only on the nested split a rev-42 save has; 71 → 72 pushed a second
+  'review' guard on internal deployments that already had guards: now skips a deployment with guards; 73 → 74 set
+  `Technique.measured = null` and 77 → 78 `safety.envFixes = {}`, 95 → 96 `safety.envFixJobs = []`: all optional
+  (absent = none, every reader uses `?.` / `??`), so nothing is added. Every label 33–95 now loads a current state unchanged.
+- **hygiene.ts:474 TypeError (rig).** The RD-C01 check planted v2's dead `prodCache.parts.base` / `elast.*`; RD-R01
+  removed `ProductionReadout.parts` and `.elast`, so `parts` was undefined. The rig plants them only where the objects exist.
+- **safetyideas ENOENT (rig).** The idea-reader lint read `safety/understanding.ts`, renamed to `sightLimit.ts` by SR-11;
+  the no-flat-factor lint matched `lineSpeed`, deleted by RD-R02b (rates in `lineRates`) and failed on an empty body. Both
+  point to the successors; no check deleted.
+- **Checks.** tsc (app, scripts/v2) clean; npm run build passes. safetyresearch 23 pass / 4 fail (CP3: 7 fail; left: E1
+  T₁ pacing ×2 fast at the reference, steady cycle, readouts, E2 copies growth: calibration). hygiene runs to the end: 200
+  pass / 4 fail (registry lists no safetyFramework / autoSplit; three performance budgets). safetyideas runs to the end:
+  37 pass / 2 fail (P15 lockdown halving, P23 CoT factor: calibration / outdated). The migration checks live in hygiene
+  (finance.ts not run).
