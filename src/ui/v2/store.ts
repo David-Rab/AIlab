@@ -2,7 +2,7 @@
 // auto-stop rules (V2-SPEC §1.4), autosave, save slots, export/import, and UI-only selection state.
 import { useSyncExternalStore } from 'react';
 import {
-  act as engineAct, activeRivals, controlReadout, dangerView, footholdView, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
+  act as engineAct, activeRivals, controlReadout, dangerView, footholdView, lossOfControlRisk, AUTOSAVE_KEY, dateOf, engine, leadDays, measuredL, defaultSetupV2, deserialize, newGame, quarterIndex, resolve as engineResolve,
   serialize, SLOT_KEYS, spotPrice, successorPullView, tick, evalQueueView, evalMeasureView, evalDepthView, actionView,
 } from '../../engine/v2';
 import type { GameStateV2, LogEntry, SetupV2 } from '../../engine/v2';
@@ -28,12 +28,13 @@ interface Sig {
 const RUNWAY_RANK: Record<string, number> = { healthy: 0, tight: 1, distress: 2, insolvent: 3 };
 /** Anchors that live on a tab other than the panel's first (links name the anchor, the store opens its tab). */
 const ANCHOR_TAB: Record<string, string> = {
+  'safety#successorPull': 'model', 'safety#policy': 'safeguards', 'safety#footholds': 'safeguards',
   'lab#split': 'board', 'lab#split-auto': 'board', 'lab#agents': 'work', 'lab#sciSplit': 'board', 'lab#bestMoves': 'board',
   'finance#raise': 'cash', 'finance#parent': 'cash', 'finance#ledger': 'contracts', 'finance#board': 'owners', 'finance#partner': 'deals', 'finance#borrow': 'deals',
 };
 
 /** F6b: anchors inside a sub-switch of a tab (store tab key, value): the link opens the switch on its card. */
-const ANCHOR_SUB: Record<string, [string, string]> = { 'safety#successorPull': ['safety.side', 'successor'] };
+const ANCHOR_SUB: Record<string, [string, string]> = {};
 
 function sig(s: GameStateV2): Sig {
   const p = s.player;
@@ -94,7 +95,7 @@ class StoreV2 {
   /** UI selections shared across panels. */
   sel: { versionId?: string; codex?: string } = {};
   /** Model v3 E11 (UI tests): the player-view selectors the Safety, Products and Agents readouts show. */
-  readouts = { dangerView, controlReadout, footholdView };
+  readouts = { dangerView, controlReadout, footholdView, lossOfControlRisk };
   draftSetup: SetupV2 = defaultSetupV2();
   private listeners = new Set<() => void>();
   private acc = 0;

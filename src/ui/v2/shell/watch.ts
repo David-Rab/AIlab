@@ -60,7 +60,7 @@ export function watchItems(s: GameStateV2): WatchItem[] {
     out.push({
       id: 'unseen', sphere: 'safety', sev: 2 + unseen.length / 2,
       chain: [root, { label: `${unseen.length} trait${unseen.length > 1 ? 's' : ''} unseen`, icon: ICON.blind, kind: 'bad', detail: 'Detection below 50% at your level' }],
-      why: 'your tools no longer read them at this level', go: { panel: 'safety', tab: 'lines' }, goLabel: tool && tool.decay > 0.3 ? 'Tool upkeep' : 'Research lines',
+      why: 'your tools no longer read them at this level', go: { panel: 'research', tab: 'projects' }, goLabel: tool && tool.decay > 0.3 ? 'Tool upkeep' : 'Research lines',
     });
   }
   // 4. runway state will change at the next board review

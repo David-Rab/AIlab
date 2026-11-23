@@ -182,7 +182,7 @@ function RoleCard({ s, w }: { s: GameStateV2; w: WorkTypeView }) {
           <Tip content={() => <TipCard title="Capability scientists" rows={sci.list.slice(0, 6).map((v) => ({ label: v.name, value: `${v.teams.length} of ${v.want}` }))}>Placed down the priority list (teams wanted, field first). Safety scientists work on Safety › Research.</TipCard>}>
             <span>{sci.list.length} projects · {sci.list.reduce((a, v) => a + v.teams.length, 0)} teams placed</span>
           </Tip>{' '}
-          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Priority list</Ref>
+          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Portfolio</Ref>
         </div>
       )}
     </Card>
@@ -262,7 +262,7 @@ function Milestones({ s }: { s: GameStateV2 }) {
           { label: <Term id="aiFte">AI staff, in people</Term>, value: F.count(saf.aiFte + safI.aiFte) }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(saf.A)} experiments · ${F.pct(safI.A)} ideas` },
         ]}>Your AI staff's safety jobs, on the same rules as capability work: AI share allowed hands them part of the safety work and they do what they can do alone. Safety work is harder to check and has longer tasks, so they can do less of it alone than Experiments and Ideas.</TipCard>}>
           <span><Term id="workType">Safety work</Term>: AI staff (safety) can do alone {F.pct(saf.coverage)} of experiments, {F.pct(safI.coverage)} of ideas</span>
-        </Tip>{' '}<Ref id="trustedToAI" to={{ panel: 'safety', tab: 'lines' }}>Safety</Ref>
+        </Tip>{' '}<Ref id="trustedToAI" to={{ panel: 'safety', tab: 'safeguards', anchor: 'policy' }}>Safety</Ref>
       </div>}
     </Card>
   );

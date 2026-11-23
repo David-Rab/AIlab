@@ -1,9 +1,7 @@
-// Research (STRUCTURE §4.2, MODEL-V3 §5, design/V3-BUILD.md "V2b UI"; mockups-v3/v3-v2b-research, v3-research*).
-// Tabs: Projects (L1: the capability priority list with teams wanted, stage tracks and the risk policy; L2: the selected
-// project's card), Recipe (the recipe stacks, headroom, adopted ideas), Tree (the discovery map: lanes = science
-// specialties, left → right by depth from what you know; L2: the node card). L3: tooltips.
-// One home per datum: a project's stage, beliefs and inputs on Projects; idea state on the tree node; the recipe on
-// Recipe; research speed on Lab and research engineers' needs on Lab › AI staff & needs (links only).
+// Research (STRUCTURE §4.2; UB-6 / UB-8). Tabs: Portfolio (Portfolio.tsx: Limited by, the capability and safety board, the card
+// drawer), Discoveries (here: the discovery map and its node card), Know-how (KnowHow.tsx: area bars, Waiting, Lab tools).
+// Discoveries: lanes = science fields, left → right by depth from what you know; L2: the node card; a Researching node links
+// to its Portfolio card (home of its stage and ETA).
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X } from 'lucide-react';
 import {
@@ -20,8 +18,10 @@ import { Card, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import * as F from '../fmt';
-import { Priorities, ProjectCard } from './ResearchProjects';
-import { Recipe } from './Recipe';
+import { AddProject, Portfolio } from './Portfolio';
+import { KnowHow } from './KnowHow';
+import { dispName } from './researchWords';
+
 import './research.css';
 
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
@@ -101,7 +101,7 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
   const cls = effortClassOf(n);
   const effortTip = () => <TipCard title={<Term id="effortClass">Size</Term>} value={EFFORT_WORD[cls]} rows={effortRows(n)}>{effortOfNode(n).unit === 'months' ? 'Months to a result with serious staffing; more teams, safety research engineers, compute and AI staff shorten it.' : "At the leading lab's July 2025 inputs; more teams, research engineers and compute shorten it."}</TipCard>;
   if (st === 'open') meta = <>{n.effort && <Tip content={effortTip}><span className="eff" data-effort={cls}><Hourglass size={10} />{EFFORT_DOTS[cls]}</span></Tip>}{odds && <Tip content={() => <TipCard title={<Term id="odds">{isLineNode(n) ? 'Outlook' : 'Chance it works'}</Term>} value={odds}>{isLineNode(n) ? 'Outlook: how likely this programme is to produce working results.' : n.kind === 'line' ? 'A capability programme: it always produces results, each worth less than the last.' : 'Your current odds this works.'}</TipCard>}><span className="eo">{odds}</span></Tip>}</>;
-  else if (st === 'locked') meta = <Tip content={() => <TipCard title="Needs first" rows={miss.map((m) => ({ label: PROJECT_BY_ID[m]?.name ?? m, value: STATUS_WORD[nodeStatus(s, m)] }))} />}><span className="eo warn">needs {miss.length > 1 ? `${miss.length} ideas` : PROJECT_BY_ID[miss[0]]?.name ?? miss[0]}</span></Tip>;
+  else if (st === 'locked') meta = <Tip content={() => <TipCard title="Needs first" rows={miss.map((m) => ({ label: dispName(PROJECT_BY_ID[m]?.name ?? m), value: STATUS_WORD[nodeStatus(s, m)] }))} />}><span className="eo warn">needs {miss.length > 1 ? `${miss.length} ideas` : dispName(PROJECT_BY_ID[miss[0]]?.name ?? miss[0])}</span></Tip>;
   else if (st === 'queued') meta = <span className="rs-qn">{qn}</span>;
   else if (st === 'active') meta = <Tip content={() => <TipCard title="Progress" value={F.pct(p)}>{isCapProject(n) ? 'Through its stages; stage, expected effect and ETA are on Portfolio.' : 'Share of the project done; ETA is on Safety › Research.'}</TipCard>}><span className="eo">{F.pct(p)}</span></Tip>;
   else if (st === 'failed' && isCapProject(n)) meta = <Tip content={() => <TipCard title={<Term id="reopenSpeculative">Failed</Term>} value={F.pct(nodeOdds(s, n.id))}>Three ideas were dropped. Retry it at this chance.</TipCard>}><span className="eo neg">failed · retry</span></Tip>;
@@ -109,7 +109,7 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
   const LayerIc = LAYER_ICON[n.layer];
   return (
     <div className={`rs-node st-${st} ${sel ? 'sel' : ''}`} data-node={n.id} data-status={st} onClick={() => setUi('sel', sel ? '' : n.id)}>
-      <Tip as="div" content={() => <TipCard title={n.name} />}><div className="nm"><StatusIcon st={st} p={p} /><span>{n.name}</span></div></Tip>
+      <Tip as="div" content={() => <TipCard title={dispName(n.name)} />}><div className="nm"><StatusIcon st={st} p={p} /><span>{dispName(n.name)}</span></div></Tip>
       <div className="mt"><Fx n={n} /><Tip content={() => <TipCard title={<Term id={LAYER_TERM[n.layer]}>{`Takes effect: ${LAYER_NAME[n.layer]}`}</Term>} />}><span className="lay"><LayerIc size={10} /></span></Tip>{meta}</div>
       {st === 'active' && <div className="pb"><i style={{ width: `${p * 100}%` }} /></div>}
     </div>
@@ -119,7 +119,7 @@ function NodeBox({ s, n, st, sel, qn }: { s: GameStateV2; n: TreeNodeDef; st: No
 function KnownPill({ n, sel }: { n: TreeNodeDef; sel: boolean }) {
   return (
     <div className={`rs-pill ${sel ? 'sel' : ''}`} data-node={n.id} data-status="known" onClick={() => setUi('sel', sel ? '' : n.id)}>
-      <CircleCheck size={11} />{n.name}
+      <CircleCheck size={11} />{dispName(n.name)}
     </div>
   );
 }
@@ -266,7 +266,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
     <div className="rs-ncard" data-test="node-card" data-card={n.id}>
       <div className="row-i hd">
         <Ic size={18} style={{ color: laneColor(n.column) }} />
-        <h2>{n.name}</h2>
+        <h2>{dispName(n.name)}</h2>
         <span className="sp" />
         <button className="btn btn-sm btn-ghost" data-test="node-close" onClick={() => setUi('sel', '')}><X size={14} /></button>
       </div>
@@ -285,7 +285,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
       <div className="sec">
         <div className="k"><Term id="odds">{line && !n.star ? 'Outlook' : 'Chance it works'}</Term></div>
         {line && !n.star
-          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} that a result here works</span><Ref id="lineHealth" to={{ panel: 'safety', tab: 'lines' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Safety programme'}</Ref></div>
+          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} that a result here works</span><Ref id="lineHealth" to={{ panel: 'research', tab: 'projects' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Safety programme'}</Ref></div>
           : n.star ? <div className="dim">Known by every lab</div>
           : cap && n.kind === 'line' ? <div className="dim small">A capability programme: always produces results, each worth less than the last (<Term id="linePool">returns falling</Term>).</div>
           : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; whether it works is drawn at the start' : 'chance it works'}{(ts?.cap?.spec ?? 0) > 0 ? ` · retry ${ts?.cap?.spec}` : ''}</span>
@@ -324,7 +324,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           {n.needs.map((r) => {
             const rs = nodeStatus(s, r);
             const rp = s.player.tree[r];
-            return <div key={r} className="rs-prq" onClick={() => setUi('sel', r)}><StatusIcon st={rs} p={rp?.progress} /><span>{PROJECT_BY_ID[r]?.name ?? r}</span><span className="sp" /><span className="dim small">{rs === 'active' ? F.pct(rp?.progress ?? 0) : STATUS_WORD[rs]}</span></div>;
+            return <div key={r} className="rs-prq" onClick={() => setUi('sel', r)}><StatusIcon st={rs} p={rp?.progress} /><span>{dispName(PROJECT_BY_ID[r]?.name ?? r)}</span><span className="sp" /><span className="dim small">{rs === 'active' ? F.pct(rp?.progress ?? 0) : STATUS_WORD[rs]}</span></div>;
           })}
         </div>
       )}
@@ -335,7 +335,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
             <div key={slot + v} className="row-i small">{slot === 'effort' ? <ICON.deploy size={12} /> : <ICON.run size={12} />}<span>{SLOT_LABEL[slot]}: <b>{v === 'true' ? 'on' : F.words(v)}</b></span><span className="sp" />
               <Ref id="designOption" to={{ panel: slot === 'effort' ? 'products' : 'blueprint' }}>{slot === 'effort' ? 'Products' : 'Next run'}</Ref></div>
           ))}
-          {children.length > 0 && <div className="dim small">Leads to {children.map((c) => PROJECT_BY_ID[c]?.name ?? c).join(', ')}</div>}
+          {children.length > 0 && <div className="dim small">Leads to {children.map((c) => dispName(PROJECT_BY_ID[c]?.name ?? c)).join(', ')}</div>}
         </div>
       ) : null}
       <div className="sec btn-row">
@@ -343,8 +343,8 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {project && st !== 'known' && st !== 'failed' && !queued && <ActBtn id="research.queue" params={{ id: n.id }} label={cap ? 'Add to priority list' : 'Queue'} testId={`research.queue.${n.id}`} />}
         {project && st !== 'known' && st !== 'failed' && <ActBtn id="research.start" params={{ id: n.id }} label={cap ? 'Top priority' : 'Start now'} testId={`research.start.${n.id}`} />}
         {queued && <ActBtn id="research.dequeue" params={{ id: n.id }} label="Remove" testId={`research.dequeue.${n.id}`} />}
-        {cap && queued && <button className="btn btn-sm" data-test="open-project" onClick={() => { setUi('proj', n.id); store.setTab('research', 'projects'); }}>Open in Portfolio ›</button>}
-        {!cap && project && !n.star && st !== 'known' && <Ref id="researchLine" to={{ panel: 'safety', tab: 'lines' }}>Safety teams</Ref>}
+        {cap && queued && <button className="btn btn-sm" data-test="open-project" onClick={() => { setUi('drawer', n.id); store.setTab('research', 'projects'); }}>Open in Portfolio ›</button>}
+        {!cap && project && !n.star && st !== 'known' && <Ref id="researchLine" to={{ panel: 'research', tab: 'projects' }}>Safety teams</Ref>}
         {project && ready !== true && st !== 'known' && <span className="dim small">{ready}</span>}
         {line && st !== 'known' && <span className="dim small">Each result is a working instrument, a weaker result, a dead end or a discovery; the programme goes on until an instrument works.</span>}
         {n.soon && <span className="dim small">A product tool: it becomes a project once you have live products.</span>}
@@ -355,13 +355,16 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
 
 export function Research({ s }: { s: GameStateV2 }) {
   useV2();
-  const tab = tabOf('research', 'projects');
+  const raw = tabOf('research', 'projects');
+  const tab = raw === 'recipe' ? 'knowhow' : raw;
   return (
     <div className="panel-v2 rs-panel" data-panel="research">
-      <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'recipe', label: 'Know-how', icon: Layers }, { id: 'tree', label: 'Discoveries', icon: ICON.split }]} />}
-        right={<span className="row-i"><Ref id="labSpeed" to={{ panel: 'lab' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
-      {tab === 'projects' && <div className="rp-grid"><Priorities s={s} /><ProjectCard s={s} /></div>}
-      {tab === 'recipe' && <Recipe s={s} />}
+      <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'tree', label: 'Discoveries', icon: ICON.split }, { id: 'knowhow', label: 'Know-how', icon: Layers }]} />}
+        right={tab === 'projects' ? <AddProject s={s} />
+          : tab === 'knowhow' ? <span className="row-i"><button className="ref-chip" data-ref="labTools" onClick={() => store.goto('research', { tab: 'knowhow', anchor: 'labTools' })}><Wrench size={12} /> Lab tools</button><Ref id="publishPolicy" to={{ panel: 'safety', tab: 'safeguards', anchor: 'policy' }}>Publish policy</Ref></span>
+          : undefined} />
+      {tab === 'projects' && <Portfolio s={s} />}
+      {tab === 'knowhow' && <KnowHow s={s} />}
       {tab === 'tree' && <Tree s={s} />}
     </div>
   );

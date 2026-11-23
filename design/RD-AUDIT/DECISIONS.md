@@ -169,3 +169,12 @@ honest Best moves + "Won't help now"; drop allocation presets (auto-split policy
   use the JOB scale (median expert / best human doing the job, as the work fit), because test standing saturates early; test standing appears as tooltip facts. The UI shows one scale.
 - Two references stay distinct on purpose: skill bars = standing "on tests"; milestones / work fit = "doing the job".
   The UI labels them that way.
+
+## Lend idle training compute (2026-11-23, designer accepted)
+An explicit policy (DD-19's "explicit policy if you want it"), off by default: idle training compute is lent to research
+experiments and returned automatically when a run launches. LAB's "idle Training → experiments" Best move switches it on.
+
+## Remaining screens (2026-11-23, designer)
+Mock up (then build) PRODUCTS, the Overview hub (lead lanes; resolves the duplicate loss-of-control readout on
+Company & world › Risk) and the other sub-tabs: RESEARCH › Discoveries; TRAINING › Data, Environments, Runs; SAFETY ›
+Model, Instruments, Safeguards, Incidents & cases; LAB › Hiring & teams, AI staff & needs, Security.

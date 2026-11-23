@@ -16,7 +16,7 @@ export type { ResponseCurves } from '../production/readout';
 export { allocOf, SPLIT_LABEL } from '../departments/split';
 export { alignmentEvalView, testGapView, type AlignmentEvalRow, type TestGapView } from '../safety/alignmentEvals';
 // WS1 model / department selectors and helpers for the UI (visible data only).
-export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
+export { adoptedDuring, idleTrainingShare, lentTrainingH100e, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
 export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, LAUNCH_TW, pendingLaunch, productUpkeepTW, runSetupTW, runWaiting, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
@@ -33,7 +33,7 @@ export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
 export type { EvalCost, EvalDepthRow, EvalMeasureRow, EvalTaskView } from '../models/evals';
 export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess, kycDemandFactor, KYC_REFUSE } from '../models/deployments';
-export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
+export { bestMeasuredL, internalVersion, measuredDomainOf, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';

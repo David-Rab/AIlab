@@ -20,7 +20,7 @@ export function idleShares(s: GameStateV2): { unallocated: number; training: num
   const p = s.player;
   const sp = p.split;
   const unallocated = Math.max(0, sp.idle);
-  const training = idleTrainingShare(s) * sp.training;
+  const training = p.policies.lendTraining ? 0 : idleTrainingShare(s) * sp.training; // UB-5c: lent, not idle
   const serving = p.computeOnline > 0 ? Math.min(sp.serving, idleServing(s) / p.computeOnline) : 0;
   const mb = monitorBudget(s);
   const monitors = mb.need > 0 ? Math.max(0, mb.budget - mb.used) : 0;

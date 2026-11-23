@@ -76,7 +76,7 @@ export function Suites({ s }: { s: GameStateV2 }) {
       <PlanCard s={s} plan={plan} rows={d.view.rows} s2={d.s2} reason={d.before.reason} />
       <Card title={<span className="row-i"><Dumbbell size={15} /><Term id="envSuite">Environments</Term></span>} home="suites" className="sx-card"
         sub={<>{d.view.rows.length} families</>}
-        right={<span className="row-i"><Ref id="rlCeiling" to={{ panel: 'research', tab: 'recipe' }}>Post-training ceiling</Ref><Ref id="buildCapacity" to={{ panel: 'lab', tab: 'work' }}>Engineers</Ref></span>}>
+        right={<span className="row-i"><Ref id="rlCeiling" to={{ panel: 'research', tab: 'knowhow' }}>Post-training ceiling</Ref><Ref id="buildCapacity" to={{ panel: 'lab', tab: 'work' }}>Engineers</Ref></span>}>
         <div className="sx-grid">
           <span className="ch">Family</span>
           <span className="ch"><Term id="suiteFidelity">Realism</Term></span>

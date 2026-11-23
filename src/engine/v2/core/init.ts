@@ -36,7 +36,7 @@ import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign }
 import { distilledBeliefs, distilledStart } from '../safety/traits';
 import { lineupSizes } from '../worldfx/serving';
 import { labCore } from '../models/labs';
-import { initialResearch, initialTree } from '../models/tree';
+import { assignCapNow, assignSafTeams, initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
 import { computeProduction } from '../production/production';
@@ -346,6 +346,10 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)
   startDivision(s); // FIN5c: a big-tech division's first budget year and the parent's goals for it
   startStory(s); // FIN5a: the first story mark (valuation), the investor pool and the player's part of it
+  // SCI: day 0's science-team plan (the daily research tick's planners), so the start lines show their teams and each
+  // team its why before the first tick (initialResearch sets the lines and teams wanted, not the teams).
+  assignCapNow(s);
+  assignSafTeams(s);
   sampleSeries(s);
   return s;
 }

@@ -23,6 +23,7 @@ import {
 } from './research';
 import { measuredSd } from './benchmarks';
 import { gEquivOf, latestBaseFlop, STACK_KEYS } from './stacks';
+import { lentTrainingH100e } from './runs';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey, Team } from '../types';
@@ -549,11 +550,12 @@ export function labSpeedView(s: GameStateV2): ResearchSpeedView {
   const x = s.player.research.last?.x;
   const mods = researchMods(s);
   const pools = poolsOf(s);
-  const r = pools.experiments + (pools.routine + pools.frontier);
+  const exp = pools.experiments + lentTrainingH100e(s); // UB-5c
+  const r = exp + (pools.routine + pools.frontier);
   return {
     rel: labSpeedRel(s), mExp: x?.mExp ?? 1, mIdeas: x?.mIdeas ?? 1, mods: mods.speed / mods.rateMult,
     c: x?.c ?? 0, l: x?.l ?? 1, X: x?.X ?? 0, label: pr.label,
-    researchH100e: r, expShare: r > 0 ? pools.experiments / r : 0,
+    researchH100e: r, expShare: r > 0 ? exp / r : 0,
   };
 }
 

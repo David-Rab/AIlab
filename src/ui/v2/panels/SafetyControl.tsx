@@ -1,83 +1,46 @@
-// Model v3 E11: Safety › Overview's Control card (HOME of believed control, its band, what drives it and the control
-// layer with its tax) and the Footholds tab (HOME of every foothold the lab knows of: symptoms of suspected ones with
+// Model v3 E11 / UB-9: SAFETY › Safeguards' AI staff safeguards card (what stops acts against the lab, the control
+// layer with its Slowdown) and the footholds card (HOME of every foothold the lab knows of: symptoms of suspected ones with
 // where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
 // footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
 import { PACKAGE_LABEL, packageMeets } from '../../../engine/v2/safety/packages';
 import { LOCKDOWN_SLOWDOWN, controlOn, lockdownOn } from '../../../engine/v2/safety/safeguards';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { believedInternalOversight, controlReadout, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
 import { CONTROL } from '../../../data/v2/danger';
 import type { FootholdRow, GameStateV2 } from '../../../engine/v2';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
-import { store } from '../store';
-import { riskColor, riskTone, riskZones, safetyModel } from '../safetyRule';
+import { safetyModel } from '../safetyRule';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
-import { Card, Gauge, HBar, Pill, Ref } from '../kit';
+import { Card, HBar, Ref } from '../kit';
 import * as F from '../fmt';
 import { FOOTHOLD_ICON, ICON } from '../icons';
 import { C } from '../theme';
 
-// SR-04: the gauge reads Loss-of-control risk on the Risk screen's scale (< 5% / 5–20% / > 20%).
-const RISK_ZONES = riskZones('prob');
-const riskKind = (p: number) => ({ good: 'good', watch: 'warn', bad: 'bad' } as const)[riskTone(p, 'prob')];
-const riskWord = (p: number) => ({ good: 'low', watch: 'elevated', bad: 'high' } as const)[riskTone(p, 'prob')];
-const FOOTHOLDS_TAB = { panel: 'safety', tab: 'footholds' } as const;
 const AGENTS = { panel: 'lab', tab: 'work', anchor: 'agents' } as const;
 
-/** Safety › Overview: believed control (L1 gauge + band), its three drivers, the control layer and its tax. */
+/** UB-9: SAFETY › Safeguards on AI staff work: what stops acts against the lab (blocked, caught by monitors, caught by
+ *  human review, watcher gap) and the control layer with its Slowdown. Loss-of-control risk and its parts live in the
+ *  SAFETY header (one home); this card holds the safeguards only. */
 export function ControlCard({ s }: { s: GameStateV2 }) {
   const c = useMemo(() => controlReadout(s), [s, s.time.day, s.player.deployments.some((d) => d.channel === 'internal' && controlOn(d))]);
-  const r = c.risk;
-  const assessed = !!r;
-  const name = r?.name ?? c.name;
-  const known = c.suspected + c.located;
-  // F6b: oversight's believed parts (the same selector believed control uses), so the row says what binds.
-  const ov = useMemo(() => { const id = r?.versionId ?? c.versionId; const v = id ? safetyModel(s, id) : undefined; return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, r?.versionId, c.versionId, c.layer]);
+  const id = c.risk?.versionId ?? c.versionId;
+  const ov = useMemo(() => { const v = id ? safetyModel(s, id) : undefined; return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, id, c.layer]);
   const selfWatch = !!c.monitorName?.startsWith('copy of');
   const gapText = c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? 'watching itself' : `watcher ${F.num(c.monitorGapL ?? 0, 1)} levels below`;
+  const part = (k: string, label: ReactNode, v: number, test: string) => (
+    <Tip key={k} as="div" content={() => <TipCard title={label} value={F.pct(v)}>Share of attempts at acts against the lab this safeguard stops on its own; together they make the Stop rate of the Acts against the lab row in Risks.</TipCard>}>
+      <div className="sf-drv" data-test={test}><span className="k">{label}</span><HBar v={v} max={1} w={90} color={C.und} /><span className="num">{F.pct(v)}</span></div>
+    </Tip>
+  );
   return (
-    <Card title={<span className="row-i"><ICON.control size={14} /><Term id="lossRisk">Loss-of-control risk</Term></span>} home="lossRisk" id="ctl-control" className="sf-ctl"
-      sub={assessed ? <>if it could act now · {name} · <Term id="unstoppedHarm">unstopped harm</Term> {F.num(c.harm, 2)} / yr</> : 'no model'}
-      right={<button className={`sf-fh-chip ${c.suspected ? 'warn' : ''}`} data-test="foothold-chip" onClick={() => store.goto('safety', FOOTHOLDS_TAB)}>
-        <ICON.foothold size={12} /><Term id="foothold">Footholds</Term> <b className="num">{known}</b>{known ? <span className="dim"> · {c.suspected} suspected · {c.located} located</span> : <span className="dim"> known</span>} <ICON.go size={11} />
-      </button>}>
-      <div className="sf-ctl-top">
-        <Tip content={() => <TipCard title={<Term id="lossRisk">Loss-of-control risk</Term>} value={r ? `${F.pct(r.p, 1)} (${F.pct(r.lo, 1)}–${F.pct(r.hi, 1)})` : '—'} rows={r ? [
-          { label: <Term id="misalign">Would try (act against the lab)</Term>, value: `${F.pct(r.mis)} (${F.pct(Math.max(0, r.mis - 1.64 * r.misSd))}–${F.pct(Math.min(1, r.mis + 1.64 * r.misSd))})` },
-          { label: 'Stop rate (acts against the lab)', value: F.pct(r.stopRate) },
-          { label: <Term id="footholdCapacity">Footholds: known + unfound</Term>, value: `${F.num(r.knownF, 2)} + ${F.num(r.unfoundF, 2)}${r.reach > 0 ? ` · backdoor reach ${F.pct(r.reach)}` : ''}` },
-          { label: 'Exposure at best guess', value: F.num(r.exposure, 2) },
-          { label: 'What the world survives', value: 'published range around 0.40' },
-          { label: <Term id="unstoppedHarm">Unstopped harm</Term>, value: `${F.num(c.harm, 2)} / yr (${F.num(c.harmActs, 2)} acts)` },
-        ] : []} footer="If it could act now. The game checks it when the model could act on it: your lab's ASI, or an escaped copy once the frontier is at Superhuman AI researcher. Your estimate only: traits you misread and footholds beyond the expected count do not show here.">{assessed ? `Your believed chance that ${name} could act against you with nothing able to stop it; the highest over the models you run. The range comes from how sure you are of what it would try.` : 'Assessed with each day: run the clock.'}</TipCard>}>
-          <span className="sf-ctl-g" data-test="control-value" data-control={c.believed.toFixed(4)} data-risk={(r?.p ?? 0).toFixed(4)}>
-            <Gauge value={r?.p ?? 0} max={1} zones={RISK_ZONES} band={r ? [r.lo, r.hi] : undefined} w={92} h={54} stroke={7} />
-            <span className="sf-ctl-n"><b className="num">{F.pct(r?.p ?? 0, 1)}</b><Pill kind={riskKind(r?.p ?? 0)}>{riskWord(r?.p ?? 0)}</Pill></span>
-          </span>
-        </Tip>
-        <div className="sf-ctl-drv">
-          <Tip content={() => <TipCard title={<Term id="misalign">Would try (act against the lab)</Term>} value={F.pct(r?.mis ?? c.mis)}>From your trait beliefs on {name ?? 'the model'}. Its range and the traits behind it: Safety › Trait graph.</TipCard>}>
-            <div className="sf-drv" data-test="control-mis"><span className="k"><Term id="misalign">Would try</Term></span><HBar v={r?.mis ?? c.mis} max={1} w={70} color={riskColor(r?.mis ?? c.mis, 'level')} /><span className="num">{F.pct(r?.mis ?? c.mis)}</span><span className="dim small">{r ? `± ${F.pct(1.64 * r.misSd)}` : 'best guess'}</span></div>
-          </Tip>
-          <Tip content={() => <TipCard title="Stop rate (acts against the lab)" value={F.pct(r?.stopRate ?? c.oversight)} rows={[
-            ...(ov ? [
-              { label: 'Blocked by control protocols', value: F.pct(ov.block) },
-              { label: 'Caught by monitors and instruments', value: F.pct(ov.monitor) },
-              { label: 'Caught by human review', value: F.pct(ov.human) },
-            ] : []),
-            { label: <Term id="oversightGap">Watcher gap</Term>, value: c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? <>watching itself: <Term id="collusion">{c.monitorName}</Term></> : `${F.num(c.monitorGapL ?? 0, 1)} levels below · ${c.monitorName}` },
-            { label: <Term id="humanGap">Past expert human reviewers</Term>, value: c.humanGapOom > 0 ? 'yes: reviewers miss more' : 'no (below best human)' },
-            { label: <Term id="controlLayer">Control protocol</Term>, value: c.layer ? 'on' : 'off' },
-          ]}>Share of a takeover attempt blocked or caught. It falls as capability outruns the monitors and human reviewers.</TipCard>}>
-            <div className="sf-drv" data-test="control-oversight"><span className="k">Stop rate</span><HBar v={r?.stopRate ?? c.oversight} max={1} w={70} color={riskColor(r?.stopRate ?? c.oversight, 'factor', true)} /><span className="num">{F.pct(r?.stopRate ?? c.oversight)}</span><span className="dim small">{gapText}</span></div>
-          </Tip>
-          <Tip content={() => <TipCard title={<Term id="footholdCapacity">Footholds</Term>} value={`${F.num(r?.F ?? c.F, 2)} points`} rows={[
-            ...(r ? [{ label: 'Known', value: F.num(r.knownF, 2) }, { label: 'Unfound (expected within a year)', value: F.num(r.unfoundF, 2) }] : []),
-            { label: <Term id="footholdSuspected">Suspected</Term>, value: String(c.suspected) }, { label: <Term id="footholdLocated">Located</Term>, value: String(c.located) }, { label: 'Removed', value: String(c.removed) },
-          ]}>Capacity beyond your safeguards&apos; reach: the footholds you know of (suspected ones at their kind&apos;s typical size) and the ones you expect but have not found. Details and responses: Safety › Footholds.</TipCard>}>
-            <div className="sf-drv" data-test="control-footholds"><span className="k"><Term id="footholdCapacity">Footholds</Term></span><HBar v={r?.F ?? c.F} max={1} w={70} color={(r?.F ?? c.F) > 0 ? C.bad : C.good} /><span className="num">{F.num(r?.F ?? c.F, 2)}</span><span className="dim small">{known ? `${known} known` : 'none known'}</span></div>
-          </Tip>
-        </div>
+    <Card title={<span className="row-i"><ICON.control size={14} />AI staff safeguards</span>} home="staffSafeguards" id="ctl-control" className="sf-ctl"
+      sub={<>{c.risk?.name ?? c.name ?? 'no model'} · stops acts against the lab</>}
+      right={<Ref id="lossRisk" to={{ panel: 'safety', tab: 'risks' }}>Stop rate in Risks</Ref>}>
+      <div className="sf-ctl-drv">
+        {ov && part('block', <Term id="controlLayer">Blocked by control protocols</Term>, ov.block, 'control-block')}
+        {ov && part('mon', <Term id="agentMonitor">Caught by monitors</Term>, ov.monitor, 'control-monitor')}
+        {ov && part('human', <Term id="humanGap">Caught by human review</Term>, ov.human, 'control-human')}
+        <div className="small dim" data-test="control-gap"><Term id="oversightGap">Watcher</Term>: {c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? <>watching itself: <Term id="collusion">{c.monitorName}</Term></> : `${c.monitorName} · ${gapText}`} · {c.humanGapOom > 0 ? 'past expert human reviewers: they miss more' : 'below best human'}</div>
       </div>
       <div className="sf-ctl-layer">
         <Tip content={() => <TipCard title={<Term id="controlLayer">Control protocol</Term>} value={c.layer ? 'on' : 'off'} rows={[
@@ -117,8 +80,8 @@ function KindName({ r }: { r: FootholdRow }) {
 const WATCH: { kind: string; symptom: string; by: string; to?: { panel: string; tab?: string; anchor?: string }; lever?: string }[] = [
   { kind: 'backdoor', symptom: 'unexplained access', by: 'monitors on the fleet', to: AGENTS, lever: 'Monitors' },
   { kind: 'hiddenCompute', symptom: 'unexplained compute use', by: 'monitors and compute accounting', to: AGENTS, lever: 'Monitors' },
-  { kind: 'steeredSuccessor', symptom: 'evals drift from predicted traits', by: 'your eval stack', to: { panel: 'safety', tab: 'lines' }, lever: 'Instruments' },
-  { kind: 'corruptedTool', symptom: 'anomalous research results', by: 'model organisms, cross-checks', to: { panel: 'safety', tab: 'lines' }, lever: 'Programmes' },
+  { kind: 'steeredSuccessor', symptom: 'evals drift from predicted traits', by: 'your eval stack', to: { panel: 'safety', tab: 'instruments' }, lever: 'Instruments' },
+  { kind: 'corruptedTool', symptom: 'anomalous research results', by: 'model organisms, cross-checks', to: { panel: 'research', tab: 'projects' }, lever: 'Programmes' },
   { kind: 'exfiltratedCopy', symptom: 'outbound traffic', by: 'weight security', to: { panel: 'lab', tab: 'security' }, lever: 'Security' },
 ];
 
@@ -152,7 +115,7 @@ export function FootholdsTab({ s }: { s: GameStateV2 }) {
       <div className="sf-fh-list">
       <Card title={<span className="row-i"><ICON.foothold size={14} /><Term id="foothold">Footholds</Term></span>} home="footholds" id="ctl-footholds"
         sub={<Tip content={() => <TipCard title={<Term id="foothold">Footholds you know of</Term>} rows={[{ label: <Term id="footholdSuspected">Suspected</Term>, value: String(fv.suspected) }, { label: <Term id="footholdLocated">Located</Term>, value: String(fv.located) }, { label: 'Removed', value: String(fv.removed) }]}>Only what your monitors, accounting, evals, cases and security have turned up. Others may exist.</TipCard>}><span>{fv.suspected} suspected · {fv.located} located · {fv.removed} removed</span></Tip>}
-        right={<Ref id="effectiveControl" to={{ panel: 'safety', tab: 'overview' }}>Loss-of-control risk</Ref>}>
+        right={<Ref id="effectiveControl" to={{ panel: 'safety', tab: 'risks' }}>Loss-of-control risk</Ref>}>
         <div className="tip-cap"><Term id="symptom">Symptoms</Term> · suspected</div>
         {sus.map((r) => (
           <div className="sf-fh-row sus" key={r.id} data-foothold={r.id} data-status="suspected">

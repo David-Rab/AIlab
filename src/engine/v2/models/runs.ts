@@ -138,6 +138,13 @@ export function idleTrainingShare(s: GameStateV2): number {
   return Math.max(0, 1 - used);
 }
 
+/** UB-5c (DECISIONS "Lend idle training compute"): H100e of idle training compute lent to research experiments
+ *  while the policy is on (off by default). Read fresh from the runs that train now, so it returns the moment a run
+ *  trains; the training pool itself is never reduced, so a run always draws its full share. */
+export function lentTrainingH100e(s: GameStateV2): number {
+  return s.player.policies.lendTraining ? idleTrainingShare(s) * poolsOf(s).training : 0;
+}
+
 /** The share a new run asking `share` would get today, next to the runs that train now. */
 export function shareIfLaunched(s: GameStateV2, share: number): number {
   const avail = 1 - streamShare(s);

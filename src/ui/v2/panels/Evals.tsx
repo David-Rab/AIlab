@@ -85,7 +85,7 @@ function PolicyCard({ s }: { s: GameStateV2 }) {
         ]} footer="Set in your Safety framework (Safety › Policies).">The depth of evals your Safety framework asks of a new model before release, and of re-tests (basic when it asks for none).</TipCard>}>
           <span className="ev-pol-item" data-test="eval-policy-depth"><span className="tip-cap"><Term id="safetyFramework">Before release</Term></span><b>{gate === 'none' ? 'off' : D.label}</b>{fw.externalReview && <span className="dim small">+ external</span>}</span>
         </Tip>
-        <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'overview', anchor: 'policy' }}>Safety</Ref>
+        <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'safeguards', anchor: 'policy' }}>Safety</Ref>
         <span className="ev-sep" />
         <ActBtn id="products.policy" testId="products.policy.autoEvaluate" params={{ autoEvaluate: !auto }}
           label={<span className="psw"><span className={`sw ${auto ? 'on' : ''}`}><i /></span><Term id="autoEvaluate">Auto-evaluate</Term></span>} />

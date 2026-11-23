@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SAFETY › Incidents &amp; cases</title>
+<link rel="stylesheet" href="rd.css">
+<link rel="stylesheet" href="saf.css">
+</head>
+<body data-tab="safety">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script>
+// Day-900 shell (data-day900.json A; DATA-c.md): the day-400 fixture has no incidents.
+Object.assign(window.SHELL, { date: 'Dec 18, 2027', day: 900, speed: '190', lead: '41 d', leadWord: 'ahead of', leadColor: 'var(--good)', rival: 'xLab',
+  cash: '$128.4B', runway: '8+ qtrs', loc: '0.8%', alertCount: 15, alertText: '8 incidents · 3 research · 4 other', badges: { lab: null, research: null, training: null, safety: ['24', 'warn'] } });
+</script>
+<script src="comp.js"></script>
+<script src="shell.js"></script>
+<script src="saf-head.js"></script>
+<script src="saf-incidents.js"></script>
+</body></html>

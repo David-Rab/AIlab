@@ -300,7 +300,7 @@ function Prediction({ s, kind, card, err, gains }: { s: GameStateV2; kind: Kind;
           <span className="sp" />
           {wait?.waiting && (
             <Tip content={() => <TipCard title={<Term id="knowHow">Know-how waiting</Term>} value={`×${F.num(wait.waiting!.x, 2)}`} rows={[{ label: 'Ideas', value: String(wait.waiting!.ideas) }, { label: 'Since', value: fmtDate(dateOf(s, wait.waiting!.since)) }, { label: '90% range', value: `×${F.num(wait.waiting!.range[0], 2)} to ×${F.num(wait.waiting!.range[1], 2)}` }]}>{wait.name} know-how your newest model does not have yet: this run gets it.</TipCard>}>
-              <button className="tr-link" data-test="pred-waiting" onClick={() => store.goto('research', { tab: 'recipe' })}>×{F.num(wait.waiting.x, wait.waiting.x < 10 ? 2 : 1)} {wait.name.toLowerCase()} know-how waiting <ChevronRight size={12} /></button>
+              <button className="tr-link" data-test="pred-waiting" onClick={() => store.goto('research', { tab: 'knowhow' })}>×{F.num(wait.waiting.x, wait.waiting.x < 10 ? 2 : 1)} {wait.name.toLowerCase()} know-how waiting <ChevronRight size={12} /></button>
             </Tip>
           )}
         </div>
@@ -671,7 +671,7 @@ function Pushes({ s, cur, pr, open, setOpen }: { s: GameStateV2; cur: Eval; pr?:
             { label: <Term id="aiRdShare">AI share of R&D</Term>, value: F.pct(sp.r) },
             ...sp.parts.map((x) => ({ label: <>{versionById(s, x.versionId)?.name ?? x.versionId} on {x.slot === 'SWE' ? 'software' : x.slot === 'EXP' ? 'experiments' : 'research ideas'}</>, value: `${F.pct(x.share)} · ${F.pct(x.oversight)} stopped` })),
           ]}>When this run finishes, its new model&apos;s traits move toward those of the models doing your research, more the more of it they do unwatched.</TipCard>}>
-            <div className="bp-succ small row-i" data-test="bp-succ"><ICON.agents size={12} /><span><Term id="successorPull">Successor pull</Term> from {pullers.length ? pullers.join(', ') : 'no AI model'}</span><span className="sp" /><Ref id="successorPull" to={{ panel: 'safety', tab: 'overview', anchor: 'successorPull' }}>Safety</Ref></div>
+            <div className="bp-succ small row-i" data-test="bp-succ"><ICON.agents size={12} /><span><Term id="successorPull">Successor steering</Term> from {pullers.length ? pullers.join(', ') : 'no AI model'}</span><span className="sp" /><Ref id="successorPull" to={{ panel: 'safety', tab: 'model', anchor: 'successorPull' }}>Safety</Ref></div>
           </Tip>
         </div>
       )}

@@ -5761,3 +5761,193 @@ includes the release evals (Feb 17 vs the mockup's Feb 3). (4) Start-from offers
 ladder, not per model. (7) Evals tab unchanged apart from the row fix: its capability column still shows raw levels
 (1…11) and "± 0.06 levels" (OQ-6) — **designer item**. (8) beliefs / risks link to SAFETY tabs `model` / `risks` (the
 SAFETY build's ids; empty on this branch until it merges).
+
+### UB-5c (lend idle training compute policy; branch ub5c-lend from rd a8b0ca1; DECISIONS "Lend idle training compute")
+
+**Engine.** New optional policy `player.policies.lendTraining` (absent = off; no migration). `lentTrainingH100e(s)`
+(models/runs.ts) = idle training share (runs that train now) × the training pool while on; read fresh each time, so the
+compute returns the moment a run trains, and the training pool itself is never reduced (a run always draws its full
+share). Readers: `expPoolH100e` (experiment FLOP for projects), `playerInputs` c (research speed), `labSpeedView`
+research compute; `idleShares` counts lent training compute as not idle, so Auto-split does not move it. Action
+`compute.lendTraining` (policy · compute, "Lend idle training compute"): preview = believed research-speed gain from the
+response curve ("at least" past its ×4 range) and "returns automatically when a run launches"; log line.
+
+**UI (LAB).** The Training segment draws the lent part dotted in the experiments colour with "1.5M lent to
+experiments" (tooltip row); the editor and the Idle chip tooltip show the policy; Best move 1 is now "Lend idle
+Training compute → Research experiments" (Do = the policy on; "≥ +66%" when past the curve's range), the amber "move it
+back" line is gone; share moves remain only for unallocated / idle serving compute. Glossary `lendTraining`.
+
+**Check** (`scripts/v2/_ub5c/check.ts`, all pass): policy off, day-400 fixture + RefBot 60 days hashes as on rd
+(7c7639d2088b2e4d); on: experiments get exactly the idle training compute (267k + 1.51M H100e), Training shows no idle;
+a launched run that trains gets the same training FLOP per day as with the policy off, and the lent compute falls to
+what the run leaves idle (1.51M → 1.21M) the same day. tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux and
+lint-structure: the same pre-existing failures. Screenshots scripts/v2/shots/ub5/d400-lab.png, d400-lab-lent.png.
+
+### UB-6 (RESEARCH › Portfolio; branch ub6-research from rd 241bdb7; mockups rd/portfolio.png, portfolio-drawer.png)
+
+**Portfolio (panels/Portfolio.tsx, portfolio.css, researchWords.ts).** Limited-by strip: four segments (compute ·
+research engineers · scientists · idea quality), verdict words only; the binding one lit (`production().label`, the
+believed elasticities) with a `best move ▸` link to LAB; the others from `reAllocView` (short / spare / enough), idle
+science teams and `teamGain` (more would help / enough); red "None" / "Experiments held" when an input is zero.
+Science-team split read-only (`scientists ▸` → LAB's split). One board, Capability | Safety side by side, one card
+grammar: rank · field icon · name (VOCAB display names) · ongoing / one-off chip · output tag (safety: see / stop / fix
+from the role of the next result's technique) · field · returns ("results now ~¾ of the first", 1 ÷ `line.harder` as a
+simple fraction) or chance it works (projects) · team pips; stage track (capability Ideas · Small test · Big test ·
+Build-in, unlock projects Test · Build-in, safety Ideas · Small test · Validate per the lead call) · next result ~N d
+(tooltip: the parts and the next result's × with range and certainty) · rate ≈ × / yr at current staffing
+(`programmeRates`, tooltip: results a year, one result's days, each result, so far) or the expected effect where it
+lands; safety: new instrument / safeguard / method: <name> and the outlook chip; per-card "limited by research engineers"
+when safety research experiments are short. Failed projects: Failed chip, retry odds, Retry. Drag (both columns; a
+safety card not on your list is queued at the drop place) and Alt+↑/↓ on a focused card. Safety column: staffed
+programmes plus the best by outlook up to four, then "N more programmes, no team" (Mixed / Struggling counts) opening
+the rest. Drawer (L2, Escape / scrim closes): stage track + next result; the idea under test in words (size, tested at
+scale, grows / holds / shrinks), expected effect × with the 90% range and certainty word and a range strip; rate; at
+scale chip; takes effect + `next run ▸`; results so far (first vs next bar, built in = results and the believed sum of
+the kept results' estimates, dropped, ideas waiting to test); Gets (science teams, right field, teams wanted − + Auto
+with the max-teams limit, research engineers with the 2-per-programme limit, experiment compute share and H100e from
+`programmeGets` + `experiment compute ▸`, limited by vs the lab); idea choice Safe / Balanced / Bold (labelled
+lab-wide: the engine has one policy); Remove; Discoveries ▸. Safety drawer: next result, outlook with range, expected vs
+observed results (last 12 months), results so far, teams, results a year, compute share. Add project in the panel
+header. Alerts' Open on a capability result opens its drawer (`research.drawer`).
+
+**Deleted / redirected.** ResearchProjects.tsx (priority list, project card, belief band, binds column) and its CSS;
+the Research header links (research speed and research engineers live in L0 / LAB). Tabs: Portfolio · Discoveries ·
+Know-how (old tab id `recipe` maps to `knowhow`). Discoveries uses the display names; "Open in Portfolio" opens the
+drawer. New glossary: programmeRate, outputTag.
+
+**Differences from the mockup.** Rates use "now" (current staffing), so day 400 scaling reads ×1.12 / yr, not the
+mockup's ×1.19 ("so far" is in the tooltip). Applied interpretability sits at Small test (the engine's stage), not Big
+test. Add project is a select styled as a button. "In this test 3 ideas" reads "Waiting to test" (the ideas found,
+`cands`). Built in shows the believed sum of the kept results (the engine keeps the last 30 results lab-wide), marked
+"(last n)" when older results dropped out; `line.realised` is not shown (a model quantity, not an estimate).
+
+### UB-8 (RESEARCH › Know-how; same branch; mockup rd/knowhow.png)
+
+**Know-how (panels/KnowHow.tsx).** Five areas (VOCAB names, unit line): Public know-how bar (grey) and Yours (violet)
+on one log axis (×0.9 to the largest range end, 1-2-5 ticks kept 7% apart), the Waiting part hatched at the end of
+Yours (never more than Yours), the 90% range whisker, labels "×1.50 waiting · 13 ideas"; growth column (× over the last
+12 months, ideas counted). Click an area: its results (L2), newest first: × (range in the tooltip), date, the measured
+model it is in (or "not in a measured model yet"). Side: Waiting for your next model (largest area big, the others as
+rows, "Training and serving efficiency · apply at once", `Next run ▸`), Where it comes from (ideas built in over 12
+months, public know-how named, `Portfolio ▸`), Lab tools (DD-03): Coding harness, Research harness, Agent memory, each
+owned / building / not built, what it lifts (AI staff experiments / ideas %, build capacity, from `agentsView` with vs
+without the tool), upkeep, build cost in the tooltip, Build (tooling.build) for unbuilt ones, `build queue ▸`. Header:
+Lab tools (scrolls to the card), Publish policy ▸ (SAFETY, its home). LAB › AI staff's Tools strip is now a link here.
+Deleted: Recipe.tsx (stacks, headroom, software-rate card, domain-effect card).
+
+**Differences from the mockup.** "A new base takes ~104 days" is not shown (a TRAINING › Next run datum; the link goes
+there). Public know-how's 12-month growth has no readout (the engine keeps only today's public base), so the row names
+the source without a number. Domain / data effects (old Recipe card) have no home on Know-how yet (UI-IA L2 "domain
+effects"): they show on MODELS cards; a Know-how L2 row is a follow-up. Counts with fractional batches are rounded.
+
+**Check (UB-6 + UB-8).** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
+numbers in SafetyControl / Work; the two old ResearchProjects sites are gone); lint-structure: 1 pre-existing. uitest:
+every RESEARCH step passes (Discoveries, Limited by, split, both columns, drag and Alt+↓ reorder, drawer, teams wanted,
+idea choice, Escape, Add project, Remove, more safety programmes, rate tooltip, Know-how bars / Waiting / Lab tools /
+area results; B4 day 1: side-by-side, Auto, labels, keyboard reorder, log routing opens the drawer). Run: 276 OK, 34
+FAIL, none in RESEARCH (Blueprint, Safety, Products, E11/E12, D6/D8, B2/B4 serving: suites this task does not touch);
+the suite stops at a stale D4 day-1 step, so the day-400 / 900 B4 loops and the limits sweep (which now opens a card
+drawer for `research.maxTeams` / `research.rePerProject`) did not run. Escape closes an open tooltip first, then the
+drawer. Screenshots: scripts/v2/shots/ub6/ (d0, d400, d900: portfolio, drawer, drawer-safety, tip-rate, knowhow,
+knowhow-ideas), script scripts/v2/shots/ub6.mjs (git-ignored).
+
+**For the designer / lead.** (1) SAFETY › Programmes (Safety.tsx `lines` tab) still shows safety programme staffing,
+outlook and next result: once the SAFETY build lands, the Portfolio safety column is their home and that tab should link
+here (left to the parallel SAFETY task). (2) Idea choice is one lab-wide policy in the engine; the drawer says so
+(UI-IA asks for a per-programme choice: an engine change). (3) Day 900: safety teams exist but 0 of 18 programmes are
+staffed (teams on safety projects off the programmes), and day 0 shows all capability programmes unstaffed until the
+first research day: both engine state, shown as is. (4) Domain / data effects need a Know-how L2 home.
+
+### SCI (science-team allocation: idle teams on RESEARCH; branch bug-sci from rd 9fbf223; UB-6 note (3))
+**Moves calibration: no** (day-0 fix: a 60-day run from day 0 hashes identical before / after, teams' `why` aside;
+the safety rule is unchanged). The safety recommendation below, if taken: **yes**.
+
+- **One allocator, two calls.** `planAssignment(s, ready, dept, valueOf?)` (models/research.ts) is the one planner;
+  capability runs it via `assignCapTeams` (capResearchDay, and `assignCapNow` after priority-list actions), safety via
+  `assignSafTeams` (`planSafAssignment` over `safReady`: queued, ready safety projects). Both run each research day
+  (models/tree.ts researchDay) before any project steps. No readiness gate, stale filter or department mismatch.
+- **Day 0 (bug, fixed).** `initialResearch` lists the six default lines and their teams wanted but places no
+  capability team (it runs before the state exists), so a new game showed 8 idle teams with the fallback "no
+  capability project is ready" until the first tick. `newGame` (core/init.ts) now ends with `assignCapNow(s)` and
+  `assignSafTeams(s)`: day 0 shows the plan the first tick would make (8 of 8 teams on the 6 lines, each with its why;
+  the safety teams on T-CONFESS / T-DECEPT with a why). Saved day0.json predates this (regenerating changes only team
+  projectId / why there).
+- **Day 900 (deliberate rule, not changed).** RD-R03 / SAF-23 (BUILD-NOTES "Safety science teams on the capability
+  planner"): safety teams work only on safety projects on the priority list; a finished safety project leaves the list
+  and its programme's next project waits for the player (continueLine deleted). The fixture's two start projects are
+  done and nothing else was queued, so both teams are idle with "no safety project on the priority list", and the
+  Portfolio's 18 programmes (one per agenda) read 0 staffed. Queueing a programme's next project staffs it at once
+  (check). **Design fit:** matches SAF-23 (never staff a line the player did not choose) but not the Portfolio / OQ-2
+  model, where a programme is a standing entry in the priority order like a capability line: a programme the player
+  ordered falls off its order whenever a result lands, unlike capability lines, which persist. Designer call; a
+  minimal fix would put `nextLineProject(s, agenda)` into the queue at the finished project's place (tree.ts
+  researchDay, where `q.splice` drops it), so only programmes the player queued continue (SAF-23 intact).
+- **Check.** `npx tsx scripts/v2/_sci/check.ts`: 13 ok (day 0 capability and safety staffing; day 900 rule, why,
+  queue two programmes → 2 of 18 staffed). tsc app + scripts/v2 clean.
+
+### UB-9 (SAFETY header + Risks; branch ub9-safety from rd 241bdb7; mockups rd/safety.png, safety-wide.png)
+
+**Header (all SAFETY tabs; panels/SafetyRisks.tsx).** Model picker (native select over `safetyModels`: every running
+model with its AI staff jobs and products, riskiest first; the pick is `store.sel.versionId` when it is a running model,
+else the riskiest, the one L0 names) · "<model> in testing: Able to unknown until evals finish" chip when a running model's
+evals are not done · **Loss-of-control risk** tile (`modelLossRisk` of the pick: "< 0.1%", %, or **Unknown** via
+`isUnknown`; 0–50% range strip with best-guess tick; "range … · if it could act now"; tooltip: 90% range, certainty word,
+Would try (acts against the lab), stop rate, footholds known + unfound, the published survivability range) ·
+**Unstopped harm** tile (`unstoppedBySeverity` of the pick's table: acts / yr, "about 1 in N years", or the 90% range when
+it spans over ×3; bars per severity word) · **Sight** curve (`sightCurve` mean with the lowest trait as the band floor,
+the 50% line, milestone names on the axis, markers for the pick's measured level and, while a run trains, its forecast
+mid-point; side text and the validation queue line; tooltip: `sightGaps`) · **Safety framework** tile (Hold with rule
+and what is missing, else No hold and the capability rule closest to the pick: rule, level, the pick's measured skill;
+link to the framework controls on Safeguards).
+
+**Risks tab.** The act table of the pick (`riskTableOf`: its internal fleet as AI staff work, else its first product)
+grouped Misbehaviour · Against the lab · Misuse by people (on AI staff work a line with a Products link; on a product its
+misuse rows). Columns Would try (bar, 90% range tick, value or **Unknown** chip) · Able to (dim with "?" when not measured
+yet) · Chances / yr (per item on the two item acts) · Stop rate · Unstopped / yr (bar with its range, "~0" below 0.0005).
+The composite "Acts against the lab" row: "any capability", its stop rate, "feeds Loss-of-control risk ▸". Order: the
+composite row, the item acts, then per-year acts by Unstopped. Footholds line at the foot once one is suspected or
+located (→ Safeguards). Safeguards footer from `table.guards` (label, people, slowdown; tooltip with each one's stop)
+with a Safeguards link. Every factor has its tooltip (term, value, range, certainty word).
+
+**New readouts (safetyReadouts.ts).** `safetyModels`, `riskTableOf`, `unstoppedBySeverity` (+ `SEVERITY_WORDS`,
+`severityWord`, `unstoppedRange` = Unstopped × the Would-try range ÷ the best guess, since attempts scale with Would try);
+`actReadouts` rows carry `unstoppedRange` and (per-year rows) `severity`. lossRisk.ts exports `rowSev`; selectors export
+`measuredDomainOf`; the store's test readouts add `lossOfControlRisk`.
+
+**Other tabs (regrouped, not redesigned).** Tabs: Risks · Model · Instruments · Safeguards · Incidents & cases, plus a
+"Safety programmes ▸" chip to RESEARCH › Portfolio (UB-6 made the Portfolio's safety column their home; the old
+Programmes tab and its programme rows are deleted). Model: risk families, trait graph, successor steering, new failure modes. Instruments: instruments list,
+detection by level, the capability vs sight-limit history chart (L2 home of the old race chart), validation, results.
+Safeguards: **AI staff safeguards** card (the old Control card without the risk: blocked / caught by monitors / caught by
+human review bars, watcher, control protocol and lockdown buttons, framework package), footholds and what to watch,
+policies. Old tab ids still open (`overview` → risks, `graph` → model, `footholds` → safeguards, `incidents` → cases,
+`lines` → risks); every "Safety programmes" link (Research, Risk, TraitGraph, footholds watch list, Onboarding, watch
+list) now opens RESEARCH › Portfolio; publish policy and AI share allowed links open SAFETY › Safeguards' policies; store
+anchors `safety#successorPull` / `#policy` / `#footholds` open their tabs (the side-switch anchor is gone).
+
+**Deleted (one home per datum).** The Overview verdict banner (sight-limit verdict and its cause chains: the sight curve
+is the home), the Control card's Loss-of-control gauge and its Would try / Stop rate / Footholds drivers (header tile and
+its tooltip), the "Would try (act against the lab)" card (the composite act row), the side switch (families / successor),
+the families' and trait graph's own model pickers (the header picker), the Overview tab itself, the Programmes tab
+(programme rows, their badge) after the RESEARCH merge.
+
+**Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
+numbers in ResearchProjects / Work); lint-structure: 1 fail, pre-existing (action title length). Own test
+`scripts/v2/_ub9/check.ts` (day 400 and 900): picker's first = the L0 model; tile = Σ per-year rows = Σ severity bins;
+Would try × Able to × Chances / yr × (1 − Stop rate) = Unstopped on every per-year row; composite row on AI staff work
+only; nothing moves when hidden values are rewritten: all pass. uitest SAFETY steps rewritten (R8 section, E11 Safety
+part, E12 model tab; E12 / F6 checks updated to the UB-4 wording): every SAFETY step passes. The run still stops at the
+stale D6 step (`P10` undefined), as after UB-5; the other failures (Blueprint, Products, Research, Agents, D8, E11
+product tooltip, E12 Blueprint signals) are outside SAFETY and unchanged. Screenshots: scripts/v2/shots/ub9/ (d0, d400, d900 risks; wide = the day-400 fixture with every
+trait belief's sd tripled, at least 0.12; d400 tooltips and the other tabs), script scripts/v2/shots/ub9.mjs (ignored).
+
+**Differences from the mockup.** "Next rule" names the capability rule closest to the picked model (day 400: Biological:
+High at Bio 6.4, Atlas-2.8 at 5.6), not AI R&D: Critical. The "next run" sight marker shows only while a run trains (its
+forecast): the TRAINING draft plan is local to that screen. The wide-belief copy does not reach an Unknown
+Loss-of-control risk (best guess < 0.1%, range to 0.3%): the tile's Unknown state is built but only rows show Unknown in
+the shots. Unstopped harm reads 0.020 (3 decimals below 0.1). The picker is a native select.
+
+**Left / designer.** The Risk panel (Company & world) still shows a "your models" risk source built on the same
+Loss-of-control readout: a second display of the datum (its driver link now points to SAFETY › Risks). The Unknown state
+of the risk tile needs a belief state wide enough to move the risk itself (a fresh model with no evidence). Able to "?"
+on unmeasured rows reads a relative's skill; a separate "not measured" look may read better.

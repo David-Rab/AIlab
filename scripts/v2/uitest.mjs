@@ -501,42 +501,56 @@ if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its
   const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
   if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
 }
-// R8 Safety: overview (verdict, race chart, four risk families, policies), research lines, investigations.
+// UB-9 SAFETY: the header (model picker, Loss-of-control risk, Unstopped harm, sight curve, framework) on every tab and
+// Risks (the harmful-acts table) first; then Model, Instruments, Safeguards, Incidents & cases, Programmes.
 await nav('safety');
-await tabTo('overview');
-ok('Safety overview: verdict, race chart, 4 risk families, policies', !!(await page.$('[data-home=safetyVerdict]')) && !!(await page.$('[data-test=race-chart]')) && (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-home=safetyPolicy]')));
-ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
-await check('Safety: evaluate-before-release toggle', 's.player.safety.evalGate', () => page.click('[data-act="safety.evalGate.toggle"]'));
-await page.click('[data-act="safety.evalGate.toggle"]', { timeout: 2000 }).catch(() => {}); // stale: no evalGate control on Safety (pre-UB-5)
-await page.hover('[data-test=u-point]');
-await wait(250);
-ok('Safety: U tooltip shows tools validated to and per-family levels', JSON.parse(await get(`/validated to/i.test(document.body.innerText) && /Deception seen to/.test(document.body.innerText)`)));
-await clearTips();
-await tabTo('lines');
-ok('Research lines: staffed lines with health and teams', (await page.$$('[data-home=researchLines] [data-line]')).length >= 2 && !!(await page.$('[data-home=researchLines] [data-line] [data-team]')) && /Promising|Mixed|Struggling/.test(await page.$eval('[data-home=researchLines]', (e) => e.textContent ?? '')));
-ok('Research lines: tool upkeep card (research engineers)', !!(await page.$('[data-home=toolUpkeep] [data-test=re-bar]')));
+await tabTo('risks');
+ok('SAFETY header: picker, Loss-of-control risk, Unstopped harm, sight curve with the 50% line, framework', !!(await page.$('[data-test=sf-model]')) && !!(await page.$('[data-test=sf-risk]')) && !!(await page.$('[data-test=sf-harm]')) && !!(await page.$('[data-test=sight-curve] [data-mark=model]')) && !!(await page.$('[data-home=frameworkHold] [data-test=sf-hold]')));
 {
-  const tid = JSON.parse(await get('(s.player.teams.find((t) => t.role === "sci" && t.dept === "saf" && t.projectId) || {}).id || ""'));
-  const line = JSON.parse(await get(`(() => { const t = s.player.teams.find((x) => x.id === "${tid}"); const r = document.querySelector('[data-line] [data-team="${tid}"]'); return r ? r.closest('[data-line]').getAttribute('data-line') : ''; })()`));
-  if (tid && line) {
-    await page.evaluate((id) => { window.ai27v2.state.player.research.autoAssign = false; window.ai27v2.act('research.unassign', { team: id }); }, tid);
-    await wait(80);
-    if (!(await page.$(`[data-test="line-add.${line}"]`))) await page.click('[data-test=lines-all]');
-    await wait(60);
-    await page.click(`[data-test="line-add.${line}"]`);
-    await check('Research lines: + team assigns an idle safety team to the line', `(s.player.teams.find((t) => t.id === "${tid}") || {}).projectId || ""`, () => page.click(`[data-act="line-assign.${tid}"]`));
-    await page.evaluate(() => { window.ai27v2.state.player.research.autoAssign = true; });
+  const pick = await page.$eval('[data-test=sf-model]', (e) => e.value);
+  const r = JSON.parse(await get(`(() => { const r = store.readouts.lossOfControlRisk(s, ${JSON.stringify(pick)}); return r ? r.p : -1; })()`));
+  const shown = await page.$eval('[data-test=sf-risk]', (e) => Number(e.getAttribute('data-risk')));
+  ok('SAFETY header: the risk tile reads lossOfControlRisk of the picked model', Math.abs(shown - r) < 1e-5, `${shown} vs ${r}`);
+  const lab = JSON.parse(await get('(store.readouts.lossOfControlRisk(s) || {}).versionId || ""'));
+  ok('SAFETY header: the picker starts on the riskiest running model (the one the top bar names)', !!pick && (pick === lab || JSON.parse(await get('!!store.sel.versionId'))), `${pick} vs ${lab}`);
+  const risk = await page.$eval('[data-test=sf-risk]', (e) => e.textContent ?? '');
+  ok('SAFETY header: risk reads "< 0.1%", a %, or Unknown (never 0%)', /^(< 0\.1%|\d+(\.\d)?%|Unknown)$/.test(risk) && !/^0(\.0)?%$/.test(risk), risk);
+}
+ok('SAFETY › Risks: grouped act table (misbehaviour, against the lab, misuse link) with the composite row feeding Loss-of-control risk', !!(await page.$('[data-home=actTable] [data-group=misbehaviour] [data-act]')) && !!(await page.$('[data-home=actTable] [data-group=lab] [data-act=TAKEOVER] [data-ref=lossRisk]')) && !!(await page.$('[data-home=actTable] [data-group=misuse]')));
+ok('SAFETY › Risks: five factor columns per act row and a safeguards footer with its link', (await page.$$('[data-home=actTable] [data-act=RH] [data-col]')).length === 5 && !!(await page.$('[data-test=sfr-guards] [data-ref=safeguardsTab]')));
+ok('SAFETY: the old readouts are gone (verdict, risk gauge, Would-try card, side switch)', !(await page.$('[data-home=safetyVerdict]')) && !(await page.$('[data-test=control-value]')) && !(await page.$('[data-home=misBand]')) && !(await page.$('[data-test=sf-side-tabs]')));
+await page.hover('[data-test=sf-risk]');
+await wait(300);
+ok('SAFETY header: the risk tooltip gives its range, certainty and parts', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /90% range/.test(t) && /Certainty/.test(t) && /Stop rate/.test(t); })()`)));
+await clearTips();
+{
+  const ids = await page.$$eval('[data-test=sf-model] option', (els) => els.map((e) => e.value));
+  const cur = await page.$eval('[data-test=sf-model]', (e) => e.value);
+  const other = ids.find((x) => x !== cur);
+  if (other) {
+    await check('SAFETY header: picking another model changes the table', 'store.sel.versionId || ""', () => page.selectOption('[data-test=sf-model]', other));
+    ok('SAFETY header: the table names the picked model', (await page.$eval('[data-home=actTable]', (e) => e.innerText)).includes(await page.$eval('[data-test=sf-model] option:checked', (e) => e.textContent.split(' · ')[0])));
+    await page.evaluate(() => { window.ai27v2.sel.versionId = undefined; window.ai27v2.notify(); });
   }
 }
-await check('Research lines: show all / staffed only', 'document.querySelectorAll("[data-home=researchLines] [data-line]").length', () => page.click('[data-test=lines-all]'));
-await check('Research lines: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await check('SAFETY › Risks: the safeguards link opens Safeguards', 'store.tab.safety || ""', () => page.click('[data-test=sfr-guards] [data-ref=safeguardsTab]'));
+ok('SAFETY › Safeguards: AI staff safeguards, footholds and policies', !!(await page.$('[data-home=staffSafeguards]')) && !!(await page.$('[data-home=footholds]')) && !!(await page.$('[data-home=safetyPolicy]')));
+ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
+await tabTo('instruments');
+ok('SAFETY › Instruments: instruments, detection by level, the capability vs sight-limit history, validation', !!(await page.$('[data-home=techniques]')) && !!(await page.$('[data-home=detectionByLevel]')) && !!(await page.$('[data-test=race-chart]')) && !!(await page.$('[data-home=validation]')));
+await check('Instruments: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await tabTo('model');
+ok('SAFETY › Model: 4 risk families, trait graph, successor steering', (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-test=traitgraph]')) && !!(await page.$('[data-home=successorPull]')));
+// UB-9: safety programmes live on RESEARCH › Portfolio (UB-6); SAFETY has a link chip, no second copy.
+ok('SAFETY: no Programmes tab; a Safety programmes chip links to RESEARCH › Portfolio', !(await page.$('main.center [data-tabs=safety] [data-tab=lines]')) && !(await page.$('[data-home=researchLines]')) && !!(await page.$('.sf-tabs [data-ref=safetyProgrammes]')));
+await check('SAFETY: the Safety programmes chip opens RESEARCH › Portfolio', 'store.panel + "." + (store.tab.research || "")', () => page.click('.sf-tabs [data-ref=safetyProgrammes]'));
+ok('SAFETY: the chip lands on the Portfolio safety column', !!(await page.$('[data-home=safetyProgrammes]')));
+await nav('safety');
 await tabTo('cases');
 await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
 ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
-await tabTo('graph');
-ok('Trait graph tab renders the graph', !!(await page.$('[data-test=traitgraph]')));
-await tabTo('overview');
+await tabTo('risks');
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
@@ -544,19 +558,20 @@ await nav('risk');
 await tabTo('flows');
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
 
-// Model v3 V2b Research: tabs Projects / Recipe / Tree. Tree: node card adds to the priorities; Projects: priority list
-// (stage tracks, teams wanted, risk policy, reorder by ▲▼ and drag, add, remove, reopen) and the project card; Recipe:
-// three stacks with the adopted ideas. The game places the teams (no team picker).
+// UB-6 / UB-8 RESEARCH: tabs Portfolio / Discoveries / Know-how. Discoveries: node card adds to the list; Portfolio:
+// Limited-by strip, read-only science split, capability and safety columns (one card grammar, drag / Alt+↑↓ reorder),
+// the card drawer (Gets, teams wanted, idea choice, remove), Add project, more safety programmes; Know-how: five area
+// bars, Waiting, Lab tools, an area's results. The game places the teams (no team picker).
 await nav('research');
 await tabTo('tree');
 await wait(80);
 {
   const nn = (await page.$$('[data-panel=research] .rs-node')).length;
   ok('Research: tree renders', nn >= 10, `nodes ${nn}`);
-  ok('Research: no know-how bar or team picker', !(await page.$('[data-test=knowhow]')) && !(await page.$('[data-test=assign-open]')));
+  ok('Research: no team picker', !(await page.$('[data-test=assign-open]')));
 }
 await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
-ok('Research: node card shows odds and stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
+ok('Research: node card shows the chance and the stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Chance it works|Outlook/i.test(c.innerText) && /team-weeks/.test(c.innerText); })()`)));
 await check('Research: Top priority puts the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
 await page.evaluate(() => window.ai27v2.step(1));
 await wait(60);
@@ -574,28 +589,44 @@ await shot('41-research-node');
 await page.click('[data-test=node-close]').catch(() => {});
 await tabTo('projects');
 await wait(80);
-ok('Research: priority list rows with five-step stage tracks', JSON.parse(await get(`document.querySelectorAll('[data-home=priorities] [data-project]').length >= 2 && !!document.querySelector('[data-project=P05] [data-test="track.P05"]') && document.querySelectorAll('[data-project=P05] [data-test="track.P05"] i').length === 5`)));
-await check('Research: teams wanted +', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-up.P05"]'));
-await check('Research: teams wanted −', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-down.P05"]'));
-await check('Research: risk policy speculative', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=speculative]'));
-await check('Research: risk policy back to balanced', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=balanced]'));
-await check('Research: reorder with ▼', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-test="prio-down.P05"]'));
-await check('Research: reorder by drag', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-home=priorities] [data-project=P05]').dragTo(page.locator('[data-home=priorities] [data-project]').first()));
-await check('Research: a row opens its project card', 'store.tab["research.proj"] || ""', () => page.click('[data-home=priorities] [data-project=elastic] .rp-nm'));
-ok('Research: project card shows the stage track, inputs and the teams with why', JSON.parse(await get(`(() => { const c = document.querySelector('[data-home=projectCard]'); return !!c && !!c.querySelector('[data-test="track.elastic"]') && /Inputs today/i.test(c.innerText) && /why here/i.test(c.innerText); })()`)));
-await check('Research: + Add project', 'JSON.stringify(s.player.research.queue)', async () => { const v = await page.$eval('[data-test=add-project] option:nth-child(2)', (o) => o.value); await page.selectOption('[data-test=add-project]', v); });
-await check('Research: Remove from the card', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-home=projectCard] [data-act^="dequeue."]'));
-await page.click('[data-home=priorities] [data-project=P05] .rp-nm');
-await wait(60);
-await shot('42-research-projects');
-await page.hover('[data-home=priorities] [data-project=P05] .rp-dots i');
-await wait(300);
-ok('Research: a team dot says why the team is there', /Why here/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-await clearTips();
-await tabTo('recipe');
+ok('Portfolio: Limited-by strip with four segments, one lit (or a red zero)', JSON.parse(await get(`document.querySelectorAll('[data-home=limitedBy] [data-lim]').length === 4 && document.querySelectorAll('[data-home=limitedBy] [data-state=on], [data-home=limitedBy] [data-state=bad]').length >= 1`)));
+ok('Portfolio: science split is read-only here, with a link to LAB', !!(await page.$('[data-test=sci-split-ro] [data-ref=sciSplit]')) && !(await page.$('[data-test=sci-split-ro] [data-act]')));
+ok('Portfolio: capability and safety columns side by side', JSON.parse(await get(`(() => { const a = document.querySelector('[data-home=priorities]')?.getBoundingClientRect(); const b = document.querySelector('[data-home=safetyProgrammes]')?.getBoundingClientRect(); return !!a && !!b && b.left >= a.right - 1 && Math.abs(a.top - b.top) < 4; })()`)));
+ok('Portfolio: capability cards with stage tracks, next result and a programme rate', JSON.parse(await get(`document.querySelectorAll('[data-home=priorities] [data-card]').length >= 2 && document.querySelectorAll('[data-home=priorities] [data-test^="track."] .pf-stg').length >= 4 && !!document.querySelector('[data-home=priorities] [data-test^="next."]')`)));
+ok('Portfolio: safety cards with the three-stage track (Ideas · Small test · Validate) and an outlook', JSON.parse(await get(`(() => { const c = document.querySelector('[data-home=safetyProgrammes] [data-card]'); return !!c && c.querySelectorAll('.pf-stg').length === 3 && /Validate/.test(c.innerText) && /Promising|Mixed|Struggling/.test(c.innerText); })()`)));
+await check('Portfolio: reorder by drag', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-home=priorities] [data-card=elastic]').dragTo(page.locator('[data-home=priorities] [data-card]').first()));
+await page.focus('[data-home=priorities] [data-card=elastic]');
+await check('Portfolio: Alt+↓ on a focused card moves it down', 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
+await check('Portfolio: a card opens its drawer', 'store.tab["research.drawer"] || ""', () => page.click('[data-home=priorities] [data-card=elastic] .nm'));
+ok('Portfolio drawer: stage track, Gets and the idea choice', JSON.parse(await get(`(() => { const d = document.querySelector('[data-test=drawer]'); return !!d && !!d.querySelector('[data-test^="drawer-track."]') && /Gets/i.test(d.innerText) && !!d.querySelector('[data-test=risk-policy]'); })()`)));
+await check('Portfolio drawer: teams wanted +', 'JSON.stringify(s.player.research.want)', () => page.click('[data-test=drawer] [data-act^="want-up."]'));
+await check('Portfolio drawer: teams wanted −', 'JSON.stringify(s.player.research.want)', () => page.click('[data-test=drawer] [data-act^="want-down."]'));
+await check('Portfolio drawer: idea choice Bold', 's.player.research.risk', () => page.click('[data-test=drawer] [data-test=risk-policy] [data-opt=speculative]'));
+await check('Portfolio drawer: idea choice back to Balanced', 's.player.research.risk', () => page.click('[data-test=drawer] [data-test=risk-policy] [data-opt=balanced]'));
+await shot('42-research-drawer');
+await check('Portfolio: Escape closes the drawer', 'store.tab["research.drawer"] || ""', () => page.keyboard.press('Escape'));
+await check('Portfolio: + Add project', 'JSON.stringify(s.player.research.queue)', async () => { const v = await page.$eval('[data-test=add-project] option:nth-child(2)', (o) => o.value); await page.selectOption('[data-test=add-project]', v); });
+{
+  const added = JSON.parse(await get('s.player.research.queue[s.player.research.queue.length - 1]'));
+  await page.click(`[data-home=priorities] [data-card="${added}"] .nm`);
+  await check('Portfolio drawer: Remove from the list', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-test=drawer] [data-act^="dequeue."]'));
+  await page.keyboard.press('Escape');
+}
+if (await page.$('[data-test=saf-more]')) await check('Portfolio: more safety programmes open', 'document.querySelectorAll("[data-home=safetyProgrammes] [data-card]").length', () => page.click('[data-test=saf-more]'));
+await shot('42-research-portfolio');
+if (await page.$('[data-home=priorities] [data-test^="rate."]')) {
+  await page.hover('[data-home=priorities] [data-test^="rate."]');
+  await wait(380);
+  ok('Portfolio: the rate tooltip gives results a year and the next result', /Results a year/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+}
+await tabTo('knowhow');
 await wait(80);
-ok('Research: recipe shows three stacks and the software rate', JSON.parse(await get(`document.querySelectorAll('[data-home^="stack."]').length === 3 && !!document.querySelector('[data-home=softwareRate]')`)));
-await shot('43-research-recipe');
+ok('Know-how: five area bars, public and yours', JSON.parse(await get(`document.querySelectorAll('[data-home=knowHow] [data-area]').length === 5 && document.querySelectorAll('[data-home=knowHow] .kh-bar.pub').length === 5 && document.querySelectorAll('[data-home=knowHow] .kh-bar.you').length === 5`)));
+ok('Know-how: Waiting panel, Where it comes from, Lab tools (three tools)', !!(await page.$('[data-home=waiting]')) && !!(await page.$('[data-home=knowHowSources]')) && (await page.$$('[data-home=labTools] [data-tool]')).length === 3);
+ok('Know-how: the old recipe stacks are gone (one home)', !(await page.$('[data-home^="stack."]')) && !(await page.$('[data-home=softwareRate]')));
+await check('Know-how: an area opens its results', 'store.tab["research.khOpen"] || ""', () => page.click('[data-home=knowHow] [data-area=pre]'));
+await shot('43-research-knowhow');
 await tabTo('projects');
 if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a failed project as speculative', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-act^="reopen."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
@@ -862,34 +893,38 @@ async function b4Check(where) {
   });
   ok(`B4 ${where}: Products: with ≤ 3 products the launch card and serving split sit beside the cards, above the fold`, pr.n > 3 || (pr.side && pr.svTop < 1000 && (pr.launchH === 0 || pr.launchH < pr.cardH * 0.6)), JSON.stringify(pr));
   await shot(`80-${where.replace(' ', '')}-products-b4`);
-  // Research › Projects: the card under the list; auto teams wanted; keyboard reorder.
+  // Research › Portfolio (UB-6): the board's two columns, no clipped card names; auto teams wanted and the keyboard
+  // reorder from the card drawer / a focused card.
   await nav('research');
   await tabTo('projects');
   await wait(60);
   const lay = await page.evaluate(() => {
     const l = document.querySelector('[data-home=priorities]')?.getBoundingClientRect();
-    const c = document.querySelector('[data-home=projectCard]')?.getBoundingClientRect();
-    const clipped = [...document.querySelectorAll('[data-home=priorities] .stepper, [data-home=priorities] .rp-nm b')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
-    return { below: !!l && !!c && c.top >= l.bottom - 1, clipped };
+    const r = document.querySelector('[data-home=safetyProgrammes]')?.getBoundingClientRect();
+    const clipped = [...document.querySelectorAll('[data-home=priorities] .pf-card .nm')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
+    return { side: !!l && !!r && r.left >= l.right - 1, clipped };
   });
-  ok(`B4 ${where}: Research: the project card sits under the priority list; no clipped stepper`, (lay.below || !(await page.$('[data-home=projectCard]'))) && lay.clipped === 0, JSON.stringify(lay));
+  ok(`B4 ${where}: Research: capability and safety side by side; no clipped card name`, lay.side && lay.clipped === 0, JSON.stringify(lay));
   const first = await page.$eval('[data-home=priorities] [data-project]', (e) => e.getAttribute('data-project')).catch(() => '');
   if (first) {
-    await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
-    ok(`B4 ${where}: an auto project shows "auto" and its placed teams`, /auto/.test(await page.$eval(`[data-test="want-n.${first}"]`, (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
-    await clearTips();
-    await page.hover(`[data-act="want-auto.${first}"]`);
+    await page.click(`[data-home=priorities] [data-card="${first}"] .nm`);
+    await wait(60);
+    await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
+    ok(`B4 ${where}: the drawer shows "auto" teams wanted`, /wanted auto/.test(await page.$eval('[data-test=drawer]', (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-test=drawer] [data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
+    await page.hover(`[data-test=drawer] [data-act="want-auto.${first}"]`);
     await wait(380);
     ok(`B4 ${where}: the Auto toggle's tooltip explains priority and fit`, /priority and fit/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-    await clearTips();
-    await shot(`81-${where.replace(' ', '')}-research-projects-b4`);
-    await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
-    const labels = await page.$$eval('[data-home=priorities] [data-test^="prio-"], [data-home=priorities] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-test') ?? e.getAttribute('data-act')));
-    ok(`B4 ${where}: ▲▼, − + and Auto have accessible labels`, labels.length === 0, labels.slice(0, 4).join(', '));
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
+    await shot(`81-${where.replace(' ', '')}-research-portfolio-b4`);
+    await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
+    const labels = await page.$$eval('[data-test=drawer] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-act')));
+    ok(`B4 ${where}: − + and Auto have accessible labels`, labels.length === 0, labels.slice(0, 4).join(', '));
+    await page.keyboard.press('Escape');
     const n = JSON.parse(await get("document.querySelectorAll('[data-home=priorities] [data-project]').length"));
     if (n > 1) {
       await page.focus(`[data-home=priorities] [data-project="${first}"]`);
-      await check(`B4 ${where}: Alt+↓ on a focused row moves it down (keyboard reorder)`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
+      await check(`B4 ${where}: Alt+↓ on a focused card moves it down (keyboard reorder)`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
       await page.focus(`[data-home=priorities] [data-project="${first}"]`);
       await check(`B4 ${where}: Alt+↑ moves it back`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowUp'));
     }
@@ -924,7 +959,7 @@ async function b4Check(where) {
     const idx = routes.indexOf(capRow);
     await page.locator('[data-test=alert-list] [data-alert-row=research] [data-test=alert-open]').nth(idx).evaluate((b) => b.click());
     await wait(80);
-    ok(`B4 ${where}: Open on a capability result opens its project card`, JSON.parse(await get(`store.panel === 'research' && store.tab.research === 'projects' && store.tab['research.proj'] === ${JSON.stringify(cap)}`)));
+    ok(`B4 ${where}: Open on a capability result opens its card drawer`, JSON.parse(await get(`store.panel === 'research' && store.tab.research === 'projects' && store.tab['research.drawer'] === ${JSON.stringify(cap)}`)));
   } else await page.click('[data-test=alert-chip]');
   await page.evaluate(() => { const s = window.ai27v2.state; s.log = s.log.filter((e) => !/^B4 test:/.test(e.text)); window.ai27v2.notify(); });
   await closeModals();
@@ -996,34 +1031,38 @@ async function e11Check(where, plant = false) {
   const running = await page.evaluate(() => ['eng', 'capRoutine', 'capFrontier', 'safety'].filter((u) => !!document.querySelector(`[data-lane="${u}"]`) && !document.querySelector(`[data-test="lane-off.${u}"]`)));
   ok(`E11 ${where}: a danger readout on every running agent lane, equal to the belief selector`, lanes.length >= 1 && lanes.length === running.filter((u) => lv[u] !== undefined).length && lanes.every(([u, h]) => Math.abs(h - lv[u]) < 1e-4), JSON.stringify(lanes));
   if (lanes.length) { await page.hover(`[data-test="agent-danger.${lanes[0][0]}"]`); await wait(350); await shot(`e11-${tag}-lane-danger`); await clearTips(); }
-  // Safety › Overview: believed control equals controlReadout; the true level never shows.
+  // UB-9: SAFETY's Loss-of-control risk tile equals the believed selector for the picked model; the true level never
+  // shows; the AI staff safeguards card (SAFETY › Safeguards) holds the control layer; footholds count known ones only.
   await nav('safety');
-  await tabTo('overview');
-  const shown = await page.$eval('[data-test=control-value]', (e) => Number(e.getAttribute('data-control'))).catch(() => NaN);
-  const cr = await sel('r.controlReadout(s)');
-  const card = await page.locator('[data-home=effectiveControl]').innerText().catch(() => '');
-  ok(`E11 ${where}: control on Safety › Overview equals the believed selector (${cr.believed})`, Math.abs(shown - cr.believed) < 1e-4 && card.includes(cr.believed.toFixed(2)), `${shown} vs ${cr.believed}`);
-  ok(`E11 ${where}: the true control level and exposure never show`, !/\b0\.01\b|\b0\.99\b|99%/.test(card), card.replace(/\s+/g, ' ').slice(0, 160));
+  await tabTo('risks');
+  const pickId = await page.$eval('[data-test=sf-model]', (e) => e.value).catch(() => '');
+  const shown = await page.$eval('[data-test=sf-risk]', (e) => Number(e.getAttribute('data-risk'))).catch(() => NaN);
+  const lr = JSON.parse(await get(`(() => { const r = store.readouts.lossOfControlRisk(s, ${JSON.stringify(pickId)}); return r ? r.p : -1; })()`));
+  const head = await page.locator('[data-home=safetyHeader]').innerText().catch(() => '');
+  ok(`E11 ${where}: Loss-of-control risk on SAFETY equals the believed selector (${lr})`, Math.abs(shown - lr) < 1e-5, `${shown} vs ${lr}`);
+  ok(`E11 ${where}: the true control level and exposure never show`, !/\b0\.0137\b|\b0\.9863\b|98\.6%/.test(head), head.replace(/\s+/g, ' ').slice(0, 160));
   const fv = await sel('r.footholdView(s)');
-  ok(`E11 ${where}: the footholds chip counts known footholds only`, (await page.locator('[data-test=foothold-chip]').innerText()).includes(String(fv.suspected + fv.located)) && !fv.rows.some((x) => x.id === 'FH-E11-HIDDEN'));
-  await shot(`e11-${tag}-safety-overview`);
-  await page.hover('[data-test=control-value]');
+  ok(`E11 ${where}: the Risks footholds line counts known footholds only`, (fv.suspected + fv.located === 0 ? !(await page.$('[data-test=sfr-footholds]')) : (await page.locator('[data-test=sfr-footholds]').innerText()).includes(`${fv.suspected} suspected`)) && !fv.rows.some((x) => x.id === 'FH-E11-HIDDEN'));
+  await shot(`e11-${tag}-safety-risks`);
+  await page.hover('[data-test=sf-risk]');
   await wait(350);
-  ok(`E11 ${where}: the control tooltip shows its exposure terms`, /Exposure/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  ok(`E11 ${where}: the risk tooltip shows its parts (would try, stop rate, footholds)`, /Stop rate/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')) && /Footholds/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+  await tabTo('safeguards');
   // Model v3 F6: the control layer has an off switch next to Add control (the response's preview, its effect).
   await clearTips();
   if (await page.$('[data-act="control-add"]')) {
     await page.click('[data-act="control-add"]');
     await wait(150);
-    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && d.controlLayer)'));
+    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && (d.guards || []).some((g) => g.kind === "control"))'));
     const btn = await page.$('[data-act="control-remove"]');
     let rtip = '';
     if (btn) { await page.hover('[data-act="control-remove"]'); await wait(350); rtip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? ''); await clearTips(); await page.click('[data-act="control-remove"]'); await wait(150); }
-    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && d.controlLayer)'));
-    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /control tax ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
+    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && (d.guards || []).some((g) => g.kind === "control"))'));
+    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /slowdown ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
   }
   await clearTips();
-  await tabTo('footholds');
+  await tabTo('safeguards');
   const html = await page.locator('main.center').innerHTML();
   const rows = await page.$$eval('[data-foothold]', (els) => els.map((e) => e.getAttribute('data-foothold')));
   ok(`E11 ${where}: Footholds lists every known foothold and no hidden one`, !html.includes('FH-E11-HIDDEN') && rows.length === fv.rows.length && fv.rows.every((x) => rows.includes(x.id)), rows.join(','));
@@ -1271,7 +1310,7 @@ const e12Seen = new Set();
 const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
 async function e12Check(where) {
   const tag = where.replace(' ', '');
-  await page.evaluate(() => { window.ai27v2.setTab('safety', 'overview'); window.ai27v2.setTab('safety.side', 'families'); });
+  await page.evaluate(() => { window.ai27v2.setTab('safety', 'model'); });
   await nav('safety');
   // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
   const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
@@ -1284,30 +1323,26 @@ async function e12Check(where) {
     await wait(60);
     const tr = await page.$$eval(`[data-test="fam-traits.${f}"] [data-trait]`, (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), m: e.querySelector('.sf-mean')?.textContent ?? '', v: e.querySelector('.num')?.textContent ?? '' })));
     rows += tr.length;
-    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d\.\d\d ±\d\.\d\d/.test(x.v)).length;
+    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d+(\.\d)?% \(\d+(\.\d)?%–\d+(\.\d)?%\)/.test(x.v)).length;
     await collectTerms();
     if (f === 'deception') { await page.mouse.move(1, 1); await shot(`e12-${tag}-families`); }
   }
   await page.click('[data-test="fam-open.other"]');
   ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
   // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
-  const famOnly = !(await page.$('[data-home=successorPull]'));
-  await page.click('[data-test="sf-side.successor"]');
-  await wait(80);
-  ok(`F6b ${where}: Safety's side column shows one of families / successor pull, the switch opens the other`, famOnly && !!(await page.$('[data-home=successorPull]')) && !(await page.$('[data-home=riskFamilies]')));
+  ok(`UB-9 ${where}: SAFETY › Model shows the risk families and the successor pull side by side`, !!(await page.$('[data-home=successorPull]')) && !!(await page.$('[data-home=riskFamilies]')));
   const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
-  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
+  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d+\.\d%/)?.[0];
   const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
   const parts = await page.$$eval('[data-test=succ-part]', (els) => els.map((e) => ({ slot: e.getAttribute('data-slot'), sh: e.querySelector('[data-test=succ-part-share]')?.textContent ?? '', om: e.querySelector('[data-test=succ-part-omega]')?.textContent ?? '' })));
-  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === p.omega.toFixed(2));
-  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === sp.omega.toFixed(2) && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
+  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === `${(p.omega * 100).toFixed(1)}%`);
+  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === `${(sp.omega * 100).toFixed(1)}%` && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
     `ω ${om} vs ${sp.omega.toFixed(3)} · r ${r}% vs ${(sp.r * 100).toFixed(1)} · ${parts.map((p) => `${p.slot} ${p.sh} ${p.om}`).join(' ')}`);
   const sTip = await tipText('[data-test=succ-omega]');
-  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /90% band/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
+  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /Range/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
   await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
-  await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
   await nav('blueprint');
   await tabTo('next');
@@ -1332,12 +1367,11 @@ async function e12Check(where) {
     await shot(`e12-${tag}-blueprint-${k}`);
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`E12 ${where}: Training links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  ok(`E12 ${where}: Training links the successor pull to its home on Safety`, /Successor steering from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
   if (where === 'day 400') {
     await page.click('[data-test=bp-succ] [data-ref=successorPull]');
     await wait(150);
     ok('F6b: the Blueprint successor link opens Safety on the successor pull card', !!(await page.$('[data-home=successorPull]')));
-    await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   }
   await collectTerms();
   // Model card: what the finished run applied, one click down.
@@ -2260,7 +2294,8 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   if (l.id.startsWith('speed.')) { await hoverCollect('.topstrip2 [data-test=speed]'); continue; } // UB-5: research speed's limits sit in its L0 tooltip
   await nav(l.panel);
   if (l.tab) await tabTo(l.tab);
-  if (l.panel === 'research') {
+  if (l.panel === 'research' && l.tab === 'projects') { await page.click('[data-home=priorities] [data-card] .nm').catch(() => {}); await wait(80); } // UB-6: per-programme limits sit in the card drawer
+  if (l.panel === 'research' && l.tab !== 'projects') {
     const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
     for (const id of ids) {
       await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});

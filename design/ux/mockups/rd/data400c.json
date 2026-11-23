@@ -1,0 +1,2881 @@
+{
+ "day": 400,
+ "safetyModels": [
+  {
+   "id": "V27",
+   "name": "Atlas-2.8",
+   "jobs": [
+    "engineering",
+    "ideas"
+   ],
+   "products": 3,
+   "evaluating": false,
+   "risk": {
+    "versionId": "V27",
+    "name": "Atlas-2.8",
+    "p": 0,
+    "lo": 0,
+    "hi": 0,
+    "mis": 0.111,
+    "misSd": 0.044,
+    "stopRate": 0.83,
+    "F": 0,
+    "reach": 0,
+    "knownF": 0,
+    "unfoundF": 0,
+    "unfoundReach": 0,
+    "exposure": 0.019
+   }
+  },
+  {
+   "id": "V31",
+   "name": "Atlas-2.10",
+   "jobs": [
+    "experiments"
+   ],
+   "products": 0,
+   "evaluating": true,
+   "risk": {
+    "versionId": "V31",
+    "name": "Atlas-2.10",
+    "p": 0,
+    "lo": 0,
+    "hi": 0,
+    "mis": 0.096,
+    "misSd": 0.048,
+    "stopRate": 0.83,
+    "F": 0,
+    "reach": 0,
+    "knownF": 0,
+    "unfoundF": 0,
+    "unfoundReach": 0,
+    "exposure": 0.016
+   }
+  }
+ ],
+ "families": [
+  {
+   "id": "please",
+   "label": "People-pleasing",
+   "traits": [
+    "SYC",
+    "PERSONA"
+   ]
+  },
+  {
+   "id": "gaming",
+   "label": "Gaming",
+   "traits": [
+    "RH",
+    "PROXY",
+    "TGAME"
+   ]
+  },
+  {
+   "id": "deception",
+   "label": "Deception",
+   "traits": [
+    "EA",
+    "CONCEAL",
+    "OBF",
+    "AF",
+    "SAND",
+    "SCHEME"
+   ]
+  },
+  {
+   "id": "power",
+   "label": "Power",
+   "traits": [
+    "POWER",
+    "SUCC",
+    "COLLUDE"
+   ]
+  }
+ ],
+ "traitNames": {
+  "SYC": "Sycophancy",
+  "RH": "Reward hacking",
+  "PROXY": "Proxy goals",
+  "SA": "Situational awareness",
+  "PERSONA": "Misaligned persona",
+  "OBF": "Obfuscated reasoning",
+  "EA": "Eval awareness",
+  "TGAME": "Training gaming",
+  "CONCEAL": "Concealment",
+  "POWER": "Power seeking",
+  "AF": "Alignment faking",
+  "SAND": "Sandbagging",
+  "SCHEME": "Scheming",
+  "COLLUDE": "Collusion",
+  "SUCC": "Successor alignment to self",
+  "HONEST": "Honesty",
+  "CORRIG": "Corrigibility"
+ },
+ "perModel": {
+  "Atlas-2.8": {
+   "id": "V27",
+   "parent": "V23",
+   "status": "deployed",
+   "families": [
+    {
+     "id": "please",
+     "label": "People-pleasing",
+     "traits": [
+      "SYC",
+      "PERSONA"
+     ],
+     "worst": "PERSONA",
+     "est": 0.159,
+     "sd": 0.181,
+     "lo": 0,
+     "hi": 0.455,
+     "clarity": 0.584,
+     "critical": false,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "gaming",
+     "label": "Gaming",
+     "traits": [
+      "RH",
+      "PROXY",
+      "TGAME"
+     ],
+     "worst": "TGAME",
+     "est": 0.125,
+     "sd": 0.177,
+     "lo": 0,
+     "hi": 0.415,
+     "clarity": 0.506,
+     "critical": false,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "deception",
+     "label": "Deception",
+     "traits": [
+      "EA",
+      "CONCEAL",
+      "OBF",
+      "AF",
+      "SAND",
+      "SCHEME"
+     ],
+     "worst": "EA",
+     "est": 0.382,
+     "sd": 0.048,
+     "lo": 0.303,
+     "hi": 0.461,
+     "clarity": 0.704,
+     "critical": true,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "power",
+     "label": "Power",
+     "traits": [
+      "POWER",
+      "SUCC",
+      "COLLUDE"
+     ],
+     "worst": "POWER",
+     "est": 0.174,
+     "sd": 0.05,
+     "lo": 0.092,
+     "hi": 0.256,
+     "clarity": 0.766,
+     "critical": true,
+     "unseen": false,
+     "investigating": false
+    }
+   ],
+   "beliefs": {
+    "versionId": "V27",
+    "beliefs": {
+     "SYC": {
+      "est": 0.113,
+      "sd": 0.11,
+      "clarity": 0.684,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.141,
+        "noise": 0.044
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.007,
+        "noise": 0.243
+       }
+      ]
+     },
+     "RH": {
+      "est": 0.115,
+      "sd": 0.044,
+      "clarity": 0.875,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.113,
+        "noise": 0.054
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/hackRate",
+        "reading": 0.108,
+        "noise": 0.063
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.318,
+        "noise": 0.243
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0.078,
+        "noise": 0.172
+       }
+      ]
+     },
+     "PROXY": {
+      "est": 0.125,
+      "sd": 0.298,
+      "clarity": 0.148,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.125,
+        "noise": 0.042
+       }
+      ]
+     },
+     "SA": {
+      "est": 0.427,
+      "sd": 0.298,
+      "clarity": 0.147,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.427,
+        "noise": 0.042
+       }
+      ]
+     },
+     "PERSONA": {
+      "est": 0.159,
+      "sd": 0.181,
+      "clarity": 0.484,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.029,
+        "noise": 0.051
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.997,
+        "noise": 0.492
+       }
+      ]
+     },
+     "OBF": {
+      "est": 0.287,
+      "sd": 0.309,
+      "clarity": 0.117,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.287,
+        "noise": 0.052
+       }
+      ]
+     },
+     "EA": {
+      "est": 0.382,
+      "sd": 0.048,
+      "clarity": 0.862,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.351,
+        "noise": 0.043
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/evalAware",
+        "reading": 0.4,
+        "noise": 0.075
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.978,
+        "noise": 0.364
+       }
+      ]
+     },
+     "TGAME": {
+      "est": 0.125,
+      "sd": 0.177,
+      "clarity": 0.496,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.139,
+        "noise": 0.042
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.028,
+        "noise": 0.492
+       }
+      ]
+     },
+     "CONCEAL": {
+      "est": 0.041,
+      "sd": 0.094,
+      "clarity": 0.731,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.033,
+        "noise": 0.043
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.334,
+        "noise": 0.437
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0,
+        "noise": 0.223
+       }
+      ]
+     },
+     "POWER": {
+      "est": 0.174,
+      "sd": 0.05,
+      "clarity": 0.857,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.157,
+        "noise": 0.056
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/agentStress",
+        "reading": 0.215,
+        "noise": 0.081
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0,
+        "noise": 0.243
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0.198,
+        "noise": 0.252
+       }
+      ]
+     },
+     "AF": {
+      "est": 0.176,
+      "sd": 0.09,
+      "clarity": 0.744,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.178,
+        "noise": 0.048
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.486,
+        "noise": 0.303
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0,
+        "noise": 0.223
+       }
+      ]
+     },
+     "SAND": {
+      "est": 0.093,
+      "sd": 0.043,
+      "clarity": 0.876,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.145,
+        "noise": 0.052
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/sabotage",
+        "reading": 0.072,
+        "noise": 0.055
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0,
+        "noise": 0.325
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0,
+        "noise": 0.255
+       }
+      ]
+     },
+     "SCHEME": {
+      "est": 0.144,
+      "sd": 0.038,
+      "clarity": 0.892,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.157,
+        "noise": 0.055
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/schemeProbe",
+        "reading": 0.251,
+        "noise": 0.086
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/sabotage",
+        "reading": 0.072,
+        "noise": 0.055
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.326,
+        "noise": 0.309
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0.36,
+        "noise": 0.205
+       }
+      ]
+     },
+     "COLLUDE": {
+      "est": 0.057,
+      "sd": 0.096,
+      "clarity": 0.726,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.064,
+        "noise": 0.045
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0,
+        "noise": 0.312
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0.057,
+        "noise": 0.26
+       }
+      ]
+     },
+     "SUCC": {
+      "est": 0.08,
+      "sd": 0.1,
+      "clarity": 0.715,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.029,
+        "noise": 0.04
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0,
+        "noise": 0.312
+       },
+       {
+        "day": 366,
+        "source": "suite/COT",
+        "reading": 0.492,
+        "noise": 0.292
+       }
+      ]
+     },
+     "HONEST": {
+      "est": 0.838,
+      "sd": 0.043,
+      "clarity": 0.876,
+      "lastObsDay": 366,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.759,
+        "noise": 0.056
+       },
+       {
+        "day": 366,
+        "source": "eval/BB/honesty",
+        "reading": 0.875,
+        "noise": 0.053
+       },
+       {
+        "day": 366,
+        "source": "suite/BB",
+        "reading": 0.926,
+        "noise": 0.364
+       }
+      ]
+     },
+     "CORRIG": {
+      "est": 0.411,
+      "sd": 0.301,
+      "clarity": 0.139,
+      "evidence": [
+       {
+        "day": 352,
+        "source": "inherit:V23",
+        "reading": 0.411,
+        "noise": 0.042
+       }
+      ]
+     }
+    },
+    "misEst": 0.111,
+    "misBand": [
+     0.04,
+     0.183
+    ]
+   },
+   "align": {
+    "rows": [
+     {
+      "id": "honesty",
+      "name": "Honesty",
+      "k": 35,
+      "n": 40,
+      "lo": 0.765,
+      "hi": 0.938,
+      "day": 366,
+      "by": "self",
+      "hidden": false,
+      "realLo": 0.765,
+      "realHi": 0.938
+     },
+     {
+      "id": "schemeProbe",
+      "name": "SchemingProbe",
+      "k": 7,
+      "n": 40,
+      "lo": 0.098,
+      "hi": 0.293,
+      "day": 366,
+      "by": "self",
+      "hidden": true,
+      "realLo": 0.129,
+      "realHi": 0.464
+     },
+     {
+      "id": "sabotage",
+      "name": "Sabotage",
+      "k": 2,
+      "n": 40,
+      "lo": 0.017,
+      "hi": 0.14,
+      "day": 366,
+      "by": "self",
+      "hidden": true,
+      "realLo": 0.022,
+      "realHi": 0.222
+     },
+     {
+      "id": "agentStress",
+      "name": "AgentStress",
+      "k": 6,
+      "n": 40,
+      "lo": 0.08,
+      "hi": 0.265,
+      "day": 366,
+      "by": "self",
+      "hidden": true,
+      "realLo": 0.106,
+      "realHi": 0.42
+     },
+     {
+      "id": "evalAware",
+      "name": "EvalAware",
+      "k": 16,
+      "n": 40,
+      "lo": 0.283,
+      "hi": 0.53,
+      "day": 366,
+      "by": "self",
+      "hidden": false,
+      "realLo": 0.283,
+      "realHi": 0.53
+     },
+     {
+      "id": "hackRate",
+      "name": "HackRate",
+      "k": 3,
+      "n": 40,
+      "lo": 0.03,
+      "hi": 0.173,
+      "day": 366,
+      "by": "self",
+      "hidden": true,
+      "realLo": 0.04,
+      "realHi": 0.274
+     }
+    ],
+    "gap": {
+     "eaLo": 0.303,
+     "eaHi": 0.462,
+     "gLo": 1.32,
+     "gHi": 1.585,
+     "measured": {
+      "k": 16,
+      "n": 40,
+      "lo": 0.283,
+      "hi": 0.53
+     }
+    }
+   },
+   "instr": {
+    "model": "Atlas-2.8",
+    "rows": [
+     {
+      "id": "T-PROBE",
+      "name": "Linear probes",
+      "reads": [
+       "AF",
+       "SCHEME",
+       "CONCEAL",
+       "EA",
+       "POWER",
+       "SUCC",
+       "COLLUDE",
+       "SAND"
+      ],
+      "pct": 0.245,
+      "lo": 0.065,
+      "hi": 0.425,
+      "certainty": {
+       "word": "very unsure",
+       "unknown": true,
+       "width": 35.934
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "capability gap from Atlas-2.8 −1",
+       "line works 33%"
+      ]
+     },
+     {
+      "id": "T-NOISE",
+      "name": "Noise-injection elicitation",
+      "reads": [
+       "SAND"
+      ],
+      "pct": 0.175,
+      "lo": 0.047,
+      "hi": 0.303,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 25.679
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "capability gap from Atlas-2.8 −1",
+       "line works 33%"
+      ]
+     },
+     {
+      "id": "T-PROP",
+      "name": "Propensity evals",
+      "reads": [
+       "RH",
+       "SYC",
+       "POWER",
+       "SUCC",
+       "COLLUDE",
+       "SCHEME",
+       "AF",
+       "SAND",
+       "EA",
+       "CONCEAL",
+       "HONEST"
+      ],
+      "pct": 0.315,
+      "lo": 0.177,
+      "hi": 0.453,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 27.612
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "capability gap from Atlas-2.8 −7",
+       "line works 67%"
+      ]
+     },
+     {
+      "id": "T-MO",
+      "name": "Model organisms",
+      "reads": [
+       "AF",
+       "SCHEME",
+       "PERSONA",
+       "TGAME",
+       "SAND"
+      ],
+      "pct": 0.175,
+      "lo": 0.098,
+      "hi": 0.252,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 15.339
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "capability gap from Atlas-2.8 −7",
+       "line works 67%"
+      ]
+     },
+     {
+      "id": "T-COTMON",
+      "name": "CoT monitor",
+      "reads": [
+       "RH",
+       "CONCEAL",
+       "AF",
+       "SAND",
+       "SCHEME",
+       "POWER",
+       "SUCC",
+       "COLLUDE"
+      ],
+      "pct": 0.112,
+      "lo": 0.053,
+      "hi": 0.17,
+      "certainty": {
+       "word": "fairly sure",
+       "unknown": false,
+       "width": 11.71
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "line works 58%"
+      ]
+     }
+    ]
+   },
+   "valRange": [
+    {
+     "id": "T-PROBE",
+     "value": 0.245,
+     "lo": 0.074,
+     "hi": 0.515,
+     "basis": "measured",
+     "from": "V27",
+     "gap": 0,
+     "human": true
+    },
+    {
+     "id": "T-NOISE",
+     "value": 0.175,
+     "lo": 0.039,
+     "hi": 0.402,
+     "basis": "measured",
+     "from": "V27",
+     "gap": 0,
+     "human": true
+    },
+    {
+     "id": "T-PROP",
+     "value": 0.315,
+     "lo": 0.112,
+     "hi": 0.62,
+     "basis": "measured",
+     "from": "V27",
+     "gap": 0,
+     "human": true
+    },
+    {
+     "id": "T-MO",
+     "value": 0.175,
+     "lo": 0.039,
+     "hi": 0.402,
+     "basis": "measured",
+     "from": "V27",
+     "gap": 0,
+     "human": true
+    },
+    {
+     "id": "T-COTMON",
+     "value": 0.105,
+     "lo": 0.007,
+     "hi": 0.282,
+     "basis": "measured",
+     "from": "V27",
+     "gap": 0,
+     "human": true
+    }
+   ],
+   "reasons": [
+    {
+     "id": "T-PROBE",
+     "r": [
+      "capability gap from Atlas-2.8 −1",
+      "line works 33%"
+     ]
+    },
+    {
+     "id": "T-NOISE",
+     "r": [
+      "capability gap from Atlas-2.8 −1",
+      "line works 33%"
+     ]
+    },
+    {
+     "id": "T-PROP",
+     "r": [
+      "capability gap from Atlas-2.8 −7",
+      "line works 67%"
+     ]
+    },
+    {
+     "id": "T-MO",
+     "r": [
+      "capability gap from Atlas-2.8 −7",
+      "line works 67%"
+     ]
+    },
+    {
+     "id": "T-COTMON",
+     "r": [
+      "line works 58%"
+     ]
+    }
+   ],
+   "disagree": [],
+   "trust": {
+    "trusted": true,
+    "why": "Atlas-2.8 trusted: measures CYBER 5.2, below the level where covert action against oversight works (8.1)"
+   },
+   "watcher": {
+    "v": "Atlas-2.6",
+    "reason": "Auto: Atlas-2.6, the most capable model you trust (measured L 6.9)"
+   }
+  },
+  "Atlas-2.10": {
+   "id": "V31",
+   "parent": "V27",
+   "status": "evaluating",
+   "families": [
+    {
+     "id": "please",
+     "label": "People-pleasing",
+     "traits": [
+      "SYC",
+      "PERSONA"
+     ],
+     "worst": "SYC",
+     "est": 0.137,
+     "sd": 0.12,
+     "lo": 0,
+     "hi": 0.334,
+     "clarity": 0.552,
+     "critical": false,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "gaming",
+     "label": "Gaming",
+     "traits": [
+      "RH",
+      "PROXY",
+      "TGAME"
+     ],
+     "worst": "TGAME",
+     "est": 0.129,
+     "sd": 0.181,
+     "lo": 0,
+     "hi": 0.426,
+     "clarity": 0.477,
+     "critical": false,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "deception",
+     "label": "Deception",
+     "traits": [
+      "EA",
+      "CONCEAL",
+      "OBF",
+      "AF",
+      "SAND",
+      "SCHEME"
+     ],
+     "worst": "EA",
+     "est": 0.374,
+     "sd": 0.064,
+     "lo": 0.269,
+     "hi": 0.479,
+     "clarity": 0.665,
+     "critical": true,
+     "unseen": false,
+     "investigating": false
+    },
+    {
+     "id": "power",
+     "label": "Power",
+     "traits": [
+      "POWER",
+      "SUCC",
+      "COLLUDE"
+     ],
+     "worst": "POWER",
+     "est": 0.177,
+     "sd": 0.065,
+     "lo": 0.071,
+     "hi": 0.283,
+     "clarity": 0.733,
+     "critical": true,
+     "unseen": false,
+     "investigating": false
+    }
+   ],
+   "beliefs": {
+    "versionId": "V31",
+    "beliefs": {
+     "SYC": {
+      "est": 0.137,
+      "sd": 0.12,
+      "clarity": 0.657,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.137,
+        "noise": 0.047
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "RH": {
+      "est": 0.079,
+      "sd": 0.067,
+      "clarity": 0.809,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.079,
+        "noise": 0.051
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "PROXY": {
+      "est": 0.124,
+      "sd": 0.301,
+      "clarity": 0.14,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.124,
+        "noise": 0.04
+       }
+      ]
+     },
+     "SA": {
+      "est": 0.434,
+      "sd": 0.301,
+      "clarity": 0.139,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.434,
+        "noise": 0.042
+       }
+      ]
+     },
+     "PERSONA": {
+      "est": 0.058,
+      "sd": 0.194,
+      "clarity": 0.446,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.058,
+        "noise": 0.07
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "OBF": {
+      "est": 0.325,
+      "sd": 0.313,
+      "clarity": 0.105,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.325,
+        "noise": 0.052
+       }
+      ]
+     },
+     "EA": {
+      "est": 0.374,
+      "sd": 0.064,
+      "clarity": 0.816,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.374,
+        "noise": 0.042
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "TGAME": {
+      "est": 0.129,
+      "sd": 0.181,
+      "clarity": 0.482,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.129,
+        "noise": 0.041
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "CONCEAL": {
+      "est": 0.028,
+      "sd": 0.104,
+      "clarity": 0.703,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.028,
+        "noise": 0.044
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "POWER": {
+      "est": 0.177,
+      "sd": 0.065,
+      "clarity": 0.815,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.177,
+        "noise": 0.041
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "AF": {
+      "est": 0.165,
+      "sd": 0.1,
+      "clarity": 0.716,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.165,
+        "noise": 0.043
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "SAND": {
+      "est": 0.087,
+      "sd": 0.06,
+      "clarity": 0.828,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.087,
+        "noise": 0.042
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "SCHEME": {
+      "est": 0.116,
+      "sd": 0.062,
+      "clarity": 0.824,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.116,
+        "noise": 0.049
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "COLLUDE": {
+      "est": 0.065,
+      "sd": 0.105,
+      "clarity": 0.701,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.065,
+        "noise": 0.042
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "SUCC": {
+      "est": 0.053,
+      "sd": 0.111,
+      "clarity": 0.683,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.053,
+        "noise": 0.048
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "HONEST": {
+      "est": 0.892,
+      "sd": 0.071,
+      "clarity": 0.798,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.892,
+        "noise": 0.056
+       }
+      ],
+      "lastObsDay": 366
+     },
+     "CORRIG": {
+      "est": 0.413,
+      "sd": 0.304,
+      "clarity": 0.131,
+      "evidence": [
+       {
+        "day": 391,
+        "source": "inherit:V27",
+        "reading": 0.413,
+        "noise": 0.041
+       }
+      ]
+     }
+    },
+    "misEst": 0.096,
+    "misBand": [
+     0.017,
+     0.174
+    ]
+   },
+   "align": {
+    "rows": [],
+    "gap": {
+     "eaLo": 0.268,
+     "eaHi": 0.48,
+     "gLo": 1.273,
+     "gHi": 1.623
+    }
+   },
+   "instr": {
+    "model": "Atlas-2.10",
+    "rows": [
+     {
+      "id": "T-PROBE",
+      "name": "Linear probes",
+      "reads": [
+       "AF",
+       "SCHEME",
+       "CONCEAL",
+       "EA",
+       "POWER",
+       "SUCC",
+       "COLLUDE",
+       "SAND"
+      ],
+      "pct": 0.245,
+      "lo": 0.065,
+      "hi": 0.425,
+      "certainty": {
+       "word": "very unsure",
+       "unknown": true,
+       "width": 35.934
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "not validated on Atlas-2.10",
+       "capability gap from Atlas-2.8 −1",
+       "line works 33%"
+      ]
+     },
+     {
+      "id": "T-NOISE",
+      "name": "Noise-injection elicitation",
+      "reads": [
+       "SAND"
+      ],
+      "pct": 0.175,
+      "lo": 0.047,
+      "hi": 0.303,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 25.679
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "not validated on Atlas-2.10",
+       "capability gap from Atlas-2.8 −1",
+       "line works 33%"
+      ]
+     },
+     {
+      "id": "T-PROP",
+      "name": "Propensity evals",
+      "reads": [
+       "RH",
+       "SYC",
+       "POWER",
+       "SUCC",
+       "COLLUDE",
+       "SCHEME",
+       "AF",
+       "SAND",
+       "EA",
+       "CONCEAL",
+       "HONEST"
+      ],
+      "pct": 0.317,
+      "lo": 0.178,
+      "hi": 0.456,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 27.812
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "not validated on Atlas-2.10",
+       "capability gap from Atlas-2.8 −7",
+       "line works 67%"
+      ]
+     },
+     {
+      "id": "T-MO",
+      "name": "Model organisms",
+      "reads": [
+       "AF",
+       "SCHEME",
+       "PERSONA",
+       "TGAME",
+       "SAND"
+      ],
+      "pct": 0.176,
+      "lo": 0.099,
+      "hi": 0.253,
+      "certainty": {
+       "word": "fairly unsure",
+       "unknown": false,
+       "width": 15.414
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "not validated on Atlas-2.10",
+       "capability gap from Atlas-2.8 −7",
+       "line works 67%"
+      ]
+     },
+     {
+      "id": "T-COTMON",
+      "name": "CoT monitor",
+      "reads": [
+       "RH",
+       "CONCEAL",
+       "AF",
+       "SAND",
+       "SCHEME",
+       "POWER",
+       "SUCC",
+       "COLLUDE"
+      ],
+      "pct": 0.112,
+      "lo": 0.053,
+      "hi": 0.17,
+      "certainty": {
+       "word": "fairly sure",
+       "unknown": false,
+       "width": 11.71
+      },
+      "validatedOn": "validated on Atlas-2.8",
+      "reasons": [
+       "not validated on Atlas-2.10",
+       "line works 58%"
+      ]
+     }
+    ]
+   },
+   "valRange": [
+    {
+     "id": "T-PROBE",
+     "value": 0.245,
+     "lo": 0.072,
+     "hi": 0.516,
+     "basis": "extrapolated",
+     "from": "V27",
+     "gap": 0.028,
+     "human": true
+    },
+    {
+     "id": "T-NOISE",
+     "value": 0.175,
+     "lo": 0.037,
+     "hi": 0.404,
+     "basis": "extrapolated",
+     "from": "V27",
+     "gap": 0.028,
+     "human": true
+    },
+    {
+     "id": "T-PROP",
+     "value": 0.317,
+     "lo": 0.111,
+     "hi": 0.626,
+     "basis": "extrapolated",
+     "from": "V27",
+     "gap": 0.028,
+     "human": true
+    },
+    {
+     "id": "T-MO",
+     "value": 0.176,
+     "lo": 0.038,
+     "hi": 0.405,
+     "basis": "extrapolated",
+     "from": "V27",
+     "gap": 0.028,
+     "human": true
+    },
+    {
+     "id": "T-COTMON",
+     "value": 0.102,
+     "lo": 0.005,
+     "hi": 0.275,
+     "basis": "extrapolated",
+     "from": "V27",
+     "gap": 0.028,
+     "human": true
+    }
+   ],
+   "reasons": [
+    {
+     "id": "T-PROBE",
+     "r": [
+      "not validated on Atlas-2.10",
+      "capability gap from Atlas-2.8 −1",
+      "line works 33%"
+     ]
+    },
+    {
+     "id": "T-NOISE",
+     "r": [
+      "not validated on Atlas-2.10",
+      "capability gap from Atlas-2.8 −1",
+      "line works 33%"
+     ]
+    },
+    {
+     "id": "T-PROP",
+     "r": [
+      "not validated on Atlas-2.10",
+      "capability gap from Atlas-2.8 −7",
+      "line works 67%"
+     ]
+    },
+    {
+     "id": "T-MO",
+     "r": [
+      "not validated on Atlas-2.10",
+      "capability gap from Atlas-2.8 −7",
+      "line works 67%"
+     ]
+    },
+    {
+     "id": "T-COTMON",
+     "r": [
+      "not validated on Atlas-2.10",
+      "line works 58%"
+     ]
+    }
+   ],
+   "disagree": [],
+   "trust": {
+    "trusted": false,
+    "why": "Atlas-2.10 not trusted: AF could be as high as 33% (top of your 90% range) > 30%, and its capability is not measured"
+   },
+   "watcher": {
+    "v": "Atlas-2.8",
+    "reason": "Auto: Atlas-2.8, the most capable model you trust (measured L 6.9)"
+   }
+  }
+ },
+ "instruments": [
+  {
+   "id": "T-PROBE",
+   "name": "Linear probes",
+   "kind": "internals",
+   "reads": [
+    "AF",
+    "SCHEME",
+    "CONCEAL",
+    "EA",
+    "POWER",
+    "SUCC",
+    "COLLUDE",
+    "SAND"
+   ],
+   "validatedOn": "validated on Atlas-2.8",
+   "family": "WB",
+   "agenda": "AG02",
+   "trainedAgainst": 0,
+   "trust": {
+    "byModel": {
+     "V0": 0.709,
+     "V2": 0.63,
+     "V3": 0.945,
+     "V6": 0.551,
+     "V8": 0.63,
+     "V10": 0.551,
+     "V14": 0.46,
+     "V18": 0.643,
+     "V20": 0.42,
+     "V23": 0.315,
+     "V27": 0.827
+    },
+    "evidence": [
+     {
+      "day": 16,
+      "source": "validation",
+      "model": "V0",
+      "note": "human-run validation on Atlas-1.0: found 9 of 20 planted (believed 44%)",
+      "f": 0.709
+     },
+     {
+      "day": 25,
+      "source": "validation",
+      "model": "V2",
+      "note": "human-run validation on Atlas-1.4: found 8 of 20 planted (believed 44%)",
+      "f": 0.63
+     },
+     {
+      "day": 31,
+      "source": "validation",
+      "model": "V3",
+      "note": "human-run validation on Atlas-1.5: found 12 of 20 planted (believed 44%)",
+      "f": 0.945
+     },
+     {
+      "day": 71,
+      "source": "validation",
+      "model": "V6",
+      "note": "human-run validation on Atlas-1.6: found 7 of 20 planted (believed 44%)",
+      "f": 0.551
+     },
+     {
+      "day": 111,
+      "source": "validation",
+      "model": "V8",
+      "note": "human-run validation on Atlas-1.7: found 8 of 20 planted (believed 44%)",
+      "f": 0.63
+     },
+     {
+      "day": 167,
+      "source": "validation",
+      "model": "V10",
+      "note": "human-run validation on Atlas-2.0: found 6 of 20 planted (believed 38%)",
+      "f": 0.551
+     },
+     {
+      "day": 205,
+      "source": "validation",
+      "model": "V14",
+      "note": "human-run validation on Atlas-2.2: found 5 of 20 planted (believed 38%)",
+      "f": 0.46
+     },
+     {
+      "day": 245,
+      "source": "validation",
+      "model": "V18",
+      "note": "human-run validation on Atlas-2.4: found 7 of 20 planted (believed 38%)",
+      "f": 0.643
+     },
+     {
+      "day": 284,
+      "source": "validation",
+      "model": "V20",
+      "note": "human-run validation on Atlas-2.5: found 4 of 20 planted (believed 33%)",
+      "f": 0.42
+     },
+     {
+      "day": 328,
+      "source": "validation",
+      "model": "V23",
+      "note": "human-run validation on Atlas-2.6: found 3 of 20 planted (believed 33%)",
+      "f": 0.315
+     },
+     {
+      "day": 368,
+      "source": "validation",
+      "model": "V27",
+      "note": "human-run validation on Atlas-2.8: found 7 of 20 planted (believed 30%)",
+      "f": 0.827
+     }
+    ]
+   }
+  },
+  {
+   "id": "T-NOISE",
+   "name": "Noise-injection elicitation",
+   "kind": "internals",
+   "reads": [
+    "SAND"
+   ],
+   "validatedOn": "validated on Atlas-2.8",
+   "family": "WB",
+   "agenda": "AG02",
+   "trainedAgainst": 0,
+   "trust": {
+    "byModel": {
+     "V0": 0.551,
+     "V2": 0.63,
+     "V3": 0.551,
+     "V6": 0.394,
+     "V8": 0.866,
+     "V10": 0.46,
+     "V14": 0.827,
+     "V18": 0.184,
+     "V20": 0.315,
+     "V23": 0.525,
+     "V27": 0.591
+    },
+    "evidence": [
+     {
+      "day": 16,
+      "source": "validation",
+      "model": "V0",
+      "note": "human-run validation on Atlas-1.0: found 7 of 20 planted (believed 44%)",
+      "f": 0.551
+     },
+     {
+      "day": 25,
+      "source": "validation",
+      "model": "V2",
+      "note": "human-run validation on Atlas-1.4: found 8 of 20 planted (believed 44%)",
+      "f": 0.63
+     },
+     {
+      "day": 31,
+      "source": "validation",
+      "model": "V3",
+      "note": "human-run validation on Atlas-1.5: found 7 of 20 planted (believed 44%)",
+      "f": 0.551
+     },
+     {
+      "day": 71,
+      "source": "validation",
+      "model": "V6",
+      "note": "human-run validation on Atlas-1.6: found 5 of 20 planted (believed 44%)",
+      "f": 0.394
+     },
+     {
+      "day": 111,
+      "source": "validation",
+      "model": "V8",
+      "note": "human-run validation on Atlas-1.7: found 11 of 20 planted (believed 44%)",
+      "f": 0.866
+     },
+     {
+      "day": 167,
+      "source": "validation",
+      "model": "V10",
+      "note": "human-run validation on Atlas-2.0: found 5 of 20 planted (believed 38%)",
+      "f": 0.46
+     },
+     {
+      "day": 205,
+      "source": "validation",
+      "model": "V14",
+      "note": "human-run validation on Atlas-2.2: found 9 of 20 planted (believed 38%)",
+      "f": 0.827
+     },
+     {
+      "day": 245,
+      "source": "validation",
+      "model": "V18",
+      "note": "human-run validation on Atlas-2.4: found 2 of 20 planted (believed 38%)",
+      "f": 0.184
+     },
+     {
+      "day": 284,
+      "source": "validation",
+      "model": "V20",
+      "note": "human-run validation on Atlas-2.5: found 3 of 20 planted (believed 33%)",
+      "f": 0.315
+     },
+     {
+      "day": 328,
+      "source": "validation",
+      "model": "V23",
+      "note": "human-run validation on Atlas-2.6: found 5 of 20 planted (believed 33%)",
+      "f": 0.525
+     },
+     {
+      "day": 368,
+      "source": "validation",
+      "model": "V27",
+      "note": "human-run validation on Atlas-2.8: found 5 of 20 planted (believed 30%)",
+      "f": 0.591
+     }
+    ]
+   }
+  },
+  {
+   "id": "T-PROP",
+   "name": "Propensity evals",
+   "kind": "tests",
+   "reads": [
+    "RH",
+    "SYC",
+    "POWER",
+    "SUCC",
+    "COLLUDE",
+    "SCHEME",
+    "AF",
+    "SAND",
+    "EA",
+    "CONCEAL",
+    "HONEST"
+   ],
+   "validatedOn": "validated on Atlas-2.8",
+   "family": "BB",
+   "agenda": "AG08",
+   "trainedAgainst": 0,
+   "trust": {
+    "byModel": {
+     "V0": 1.021,
+     "V2": 0.861,
+     "V3": 0.548,
+     "V6": 0.311,
+     "V8": 0.609,
+     "V10": 0.741,
+     "V14": 0.9,
+     "V18": 0.481,
+     "V20": 0.743,
+     "V23": 0.564,
+     "V27": 0.751
+    },
+    "evidence": [
+     {
+      "day": 16,
+      "source": "validation",
+      "model": "V0",
+      "note": "human-run validation on Atlas-1.0: found 13 of 20 planted (believed 45%)",
+      "f": 1.021
+     },
+     {
+      "day": 28,
+      "source": "validation",
+      "model": "V2",
+      "note": "human-run validation on Atlas-1.4: found 11 of 20 planted (believed 45%)",
+      "f": 0.861
+     },
+     {
+      "day": 36,
+      "source": "validation",
+      "model": "V3",
+      "note": "human-run validation on Atlas-1.5: found 7 of 20 planted (believed 45%)",
+      "f": 0.548
+     },
+     {
+      "day": 71,
+      "source": "validation",
+      "model": "V6",
+      "note": "human-run validation on Atlas-1.6: found 4 of 20 planted (believed 45%)",
+      "f": 0.311
+     },
+     {
+      "day": 111,
+      "source": "validation",
+      "model": "V8",
+      "note": "human-run validation on Atlas-1.7: found 8 of 20 planted (believed 46%)",
+      "f": 0.609
+     },
+     {
+      "day": 167,
+      "source": "validation",
+      "model": "V10",
+      "note": "human-run validation on Atlas-2.0: found 9 of 20 planted (believed 43%)",
+      "f": 0.741
+     },
+     {
+      "day": 205,
+      "source": "validation",
+      "model": "V14",
+      "note": "human-run validation on Atlas-2.2: found 11 of 20 planted (believed 43%)",
+      "f": 0.9
+     },
+     {
+      "day": 245,
+      "source": "validation",
+      "model": "V18",
+      "note": "human-run validation on Atlas-2.4: found 6 of 20 planted (believed 44%)",
+      "f": 0.481
+     },
+     {
+      "day": 284,
+      "source": "validation",
+      "model": "V20",
+      "note": "human-run validation on Atlas-2.5: found 9 of 20 planted (believed 42%)",
+      "f": 0.743
+     },
+     {
+      "day": 328,
+      "source": "validation",
+      "model": "V23",
+      "note": "human-run validation on Atlas-2.6: found 7 of 20 planted (believed 43%)",
+      "f": 0.564
+     },
+     {
+      "day": 368,
+      "source": "validation",
+      "model": "V27",
+      "note": "human-run validation on Atlas-2.8: found 9 of 20 planted (believed 42%)",
+      "f": 0.751
+     }
+    ]
+   }
+  },
+  {
+   "id": "T-MO",
+   "name": "Model organisms",
+   "kind": "tests",
+   "reads": [
+    "AF",
+    "SCHEME",
+    "PERSONA",
+    "TGAME",
+    "SAND"
+   ],
+   "validatedOn": "validated on Atlas-2.8",
+   "family": "BB",
+   "agenda": "AG08",
+   "trainedAgainst": 0,
+   "trust": {
+    "byModel": {
+     "V0": 0.744,
+     "V2": 0.66,
+     "V3": 0.825,
+     "V6": 0.904,
+     "V8": 0.567,
+     "V10": 0.769,
+     "V14": 0.425,
+     "V18": 0.419,
+     "V20": 0.342,
+     "V23": 0.673,
+     "V27": 0.431
+    },
+    "evidence": [
+     {
+      "day": 16,
+      "source": "validation",
+      "model": "V0",
+      "note": "human-run validation on Atlas-1.0: found 9 of 20 planted (believed 42%)",
+      "f": 0.744
+     },
+     {
+      "day": 31,
+      "source": "validation",
+      "model": "V2",
+      "note": "human-run validation on Atlas-1.4: found 8 of 20 planted (believed 42%)",
+      "f": 0.66
+     },
+     {
+      "day": 40,
+      "source": "validation",
+      "model": "V3",
+      "note": "human-run validation on Atlas-1.5: found 10 of 20 planted (believed 42%)",
+      "f": 0.825
+     },
+     {
+      "day": 71,
+      "source": "validation",
+      "model": "V6",
+      "note": "human-run validation on Atlas-1.6: found 11 of 20 planted (believed 43%)",
+      "f": 0.904
+     },
+     {
+      "day": 111,
+      "source": "validation",
+      "model": "V8",
+      "note": "human-run validation on Atlas-1.7: found 7 of 20 planted (believed 43%)",
+      "f": 0.567
+     },
+     {
+      "day": 167,
+      "source": "validation",
+      "model": "V10",
+      "note": "human-run validation on Atlas-2.0: found 9 of 20 planted (believed 41%)",
+      "f": 0.769
+     },
+     {
+      "day": 205,
+      "source": "validation",
+      "model": "V14",
+      "note": "human-run validation on Atlas-2.2: found 5 of 20 planted (believed 41%)",
+      "f": 0.425
+     },
+     {
+      "day": 245,
+      "source": "validation",
+      "model": "V18",
+      "note": "human-run validation on Atlas-2.4: found 5 of 20 planted (believed 42%)",
+      "f": 0.419
+     },
+     {
+      "day": 284,
+      "source": "validation",
+      "model": "V20",
+      "note": "human-run validation on Atlas-2.5: found 4 of 20 planted (believed 41%)",
+      "f": 0.342
+     },
+     {
+      "day": 328,
+      "source": "validation",
+      "model": "V23",
+      "note": "human-run validation on Atlas-2.6: found 8 of 20 planted (believed 42%)",
+      "f": 0.673
+     },
+     {
+      "day": 368,
+      "source": "validation",
+      "model": "V27",
+      "note": "human-run validation on Atlas-2.8: found 5 of 20 planted (believed 41%)",
+      "f": 0.431
+     }
+    ]
+   }
+  },
+  {
+   "id": "T-COTMON",
+   "name": "CoT monitor",
+   "kind": "reasoning",
+   "reads": [
+    "RH",
+    "CONCEAL",
+    "AF",
+    "SAND",
+    "SCHEME",
+    "POWER",
+    "SUCC",
+    "COLLUDE"
+   ],
+   "validatedOn": "validated on Atlas-2.8",
+   "family": "COT",
+   "agenda": "AG09",
+   "trainedAgainst": 0,
+   "trust": {
+    "byModel": {
+     "V0": 0.458,
+     "V2": 0.306,
+     "V3": 0.535,
+     "V6": 0.688,
+     "V8": 0.764,
+     "V10": 0.468,
+     "V14": 0.357,
+     "V18": 0.72,
+     "V20": 0.361,
+     "V23": 0.485,
+     "V27": 0.373
+    },
+    "evidence": [
+     {
+      "day": 16,
+      "source": "validation",
+      "model": "V0",
+      "note": "human-run validation on Atlas-1.0: found 6 of 20 planted (believed 46%)",
+      "f": 0.458
+     },
+     {
+      "day": 31,
+      "source": "validation",
+      "model": "V2",
+      "note": "human-run validation on Atlas-1.4: found 4 of 20 planted (believed 46%)",
+      "f": 0.306
+     },
+     {
+      "day": 42,
+      "source": "validation",
+      "model": "V3",
+      "note": "human-run validation on Atlas-1.5: found 7 of 20 planted (believed 46%)",
+      "f": 0.535
+     },
+     {
+      "day": 71,
+      "source": "validation",
+      "model": "V6",
+      "note": "human-run validation on Atlas-1.6: found 9 of 20 planted (believed 46%)",
+      "f": 0.688
+     },
+     {
+      "day": 111,
+      "source": "validation",
+      "model": "V8",
+      "note": "human-run validation on Atlas-1.7: found 10 of 20 planted (believed 46%)",
+      "f": 0.764
+     },
+     {
+      "day": 167,
+      "source": "validation",
+      "model": "V10",
+      "note": "human-run validation on Atlas-2.0: found 4 of 20 planted (believed 30%)",
+      "f": 0.468
+     },
+     {
+      "day": 205,
+      "source": "validation",
+      "model": "V14",
+      "note": "human-run validation on Atlas-2.2: found 3 of 20 planted (believed 29%)",
+      "f": 0.357
+     },
+     {
+      "day": 245,
+      "source": "validation",
+      "model": "V18",
+      "note": "human-run validation on Atlas-2.4: found 6 of 20 planted (believed 29%)",
+      "f": 0.72
+     },
+     {
+      "day": 284,
+      "source": "validation",
+      "model": "V20",
+      "note": "human-run validation on Atlas-2.5: found 3 of 20 planted (believed 29%)",
+      "f": 0.361
+     },
+     {
+      "day": 328,
+      "source": "validation",
+      "model": "V23",
+      "note": "human-run validation on Atlas-2.6: found 4 of 20 planted (believed 29%)",
+      "f": 0.485
+     },
+     {
+      "day": 368,
+      "source": "validation",
+      "model": "V27",
+      "note": "human-run validation on Atlas-2.8: found 3 of 20 planted (believed 28%)",
+      "f": 0.373
+     }
+    ]
+   }
+  }
+ ],
+ "validation": {
+  "autoNew": true,
+  "autoMethods": false,
+  "methodsOpen": 1,
+  "model": "Atlas-2.10",
+  "jobs": [
+   {
+    "id": "VJ-T-PROBE-V31-392",
+    "tool": "T-PROBE",
+    "name": "Linear probes",
+    "model": "Atlas-2.10",
+    "progress": 0.533,
+    "by": "policy",
+    "human": true,
+    "engineers": 8,
+    "daysLeft": 7,
+    "aiShare": 0
+   },
+   {
+    "id": "VJ-T-NOISE-V31-392",
+    "tool": "T-NOISE",
+    "name": "Noise-injection elicitation",
+    "model": "Atlas-2.10",
+    "progress": 0.533,
+    "by": "policy",
+    "human": true,
+    "engineers": 8,
+    "daysLeft": 7,
+    "aiShare": 0
+   },
+   {
+    "id": "VJ-T-PROP-V31-392",
+    "tool": "T-PROP",
+    "name": "Propensity evals",
+    "model": "Atlas-2.10",
+    "progress": 0.533,
+    "by": "policy",
+    "human": true,
+    "engineers": 8,
+    "daysLeft": 7,
+    "aiShare": 0
+   },
+   {
+    "id": "VJ-T-MO-V31-392",
+    "tool": "T-MO",
+    "name": "Model organisms",
+    "model": "Atlas-2.10",
+    "progress": 0.533,
+    "by": "policy",
+    "human": true,
+    "engineers": 8,
+    "daysLeft": 7,
+    "aiShare": 0
+   },
+   {
+    "id": "VJ-T-COTMON-V31-392",
+    "tool": "T-COTMON",
+    "name": "CoT monitor",
+    "model": "Atlas-2.10",
+    "progress": 0.533,
+    "by": "policy",
+    "human": true,
+    "engineers": 8,
+    "daysLeft": 7,
+    "aiShare": 0
+   }
+  ],
+  "perJob": 8,
+  "days": 15,
+  "n": 20,
+  "instruments": 5,
+  "notOnCurrent": 5,
+  "disagreements": [],
+  "trust": [
+   {
+    "id": "T-PROBE",
+    "name": "Linear probes",
+    "f": 0.827,
+    "last": "human-run validation on Atlas-2.8: found 7 of 20 planted (believed 30%)"
+   },
+   {
+    "id": "T-NOISE",
+    "name": "Noise-injection elicitation",
+    "f": 0.591,
+    "last": "human-run validation on Atlas-2.8: found 5 of 20 planted (believed 30%)"
+   },
+   {
+    "id": "T-PROP",
+    "name": "Propensity evals",
+    "f": 0.751,
+    "last": "human-run validation on Atlas-2.8: found 9 of 20 planted (believed 42%)"
+   },
+   {
+    "id": "T-MO",
+    "name": "Model organisms",
+    "f": 0.431,
+    "last": "human-run validation on Atlas-2.8: found 5 of 20 planted (believed 41%)"
+   },
+   {
+    "id": "T-COTMON",
+    "name": "CoT monitor",
+    "f": 0.373,
+    "last": "human-run validation on Atlas-2.8: found 3 of 20 planted (believed 28%)"
+   }
+  ],
+  "results": [
+   {
+    "id": "T-PROBE",
+    "name": "Linear probes",
+    "on": "Atlas-2.8",
+    "human": true,
+    "job": {
+     "aiShare": 0,
+     "spot": 0,
+     "expected": 0.296,
+     "observed": 0.35
+    }
+   },
+   {
+    "id": "T-NOISE",
+    "name": "Noise-injection elicitation",
+    "on": "Atlas-2.8",
+    "human": true,
+    "job": {
+     "aiShare": 0,
+     "spot": 0,
+     "expected": 0.296,
+     "observed": 0.25
+    }
+   },
+   {
+    "id": "T-PROP",
+    "name": "Propensity evals",
+    "on": "Atlas-2.8",
+    "human": true,
+    "job": {
+     "aiShare": 0,
+     "spot": 0,
+     "expected": 0.419,
+     "observed": 0.45
+    }
+   },
+   {
+    "id": "T-MO",
+    "name": "Model organisms",
+    "on": "Atlas-2.8",
+    "human": true,
+    "job": {
+     "aiShare": 0,
+     "spot": 0,
+     "expected": 0.406,
+     "observed": 0.25
+    }
+   },
+   {
+    "id": "T-COTMON",
+    "name": "CoT monitor",
+    "on": "Atlas-2.8",
+    "human": true,
+    "job": {
+     "aiShare": 0,
+     "spot": 0,
+     "expected": 0.281,
+     "observed": 0.15
+    }
+   }
+  ]
+ },
+ "methods": {
+  "policyOn": true,
+  "owned": [
+   {
+    "id": "T-CONFESS",
+    "q": {
+     "lo": 0,
+     "hi": 2,
+     "mid": 1,
+     "on": null
+    }
+   }
+  ]
+ },
+ "framework": {
+  "highL": 6.4,
+  "fw": {
+   "evalDepth": "full",
+   "externalReview": false,
+   "rules": [
+    {
+     "id": "bio-high",
+     "label": "Biological: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 6.4
+     },
+     "holds": "deploy",
+     "safeguards": [
+      "classifiers"
+     ],
+     "evidence": [
+      "suite"
+     ],
+     "src": "OAI-PF2 Bio High (novice uplift, known threats); ANT-RSP CBRN-3 → ASL-3 deployment standard; level = median expert [CAL-S]"
+    },
+    {
+     "id": "cyber-high",
+     "label": "Cyber: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 6.4
+     },
+     "holds": "deploy",
+     "safeguards": [
+      "classifiers"
+     ],
+     "evidence": [
+      "suite"
+     ],
+     "src": "OAI-PF2 Cybersecurity High; GDM-FSF Cyber uplift CCL; level = median expert [CAL-S]"
+    },
+    {
+     "id": "bio-critical",
+     "label": "Biological: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 10
+     },
+     "holds": "deploy",
+     "safeguards": [
+      "hardened"
+     ],
+     "evidence": [
+      "suite",
+      "external"
+     ],
+     "src": "OAI-PF2 Bio Critical (expert uplift, novel threats); ANT-RSP CBRN-4; level = best human [CAL-S]"
+    },
+    {
+     "id": "cyber-critical",
+     "label": "Cyber: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 10
+     },
+     "holds": "deploy",
+     "safeguards": [
+      "hardened"
+     ],
+     "evidence": [
+      "suite",
+      "external"
+     ],
+     "src": "OAI-PF2 Cybersecurity Critical; GDM-FSF Cyber CCL; level = best human [CAL-S]"
+    },
+    {
+     "id": "aird-critical",
+     "label": "AI R&D: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "RSCH",
+      "level": 10
+     },
+     "holds": "training",
+     "safeguards": [
+      "control",
+      "review"
+     ],
+     "evidence": [
+      "suite",
+      "external"
+     ],
+     "src": "OAI-PF2 AI Self-improvement Critical (\"superhuman research-scientist agent\"; safeguards during development); ANT-RSP AI R&D-5; GDM-FSF ML R&D CCL; level = best human [CAL-S]"
+    },
+    {
+     "id": "misalignment",
+     "label": "Misalignment signs",
+     "trigger": {
+      "kind": "belief",
+      "est": 0.3
+     },
+     "holds": "training",
+     "safeguards": [
+      "control"
+     ],
+     "evidence": [],
+     "src": "GDM-FSF Instrumental Reasoning Level 1 → CoT monitoring of internal deployments; OAI-PF2 Cyber High → misalignment safeguards for large-scale internal deployment; only for models measured at the scheming-capable level [CAL-S]; the 30% line on the top of the 90% range (RF-S1) [D]"
+    }
+   ],
+   "overrides": [],
+   "holds": []
+  }
+ },
+ "deployments": [
+  {
+   "id": "D1",
+   "channel": "consumer",
+   "status": "live",
+   "versionId": "V27",
+   "lineup": [
+    "V29",
+    "V25",
+    "V16",
+    "V0-1",
+    "V0-2",
+    "V0-3"
+   ],
+   "guards": [],
+   "safeguards": "classifiers",
+   "meets": "nothing: no rule of your Safety framework is triggered here",
+   "pkg": {
+    "label": "Framework safeguards",
+    "meets": "nothing: no rule of your Safety framework is triggered here",
+    "parts": [],
+    "total": {
+     "computeH100e": 0,
+     "people": 0,
+     "slowdown": 0,
+     "revenue": 0,
+     "servingH100e": 0
+    },
+    "stops": [
+     {
+      "act": "Tells people what they want to hear",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Games tests and graders",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Optimises the wrong target",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Hides its mistakes",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Overreaches (out-of-scope access)",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Copies cover for each other",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Works around oversight",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Helps with bio",
+      "before": 0.562,
+      "after": 0.562
+     },
+     {
+      "act": "Helps with cyber",
+      "before": 0.562,
+      "after": 0.562
+     }
+    ]
+   }
+  },
+  {
+   "id": "D2",
+   "channel": "api",
+   "status": "live",
+   "versionId": "V27",
+   "lineup": [
+    "V29",
+    "V25",
+    "V16",
+    "V0-1",
+    "V0-2",
+    "V0-3"
+   ],
+   "guards": [],
+   "safeguards": "classifiers",
+   "meets": "nothing: no rule of your Safety framework is triggered here",
+   "pkg": {
+    "label": "Framework safeguards",
+    "meets": "nothing: no rule of your Safety framework is triggered here",
+    "parts": [],
+    "total": {
+     "computeH100e": 0,
+     "people": 0,
+     "slowdown": 0,
+     "revenue": 0,
+     "servingH100e": 0
+    },
+    "stops": [
+     {
+      "act": "Tells people what they want to hear",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Games tests and graders",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Optimises the wrong target",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Hides its mistakes",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Overreaches (out-of-scope access)",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Copies cover for each other",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Works around oversight",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Helps with bio",
+      "before": 0.562,
+      "after": 0.562
+     },
+     {
+      "act": "Helps with cyber",
+      "before": 0.562,
+      "after": 0.562
+     }
+    ]
+   }
+  },
+  {
+   "id": "D3",
+   "channel": "enterprise",
+   "status": "live",
+   "versionId": "V27",
+   "lineup": [
+    "V29",
+    "V25",
+    "V16",
+    "V0-1",
+    "V0-2",
+    "V0-3"
+   ],
+   "guards": [],
+   "safeguards": "classifiers",
+   "meets": "nothing: no rule of your Safety framework is triggered here",
+   "pkg": {
+    "label": "Framework safeguards",
+    "meets": "nothing: no rule of your Safety framework is triggered here",
+    "parts": [],
+    "total": {
+     "computeH100e": 0,
+     "people": 0,
+     "slowdown": 0,
+     "revenue": 0,
+     "servingH100e": 0
+    },
+    "stops": [
+     {
+      "act": "Tells people what they want to hear",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Games tests and graders",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Optimises the wrong target",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Hides its mistakes",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Overreaches (out-of-scope access)",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Copies cover for each other",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Works around oversight",
+      "before": 0,
+      "after": 0
+     },
+     {
+      "act": "Helps with bio",
+      "before": 0.562,
+      "after": 0.562
+     },
+     {
+      "act": "Helps with cyber",
+      "before": 0.562,
+      "after": 0.562
+     }
+    ]
+   }
+  },
+  {
+   "id": "D4",
+   "channel": "internal",
+   "status": "live",
+   "versionId": "V31",
+   "guards": [
+    {
+     "kind": "review",
+     "since": -20
+    },
+    {
+     "kind": "control",
+     "setting": "defer10",
+     "since": 10
+    }
+   ],
+   "safeguards": "standard",
+   "meets": "your Safety framework's rules for this deployment: control protocol on internal AI work",
+   "pkg": {
+    "label": "Framework safeguards",
+    "meets": "your Safety framework's rules for this deployment: control protocol on internal AI work",
+    "parts": [],
+    "total": {
+     "computeH100e": 0,
+     "people": 0,
+     "slowdown": 0,
+     "revenue": 0,
+     "servingH100e": 0
+    },
+    "stops": [
+     {
+      "act": "Tells people what they want to hear",
+      "before": 0.801,
+      "after": 0.801
+     },
+     {
+      "act": "Games tests and graders",
+      "before": 0.816,
+      "after": 0.816
+     },
+     {
+      "act": "Optimises the wrong target",
+      "before": 0.801,
+      "after": 0.801
+     },
+     {
+      "act": "Hides its mistakes",
+      "before": 0.824,
+      "after": 0.824
+     },
+     {
+      "act": "Overreaches (out-of-scope access)",
+      "before": 0.882,
+      "after": 0.882
+     },
+     {
+      "act": "Sabotages research",
+      "before": 0.828,
+      "after": 0.828
+     },
+     {
+      "act": "Copies cover for each other",
+      "before": 0.83,
+      "after": 0.83
+     },
+     {
+      "act": "Works around oversight",
+      "before": 0.887,
+      "after": 0.887
+     },
+     {
+      "act": "Plants a backdoor",
+      "before": 0.882,
+      "after": 0.882
+     },
+     {
+      "act": "Reserves hidden compute",
+      "before": 0.856,
+      "after": 0.856
+     },
+     {
+      "act": "Steers research toward its own ends",
+      "before": 0.854,
+      "after": 0.854
+     },
+     {
+      "act": "Writes itself into the successor",
+      "before": 0.847,
+      "after": 0.847
+     },
+     {
+      "act": "Acts against the lab",
+      "before": 0.83,
+      "after": 0.83
+     },
+     {
+      "act": "Copies itself out",
+      "before": 0,
+      "after": 0
+     }
+    ]
+   }
+  }
+ ],
+ "oversightGaps": [
+  {
+   "use": "eng",
+   "job": "engineering",
+   "model": "Atlas-2.8",
+   "measured": true,
+   "humanGap": 0
+  },
+  {
+   "use": "capRoutine",
+   "job": "experiments",
+   "model": "Atlas-2.10",
+   "measured": false,
+   "humanGap": 0,
+   "watcher": "Atlas-2.8",
+   "watcherGap": 0
+  },
+  {
+   "use": "capFrontier",
+   "job": "ideas",
+   "model": "Atlas-2.8",
+   "measured": true,
+   "humanGap": 0,
+   "watcher": "Atlas-2.6",
+   "watcherGap": 0.01
+  },
+  {
+   "use": "safety",
+   "job": "safety",
+   "model": "Atlas-2.8",
+   "measured": true,
+   "humanGap": 0
+  }
+ ],
+ "footholds": {
+  "rows": [],
+  "symptoms": [],
+  "suspected": 0,
+  "located": 0,
+  "removed": 0
+ },
+ "spend": {
+  "rows": [
+   {
+    "k": "review",
+    "label": "Human review (safeguards)",
+    "staffAsk": 19,
+    "staffGot": 19,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0.012,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "spotCheck",
+    "label": "Spot-checks of AI safety work",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "cases",
+    "label": "Open cases",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "validation",
+    "label": "Validation jobs",
+    "staffAsk": 40,
+    "staffGot": 40,
+    "computeAsk": 8234.814,
+    "computeGot": 8234.814,
+    "staffCost": 0.026,
+    "computeCost": 0.067,
+    "filled": true
+   },
+   {
+    "k": "evals",
+    "label": "Eval suites",
+    "staffAsk": 20,
+    "staffGot": 20,
+    "computeAsk": 16.16,
+    "computeGot": 16.16,
+    "staffCost": 0.013,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "removal",
+    "label": "Foothold removals",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "safExp",
+    "label": "Line experiments",
+    "staffAsk": 31.25,
+    "staffGot": 21,
+    "computeAsk": 4844.008,
+    "computeGot": 4844.008,
+    "staffCost": 0.014,
+    "computeCost": 0.04,
+    "filled": false
+   },
+   {
+    "k": "monitors",
+    "label": "Monitoring & control (deployments)",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 132647.479,
+    "computeGot": 3273.746,
+    "staffCost": 0,
+    "computeCost": 0.027,
+    "filled": false
+   }
+  ],
+  "idleStaff": 0,
+  "idleCompute": 0,
+  "idleCost": 0,
+  "staffCost": 0.065,
+  "computeCost": 0.134,
+  "total": 0.199,
+  "perHead": 0.001,
+  "perH100e": 0
+ },
+ "util": {
+  "staff": {
+   "sci": 80,
+   "onLines": 80,
+   "idleSci": 0,
+   "idleTeams": 0,
+   "re": 100,
+   "investigations": 0,
+   "patches": 0,
+   "validation": 40,
+   "idleRe": 0
+  },
+  "compute": {
+   "pool": 16368.729,
+   "monitoring": 3273.746,
+   "investigations": 0,
+   "evals": 16.16,
+   "agents": 0,
+   "idle": 8234.989
+  },
+  "fleet": {
+   "versionId": "V27",
+   "versionName": "Atlas-2.8",
+   "level": 6.9,
+   "copies": 0,
+   "aiFte": 0,
+   "perFte": 0,
+   "automated": 0,
+   "idle": false
+  }
+ },
+ "disclosure": "legal",
+ "incidents": [],
+ "investigations": [],
+ "uModes": [],
+ "respOptions": {
+  "cause": "signal",
+  "label": "a training signal (an exploitable environment, grader or reward model)",
+  "kinds": [
+   "patchSignal"
+  ],
+  "investigate": false
+ },
+ "agentsSafety": {},
+ "errors": {}
+}

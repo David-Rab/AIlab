@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LAB › AI staff &amp; needs</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.main { gap: 14px; }
+.jobs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+.job { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+.job .jt { display: flex; align-items: center; gap: 9px; font-size: 15.5px; font-weight: 650; color: #fff; }
+.job .jt .ji { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-3); color: var(--ai); }
+.msel { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 7px; background: #13232a; border: 1px solid #22504b; color: var(--ai); font-size: 13px; font-weight: 600; }
+.share { display: flex; align-items: baseline; gap: 8px; }
+.share b { font: 650 30px var(--mono); color: #fff; }
+.share span { font-size: 13px; color: var(--text-2); }
+.wbar { display: flex; gap: 2px; height: 14px; }
+.wbar i { height: 100%; } .wbar .hp { background: var(--human); border-radius: 4px 0 0 4px; } .wbar .ap { background: var(--ai); border-radius: 0 4px 4px 0; }
+.wl { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; }
+.kv .k { color: var(--text-3); }
+.kv .v { color: #fff; text-align: right; font-family: var(--mono); font-size: 13px; }
+.kv .v.s { font-family: var(--sans); }
+.job.off .share b { color: var(--text-3); }
+.needs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; flex: 1; min-height: 0; }
+.ncard { display: flex; flex-direction: column; }
+.ncard .sum { display: flex; align-items: center; gap: 10px; padding: 8px 18px 6px; font-size: 13px; color: var(--text-2); }
+.nd { display: grid; grid-template-columns: 22px minmax(0,1fr) 150px 92px; align-items: center; gap: 10px; padding: 12px 18px; font-size: 13.5px; border-top: 1px solid var(--line); }
+.nd .rk { font: 600 12px var(--mono); color: var(--text-3); }
+.nd .gb { position: relative; height: 10px; border-radius: 4px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.nd .gb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: #6f8fb5; }
+.nd .st { font: 600 12.5px var(--mono); text-align: right; color: var(--text-2); white-space: nowrap; }
+.nd.short .gb i { background: var(--warn); } .nd.short .st, .nd.short .nm { color: var(--warn); }
+.nd.zero .nm, .nd.zero .st { color: var(--text-3); }
+.nd.spare { background: rgba(111,143,181,.06); }
+.nd.spare .gb i { background: repeating-linear-gradient(135deg, #56677e 0 4px, transparent 4px 8px); box-shadow: inset 0 0 0 1px #56677e; }
+.foot { margin-top: auto; padding: 10px 18px 14px; display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-3); flex-wrap: wrap; }
+.hlinks { display: flex; gap: 8px; }
+</style></head>
+<body data-tab="lab">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="comp.js"></script>
+<script src="shell.js"></script>
+<script src="lab-aistaff.js"></script>
+</body></html>

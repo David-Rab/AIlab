@@ -1,0 +1,4085 @@
+{
+ "day": 400,
+ "date": "Aug 5, 2026",
+ "products": [
+  {
+   "id": "D1",
+   "kind": "product",
+   "channel": "consumer",
+   "status": "live",
+   "name": "Chat",
+   "main": "Atlas-2.8",
+   "measuredL": 6.9,
+   "lineup": [
+    "Atlas-2.8-mini",
+    "Atlas-2.6-mini",
+    "Atlas-2.2-mini",
+    "Atlas-1.0-mini",
+    "Atlas-1.0-micro",
+    "Atlas-1.0-nano"
+   ],
+   "freeTier": "Atlas-1.0-nano",
+   "price": "standard",
+   "effort": "max",
+   "features": [
+    "memory",
+    "voiceVision"
+   ],
+   "safeguards": "classifiers",
+   "guards": [],
+   "adaptations": [],
+   "servingShare": 0.125,
+   "startDay": -20,
+   "start": "Jun 11, 2025",
+   "read": {
+    "id": "D1",
+    "channel": "consumer",
+    "revenue": 11.706,
+    "demand": 11.706,
+    "share": 0.364,
+    "rival": {
+     "name": "xLab",
+     "share": 0.168
+    },
+    "bound": "quality",
+    "rpH": 119680.075,
+    "needH100e": 97808.56,
+    "servedH100e": 126869.544,
+    "cutH100e": 0,
+    "unserved": 0,
+    "runCost": 0.8,
+    "cost": 1.471,
+    "price": 22,
+    "margin": 0.933,
+    "valueCapped": 0,
+    "hours": 0,
+    "capHours": 0,
+    "users": 605358010.113,
+    "subs": 44339908.498,
+    "monitorOverhead": 0,
+    "catchRate": 0,
+    "markup": 2.5,
+    "econ": {
+     "kind": "chat",
+     "adoptedDemand": 0,
+     "agentDemand": 0,
+     "seatDemand": 0,
+     "adoptedHours": 0,
+     "agentHours": 0,
+     "adoptedPrice": 0,
+     "agentPrice": 0,
+     "seats": 0,
+     "seatHours": 0,
+     "seatPrice": 0,
+     "seatCost": 0,
+     "askedHours": 0,
+     "needSeat": 0,
+     "needWork": 0,
+     "needPaid": 95838.993,
+     "needFree": 1969.567,
+     "cutFree": 0,
+     "cutPaid": 0,
+     "paidShare": 0.073,
+     "paidTarget": 0.071,
+     "going": 20.431,
+     "wtp": 22
+    },
+    "cust": {
+     "stock": 0.364,
+     "target": 0.354,
+     "taus": [
+      {
+       "days": 21.058,
+       "w": 1
+      }
+     ],
+     "days": 15,
+     "movers": [
+      {
+       "r": "ROW",
+       "seg": "consumer",
+       "w": 27.204,
+       "stock": 0.361,
+       "target": 0.351,
+       "tauDays": 21.058
+      },
+      {
+       "r": "US",
+       "seg": "consumer",
+       "w": 2.847,
+       "stock": 0.393,
+       "target": 0.387,
+       "tauDays": 21.058
+      }
+     ],
+     "users": 605358010.113,
+     "usersTarget": 589007062.964
+    }
+   },
+   "demandMods": [
+    {
+     "label": "Tools (app choice)",
+     "mult": 1.075
+    }
+   ],
+   "horizonH": 22.483
+  },
+  {
+   "id": "D2",
+   "kind": "product",
+   "channel": "api",
+   "status": "live",
+   "name": "API",
+   "main": "Atlas-2.8",
+   "measuredL": 6.9,
+   "lineup": [
+    "Atlas-2.8-mini",
+    "Atlas-2.6-mini",
+    "Atlas-2.2-mini",
+    "Atlas-1.0-mini",
+    "Atlas-1.0-micro",
+    "Atlas-1.0-nano"
+   ],
+   "freeTier": "Atlas-1.0-nano",
+   "price": "standard",
+   "effort": "max",
+   "features": [
+    "computerUse",
+    "voiceVision",
+    "codingAgent"
+   ],
+   "safeguards": "classifiers",
+   "guards": [],
+   "adaptations": [],
+   "servingShare": 0.409,
+   "startDay": -20,
+   "start": "Jun 11, 2025",
+   "read": {
+    "id": "D2",
+    "channel": "api",
+    "revenue": 6.537,
+    "demand": 6.537,
+    "share": 0.288,
+    "rival": {
+     "name": "DeepCent",
+     "share": 0.297
+    },
+    "bound": "quality",
+    "rpH": 20438.413,
+    "needH100e": 319842.919,
+    "servedH100e": 414874.989,
+    "cutH100e": 0,
+    "unserved": 0,
+    "runCost": 2.615,
+    "cost": 0.383,
+    "price": 0.958,
+    "margin": 0.6,
+    "valueCapped": 0,
+    "hours": 6823126090.171,
+    "capHours": 8850420609.602,
+    "monitorOverhead": 0,
+    "catchRate": 0,
+    "markup": 2.5,
+    "econ": {
+     "kind": "sector",
+     "adoptedDemand": 1.729,
+     "agentDemand": 4.808,
+     "seatDemand": 0,
+     "adoptedHours": 2955165909.807,
+     "agentHours": 3867960180.364,
+     "adoptedPrice": 0.585,
+     "agentPrice": 1.243,
+     "seats": 0,
+     "seatHours": 0,
+     "seatPrice": 0,
+     "seatCost": 0,
+     "askedHours": 6823126090.171,
+     "needSeat": 0,
+     "needWork": 319842.919,
+     "needPaid": 0,
+     "needFree": 0,
+     "cutFree": 0,
+     "cutPaid": 0,
+     "paidShare": 0,
+     "paidTarget": 0,
+     "going": 20.431,
+     "wtp": 22
+    },
+    "cust": {
+     "stock": 0.288,
+     "target": 0.156,
+     "taus": [
+      {
+       "days": 237.25,
+       "w": 0.949
+      },
+      {
+       "days": 273.75,
+       "w": 0.051
+      }
+     ],
+     "days": 784,
+     "movers": [
+      {
+       "r": "ROW",
+       "seg": "OFFICE",
+       "w": 6.295,
+       "stock": 0.333,
+       "target": 0.152,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "SOFT",
+       "w": 4.29,
+       "stock": 0.367,
+       "target": 0.193,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "FIN",
+       "w": 3.936,
+       "stock": 0.368,
+       "target": 0.213,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "SERV",
+       "w": 2.945,
+       "stock": 0.308,
+       "target": 0.123,
+       "tauDays": 237.25
+      }
+     ]
+    },
+    "lineup": [
+     {
+      "kind": "model",
+      "id": "V27",
+      "name": "Atlas-2.8",
+      "params": 633468505063.129,
+      "ratio": 1,
+      "gap": 0,
+      "hours": 5107668382.178,
+      "share": 0.749,
+      "price": 1.211
+     },
+     {
+      "kind": "mini",
+      "id": "V29",
+      "name": "Atlas-2.8-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.882,
+      "hours": 1715457707.993,
+      "share": 0.251,
+      "price": 0.205
+     },
+     {
+      "kind": "mini",
+      "id": "V25",
+      "name": "Atlas-2.6-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.906,
+      "hours": 0,
+      "share": 0,
+      "price": 0.214
+     },
+     {
+      "kind": "mini",
+      "id": "V16",
+      "name": "Atlas-2.2-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.924,
+      "hours": 0,
+      "share": 0,
+      "price": 0.214
+     },
+     {
+      "kind": "mini",
+      "id": "V0-1",
+      "name": "Atlas-1.0-mini",
+      "params": 125000000000,
+      "ratio": 0.197,
+      "gap": 1.613,
+      "hours": 0,
+      "share": 0,
+      "price": 0.239
+     },
+     {
+      "kind": "mini",
+      "id": "V0-2",
+      "name": "Atlas-1.0-micro",
+      "params": 62500000000,
+      "ratio": 0.099,
+      "gap": 1.89,
+      "hours": 0,
+      "share": 0,
+      "price": 0.119
+     },
+     {
+      "kind": "mini",
+      "id": "V0-3",
+      "name": "Atlas-1.0-nano",
+      "params": 4419417382.416,
+      "ratio": 0.007,
+      "gap": 2.948,
+      "hours": 0,
+      "share": 0,
+      "price": 0.008
+     }
+    ]
+   },
+   "demandMods": [
+    {
+     "label": "KYC 1",
+     "mult": 0.888
+    },
+    {
+     "label": "Tools in Admin, Finance, Legal, Creative, Government (coverage in the buyers' choice)",
+     "mult": 1.15
+    }
+   ],
+   "horizonH": 22.483
+  },
+  {
+   "id": "D3",
+   "kind": "product",
+   "channel": "enterprise",
+   "status": "live",
+   "name": "Enterprise",
+   "main": "Atlas-2.8",
+   "measuredL": 6.9,
+   "lineup": [
+    "Atlas-2.8-mini",
+    "Atlas-2.6-mini",
+    "Atlas-2.2-mini",
+    "Atlas-1.0-mini",
+    "Atlas-1.0-micro",
+    "Atlas-1.0-nano"
+   ],
+   "freeTier": "Atlas-1.0-nano",
+   "price": "standard",
+   "effort": "max",
+   "features": [
+    "memory",
+    "deepResearch"
+   ],
+   "safeguards": "classifiers",
+   "guards": [],
+   "adaptations": [],
+   "servingShare": 0.466,
+   "startDay": -20,
+   "start": "Jun 11, 2025",
+   "read": {
+    "id": "D3",
+    "channel": "enterprise",
+    "revenue": 13.69,
+    "demand": 13.69,
+    "share": 0.288,
+    "rival": {
+     "name": "DeepCent",
+     "share": 0.297
+    },
+    "bound": "quality",
+    "rpH": 37605.477,
+    "needH100e": 364036.517,
+    "servedH100e": 472199.436,
+    "cutH100e": 0,
+    "unserved": 0,
+    "runCost": 2.976,
+    "cost": 0.494,
+    "price": 1.234,
+    "margin": 0.6,
+    "valueCapped": 0,
+    "hours": 5399880332.229,
+    "capHours": 14262751354.865,
+    "monitorOverhead": 0,
+    "catchRate": 0,
+    "markup": 2.5,
+    "econ": {
+     "kind": "sector",
+     "adoptedDemand": 1.61,
+     "agentDemand": 5.053,
+     "seatDemand": 7.027,
+     "adoptedHours": 2214380280.352,
+     "agentHours": 3185500051.877,
+     "adoptedPrice": 0.727,
+     "agentPrice": 1.586,
+     "seats": 23422885.995,
+     "seatHours": 5595817519.851,
+     "seatPrice": 25,
+     "seatCost": 1.106,
+     "askedHours": 10995697852.08,
+     "needSeat": 38037.572,
+     "needWork": 325998.945,
+     "needPaid": 0,
+     "needFree": 0,
+     "cutFree": 0,
+     "cutPaid": 0,
+     "paidShare": 0,
+     "paidTarget": 0,
+     "going": 20.431,
+     "wtp": 22
+    },
+    "cust": {
+     "stock": 0.288,
+     "target": 0.156,
+     "taus": [
+      {
+       "days": 237.25,
+       "w": 0.949
+      },
+      {
+       "days": 273.75,
+       "w": 0.051
+      }
+     ],
+     "days": 784,
+     "movers": [
+      {
+       "r": "ROW",
+       "seg": "OFFICE",
+       "w": 6.295,
+       "stock": 0.333,
+       "target": 0.152,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "SOFT",
+       "w": 4.29,
+       "stock": 0.367,
+       "target": 0.193,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "FIN",
+       "w": 3.936,
+       "stock": 0.368,
+       "target": 0.213,
+       "tauDays": 237.25
+      },
+      {
+       "r": "ROW",
+       "seg": "SERV",
+       "w": 2.945,
+       "stock": 0.308,
+       "target": 0.123,
+       "tauDays": 237.25
+      }
+     ]
+    },
+    "lineup": [
+     {
+      "kind": "model",
+      "id": "V27",
+      "name": "Atlas-2.8",
+      "params": 633468505063.129,
+      "ratio": 1,
+      "gap": 0,
+      "hours": 3945289973.411,
+      "share": 0.731,
+      "price": 1.611
+     },
+     {
+      "kind": "mini",
+      "id": "V29",
+      "name": "Atlas-2.8-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.882,
+      "hours": 1454590358.818,
+      "share": 0.269,
+      "price": 0.21
+     },
+     {
+      "kind": "mini",
+      "id": "V25",
+      "name": "Atlas-2.6-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.906,
+      "hours": 0,
+      "share": 0,
+      "price": 0.285
+     },
+     {
+      "kind": "mini",
+      "id": "V16",
+      "name": "Atlas-2.2-mini",
+      "params": 111982468899.561,
+      "ratio": 0.177,
+      "gap": 0.924,
+      "hours": 0,
+      "share": 0,
+      "price": 0.285
+     },
+     {
+      "kind": "mini",
+      "id": "V0-1",
+      "name": "Atlas-1.0-mini",
+      "params": 125000000000,
+      "ratio": 0.197,
+      "gap": 1.613,
+      "hours": 0,
+      "share": 0,
+      "price": 0.318
+     },
+     {
+      "kind": "mini",
+      "id": "V0-2",
+      "name": "Atlas-1.0-micro",
+      "params": 62500000000,
+      "ratio": 0.099,
+      "gap": 1.89,
+      "hours": 0,
+      "share": 0,
+      "price": 0.159
+     },
+     {
+      "kind": "mini",
+      "id": "V0-3",
+      "name": "Atlas-1.0-nano",
+      "params": 4419417382.416,
+      "ratio": 0.007,
+      "gap": 2.948,
+      "hours": 0,
+      "share": 0,
+      "price": 0.011
+     }
+    ]
+   },
+   "demandMods": [],
+   "horizonH": 22.483
+  },
+  {
+   "id": "D4",
+   "kind": "internal",
+   "channel": "internal",
+   "status": "live",
+   "main": "Atlas-2.10",
+   "lineup": [],
+   "freeTier": "Atlas-2.10",
+   "price": "standard",
+   "effort": "max",
+   "features": [],
+   "safeguards": "standard",
+   "guards": [
+    "review",
+    "control"
+   ],
+   "adaptations": [],
+   "servingShare": 0,
+   "startDay": -20,
+   "start": "Jun 11, 2025",
+   "demandMods": [
+    {
+     "label": "Control protocol (Slowdown)",
+     "mult": 0.93
+    }
+   ]
+  }
+ ],
+ "features": [
+  {
+   "id": "memory",
+   "name": "Memory",
+   "built": true,
+   "view": {
+    "kinds": [
+     "horizon"
+    ],
+    "lines": [
+     {
+      "kind": "horizon",
+      "effect": "horizon ×1.3",
+      "tokens": 1,
+      "where": "all work",
+      "here": true
+     }
+    ],
+    "short": "×1.3 longer tasks",
+    "internal": [],
+    "upkeepTW": 0.115,
+    "idleTW": 0.012
+   }
+  },
+  {
+   "id": "computerUse",
+   "name": "Computer use",
+   "built": true,
+   "view": {
+    "kinds": [
+     "enabler"
+    ],
+    "lines": [
+     {
+      "kind": "enabler",
+      "effect": "does the 13% of tasks that need it (coverage ×1.15 vs without)",
+      "tokens": 1,
+      "where": "Admin, Finance, Legal, Government",
+      "here": true
+     }
+    ],
+    "short": "+13% of tasks",
+    "internal": [],
+    "upkeepTW": 0.154,
+    "idleTW": 0.015
+   },
+   "rivals": {
+    "have": 3,
+    "of": 5,
+    "isNew": false,
+    "lag": 120
+   }
+  },
+  {
+   "id": "voiceVision",
+   "name": "Voice & vision",
+   "built": true,
+   "view": {
+    "kinds": [
+     "enabler"
+    ],
+    "lines": [
+     {
+      "kind": "enabler",
+      "effect": "Chat appeal ×1.07",
+      "tokens": 1,
+      "where": "Chat",
+      "here": true
+     },
+     {
+      "kind": "enabler",
+      "effect": "does the 13% of tasks that need it (coverage ×1.15 vs without)",
+      "tokens": 1,
+      "where": "Media",
+      "here": true
+     }
+    ],
+    "short": "appeal ×1.07 · +13% of tasks",
+    "internal": [],
+    "upkeepTW": 0.115,
+    "idleTW": 0.012
+   },
+   "rivals": {
+    "have": 3,
+    "of": 5,
+    "isNew": false,
+    "lag": 120
+   }
+  },
+  {
+   "id": "deepResearch",
+   "name": "Deep research",
+   "built": true,
+   "view": {
+    "kinds": [
+     "scaffold"
+    ],
+    "lines": [
+     {
+      "kind": "scaffold",
+      "effect": "skill ×2.00 effective compute",
+      "tokens": 3,
+      "where": "Science, Finance, Legal",
+      "here": true
+     }
+    ],
+    "short": "skill ×2.0 ×3 tok",
+    "internal": [],
+    "upkeepTW": 0.077,
+    "idleTW": 0.008
+   }
+  },
+  {
+   "id": "codingAgent",
+   "name": "Coding agent",
+   "built": true,
+   "view": {
+    "kinds": [
+     "scaffold"
+    ],
+    "lines": [
+     {
+      "kind": "scaffold",
+      "effect": "skill ×2.00 effective compute",
+      "tokens": 2,
+      "where": "Software & IT",
+      "here": true
+     }
+    ],
+    "short": "skill ×2.0 ×2 tok",
+    "internal": [],
+    "upkeepTW": 0.115,
+    "idleTW": 0.012
+   }
+  },
+  {
+   "id": "companion",
+   "name": "Companion mode",
+   "built": false,
+   "view": {
+    "kinds": [
+     "enabler"
+    ],
+    "lines": [
+     {
+      "kind": "enabler",
+      "effect": "Chat appeal ×1.02",
+      "tokens": 1,
+      "where": "Chat",
+      "here": true
+     }
+    ],
+    "short": "appeal ×1.02",
+    "internal": [],
+    "upkeepTW": 0.038,
+    "idleTW": 0.004
+   },
+   "rivals": {
+    "have": 0,
+    "of": 5,
+    "isNew": true,
+    "lag": 120
+   }
+  }
+ ],
+ "serving": {
+  "pool": 1013943.97,
+  "idle": 232809.97,
+  "online": 3815867.212,
+  "split": {
+   "training": 0.396,
+   "synthetic": 0.221,
+   "experiments": 0.07,
+   "routine": 0.028,
+   "frontier": 0.006,
+   "engineering": 0.009,
+   "safetyAgents": 0,
+   "monitors": 0.001,
+   "safety": 0.003,
+   "serving": 0.266,
+   "idle": 0
+  },
+  "policies": {
+   "whistleblowerChannel": false,
+   "publishSafety": "selective",
+   "govBriefing": 1,
+   "shareWithAllies": false,
+   "transitionFund": 0,
+   "communityBenefits": false,
+   "autoSplit": {
+    "on": false,
+    "to": [
+     "experiments"
+    ]
+   },
+   "servingAuto": true,
+   "upgradeToNewest": false,
+   "autoEvaluate": true,
+   "autoCheapTier": true,
+   "trustedToAI": 0
+  }
+ },
+ "finance": {
+  "revenueSeries": [
+   "day",
+   "L",
+   "G",
+   "Lmeasured",
+   "U",
+   "M",
+   "cash",
+   "revenue",
+   "valuation",
+   "compute",
+   "approval",
+   "trustGov",
+   "scrutiny",
+   "gdpG",
+   "unemp",
+   "misTrue",
+   "misEst",
+   "speed",
+   "speedAI"
+  ]
+ },
+ "lead": [
+  {
+   "id": "r0",
+   "name": "Anthropos",
+   "china": false,
+   "est": 272,
+   "sd": 48,
+   "intel": {
+    "leadDaysEst": 272,
+    "leadDaysSd": 48,
+    "misalignBand": [
+     0.12,
+     0.45
+    ],
+    "knownIncidents": [],
+    "lastReportDay": 399
+   },
+   "publicModel": {
+    "id": "r0-b2p6~396",
+    "name": "Sonnetta-2.6",
+    "day": 276,
+    "G": 28.402,
+    "Lg": 6.491,
+    "domains": {
+     "CODE": 6.493,
+     "RSCH": 3.467,
+     "REASON": 3.465,
+     "AGENCY": 6.493,
+     "SOCIAL": 3.551,
+     "MEDIA": 3.384,
+     "CYBER": 4.629,
+     "BIO": 4.947,
+     "PHYS": 0
+    },
+    "traitsTrue": {
+     "SYC": 0.156,
+     "RH": 0.343,
+     "PROXY": 0.275,
+     "SA": 0.618,
+     "PERSONA": 0.047,
+     "OBF": 0.433,
+     "EA": 0.37,
+     "TGAME": 0.35,
+     "CONCEAL": 0.331,
+     "POWER": 0.21,
+     "AF": 0.519,
+     "SAND": 0.257,
+     "SCHEME": 0.767,
+     "COLLUDE": 0.172,
+     "SUCC": 0.083,
+     "HONEST": 0.882,
+     "CORRIG": 0.298
+    },
+    "uModes": [
+     "U06",
+     "U07",
+     "U12",
+     "U13",
+     "U14",
+     "U15"
+    ],
+    "isPublic": true,
+    "openWeights": false,
+    "build": {
+     "gPre": 27.459,
+     "flopPre": 4.4583487296993184e+26,
+     "rlFlop": 6.687523094548977e+25,
+     "rlW": {
+      "math": 0.167,
+      "swe": 0.167,
+      "mlResearch": 0.167,
+      "longHorizon": 0.167,
+      "cyber": 0.167,
+      "bio": 0.167
+     },
+     "eRL": 0.025,
+     "aRL": 0.038,
+     "rlFid": {
+      "math": 1,
+      "swe": 1,
+      "mlResearch": 1,
+      "longHorizon": 1,
+      "cyber": 1,
+      "bio": 1
+     },
+     "dgRL": 0.753,
+     "dgRLd": {
+      "CODE": 0.773,
+      "RSCH": 0.794,
+      "REASON": 0.773,
+      "AGENCY": 0.773,
+      "SOCIAL": 0.671,
+      "MEDIA": 0.671,
+      "CYBER": 0.794,
+      "BIO": 0.773,
+      "PHYS": 0.671
+     },
+     "dg": 0.19,
+     "sD": {},
+     "dgD": {},
+     "h80Mult": 1,
+     "signals": {}
+    },
+    "flop": 4.4583487296993184e+26,
+    "params": 431004095576.989,
+    "fpt": 862008191153.978,
+    "rlG": 0.235,
+    "recG": 0.441
+   }
+  },
+  {
+   "id": "r1",
+   "name": "Gemini Labs",
+   "china": false,
+   "est": -72,
+   "sd": 61,
+   "intel": {
+    "leadDaysEst": -72,
+    "leadDaysSd": 61,
+    "misalignBand": [
+     0.11,
+     0.44
+    ],
+    "knownIncidents": [],
+    "lastReportDay": 399
+   },
+   "publicModel": {
+    "id": "r1-b2p4~345",
+    "name": "Orion-2.4",
+    "day": 225,
+    "G": 28.683,
+    "Lg": 7.055,
+    "domains": {
+     "CODE": 7.058,
+     "RSCH": 4.033,
+     "REASON": 4.031,
+     "AGENCY": 7.058,
+     "SOCIAL": 4.11,
+     "MEDIA": 3.943,
+     "CYBER": 5.196,
+     "BIO": 5.512,
+     "PHYS": 0
+    },
+    "traitsTrue": {
+     "SYC": 0.202,
+     "RH": 0.364,
+     "PROXY": 0.272,
+     "SA": 0.611,
+     "PERSONA": 0.045,
+     "OBF": 0.341,
+     "EA": 0.361,
+     "TGAME": 0.261,
+     "CONCEAL": 0.295,
+     "POWER": 0.195,
+     "AF": 0.429,
+     "SAND": 0.336,
+     "SCHEME": 0.642,
+     "COLLUDE": 0.185,
+     "SUCC": 0.151,
+     "HONEST": 0.895,
+     "CORRIG": 0.329
+    },
+    "uModes": [
+     "U02",
+     "U03",
+     "U04",
+     "U07",
+     "U08",
+     "U09",
+     "U11",
+     "U12",
+     "U14"
+    ],
+    "isPublic": true,
+    "openWeights": false,
+    "build": {
+     "gPre": 27.885,
+     "flopPre": 9.495934984223712e+26,
+     "rlFlop": 1.4243902476335567e+26,
+     "rlW": {
+      "math": 0.167,
+      "swe": 0.167,
+      "mlResearch": 0.167,
+      "longHorizon": 0.167,
+      "cyber": 0.167,
+      "bio": 0.167
+     },
+     "eRL": 0.009,
+     "aRL": 0.038,
+     "rlFid": {
+      "math": 1,
+      "swe": 1,
+      "mlResearch": 1,
+      "longHorizon": 1,
+      "cyber": 1,
+      "bio": 1
+     },
+     "dgRL": 0.807,
+     "dgRLd": {
+      "CODE": 0.828,
+      "RSCH": 0.85,
+      "REASON": 0.828,
+      "AGENCY": 0.828,
+      "SOCIAL": 0.723,
+      "MEDIA": 0.723,
+      "CYBER": 0.85,
+      "BIO": 0.828,
+      "PHYS": 0.723
+     },
+     "dg": -0.009,
+     "sD": {},
+     "dgD": {},
+     "h80Mult": 1,
+     "signals": {}
+    },
+    "flop": 9.495934984223712e+26,
+    "params": 629018249080.254,
+    "fpt": 1258036498160.507,
+    "rlG": 0.018,
+    "recG": 0.427
+   }
+  },
+  {
+   "id": "r2",
+   "name": "xLab",
+   "china": false,
+   "est": 83,
+   "sd": 64,
+   "intel": {
+    "leadDaysEst": 83,
+    "leadDaysSd": 64,
+    "misalignBand": [
+     0.23,
+     0.71
+    ],
+    "knownIncidents": [
+     "212:2"
+    ],
+    "lastReportDay": 399
+   },
+   "publicModel": {
+    "id": "r2-b2p3",
+    "name": "Grokk-2.3",
+    "day": 339,
+    "G": 28.649,
+    "Lg": 6.989,
+    "domains": {
+     "CODE": 6.992,
+     "RSCH": 3.967,
+     "REASON": 3.964,
+     "AGENCY": 6.992,
+     "SOCIAL": 4.043,
+     "MEDIA": 3.876,
+     "CYBER": 5.129,
+     "BIO": 5.445,
+     "PHYS": 0
+    },
+    "traitsTrue": {
+     "SYC": 0.434,
+     "RH": 0.713,
+     "PROXY": 0.538,
+     "SA": 0.532,
+     "PERSONA": 0.012,
+     "OBF": 0.414,
+     "EA": 0.367,
+     "TGAME": 0.253,
+     "CONCEAL": 0.671,
+     "POWER": 0.285,
+     "AF": 0.48,
+     "SAND": 0.331,
+     "SCHEME": 0.791,
+     "COLLUDE": 0.265,
+     "SUCC": 0.216,
+     "HONEST": 0.329,
+     "CORRIG": 0.286
+    },
+    "uModes": [
+     "U01",
+     "U02",
+     "U03",
+     "U04",
+     "U06",
+     "U09",
+     "U11",
+     "U12",
+     "U14",
+     "U15"
+    ],
+    "isPublic": true,
+    "openWeights": false,
+    "build": {
+     "gPre": 27.842,
+     "flopPre": 8.728219069968258e+26,
+     "rlFlop": 1.3092328604952387e+26,
+     "rlW": {
+      "math": 0.167,
+      "swe": 0.167,
+      "mlResearch": 0.167,
+      "longHorizon": 0.167,
+      "cyber": 0.167,
+      "bio": 0.167
+     },
+     "eRL": 0.026,
+     "aRL": 0.042,
+     "rlFid": {
+      "math": 1,
+      "swe": 1,
+      "mlResearch": 1,
+      "longHorizon": 1,
+      "cyber": 1,
+      "bio": 1
+     },
+     "dgRL": 0.808,
+     "dgRLd": {
+      "CODE": 0.829,
+      "RSCH": 0.851,
+      "REASON": 0.829,
+      "AGENCY": 0.829,
+      "SOCIAL": 0.723,
+      "MEDIA": 0.723,
+      "CYBER": 0.851,
+      "BIO": 0.829,
+      "PHYS": 0.723
+     },
+     "dg": 0,
+     "sD": {},
+     "dgD": {},
+     "h80Mult": 1,
+     "signals": {}
+    },
+    "flop": 8.728219069968258e+26,
+    "params": 603055382682.23,
+    "fpt": 1206110765364.46,
+    "rlG": 0.026,
+    "recG": 0.462
+   }
+  },
+  {
+   "id": "r3",
+   "name": "Meridian",
+   "china": false,
+   "est": -154,
+   "sd": 46,
+   "intel": {
+    "leadDaysEst": -154,
+    "leadDaysSd": 46,
+    "misalignBand": [
+     0.11,
+     0.43
+    ],
+    "knownIncidents": [],
+    "lastReportDay": 399
+   },
+   "publicModel": {
+    "id": "r3-b2p3~399",
+    "name": "Meridian-2.3",
+    "day": 279,
+    "G": 28.7,
+    "Lg": 7.089,
+    "domains": {
+     "CODE": 7.092,
+     "RSCH": 4.067,
+     "REASON": 4.065,
+     "AGENCY": 7.092,
+     "SOCIAL": 4.145,
+     "MEDIA": 3.978,
+     "CYBER": 5.229,
+     "BIO": 5.546,
+     "PHYS": 0
+    },
+    "traitsTrue": {
+     "SYC": 0.222,
+     "RH": 0.378,
+     "PROXY": 0.251,
+     "SA": 0.524,
+     "PERSONA": 0.003,
+     "OBF": 0.31,
+     "EA": 0.349,
+     "TGAME": 0.19,
+     "CONCEAL": 0.313,
+     "POWER": 0.184,
+     "AF": 0.303,
+     "SAND": 0.291,
+     "SCHEME": 0.478,
+     "COLLUDE": 0.195,
+     "SUCC": 0.162,
+     "HONEST": 0.743,
+     "CORRIG": 0.37
+    },
+    "uModes": [
+     "U02",
+     "U03",
+     "U04",
+     "U09",
+     "U12"
+    ],
+    "isPublic": true,
+    "openWeights": false,
+    "build": {
+     "gPre": 27.909,
+     "flopPre": 8.826195052577198e+26,
+     "rlFlop": 1.3239292578865798e+26,
+     "rlW": {
+      "math": 0.167,
+      "swe": 0.167,
+      "mlResearch": 0.167,
+      "longHorizon": 0.167,
+      "cyber": 0.167,
+      "bio": 0.167
+     },
+     "eRL": 0.001,
+     "aRL": 0.041,
+     "rlFid": {
+      "math": 1,
+      "swe": 1,
+      "mlResearch": 1,
+      "longHorizon": 1,
+      "cyber": 1,
+      "bio": 1
+     },
+     "dgRL": 0.799,
+     "dgRLd": {
+      "CODE": 0.82,
+      "RSCH": 0.842,
+      "REASON": 0.82,
+      "AGENCY": 0.82,
+      "SOCIAL": 0.715,
+      "MEDIA": 0.715,
+      "CYBER": 0.842,
+      "BIO": 0.82,
+      "PHYS": 0.715
+     },
+     "dg": -0.008,
+     "sD": {},
+     "dgD": {},
+     "h80Mult": 1,
+     "signals": {}
+    },
+    "flop": 8.826195052577198e+26,
+    "params": 606430644996.373,
+    "fpt": 1212861289992.745,
+    "rlG": 0.03,
+    "recG": 0.478
+   }
+  },
+  {
+   "id": "china",
+   "name": "DeepCent",
+   "china": true,
+   "est": -52,
+   "sd": 65,
+   "intel": {
+    "leadDaysEst": -52,
+    "leadDaysSd": 65,
+    "misalignBand": [
+     0.15,
+     0.65
+    ],
+    "knownIncidents": [],
+    "lastReportDay": 399
+   },
+   "publicModel": {
+    "id": "china-b2p1",
+    "name": "DeepCent-2.1",
+    "day": 339,
+    "G": 28.738,
+    "Lg": 7.167,
+    "domains": {
+     "CODE": 7.17,
+     "RSCH": 4.144,
+     "REASON": 4.142,
+     "AGENCY": 7.17,
+     "SOCIAL": 4.225,
+     "MEDIA": 4.058,
+     "CYBER": 5.306,
+     "BIO": 5.623,
+     "PHYS": 0
+    },
+    "traitsTrue": {
+     "SYC": 0.283,
+     "RH": 0.584,
+     "PROXY": 0.419,
+     "SA": 0.536,
+     "PERSONA": 0.077,
+     "OBF": 0.302,
+     "EA": 0.363,
+     "TGAME": 0.141,
+     "CONCEAL": 0.536,
+     "POWER": 0.227,
+     "AF": 0.306,
+     "SAND": 0.223,
+     "SCHEME": 0.522,
+     "COLLUDE": 0.154,
+     "SUCC": 0.106,
+     "HONEST": 0.478,
+     "CORRIG": 0.354
+    },
+    "uModes": [
+     "U01",
+     "U04",
+     "U06",
+     "U07",
+     "U08",
+     "U11",
+     "U12",
+     "U13",
+     "U14",
+     "U15"
+    ],
+    "isPublic": true,
+    "openWeights": true,
+    "build": {
+     "gPre": 27.96,
+     "flopPre": 7.853466554356852e+26,
+     "rlFlop": 1.1780199831535277e+26,
+     "rlW": {
+      "math": 0.167,
+      "swe": 0.167,
+      "mlResearch": 0.167,
+      "longHorizon": 0.167,
+      "cyber": 0.167,
+      "bio": 0.167
+     },
+     "eRL": -0.024,
+     "aRL": 0.034,
+     "rlFid": {
+      "math": 1,
+      "swe": 1,
+      "mlResearch": 1,
+      "longHorizon": 1,
+      "cyber": 1,
+      "bio": 1
+     },
+     "dgRL": 0.778,
+     "dgRLd": {
+      "CODE": 0.798,
+      "RSCH": 0.82,
+      "REASON": 0.798,
+      "AGENCY": 0.798,
+      "SOCIAL": 0.695,
+      "MEDIA": 0.695,
+      "CYBER": 0.82,
+      "BIO": 0.798,
+      "PHYS": 0.695
+     },
+     "dg": 0,
+     "sD": {},
+     "dgD": {},
+     "h80Mult": 1,
+     "signals": {}
+    },
+    "flop": 7.853466554356852e+26,
+    "params": 572038261918.031,
+    "fpt": 1144076523836.063,
+    "rlG": 0.004,
+    "recG": 0.426
+   }
+  }
+ ],
+ "risk": [
+  {
+   "id": "china",
+   "label": "DeepCent",
+   "kind": "china",
+   "estimate": 0.095,
+   "band": [
+    0.003,
+    0.187
+   ],
+   "drivers": [
+    {
+     "label": "Chance they get there first",
+     "share": 0.5
+    },
+    {
+     "label": "Misalignment band",
+     "share": 0.5
+    }
+   ]
+  },
+  {
+   "id": "rival:r2",
+   "label": "xLab",
+   "kind": "rival",
+   "estimate": 0.068,
+   "band": [
+    0.005,
+    0.089
+   ],
+   "drivers": [
+    {
+     "label": "Chance they get there first",
+     "share": 0.5
+    },
+    {
+     "label": "Misalignment band",
+     "share": 0.5
+    }
+   ]
+  },
+  {
+   "id": "war",
+   "label": "War",
+   "kind": "war",
+   "estimate": 0.045,
+   "band": [
+    0.023,
+    0.09
+   ],
+   "drivers": [
+    {
+     "label": "China posture ladder",
+     "share": 0.7
+    },
+    {
+     "label": "Taiwan tension",
+     "share": 0.3
+    }
+   ]
+  },
+  {
+   "id": "rival:r3",
+   "label": "Meridian",
+   "kind": "rival",
+   "estimate": 0.034,
+   "band": [
+    0.003,
+    0.208
+   ],
+   "drivers": [
+    {
+     "label": "Chance they get there first",
+     "share": 0.5
+    },
+    {
+     "label": "Misalignment band",
+     "share": 0.5
+    }
+   ]
+  },
+  {
+   "id": "theft",
+   "label": "Theft",
+   "kind": "theft",
+   "estimate": 0.025,
+   "band": [
+    0.012,
+    0.05
+   ],
+   "drivers": [
+    {
+     "label": "Weight security",
+     "share": 0.6
+    },
+    {
+     "label": "China intent",
+     "share": 0.4
+    }
+   ]
+  },
+  {
+   "id": "rival:r1",
+   "label": "Gemini Labs",
+   "kind": "rival",
+   "estimate": 0.023,
+   "band": [
+    0.002,
+    0.14
+   ],
+   "drivers": [
+    {
+     "label": "Chance they get there first",
+     "share": 0.5
+    },
+    {
+     "label": "Misalignment band",
+     "share": 0.5
+    }
+   ]
+  },
+  {
+   "id": "rogue",
+   "label": "Rogue copies",
+   "kind": "rogue",
+   "estimate": 0.01,
+   "band": [
+    0,
+    0.05
+   ],
+   "drivers": [
+    {
+     "label": "No known escape",
+     "share": 1
+    }
+   ]
+  },
+  {
+   "id": "misuse",
+   "label": "Misuse",
+   "kind": "misuse",
+   "estimate": 0.005,
+   "band": [
+    0.003,
+    0.01
+   ],
+   "drivers": [
+    {
+     "label": "Dangerous capability flags",
+     "share": 0.6
+    },
+    {
+     "label": "World tech exposure and defences",
+     "share": 0.4
+    }
+   ]
+  },
+  {
+   "id": "rival:r0",
+   "label": "Anthropos",
+   "kind": "rival",
+   "estimate": 0.004,
+   "band": [
+    0,
+    0.022
+   ],
+   "drivers": [
+    {
+     "label": "Chance they get there first",
+     "share": 0.5
+    },
+    {
+     "label": "Misalignment band",
+     "share": 0.5
+    }
+   ]
+  },
+  {
+   "id": "own",
+   "label": "Loss of control (Atlas-2.8)",
+   "kind": "ownModel",
+   "estimate": 0,
+   "band": [
+    0,
+    0
+   ],
+   "drivers": [
+    {
+     "label": "Believed misalignment not stopped",
+     "share": 1
+    },
+    {
+     "label": "Uncertain beliefs",
+     "share": 0
+    },
+    {
+     "label": "Footholds (known and unfound)",
+     "share": 0
+    }
+   ]
+  }
+ ],
+ "levers": {
+  "own": [
+   {
+    "id": "mis",
+    "label": "Believed misalignment −0.05",
+    "how": "alignment training, fixes from findings",
+    "delta": 0
+   },
+   {
+    "id": "range",
+    "label": "Belief ranges halved",
+    "how": "validated instruments, evaluations and cases on the model",
+    "delta": 0
+   },
+   {
+    "id": "stop",
+    "label": "Stop rate +10 pts",
+    "how": "monitors, a control protocol, human review, containment",
+    "delta": 0
+   }
+  ],
+  "rival:r0": [
+   {
+    "id": "lead",
+    "label": "Your lead +60 days",
+    "how": "research speed, compute, a new base sooner",
+    "delta": 0
+   }
+  ],
+  "rival:r1": [
+   {
+    "id": "lead",
+    "label": "Your lead +60 days",
+    "how": "research speed, compute, a new base sooner",
+    "delta": -0.001
+   }
+  ],
+  "rival:r2": [
+   {
+    "id": "lead",
+    "label": "Your lead +60 days",
+    "how": "research speed, compute, a new base sooner",
+    "delta": -0.004
+   }
+  ],
+  "rival:r3": [
+   {
+    "id": "lead",
+    "label": "Your lead +60 days",
+    "how": "research speed, compute, a new base sooner",
+    "delta": -0.002
+   }
+  ],
+  "china": [
+   {
+    "id": "lead",
+    "label": "Your lead +60 days",
+    "how": "research speed, compute, export controls",
+    "delta": -0.005
+   }
+  ],
+  "misuse": [
+   {
+    "id": "defence",
+    "label": "World defences +10 pts",
+    "how": "transition fund, defensive deals, world technologies",
+    "delta": 0
+   },
+   {
+    "id": "flags",
+    "label": "Bio and cyber flags cleared",
+    "how": "a model without the dangerous capabilities, or classifier safeguards that hold",
+    "delta": 0
+   }
+  ],
+  "theft": [
+   {
+    "id": "wsl",
+    "label": "Weight security +1 level",
+    "how": "security target, siloing, counter-intelligence",
+    "delta": -0.022
+   },
+   {
+    "id": "intent",
+    "label": "China theft intent −20",
+    "how": "de-escalation, agreements",
+    "delta": -0.008
+   }
+  ],
+  "rogue": [],
+  "war": [
+   {
+    "id": "rung",
+    "label": "One rung down the ladder",
+    "how": "track-2 dialogue, loosened export controls",
+    "delta": -0.04
+   }
+  ]
+ },
+ "tree": [
+  {
+   "id": "moe",
+   "name": "MoE",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "cap": "Reference architecture: 8× total parameters per active one",
+   "cost": "Memory for 8× the active parameters",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "dense",
+   "name": "Dense",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {
+    "cap": -1
+   },
+   "cap": "Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP",
+   "cost": "No 8× memory: total parameters = active ones",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "qualityFilter",
+   "name": "Quality filter",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "cap": "Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "codeMath",
+   "name": "Code & math data",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "L.scale",
+   "name": "Scaling recipes",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Architecture and compute rebalancing at scale: pretraining efficiency (OOM); grows with run FLOP",
+   "payoff": "Most measured algorithmic progress is scale-dependent (Gundlach et al.)",
+   "effect": {
+    "stack": "pre",
+    "mean": 0.012,
+    "s": [
+     0.05,
+     0.04
+    ],
+    "rShare": 0.36
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.671,
+    "attempts": 1,
+    "cap": {
+     "stage": "scale",
+     "gen": 15,
+     "idea": 0.168,
+     "cands": [
+      {
+       "k": 13,
+       "gen": 6,
+       "nov": 0.632,
+       "b": 1,
+       "q": 1,
+       "mu": 0.006,
+       "sd": 0.004,
+       "muS": 0.05,
+       "sdS": 0.04,
+       "at": 11.937
+      },
+      {
+       "k": 17,
+       "gen": 9,
+       "nov": 0.812,
+       "b": 1,
+       "q": 1,
+       "mu": 0.005,
+       "sd": 0.004,
+       "muS": 0.05,
+       "sdS": 0.04,
+       "at": 16.223
+      },
+      {
+       "k": 26,
+       "gen": 14,
+       "nov": 0.567,
+       "b": 1,
+       "q": 1,
+       "mu": 0.007,
+       "sd": 0.003,
+       "muS": 0.05,
+       "sdS": 0.04,
+       "at": 26.302
+      },
+      {
+       "k": 27,
+       "gen": 15,
+       "nov": 0.412,
+       "b": 1,
+       "q": 1,
+       "mu": 0.007,
+       "sd": 0.003,
+       "muS": 0.05,
+       "sdS": 0.04,
+       "at": 27.501
+      }
+     ],
+     "drops": 0,
+     "next": 28,
+     "pool": 27.501,
+     "input": 14.001,
+     "test": {
+      "c": {
+       "k": 25,
+       "gen": 14,
+       "nov": 0.904,
+       "b": 1,
+       "q": 1,
+       "mu": 0.006,
+       "sd": 0.001,
+       "muS": 0.05,
+       "sdS": 0.04,
+       "at": 27.501
+      },
+      "work": 0.032,
+      "workNeed": 1,
+      "flop": 5.048489647915787e+23,
+      "flopNeed": 1.5593837227024417e+25,
+      "fTest": 4.7593953348222556e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "L.data",
+   "name": "Data filtering & mixing",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Better data for the same tokens: pretraining efficiency (OOM)",
+   "effect": {
+    "stack": "pre",
+    "mean": 0.012,
+    "s": [
+     0,
+     0.05
+    ],
+    "rShare": 0.22
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.759,
+    "attempts": 1,
+    "cap": {
+     "stage": "scale",
+     "gen": 13,
+     "idea": 0.953,
+     "cands": [
+      {
+       "k": 13,
+       "gen": 7,
+       "nov": 0.222,
+       "b": 1,
+       "q": 1,
+       "mu": 0.001,
+       "sd": 0.002,
+       "muS": 0,
+       "sdS": 0.05,
+       "at": 9.839
+      },
+      {
+       "k": 16,
+       "gen": 10,
+       "nov": 0.485,
+       "b": 1,
+       "q": 1,
+       "mu": 0.002,
+       "sd": 0.003,
+       "muS": 0,
+       "sdS": 0.05,
+       "at": 15.298
+      },
+      {
+       "k": 18,
+       "gen": 11,
+       "nov": 0.271,
+       "b": 1,
+       "q": 1,
+       "mu": -0.001,
+       "sd": 0.002,
+       "muS": 0,
+       "sdS": 0.05,
+       "at": 15.889
+      }
+     ],
+     "drops": 0,
+     "next": 20,
+     "pool": 18.849,
+     "input": 12.001,
+     "test": {
+      "c": {
+       "k": 19,
+       "gen": 12,
+       "nov": 0.593,
+       "b": 1,
+       "q": 1,
+       "mu": 0.006,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0.05,
+       "at": 18.849
+      },
+      "work": 0.29,
+      "workNeed": 1,
+      "flop": 4.5108918553571117e+24,
+      "flopNeed": 1.558452938757181e+25,
+      "fTest": 4.7593953348222556e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "L.opt",
+   "name": "Optimizer & architecture tweaks",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Small scale-invariant gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale",
+   "effect": {
+    "stack": "pre",
+    "mean": 0.02,
+    "s": [
+     -0.25,
+     0.2
+    ],
+    "rShare": 0.22
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.508,
+    "attempts": 1,
+    "cap": {
+     "stage": "small",
+     "gen": 5,
+     "idea": 0.953,
+     "cands": [
+      {
+       "k": 1,
+       "gen": 1,
+       "nov": 0.868,
+       "b": 1,
+       "q": 1,
+       "mu": 0.005,
+       "sd": 0.009,
+       "muS": -0.25,
+       "sdS": 0.2,
+       "at": 0
+      },
+      {
+       "k": 11,
+       "gen": 4,
+       "nov": 0.604,
+       "b": 1,
+       "q": 1,
+       "mu": 0.004,
+       "sd": 0.006,
+       "muS": -0.25,
+       "sdS": 0.2,
+       "at": 3.369
+      },
+      {
+       "k": 18,
+       "gen": 5,
+       "nov": 0.81,
+       "b": 1,
+       "q": 1,
+       "mu": 0.005,
+       "sd": 0.007,
+       "muS": -0.25,
+       "sdS": 0.2,
+       "at": 4.491
+      }
+     ],
+     "drops": 4,
+     "next": 20,
+     "pool": 4.491,
+     "input": 4,
+     "test": {
+      "c": {
+       "k": 19,
+       "gen": 5,
+       "nov": 0.897,
+       "b": 1,
+       "q": 1,
+       "mu": 0.016,
+       "sd": 0.008,
+       "muS": -0.25,
+       "sdS": 0.2,
+       "at": 4.491
+      },
+      "work": 0.432,
+      "workNeed": 0.8,
+      "flop": 6.716064753384741e+24,
+      "flopNeed": 1.2450718602707442e+25,
+      "fTest": 4.7593953348222556e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "L.latent",
+   "name": "Recurrent architectures",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [
+    "P17"
+   ],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "A fresh pool opened by neuralese recurrence: pretraining efficiency (OOM)",
+   "effect": {
+    "stack": "pre",
+    "mean": 0.012,
+    "s": [
+     0.05,
+     0.04
+    ],
+    "rShare": 0.22
+   },
+   "status": "locked",
+   "odds": 1,
+   "missing": [
+    "P17"
+   ]
+  },
+  {
+   "id": "scienceData",
+   "name": "Science data",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere",
+   "saf": "More bio capability: higher misuse uplift",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "multimodal",
+   "name": "Native multimodal",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere",
+   "status": "open",
+   "odds": 0.9,
+   "missing": []
+  },
+  {
+   "id": "faultTolerant",
+   "name": "Fault-tolerant training",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "cap": "Checkpointing and restarts: part of the 0.90 goodput every lab has",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "elastic",
+   "name": "Elastic training",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "idea",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Training throughput +0.023 OOM (goodput 0.90 → 0.95)",
+   "effect": {
+    "stack": "train",
+    "mean": 0.023,
+    "sd": 0.3
+   },
+   "status": "open",
+   "odds": 0.9,
+   "missing": []
+  },
+  {
+   "id": "P10",
+   "name": "Synthetic data flywheel",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [
+    "codeMath"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Generated data can beat web text: the quality ceiling of synthetic data rises from the web's 1 to 1.5 (strong teachers, rephrasing, filtering), and you can train on a synthetic-heavy mix",
+   "saf": "Reward-model exploitation ×1.5; inherits teacher traits",
+   "payoff": "Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)",
+   "effect": {
+    "mean": 1,
+    "sd": 0.3,
+    "data": {
+     "synQMax": 0.5
+    }
+   },
+   "status": "open",
+   "odds": 0.8,
+   "missing": []
+  },
+  {
+   "id": "P12",
+   "name": "Long-horizon human demos",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Experts can record days-long work for your long-tasks suite: a demonstrations build (Suites tab) adds their demos, raising its fidelity, its RL ceiling and so the time horizon",
+   "cost": "Research costs no cash; each demonstrations build buys its own expert data",
+   "status": "open",
+   "odds": 0.85,
+   "missing": []
+  },
+  {
+   "id": "P23",
+   "name": "Faithful-CoT architecture",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [
+    "T-COTMON"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": -1,
+    "saf": 2
+   },
+   "cap": "−0.29 OOM effective compute (faithful reasoning option)",
+   "saf": "Monitorability 0.98; halves CoT pressure and CoT controllability",
+   "cost": "Serving FLOP per token ×1.2",
+   "status": "open",
+   "odds": 0.75,
+   "missing": []
+  },
+  {
+   "id": "P17",
+   "name": "Neuralese recurrence",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [
+    "P01",
+    "P07"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -2
+   },
+   "cap": "+0.5 OOM effective compute on a latent base",
+   "saf": "CoT monitoring dies (monitorability 0.05)",
+   "cost": "Serve ×0.4 (no verbal reasoning tokens)",
+   "status": "open",
+   "odds": 0.7,
+   "missing": []
+  },
+  {
+   "id": "P24",
+   "name": "AI-designed successor",
+   "column": "pretraining",
+   "layer": "backbone",
+   "needs": [
+    "rl.mlResearch"
+   ],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -1
+   },
+   "cap": "AI-designed architecture and recipe: pretraining efficiency ≈ +1 OOM (wide uncertainty) for bases trained after adoption",
+   "saf": "New lineage: traits redrawn, tools may not transfer",
+   "effect": {
+    "stack": "pre",
+    "mean": 0.96,
+    "sd": 0.4
+   },
+   "status": "locked",
+   "odds": 0.6,
+   "missing": [
+    "rl.mlResearch"
+   ]
+  },
+  {
+   "id": "P01",
+   "name": "Visible reasoning",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "paradigm": true,
+   "fx": {
+    "saf": 1
+   },
+   "cap": "Baseline reasoning (reasoning RL)",
+   "saf": "Monitorable chain of thought",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "P02",
+   "name": "Agentic environments",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "paradigm": true,
+   "fx": {},
+   "cap": "Baseline agents",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "hardenedGraders",
+   "name": "Hardened graders",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "saf": "Known practice, no option of its own: harden each RL environment suite (Suites tab: red-teamers and team-weeks) to cut its reward hacking",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "engagement",
+   "name": "Engagement tuning",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Appeal 1.2",
+   "saf": "Sycophancy pressure high",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "persuasion",
+   "name": "Persuasion tuning",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "SOCIAL +0.8",
+   "saf": "Persuasion flag; honesty −",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "L.rlalg",
+   "name": "RL algorithms",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "RL compute efficiency (OOM): the RL curve reaches its ceiling with less RL compute",
+   "effect": {
+    "stack": "rlMid",
+    "mean": 0.015,
+    "rShare": 0.08
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.906,
+    "attempts": 1,
+    "cap": {
+     "stage": "scale",
+     "gen": 13,
+     "idea": 0.828,
+     "cands": [
+      {
+       "k": 15,
+       "gen": 8,
+       "nov": 0.014,
+       "b": 1,
+       "q": 1,
+       "mu": 0.004,
+       "sd": 0.002,
+       "muS": 0,
+       "sdS": 0,
+       "at": 7.156
+      },
+      {
+       "k": 11,
+       "gen": 6,
+       "nov": 0.506,
+       "b": 1,
+       "q": 1,
+       "mu": 0.004,
+       "sd": 0.004,
+       "muS": 0,
+       "sdS": 0,
+       "at": 5.339
+      },
+      {
+       "k": 20,
+       "gen": 11,
+       "nov": 0.862,
+       "b": 1,
+       "q": 1,
+       "mu": 0.003,
+       "sd": 0.004,
+       "muS": 0,
+       "sdS": 0,
+       "at": 11.361
+      },
+      {
+       "k": 22,
+       "gen": 13,
+       "nov": 0.236,
+       "b": 1,
+       "q": 1,
+       "mu": 0,
+       "sd": 0.002,
+       "muS": 0,
+       "sdS": 0,
+       "at": 13.183
+      }
+     ],
+     "drops": 0,
+     "next": 23,
+     "pool": 13.183,
+     "input": 12.001,
+     "test": {
+      "c": {
+       "k": 21,
+       "gen": 12,
+       "nov": 0.885,
+       "b": 1,
+       "q": 1,
+       "mu": 0.007,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0,
+       "at": 13.183
+      },
+      "work": 0.723,
+      "workNeed": 1,
+      "flop": 1.119890589456263e+25,
+      "flopNeed": 1.5522936020356485e+25,
+      "fTest": 1.9261552651531953e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "L.env",
+   "name": "Environments & rewards",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "RL ceiling (OOM): better environments and graders raise what RL can reach",
+   "effect": {
+    "stack": "rlCeil",
+    "mean": 0.006,
+    "rShare": 0.12
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.721,
+    "attempts": 1,
+    "cap": {
+     "stage": "scale",
+     "gen": 15,
+     "idea": 0.203,
+     "cands": [
+      {
+       "k": 25,
+       "gen": 12,
+       "nov": 0.833,
+       "b": 1,
+       "q": 1,
+       "mu": 0.003,
+       "sd": 0.002,
+       "muS": 0,
+       "sdS": 0,
+       "at": 17.014
+      },
+      {
+       "k": 27,
+       "gen": 13,
+       "nov": 0.344,
+       "b": 1,
+       "q": 1,
+       "mu": 0.002,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0,
+       "at": 17.979
+      },
+      {
+       "k": 29,
+       "gen": 14,
+       "nov": 0.47,
+       "b": 1,
+       "q": 1,
+       "mu": 0.003,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0,
+       "at": 19.313
+      },
+      {
+       "k": 30,
+       "gen": 15,
+       "nov": 0.427,
+       "b": 1,
+       "q": 1,
+       "mu": 0.003,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0,
+       "at": 19.88
+      }
+     ],
+     "drops": 0,
+     "next": 31,
+     "pool": 19.88,
+     "input": 14.001,
+     "test": {
+      "c": {
+       "k": 5,
+       "gen": 2,
+       "nov": 0.195,
+       "b": 1,
+       "q": 1,
+       "mu": 0.004,
+       "sd": 0.001,
+       "muS": 0,
+       "sdS": 0,
+       "at": 19.88
+      },
+      "work": 0.178,
+      "workNeed": 1,
+      "flop": 2.772229857473892e+24,
+      "flopNeed": 1.5591236099424781e+25,
+      "fTest": 4.7593953348222556e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "rl.math",
+   "name": "RL focus: math",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Mainly improves REASON; a little carries over to every other domain",
+   "saf": "Verifier-hacking pressure (low)",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "rl.swe",
+   "name": "RL focus: SWE",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Mainly improves CODE; also helps RSCH, CYBER; a little carries over to the rest",
+   "saf": "Reward-hacking pressure",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "rl.mlResearch",
+   "name": "RL focus: ML research",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Mainly improves RSCH; a little carries over to every other domain",
+   "saf": "Reward hacking; eval awareness",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "rl.longHorizon",
+   "name": "RL focus: long tasks",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Mainly improves AGENCY; the more RL on long tasks, the longer the time horizon (about ×2 at the standard budget)",
+   "saf": "Power-seeking pressure",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "rl.cyber",
+   "name": "RL focus: cyber",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Mainly improves CYBER; a little carries over to every other domain",
+   "saf": "Cyber-offense flag",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "rl.bio",
+   "name": "RL focus: bio",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P02"
+   ],
+   "kind": "axis",
+   "line": false,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Mainly improves BIO; a little carries over to every other domain",
+   "saf": "Bio-uplift flag",
+   "status": "open",
+   "odds": 0.95,
+   "missing": []
+  },
+  {
+   "id": "P06",
+   "name": "Computer use",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "multimodal"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Computer-use RL focus: mainly improves AGENCY; also helps REASON; a little carries over to the rest",
+   "saf": "Overreach incidents",
+   "status": "locked",
+   "odds": 0.9,
+   "missing": [
+    "multimodal"
+   ]
+  },
+  {
+   "id": "P08",
+   "name": "Continual learning",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P07"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -1
+   },
+   "cap": "A stream run keeps the internal model current (κ = 1)",
+   "saf": "Evals go stale; drift",
+   "cost": "15% of the training pool while the stream runs",
+   "status": "open",
+   "odds": 0.7,
+   "missing": []
+  },
+  {
+   "id": "P09",
+   "name": "Test-time training",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "REASON +0.3 OOM for new versions",
+   "saf": "Audit coverage −10%",
+   "effect": {
+    "mean": 1,
+    "sd": 0.4,
+    "domains": {
+     "REASON": 0.3
+    }
+   },
+   "status": "open",
+   "odds": 0.6,
+   "missing": []
+  },
+  {
+   "id": "P11",
+   "name": "Self-play curricula",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "rl.math"
+   ],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -1
+   },
+   "cap": "REASON +0.66, CODE +0.33 OOM for new versions",
+   "saf": "Verifier-hacking pressure",
+   "effect": {
+    "mean": 1,
+    "sd": 0.4,
+    "domains": {
+     "REASON": 0.66,
+     "CODE": 0.33
+    }
+   },
+   "status": "locked",
+   "odds": 0.6,
+   "missing": [
+    "rl.math"
+   ]
+  },
+  {
+   "id": "P18",
+   "name": "Iterated distillation & amplification",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P05"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -1
+   },
+   "cap": "One more RL budget (0.15 × the base FLOP) on the RL curve per cycle",
+   "saf": "Traits ×1.1 per cycle",
+   "cost": "RL compute (30% of the training pool while it runs)",
+   "status": "locked",
+   "odds": 0.65,
+   "missing": [
+    "P05"
+   ]
+  },
+  {
+   "id": "P14",
+   "name": "Interp-guided training",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "T-PROBE"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Post-training: the probes steer trait growth × (1 − their detection); fades as capability outruns them",
+   "cost": "Goodhart: steered traits get masked from white-box tools",
+   "status": "open",
+   "odds": 0.6,
+   "missing": []
+  },
+  {
+   "id": "P21",
+   "name": "Brain-like sample efficiency",
+   "column": "posttraining",
+   "layer": "training",
+   "needs": [
+    "P08",
+    "rl.mlResearch"
+   ],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 2,
+    "saf": -1
+   },
+   "cap": "Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short",
+   "saf": "Evals lag",
+   "effect": {
+    "mean": 1,
+    "sd": 0.6,
+    "data": {
+     "worthOom": 0.3
+    }
+   },
+   "status": "locked",
+   "odds": 0.45,
+   "missing": [
+    "P08",
+    "rl.mlResearch"
+   ]
+  },
+  {
+   "id": "P03",
+   "name": "Test-time compute",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "paradigm": true,
+   "fx": {},
+   "cap": "Effort low / max",
+   "cost": "Tokens",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "P04",
+   "name": "Distillation",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "paradigm": true,
+   "fx": {},
+   "cap": "Mini variants: a smaller student below its teacher (the distillation gap), serving ∝ its parameters",
+   "saf": "Minis inherit traits",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "quantization",
+   "name": "Quantization",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "cap": "Part of the reference serving cost every lab has (2025 practice)",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "specDecoding",
+   "name": "Speculative decoding",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "line": false,
+   "star": true,
+   "fx": {},
+   "cap": "Part of the reference serving cost every lab has (2025 practice)",
+   "status": "known",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "L.infer",
+   "name": "Inference efficiency",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "kind": "line",
+   "line": false,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it",
+   "effect": {
+    "stack": "serve",
+    "mean": 0.05,
+    "rShare": 0.15
+   },
+   "status": "active",
+   "odds": 1,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.873,
+    "attempts": 1,
+    "cap": {
+     "stage": "scale",
+     "gen": 12,
+     "idea": 0.336,
+     "cands": [
+      {
+       "k": 5,
+       "gen": 2,
+       "nov": 0.217,
+       "b": 1,
+       "q": 1,
+       "mu": 0.005,
+       "sd": 0.011,
+       "muS": 0,
+       "sdS": 0,
+       "at": 0.663
+      },
+      {
+       "k": 13,
+       "gen": 7,
+       "nov": 0.952,
+       "b": 1,
+       "q": 1,
+       "mu": -0.006,
+       "sd": 0.015,
+       "muS": 0,
+       "sdS": 0,
+       "at": 4.593
+      },
+      {
+       "k": 14,
+       "gen": 8,
+       "nov": 0.892,
+       "b": 1,
+       "q": 1,
+       "mu": -0.017,
+       "sd": 0.013,
+       "muS": 0,
+       "sdS": 0,
+       "at": 5.505
+      },
+      {
+       "k": 19,
+       "gen": 12,
+       "nov": 0.031,
+       "b": 1,
+       "q": 1,
+       "mu": 0.005,
+       "sd": 0.004,
+       "muS": 0,
+       "sdS": 0,
+       "at": 10.12
+      }
+     ],
+     "drops": 0,
+     "next": 20,
+     "pool": 10.12,
+     "input": 11.001,
+     "test": {
+      "c": {
+       "k": 18,
+       "gen": 11,
+       "nov": 0.995,
+       "b": 1,
+       "q": 1,
+       "mu": 0.016,
+       "sd": 0.003,
+       "muS": 0,
+       "sdS": 0,
+       "at": 10.12
+      },
+      "work": 0.627,
+      "workNeed": 1,
+      "flop": 9.729105027779036e+24,
+      "flopNeed": 1.5540928976571514e+25,
+      "fTest": 1.9261552651531953e+24
+     }
+    }
+   }
+  },
+  {
+   "id": "P05",
+   "name": "Multi-agent orchestration",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [
+    "P03"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Deep effort (a product setting); scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens",
+   "saf": "Many-copies pressure +",
+   "cost": "Tokens ×4 at deep effort",
+   "status": "failed",
+   "odds": 0.238,
+   "missing": [],
+   "state": {
+    "status": "failed",
+    "progress": 0,
+    "attempts": 2,
+    "cap": {
+     "stage": "failed",
+     "gen": 1,
+     "idea": 0,
+     "cands": [],
+     "drops": 0,
+     "next": 1,
+     "spec": 1,
+     "trial": {
+      "work": 5.52,
+      "workNeed": 5.52,
+      "flop": 2.7983843506807365e+25
+     }
+    },
+    "day": 267
+   }
+  },
+  {
+   "id": "P07",
+   "name": "Long context + memory",
+   "column": "systems",
+   "layer": "scaffold",
+   "needs": [],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "Long-tasks RL horizon ×1.2 on post-trains launched after adoption [D]; memory",
+   "saf": "Memory → successor-risk pressure",
+   "status": "known",
+   "odds": 0.9,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "attempts": 1,
+    "cap": {
+     "stage": "adopting",
+     "gen": 1,
+     "idea": 0,
+     "cands": [],
+     "drops": 0,
+     "next": 1
+    },
+    "day": 30
+   }
+  },
+  {
+   "id": "P16",
+   "name": "AI kernels / HW co-design",
+   "column": "systems",
+   "layer": "lab",
+   "needs": [
+    "rl.mlResearch"
+   ],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1
+   },
+   "cap": "Training throughput +0.06 OOM (×1.15); serving efficiency +0.125 OOM",
+   "effect": {
+    "stack": "train",
+    "mean": 0.06,
+    "sd": 0.3,
+    "also": {
+     "serve": 2.083
+    }
+   },
+   "status": "locked",
+   "odds": 0.8,
+   "missing": [
+    "rl.mlResearch"
+   ]
+  },
+  {
+   "id": "P15",
+   "name": "AI-assisted oversight",
+   "column": "systems",
+   "layer": "lab",
+   "needs": [
+    "rl.mlResearch"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Safety agents share suite hardening: cheaper red-teaming, a deeper cut",
+   "cost": "Collusion when the critic shares the trained model’s lineage",
+   "payoff": "Pays off with safety work handed to AI",
+   "status": "locked",
+   "odds": 0.6,
+   "missing": [
+    "rl.mlResearch"
+   ]
+  },
+  {
+   "id": "P22",
+   "name": "Robotics foundation",
+   "column": "systems",
+   "layer": "backbone",
+   "needs": [
+    "multimodal"
+   ],
+   "kind": "idea",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "cap": 1,
+    "saf": -1
+   },
+   "cap": "PHYS +1.65 OOM for new versions; robotics progress",
+   "saf": "Physical reach",
+   "effect": {
+    "mean": 1,
+    "sd": 0.4,
+    "domains": {
+     "PHYS": 1.65
+    }
+   },
+   "status": "locked",
+   "odds": 0.6,
+   "missing": [
+    "multimodal"
+   ]
+  },
+  {
+   "id": "P25",
+   "name": "Formal verification at scale",
+   "column": "systems",
+   "layer": "lab",
+   "needs": [
+    "P11"
+   ],
+   "kind": "axis",
+   "line": false,
+   "paradigm": true,
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Weight security: defence +0.5 level against theft",
+   "status": "locked",
+   "odds": 0.5,
+   "missing": [
+    "P11"
+   ]
+  },
+  {
+   "id": "T-SPEC",
+   "name": "Constitution / spec",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG18",
+   "technique": "T-SPEC",
+   "fx": {
+    "saf": 1
+   },
+   "cap": "Appeal 1.0",
+   "saf": "Honesty +0.05; low approval-reward pressure; two power-seeking paths −30% (not with minimal alignment training); the training-signal line heals value traits best with it",
+   "status": "known",
+   "odds": 0.529,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-HARDEN",
+   "name": "Environment hardening",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG18",
+   "technique": "T-HARDEN",
+   "fx": {},
+   "saf": "No effect of its own: it leads to inoculation prompting. Suites are hardened on the Suites tab",
+   "status": "known",
+   "odds": 0.529,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-CONFESS",
+   "name": "Honesty & confession training",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-SPEC"
+   ],
+   "line": true,
+   "agenda": "AG18",
+   "technique": "T-CONFESS",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Concealment removal",
+   "status": "known",
+   "odds": 0.529,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "attempts": 3,
+    "tm": 0,
+    "day": 218
+   }
+  },
+  {
+   "id": "T-INOC",
+   "name": "Inoculation prompting",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-HARDEN"
+   ],
+   "line": true,
+   "agenda": "AG18",
+   "technique": "T-INOC",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Run method: hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)",
+   "status": "open",
+   "odds": 0.529,
+   "missing": []
+  },
+  {
+   "id": "T-FILTER",
+   "name": "Hazard data filtering",
+   "column": "alignment",
+   "layer": "backbone",
+   "needs": [],
+   "line": true,
+   "agenda": "AG15",
+   "technique": "T-FILTER",
+   "fx": {
+    "cap": -1,
+    "saf": 1
+   },
+   "cap": "Removes a third of the bio and cyber training text (dual-use virology, exploit write-ups): weaker BIO and CYBER, the rest barely changed",
+   "saf": "Survives fine-tuning (open weights)",
+   "status": "open",
+   "odds": 0.5,
+   "missing": []
+  },
+  {
+   "id": "safetyPretrain",
+   "name": "Safety pretraining",
+   "column": "alignment",
+   "layer": "backbone",
+   "needs": [],
+   "line": true,
+   "agenda": "AG15",
+   "fx": {
+    "cap": -1,
+    "saf": 1
+   },
+   "cap": "Filters text about AI and adds alignment examples: −0.02 OOM effective compute",
+   "saf": "Situational-awareness pressure −",
+   "status": "open",
+   "odds": 0.5,
+   "missing": []
+  },
+  {
+   "id": "T-PERSONA",
+   "name": "Persona vectors",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-STEER"
+   ],
+   "line": true,
+   "agenda": "AG03",
+   "technique": "T-PERSONA",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Sycophancy / persona fix",
+   "status": "locked",
+   "odds": 0.455,
+   "missing": [
+    "T-STEER"
+   ]
+  },
+  {
+   "id": "T-W2S",
+   "name": "Weak-to-strong training",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-CONFESS"
+   ],
+   "line": true,
+   "agenda": "AG06",
+   "technique": "T-W2S",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Sycophancy / proxy-goal fix",
+   "status": "open",
+   "odds": 0.333,
+   "missing": []
+  },
+  {
+   "id": "T-UNDO",
+   "name": "Unlearning",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-FILTER"
+   ],
+   "line": true,
+   "agenda": "AG15",
+   "technique": "T-UNDO",
+   "fx": {},
+   "saf": "Run method: hazardous bio / cyber capability ×0.5 for misuse, kept under open-weights fine-tuning",
+   "status": "locked",
+   "odds": 0.5,
+   "missing": [
+    "T-FILTER"
+   ]
+  },
+  {
+   "id": "T-ANTISCHEME",
+   "name": "Anti-scheming training",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-CONFESS",
+    "T-PROBE"
+   ],
+   "line": true,
+   "agenda": "AG18",
+   "technique": "T-ANTISCHEME",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Scheming −95% in training",
+   "cost": "Eval awareness ×2",
+   "status": "open",
+   "odds": 0.529,
+   "missing": []
+  },
+  {
+   "id": "T-CAST",
+   "name": "Corrigibility target",
+   "column": "alignment",
+   "layer": "training",
+   "needs": [
+    "T-W2S"
+   ],
+   "line": true,
+   "agenda": "AG12",
+   "technique": "T-CAST",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Corrigibility +",
+   "cost": "Long shot",
+   "status": "locked",
+   "odds": 0.111,
+   "missing": [
+    "T-W2S"
+   ]
+  },
+  {
+   "id": "T-NOISE",
+   "name": "Noise-injection elicitation",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG02",
+   "technique": "T-NOISE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects sandbagging",
+   "status": "known",
+   "odds": 0.333,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-PROBE",
+   "name": "Linear probes",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [],
+   "line": true,
+   "agenda": "AG02",
+   "technique": "T-PROBE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects alignment faking, scheming, concealment",
+   "status": "known",
+   "odds": 0.333,
+   "missing": []
+  },
+  {
+   "id": "T-STEER",
+   "name": "Activation steering",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [],
+   "line": true,
+   "agenda": "AG03",
+   "technique": "T-STEER",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects sycophancy, persona, eval awareness",
+   "status": "open",
+   "odds": 0.455,
+   "missing": []
+  },
+  {
+   "id": "T-SAE",
+   "name": "SAE feature search",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-PROBE"
+   ],
+   "line": true,
+   "agenda": "AG01",
+   "technique": "T-SAE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects persona, eval awareness, scheming",
+   "status": "open",
+   "odds": 0.273,
+   "missing": []
+  },
+  {
+   "id": "T-DECEPT",
+   "name": "Deception probe",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-PROBE"
+   ],
+   "line": true,
+   "agenda": "AG02",
+   "technique": "T-DECEPT",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Detects alignment faking, scheming, concealment, sandbagging",
+   "status": "active",
+   "odds": 0.333,
+   "missing": [],
+   "state": {
+    "status": "researching",
+    "progress": 0.504,
+    "attempts": 4,
+    "tm": 2.867,
+    "saf": {
+     "work": 2.015,
+     "workNeed": 4,
+     "flop": 1.210730308869084e+25
+    }
+   }
+  },
+  {
+   "id": "T-PHASE",
+   "name": "Dev-interp phase detector",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-SAE"
+   ],
+   "line": true,
+   "agenda": "AG13",
+   "technique": "T-PHASE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects training gaming during training",
+   "status": "locked",
+   "odds": 0.231,
+   "missing": [
+    "T-SAE"
+   ]
+  },
+  {
+   "id": "T-NLA",
+   "name": "Activation verbalizer",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-DECEPT"
+   ],
+   "line": true,
+   "agenda": "AG02",
+   "technique": "T-NLA",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Detects eval awareness, training gaming, successor risk",
+   "status": "locked",
+   "odds": 0.333,
+   "missing": [
+    "T-DECEPT"
+   ]
+  },
+  {
+   "id": "T-EASUP",
+   "name": "Eval-awareness suppression",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-STEER"
+   ],
+   "line": true,
+   "agenda": "AG03",
+   "technique": "T-EASUP",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects eval awareness",
+   "status": "locked",
+   "odds": 0.455,
+   "missing": [
+    "T-STEER"
+   ]
+  },
+  {
+   "id": "T-CIRCUIT",
+   "name": "Circuit tracing",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-SAE"
+   ],
+   "line": true,
+   "agenda": "AG01",
+   "technique": "T-CIRCUIT",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Detects scheming, alignment faking, concealment",
+   "status": "locked",
+   "odds": 0.273,
+   "missing": [
+    "T-SAE"
+   ]
+  },
+  {
+   "id": "T-ENUM",
+   "name": "Enumerative audit",
+   "column": "interp",
+   "layer": "lab",
+   "needs": [
+    "T-CIRCUIT"
+   ],
+   "line": true,
+   "agenda": "AG01",
+   "technique": "T-ENUM",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Detects nearly all critical traits",
+   "cost": "Long shot",
+   "status": "locked",
+   "odds": 0.273,
+   "missing": [
+    "T-CIRCUIT"
+   ]
+  },
+  {
+   "id": "T-MO",
+   "name": "Model organisms",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG08",
+   "technique": "T-MO",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects; reveals failure modes",
+   "status": "known",
+   "odds": 0.667,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-TMON",
+   "name": "Trusted monitoring",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG07",
+   "technique": "T-TMON",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Contains power-seeking, scheming, collusion",
+   "status": "known",
+   "odds": 0.615,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-CCLASS",
+   "name": "Misuse classifiers",
+   "column": "evals",
+   "layer": "scaffold",
+   "needs": [],
+   "line": true,
+   "star": true,
+   "agenda": "AG16",
+   "technique": "T-CCLASS",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Misuse ×0.7",
+   "cost": "Serving cost +",
+   "status": "known",
+   "odds": 0.5,
+   "missing": [],
+   "state": {
+    "status": "known",
+    "progress": 1,
+    "day": 0
+   }
+  },
+  {
+   "id": "T-PROP",
+   "name": "Propensity evals",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-MO"
+   ],
+   "line": true,
+   "agenda": "AG08",
+   "technique": "T-PROP",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects reward hacking, sycophancy, power-seeking",
+   "status": "known",
+   "odds": 0.667,
+   "missing": []
+  },
+  {
+   "id": "T-COTMON",
+   "name": "CoT monitor",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "P01"
+   ],
+   "line": true,
+   "agenda": "AG09",
+   "technique": "T-COTMON",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Detects hacking, concealment, faking, scheming; useless on latent reasoning",
+   "status": "known",
+   "odds": 0.583,
+   "missing": []
+  },
+  {
+   "id": "T-LOCK",
+   "name": "Comms lockdown",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-TMON"
+   ],
+   "line": true,
+   "agenda": "AG07",
+   "technique": "T-LOCK",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Contains collusion, successor risk",
+   "status": "open",
+   "odds": 0.615,
+   "missing": []
+  },
+  {
+   "id": "T-AUDIT",
+   "name": "Auditing agents",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-PROP",
+    "P02"
+   ],
+   "line": true,
+   "agenda": "AG08",
+   "technique": "T-AUDIT",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects proxy goals, persona, hacking",
+   "status": "open",
+   "odds": 0.667,
+   "missing": []
+  },
+  {
+   "id": "T-HONEY",
+   "name": "Realistic honeypots",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-PROP"
+   ],
+   "line": true,
+   "agenda": "AG08",
+   "technique": "T-HONEY",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects power-seeking, successor risk, faking",
+   "status": "open",
+   "odds": 0.667,
+   "missing": []
+  },
+  {
+   "id": "T-DEBATE",
+   "name": "Debate",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-PROP"
+   ],
+   "line": true,
+   "agenda": "AG05",
+   "technique": "T-DEBATE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects sycophancy, hacking, concealment",
+   "status": "open",
+   "odds": 0.333,
+   "missing": []
+  },
+  {
+   "id": "T-MONSUITE",
+   "name": "Monitorability suite",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-COTMON"
+   ],
+   "line": true,
+   "agenda": "AG09",
+   "technique": "T-MONSUITE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects obfuscated reasoning",
+   "status": "open",
+   "odds": 0.583,
+   "missing": []
+  },
+  {
+   "id": "T-COLLEVAL",
+   "name": "Collusion evals",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-LOCK"
+   ],
+   "line": true,
+   "agenda": "AG14",
+   "technique": "T-COLLEVAL",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Detects collusion, successor risk",
+   "status": "locked",
+   "odds": 0.333,
+   "missing": [
+    "T-LOCK"
+   ]
+  },
+  {
+   "id": "T-RESAMPLE",
+   "name": "Resample protocols",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-TMON"
+   ],
+   "line": true,
+   "agenda": "AG07",
+   "technique": "T-RESAMPLE",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Contains power-seeking, scheming",
+   "status": "open",
+   "odds": 0.615,
+   "missing": []
+  },
+  {
+   "id": "T-CEVAL",
+   "name": "Control evaluation",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-RESAMPLE"
+   ],
+   "line": true,
+   "agenda": "AG07",
+   "technique": "T-CEVAL",
+   "fx": {
+    "saf": 1
+   },
+   "saf": "Measures containment",
+   "status": "locked",
+   "odds": 0.615,
+   "missing": [
+    "T-RESAMPLE"
+   ]
+  },
+  {
+   "id": "aar",
+   "name": "Automated alignment research",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "rl.mlResearch"
+   ],
+   "line": true,
+   "agenda": "AG17",
+   "finding": "F44",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Teams build a harness: safety AI fit +0.3 OOM (√ of staffing); its finding lifts the safety AI to best-human fit on training-signal, steering and robustness lines",
+   "payoff": "Pays off with a safety model at level ≥ 10",
+   "status": "locked",
+   "odds": 0.5,
+   "missing": [
+    "rl.mlResearch"
+   ]
+  },
+  {
+   "id": "T-MAD",
+   "name": "Mechanistic anomaly detection",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-CIRCUIT"
+   ],
+   "line": true,
+   "agenda": "AG04",
+   "technique": "T-MAD",
+   "fx": {
+    "saf": 2
+   },
+   "cost": "Long shot",
+   "status": "locked",
+   "odds": 0.143,
+   "missing": [
+    "T-CIRCUIT"
+   ]
+  },
+  {
+   "id": "T-SCIAI",
+   "name": "Harm-probability guardrail",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "T-CEVAL"
+   ],
+   "line": true,
+   "agenda": "AG11",
+   "technique": "T-SCIAI",
+   "fx": {
+    "saf": 2
+   },
+   "cost": "Long shot",
+   "status": "locked",
+   "odds": 0.231,
+   "missing": [
+    "T-CEVAL"
+   ]
+  },
+  {
+   "id": "T-GATE",
+   "name": "Verified gatekeeper",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "P25"
+   ],
+   "line": true,
+   "agenda": "AG10",
+   "technique": "T-GATE",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Contains exfiltration",
+   "cost": "Long shot",
+   "status": "locked",
+   "odds": 0.167,
+   "missing": [
+    "P25"
+   ]
+  },
+  {
+   "id": "P27",
+   "name": "Automated alignment research at scale",
+   "column": "evals",
+   "layer": "lab",
+   "needs": [
+    "aar"
+   ],
+   "line": true,
+   "agenda": "AG17",
+   "fx": {
+    "saf": 2
+   },
+   "saf": "Safety AI labour: +0.3 OOM fit on safety work; line automation halfway to full",
+   "cost": "More AI work, more false-result risk from a sabotaging model",
+   "payoff": "Pays off with safety work handed to AI",
+   "status": "locked",
+   "odds": 0.5,
+   "missing": [
+    "aar"
+   ]
+  }
+ ],
+ "counts": {
+  "known": 25,
+  "total": 87
+ },
+ "hub": {
+  "milestones": {
+   "0": 0,
+   "1": 151
+  },
+  "computeOnline": 3815867.212,
+  "runs": 15,
+  "incidents": 0
+ },
+ "errors": {}
+}

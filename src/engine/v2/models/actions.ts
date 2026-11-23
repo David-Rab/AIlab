@@ -25,8 +25,10 @@ import { PRODUCT_ACTIONS } from './productOps';
 import { ADAPT_ACTIONS } from './adaptations';
 import { internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
-import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamPeriodGain, type LaunchRunParams } from './runs';
+import { POOL_SHARE_RANGE, idleTrainingShare, launchRun, planRun, runForecast, startStream, streamPeriodGain, type LaunchRunParams } from './runs';
 import { AUTO_SPLIT_USES, autoSplitPlan, idleShares, type AutoSplitUse } from '../departments/autoSplit';
+import { poolsOf } from '../compute/power';
+import { RESPONSE_SCALES, responseCurves } from '../production/readout';
 import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
 import { bookCash } from '../finance/ledger';
@@ -390,6 +392,37 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
       if (to) pol.to = to;
       if (typeof p.on === 'boolean') pol.on = p.on;
       ctx.log('company', pol.on ? `Auto-split on: idle compute moves to ${pol.to.map((k) => SPLIT_LABEL[k].toLowerCase()).join(', ')} each day.` : 'Auto-split off: idle compute stays idle.');
+    },
+  },
+  {
+    // UB-5c (DECISIONS "Lend idle training compute"): off by default. On: training compute no run uses goes to research
+    // experiments and returns the moment a run trains (runs.ts lentTrainingH100e). Params: on (boolean).
+    id: 'compute.lendTraining', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Lend idle training compute',
+    available: () => true,
+    preview: (s, p) => {
+      const on = typeof p.on === 'boolean' ? p.on : !s.player.policies.lendTraining;
+      const lent = idleTrainingShare(s) * poolsOf(s).training;
+      const exp = poolsOf(s).experiments;
+      const rc = responseCurves(s);
+      // Believed research speed with vs without the loan (the curve covers ×¼ … ×4 of experiment compute).
+      const at = (curve: number[], x: number) => {
+        const xs = RESPONSE_SCALES;
+        const lx = Math.log(clamp(x, xs[0], xs[xs.length - 1]));
+        for (let i = 1; i < xs.length; i++) if (lx <= Math.log(xs[i])) { const f = (lx - Math.log(xs[i - 1])) / (Math.log(xs[i]) - Math.log(xs[i - 1])); return curve[i - 1] + f * (curve[i] - curve[i - 1]); }
+        return curve[curve.length - 1];
+      };
+      const g = rc && exp > 0 ? at(rc.experiments, (exp + lent) / exp) - 1 : 0;
+      const pct = Math.round(g * 1000) / 10;
+      const note = { currency: 'compute' as const, amount: 0, target: 'returns automatically when a run launches' };
+      if (on) return { costs: [note], gains: [{ currency: 'progress', amount: pct, unit: '%', target: `research speed${exp > 0 && (exp + lent) / exp > 4 ? ' at least' : ''} (${Math.round(lent).toLocaleString('en-US')} H100e of idle training compute to research experiments)` }], exposure: [] };
+      return { costs: [{ currency: 'progress', amount: -pct, unit: '%', target: 'research speed (the lent compute goes idle)' }], gains: [], exposure: [] };
+    },
+    apply: (s, ctx, p) => {
+      const pol = s.player.policies;
+      const on = typeof p.on === 'boolean' ? p.on : !pol.lendTraining;
+      if (on) pol.lendTraining = true;
+      else delete pol.lendTraining;
+      ctx.log('company', on ? 'Idle training compute is lent to research experiments; it returns when a run launches.' : 'Idle training compute is no longer lent: it stays idle.');
     },
   },
   ...TEAM_ACTIONS,
