@@ -8,6 +8,7 @@ import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { labSpeedRel } from '../production/production';
+import { believedElasticities } from '../production/believed';
 import { production } from '../production/readout';
 import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
@@ -83,9 +84,13 @@ export interface CapProjectView {
   c: number;
   l: number;
   X: number;
-  /** Elasticities of the experiment rate to compute and to research-engineer labour (what binds). */
+  /** BELIEVED elasticities of the experiment rate to compute and to research-engineer labour (what binds). RD-UI0a:
+   *  from the published prior on the production parameters (production/believed.ts), never the hidden draw; the
+   *  bands are the prior's 80% interval. */
   eC: number;
   eL: number;
+  eCBand: [number, number];
+  eLBand: [number, number];
   bound: 'compute' | 'labour' | 'none';
   /** Estimated days to the next result (lines) or to the result (ideas, axes), and its parts. Infinity = stalled. */
   eta: number;
@@ -103,15 +108,6 @@ const r3 = (x: number) => Math.round(x * 1000) / 1000;
 /** Yesterday's experiment FLOP of a project (research.last.flopProj: its share of the FLOP available after evals, as
  *  models/research.ts capResearchDay / expShares); 0 when it got none or before the first day. */
 const flopOfProject = (s: GameStateV2, id: string): number => s.player.research.last?.flopProj?.[id] ?? 0;
-
-/** CES elasticities of X(c, ℓ) to c and ℓ (research/13 §1.6): ζ·s_c and s_ℓ. */
-function elasticities(s: GameStateV2, c: number, l: number): { eC: number; eL: number } {
-  const P = s.hidden.timeline.prod;
-  const cT = P.u * Math.pow(Math.max(1e-12, c), P.zeta * P.rho);
-  const lT = P.v * Math.pow(Math.max(1e-12, l), P.rho);
-  const sC = cT / (cT + lT);
-  return { eC: P.zeta * sC, eL: P.lam * (1 - sC) };
-}
 
 /** A capability project as the player sees it. */
 export function capProjectView(s: GameStateV2, id: string): CapProjectView | undefined {
@@ -149,7 +145,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const flopDay = flopOfProject(s, id);
   // When it is not experimenting today, read the inputs it would get (RE_MAX_PER_PROJECT; FLOP by need, RD-B08).
   const { re, cc, l, X } = projectExpInputs(s, id);
-  const el = elasticities(s, Math.max(1e-12, cc), l);
+  const el = believedElasticities(s, Math.max(1e-12, cc), l); // RD-UI0a: the published prior, never the hidden draw
   const bound: CapProjectView['bound'] = cc <= 0 ? 'none' : el.eC >= el.eL ? 'compute' : 'labour';
   // ETA (days): the one capability ETA (models/research.ts capEta), also used by the Assign / Take off previews.
   const { ideation, experiments } = state === 'running' || state === 'waiting' ? capEta(s, id, sci) : { ideation: 0, experiments: 0 };
@@ -183,7 +179,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),
     odds: attemptOdds(n, (st?.spec ?? 0) + (failed ? 1 : 0)), spec: st?.spec ?? 0, drops: st?.drops ?? 0, maxDrops: n.kind === 'line' || unlock ? 0 : MAX_DROPS,
-    re, flopDay, c: cc, l, X, eC: el.eC, eL: el.eL, bound, eta, etaParts: { ideation, experiments },
+    re, flopDay, c: cc, l, X, eC: el.eC, eL: el.eL, eCBand: el.eCBand, eLBand: el.eLBand, bound, eta, etaParts: { ideation, experiments },
     ...(line ? { line } : {}), ...(adoption ? { adoption } : {}),
   };
 }

@@ -93,15 +93,21 @@ function WantStepper({ v }: { v: CapProjectView }) {
   );
 }
 
-/** What binds the project's experiments (compute or labour), with the elasticities. */
+/** +10% of an input → believed % speed-up, with the band when it is wider than the rounding (RD-UI0a). */
+const bandPct = (e: number, band: [number, number]) => {
+  const f = (x: number) => F.pct(Math.pow(1.1, x) - 1, 1, true);
+  return f(band[0]) === f(band[1]) ? f(e) : `${f(e)} (${f(band[0])} to ${f(band[1])})`;
+};
+
+/** What binds the project's experiments (compute or labour), believed, with the elasticities and their band. */
 function Binds({ v }: { v: CapProjectView }) {
   if (v.bound === 'none' || v.state === 'adopting' || v.state === 'failed') return <span className="dim small">—</span>;
   const term = v.bound === 'compute' ? 'computeBound' : 'laborBound';
   return (
-    <Tip content={() => <TipCard title={<Term id={term}>{v.bound === 'compute' ? 'Compute-bound' : 'Labour-bound'}</Term>} rows={[
-      { label: <Term id="expCompute">+10% experiment compute</Term>, value: F.pct(Math.pow(1.1, v.eC) - 1, 1, true) },
-      { label: <Term id="expLabour">+10% research engineers</Term>, value: F.pct(Math.pow(1.1, v.eL) - 1, 1, true) },
-    ]}>{v.re > 0 ? 'Speed of this project\'s experiments.' : 'What would bind once it reaches experiments (it gets research engineers then).'}</TipCard>}>
+    <Tip content={() => <TipCard title={<Term id={term}>{v.bound === 'compute' ? 'Compute-bound (believed)' : 'Labour-bound (believed)'}</Term>} rows={[
+      { label: <Term id="expCompute">+10% experiment compute</Term>, value: bandPct(v.eC, v.eCBand) },
+      { label: <Term id="expLabour">+10% research engineers</Term>, value: bandPct(v.eL, v.eLBand) },
+    ]}>{`${v.re > 0 ? 'Speed of this project\'s experiments.' : 'What would bind once it reaches experiments (it gets research engineers then).'} Believed, from the published estimate of how research responds to compute and labour; the range is its 80% band.`}</TipCard>}>
       <span className={`rp-bind ${v.bound}`} data-test={`binds.${v.id}`}>{v.bound}</span>
     </Tip>
   );

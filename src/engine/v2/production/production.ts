@@ -27,6 +27,7 @@ import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
+import { believedProd, believedWorld, elasticitiesAt } from './believed';
 import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
@@ -142,16 +143,14 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
  *  labour as run (1 ÷ m_EXP); the label compares the experiment CES's compute and labour terms at the engine's c and ℓ
  *  (λ × the labour share vs ζ × the compute share). */
 function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
-  const Pp = s.hidden.timeline.prod;
   const v = inp.v3;
   const x = s.player.research.last?.x;
   const wH = 1 / Math.max(1, x?.mExp ?? 1);
   let label: ProductionReadout['label'] = 'compute-bound';
   if (x && x.c > 0) {
-    const cT = Pp.u * Math.pow(x.c, Pp.zeta * Pp.rho);
-    const lT = Pp.v * Math.pow(Math.max(1e-12, x.l), Pp.rho);
-    const sC = cT / (cT + lT);
-    if (Pp.lam * (1 - sC) > Pp.zeta * sC) label = wH > 0.5 ? 'human-bound' : 'labor-bound';
+    // RD-UI0a: the label compares the BELIEVED elasticities (published prior, production/believed.ts), never the hidden draw.
+    const e = elasticitiesAt(believedProd(s).mid, x.c, x.l);
+    if (e.eL > e.eC) label = wH > 0.5 ? 'human-bound' : 'labor-bound';
   }
   const binding: ProductionReadout['binding'] = label === 'compute-bound' ? 'experiments' : label === 'human-bound' ? 'humans' : 'agents';
   return {
@@ -167,7 +166,7 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 export function labSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
-  return (expThroughput(s.hidden.timeline, inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
+  return (expThroughput(believedWorld(s), inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
 }
 
 /** The player's production readout (§3.2.5) at inputs `inp`, from the research engine's last day. */
