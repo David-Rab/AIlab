@@ -199,3 +199,16 @@ The risk tile always draws a range strip (0–50%).
 - loss-of-control best guess 6%, range 1–38% → Unknown;
 - Would try ranges 0.2×–6× + 5 pts;
 - Unstopped ranges ×0.3–×5.
+### Revision 3
+
+- **Portfolio programme rate** (cards and drawer): ≈ × per year on the programme's know-how area, in the Know-how unit.
+  - Scaling recipes ×1.19 · Environments & rewards ×1.09 · Data filtering & mixing ×1.15 · Optimizer & architecture tweaks ×1.10 · Post-training algorithms ×1.14 · Faster serving ×1.39.
+  - Results per year = results so far (`line.gen`) ÷ 400 days × 365; × each result's believed size (`line.nextPrior`); so rate = (1 + next result)^(results / yr).
+  - Cross-check: the three pretraining programmes multiply to ×1.52 / yr; Know-how shows ×1.50 / yr for the pretraining recipe.
+  - The next result's size (e.g. ×1.037) moves to the tooltip and the drawer.
+  - **NEW**: a results-per-year readout at current staffing.
+- **SAFETY Chances / yr:** opportunities per year, so Would try × Able to × Chances / yr = attempts / yr, and × (1 − Stop rate) = Unstopped / yr.
+  - Chances / yr = the act's κ × `chances` (opportunity) × 365 (`actTable.ts:213`); equivalently `attempts` ÷ (Would try × Able to).
+  - Values: Games tests 1.5 · Tells people 0.73 · Wrong target 0.38 · Overreaches 0.84 · Hides mistakes 0.56 · hidden compute 0.2 · sabotage, backdoor, oversight 0.26 · covering 0.28.
+  - The two successor / research-steering acts are per work item (0.07, 0.06 / item).
+  - **NEW**: Chances / yr as a column of the act table view (today it is derived).
