@@ -16,6 +16,7 @@ import type {
   ActionDef, BaseDesign, ComputeSplit, CostLine, GameStateV2, ModelVersion, PostDesign, RLFamily,
 } from '../types';
 import { evalCost, evalDaysEstimate, evalDepthView, queueEval } from './evals';
+import { expectedFitSd } from './benchmarks';
 import { EVAL_DEPTH_IDS } from '../../../data/v2/evals';
 import type { EvalDepth } from '../types';
 import { externallyEvaluated, retireVersion } from './deployments';
@@ -298,15 +299,15 @@ const RUN_ACTIONS: ActionDef[] = [
 ];
 
 /** RD-B19 (B36): what a finished suite does (models/evals.ts finishEval → benchmarks.ts runEvalSuite): a new reading of
- *  the version (benchmark and safety-eval scores; the measured level's band narrows by the suite's weight, as
- *  evalDepthView computes it) and, by external evaluators, the external evaluation the Safety framework's
+ *  the version (benchmark and safety-eval scores; the measured level is refitted from them, its band the fitted band
+ *  expected at today's readings and this evaluator's noise: benchmarks.ts expectedFitSd) and, by external evaluators, the external evaluation the Safety framework's
  *  external-review rule and its Critical rules ask for (safety/framework.ts externallyEvaluated). */
 function evalGains(s: GameStateV2, v: ModelVersion, depth: EvalDepth, by: 'self' | 'evalGov' | 'evalIndep', days: number): CostLine[] {
   const row = evalDepthView(s, v).find((x) => x.depth === depth);
   const lag = Number.isFinite(days) ? { lagDays: days } : {};
   const out: CostLine[] = [{
     currency: 'progress', amount: 1, unit: 'reading', ...lag,
-    target: `new benchmark and safety-eval scores for ${v.name}; its measured level ±${(row?.bandNow ?? 0).toFixed(2)} → ±${(row?.bandAfter ?? 0).toFixed(2)} L`,
+    target: `new benchmark and safety-eval scores for ${v.name}; its measured level ±${(row?.bandNow ?? 0).toFixed(2)} → ±${expectedFitSd(s, v, by, depth).toFixed(2)} L (fitted band, at today's readings)`,
   }];
   if (by !== 'self' && !externallyEvaluated(s, v)) {
     out.push({ currency: 'progress', amount: 1, unit: 'release check', ...lag, target: `${v.name} gets the external evaluation your Safety framework asks for (its external-review rule and rules at Critical)` });

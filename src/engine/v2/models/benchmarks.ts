@@ -140,6 +140,21 @@ export const measuredSd = (v: Pick<ModelVersion, 'evals'>) => {
   const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
   return MEASURE_SD / Math.sqrt(n > 0 ? n : 1);
 };
+/** CP3d (RD-M01): the band (±1 SD, L) a suite of `depth` by `by` is expected to leave: the measured level is fitted from
+ *  that suite's table alone, so its band is the fit of the lab's current readings (scores it already holds, never the
+ *  truth) at the new suite's noise. The fitted sd depends on the scores the suite will draw, so this is the expectation
+ *  at today's readings. Without readings: 0.2/√(nEff + weight). */
+export function expectedFitSd(s: Pick<GameStateV2, 'flags' | 'setup' | 'hidden'>, v: ModelVersion, by: Evaluator, depth: EvalDepth): number {
+  const w = suiteWeight(depth);
+  const sd = Math.round(BENCH_NOISE_SD[by] * (1 / Math.sqrt(w)) * 10) / 10;
+  const bench: EvalRecord['bench'] = {};
+  for (const [id, r] of Object.entries(v.evals.bench)) if (r) bench[id] = { ...r, sd };
+  const f = fitDomains(bench, (id) => benchGen(s, id), s.setup.alignment === 'hard');
+  const g = fitGeneral(s.hidden.timeline, v, f.dom, f.sd);
+  if (g) return Math.round(g.sd * 1000) / 1000;
+  const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
+  return MEASURE_SD / Math.sqrt(n + w);
+}
 
 /**
  * Run an eval suite on a version (model v3 D7: called when its task's work is done, models/evals.ts): capability

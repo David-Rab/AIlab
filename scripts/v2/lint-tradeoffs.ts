@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { ACTIONS, ACTION_BY_ID, EVENTS, EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { measuredSd } from '../../src/engine/v2/models/benchmarks';
+import { expectedFitSd, measuredSd } from '../../src/engine/v2/models/benchmarks';
 import { evalDepthView, openEval } from '../../src/engine/v2/models/evals';
 import { externallyEvaluated } from '../../src/engine/v2/models/deployments';
 import { activeRivals, internalVersion } from '../../src/engine/v2/models/labs';
@@ -60,7 +60,7 @@ for (const e of EVENTS) {
 }
 
 // ───────── RD-B19: no preview line without an applied effect ─────────
-// The meters whose every change goes through ctx.bump / ctx.cause (actors/fx.ts): an immediate line (no lagDays, no odds
+// The meters whose every change goes through ctx.bump / ctx.cause (actors/fx.ts): an immediate line (no lagDays, no condition, no odds
 // below 1) in one of these currencies must leave a cause on that meter when the action runs on a copy.
 const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> = {
   credibility: (k) => k === 'relations.credibility',
@@ -74,7 +74,6 @@ const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> =
 const PENDING: Record<string, string> = {
   'A6 trust': 'the trust line names no counterparty and nothing applies it (relations previews; not RD-B19)',
   'starHire trust': 'applied to rivals\' cooperation directly, not as trust (people previews, RD-B18)',
-  'wfx.moonshot credibility': 'no credibility is applied at the start (world previews; not RD-B19)',
 };
 const appliedLabel = (id: string, cur: string, day: number) => `action ${id} @day ${day}: its ${cur} line is applied`;
 for (const [k, why] of Object.entries(PENDING)) {
@@ -107,7 +106,7 @@ for (const a of ACTIONS) {
     } catch {
       continue;
     }
-    const want = lines.filter((l) => l.amount !== 0 && !l.lagDays && (l.probability === undefined || l.probability >= 1) && METER_KEY[l.currency]);
+    const want = lines.filter((l) => l.amount !== 0 && !l.lagDays && !l.condition && (l.probability === undefined || l.probability >= 1) && METER_KEY[l.currency]);
     if (!want.length) continue;
     const c = clone(s);
     const keys: string[] = [];
@@ -132,7 +131,9 @@ const run = (s: GameStateV2, days: number) => {
 };
 const iv = internalVersion(s4)!;
 {
-  // B36: a self suite gives a new reading and narrows the band as previewed; no meter lines. On a live version with no
+  // B36: a self suite gives a new reading and leaves the band previewed; no meter lines. CP3d: the band is the fit of the
+  // new suite's scores (RD-M01), so the preview is its expectation at today's readings (expectedFitSd); the finished suite's band is its own
+  // fit (fitSd), which moves with the scores it drew (detail prints both). On a live version with no
   // open suite.
   const ev = s4.player.models.versions.find((v) => (v.status === 'ready' || v.status === 'deployed') && !openEval(s4, v.id) && !openEval(s4, v.id, 'evalIndep'))!;
   const pv = pvOf(s4, 'runEvals', { versionId: ev.id, by: 'self', depth: 'full' });
@@ -143,9 +144,9 @@ const iv = internalVersion(s4)!;
   for (let i = 0; i < 200 && (c.player.models.evals ?? []).some((t) => t.versionId === ev.id && t.why === 'order'); i++) run(c, 1);
   const v = c.player.models.versions.find((x) => x.id === ev.id)!;
   check(!e && !pv.exposure.length && pv.gains.length === 1 && pv.gains[0].unit === 'reading' && pv.gains[0].currency === 'progress'
-    && (v.evals.suiteDay ?? -1) > day0 && near(measuredSd(v), row.bandAfter, 1e-9),
-    'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the finished suite narrows the band to the previewed ±',
-    `${e ?? ''} ${JSON.stringify(pv.gains)} sd ${measuredSd(v)} vs ${row.bandAfter}`);
+    && (v.evals.suiteDay ?? -1) > day0 && near(row.bandAfter, expectedFitSd(s4, ev, 'self', 'full'), 1e-12) && v.evals.fitSd !== undefined && near(measuredSd(v), v.evals.fitSd, 1e-12),
+    'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the previewed ± is the fitted band expected at the current readings and the finished suite band is its own fit',
+    `${e ?? ''} ${JSON.stringify(pv.gains)} fitted sd ${measuredSd(v)}, expected ${row.bandAfter}`);
   // External evaluators under the framework's external review: the release check is previewed and the finished suite meets it.
   const x = clone(s4);
   x.player.safety.framework.evalDepth = 'deep'; x.player.safety.framework.externalReview = true;

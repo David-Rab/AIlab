@@ -199,3 +199,41 @@ margin −3.96, 25% hold (median holds); F2 sabotage after learned hacking 0.9% 
 (≈ 60); R9 China lead at days 30 / 60 −143 / −223 d (start gap + days since); R6 rival milestones 0 / 65 / 184 / 472
 vs knots 1 / 85 / 239 / 457; R8 r0 ePre −0.545 (want −0.565), r1 off; R5 pre 0.480 / mid 0.030 / ceil 0.046 OOM/yr at
 the leader's day-0 inputs.
+
+### CP3 outdated tests
+
+Branch `cp3-tests` (from rd), scripts/v2 only; no src change. Of the 58 (c) checks: **deleted 9, rewritten 31, left 18**
+(reclassified: not outdated tests).
+
+**Deleted (9):** evals EV2 ×3 (RD-M01: errTrue gone, the level is fitted from scores; rdm01.ts checks the band);
+oversight control tax ×3: EXP ×0.97 / SWE ×0.93, misses ×0.45, lane taxes 3% / 7% (SR-13: control is a safeguard item;
+_sr13 checks its Slowdown and stops); products P1 D5 sector packs (RD-P08 deleted sectorPacks); research RD-B16 "Software
+progress < ½ the old measure" (RD-X04 / X04b: the daily leak it was sized against is gone; now an INFO readout);
+safetyresearch E1 "AI labour is the same input as human" (SR-21: one needs list, m × engineers do not all reach the line).
+
+**Rewritten (31 checks):** data ×8 (RD-T08 / T09: quality filter, Q_REF > 1, engine qRel instead of the hand sum, filtered
+U, REF_SHARE = start mix reproduced ±1%, G moves by quality + repetition, s_d on the effective share); evals EV3 ×2, EV4,
+EV6 ×2 (SR-21: `research.safReAlloc` evals need, compute from the safety line); oversight catch ×3 (true levels Lg) and
+collusion lockdown (SR-12 / SR-13); products P1 start lineups, P4 catch on Lg, RD-B20 retire = applied distillation
+(RD-P01a / P08 / SR-12); serving A7 free tier = real lineup model, TIERS E8 (no player student required), A5 E7 (mini
+appended, minis + 1), RD-B11 B14 bound only, B6 human hours only (RD-P01a / P02 / P07 / P11); lint-ux required terms
+minus U, gap, validatedTo, blind, toolUpkeep, featEffort; ws4 C1 ×2 (measuredDom, SR-19 rule names the clause);
+safetyideas P15 (lockdown item); rivals R1 (line rates, ±1%); worldfx World actions = transitionFund, moonshot + product.adapt.
+
+**Left (18), reclassified:**
+- lint-tradeoffs 14 → (d) borderline: disclosurePolicy (6) / frameworkOverride (6) previews list immediate meter lines
+  that the default request never applies (no lag / condition; override with no rule logs instead of refusing); wfx.moonshot
+  approval @900; RD-B19 runEvals band: preview ±0.141 (0.2/√nEff) vs fitted sd 0.098 (RD-M01: preview not on fitSd).
+- evals EV6 gate none: auto-evaluate queues no basic suite → (d) or (b), not SR-21.
+- products P5: 0 incidents in 30000 steps on a forced-trait monitored Chat → (d), verify.
+- lint-ux "UI terms resolve: U": src/ui/v2/panels/Codex.tsx:37 `[[U|understanding]]`, CoreLoop.tsx:34 `term: 'U'` → (d) UI fix.
+- control E15 day900: readout oversight 0.81526113 → 0.81526112 under hidden-truth perturbation (1e-8 leak) → (d) minor;
+  detail now prints oversight / mis.
+
+**Unit note (d):** the safety list's caps are in heads (`allocate(al.heads, …)`), while `capParams` documents team-
+equivalents; EV3 now caps in heads (cap × TEAM_SIZE.re).
+
+**Runs (once each; data, evals, serving, ws4 re-run after a fix):** data 64 / 0; evals 25 / 2 (EV6 gate none, EV9);
+oversight 28 / 0; products 66 / 6 (P5, P6, M2, A5, C2c ×2); serving 90 / 5 (S2, S6, C1, A7 day 1, A8); lint-ux 2 failed
+(U, tooltips); ws4 21 / 3 (T3 ×3); research 51 / 2; safetyresearch 20 / 6; safetyideas 34 / 2 then the (d) ENOENT crash;
+control 31 / 1 (E15); rivals 13 / 4 (R5, R6, R8, R9); worldfx 25 / 12. Remaining failures are (a) / (b) / (d) or the 18 left.

@@ -30,7 +30,7 @@ import { previewEdit } from '../../src/engine/v2/models/productOps';
 import { agentsGate, catchRate, monitorOverhead } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
-import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
+import { applyRevenue, revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { FIXTURE_DIR, check, finish } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -63,11 +63,13 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 {
   const s = game();
   const ext = s.player.deployments.filter((d) => d.channel !== 'internal');
-  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && !d.lineup),
-    'P1 leader start: Chat, API, Enterprise are products at the standard tier with no features, mini or monitor');
+  // CP3 rewrite (RD-P01a / TIERS): a product may start with a lineup of the lab's own versions (no single mini).
+  const own = new Set(s.player.models.versions.map((v) => v.id));
+  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
+    'P1 leader start: Chat, API, Enterprise are products at the standard tier with no features or monitor; any lineup is of the lab\'s own versions');
   const pol = s.player.policies;
   check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && !pol.autoSplit.on, 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; Auto-split idle compute off');
-  check(s.player.features.join() === 'sectorPacks', 'P1 D5: the leader start has sector packs built (the ×1 baseline)', s.player.features.join());
+  // CP3: "P1 D5 the leader start has sector packs built" deleted (RD-P08 deleted the sectorPacks feature).
   const v0 = s.player.models.versions[0];
   const g0 = domainScaleGs(s.hidden.timeline, v0);
   check(ext.every((d) => productGVec(s, d, v0).every((x, i) => Math.abs(x - g0[DOMAIN_IDS[i]] - settingsDG(d) - effortDG(effortTokens(d.effort))) < 1e-12)), 'P2 a plain product\'s domain G is its model\'s plus its settings ΔG (neutral)');
@@ -108,9 +110,10 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   api.monitorId = mini.id;
   check(Math.abs(monitorOverhead(s, api) - PRODUCT_MONITOR_WATCH * 0.25) < 1e-9, 'P4 SR-12: a quarter-size mini monitor watching every pass costs 25% of serving need (watched share × cost ratio)', monitorOverhead(s, api).toFixed(4));
   // Late-game levels (M grows with level; at the start every model has M ≈ 1, so there is no gap yet).
+  // CP3 rewrite (SR-12): the real catch reads the true levels (Lg); measured levels only feed the believed rate.
   const hi = cloneVersion(s, v0, 'VH', {});
-  hi.evals.measuredL = 11;
-  mini.evals.measuredL = 9.5;
+  hi.Lg = 11;
+  mini.Lg = 9.5;
   const same = catchRate(s, hi, hi);
   const weak = catchRate(s, hi, mini);
   check(same.rate > weak.rate && weak.gap > 0 && same.gap === 0, 'P4 catch rate falls with the oversight gap (AG05 rule)', `same ${same.rate.toFixed(2)}, mini ${weak.rate.toFixed(2)}, gap ${weak.gap.toFixed(2)}`);
@@ -122,8 +125,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const before = s.player.safety.incidents.length;
   const ctx = makeCtx(s);
   for (const t of Object.keys(v0.traitsTrue) as (keyof typeof v0.traitsTrue)[]) v0.traitsTrue[t] = 1;
-  for (let i = 0; i < 30000 && s.player.safety.incidents.length - before < 60; i++) incidentsSystem.run(s, ctx);
-  const inc = s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
+  // CP3d: RD-P10 rolls each product at its served usage per model (servedBy), which the revenue system (order 60) sets
+  // before incidents (80) every day; a fresh game has none yet, so serve once first.
+  applyRevenue(s, ctx);
+  // CP3d: since TIERS Chat is also served by a cheap tier and V0 serves the other products too, so count Chat's own
+  // non-misuse incidents (not every incident) until there are enough to read the catch share.
+  const chatInc = () => s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
+  for (let i = 0; i < 30000 && chatInc().length < 30; i++) incidentsSystem.run(s, ctx);
+  const inc = chatInc();
   const caught = inc.filter((x) => x.exposure === 'internal').length;
   check(inc.length >= 10 && caught / inc.length > 0.5 && inc.filter((x) => x.exposure === 'internal').every((x) => x.publicTimerDays === undefined),
     'P5 a monitored product\'s incidents are mostly caught and stay internal', `${caught}/${inc.length} caught (rate ${catchRate(s, v0, v0).rate.toFixed(2)})`);
@@ -476,8 +485,10 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const dd0 = distillDaysPerYear(r);
   act(r, 'product.retire', { id: api.id });
   const lead = signed(rt, 'leadDays');
-  check(only(rt, ['revenue', 'compute', 'leadDays']) && Math.abs(signed(rt, 'revenue') - (revenueReadout(r).total - rd0)) <= 0.006 && Math.abs(lead + Math.round(distillDaysPerYear(r) - dd0)) <= 0.5 && lead > 0,
-    'RD-B20 retire preview: the revenue the market loses (its serving goes to the other products) and the distillation it ends; no trust risk', `${JSON.stringify(rt)} real rev ${revenueReadout(r).total - rd0} lead ${distillDaysPerYear(r) - dd0}`);
+  // CP3 rewrite (RD-P01a / P08): the retired product's model may stay public through the other products' lineups, so
+  // the distillation line is whatever the retirement really ends (possibly none), not always > 0.
+  check(only(rt, ['revenue', 'compute', 'leadDays']) && Math.abs(signed(rt, 'revenue') - (revenueReadout(r).total - rd0)) <= 0.006 && Math.abs(lead + Math.round(distillDaysPerYear(r) - dd0)) <= 0.5,
+    'RD-B20 retire preview: the revenue the market loses (its serving goes to the other products) and the distillation it really ends; no trust risk', `${JSON.stringify(rt)} real rev ${revenueReadout(r).total - rd0} lead ${distillDaysPerYear(r) - dd0}`);
   // Update (model swap), serving share, feature toggle, product policy: no product-team time, no invented lead / approval risks.
   const up = pvOf(s, 'product.update', { id: api.id, price: 'premium' });
   const sv = pvOf(s, 'product.serving', { id: api.id, share: 0.1 });

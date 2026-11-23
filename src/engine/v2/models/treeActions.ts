@@ -134,7 +134,9 @@ function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {
   const xs = p.order.split(',').map((x) => x.trim()) as K[];
   return xs.length === all.length && all.every((k) => xs.includes(k)) ? xs : undefined;
 }
-/** Apply cap params to an allocation: `need` + `max` (team-equivalents) or `share` (0..1); a negative value clears. */
+/** Apply cap params to an allocation: `need` + `max` (in the list's own unit, AllocView.unit: team-equivalents for
+ *  research engineers, team-weeks / week for engineers, people for the safety needs list) or `share` (0..1); a negative
+ *  value clears. */
 function capParams<K extends string>(a: { max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }, p: Params, all: K[]) {
   const k = typeof p.need === 'string' && (all as string[]).includes(p.need) ? (p.need as K) : undefined;
   if (!k) return;

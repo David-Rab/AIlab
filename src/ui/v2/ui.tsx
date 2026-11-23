@@ -145,6 +145,7 @@ export function lineText(c: CostLine, sign = true): string {
 }
 function lineMeta(c: CostLine): string {
   const bits: string[] = [];
+  if (c.condition) bits.push(c.condition);
   if (c.target) bits.push(String(c.target));
   if (c.probability !== undefined && c.probability < 1) bits.push(`p ${Math.round(c.probability * 100)}%`);
   if (c.lagDays) bits.push(`in ${Math.round(c.lagDays)}d`);

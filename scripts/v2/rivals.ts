@@ -68,7 +68,10 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   const pub = clone(r);
   pub.phys.rec.pre += 1;
   const pre = (x: RivalLab) => recipeRates(w, x.phys, 1).rec.pre;
-  check(near(pre(ahead) / pre(r), Math.pow(10, -1 / (P.pre.w * w.v3.r)), 1e-9) && near(pre(pub), pre(r), 1e-12), 'R1 ideas get harder: one OOM further down the pretraining pool divides its rate by 10^(1/(0.8·r)); public knowledge does not', `${(pre(ahead) / pre(r)).toFixed(4)} vs ${Math.pow(10, -1 / (P.pre.w * w.v3.r)).toFixed(4)}`);
+  // CP3 rewrite (RD-X02): the part's rate is now the sum of its research lines' rates (lineRate on each line's pool), so
+  // one OOM down the pool divides it by ≈ 10^(1/(0.8·r)) (within 1%), not exactly.
+  const want = Math.pow(10, -1 / (P.pre.w * w.v3.r));
+  check(pre(ahead) < pre(r) && Math.abs(pre(ahead) / pre(r) / want - 1) < 0.01 && near(pre(pub), pre(r), 1e-12), 'R1 ideas get harder: one OOM further down the pretraining pool divides its rate by ≈ 10^(1/(0.8·r)) (its lines\' rates); public knowledge does not', `${(pre(ahead) / pre(r)).toFixed(6)} vs ${want.toFixed(6)}; public ${pre(pub).toFixed(6)} vs ${pre(r).toFixed(6)}`);
   // A base trained on twice the pool is 0.30 OOM more training FLOP: its G_pre is log₁₀ 2 higher (+ the shape term of
   // the tokens per parameter, unchanged), its versions too.
   const REC = { pre: 0.5, mid: 0.3, ceil: 0.1 };

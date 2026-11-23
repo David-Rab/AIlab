@@ -366,11 +366,13 @@ const load = (i: number) => deserialize(fixtures[i]);
     check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
     check(deployGate(s, v, 'api') === true, 'C1 (B1) an out-of-scope binding commitment does not block a launch', String(deployGate(s, v, 'api')));
     // B2: the framework judges the candidate. Make the version measure BIO ≥ 10.
-    const bio = measuredDomain(v, 'BIO');
-    v.domains.BIO += 10.5 - bio;
+    // CP3 rewrite (RD-M01 / SR-19): the measured domain level is the benchmark fit (evals.measuredDom), so set it there.
+    v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: 10.5 };
     signCommitment(s, ctx, 'framework', 'Frontier safety framework: no BIO ≥ 10 deployment without classifiers', 'noDeployAbove', { domain: 'BIO', level: 10, mitigation: 'classifiers' }, [], { trust: 1, credibility: 1 });
     const g1 = deployGate(s, v, 'api', { safeguards: 'standard' });
-    check(typeof g1 === 'string' && g1.includes('Frontier safety framework') && g1.includes('classifier'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the commitment and clause', String(g1));
+    // CP3 rewrite (SR-19): the Safety framework's default Bio High rule (≥ 10 → classifiers) now judges the candidate
+    // first and names its rule; the signed commitment's clause says the same.
+    check(typeof g1 === 'string' && (g1.includes('Frontier safety framework') || /Safety framework \(".+"\)/.test(g1)) && g1.includes('BIO') && g1.includes('classifier'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the rule (or commitment) and clause', String(g1));
     check(deployGate(s, v, 'api', { safeguards: 'classifiers' }) === true, 'C1 the same launch with classifiers passes');
     check(deployGate(s, v, 'internal') === true, 'C1 internal use is outside the framework scope');
     // An existing violating deployment does not block an unrelated, compliant launch.
