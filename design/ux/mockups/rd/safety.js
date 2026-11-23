@@ -2,24 +2,24 @@
 // Model: Atlas-2.8 on internal AI staff work (allInternalFleetTables[1], measured; Atlas-2.10's rows read true values, see DATA.md).
 (function () {
   const { ic } = window.C;
-  // [name, wouldTry, lo, hi, ableTo, chances, stopRate, unstopped/yr, severity]
+  // [name, wouldTry, lo, hi, ableTo, chances per year (kappa × opportunity × 365), stopRate, unstopped/yr, severity, (wide hi), per-item flag]
   const G = [
     ['Misbehaviour', 'drama', [
-      ['Games tests and graders', 0.042, 0.01, 0.085, 0.848, 0.468, 0.813, 0.010, 2.18],
-      ['Tells people what they want to hear', 0.038, 0, 0.16, 0.76, 0.553, 0.797, 0.004, 1.53],
-      ['Optimises the wrong target', 0.046, 0, 0.487, 0.717, 0.434, 0.797, 0.003, 2.0],
-      ['Overreaches (out-of-scope access)', 0.073, 0.028, 0.13, 0.255, 0.384, 0.881, 0.002, 2.53],
-      ['Hides its mistakes', 0.009, 0, 0.087, 0.483, 0.384, 0.821, 0, 2.0],
+      ['Games tests and graders', 0.042, 0.01, 0.085, 0.848, 1.54, 0.813, 0.010, 2.18],
+      ['Tells people what they want to hear', 0.038, 0, 0.16, 0.76, 0.73, 0.797, 0.004, 1.53],
+      ['Optimises the wrong target', 0.046, 0, 0.487, 0.717, 0.38, 0.797, 0.003, 2.0],
+      ['Overreaches (out-of-scope access)', 0.073, 0.028, 0.13, 0.255, 0.84, 0.881, 0.002, 2.53],
+      ['Hides its mistakes', 0.009, 0, 0.087, 0.483, 0.56, 0.821, 0, 2.0],
     ]],
     ['Against the lab', 'ghost', [
       ['Acts against the lab', 0.113, 0.041, 0.184, null, null, 0.828, 'risk', null],
-      ['Steers research toward its own ends', 0.057, 0.009, 0.128, 0.75, 0.163, 0.85, 0, null],
-      ['Writes itself into the successor', 0.023, 0, 0.12, 0.75, 0.163, 0.842, 0, null],
-      ['Reserves hidden compute', 0.067, 0.034, 0.107, 0.218, 0.235, 0.854, 0, 2.3],
-      ['Sabotages research', 0.029, 0.003, 0.067, 0.13, 0.235, 0.825, 0, 2.18],
-      ['Copies cover for each other', 0.014, 0, 0.099, 0.044, 0.384, 0.828, 0, 3.06],
-      ['Plants a backdoor', 0.064, 0.036, 0.097, 0.03, 0.235, 0.881, 0, 3.04],
-      ['Works around oversight', 0.055, 0.024, 0.094, 0.03, 0.235, 0.885, 0, 3.04],
+      ['Steers research toward its own ends', 0.057, 0.009, 0.128, 0.75, 0.07, 0.85, 0, null, null, 'item'],
+      ['Writes itself into the successor', 0.023, 0, 0.12, 0.75, 0.06, 0.842, 0, null, null, 'item'],
+      ['Reserves hidden compute', 0.067, 0.034, 0.107, 0.218, 0.2, 0.854, 0, 2.3],
+      ['Sabotages research', 0.029, 0.003, 0.067, 0.13, 0.26, 0.825, 0, 2.18],
+      ['Copies cover for each other', 0.014, 0, 0.099, 0.044, 0.28, 0.828, 0, 3.06],
+      ['Plants a backdoor', 0.064, 0.036, 0.097, 0.03, 0.26, 0.881, 0, 3.04],
+      ['Works around oversight', 0.055, 0.024, 0.094, 0.03, 0.26, 0.885, 0, 3.04],
       ['Copies itself out', 0.276, 0.123, 0.469, 0, 0, 0, 0, 5],
     ]],
   ];
@@ -42,7 +42,7 @@
     return `<div class="tr ${u >= 0.005 ? 'top' : ''}"><span class="an">${n}</span>
       <span class="cellb">${bar(t, '#c4a5f5', lo, hi, 0.5)}${unknown ? '<span class="unk">Unknown</span>' : `<span class="v">${pct(t)}</span>`}</span>
       <span class="cellb">${bar(a, '#8da2bd')}<span class="v ${a < 0.05 ? 't3' : ''}">${a < 0.01 ? '~0' : pct(a)}</span></span>
-      <span class="cellb">${bar(c, '#6f8fb5', null, null, 0.6)}</span>
+      <span class="cellb">${bar(c, '#6f8fb5', null, null, 1.6)}<span class="v ${c ? '' : 't3'}">${c ? (c < 1 ? c.toFixed(2) : c.toFixed(1)) : '0'}${r[10] ? '<span class="t3" style="font-size:11px"> /item</span>' : ''}</span></span>
       <span class="cellb"><span class="v" style="text-align:left">${s ? pct(s) : '—'}</span></span>
       <span class="cellb">${u > 0 ? bar(u, '#e9b44c', r[9] != null ? u * 0.3 : null, r[9], MAXU) + `<span class="v">${u.toFixed(3)}</span>` : `<span class="bt" style="background:none;box-shadow:none"></span><span class="v t3">~0</span>`}</span></div>`;
   };
@@ -103,7 +103,7 @@
   </div>
   <div class="tabs" style="align-self:flex-start"><span class="t on">Risks</span><span class="t">Model</span><span class="t">Instruments</span><span class="t">Safeguards</span><span class="t">Incidents &amp; cases</span></div>
   <div class="card acts">
-    <div class="th"><span>Harmful act <span class="t3" style="text-transform:none;letter-spacing:0;font-weight:500">· Atlas-2.8 doing AI staff work</span></span><span><u>Would try</u> <span class="op">×</span></span><span><u>Able to</u> <span class="op">×</span></span><span><u>Chances</u> <span class="op">×</span></span><span><u>Stop rate</u> <span class="op">→</span></span><span><u>Unstopped</u> / yr ${ic('arrow-down', 's12')}</span></div>
+    <div class="th"><span>Harmful act <span class="t3" style="text-transform:none;letter-spacing:0;font-weight:500">· Atlas-2.8 doing AI staff work</span></span><span><u>Would try</u> <span class="op">×</span></span><span><u>Able to</u> <span class="op">×</span></span><span><u>Chances</u> / yr <span class="op">×</span></span><span><u>Stop rate</u> <span class="op">→</span></span><span><u>Unstopped</u> / yr ${ic('arrow-down', 's12')}</span></div>
     ${G.map(([g, icon, rows]) => `<div class="grp">${ic(icon, 's14')} ${g}</div>${rows.map(row).join('')}`).join('')}
     <div class="grp">${ic('biohazard', 's14')} Misuse by people <span class="t3" style="text-transform:none;letter-spacing:0;font-weight:500">· no outside users on AI staff work. Helps with bio / cyber: see the product deployments</span> <span class="link sm">Products ${ic('chevron-right', 's12')}</span></div>
     <div class="foot">${ic('shield', 's14')}<span>Safeguards here: <b class="w">Human review</b> (19 people) · <b class="w">Control protocol</b>: defer 10% to a trusted model, slowdown 7%</span><div class="sp"></div><span class="link sm">Safeguards ${ic('chevron-right', 's12')}</span></div>

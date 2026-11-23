@@ -42,6 +42,7 @@
       </div>
       ${rangeSvg}
       <div class="kv">
+        <span class="k"><u>Rate</u></span><span><b class="n w">≈ ×1.10</b> / yr <u>pretraining recipe</u> <span class="t3" style="font-size:12.5px">at today's staffing: ~3.7 results a year</span></span>
         <span class="k"><u>At scale</u></span><span><span class="chip warn">shrinks</span> <span class="t3" style="font-size:12.5px">small-test effects tend to shrink in big runs</span></span>
         <span class="k"><u>Takes effect</u></span><span>new base model <span class="link sm">next run ${ic('chevron-right', 's12')}</span></span>
       </div>
