@@ -25,7 +25,7 @@ export const SPLIT_KEYS: (keyof ComputeSplit)[] = [
 export const SPLIT_LABEL: Record<keyof ComputeSplit, string> = {
   training: 'Training runs', synthetic: 'Data generation', experiments: 'Research experiments', routine: 'Routine research agents',
   frontier: 'Frontier research agents', engineering: 'Engineering agents', safetyAgents: 'Safety research agents', monitors: 'Monitors',
-  safety: 'Safety research lines and cases', serving: 'Products (serving)', idle: 'Idle',
+  safety: 'Safety research lines and cases', serving: 'Products (serving)', idle: 'Unallocated',
 };
 
 export const emptySplit = (): ComputeSplit => ({
