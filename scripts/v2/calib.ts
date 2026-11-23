@@ -1,6 +1,6 @@
 // Calibration acceptance tests T1–T4 (V2-SPEC §7.1). Owner: WS1.
 //   T1  RefBot (stub finance: infinite cash; compute tracks refTotal) — its work-type milestones (model v3 V3.5) hit the
-//       golden milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after, ON THE MEDIAN
+//       golden milestone days (scripts/v2/golden/timelines.json) within ±0.08 y (SC) and ±0.12 y after (slow SC: 2034–2035, lib.ts calGolden), ON THE MEDIAN
 //       over the fixed seed set CAL_SEEDS (calseeds.ts: 2027 and 1–19; model v3 F4 — one seed is not a calibration, the
 //       dates are bimodal; seed 2027's row is informational). The per-preset knobs are G_SC (effective compute a
 //       superhuman coder needs), Δ_bm (best-to-median human gap) and sd_SC (AI taste at SC), in src/data/v2/workTypes.ts
@@ -20,8 +20,6 @@
 //   --smoke    (test:quick) T1 and T1L on ai2027, seed 2027 only, cut at day SMOKE_DAYS (past the 2027.0 METR and Nov 2026
 //              G-path reads, so those run at full strength); the milestone checks print SMOKE (the binding basis is the
 //              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs, T2 and T3 are skipped.
-import { readFileSync } from 'node:fs';
-import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { gOfBuild, h50Of } from '../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
@@ -38,7 +36,7 @@ import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
-import { GOLDEN_PATH, KNOWN, SMOKE, check, finish, refGame, runRef, smokeCheck } from './lib';
+import { KNOWN, SMOKE, calGolden, calTol, check, finish, refGame, runRef, smokeCheck } from './lib';
 import { cached, prefill } from './simcache';
 import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
 import { LINE_FIT } from '../../src/data/v2/research';
@@ -52,7 +50,8 @@ const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
 /** Model v3 F4: T1 and T1L bind on the MEDIAN over CAL_SEEDS (SEED plus 19 others, calseeds.ts), per milestone; SEED's
  *  run also gives the R5, G-path, M and METR reads. Every seed's run is cached. */
 const SEED = CAL_SEED;
-const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { presets: Record<string, { days: Record<string, number> }> };
+/** The golden days (CAL-T: slow SC is its sourced 2034–2035 range, lib.ts calGolden / calTol). */
+const golden = calGolden();
 type T1Preset = 'ai2027' | 'authors2026' | 'fast' | 'slow';
 const T1_PRESETS: T1Preset[] = ['ai2027', 'authors2026', 'fast', 'slow'];
 const yearOf = (d: number) => Math.round(decimalYearOf(START_DATE, d) * 1000) / 1000;
@@ -89,7 +88,7 @@ function errV3(preset: T1Preset, cal: { gSC: number; dBM: number }): { worst: nu
     const want = g[NAMES[i]];
     if (want === undefined) continue;
     const got = s.player.milestoneDays[i as MilestoneIdx];
-    const tol = i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after;
+    const tol = calTol(preset, i);
     const dy = got === undefined ? 99 : (got - want) / 365;
     d.push(dy);
     worst = Math.max(worst, Math.abs(dy) / tol);
@@ -406,7 +405,7 @@ function medianChecks(test: 'T1' | 'T1L', preset: T1Preset, mds: MsDays[], from:
   NAMES.forEach((n, i) => {
     const want = g[n];
     if (i < from || want === undefined) return;
-    const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
+    const tol = calTol(preset, i) * 365;
     const days = mds.map((md) => md[i as MilestoneIdx] ?? Infinity);
     const med = medianOf(days);
     const inTol = days.filter((d) => Math.abs(d - want) <= tol).length;

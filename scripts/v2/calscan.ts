@@ -7,20 +7,18 @@
 // src/data/v2/workTypes.ts) are fitted here, on the same seeds: every grid point
 // (the product of the lists; unset lists keep the committed value) is played on every seed — RefBot on the reference
 // compute stub (t1) or the leader lab with a passive player (t1l), as calib.ts does — and the table prints, per point, the
-// median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y), p10 / p90, the seeds within tolerance,
+// median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y; slow SC: its sourced 2034–2035, lib.ts calTol), p10 / p90, the seeds within tolerance,
 // the worst |median|/tolerance (≤ 1 passes) and seed 2027 alone. Take a value in the middle of the passing window, not a
 // knife edge. Runs go through the simulation cache in N worker processes (default 6).
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { V3_CAL } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import type { MilestoneIdx, WorldPresetId } from '../../src/engine/v2/types';
 import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
-import { GOLDEN_PATH, refGame, runRef } from './lib';
+import { calGolden, calTol, refGame, runRef } from './lib';
 import { cached } from './simcache';
 
 const ME = fileURLToPath(import.meta.url);
@@ -70,7 +68,7 @@ await Promise.all(Array.from({ length: workers }, (_, k) => new Promise<void>((d
   child.on('close', (code) => (code === 0 ? done() : fail(new Error(`shard ${k} exit ${code}`))));
 })));
 
-const golden = (JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { presets: Record<string, { days: Record<string, number> }> }).presets[preset].days;
+const golden = calGolden().presets[preset].days; // CAL-T: slow SC is its sourced 2034–2035 range (lib.ts)
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'];
 const f = (x: number) => (x >= 0 ? '+' : '') + x.toFixed(3);
 console.log(`calscan ${mode} ${preset}: ${points.length} point(s) × ${CAL_SEEDS.length} seeds (${CAL_SEEDS.join(', ')}), ${((Date.now() - t0) / 1000).toFixed(0)} s`);
@@ -80,7 +78,7 @@ for (const p of points) {
   const cells: string[] = [];
   for (let i = 3; i <= last; i++) {
     const want = golden[NAMES[i]];
-    const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after);
+    const tol = calTol(preset, i);
     const days = recs.map((r) => r.md[i as MilestoneIdx] ?? Infinity);
     const med = (medianOf(days) - want) / 365;
     worst = Math.max(worst, Math.abs(med) / tol);

@@ -231,12 +231,21 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  N, 80% CI [−2.5, 3.5] → 0.5; `ai_research_taste_slope` lognormal [0.8, 6.6125] → 2.3 SD per progress-year; AIFM converts
  *  per progress-year to per OOM by its present-day progress rate, 1.618 OOM/yr in its golden run, so Δ_bm = 3.09·1.618/2.3).
  *  G_SC 33.45 kept [D stand-in]: Eli's AC is anchored by uplift (the horizon "has no effect on AC" in that mode), so the
- *  horizon-law mapping does not give it; it needs AIFM's progress at AC for Eli's medians (not run). Not refitted. */
+ *  horizon-law mapping does not give it; it needs AIFM's progress at AC for Eli's medians (not run). Not refitted.
+ *  CAL-T (calscan.ts t1, 20 seeds, at the CAL-W values; design/RD-AUDIT/BUILD-NOTES.md "CAL-T refit"): fast G_SC 31.35 →
+ *  31.25 (SC −0.055 / SAR +0.099 / SIAR +0.071 / ASI +0.101 y, worst 0.84 tolerances; 31.2 fails on SC −0.093, 31.3 on SAR
+ *  +0.137 / SIAR +0.155; inside Daniel's AC horizon range 31.1–35.3). authors2026 G_SC 33.45 → 33.1, fitted to SC (the
+ *  value's meaning; still a stand-in for AIFM's progress at AC on Eli's medians): SC −0.029 at 33.0, +0.079 at 33.2,
+ *  +0.168 at 33.35; SAR +0.48…+0.82, SIAR −0.85…−0.56, ASI −3.0…−2.7 y at every G_SC (SC → SAR too long, SAR → ASI far
+ *  too short: not a G_SC miss). slow G_SC 35.575 → 38.3, the top of its source range (AI 2027 Eli h_SC p90 1,200
+ *  work-years ⇔ 31.6–38.3), so SC reaches the sourced 2034–2035 (research/11 §5.5; AIFP Dec 2025): SC 2466 d at 35.575
+ *  (CAL1), 2856 d at 37.4, 3121 d = 2034.04 at 38.3. A stand-in for the source's slower horizon trend (METR 7-month
+ *  doubling), which no mechanism carries (designer question pending); the source's own h_SC 120 work-months is G_SC ≈ 34.9. */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.45, dBM: 2.17, r: 3.19, sdSC: SD_AT_SC },
-  fast: { gSC: 31.35, dBM: 0.6, r: 4, sdSC: 0 },
-  slow: { gSC: 35.575, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
+  authors2026: { gSC: 33.1, dBM: 2.17, r: 3.19, sdSC: SD_AT_SC },
+  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0 },
+  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
   sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
 };
