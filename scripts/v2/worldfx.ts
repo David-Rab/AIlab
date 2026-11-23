@@ -190,19 +190,22 @@ check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at[
 // 2027's date and the spread are printed with them. Under --smoke (seed 2027 only) they print SMOKE.
 {
   const recs = [timingOf(c), ...TIMING_SEEDS.map((x) => timingRec(x))];
-  const dateCheck = (key: 'hire10' | 'remote25' | 'u12' | 'accept85', iso: string, label: string) => {
+  // `info`: printed, never binding. CAL3-I (design/RD-AUDIT/DECISIONS.md "After CAL2"): the two Oct 2027 labour rows are
+  // AI 2027 scenario projections (research/01 row 37), like F11's floor, not measurements.
+  const dateCheck = (key: 'hire10' | 'remote25' | 'u12' | 'accept85', iso: string, label: string, info = false) => {
     const days = recs.map((r) => r[key] ?? Infinity);
     const med = medianOf(days);
     const inWin = days.filter((d) => within(d, iso)).length;
     const fd = (d: number) => (Number.isFinite(d) ? fmt(Math.round(d)) : 'never');
     const detail = `median over ${recs.length} seed(s) ${fd(med)} (p10 ${fd(quantOf(days, 0.1))}, p90 ${fd(quantOf(days, 0.9))}; ${inWin}/${recs.length} in the window); seed ${CAL_SEED} ${fmt(recs[0][key] ?? undefined)}`;
-    if (SMOKE) smokeCheck(within(med, iso), label, detail, '(seed 2027 only)');
+    if (info) console.log(`INFO  ${label} [AI 2027 scenario projection, not binding: DECISIONS.md "After CAL2"]  — ${within(med, iso) ? 'in' : 'out of'} the window; ${detail}`);
+    else if (SMOKE) smokeCheck(within(med, iso), label, detail, '(seed 2027 only)');
     else check(within(med, iso), label, detail);
   };
   dateCheck('hire10', '2027-07-01', 'Jul 2027 (±3 mo): HireRate_SOFT ≤ 10%');
   check(at['2027-07-01'].friend >= 0.07 && at['2027-07-01'].friend <= 0.13, 'Jul 2027: AI-friend share 10% (±3)', pct(at['2027-07-01'].friend));
-  dateCheck('remote25', '2027-10-01', 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI');
-  dateCheck('u12', '2027-10-01', 'Oct 2027 (±3 mo): U +1 pp over 12 months');
+  dateCheck('remote25', '2027-10-01', 'Oct 2027 (±3 mo): 25% of remote-work jobs done by AI', true);
+  dateCheck('u12', '2027-10-01', 'Oct 2027 (±3 mo): U +1 pp over 12 months', true);
   dateCheck('accept85', '2027-12-15', 'Dec 2027 (±3 mo): GOV T1 Accept ≥ 0.85');
   if (recs.length > 1) {
     const f = recs.map((r) => r.f11_2027);
@@ -256,6 +259,15 @@ check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at[
   check(g26 >= 4.6 && g26 <= 20 && kOf('2026-12-31') > kOf('2026-07-01') && kOf('2026-07-01') > kOf('2026-01-01'),
     'A2c: tokens a day grow ×4.6–20 over 2026 (R22 3a–3b: Google first-party API ×4.6/yr, Google all surfaces ×20/yr), through agent-hours per supervising hour rising with horizon and coverage',
     `×${g26.toFixed(1)} (${(tok('2026-01-01') / 1e12).toFixed(0)}T → ${(tok('2026-12-31') / 1e12).toFixed(0)}T a day); agent-hours per supervising hour ${['2026-01-01', '2026-07-01', '2026-12-31'].map((m) => kOf(m).toFixed(2)).join(' → ')}`);
+  // CAL3-I: usage intensity per adopter = work tokens (adopted + seated + agent) per hour of use (adopted + seated +
+  // unseated). Measured Q3 2025 → Q3 2026: Google first-party API tokens ×4.6 (R22 3a) over US hours of use ×1.0–1.15
+  // (RPS, R22 §7) → ×4.0–4.6 a year; OpenRouter tokens per request ×1.8–2.2 a year (prompt 1.5k → 6k and sequence < 2k →
+  // > 5.4k, late 2023 / early 2024 → late 2025; openrouter.ai/state-of-ai, Dec 2025, read for CAL3-I). Reported, not fitted.
+  const perUseH = (m: string) => {
+    const w = b(m).world;
+    return ((w.tokAdopted + w.tokSeated + w.tokAgent) * 365) / Math.max(1, w.adopted + w.seated + w.unseated);
+  };
+  console.log(`INFO  A2c intensity: work tokens per hour of use ${['2025-07-02', '2026-01-01', '2026-07-01', '2026-12-31'].map((m) => `${m} ${(perUseH(m) / 1e3).toFixed(0)}k`).join(', ')}; Jul 2025 → Jul 2026 ×${(perUseH('2026-07-01') / perUseH('2025-07-02')).toFixed(1)} (measured ×4.0–4.6 a year: Google API tokens ÷ RPS hours)`);
   const nonChina = c.annual[2026] + (c.rivalAnnual[2026] ?? 0);
   console.log(`INFO  A2c CY2026 non-China frontier-lab revenue (player actual + closed rivals' demand-side market revenue; R22 §4 $100–130B): $${nonChina.toFixed(1)}B, leader (player) $${c.annual[2026].toFixed(1)}B =${pct(c.annual[2026] / nonChina)}`);
   for (const m of ['2025-07-02', '2026-01-01', '2026-07-01', '2026-12-31']) {
