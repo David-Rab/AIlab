@@ -277,7 +277,12 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   console.log('Reality baseline / ai2027 world');
   check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
   check(a.youthX >= 0.76 && a.youthX <= 0.86, 'W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)', `${((a.youthX - 1) * 100).toFixed(1)}%`);
-  check(a.firm >= 0.15 && a.firm <= 0.22, 'W4: firm adoption 17–20% (±2 pp)', pct(a.firm));
+  // CAL-X: the anchor is BTOS 17–20% of firms over Dec 2025–May 2026 (19.8% on 3 May 2026; research/22 §1 1f [P], new
+  // question since Nov 2025); it was checked at Nov 2026, half a year after its window, when the press readings
+  // (21.7% Jul, 23.8% Sep 2026 [UNVERIFIED]) had moved on. Now read at the Jul 2026 mark (the first after the window).
+  const fJul = r.at['2026-07-01'].firm;
+  check(fJul >= 0.15 && fJul <= 0.22, 'W4: firm adoption 17–20% (±2 pp), BTOS Dec 2025–May 2026, at the Jul 2026 mark', pct(fJul));
+  console.log(`INFO  W4 firm adoption (BTOS 17.7% Jan → 19.8% May [P] → 21.7% Jul → 23.8% Sep 2026 [press]): ${['2026-01-01', '2026-07-01', '2026-11-01'].map((m) => `${m} ${pct(r.at[m].firm)}`).join(', ')}`);
   console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
   // Informational: the slower authors2026 timeline (SC 2029.7) gives weaker 2026 effects.
   if (!SMOKE) {

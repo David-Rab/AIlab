@@ -164,3 +164,12 @@ export const USE_ANCHORS: Partial<Record<SectorId, UseAnchor>> = {
 /** All US workers (RPS Q2 2026): 39.2% use AI at work, 6.3% of work-hours with AI, 2.2% saved (0.35 per hour of use). */
 export const USE_ANCHOR_US = { when: 'Q2 2026', workers: 0.392, hours: 0.063, saved: 0.022, savedPerHour: 0.35 } as const;
 export const USE_ANCHOR_SRC = 'Bick, Blandin & Deming, Real-Time Population Survey (research/22 §1)';
+
+/** CAL-X: the RD-U05 move of the domain reference, in OOM, for world gates whose thresholds are fitted v2 levels.
+ *  RD-U05 put each domain's 10 at its best human (best_d = G_SC + δ_d·Δ_bm), so a model's REASON / SOCIAL domain G now
+ *  sits δ_d·Δ_bm below its general G; RD-P04b then read v2's level thresholds on that shifted G (BUILD-NOTES RD-U05:
+ *  "thresholds ... set on the old REF_OFF-shifted levels and need a source review"). Like danger.ts U05_SHIFT (CP3f),
+ *  a fitted gate keeps its distance from the start model: G_v2 = G_d + shift_d, the shift = domainRefShift on ai2027
+ *  (the world the fits were made in; Δ_bm 2.9): REASON 1.51, SOCIAL 3.85 OOM. Unit conversion, nothing to source. Read
+ *  by the AI-friend share (SOCIAL) and T1 Accept (REASON) only; the other domain gates are listed in BUILD-NOTES CAL-X. */
+export const U05_SHIFT_G: Partial<Record<DomainId, number>> = { REASON: 1.51, SOCIAL: 3.85 };

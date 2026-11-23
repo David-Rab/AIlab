@@ -1,0 +1,11 @@
+import { newGame, defaultSetupV2 } from '../../../src/engine/v2/core/init';
+import { domainRefShift, levelOfG, gOfLevel, domainScaleGs } from '../../../src/engine/v2/models/capability';
+import { DOMAIN_IDS } from '../../../src/data/v2/calibration';
+const s = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const w = s.hidden.timeline;
+console.log('shift', DOMAIN_IDS.map((d) => `${d} ${domainRefShift(w, d).toFixed(2)}`).join(' '));
+const v = s.player.models.versions[0];
+const g = domainScaleGs(w, v);
+console.log('V0 G', v.G.toFixed(2), 'L', levelOfG(w, v.G).toFixed(2), DOMAIN_IDS.map((d) => `${d} ${levelOfG(w, g[d]).toFixed(2)}`).join(' '));
+console.log('gOfLevel 0/6.5/10', gOfLevel(w, 0).toFixed(2), gOfLevel(w, 6.5).toFixed(2), gOfLevel(w, 10).toFixed(2));
+console.log('levels', JSON.stringify(v.levels ?? {}));
