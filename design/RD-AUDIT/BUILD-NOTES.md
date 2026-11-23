@@ -2038,3 +2038,39 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   bestPublic CODE 27.618 → 28.646. Not run: test:quick / full.
 - **moves calibration: yes (worldfx, rivals).** Rival domain ideas are back in world effects (α, PHYS gate, bestPublic,
   persuasion), as before RD-P04b, now in OOM.
+
+### RD-P05
+- **Done (commit 0dd1544).** DD-02 a / PRD-05 / B38. Government and Trusted are who a product is offered to (its
+  channel, usage policy and safeguards), not kinds of model: `CHANNEL_VARIANTS` gov / trusted take full and mini
+  models; `Variant` is `full | mini | imported` (gov / trusted / open and the never-built 'internal' gone). Open weights
+  are a one-way release act on a version: deployments.ts `releaseOpen` (deployGate on 'open': charter, eval gate,
+  "already open"; then the open deployment and `ModelVersion.openDay`). Its effects are the open deployment's, as
+  before: China absorbs the recipe gap above the open frontier (security.ts → openWeightsReleased), rivals distil it
+  at full access at their next post-training, misuse safeguards drop to the hazard filter; it cannot be withdrawn or
+  replaced. `makeVariant` (function and action) deleted.
+- **Edits.** productOps.ts: new action `releaseOpen`, preview = China's absorbed days (moved from the open launch),
+  the best-placed rival's lift at its next post-training in OOM (distillationLeak with the open deployment), and the
+  one-way release line; `product.launch` refuses 'open'. bots/ref.ts, Agents.tsx, Products.tsx: the "not an open
+  variant" filters go (an open model is still the lab's to use). Glossary `variant` rewritten, new `openRelease`;
+  features.ts Gov blurb. finance.ts FIN3b and products.ts RD-B20 checks updated (no `variant = 'open'`; the open preview
+  read from `releaseOpen`).
+- **UI.** Models card: the Gov / Trusted / Open weights buttons → one "Release open weights" (blocked with the gate's
+  reason, e.g. "Its weights are already open"); an "open" chip on a released version in the lineage. Gov / Trusted
+  launch from Products with any full model (no control needed there).
+- **Migration 65 → 66 (SCHEMA_REV 66):** each gov / trusted / open copy leaves `versions`; every reference to it in
+  `player` and `ws4` (products, lineups, monitors, free tier, agents, stream, incidents, child versions, eval reports)
+  points to its source version; an open deployment marks its (source) version open at its start day; lineups
+  de-duplicated; a copy without a source becomes full. Hygiene SCHEMA_REV asserts → 66.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp05.ts` (untracked, run alone) 8 / 8:
+  no makeVariant / gov / trusted / open variant in src (save.ts migration excepted); the start full model passes the
+  Gov gate and a Gov product of it gets 0.310 of the player's US GOV hours, 0 in SOFT, revenue > 0; releaseOpen marks
+  V0 open with no copy, next tick openWeightsG 26.94 → 27.66 (= model), misuse block 0; a second release and a retire
+  are refused; product.launch 'open' refused; migration folds a gov and an open copy into V0 (openDay = release day).
+  Not run: test:quick / full. Expected failures to update: any check or fixture making gov / trusted / open copies or
+  launching 'open' through product.launch; uitest ids `makeVariant.*`.
+- **Left:** the API launch's distillLine "per year" days divide by `frontierGPerYear` (PACE_WINDOW), which is ~0 for
+  r0 / r2 / r3 early (day 20: 0.0005 / 0.00005 / 0.0002 OOM/yr), so launch previews can show 10⁵-day lines (open preview
+  now in OOM instead; a separate fix); Gov's "relaxed refusals" still has no mechanism (a real post-train run would be
+  its model side, PRD-05); Trusted / Gov terms beyond the existing usage policy and KYC are not modelled.
+- **moves calibration: no.** Same effects as the old copy path (a gov copy was the same model; the open release was
+  already the open deployment); only bots that made copies (none) or saves with copies change.
