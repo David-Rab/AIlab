@@ -4209,3 +4209,29 @@ hygiene.ts's calibration shift drops it).
 - **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs11/check.ts all ok: day 400 with review on, fully served → engine
   catch 0.093; review need capped at 0 → engine 0 and believed 0.150 → 0.
 - **moves calibration: maybe** (only when the review need is short: by default it is first in the list and served).
+
+### RF-S12 Case = a job of engineer-days; verdict odds from the instruments' combined reliability (SR-17, §6 #7)
+- **Changed:** safety/investigations.ts: a case is `CASE_WORK` engineer-days of work; each day it gets its engineers as
+  served (casesServed) × m of safety experiments × its compute served (caseScale) (`caseDailyWork`). It concludes when
+  the work is done, when closed, or at INV_MAX_DAYS (kept). At the end: one reading per instrument family (was monthly
+  readings) at the family's strength × the share done, then the verdict with c = `caseReliability` (combineTools of the
+  chosen instruments' coverage × strength × family penalty, the ρ = 0.5 rule; true in the engine) × the share of work
+  done. The verdict weights are the existing ones with c in place of clarity (numbers kept, decision 1).
+  `Investigation.clarity` → `progress` (share of the work done). Investigate preview (actions.ts `caseOutlook` +
+  `casePreview`): believed reliability ("these instruments together catch about N%"), the work and days, and each
+  verdict's width after (confirms / clears / inconclusive). Close-case preview: the share not done. Safety › Cases
+  card: a work bar (no 0.8 mark). Glossary investigation / caseStaffing updated.
+- **Deleted:** the clarity rate `caseRate` (g·√(fte·m/15)·min(1.5,(h/ref)^0.2)), `monthlyGain`, `CASE_H100E_REF`,
+  `daysToResolve`, `CASE_RESOLVE`, monthly readings, `investigationGain` / `resolveText`.
+- **Stand-in (new number):** `CASE_WORK = 30` engineer-days [proxy: research/RD-SR24-safety-params.md C1, C3, audit
+  labour 0.2–30 person-days (Marks 2025 1.5–70+ researcher-hours; Taylor 2025 ≈ 240 person-hours blue budget)]. At 10
+  engineers a case now takes ~3 days (before: tens of days to clarity 0.8). **Designer:** confirm the size (or a size
+  per model / per question).
+- **Save:** folded into rev 98: migration 97 → 98 sets progress = clarity ÷ 0.8 (cap 1) and drops clarity.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs12/check.ts all ok: migration clarity 0.4 → progress 0.5; day
+  400, 10 engineers on SCHEME: preview "72% (believed) … done in ~3 d", widths ± 0.08 confirms / ± 0.08 clears / ± 0.11
+  inconclusive; the case concludes on day 3 (10 engineer-days a day), 3 readings; true reliability 0.538.
+  scripts/v2/footholds.ts's "case at clarity 1 locates the backdoor" now runs at progress 1 (c = T-MO's reliability),
+  so it may fail: information, not chased.
+- **moves calibration: yes** (cases are much faster and cheaper; their verdicts are only as strong as the instruments;
+  fewer readings per case: one per family instead of one per family per month).

@@ -1115,12 +1115,13 @@ export interface Investigation {
   computeShare: number;
   tools: TechniqueId[];
   startDay: Day;
-  clarity: number; // accumulated 0..1
+  /** RF-S12: share of the case's work done (0..1; CASE_WORK engineer-days). */
+  progress: number;
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
   outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean; changes?: CaseChange[]; evidence?: string[] };
   /** SR-17: the case's beliefs when it opened (est, sd per target trait): the verdict's "what changed" baseline. */
   before?: Partial<Record<TraitId, { est: number; sd: number }>>;
-  /** SR-17: readings the case added to beliefs (monthly observations). */
+  /** SR-17: readings the case added to beliefs (RF-S12: one per instrument family when it concludes). */
   readings?: number;
   /** SR-22: AI share, spot-check, expected (believed level of the most severe target trait at opening) vs observed
    *  (1 if the verdict found it: confirmed or a discovery; else 0). */

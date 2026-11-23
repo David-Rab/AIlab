@@ -265,10 +265,10 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   check(Math.abs(a.loc - c) < se(c) && caseOdds({ ...f, status: 'suspected' }, ['SCHEME'], c).locate === c, 'location: a case at clarity c on the foothold\'s traits locates a suspected foothold with P = c·ρ', `${pct(a.loc)} vs ${pct(c)}`);
   check(Math.abs(b.loc - c / 2) < se(c / 2) && Math.abs(b.sus - c / 2) < se(c / 2), 'location: … a hidden one with c·ρ/2, and makes it suspected with another c·ρ/2', `located ${pct(b.loc)}, suspected ${pct(b.sus)} vs ${pct(c / 2)} each`);
   check(z.loc === 0, 'location: a case on unrelated traits finds nothing (ρ = 0)');
-  // Through the investigation mechanics: a resolving case on the maker with clarity 1 on SCHEME locates it.
+  // Through the investigation mechanics: a resolving case on the maker with its work done on SCHEME locates it.
   f.status = 'suspected';
   delete f.detectedDay;
-  const inv: Investigation = { id: 'INV-T', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 15, computeShare: 0.05, tools: ['T-MO'], startDay: s.time.day - 60, clarity: 1 };
+  const inv: Investigation = { id: 'INV-T', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 15, computeShare: 0.05, tools: ['T-MO'], startDay: s.time.day - 60, progress: 1 };
   s.player.safety.investigations.push(inv);
   resolveInvestigation(s, makeCtx(s), inv);
   check((f.status as string) === 'detected' && /investigation INV-T/.test(f.symptom ?? ''), 'location: an investigation resolving on the maker (SCHEME, clarity 1) locates a suspected backdoor', `${inv.outcome}; ${f.symptom}`);

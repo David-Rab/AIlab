@@ -691,8 +691,8 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           {x.outcome ? <span className="tag2">{F.words(x.outcome)}{x.outcomeDetail?.severityEst !== undefined ? ` ≈ ${F.num(x.outcomeDetail.severityEst, 2)}` : ''}</span> : <ActBtn id="safety.closeCase" params={{ id: x.id }} label="Close" testId={`case-close.${x.id}`} />}
         </div>
         <div className="sf-case-b">
-          <Tip content={() => <TipCard title={<Term id="clarity">Clarity</Term>} value={F.pct(x.clarity)}>The case resolves at 80% clarity, when you close it, or after {INV_MAX_DAYS} days.</TipCard>}>
-            <span className="row-i"><span className="small dim">clarity</span><HBar v={x.clarity} max={1} w={110} mark={0.8} /><span className="num small">{F.pct(x.clarity)}</span></span>
+          <Tip content={() => <TipCard title={<Term id="investigation">Case work</Term>} value={F.pct(x.progress)}>The case concludes when its work is done, when you close it (its verdict then counts for the share done), or after {INV_MAX_DAYS} days.</TipCard>}>
+            <span className="row-i"><span className="small dim">work</span><HBar v={x.progress} max={1} w={110} /><span className="num small">{F.pct(x.progress)}</span></span>
           </Tip>
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come before validation jobs in the default order.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>

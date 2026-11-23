@@ -185,7 +185,7 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  98 (RF-S8): an environment fix is a hardening pass on the family's suite (one verb, Harden). Migration 97 → 98 drops
  *  SafetyDept.envFixes / envFixJobs (fixes in force and being built are lost: the planned save break) and the 'envFix'
  *  need from research.safRe (order and caps). RF-S10: it also redraws HiddenWorld.methodScale from the seed on the
- *  two-sided range U[0, 2] (methodScaleOf).
+ *  two-sided range U[0, 2] (methodScaleOf). RF-S12: Investigation.clarity → progress (clarity ÷ 0.8, capped at 1).
  */
 export const SCHEMA_REV = 98;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
@@ -1107,6 +1107,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     // (see SCHEMA_REV's note).
     const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
     if (r.hidden) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
+    // RF-S12: a case's clarity becomes the share of its work done (its old clarity ÷ the 0.8 it resolved at).
+    const invs = (raw as { player?: { safety?: { investigations?: Record<string, unknown>[] } } }).player?.safety?.investigations ?? [];
+    for (const i of invs) {
+      if (i.progress === undefined) i.progress = Math.min(1, (typeof i.clarity === 'number' ? i.clarity : 0) / 0.8);
+      delete i.clarity;
+    }
     const p = (raw as { player?: { safety?: Record<string, unknown>; research?: { safRe?: { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } } } }).player;
     if (p?.safety) { delete p.safety.envFixes; delete p.safety.envFixJobs; }
     const sr = p?.research?.safRe;
