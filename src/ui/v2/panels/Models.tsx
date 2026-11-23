@@ -1,39 +1,40 @@
-// Models (§6.3): lineage tree (bases → versions → variants), model card (measured L, domain radar with error bars,
-// benchmarks with saturation marks, horizon, serving FLOP per token and cost per hour, monitorability, trait beliefs, flags), run queue (paradigms moved to
-// Research in R4); set internal agent, evals, variants, distill, roll back, retire, streams. Tabs (model v3 D6, D4, D8): Versions
-// (all of the above), Suites (the RL environment suites the post-trains use, Suites.tsx), Data (the data portfolio and
-// the data actions, Data.tsx) and Evals (Evals.tsx: the eval policy, queue, orders and each version's measurement
-// quality; the card links there for ordering suites).
+// MODELS (UB-10; UI-IA §1 MODELS, approved mockup design/ux/mockups/rd/models.png): what you own and how good it is.
+// Tabs: Your models (family tree by base model + model card) · Evals (HOME of evals: policy, queue, orders, how sure
+// each reading is; TRAINING links here). Tree: every real model by base, state word (Testing · Ready · In use ·
+// Retired · Rolled back), measured capability bar, role chips (AI staff job, watches AI staff, products); retired
+// models fold away. Card: skill bars (overall + nine skills, measured by your evals, with range) on the job scale (the
+// shared SkillBars component), the milestone ladder, Works as, and L2 drawers: Benchmarks, Trained with, Actions; cost
+// per hour of work in its tooltip. Links: beliefs / risks (SAFETY). Reads measured values and facts only.
+import { useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, CircleDashed, GitFork, Hourglass, Layers, ListChecks } from 'lucide-react';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
-import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import {
-  POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDelta, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
-  deployGate, flopPerToken, tokEff, useHourCost, usesOf, versionById, versionPressure,
+  benchName, dataSpecView, dateOf, deployGate, flopPerToken, fmtDate, internalVersion, measuredDomains, measuredSd, milestoneMarks, skillMarksOf, tokEff,
+  useHourCost, usesOf, versionById, versionPressure,
 } from '../../../engine/v2';
-import type { GameStateV2, ModelVersion } from '../../../engine/v2';
+import type { DomainId, GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { ActBtn, Limit, Meter, Radar, Term, Tip, TipCard } from '../ui';
-import { useState } from 'react';
-import { Card, domainWord, effX, KV, PanelHead, Ref, STATUS_WORD, tabOf, Tabs, VARIANT_WORD } from '../kit';
-import { Database, Dumbbell, ListChecks } from 'lucide-react';
-import { Suites } from './Suites';
-import { DataView } from './Data';
+import { ActBtn, Term, Tip, TipCard } from '../ui';
+import { Card, DOMAIN_WORD, effX, PanelHead, STATUS_WORD, tabOf, Tabs } from '../kit';
 import { OmegaChip, PressureRows, SIGNAL_LABEL } from './Pressure';
 import { Evals, openEvalQueue } from './Evals';
+import { SkillBars, SkillLegend, standing, type SkillRow } from './SkillBars';
 import * as F from '../fmt';
-import { ICON } from '../icons';
+import { DOMAIN_ICON, ICON } from '../icons';
+import './models.css';
 
-const STATUS_TONE: Record<string, string> = { evaluating: 'tone-warn', ready: 'tone-pos', deployed: 'tone-pos', retired: 'dim', rolledBack: 'tone-neg' };
 const RUN_KIND: Record<string, string> = { base: 'new pretraining', post: 'post-training', distill: 'distil', continue: 'continued pretraining' };
 const DATA_MIX_WORD: Record<string, string> = { balanced: 'Balanced', codeMath: 'Code & math', science: 'Science', synthetic: 'Synthetic-heavy', multimodal: 'Multimodal', natural: 'Natural' };
-const SHAPE_WORD: Record<string, string> = { moe: 'Mixture of experts', dense: 'Dense', latent: 'Hidden reasoning' };
-const RUN_STATE: Record<string, string> = { running: 'Running', paused: 'Paused', done: 'Done', failed: 'Failed', cancelled: 'Cancelled' };
-const lvl = (x: number) => `level ${F.level(x)} (10 = best human)`;
-/** Jank M5: a run named by its target ("Atlas-3 base · post-train"), not its internal id ("post 21 post"). */
+const SHAPE_WORD: Record<string, string> = { moe: 'mixture of experts', dense: 'dense', latent: 'latent reasoning' };
+const STATE_CLS: Record<string, string> = { evaluating: 'test', ready: 'ready', deployed: 'use', retired: 'ret', rolledBack: 'bad' };
+const DOMS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
+const RUN_LABEL: Record<string, string> = { post: 'Post-training', distill: 'Distil', continue: 'Continued pretraining', base: 'New pretraining' };
+
 /** Active parameters: 400B, 1.6T. */
 export const fmtParams = (n: number) => (n >= 1e12 ? `${+(n / 1e12).toFixed(n >= 1e13 ? 0 : 1)}T` : `${Math.round(n / 1e9)}B`);
-
+/** A run named by its target ("Atlas-3 base · post-training"), not its internal id. */
 export function runTitle(s: GameStateV2, r: GameStateV2['player']['models']['runs'][number]): string {
   const base = s.player.models.bases.find((b) => b.id === r.baseId);
   const teacher = r.teacherVersionId ? versionById(s, r.teacherVersionId) : undefined;
@@ -41,288 +42,304 @@ export function runTitle(s: GameStateV2, r: GameStateV2['player']['models']['run
   if (r.kind === 'distill') return `Distil from ${teacher?.name ?? base?.name ?? 'a teacher'}`;
   return `${base?.name ?? 'Base model'} · ${RUN_KIND[r.kind] ?? r.kind}`;
 }
-
 export function selectedVersion(s: GameStateV2): ModelVersion | undefined {
-  return versionById(s, store.sel.versionId) ?? internalVersion(s) ?? s.player.models.versions[s.player.models.versions.length - 1];
+  const picked = versionById(s, store.sel.versionId);
+  if (picked) return picked;
+  // Default: your internal model if measured, else your newest measured live model (the mockup's Atlas-2.8).
+  const iv = internalVersion(s);
+  if (iv?.evals.measuredL !== undefined) return iv;
+  const measured = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack' && v.evals.measuredL !== undefined && v.variant !== 'mini');
+  return measured[measured.length - 1] ?? iv ?? s.player.models.versions[s.player.models.versions.length - 1];
+}
+const paramsOf = (s: GameStateV2, v: ModelVersion) => v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? 0;
+
+/** What a model does: AI staff jobs, watching AI staff, products (main model or lineup). */
+function rolesOf(s: GameStateV2, v: ModelVersion) {
+  const u = usesOf(s, v.id);
+  const prods = s.player.deployments.filter((d) => d.kind === 'product' && d.status === 'live' && (d.versionId === v.id || d.lineup?.includes(v.id)));
+  return {
+    staff: [...u.model].sort((a, b) => AGENT_USE_DEF[a].order - AGENT_USE_DEF[b].order).map((x) => AGENT_USE_DEF[x].name),
+    watches: u.monitor.map((x) => AGENT_USE_DEF[x].name),
+    products: prods.map((d) => ({ name: PRODUCT_DEFS[d.channel]?.name ?? d.channel, main: d.versionId === v.id })),
+  };
+}
+function RoleChips({ s, v, long }: { s: GameStateV2; v: ModelVersion; long?: boolean }) {
+  const r = rolesOf(s, v);
+  const out: ReactNode[] = [];
+  if (r.staff.length) out.push(
+    <Tip key="staff" content={() => <TipCard title={<Term id="agentPackage">AI staff</Term>} value={r.staff.join(', ')}>This model works as your AI staff on these jobs. Set on Lab.</TipCard>}>
+      <button className="md-rc" data-role="staff" onClick={(e) => { e.stopPropagation(); store.goto('lab', { tab: 'work' }); }}>AI staff: {r.staff.join(', ').toLowerCase()}</button>
+    </Tip>);
+  if (r.watches.length) out.push(
+    <Tip key="watch" content={() => <TipCard title={<Term id="agentMonitor">Watches AI staff</Term>} value={r.watches.join(', ')}>This model watches your AI staff&apos;s actions on these jobs. Set on Safety › Safeguards.</TipCard>}>
+      <button className="md-rc w" data-role="watch" onClick={(e) => { e.stopPropagation(); store.goto('lab', { tab: 'work' }); }}>watches AI staff</button>
+    </Tip>);
+  if (r.products.length) out.push(
+    <Tip key="prod" content={() => <TipCard title={<Term id="product">Products</Term>} rows={r.products.map((p) => ({ label: p.name, value: p.main ? 'main model' : 'lineup' }))}>Products that sell this model. Set on Products.</TipCard>}>
+      <button className="md-rc p" data-role="products" onClick={(e) => { e.stopPropagation(); store.goto('products'); }}>{long ? `${r.products.map((p) => p.name).join(' · ')}${r.products.some((p) => p.main) ? ' (main model)' : ''}` : 'products'}</button>
+    </Tip>);
+  return <>{out}</>;
 }
 
-function Lineage({ s, sel }: { s: GameStateV2; sel?: string }) {
-  const m = s.player.models;
-  return (
-    <div className="lineage" data-test="lineage">
-      {m.bases.map((b) => (
-        <div key={b.id} className="lin-base" data-base={b.id}>
-          <Tip as="div" content={() => <TipCard title={b.name} rows={[
-            { label: 'Done', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${fmtParams(b.params)} parameters, ${b.design.tpp} tokens each · ${SHAPE_WORD[b.design.shape] ?? b.design.shape}` },
-            { label: 'Data mix', value: DATA_MIX_WORD[b.design.data] ?? b.design.data }, { label: <Term id="flop">Training compute</Term>, value: `${F.short(b.flop / PHI_FLOP_PER_H100E_DAY / 1e6)}M H100e-days` },
-          ]} />}>
-            <div className="lin-base-row"><b>{b.name}</b><span className="dim small">{fmtParams(b.params)} · {SHAPE_WORD[b.design.shape] ?? b.design.shape} · {DATA_MIX_WORD[b.design.data] ?? b.design.data}</span></div>
-          </Tip>
-          {m.versions.filter((v) => v.baseId === b.id && !m.versions.some((p) => p.id === v.parentVersionId && p.baseId === b.id)).map((v) => (
-            <VersionTree key={v.id} s={s} v={v} sel={sel} depth={1} />
-          ))}
-          {/* Jank M5: a finished base with no version yet says what it needs. */}
-          {!m.versions.some((v) => v.baseId === b.id) && (
-            <div className="lin-ver lin-note small dim" data-test="base-needs-post">{m.runs.some((r) => r.baseId === b.id && (r.status === 'running' || r.status === 'paused')) ? 'base model done · post-training now' : 'base model done · needs post-training'}<button className="btn btn-sm btn-ghost" onClick={() => store.goto('blueprint')}>Next run ›</button></div>
-          )}
-        </div>
-      ))}
-    </div>
+// ───────── panel ─────────
+export function Models({ s }: { s: GameStateV2 }) {
+  useV2();
+  const v = selectedVersion(s);
+  const tab = tabOf('models', 'versions') === 'evals' ? 'evals' : 'versions';
+  const testing = s.player.models.versions.filter((x) => x.status === 'evaluating');
+  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Your models' }, { id: 'evals', label: 'Evals', icon: ListChecks, badge: s.player.models.evals?.length || undefined }]} />;
+  const right = testing.length > 0 && (
+    <Tip content={() => <TipCard title={<Term id="evaluating">In testing</Term>} rows={testing.map((x) => ({ label: x.name, value: 'evals running' }))}>Models your evals are measuring; the queue is on Evals.</TipCard>}>
+      <button className="md-chip" data-test="models-testing" onClick={() => openEvalQueue(testing[0].id)}><Hourglass size={12} /> {testing.map((x) => x.name).join(', ')} in testing</button>
+    </Tip>
   );
-}
-function VersionTree({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
-  const kids = s.player.models.versions.filter((x) => x.parentVersionId === v.id && x.baseId === v.baseId);
   return (
-    <>
-      <VersionRow s={s} v={v} sel={sel} depth={Math.min(depth, 4)} />
-      {kids.map((x) => <VersionTree key={x.id} s={s} v={x} sel={sel} depth={depth + 1} />)}
-    </>
-  );
-}
-/** Jank M4: the best usable version of each variant (highest measured level), so "newest" is not mistaken for "best". */
-function bestOfVariant(s: GameStateV2): Set<string> {
-  const best = new Map<string, ModelVersion>();
-  for (const v of s.player.models.versions) {
-    if ((v.status !== 'ready' && v.status !== 'deployed') || v.evals.measuredL === undefined) continue;
-    const b = best.get(v.variant);
-    if (!b || v.evals.measuredL > (b.evals.measuredL ?? 0)) best.set(v.variant, v);
-  }
-  return new Set([...best.values()].map((v) => v.id));
-}
-function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel?: string; depth: number }) {
-  const internal = usesOf(s, v.id).model.length > 0;
-  const best = bestOfVariant(s).has(v.id);
-  return (
-    <button className={`lin-ver ${sel === v.id ? 'active' : ''}`} style={{ paddingLeft: 8 + depth * 14 }} data-version={v.id} onClick={() => store.select({ versionId: v.id })}>
-      <span>{v.name}</span>
-      {v.variant !== 'full' && <span className="chip-mini">{VARIANT_WORD[v.variant] ?? v.variant}</span>}
-      {v.openDay !== undefined && <span className="chip-mini"><Term id="openRelease">open</Term></span>}
-      {best && <Tip content={() => <TipCard title="Best of its kind">{`The ${VARIANT_WORD[v.variant] ?? v.variant} model with the highest measured capability that is ready to use.`}</TipCard>}><span className="chip-mini tone-pos" data-test="best-badge">best</span></Tip>}
-      {internal && <span className="chip-mini tone-pos"><Term id="internalAgent">internal</Term></span>}
-      <span className={`small ${STATUS_TONE[v.status]}`}>{STATUS_WORD[v.status] ?? v.status}</span>
-      <Tip content={() => <LevelTip s={s} v={v} />}><span className="num small">{v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}</span></Tip>
-    </button>
-  );
-}
-/** Measured level with its band (RD-M01): fitted from the last suite's benchmark scores. */
-function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
-  if (v.evals.measuredL === undefined) return <TipCard title={<Term id="L">Capability</Term>} value="testing">The evals report its capability when they finish.</TipCard>;
-  const sd = measuredSd(v);
-  const gain = measuredDelta(s, v); // RF-R5: the measured gain, once per model (not per idea)
-  return (
-    <TipCard title={<Term id="L">Capability</Term>} value={`${lvl(v.evals.measuredL)} ± ${sd.toFixed(2)}`} rows={[
-      { label: 'Evals run', value: String(v.evals.nSuites ?? 1) },
-      { label: 'Last evals', value: v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : '—' },
-      ...(gain ? [{ label: `Measured gain over ${gain.vs}`, value: `${gain.dL >= 0 ? '+' : '−'}${Math.abs(gain.dL).toFixed(2)} ± ${gain.sd.toFixed(2)} levels` }] : []),
-    ]} footer="From your evals' benchmark scores: weak elicitation or a sandbagging model reads low. The gain includes everything that differs between the two models.">What your evals say this model's overall capability is.</TipCard>
-  );
-}
-
-export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
-  const [more, setMore] = useState(false);
-  const dom = measuredDomains(v);
-  const parent = s.player.models.versions.find((x) => x.id === v.parentVersionId) ?? s.player.models.versions.filter((x) => x.variant === 'full' && x.day < v.day && x.evals.measuredL !== undefined).slice(-1)[0];
-  const all = BENCHMARKS.filter((b) => v.evals.bench[b.id]);
-  const benches = more ? all : all.slice(0, 5);
-  const horizon = v.evals.bench.horizon;
-  const flags = Object.entries(v.flags).filter(([, x]) => x).map(([k]) => k);
-  const uses = usesOf(s, v.id);
-  const internal = uses.model.length > 0 || uses.monitor.length > 0;
-  const hMin = horizon ? horizon.score : 0;
-  // RD-P05: the open release is a one-way act on this model; the same gate as the release (deployGate on 'open').
-  const og = deployGate(s, v, 'open');
-  const openBlock = og === true ? undefined : og;
-  return (
-    <Card title={<span>{v.name} <span className="dim">· <Term id="variant">{VARIANT_WORD[v.variant] ?? v.variant}</Term> · {STATUS_WORD[v.status] ?? v.status}</span></span>} home="modelCard"
-      right={<span className="row-i">{v.status === 'evaluating' && <button className="tag2 warn" data-test="card-evaluating" onClick={() => openEvalQueue(v.id)}><Term id="evaluating">testing</Term> <ICON.go size={11} /></button>}<Tip content={() => <LevelTip s={s} v={v} />}><span className="num big">{v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL !== undefined && <span className="dim small"> ± {measuredSd(v).toFixed(2)}</span>}</span></Tip></span>}>
-      <div className="card-grid2">
-        <div>
-          <Radar values={dom} err={0.4} size={230} compare={parent ? measuredDomains(parent) : undefined} />
-          <div className="small dim">{parent ? <>dashed: {parent.name} · </> : null}<Term id="domains">skill by domain</Term></div>
-        </div>
-        <div>
-          <KV k="Monitorability" term="monitorability"><Meter value={v.monitorability} max={1} width={80} /> {v.monitorability.toFixed(2)}</KV>
-          {(() => { const fpt = flopPerToken(s, v); const c = useHourCost(s, fpt, tokEff(v)); return <KV k="Cost per hour of work" term="useHourCost" tip={() => <TipCard title={<Term id="useHourCost">Cost per hour of work</Term>} value={`${F.usd(c.hour)}/h`} rows={[{ label: <Term id="useHourCost">Cost per hour of work</Term>, value: F.usd(c.hour) }, { label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(c.agentHour) }, { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(c.perH100eHour) }]} footer="Before markup and tool costs; prices per product are on Products.">Bigger models, longer reasoning and less serving know-how cost more per hour.</TipCard>}>{F.usd(c.hour)}/h</KV>; })()}
-          {(() => {
-            const o = dataSpecView(s, v);
-            return <KV k="Data specialisation" term="dataSpec" tip={() => <TipCard title={<Term id="dataSpec">Data specialisation</Term>} value={o.rows.length ? `${o.rows.length} domains` : 'none'} rows={o.rows.map(([d, x]) => ({ label: domainWord(d), value: `${effX(x)} effective compute` }))} footer={`From the data its base model drew (data mix ${DATA_MIX_WORD[s.player.models.bases.find((b) => b.id === v.baseId)?.design.data ?? ''] ?? '—'}) and its curation; at most ${effX(o.cap)} per domain.`}>Effective compute each domain gains or loses from the base model&apos;s data mix.</TipCard>}>
-              <Limit id="model.dataSpec" tone={o.capped ? 'warn' : 'quiet'}>{o.rows.length ? o.rows.slice(0, 2).map(([d, x]) => `${domainWord(d)} ${effX(x)}`).join(' · ') : 'none'}</Limit>
-            </KV>;
-          })()}
-          <KV k="Time horizon (50%)" term="horizon">{horizon ? F.minutes(hMin) : "—"}</KV>
-          <KV k="Appeal" term="appeal">{v.appeal !== undefined ? v.appeal.toFixed(2) : '—'}</KV>
-          <KV k="Range" term="measureBand"><Ref id="evalMeasure" to={{ panel: 'models', tab: 'evals' }}>Models › Evals</Ref></KV>
-          <KV k="Dangerous-capability flags" term="flags"><span className={flags.length ? 'tone-neg' : 'dim'}>{flags.join(', ') || 'none'}</span></KV>
-          <KV k="Beliefs" term="belief"><Ref id="beliefs" to={{ panel: 'safety', tab: 'graph' }}>Safety › traits</Ref></KV>
-          <table className="tbl" style={{ marginTop: 6 }}>
-            <thead><tr><th><Term id="benchmark">Benchmark</Term></th><th>Score</th><th>±</th></tr></thead>
-            <tbody>
-              {benches.map((b) => {
-                const r = v.evals.bench[b.id];
-                const sat = b.ceil > 0 && r.score > b.ceil - 5;
-                return (
-                  <tr key={b.id}>
-                    <td><Tip content={() => <TipCard title={benchName(s, b)} value={b.family}>{`Domain ${Array.isArray(b.domain) ? b.domain.map(domainWord).join(' + ') : domainWord(b.domain)}${b.dangerous ? ' · dangerous-capability' : ''}${sat ? ' · maxed out' : ''} · measured by ${r.by === 'self' ? 'your evals' : r.by === 'evalGov' ? 'government evaluators' : 'independent evaluators'}`}</TipCard>}>{benchName(s, b)}</Tip>{sat && <span className="chip-mini"><Term id="saturated">maxed out</Term></span>}{b.dangerous && <span className="tone-warn small"> ⚠</span>}</td>
-                    <td className="num"><Tip content={() => <TipCard title={benchName(s, b)} value={F.bench(r.score, b.special)} rows={[{ label: 'Measured', value: fmtDate(dateOf(s, r.day)) }, { label: 'By', value: r.by === 'self' ? 'your evals' : r.by === 'evalGov' ? 'government evaluators' : 'independent evaluators' }, ...(b.special ? [] : [{ label: 'Range (±)', value: r.sd.toFixed(1) }])]} />}><span>{F.bench(r.score, b.special)}</span></Tip></td>
-                    <td className="num dim">{b.special ? "" : <Tip content={() => <TipCard title="Range" value={`± ${r.sd.toFixed(1)}`}>How far this evaluator's score on this benchmark may be from the true one (two times in three).</TipCard>}><span>{r.sd.toFixed(1)}</span></Tip>}</td>
-                  </tr>
-                );
-              })}
-              {!all.length && <tr><td colSpan={3} className="dim">No evals yet</td></tr>}
-            </tbody>
-          </table>
-          {all.length > 5 && <button className="btn btn-sm btn-ghost" data-test="bench-more" onClick={() => setMore(!more)}>{more ? 'fewer' : `all ${all.length} benchmarks`}</button>}
-        </div>
-      </div>
-      <VersionPressure s={s} v={v} />
-      <div className="act-groups">
-        <div className="act-group"><span className="tip-cap">Use</span>
-          <span className="small" data-test="model-uses"><ICON.agents size={12} /> {internal ? [...uses.model.map((u) => AGENT_USE_DEF[u].name), ...uses.monitor.map((u) => `safeguard on ${AGENT_USE_DEF[u].name.toLowerCase()}`)].join(' · ') : 'not used inside the company'}</span>
-          <Ref id="agentPackage" to={{ panel: 'lab', tab: 'work', anchor: 'agents' }}>AI staff</Ref>
-          <ActBtn id="startStream" params={{ versionId: v.id }} label="Continual learning" />
-          <ActBtn id="stopStream" label="Stop continual learning" />
-          <ActBtn id="idaCycle" params={{ versionId: v.id }} label="Amplify" />
-        </div>
-        <div className="act-group"><span className="tip-cap"><Term id="evals">Evals</Term></span>
-          <button className="btn btn-sm go-btn" data-go="models.evals" data-test="card-order-evals" onClick={() => { store.select({ versionId: v.id }); store.goto('models', { tab: 'evals', anchor: 'evalOrder' }); }}><ICON.finding size={13} /> Order evals <ICON.go size={12} /></button>
-        </div>
-        <div className="act-group"><span className="tip-cap"><Term id="openRelease">Release</Term></span>
-          <ActBtn id="releaseOpen" testId="releaseOpen" params={{ versionId: v.id }} label="Release open weights" block={openBlock} reason />
-          <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distil a smaller model" block={v.variant === 'imported' ? 'Post-train the imported model first (Next run › Post-training)' : undefined} />
-        </div>
-        <div className="act-group"><span className="tip-cap">Retire</span>
-          <ActBtn id="safety.respond" testId="rollback" params={{ kind: 'rollback', versionId: v.id }} label="Roll back" />
-          <ActBtn id="retireVersion" params={{ versionId: v.id }} block={internal ? 'Runs or watches AI staff' : v.status === 'retired' ? 'Already retired' : undefined} />
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-const RUN_LABEL: Record<string, string> = { post: 'Post-training', distill: 'Distil', continue: 'Continued pretraining', base: 'New pretraining' };
-/** What the finished run that made this version applied (model v3 E12; home `versionPressure`): one summary line (the
- *  run's ω and its strongest signals), the signal rows one click down, with the base's pretraining signals under them. */
-function VersionPressure({ s, v }: { s: GameStateV2; v: ModelVersion }) {
-  const [open, setOpen] = useState(false);
-  const vp = versionPressure(s, v.id);
-  if (!vp.run && !vp.base) return null;
-  const top = [...(vp.run?.rows ?? [])].filter((r) => r.value >= 0.005).sort((a, b) => b.value - a.value).slice(0, 3);
-  return (
-    <div className="mc-press" data-home="versionPressure" data-test="mc-pressure">
-      <div className="row-i mc-press-hd">
-        <span className="tip-cap"><Term id="trainingPressure">Pushes</Term></span>
-        <span className="small dim">{vp.run ? RUN_LABEL[vp.run.kind] : 'no run of its own'}</span>
-        {vp.run && <OmegaChip p={vp.run} />}
-        <span className="small dim ellip">{top.map((r, i) => <Tip key={r.id} content={() => <TipCard title={<Term id={`sig:${r.id}`}>{SIGNAL_LABEL[r.id]}</Term>} value={F.num(r.value, 2)}>Strongest signals of the run; all of them open with Signals.</TipCard>}><span className="mc-top">{i ? ' · ' : ''}{SIGNAL_LABEL[r.id]} <span className="num">{F.num(r.value, 2)}</span></span></Tip>)}</span>
-        <span className="sp" />
-        <button className="btn btn-sm btn-ghost" data-test="mc-pressure-open" onClick={() => setOpen(!open)}>{open ? 'Hide signals' : 'Signals'}</button>
-      </div>
-      {open && (
-        <div className="mc-press-body">
-          {vp.run && <PressureRows p={vp.run} testId="mc-pressure-rows" />}
-          {vp.base && (
-            <>
-              <div className="tip-cap">{vp.base.name} pretraining <span className="dim">· shared by every model on this base model</span></div>
-              <PressureRows p={{ kind: 'base', rows: vp.base.rows, omega: { growth: 1, safety: 1, kind: 1 }, ...(vp.base.imitation ? { imitation: vp.base.imitation } : {}) }} testId="mc-pressure-base" />
-            </>
-          )}
+    <div className="panel-v2 md" data-panel="models">
+      <PanelHead icon={ICON.models} title="Models" tabs={tabs} right={right} />
+      {tab === 'evals' ? <Evals s={s} v={v} /> : (
+        <div className="md-grid">
+          <FamilyTree s={s} sel={v?.id} />
+          {v ? <ModelCard s={s} v={v} /> : <Card title="Model card"><div className="dim">No models</div></Card>}
         </div>
       )}
     </div>
   );
 }
 
-/** Run queue (home of each run's actual pool share and ETA, R5): the stream's share and where spare compute goes. */
-export function RunQueue({ s }: { s: GameStateV2 }) {
-  const runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').concat(s.player.models.runs.filter((r) => r.status === 'done' || r.status === 'failed' || r.status === 'cancelled').slice(-3));
-  const alloc = poolAllocation(s);
-  const stream = streamShare(s);
-  const spare = idleTrainingShare(s);
-  const auto = s.player.policies.autoSplit;
+// ───────── family tree ─────────
+const CAP_HI = 13;
+function FamilyTree({ s, sel }: { s: GameStateV2; sel?: string }) {
+  const m = s.player.models;
+  const tick = milestoneMarks(s)[1];
   return (
-    <Card title="Runs" home="runQueue" right={<button className="btn btn-sm" data-nav-to="blueprint" onClick={() => store.setPanel('blueprint')}>Next run ›</button>}>
-      {runs.length === 0 && <div className="dim small">No runs</div>}
-      {runs.map((r) => {
-        const done = Math.min(1, r.flopDone / Math.max(1, r.flopNeeded));
-        const band = runBand(s, r);
-        const stall = runStall(s, r);
-        const live = r.status === 'running' || r.status === 'paused';
-        const got = alloc.get(r.id) ?? 0;
-        const eta = live ? runEtaDays(s, r, alloc) : 0;
-        const step = (d: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], r.poolShare + d)) * 100) / 100;
+    <Card className="md-tree" home="lineage" title={<span className="row-i"><GitFork size={16} />Family tree</span>}
+      sub={<>by base model · bar = measured <Term id="L">capability</Term>, tick = {tick.name}</>}>
+      {[...m.bases].reverse().map((b) => {
+        const vs = m.versions.filter((v) => v.baseId === b.id);
+        const gone = vs.filter((v) => v.status === 'retired');
+        const live = vs.filter((v) => v.status !== 'retired');
+        const fulls = live.filter((v) => v.variant !== 'mini').sort((a, c) => a.day - c.day);
+        const minis = live.filter((v) => v.variant === 'mini').sort((a, c) => c.day - a.day);
+        const training = m.runs.some((r) => r.baseId === b.id && (r.status === 'running' || r.status === 'paused'));
         return (
-          <div className="run-row" key={r.id} data-run={r.id}>
-            <Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Kind', value: RUN_KIND[r.kind] ?? r.kind }, { label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'Done', value: F.pct(done) }]} />}><span className="ellip"><b>{runTitle(s, r)}</b></span></Tip>
-            <Meter value={done} max={1} width={80} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <Tip content={() => <TipCard title="Prediction" value={band[1] > 0 ? `level ${F.level(band[0])}–${F.level(band[1])} (10 = best human)` : '—'}>The capability this run should give when it finishes: your measured model's plus the step this run makes over it. The range is that measurement's uncertainty; evals of the result read the real one.</TipCard>}><span className="num small dim">{band[1] > 0 ? `${F.level(band[0])}–${F.level(band[1])}` : '—'}</span></Tip>
-            {live ? (
-              <Tip content={() => <TipCard title={<Term id="poolShare">Training share</Term>} value={F.pct(got)} rows={[
-                { label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) },
-                { label: 'Done', value: F.pct(done) }, { label: <Term id="flop">Compute needed</Term>, value: `${F.short(r.flopNeeded / PHI_FLOP_PER_H100E_DAY / 1e6)}M H100e-days` },
-              ]} footer="Runs that ask for more than the training compute are scaled down together.">Share of training compute this run gets.</TipCard>}>
-                <span className="num small run-share" data-test="run-share">{F.pct(got)}{got < r.poolShare - 1e-6 && done < 1 ? <span className="dim">/{F.pct(r.poolShare)}</span> : null}</span>
-              </Tip>
-            ) : <span />}
-            {live && r.status === 'running' ? (
-              <span className="run-step">
-                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(-0.1) }} label="−" testId={`run-share-dn.${r.id}`} block={r.poolShare <= POOL_SHARE_RANGE[0] + 1e-9 ? 'At the minimum share' : undefined} />
-                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(0.1) }} label="+" testId={`run-share-up.${r.id}`} block={r.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At all of training compute' : undefined} />
-              </span>
-            ) : <span />}
-            <Tip content={() => <TipCard title={stall ?? RUN_STATE[r.status] ?? r.status} value={live && Number.isFinite(eta) ? fmtDate(dateOf(s, s.time.day + eta)) : undefined}>{live ? 'Expected finish at today\'s training share; evals follow.' : 'Finished runs stay here for a while.'}</TipCard>}><span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : undefined}>{stall ?? RUN_STATE[r.status] ?? r.status}{live && Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span></Tip>
-            {r.status === 'running' && <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} />}
+          <div key={b.id} className="md-base" data-base={b.id}>
+            <Tip as="div" content={() => <TipCard title={b.name} rows={[
+              { label: 'Pretrained', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${fmtParams(b.params)} parameters · ${b.design.tpp} tokens each` },
+              { label: <Term id="shape">Design</Term>, value: SHAPE_WORD[b.design.shape] ?? b.design.shape }, { label: <Term id="dataMix">Data mix</Term>, value: DATA_MIX_WORD[b.design.data] ?? b.design.data },
+            ]}>A <Term id="base">base model</Term>: every model below was post-trained or distilled from it.</TipCard>}>
+              <div className="md-bh"><Layers size={14} /><b>{b.name}</b><span>base · {fmtParams(b.params)} · {fmtDate(dateOf(s, b.day))}</span><span className="sp" />
+                {live.length === 0 && <button className="tr-link" data-test="base-needs-post" onClick={() => { store.setTab('blueprint.start', b.id); store.goto('blueprint', { tab: 'next' }); }}>{training ? 'post-training now' : 'post-train it'} <ChevronRight size={11} /></button>}
+              </div>
+            </Tip>
+            {live.length === 0 && <div className="md-fold"><CircleDashed size={12} /> no models yet</div>}
+            {gone.length > 0 && <Fold s={s} gone={gone} sel={sel} />}
+            {fulls.map((v) => <Node key={v.id} s={s} v={v} sel={sel} tick={tick.level} />)}
+            {minis.map((v) => <Node key={v.id} s={s} v={v} sel={sel} tick={tick.level} />)}
           </div>
         );
       })}
-      <div className="run-row run-pool small" data-run="stream"><span className="ellip"><b><Term id="stream">Continual learning</Term></b> <span className="dim">{stream > 0 ? 'on' : 'off'}</span></span><span /><span /><Tip content={() => <TipCard title={<Term id="stream">Continual learning</Term>} value={F.pct(stream)}>Share of training compute continual learning takes before any run.</TipCard>}><span className="num">{F.pct(stream)}</span></Tip><span /><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit><span /></div>
-      <div className="run-row run-pool small" data-run="spare">
-        <span className="ellip"><b><Term id="idleCompute">Idle</Term></b></span><span /><span />
-        <Tip content={() => <TipCard title={<Term id="idleCompute">Idle</Term>} value={F.pct(spare)}>Share of training compute no run uses now. It stays idle{auto.on && !auto.to.includes('training') ? ', unless Auto-split idle compute moves it (on)' : ''}; lower the Training share or turn on Auto-split idle compute in Compute allocation.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
-        <span className="run-spare">
-          <span className="dim">{auto.on && !auto.to.includes('training') ? '→ Auto-split' : 'idle'}</span>
-          <Ref id="idleCompute" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref>
-        </span>
+    </Card>
+  );
+}
+function Fold({ s, gone, sel }: { s: GameStateV2; gone: ModelVersion[]; sel?: string }) {
+  const [open, setOpen] = useState(false);
+  const names = gone.map((v) => v.name);
+  return (
+    <>
+      <button className="md-fold" data-test="tree-retired" onClick={() => setOpen(!open)}>{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {gone.length} retired: {names.length > 3 ? `${names[0]} … ${names[names.length - 1]}` : names.join(', ')}</button>
+      {open && gone.map((v) => <Node key={v.id} s={s} v={v} sel={sel} tick={milestoneMarks(s)[1].level} />)}
+    </>
+  );
+}
+function Node({ s, v, sel, tick }: { s: GameStateV2; v: ModelVersion; sel?: string; tick: number }) {
+  const L = v.evals.measuredL;
+  const mini = v.variant === 'mini';
+  return (
+    <div role="button" tabIndex={0} className={`md-node ${mini ? 'md-mini' : ''} ${sel === v.id ? 'sel' : ''}`} data-version={v.id} onClick={() => store.select({ versionId: v.id })}>
+      <span className="ln" />
+      <span className="nm">{v.name}</span>
+      <Tip content={() => <LevelTip s={s} v={v} />}>
+        {L === undefined ? <span className="dim small">being measured</span> : <span className="cb"><i style={{ width: `${Math.min(100, (L / CAP_HI) * 100)}%` }} /><b style={{ left: `${(tick / CAP_HI) * 100}%` }} /></span>}
+      </Tip>
+      <span className="roles"><span className={`md-st ${STATE_CLS[v.status] ?? ''}`} data-state={v.status}>{STATUS_WORD[v.status] ?? v.status}</span><RoleChips s={s} v={v} /></span>
+    </div>
+  );
+}
+/** Measured overall capability with its range (RD-M01): fitted from the last evals' benchmark scores. */
+function LevelTip({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  if (v.evals.measuredL === undefined) return <TipCard title={<Term id="L">Capability</Term>} value="testing">Your evals report its capability when they finish.</TipCard>;
+  const mk = skillMarksOf(s, 'CODE');
+  return (
+    <TipCard title={<Term id="L">Capability</Term>} value={standing(v.evals.measuredL, mk)} rows={[
+      { label: 'Range (90%)', value: `± ${F.num(1.64 * measuredSd(v), 2)} levels` },
+      { label: 'Evals run', value: String(v.evals.nSuites ?? 1) },
+      { label: 'Last evals', value: v.evals.suiteDay !== undefined ? fmtDate(dateOf(s, v.evals.suiteDay)) : '—' },
+    ]} footer="From your evals' benchmark scores: weak elicitation or a sandbagging model reads low.">What your evals say this model&apos;s overall capability is.</TipCard>
+  );
+}
+
+// ───────── model card ─────────
+type Drawer = 'bench' | 'trained' | 'actions' | undefined;
+export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const [drawer, setDrawer] = useState<Drawer>(undefined);
+  const dom = measuredDomains(v);
+  const sd = v.evals.measuredL !== undefined ? 1.64 * measuredSd(v) : 0;
+  const parent = versionById(s, v.parentVersionId);
+  const base = s.player.models.bases.find((b) => b.id === v.baseId);
+  const capMk = skillMarksOf(s, 'CODE');
+  const L = v.evals.measuredL;
+  const rows: SkillRow[] = [
+    {
+      key: 'L', label: <Term id="L">Capability</Term>, icon: ICON.L, strong: true, marks: { median: capMk.median, best: capMk.best },
+      ...(L !== undefined ? { now: L, nowRange: [L - sd, L + sd] as [number, number] } : {}),
+      tip: () => <LevelTip s={s} v={v} />,
+    },
+    ...DOMS.map((d): SkillRow => {
+      const mk = skillMarksOf(s, d);
+      const x = dom[d];
+      return {
+        key: d, label: DOMAIN_WORD[d], icon: DOMAIN_ICON[d], marks: { median: mk.median, best: mk.best }, test: 'card-skill',
+        ...(x !== undefined ? { now: x, nowRange: [x - sd, x + sd] as [number, number] } : {}),
+        tip: () => (
+          <TipCard title={<Term id="domains">{DOMAIN_WORD[d]}</Term>} value={x !== undefined ? standing(x, mk) : 'not measured yet'} rows={[
+            ...(x !== undefined ? [{ label: 'Range (90%)', value: `± ${F.num(sd, 2)} levels` }] : []),
+            { label: 'Measured on', value: `${mk.test}${mk.standIn ? ' (stand-in)' : ''}` },
+          ]} footer={<>{mk.fact}. Bars sit on the job scale: the median expert and the best human doing this job.</>}>
+            {v.name}&apos;s skill in {DOMAIN_WORD[d]} as your evals measured it.
+          </TipCard>
+        ),
+      };
+    }),
+  ];
+  const ms = milestoneMarks(s);
+  const nextIdx = ms.findIndex((x) => x.metDay === undefined);
+  const fpt = flopPerToken(s, v);
+  const cost = useHourCost(s, fpt, tokEff(v));
+  const nBench = BENCHMARKS.filter((b) => v.evals.bench[b.id]).length;
+  const roles = rolesOf(s, v);
+  const toggle = (d: Drawer) => setDrawer(drawer === d ? undefined : d);
+  return (
+    <Card className="md-card" home="modelCard">
+      <div className="md-mh">
+        <span className="t" data-test="card-name">{v.name}</span>
+        <span className={`md-st ${STATE_CLS[v.status] ?? ''}`}>{STATUS_WORD[v.status] ?? v.status}</span>
+        {v.status === 'evaluating' && <button className="tr-link" data-test="card-evaluating" onClick={() => openEvalQueue(v.id)}><Term id="evaluating">evals</Term> <ChevronRight size={11} /></button>}
+        <span className="sp" />
+        <button className="tr-link" data-test="card-beliefs" onClick={() => { store.select({ versionId: v.id }); store.goto('safety', { tab: 'model' }); }}><ICON.investigate size={12} /> beliefs <ChevronRight size={11} /></button>
+        <button className="tr-link" data-test="card-risks" onClick={() => { store.select({ versionId: v.id }); store.goto('safety', { tab: 'risks' }); }}><ICON.risk size={12} /> risks <ChevronRight size={11} /></button>
       </div>
+      <div className="md-facts">
+        <span><b>{fmtParams(paramsOf(s, v))}</b> parameters{base ? ` · ${SHAPE_WORD[base.design.shape] ?? base.design.shape}` : ''}</span>
+        {parent && <span>from <b>{parent.name}</b></span>}
+        <span>ready <b>{fmtDate(dateOf(s, v.day))}</b></span>
+      </div>
+      <div className="md-cols">
+        <div>
+          <div className="md-cap"><b>Skill</b> overall and by domain · measured by your evals, with range</div>
+          <SkillLegend now={v.name} />
+          <SkillBars rows={rows} head={{ median: capMk.median, best: capMk.best }} />
+        </div>
+        <div className="md-ladder" data-test="card-milestones">
+          <div className="md-cap"><b><Term id="milestone">Milestones</Term></b> · your lab</div>
+          {ms.map((x, i) => (
+            <Tip key={x.name} as="div" content={() => <TipCard title={<Term id="milestone">{x.name}</Term>} value={x.metDay !== undefined ? `met ${fmtDate(dateOf(s, x.metDay))}` : i === nextIdx ? 'next' : 'not met'}>Milestones are about doing the job; your lab meets one when any of its live models does.{L !== undefined ? ` ${v.name} measures ${L >= x.level ? 'at or past' : 'below'} its level on the capability scale.` : ''}</TipCard>}>
+              <div className={`md-rung ${x.metDay !== undefined ? 'met' : i === nextIdx ? 'next' : ''}`} data-rung={x.idx}>
+                <span className="dot" /><span className="nm">{x.name}</span>
+                <span className="d">{x.metDay !== undefined ? `met ${fmtDate(dateOf(s, x.metDay)).replace(/, 20(\d\d)$/, " '$1")}` : i === nextIdx ? 'next' : ''}</span>
+              </div>
+            </Tip>
+          ))}
+        </div>
+      </div>
+      <div className="md-l2">
+        <span className="md-cap">Works as</span>
+        <span className="row-i md-roles" data-test="model-uses">{roles.staff.length + roles.watches.length + roles.products.length ? <RoleChips s={s} v={v} long /> : <span className="dim small">nothing yet</span>}</span>
+        <span className="sp" />
+        <button className={`tr-link ${drawer === 'bench' ? 'on' : ''}`} data-test="card-bench" onClick={() => toggle('bench')}>Benchmarks {nBench} <ChevronRight size={11} /></button>
+        <button className={`tr-link ${drawer === 'trained' ? 'on' : ''}`} data-test="card-trained" onClick={() => toggle('trained')}>Trained with <ChevronRight size={11} /></button>
+        <Tip content={() => <TipCard title={<Term id="useHourCost">Cost per hour of work</Term>} value={`${F.usd(cost.hour)}/h`} rows={[{ label: <Term id="agentHour">Cost per agent-hour</Term>, value: F.usd(cost.agentHour) }, { label: <Term id="h100e">$ per H100e-hour</Term>, value: F.usd(cost.perH100eHour) }]} footer="Before markup and tool costs; prices per product are on Products.">Bigger models, longer reasoning and less serving know-how cost more per hour.</TipCard>}>
+          <span className="tr-link" data-test="card-cost"><Term id="useHourCost">Cost per hour of work</Term> <b className="num">{F.usd(cost.hour)}</b></span>
+        </Tip>
+        <button className={`tr-link ${drawer === 'actions' ? 'on' : ''}`} data-test="card-actions" onClick={() => toggle('actions')}>Actions <ChevronRight size={11} /></button>
+      </div>
+      {drawer === 'bench' && <BenchDrawer s={s} v={v} />}
+      {drawer === 'trained' && <TrainedDrawer s={s} v={v} />}
+      {drawer === 'actions' && <ActionsDrawer s={s} v={v} />}
     </Card>
   );
 }
 
-export function Models({ s }: { s: GameStateV2 }) {
-  useV2();
-  const v = selectedVersion(s);
-  const tab = tabOf('models', 'versions');
-  const tabs = <Tabs panel="models" def="versions" tabs={[{ id: 'versions', label: 'Models', icon: ICON.models }, { id: 'suites', label: 'Environments', icon: Dumbbell }, { id: 'data', label: 'Data', icon: Database }, { id: 'evals', label: 'Evals', icon: ListChecks, badge: s.player.models.evals?.length || undefined }]} />;
-  if (tab === 'suites') {
-    return (
-      <div className="panel-v2" data-panel="models">
-        <PanelHead icon={ICON.models} title="Models" sub="environments your post-training runs practise in" tabs={tabs} />
-        <Suites s={s} />
-      </div>
-    );
-  }
-  if (tab === 'data') {
-    return (
-      <div className="panel-v2" data-panel="models">
-        <PanelHead icon={ICON.models} title="Models" sub="what your base models train on: tokens, quality, domains" tabs={tabs} />
-        <DataView s={s} />
-      </div>
-    );
-  }
-  if (tab === 'evals') {
-    return (
-      <div className="panel-v2" data-panel="models">
-        <PanelHead icon={ICON.models} title="Models" sub="what your evals cost, what is queued and how sure each reading is" tabs={tabs} />
-        <Evals s={s} v={v} />
-      </div>
-    );
-  }
+function BenchDrawer({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const all = BENCHMARKS.filter((b) => v.evals.bench[b.id]);
+  const by = (x: string) => (x === 'self' ? 'your evals' : x === 'evalGov' ? 'government evaluators' : 'independent evaluators');
+  const dw = (d: string) => DOMAIN_WORD[d] ?? d;
   return (
-    <div className="panel-v2 models-grid" data-panel="models">
-      <div className="span2"><PanelHead icon={ICON.models} title="Models" sub="click a model in the lineage to open its card" tabs={tabs} /></div>
-      <Card title="Lineage" home="lineage"><Lineage s={s} sel={v?.id} /></Card>
-      <div className="col2">
-        {v ? <ModelCard s={s} v={v} /> : <Card title="Model card"><div className="dim">No models</div></Card>}
-        <RunQueue s={s} />
+    <div className="md-drawer" data-test="card-bench-list">
+      {all.length === 0 && <div className="dim small">No evals yet.</div>}
+      <div className="md-bench">
+        {all.map((b) => {
+          const r = v.evals.bench[b.id];
+          const sat = b.ceil > 0 && r.score > b.ceil - 5;
+          return (
+            <Tip key={b.id} as="div" content={() => <TipCard title={benchName(s, b)} value={F.bench(r.score, b.special)} rows={[{ label: 'Measured', value: fmtDate(dateOf(s, r.day)) }, { label: 'By', value: by(r.by) }, ...(b.special ? [] : [{ label: 'Range (±)', value: r.sd.toFixed(1) }])]}>{`Skill: ${Array.isArray(b.domain) ? b.domain.map(dw).join(' + ') : dw(b.domain)}${b.dangerous ? ' · dangerous capability' : ''}${sat ? ' · maxed out' : ''}`}</TipCard>}>
+              <div className="md-brow"><span className="ellip">{benchName(s, b)}{b.dangerous && <span className="tone-warn small"> ⚠</span>}</span><span className="num">{F.bench(r.score, b.special)}</span>{sat ? <span className="chip-mini"><Term id="saturated">maxed out</Term></span> : <span />}</div>
+            </Tip>
+          );
+        })}
+      </div>
+      <div className="row-i small"><span className="sp" /><button className="tr-link" data-test="card-order-evals" onClick={() => { store.select({ versionId: v.id }); store.goto('models', { tab: 'evals', anchor: 'evalOrder' }); }}>Order evals <ChevronRight size={11} /></button></div>
+    </div>
+  );
+}
+
+function TrainedDrawer({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const [open, setOpen] = useState(false);
+  const vp = versionPressure(s, v.id);
+  const base = s.player.models.bases.find((b) => b.id === v.baseId);
+  const o = dataSpecView(s, v);
+  const top = [...(vp.run?.rows ?? [])].filter((r) => r.value >= 0.005).sort((a, b) => b.value - a.value).slice(0, 3);
+  return (
+    <div className="md-drawer" data-test="card-trained-list" data-home="versionPressure">
+      <div className="md-kv"><span className="k">Run</span><span>{vp.run ? RUN_LABEL[vp.run.kind] : 'no run of its own'}</span></div>
+      {base && <div className="md-kv"><span className="k">Base model</span><span>{base.name} · {DATA_MIX_WORD[base.design.data] ?? base.design.data} data · {SHAPE_WORD[base.design.shape] ?? base.design.shape}</span></div>}
+      <Tip as="div" content={() => <TipCard title={<Term id="dataSpec">Data specialisation</Term>} rows={o.rows.map(([d, x]) => ({ label: DOMAIN_WORD[d] ?? d, value: `${effX(x)} effective compute` }))} footer={`At most ${effX(o.cap)} per domain.`}>Effective compute each skill gains or loses from the base model&apos;s data mix.</TipCard>}>
+        <div className="md-kv"><span className="k"><Term id="dataSpec">Data</Term></span><span>{o.rows.length ? o.rows.slice(0, 3).map(([d, x]) => `${DOMAIN_WORD[d] ?? d} ${effX(x)}`).join(' · ') : 'no specialisation'}</span></div>
+      </Tip>
+      {(vp.run || vp.base) && (
+        <div className="md-kv"><span className="k"><Term id="trainingPressure">Pushes</Term></span>
+          <span className="row-i">{vp.run && <OmegaChip p={vp.run} />}{top.map((r) => <Tip key={r.id} content={() => <TipCard title={<Term id={`sig:${r.id}`}>{SIGNAL_LABEL[r.id]}</Term>} value={F.num(r.value, 2)}>One of the run's strongest training signals; all of them open with signals.</TipCard>}><span className="small">{SIGNAL_LABEL[r.id]} <span className="num">{F.num(r.value, 2)}</span></span></Tip>)}
+            <button className="tr-link" data-test="mc-pressure-open" onClick={() => setOpen(!open)}>{open ? 'hide signals' : 'signals'}</button></span>
+        </div>
+      )}
+      {open && vp.run && <PressureRows p={vp.run} testId="mc-pressure-rows" />}
+      {open && vp.base && (
+        <>
+          <div className="tip-cap">{vp.base.name} pretraining <span className="dim">· shared by every model on this base model</span></div>
+          <PressureRows p={{ kind: 'base', rows: vp.base.rows, omega: { growth: 1, safety: 1, kind: 1 }, ...(vp.base.imitation ? { imitation: vp.base.imitation } : {}) }} testId="mc-pressure-base" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ActionsDrawer({ s, v }: { s: GameStateV2; v: ModelVersion }) {
+  const uses = usesOf(s, v.id);
+  const internal = uses.model.length > 0 || uses.monitor.length > 0;
+  const og = deployGate(s, v, 'open');
+  return (
+    <div className="md-drawer act-groups" data-test="card-actions-list">
+      <div className="act-group"><span className="tip-cap">Use</span>
+        <ActBtn id="startStream" params={{ versionId: v.id }} label="Continual learning" />
+        <ActBtn id="stopStream" label="Stop continual learning" />
+        <ActBtn id="idaCycle" params={{ versionId: v.id }} label="Amplify" />
+      </div>
+      <div className="act-group"><span className="tip-cap"><Term id="openRelease">Release</Term></span>
+        <ActBtn id="releaseOpen" testId="releaseOpen" params={{ versionId: v.id }} label="Release open weights" block={og === true ? undefined : og} reason />
+        <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distil a smaller model" block={v.variant === 'imported' ? 'Post-train the imported model first (Training › Next run)' : undefined} />
+      </div>
+      <div className="act-group"><span className="tip-cap">Retire</span>
+        <ActBtn id="safety.respond" testId="rollback" params={{ kind: 'rollback', versionId: v.id }} label="Roll back" />
+        <ActBtn id="retireVersion" params={{ versionId: v.id }} block={internal ? 'Runs or watches AI staff' : v.status === 'retired' ? 'Already retired' : undefined} />
       </div>
     </div>
   );
