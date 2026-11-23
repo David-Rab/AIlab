@@ -3,7 +3,8 @@
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
 import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, WORK_TYPES, refDelta } from '../../../data/v2/workTypes';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_TESTS, SKILL_TEST_CODE, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
+import { FRAMEWORK_HIGH_L } from '../../../data/v2/framework';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
@@ -51,6 +52,16 @@ export function levelOfG(w: TimelineWorld, G: number): number {
  *  slow 9.24, fast 9.18 at the CAL-T presets (scripts/v2/_cals/medexp.ts). Read by the framework's default High rules (decision 11); the RL
  *  graders (CP3h(a), decision 9) read the same point as effective compute, G_SC − Δ_bm. */
 export const medianExpertLevel = (w: TimelineWorld): number => levelOfG(w, w.v3.gSC - w.v3.dBM);
+
+/** UB-1: the public marks of one skill bar (MODELS / TRAINING): the median expert and the best human on the domain score,
+ *  and the published test behind the domain's reference. Public facts only: the best human is 10 by the scale's
+ *  definition; the median expert is the reference world's (FRAMEWORK_HIGH_L, ai2027 6.39 → 6.4), not this world's hidden
+ *  λ(G_SC − Δ_bm) (medianExpertLevel), since G_SC and Δ_bm are the world's hidden calibration [stand-in, designer]. */
+export interface SkillMarks { median: number; best: number; test?: string; fact?: string; model?: string }
+export function skillMarks(d: DomainId): SkillMarks {
+  const t = d === 'CODE' ? SKILL_TEST_CODE : SKILL_TESTS[d];
+  return { median: FRAMEWORK_HIGH_L, best: 10, test: t?.test, fact: t?.fact, model: t?.model };
+}
 /** Inverse of λ on [0, 15): the effective compute at display level L (the smallest G with λ(G) ≥ L; λ is increasing
  *  there). L ≥ 15 returns the ASI point, L ≤ 0 the G where the first slope reaches 0. */
 export function gOfLevel(w: TimelineWorld, L: number): number {
@@ -151,14 +162,15 @@ export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'> & { domainDg
   return (v.build ? gOfDomain(v.build, d) : v.G) + (v.domainDg?.[d] ?? 0);
 }
 
-/** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
- *  refDelta(sd_SC)[d] (data/v2/workTypes.ts: the human reference points the work fit reads, departments/workfit.ts
- *  refPoints; RD-U05). Memo per world calibration, as refPoints'. */
+/** How far a domain's best human sits above the coding / agency best human on the skill measurement scale (OOM):
+ *  best_d − G_SC = δ_d·Δ_bm, δ_d = skillRefDelta(sd_SC)[d] (UB-1, data/v2/workTypes.ts: the 2025 frontier's sourced test
+ *  standing per domain against coding's; RD-U05 had read the work fit's refDelta, which put the five expert domains on one
+ *  reference 1.3 gaps beyond the research domains). Memo per world calibration, as refPoints'. */
 const shiftMemo = new WeakMap<TimelineWorld['v3'], Record<DomainId, number>>();
 export function domainRefShift(w: TimelineWorld, d: DomainId): number {
   let m = shiftMemo.get(w.v3);
   if (!m) {
-    const rd = refDelta(w.v3.sdSC);
+    const rd = skillRefDelta(w.v3.sdSC);
     m = {} as Record<DomainId, number>;
     for (const k of DOMAIN_IDS) m[k] = rd[k] * w.v3.dBM;
     shiftMemo.set(w.v3, m);
@@ -183,8 +195,8 @@ export const V2_DOMAIN_OFF: Partial<Record<DomainId, number>> = { CYBER: -1, PHY
 /** CAL2-X: the one conversion for world gates whose thresholds are v2 levels (research/16's profile scale, dated to AI 2027
  *  models), read on the RD-U05 domain scale G (domainScaleG). v2's domain level was λ(G_d) + off_d on the raw domain G;
  *  RD-U05 reads G_d − domainRefShift(w, d). So a v2 threshold L* in domain d is the scale G λ⁻¹(L* − off_d) − shift_d(w),
- *  per world (the shift is δ_d·Δ_bm of the world's own references: ai2027 REASON 1.51 / SOCIAL 3.85, authors2026 1.82 /
- *  4.64, fast 0.60 / 1.38, slow 1.34 / 3.42 OOM). Replaces CAL-X's ai2027-only U05_SHIFT_G. */
+ *  per world (the shift is δ_d·Δ_bm of the world's own references; it cancels here, so UB-1's per-domain references
+ *  leave every v2 gate at the same raw domain G). Replaces CAL-X's ai2027-only U05_SHIFT_G. */
 export const gOfV2Level = (w: TimelineWorld, d: DomainId, L: number) => gOfLevel(w, L - (V2_DOMAIN_OFF[d] ?? 0)) - domainRefShift(w, d);
 /** CAL2-X: a v2 gate σ((L_v2,d − L*)/s) on a domain-scale G x (see gOfV2Level): levelGate on the raw domain G at L* − off_d. */
 export const v2LevelGate = (w: TimelineWorld, d: DomainId, x: number, L: number, s: number) =>

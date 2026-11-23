@@ -16,7 +16,7 @@ import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
 import { rivalVersionBuild, seedRivalLineup, setModelG } from '../actors/rivalModel';
 import { continueDrawNow, fillRecipe } from '../models/runs';
-import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
+import { domainRefShift, domainsOf, gOfLevel, levelOfG, refreshLevels, versionDomainG } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { refitMeasured } from '../models/benchmarks';
 import { techniqueRole } from '../safety/techniques';
@@ -26,6 +26,8 @@ import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { defaultFramework } from '../../../data/v2/framework';
+import { DOMAIN_IDS } from '../../../data/v2/calibration';
+import { clamp } from '../../rng';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -197,8 +199,11 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  102 (RF-S14): a safety method can be validated (ValidationJob.tool a method id; its TechniqueState.measured = planted
  *  cases removed, k of n) and SafetyDept.validation.methods (the policy also queues methods; absent = off). Migration
  *  101 → 102: nothing to rewrite (all optional).
+ *  103 (UB-1): the skill measurement scale reads per-domain sourced best-human references (data/v2/workTypes.ts
+ *  skillRefDelta) instead of the work fit's; migration 102 → 103 recomputes every stored domain-level record (as 49 → 50,
+ *  with a version's adopted-idea offsets domainDg).
  */
-export const SCHEMA_REV = 102;
+export const SCHEMA_REV = 103;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1175,6 +1180,30 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   101: () => {
     // 101 → 102 (RF-S14): method validation (see SCHEMA_REV's note); all new fields optional, nothing to rewrite.
+  },
+  102: (raw) => {
+    // 102 → 103 (UB-1): stored domain levels on the per-domain skill references (see SCHEMA_REV's note). Idempotent.
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden?.timeline;
+    if (!w?.v3) return;
+    const seen = new Set<object>();
+    const walk = (x: unknown) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return;
+      seen.add(x);
+      if (Array.isArray(x)) { for (const y of x) walk(y); return; }
+      const o = x as Record<string, unknown>;
+      if (typeof o.G === 'number' && typeof o.Lg === 'number' && o.domains && typeof o.domains === 'object') {
+        const b = o.build as VersionBuild | undefined;
+        const v = { G: o.G, build: b && 'gPre' in b ? b : undefined, domainDg: o.domainDg as Partial<Record<DomainId, number>> | undefined };
+        const dom = {} as Record<DomainId, number>;
+        for (const d of DOMAIN_IDS) dom[d] = clamp(levelOfG(w, versionDomainG(v, d) - domainRefShift(w, d)), 0, 15);
+        o.domains = dom;
+      }
+      for (const y of Object.values(o)) walk(y);
+    };
+    walk(s.player);
+    walk(s.rivals);
+    walk(s.hidden);
   },
 };
 

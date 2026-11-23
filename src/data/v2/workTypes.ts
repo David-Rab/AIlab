@@ -62,6 +62,58 @@ export function refDelta(sdSC = SD_AT_SC): Record<DomainId, number> {
 }
 export const REF_DELTA: Record<DomainId, number> = refDelta();
 
+// ───────────────────────────── skill measurement scale (UB-1) ─────────────────────────────
+
+/** UB-1: one domain's best-human reference on the skill measurement scale (the domain score, models/capability.ts
+ *  domainsOf): how the 2025 frontier stood among that domain's people on a test with a published human baseline, as z,
+ *  SDs above their median (z = Φ⁻¹(share of the humans the model beat); TOP_SD = the best human). research/UB1-skill-references.md. */
+export interface SkillTestRef {
+  /** The frontier model's standing among the domain's humans on the test (SD above their median). */
+  z: number;
+  /** The test and its human group, in player language (public fact). */
+  test: string;
+  /** What was measured (public fact, for the skill bar's tooltip). */
+  fact: string;
+  /** Model and date of the measurement. */
+  model: string;
+}
+/** UB-1: the coding reference the others are placed against: o3's Codeforces rating 2724, 99.8th percentile of rated
+ *  competitors (OpenAI, "Competitive Programming with Large Reasoning Models", arXiv 2502.06807 §4.1). */
+export const SKILL_TEST_CODE: SkillTestRef = {
+  z: 2.878, test: 'Codeforces (rated competitive programmers)', fact: 'o3 rated 2724, the 99.8th percentile of competitors', model: 'o3, Apr 2025',
+};
+/** UB-1: the expert domains' test standings [sourced; research/UB1-skill-references.md]. Each domain's best human sits
+ *  (z_CODE − z_d)/TOP_SD best-to-median gaps above the coding best human: the same form as the research domains' AIFM
+ *  reference (refDelta: at SC the coding standing is TOP_SD and the taste sd_SC). The domains without a test standing
+ *  (CODE, AGENCY: the superhuman-coder definition; RSCH, REASON: AIFM's taste at SC; PHYS: no human-baselined test) are
+ *  not here. Stand-ins are marked in the source file (model dates differ; SOCIAL's humans are lay debaters; MEDIA's
+ *  experts are three per subject). */
+export const SKILL_TESTS: Partial<Record<DomainId, SkillTestRef>> = {
+  // Götting et al. 2025, Virology Capabilities Test, arXiv 2504.16137: o3 43.8% vs expert virologists 22.1% in their own
+  // sub-areas; "outperforming 94% of expert virologists". z = Φ⁻¹(0.94).
+  BIO: { z: 1.555, test: 'Virology Capabilities Test (expert virologists)', fact: 'o3 beat 94% of expert virologists in their own sub-areas', model: 'o3, Apr 2025' },
+  // Palisade 2025, crowdsourced CTF elicitation, arXiv 2505.19915: AI teams top 10% of ≈ 8,000 teams in Cyber Apocalypse
+  // (top 5% of 400 in AI vs Humans). z = Φ⁻¹(0.90), the larger event.
+  CYBER: { z: 1.282, test: 'Hack The Box CTF competitions (human teams)', fact: 'AI agents placed in the top 10% of ~8,000 human teams', model: 'early-2025 agents' },
+  // Salvi et al. 2025, Nature Human Behaviour 9, 1645 (arXiv 2403.14380): with personal data GPT-4 was more persuasive than
+  // its human opponent in 64.4% of non-tied debates. z = Φ⁻¹(0.644). Stand-in: lay crowd-workers, a 2024 model.
+  SOCIAL: { z: 0.369, test: 'Online debates (crowd-worker opponents)', fact: 'GPT-4 out-persuaded its human opponent in 64% of debates', model: 'GPT-4, 2024' },
+  // Yue et al. 2024, MMMU, arXiv 2311.16502 (90 experts, 3 per subject: worst / medium / best 76.2 / 82.6 / 88.6); GPT-5
+  // 84.2 (OpenAI, Aug 2025). z: linear between the median (0) and the expected best of three (0.846 SD): 0.226. Stand-in
+  // for the SD mapping (three experts per subject; college seniors).
+  MEDIA: { z: 0.226, test: 'MMMU (college-senior subject experts)', fact: 'GPT-5 scored 84.2% vs the median expert 82.6% and best 88.6%', model: 'GPT-5, Aug 2025' },
+};
+/** UB-1: the skill measurement scale's best human per domain in best-to-median gaps above the coding best human (the
+ *  domain score's reference; models/capability.ts domainRefShift). The work fit keeps refDelta (AIFM's references for
+ *  whole-job expert work, "the work AI is worst at", that the ASI knot and milestones read): a test standing is not the
+ *  job. CODE / AGENCY 0 and RSCH / REASON as refDelta; PHYS keeps refDelta's expert-work reference [stand-in: no
+ *  human-baselined physical test]. */
+export function skillRefDelta(sdSC = SD_AT_SC): Record<DomainId, number> {
+  const out = refDelta(sdSC);
+  for (const [d, t] of Object.entries(SKILL_TESTS) as [DomainId, SkillTestRef][]) out[d] = (SKILL_TEST_CODE.z - t.z) / TOP_SD;
+  return out;
+}
+
 // ───────────────────────────── coverage, win rate, assist (V3.2) ─────────────────────────────
 
 /** Coverage a_w = σ((F_w − θ_w)/s) × P(success at H_w). θ_w = F*_w − s·ln 19 + KAPPA_V·(0.9 − v_w): at the best human's
