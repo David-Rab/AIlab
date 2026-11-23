@@ -19,6 +19,7 @@ import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchF
 import { relaunchAdaptations } from './adaptations';
 import { evalPolicyView } from './evals';
 import { frameworkDeployBlock } from '../safety/framework';
+import { PACKAGE_LABEL, frameworkCandidate } from '../safety/packages';
 import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
 type Params = Record<string, number | string | boolean>;
@@ -252,6 +253,11 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
+        // RF-S13b: the parts the Safety framework adds as it goes live (deploy → applyFrameworkParts) are in the numbers.
+        const fc = frameworkCandidate(s, v, ch, tmp);
+        tmp.safeguards = fc.safeguards;
+        tmp.guards = fc.guards ?? [];
+        if (fc.parts.length) costs.push({ currency: 'revenue', amount: 0, target: `your Safety framework adds "${PACKAGE_LABEL}": ${fc.parts.join(', ')} (its cost is in the revenue and serving lines)` });
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);
         const dl = deltaLines(pv);
         costs.push(...dl.costs);

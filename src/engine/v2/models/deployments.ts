@@ -3,6 +3,7 @@
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { charterReleaseBlock } from '../finance/charter';
 import { frameworkDeployBlock } from '../safety/framework';
+import { applyFrameworkParts, frameworkCandidate } from '../safety/packages';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
@@ -60,7 +61,7 @@ export function effortLock(s: GameStateV2, effort: Deployment['effort']): string
 }
 
 /** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */
-export interface GateOpts { safeguards?: Deployment['safeguards']; guards?: Deployment['guards']; usagePolicy?: Deployment['usagePolicy'] }
+export interface GateOpts { safeguards?: Deployment['safeguards']; guards?: Deployment['guards']; usagePolicy?: Deployment['usagePolicy']; frameworkApplied?: string[] }
 
 /** Pre-deployment gate (§3.3.5): external channels need an eval suite (R6: no expiry; the auto-evaluate policy keeps
  *  suites current instead of a 30-day expiry that blocked launches) at the eval-gate depth; the Agents product needs a
@@ -76,15 +77,18 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   // a capability-threshold model). Finance reaches the release path only here.
   const charter = charterReleaseBlock(s, v, channel);
   if (charter) return charter;
-  // SR-19: the Safety framework (capability assessment, then its rules' holds) replaces the eval gate.
-  const held = frameworkDeployBlock(s, v, channel, { safeguards: opts.safeguards ?? 'classifiers', guards: opts.guards ?? [] });
+  // SR-19: the Safety framework (capability assessment, then its rules' holds) replaces the eval gate. RF-S13b: judged on
+  // the candidate with the "Meet my framework" parts the framework adds as it goes live (deploy / swapDeployment), so
+  // a rule refuses only what the package cannot meet.
+  const cand = frameworkCandidate(s, v, channel, { safeguards: opts.safeguards ?? 'classifiers', guards: opts.guards ?? [] }, opts.frameworkApplied);
+  const held = frameworkDeployBlock(s, v, channel, cand);
   if (held) return held;
   if (channel === 'agents') {
     const g = agentsGate(v);
     if (g !== true) return g;
   }
   const block = commitmentDeployBlock(s, {
-    versionId: v.id, channel, safeguards: opts.safeguards ?? 'classifiers', usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
+    versionId: v.id, channel, safeguards: cand.safeguards, usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
   });
   return block ?? true;
 }
@@ -122,6 +126,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   if ('from' in re && re.from && d.adaptations.length) re.from.adaptations = [];
   if (v.status !== 'deployed') v.status = 'deployed';
   ctx.log('company', `${v.name} launched on ${p.channel}.`, p.channel === 'open' ? 3 : 1, d.id);
+  applyFrameworkParts(s, d, ctx); // RF-S13b: the parts the gate counted on (frameworkCandidate)
   return d;
 }
 
@@ -131,12 +136,13 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   const v = versionById(s, versionId);
   if (!d || !v) return 'Unknown deployment or version';
   if (d.channel === 'open') return 'Open weights cannot be replaced';
-  const ok = deployGate(s, v, d.channel, { safeguards: d.safeguards, guards: d.guards, usagePolicy: d.usagePolicy });
+  const ok = deployGate(s, v, d.channel, { safeguards: d.safeguards, guards: d.guards, usagePolicy: d.usagePolicy, frameworkApplied: d.frameworkApplied });
   if (ok !== true) return ok;
   d.versionId = v.id;
   d.versionSince = s.time.day;
   if (d.channel === 'internal') s.player.agents.capRoutine.versionId = v.id;
   if (v.status !== 'deployed') v.status = 'deployed';
+  if (d.channel !== 'internal') applyFrameworkParts(s, d); // RF-S13b: the parts the gate counted on
   return undefined;
 }
 

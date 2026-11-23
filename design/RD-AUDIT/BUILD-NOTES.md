@@ -4638,3 +4638,21 @@ cap 1.5 kept, decision 1).
   bots) runs a control protocol on internal AI work from day 0 (with no trusted watcher it is at the full usefulness
   loss: 7% Slowdown on the day-0 fixture, plus control compute on the monitors' line); RefBot / race / capex no longer
   pay override costs (morale −5, scrutiny +3, red flag) per internal version. Thresholds unchanged (calibration item 1).
+
+### RF-S13b: launches too
+- **Changed.** `deployGate` judges the candidate with the parts the framework adds (`packages.frameworkCandidate`: the
+  same steps and once-per-version record), so a deploy rule refuses a launch / swap only for what the package cannot
+  meet (an eval suite, an external evaluation). `deploy()` and `swapDeployment` then add those parts
+  (`applyFrameworkParts`, split out of `autoApplyPackages`; `deploy` logs the costs). The product.launch preview prices
+  the launch with the parts and names them ("your Safety framework adds ...").
+- **Not changed** (said, not built): product.update's version change passes the gate and gets its parts from the daily
+  system (its preview does not price them); a lineup entry (editBlock) and cheapTier still call `frameworkDeployBlock`
+  on the product's current safeguards, so a lineup model short of them is refused. "No live internal deployment"
+  training hold: `missingFor` asks control of at least one live internal deployment; with none there is no internal AI
+  work to control, so resolving it means reading the rule as met when there is none (drop the `internal.length > 0`
+  term), not adding a deployment. Not built.
+- **Checks.** `_rfs13` 13 ok (new part 4: BIO High launch with standard safeguards goes live with classifiers, recorded;
+  BIO Critical refused only for the external evaluation; once evaluated the preview names hardened and the launch goes
+  live hardened). `_rfs2` 12 ok. tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (launches of High / Critical models get classifiers / hardened instead of a refusal; the
+  launch default is already classifiers, so only Critical changes in practice).

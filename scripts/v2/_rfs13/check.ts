@@ -5,7 +5,12 @@
 //  2. a part the player removes is not put back: the hold returns (the player's choice; override or re-apply by hand);
 //  3. a new game, 30 days with RefBot / race / capex: no framework overrides (nothing to override), frontier training
 //     not held; info: holds left on day 30 for every bot.
+//  4. RF-S13b, launches: a product launch whose chosen safeguards miss a deploy rule gets the missing parts (BIO High →
+//     classifiers; Critical → hardened once externally evaluated), recorded once per version; the launch preview names
+//     them; only what the package cannot meet (Critical without an external evaluation) is refused.
 import { readFileSync } from 'node:fs';
+import { deploy } from '../../../src/engine/v2/models/deployments';
+import { ws4 } from '../../../src/engine/v2/actors/state';
 import { join } from 'node:path';
 import { engine } from '../../../src/engine/v2';
 import { deserialize } from '../../../src/engine/v2/core/save';
@@ -52,6 +57,35 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
   act.apply(x, makeCtx(x), { kind: 'removeControl', versionId: d.versionId });
   frameworkSystem.run(x, makeCtx(x));
   check(!controlOn(d) && trainingHeld(x), 'removed by the player: not re-applied, training held', `control ${controlOn(d)}, held ${trainingHeld(x)}`);
+}
+
+// 4. launches
+{
+  const setup = (bio: number) => {
+    const x = load('day400.json');
+    const live = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open')!;
+    const v = x.player.models.versions.find((y) => y.id === live.versionId)!;
+    v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: bio } as typeof v.evals.measuredDom;
+    v.evals.suiteDay ??= x.time.day;
+    return { x, v, ch: live.channel };
+  };
+  {
+    const { x, v, ch } = setup(10.5);
+    const d = deploy(x, makeCtx(x), { versionId: v.id, channel: ch, safeguards: 'standard' });
+    check(typeof d !== 'string' && d.safeguards === 'classifiers' && !!d.frameworkApplied?.includes(`${v.id}:classifiers`), 'BIO High launch with standard safeguards: goes live with classifiers added, recorded', typeof d === 'string' ? d : `${d.safeguards}; ${d.frameworkApplied?.join(',')}`);
+  }
+  {
+    const { x, v, ch } = setup(12.5);
+    const d = deploy(x, makeCtx(x), { versionId: v.id, channel: ch });
+    check(typeof d === 'string' && d.includes('external evaluation') && !d.includes('hardened'), 'BIO Critical without an external evaluation: refused for the evaluation only', String(typeof d === 'string' ? d : d.id));
+    ws4(x).reportedVersions.push(v.id);
+    x.player.deployments = x.player.deployments.filter((y) => y.channel !== ch);
+    const pv = ACTIONS.find((a) => a.id === 'product.launch')!.preview(x, { channel: ch, versionId: v.id });
+    const line = pv.costs.find((c) => String(c.target).includes('Safety framework adds'));
+    check(!!line && String(line.target).includes('hardened'), 'launch preview names the added part', line?.target as string);
+    const d2 = deploy(x, makeCtx(x), { versionId: v.id, channel: ch });
+    check(typeof d2 !== 'string' && d2.safeguards === 'hardened', 'externally evaluated: goes live with hardened safeguards added', typeof d2 === 'string' ? d2 : d2.safeguards);
+  }
 }
 
 // 3. bots: no overrides from the start

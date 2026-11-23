@@ -19,11 +19,11 @@ import { SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { agentCompute, agentVersion, monitorBudget, monitorVersion, syncInternalControl } from '../departments/agents';
 import { hypothetical, previewDeployments } from '../worldfx/productView';
 import { actTable, type ActTarget } from './actTable';
-import { refreshFramework, requiredSafeguards } from './framework';
+import { refreshFramework, requiredSafeguards, type FrameworkCandidate } from './framework';
 import { safeguardFte } from './investigations';
 import { useControl } from './oversight';
 import { CONTROL_SETTINGS, addSafeguard, controlOn, reviewOn, setControl } from './safeguards';
-import type { Deployment, EngineSystem, FrameworkRule, GameStateV2, SystemCtx } from '../types';
+import type { Channel, Deployment, EngineSystem, FrameworkRule, GameStateV2, ModelVersion, SystemCtx } from '../types';
 
 export const PACKAGE_LABEL = 'Meet my framework';
 
@@ -160,28 +160,47 @@ export function previewPackage(s: GameStateV2, d: Deployment): PackagePreview {
  *  back (the rule then holds, or the player overrides it). Its costs are the engine's own charges for those parts (the
  *  package preview's totals, stated in the log). Returns the deployments it changed. */
 export function autoApplyPackages(s: GameStateV2, ctx?: SystemCtx): Deployment[] {
-  const out: Deployment[] = [];
-  for (const d of s.player.deployments) {
-    if (d.status !== 'live' || d.channel === 'open' || d.channel === 'trusted') continue;
-    const done = new Set(d.frameworkApplied ?? []);
-    const key = (st: Step) => `${d.versionId}:${st.need}`;
-    const todo = steps(s, d).filter((st) => !done.has(key(st)));
-    if (!todo.length) continue;
-    const t = ctx && todo.length === steps(s, d).length ? previewPackage(s, d).total : undefined;
-    for (const st of todo) { st.run(s, d); done.add(key(st)); }
-    d.frameworkApplied = [...done];
-    out.push(d);
-    if (!ctx) continue;
-    const cost = t ? [
-      t.computeH100e > 1e-6 ? `${Math.round(t.computeH100e * 10) / 10} H100e control compute` : '',
-      t.people > 1e-6 ? `${Math.round(t.people)} safety engineers reviewing` : '',
-      t.slowdown > 1e-6 ? `Slowdown ${Math.round(t.slowdown * 1000) / 10}% of agent work` : '',
-      Math.abs(t.revenue) > 1e-4 ? `revenue ${t.revenue > 0 ? '+' : '−'}$${Math.abs(Math.round(t.revenue * 100) / 100)}B/yr` : '',
-      t.servingH100e > 0.5 ? `serving need +${Math.round(t.servingH100e)} H100e` : '',
-    ].filter(Boolean) : [];
-    ctx.log('company', `Your Safety framework applied "${PACKAGE_LABEL}" to ${isInternal(d) ? 'internal AI work' : `product ${d.id}`}: ${todo.map((x) => x.label).join(', ')}${cost.length ? ` (${cost.join(', ')})` : ''}. You can change it; a part you remove is not put back, and the rule then holds.`, 1, d.versionId);
-  }
-  return out;
+  return s.player.deployments.filter((d) => d.status === 'live' && applyFrameworkParts(s, d, ctx));
+}
+
+/** The package's parts the framework still adds to `d` (not yet applied for this version). */
+const pendingParts = (s: GameStateV2, d: Deployment) => {
+  const done = new Set(d.frameworkApplied ?? []);
+  return steps(s, d).filter((st) => !done.has(`${d.versionId}:${st.need}`));
+};
+
+/** One deployment of autoApplyPackages (also a launch or swap as it goes live, RF-S13b): add the pending parts, record
+ *  them, log what they cost. True when it changed something. */
+export function applyFrameworkParts(s: GameStateV2, d: Deployment, ctx?: SystemCtx): boolean {
+  if (d.status !== 'live' || d.channel === 'open' || d.channel === 'trusted') return false;
+  const todo = pendingParts(s, d);
+  if (!todo.length) return false;
+  const t = ctx && todo.length === steps(s, d).length ? previewPackage(s, d).total : undefined;
+  const done = new Set(d.frameworkApplied ?? []);
+  for (const st of todo) { st.run(s, d); done.add(`${d.versionId}:${st.need}`); }
+  d.frameworkApplied = [...done];
+  if (!ctx) return true;
+  const cost = t ? [
+    t.computeH100e > 1e-6 ? `${Math.round(t.computeH100e * 10) / 10} H100e control compute` : '',
+    t.people > 1e-6 ? `${Math.round(t.people)} safety engineers reviewing` : '',
+    t.slowdown > 1e-6 ? `Slowdown ${Math.round(t.slowdown * 1000) / 10}% of agent work` : '',
+    Math.abs(t.revenue) > 1e-4 ? `revenue ${t.revenue > 0 ? '+' : '−'}$${Math.abs(Math.round(t.revenue * 100) / 100)}B/yr` : '',
+    t.servingH100e > 0.5 ? `serving need +${Math.round(t.servingH100e)} H100e` : '',
+  ].filter(Boolean) : [];
+  ctx.log('company', `Your Safety framework applied "${PACKAGE_LABEL}" to ${isInternal(d) ? 'internal AI work' : `product ${d.id}`}: ${todo.map((x) => x.label).join(', ')}${cost.length ? ` (${cost.join(', ')})` : ''}. You can change it; a part you remove is not put back, and the rule then holds.`, 1, d.versionId);
+  return true;
+}
+
+/** RF-S13b: a launch / swap candidate of `v` on a product channel with the parts the framework will add when it goes
+ *  live (applyFrameworkParts; `record` = the deployment's frameworkApplied on a swap). Pure: works on a copy. The gate
+ *  (models/deployments.ts deployGate) judges this candidate, so a deploy rule refuses only what the package cannot meet;
+ *  the launch preview prices it. */
+export function frameworkCandidate(s: GameStateV2, v: ModelVersion, channel: Channel, cand: FrameworkCandidate, record?: string[]): FrameworkCandidate & { parts: string[] } {
+  if (channel === 'open' || channel === 'internal' || channel === 'trusted') return { ...cand, parts: [] };
+  const d = { id: '__candidate', channel, versionId: v.id, status: 'live', safeguards: cand.safeguards, guards: (cand.guards ?? []).map((g) => ({ ...g })), frameworkApplied: record } as unknown as Deployment;
+  const todo = pendingParts(s, d);
+  for (const st of todo) st.run(s, d);
+  return { safeguards: d.safeguards, guards: d.guards, parts: todo.map((st) => st.label) };
 }
 
 /** frameworkSystem (39, daily, before runs): the framework applies its package where a rule asks (RF-S13), then the
