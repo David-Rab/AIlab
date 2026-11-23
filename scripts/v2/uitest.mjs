@@ -494,42 +494,56 @@ if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its
   const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
   if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
 }
-// R8 Safety: overview (verdict, race chart, four risk families, policies), research lines, investigations.
+// UB-9 SAFETY: the header (model picker, Loss-of-control risk, Unstopped harm, sight curve, framework) on every tab and
+// Risks (the harmful-acts table) first; then Model, Instruments, Safeguards, Incidents & cases, Programmes.
 await nav('safety');
-await tabTo('overview');
-ok('Safety overview: verdict, race chart, 4 risk families, policies', !!(await page.$('[data-home=safetyVerdict]')) && !!(await page.$('[data-test=race-chart]')) && (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-home=safetyPolicy]')));
-ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
-await check('Safety: evaluate-before-release toggle', 's.player.safety.evalGate', () => page.click('[data-act="safety.evalGate.toggle"]'));
-await page.click('[data-act="safety.evalGate.toggle"]', { timeout: 2000 }).catch(() => {}); // stale: no evalGate control on Safety (pre-UB-5)
-await page.hover('[data-test=u-point]');
-await wait(250);
-ok('Safety: U tooltip shows tools validated to and per-family levels', JSON.parse(await get(`/validated to/i.test(document.body.innerText) && /Deception seen to/.test(document.body.innerText)`)));
-await clearTips();
-await tabTo('lines');
-ok('Research lines: staffed lines with health and teams', (await page.$$('[data-home=researchLines] [data-line]')).length >= 2 && !!(await page.$('[data-home=researchLines] [data-line] [data-team]')) && /Promising|Mixed|Struggling/.test(await page.$eval('[data-home=researchLines]', (e) => e.textContent ?? '')));
-ok('Research lines: tool upkeep card (research engineers)', !!(await page.$('[data-home=toolUpkeep] [data-test=re-bar]')));
+await tabTo('risks');
+ok('SAFETY header: picker, Loss-of-control risk, Unstopped harm, sight curve with the 50% line, framework', !!(await page.$('[data-test=sf-model]')) && !!(await page.$('[data-test=sf-risk]')) && !!(await page.$('[data-test=sf-harm]')) && !!(await page.$('[data-test=sight-curve] [data-mark=model]')) && !!(await page.$('[data-home=frameworkHold] [data-test=sf-hold]')));
 {
-  const tid = JSON.parse(await get('(s.player.teams.find((t) => t.role === "sci" && t.dept === "saf" && t.projectId) || {}).id || ""'));
-  const line = JSON.parse(await get(`(() => { const t = s.player.teams.find((x) => x.id === "${tid}"); const r = document.querySelector('[data-line] [data-team="${tid}"]'); return r ? r.closest('[data-line]').getAttribute('data-line') : ''; })()`));
-  if (tid && line) {
-    await page.evaluate((id) => { window.ai27v2.state.player.research.autoAssign = false; window.ai27v2.act('research.unassign', { team: id }); }, tid);
-    await wait(80);
-    if (!(await page.$(`[data-test="line-add.${line}"]`))) await page.click('[data-test=lines-all]');
-    await wait(60);
-    await page.click(`[data-test="line-add.${line}"]`);
-    await check('Research lines: + team assigns an idle safety team to the line', `(s.player.teams.find((t) => t.id === "${tid}") || {}).projectId || ""`, () => page.click(`[data-act="line-assign.${tid}"]`));
-    await page.evaluate(() => { window.ai27v2.state.player.research.autoAssign = true; });
+  const pick = await page.$eval('[data-test=sf-model]', (e) => e.value);
+  const r = JSON.parse(await get(`(() => { const r = store.readouts.lossOfControlRisk(s, ${JSON.stringify(pick)}); return r ? r.p : -1; })()`));
+  const shown = await page.$eval('[data-test=sf-risk]', (e) => Number(e.getAttribute('data-risk')));
+  ok('SAFETY header: the risk tile reads lossOfControlRisk of the picked model', Math.abs(shown - r) < 1e-5, `${shown} vs ${r}`);
+  const lab = JSON.parse(await get('(store.readouts.lossOfControlRisk(s) || {}).versionId || ""'));
+  ok('SAFETY header: the picker starts on the riskiest running model (the one the top bar names)', !!pick && (pick === lab || JSON.parse(await get('!!store.sel.versionId'))), `${pick} vs ${lab}`);
+  const risk = await page.$eval('[data-test=sf-risk]', (e) => e.textContent ?? '');
+  ok('SAFETY header: risk reads "< 0.1%", a %, or Unknown (never 0%)', /^(< 0\.1%|\d+(\.\d)?%|Unknown)$/.test(risk) && !/^0(\.0)?%$/.test(risk), risk);
+}
+ok('SAFETY › Risks: grouped act table (misbehaviour, against the lab, misuse link) with the composite row feeding Loss-of-control risk', !!(await page.$('[data-home=actTable] [data-group=misbehaviour] [data-act]')) && !!(await page.$('[data-home=actTable] [data-group=lab] [data-act=TAKEOVER] [data-ref=lossRisk]')) && !!(await page.$('[data-home=actTable] [data-group=misuse]')));
+ok('SAFETY › Risks: five factor columns per act row and a safeguards footer with its link', (await page.$$('[data-home=actTable] [data-act=RH] [data-col]')).length === 5 && !!(await page.$('[data-test=sfr-guards] [data-ref=safeguardsTab]')));
+ok('SAFETY: the old readouts are gone (verdict, risk gauge, Would-try card, side switch)', !(await page.$('[data-home=safetyVerdict]')) && !(await page.$('[data-test=control-value]')) && !(await page.$('[data-home=misBand]')) && !(await page.$('[data-test=sf-side-tabs]')));
+await page.hover('[data-test=sf-risk]');
+await wait(300);
+ok('SAFETY header: the risk tooltip gives its range, certainty and parts', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /90% range/.test(t) && /Certainty/.test(t) && /Stop rate/.test(t); })()`)));
+await clearTips();
+{
+  const ids = await page.$$eval('[data-test=sf-model] option', (els) => els.map((e) => e.value));
+  const cur = await page.$eval('[data-test=sf-model]', (e) => e.value);
+  const other = ids.find((x) => x !== cur);
+  if (other) {
+    await check('SAFETY header: picking another model changes the table', 'store.sel.versionId || ""', () => page.selectOption('[data-test=sf-model]', other));
+    ok('SAFETY header: the table names the picked model', (await page.$eval('[data-home=actTable]', (e) => e.innerText)).includes(await page.$eval('[data-test=sf-model] option:checked', (e) => e.textContent.split(' · ')[0])));
+    await page.evaluate(() => { window.ai27v2.sel.versionId = undefined; window.ai27v2.notify(); });
   }
 }
-await check('Research lines: show all / staffed only', 'document.querySelectorAll("[data-home=researchLines] [data-line]").length', () => page.click('[data-test=lines-all]'));
-await check('Research lines: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await check('SAFETY › Risks: the safeguards link opens Safeguards', 'store.tab.safety || ""', () => page.click('[data-test=sfr-guards] [data-ref=safeguardsTab]'));
+ok('SAFETY › Safeguards: AI staff safeguards, footholds and policies', !!(await page.$('[data-home=staffSafeguards]')) && !!(await page.$('[data-home=footholds]')) && !!(await page.$('[data-home=safetyPolicy]')));
+ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
+await tabTo('instruments');
+ok('SAFETY › Instruments: instruments, detection by level, the capability vs sight-limit history, validation', !!(await page.$('[data-home=techniques]')) && !!(await page.$('[data-home=detectionByLevel]')) && !!(await page.$('[data-test=race-chart]')) && !!(await page.$('[data-home=validation]')));
+await check('Instruments: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+await tabTo('model');
+ok('SAFETY › Model: 4 risk families, trait graph, successor steering', (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-test=traitgraph]')) && !!(await page.$('[data-home=successorPull]')));
+// UB-9: safety programmes live on RESEARCH › Portfolio (UB-6); SAFETY has a link chip, no second copy.
+ok('SAFETY: no Programmes tab; a Safety programmes chip links to RESEARCH › Portfolio', !(await page.$('main.center [data-tabs=safety] [data-tab=lines]')) && !(await page.$('[data-home=researchLines]')) && !!(await page.$('.sf-tabs [data-ref=safetyProgrammes]')));
+await check('SAFETY: the Safety programmes chip opens RESEARCH › Portfolio', 'store.panel + "." + (store.tab.research || "")', () => page.click('.sf-tabs [data-ref=safetyProgrammes]'));
+ok('SAFETY: the chip lands on the Portfolio safety column', !!(await page.$('[data-home=safetyProgrammes]')));
+await nav('safety');
 await tabTo('cases');
 await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
 ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
-await tabTo('graph');
-ok('Trait graph tab renders the graph', !!(await page.$('[data-test=traitgraph]')));
-await tabTo('overview');
+await tabTo('risks');
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
@@ -1009,34 +1023,38 @@ async function e11Check(where, plant = false) {
   const running = await page.evaluate(() => ['eng', 'capRoutine', 'capFrontier', 'safety'].filter((u) => !!document.querySelector(`[data-lane="${u}"]`) && !document.querySelector(`[data-test="lane-off.${u}"]`)));
   ok(`E11 ${where}: a danger readout on every running agent lane, equal to the belief selector`, lanes.length >= 1 && lanes.length === running.filter((u) => lv[u] !== undefined).length && lanes.every(([u, h]) => Math.abs(h - lv[u]) < 1e-4), JSON.stringify(lanes));
   if (lanes.length) { await page.hover(`[data-test="agent-danger.${lanes[0][0]}"]`); await wait(350); await shot(`e11-${tag}-lane-danger`); await clearTips(); }
-  // Safety › Overview: believed control equals controlReadout; the true level never shows.
+  // UB-9: SAFETY's Loss-of-control risk tile equals the believed selector for the picked model; the true level never
+  // shows; the AI staff safeguards card (SAFETY › Safeguards) holds the control layer; footholds count known ones only.
   await nav('safety');
-  await tabTo('overview');
-  const shown = await page.$eval('[data-test=control-value]', (e) => Number(e.getAttribute('data-control'))).catch(() => NaN);
-  const cr = await sel('r.controlReadout(s)');
-  const card = await page.locator('[data-home=effectiveControl]').innerText().catch(() => '');
-  ok(`E11 ${where}: control on Safety › Overview equals the believed selector (${cr.believed})`, Math.abs(shown - cr.believed) < 1e-4 && card.includes(cr.believed.toFixed(2)), `${shown} vs ${cr.believed}`);
-  ok(`E11 ${where}: the true control level and exposure never show`, !/\b0\.01\b|\b0\.99\b|99%/.test(card), card.replace(/\s+/g, ' ').slice(0, 160));
+  await tabTo('risks');
+  const pickId = await page.$eval('[data-test=sf-model]', (e) => e.value).catch(() => '');
+  const shown = await page.$eval('[data-test=sf-risk]', (e) => Number(e.getAttribute('data-risk'))).catch(() => NaN);
+  const lr = JSON.parse(await get(`(() => { const r = store.readouts.lossOfControlRisk(s, ${JSON.stringify(pickId)}); return r ? r.p : -1; })()`));
+  const head = await page.locator('[data-home=safetyHeader]').innerText().catch(() => '');
+  ok(`E11 ${where}: Loss-of-control risk on SAFETY equals the believed selector (${lr})`, Math.abs(shown - lr) < 1e-5, `${shown} vs ${lr}`);
+  ok(`E11 ${where}: the true control level and exposure never show`, !/\b0\.0137\b|\b0\.9863\b|98\.6%/.test(head), head.replace(/\s+/g, ' ').slice(0, 160));
   const fv = await sel('r.footholdView(s)');
-  ok(`E11 ${where}: the footholds chip counts known footholds only`, (await page.locator('[data-test=foothold-chip]').innerText()).includes(String(fv.suspected + fv.located)) && !fv.rows.some((x) => x.id === 'FH-E11-HIDDEN'));
-  await shot(`e11-${tag}-safety-overview`);
-  await page.hover('[data-test=control-value]');
+  ok(`E11 ${where}: the Risks footholds line counts known footholds only`, (fv.suspected + fv.located === 0 ? !(await page.$('[data-test=sfr-footholds]')) : (await page.locator('[data-test=sfr-footholds]').innerText()).includes(`${fv.suspected} suspected`)) && !fv.rows.some((x) => x.id === 'FH-E11-HIDDEN'));
+  await shot(`e11-${tag}-safety-risks`);
+  await page.hover('[data-test=sf-risk]');
   await wait(350);
-  ok(`E11 ${where}: the control tooltip shows its exposure terms`, /Exposure/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  ok(`E11 ${where}: the risk tooltip shows its parts (would try, stop rate, footholds)`, /Stop rate/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')) && /Footholds/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+  await tabTo('safeguards');
   // Model v3 F6: the control layer has an off switch next to Add control (the response's preview, its effect).
   await clearTips();
   if (await page.$('[data-act="control-add"]')) {
     await page.click('[data-act="control-add"]');
     await wait(150);
-    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && d.controlLayer)'));
+    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && (d.guards || []).some((g) => g.kind === "control"))'));
     const btn = await page.$('[data-act="control-remove"]');
     let rtip = '';
     if (btn) { await page.hover('[data-act="control-remove"]'); await wait(350); rtip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? ''); await clearTips(); await page.click('[data-act="control-remove"]'); await wait(150); }
-    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && d.controlLayer)'));
-    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /control tax ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
+    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && (d.guards || []).some((g) => g.kind === "control"))'));
+    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /slowdown ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
   }
   await clearTips();
-  await tabTo('footholds');
+  await tabTo('safeguards');
   const html = await page.locator('main.center').innerHTML();
   const rows = await page.$$eval('[data-foothold]', (els) => els.map((e) => e.getAttribute('data-foothold')));
   ok(`E11 ${where}: Footholds lists every known foothold and no hidden one`, !html.includes('FH-E11-HIDDEN') && rows.length === fv.rows.length && fv.rows.every((x) => rows.includes(x.id)), rows.join(','));
@@ -1288,7 +1306,7 @@ const e12Seen = new Set();
 const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
 async function e12Check(where) {
   const tag = where.replace(' ', '');
-  await page.evaluate(() => { window.ai27v2.setTab('safety', 'overview'); window.ai27v2.setTab('safety.side', 'families'); });
+  await page.evaluate(() => { window.ai27v2.setTab('safety', 'model'); });
   await nav('safety');
   // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
   const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
@@ -1301,30 +1319,26 @@ async function e12Check(where) {
     await wait(60);
     const tr = await page.$$eval(`[data-test="fam-traits.${f}"] [data-trait]`, (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), m: e.querySelector('.sf-mean')?.textContent ?? '', v: e.querySelector('.num')?.textContent ?? '' })));
     rows += tr.length;
-    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d\.\d\d ±\d\.\d\d/.test(x.v)).length;
+    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d+(\.\d)?% \(\d+(\.\d)?%–\d+(\.\d)?%\)/.test(x.v)).length;
     await collectTerms();
     if (f === 'deception') { await page.mouse.move(1, 1); await shot(`e12-${tag}-families`); }
   }
   await page.click('[data-test="fam-open.other"]');
   ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
   // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
-  const famOnly = !(await page.$('[data-home=successorPull]'));
-  await page.click('[data-test="sf-side.successor"]');
-  await wait(80);
-  ok(`F6b ${where}: Safety's side column shows one of families / successor pull, the switch opens the other`, famOnly && !!(await page.$('[data-home=successorPull]')) && !(await page.$('[data-home=riskFamilies]')));
+  ok(`UB-9 ${where}: SAFETY › Model shows the risk families and the successor pull side by side`, !!(await page.$('[data-home=successorPull]')) && !!(await page.$('[data-home=riskFamilies]')));
   const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
-  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d\.\d\d/)?.[0];
+  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d+\.\d%/)?.[0];
   const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
   const parts = await page.$$eval('[data-test=succ-part]', (els) => els.map((e) => ({ slot: e.getAttribute('data-slot'), sh: e.querySelector('[data-test=succ-part-share]')?.textContent ?? '', om: e.querySelector('[data-test=succ-part-omega]')?.textContent ?? '' })));
-  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === p.omega.toFixed(2));
-  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === sp.omega.toFixed(2) && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
+  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === `${(p.omega * 100).toFixed(1)}%`);
+  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === `${(sp.omega * 100).toFixed(1)}%` && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
     `ω ${om} vs ${sp.omega.toFixed(3)} · r ${r}% vs ${(sp.r * 100).toFixed(1)} · ${parts.map((p) => `${p.slot} ${p.sh} ${p.om}`).join(' ')}`);
   const sTip = await tipText('[data-test=succ-omega]');
-  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /90% band/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
+  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /Range/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
   await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
-  await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
   await nav('blueprint');
   const kinds = await page.$$eval('[data-bp-kind]', (els) => els.map((e) => e.getAttribute('data-bp-kind')));
@@ -1346,12 +1360,11 @@ async function e12Check(where) {
     await shot(`e12-${tag}-blueprint-${k}`);
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor pull from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  ok(`E12 ${where}: Blueprint links the successor pull to its home on Safety`, /Successor steering from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
   if (where === 'day 400') {
     await page.click('[data-test=bp-succ] [data-ref=successorPull]');
     await wait(150);
     ok('F6b: the Blueprint successor link opens Safety on the successor pull card', !!(await page.$('[data-home=successorPull]')));
-    await page.evaluate(() => window.ai27v2.setTab('safety.side', 'families'));
   }
   await collectTerms();
   // Model card: what the finished run applied, one click down.

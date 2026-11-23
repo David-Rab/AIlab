@@ -1,38 +1,36 @@
-// Safety (STRUCTURE §4.5, BUILD-PLAN R8, mockups-v3 v3-safety*, v3-safety-IA.md). Replaces the Safety lab.
-// First glance (Overview) holds four things: the verdict with its cause → fix chains, the capability vs understanding
-// chart (U only; its breakdown, tools validated to and upkeep live in the U tooltip, L3), the four risk families of a
-// model, and the policies. One click deeper: Research lines (HOME of line health, teams, results, dead ends, tool
-// upkeep, tools, results feed), Investigations, Trait graph (beliefs, detection by level, misalignment band, failure
-// modes) and Incidents. Trusted to AI and the monitors live on Lab › AI staff & needs (D4): links only.
+// SAFETY (UB-9; UI-IA §1 SAFETY, approved mockups design/ux/mockups/rd/safety*.png). The header (model picker, Loss-of-control
+// risk, Unstopped harm, sight curve, Safety framework) and the Risks tab live in SafetyRisks.tsx. Tabs: Risks · Model
+// (risk families and traits, trait graph, successor steering, new failure modes) · Instruments (instruments, detection by
+// level, the capability vs sight-limit history, validation, results) · Safeguards (AI staff safeguards, footholds,
+// policies) · Incidents & cases; safety programmes live on RESEARCH › Portfolio (a link chip here). The Model, Instruments and
+// Safeguards cards are the old Overview / Trait graph / Footholds cards regrouped; their redesign is a later task.
 import { useMemo, useState, type ReactNode } from 'react';
-import { Ban, ClipboardCheck, Droplets, Eye, ListChecks, Ruler, Telescope, TrendingDown, Waypoints, Wrench, X, type LucideIcon } from 'lucide-react';
+import { Ban, ClipboardCheck, Droplets, Eye, Ruler, Telescope, TrendingDown, Wrench, type LucideIcon } from 'lucide-react';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS, TRAIT_MEANING } from '../../../data/v2/traits';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
-import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, hardenLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
-  projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
+  dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, hardenLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
+  projectReady, riskFamilies, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
   FOLDED_METHODS,
 } from '../../../engine/v2';
-import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
-import { store } from '../store';
+import type { GameStateV2, ResponseKind, TraitId } from '../../../engine/v2';
 import { riskClass, riskColor, safetyModel } from '../safetyRule';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
-import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
+import { Card, HBar, Pill, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { FAMILY_ICON, ICON, TRAIT_ICON } from '../icons';
 import { C, SPHERE, div } from '../theme';
 import { TraitGraph, traitSev } from './TraitGraph';
 import { ControlCard, FootholdsTab } from './SafetyControl';
+import { RisksTab, SafetyHeader } from './SafetyRisks';
 import './safety.css';
 
 type SV = ReturnType<typeof safetyView>;
 const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
-const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 /** SR-18: short button labels; which responses an incident offers comes from its believed cause (responseOptions). */
 const RESPONSE_LABEL: Record<ResponseKind, string> = {
   patchSignal: 'Harden environments', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
@@ -43,77 +41,88 @@ const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> =
   DEAD: { icon: Ban, label: 'Failed', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
   FALSE: { icon: Wrench, label: 'Instrument', tone: 'good' },
 };
-const HEALTH_TONE: Record<string, string> = { Promising: 'good', Mixed: 'warn', Struggling: 'bad' };
 const tname = (t: string) => TRAIT_BY_ID[t as TraitId]?.name ?? F.words(t);
-const eta = (d: number) => (Number.isFinite(d) ? F.days(d) : '—');
 const lineName = (id: string) => AGENDA_BY_ID[id as keyof typeof AGENDA_BY_ID]?.name ?? id;
+
+/** UB-9 tab ids, and the old ids other screens still link to. */
+const TAB_ALIAS: Record<string, string> = { overview: 'risks', graph: 'model', footholds: 'safeguards', incidents: 'cases', lines: 'risks' };
 
 export function Safety({ s }: { s: GameStateV2 }) {
   const sv = safetyView(s);
-  const tab = tabOf('safety', 'overview');
+  const raw = tabOf('safety', 'risks');
+  const tab = TAB_ALIAS[raw] ?? raw;
   const openInc = sv.incidents.filter((i) => i.status === 'open' || i.status === 'investigating').length;
   const openCases = sv.investigations.filter((i) => !i.outcome).length;
-  const lb = sv.lineBadges;
   const fv = footholdView(s);
-  const lineBadge = (lb.promisingIdle.length || lb.deadEndTM >= 0.5) ? (
-    <span className="sf-tbadges">
-      {lb.promisingIdle.length > 0 && <span className="sf-tb warn" data-test="badge-idle">{lb.promisingIdle.length} idle</span>}
-      {lb.deadEndTM >= 0.5 && <span className="sf-tb" data-test="badge-dead">{F.num(lb.deadEndTM * 4.3, 0)} team-weeks lost</span>}
-    </span>
-  ) : undefined;
   return (
     <div className="panel-v2 safety" data-panel="safety">
-      <PanelHead
-        icon={ICON.safety}
-        title="Safety"
-        tabs={<Tabs panel="safety" def="overview" tabs={[
-          { id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'lines', label: 'Programmes', icon: ListChecks, badge: lineBadge },
-          { id: 'cases', label: 'Cases', icon: ICON.incident, badge: openCases + openInc || undefined }, { id: 'graph', label: 'Trait graph', icon: Waypoints },
-          { id: 'footholds', label: 'Footholds', icon: ICON.foothold, badge: fv.suspected + fv.located || undefined },
-        ]} />}
-      />
-      {tab === 'overview' && <Overview s={s} sv={sv} />}
-      {tab === 'lines' && <LinesTab s={s} sv={sv} />}
-      {/* Jank S4: incidents and investigations share one Cases tab (each was one line on an empty page most of the game). */}
-      {(tab === 'cases' || tab === 'incidents') && <div className="sf-cases2"><IncidentsTab s={s} sv={sv} /><CasesTab s={s} sv={sv} /></div>}
-      {tab === 'graph' && <GraphTab s={s} sv={sv} />}
-      {tab === 'footholds' && <FootholdsTab s={s} />}
+      <SafetyHeader s={s} />
+      <div className="sf-tabs">
+        <Tabs panel="safety" def="risks" tabs={[
+          { id: 'risks', label: 'Risks' }, { id: 'model', label: 'Model' }, { id: 'instruments', label: 'Instruments' },
+          { id: 'safeguards', label: 'Safeguards', badge: fv.suspected + fv.located || undefined },
+          { id: 'cases', label: 'Incidents & cases', badge: openCases + openInc || undefined },
+        ]} />
+        <Ref id="safetyProgrammes" to={{ panel: 'research', tab: 'projects' }}>Safety programmes</Ref>
+      </div>
+      {tab === 'risks' && <RisksTab s={s} />}
+      {tab === 'model' && <ModelTab s={s} sv={sv} />}
+      {tab === 'instruments' && <InstrumentsTab s={s} sv={sv} />}
+      {tab === 'safeguards' && <SafeguardsTab s={s} sv={sv} />}
+      {/* Jank S4: incidents and investigations share one tab (each was one line on an empty page most of the game). */}
+      {tab === 'cases' && <div className="sf-cases2"><IncidentsTab s={s} sv={sv} /><CasesTab s={s} sv={sv} /></div>}
     </div>
   );
 }
 
-// ───────── Overview ─────────
-function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const fams = riskFamilies(s, safetyModel(s)?.id);
-  const cand = bestIdea(s, fams);
+// ───────── Model · Instruments · Safeguards (UB-9: the old Overview's cards, regrouped; their redesign is later) ─────────
+function ModelTab({ s, sv }: { s: GameStateV2; sv: SV }) {
+  const v = safetyModel(s);
   return (
-    <div className="sf-ov">
-      <Verdict sv={sv} fams={fams} cand={cand} />
-      <div className="sf-grid">
-        {/* E11: the Control card joins the side column; Policies move under the chart (the side column grew). */}
-        <div className="sf-main">
-          <RaceChart s={s} sv={sv} fams={fams} cand={cand} />
-          <Policies s={s} sv={sv} />
-        </div>
-        <div className="sf-side">
-          <ControlCard s={s} />
-          <SideSwitch />
-          {sideTab() === 'successor' ? <SuccessorCard s={s} /> : <Families s={s} />}
-        </div>
+    <div className="sf-tabgrid">
+      <div className="sf-main">
+        <Families s={s} />
+        <Card title="How training shapes traits" term="traitGraph" home="traitGraph"
+          sub={<>{v?.name ?? ''} · nodes: your <Term id="belief">belief</Term> (best guess, range) · links: <Term id="evidenceGrade">evidence</Term> (width = size, solid = strong … dotted = weak)</>}>
+          <TraitGraph s={s} versionId={v?.id} />
+        </Card>
+      </div>
+      <div className="sf-side">
+        <SuccessorCard s={s} />
+        <UModes sv={sv} />
       </div>
     </div>
   );
 }
 
-/** F6b: the side column under Control shows one of Risk families / Successor pull (it was taller than the chart with
- *  both). The choice is a store tab (`safety.side`), so the Blueprint's successor link opens it. */
-const sideTab = () => (store.tab['safety.side'] === 'successor' ? 'successor' : 'families');
-function SideSwitch() {
-  const cur = sideTab();
-  const opts = [{ id: 'families', label: 'Risk families', term: 'riskFamily' }, { id: 'successor', label: 'Successor steering', term: 'successorPull' }] as const;
+function InstrumentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
+  const fams = riskFamilies(s, safetyModel(s)?.id);
+  const cand = bestIdea(s, fams);
   return (
-    <div className="sf-side-tabs" role="tablist" data-test="sf-side-tabs">
-      {opts.map((o) => <button key={o.id} role="tab" aria-selected={cur === o.id} className={`sf-side-tab ${cur === o.id ? 'on' : ''}`} data-test={`sf-side.${o.id}`} onClick={() => store.setTab('safety.side', o.id)}>{o.label}</button>)}
+    <div className="sf-tabgrid">
+      <div className="sf-main">
+        <ToolsCard sv={sv} />
+        <DetectionCard s={s} sv={sv} />
+        <RaceChart s={s} sv={sv} fams={fams} cand={cand} />
+      </div>
+      <div className="sf-side">
+        <ValidationCard sv={sv} />
+        <ResultsCard s={s} sv={sv} />
+      </div>
+    </div>
+  );
+}
+
+function SafeguardsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
+  return (
+    <div className="sf-tabgrid">
+      <div className="sf-main">
+        <ControlCard s={s} />
+        <FootholdsTab s={s} />
+      </div>
+      <div className="sf-side">
+        <Policies s={s} sv={sv} />
+      </div>
     </div>
   );
 }
@@ -142,52 +151,6 @@ function bestIdea(s: GameStateV2, fams: Fams): { id: string; name: string; fam: 
     if (!best || score > best.score) best = { id: n.id, name: n.name, score, active };
   }
   return best ? { id: best.id, name: best.name, fam: weak, active: best.active } : undefined;
-}
-
-function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea> }) {
-  const sl = sv.sightLimit;
-  const m = sl.gap;
-  const up = sv.validation;
-  const tone = m < 0 ? 'bad' : m < 0.5 || fams.some((f) => f.unseen) ? 'warn' : 'good';
-  // Jank S1: the verdict counts what the tools cannot see.
-  const unseen = fams.filter((f) => f.unseen);
-  const title = m < 0 ? 'Model past your sight limit' : m < 0.5 ? 'Sight limit barely above the model' : unseen.length ? `Sight limit above the model, but ${unseen.length} of ${fams.length} risk families unknown` : 'Sight limit above the model';
-  const widening = up.capPerMo > 0.02;
-  const unval = up.notOnCurrent > 0 && !up.jobs.length;
-  const sub = [`Sight limit ${F.sight(sl)}`, m < 0 ? `${F.num(-m, 1)} levels past it` : `${F.num(m, 1)} levels above the model`, widening ? 'gap widening' : 'holding',
-    up.notOnCurrent > 0 && up.model ? `${up.notOnCurrent} of ${up.instruments} instruments not validated on ${up.model}` : ''].filter(Boolean).join(' · ');
-  const weak = weakFamily(fams, sl.perTrait);
-  const weakRead = weak ? famRead(weak, sl.perTrait) : 1;
-  const chains: ChainLink[][] = [];
-  if (weak && weakRead < 0.6) {
-    chains.push([
-      { label: <>{weak.label} {weakRead < 0.5 ? 'unread' : 'barely read'}</>, icon: FAM_ICON[weak.id], kind: 'bad', to: { panel: 'safety', tab: 'overview' } },
-      cand ? { label: cand.name, icon: ICON.research, kind: 'root', tip: () => <TipCard title={cand.name} value={cand.active ? 'in progress' : 'not started'}>An instrument project that reads {weak.label.toLowerCase()}. Its chance it works is the programme's estimate.</TipCard> }
-        : { label: 'Safety programmes', icon: ListChecks, kind: 'root', to: { panel: 'safety', tab: 'lines' } },
-    ]);
-  }
-  if (unval) chains.push([{ label: 'Instruments not validated', icon: ICON.revalidate, kind: 'bad' }, { label: 'Validate', icon: ICON.roleRE, kind: 'root' }]);
-  else if (!sv.lines.some((l) => l.teams.length)) chains.push([{ label: 'No programme staffed', icon: ListChecks, kind: 'bad' }, { label: 'Safety programmes', icon: ICON.roleSci, kind: 'root', to: { panel: 'safety', tab: 'lines' } }]);
-  return (
-    <div className={`sf-verdict ${tone}`} data-home="safetyVerdict" data-test="verdict">
-      {m < 0 ? <ICON.blind size={22} /> : <Eye size={22} />}
-      <div className="sf-vt">
-        <b>{title}</b>
-        <Tip content={() => <TipCard title={<Term id="sightLimit">Sight limit vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
-          { label: 'Capability (measured)', value: F.level(up.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: F.sight(sl) },
-          { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} levels` }, { label: <Term id="validation">Validations queued</Term>, value: F.count(up.jobs.length) },
-        ]}>Positive: your instruments read the model past its level. Instruments lose reliability as the model outgrows the one they were validated on; research raises it, validation measures it.</TipCard>}><span className="small">{sub}</span></Tip>
-      </div>
-      <span className="sp" />
-      {chains.map((c, i) => (
-        <span key={i} className="sf-chain row-i">
-          <CauseChain links={c} />
-          {i === 0 && cand && c.length && c[1].label === cand.name ? <GoBtn to={{ panel: 'research' }} label="Research" testId="verdict.research" /> : null}
-          {c[0].label === 'Instruments not validated' && <ActBtn id="safety.validate" params={{ tool: 'all' }} label="Validate all" testId="verdict.validate" />}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 /** Sight limit if an idea works (estimate from believed efficacy): with its instrument unlocked. */
@@ -333,19 +296,12 @@ function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) 
 }
 
 function Families({ s }: { s: GameStateV2 }) {
-  const iv = internalVersion(s);
-  const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack').slice(-3).reverse();
   const sel = safetyModel(s);
   const fams = riskFamilies(s, sel?.id);
   const [open, setOpen] = useState<string | undefined>(undefined);
   const max = FAM_MAX;
   return (
-    <Card title={<Term id="riskFamily">Risk families</Term>} home="riskFamilies" className="sf-fam"
-      right={vs.length > 1 && (
-        <span className="sf-vtabs">
-          {vs.map((v) => <button key={v.id} className={`sf-vt ${sel?.id === v.id ? 'on' : ''}`} data-test={`fam-v.${v.id}`} onClick={() => store.select({ versionId: v.id })}>{v.name}{v.id === iv?.id ? <span className="dim"> internal</span> : null}</button>)}
-        </span>
-      )}>
+    <Card title={<Term id="riskFamily">Risk families</Term>} home="riskFamilies" className="sf-fam">
       <div className="sf-fam-axis small dim"><span /><span className="sf-fam-scale"><i style={{ left: '0%' }}>0%</i><i style={{ left: `${(0.25 / max) * 100}%` }}>25%</i><i style={{ left: `${(0.5 / max) * 100}%` }}>50%</i></span><span>best guess (range)</span><span /></div>
       {fams.map((f) => {
         const Ic = FAM_ICON[f.id];
@@ -515,83 +471,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
   );
 }
 
-// ───────── Research lines ─────────
-function LinesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const [all, setAll] = useState(false);
-  const staffed = sv.lines.filter((l) => l.teams.length);
-  const rest = sv.lines.filter((l) => !l.teams.length).sort((a, b) => b.band.mean - a.band.mean);
-  const sci = s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf').length;
-  const idle = sv.lineBadges.promisingIdle;
-  return (
-    <div className="sf-lines">
-      <Card title={<Term id="researchLine">Safety programmes</Term>} home="researchLines" id="ctl-lines"
-        sub={<>{staffed.length} staffed · {sci} safety scientist teams{safIdleFlag(s) ? <span className="tone-warn" data-test="saf-idle"> · {safIdleFlag(s)}</span> : null} · <Term id="deadEnd">{F.num(sv.lineBadges.deadEndTM * 4.3, 0)} team-weeks lost</Term> on failed projects</>}
-        right={<button className="btn btn-sm" data-test="lines-all" onClick={() => setAll(!all)}>{all ? 'Staffed only' : `Show all ${sv.lines.length}`}</button>}>
-        <div className="sf-lhd small dim"><span>Programme</span><span><Term id="lineHealth">Outlook</Term></span><span>Teams</span><span>Project · next result</span><span>Results</span><span><Term id="deadEnd">Failed</Term></span><span /></div>
-        {staffed.map((l) => <LineRowView key={l.id} s={s} l={l} />)}
-        {!staffed.length && <div className="dim small">No safety scientist team works a programme.</div>}
-        {(all ? rest : rest.filter((l) => idle.includes(l.id))).length > 0 && <div className="tip-cap sf-sep">{all ? `Not staffed · ${rest.length}` : `Promising, no team · ${idle.length}`}</div>}
-        {(all ? rest : rest.filter((l) => idle.includes(l.id))).map((l) => <LineRowView key={l.id} s={s} l={l} />)}
-      </Card>
-      <div className="sf-side">
-        <ValidationCard sv={sv} />
-        <ResultsCard s={s} sv={sv} />
-      </div>
-      <ToolsCard sv={sv} />
-    </div>
-  );
-}
-
-function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
-  const [pick, setPick] = useState(false);
-  const Ic = COL_ICON[l.column] ?? ICON.safety;
-  const idleSaf = s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf' && !t.projectId);
-  const target = l.projects[0]?.id ?? l.next;
-  const resTypes: FindingType[] = ['TECH', 'EVAL', 'DISC', 'NEG', 'DEAD'];
-  return (
-    <div className="sf-lrow" data-line={l.id}>
-      <Tip content={() => <TipCard title={l.name} value={COLUMN_LABEL[l.column as keyof typeof COLUMN_LABEL]} rows={[
-        { label: 'Ideas known', value: `${l.ideasKnown} of ${l.ideasTotal}` }, { label: 'First result at full staffing', value: `${l.T1} mo` },
-        { label: <Term id="seriousStaffing">Staffing</Term>, value: `${F.num(l.mult * 100, 0)}% of full` }, { label: 'Compute share', value: F.pct(l.computeShare) },
-        { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.aiLabour) },
-      ]}>Full staffing is about four matching teams. More teams find ideas faster, with falling returns; research engineers and compute speed the tests; AI staff speed both.</TipCard>}>
-        <span className="sf-lname ellip"><Ic size={13} /> {l.name}</span>
-      </Tip>
-      <Tip content={() => <TipCard title={<Term id="lineHealth">{l.band.label}</Term>} value={F.pct(l.band.mean)} rows={[{ label: 'Range', value: `${F.pct(l.band.lo)}–${F.pct(l.band.hi)}` }, { label: 'Results so far', value: l.findings }]}>Chance a project here gives a working instrument, from the results so far; the truth is not shown. The same unseen quality sets how reliable this programme&apos;s instruments are, and some results need it high.</TipCard>}>
-        <span className="sf-health"><Pill kind={HEALTH_TONE[l.band.label] as 'good' | 'warn' | 'bad'}>{l.band.label}</Pill><span className="sf-band"><i style={{ left: `${l.band.lo * 100}%`, width: `${(l.band.hi - l.band.lo) * 100}%` }} /><b style={{ left: `${l.band.mean * 100}%` }} /></span></span>
-      </Tip>
-      <span className="sf-teams">
-        {l.teams.map((t) => {
-          const TI = t.specialty ? COL_ICON[t.specialty] ?? ICON.roleSci : ICON.roleSci;
-          return <Tip key={t.id} content={() => <TipCard title={`${t.specialty ? COLUMN_LABEL[t.specialty as keyof typeof COLUMN_LABEL] : 'Science'} team`} value={`${Math.round(t.heads)} people`} rows={[{ label: 'Bonus here', value: t.specialty === l.column ? '×1.5' : '×1.0' }]}><ActBtn id="research.unassign" params={{ team: t.id }} label="Take off" testId={`line-off.${t.id}`} /></TipCard>}><span className={`rs-tch ${t.quality === 'elite' ? 'el' : ''}`} data-team={t.id}><TI size={12} /></span></Tip>;
-        })}
-        {target && <button className="rs-tch add" data-test={`line-add.${l.id}`} onClick={() => setPick(!pick)}>+</button>}
-      </span>
-      <span className="sf-proj">
-        {l.projects.length ? l.projects.map((p) => (
-          <span key={p.id} className="sf-pj" onClick={() => { if (!p.followUp) { store.setTab('research.sel', p.id); store.goto('research', { tab: 'tree' }); } }}>
-            <span className="ellip small">{p.followUp ? 'Follow-up' : p.name}</span>
-            <span className="rs-bar"><i style={{ width: `${p.progress * 100}%` }} /></span>
-            <Tip content={() => <TipCard title="ETA" value={eta(p.eta)} rows={[{ label: 'Progress', value: F.pct(p.progress) }]}>At today&apos;s teams, engineers, compute and AI staff.</TipCard>}><span className="num small">{eta(p.eta)}</span></Tip>
-          </span>
-        )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
-      </span>
-      <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }, ...(l.expObs.n ? [{ label: <Term id="expectedObserved">Expected vs observed (last year)</Term>, value: `${F.num(l.expObs.expected, 1)} expected · ${F.num(l.expObs.observed, 0)} working of ${l.expObs.n} tests` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.expObs.aiShare) }] : [])]} />}>
-        <span className="sf-res">{resTypes.filter((t) => l.results[t]).map((t) => { const I = FTYPE[t].icon; return <span key={t} className={`ftype2 ${FTYPE[t].tone}`}><I size={11} />{l.results[t]}</span>; })}{!l.findings && <span className="dim small">—</span>}</span>
-      </Tip>
-      <Tip content={() => <TipCard title={<Term id="deadEnd">Failed</Term>} value={`${F.num(l.deadEndTM * 4.3, 0)} team-weeks`}>Team time spent on projects that failed in this programme.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM * 4.3, 0)} wk` : <span className="dim">—</span>}</span></Tip>
-      <span />
-      {pick && target && (
-        <div className="sf-pick" data-test="line-picker">
-          <span className="small dim">Add a team to {PROJECT_BY_ID[target]?.followUp ? 'the follow-up' : PROJECT_BY_ID[target]?.name}:</span>
-          {idleSaf.map((t) => <ActBtn key={t.id} id="research.assign" params={{ team: t.id, id: target }} testId={`line-assign.${t.id}`} label={`${t.specialty ? COLUMN_LABEL[t.specialty] : 'Science'} team${t.specialty === l.column ? ' ×1.5' : ''}`} />)}
-          {!idleSaf.length && <span className="small">No idle safety scientist team · <Ref id="hiring" to={{ panel: 'lab', tab: 'people' }}>Hire</Ref></span>}
-          <button className="btn btn-sm btn-ghost" onClick={() => setPick(false)}><X size={12} /></button>
-        </div>
-      )}
-    </div>
-  );
-}
+// ───────── Instruments: validation, results, instruments list (safety programmes live on RESEARCH › Portfolio) ─────────
 
 function ValidationCard({ sv }: { sv: SV }) {
   const up = sv.validation;
@@ -736,33 +616,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
   );
 }
 
-// ───────── Trait graph ─────────
-function GraphTab({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const v = safetyModel(s);
-  const versions = s.player.models.versions.filter((x) => x.status !== 'retired');
-  const iv = internalVersion(s);
-  return (
-    <div className="saf-graph">
-      <Card title="How training shapes traits" term="traitGraph"
-        sub={<>nodes: your <Term id="belief">belief</Term> (best guess, range) · links: <Term id="evidenceGrade">evidence</Term> (width = size, solid = strong … dotted = weak)</>}
-        right={versions.length > 0 && (
-          <label className="small dim row-i">beliefs for
-            <select className="text-input" data-test="tg-version" value={v?.id ?? ''} onChange={(e) => store.select({ versionId: e.target.value })}>
-              {versions.map((x) => <option key={x.id} value={x.id}>{x.name}{x.id === iv?.id ? ' · internal' : ''}</option>)}
-            </select>
-          </label>
-        )}>
-        <TraitGraph s={s} versionId={v?.id} />
-      </Card>
-      <div className="saf-side">
-        <DetectionCard s={s} sv={sv} />
-        <MisCard s={s} versionId={v?.id} />
-        <UModes sv={sv} />
-      </div>
-    </div>
-  );
-}
-
+// ───────── Instruments: detection by level ─────────
 function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
   const g = useMemo(() => sightGrid(s), [s, s.time.day]);
   const cur = Math.round(g.L);
@@ -789,31 +643,8 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
       </div>
       <div className="det-leg small dim">
         <span className="row-i"><i className="det-sw cur" /> your level</span>
-        <span className="row-i"><i className="det-sw edge" /> 50% line ({CRITICAL_TRAITS.length} hidden-goal traits average = <Ref id="sightLimit" to={{ panel: 'safety', tab: 'overview' }}>Sight limit</Ref>)</span>
+        <span className="row-i"><i className="det-sw edge" /> 50% line ({CRITICAL_TRAITS.length} hidden-goal traits average = <Ref id="sightLimit" to={{ panel: 'safety', tab: 'risks' }}>Sight limit</Ref>)</span>
       </div>
-    </Card>
-  );
-}
-
-function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
-  const bv = beliefView(s, safetyModel(s, versionId)?.id);
-  if (!bv) return <Card title={<Term id="misalign">Would try (act against the lab)</Term>}><div className="dim small">No model yet</div></Card>;
-  const [lo, hi] = bv.misBand;
-  const max = Math.max(0.6, hi + 0.08);
-  const f = (x: number) => `${(Math.max(0, Math.min(max, x)) / max) * 100}%`;
-  const thin = CRITICAL_TRAITS.filter((t) => (bv.beliefs[t]?.clarity ?? 0) < 0.4).length;
-  const name = s.player.models.versions.find((x) => x.id === bv.versionId)?.name;
-  const col = riskColor(bv.misEst, 'level');
-  return (
-    <Card title={<Term id="misalign">Would try (act against the lab)</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
-      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Would try (act against the lab)</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">Range</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: 'Hidden-goal traits with thin evidence', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
-      <div className="mis-bar">
-        <span className="mis-band" style={{ left: f(lo), width: `calc(${f(hi)} - ${f(lo)})`, background: col }} />
-        <span className="mis-est" style={{ left: f(bv.misEst) }}><b className="num">{F.num(bv.misEst, 2)}</b></span>
-      </div>
-      <div className="small dim"><Term id="misBand">range</Term> <span className="num">{F.num(lo, 2)}–{F.num(hi, 2)}</span>: {thin ? <>wide because {thin} hidden-goal traits have thin evidence</> : 'your evidence on the hidden-goal traits is fresh'}</div>
-      </Tip>
-      <div className="btn-row" style={{ marginTop: 8 }}><GoBtn to={{ panel: 'risk' }} label="Risk sources" testId="mis.risk" /></div>
     </Card>
   );
 }

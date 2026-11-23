@@ -285,7 +285,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
       <div className="sec">
         <div className="k"><Term id="odds">{line && !n.star ? 'Outlook' : 'Chance it works'}</Term></div>
         {line && !n.star
-          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} that a result here works</span><Ref id="lineHealth" to={{ panel: 'safety', tab: 'lines' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Safety programme'}</Ref></div>
+          ? <div className="row-i"><b className="num">{health(odds)}</b><span className="dim small">estimated {F.pct(odds)} that a result here works</span><Ref id="lineHealth" to={{ panel: 'research', tab: 'projects' }}>{AGENDA_BY_ID[n.agenda as keyof typeof AGENDA_BY_ID]?.name ?? 'Safety programme'}</Ref></div>
           : n.star ? <div className="dim">Known by every lab</div>
           : cap && n.kind === 'line' ? <div className="dim small">A capability programme: always produces results, each worth less than the last (<Term id="linePool">returns falling</Term>).</div>
           : <div className="row-i"><b className="num">{F.pct(odds)}</b><span className="dim small">{n.paradigm ? 'known chance; whether it works is drawn at the start' : 'chance it works'}{(ts?.cap?.spec ?? 0) > 0 ? ` · retry ${ts?.cap?.spec}` : ''}</span>
@@ -344,7 +344,7 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
         {project && st !== 'known' && st !== 'failed' && <ActBtn id="research.start" params={{ id: n.id }} label={cap ? 'Top priority' : 'Start now'} testId={`research.start.${n.id}`} />}
         {queued && <ActBtn id="research.dequeue" params={{ id: n.id }} label="Remove" testId={`research.dequeue.${n.id}`} />}
         {cap && queued && <button className="btn btn-sm" data-test="open-project" onClick={() => { setUi('drawer', n.id); store.setTab('research', 'projects'); }}>Open in Portfolio ›</button>}
-        {!cap && project && !n.star && st !== 'known' && <Ref id="researchLine" to={{ panel: 'safety', tab: 'lines' }}>Safety teams</Ref>}
+        {!cap && project && !n.star && st !== 'known' && <Ref id="researchLine" to={{ panel: 'research', tab: 'projects' }}>Safety teams</Ref>}
         {project && ready !== true && st !== 'known' && <span className="dim small">{ready}</span>}
         {line && st !== 'known' && <span className="dim small">Each result is a working instrument, a weaker result, a dead end or a discovery; the programme goes on until an instrument works.</span>}
         {n.soon && <span className="dim small">A product tool: it becomes a project once you have live products.</span>}
@@ -361,7 +361,7 @@ export function Research({ s }: { s: GameStateV2 }) {
     <div className="panel-v2 rs-panel" data-panel="research">
       <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'tree', label: 'Discoveries', icon: ICON.split }, { id: 'knowhow', label: 'Know-how', icon: Layers }]} />}
         right={tab === 'projects' ? <AddProject s={s} />
-          : tab === 'knowhow' ? <span className="row-i"><button className="ref-chip" data-ref="labTools" onClick={() => store.goto('research', { tab: 'knowhow', anchor: 'labTools' })}><Wrench size={12} /> Lab tools</button><Ref id="publishPolicy" to={{ panel: 'safety', tab: 'lines' }}>Publish policy</Ref></span>
+          : tab === 'knowhow' ? <span className="row-i"><button className="ref-chip" data-ref="labTools" onClick={() => store.goto('research', { tab: 'knowhow', anchor: 'labTools' })}><Wrench size={12} /> Lab tools</button><Ref id="publishPolicy" to={{ panel: 'safety', tab: 'safeguards', anchor: 'policy' }}>Publish policy</Ref></span>
           : undefined} />
       {tab === 'projects' && <Portfolio s={s} />}
       {tab === 'knowhow' && <KnowHow s={s} />}
