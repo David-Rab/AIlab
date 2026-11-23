@@ -6,7 +6,8 @@
 //              (1 − w_PHYS)·Σ share·a_cog + w_PHYS·σ((Le_PHYS − fMid − θ_s)/fSpread)
 //   3 K      = Σ share·σ(ln(Wage·W0 / (price + review))/0.7)   price per work-hour from each provider's physical cost
 //   4 A*     = F·K·(1 − R)                   R = R0·frictionScale + policy + incidents − certification
-//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult (p, q: R16's × ECON.bassFit, CAL2-X);  A* < A → decays at 0.5/yr
+//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult (p, q: R16's × ECON.bassFit, CAL2-X; q' + Mansfield's
+//              profitability term a·π_ref·(v/v0 − 1), CAL3-A);  A* < A → decays at 0.5/yr
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
@@ -66,6 +67,15 @@ export function alphaOf(w: TimelineWorld, def: SectorDef, gAgency: number): numb
 }
 /** The start state's α (before the first tick reads the market; as F there): the R16 Agent-0 AGENCY level. */
 const ALPHA_START_SIG = sigmoid((AGENT0_PROFILE.AGENCY - ALPHA_MID_L) / ALPHA_SPREAD_L);
+
+/** CAL3-A: Mansfield (1961; restated in Mansfield 1965, NBER c7056, eq. 13–14): the imitation rate is linear in the
+ *  innovation's relative profitability π (required payout period ÷ the innovation's payout period), φ = Z + a·π. Here
+ *  π = π_ref·v/v0, v the buyer's net saving per adopted work-hour (the same 1 − P_cost/(Wage·W0) as costReduction), v0
+ *  its first-tick value; the sector intercept Z is the fitted q (CAL2-X) at the reference, so Δq = a·π_ref·(v/v0 − 1)
+ *  (per year, added to the fitted q, not scaled by bassFit). */
+export function mansfieldDq(v: number, v0: number): number {
+  return ECON.mansfieldA * ECON.mansfieldPiRef * (v / Math.max(1e-6, v0) - 1);
+}
 
 /** Pre-LLM (late 2022) feasibility per sector: hiring baseline for ΔF. */
 /** Consumer SOCIAL level at which the AI-friend share is half its ceiling (RD-P04b: read on the users' share-weighted
@@ -245,6 +255,10 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     const p = def.p * ECON.bassFit;
     let q = def.q * ECON.bassFit * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
+    // CAL3-A: Mansfield's imitation rate rises with the profitability of adopting (net saving per adopted hour).
+    const v = 1 - m.pCost / wageOf(def, r);
+    if (st.v0 === undefined && v > 0.05) st.v0 = v;
+    if (st.v0 !== undefined) q = Math.max(0, q + mansfieldDq(v, st.v0));
     if (st.A < st.Astar) st.A += (p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
     st.A = clamp01(st.A);

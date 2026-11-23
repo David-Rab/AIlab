@@ -148,6 +148,13 @@ export const ECON = {
    *  (RefBot classic, seed 2027) R16's values grew the readout ×2.4 a year over the same window; 0.33 gives ×1.37–1.43
    *  (the range over the readout's k). Once-fitted [fit]. */
   bassFit: 0.33,
+  /** CAL3-A: Mansfield's profitability slope of the imitation rate, a = 0.53 per year per unit of π (Mansfield 1961,
+   *  12 innovations in 4 industries; restated in Mansfield 1965 eq. 14: 1/g = Z_i + 0.121·π − ≈0.006·S, g the years from
+   *  10% to 90% of firms, × ln 81 for the logistic rate) [P]. */
+  mansfieldA: 0.53,
+  /** CAL3-A: where AI adoption sits on Mansfield's π scale at the start. Stand-in: the middle of the range in his sample
+   *  figure (railroads, π 1.3–2.0); no measurement of AI's payout ratio exists. */
+  mansfieldPiRef: 1.65,
 };
 
 

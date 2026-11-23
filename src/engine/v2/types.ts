@@ -2256,6 +2256,9 @@ export interface SectorState {
    *  the seat, the rest of the assisted hours are free, bundled or in-house (unbilled). Seats = seat·W·E. */
   seat: number;
   E: number; E0: number; hireRate: number; binding: 'capability' | 'cost' | 'friction' | 'diffusion';
+  /** CAL3-A: the buyer's net saving per adopted work-hour (1 − P_cost/(Wage·W0)) on the first tick, the reference of the
+   *  Mansfield profitability term (worldfx/sectors.ts mansfieldDq). Unset until the first tick reads the market. */
+  v0?: number;
 }
 
 export interface ControlState { P: number; tiers: [number, number, number, number]; accept: number; tierCap: 0 | 1 | 2 | 3; shares: Record<LabId, number>; }

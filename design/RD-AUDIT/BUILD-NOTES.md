@@ -5245,3 +5245,61 @@ Per-world shift (was the constant on every world): ai2027 CODE 0 / RSCH −2.528
 −0.890; slow 0 / −0.137 / +1 / −1.624 / −0.624. MO / STEER / SUCCSTEER anchors (sabotage's anchor setup): ai2027 11.99%
 (was 12.0%); now ≈ 12.00% in all four worlds (authors2026 / fast / slow read the anchor off V0's own RSCH score).
 Checks: tsc (app, scripts/v2) clean; scratch checks _rfs1 / _rfs13 / _sr20 / _cals/fresh updated to the new signatures.
+
+### CAL3-A (adoption during takeoff; branch cal3-adopt from rd eb5b1b0; DECISIONS "After CAL2" (1))
+Probe: `scripts/v2/_cal3a/trace.ts` (per-sector F, K, R, A*, A, α, v/v0, AGENCY vs λ⁻¹(8) on a RefBot classic ai2027 run
+to mid-2028; BTOS window growth, first day of remote 25% and U +1 pp / 12 mo). Checks: worldfx --smoke, finance --smoke.
+
+**Cause (why a capability jump does not speed adoption).** Each release lifts the ceiling A* = F·K·(1 − R) at once
+(SOFT A* 0.07 → 0.51 from Jul 2025 to Jan 2027, seed 2027), but A stays far below it (A/A* ≈ 0.15–0.2 through 2027). In
+that regime the Bass step (p + q·A/A*)(A* − A) ≈ p·A* + q·A: the ceiling enters only through p (SOFT 0.10 × 0.33 = 0.033 /
+yr), and A grows at about the fitted q (SOFT 0.66, OFFICE 0.46 / yr) whatever the model can do. The one existing hook,
+R16's q dose ×(1 + 0.15·(L_AGENCY − 8)) ("agents integrate themselves", [D]), is not switched off: it is 0 until the market's
+AGENCY passes L 8 (Jan 2027 on seed 2027) and ×1.22 by mid-2027 (0.5 OOM per level). CAL1's pass of the 2027 rows came
+from R16's unfitted p / q, 3× the measured 2025–26 pace.
+
+**Mechanism (sourced): Mansfield's profitability-driven imitation rate.** Mansfield (1961, Econometrica 29(4); his own
+restatement, Mansfield 1965, NBER c7056 eq. 13–14, read): the rate of imitation is linear in the innovation's relative
+profitability π (required payout period ÷ the innovation's payout period) and falls with investment size S; 12
+innovations, 4 industries: 1/g = Z_i + 0.121·π − ≈0.006·S (g the 10 → 90% years), i.e. φ = Z_i + 0.53·π − 0.027·S per
+year (×ln 81; the 1961 table itself not opened). Here: q += a·π_ref·(v/v0 − 1), v = 1 − P_cost/(Wage·W0) (the buyer's net
+saving per adopted work-hour, the same term as costReduction), v0 its first-tick value (new optional `SectorState.v0`, set on the first tick with v > 0.05: a market with no
+provider reads v = 0);
+the sector intercept is the fitted q, so 2025–26 stays on the Census fit. `ECON.mansfieldA` 0.53 [P]; `mansfieldPiRef`
+1.65, a stand-in (middle of his railroad figure, π 1.3–2.0; AI's payout ratio is not measured). Applies to A and W (same q).
+Griliches 1957 (rate of acceptance a function of profitability) and the Generalized Bass Model (Bass, Krishnan & Jain 1994:
+hazard × x(t) from percentage price changes) were not opened (paywalled); AI 2027 / AI Futures give no adoption mechanism,
+only the Oct 2027 outcomes (research/01 row 37). No primary estimate of AI adoption speed vs model releases was found.
+
+**Why the effect is small.** The game's buyer already saves ~74% of the hour at the start (K 0.87); v/v0 rises to 1.09 at
+mid-2026, 1.16 at Jan 2027, 1.24 at mid-2027, 1.30 at 2028 (SOFT, seed 2027): Δq ≈ +0.1 / +0.14 / +0.2 / +0.26 per year.
+Profitability per adopted task saturates once AI costs a fraction of the hour; capability mostly widens the ceiling (F).
+Mansfield's other channel, investment size S, is where agents that integrate themselves would act (R16's q dose); its size
+for AI integration has no source.
+
+| Row (seed 2027 unless noted) | CAL2 / before | after | target |
+|---|---|---|---|
+| BTOS window growth (14 Dec 2025 → 3 May 2026), seeds 2027 / 1 / 5 | ×1.37 / 1.38 / 1.41 | ×1.38 / 1.39 / 1.42 | ×1.42 |
+| W4 firm adoption Jul 2026 | 20.9% | 21.0% | 17–20 ±2 (pass) |
+| A2a hours of use / saved mid-2026 | 5.9 / 2.2% | 5.9 / 2.2% | pass |
+| W4 U Nov 2026; W2 TFP | +0.07 pp; +1.0% | +0.07 pp; +1.0% | pass |
+| remote work by AI, end-2027 (SOFT A) | 9.6% (0.190) at 2028.0 | 11.3% (0.225) | — |
+| 25% of remote work, seeds 2027 / 1 / 5 | never / 2028.48 / 2028.41 | never / 2028.39 / 2028.34 | Oct 2027 ±3 mo (fail) |
+| U +1 pp over 12 mo, seeds 2027 / 1 / 5 | never / never / 2028.42 | never / 2028.44 / 2028.37 | Oct 2027 ±3 mo (fail) |
+| F11 2026 / 2027 revenue | $46.2B / $105.4B | $46.3B / $105.8B | pass |
+| F7 2026 revenue / end-2026 valuation (finance --smoke, seed 1) | $47.2B / $0.94T | $47.3B / $0.94T | $1–3T (fail) |
+| FC1 late-2026 marks (smoke) | $3.18T | $3.19T | $2.5–3T |
+| FC2 2026 ordering (smoke) | no year with both; 15.1× / 24.7× | unchanged | — |
+worldfx --smoke: all passed. finance --smoke: 1 failure, FIN3b, identical with the term off (pre-existing). 20-seed and
+12-seed full-tier rows not run (smoke only); the effect on 2026 revenue is +$0.1B, so CAL2's full-tier F7 / FC1 / FC2
+values should not move.
+
+**For the designer.** (1) The Oct 2027 rows need remote-work adoption to grow ≈ ×5 in nine months (rate ≈ 2 / yr) from
+≈ 5% in Jan 2027; the measured 2025–26 pace (q ≈ 0.4–0.66 / yr) plus Mansfield's profitability term gives ≈ 0.75 / yr.
+Reaching them needs a lag-removal mechanism (agents integrating themselves: R16's q dose, or Mansfield's S → 0) whose size
+no source gives; or the rows are read as AI 2027 scenario projections (like F11's floor). (2) Finance: 2026 revenue tracks
+adopted breadth A; research/22 §7 measures 2025–26 growth in intensity and machine-run work (tokens per hour ×15–30) with
+breadth ×1.2–1.4, so F7 / FC1 / FC2 point at the intensity / agent channel, not at adoption speed.
+Changed: src/data/v2/sectors.ts (mansfieldA, mansfieldPiRef), src/engine/v2/worldfx/sectors.ts (mansfieldDq, q),
+src/engine/v2/types.ts (SectorState.v0), new scripts/v2/_cal3a/. Fixtures predate v0: a loaded fixture sets v0 on its
+first tick (the reference moves to the fixture's day). tsc (app, scripts/v2) clean. Moves calibration: slightly (above).
