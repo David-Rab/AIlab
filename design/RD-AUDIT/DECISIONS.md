@@ -165,7 +165,7 @@ the effect where it lands (next model's skills / × effective compute), no ambig
 honest Best moves + "Won't help now"; drop allocation presets (auto-split policy exists).
 
 ## Measurement scale (UB-1, 2026-11-23, designer accepted)
-- Per-skill best-human references from tests with human baselines (research/UB1-skill-references.md). Skill-bar marks
-  (median and best) per skill come from the same test as its reference, so bar, tooltip and source agree.
+- Per-skill best-human references from tests with human baselines (research/UB1-skill-references.md) are used for measured scoring. REVISED: skill-bar marks
+  use the JOB scale (median expert / best human doing the job, as the work fit), because test standing saturates early; test standing appears as tooltip facts. The UI shows one scale.
 - Two references stay distinct on purpose: skill bars = standing "on tests"; milestones / work fit = "doing the job".
   The UI labels them that way.
