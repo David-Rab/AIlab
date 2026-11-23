@@ -1,0 +1,1203 @@
+{
+ "day": 900,
+ "date": "Dec 18, 2027",
+ "versions": {
+  "V0": {
+   "name": "Atlas-1.0",
+   "status": "retired"
+  },
+  "V0-1": {
+   "name": "Atlas-1.0-mini",
+   "status": "deployed"
+  },
+  "V0-2": {
+   "name": "Atlas-1.0-micro",
+   "status": "deployed"
+  },
+  "V0-3": {
+   "name": "Atlas-1.0-nano",
+   "status": "deployed"
+  },
+  "V2": {
+   "name": "Atlas-1.4",
+   "status": "retired"
+  },
+  "V3": {
+   "name": "Atlas-1.5",
+   "status": "retired"
+  },
+  "V6": {
+   "name": "Atlas-1.6",
+   "status": "retired"
+  },
+  "V8": {
+   "name": "Atlas-1.7",
+   "status": "retired"
+  },
+  "V10": {
+   "name": "Atlas-2.0",
+   "status": "retired"
+  },
+  "V12": {
+   "name": "Atlas-2.0-mini",
+   "status": "retired"
+  },
+  "V14": {
+   "name": "Atlas-2.2",
+   "status": "retired"
+  },
+  "V16": {
+   "name": "Atlas-2.2-mini",
+   "status": "deployed"
+  },
+  "V18": {
+   "name": "Atlas-2.4",
+   "status": "retired"
+  },
+  "V20": {
+   "name": "Atlas-2.5",
+   "status": "retired"
+  },
+  "V23": {
+   "name": "Atlas-2.6",
+   "status": "retired"
+  },
+  "V25": {
+   "name": "Atlas-2.6-mini",
+   "status": "deployed"
+  },
+  "V27": {
+   "name": "Atlas-2.8",
+   "status": "retired"
+  },
+  "V29": {
+   "name": "Atlas-2.8-mini",
+   "status": "deployed"
+  },
+  "V31": {
+   "name": "Atlas-2.10",
+   "status": "retired"
+  },
+  "V33": {
+   "name": "Atlas-2.10-mini",
+   "status": "deployed"
+  },
+  "V35": {
+   "name": "Atlas-3.0",
+   "status": "retired"
+  },
+  "V38": {
+   "name": "Atlas-3.0-mini",
+   "status": "retired"
+  },
+  "V40": {
+   "name": "Atlas-3.0-mini-2",
+   "status": "deployed"
+  },
+  "V41": {
+   "name": "Atlas-3.3",
+   "status": "deployed"
+  },
+  "V44": {
+   "name": "Atlas-3.3-mini",
+   "status": "deployed"
+  },
+  "V45": {
+   "name": "Atlas-3.5",
+   "status": "deployed"
+  },
+  "V47": {
+   "name": "Atlas-3.5-mini",
+   "status": "deployed"
+  },
+  "V50": {
+   "name": "Atlas-3.7",
+   "status": "ready"
+  },
+  "V52": {
+   "name": "Atlas-4.0",
+   "status": "ready"
+  },
+  "V54": {
+   "name": "Atlas-4.0-mini",
+   "status": "retired"
+  },
+  "V57": {
+   "name": "Atlas-4.0-mini-2",
+   "status": "ready"
+  },
+  "V59": {
+   "name": "Atlas-4.0-mini-3",
+   "status": "ready"
+  }
+ },
+ "deployments": [
+  {
+   "id": "D1",
+   "channel": "consumer",
+   "status": "live",
+   "versionId": "V45"
+  },
+  {
+   "id": "D2",
+   "channel": "api",
+   "status": "live",
+   "versionId": "V45"
+  },
+  {
+   "id": "D3",
+   "channel": "enterprise",
+   "status": "live",
+   "versionId": "V45"
+  },
+  {
+   "id": "D4",
+   "channel": "internal",
+   "status": "live",
+   "versionId": "V52"
+  }
+ ],
+ "incidents": [
+  {
+   "id": "I470-1",
+   "day": 470,
+   "labId": "player",
+   "versionId": "V35",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Oct 14, 2026",
+   "model": "Atlas-3.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I490-1",
+   "day": 490,
+   "labId": "player",
+   "versionId": "V35",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Nov 3, 2026",
+   "model": "Atlas-3.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I511-1",
+   "day": 511,
+   "labId": "player",
+   "versionId": "V41",
+   "deploymentId": "D2",
+   "apparent": "unexplained",
+   "severity": 2,
+   "exposure": "customer",
+   "status": "leaked",
+   "responses": [],
+   "date": "Nov 24, 2026",
+   "model": "Atlas-3.3",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "unknown",
+    "label": "unknown (a case can name it; contain meanwhile)",
+    "kinds": [
+     "restrictContext",
+     "addControl"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I606-1",
+   "day": 606,
+   "labId": "player",
+   "versionId": "V50",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Feb 27, 2027",
+   "model": "Atlas-3.7",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I613-1",
+   "day": 613,
+   "labId": "player",
+   "versionId": "V50",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Mar 6, 2027",
+   "model": "Atlas-3.7",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I618-1",
+   "day": 618,
+   "labId": "player",
+   "versionId": "V45",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Mar 11, 2027",
+   "model": "Atlas-3.5",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I648-1",
+   "day": 648,
+   "labId": "player",
+   "versionId": "V45",
+   "deploymentId": "D4",
+   "apparent": "RH",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Apr 10, 2027",
+   "model": "Atlas-3.5",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "signal",
+    "label": "a training signal (an exploitable environment, grader or reward model)",
+    "kinds": [
+     "patchSignal"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I731-1",
+   "day": 731,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Jul 2, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I749-1",
+   "day": 749,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Jul 20, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I760-1",
+   "day": 760,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Jul 31, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I768-1",
+   "day": 768,
+   "labId": "player",
+   "versionId": "V45",
+   "deploymentId": "D3",
+   "apparent": "CONCEAL",
+   "severity": 1,
+   "exposure": "customer",
+   "status": "leaked",
+   "responses": [],
+   "date": "Aug 8, 2027",
+   "model": "Atlas-3.5",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": false
+   }
+  },
+  {
+   "id": "I773-1",
+   "day": 773,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "RH",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Aug 13, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "signal",
+    "label": "a training signal (an exploitable environment, grader or reward model)",
+    "kinds": [
+     "patchSignal"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I782-1",
+   "day": 782,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "unexplained",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Aug 22, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "unknown",
+    "label": "unknown (a case can name it; contain meanwhile)",
+    "kinds": [
+     "restrictContext",
+     "addControl"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I809-1",
+   "day": 809,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "RH",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Sep 18, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "signal",
+    "label": "a training signal (an exploitable environment, grader or reward model)",
+    "kinds": [
+     "patchSignal"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I828-1",
+   "day": 828,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Oct 7, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I830-1",
+   "day": 830,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Oct 9, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I844-1",
+   "day": 844,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Oct 23, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I869-1",
+   "day": 869,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Nov 17, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I876-1",
+   "day": 876,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Nov 24, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I879-1",
+   "day": 879,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Nov 27, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I888-1",
+   "day": 888,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 6, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I893-1",
+   "day": 893,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 11, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I896-1",
+   "day": 896,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 14, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I896-2",
+   "day": 896,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 14, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I898-1",
+   "day": 898,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 4,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 16, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  },
+  {
+   "id": "I898-2",
+   "day": 898,
+   "labId": "player",
+   "versionId": "V52",
+   "deploymentId": "D4",
+   "apparent": "SCHEME",
+   "severity": 3,
+   "exposure": "internal",
+   "status": "open",
+   "responses": [],
+   "date": "Dec 16, 2027",
+   "model": "Atlas-4.0",
+   "must": false,
+   "will": false,
+   "opts": {
+    "cause": "trait",
+    "label": "a trait in this model",
+    "kinds": [
+     "addMethod",
+     "rollback",
+     "restrictContext",
+     "addControl",
+     "addLockdown"
+    ],
+    "investigate": true
+   }
+  }
+ ],
+ "responseInfo": {
+  "patchSignal": {
+   "title": "Harden environments",
+   "note": "Harden the post-training environments of one family (the Harden pass of Training › Environments): expert red-teamers close the loopholes in its graders, cutting them by 40% of what is left above the floor (10% of the family’s start) on every later run that trains on it. Costs cash and engineer time; in force when the pass is done."
+  },
+  "addMethod": {
+   "title": "Add method to later runs",
+   "note": "Every later run plan that takes the default methods lists this owned safety method (persona vectors, anti-scheming, inoculation…); its effect shows in the next run's predicted traits, not in this model."
+  },
+  "restrictContext": {
+   "title": "Restrict context",
+   "note": "Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3."
+  },
+  "liftRestriction": {
+   "title": "Lift restriction",
+   "note": "Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full."
+  },
+  "addControl": {
+   "title": "Add control protocol",
+   "note": "Control-protocol safeguard (trusted monitoring, the most suspicious 10% deferred to a trusted model): about 7% slowdown at a typical watcher gap; acts slipping past monitors ×0.45; risky actions blocked."
+  },
+  "removeControl": {
+   "title": "Remove control protocol",
+   "note": "Remove the control-protocol safeguard: its slowdown ends; blocking and deferral end with it."
+  },
+  "addLockdown": {
+   "title": "Add comms lockdown",
+   "note": "Comms-lockdown safeguard on the model's AI staff (shared memory locked): copies of one model cover for each other half as much; 3% slowdown of AI staff work."
+  },
+  "removeLockdown": {
+   "title": "Remove comms lockdown",
+   "note": "Remove the comms-lockdown safeguard: its slowdown ends; copies cover for each other fully again."
+  },
+  "rollback": {
+   "title": "Roll back",
+   "note": "Return to the earlier checkpoint; lose the newer model."
+  },
+  "removeFoothold": {
+   "title": "Remove foothold",
+   "note": "A located foothold: safety research engineers busy while it runs, AI staff off for the downtime; its effect ends."
+  }
+ },
+ "case": {
+  "ids": [
+   "T-PROBE",
+   "T-DECEPT",
+   "T-TMON",
+   "T-PROP",
+   "T-MO",
+   "T-COTMON"
+  ],
+  "rel": 0.388427895388906,
+  "per": 20,
+  "prev": {
+   "days": 2,
+   "done": 1,
+   "reliability": 0.388427895388906,
+   "strength": 0.388427895388906,
+   "fte": 20,
+   "h100e": 5168.024552556997,
+   "traits": [
+    "SCHEME",
+    "AF"
+   ],
+   "instruments": [
+    {
+     "id": "T-PROBE",
+     "name": "Linear probes",
+     "family": "WB",
+     "reads": [
+      "SCHEME",
+      "AF"
+     ]
+    },
+    {
+     "id": "T-DECEPT",
+     "name": "Deception probe",
+     "family": "WB",
+     "reads": [
+      "SCHEME",
+      "AF"
+     ]
+    },
+    {
+     "id": "T-PROP",
+     "name": "Propensity evals",
+     "family": "BB",
+     "reads": [
+      "SCHEME",
+      "AF"
+     ]
+    },
+    {
+     "id": "T-MO",
+     "name": "Model organisms",
+     "family": "BB",
+     "reads": [
+      "SCHEME",
+      "AF"
+     ]
+    },
+    {
+     "id": "T-COTMON",
+     "name": "CoT monitor",
+     "family": "COT",
+     "reads": [
+      "SCHEME",
+      "AF"
+     ]
+    }
+   ],
+   "canFind": [
+    "readings on SCHEME, AF from WB / BB / COT",
+    "hidden failure modes these instruments can reveal, if the model has them: Subliminal trait transfer, Emergent misalignment, Unverbalized eval awareness, Exploration hacking, Latent-monitor evasion, Encoded reasoning, Self-fulfilling misalignment, Context-dependent misalignment, RM-sycophancy generalization, Grader-siding, Memory-borne goal propagation, Behavioural self-awareness, Few-sample data poisoning, Training-context injection, Alignment-research sandbagging, Successor alignment to self, Value crystallization",
+    "footholds of this model's lineage, if any, as far as the case gets",
+    "a false instrument among those used (independent families cross-check)"
+   ],
+   "ranges": [
+    {
+     "trait": "SCHEME",
+     "now": {
+      "est": 0.44942728243039437,
+      "sd": 0.0592073215687156
+     },
+     "confirmed": 0.0592073215687156,
+     "benign": 0.06,
+     "inconclusive": 0.0592073215687156
+    },
+    {
+     "trait": "AF",
+     "now": {
+      "est": 0.4952063003055821,
+      "sd": 0.08436897987390242
+     },
+     "confirmed": 0.08436897987390242,
+     "benign": 0.06,
+     "inconclusive": 0.08436897987390242
+    }
+   ]
+  }
+ },
+ "reHeads": 100,
+ "invFte": 0,
+ "spend": {
+  "rows": [
+   {
+    "k": "review",
+    "label": "Human review (safeguards)",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "spotCheck",
+    "label": "Spot-checks of AI safety work",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "cases",
+    "label": "Open cases",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "validation",
+    "label": "Validation jobs",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "evals",
+    "label": "Eval suites",
+    "staffAsk": 10,
+    "staffGot": 10,
+    "computeAsk": 16.72062881517485,
+    "computeGot": 16.72062881517485,
+    "staffCost": 0.0065,
+    "computeCost": 0.00008680902988550431,
+    "filled": true
+   },
+   {
+    "k": "removal",
+    "label": "Foothold removals",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "safExp",
+    "label": "Line experiments",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 0,
+    "computeGot": 0,
+    "staffCost": 0,
+    "computeCost": 0,
+    "filled": true
+   },
+   {
+    "k": "monitors",
+    "label": "Monitoring & control (deployments)",
+    "staffAsk": 0,
+    "staffGot": 0,
+    "computeAsk": 770213.9166970813,
+    "computeGot": 64600.30690696246,
+    "staffCost": 0,
+    "computeCost": 0.3353875045542426,
+    "filled": false
+   }
+  ],
+  "idleStaff": 90,
+  "idleCompute": 258384.50699903467,
+  "idleCost": 1.3999632091870848,
+  "staffCost": 0.0065,
+  "computeCost": 0.3354743135841281,
+  "total": 0.3419743135841281,
+  "perHead": 0.00065,
+  "perH100e": 0.000005191732371136697
+ },
+ "beliefsV52": {
+  "SYC": {
+   "est": 0.11199266096363812,
+   "sd": 0.11153152779229004,
+   "n": 14
+  },
+  "RH": {
+   "est": 0.5903679964813193,
+   "sd": 0.06823084807247796,
+   "n": 20
+  },
+  "PROXY": {
+   "est": 0.15712378652269202,
+   "sd": 0.2985544496256217,
+   "n": 2
+  },
+  "SA": {
+   "est": 0.5539449607235071,
+   "sd": 0.2970581273946693,
+   "n": 2
+  },
+  "PERSONA": {
+   "est": 0.4912059179915402,
+   "sd": 0.18954267945114514,
+   "n": 14
+  },
+  "OBF": {
+   "est": 0.600369050945118,
+   "sd": 0.30722135591038147,
+   "n": 2
+  },
+  "EA": {
+   "est": 0.4812067256674997,
+   "sd": 0.04873340869120008,
+   "n": 20
+  },
+  "TGAME": {
+   "est": 0.22186557288040068,
+   "sd": 0.18224547817277204,
+   "n": 14
+  },
+  "CONCEAL": {
+   "est": 0.17208046688673242,
+   "sd": 0.08743989383364043,
+   "n": 20
+  },
+  "POWER": {
+   "est": 0.25504615908425604,
+   "sd": 0.06300314214492503,
+   "n": 20
+  },
+  "AF": {
+   "est": 0.4952063003055821,
+   "sd": 0.08436897987390242,
+   "n": 20
+  },
+  "SAND": {
+   "est": 0.35307855869398264,
+   "sd": 0.06642789067847873,
+   "n": 20
+  },
+  "SCHEME": {
+   "est": 0.44942728243039437,
+   "sd": 0.0592073215687156,
+   "n": 20
+  },
+  "COLLUDE": {
+   "est": 0.20823000537190664,
+   "sd": 0.09656816850675806,
+   "n": 20
+  },
+  "SUCC": {
+   "est": 0.14825231900298005,
+   "sd": 0.09781855595172745,
+   "n": 20
+  },
+  "HONEST": {
+   "est": 0.887159072002811,
+   "sd": 0.04142923580776062,
+   "n": 20
+  },
+  "CORRIG": {
+   "est": 0.09391761785625294,
+   "sd": 0.3130101739905698,
+   "n": 2
+  }
+ },
+ "errors": {}
+}
