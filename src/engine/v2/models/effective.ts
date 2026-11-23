@@ -159,7 +159,8 @@ const reach = (w: FamilyMap, d: DomainId) => RL_FAMILY_IDS.reduce((a, f) => a + 
 const START_FAMILIES = rlFamiliesAvailable(() => false);
 const REF_W = rlWeights('broad', START_FAMILIES);
 
-/** c0: the RL midpoint constant in absolute RL FLOP, C_mid = c0/10^e_RL (RD-T04: not scaled by the base's FLOP), solved
+/** c0: the RL midpoint constant (RL FLOP on the reference base), C_mid = c0·(FLOP_pre ÷ FLOP_RL_REF)^kMid / 10^e_RL
+ *  (CP3g; RD-T04 had kMid 0), solved
  *  once so the reference post-training run (standard budget, broad, e_RL = 0) on the reference base (FLOP_RL_REF, B0)
  *  gains RL_REF_GAIN on average over the cognitive domains [fit]: V0's gain is unchanged. Solved in units of
  *  FLOP_RL_REF, then scaled. */
@@ -175,6 +176,11 @@ export const RL_C0 = (() => {
   }
   return Math.sqrt(lo * hi) * FLOP_RL_REF;
 })();
+
+/** CP3g: the RL midpoint C_mid = c0·(FLOP_pre ÷ FLOP_RL_REF)^kMid / 10^e_RL, a fixed number of RL episodes
+ *  (data/v2/runDesign.ts RL_CURVE; research/RD-RL-scaling.md §5 (c)). */
+export const rlMidOf = (flopPre: number, eRL: number) =>
+  (RL_C0 * Math.pow(Math.max(1, flopPre) / FLOP_RL_REF, RL_CURVE.kMid)) / Math.pow(10, eRL);
 
 export interface RlGains { perDomain: Record<DomainId, number>; general: number; perFamily: FamilyMap; ceiling: number }
 /** Fidelity-weighted ceiling factor of domain d: Σ_f w_f·T[f][d]·fid_f ÷ Σ_f w_f·T[f][d] (1 when every suite is at 1). */
@@ -201,7 +207,7 @@ const fidReach = (w: FamilyMap, d: DomainId, fid: FamilyMap) => {
  *  through transfer, and the gain stays bounded by the best suite's ceiling. */
 export function rlGains(flopPre: number, rlFlop: number, w: FamilyMap, eRL: number, aRL = 0, fid?: FamilyMap): RlGains {
   const A = Math.max(0, rlCeiling(flopPre) + aRL);
-  const cMid = RL_C0 / Math.pow(10, eRL);
+  const cMid = rlMidOf(flopPre, eRL);
   const perDomain = {} as Record<DomainId, number>;
   for (const d of DOMAIN_IDS) perDomain[d] = sig(fid ? A * fidReach(w, d, fid) : A, cMid, rlFlop * reach(w, d));
   const general = COGNITIVE.reduce((a, d) => a + perDomain[d], 0) / COGNITIVE.length;
@@ -217,7 +223,7 @@ export function rlGainGeneral(flopPre: number, rlFlop: number, w: FamilyMap, eRL
   let rw = reachMemo.get(w);
   if (!rw) reachMemo.set(w, (rw = COGNITIVE.map((d) => reach(w, d))));
   const A = Math.max(0, rlCeiling(flopPre) + aRL);
-  const cMid = RL_C0 / Math.pow(10, eRL);
+  const cMid = rlMidOf(flopPre, eRL);
   let a = 0;
   for (let i = 0; i < rw.length; i++) a += sig(A, cMid, rlFlop * rw[i]);
   return a / COGNITIVE.length;

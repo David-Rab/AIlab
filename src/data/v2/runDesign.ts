@@ -69,13 +69,23 @@ export const MFU_RL_FACTOR = 0.6;
 
 /** RL budget: RL FLOP as a share ρ of the base's pretraining FLOP [D, R20 C1: frontier 0.05–1 (R1 0.05, Grok 4 ≈ 1)]. */
 export const RL_BUDGET: Record<PostDesign['rlBudget'], number> = { light: 0.03, standard: 0.15, heavy: 0.4 };
-/** RL curve per family (Khatri et al. 2025 [R20 C1]): ΔG = A/(1 + (C_mid/C)^B). A = A0 + a1·log₁₀(FLOP_pre ÷
- *  FLOP_RL_REF): the base's size sets the ceiling [D]; C_mid = c0/10^e_RL in absolute RL FLOP (RD-T04, DD-06): the RL
- *  recipe moves the midpoint, not the ceiling, and the midpoint does not scale with the base, so a bigger base reaches
- *  the same gain at a smaller budget share and a small one saturates sooner relative to its size. c0 (FLOP) is solved
- *  (models/effective.ts) so the reference run (standard budget, broad) on the reference base (FLOP_RL_REF) gains
- *  RL_REF_GAIN at the start recipe. */
-export const RL_CURVE = { A0: 1.0, a1: 0.1, B: 1.8 };
+/** RL curve per family, in G units (OOM of effective compute): ΔG = A/(1 + (C_mid/C)^B) (the sigmoid form of Khatri et
+ *  al. 2025 [R20 C1]; parameters from research/RD-RL-scaling.md §5 option (c), CP3g).
+ *  - A = A0 + a1·log₁₀(FLOP_pre ÷ FLOP_RL_REF). A0 = 2.0 OOM (≈ 100×) [D: top of Epoch's CEG range 1–100×; Ord 2025's
+ *    "GPT-level" step]; a1 = 0 (RD-RL-scaling §5: the base dependence now lives in the midpoint, and the gain is added
+ *    to the base's G, Yue et al. 2025's relative ceiling). Range: A0 1.5–2.5 (Davidson et al. 2023: 5–30×, a few higher).
+ *  - B = 0.33: slope at the reference A·B·ln10·σ(1−σ) ≈ 0.35 G per OOM of RL FLOP [D: OpenAI's o1 chart read by Ord 2025
+ *    (10× RL ≈ 3× inference) × Villalobos & Atkinson 2023 (1 OOM of training ≈ 1–2 OOM of inference): 0.25–0.5 per OOM
+ *    of RL, central 0.33]. Was 1.8, Khatri's fit to a pass rate, not to OOM of effective compute (a units error).
+ *  - C_mid = c0·(FLOP_pre ÷ FLOP_RL_REF)^kMid / 10^e_RL: the midpoint is a fixed number of RL episodes, not fixed FLOP
+ *    [D: a rollout costs ≈ 2·N·L FLOP, so at share ρ the episodes ∝ 3ρD/L, and Chinchilla D ∝ FLOP^0.5]: kMid = 0.5,
+ *    range 0.35–0.7 (Khatri's Scout vs 8B midpoint ≈ N_active^0.7 in GPU-hours; Tan et al. 2025: per-sample efficiency
+ *    saturates above ~30B). DD-06's intent kept, sub-linearly: a bigger base reaches the same gain at a smaller budget
+ *    share. Fixed-recipe G per OOM of training FLOP ≈ 1 + 0.35·(1 − kMid) ≈ 1.18 (≈ 1.6 under RD-T04's absolute
+ *    midpoint, kMid 0, B 1.8). The RL recipe e_RL moves the midpoint, not the ceiling.
+ *  c0 (FLOP) is solved (models/effective.ts) so the reference run (standard budget, broad) on the reference base
+ *  (FLOP_RL_REF) gains RL_REF_GAIN at the start recipe. */
+export const RL_CURVE = { A0: 2.0, a1: 0, B: 0.33, kMid: 0.5 };
 /** Pretraining FLOP of the reference start base B0 (the RL ceiling's anchor: A = A0 there). */
 export const FLOP_RL_REF = 3e26;
 /** RL gain of the reference post-training run at the start recipe, OOM [D: research/12 "reasoning RL ≈ 1 OOM"; R20 B3]. */

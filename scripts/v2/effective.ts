@@ -54,7 +54,12 @@ const ref = rlGains(F0, RL_BUDGET.standard * F0, wBroad, 0).general;
 check(near(ref, 0.7, 0.005), 'RL: the reference run (standard, broad) gains ≈ 0.7 OOM at the start recipe', ref.toFixed(3));
 check(rlGains(F0, RL_BUDGET.standard * F0, wBroad, 0.5).general > ref && rlGains(F0, RL_BUDGET.standard * F0, wBroad, 0.5).ceiling === rlGains(F0, 1, wBroad, 0).ceiling,
   'RL: a better RL recipe moves the midpoint, not the ceiling');
-check(rlCeiling(10 * F0) > rlCeiling(F0), 'RL: a bigger base raises the ceiling');
+// CP3g: the base dependence lives in the midpoint (∝ FLOP_pre^0.5, a fixed episode count; research/RD-RL-scaling.md §5):
+// at the same budget share a 10× base gains more, sub-linearly (≈ +0.08 G, not the ≈ +0.3 of an absolute midpoint).
+{
+  const g1 = rlGains(10 * F0, RL_BUDGET.standard * 10 * F0, wBroad, 0).general;
+  check(g1 > ref && g1 - ref < 0.2, 'RL: at the same share a bigger base gains more, sub-linearly (midpoint ∝ FLOP_pre^0.5)', `10× base ${g1.toFixed(3)} vs ${ref.toFixed(3)}`);
+}
 const sweFocus = rlGains(F0, RL_BUDGET.standard * F0, wFocus, 0);
 check(sweFocus.perDomain.CODE > rlGains(F0, RL_BUDGET.standard * F0, wBroad, 0).perDomain.CODE, 'RL: a SWE focus raises CODE above broad RL');
 const meanProfile = COGNITIVE.reduce((a, d) => a + REF_RL_PROFILE[d], 0) / COGNITIVE.length;
