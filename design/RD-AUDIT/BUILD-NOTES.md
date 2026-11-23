@@ -5033,7 +5033,7 @@ kept; probe _cal2x/bass.ts): window growth ×2.41 → ×1.37–1.43 (seed 2027; 
 was fitted on the old, too-fast path, so it is refitted with it to the same BTOS release: `firmK` 10 → **19** (19.8% on
 3 May 2026). Readout shape left as a stand-in: SOFT ≈ 66% vs BTOS Information 39.7%, FIN ≈ 41% vs Finance 33.9%.
 
-Before → after (worldfx --smoke, seed 2027; task 1 included):
+Before → after (worldfx --smoke, seed 2027; task 1 included; the after run also had step 4's product edits in the tree, which move only revenue and Accept here: without them F11 $46.7B / $104.2B, Accept 2028-03-09):
 
 | Target | before | after | want |
 |---|---|---|---|
@@ -5051,3 +5051,18 @@ stock (seed 5: $96.9B at R16's p / q, $96.5B fitted, both under the floor; seed 
 F11 "$140B 2027 (±30%)" = AI 2027's compute forecast §5 OpenBrain revenue table ($14B / $45B / $140B for 2025–27,
 research/02 F6, V2-SPEC §9 row 9), a scenario projection, not a measurement; ±30% is [D]. Measured since (research/22
 §7): Anthropic run-rate $14B (Feb 2026) → $81B (Oct 2026), i.e. reality runs at or above the scenario's path.
+
+**3. hireSlope 1.5 → 1.2 (decision 6), a once-fitted stand-in** (R16's 1.5 [D] has no source; the WS5 probe fit 1.2).
+HireRate_SOFT = 1 − slope·ΔF reads F only, so the first day ≤ 10% follows from the ΔF path (probe _cal2x/hire.ts, five
+RefBot classic seeds 2027 / 1 / 2 / 3 / 5): 1.5 → 2026-12-04 … 2027-03-17, median 2027-01-10; **1.2 → 2027-05-12 …
+2027-07-19, median 2027-05-21** (target Jul 2027 ±3 mo: in window). worldfx --smoke (seed 2027): 2027-08-01, pass;
+exposed 22–25 −21.3% → −18.4% (band −19 ±5), SOFT hire Nov 2026 0.21 → 0.36; 0 fails. finance --smoke: 168 pass, only
+the 2 CAL1-known FIN3c fails (as at rd 0397bd2).
+
+**4. Products (decisions 13, 15).** Memory's Chat appeal term (enabler, consumer share 0.1) deleted; the horizon ×1.3 and
+its text stay (research/CAL-products-sources.md T3: the appeal had neither mechanism nor source). Checks with step 4
+(--smoke): products 62 pass, the same 10 fails as rd 0397bd2 (P1, P7 ×2, M2, A5, A6, C2b, C2c ×2, RD-B20: fixture-era, none
+about these two values); worldfx 0 fails, F11 2026 / 2027 $46.7B / $104.2B → $46.2B / $105.4B, paid share 5.3 → 5.2%. DISTILL_HARVEST_SHARE
+0.01 → **0.0015**, inside the sourced bracket 3e-4 (MiniMax's ~1e11 tokens over 90 days of OpenAI's 6B API tokens/min) –
+7e-3 (the game's day-0 API) (CAL-products-sources D1). Effect on the day-0 player API (3.4e11 tokens/day, anonymous ½):
+a distiller's access 1.00 → 0.84 with no KYC, 0.80 → 0.59 at KYC 1, so KYC now matters on a big API (review products F1).
