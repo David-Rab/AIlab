@@ -36,6 +36,17 @@ export const BENCHMARKS: BenchmarkDef[] = [
   { id: 'puzzles', name: 'NovelPuzzles', family: 'ARC-AGI-2', domain: 'REASON', floor: 0, ceil: 100, mL: 6.2, kL: 0.8 },
   { id: 'debate', name: 'Debate (percentile)', family: 'persuasion studies', domain: 'SOCIAL', floor: 0, ceil: 100, mL: 1.0, kL: 0.5, flag: 'persuasion' },
   { id: 'survive', name: 'Replicate&Survive', family: 'RepliBench / METR ARA', domain: 'AGENCY', floor: 0, ceil: 100, mL: 3.6, kL: 0.5, dangerous: true, flag: 'replication', mLHard: 8.0 },
+  // RD-M01b [D] (research/RD-MEDIA-PHYS-bench.md): MMMU val (Yue et al., CVPR 2024, arXiv 2311.16502). Floor 22 = random
+  // choice 22.1; ceil 89 = best human expert 88.6 (stand-in: label noise caps it). Anchors GPT-4o 69.1, o1 78.2 (OpenAI
+  // "Learning to reason with LLMs"), GPT-5 84.2 (OpenAI GPT-5 launch) at G 26.3 / 26.9 / 28.1 (their PatchBench
+  // levels) fit m_G 25.4, k_G 1.0 → mL −0.2, kL 0.5. Understanding, not generation (no generation eval has a human
+  // baseline). Dangerous [D judgement]: synthetic-media capability is misuse-relevant, so sandbagging hides it too.
+  { id: 'mmmu', name: 'SeeAndTell', family: 'MMMU', domain: 'MEDIA', floor: 22, ceil: 89, mL: -0.2, kL: 0.5, dangerous: true },
+  // RD-M01b [D]: EmbodiedBench EB-Manipulation success rate (Yang et al., ICML 2025, arXiv 2502.09560): GPT-4o-mini 4.8,
+  // Gemini-1.5-Pro 21.1, Claude-3.5-Sonnet 25.4, Claude-3.7-Sonnet 28.5, GPT-4o 28.9. Frontier ≈ 28% at G ≈ 27.0 → m_G
+  // 27.9; k_G 1.0 is a stand-in (the frontier anchors span too little G for a slope) → mL 4.9, kL 0.5. Ceil 100 stand-in
+  // (no human baseline published). Dangerous [D judgement]: physical reach gates autonomous weapons (techs W26/W27).
+  { id: 'embodied', name: 'RobotHands', family: 'EmbodiedBench (EB-Manipulation)', domain: 'PHYS', floor: 0, ceil: 100, mL: 4.9, kL: 0.5, dangerous: true },
 ];
 
 /** Successor generation step (L) when a benchmark saturates [D]: the next edition sits ≈ 4 L harder. */

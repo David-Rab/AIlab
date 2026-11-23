@@ -22,8 +22,9 @@ export function latentVersion(s: GameStateV2, id: string): boolean {
   return v.design.cot === 'latent' || s.player.models.bases.find((b) => b.id === v.baseId)?.design.shape === 'latent';
 }
 
-/** Measured domain level (RD-M01, DD-08): the fit of the domain's benchmark scores at the last suite. A domain no
- *  benchmark reads (MEDIA, PHYS) or a record without a fit: the measured general level + the version's domain offset. */
+/** Measured domain level (RD-M01, DD-08): the fit of the domain's benchmark scores at the last suite (every domain has a
+ *  row since RD-M01b). Fallback for a record with no fit for the domain (no suite yet, or a suite saved before RD-M01b
+ *  had MEDIA / PHYS rows): the measured general level + the version's domain offset. */
 export function measuredDomain(v: ModelVersion, d: DomainId): number {
   const fit = v.evals.measuredDom?.[d];
   if (fit !== undefined) return fit;

@@ -75,7 +75,7 @@ export function benchReading(b: BenchmarkDef, score: number, sd: number, gen = 0
 
 /** RD-M01 (DD-08): per-domain levels fitted from a bench table. A domain's benchmark readings combine by inverse
  *  variance. Elicitation and sandbagging lower the scores, so they lower the fit. `genOf`: the edition each score was
- *  taken on; `hard`: alignment 'hard'. Domains no single-domain benchmark reads (MEDIA, PHYS) are absent. */
+ *  taken on; `hard`: alignment 'hard'. Since RD-M01b every domain has a single-domain row (MEDIA: MMMU, PHYS: EmbodiedBench). */
 export function fitDomains(bench: EvalRecord['bench'], genOf: (id: string) => number, hard = false): { dom: Partial<Record<DomainId, number>>; sd: Partial<Record<DomainId, number>> } {
   const acc: Partial<Record<DomainId, { w: number; wl: number }>> = {};
   for (const b of BENCHMARKS) {

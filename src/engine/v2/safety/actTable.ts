@@ -104,7 +104,8 @@ export type ActTarget = { deploymentId: string } | { use: AgentUse } | { deploym
  *  the trait acts only (dangerView). */
 export interface ActOpts { control?: boolean; restrict?: boolean; core?: boolean }
 
-// RD-M01: the domain's benchmark fit; lineage fallback (measured general + offset) while the version is in evaluation.
+// RD-M01(b): the domain's benchmark fit (every domain has a row). Fallback only for a record with no fit for the domain
+// (version in evaluation, or a pre-RD-M01b suite without MEDIA / PHYS rows): lineage measured general + offset.
 const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => v.evals.measuredDom?.[d] ?? measuredLOf(s, v).L + (v.domains[d] - v.Lg);
 const liveInternal = (s: GameStateV2) => s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
 

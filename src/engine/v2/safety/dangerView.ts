@@ -4,7 +4,7 @@
 // reads beliefs instead of true traits:
 //   attempts a_k = κ_k · D_k · C_k · O_k      harmful rate = a_k · (1 − block_k)(1 − catch_k)
 //   D_k  disposition  = x̂_k^1.5, x̂ the belief estimate of the act's trait (not the true trait)
-//   C_k  capability   = σ((L̂_d − θ_k)/s), L̂_d the measured domain level (measured general level + the domain offset)
+//   C_k  capability   = σ((L̂_d − θ_k)/s), L̂_d the measured domain level (the domain's benchmark fit, RD-M01b)
 //   O_k  opportunity  = the deployment's site (usage, copies, autonomy, affordances, AI share of R&D: all visible)
 //   block            = AG07 containment at the BELIEVED tool strength on the measured capability (+ weight security for
 //                      escape-like acts inside the lab)
