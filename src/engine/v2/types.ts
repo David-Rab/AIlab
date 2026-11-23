@@ -991,8 +991,9 @@ export interface Disagreement { day: number; model: string; trait: TraitId; a: D
 
 /** SR-10: one update of an instrument's believed reliability (trust factor f after it). */
 export interface TrustEvidence { day: number; source: 'validation' | 'disagreement'; model: string; note: string; f: number }
-/** SR-10: the player's trust factor on an instrument (multiplies its BELIEVED reliability; absent = 1). */
-export interface InstrumentTrust { f: number; evidence: TrustEvidence[] }
+/** SR-10 / RF-S5: the player's trust factor on an instrument PER MODEL (multiplies its BELIEVED reliability on that
+ *  model; a model with no entry reads the entry of the model the instrument was last validated on, else 1). */
+export interface InstrumentTrust { byModel: Record<string, number>; evidence: TrustEvidence[] }
 
 /** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */
 export interface ValidationJob {

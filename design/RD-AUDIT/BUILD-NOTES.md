@@ -4193,3 +4193,20 @@ SR-05 fixed against SAFETY-REDESIGN §4.1 / §2.3 (review safety #9). UI only.
 - **Check.** `npx tsx scripts/v2/_rfs4/check.ts`: 7 ok (day 900: default = Atlas-3.3 at 22.6%, not the internal Atlas-4.0).
   `lint-ux`: one FAIL, pre-existing ("Numbers have a tooltip", other panels' lines). tsc (app, scripts/v2) clean.
 - Moves calibration: no (UI only).
+
+### RF-S5
+SR-10's trust factor per model, not one global factor per instrument (review safety #8; `DISAGREE_DROP` 0.1, floor 0.5,
+cap 1.5 kept, decision 1).
+- **State.** `InstrumentTrust` = `{ byModel: model id → factor, evidence }` (was `{ f, evidence }`).
+- **One reader.** `techniques.trustOf(t, model?)` (re-exported by disagreement.ts): the model's own entry, else the
+  entry of the model the instrument was last validated on (the extrapolation of SAFETY-REDESIGN §2.2 concept 4), else 1.
+  `reliabilityBase` takes the model (`reliability` passes `r.v`); model-free readers get the validated model's.
+- **Writers.** A disagreement on model v lowers both sides' factor on v only; a validation on v sets v's factor
+  (measured ÷ believed). `setTrust` writes the evidence's model. Validation view: factor on the internal model.
+- **Save.** SCHEMA_REV 98; migration 97 → 98 moves an old factor to the instrument's validated model (else its last
+  evidence's model). hygiene pins 98.
+- **Check.** `npx tsx scripts/v2/_rfs5/check.ts`: 8 ok (disagreement on Atlas-2.7 → 0.9 there, Atlas-2.0-mini unchanged;
+  human-run validation on the mini sets 0.454 there, 2.7 keeps 0.9, an unvalidated model reads 0.454; migration).
+  `_sr10/check.ts` updated (reads `trustOf(f, model)`): 16 ok. tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (a disagreement no longer lowers believed reliability on other models; believed only, so
+  only through bot / policy choices that read beliefs).

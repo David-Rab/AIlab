@@ -144,7 +144,7 @@ export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j:
   const p = t.falseValidated && !human ? job.spot * real + (1 - job.spot) * believedPlanted : real;
   const found = binomial(rng, VAL_N, p);
   t.measured = { on: v.id, found, n: VAL_N, day, human, job: { ...job, observed: Math.round((found / VAL_N) * 1000) / 1000 } };
-  const f = believed > 1e-6 ? believedTransfer(found / VAL_N) / believed : trustOf(t);
+  const f = believed > 1e-6 ? believedTransfer(found / VAL_N) / believed : trustOf(t, v.id);
   setTrust(t, f, { day, source: 'validation', model: v.id, note: `${human ? 'human-run' : 'AI-assisted'} validation on ${v.name}: found ${found} of ${VAL_N} planted (believed ${Math.round(believed * 100)}%)` });
 }
 
@@ -263,8 +263,8 @@ export function validationView(s: GameStateV2) {
     notOnCurrent: iv ? own.filter((t) => t.measured?.on !== iv.id).length : 0,
     /** SR-10: disagreements between independent instruments on the internal model (newest first). */
     disagreements: iv ? disagreementsOn(s, iv.id) : [],
-    /** SR-10: each instrument's trust factor and its last piece of evidence. */
-    trust: own.map((t) => ({ id: t.id, name: instrumentName(t), f: trustOf(t), last: t.trust?.evidence.at(-1)?.note ?? null })),
+    /** SR-10 / RF-S5: each instrument's trust factor on the internal model and its last piece of evidence. */
+    trust: own.map((t) => ({ id: t.id, name: instrumentName(t), f: trustOf(t, iv?.id), last: t.trust?.evidence.at(-1)?.note ?? null })),
     /** SR-22: each instrument's last validation: AI share, spot-check, expected vs observed recall. */
     results: own.filter((t) => t.measured?.job).map((t) => ({ id: t.id, name: instrumentName(t), on: versionById(s, t.measured!.on)?.name ?? t.measured!.on, human: !!t.measured!.human, job: t.measured!.job! })),
   };

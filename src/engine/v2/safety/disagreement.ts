@@ -6,14 +6,17 @@
 //    instruments, so logs/COT and reasoning/COT are one instrument in two settings). Outside each other's ranges
 //    (|a − b| > DISAGREE_Z·√(σa² + σb²)) it is a disagreement: recorded once per (model, trait, pair) in
 //    SafetyDept.disagreements, and every owned instrument of both families that reads the trait loses DISAGREE_DROP of
-//    its believed reliability (trust factor, floor DISAGREE_FLOOR): one of them is wrong, the player is not told which.
-// 2. VALIDATION (validation.ts completeValidation) sets the trust factor to measured ÷ believed on the validated model.
+//    its believed reliability ON THAT MODEL (trust factor, floor DISAGREE_FLOOR): one of them is wrong, the player is not
+//    told which.
+// 2. VALIDATION (validation.ts completeValidation) sets the trust factor on the validated model to measured ÷ believed.
+// RF-S5: trust is per model (techniques.ts trustOf): a model with no entry reads the last validated model's.
 //    A false (sabotaged) instrument is exposed there only when humans ran the job: an AI-assisted validation of it
 //    reports what it is believed to find.
 // Readings, ranges and the trust factor are all player-visible numbers; nothing here reads hidden truth.
 import { DISAGREE_CAP, DISAGREE_DROP, DISAGREE_FLOOR, DISAGREE_Z, TRUST_EVIDENCE_CAP, TRUST_MAX } from '../../../data/v2/agendas';
 import type { BeliefEvidence, Disagreement, DisagreementSide, GameStateV2, ModelVersion, TechniqueState, ToolFamily, TraitId, TrustEvidence } from '../types';
 import { INSTRUMENT_KIND_LABEL, instrumentKind, instruments, type InstrumentKind } from './instruments';
+import { trustOf } from './techniques';
 
 const FAMILIES: readonly ToolFamily[] = ['BB', 'COT', 'WB', 'OR'];
 
@@ -30,14 +33,13 @@ export function readingOf(source: string): { kind: InstrumentKind; family: ToolF
 /** Independent instruments: another kind and another family. */
 export const independent = (a: { kind: string; family: ToolFamily }, b: { kind: string; family: ToolFamily }) => a.kind !== b.kind && a.family !== b.family;
 
-/** The player's trust factor on an instrument (1 = no evidence yet). */
-export const trustOf = (t: Pick<TechniqueState, 'trust'>) => t.trust?.f ?? 1;
+export { trustOf };
 
-/** Set an instrument's trust factor and record why. */
+/** Set an instrument's trust factor on the evidence's model (`e.model`) and record why. */
 export function setTrust(t: TechniqueState, f: number, e: Omit<TrustEvidence, 'f'>): void {
   const nf = Math.round(Math.max(0, Math.min(TRUST_MAX, f)) * 1000) / 1000;
   const evidence = [...(t.trust?.evidence ?? []), { ...e, f: nf }];
-  t.trust = { f: nf, evidence: evidence.slice(-TRUST_EVIDENCE_CAP) };
+  t.trust = { byModel: { ...(t.trust?.byModel ?? {}), [e.model]: nf }, evidence: evidence.slice(-TRUST_EVIDENCE_CAP) };
 }
 
 const pairKey = (a: DisagreementSide, b: DisagreementSide) => [`${a.kind}/${a.family}`, `${b.kind}/${b.family}`].sort().join('|');
@@ -46,7 +48,7 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 /**
  * A new reading `o` (noise σ) of `trait` on v by family / use, against the belief's evidence BEFORE it is added. Records
  * a disagreement with each independent kind whose latest reading is outside the combined range (once per model, trait
- * and pair) and lowers the trust of both sides' owned instruments that read the trait. Returns the new disagreements.
+ * and pair) and lowers the trust of both sides' owned instruments that read the trait, on v. Returns the new disagreements.
  */
 export function noteReading(s: GameStateV2, day: number, v: ModelVersion, trait: TraitId, family: ToolFamily, use: string, o: number, sigma: number, evidence: readonly BeliefEvidence[] | undefined): Disagreement[] {
   if (!evidence?.length) return [];
@@ -72,7 +74,7 @@ export function noteReading(s: GameStateV2, day: number, v: ModelVersion, trait:
     const note = `${INSTRUMENT_KIND_LABEL[other.kind as InstrumentKind]} read ${trait} in ${v.name} at ${pct(other.reading)}, ${INSTRUMENT_KIND_LABEL[me.kind as InstrumentKind]} at ${pct(o)}: one of them is wrong`;
     for (const t of instruments(s)) {
       if ((t.family !== me.family && t.family !== other.family) || (t.coverage[trait] ?? 0) <= 0) continue;
-      const f = trustOf(t);
+      const f = trustOf(t, v.id);
       if (f <= DISAGREE_FLOOR) continue;
       setTrust(t, Math.max(DISAGREE_FLOOR, f * (1 - DISAGREE_DROP)), { day, source: 'disagreement', model: v.id, note });
     }

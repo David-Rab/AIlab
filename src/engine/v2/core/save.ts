@@ -182,8 +182,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force).
  *  97 (CP3i): HiddenWorld.methodScale (per run method q ~ U[0, 1], a hash of the seed; safety/methods.ts). Migration
  *  96 → 97 sets it from the save's seed (methodScaleOf), the values a new game with that seed draws.
+ *  98 (RF-S5): TechniqueState.trust is per model (byModel: model id → factor) instead of one factor f. Migration
+ *  97 → 98 puts the old factor on the model the instrument was last validated on (else its last evidence's model).
  */
-export const SCHEMA_REV = 97;
+export const SCHEMA_REV = 98;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1097,6 +1099,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     // 96 → 97 (CP3i): the world's hidden method strengths at scale from its seed (see SCHEMA_REV's note).
     const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
     if (r.hidden && r.hidden.methodScale === undefined) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
+  },
+  97: (raw) => {
+    // 97 → 98 (RF-S5): instrument trust per model (see SCHEMA_REV's note).
+    type OldTrust = { f?: number; byModel?: Record<string, number>; evidence?: { model?: string }[] };
+    const r = raw as { player?: { safety?: { techniques?: Record<string, { validatedOn?: string | null; trust?: OldTrust }> } } };
+    for (const t of Object.values(r.player?.safety?.techniques ?? {})) {
+      const tr = t.trust;
+      if (!tr || tr.byModel) continue;
+      const model = t.validatedOn ?? tr.evidence?.at(-1)?.model;
+      tr.byModel = model && tr.f !== undefined ? { [model]: tr.f } : {};
+      delete tr.f;
+    }
   },
 };
 

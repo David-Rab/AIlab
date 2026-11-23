@@ -18,6 +18,7 @@ import { observeVersion } from '../../../src/engine/v2/safety/detection';
 import { instruments, reliability } from '../../../src/engine/v2/safety/instruments';
 import { versionOom } from '../../../src/engine/v2/safety/oversight';
 import { completeValidation, trueRecall } from '../../../src/engine/v2/safety/validation';
+import { trustOf } from '../../../src/engine/v2/safety/techniques';
 import type { GameStateV2, RngLike, TechniqueState, TraitId } from '../../../src/engine/v2/types';
 import { FIXTURE_DIR } from '../lib';
 
@@ -90,7 +91,7 @@ const K = 300;
 for (let i = 0; i < K; i++) {
   f.trust = undefined;
   completeValidation(s3, rng, s3.time.day, { id: 'a', tool: f.id, model: v3.id, progress: 1, by: 'player', day: 0 });
-  sumF += f.trust!.f;
+  sumF += trustOf(f, v3.id);
 }
 check(f.measured!.human === false && Math.abs(sumF / K - 1) < 0.1, 'AI-assisted validations: it passes (mean trust about 1)', `mean ${(sumF / K).toFixed(3)}`);
 f.trust = undefined;
