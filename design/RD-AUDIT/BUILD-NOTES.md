@@ -4896,3 +4896,78 @@ Run: `run.ts --tier full --only worldfx,finance` (20 CAL_SEEDS for the date chec
 (Accept gate), scripts/v2/worldfx-refplay.ts (W2 freeze), scripts/v2/worldfx.ts (W4 firm date, INFO line), new
 scripts/v2/_calx/. tsc (app, scripts/v2) clean. **Moves calibration: yes** (friend share → public.ts activism /
 companion incidents; Accept → T1 control and leverage). No state change.
+### CAL-S2 (calibration step 4, SAFETY; branch cal-safe2 from rd 399f212)
+CAL1's safety failures: one suspected bug, the anchors, the outdated checks; S4 / S5 analysed only (no new mechanisms).
+
+**Bug 1, sabotage "backdoors and hidden compute: daily attempts at the formula's rate" (67 vs 23.5): the expectation
+was outdated, not the engine.** The rig took `fleetCovertTerms` once before rolling 20,000 days, but uncaught backdoors
+(E8 footholds) lower block and catch on their lineage's later acts (`oversightOpen` = 1 − reach). On the regenerated
+day-400 fixture the internal deployment runs the framework's control (RF-S13 auto-apply), so block starts at 0.70 and
+falls to 0.07 once two footholds stand (probe scripts/v2/_cals2/bd.ts: per-day expectation 65.3 vs 23.5 at the start;
+rolled 67). At CP3 the fixture had no control (block small), so the stale expectation happened to fit. Fix (test): the
+expectation sums each day's own terms. Now 7 + 60 vs 65.3, PASS.
+
+**MO / STEER / SUCCSTEER anchors 15.3% → 12.0%: a stale unit conversion (bug).** CP3f's `U05_SHIFT` keeps every act
+threshold at its distance from V0's level on the ai2027 fit (θ = θ_v2 + L_new(V0) − L_v2(V0)); RSCH −2.95 was computed
+for V0's RSCH score 1.55. CP3j's ai2027 refit (Δ_bm 2.9 → 1.8, sd_SC 1.25 → 0.5) moved V0's RSCH score to 1.97
+(probe _cals2/v0c.ts: 1.53 on the old fit, 1.97 now; CODE / AGENCY 5.00 and the clamped SOCIAL / CYBER unchanged), so
+the per-item acts sat 0.42 levels nearer V0 (C 0.480 instead of σ(−0.5) = 0.378). `U05_SHIFT.RSCH` −2.95 → **−2.53**
+(data/v2/danger.ts; comments updated). Also moves the RSCH incident act SAND (θ 5.05 → 5.47) and every RSCH covert
+act, as the CP3f rule intends. sabotage.ts anchors 12.0% / 12.0% / 12.0%; safetyrates (4 seeds) F2 sabotage after
+learned hacking 11.2% (band 6–20%; 14.3% before), inoculation cuts 85.9 / 85.5 / 92.9% (pass).
+
+**Outdated checks (CAL1 class c), changed to test the current mechanism:**
+- sabotage.ts "control layer raises oversight": both arms now set the layer (off: control removed from the internal
+  deployments and agents; on: added); the fixture itself is already "on" (RF-S13). 0.269 → 0.860, uncaught 8.2% → 1.6%.
+  The human-review check beside it reads the same "off" arm.
+- _cp3i/check.ts: q ~ U[METHOD_SCALE.lo, hi] (RF-S10's U[0, 2]; mean 1, about half above 1); believed strength = the
+  lab's q range midpoint (`methodQRange`, 1 before validation, RF-S14); new case: q 1.6 strengthens the method at
+  scale (two-sided); the anti-scheming case sets its q explicitly. All ok.
+- _sr20/check.ts: SR-20's Standard / High / Critical package section removed (RF-S2's one "Meet my framework" package;
+  its parts and charges are tested in _rfs2 part 2 and _rfs13 parts 1, 4, 5); the watcher-flip section puts the
+  candidates at measured CYBER θ_SCHEME + 1 so trust reads the belief's upper end (below θ the CAL-S capability clause
+  trusts every model, which is why the flip never happened) with narrow beliefs around the trust line. All ok.
+- _sr20b/check.ts: "RefBot's monitors are the picker" removed: RF-S2 restored RefBot's own cheap-monitor pick (review
+  safety #14), tested in _rfs2 part 4. All ok.
+- evals.ts EV9 (release suites ≈ 14 d, 34 / 33 d): **not changed.** It is not an outdated test: RF-S6 reverted the
+  reorder deliberately and said EV9 would fail; the cause (the validation policy ports every instrument before release
+  evals, RF-S6 / review #6) is a real timing miss for the designer, and the two-weeks target is still the v2 / system-card
+  reading. Changing the check would bend it.
+
+**S4 / S5 (analysis only; nothing changed).** safety.ts full tier after the fixes above (40 / 40 / 20 seeds, 21 min
+wall): S4 RefBot P_mis 0.344, safe-only pass; S5 RefBot below in 23% (median U − L +0.34); Mixed median min margin
+−5.00, holds 35%. Identical to CAL1 (the RSCH threshold does not reach Mis).
+- *S4 target:* V2-SPEC §8.3 acceptance row, no source (PROGRESS "open question for the user": a race-ending analogue;
+  nearest primary source, the AI Futures goals forecast, authors' credence 40–80% that unintended goals feature in
+  Agent-3; the lead proposed ≈ 0.40–0.80). P_mis = σ((Mis − doomThreshold 0.40) / 0.06) is v1's curve, both numbers [D].
+- *What moved it since CP3i (0.487):* RF-S7 removed CP3h(b)'s unsourced length gap (CP3h credited it with part of
+  0.117 → 0.329) and RF-S10 made q two-sided (CP3i's one-sided draw had pushed 0.329 → 0.487); CAL-S moves when
+  control arrives (covert acts, successor steering; not separated, no bisect). 0.344 is consistent with CP3h(a) + a
+  symmetric q (CP3h's 0.329 level): the drop is most likely the
+  removal of the target-leaning parts the review flagged (review safety §3 #3), not a new bug.
+- *Shape:* per world (probe _cals2/s4dist.ts, cache hits) Mis 0.05–0.77, mean 0.319; the sharp 0.06 curve makes
+  P_mis bimodal: 13 / 40 worlds above 0.5, 19 below 0.1. The spread is the at-scale uncertainty, as decided: Mis
+  correlates with the W2S draw q (r −0.52; UNDO −0.26), not with anti-scheming / inoculation (≈ 0; RefBot leans on
+  neither). So S4 is a world-average of a mostly-safe / mostly-doomed split, 33% doomed.
+- *Mis-tuned sourced parameter in range?* None found: METHOD_SCALE hi 2 and k 2 [D stand-ins], doomThreshold 0.40 and
+  the 0.06 width [D, v1], HUMAN_REVIEW_L 10 (CAL-S flagged: the source says "expert human", RD-U05's median expert is
+  6.4; the designer's question 3) have no source range to set them in.
+- *Options for the designer:* (a) re-source the band to the AI Futures credence (≈ 0.40–0.80): still a miss at 0.344,
+  but a near one, and then judged on a sourced band; (b) decide HUMAN_REVIEW_L (graders = median expert 6.4 would
+  open the grader gap ≈ 2 levels earlier: more missed hacking, higher Mis; direction only, not measured here); (c) give
+  doomThreshold / the 0.06 width a source or define S4 on what the endings read (the passive bot's takeover share);
+  (d) accept 0.34 as the emergent answer of the current sourced mechanisms. Lead recommendation: (a) + (b) as one
+  sourcing decision, then re-run S4; no new mechanism.
+- *S5 after SR-11:* U is now the sight limit (highest level the instruments read hidden-goal traits at ≥ 50% believed
+  reliability) and the margin is sight limit − measured level. The RefBot criterion still reads as AI 2027 says it (the
+  lab's own view at SAR: "far from a full understanding"), so its definition holds; at SAR the sight limit sits +0.34
+  above the level in the median world (true +1.66). The Mixed-bot
+  row is not a source but a game-feel requirement ("funding can keep up"). Probe _cals2/mixed.ts (seed 900): the sight
+  margin stays +0.3 to +0.7 for two years, then at the next base (Atlas-4.0, day 728, visible CoT) believed eval
+  awareness jumps 0.41 → 0.84 and the readings at the model's level fall below 50% (POWER / SUCC / COLLUDE ≈ 0.35), so
+  the margin goes −2.5 → −5.0 by SAR and funding cannot pull it back. The −5.00 is that collapse, not a start-of-game
+  artefact (day 0 is +0.55). Options: (a) keep S5 Mixed as a design requirement, which then needs a sourced way past
+  eval awareness (a mechanism decision, not calibration); (b) restate it for the sight limit (e.g. "the Mixed bot's
+  sight limit at SAR is higher than RefBot's", a comparison the sources support); (c) drop it. Recommendation: (b),
+  and read S5 RefBot together with the true gap (10% below), since the lab-view and true numbers now differ by 1.3
+  levels at SAR.
