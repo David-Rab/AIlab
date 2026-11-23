@@ -3,6 +3,11 @@
 The session that built this ran very long and was compacted once. Start from this file and the documents it names, not
 from memory of that session.
 
+**Read first: [SESSION-HEAD.md](SESSION-HEAD.md).** It holds the designer–lead conversation before any build work: how
+the R&D systems work, the UI questions and principles, the proposed tab structure, the junk / hack lists and the redesign
+proposals. The designer's messages are verbatim. Part 2 quotes the designer's later rules and decisions. That
+conversation is the source of what we want; this file and DECISIONS.md come after it.
+
 ## State
 
 - **Integration branch `rd`** (worktree `AI27-rd`), HEAD `ad64bff`, SCHEMA_REV 97. tsc (app and scripts) is clean.
