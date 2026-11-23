@@ -537,19 +537,20 @@ await nav('risk');
 await tabTo('flows');
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
 
-// Model v3 V2b Research: tabs Projects / Recipe / Tree. Tree: node card adds to the priorities; Projects: priority list
-// (stage tracks, teams wanted, risk policy, reorder by ▲▼ and drag, add, remove, reopen) and the project card; Recipe:
-// three stacks with the adopted ideas. The game places the teams (no team picker).
+// UB-6 / UB-8 RESEARCH: tabs Portfolio / Discoveries / Know-how. Discoveries: node card adds to the list; Portfolio:
+// Limited-by strip, read-only science split, capability and safety columns (one card grammar, drag / Alt+↑↓ reorder),
+// the card drawer (Gets, teams wanted, idea choice, remove), Add project, more safety programmes; Know-how: five area
+// bars, Waiting, Lab tools, an area's results. The game places the teams (no team picker).
 await nav('research');
 await tabTo('tree');
 await wait(80);
 {
   const nn = (await page.$$('[data-panel=research] .rs-node')).length;
   ok('Research: tree renders', nn >= 10, `nodes ${nn}`);
-  ok('Research: no know-how bar or team picker', !(await page.$('[data-test=knowhow]')) && !(await page.$('[data-test=assign-open]')));
+  ok('Research: no team picker', !(await page.$('[data-test=assign-open]')));
 }
 await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
-ok('Research: node card shows odds and stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Odds/i.test(c.innerText) && /team-months/.test(c.innerText); })()`)));
+ok('Research: node card shows the chance and the stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Chance it works|Outlook/i.test(c.innerText) && /team-weeks/.test(c.innerText); })()`)));
 await check('Research: Top priority puts the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
 await page.evaluate(() => window.ai27v2.step(1));
 await wait(60);
@@ -567,28 +568,44 @@ await shot('41-research-node');
 await page.click('[data-test=node-close]').catch(() => {});
 await tabTo('projects');
 await wait(80);
-ok('Research: priority list rows with five-step stage tracks', JSON.parse(await get(`document.querySelectorAll('[data-home=priorities] [data-project]').length >= 2 && !!document.querySelector('[data-project=P05] [data-test="track.P05"]') && document.querySelectorAll('[data-project=P05] [data-test="track.P05"] i').length === 5`)));
-await check('Research: teams wanted +', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-up.P05"]'));
-await check('Research: teams wanted −', 'JSON.stringify(s.player.research.want)', () => page.click('[data-act="want-down.P05"]'));
-await check('Research: risk policy speculative', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=speculative]'));
-await check('Research: risk policy back to balanced', 's.player.research.risk', () => page.click('[data-test=risk-policy] [data-opt=balanced]'));
-await check('Research: reorder with ▼', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-test="prio-down.P05"]'));
-await check('Research: reorder by drag', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-home=priorities] [data-project=P05]').dragTo(page.locator('[data-home=priorities] [data-project]').first()));
-await check('Research: a row opens its project card', 'store.tab["research.proj"] || ""', () => page.click('[data-home=priorities] [data-project=elastic] .rp-nm'));
-ok('Research: project card shows the stage track, inputs and the teams with why', JSON.parse(await get(`(() => { const c = document.querySelector('[data-home=projectCard]'); return !!c && !!c.querySelector('[data-test="track.elastic"]') && /Inputs today/i.test(c.innerText) && /why here/i.test(c.innerText); })()`)));
-await check('Research: + Add project', 'JSON.stringify(s.player.research.queue)', async () => { const v = await page.$eval('[data-test=add-project] option:nth-child(2)', (o) => o.value); await page.selectOption('[data-test=add-project]', v); });
-await check('Research: Remove from the card', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-home=projectCard] [data-act^="dequeue."]'));
-await page.click('[data-home=priorities] [data-project=P05] .rp-nm');
-await wait(60);
-await shot('42-research-projects');
-await page.hover('[data-home=priorities] [data-project=P05] .rp-dots i');
-await wait(300);
-ok('Research: a team dot says why the team is there', /Why here/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-await clearTips();
-await tabTo('recipe');
+ok('Portfolio: Limited-by strip with four segments, one lit (or a red zero)', JSON.parse(await get(`document.querySelectorAll('[data-home=limitedBy] [data-lim]').length === 4 && document.querySelectorAll('[data-home=limitedBy] [data-state=on], [data-home=limitedBy] [data-state=bad]').length >= 1`)));
+ok('Portfolio: science split is read-only here, with a link to LAB', !!(await page.$('[data-test=sci-split-ro] [data-ref=sciSplit]')) && !(await page.$('[data-test=sci-split-ro] [data-act]')));
+ok('Portfolio: capability and safety columns side by side', JSON.parse(await get(`(() => { const a = document.querySelector('[data-home=priorities]')?.getBoundingClientRect(); const b = document.querySelector('[data-home=safetyProgrammes]')?.getBoundingClientRect(); return !!a && !!b && b.left >= a.right - 1 && Math.abs(a.top - b.top) < 4; })()`)));
+ok('Portfolio: capability cards with stage tracks, next result and a programme rate', JSON.parse(await get(`document.querySelectorAll('[data-home=priorities] [data-card]').length >= 2 && document.querySelectorAll('[data-home=priorities] [data-test^="track."] .pf-stg').length >= 4 && !!document.querySelector('[data-home=priorities] [data-test^="next."]')`)));
+ok('Portfolio: safety cards with the three-stage track (Ideas · Small test · Validate) and an outlook', JSON.parse(await get(`(() => { const c = document.querySelector('[data-home=safetyProgrammes] [data-card]'); return !!c && c.querySelectorAll('.pf-stg').length === 3 && /Validate/.test(c.innerText) && /Promising|Mixed|Struggling/.test(c.innerText); })()`)));
+await check('Portfolio: reorder by drag', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-home=priorities] [data-card=elastic]').dragTo(page.locator('[data-home=priorities] [data-card]').first()));
+await page.focus('[data-home=priorities] [data-card=elastic]');
+await check('Portfolio: Alt+↓ on a focused card moves it down', 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
+await check('Portfolio: a card opens its drawer', 'store.tab["research.drawer"] || ""', () => page.click('[data-home=priorities] [data-card=elastic] .nm'));
+ok('Portfolio drawer: stage track, Gets and the idea choice', JSON.parse(await get(`(() => { const d = document.querySelector('[data-test=drawer]'); return !!d && !!d.querySelector('[data-test^="drawer-track."]') && /Gets/i.test(d.innerText) && !!d.querySelector('[data-test=risk-policy]'); })()`)));
+await check('Portfolio drawer: teams wanted +', 'JSON.stringify(s.player.research.want)', () => page.click('[data-test=drawer] [data-act^="want-up."]'));
+await check('Portfolio drawer: teams wanted −', 'JSON.stringify(s.player.research.want)', () => page.click('[data-test=drawer] [data-act^="want-down."]'));
+await check('Portfolio drawer: idea choice Bold', 's.player.research.risk', () => page.click('[data-test=drawer] [data-test=risk-policy] [data-opt=speculative]'));
+await check('Portfolio drawer: idea choice back to Balanced', 's.player.research.risk', () => page.click('[data-test=drawer] [data-test=risk-policy] [data-opt=balanced]'));
+await shot('42-research-drawer');
+await check('Portfolio: Escape closes the drawer', 'store.tab["research.drawer"] || ""', () => page.keyboard.press('Escape'));
+await check('Portfolio: + Add project', 'JSON.stringify(s.player.research.queue)', async () => { const v = await page.$eval('[data-test=add-project] option:nth-child(2)', (o) => o.value); await page.selectOption('[data-test=add-project]', v); });
+{
+  const added = JSON.parse(await get('s.player.research.queue[s.player.research.queue.length - 1]'));
+  await page.click(`[data-home=priorities] [data-card="${added}"] .nm`);
+  await check('Portfolio drawer: Remove from the list', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-test=drawer] [data-act^="dequeue."]'));
+  await page.keyboard.press('Escape');
+}
+if (await page.$('[data-test=saf-more]')) await check('Portfolio: more safety programmes open', 'document.querySelectorAll("[data-home=safetyProgrammes] [data-card]").length', () => page.click('[data-test=saf-more]'));
+await shot('42-research-portfolio');
+if (await page.$('[data-home=priorities] [data-test^="rate."]')) {
+  await page.hover('[data-home=priorities] [data-test^="rate."]');
+  await wait(380);
+  ok('Portfolio: the rate tooltip gives results a year and the next result', /Results a year/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+}
+await tabTo('knowhow');
 await wait(80);
-ok('Research: recipe shows three stacks and the software rate', JSON.parse(await get(`document.querySelectorAll('[data-home^="stack."]').length === 3 && !!document.querySelector('[data-home=softwareRate]')`)));
-await shot('43-research-recipe');
+ok('Know-how: five area bars, public and yours', JSON.parse(await get(`document.querySelectorAll('[data-home=knowHow] [data-area]').length === 5 && document.querySelectorAll('[data-home=knowHow] .kh-bar.pub').length === 5 && document.querySelectorAll('[data-home=knowHow] .kh-bar.you').length === 5`)));
+ok('Know-how: Waiting panel, Where it comes from, Lab tools (three tools)', !!(await page.$('[data-home=waiting]')) && !!(await page.$('[data-home=knowHowSources]')) && (await page.$$('[data-home=labTools] [data-tool]')).length === 3);
+ok('Know-how: the old recipe stacks are gone (one home)', !(await page.$('[data-home^="stack."]')) && !(await page.$('[data-home=softwareRate]')));
+await check('Know-how: an area opens its results', 'store.tab["research.khOpen"] || ""', () => page.click('[data-home=knowHow] [data-area=pre]'));
+await shot('43-research-knowhow');
 await tabTo('projects');
 if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a failed project as speculative', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-act^="reopen."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
@@ -854,34 +871,38 @@ async function b4Check(where) {
   });
   ok(`B4 ${where}: Products: with ≤ 3 products the launch card and serving split sit beside the cards, above the fold`, pr.n > 3 || (pr.side && pr.svTop < 1000 && (pr.launchH === 0 || pr.launchH < pr.cardH * 0.6)), JSON.stringify(pr));
   await shot(`80-${where.replace(' ', '')}-products-b4`);
-  // Research › Projects: the card under the list; auto teams wanted; keyboard reorder.
+  // Research › Portfolio (UB-6): the board's two columns, no clipped card names; auto teams wanted and the keyboard
+  // reorder from the card drawer / a focused card.
   await nav('research');
   await tabTo('projects');
   await wait(60);
   const lay = await page.evaluate(() => {
     const l = document.querySelector('[data-home=priorities]')?.getBoundingClientRect();
-    const c = document.querySelector('[data-home=projectCard]')?.getBoundingClientRect();
-    const clipped = [...document.querySelectorAll('[data-home=priorities] .stepper, [data-home=priorities] .rp-nm b')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
-    return { below: !!l && !!c && c.top >= l.bottom - 1, clipped };
+    const r = document.querySelector('[data-home=safetyProgrammes]')?.getBoundingClientRect();
+    const clipped = [...document.querySelectorAll('[data-home=priorities] .pf-card .nm')].filter((x) => x.scrollWidth > x.clientWidth + 1).length;
+    return { side: !!l && !!r && r.left >= l.right - 1, clipped };
   });
-  ok(`B4 ${where}: Research: the project card sits under the priority list; no clipped stepper`, (lay.below || !(await page.$('[data-home=projectCard]'))) && lay.clipped === 0, JSON.stringify(lay));
+  ok(`B4 ${where}: Research: capability and safety side by side; no clipped card name`, lay.side && lay.clipped === 0, JSON.stringify(lay));
   const first = await page.$eval('[data-home=priorities] [data-project]', (e) => e.getAttribute('data-project')).catch(() => '');
   if (first) {
-    await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
-    ok(`B4 ${where}: an auto project shows "auto" and its placed teams`, /auto/.test(await page.$eval(`[data-test="want-n.${first}"]`, (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
-    await clearTips();
-    await page.hover(`[data-act="want-auto.${first}"]`);
+    await page.click(`[data-home=priorities] [data-card="${first}"] .nm`);
+    await wait(60);
+    await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
+    ok(`B4 ${where}: the drawer shows "auto" teams wanted`, /wanted auto/.test(await page.$eval('[data-test=drawer]', (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-test=drawer] [data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
+    await page.hover(`[data-test=drawer] [data-act="want-auto.${first}"]`);
     await wait(380);
     ok(`B4 ${where}: the Auto toggle's tooltip explains priority and fit`, /priority and fit/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-    await clearTips();
-    await shot(`81-${where.replace(' ', '')}-research-projects-b4`);
-    await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-act="want-auto.${first}"]`));
-    const labels = await page.$$eval('[data-home=priorities] [data-test^="prio-"], [data-home=priorities] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-test') ?? e.getAttribute('data-act')));
-    ok(`B4 ${where}: ▲▼, − + and Auto have accessible labels`, labels.length === 0, labels.slice(0, 4).join(', '));
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
+    await shot(`81-${where.replace(' ', '')}-research-portfolio-b4`);
+    await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
+    const labels = await page.$$eval('[data-test=drawer] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-act')));
+    ok(`B4 ${where}: − + and Auto have accessible labels`, labels.length === 0, labels.slice(0, 4).join(', '));
+    await page.keyboard.press('Escape');
     const n = JSON.parse(await get("document.querySelectorAll('[data-home=priorities] [data-project]').length"));
     if (n > 1) {
       await page.focus(`[data-home=priorities] [data-project="${first}"]`);
-      await check(`B4 ${where}: Alt+↓ on a focused row moves it down (keyboard reorder)`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
+      await check(`B4 ${where}: Alt+↓ on a focused card moves it down (keyboard reorder)`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowDown'));
       await page.focus(`[data-home=priorities] [data-project="${first}"]`);
       await check(`B4 ${where}: Alt+↑ moves it back`, 'JSON.stringify(s.player.research.queue)', () => page.keyboard.press('Alt+ArrowUp'));
     }
@@ -916,7 +937,7 @@ async function b4Check(where) {
     const idx = routes.indexOf(capRow);
     await page.locator('[data-test=alert-list] [data-alert-row=research] [data-test=alert-open]').nth(idx).evaluate((b) => b.click());
     await wait(80);
-    ok(`B4 ${where}: Open on a capability result opens its project card`, JSON.parse(await get(`store.panel === 'research' && store.tab.research === 'projects' && store.tab['research.proj'] === ${JSON.stringify(cap)}`)));
+    ok(`B4 ${where}: Open on a capability result opens its card drawer`, JSON.parse(await get(`store.panel === 'research' && store.tab.research === 'projects' && store.tab['research.drawer'] === ${JSON.stringify(cap)}`)));
   } else await page.click('[data-test=alert-chip]');
   await page.evaluate(() => { const s = window.ai27v2.state; s.log = s.log.filter((e) => !/^B4 test:/.test(e.text)); window.ai27v2.notify(); });
   await closeModals();
@@ -2248,7 +2269,8 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   if (l.id.startsWith('speed.')) { await hoverCollect('.topstrip2 [data-test=speed]'); continue; } // UB-5: research speed's limits sit in its L0 tooltip
   await nav(l.panel);
   if (l.tab) await tabTo(l.tab);
-  if (l.panel === 'research') {
+  if (l.panel === 'research' && l.tab === 'projects') { await page.click('[data-home=priorities] [data-card] .nm').catch(() => {}); await wait(80); } // UB-6: per-programme limits sit in the card drawer
+  if (l.panel === 'research' && l.tab !== 'projects') {
     const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
     for (const id of ids) {
       await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});

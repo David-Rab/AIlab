@@ -5709,3 +5709,78 @@ back" line is gone; share moves remain only for unallocated / idle serving compu
 a launched run that trains gets the same training FLOP per day as with the policy off, and the lent compute falls to
 what the run leaves idle (1.51M → 1.21M) the same day. tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux and
 lint-structure: the same pre-existing failures. Screenshots scripts/v2/shots/ub5/d400-lab.png, d400-lab-lent.png.
+
+### UB-6 (RESEARCH › Portfolio; branch ub6-research from rd 241bdb7; mockups rd/portfolio.png, portfolio-drawer.png)
+
+**Portfolio (panels/Portfolio.tsx, portfolio.css, researchWords.ts).** Limited-by strip: four segments (compute ·
+research engineers · scientists · idea quality), verdict words only; the binding one lit (`production().label`, the
+believed elasticities) with a `best move ▸` link to LAB; the others from `reAllocView` (short / spare / enough), idle
+science teams and `teamGain` (more would help / enough); red "None" / "Experiments held" when an input is zero.
+Science-team split read-only (`scientists ▸` → LAB's split). One board, Capability | Safety side by side, one card
+grammar: rank · field icon · name (VOCAB display names) · ongoing / one-off chip · output tag (safety: see / stop / fix
+from the role of the next result's technique) · field · returns ("results now ~¾ of the first", 1 ÷ `line.harder` as a
+simple fraction) or chance it works (projects) · team pips; stage track (capability Ideas · Small test · Big test ·
+Build-in, unlock projects Test · Build-in, safety Ideas · Small test · Validate per the lead call) · next result ~N d
+(tooltip: the parts and the next result's × with range and certainty) · rate ≈ × / yr at current staffing
+(`programmeRates`, tooltip: results a year, one result's days, each result, so far) or the expected effect where it
+lands; safety: new instrument / safeguard / method: <name> and the outlook chip; per-card "limited by research engineers"
+when safety research experiments are short. Failed projects: Failed chip, retry odds, Retry. Drag (both columns; a
+safety card not on your list is queued at the drop place) and Alt+↑/↓ on a focused card. Safety column: staffed
+programmes plus the best by outlook up to four, then "N more programmes, no team" (Mixed / Struggling counts) opening
+the rest. Drawer (L2, Escape / scrim closes): stage track + next result; the idea under test in words (size, tested at
+scale, grows / holds / shrinks), expected effect × with the 90% range and certainty word and a range strip; rate; at
+scale chip; takes effect + `next run ▸`; results so far (first vs next bar, built in = results and the believed sum of
+the kept results' estimates, dropped, ideas waiting to test); Gets (science teams, right field, teams wanted − + Auto
+with the max-teams limit, research engineers with the 2-per-programme limit, experiment compute share and H100e from
+`programmeGets` + `experiment compute ▸`, limited by vs the lab); idea choice Safe / Balanced / Bold (labelled
+lab-wide: the engine has one policy); Remove; Discoveries ▸. Safety drawer: next result, outlook with range, expected vs
+observed results (last 12 months), results so far, teams, results a year, compute share. Add project in the panel
+header. Alerts' Open on a capability result opens its drawer (`research.drawer`).
+
+**Deleted / redirected.** ResearchProjects.tsx (priority list, project card, belief band, binds column) and its CSS;
+the Research header links (research speed and research engineers live in L0 / LAB). Tabs: Portfolio · Discoveries ·
+Know-how (old tab id `recipe` maps to `knowhow`). Discoveries uses the display names; "Open in Portfolio" opens the
+drawer. New glossary: programmeRate, outputTag.
+
+**Differences from the mockup.** Rates use "now" (current staffing), so day 400 scaling reads ×1.12 / yr, not the
+mockup's ×1.19 ("so far" is in the tooltip). Applied interpretability sits at Small test (the engine's stage), not Big
+test. Add project is a select styled as a button. "In this test 3 ideas" reads "Waiting to test" (the ideas found,
+`cands`). Built in shows the believed sum of the kept results (the engine keeps the last 30 results lab-wide), marked
+"(last n)" when older results dropped out; `line.realised` is not shown (a model quantity, not an estimate).
+
+### UB-8 (RESEARCH › Know-how; same branch; mockup rd/knowhow.png)
+
+**Know-how (panels/KnowHow.tsx).** Five areas (VOCAB names, unit line): Public know-how bar (grey) and Yours (violet)
+on one log axis (×0.9 to the largest range end, 1-2-5 ticks kept 7% apart), the Waiting part hatched at the end of
+Yours (never more than Yours), the 90% range whisker, labels "×1.50 waiting · 13 ideas"; growth column (× over the last
+12 months, ideas counted). Click an area: its results (L2), newest first: × (range in the tooltip), date, the measured
+model it is in (or "not in a measured model yet"). Side: Waiting for your next model (largest area big, the others as
+rows, "Training and serving efficiency · apply at once", `Next run ▸`), Where it comes from (ideas built in over 12
+months, public know-how named, `Portfolio ▸`), Lab tools (DD-03): Coding harness, Research harness, Agent memory, each
+owned / building / not built, what it lifts (AI staff experiments / ideas %, build capacity, from `agentsView` with vs
+without the tool), upkeep, build cost in the tooltip, Build (tooling.build) for unbuilt ones, `build queue ▸`. Header:
+Lab tools (scrolls to the card), Publish policy ▸ (SAFETY, its home). LAB › AI staff's Tools strip is now a link here.
+Deleted: Recipe.tsx (stacks, headroom, software-rate card, domain-effect card).
+
+**Differences from the mockup.** "A new base takes ~104 days" is not shown (a TRAINING › Next run datum; the link goes
+there). Public know-how's 12-month growth has no readout (the engine keeps only today's public base), so the row names
+the source without a number. Domain / data effects (old Recipe card) have no home on Know-how yet (UI-IA L2 "domain
+effects"): they show on MODELS cards; a Know-how L2 row is a follow-up. Counts with fractional batches are rounded.
+
+**Check (UB-6 + UB-8).** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
+numbers in SafetyControl / Work; the two old ResearchProjects sites are gone); lint-structure: 1 pre-existing. uitest:
+every RESEARCH step passes (Discoveries, Limited by, split, both columns, drag and Alt+↓ reorder, drawer, teams wanted,
+idea choice, Escape, Add project, Remove, more safety programmes, rate tooltip, Know-how bars / Waiting / Lab tools /
+area results; B4 day 1: side-by-side, Auto, labels, keyboard reorder, log routing opens the drawer). Run: 276 OK, 34
+FAIL, none in RESEARCH (Blueprint, Safety, Products, E11/E12, D6/D8, B2/B4 serving: suites this task does not touch);
+the suite stops at a stale D4 day-1 step, so the day-400 / 900 B4 loops and the limits sweep (which now opens a card
+drawer for `research.maxTeams` / `research.rePerProject`) did not run. Escape closes an open tooltip first, then the
+drawer. Screenshots: scripts/v2/shots/ub6/ (d0, d400, d900: portfolio, drawer, drawer-safety, tip-rate, knowhow,
+knowhow-ideas), script scripts/v2/shots/ub6.mjs (git-ignored).
+
+**For the designer / lead.** (1) SAFETY › Programmes (Safety.tsx `lines` tab) still shows safety programme staffing,
+outlook and next result: once the SAFETY build lands, the Portfolio safety column is their home and that tab should link
+here (left to the parallel SAFETY task). (2) Idea choice is one lab-wide policy in the engine; the drawer says so
+(UI-IA asks for a per-programme choice: an engine change). (3) Day 900: safety teams exist but 0 of 18 programmes are
+staffed (teams on safety projects off the programmes), and day 0 shows all capability programmes unstaffed until the
+first research day: both engine state, shown as is. (4) Domain / data effects need a Know-how L2 home.
