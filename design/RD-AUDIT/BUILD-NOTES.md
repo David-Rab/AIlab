@@ -2250,3 +2250,30 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   busy API at default KYC 1 (was 0.75 × channel coefficient), Chat leaks at 0.3 anonymous share via usage, Enterprise
   and Trusted leak nothing; China's distillation meter target no longer falls with KYC (IFP gap display moves); KYC
   costs ≈ 4.5% of API / Agents demand per level (was 2%) plus review cost. Lead days, T3 China lead → CP2.
+
+### RD-P11
+- **Done (commit aa92a09).** PRD-16 / PRD-24 (brand part). Feature incident exposure acts through the product's
+  incident-site quantities (safety/incidents.ts `siteOf`, models/products.ts `productSiteTerms`): a horizon extender on
+  all work lengthens the site's task horizon (Memory ×1.3 → autonomy A = H/(H + H_HALF)); `FeatureDef.afford` adds to
+  the site's affordances F, capped at 1 (Computer use +0.25: acting on desktops and websites, one of F's four
+  affordances [D stand-in]). Extra use from any feature is already in the product's serving share.
+- **Deleted:** Memory SUCC ×1.2 (dead on products: SUCC has no product act, only internal SUCCSTEER), Computer use
+  POWER ×1.3 (→ affordances), Coding agent RH ×1.2 (its longer runs, ×2 tokens, are in the serving share). **Kept as
+  [D stand-in]:** Companion SYC ×1.5, standing for longer personal conversations per user that usage does not count
+  (risk text says so); to replace with time per user.
+- **Brand:** the flat 1.2 incumbent factor is gone (`playerBrand` = 1 ± 0.1 with approval). Every provider's choice
+  weight in a segment is × (1 + BRAND_INSTALLED × its customer stock share there) (worldfx/mix.ts `installedBrand`;
+  sector surplus choice and Chat logit). BRAND_INSTALLED 0.5 [D stand-in] (data/v2/serving.ts): ×1.2 at a 40% stock,
+  the old effect size; to source from retention / switching-cost data. The reach logit (A8) reads the base brand only.
+- **State:** none (no SCHEMA_REV bump).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p11/check.ts` (run alone) all ok: no flat 1.2
+  in mix.ts; player brand 1.05 → 1.30 at stock 0.1 → 0.6 (a rival's falls 1.09 → 1.04); player US SOFT target
+  0.4038 → 0.4075, Chat target 0.6743 → 0.7288; only Companion has a hazard multiplier and it is marked [D]; Computer
+  use on the API F 0.5 → 0.75. Memory's autonomy check skipped (no Agents product at the ai2027 start). Not run:
+  test:quick / full, uitest.
+- **Left:** Products feature tooltip still shows the risk text only (no site-term numbers); the other PRD-24 constants
+  (character appeal, regional access table, open markup, restricted ×0.3) untouched; GLOSSARY.md not regenerated.
+- **moves calibration: yes (worldfx / finance / safety).** Brand now follows the stock: an incumbent with a large
+  share keeps more of it (positive feedback), a player with a small stock loses the flat ×1.2 edge; rivals gain a
+  brand term where they hold customers. API Computer-use products have more overreach / cover-up incidents (F ×1.5 on
+  α = 1 acts), Memory products more autonomy-linked incidents; coding-agent products fewer reward-hacking incidents.
