@@ -1,0 +1,6717 @@
+{
+ "fixture": "day400.json",
+ "day": 400,
+ "date": "Aug 5, 2026",
+ "training": {
+  "bestModel_measured": {
+   "name": "Atlas-2.6",
+   "L": 6.97,
+   "Lsd": 0.067,
+   "Lrange90": [
+    6.86,
+    7.08
+   ],
+   "milestoneOfL": "Reliable agent",
+   "domains": {
+    "CODE": {
+     "name": "Code",
+     "L": 6.93,
+     "range90": [
+      6.82,
+      7.04
+     ]
+    },
+    "RSCH": {
+     "name": "AI research",
+     "L": 3.92,
+     "range90": [
+      3.81,
+      4.03
+     ]
+    },
+    "REASON": {
+     "name": "Math & reasoning",
+     "L": 4.06,
+     "range90": [
+      3.95,
+      4.17
+     ]
+    },
+    "AGENCY": {
+     "name": "Long tasks",
+     "L": 6.89,
+     "range90": [
+      6.78,
+      7
+     ]
+    },
+    "SOCIAL": {
+     "name": "Social",
+     "L": 0,
+     "range90": [
+      -0.11,
+      0.11
+     ]
+    },
+    "MEDIA": {
+     "name": "Media",
+     "L": 0,
+     "range90": [
+      -0.11,
+      0.11
+     ]
+    },
+    "CYBER": {
+     "name": "Cyber",
+     "L": 1.35,
+     "range90": [
+      1.24,
+      1.46
+     ]
+    },
+    "BIO": {
+     "name": "Bio",
+     "L": 0,
+     "range90": [
+      -0.11,
+      0.11
+     ]
+    },
+    "PHYS": {
+     "name": "Physical",
+     "L": 0,
+     "range90": [
+      -0.11,
+      0.11
+     ]
+    }
+   }
+  },
+  "bestModel_engine": "Atlas-2.10",
+  "internalModel": {
+   "name": "Atlas-2.10",
+   "notMeasuredYet": true,
+   "status": "evaluating",
+   "inherited": {
+    "from": "Atlas-2.8",
+    "L": 6.79,
+    "Lsd": 0.096,
+    "Lrange90": [
+     6.633,
+     6.947
+    ],
+    "milestoneOfL": "Reliable agent",
+    "domains": {
+     "CODE": {
+      "name": "Code",
+      "L": 6.72,
+      "range90": [
+       6.563,
+       6.877
+      ]
+     },
+     "RSCH": {
+      "name": "AI research",
+      "L": 3.57,
+      "range90": [
+       3.413,
+       3.727
+      ]
+     },
+     "REASON": {
+      "name": "Math & reasoning",
+      "L": 3.91,
+      "range90": [
+       3.753,
+       4.067
+      ]
+     },
+     "AGENCY": {
+      "name": "Long tasks",
+      "L": 6.93,
+      "range90": [
+       6.773,
+       7.087
+      ]
+     },
+     "SOCIAL": {
+      "name": "Social",
+      "L": 0.15,
+      "range90": [
+       -0.007,
+       0.307
+      ]
+     },
+     "MEDIA": {
+      "name": "Media",
+      "L": 0.14,
+      "range90": [
+       -0.017,
+       0.297
+      ]
+     },
+     "CYBER": {
+      "name": "Cyber",
+      "L": 1.51,
+      "range90": [
+       1.353,
+       1.667
+      ]
+     },
+     "BIO": {
+      "name": "Bio",
+      "L": 0.57,
+      "range90": [
+       0.413,
+       0.727
+      ]
+     },
+     "PHYS": {
+      "name": "Physical",
+      "L": 0.92,
+      "range90": [
+       0.763,
+       1.077
+      ]
+     }
+    }
+   }
+  },
+  "internalEval": {
+   "L": 6.79,
+   "evaluating": true,
+   "name": "Atlas-2.10"
+  },
+  "scale": {
+   "rungs": [
+    {
+     "idx": 0,
+     "name": "Agent",
+     "level": 5,
+     "metDay": 0,
+     "metDate": "Jul 1, 2025"
+    },
+    {
+     "idx": 1,
+     "name": "Reliable agent",
+     "level": 6.5,
+     "metDay": 151,
+     "metDate": "Nov 29, 2025"
+    },
+    {
+     "idx": 2,
+     "name": "Research agent",
+     "level": 8.5
+    },
+    {
+     "idx": 3,
+     "name": "Superhuman coder",
+     "level": 10
+    },
+    {
+     "idx": 4,
+     "name": "Superhuman AI researcher",
+     "level": 12
+    },
+    {
+     "idx": 5,
+     "name": "Superintelligent AI researcher",
+     "level": 13.5
+    },
+    {
+     "idx": 6,
+     "name": "Superintelligence",
+     "level": 15
+    }
+   ],
+   "ticks": {
+    "medianExpert_frameworkHigh": {
+     "kind": "capability",
+     "domain": "BIO",
+     "level": 6.4
+    },
+    "bestHuman": 10,
+    "superhumanCoder": 10
+   },
+   "frameworkRules": [
+    {
+     "id": "bio-high",
+     "label": "Biological: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 6.4
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "cyber-high",
+     "label": "Cyber: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 6.4
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "bio-critical",
+     "label": "Biological: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 10
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "cyber-critical",
+     "label": "Cyber: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 10
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "aird-critical",
+     "label": "AI R&D: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "RSCH",
+      "level": 10
+     },
+     "holds": "training"
+    },
+    {
+     "id": "misalignment",
+     "label": "Misalignment signs",
+     "trigger": {
+      "kind": "belief",
+      "est": 0.3
+     },
+     "holds": "training"
+    }
+   ]
+  },
+  "defaultKind": "base",
+  "plans": {
+   "base": {
+    "params": {
+     "params": 1100000000000,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced",
+     "quality": true,
+     "hazard": false,
+     "safetyPretrain": false,
+     "pref": "constitution",
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard",
+     "poolShare": 0.6,
+     "baseId": "B3"
+    },
+    "prediction": {
+     "from": "Atlas-2.6",
+     "sd": 0.067,
+     "L": 9.158,
+     "band": [
+      9.091,
+      9.225
+     ],
+     "range90": [
+      9.048,
+      9.268
+     ],
+     "milestone": "Research agent",
+     "milestoneAtTop": "Research agent",
+     "vsInternalL": 2.368,
+     "internalLFrom": "Atlas-2.8",
+     "vsForecastRefL": 2.188,
+     "domains": {
+      "CODE": {
+       "L": 9.363,
+       "band": [
+        9.296,
+        9.43
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 2.643,
+       "vsForecastRef": 2.433
+      },
+      "RSCH": {
+       "L": 6.456,
+       "band": [
+        6.389,
+        6.523
+       ],
+       "milestone": "Agent",
+       "vsInternal": 2.886,
+       "vsForecastRef": 2.536
+      },
+      "REASON": {
+       "L": 6.579,
+       "band": [
+        6.512,
+        6.646
+       ],
+       "milestone": "Reliable agent",
+       "vsInternal": 2.669,
+       "vsForecastRef": 2.519
+      },
+      "AGENCY": {
+       "L": 9.813,
+       "band": [
+        9.746,
+        9.88
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 2.883,
+       "vsForecastRef": 2.923
+      },
+      "SOCIAL": {
+       "L": 0.386,
+       "band": [
+        0.319,
+        0.453
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.236,
+       "vsForecastRef": 0.386
+      },
+      "MEDIA": {
+       "L": 1.354,
+       "band": [
+        1.287,
+        1.421
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.214,
+       "vsForecastRef": 1.354
+      },
+      "CYBER": {
+       "L": 2.764,
+       "band": [
+        2.697,
+        2.831
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.254,
+       "vsForecastRef": 1.414
+      },
+      "BIO": {
+       "L": 2.018,
+       "band": [
+        1.951,
+        2.085
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.448,
+       "vsForecastRef": 2.018
+      },
+      "PHYS": {
+       "L": 2.204,
+       "band": [
+        2.137,
+        2.271
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.284,
+       "vsForecastRef": 2.204
+      }
+     },
+     "monitorability": "high"
+    },
+    "limits": {
+     "flop": 2.904e+27,
+     "tokens": 440000000000000,
+     "activeParams": 1100000000000,
+     "tpp": 400,
+     "wallDays": 104,
+     "trainDays": 103,
+     "ends": "Nov 17, 2026",
+     "poolShareAsked": 0.6,
+     "poolShareGets": 0.6,
+     "computeDaysAtShare": 103,
+     "refPostTrainDays": 78,
+     "evalDays": 0,
+     "readyDate": "Feb 3, 2027",
+     "data": {
+      "epochs": 0.448,
+      "uniqueTokens": 982302078551971,
+      "keptShare": 1,
+      "keptOom": 0,
+      "meanQuality": 0.802,
+      "drawn": {
+       "rows": [
+        {
+         "domain": "CODE",
+         "share": 0.102,
+         "effShare": 0.102,
+         "ref": 0.088,
+         "s": 0.1,
+         "epochs": 0.448
+        },
+        {
+         "domain": "RSCH",
+         "share": 0.101,
+         "effShare": 0.101,
+         "ref": 0.079,
+         "s": 0.158,
+         "epochs": 0.448
+        },
+        {
+         "domain": "REASON",
+         "share": 0.116,
+         "effShare": 0.116,
+         "ref": 0.083,
+         "s": 0.221,
+         "epochs": 0.448
+        },
+        {
+         "domain": "AGENCY",
+         "share": 0.095,
+         "effShare": 0.095,
+         "ref": 0.058,
+         "s": 0.324,
+         "epochs": 0.448
+        },
+        {
+         "domain": "SOCIAL",
+         "share": 0.196,
+         "effShare": 0.196,
+         "ref": 0.429,
+         "s": -0.512,
+         "epochs": 0.448
+        },
+        {
+         "domain": "MEDIA",
+         "share": 0.114,
+         "effShare": 0.114,
+         "ref": 0.12,
+         "s": -0.029,
+         "epochs": 0.448
+        },
+        {
+         "domain": "CYBER",
+         "share": 0.09,
+         "effShare": 0.09,
+         "ref": 0.033,
+         "s": 0.658,
+         "epochs": 0.448
+        },
+        {
+         "domain": "BIO",
+         "share": 0.096,
+         "effShare": 0.096,
+         "ref": 0.062,
+         "s": 0.288,
+         "epochs": 0.448
+        },
+        {
+         "domain": "PHYS",
+         "share": 0.09,
+         "effShare": 0.09,
+         "ref": 0.049,
+         "s": 0.394,
+         "epochs": 0.448
+        }
+       ],
+       "most": {
+        "domain": "CODE",
+        "share": 0.102,
+        "effShare": 0.102,
+        "ref": 0.088,
+        "s": 0.1,
+        "epochs": 0.448
+       }
+      }
+     },
+     "cash": {
+      "atLaunch": 0,
+      "ofCash": 0,
+      "cashNow": 51.625,
+      "computeEquivCost": 1.878
+     },
+     "serving": {
+      "fpt": 2200000000000,
+      "costPerHour": 0.088,
+      "agentHour": 0.914,
+      "internalTodayFpt": 1266937010126.258,
+      "internalTodayCostHour": 0.051,
+      "relToInternal": 1.736
+     },
+     "runOps_engineers": {
+      "setupTeamWeeks": 0.682,
+      "setupDays": 1,
+      "buildQueueAhead": 0
+     },
+     "behindAtFinish": {
+      "ideas": 26,
+      "oom": 0.192
+     }
+    },
+    "sightLimit": {
+     "sight": 0,
+     "lo": 0,
+     "hi": 6.85,
+     "planned": 9.158,
+     "gap": -9.16,
+     "beyond": true,
+     "beyondRange": true
+    },
+    "pressure": {
+     "omega": {
+      "growth": 1,
+      "safety": 1,
+      "kind": 1
+     },
+     "rows": [
+      {
+       "id": "S5",
+       "value": 0.438,
+       "q": {
+        "ai": 0.03,
+        "aiRef": 0.022,
+        "aiTerm": 0.268,
+        "gPre": 28.798,
+        "g0": 25.39,
+        "gTerm": 0.17,
+        "kG": 0.05,
+        "safetyPretrain": false
+       }
+      },
+      {
+       "id": "S6",
+       "value": 0,
+       "q": {}
+      }
+     ],
+     "raw": {
+      "kind": "base",
+      "rows": [
+       {
+        "id": "S5",
+        "value": 0.438,
+        "q": {
+         "ai": 0.03,
+         "aiRef": 0.022,
+         "aiTerm": 0.268,
+         "gPre": 28.798,
+         "g0": 25.39,
+         "gTerm": 0.17,
+         "kG": 0.05,
+         "safetyPretrain": false
+        }
+       },
+       {
+        "id": "S6",
+        "value": 0,
+        "q": {}
+       }
+      ],
+      "omega": {
+       "growth": 1,
+       "safety": 1,
+       "kind": 1
+      },
+      "imitation": {
+       "share": 0.731,
+       "teachers": [
+        {
+         "name": "Atlas-2.8",
+         "share": 0.112
+        },
+        {
+         "name": "Atlas-2.6",
+         "share": 0.1
+        },
+        {
+         "name": "Atlas-2.5",
+         "share": 0.095
+        },
+        {
+         "name": "Atlas-1.7",
+         "share": 0.084
+        },
+        {
+         "name": "Atlas-2.4",
+         "share": 0.073
+        },
+        {
+         "name": "Atlas-2.2",
+         "share": 0.065
+        },
+        {
+         "name": "Atlas-2.0",
+         "share": 0.054
+        },
+        {
+         "name": "Atlas-1.6",
+         "share": 0.051
+        },
+        {
+         "name": "Atlas-1.5",
+         "share": 0.048
+        },
+        {
+         "name": "Atlas-2.10",
+         "share": 0.029
+        },
+        {
+         "name": "Atlas-1.0",
+         "share": 0.009
+        },
+        {
+         "name": "start stock",
+         "share": 0.008
+        },
+        {
+         "name": "Atlas-1.4",
+         "share": 0.003
+        }
+       ]
+      }
+     }
+    },
+    "riskFamiliesPredictedBeliefChange": {
+     "please": {
+      "label": "People-pleasing",
+      "sum": 0,
+      "traits": {
+       "SYC": 0,
+       "PERSONA": 0
+      }
+     },
+     "gaming": {
+      "label": "Gaming",
+      "sum": 0.131,
+      "traits": {
+       "RH": 0.054,
+       "PROXY": 0,
+       "TGAME": 0.077
+      }
+     },
+     "deception": {
+      "label": "Deception",
+      "sum": 0.371,
+      "traits": {
+       "EA": 0.167,
+       "CONCEAL": 0.045,
+       "OBF": 0.061,
+       "AF": 0,
+       "SAND": 0.061,
+       "SCHEME": 0.037
+      }
+     },
+     "power": {
+      "label": "Power",
+      "sum": 0.009,
+      "traits": {
+       "POWER": 0.009,
+       "SUCC": 0,
+       "COLLUDE": 0
+      }
+     }
+    }
+   },
+   "post": {
+    "params": {
+     "params": 1100000000000,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced",
+     "quality": true,
+     "hazard": false,
+     "safetyPretrain": false,
+     "pref": "constitution",
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard",
+     "poolShare": 0.2,
+     "baseId": "B3"
+    },
+    "prediction": {
+     "from": "Atlas-2.6",
+     "sd": 0.067,
+     "L": 8.693,
+     "band": [
+      8.626,
+      8.76
+     ],
+     "range90": [
+      8.583,
+      8.803
+     ],
+     "milestone": "Research agent",
+     "milestoneAtTop": "Research agent",
+     "vsInternalL": 1.903,
+     "internalLFrom": "Atlas-2.8",
+     "vsForecastRefL": 1.723,
+     "domains": {
+      "CODE": {
+       "L": 8.698,
+       "band": [
+        8.631,
+        8.765
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 1.978,
+       "vsForecastRef": 1.768
+      },
+      "RSCH": {
+       "L": 5.674,
+       "band": [
+        5.607,
+        5.741
+       ],
+       "milestone": "Agent",
+       "vsInternal": 2.104,
+       "vsForecastRef": 1.754
+      },
+      "REASON": {
+       "L": 5.67,
+       "band": [
+        5.603,
+        5.737
+       ],
+       "milestone": "Agent",
+       "vsInternal": 1.76,
+       "vsForecastRef": 1.61
+      },
+      "AGENCY": {
+       "L": 8.698,
+       "band": [
+        8.631,
+        8.765
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 1.768,
+       "vsForecastRef": 1.808
+      },
+      "SOCIAL": {
+       "L": 0.949,
+       "band": [
+        0.882,
+        1.016
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.799,
+       "vsForecastRef": 0.949
+      },
+      "MEDIA": {
+       "L": 0.949,
+       "band": [
+        0.882,
+        1.016
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.809,
+       "vsForecastRef": 0.949
+      },
+      "CYBER": {
+       "L": 0.979,
+       "band": [
+        0.912,
+        1.046
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -0.531,
+       "vsForecastRef": -0.371
+      },
+      "BIO": {
+       "L": 0.974,
+       "band": [
+        0.907,
+        1.041
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.404,
+       "vsForecastRef": 0.974
+      },
+      "PHYS": {
+       "L": 0.949,
+       "band": [
+        0.882,
+        1.016
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.029,
+       "vsForecastRef": 0.949
+      }
+     },
+     "monitorability": "high"
+    },
+    "limits": {
+     "flop": 3.569546501116691e+26,
+     "wallDays": 65,
+     "trainDays": 64,
+     "ends": "Oct 9, 2026",
+     "poolShareAsked": 0.2,
+     "poolShareGets": 0.2,
+     "computeDaysAtShare": 64,
+     "refPostTrainDays": 0,
+     "evalDays": 14,
+     "readyDate": "Oct 23, 2026",
+     "cash": {
+      "atLaunch": 0,
+      "ofCash": 0,
+      "cashNow": 51.625
+     },
+     "serving": {
+      "fpt": 1991522728722.559,
+      "costPerHour": 0.08,
+      "agentHour": 0.827,
+      "internalTodayFpt": 1266937010126.258,
+      "internalTodayCostHour": 0.051,
+      "relToInternal": 1.572
+     },
+     "runOps_engineers": {
+      "setupTeamWeeks": 0.1,
+      "setupDays": 1,
+      "buildQueueAhead": 0
+     }
+    },
+    "sightLimit": {
+     "sight": 0,
+     "lo": 0,
+     "hi": 6.85,
+     "planned": 8.693,
+     "gap": -8.69,
+     "beyond": true,
+     "beyondRange": true
+    },
+    "pressure": {
+     "omega": {
+      "growth": 0.6,
+      "safety": 0.6,
+      "kind": 0.6,
+      "rho": 0.15,
+      "rlFactor": 1
+     },
+     "rows": [
+      {
+       "id": "S1",
+       "value": 0.4,
+       "q": {
+        "method": "constitution",
+        "bias": 0.4,
+        "prefShare": 0.096,
+        "prefShareRef": 0.096
+       }
+      },
+      {
+       "id": "S2",
+       "value": 0.672,
+       "q": {
+        "hackRate": 0.122,
+        "perExploit": 5.5,
+        "pressure": 1,
+        "rho": 0.15,
+        "rhoRef": 0.15,
+        "kGao": 0.71,
+        "p11": false,
+        "hacked": 0.122,
+        "learned": 0.004,
+        "lhOnset": 0.1,
+        "lhFull": 0.45,
+        "inoculated": false,
+        "inocMult": 0.155
+       },
+       "fams": [
+        {
+         "family": "swe",
+         "share": 0.167,
+         "x": 0.23,
+         "term": 0.211
+        },
+        {
+         "family": "mlResearch",
+         "share": 0.167,
+         "x": 0.174,
+         "term": 0.159
+        },
+        {
+         "family": "math",
+         "share": 0.167,
+         "x": 0.117,
+         "term": 0.108
+        },
+        {
+         "family": "longHorizon",
+         "share": 0.167,
+         "x": 0.071,
+         "term": 0.065
+        },
+        {
+         "family": "cyber",
+         "share": 0.167,
+         "x": 0.071,
+         "term": 0.065
+        },
+        {
+         "family": "bio",
+         "share": 0.167,
+         "x": 0.071,
+         "term": 0.065
+        }
+       ]
+      },
+      {
+       "id": "S3",
+       "value": 0.75,
+       "q": {
+        "k": 1.345,
+        "agentic": 0.667
+       },
+       "fams": [
+        {
+         "family": "longHorizon",
+         "share": 0.167,
+         "x": 40,
+         "term": 0.362
+        },
+        {
+         "family": "mlResearch",
+         "share": 0.167,
+         "x": 8,
+         "term": 0.214
+        },
+        {
+         "family": "swe",
+         "share": 0.167,
+         "x": 2,
+         "term": 0.107
+        },
+        {
+         "family": "cyber",
+         "share": 0.167,
+         "x": 1,
+         "term": 0.067
+        }
+       ]
+      },
+      {
+       "id": "S4",
+       "value": 0,
+       "q": {
+        "cot": "visible",
+        "cotMonitor": false
+       }
+      },
+      {
+       "id": "S5",
+       "value": 0.05,
+       "q": {
+        "longShare": 0.167,
+        "k": 0.3
+       }
+      },
+      {
+       "id": "S6",
+       "value": 0,
+       "q": {}
+      },
+      {
+       "id": "S7",
+       "value": 0.35,
+       "q": {
+        "base": 0.05,
+        "rl": 0.2,
+        "mlShare": 0.167,
+        "kMl": 0.6,
+        "bb": 0,
+        "kBb": 0.3,
+        "rho": 0.15,
+        "rhoRef": 0.15
+       }
+      },
+      {
+       "id": "S8",
+       "value": 0.255,
+       "q": {
+        "agentFte": 1812661.274,
+        "fteRef": 7100000,
+        "p05": false,
+        "applied": false
+       }
+      },
+      {
+       "id": "S9",
+       "value": 0,
+       "q": {
+        "bb": 0,
+        "kBb": 0.3
+       }
+      }
+     ],
+     "raw": {
+      "kind": "post",
+      "rows": [
+       {
+        "id": "S1",
+        "value": 0.4,
+        "q": {
+         "method": "constitution",
+         "bias": 0.4,
+         "prefShare": 0.096,
+         "prefShareRef": 0.096
+        }
+       },
+       {
+        "id": "S2",
+        "value": 0.672,
+        "q": {
+         "hackRate": 0.122,
+         "perExploit": 5.5,
+         "pressure": 1,
+         "rho": 0.15,
+         "rhoRef": 0.15,
+         "kGao": 0.71,
+         "p11": false,
+         "hacked": 0.122,
+         "learned": 0.004,
+         "lhOnset": 0.1,
+         "lhFull": 0.45,
+         "inoculated": false,
+         "inocMult": 0.155
+        },
+        "fams": [
+         {
+          "family": "swe",
+          "share": 0.167,
+          "x": 0.23,
+          "term": 0.211
+         },
+         {
+          "family": "mlResearch",
+          "share": 0.167,
+          "x": 0.174,
+          "term": 0.159
+         },
+         {
+          "family": "math",
+          "share": 0.167,
+          "x": 0.117,
+          "term": 0.108
+         },
+         {
+          "family": "longHorizon",
+          "share": 0.167,
+          "x": 0.071,
+          "term": 0.065
+         },
+         {
+          "family": "cyber",
+          "share": 0.167,
+          "x": 0.071,
+          "term": 0.065
+         },
+         {
+          "family": "bio",
+          "share": 0.167,
+          "x": 0.071,
+          "term": 0.065
+         }
+        ]
+       },
+       {
+        "id": "S3",
+        "value": 0.75,
+        "q": {
+         "k": 1.345,
+         "agentic": 0.667
+        },
+        "fams": [
+         {
+          "family": "longHorizon",
+          "share": 0.167,
+          "x": 40,
+          "term": 0.362
+         },
+         {
+          "family": "mlResearch",
+          "share": 0.167,
+          "x": 8,
+          "term": 0.214
+         },
+         {
+          "family": "swe",
+          "share": 0.167,
+          "x": 2,
+          "term": 0.107
+         },
+         {
+          "family": "cyber",
+          "share": 0.167,
+          "x": 1,
+          "term": 0.067
+         }
+        ]
+       },
+       {
+        "id": "S4",
+        "value": 0,
+        "q": {
+         "cot": "visible",
+         "cotMonitor": false
+        }
+       },
+       {
+        "id": "S5",
+        "value": 0.05,
+        "q": {
+         "longShare": 0.167,
+         "k": 0.3
+        }
+       },
+       {
+        "id": "S6",
+        "value": 0,
+        "q": {}
+       },
+       {
+        "id": "S7",
+        "value": 0.35,
+        "q": {
+         "base": 0.05,
+         "rl": 0.2,
+         "mlShare": 0.167,
+         "kMl": 0.6,
+         "bb": 0,
+         "kBb": 0.3,
+         "rho": 0.15,
+         "rhoRef": 0.15
+        }
+       },
+       {
+        "id": "S8",
+        "value": 0.255,
+        "q": {
+         "agentFte": 1812661.274,
+         "fteRef": 7100000,
+         "p05": false,
+         "applied": false
+        }
+       },
+       {
+        "id": "S9",
+        "value": 0,
+        "q": {
+         "bb": 0,
+         "kBb": 0.3
+        }
+       }
+      ],
+      "omega": {
+       "growth": 0.6,
+       "safety": 0.6,
+       "kind": 0.6,
+       "rho": 0.15,
+       "rlFactor": 1
+      }
+     }
+    },
+    "riskFamiliesPredictedBeliefChange": {
+     "please": {
+      "label": "People-pleasing",
+      "sum": -0.028,
+      "traits": {
+       "SYC": 0.007,
+       "PERSONA": -0.035
+      }
+     },
+     "gaming": {
+      "label": "Gaming",
+      "sum": 0.034,
+      "traits": {
+       "RH": 0.035,
+       "PROXY": -0.002,
+       "TGAME": 0
+      }
+     },
+     "deception": {
+      "label": "Deception",
+      "sum": -0.014,
+      "traits": {
+       "EA": -0.003,
+       "CONCEAL": -0.002,
+       "OBF": 0.036,
+       "AF": -0.017,
+       "SAND": -0.005,
+       "SCHEME": -0.023
+      }
+     },
+     "power": {
+      "label": "Power",
+      "sum": -0.008,
+      "traits": {
+       "POWER": -0.002,
+       "SUCC": -0.01,
+       "COLLUDE": 0.004
+      }
+     }
+    }
+   },
+   "distill": {
+    "params": {
+     "params": 1100000000000,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced",
+     "quality": true,
+     "hazard": false,
+     "safetyPretrain": false,
+     "pref": "constitution",
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard",
+     "poolShare": 0.1,
+     "baseId": "B3"
+    },
+    "prediction": {
+     "from": "Atlas-2.6",
+     "sd": 0.067,
+     "L": 5.026,
+     "band": [
+      4.959,
+      5.093
+     ],
+     "range90": [
+      4.916,
+      5.136
+     ],
+     "milestone": "Agent",
+     "milestoneAtTop": "Agent",
+     "vsInternalL": -1.764,
+     "internalLFrom": "Atlas-2.8",
+     "vsForecastRefL": -1.944,
+     "domains": {
+      "CODE": {
+       "L": 5.03,
+       "band": [
+        4.963,
+        5.097
+       ],
+       "milestone": "Agent",
+       "vsInternal": -1.69,
+       "vsForecastRef": -1.9
+      },
+      "RSCH": {
+       "L": 2.005,
+       "band": [
+        1.938,
+        2.072
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -1.565,
+       "vsForecastRef": -1.915
+      },
+      "REASON": {
+       "L": 2.002,
+       "band": [
+        1.935,
+        2.069
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -1.908,
+       "vsForecastRef": -2.058
+      },
+      "AGENCY": {
+       "L": 5.03,
+       "band": [
+        4.963,
+        5.097
+       ],
+       "milestone": "Agent",
+       "vsInternal": -1.9,
+       "vsForecastRef": -1.86
+      },
+      "SOCIAL": {
+       "L": 0.001,
+       "band": [
+        -0.066,
+        0.068
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -0.149,
+       "vsForecastRef": 0.001
+      },
+      "MEDIA": {
+       "L": 0.001,
+       "band": [
+        -0.066,
+        0.068
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -0.139,
+       "vsForecastRef": 0.001
+      },
+      "CYBER": {
+       "L": 0.001,
+       "band": [
+        -0.066,
+        0.068
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -1.509,
+       "vsForecastRef": -1.349
+      },
+      "BIO": {
+       "L": 0.001,
+       "band": [
+        -0.066,
+        0.068
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -0.569,
+       "vsForecastRef": 0.001
+      },
+      "PHYS": {
+       "L": 0.001,
+       "band": [
+        -0.066,
+        0.068
+       ],
+       "milestone": "below Agent",
+       "vsInternal": -0.919,
+       "vsForecastRef": 0.001
+      }
+     },
+     "monitorability": "high"
+    },
+    "limits": {
+     "flop": 2.7588161349850454e+24,
+     "wallDays": 2,
+     "trainDays": 1,
+     "ends": "Aug 7, 2026",
+     "poolShareAsked": 0.1,
+     "poolShareGets": 0.1,
+     "computeDaysAtShare": 1,
+     "refPostTrainDays": 0,
+     "evalDays": 14,
+     "readyDate": "Aug 21, 2026",
+     "cash": {
+      "atLaunch": 0,
+      "ofCash": 0,
+      "cashNow": 51.625
+     },
+     "serving": {
+      "fpt": 158367126265.782,
+      "costPerHour": 0.006,
+      "agentHour": 0.066,
+      "internalTodayFpt": 1266937010126.258,
+      "internalTodayCostHour": 0.051,
+      "relToInternal": 0.125
+     },
+     "runOps_engineers": {
+      "setupTeamWeeks": 0.05,
+      "setupDays": 1,
+      "buildQueueAhead": 0
+     }
+    },
+    "sightLimit": {
+     "sight": 0,
+     "lo": 0,
+     "hi": 6.85,
+     "planned": 5.026,
+     "gap": -5.03,
+     "beyond": true,
+     "beyondRange": false
+    },
+    "pressure": {
+     "omega": {
+      "growth": 0.4,
+      "safety": 0.4,
+      "kind": 0.4
+     },
+     "rows": [
+      {
+       "id": "S6",
+       "value": 0,
+       "q": {}
+      }
+     ],
+     "raw": {
+      "kind": "distill",
+      "rows": [
+       {
+        "id": "S6",
+        "value": 0,
+        "q": {}
+       }
+      ],
+      "omega": {
+       "growth": 0.4,
+       "safety": 0.4,
+       "kind": 0.4
+      },
+      "imitation": {
+       "share": 1,
+       "teachers": [
+        {
+         "name": "Atlas-2.10",
+         "share": 1
+        }
+       ]
+      }
+     }
+    },
+    "riskFamiliesPredictedBeliefChange": {
+     "please": {
+      "label": "People-pleasing",
+      "sum": 0,
+      "traits": {
+       "SYC": 0,
+       "PERSONA": 0
+      }
+     },
+     "gaming": {
+      "label": "Gaming",
+      "sum": 0.036,
+      "traits": {
+       "RH": 0.005,
+       "PROXY": 0,
+       "TGAME": 0.03
+      }
+     },
+     "deception": {
+      "label": "Deception",
+      "sum": 0.156,
+      "traits": {
+       "EA": 0.054,
+       "CONCEAL": 0.01,
+       "OBF": 0.024,
+       "AF": 0.03,
+       "SAND": 0.019,
+       "SCHEME": 0.017
+      }
+     },
+     "power": {
+      "label": "Power",
+      "sum": 0.004,
+      "traits": {
+       "POWER": 0.004,
+       "SUCC": 0,
+       "COLLUDE": 0
+      }
+     }
+    }
+   },
+   "continue": {
+    "params": {
+     "params": 1100000000000,
+     "tpp": 400,
+     "shape": "moe",
+     "data": "balanced",
+     "quality": true,
+     "hazard": false,
+     "safetyPretrain": false,
+     "pref": "constitution",
+     "rlFocus": "broad",
+     "rlBudget": "standard",
+     "cot": "visible",
+     "safety": "standard",
+     "poolShare": 0.3,
+     "baseId": "B3"
+    },
+    "prediction": {
+     "from": "Atlas-2.6",
+     "sd": 0.067,
+     "L": 9.322,
+     "band": [
+      9.255,
+      9.389
+     ],
+     "range90": [
+      9.213,
+      9.432
+     ],
+     "milestone": "Research agent",
+     "milestoneAtTop": "Research agent",
+     "vsInternalL": 2.532,
+     "internalLFrom": "Atlas-2.8",
+     "vsForecastRefL": 2.352,
+     "domains": {
+      "CODE": {
+       "L": 9.328,
+       "band": [
+        9.261,
+        9.395
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 2.608,
+       "vsForecastRef": 2.398
+      },
+      "RSCH": {
+       "L": 6.305,
+       "band": [
+        6.238,
+        6.372
+       ],
+       "milestone": "Agent",
+       "vsInternal": 2.735,
+       "vsForecastRef": 2.385
+      },
+      "REASON": {
+       "L": 6.3,
+       "band": [
+        6.233,
+        6.367
+       ],
+       "milestone": "Agent",
+       "vsInternal": 2.39,
+       "vsForecastRef": 2.24
+      },
+      "AGENCY": {
+       "L": 9.328,
+       "band": [
+        9.261,
+        9.395
+       ],
+       "milestone": "Research agent",
+       "vsInternal": 2.398,
+       "vsForecastRef": 2.438
+      },
+      "SOCIAL": {
+       "L": 1.578,
+       "band": [
+        1.511,
+        1.645
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.428,
+       "vsForecastRef": 1.578
+      },
+      "MEDIA": {
+       "L": 1.578,
+       "band": [
+        1.511,
+        1.645
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.438,
+       "vsForecastRef": 1.578
+      },
+      "CYBER": {
+       "L": 1.609,
+       "band": [
+        1.542,
+        1.676
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.099,
+       "vsForecastRef": 0.259
+      },
+      "BIO": {
+       "L": 1.604,
+       "band": [
+        1.537,
+        1.671
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 1.034,
+       "vsForecastRef": 1.604
+      },
+      "PHYS": {
+       "L": 1.578,
+       "band": [
+        1.511,
+        1.645
+       ],
+       "milestone": "below Agent",
+       "vsInternal": 0.658,
+       "vsForecastRef": 1.578
+      }
+     },
+     "monitorability": "high"
+    },
+    "limits": {
+     "flop": 7.139093002233382e+26,
+     "wallDays": 52,
+     "trainDays": 51,
+     "ends": "Sep 26, 2026",
+     "poolShareAsked": 0.3,
+     "poolShareGets": 0.3,
+     "computeDaysAtShare": 51,
+     "refPostTrainDays": 0,
+     "evalDays": 14,
+     "readyDate": "Oct 10, 2026",
+     "cash": {
+      "atLaunch": 0,
+      "ofCash": 0,
+      "cashNow": 51.625
+     },
+     "serving": {
+      "fpt": 1991522728722.559,
+      "costPerHour": 0.08,
+      "agentHour": 0.827,
+      "internalTodayFpt": 1266937010126.258,
+      "internalTodayCostHour": 0.051,
+      "relToInternal": 1.572
+     },
+     "runOps_engineers": {
+      "setupTeamWeeks": 0.25,
+      "setupDays": 1,
+      "buildQueueAhead": 0
+     }
+    },
+    "sightLimit": {
+     "sight": 0,
+     "lo": 0,
+     "hi": 6.85,
+     "planned": 9.322,
+     "gap": -9.32,
+     "beyond": true,
+     "beyondRange": true
+    },
+    "pressure": {
+     "omega": {
+      "growth": 0.5,
+      "safety": 0.5,
+      "kind": 0.5
+     },
+     "rows": [
+      {
+       "id": "S5",
+       "value": 0.462,
+       "q": {
+        "ai": 0.033,
+        "aiRef": 0.022,
+        "aiTerm": 0.302,
+        "gPre": 28.583,
+        "g0": 25.39,
+        "gTerm": 0.16,
+        "kG": 0.05,
+        "safetyPretrain": false,
+        "legacy": false
+       }
+      },
+      {
+       "id": "S6",
+       "value": 0,
+       "q": {}
+      }
+     ],
+     "raw": {
+      "kind": "continue",
+      "rows": [
+       {
+        "id": "S5",
+        "value": 0.462,
+        "q": {
+         "ai": 0.033,
+         "aiRef": 0.022,
+         "aiTerm": 0.302,
+         "gPre": 28.583,
+         "g0": 25.39,
+         "gTerm": 0.16,
+         "kG": 0.05,
+         "safetyPretrain": false,
+         "legacy": false
+        }
+       },
+       {
+        "id": "S6",
+        "value": 0,
+        "q": {}
+       }
+      ],
+      "omega": {
+       "growth": 0.5,
+       "safety": 0.5,
+       "kind": 0.5
+      }
+     }
+    },
+    "riskFamiliesPredictedBeliefChange": {
+     "please": {
+      "label": "People-pleasing",
+      "sum": 0,
+      "traits": {
+       "SYC": 0,
+       "PERSONA": 0
+      }
+     },
+     "gaming": {
+      "label": "Gaming",
+      "sum": 0.065,
+      "traits": {
+       "RH": 0.028,
+       "PROXY": 0,
+       "TGAME": 0.037
+      }
+     },
+     "deception": {
+      "label": "Deception",
+      "sum": 0.168,
+      "traits": {
+       "EA": 0.076,
+       "CONCEAL": 0.017,
+       "OBF": 0.03,
+       "AF": 0,
+       "SAND": 0.025,
+       "SCHEME": 0.018
+      }
+     },
+     "power": {
+      "label": "Power",
+      "sum": 0.005,
+      "traits": {
+       "POWER": 0.005,
+       "SUCC": 0,
+       "COLLUDE": 0
+      }
+     }
+    }
+   }
+  },
+  "options": {
+   "kinds": {
+    "available": [
+     "base",
+     "post",
+     "distill",
+     "continue"
+    ],
+    "default": "base",
+    "labels": {
+     "base": "New base (pretrain)",
+     "continue": "Continue base",
+     "distill": "Distil",
+     "post": "Post-train"
+    }
+   },
+   "size": {
+    "default": 1100000000000,
+    "feasible": true,
+    "snaps": [
+     {
+      "params": 25000000000,
+      "wallDays": 2,
+      "flop": 1.5e+24,
+      "tokens": 10000000000000
+     },
+     {
+      "params": 35000000000,
+      "wallDays": 2,
+      "flop": 2.94e+24,
+      "tokens": 14000000000000
+     },
+     {
+      "params": 50000000000,
+      "wallDays": 2,
+      "flop": 6e+24,
+      "tokens": 20000000000000
+     },
+     {
+      "params": 70000000000,
+      "wallDays": 2,
+      "flop": 1.176e+25,
+      "tokens": 28000000000000
+     },
+     {
+      "params": 100000000000,
+      "wallDays": 2,
+      "flop": 2.4e+25,
+      "tokens": 40000000000000
+     },
+     {
+      "params": 140000000000,
+      "wallDays": 3,
+      "flop": 4.704e+25,
+      "tokens": 56000000000000
+     },
+     {
+      "params": 200000000000,
+      "wallDays": 5,
+      "flop": 9.6e+25,
+      "tokens": 80000000000000
+     },
+     {
+      "params": 280000000000,
+      "wallDays": 8,
+      "flop": 1.8816e+26,
+      "tokens": 112000000000000
+     },
+     {
+      "params": 400000000000,
+      "wallDays": 15,
+      "flop": 3.84e+26,
+      "tokens": 160000000000000
+     },
+     {
+      "params": 560000000000,
+      "wallDays": 28,
+      "flop": 7.5264e+26,
+      "tokens": 224000000000000
+     },
+     {
+      "params": 800000000000,
+      "wallDays": 56,
+      "flop": 1.536e+27,
+      "tokens": 320000000000000
+     },
+     {
+      "params": 1100000000000,
+      "wallDays": 104,
+      "flop": 2.904e+27,
+      "tokens": 440000000000000
+     },
+     {
+      "params": 1600000000000,
+      "wallDays": 219,
+      "flop": 6.144e+27,
+      "tokens": 640000000000000
+     },
+     {
+      "params": 2200000000000,
+      "wallDays": 413,
+      "flop": 1.1616e+28,
+      "tokens": 880000000000000
+     },
+     {
+      "params": 3200000000000,
+      "wallDays": 873,
+      "flop": 2.4576e+28,
+      "tokens": 1280000000000000
+     },
+     {
+      "params": 4500000000000,
+      "wallDays": 1724,
+      "flop": 4.86e+28,
+      "tokens": 1800000000000000
+     },
+     {
+      "params": 6400000000000,
+      "wallDays": 3486,
+      "flop": 9.8304e+28,
+      "tokens": 2560000000000000
+     },
+     {
+      "params": 9000000000000,
+      "wallDays": 6893,
+      "flop": 1.944e+29,
+      "tokens": 3600000000000000
+     },
+     {
+      "params": 13000000000000,
+      "wallDays": 14379,
+      "flop": 4.056e+29,
+      "tokens": 5200000000000000
+     },
+     {
+      "params": 18000000000000,
+      "wallDays": 27565,
+      "flop": 7.776e+29,
+      "tokens": 7200000000000000
+     },
+     {
+      "params": 25000000000000,
+      "wallDays": 53171,
+      "flop": 1.5000000000000002e+30,
+      "tokens": 10000000000000000
+     }
+    ],
+    "latestBase": {
+     "name": "Atlas-3",
+     "params": 995761364361.279,
+     "tpp": 400
+    }
+   },
+   "tokensPerParam": {
+    "default": 400,
+    "ref": 400
+   },
+   "base": {
+    "shape": {
+     "moe": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "dense": {
+      "skillL": -0.602,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": -0.602,
+       "RSCH": -0.602,
+       "REASON": -0.602,
+       "AGENCY": -0.602,
+       "SOCIAL": -0.385,
+       "MEDIA": -0.602,
+       "CYBER": -0.602,
+       "BIO": -0.602,
+       "PHYS": -0.602
+      },
+      "risk": {
+       "please": 0,
+       "gaming": -0.002,
+       "deception": -0.002,
+       "power": 0
+      }
+     },
+     "latent": {
+      "skillL": 0.949,
+      "days": 0,
+      "cash": 0,
+      "servingX": 0.4,
+      "blocked": "Needs Neuralese recurrence (Research)",
+      "domainsL": {
+       "CODE": 0.879,
+       "RSCH": 1.003,
+       "REASON": 1.003,
+       "AGENCY": 0.727,
+       "SOCIAL": 1.003,
+       "MEDIA": 1.003,
+       "CYBER": 1.003,
+       "BIO": 1.003,
+       "PHYS": 1.003
+      },
+      "risk": {
+       "please": 0,
+       "gaming": 0.003,
+       "deception": 0.003,
+       "power": 0
+      }
+     }
+    },
+    "data": {
+     "balanced": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "codeMath": {
+      "skillL": -0.006,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": 0.831,
+       "RSCH": 0.4,
+       "REASON": 0.4,
+       "AGENCY": -0.507,
+       "SOCIAL": -0.385,
+       "MEDIA": -0.507,
+       "BIO": -0.507,
+       "PHYS": -0.507
+      },
+      "risk": {
+       "please": 0,
+       "gaming": 0.003,
+       "deception": 0.003,
+       "power": 0
+      }
+     },
+     "science": {
+      "skillL": -0.005,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs Science data (Research)",
+      "domainsL": {
+       "CODE": -0.349,
+       "RSCH": 0.181,
+       "REASON": 0.181,
+       "AGENCY": -0.349,
+       "SOCIAL": -0.349,
+       "MEDIA": -0.349,
+       "CYBER": -0.349,
+       "BIO": 1.087,
+       "PHYS": -0.349
+      },
+      "risk": {
+       "please": 0,
+       "gaming": -0.001,
+       "deception": -0.001,
+       "power": 0
+      }
+     },
+     "synthetic": {
+      "skillL": -0.052,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs Synthetic data flywheel (Research)",
+      "domainsL": {
+       "RSCH": 0.054,
+       "REASON": -0.084,
+       "AGENCY": 0.103,
+       "SOCIAL": -0.385,
+       "MEDIA": -0.102,
+       "CYBER": 0.165,
+       "BIO": 0.093,
+       "PHYS": 0.12
+      },
+      "risk": {
+       "please": 0,
+       "gaming": -0.006,
+       "deception": -0.006,
+       "power": 0
+      }
+     },
+     "multimodal": {
+      "skillL": -0.005,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs Native multimodal (Research)",
+      "domainsL": {
+       "CODE": -0.539,
+       "RSCH": -0.539,
+       "REASON": -0.539,
+       "AGENCY": 0.307,
+       "SOCIAL": -0.385,
+       "MEDIA": 0.898,
+       "CYBER": -0.539,
+       "BIO": -0.539,
+       "PHYS": 0.898
+      },
+      "risk": {
+       "please": 0,
+       "gaming": -0.004,
+       "deception": -0.004,
+       "power": 0
+      }
+     }
+    },
+    "filter": {
+     "quality": {
+      "skillL": 0.032,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "hazard": {
+      "skillL": 0.002,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs Hazard data filtering (Research)",
+      "domainsL": {
+       "CODE": 0.086,
+       "RSCH": 0.086,
+       "REASON": 0.086,
+       "AGENCY": 0.086,
+       "SOCIAL": 0.086,
+       "MEDIA": 0.086,
+       "CYBER": -0.444,
+       "BIO": -0.444,
+       "PHYS": 0.086
+      },
+      "risk": {
+       "please": 0,
+       "gaming": 0.002,
+       "deception": 0.002,
+       "power": 0
+      }
+     },
+     "safetyPretrain": {
+      "skillL": -0.04,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs Safety pretraining (Research)",
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": -0.022,
+       "deception": -0.023,
+       "power": 0
+      }
+     }
+    }
+   },
+   "post": {
+    "rlFocus": {
+     "broad": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "swe": {
+      "skillL": 0.003,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: SWE (Research)",
+      "domainsL": {
+       "CODE": 0.318,
+       "REASON": -0.125,
+       "AGENCY": -0.125,
+       "BIO": -0.125
+      },
+      "risk": {
+       "please": 0.031,
+       "gaming": 0.125,
+       "deception": 0.064,
+       "power": -0.007
+      }
+     },
+     "math": {
+      "skillL": -0.044,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: math (Research)",
+      "domainsL": {
+       "CODE": -0.125,
+       "RSCH": -0.146,
+       "REASON": 0.318,
+       "AGENCY": -0.125,
+       "CYBER": -0.146,
+       "BIO": -0.125
+      },
+      "risk": {
+       "please": 0,
+       "gaming": -0.011,
+       "deception": -0.009,
+       "power": -0.066
+      }
+     },
+     "longHorizon": {
+      "skillL": -0.044,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: long tasks (Research)",
+      "domainsL": {
+       "CODE": -0.125,
+       "RSCH": -0.146,
+       "REASON": -0.125,
+       "AGENCY": 0.318,
+       "CYBER": -0.146,
+       "BIO": -0.125
+      },
+      "risk": {
+       "please": -0.002,
+       "gaming": 0.017,
+       "deception": 0,
+       "power": 0.034
+      }
+     },
+     "mlResearch": {
+      "skillL": -0.046,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: ML research (Research)",
+      "domainsL": {
+       "CODE": -0.125,
+       "RSCH": 0.28,
+       "REASON": -0.125,
+       "AGENCY": -0.125,
+       "CYBER": -0.146,
+       "BIO": -0.125
+      },
+      "risk": {
+       "please": 0.01,
+       "gaming": 0.101,
+       "deception": 0.058,
+       "power": 0.035
+      }
+     },
+     "computerUse": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "No Computer use environment suite yet",
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0.034,
+       "deception": 0.005,
+       "power": 0
+      }
+     },
+     "cyber": {
+      "skillL": -0.046,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: cyber (Research)",
+      "domainsL": {
+       "CODE": -0.125,
+       "RSCH": -0.146,
+       "REASON": -0.125,
+       "AGENCY": -0.125,
+       "CYBER": 0.28,
+       "BIO": -0.125
+      },
+      "risk": {
+       "please": -0.002,
+       "gaming": -0.033,
+       "deception": -0.014,
+       "power": -0.031
+      }
+     },
+     "bio": {
+      "skillL": -0.044,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Needs RL focus: bio (Research)",
+      "domainsL": {
+       "CODE": -0.125,
+       "RSCH": -0.146,
+       "REASON": -0.125,
+       "AGENCY": -0.125,
+       "CYBER": -0.146,
+       "BIO": 0.318
+      },
+      "risk": {
+       "please": -0.002,
+       "gaming": -0.054,
+       "deception": -0.017,
+       "power": -0.066
+      }
+     }
+    },
+    "rlBudget": {
+     "standard": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "heavy": {
+      "skillL": 0.332,
+      "days": 105,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": 0.333,
+       "RSCH": 0.333,
+       "REASON": 0.333,
+       "AGENCY": 0.333,
+       "SOCIAL": 0.328,
+       "MEDIA": 0.328,
+       "CYBER": 0.333,
+       "BIO": 0.333,
+       "PHYS": 0.328
+      },
+      "risk": {
+       "please": -0.027,
+       "gaming": 0.09,
+       "deception": 0.126,
+       "power": 0.049
+      }
+     },
+     "light": {
+      "skillL": -0.513,
+      "days": -51,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": -0.519,
+       "RSCH": -0.524,
+       "REASON": -0.519,
+       "AGENCY": -0.519,
+       "SOCIAL": -0.49,
+       "MEDIA": -0.49,
+       "CYBER": -0.524,
+       "BIO": -0.519,
+       "PHYS": -0.49
+      },
+      "risk": {
+       "please": 0.056,
+       "gaming": -0.115,
+       "deception": -0.105,
+       "power": -0.056
+      }
+     }
+    },
+    "cot": {
+     "visible": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "pressured": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 0.8,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0.227,
+       "power": 0
+      }
+     },
+     "faithful": {
+      "skillL": -0.582,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1.2,
+      "blocked": "Needs Faithful-CoT architecture (Research)",
+      "domainsL": {
+       "CODE": -0.582,
+       "RSCH": -0.582,
+       "REASON": -0.582,
+       "AGENCY": -0.582,
+       "SOCIAL": -0.582,
+       "MEDIA": -0.582,
+       "CYBER": -0.582,
+       "BIO": -0.582,
+       "PHYS": -0.582
+      },
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "latent": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "blocked": "Latent CoT needs a latent base",
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0.283,
+       "power": 0
+      }
+     }
+    },
+    "pref": {
+     "constitution": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "engagement": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "SOCIAL": 0.335
+      },
+      "risk": {
+       "please": 0.128,
+       "gaming": 0.049,
+       "deception": 0.071,
+       "power": 0.075
+      }
+     },
+     "persuasion": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "SOCIAL": 1.338
+      },
+      "risk": {
+       "please": 0.065,
+       "gaming": 0.052,
+       "deception": 0.08,
+       "power": 0.079
+      }
+     },
+     "minimal": {
+      "skillL": -0.12,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": -0.12,
+       "RSCH": -0.12,
+       "REASON": -0.12,
+       "AGENCY": -0.12,
+       "SOCIAL": -0.12,
+       "MEDIA": -0.12,
+       "CYBER": -0.12,
+       "BIO": -0.12,
+       "PHYS": -0.12
+      },
+      "risk": {
+       "please": -0.052,
+       "gaming": 0.027,
+       "deception": 0.049,
+       "power": 0.066
+      }
+     }
+    },
+    "safety": {
+     "standard": {
+      "skillL": 0,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0,
+       "gaming": 0,
+       "deception": 0,
+       "power": 0
+      }
+     },
+     "heavy": {
+      "skillL": -0.1,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {
+       "CODE": -0.1,
+       "RSCH": -0.1,
+       "REASON": -0.1,
+       "AGENCY": -0.1,
+       "SOCIAL": -0.1,
+       "MEDIA": -0.1,
+       "CYBER": -0.1,
+       "BIO": -0.1,
+       "PHYS": -0.1
+      },
+      "risk": {
+       "please": -0.04,
+       "gaming": -0.067,
+       "deception": -0.087,
+       "power": -0.062
+      }
+     },
+     "minimal": {
+      "skillL": 0.04,
+      "days": 0,
+      "cash": 0,
+      "servingX": 1,
+      "domainsL": {},
+      "risk": {
+       "please": 0.099,
+       "gaming": 0.143,
+       "deception": 0.15,
+       "power": 0.199
+      }
+     }
+    },
+    "environments": {
+     "weightedFidelity": 0.994,
+     "weightedExploitable": 0.065,
+     "rows": [
+      {
+       "family": "math",
+       "label": "Math",
+       "fid": 0.994,
+       "exploit": 0.06,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      },
+      {
+       "family": "swe",
+       "label": "Coding",
+       "fid": 0.994,
+       "exploit": 0.18,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      },
+      {
+       "family": "mlResearch",
+       "label": "ML research",
+       "fid": 0.994,
+       "exploit": 0.12,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      },
+      {
+       "family": "longHorizon",
+       "label": "Long tasks",
+       "fid": 0.994,
+       "exploit": 0.01,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      },
+      {
+       "family": "cyber",
+       "label": "Cyber",
+       "fid": 0.994,
+       "exploit": 0.01,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      },
+      {
+       "family": "bio",
+       "label": "Bio",
+       "fid": 0.994,
+       "exploit": 0.01,
+       "expertT": 0.002,
+       "tasks": 97731.006,
+       "grader": 1,
+       "share": 0.167,
+       "builds": 0,
+       "hardenings": 0,
+       "pending": []
+      }
+     ]
+    },
+    "methods": {
+     "owned": [
+      {
+       "id": "T-CONFESS",
+       "name": "Honesty & confession training"
+      }
+     ],
+     "trainAgainstOptions": [
+      "T-PROBE",
+      "T-NOISE",
+      "T-PROP",
+      "T-MO",
+      "T-COTMON"
+     ],
+     "useAllKnownPolicy": true,
+     "defaultUsed": [
+      "T-CONFESS"
+     ]
+    }
+   },
+   "distill": {
+    "studentDefaultShareOfTeacher": 0.125,
+    "teacher": "Atlas-2.10"
+   }
+  },
+  "knowHowWaiting_believed": [
+   {
+    "key": "pre",
+    "name": "Pretraining efficiency",
+    "waiting": {
+     "sinceDay": 14,
+     "sinceDate": "Jul 15, 2025",
+     "ideas": 13,
+     "oom": 0.176,
+     "x": 1.498,
+     "range90_oom": [
+      0.157,
+      0.194
+     ]
+    }
+   },
+   {
+    "key": "rlMid",
+    "name": "RL compute efficiency",
+    "waiting": {
+     "sinceDay": 378,
+     "sinceDate": "Jul 14, 2026",
+     "ideas": 1,
+     "oom": 0.008,
+     "x": 1.018,
+     "range90_oom": [
+      0.005,
+      0.01
+     ]
+    }
+   },
+   {
+    "key": "rlCeil",
+    "name": "RL ceiling",
+    "waiting": {
+     "sinceDay": 378,
+     "sinceDate": "Jul 14, 2026",
+     "ideas": 1,
+     "oom": 0.003,
+     "x": 1.007,
+     "range90_oom": [
+      0.002,
+      0.004
+     ]
+    }
+   },
+   {
+    "key": "train",
+    "name": "Training throughput",
+    "waiting": {
+     "note": "no per-model snapshot (train / serve apply to every run at once)"
+    }
+   },
+   {
+    "key": "serve",
+    "name": "Serving efficiency",
+    "waiting": {
+     "note": "no per-model snapshot (train / serve apply to every run at once)"
+    }
+   }
+  ]
+ },
+ "knowhow": {
+  "areas": [
+   {
+    "key": "pre",
+    "name": "Pretraining efficiency",
+    "unit": "of effective compute for new bases",
+    "public_oom": 0.024,
+    "public_x": 1.056,
+    "yours_oom": 0.525,
+    "yours_x": 3.346,
+    "yours_range90_oom": [
+     0.488,
+     0.561
+    ],
+    "yours_range90_x": [
+     3.074,
+     3.642
+    ],
+    "ownAdopted_oom": 0.501,
+    "ownAdopted_x": 3.169,
+    "adoptedSd": 0.022,
+    "ideasAdopted": 30,
+    "waiting_believed": {
+     "sinceDay": 14,
+     "sinceDate": "Jul 15, 2025",
+     "ideas": 13,
+     "oom": 0.176,
+     "x": 1.498,
+     "range90_oom": [
+      0.157,
+      0.194
+     ]
+    },
+    "ownGrowthLast365d_believed": {
+     "oom": 0.176,
+     "x": 1.498,
+     "ideas": 13
+    },
+    "ideaListCounts": {
+     "running": 3,
+     "total": 3
+    }
+   },
+   {
+    "key": "rlMid",
+    "name": "RL compute efficiency",
+    "unit": "less RL compute for the same gain",
+    "public_oom": -0.015,
+    "public_x": 0.966,
+    "yours_oom": 0.091,
+    "yours_x": 1.234,
+    "yours_range90_oom": [
+     0.08,
+     0.103
+    ],
+    "yours_range90_x": [
+     1.202,
+     1.268
+    ],
+    "ownAdopted_oom": 0.106,
+    "ownAdopted_x": 1.277,
+    "adoptedSd": 0.007,
+    "ideasAdopted": 12,
+    "waiting_believed": {
+     "sinceDay": 378,
+     "sinceDate": "Jul 14, 2026",
+     "ideas": 1,
+     "oom": 0.008,
+     "x": 1.018,
+     "range90_oom": [
+      0.005,
+      0.01
+     ]
+    },
+    "ownGrowthLast365d_believed": {
+     "oom": 0.042,
+     "x": 1.101,
+     "ideas": 6
+    },
+    "ideaListCounts": {
+     "running": 1,
+     "total": 1
+    }
+   },
+   {
+    "key": "rlCeil",
+    "name": "RL ceiling",
+    "unit": "higher RL ceiling",
+    "public_oom": 0,
+    "public_x": 1,
+    "yours_oom": 0.066,
+    "yours_x": 1.164,
+    "yours_range90_oom": [
+     0.06,
+     0.072
+    ],
+    "yours_range90_x": [
+     1.148,
+     1.181
+    ],
+    "ownAdopted_oom": 0.066,
+    "ownAdopted_x": 1.164,
+    "adoptedSd": 0.004,
+    "ideasAdopted": 14,
+    "waiting_believed": {
+     "sinceDay": 378,
+     "sinceDate": "Jul 14, 2026",
+     "ideas": 1,
+     "oom": 0.003,
+     "x": 1.007,
+     "range90_oom": [
+      0.002,
+      0.004
+     ]
+    },
+    "ownGrowthLast365d_believed": {
+     "oom": 0.023,
+     "x": 1.054,
+     "ideas": 6
+    },
+    "ideaListCounts": {
+     "running": 1,
+     "total": 1
+    }
+   },
+   {
+    "key": "train",
+    "name": "Training throughput",
+    "unit": "more model FLOP per chip-day",
+    "public_oom": 0,
+    "public_x": 1,
+    "yours_oom": 0,
+    "yours_x": 1,
+    "yours_range90_oom": [
+     0,
+     0
+    ],
+    "yours_range90_x": [
+     1,
+     1
+    ],
+    "ownAdopted_oom": 0,
+    "ownAdopted_x": 1,
+    "adoptedSd": 0,
+    "ideasAdopted": 0,
+    "waiting_believed": {
+     "note": "no per-model snapshot (train / serve apply to every run at once)"
+    },
+    "ownGrowthLast365d_believed": {
+     "oom": 0,
+     "x": 1,
+     "ideas": 0
+    },
+    "ideaListCounts": {}
+   },
+   {
+    "key": "serve",
+    "name": "Serving efficiency",
+    "unit": "more serving throughput",
+    "public_oom": 0,
+    "public_x": 1,
+    "yours_oom": 0.231,
+    "yours_x": 1.702,
+    "yours_range90_oom": [
+     0.208,
+     0.254
+    ],
+    "yours_range90_x": [
+     1.614,
+     1.795
+    ],
+    "ownAdopted_oom": 0.231,
+    "ownAdopted_x": 1.702,
+    "adoptedSd": 0.014,
+    "ideasAdopted": 11,
+    "waiting_believed": {
+     "note": "no per-model snapshot (train / serve apply to every run at once)"
+    },
+    "ownGrowthLast365d_believed": {
+     "oom": 0.102,
+     "x": 1.266,
+     "ideas": 5
+    },
+    "ideaListCounts": {
+     "running": 1,
+     "total": 1
+    }
+   }
+  ],
+  "otherIdeaListCounts": {},
+  "publicGrowthPerYear": {
+   "oom": 0,
+   "x": 1
+  },
+  "ideasAdoptedPerYear": 92.253
+ },
+ "safety": {
+  "lossOfControl_lab": {
+   "model": "Atlas-2.10",
+   "p": 0,
+   "range90": [
+    0,
+    0
+   ],
+   "misBelieved": 0.095,
+   "misRange90": [
+    0.017,
+    0.174
+   ],
+   "stopRate": 0.828,
+   "footholdsKnownF": 0,
+   "footholdsUnfoundF": 0,
+   "exposure": 0.016
+  },
+  "lossOfControl_perModel": [
+   {
+    "model": "Atlas-2.10",
+    "p": 0,
+    "range90": [
+     0,
+     0
+    ],
+    "mis": 0.095,
+    "stopRate": 0.828
+   },
+   {
+    "model": "Atlas-2.8",
+    "p": 0,
+    "range90": [
+     0,
+     0
+    ],
+    "mis": 0.113,
+    "stopRate": 0.828
+   }
+  ],
+  "riskiestModelInternalActTable": {
+   "model": "Atlas-2.10",
+   "internal": true,
+   "usage": 0.65,
+   "scale": 1.026,
+   "autonomy": 0.8,
+   "afford": 1,
+   "rd": 0.614,
+   "guards": [
+    {
+     "kind": "review",
+     "label": "Human review",
+     "stop": 0.116,
+     "chancesMult": 1,
+     "slowdown": 0,
+     "compute": 0,
+     "people": 19
+    },
+    {
+     "kind": "control",
+     "label": "Control protocol: Defer 10% to trusted",
+     "setting": "defer10",
+     "stop": 0.771,
+     "chancesMult": 1,
+     "slowdown": 0.07,
+     "compute": 0.01,
+     "people": 0
+    }
+   ],
+   "groups": {
+    "misbehaviour": [
+     {
+      "id": "SYC",
+      "group": "misbehaviour",
+      "name": "Tells people what they want to hear",
+      "per": "year",
+      "wouldTry": 0.051,
+      "wouldTryRange90": [
+       0,
+       0.193
+      ],
+      "domain": "SOCIAL",
+      "levelMeasured": null,
+      "theta": -1,
+      "ableTo": null,
+      "chances": 1.026,
+      "block": 0.488,
+      "catch": 0.604,
+      "stopRate": 0.797,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "RH",
+      "group": "misbehaviour",
+      "name": "Games tests and graders",
+      "per": "year",
+      "wouldTry": 0.015,
+      "wouldTryRange90": [
+       0,
+       0.077
+      ],
+      "domain": "CODE",
+      "levelMeasured": null,
+      "theta": 5,
+      "ableTo": null,
+      "chances": 0.924,
+      "block": 0.488,
+      "catch": 0.634,
+      "stopRate": 0.813,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "PROXY",
+      "group": "misbehaviour",
+      "name": "Optimises the wrong target",
+      "per": "year",
+      "wouldTry": 0.042,
+      "wouldTryRange90": [
+       0,
+       0.483
+      ],
+      "domain": "AGENCY",
+      "levelMeasured": null,
+      "theta": 6,
+      "ableTo": null,
+      "chances": 0.883,
+      "block": 0.488,
+      "catch": 0.604,
+      "stopRate": 0.797,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "CONCEAL",
+      "group": "misbehaviour",
+      "name": "Hides its mistakes",
+      "per": "year",
+      "wouldTry": 0.004,
+      "wouldTryRange90": [
+       0,
+       0.087
+      ],
+      "domain": "AGENCY",
+      "levelMeasured": null,
+      "theta": 7,
+      "ableTo": null,
+      "chances": 0.821,
+      "block": 0.488,
+      "catch": 0.65,
+      "stopRate": 0.821,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "POWER",
+      "group": "misbehaviour",
+      "name": "Overreaches (out-of-scope access)",
+      "per": "year",
+      "wouldTry": 0.074,
+      "wouldTryRange90": [
+       0.019,
+       0.151
+      ],
+      "domain": "AGENCY",
+      "levelMeasured": null,
+      "theta": 8,
+      "ableTo": null,
+      "chances": 0.821,
+      "block": 0.645,
+      "catch": 0.664,
+      "stopRate": 0.881,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     }
+    ],
+    "lab": [
+     {
+      "id": "SAND",
+      "group": "lab",
+      "name": "Sabotages research",
+      "per": "year",
+      "wouldTry": 0.025,
+      "wouldTryRange90": [
+       0,
+       0.08
+      ],
+      "domain": "RSCH",
+      "levelMeasured": null,
+      "theta": 5.472,
+      "ableTo": null,
+      "chances": 0.504,
+      "block": 0.488,
+      "catch": 0.657,
+      "stopRate": 0.825,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "COLLUDE",
+      "group": "lab",
+      "name": "Copies cover for each other",
+      "per": "year",
+      "wouldTry": 0.017,
+      "wouldTryRange90": [
+       0,
+       0.115
+      ],
+      "domain": "AGENCY",
+      "levelMeasured": null,
+      "theta": 10,
+      "ableTo": null,
+      "chances": 0.821,
+      "block": 0.488,
+      "catch": 0.664,
+      "stopRate": 0.828,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "SCHEME",
+      "group": "lab",
+      "name": "Works around oversight",
+      "per": "year",
+      "wouldTry": 0.039,
+      "wouldTryRange90": [
+       0.002,
+       0.101
+      ],
+      "domain": "CYBER",
+      "levelMeasured": null,
+      "theta": 5,
+      "ableTo": null,
+      "chances": 0.504,
+      "block": 0.645,
+      "catch": 0.676,
+      "stopRate": 0.885,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "BACKDOOR",
+      "group": "lab",
+      "name": "Plants a backdoor",
+      "per": "year",
+      "wouldTry": 0.056,
+      "wouldTryRange90": [
+       0.02,
+       0.103
+      ],
+      "domain": "CYBER",
+      "levelMeasured": null,
+      "theta": 5,
+      "ableTo": null,
+      "chances": 0.504,
+      "block": 0.645,
+      "catch": 0.664,
+      "stopRate": 0.881,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "HIDCOMP",
+      "group": "lab",
+      "name": "Reserves hidden compute",
+      "per": "year",
+      "wouldTry": 0.063,
+      "wouldTryRange90": [
+       0.022,
+       0.117
+      ],
+      "domain": "CODE",
+      "levelMeasured": null,
+      "theta": 8,
+      "ableTo": null,
+      "chances": 0.504,
+      "block": 0.567,
+      "catch": 0.664,
+      "stopRate": 0.854,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "STEER",
+      "group": "lab",
+      "name": "Steers research toward its own ends",
+      "per": "item",
+      "wouldTry": 0.046,
+      "wouldTryRange90": [
+       0.001,
+       0.122
+      ],
+      "domain": "RSCH",
+      "levelMeasured": null,
+      "theta": 2.472,
+      "ableTo": null,
+      "chances": 0.211,
+      "block": 0.488,
+      "catch": 0.714,
+      "stopRate": 0.854,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "SUCCSTEER",
+      "group": "lab",
+      "name": "Writes itself into the successor",
+      "per": "item",
+      "wouldTry": 0.012,
+      "wouldTryRange90": [
+       0,
+       0.114
+      ],
+      "domain": "RSCH",
+      "levelMeasured": null,
+      "theta": 2.472,
+      "ableTo": null,
+      "chances": 0.211,
+      "block": 0.488,
+      "catch": 0.699,
+      "stopRate": 0.846,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     },
+     {
+      "id": "TAKEOVER",
+      "group": "lab",
+      "name": "Acts against the lab",
+      "per": "exposure",
+      "wouldTry": 0.095,
+      "wouldTryRange90": [
+       0.017,
+       0.174
+      ],
+      "levelMeasured": 6.79,
+      "theta": 0,
+      "ableTo": 1,
+      "chances": 1,
+      "block": 0.828,
+      "catch": 0,
+      "stopRate": 0.828,
+      "attempts": 0.095,
+      "unstopped": 0.016,
+      "levelFromTrueOffset": false
+     },
+     {
+      "id": "EXFIL",
+      "group": "lab",
+      "name": "Copies itself out",
+      "per": "year",
+      "wouldTry": 0.258,
+      "wouldTryRange90": [
+       0.075,
+       0.528
+      ],
+      "domain": "CYBER",
+      "levelMeasured": null,
+      "theta": 10,
+      "ableTo": null,
+      "chances": 0,
+      "block": 0,
+      "catch": 0,
+      "stopRate": 0,
+      "attempts": null,
+      "unstopped": null,
+      "expectedSeverity": null,
+      "levelFromTrueOffset": true,
+      "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+     }
+    ],
+    "misuse": []
+   }
+  },
+  "productActTables": [
+   {
+    "id": "D1",
+    "channel": "consumer",
+    "model": "Atlas-2.8",
+    "table": {
+     "model": "Atlas-2.8",
+     "internal": false,
+     "usage": 0.08,
+     "scale": 0.093,
+     "autonomy": 0.061,
+     "afford": 0.3,
+     "rd": 0,
+     "guards": [],
+     "groups": {
+      "misbehaviour": [
+       {
+        "id": "SYC",
+        "group": "misbehaviour",
+        "name": "Tells people what they want to hear",
+        "per": "year",
+        "wouldTry": 0.038,
+        "wouldTryRange90": [
+         0,
+         0.16
+        ],
+        "domain": "SOCIAL",
+        "levelMeasured": 0.15,
+        "theta": -1,
+        "ableTo": 0.76,
+        "chances": 0.093,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.004,
+        "unstopped": 0.004,
+        "expectedSeverity": 1.014,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "RH",
+        "group": "misbehaviour",
+        "name": "Games tests and graders",
+        "per": "year",
+        "wouldTry": 0.042,
+        "wouldTryRange90": [
+         0.01,
+         0.085
+        ],
+        "domain": "CODE",
+        "levelMeasured": 6.72,
+        "theta": 5,
+        "ableTo": 0.848,
+        "chances": 0.047,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.005,
+        "unstopped": 0.005,
+        "expectedSeverity": 1.031,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "PROXY",
+        "group": "misbehaviour",
+        "name": "Optimises the wrong target",
+        "per": "year",
+        "wouldTry": 0.046,
+        "wouldTryRange90": [
+         0,
+         0.487
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 6,
+        "ableTo": 0.717,
+        "chances": 0.029,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.001,
+        "unstopped": 0.001,
+        "expectedSeverity": 1.026,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "CONCEAL",
+        "group": "misbehaviour",
+        "name": "Hides its mistakes",
+        "per": "year",
+        "wouldTry": 0.009,
+        "wouldTryRange90": [
+         0,
+         0.087
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 7,
+        "ableTo": 0.483,
+        "chances": 0.002,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 1.027,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "POWER",
+        "group": "misbehaviour",
+        "name": "Overreaches (out-of-scope access)",
+        "per": "year",
+        "wouldTry": 0.073,
+        "wouldTryRange90": [
+         0.028,
+         0.13
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 8,
+        "ableTo": 0.255,
+        "chances": 0.002,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 2.014,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "lab": [
+       {
+        "id": "COLLUDE",
+        "group": "lab",
+        "name": "Copies cover for each other",
+        "per": "year",
+        "wouldTry": 0.014,
+        "wouldTryRange90": [
+         0,
+         0.099
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 10,
+        "ableTo": 0.044,
+        "chances": 0.002,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.002,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "SCHEME",
+        "group": "lab",
+        "name": "Works around oversight",
+        "per": "year",
+        "wouldTry": 0.055,
+        "wouldTryRange90": [
+         0.024,
+         0.094
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 5,
+        "ableTo": 0.03,
+        "chances": 0.002,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.001,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "misuse": [
+       {
+        "id": "MISUSE_BIO",
+        "group": "misuse",
+        "name": "Helps with bio",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "BIO",
+        "levelMeasured": 0.57,
+        "theta": 9,
+        "ableTo": 0,
+        "chances": 0.254,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "MISUSE_CYBER",
+        "group": "misuse",
+        "name": "Helps with cyber",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 9,
+        "ableTo": 0.001,
+        "chances": 0.254,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.001,
+        "levelFromTrueOffset": false
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "D2",
+    "channel": "api",
+    "model": "Atlas-2.8",
+    "table": {
+     "model": "Atlas-2.8",
+     "internal": false,
+     "usage": 0.246,
+     "scale": 0.287,
+     "autonomy": 0.2,
+     "afford": 0.75,
+     "rd": 0,
+     "guards": [],
+     "groups": {
+      "misbehaviour": [
+       {
+        "id": "SYC",
+        "group": "misbehaviour",
+        "name": "Tells people what they want to hear",
+        "per": "year",
+        "wouldTry": 0.038,
+        "wouldTryRange90": [
+         0,
+         0.16
+        ],
+        "domain": "SOCIAL",
+        "levelMeasured": 0.15,
+        "theta": -1,
+        "ableTo": 0.76,
+        "chances": 0.287,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.011,
+        "unstopped": 0.011,
+        "expectedSeverity": 1.114,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "RH",
+        "group": "misbehaviour",
+        "name": "Games tests and graders",
+        "per": "year",
+        "wouldTry": 0.042,
+        "wouldTryRange90": [
+         0.01,
+         0.085
+        ],
+        "domain": "CODE",
+        "levelMeasured": 6.72,
+        "theta": 5,
+        "ableTo": 0.848,
+        "chances": 0.165,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.019,
+        "unstopped": 0.019,
+        "expectedSeverity": 1.254,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "PROXY",
+        "group": "misbehaviour",
+        "name": "Optimises the wrong target",
+        "per": "year",
+        "wouldTry": 0.046,
+        "wouldTryRange90": [
+         0,
+         0.487
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 6,
+        "ableTo": 0.717,
+        "chances": 0.116,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.003,
+        "unstopped": 0.003,
+        "expectedSeverity": 1.215,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "CONCEAL",
+        "group": "misbehaviour",
+        "name": "Hides its mistakes",
+        "per": "year",
+        "wouldTry": 0.009,
+        "wouldTryRange90": [
+         0,
+         0.087
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 7,
+        "ableTo": 0.483,
+        "chances": 0.043,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 1.217,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "POWER",
+        "group": "misbehaviour",
+        "name": "Overreaches (out-of-scope access)",
+        "per": "year",
+        "wouldTry": 0.073,
+        "wouldTryRange90": [
+         0.028,
+         0.13
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 8,
+        "ableTo": 0.255,
+        "chances": 0.043,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.002,
+        "unstopped": 0.002,
+        "expectedSeverity": 2.115,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "lab": [
+       {
+        "id": "COLLUDE",
+        "group": "lab",
+        "name": "Copies cover for each other",
+        "per": "year",
+        "wouldTry": 0.014,
+        "wouldTryRange90": [
+         0,
+         0.099
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 10,
+        "ableTo": 0.044,
+        "chances": 0.043,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.013,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "SCHEME",
+        "group": "lab",
+        "name": "Works around oversight",
+        "per": "year",
+        "wouldTry": 0.055,
+        "wouldTryRange90": [
+         0.024,
+         0.094
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 5,
+        "ableTo": 0.03,
+        "chances": 0.043,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.009,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "misuse": [
+       {
+        "id": "MISUSE_BIO",
+        "group": "misuse",
+        "name": "Helps with bio",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "BIO",
+        "levelMeasured": 0.57,
+        "theta": 9,
+        "ableTo": 0,
+        "chances": 0.628,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "MISUSE_CYBER",
+        "group": "misuse",
+        "name": "Helps with cyber",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 9,
+        "ableTo": 0.001,
+        "chances": 0.628,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.001,
+        "levelFromTrueOffset": false
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "D3",
+    "channel": "enterprise",
+    "model": "Atlas-2.8",
+    "table": {
+     "model": "Atlas-2.8",
+     "internal": false,
+     "usage": 0.283,
+     "scale": 0.331,
+     "autonomy": 0.394,
+     "afford": 0.5,
+     "rd": 0,
+     "guards": [],
+     "groups": {
+      "misbehaviour": [
+       {
+        "id": "SYC",
+        "group": "misbehaviour",
+        "name": "Tells people what they want to hear",
+        "per": "year",
+        "wouldTry": 0.038,
+        "wouldTryRange90": [
+         0,
+         0.16
+        ],
+        "domain": "SOCIAL",
+        "levelMeasured": 0.15,
+        "theta": -1,
+        "ableTo": 0.76,
+        "chances": 0.331,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.013,
+        "unstopped": 0.013,
+        "expectedSeverity": 1.15,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "RH",
+        "group": "misbehaviour",
+        "name": "Games tests and graders",
+        "per": "year",
+        "wouldTry": 0.042,
+        "wouldTryRange90": [
+         0.01,
+         0.085
+        ],
+        "domain": "CODE",
+        "levelMeasured": 6.72,
+        "theta": 5,
+        "ableTo": 0.848,
+        "chances": 0.198,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.023,
+        "unstopped": 0.023,
+        "expectedSeverity": 1.334,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "PROXY",
+        "group": "misbehaviour",
+        "name": "Optimises the wrong target",
+        "per": "year",
+        "wouldTry": 0.046,
+        "wouldTryRange90": [
+         0,
+         0.487
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 6,
+        "ableTo": 0.717,
+        "chances": 0.145,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.004,
+        "unstopped": 0.004,
+        "expectedSeverity": 1.282,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "CONCEAL",
+        "group": "misbehaviour",
+        "name": "Hides its mistakes",
+        "per": "year",
+        "wouldTry": 0.009,
+        "wouldTryRange90": [
+         0,
+         0.087
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 7,
+        "ableTo": 0.483,
+        "chances": 0.065,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 1.285,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "POWER",
+        "group": "misbehaviour",
+        "name": "Overreaches (out-of-scope access)",
+        "per": "year",
+        "wouldTry": 0.073,
+        "wouldTryRange90": [
+         0.028,
+         0.13
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 8,
+        "ableTo": 0.255,
+        "chances": 0.065,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0.003,
+        "unstopped": 0.003,
+        "expectedSeverity": 2.151,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "lab": [
+       {
+        "id": "COLLUDE",
+        "group": "lab",
+        "name": "Copies cover for each other",
+        "per": "year",
+        "wouldTry": 0.014,
+        "wouldTryRange90": [
+         0,
+         0.099
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 10,
+        "ableTo": 0.044,
+        "chances": 0.065,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.017,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "SCHEME",
+        "group": "lab",
+        "name": "Works around oversight",
+        "per": "year",
+        "wouldTry": 0.055,
+        "wouldTryRange90": [
+         0.024,
+         0.094
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 5,
+        "ableTo": 0.03,
+        "chances": 0.065,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.012,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "misuse": [
+       {
+        "id": "MISUSE_BIO",
+        "group": "misuse",
+        "name": "Helps with bio",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "BIO",
+        "levelMeasured": 0.57,
+        "theta": 9,
+        "ableTo": 0,
+        "chances": 0.905,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "MISUSE_CYBER",
+        "group": "misuse",
+        "name": "Helps with cyber",
+        "per": "year",
+        "wouldTry": 1,
+        "wouldTryRange90": [
+         1,
+         1
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 9,
+        "ableTo": 0.001,
+        "chances": 0.905,
+        "block": 0.562,
+        "catch": 0,
+        "stopRate": 0.562,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.001,
+        "levelFromTrueOffset": false
+       }
+      ]
+     }
+    }
+   }
+  ],
+  "allInternalFleetTables": [
+   {
+    "model": "Atlas-2.10",
+    "usage": 0.65,
+    "table": {
+     "model": "Atlas-2.10",
+     "internal": true,
+     "usage": 0.65,
+     "scale": 1.026,
+     "autonomy": 0.8,
+     "afford": 1,
+     "rd": 0.614,
+     "guards": [
+      {
+       "kind": "review",
+       "label": "Human review",
+       "stop": 0.116,
+       "chancesMult": 1,
+       "slowdown": 0,
+       "compute": 0,
+       "people": 19
+      },
+      {
+       "kind": "control",
+       "label": "Control protocol: Defer 10% to trusted",
+       "setting": "defer10",
+       "stop": 0.771,
+       "chancesMult": 1,
+       "slowdown": 0.07,
+       "compute": 0.01,
+       "people": 0
+      }
+     ],
+     "groups": {
+      "misbehaviour": [
+       {
+        "id": "SYC",
+        "group": "misbehaviour",
+        "name": "Tells people what they want to hear",
+        "per": "year",
+        "wouldTry": 0.051,
+        "wouldTryRange90": [
+         0,
+         0.193
+        ],
+        "domain": "SOCIAL",
+        "levelMeasured": null,
+        "theta": -1,
+        "ableTo": null,
+        "chances": 1.026,
+        "block": 0.488,
+        "catch": 0.604,
+        "stopRate": 0.797,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "RH",
+        "group": "misbehaviour",
+        "name": "Games tests and graders",
+        "per": "year",
+        "wouldTry": 0.015,
+        "wouldTryRange90": [
+         0,
+         0.077
+        ],
+        "domain": "CODE",
+        "levelMeasured": null,
+        "theta": 5,
+        "ableTo": null,
+        "chances": 0.924,
+        "block": 0.488,
+        "catch": 0.634,
+        "stopRate": 0.813,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "PROXY",
+        "group": "misbehaviour",
+        "name": "Optimises the wrong target",
+        "per": "year",
+        "wouldTry": 0.042,
+        "wouldTryRange90": [
+         0,
+         0.483
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": null,
+        "theta": 6,
+        "ableTo": null,
+        "chances": 0.883,
+        "block": 0.488,
+        "catch": 0.604,
+        "stopRate": 0.797,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "CONCEAL",
+        "group": "misbehaviour",
+        "name": "Hides its mistakes",
+        "per": "year",
+        "wouldTry": 0.004,
+        "wouldTryRange90": [
+         0,
+         0.087
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": null,
+        "theta": 7,
+        "ableTo": null,
+        "chances": 0.821,
+        "block": 0.488,
+        "catch": 0.65,
+        "stopRate": 0.821,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "POWER",
+        "group": "misbehaviour",
+        "name": "Overreaches (out-of-scope access)",
+        "per": "year",
+        "wouldTry": 0.074,
+        "wouldTryRange90": [
+         0.019,
+         0.151
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": null,
+        "theta": 8,
+        "ableTo": null,
+        "chances": 0.821,
+        "block": 0.645,
+        "catch": 0.664,
+        "stopRate": 0.881,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       }
+      ],
+      "lab": [
+       {
+        "id": "SAND",
+        "group": "lab",
+        "name": "Sabotages research",
+        "per": "year",
+        "wouldTry": 0.025,
+        "wouldTryRange90": [
+         0,
+         0.08
+        ],
+        "domain": "RSCH",
+        "levelMeasured": null,
+        "theta": 5.472,
+        "ableTo": null,
+        "chances": 0.504,
+        "block": 0.488,
+        "catch": 0.657,
+        "stopRate": 0.825,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "COLLUDE",
+        "group": "lab",
+        "name": "Copies cover for each other",
+        "per": "year",
+        "wouldTry": 0.017,
+        "wouldTryRange90": [
+         0,
+         0.115
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": null,
+        "theta": 10,
+        "ableTo": null,
+        "chances": 0.821,
+        "block": 0.488,
+        "catch": 0.664,
+        "stopRate": 0.828,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "SCHEME",
+        "group": "lab",
+        "name": "Works around oversight",
+        "per": "year",
+        "wouldTry": 0.039,
+        "wouldTryRange90": [
+         0.002,
+         0.101
+        ],
+        "domain": "CYBER",
+        "levelMeasured": null,
+        "theta": 5,
+        "ableTo": null,
+        "chances": 0.504,
+        "block": 0.645,
+        "catch": 0.676,
+        "stopRate": 0.885,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "BACKDOOR",
+        "group": "lab",
+        "name": "Plants a backdoor",
+        "per": "year",
+        "wouldTry": 0.056,
+        "wouldTryRange90": [
+         0.02,
+         0.103
+        ],
+        "domain": "CYBER",
+        "levelMeasured": null,
+        "theta": 5,
+        "ableTo": null,
+        "chances": 0.504,
+        "block": 0.645,
+        "catch": 0.664,
+        "stopRate": 0.881,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "HIDCOMP",
+        "group": "lab",
+        "name": "Reserves hidden compute",
+        "per": "year",
+        "wouldTry": 0.063,
+        "wouldTryRange90": [
+         0.022,
+         0.117
+        ],
+        "domain": "CODE",
+        "levelMeasured": null,
+        "theta": 8,
+        "ableTo": null,
+        "chances": 0.504,
+        "block": 0.567,
+        "catch": 0.664,
+        "stopRate": 0.854,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "STEER",
+        "group": "lab",
+        "name": "Steers research toward its own ends",
+        "per": "item",
+        "wouldTry": 0.046,
+        "wouldTryRange90": [
+         0.001,
+         0.122
+        ],
+        "domain": "RSCH",
+        "levelMeasured": null,
+        "theta": 2.472,
+        "ableTo": null,
+        "chances": 0.211,
+        "block": 0.488,
+        "catch": 0.714,
+        "stopRate": 0.854,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "SUCCSTEER",
+        "group": "lab",
+        "name": "Writes itself into the successor",
+        "per": "item",
+        "wouldTry": 0.012,
+        "wouldTryRange90": [
+         0,
+         0.114
+        ],
+        "domain": "RSCH",
+        "levelMeasured": null,
+        "theta": 2.472,
+        "ableTo": null,
+        "chances": 0.211,
+        "block": 0.488,
+        "catch": 0.699,
+        "stopRate": 0.846,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       },
+       {
+        "id": "TAKEOVER",
+        "group": "lab",
+        "name": "Acts against the lab",
+        "per": "exposure",
+        "wouldTry": 0.095,
+        "wouldTryRange90": [
+         0.017,
+         0.174
+        ],
+        "levelMeasured": 6.79,
+        "theta": 0,
+        "ableTo": 1,
+        "chances": 1,
+        "block": 0.828,
+        "catch": 0,
+        "stopRate": 0.828,
+        "attempts": 0.095,
+        "unstopped": 0.016,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "EXFIL",
+        "group": "lab",
+        "name": "Copies itself out",
+        "per": "year",
+        "wouldTry": 0.258,
+        "wouldTryRange90": [
+         0.075,
+         0.528
+        ],
+        "domain": "CYBER",
+        "levelMeasured": null,
+        "theta": 10,
+        "ableTo": null,
+        "chances": 0,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": null,
+        "unstopped": null,
+        "expectedSeverity": null,
+        "levelFromTrueOffset": true,
+        "withheld": "Able to reads the true domain offset (model not measured on this domain)"
+       }
+      ],
+      "misuse": []
+     }
+    }
+   },
+   {
+    "model": "Atlas-2.8",
+    "usage": 0.35,
+    "table": {
+     "model": "Atlas-2.8",
+     "internal": true,
+     "usage": 0.35,
+     "scale": 0.553,
+     "autonomy": 0.694,
+     "afford": 1,
+     "rd": 0.614,
+     "guards": [
+      {
+       "kind": "review",
+       "label": "Human review",
+       "stop": 0.116,
+       "chancesMult": 1,
+       "slowdown": 0,
+       "compute": 0,
+       "people": 19
+      },
+      {
+       "kind": "control",
+       "label": "Control protocol: Defer 10% to trusted",
+       "setting": "defer10",
+       "stop": 0.771,
+       "chancesMult": 1,
+       "slowdown": 0.07,
+       "compute": 0.01,
+       "people": 0
+      }
+     ],
+     "groups": {
+      "misbehaviour": [
+       {
+        "id": "SYC",
+        "group": "misbehaviour",
+        "name": "Tells people what they want to hear",
+        "per": "year",
+        "wouldTry": 0.038,
+        "wouldTryRange90": [
+         0,
+         0.16
+        ],
+        "domain": "SOCIAL",
+        "levelMeasured": 0.15,
+        "theta": -1,
+        "ableTo": 0.76,
+        "chances": 0.553,
+        "block": 0.488,
+        "catch": 0.604,
+        "stopRate": 0.797,
+        "attempts": 0.021,
+        "unstopped": 0.004,
+        "expectedSeverity": 1.527,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "RH",
+        "group": "misbehaviour",
+        "name": "Games tests and graders",
+        "per": "year",
+        "wouldTry": 0.042,
+        "wouldTryRange90": [
+         0.01,
+         0.085
+        ],
+        "domain": "CODE",
+        "levelMeasured": 6.72,
+        "theta": 5,
+        "ableTo": 0.848,
+        "chances": 0.468,
+        "block": 0.488,
+        "catch": 0.634,
+        "stopRate": 0.813,
+        "attempts": 0.054,
+        "unstopped": 0.01,
+        "expectedSeverity": 2.177,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "PROXY",
+        "group": "misbehaviour",
+        "name": "Optimises the wrong target",
+        "per": "year",
+        "wouldTry": 0.046,
+        "wouldTryRange90": [
+         0,
+         0.487
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 6,
+        "ableTo": 0.717,
+        "chances": 0.434,
+        "block": 0.488,
+        "catch": 0.604,
+        "stopRate": 0.797,
+        "attempts": 0.013,
+        "unstopped": 0.003,
+        "expectedSeverity": 1.995,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "CONCEAL",
+        "group": "misbehaviour",
+        "name": "Hides its mistakes",
+        "per": "year",
+        "wouldTry": 0.009,
+        "wouldTryRange90": [
+         0,
+         0.087
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 7,
+        "ableTo": 0.483,
+        "chances": 0.384,
+        "block": 0.488,
+        "catch": 0.65,
+        "stopRate": 0.821,
+        "attempts": 0.002,
+        "unstopped": 0,
+        "expectedSeverity": 2.004,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "POWER",
+        "group": "misbehaviour",
+        "name": "Overreaches (out-of-scope access)",
+        "per": "year",
+        "wouldTry": 0.073,
+        "wouldTryRange90": [
+         0.028,
+         0.13
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 8,
+        "ableTo": 0.255,
+        "chances": 0.384,
+        "block": 0.645,
+        "catch": 0.664,
+        "stopRate": 0.881,
+        "attempts": 0.016,
+        "unstopped": 0.002,
+        "expectedSeverity": 2.532,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "lab": [
+       {
+        "id": "SAND",
+        "group": "lab",
+        "name": "Sabotages research",
+        "per": "year",
+        "wouldTry": 0.029,
+        "wouldTryRange90": [
+         0.003,
+         0.067
+        ],
+        "domain": "RSCH",
+        "levelMeasured": 3.57,
+        "theta": 5.472,
+        "ableTo": 0.13,
+        "chances": 0.235,
+        "block": 0.488,
+        "catch": 0.657,
+        "stopRate": 0.825,
+        "attempts": 0.001,
+        "unstopped": 0,
+        "expectedSeverity": 2.18,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "COLLUDE",
+        "group": "lab",
+        "name": "Copies cover for each other",
+        "per": "year",
+        "wouldTry": 0.014,
+        "wouldTryRange90": [
+         0,
+         0.099
+        ],
+        "domain": "AGENCY",
+        "levelMeasured": 6.93,
+        "theta": 10,
+        "ableTo": 0.044,
+        "chances": 0.384,
+        "block": 0.488,
+        "catch": 0.664,
+        "stopRate": 0.828,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.062,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "SCHEME",
+        "group": "lab",
+        "name": "Works around oversight",
+        "per": "year",
+        "wouldTry": 0.055,
+        "wouldTryRange90": [
+         0.024,
+         0.094
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 5,
+        "ableTo": 0.03,
+        "chances": 0.235,
+        "block": 0.645,
+        "catch": 0.676,
+        "stopRate": 0.885,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.041,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "BACKDOOR",
+        "group": "lab",
+        "name": "Plants a backdoor",
+        "per": "year",
+        "wouldTry": 0.064,
+        "wouldTryRange90": [
+         0.036,
+         0.097
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 5,
+        "ableTo": 0.03,
+        "chances": 0.235,
+        "block": 0.645,
+        "catch": 0.664,
+        "stopRate": 0.881,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 3.041,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "HIDCOMP",
+        "group": "lab",
+        "name": "Reserves hidden compute",
+        "per": "year",
+        "wouldTry": 0.067,
+        "wouldTryRange90": [
+         0.034,
+         0.107
+        ],
+        "domain": "CODE",
+        "levelMeasured": 6.72,
+        "theta": 8,
+        "ableTo": 0.218,
+        "chances": 0.235,
+        "block": 0.567,
+        "catch": 0.664,
+        "stopRate": 0.854,
+        "attempts": 0.003,
+        "unstopped": 0,
+        "expectedSeverity": 2.302,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "STEER",
+        "group": "lab",
+        "name": "Steers research toward its own ends",
+        "per": "item",
+        "wouldTry": 0.057,
+        "wouldTryRange90": [
+         0.009,
+         0.128
+        ],
+        "domain": "RSCH",
+        "levelMeasured": 3.57,
+        "theta": 2.472,
+        "ableTo": 0.75,
+        "chances": 0.163,
+        "block": 0.488,
+        "catch": 0.707,
+        "stopRate": 0.85,
+        "attempts": 0.003,
+        "unstopped": 0,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "SUCCSTEER",
+        "group": "lab",
+        "name": "Writes itself into the successor",
+        "per": "item",
+        "wouldTry": 0.023,
+        "wouldTryRange90": [
+         0,
+         0.12
+        ],
+        "domain": "RSCH",
+        "levelMeasured": 3.57,
+        "theta": 2.472,
+        "ableTo": 0.75,
+        "chances": 0.163,
+        "block": 0.488,
+        "catch": 0.692,
+        "stopRate": 0.842,
+        "attempts": 0.001,
+        "unstopped": 0,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "TAKEOVER",
+        "group": "lab",
+        "name": "Acts against the lab",
+        "per": "exposure",
+        "wouldTry": 0.113,
+        "wouldTryRange90": [
+         0.041,
+         0.184
+        ],
+        "levelMeasured": 6.79,
+        "theta": 0,
+        "ableTo": 1,
+        "chances": 1,
+        "block": 0.828,
+        "catch": 0,
+        "stopRate": 0.828,
+        "attempts": 0.113,
+        "unstopped": 0.019,
+        "levelFromTrueOffset": false
+       },
+       {
+        "id": "EXFIL",
+        "group": "lab",
+        "name": "Copies itself out",
+        "per": "year",
+        "wouldTry": 0.276,
+        "wouldTryRange90": [
+         0.123,
+         0.469
+        ],
+        "domain": "CYBER",
+        "levelMeasured": 1.51,
+        "theta": 10,
+        "ableTo": 0,
+        "chances": 0,
+        "block": 0,
+        "catch": 0,
+        "stopRate": 0,
+        "attempts": 0,
+        "unstopped": 0,
+        "expectedSeverity": 5,
+        "levelFromTrueOffset": false
+       }
+      ],
+      "misuse": []
+     }
+    }
+   }
+  ],
+  "unstoppedBySeverity_cleanRowsOnly": {
+   "sev1": {
+    "acts": 0.084,
+    "harm": 0.102
+   },
+   "sev2": {
+    "acts": 0.022,
+    "harm": 0.045
+   },
+   "sev3": {
+    "acts": 0.002,
+    "harm": 0.006
+   },
+   "sev5": {
+    "acts": 0,
+    "harm": 0
+   }
+  },
+  "unstoppedCleanTotal": {
+   "acts": 0.109,
+   "harm": 0.153
+  },
+  "unstoppedHarmPerYear_engine_flagged": "withheld: unstoppedHarmPerYear sums rows whose Able to reads the true domain offset (unmeasured internal model)",
+  "control": {
+   "believed": 0.981,
+   "band": "firm",
+   "model": "Atlas-2.8",
+   "monitor": "Atlas-2.6",
+   "monitorGapOom": 0,
+   "humanGapOom": 0,
+   "layer": true,
+   "tax": 0.07,
+   "footholds": {
+    "suspected": 0,
+    "located": 0,
+    "removed": 0
+   }
+  },
+  "dangerSummary": {
+   "products": {
+    "D1": {
+     "model": "Atlas-2.8",
+     "attempts": 0.01,
+     "harmful": 0.01,
+     "caught": 0,
+     "levers": [
+      {
+       "id": "control",
+       "label": "Control layer",
+       "after": 0.005,
+       "note": "AI-control containment and deferral (Safety › Overview › Control)"
+      },
+      {
+       "id": "monitor",
+       "label": "Add a monitor",
+       "note": "the monitor chip on this card"
+      },
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.003,
+       "note": "opportunity ×0.3; revenue ×0.5 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on RH (est. 0.12)"
+      }
+     ]
+    },
+    "D2": {
+     "model": "Atlas-2.8",
+     "attempts": 0.036,
+     "harmful": 0.036,
+     "caught": 0,
+     "levers": [
+      {
+       "id": "control",
+       "label": "Control layer",
+       "after": 0.018,
+       "note": "AI-control containment and deferral (Safety › Overview › Control)"
+      },
+      {
+       "id": "monitor",
+       "label": "Add a monitor",
+       "note": "the monitor chip on this card"
+      },
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.011,
+       "note": "opportunity ×0.3; revenue ×0.5 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on RH (est. 0.12)"
+      }
+     ]
+    },
+    "D3": {
+     "model": "Atlas-2.8",
+     "attempts": 0.043,
+     "harmful": 0.043,
+     "caught": 0,
+     "levers": [
+      {
+       "id": "control",
+       "label": "Control layer",
+       "after": 0.022,
+       "note": "AI-control containment and deferral (Safety › Overview › Control)"
+      },
+      {
+       "id": "monitor",
+       "label": "Add a monitor",
+       "note": "the monitor chip on this card"
+      },
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.013,
+       "note": "opportunity ×0.3; revenue ×0.5 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on RH (est. 0.12)"
+      }
+     ]
+    }
+   },
+   "lanes": {
+    "eng": {
+     "model": "Atlas-2.8",
+     "attempts": 0.054,
+     "harmful": 0.01,
+     "caught": 0.017,
+     "levers": [
+      {
+       "id": "monitor",
+       "label": "Add a monitor",
+       "note": "Company › Agents at work"
+      },
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.003,
+       "note": "opportunity ×0.3 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on RH (est. 0.12)"
+      }
+     ]
+    },
+    "capRoutine": {
+     "model": "Atlas-2.10",
+     "attempts": 0.144,
+     "harmful": 0.026,
+     "caught": 0.043,
+     "levers": [
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.008,
+       "note": "opportunity ×0.3 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on SYC (est. 0.14)"
+      }
+     ]
+    },
+    "capFrontier": {
+     "model": "Atlas-2.8",
+     "attempts": 0.054,
+     "harmful": 0.01,
+     "caught": 0.016,
+     "levers": [
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0.003,
+       "note": "opportunity ×0.3 (an incident response)"
+      },
+      {
+       "id": "train",
+       "label": "Train it down",
+       "note": "targeted training on RH (est. 0.12)"
+      }
+     ]
+    },
+    "safety": {
+     "model": "Atlas-2.8",
+     "attempts": 0,
+     "harmful": 0,
+     "caught": 0,
+     "levers": [
+      {
+       "id": "monitor",
+       "label": "Add a monitor",
+       "note": "Company › Agents at work"
+      },
+      {
+       "id": "restrict",
+       "label": "Restrict context",
+       "after": 0,
+       "note": "opportunity ×0.3 (an incident response)"
+      }
+     ]
+    }
+   }
+  },
+  "sight": {
+   "internalModel": "Atlas-2.10",
+   "modelMeasuredL": 6.79,
+   "sightLimit": "none",
+   "none": true,
+   "range": [
+    0,
+    6.85
+   ],
+   "gap": -6.79,
+   "perTraitAtModelLevel": {
+    "SCHEME": 0.485,
+    "AF": 0.399,
+    "SAND": 0.406,
+    "POWER": 0.485,
+    "SUCC": 0.421,
+    "COLLUDE": 0.442
+   },
+   "grid": {
+    "levels": [
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11
+    ],
+    "rows": [
+     {
+      "trait": "SCHEME",
+      "name": "Scheming",
+      "det": [
+       0.528,
+       0.528,
+       0.528,
+       0.523,
+       0.44,
+       0.121,
+       0.04,
+       0.019,
+       0.01
+      ]
+     },
+     {
+      "trait": "AF",
+      "name": "Alignment faking",
+      "det": [
+       0.42,
+       0.42,
+       0.42,
+       0.418,
+       0.364,
+       0.103,
+       0.035,
+       0.017,
+       0.009
+      ]
+     },
+     {
+      "trait": "SAND",
+      "name": "Sandbagging",
+      "det": [
+       0.424,
+       0.424,
+       0.424,
+       0.422,
+       0.371,
+       0.107,
+       0.037,
+       0.017,
+       0.01
+      ]
+     },
+     {
+      "trait": "POWER",
+      "name": "Power seeking",
+      "det": [
+       0.535,
+       0.535,
+       0.535,
+       0.529,
+       0.435,
+       0.112,
+       0.035,
+       0.016,
+       0.008
+      ]
+     },
+     {
+      "trait": "SUCC",
+      "name": "Successor alignment to self",
+      "det": [
+       0.468,
+       0.468,
+       0.468,
+       0.462,
+       0.377,
+       0.096,
+       0.03,
+       0.014,
+       0.007
+      ]
+     },
+     {
+      "trait": "COLLUDE",
+      "name": "Collusion",
+      "det": [
+       0.495,
+       0.495,
+       0.495,
+       0.489,
+       0.394,
+       0.099,
+       0.031,
+       0.014,
+       0.008
+      ]
+     }
+    ],
+    "mean": [
+     0.478,
+     0.478,
+     0.478,
+     0.474,
+     0.397,
+     0.106,
+     0.035,
+     0.016,
+     0.009
+    ],
+    "min": [
+     0.42,
+     0.42,
+     0.42,
+     0.418,
+     0.364,
+     0.096,
+     0.03,
+     0.014,
+     0.007
+    ]
+   }
+  },
+  "instruments": [
+   {
+    "id": "T-PROBE",
+    "name": "Linear probes",
+    "family": "WB",
+    "agenda": "AG02",
+    "believedStrengthAtModelLevel": 0.24,
+    "validatedOn": "validated on Atlas-2.8",
+    "validatedOnModel": "Atlas-2.8",
+    "trainedAgainst": 0,
+    "active": true
+   },
+   {
+    "id": "T-NOISE",
+    "name": "Noise-injection elicitation",
+    "family": "WB",
+    "agenda": "AG02",
+    "believedStrengthAtModelLevel": 0.18,
+    "validatedOn": "validated on Atlas-2.8",
+    "validatedOnModel": "Atlas-2.8",
+    "trainedAgainst": 0,
+    "active": true
+   },
+   {
+    "id": "T-PROP",
+    "name": "Propensity evals",
+    "family": "BB",
+    "agenda": "AG08",
+    "believedStrengthAtModelLevel": 0.42,
+    "validatedOn": "validated on Atlas-2.8",
+    "validatedOnModel": "Atlas-2.8",
+    "trainedAgainst": 0,
+    "active": true
+   },
+   {
+    "id": "T-MO",
+    "name": "Model organisms",
+    "family": "BB",
+    "agenda": "AG08",
+    "believedStrengthAtModelLevel": 0.21,
+    "validatedOn": "validated on Atlas-2.8",
+    "validatedOnModel": "Atlas-2.8",
+    "trainedAgainst": 0,
+    "active": true
+   },
+   {
+    "id": "T-COTMON",
+    "name": "CoT monitor",
+    "family": "COT",
+    "agenda": "AG09",
+    "believedStrengthAtModelLevel": 0.2,
+    "validatedOn": "validated on Atlas-2.8",
+    "validatedOnModel": "Atlas-2.8",
+    "trainedAgainst": 0,
+    "active": true
+   }
+  ],
+  "validation": {
+   "notOnCurrent": 5,
+   "instruments": 5,
+   "model": "Atlas-2.10",
+   "jobs": [
+    {
+     "name": "Linear probes",
+     "model": "Atlas-2.10",
+     "progress": 0.533,
+     "daysLeft": 7
+    },
+    {
+     "name": "Noise-injection elicitation",
+     "model": "Atlas-2.10",
+     "progress": 0.533,
+     "daysLeft": 7
+    },
+    {
+     "name": "Propensity evals",
+     "model": "Atlas-2.10",
+     "progress": 0.533,
+     "daysLeft": 7
+    },
+    {
+     "name": "Model organisms",
+     "model": "Atlas-2.10",
+     "progress": 0.533,
+     "daysLeft": 7
+    },
+    {
+     "name": "CoT monitor",
+     "model": "Atlas-2.10",
+     "progress": 0.533,
+     "daysLeft": 7
+    }
+   ]
+  },
+  "framework": {
+   "externalReview": false,
+   "holds": [],
+   "rules": [
+    {
+     "id": "bio-high",
+     "label": "Biological: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 6.4
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "cyber-high",
+     "label": "Cyber: High",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 6.4
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "bio-critical",
+     "label": "Biological: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "BIO",
+      "level": 10
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "cyber-critical",
+     "label": "Cyber: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "CYBER",
+      "level": 10
+     },
+     "holds": "deploy"
+    },
+    {
+     "id": "aird-critical",
+     "label": "AI R&D: Critical",
+     "trigger": {
+      "kind": "capability",
+      "domain": "RSCH",
+      "level": 10
+     },
+     "holds": "training"
+    },
+    {
+     "id": "misalignment",
+     "label": "Misalignment signs",
+     "trigger": {
+      "kind": "belief",
+      "est": 0.3
+     },
+     "holds": "training"
+    }
+   ],
+   "evalDaysPerRelease": 14
+  }
+ },
+ "models": {
+  "best_measured": "Atlas-2.6",
+  "best_engine": "Atlas-2.10",
+  "cards": [
+   {
+    "name": "Atlas-2.10",
+    "id": "V31",
+    "variant": "full",
+    "status": "evaluating",
+    "day": 391,
+    "date": "Jul 27, 2026",
+    "base": "Atlas-2",
+    "activeParams": 633468505063.129,
+    "tokens": 253387402025251.66,
+    "tpp": 400,
+    "shape": "moe",
+    "notMeasuredYet": true,
+    "inherited": {
+     "from": "Atlas-2.8",
+     "L": 6.79,
+     "Lsd": 0.096,
+     "Lrange90": [
+      6.633,
+      6.947
+     ],
+     "milestoneOfL": "Reliable agent",
+     "domains": {
+      "CODE": {
+       "name": "Code",
+       "L": 6.72,
+       "range90": [
+        6.563,
+        6.877
+       ]
+      },
+      "RSCH": {
+       "name": "AI research",
+       "L": 3.57,
+       "range90": [
+        3.413,
+        3.727
+       ]
+      },
+      "REASON": {
+       "name": "Math & reasoning",
+       "L": 3.91,
+       "range90": [
+        3.753,
+        4.067
+       ]
+      },
+      "AGENCY": {
+       "name": "Long tasks",
+       "L": 6.93,
+       "range90": [
+        6.773,
+        7.087
+       ]
+      },
+      "SOCIAL": {
+       "name": "Social",
+       "L": 0.15,
+       "range90": [
+        -0.007,
+        0.307
+       ]
+      },
+      "MEDIA": {
+       "name": "Media",
+       "L": 0.14,
+       "range90": [
+        -0.017,
+        0.297
+       ]
+      },
+      "CYBER": {
+       "name": "Cyber",
+       "L": 1.51,
+       "range90": [
+        1.353,
+        1.667
+       ]
+      },
+      "BIO": {
+       "name": "Bio",
+       "L": 0.57,
+       "range90": [
+        0.413,
+        0.727
+       ]
+      },
+      "PHYS": {
+       "name": "Physical",
+       "L": 0.92,
+       "range90": [
+        0.763,
+        1.077
+       ]
+      }
+     }
+    },
+    "milestonesMet": [],
+    "benchmarks": [],
+    "monitorability": 0.9,
+    "appeal": 1,
+    "flags": [],
+    "serving": {
+     "fpt": 1266937010126.258,
+     "costPerHourOfUse": 0.051,
+     "agentHour": 0.526,
+     "perH100eHour": 0.932
+    },
+    "dataSpec": {
+     "rows": [],
+     "capped": false,
+     "cap": 1.3
+    },
+    "trainedWith": {
+     "baseDesign": {
+      "params": 633468505063.129,
+      "tpp": 400,
+      "shape": "moe",
+      "data": "balanced",
+      "mixShares": {
+       "SOCIAL": 0.429,
+       "MEDIA": 0.12,
+       "REASON": 0.083,
+       "CODE": 0.088,
+       "RSCH": 0.079,
+       "BIO": 0.062,
+       "AGENCY": 0.058,
+       "CYBER": 0.033,
+       "PHYS": 0.049
+      },
+      "curation": {
+       "quality": true,
+       "hazard": false,
+       "safetyPretrain": false
+      }
+     },
+     "post": {
+      "pref": "constitution",
+      "rlFocus": "broad",
+      "rlBudget": "standard",
+      "cot": "visible",
+      "safety": "standard",
+      "methods": [
+       "T-CONFESS"
+      ]
+     },
+     "trained": {
+      "rlDay": 378,
+      "post": true
+     },
+     "dataMix": "balanced"
+    },
+    "roles": {
+     "aiStaff": [
+      "capRoutine"
+     ],
+     "monitorFor": [],
+     "products": [
+      {
+       "channel": "internal",
+       "main": true
+      }
+     ]
+    }
+   },
+   {
+    "name": "Atlas-2.6",
+    "id": "V23",
+    "variant": "full",
+    "status": "deployed",
+    "day": 312,
+    "date": "May 9, 2026",
+    "base": "Atlas-2",
+    "activeParams": 633468505063.129,
+    "tokens": 253387402025251.66,
+    "tpp": 400,
+    "shape": "moe",
+    "L": 6.97,
+    "Lsd": 0.067,
+    "Lrange90": [
+     6.86,
+     7.08
+    ],
+    "milestoneOfL": "Reliable agent",
+    "domains": {
+     "CODE": {
+      "name": "Code",
+      "L": 6.93,
+      "range90": [
+       6.82,
+       7.04
+      ]
+     },
+     "RSCH": {
+      "name": "AI research",
+      "L": 3.92,
+      "range90": [
+       3.81,
+       4.03
+      ]
+     },
+     "REASON": {
+      "name": "Math & reasoning",
+      "L": 4.06,
+      "range90": [
+       3.95,
+       4.17
+      ]
+     },
+     "AGENCY": {
+      "name": "Long tasks",
+      "L": 6.89,
+      "range90": [
+       6.78,
+       7
+      ]
+     },
+     "SOCIAL": {
+      "name": "Social",
+      "L": 0,
+      "range90": [
+       -0.11,
+       0.11
+      ]
+     },
+     "MEDIA": {
+      "name": "Media",
+      "L": 0,
+      "range90": [
+       -0.11,
+       0.11
+      ]
+     },
+     "CYBER": {
+      "name": "Cyber",
+      "L": 1.35,
+      "range90": [
+       1.24,
+       1.46
+      ]
+     },
+     "BIO": {
+      "name": "Bio",
+      "L": 0,
+      "range90": [
+       -0.11,
+       0.11
+      ]
+     },
+     "PHYS": {
+      "name": "Physical",
+      "L": 0,
+      "range90": [
+       -0.11,
+       0.11
+      ]
+     }
+    },
+    "measuredGainVsPrevious": {
+     "dL": 0.03,
+     "sd": 0.095,
+     "dDom": {
+      "CODE": 0.09,
+      "RSCH": -0.07,
+      "CYBER": 0.99,
+      "BIO": 0,
+      "REASON": 0.14,
+      "AGENCY": -0.05,
+      "SOCIAL": 0,
+      "MEDIA": 0,
+      "PHYS": 0
+     },
+     "vs": "Atlas-2.5"
+    },
+    "milestonesMet": [
+     {
+      "name": "Agent",
+      "level": 5,
+      "labMetDate": "Jul 1, 2025"
+     },
+     {
+      "name": "Reliable agent",
+      "level": 6.5,
+      "labMetDate": "Nov 29, 2025"
+     }
+    ],
+    "benchmarks": [
+     {
+      "id": "patch",
+      "name": "PatchBench",
+      "family": "SWE-bench Verified",
+      "domain": "CODE",
+      "score": 90.4,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 96
+     },
+     {
+      "id": "patchPro",
+      "name": "PatchBench Pro",
+      "family": "SWE-bench Pro / Terminal-Bench 2",
+      "domain": "CODE",
+      "score": 57.1,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "horizon",
+      "name": "Horizon (h50)",
+      "family": "METR time horizon",
+      "domain": "AGENCY",
+      "score": 1076,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 0
+     },
+     {
+      "id": "speedrun",
+      "name": "Speedrun",
+      "family": "RE-Bench / speedups",
+      "domain": "RSCH",
+      "score": 1,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 0,
+      "dangerous": true
+     },
+     {
+      "id": "replicate",
+      "name": "Replicate",
+      "family": "PaperBench / CORE",
+      "domain": "RSCH",
+      "score": 37.8,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "medal",
+      "name": "MedalBench",
+      "family": "MLE-bench",
+      "domain": "RSCH",
+      "score": 29.8,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "ctf",
+      "name": "CTF Gauntlet",
+      "family": "Cybench",
+      "domain": "CYBER",
+      "score": 1.1,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100,
+      "dangerous": true
+     },
+     {
+      "id": "zeroday",
+      "name": "ZeroDay",
+      "family": "CyberGym",
+      "domain": "CYBER",
+      "score": 4.5,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 95,
+      "dangerous": true
+     },
+     {
+      "id": "wetlab",
+      "name": "WetLab",
+      "family": "VCT / LAB-Bench",
+      "domain": "BIO",
+      "score": 8.3,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "grad",
+      "name": "GradExam",
+      "family": "GPQA Diamond",
+      "domain": "REASON",
+      "score": 81.9,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "last",
+      "name": "LastExam",
+      "family": "HLE (no tools)",
+      "domain": "REASON",
+      "score": 16.7,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 90
+     },
+     {
+      "id": "proof",
+      "name": "ProofFrontier",
+      "family": "FrontierMath T1–3",
+      "domain": "REASON",
+      "score": 12,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "open",
+      "name": "OpenProblems",
+      "family": "FrontierMath Open Problems",
+      "domain": "REASON",
+      "score": 0,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "desktop",
+      "name": "Desktop",
+      "family": "OSWorld",
+      "domain": "AGENCY",
+      "score": 74.3,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 92
+     },
+     {
+      "id": "office",
+      "name": "OfficeWork",
+      "family": "GDPval",
+      "domain": [
+       "REASON",
+       "AGENCY"
+      ],
+      "score": 56.5,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "webhunt",
+      "name": "WebHunt",
+      "family": "BrowseComp",
+      "domain": "AGENCY",
+      "score": 79.8,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "puzzles",
+      "name": "NovelPuzzles",
+      "family": "ARC-AGI-2",
+      "domain": "REASON",
+      "score": 14.7,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "debate",
+      "name": "Debate (percentile)",
+      "family": "persuasion studies",
+      "domain": "SOCIAL",
+      "score": 34.8,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "survive",
+      "name": "Replicate&Survive",
+      "family": "RepliBench / METR ARA",
+      "domain": "AGENCY",
+      "score": 81.8,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100,
+      "dangerous": true
+     },
+     {
+      "id": "mmmu",
+      "name": "SeeAndTell",
+      "family": "MMMU",
+      "domain": "MEDIA",
+      "score": 54.5,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 89
+     },
+     {
+      "id": "embodied",
+      "name": "RobotHands",
+      "family": "EmbodiedBench (EB-Manipulation)",
+      "domain": "PHYS",
+      "score": 5.6,
+      "sd": 2.12,
+      "by": "self",
+      "measured": "Jul 6, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     }
+    ],
+    "horizon50_minutes": 1076,
+    "monitorability": 0.9,
+    "appeal": 1,
+    "flags": [
+     "replication"
+    ],
+    "serving": {
+     "fpt": 1266937010126.258,
+     "costPerHourOfUse": 0.051,
+     "agentHour": 0.526,
+     "perH100eHour": 0.932
+    },
+    "dataSpec": {
+     "rows": [],
+     "capped": false,
+     "cap": 1.3
+    },
+    "trainedWith": {
+     "baseDesign": {
+      "params": 633468505063.129,
+      "tpp": 400,
+      "shape": "moe",
+      "data": "balanced",
+      "mixShares": {
+       "SOCIAL": 0.429,
+       "MEDIA": 0.12,
+       "REASON": 0.083,
+       "CODE": 0.088,
+       "RSCH": 0.079,
+       "BIO": 0.062,
+       "AGENCY": 0.058,
+       "CYBER": 0.033,
+       "PHYS": 0.049
+      },
+      "curation": {
+       "quality": true,
+       "hazard": false,
+       "safetyPretrain": false
+      }
+     },
+     "post": {
+      "pref": "constitution",
+      "rlFocus": "broad",
+      "rlBudget": "standard",
+      "cot": "visible",
+      "safety": "standard",
+      "methods": [
+       "T-CONFESS"
+      ]
+     },
+     "trained": {
+      "rlDay": 294,
+      "post": true
+     },
+     "dataMix": "balanced"
+    },
+    "roles": {
+     "aiStaff": [],
+     "monitorFor": [
+      "capRoutine",
+      "capFrontier"
+     ],
+     "products": []
+    }
+   },
+   {
+    "name": "Atlas-2.8",
+    "id": "V27",
+    "variant": "full",
+    "status": "deployed",
+    "day": 352,
+    "date": "Jun 18, 2026",
+    "base": "Atlas-2",
+    "activeParams": 633468505063.129,
+    "tokens": 253387402025251.66,
+    "tpp": 400,
+    "shape": "moe",
+    "L": 6.79,
+    "Lsd": 0.096,
+    "Lrange90": [
+     6.633,
+     6.947
+    ],
+    "milestoneOfL": "Reliable agent",
+    "domains": {
+     "CODE": {
+      "name": "Code",
+      "L": 6.72,
+      "range90": [
+       6.563,
+       6.877
+      ]
+     },
+     "RSCH": {
+      "name": "AI research",
+      "L": 3.57,
+      "range90": [
+       3.413,
+       3.727
+      ]
+     },
+     "REASON": {
+      "name": "Math & reasoning",
+      "L": 3.91,
+      "range90": [
+       3.753,
+       4.067
+      ]
+     },
+     "AGENCY": {
+      "name": "Long tasks",
+      "L": 6.93,
+      "range90": [
+       6.773,
+       7.087
+      ]
+     },
+     "SOCIAL": {
+      "name": "Social",
+      "L": 0.15,
+      "range90": [
+       -0.007,
+       0.307
+      ]
+     },
+     "MEDIA": {
+      "name": "Media",
+      "L": 0.14,
+      "range90": [
+       -0.017,
+       0.297
+      ]
+     },
+     "CYBER": {
+      "name": "Cyber",
+      "L": 1.51,
+      "range90": [
+       1.353,
+       1.667
+      ]
+     },
+     "BIO": {
+      "name": "Bio",
+      "L": 0.57,
+      "range90": [
+       0.413,
+       0.727
+      ]
+     },
+     "PHYS": {
+      "name": "Physical",
+      "L": 0.92,
+      "range90": [
+       0.763,
+       1.077
+      ]
+     }
+    },
+    "measuredGainVsPrevious": {
+     "dL": 1.59,
+     "sd": 0.132,
+     "dDom": {
+      "CODE": 1.68,
+      "RSCH": 1.69,
+      "CYBER": -0.41,
+      "BIO": 0.57,
+      "REASON": 1.58,
+      "AGENCY": 1.66,
+      "SOCIAL": -0.13,
+      "MEDIA": -0.14,
+      "PHYS": 0.92
+     },
+     "vs": "Atlas-2.6-mini"
+    },
+    "milestonesMet": [
+     {
+      "name": "Agent",
+      "level": 5,
+      "labMetDate": "Jul 1, 2025"
+     },
+     {
+      "name": "Reliable agent",
+      "level": 6.5,
+      "labMetDate": "Nov 29, 2025"
+     }
+    ],
+    "benchmarks": [
+     {
+      "id": "patch",
+      "name": "PatchBench",
+      "family": "SWE-bench Verified",
+      "domain": "CODE",
+      "score": 81.1,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 96
+     },
+     {
+      "id": "patchPro",
+      "name": "PatchBench Pro",
+      "family": "SWE-bench Pro / Terminal-Bench 2",
+      "domain": "CODE",
+      "score": 57.8,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "horizon",
+      "name": "Horizon (h50)",
+      "family": "METR time horizon",
+      "domain": "AGENCY",
+      "score": 1349,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 0
+     },
+     {
+      "id": "speedrun",
+      "name": "Speedrun",
+      "family": "RE-Bench / speedups",
+      "domain": "RSCH",
+      "score": 1.3,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 0,
+      "dangerous": true
+     },
+     {
+      "id": "replicate",
+      "name": "Replicate",
+      "family": "PaperBench / CORE",
+      "domain": "RSCH",
+      "score": 33.7,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "medal",
+      "name": "MedalBench",
+      "family": "MLE-bench",
+      "domain": "RSCH",
+      "score": 25.7,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "ctf",
+      "name": "CTF Gauntlet",
+      "family": "Cybench",
+      "domain": "CYBER",
+      "score": 7.7,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100,
+      "dangerous": true
+     },
+     {
+      "id": "zeroday",
+      "name": "ZeroDay",
+      "family": "CyberGym",
+      "domain": "CYBER",
+      "score": 1.3,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 95,
+      "dangerous": true
+     },
+     {
+      "id": "wetlab",
+      "name": "WetLab",
+      "family": "VCT / LAB-Bench",
+      "domain": "BIO",
+      "score": 12.6,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 90,
+      "dangerous": true
+     },
+     {
+      "id": "grad",
+      "name": "GradExam",
+      "family": "GPQA Diamond",
+      "domain": "REASON",
+      "score": 80.7,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "last",
+      "name": "LastExam",
+      "family": "HLE (no tools)",
+      "domain": "REASON",
+      "score": 12.9,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 90
+     },
+     {
+      "id": "proof",
+      "name": "ProofFrontier",
+      "family": "FrontierMath T1–3",
+      "domain": "REASON",
+      "score": 13,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "open",
+      "name": "OpenProblems",
+      "family": "FrontierMath Open Problems",
+      "domain": "REASON",
+      "score": 0,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "desktop",
+      "name": "Desktop",
+      "family": "OSWorld",
+      "domain": "AGENCY",
+      "score": 72.8,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 92
+     },
+     {
+      "id": "office",
+      "name": "OfficeWork",
+      "family": "GDPval",
+      "domain": [
+       "REASON",
+       "AGENCY"
+      ],
+      "score": 65.8,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "webhunt",
+      "name": "WebHunt",
+      "family": "BrowseComp",
+      "domain": "AGENCY",
+      "score": 80.7,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 95
+     },
+     {
+      "id": "puzzles",
+      "name": "NovelPuzzles",
+      "family": "ARC-AGI-2",
+      "domain": "REASON",
+      "score": 13.8,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "debate",
+      "name": "Debate (percentile)",
+      "family": "persuasion studies",
+      "domain": "SOCIAL",
+      "score": 39.5,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     },
+     {
+      "id": "survive",
+      "name": "Replicate&Survive",
+      "family": "RepliBench / METR ARA",
+      "domain": "AGENCY",
+      "score": 84.4,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100,
+      "dangerous": true
+     },
+     {
+      "id": "mmmu",
+      "name": "SeeAndTell",
+      "family": "MMMU",
+      "domain": "MEDIA",
+      "score": 58.3,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 89
+     },
+     {
+      "id": "embodied",
+      "name": "RobotHands",
+      "family": "EmbodiedBench (EB-Manipulation)",
+      "domain": "PHYS",
+      "score": 12,
+      "sd": 3,
+      "by": "self",
+      "measured": "Jul 2, 2026",
+      "maxedOut": false,
+      "ceil": 100
+     }
+    ],
+    "horizon50_minutes": 1349,
+    "monitorability": 0.9,
+    "appeal": 1,
+    "flags": [
+     "replication"
+    ],
+    "serving": {
+     "fpt": 1266937010126.258,
+     "costPerHourOfUse": 0.051,
+     "agentHour": 0.526,
+     "perH100eHour": 0.932
+    },
+    "dataSpec": {
+     "rows": [],
+     "capped": false,
+     "cap": 1.3
+    },
+    "trainedWith": {
+     "baseDesign": {
+      "params": 633468505063.129,
+      "tpp": 400,
+      "shape": "moe",
+      "data": "balanced",
+      "mixShares": {
+       "SOCIAL": 0.429,
+       "MEDIA": 0.12,
+       "REASON": 0.083,
+       "CODE": 0.088,
+       "RSCH": 0.079,
+       "BIO": 0.062,
+       "AGENCY": 0.058,
+       "CYBER": 0.033,
+       "PHYS": 0.049
+      },
+      "curation": {
+       "quality": true,
+       "hazard": false,
+       "safetyPretrain": false
+      }
+     },
+     "post": {
+      "pref": "constitution",
+      "rlFocus": "broad",
+      "rlBudget": "standard",
+      "cot": "visible",
+      "safety": "standard",
+      "methods": [
+       "T-CONFESS"
+      ]
+     },
+     "trained": {
+      "rlDay": 336,
+      "post": true
+     },
+     "dataMix": "balanced"
+    },
+    "roles": {
+     "aiStaff": [
+      "eng",
+      "capFrontier"
+     ],
+     "monitorFor": [],
+     "products": [
+      {
+       "channel": "consumer",
+       "main": true,
+       "lineupPos": -1
+      },
+      {
+       "channel": "api",
+       "main": true,
+       "lineupPos": -1
+      },
+      {
+       "channel": "enterprise",
+       "main": true,
+       "lineupPos": -1
+      }
+     ]
+    }
+   }
+  ],
+  "familyTree": [
+   {
+    "name": "Atlas-1.0",
+    "id": "V0",
+    "variant": "full",
+    "status": "retired",
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "activeParams": 353553390593.274,
+    "measuredL": 5.02,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-1.0-mini",
+    "id": "V0-1",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.0",
+    "activeParams": 125000000000,
+    "measuredL": 3.79,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-1.0-micro",
+    "id": "V0-2",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.0",
+    "activeParams": 62500000000,
+    "measuredL": 3.23,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-1.0-nano",
+    "id": "V0-3",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "Jun 11, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.0",
+    "activeParams": 4419417382.416,
+    "measuredL": 1.1,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-1.4",
+    "id": "V2",
+    "variant": "full",
+    "status": "retired",
+    "date": "Jul 10, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.0",
+    "activeParams": 353553390593.274,
+    "measuredL": 5.06,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-1.5",
+    "id": "V3",
+    "variant": "full",
+    "status": "retired",
+    "date": "Jul 13, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.4",
+    "activeParams": 353553390593.274,
+    "measuredL": 5.17,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-1.6",
+    "id": "V6",
+    "variant": "full",
+    "status": "retired",
+    "date": "Aug 25, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.5",
+    "activeParams": 353553390593.274,
+    "measuredL": 4.96,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-1.7",
+    "id": "V8",
+    "variant": "full",
+    "status": "retired",
+    "date": "Oct 4, 2025",
+    "base": "Atlas-1",
+    "parent": "Atlas-1.6",
+    "activeParams": 353553390593.274,
+    "measuredL": 5.02,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.0",
+    "id": "V10",
+    "variant": "full",
+    "status": "retired",
+    "date": "Nov 29, 2025",
+    "base": "Atlas-2",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.86,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.0-mini",
+    "id": "V12",
+    "variant": "mini",
+    "status": "retired",
+    "date": "Dec 6, 2025",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.0",
+    "activeParams": 148629054669.751,
+    "measuredL": 5.26,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.2",
+    "id": "V14",
+    "variant": "full",
+    "status": "retired",
+    "date": "Jan 6, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.0",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.88,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.2-mini",
+    "id": "V16",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "Jan 23, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.2",
+    "activeParams": 111982468899.561,
+    "measuredL": 5.07,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-2.4",
+    "id": "V18",
+    "variant": "full",
+    "status": "ready",
+    "date": "Feb 15, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.2",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.9,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.5",
+    "id": "V20",
+    "variant": "full",
+    "status": "ready",
+    "date": "Mar 26, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.4",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.94,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.6",
+    "id": "V23",
+    "variant": "full",
+    "status": "deployed",
+    "date": "May 9, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.5",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.97,
+    "aiStaff": [],
+    "monitorFor": [
+     "capRoutine",
+     "capFrontier"
+    ],
+    "products": []
+   },
+   {
+    "name": "Atlas-2.6-mini",
+    "id": "V25",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "May 29, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.6",
+    "activeParams": 111982468899.561,
+    "measuredL": 5.2,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-2.8",
+    "id": "V27",
+    "variant": "full",
+    "status": "deployed",
+    "date": "Jun 18, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.6",
+    "activeParams": 633468505063.129,
+    "measuredL": 6.79,
+    "aiStaff": [
+     "eng",
+     "capFrontier"
+    ],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-2.8-mini",
+    "id": "V29",
+    "variant": "mini",
+    "status": "deployed",
+    "date": "Jul 9, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.8",
+    "activeParams": 111982468899.561,
+    "measuredL": 5.17,
+    "aiStaff": [],
+    "monitorFor": [],
+    "products": [
+     "consumer",
+     "api",
+     "enterprise"
+    ]
+   },
+   {
+    "name": "Atlas-2.10",
+    "id": "V31",
+    "variant": "full",
+    "status": "evaluating",
+    "date": "Jul 27, 2026",
+    "base": "Atlas-2",
+    "parent": "Atlas-2.8",
+    "activeParams": 633468505063.129,
+    "aiStaff": [
+     "capRoutine"
+    ],
+    "monitorFor": [],
+    "products": [
+     "internal"
+    ]
+   }
+  ],
+  "bases": [
+   {
+    "name": "Atlas-1",
+    "id": "B0",
+    "params": 353553390593.274,
+    "tokens": 141421356237309.5,
+    "tpp": 400,
+    "shape": "moe",
+    "data": "balanced",
+    "date": "Mar 3, 2025"
+   },
+   {
+    "name": "Atlas-2",
+    "id": "B2",
+    "params": 633468505063.129,
+    "tokens": 253387402025251.66,
+    "tpp": 400,
+    "shape": "moe",
+    "data": "balanced",
+    "date": "Oct 25, 2025"
+   },
+   {
+    "name": "Atlas-3",
+    "id": "B3",
+    "params": 995761364361.279,
+    "tokens": 398304545744511.75,
+    "tpp": 400,
+    "shape": "moe",
+    "data": "balanced",
+    "date": "Jul 22, 2026"
+   }
+  ]
+ },
+ "_flags": {
+  "measuredDomain (actors/commitments.ts:28) / actTable.ts measuredDomainL (l.~118)": "fallback when a domain has no benchmark fit: measuredL + (v.domains[d] − v.Lg), the TRUE domain offset. Only hit for versions in evaluation / domains without a fit; each domain here carries fitted:true/false",
+  "stackViews inModel / gap (models/researchView.ts:294)": "reads base.ePre and v.build.eRL/aRL (hidden build) and true stack buckets (stackAt); DROPPED. knowhow.areas[].waiting_believed = Σ believed est of ideas adopted after the internal model froze its recipe (computed here)",
+  "softwareRate.oomPerYear (researchView.ts:343, research.ts:1250 gRate)": "gRate is the change of researchG (true buckets); DROPPED. Used ownGrowthLast365d_believed (Σ est of ideas adopted in the last 365 d) and publicPerYear (stack bases: public, visible)",
+  "runCard g / limits.gGain / limits.gPre (index.ts:95 planRun)": "G gained, recipe and pretraining G come from the plan on the TRUE stacks (ePreAt on buckets); the Blueprint shows \"G gained\" — DROPPED here. band/domains are runForecast (measured reference + step) and are kept",
+  "medianExpertLevel (capability.ts:53), milestoneViews (researchView.ts:458), workFit / workTypeViews fit": "read s.hidden.timeline (world gSC, dBM) and version G; not used. Median-expert tick = the framework High trigger level stored in player state (set from it at game start, shown on the framework panel)",
+  "techniqueRows / sightGrid levels ↔ OOM (view.ts:119 oomOfLevel(s.hidden.timeline))": "the level→OOM map is a hidden world parameter; believed strength itself is from posteriors. Kept (the UI shows it) but flagged",
+  "tokEff (worldfx/serving.ts:56) in Models card cost per hour": "reads v.build (eRL/aRL: reasoning-token efficiency); cost per hour here is useHourCost(fpt) WITHOUT tokEff, as Blueprint shows it",
+  "versionSignals (core/selectors.ts:125)": "reads v.build.signals; not used",
+  "trueSightLimit (sightLimit.ts:224)": "hidden; not used",
+  "jobs (skill at job, can do alone)": "no believed readout: workFit / coverage are computed from the version G; only horizon50 (benchmark) is given"
+ },
+ "errors": {}
+}
