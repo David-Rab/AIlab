@@ -1980,3 +1980,34 @@ Tree node roles split (SYNTHESIS RD-T10; TRN-21). Commit 97be985. Moves calibrat
 - **Check.** `npx tsx scripts/v2/rdt10.ts` (run alone, 6 pass: no node carries an unlock list or cash cost; every
   option / gated feature / demos build names a tree node; node lists = the table; table = the pre-T10 map). tsc (app,
   scripts/v2) clean; npm run build ok.
+
+### RD-M01
+
+Measured level fitted from benchmark scores (DD-08; TRN-05, MEA-17). Moves calibration: yes.
+
+- **Fit.** `models/benchmarks.ts`: `benchReading` inverts each single-domain benchmark curve (edition and 'hard' survive
+  row included; score kept 0.5% off floor / ceiling) into a domain level with sd = score sd ÷ curve slope;
+  `fitDomains` combines a domain's readings by inverse variance; `fitGeneral` turns each cognitive domain's fit into an
+  effective-compute offset ΔG_d = λ⁻¹(fit_d) − λ⁻¹(L_d) (the version's per-domain offsets are its build, known to the
+  lab), combines them by inverse variance in G and reads λ(G + ΔG). Domains at the 0 / 15 clamp carry no reading.
+  `refitMeasured` / `applyFit` store `measuredL`, `measuredDom` (per domain) and `fitSd` (the band) on the EvalRecord.
+  Suite noise, depth and evaluator elicitation and sandbagging lower or raise the scores and so the level.
+- **Deleted.** `EvalRecord.errTrue` (the one stored N(0, 0.2) draw) and its rng draw (the 'runs' stream shifts).
+  `measuredSd` reads `fitSd`; 0.2/√nEff only for records without a fit. nEff still accumulates (re-run policy).
+- **Start model.** V0's noiseless start scores are fitted too (L 5.00 at the reference seed).
+- **Readers changed.** `actors/commitments.measuredDomain` (thresholds, UI radar via `measuredDomains`, World panel),
+  `models/paradigms.measuredDomain`, `safety/dangerView` domain readings: the domain fit, falling back to measured
+  general + true offset only for MEDIA / PHYS (no benchmark) or records without a fit (still a leak of the offset).
+  `compactRetired` keeps `measuredDom`. Glossary L / measureBand, Evals and Models tooltips restated.
+- **Readers already on measured (unchanged).** gov (`claimedL`, `govSeenL`), commitments, RefBot gates (ref.ts
+  452–516, 723), milestones / events kit, finance observe, research bodies, player readouts, record.Lmeasured.
+- **Not changed (open).** Physics that reads measured: `models/products.catchRate` and `safety/oversight.useControl`
+  (oversight gap on measured levels, an earlier "what you see is what rolls" choice); `safety/covert.believedSabotage`
+  is a belief and is correct. The horizon / speedrun rows and the two-domain OfficeWork row feed no domain fit. At the
+  start, CYBER / BIO / SOCIAL / MEDIA sit at the 0 clamp, so SAND moves the start model's general level by only ≈ 0.26 L
+  (RSCH −1.2 L); the effect grows as those domains leave the clamp.
+- **Migration.** SCHEMA_REV 68: 67 → 68 drops `errTrue` and refits every player version with a bench table.
+  hygiene.ts rev pins → 68.
+- **Check.** `npx tsx scripts/v2/rdm01.ts` (run alone, pass: no stored error draw on 48 suites; honest full suite
+  5.09 vs true 5.00; SAND 1 reads 4.83 < true and < honest − 0.15, RSCH 0.60 vs 1.76 honest; basic 5.08 < full 5.09 <
+  deep 5.19; start model fitted). tsc (app, scripts/v2) clean; npm run build ok.
