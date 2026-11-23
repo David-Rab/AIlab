@@ -11,6 +11,7 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead, productMonitorVersion } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
+import { toolNewInGame } from '../actors/rivalModel';
 import { lineupVersions, markupOf, serveDollarsPerHour } from './serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
@@ -221,16 +222,14 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
   return { kinds, lines, short: short.join(' · '), internal: [], upkeepTW, idleTW };
 }
 
-/** RD-P07 (DD-03): rivals and a tool: how many of the active rival labs (and China) have it, and the day the others get
- *  it (TOOL_LAG_DAYS after the first ship, world.fx.toolShip; undefined before anyone ships it), and who shipped it
- *  first ('you' or the lab's name; RD-P07b). Undefined for features
- *  that are not tools. */
-export function toolRivalsView(s: GameStateV2, id: string): { have: number; of: number; day?: number; lag: number; first?: { day: number; by: string } } | undefined {
+/** RD-P07 (DD-03), RF-P1: rivals and a tool: how many of the active rival labs (and China) have it; whether it is new in
+ *  this game (no lab had it at the start); for a new one, the day the others get it (TOOL_LAG_DAYS after your first
+ *  ship, world.fx.toolShip; undefined before you ship it). Undefined for features that are not tools. */
+export function toolRivalsView(s: GameStateV2, id: string): { have: number; of: number; isNew: boolean; day?: number; lag: number } | undefined {
   if (!ENABLER_TOOLS.includes(id as FeatureId)) return undefined;
   const labs = [...s.rivals.filter((r) => r.core.status === 'active'), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
   const ship = s.world.fx.toolShip?.[id];
-  const by = ship && (ship.by === 'player' ? 'you' : labs.find((r) => r.core.id === ship.by)?.core.name ?? ship.by);
-  return { have: labs.filter((r) => r.tools?.includes(id)).length, of: labs.length, day: ship === undefined ? undefined : ship.day + TOOL_LAG_DAYS, lag: TOOL_LAG_DAYS, first: ship && { day: ship.day, by: by! } };
+  return { have: labs.filter((r) => r.tools?.includes(id)).length, of: labs.length, isNew: toolNewInGame(s, id), day: ship === undefined ? undefined : ship + TOOL_LAG_DAYS, lag: TOOL_LAG_DAYS };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours

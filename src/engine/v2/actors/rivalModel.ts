@@ -34,7 +34,8 @@ import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
-import { ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, RIVAL_TOOL_DAYS_PER_TW, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
+import { DAY0_TOOLS, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
+import { START_BY_ID } from '../../../data/v2/starts';
 import { domainRefShift, domainsOf, equilibriumLagRange, gOfBuild, gV0, levelOfG, startLab, startLabAt, versionDomainG } from '../models/capability';
 import { continueGPre, distillGap, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
 import { baseGOf } from '../models/runs';
@@ -873,49 +874,34 @@ export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, rele
 
 // ───────────────────────────── product tools (RD-P07, DD-03 rival part) ─────────────────────────────
 
-/** RD-P07: records the first ship of each product tool (data/v2/features.ts ENABLER_TOOLS) on a live player product
- *  (built, switched on, offered by the channel; open releases and internal deployments carry no product tools). A
- *  rival's own first ship is recorded by rivalToolStep (RD-P07b). */
+/** RF-P1: whether product tool `id` is new in this game: no lab of the world had it at the start (the rivals' and
+ *  China's DAY0_TOOLS by archetype, the player's start features). Only such a tool follows the TOOL_LAG_DAYS rule. */
+export function toolNewInGame(s: GameStateV2, id: string): boolean {
+  if (START_BY_ID[s.setup.start ?? 'leader']?.features.includes(id as FeatureId)) return false;
+  return ![...s.rivals, s.china.lab].some((r) => DAY0_TOOLS[r.archetype]?.includes(id as FeatureId));
+}
+/** RD-P07: records the day the player first ships each product tool new in this game (data/v2/features.ts ENABLER_TOOLS;
+ *  built, switched on, offered by the channel; open releases and internal deployments carry no product tools). */
 export function recordToolShips(s: GameStateV2, day: number) {
   for (const d of s.player.deployments) {
     if (d.status === 'withdrawn' || d.channel === 'internal' || d.channel === 'open') continue;
     for (const id of d.features) {
       if (!ENABLER_TOOLS.includes(id as FeatureId) || !s.player.features.includes(id)) continue;
       if (!FEATURE_BY_ID[id as FeatureId].products.includes(d.channel)) continue;
-      const ship = (s.world.fx.toolShip ??= {});
-      if (ship[id] === undefined) ship[id] = { day, by: 'player' };
+      if (s.world.fx.toolShip?.[id] !== undefined || !toolNewInGame(s, id)) continue;
+      (s.world.fx.toolShip ??= {})[id] = day;
     }
   }
 }
-/** RD-P07b (DD-18 stand-in): whether lab r knows tree idea `id` as its aggregate state is now: a ★ node (every company);
- *  an idea the aggregate researches (RIVAL_IDEA_IDS) once adopted and it worked here; an idea it does not research (the
- *  tools' P06 Computer use, P07 Long context + memory, Native multimodal) once its prerequisites are known and, for a
- *  paradigm, the world's success draw (hidden.paradigmSuccess, the one the player's attempt reads) says it works [D: the
- *  aggregate has no project state for them; all were public practice at frontier labs by mid-2025]. */
-export function rivalKnowsNode(s: GameStateV2, r: RivalLab, id: string, depth = 0): boolean {
-  const n = TREE_BY_ID[id];
-  if (!n || depth > 8) return false;
-  if (n.star) return true;
-  if ((RIVAL_IDEA_IDS as readonly string[]).includes(id)) return rivalIdea(r, id) > 0;
-  if (n.paradigm && (s.hidden.paradigmSuccess as Record<string, boolean>)[id] !== true) return false;
-  return n.needs.every((x) => rivalKnowsNode(s, r, x, depth + 1));
-}
-/** RD-P07 / RD-P07b (DD-18 stand-in): lab r's product tools. A lab with a public model on sale that passes a tool's
- *  gate (the player's: its tree idea, rivalKnowsNode; the player's feature has no capability term) builds it in
- *  RIVAL_TOOL_DAYS_PER_TW × buildTW days and ships it, the first ship of all labs recorded in world.fx.toolShip; a lab
- *  that has not shipped it gets it TOOL_LAG_DAYS after any lab's first ship. It keeps a tool once it has it. */
+/** RD-P07 (DD-18 stand-in), RF-P1: lab r's product tools: what it had at the start (DAY0_TOOLS, set at creation), plus a
+ *  tool new in this game TOOL_LAG_DAYS after the player first shipped it (world.fx.toolShip). It keeps a tool once it
+ *  has it. */
 export function rivalToolStep(s: GameStateV2, r: RivalLab, day: number) {
+  const ship = s.world.fx.toolShip;
+  if (!ship) return;
   for (const id of ENABLER_TOOLS) {
-    if (r.tools?.includes(id)) continue;
-    const f = FEATURE_BY_ID[id];
-    const b = r.toolBuild?.[id];
-    if (b === undefined && r.publicModel && (!f.node || rivalKnowsNode(s, r, f.node))) (r.toolBuild ??= {})[id] = day + f.buildTW * RIVAL_TOOL_DAYS_PER_TW;
-    const own = b !== undefined && day >= b;
-    const d0 = s.world.fx.toolShip?.[id]?.day;
-    if (!own && (d0 === undefined || day < d0 + TOOL_LAG_DAYS)) continue;
+    const d0 = ship[id];
+    if (d0 === undefined || day < d0 + TOOL_LAG_DAYS || r.tools?.includes(id)) continue;
     (r.tools ??= []).push(id);
-    if (r.toolBuild) delete r.toolBuild[id];
-    const ship = (s.world.fx.toolShip ??= {});
-    if (ship[id] === undefined) ship[id] = { day, by: r.core.id };
   }
 }

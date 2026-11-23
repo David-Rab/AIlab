@@ -4135,3 +4135,67 @@ hygiene.ts's calibration shift drops it).
   it is done; cut = 0.1 × buyers' share in US Finance; none outside the US).
 - **Moves calibration: maybe** (only where the player builds certified adaptations: earlier scaffold effect, small
   friction cut).
+
+### RF-P1 day-0 product tools from history; RD-P07b deleted
+- **Changed:** every lab starts with the product tools its real counterpart had shipped by 2025-07-01 (designer
+  decision 2). Rivals and China: `DAY0_TOOLS` by archetype (data/v2/features.ts; mapping research/07 §2.3: leader
+  OpenAI, safety Anthropic, bigtech Google, maverick xAI, openweights Meta, upstart SSI / Thinking Machines, deepcent
+  DeepSeek), set at creation. Player starts (data/v2/starts.ts): leader = OpenAI, challenger = Anthropic, big tech =
+  Google, spinout none; each feature switched on for every start product whose channel offers it (the launch rule).
+  The leader's hard-coded start products now take the table's features. P07's lag rule stays only for a tool no lab
+  of the world had at the start (`toolNewInGame`): rivals and China get it TOOL_LAG_DAYS after the player first
+  ships it. A tool some lab had at the start does not spread: each lab keeps what it had.
+- **Deleted:** RD-P07b: `rivalKnowsNode`, `RivalLab.toolBuild`, `RIVAL_TOOL_DAYS_PER_TW`, `toolShip.by` (toolShip is a
+  day again, recorded only for new tools), its 84 → 85 migration (now a no-op), scripts/v2/_p07b. The feature tooltip's
+  "first shipped by" row; feature effect texts and glossary `featEnabler` reworded.
+- **Internal tools unchanged:** starts now list `tooling` explicitly (challenger codingHarness, others none: what
+  `toolsFromFeatures` gave before), so adding product features does not change the start's internal agents (RD-A06).
+- **Save:** in SCHEMA_REV 98 (one rev with RF-P2): drops toolBuild, adds each lab's DAY0_TOOLS to its tools, keeps
+  only new-in-game tools in toolShip as a day. The player's features in an old save are not changed.
+- **Stand-ins:** none new (TOOL_LAG_DAYS 120 kept). Mapping a sampled archetype to one real lab is the repo's own.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p07/check.ts` rewritten, all ok (start tools, offer ×1.15 OFFICE /
+  SOFT unchanged, historical tool records no ship, a new tool (Companion in a world with no Meta-like rival) reaches a
+  rival at ship + 120 d, not at + 119); ad-hoc 97 → 98 migration check ok. scripts/v2/_p07 is not in scripts/v2's
+  tsconfig (tsc does not cover it).
+- **Moves calibration: yes.** The leader start (the calibration anchor) gains Memory, Computer use, Voice & vision,
+  Deep research and the Coding agent on its products (coverage, fit, horizon, Chat appeal, the Computer use
+  affordance in incident odds, ≈ 0.58 engineer team-weeks a week of feature upkeep). Rivals start with tools (OFFICE /
+  FIN / LEGAL / GOV / MEDIA coverage, Chat appeal) and no longer all ship on about day 113.
+- **Open (designer):** under this rule a lab never catches up on a tool it lacked at the start (Anthropic never gets
+  Memory, xAI and DeepSeek never get Computer use or Voice & vision), as products F2 proposed. Say if laggards should
+  catch up.
+
+Sources (vendor pages only; fetched and dated by a research subagent; "by 2025-07-01" = public, a paid tier or a
+public beta; waitlist or trusted-tester previews not counted):
+
+| Tool | Lab | Had it | First shipped | Source |
+|---|---|---|---|---|
+| Memory | OpenAI | yes | 2024-02-13 test; 2024-09-05 all tiers | https://openai.com/index/memory-and-new-controls-for-chatgpt/ |
+| Memory | Anthropic | no | 2025-09-11 (after the start) | https://claude.com/blog/memory |
+| Memory | Google | yes | 2025-02-13 (Gemini Advanced) | https://blog.google/feed/gemini-referencing-past-chats/ |
+| Memory | xAI | off: no primary source | — | none on x.ai |
+| Memory | Meta | yes | 2025-01-27 (US, Canada) | https://about.fb.com/news/2025/01/building-toward-a-smarter-more-personalized-assistant/ |
+| Memory | DeepSeek | no | — | no vendor announcement |
+| Computer use | OpenAI | yes | 2025-01-23 (Operator, Pro US) | https://openai.com/index/introducing-operator/ |
+| Computer use | Anthropic | yes | 2024-10-22 (API beta) | https://www.anthropic.com/news/3-5-models-and-computer-use |
+| Computer use | Google | yes | 2025-05-20 (Mariner, AI Ultra US) | https://blog.google/products/google-one/google-ai-ultra/ |
+| Computer use | xAI, Meta, DeepSeek | no | — | none |
+| Voice & vision | OpenAI | yes | 2023-09-25 | https://openai.com/index/chatgpt-can-now-see-hear-and-speak |
+| Voice & vision | Anthropic | yes | vision 2024-03-04; voice 2025-05-27 (beta; date from Anthropic's own post, help page undated) | https://www.anthropic.com/news/claude-3-family ; https://support.claude.com/en/articles/11101966-use-voice-mode |
+| Voice & vision | Google | yes | images 2023-07-13; Gemini Live 2024-08-13 | https://blog.google/products/gemini/made-by-google-gemini-ai-updates/ |
+| Voice & vision | xAI | off: no dated primary source for voice | — | x.ai/news/grok-4 (2025-07-09) calls voice "upgraded", undated before |
+| Voice & vision | Meta | yes | 2024-09-25 | https://about.fb.com/news/2024/09/metas-ai-product-news-connect/ |
+| Voice & vision | DeepSeek | no | first vision API 2026-08-21 | https://api-docs.deepseek.com/news/news260821/ |
+| Companion | Meta | yes | 2024-07-29 (AI Studio characters) | https://about.fb.com/news/2024/07/create-your-own-custom-ai-with-ai-studio/ |
+| Companion | OpenAI, Google | no (custom GPTs, Gems are not companion personas) | — | https://openai.com/index/introducing-gpts/ ; https://blog.google/products/gemini/google-gemini-update-august-2024/ |
+| Companion | xAI | off: no primary source (companions launched after the start) | — | none on x.ai |
+| Companion | Anthropic, DeepSeek | no | — | none |
+| Deep research | OpenAI | yes | 2025-02-02 | https://openai.com/index/introducing-deep-research/ |
+| Deep research | Anthropic | yes | 2025-04-15 (beta, Max / Team / Enterprise) | https://claude.com/blog/research |
+| Deep research | Google | yes | 2024-12-11 | https://blog.google/products/gemini/google-gemini-deep-research/ |
+| Coding agent | OpenAI | yes | Codex CLI 2025-04-16; Codex 2025-05-16 (page not fetchable, date from its search entry) | https://openai.com/index/introducing-o3-and-o4-mini/ ; https://openai.com/index/introducing-codex/ |
+| Coding agent | Anthropic | yes | 2025-02-24 (Claude Code preview); GA 2025-05-22 | https://www.anthropic.com/news/claude-3-7-sonnet |
+| Coding agent | Google | yes | Jules 2025-05-20; Gemini CLI 2025-06-25 | https://blog.google/technology/google-labs/jules/ |
+
+Deep research and the Coding agent are player features only (rival offers read enabler tools only), so they enter the
+player's starts, not DAY0_TOOLS.

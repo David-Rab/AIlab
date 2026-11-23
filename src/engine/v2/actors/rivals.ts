@@ -11,6 +11,7 @@ import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_START } from '../../../data/v2/traits';
+import { DAY0_TOOLS } from '../../../data/v2/features';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
@@ -103,6 +104,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
     archetype: arch.id,
     internal,
     publicModel,
+    tools: [...(DAY0_TOOLS[arch.id] ?? [])],
     nextBaseDay: Math.round(rng.range(30, 270)),
     phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },
@@ -150,6 +152,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     archetype: arch.id,
     internal,
     publicModel,
+    tools: [...(DAY0_TOOLS[arch.id] ?? [])],
     nextBaseDay: Math.round(rng.range(120, 270)),
     phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },
@@ -385,7 +388,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     if (open) openWeightsReleased(s, ctx, id, rel.G, rel.recG ?? recipeOf(s, r));
     rivalLineupStep(wl, r, day, true, prev);
   } else rivalLineupStep(wl, r, day, false);
-  // RD-P07: the product tools it acquires after the first lab shipped them.
+  // RD-P07: a tool new in this game, TOOL_LAG_DAYS after the player first shipped it (RF-P1).
   rivalToolStep(s, r, day);
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
