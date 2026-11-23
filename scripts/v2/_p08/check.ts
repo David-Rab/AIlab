@@ -10,7 +10,7 @@ import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { act, tick } from '../../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../../src/engine/v2/core/save';
 import { productOffer } from '../../../src/engine/v2/worldfx/serving';
-import { ADAPT_COVER, ADAPT_TW, CERT_DAYS, CERT_FRICTION_CUT, certifiedBuyerShare } from '../../../src/engine/v2/models/adaptations';
+import { ADAPT_COVER, ADAPT_TW, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certifiedBuyerShare } from '../../../src/engine/v2/models/adaptations';
 import { worldMix } from '../../../src/engine/v2/worldfx/mix';
 import { frictionOf } from '../../../src/engine/v2/worldfx/sectors';
 import { policyState } from '../../../src/engine/v2/worldfx/policy';
@@ -46,7 +46,7 @@ const fa = ent.adaptations.find((a) => a.sector === 'FIN');
 check(!!fa && fa.certDone !== undefined && fa.certDone - s.time.day <= CERT_DAYS && fa.certDone - s.time.day >= CERT_DAYS - 1,
   `built after ${n} ticks; certification ends ${CERT_DAYS} d after the build`, `certDone ${fa?.certDone} day ${s.time.day}`);
 const certCause = Object.values(s.causes.byKey).flat().find((c) => c.source === 'sector certification');
-check(!!certCause && Math.abs(certCause.delta + 0.4) < 1e-9, 'certification cash booked when it starts ($0.4B)', `${certCause?.delta} (cash ${cash0.toFixed(2)} → ${s.player.finance.cash.toFixed(2)})`);
+check(!!certCause && Math.abs(certCause.delta + CERT_CASH) < 1e-9, `certification cash booked when it starts ($${CERT_CASH}B)`, `${certCause?.delta} (cash ${cash0.toFixed(2)} → ${s.player.finance.cash.toFixed(2)})`);
 const fNo = productOffer(s, { ...ent, adaptations: [] }, 'FIN').a;
 const fYes = cov(ent, 'FIN');
 check(Math.abs(fYes - Math.min(1, fNo * (1 + ADAPT_COVER))) < 1e-12 && fYes > fNo, 'in certification: the scaffold already acts (Finance coverage ×(1 + ADAPT_COVER))', `${fNo.toFixed(4)} → ${fYes.toFixed(4)}`);

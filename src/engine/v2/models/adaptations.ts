@@ -22,13 +22,19 @@ export const ADAPT_TW = 4;
  *  tasks that need the sector's own systems (records, filings, ledgers) are the ones a generic offer cannot do]. */
 export const ADAPT_COVER = 0.15;
 /** Sectors with a certification for AI vendors [D: US federal FedRAMP (GOV, MIL: DoD impact levels), health data
- *  HIPAA / HITRUST (HEALTH), SOC 2 and model-risk review (FIN)]. */
+ *  HITRUST (HEALTH; HIPAA itself has none: HHS "does not endorse or otherwise recognize private organizations'
+ *  'certifications'"), SOC 2 and model-risk review (FIN)]. */
 export const CERT_SECTORS: readonly SectorId[] = ['FIN', 'HEALTH', 'GOV', 'MIL'];
-/** Certification time (days) after the scaffold is built [D] (research/16 §1A.3 "costs months and money"; the one
- *  constant; the old sector pack defined it twice). */
-export const CERT_DAYS = 120;
-/** Certification cost ($B), booked when certification starts [D] (research/16 §1A.3; the old pack's $0.4B). */
-export const CERT_CASH = 0.4;
+/** Certification time (days) after the scaffold is built, one constant for all four sectors. 240 [P, CAL-P]: OpenAI's
+ *  ChatGPT Enterprise / API got FedRAMP 20x Moderate on 27 Apr 2026, about 8 months after the AI prioritisation opened
+ *  (Aug 2025; fedramp.gov/ai, openai.com). Range 3-24 months: FedRAMP Rev5 "exceeding one year and at times
+ *  approaching up to two years" (fedramp.gov, Sep 2025), 20x pilot about 3.5 months, a first SOC 2 Type II about 6-12
+ *  months (research/CAL-products-sources.md C1). */
+export const CERT_DAYS = 240;
+/** Certification cost ($B), booked when certification starts. $4M [P, CAL-P]: GAO-24-106591: providers' FedRAMP
+ *  costs "ranged from $300,000 to $3.7 million", plus the sponsoring agency's $69,000-400,000 (the top of both). The
+ *  old $0.4B was 100x that; the engineering is the scaffold's build (ADAPT_TW), not this (research/CAL-products-sources.md C2). */
+export const CERT_CASH = 0.004;
 /** Friction cut a certification gives its product's buyers in the sector (US): R_s - 0.1 [D] (research/16 §1A.3
  *  "lab-side certification that reduces R_s by 0.1"; the old pack's sector-wide -0.1, now for its buyers only). */
 export const CERT_FRICTION_CUT = 0.1;
