@@ -4178,3 +4178,18 @@ Oversight truth hygiene (review safety #7, #13).
   unchanged when every true level moves +1.5). tsc (app, scripts/v2) clean.
 - Moves calibration: **maybe** (only once a player or bot runs AG07 containment tools under a monitor: engine catch then
   uses true, not believed, strength).
+
+### RF-S4
+SR-05 fixed against SAFETY-REDESIGN §4.1 / §2.3 (review safety #9). UI only.
+- **Which model.** `safetyRule.safetyModel`: named model, else the selected one, else **your riskiest running model**
+  (`lossOfControlRisk(s).versionId`: the highest Loss-of-control risk over `runningModels`); was the internal frontier
+  model. The lab headline (Control card) already is that max and names its model; unchanged.
+- **Danger line removed.** `RISK_BANDS.level` = [15%, 30%]: bad at the Safety framework's default Misalignment-signs line
+  (`TRUST_EST_DEFAULT` 0.3), watch at half (was 0.2 / 0.4 = "the published danger line"). An existing number, no new
+  parameter. MisCard: the dashed danger-line marker and its tooltip row are gone (and `.mis-danger` CSS, glossary
+  `dangerLine`; GLOSSARY.md regenerated with `lint-ux --doc`). 0.4 stays only as the centre of the published
+  survivability range inside Loss-of-control risk.
+- Not touched: the five threshold kinds (prob / level / factor / rate / pull) the review also counted.
+- **Check.** `npx tsx scripts/v2/_rfs4/check.ts`: 7 ok (day 900: default = Atlas-3.3 at 22.6%, not the internal Atlas-4.0).
+  `lint-ux`: one FAIL, pre-existing ("Numbers have a tooltip", other panels' lines). tsc (app, scripts/v2) clean.
+- Moves calibration: no (UI only).

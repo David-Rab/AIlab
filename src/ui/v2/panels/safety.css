@@ -45,8 +45,6 @@
 .mis-band { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: .55; }
 .mis-est { position: absolute; top: -6px; bottom: -6px; width: 3px; margin-left: -1px; background: #fff; border-radius: 2px; }
 .mis-est b { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 12.5px; color: #fff; padding-bottom: 2px; }
-.mis-danger { position: absolute; top: -10px; bottom: -6px; border-left: 2px dashed var(--bad); }
-.mis-danger > span { position: absolute; bottom: 100%; left: 4px; white-space: nowrap; font-size: 11px; color: #ffb4b4; }
 
 /* agendas */
 .saf-ag { display: flex; flex-direction: column; gap: 12px; }
