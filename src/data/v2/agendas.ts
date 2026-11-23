@@ -190,6 +190,8 @@ export const VERIFIABILITY: Record<ToolFamily, number> = { WB: 0.7, OR: 0.9, BB:
  *  (only a validation measures how wrong) [D]. A validation sets the trust factor on its model to measured ÷ believed (capped at
  *  TRUST_MAX); TRUST_EVIDENCE_CAP entries per instrument, DISAGREE_CAP disagreements kept [D]. */
 export const DISAGREE_Z = 1.64;
+/** CAL-S: [D stand-in] kept: no primary source states how far a lab should cut trust in an instrument on a disagreement;
+ *  review/safety.md §3 #8 proposes deleting the automatic cut (a designer decision; research/CAL-safety-sources.md §4). */
 export const DISAGREE_DROP = 0.1;
 export const DISAGREE_FLOOR = 0.5;
 export const TRUST_MAX = 1.5;
