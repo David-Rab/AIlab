@@ -2096,3 +2096,44 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   loads with it gone and effort deep kept. Not run: test:quick / full, products.ts suite, uitest.
 - **Left:** GLOSSARY.md not regenerated (`lint-ux --doc`); latency of deep effort is not modelled (no latency term in
   the engine).
+
+### RD-P07
+- **Done (commit adb8eee).** PRD-08 / DD-03 (a). A product tool (feature of kind `enabler`, Sector packs excepted:
+  Computer use, Voice & vision, Memory's Chat part, Companion) acts inside the buyers' choice. Sectors: in a sector the
+  tool lists, an offer without it cannot do the tasks that need it: worldfx/serving.ts `offerOf` (OfferOpts `tools`)
+  multiplies coverage a and agent work k by 1 − `toolGap(sid, tools)`, need = share ÷ (1 + share) (features.ts
+  `enablerNeed`: Computer use 13% of OFFICE / FIN / LEGAL / GOV tasks, Voice & vision 13% of MEDIA), so the tool's
+  owner covers ×(1 + share) what it would without it and wins bands of work others cannot do in the surplus choice.
+  Chat: the tool stays a term of the users' app choice (`chatToolAppeal`, appeal × (1 + Σ share), RD-B11's single
+  application), now for rivals too (Provider.appeal).
+- **Rivals (DD-03 rival part, DD-18):** `RivalLab.tools`, `world.fx.toolShip` (first day each tool is on a live player
+  product, `recordToolShips` at the start of rivalsChina); `rivalToolStep` (labDaily, rivals and China) gives a lab each
+  tool `TOOL_LAG_DAYS` 120 after the first ship. Their offers (model and lineup tiers) pass `tools`.
+- **Deleted:** `enablerShare`, revenue.ts's `en` row field and the capped ×(1 + enabler) in `fOf` (hours, agent-hours,
+  seats), limitsView's "Feature enablers … (≤ the sector's adoption)" row (now "Tools in … (coverage in the buyers'
+  choice)", the coverage ratio, and "Tools (app choice)" on Chat).
+- **UI / text:** productView feature lines ("does the 13% of tasks that need it", "Chat appeal ×1.15"), `toolRivalsView`
+  → a "Rivals" row in the feature tooltip (none yet / k of n have it, the others from date); FEATURES effect texts,
+  glossary `featEnabler` (no more "Rivals have none yet"), limits product.demandMods.
+- **Stand-ins [D]:** need = share ÷ (1 + share) keeps the old effect size as a coverage ratio; λ (agent leverage) keeps
+  the covered tasks' review (only a and k scale); tasks needing a tool sit on the one difficulty index (the tool's
+  owner covers the top bands); only the player ships a tool first (rivals have no feature research at their aggregate
+  level), and a lab keeps a tool once it has it; lag 120 d from 2024–25 launch gaps (computer use Anthropic Oct 2024 →
+  Google Mariner Dec 2024 → OpenAI Operator Jan 2025; memory ChatGPT Feb 2024 → Gemini Nov 2024: ≈ 50–270 d);
+  the player's open release carries no tools.
+- **SCHEMA_REV 68** (no-op migration 67 → 68: both fields optional; the next tick records tools already on live
+  products as shipped that day). Hygiene asserts → 68. scripts/v2/products.ts C2a reads the enabler fields directly.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p07/check.ts` (run alone) 10 / 10: ai2027
+  seed 2027 day 0, API + Computer use: OFFICE coverage 0.1062 → 0.1221 (×1.15), fit unchanged, SOFT offer unchanged;
+  player US target share OFFICE 0.4007 → 0.4061, SOFT 0.4071 → 0.4071; first ship recorded by the tick; a rival has
+  no tool at ship + 119 d, has it (and China) at ship + 120 d; its OFFICE coverage 0.0553 → 0.0636 and the player's
+  OFFICE share 0.4024 → 0.3981. Not run: test:quick / full, products.ts suite, uitest.
+- **Left:** expected failures to update: serving S6 / RD-B11 companion and B14 checks (they read the ×(1 + share)
+  hours and the cap), products C2b (Voice & vision on the API "opens Media work" now moves coverage, not hours, so
+  the preview's demand may move only through the customer stock), any finance readout of Agents / API sector hours.
+  GLOSSARY.md not regenerated (`lint-ux --doc`). RD-P11 (feature hazard multipliers) next.
+- **moves calibration: yes (serving / finance / worldfx).** With no lab holding a tool, every offer in OFFICE, FIN,
+  LEGAL, GOV and MEDIA now covers ×(1 − 0.13) (before: full coverage; the tool was an extra ×(1 + share) on the
+  player's hours), so the coverable range a_top, adoption-linked readouts and the sector spend there drop until a tool
+  ships; a player who ships Computer use gains share in the choice (not ×1.15 hours) for 120 days, then rivals match
+  it; rivals' Chat appeal rises once they get Chat tools.
