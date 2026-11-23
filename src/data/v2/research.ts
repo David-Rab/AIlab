@@ -102,7 +102,7 @@ export const S_STEP = 0.02;
  *  D above]. */
 export const TRAIN_CAP = Math.log10((0.75 * 0.97) / (0.4 * 0.9));
 export const STACK_LABEL: Record<StackKey, string> = {
-  pre: 'Pretraining efficiency', rlMid: 'RL compute efficiency', rlCeil: 'RL ceiling', train: 'Training throughput', serve: 'Serving efficiency',
+  pre: 'Pretraining recipe', rlMid: 'Post-training method', rlCeil: 'Post-training ceiling', train: 'Training efficiency', serve: 'Serving efficiency',
 };
 /** RD-B17: what each stack's OOM measure (the Recipe tab shows each stack in its own unit, never summed). Read after
  *  "OOM". */

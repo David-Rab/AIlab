@@ -51,7 +51,7 @@ function LeadTrack({ s }: { s: GameStateV2 }) {
           <Tip as="g" key={r.core.id} content={() => (
             <TipCard title={r.core.name} value={grade ? <span><Term id="index">Index</Term> {grade}</span> : undefined} rows={[
               { label: <Term id="lead">Your lead</Term>, value: `${F.lead(l.est)} ± ${l.sd} d`, tone: l.est >= 0 ? 'pos' : 'neg' },
-              { label: <Term id="misalign">Misalignment</Term>, value: `${F.num(r.intel.misalignBand[0], 2)}–${F.num(r.intel.misalignBand[1], 2)}` },
+              { label: <Term id="misalign">Would try (range)</Term>, value: `${F.num(r.intel.misalignBand[0], 2)}–${F.num(r.intel.misalignBand[1], 2)}` },
               { label: 'Public model', value: r.publicModel?.name ?? '—' },
               { label: 'Known incidents', value: r.intel.knownIncidents.length },
             ]}>{cn ? 'China\'s national lab.' : r.archetype === 'leader' ? 'The frontier leader: a US lab on the reference pace.' : 'US rival.'} Estimates from releases, evaluators and intel. Click for Relations.</TipCard>
@@ -126,14 +126,14 @@ function RaceHistory({ s }: { s: GameStateV2 }) {
           <circle cx={X(hi)} cy={Y(L[hi])} r={3.5} fill={C.cap} /><circle cx={X(hi)} cy={Y(U[hi])} r={3.5} fill={C.und} />
           {(() => {
             const why = uWhy(hi);
-            const txt = why ? `U ${F.num(why.delta, 1, true)}: ${(why.detail ?? why.source).split(' · ')[0]}` : '';
+            const txt = why ? `Sight limit ${F.num(why.delta, 1, true)} levels: ${(why.detail ?? why.source).split(' · ')[0]}` : '';
             const w = Math.max(180, Math.min(330, txt.length * 6.4 + 20));
             return (
               <g transform={`translate(${Math.min(W - w - 10, X(hi) + 8)}, ${pt + 18})`}>
                 <rect width={w} height={why ? 68 : 52} rx={6} fill="#0e141c" stroke="#46597a" />
                 <text x={10} y={17} className="rh-tt">{fmtDate(dateOf(s, S.day[hi]))}</text>
                 <text x={10} y={33} className="rh-tt" fill={C.cap}>Capability {L[hi].toFixed(1)}</text>
-                <text x={10} y={47} className="rh-tt" fill={C.und}>Understanding {U[hi].toFixed(1)} ({F.num(U[hi] - L[hi], 1, true)})</text>
+                <text x={10} y={47} className="rh-tt" fill={C.und}>Sight limit {U[hi].toFixed(1)} ({F.num(U[hi] - L[hi], 1, true)})</text>
                 {why && <text x={10} y={62} className="rh-tt" fill="#c9d4e2" data-test="u-why">{txt}</text>}
               </g>
             );

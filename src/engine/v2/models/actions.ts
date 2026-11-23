@@ -133,7 +133,7 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Pr
   if (plan.cashCost > 0) costs.push({ currency: 'cash', amount: plan.cashCost });
   const exposure: CostLine[] = [];
   const pressure = Object.values(plan.prediction.signals).reduce((a, x) => a + x, 0);
-  if (pressure > 0) exposure.push({ currency: 'alignment', amount: -Math.round(pressure * 100) / 100, unit: 'pressure', lagDays: plan.etaDays, target: 'training pressure toward unwanted dispositions (the Blueprint shows which)' });
+  if (pressure > 0) exposure.push({ currency: 'alignment', amount: -Math.round(pressure * 100) / 100, unit: 'pressure', lagDays: plan.etaDays, target: 'training pushes toward unwanted traits (Next run shows which)' });
   // SR-14: the run's methods, each with its effect and its cost where one exists; train-against with its honest preview.
   const gains0: CostLine[] = [];
   if (lp.post) {
@@ -144,7 +144,7 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Pr
   const scrutiny = lp.base ? (plan.limits?.scrutiny ?? 0) : 0;
   if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   const gains: CostLine[] = fc
-    ? [{ currency: 'progress', amount: Math.round(fc.gain * 100) / 100, unit: 'L', lagDays: plan.etaDays, target: `forecast over ${fc.refName}'s measured level (±${fc.sd.toFixed(2)} L)` }]
+    ? [{ currency: 'progress', amount: Math.round(fc.gain * 100) / 100, unit: 'L', lagDays: plan.etaDays, target: `prediction over ${fc.refName}'s measured level (±${fc.sd.toFixed(2)} levels)` }]
     : [];
   return { costs, gains: [...gains, ...gains0], exposure };
 }
@@ -169,7 +169,7 @@ const streamCosts = (): CostLine[] => [
   { currency: 'staffTime', amount: RE_OPS.stream, unit: 'teams', target: 'research engineers on stream operations' },
 ];
 
-const p18 = (s: GameStateV2) => (adopted(s, 'P18') ? true : 'Needs IDA (P18)');
+const p18 = (s: GameStateV2) => (adopted(s, 'P18') ? true : 'Needs the discovery Iterated distillation & amplification');
 
 const RUN_ACTIONS: ActionDef[] = [
   runAction('launchBase', 'Pretrain base', 'base'),
@@ -191,7 +191,7 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'runs.setShare', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Pool share',
+    id: 'runs.setShare', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Training share',
     available: (s) => (s.player.models.runs.some((r) => r.status === 'running') ? true : 'No running runs'),
     preview: (s, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '')) ?? s.player.models.runs.find((x) => x.status === 'running');
@@ -200,8 +200,8 @@ const RUN_ACTIONS: ActionDef[] = [
       const line = { currency: 'compute' as const, amount: Math.round(Math.abs(d) * 100) / 100, target: 'training pool share' };
       // More share: the run finishes sooner, other runs (or idle research compute) get less; less share: the reverse.
       return d >= 0
-        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: pool share (finishes sooner)` }], exposure: [] }
-        : { costs: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: pool share (finishes later)` }], gains: [line], exposure: [] };
+        ? { costs: [line], gains: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: training share (finishes sooner)` }], exposure: [] }
+        : { costs: [{ currency: 'progress', amount: Math.round(d * 100), unit: '%', target: `${r?.name ?? 'run'}: training share (finishes later)` }], gains: [line], exposure: [] };
     },
     apply: (s, _ctx, p) => {
       const r = s.player.models.runs.find((x) => x.id === str(p, 'runId', '') && (x.status === 'running' || x.status === 'paused'));
@@ -224,7 +224,7 @@ const RUN_ACTIONS: ActionDef[] = [
   },
   {
     id: 'startStream', verb: 'train', system: 'models', sphere: 'models', owner: 'WS1', title: 'Continual learning',
-    available: (s) => (adopted(s, 'P08') ? true : 'Needs continual learning (P08)'),
+    available: (s) => (adopted(s, 'P08') ? true : 'Needs the discovery Continual learning'),
     // RD-T03: the stream's standing load as charged and what its first period buys: the mechanism (continued pretraining
     // and an RL refresh on the period's FLOP) run on a copy of the version (streamPeriodGain). Its slow drift in
     // dispositions has no one-number preview.
@@ -233,7 +233,7 @@ const RUN_ACTIONS: ActionDef[] = [
       const g = v ? streamPeriodGain(s, v.id) : { dG: 0, flop: 0 };
       return {
         costs: streamCosts(),
-        gains: [{ currency: 'progress', amount: Math.round(g.dG * 1000) / 1000, unit: 'OOM', lagDays: STREAM_PERIOD_DAYS, target: `effective compute ${v?.name ?? 'the version'} gains each ${STREAM_PERIOD_DAYS} days from ${g.flop.toExponential(1)} FLOP of continued pretraining and RL at today's pool` }],
+        gains: [{ currency: 'progress', amount: Math.round(g.dG * 1000) / 1000, unit: 'OOM', lagDays: STREAM_PERIOD_DAYS, target: `effective compute ${v?.name ?? 'the model'} gains each ${STREAM_PERIOD_DAYS} days from continued pretraining and post-training at today's training share` }],
         exposure: [],
       };
     },
@@ -247,7 +247,7 @@ const RUN_ACTIONS: ActionDef[] = [
       const id = s.player.models.stream?.versionId ?? '';
       const g = streamPeriodGain(s, id);
       return {
-        costs: [{ currency: 'progress', amount: -Math.round(g.dG * 1000) / 1000, unit: 'OOM', target: `effective compute ${versionById(s, id)?.name ?? 'the version'} no longer gains each ${STREAM_PERIOD_DAYS} days (it keeps what it has)` }],
+        costs: [{ currency: 'progress', amount: -Math.round(g.dG * 1000) / 1000, unit: 'OOM', target: `effective compute ${versionById(s, id)?.name ?? 'the model'} no longer gains each ${STREAM_PERIOD_DAYS} days (it keeps what it has)` }],
         gains: streamCosts(),
         exposure: [],
       };
@@ -307,7 +307,7 @@ function evalGains(s: GameStateV2, v: ModelVersion, depth: EvalDepth, by: 'self'
   const lag = Number.isFinite(days) ? { lagDays: days } : {};
   const out: CostLine[] = [{
     currency: 'progress', amount: 1, unit: 'reading', ...lag,
-    target: `new benchmark and safety-eval scores for ${v.name}; its measured level ±${(row?.bandNow ?? 0).toFixed(2)} → ±${expectedFitSd(s, v, by, depth).toFixed(2)} L (fitted band, at today's readings)`,
+    target: `new benchmark and safety-eval scores for ${v.name}; its measured level ±${(row?.bandNow ?? 0).toFixed(2)} → ±${expectedFitSd(s, v, by, depth).toFixed(2)} levels (range, at today's readings)`,
   }];
   if (by !== 'self' && !externallyEvaluated(s, v)) {
     out.push({ currency: 'progress', amount: 1, unit: 'release check', ...lag, target: `${v.name} gets the external evaluation your Safety framework asks for (its external-review rule and rules at Critical)` });
@@ -359,13 +359,13 @@ function splitPreview(s: GameStateV2, next: ComputeSplit): Preview {
 
 export const DEPARTMENT_ACTIONS: ActionDef[] = [
   {
-    id: 'setSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Compute split',
+    id: 'setSplit', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Compute allocation',
     available: () => true,
     preview: (s, p) => splitPreview(s, splitFromParams(s, p)),
     apply: (s, _ctx, p) => fail(applySplit(s, splitFromParams(s, p))),
   },
   {
-    id: 'splitPreset', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Split preset',
+    id: 'splitPreset', verb: 'policy', system: 'compute', sphere: 'departments', owner: 'WS1', title: 'Allocation preset',
     available: () => true,
     preview: (s, p) => splitPreview(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split)),
     apply: (s, _ctx, p) => fail(applySplit(s, presetSplit(str(p, 'preset', 'reference') as SplitPreset, decimalYear(s), s.player.split))),

@@ -15,6 +15,7 @@
 // in order, so they sum to the package's total. Stop rates are the act table's (believed), before → after.
 // Parts stay editable after (product.update safeguards, the control / review / lockdown verbs).
 import { AGENT_USES } from '../../../data/v2/agents';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { agentCompute, agentVersion, monitorBudget, monitorVersion, syncInternalControl } from '../departments/agents';
 import { hypothetical, previewDeployments } from '../worldfx/productView';
@@ -25,7 +26,7 @@ import { useControl } from './oversight';
 import { CONTROL_SETTINGS, addSafeguard, controlOn, reviewOn, setControl } from './safeguards';
 import type { Channel, Deployment, EngineSystem, FrameworkRule, GameStateV2, ModelVersion, SystemCtx } from '../types';
 
-export const PACKAGE_LABEL = 'Meet my framework';
+export const PACKAGE_LABEL = 'Framework safeguards';
 
 const isInternal = (d: Deployment) => d.channel === 'internal';
 const MISUSE_RANK: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 1, classifiers: 2, hardened: 3 };
@@ -183,11 +184,11 @@ export function applyFrameworkParts(s: GameStateV2, d: Deployment, ctx?: SystemC
   const cost = t ? [
     t.computeH100e > 1e-6 ? `${Math.round(t.computeH100e * 10) / 10} H100e control compute` : '',
     t.people > 1e-6 ? `${Math.round(t.people)} safety engineers reviewing` : '',
-    t.slowdown > 1e-6 ? `Slowdown ${Math.round(t.slowdown * 1000) / 10}% of agent work` : '',
+    t.slowdown > 1e-6 ? `slowdown ${Math.round(t.slowdown * 1000) / 10}% of AI staff work` : '',
     Math.abs(t.revenue) > 1e-4 ? `revenue ${t.revenue > 0 ? '+' : '−'}$${Math.abs(Math.round(t.revenue * 100) / 100)}B/yr` : '',
     t.servingH100e > 0.5 ? `serving need +${Math.round(t.servingH100e)} H100e` : '',
   ].filter(Boolean) : [];
-  ctx.log('company', `Your Safety framework applied "${PACKAGE_LABEL}" to ${isInternal(d) ? 'internal AI work' : `product ${d.id}`}: ${todo.map((x) => x.label).join(', ')}${cost.length ? ` (${cost.join(', ')})` : ''}. You can change it; a part you remove is not put back, and the rule then holds.`, 1, d.versionId);
+  ctx.log('company', `Your Safety framework applied "${PACKAGE_LABEL}" to ${isInternal(d) ? 'AI staff' : PRODUCT_DEFS[d.channel]?.name ?? 'a product'}: ${todo.map((x) => x.label).join(', ')}${cost.length ? ` (${cost.join(', ')})` : ''}. You can change it; a part you remove is not put back, and the rule then holds.`, 1, d.versionId);
   return true;
 }
 

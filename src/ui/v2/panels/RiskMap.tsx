@@ -6,7 +6,8 @@ import { activeRivals, distillationAccess, engine, leadDays, leverageAll, measur
 import type { GameStateV2 } from '../../../engine/v2';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { store } from '../store';
-import { Term, Tip, TipCard, unlocked } from '../ui';
+import { Rich, Term, Tip, TipCard, unlocked } from '../ui';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import * as F from '../fmt';
 import { C, seq, SPHERE } from '../theme';
 
@@ -32,9 +33,9 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   nodes.push({
-    id: 'player', label: s.player.name, sub: `L ${F.level(measuredL(s))}`,
+    id: 'player', label: s.player.name, sub: `level ${F.level(measuredL(s))}`,
     x: W / 2, y: H / 2 - 20, r: 30, color: C.you, halo: lev.player ?? 0, pulse: openInc.some((i) => !i.deploymentId), panel: 'models',
-    tip: () => <TipCard title={s.player.name} rows={[{ label: <Term id="leverage">Leverage</Term>, value: F.pct(lev.player ?? 0, 1) }, { label: 'Open incidents', value: openInc.length }]}>Your lab. The halo is your [[leverage]].</TipCard>,
+    tip: () => <TipCard title={s.player.name} rows={[{ label: <Term id="leverage">Leverage</Term>, value: F.pct(lev.player ?? 0, 1) }, { label: 'Open incidents', value: openInc.length }]}><Rich text="Your lab. The halo is your [[leverage]]." /></TipCard>,
   });
   const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
   labs.forEach((r, i) => {
@@ -46,7 +47,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
       id, label: r.core.name, sub: l.est >= 0 ? `you ${F.lead(l.est)} ahead` : `you ${F.lead(-l.est).replace('+', '')} behind`, x: W / 2 + Math.cos(a) * 520, y: H / 2 - 20 + Math.sin(a) * 240, r: 20,
       color: isCN ? C.china : C.rival, halo: lev[id] ?? 0, pulse: s.ws4?.rivalIncidents.some((x) => x.lab === id && s.time.day - x.day < 14) ?? false,
       panel: 'relations',
-      tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="misBand">Misalignment band</Term>, value: `${F.short(r.intel.misalignBand[0])}–${F.short(r.intel.misalignBand[1])}` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
+      tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="misBand">Would try (range)</Term>, value: `${F.short(r.intel.misalignBand[0])}–${F.short(r.intel.misalignBand[1])}` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
     });
     edges.push({ from: 'player', to: id, kind: 'distill', w: distillationAccess(s, id), label: `distillation ${F.pct(distillationAccess(s, id))}` });
     if (r.meters.poachAggression > 20) edges.push({ from: id, to: 'player', kind: 'talent', w: r.meters.poachAggression / 100, label: 'talent poaching' });
@@ -64,9 +65,9 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
     const v = versionById(s, d.versionId);
     const id = `dep:${d.id}`;
     nodes.push({
-      id, label: d.channel, sub: v?.name ?? '', x: W / 2 + Math.cos(a) * (300 + (i % 2) * 50), y: H / 2 - 20 + Math.sin(a) * (150 + (i % 2) * 30), r: 11, color: SPHERE.prod, halo: 0,
+      id, label: PRODUCT_DEFS[d.channel]?.name ?? d.channel, sub: v?.name ?? '', x: W / 2 + Math.cos(a) * (300 + (i % 2) * 50), y: H / 2 - 20 + Math.sin(a) * (150 + (i % 2) * 30), r: 11, color: SPHERE.prod, halo: 0,
       pulse: openInc.some((x) => x.deploymentId === d.id), panel: 'products',
-      tip: () => <TipCard title={`${d.channel} · ${v?.name ?? d.versionId}`} rows={[{ label: 'Revenue', value: F.money(d.revenueRate ?? 0, { perYear: true }) }, { label: 'Binding', value: d.demandBound ?? '—' }, { label: <Term id="safeguards">Safeguards</Term>, value: d.safeguards }, { label: <Term id="kyc">KYC</Term>, value: d.kyc }]} />,
+      tip: () => <TipCard title={`${PRODUCT_DEFS[d.channel]?.name ?? d.channel} · ${v?.name ?? 'no model'}`} rows={[{ label: 'Revenue', value: F.money(d.revenueRate ?? 0, { perYear: true }) }, { label: 'Limited by', value: d.demandBound ?? '—' }, { label: <Term id="safeguards">Safeguards</Term>, value: d.safeguards }, { label: <Term id="kyc">KYC</Term>, value: d.kyc }]} />,
     });
     edges.push({ from: 'player', to: id, kind: 'serve', w: Math.min(1, (d.revenueRate ?? 0) / 20), label: '' });
   });
@@ -90,7 +91,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
         <span><i className="dotk" style={{ background: seq(0.6) }} />sectors (size = automated)</span>
         <span className="sep" />
         {(Object.keys(EDGE) as EdgeKind[]).map((k) => <span key={k}><i style={{ background: EDGE[k].color }} /><Term id={EDGE[k].term}>{EDGE[k].label}</Term></span>)}
-        <span className="dim">· width = strength · halo = leverage</span>
+        <span className="dim">· width = size · halo = leverage</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="riskmap2">
         <defs>

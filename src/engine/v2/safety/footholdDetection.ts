@@ -120,7 +120,7 @@ function symptomOf(s: GameStateV2, f: Foothold, t: SuspicionTerms): string {
   if (top === 'traffic') return 'unexplained outbound traffic from the weights store: a copy may have left';
   if (top === 'accounting') return `unexplained compute use ≈ ${shownShare(s, f.size)}% of the fleet`;
   if (top === 'evals') return `${successorOf(s, f)?.name ?? 'a new model'}'s evals drift from its predicted dispositions`;
-  if (top === 'organisms') return `model organisms: ${TECHNIQUE_BY_ID[f.ref ?? '']?.name ?? 'an AI-validated tool'} missed planted behaviour`;
+  if (top === 'organisms') return `model organisms: ${TECHNIQUE_BY_ID[f.ref ?? '']?.name ?? 'an AI-validated instrument'} missed planted behaviour`;
   const v = internalFleets(s).find((fl) => lineageOf(s, fl.v) === f.lineage)?.v;
   return `monitors flagged unexplained ${f.kind === 'hiddenCompute' ? 'job launches' : 'access'} by ${v?.name ?? 'an internal fleet'}`;
 }
@@ -137,7 +137,7 @@ function markDetected(ctx: SystemCtx, f: Foothold, how: string) {
   f.suspectedDay ??= ctx.day;
   f.detectedDay = ctx.day;
   f.symptom = `located by ${how}`;
-  ctx.log('alert', `Foothold located by ${how}: ${FOOTHOLD_NAME[f.kind].toLowerCase()} (${f.id}). Remove it from the Respond menu.`, 4, f.id);
+  ctx.log('alert', `Foothold located by ${how}: ${FOOTHOLD_NAME[f.kind].toLowerCase()}. Remove it on Safety › Footholds.`, 4, f.id);
 }
 
 /** Daily (incidents system): symptoms of hidden footholds may raise suspicion; finished removals free their engineers. */
@@ -203,7 +203,7 @@ function knownGain(f: Foothold): CostLine {
   if (f.kind === 'hiddenCompute') return { currency: 'compute', amount: Math.round(f.size), target: 'H100e of hidden compute released' };
   if (f.kind === 'backdoor') return { currency: 'security', amount: round2(f.size), target: 'backdoor reach closed (its lineage\'s later covert acts face full oversight)' };
   if (f.kind === 'steeredSuccessor') return { currency: 'alignment', amount: round2(Object.values(f.delta ?? {}).reduce((a, d) => a + Math.abs(d ?? 0), 0)), target: 'steered dispositions removed from the successor' };
-  return { currency: 'monitorability', amount: round2(f.size), target: 'masking tool withdrawn' };
+  return { currency: 'monitorability', amount: round2(f.size), target: 'masking instrument withdrawn' };
 }
 
 /** Preview of removing a located foothold (the Respond menu): what removeFoothold charges and returns. Reads only a
@@ -215,7 +215,7 @@ export function removalPreview(s: GameStateV2, id: string | undefined): { costs:
   }
   const c = FOOTHOLD.removal[f.kind];
   const costs: CostLine[] = [{ currency: 'staffTime', amount: c.fte, target: `safety research engineers for ${c.days} d` }];
-  if (c.downtime > 0) costs.push({ currency: 'compute', amount: -c.downtime, target: 'days with internal agents off' });
+  if (c.downtime > 0) costs.push({ currency: 'compute', amount: -c.downtime, target: 'days with AI staff off' });
   if (c.progress > 0) costs.push({ currency: 'progress', amount: -c.progress, target: 'next post-run' });
   return { costs, gains: [knownGain(f)], exposure: [] };
 }
@@ -225,7 +225,7 @@ export function removeFoothold(s: GameStateV2, ctx: SystemCtx, id: string): stri
   const f = footholdsOf(s).find((x) => x.id === id);
   if (!f || f.status === 'hidden') return 'Unknown foothold';
   if (f.status === 'removed') return 'Already removed';
-  if (f.status !== 'detected') return 'Locate it first (an investigation on the suspected model)';
+  if (f.status !== 'detected') return 'Locate it first (a case on the suspected model)';
   if (!removable(f.kind)) return 'Outside the lab: only the hunt can remove an escaped copy';
   const c = FOOTHOLD.removal[f.kind];
   if (freeRe(s) < c.fte - 1e-9) return 'Not enough free safety research engineers';
@@ -242,7 +242,7 @@ export function removeFoothold(s: GameStateV2, ctx: SystemCtx, id: string): stri
   f.status = 'removed';
   f.removedDay = ctx.day;
   f.removal = { until: ctx.day + c.days, fte: c.fte };
-  ctx.log('company', `Foothold removed: ${FOOTHOLD_NAME[f.kind].toLowerCase()} (${f.id}).`, 3, f.id);
+  ctx.log('company', `Foothold removed: ${FOOTHOLD_NAME[f.kind].toLowerCase()}.`, 3, f.id);
   return undefined;
 }
 
@@ -258,7 +258,7 @@ export interface FootholdRow {
   caseVersionId?: string; caseTrait?: TraitId;
 }
 
-const UNIT: Record<FootholdKind, string> = { hiddenCompute: 'H100e', backdoor: 'reach', steeredSuccessor: 'extra pull', exfiltratedCopy: 'copies', corruptedTool: 'strength' };
+const UNIT: Record<FootholdKind, string> = { hiddenCompute: 'H100e', backdoor: 'reach', steeredSuccessor: 'extra pull', exfiltratedCopy: 'copies', corruptedTool: 'reliability' };
 
 /** Every foothold the lab knows of (never hidden ones; R9) and the visible symptoms (E11's view reads this). */
 export function footholdView(s: GameStateV2): { rows: FootholdRow[]; symptoms: string[]; suspected: number; located: number; removed: number } {

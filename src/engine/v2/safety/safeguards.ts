@@ -72,7 +72,7 @@ export function cannotAdd(s: GameStateV2, d: Deployment, kind: SafeguardKind, se
   if (d.status === 'withdrawn') return 'Deployment is withdrawn';
   if (kind === 'control' && setting === 'resample' && !unlocked(s, 'T-RESAMPLE')) return 'Needs Resample protocols (AI control research)';
   if (kind === 'lockdown' && !unlocked(s, 'T-LOCK')) return 'Needs Comms lockdown (AI control research)';
-  if (kind === 'lockdown' && d.channel !== 'internal') return 'Comms lockdown is for internal agents';
+  if (kind === 'lockdown' && d.channel !== 'internal') return 'Comms lockdown is for AI staff';
   if (kind === 'review' && d.channel !== 'internal') return 'Human review is for internal work';
   return undefined;
 }

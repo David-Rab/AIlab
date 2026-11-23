@@ -696,7 +696,7 @@ async function b2Check(where) {
     gate: e.querySelector('[data-test^="feature-gate."]')?.textContent ?? '',
     clipped: [...e.querySelectorAll('.ft-fx, .ft-e, .ft-n')].filter((x) => { const g = document.createRange(); g.selectNodeContents(x); return x.scrollWidth > x.clientWidth + 1 || g.getBoundingClientRect().width > x.getBoundingClientRect().width + 1; }).map((x) => x.textContent).join('|'),
   })));
-  const UNIT = { scaffold: /\+[\d.]+ OOM ×\d+ tok/, horizon: /×[\d.]+ longer tasks/, enabler: /\+[\d.]+(%| OOM)/, effort: /\+[\d.]+ OOM ×\d+ tok/ };
+  const UNIT = { scaffold: /skill ×[\d.]+ ×\d+ tok/, horizon: /×[\d.]+ longer tasks/, enabler: /\+[\d.]+(%| OOM)/, effort: /\+[\d.]+ OOM ×\d+ tok/ };
   const fbad = feats.filter((x) => !x.kinds.length || (x.gate ? !/needs \S/.test(x.gate) : !x.kinds.every((k) => UNIT[k]?.test(x.fx))));
   ok(`B2 ${where}: every feature row shows its type and typed effect with units (locked: the idea) (${feats.length})`, feats.length >= 5 && fbad.length === 0, fbad.map((x) => `${x.f}: ${x.kinds} | ${x.fx} | ${x.gate}`).join(' ; '));
   const kinds = new Set(feats.flatMap((x) => x.kinds));

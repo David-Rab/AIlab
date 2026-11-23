@@ -60,7 +60,7 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
   const c1 = monitorBudget(x).control * x.player.computeOnline;
   check(internal(x).every(controlOn) && !trainingHeld(x) && trainingHolds(x).length === 0, 'after the daily system: control on, no training hold', trainingHolds(x).map((h) => h.missing.join('/')).join('; '));
   check(near(c1 - c0, pv.total.computeH100e), 'engine charges the previewed control compute', `+${pv.total.computeH100e.toFixed(1)} vs +${(c1 - c0).toFixed(1)} H100e; Slowdown ${(pv.total.slowdown * 100).toFixed(1)}%`);
-  const line = x.log.find((l) => l.text.includes('applied "Meet my framework"'));
+  const line = x.log.find((l) => l.text.includes('applied "Framework safeguards"'));
   check(!!line, 'log states what the framework applied', line?.text);
   check(frameworkOf(x).overrides.length === 0, 'no override');
 

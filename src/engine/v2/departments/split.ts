@@ -23,9 +23,9 @@ export const SPLIT_KEYS: (keyof ComputeSplit)[] = [
 
 /** Player-language name of each use (the Split panel's rows). */
 export const SPLIT_LABEL: Record<keyof ComputeSplit, string> = {
-  training: 'Training runs', synthetic: 'Data generation', experiments: 'Research experiments', routine: 'Routine research agents',
-  frontier: 'Frontier research agents', engineering: 'Engineering agents', safetyAgents: 'Safety research agents', monitors: 'Monitors',
-  safety: 'Safety research lines and cases', serving: 'Products (serving)', idle: 'Unallocated',
+  training: 'Training', synthetic: 'Data generation', experiments: 'Research experiments', routine: 'AI staff: experiments',
+  frontier: 'AI staff: ideas', engineering: 'AI staff: engineering', safetyAgents: 'AI staff: safety', monitors: 'Safeguards',
+  safety: 'Safety work', serving: 'Products', idle: 'Idle',
 };
 
 export const emptySplit = (): ComputeSplit => ({

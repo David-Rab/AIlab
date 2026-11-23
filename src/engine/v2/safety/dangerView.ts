@@ -25,6 +25,7 @@ import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { agentSplitShare, agentVersion, monitorVersion } from '../departments/agents';
 import { measuredLOf } from '../models/labs';
 import type { AgentUse, Deployment, DomainId, GameStateV2, TraitId } from '../types';
+import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { versionById } from './common';
 import { actSite, siteActs, type ActOpts, type ActRow, type ActSite } from './actTable';
 import { believedLowest, believedTerms, controlView } from './control';
@@ -120,11 +121,11 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
 /** What lowers a site's danger, with the same selector's estimate after each lever where it has one. */
 function levers(s: GameStateV2, d: Deployment, acts: DangerActRead[], monitored: boolean, restricted: boolean, what: (o: Opts) => number | undefined): DangerLever[] {
   const out: DangerLever[] = [];
-  if (!controlOn(d)) out.push({ id: 'control', label: 'Control layer', after: what({ control: true }), note: 'AI-control containment and deferral (Safety › Overview › Control)' });
-  if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Company › Agents at work' : 'the monitor chip on this card' });
-  if (!restricted) out.push({ id: 'restrict', label: 'Restrict context', after: what({ restrict: true }), note: d.channel === 'internal' ? 'opportunity ×0.3 (an incident response)' : 'opportunity ×0.3; revenue ×0.5 (an incident response)' });
+  if (!controlOn(d)) out.push({ id: 'control', label: 'Control protocol', after: what({ control: true }), note: 'blocks risky actions and defers the most suspicious to a trusted model (Safety › Overview)' });
+  if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Company › AI staff' : 'the monitor chip on this card' });
+  if (!restricted) out.push({ id: 'restrict', label: 'Restrict context', after: what({ restrict: true }), note: d.channel === 'internal' ? 'chances ×0.3 (an incident response)' : 'chances ×0.3; revenue ×0.5 (an incident response)' });
   const top = acts[0];
-  if (top && top.harmful > 0) out.push({ id: 'train', label: 'Train it down', note: `targeted training on ${top.trait} (est. ${top.est.toFixed(2)})` });
+  if (top && top.harmful > 0) out.push({ id: 'train', label: 'Train it down', note: `targeted training on ${TRAIT_BY_ID[top.trait as TraitId]?.name ?? top.trait} (best guess ${Math.round(top.est * 100)}%)` });
   void s;
   return out;
 }

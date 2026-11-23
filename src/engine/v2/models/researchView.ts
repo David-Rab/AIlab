@@ -368,7 +368,7 @@ export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; pe
     };
   });
   const used = needs.reduce((x, n) => x + n.got, 0);
-  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'team-eq', m, perProject: Object.fromEntries(al.perProject) };
+  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'teams', m, perProject: Object.fromEntries(al.perProject) };
 }
 
 /** RD-A04: safety research engineers by need today (heads × quality, the player's order): demand, what each got,
@@ -403,7 +403,7 @@ export function engAllocView(s: GameStateV2): AllocView<EngNeed> {
     };
   });
   const used = needs.reduce((x, n) => x + n.got, 0);
-  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'team-wk/wk' };
+  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'team-weeks a week' };
 }
 
 // ───────────────────────────── AI labour per work type ─────────────────────────────

@@ -27,9 +27,9 @@ export interface AgentUseDef {
 
 export const AGENT_USE_DEF: Record<AgentUse, AgentUseDef> = {
   eng: { name: 'Engineering', work: "engineers' coding", role: 'eng', budget: 'cap', misuse: 'Ship subtly broken code, game its tests', order: 1 },
-  capRoutine: { name: 'Routine research', work: 'research engineers', role: 're', budget: 'cap', misuse: 'Sandbag, shape its own successor, try to exfiltrate', order: 2 },
-  capFrontier: { name: 'Frontier research', work: "scientists' taste", role: 'sci', budget: 'cap', misuse: 'Steer research direction', order: 3 },
-  safety: { name: 'Safety research', work: 'safety researchers', role: 're', budget: 'saf', misuse: 'Sabotage: false results, corrupted investigations', order: 2 },
+  capRoutine: { name: 'Experiments', work: 'research engineers', role: 're', budget: 'cap', misuse: 'Sandbag, shape its own successor, try to exfiltrate', order: 2 },
+  capFrontier: { name: 'Ideas', work: "scientists' taste", role: 'sci', budget: 'cap', misuse: 'Steer research direction', order: 3 },
+  safety: { name: 'Safety', work: 'safety scientists', role: 're', budget: 'saf', misuse: 'Sabotage: false results, corrupted cases', order: 2 },
 };
 
 /** Reference share of a lab's agent compute spent on engineering (coding for the build queue) [D]. The player's
