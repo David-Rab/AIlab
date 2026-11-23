@@ -23,7 +23,8 @@ import { AG05_OVERSIGHT, HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { H50_PER_OOM, H50_V0_MIN } from '../../../data/v2/workTypes';
 import { adopted, believedEfficacy, clamp01, copyRec, flag, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
-import { againstOf, methodMult, methodRemoval, usesMethod, type EffView } from './methods';
+import { againstOf, methodMult, methodRemoval, methodUntested, usesMethod, type EffView } from './methods';
+import { METHOD_SCALE } from '../../../data/v2/agendas';
 import { aiOversight, cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
@@ -762,12 +763,12 @@ function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. SR-15: a run
  *  method's moderator is methodMult(base) in the view (true efficacy in the engine, believed in the prediction). */
-export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: EffView = 'true'): Record<string, number> {
+export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: EffView = 'true', oom?: number, q?: number): Record<string, number> {
   const m: Record<string, number> = {};
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const meth = (id: string, base: number, ...edges: string[]) => {
     if (!inRun(s, post, id)) return;
-    const k = methodMult(s, id, base, view);
+    const k = methodMult(s, id, base, view, oom, q); // CP3i: at the trained model's capability
     for (const e of edges) mul(e, k);
   };
   const dept = s.player.safety;
@@ -844,6 +845,8 @@ export interface RunView {
   uModes: readonly UModeId[];
   /** Detection for detection-gated removal ("what you can see you can fix", M4). */
   det?: Partial<Record<TraitId, number>>;
+  /** CP3i: believed view only, the methods' strength at scale read at this point of the stated range (default q̄). */
+  methodQ?: number;
 }
 export const trueRunView = (s: GameStateV2, uModes: readonly UModeId[], post: PostDesign | undefined, v?: ModelVersion): RunView => ({
   eff: 'true', w: s.hidden.edgeWeights, D: s.hidden.difficultyMult, uModes, det: post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined,
@@ -858,7 +861,8 @@ export function believedRunView(s: GameStateV2, post: PostDesign | undefined, v?
  *  safety-training removal gated by detection, AG18 healing, anti-scheming's removal and EA cost, inoculation's
  *  generalisation cut. `x` is the trait vector removal reads (true traits, or the believed estimates). */
 export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, view: RunView, gAf: number): TraitEnv {
-  const mods = playerMods(s, post, view.eff);
+  const oom = gAf - gV0(s.hidden.timeline); // CP3i: the trained model's OOM above V0 (method strength at scale)
+  const mods = playerMods(s, post, view.eff, oom, view.methodQ);
   for (const [e, k] of Object.entries(uModeEdgeMult(view.uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
   // SAND) that behavioural training misses: their visibility rises OC_VIS → OC_VIS_AUDIT (×1.5) [D] (§3.3.2 H "alignment-audit").
@@ -881,7 +885,7 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
   if (post && inRun(s, post, 'T-ANTISCHEME')) {
     const vis = (ea: number) => Math.max(0, 1 - eaCoef(s) * ea * (1 - eaSuppression(s)));
     const k = vis(x.EA) / Math.max(1e-9, vis(TRAIT_START.EA));
-    const rAS = 1 - Math.pow(1 - methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff), k);
+    const rAS = 1 - Math.pow(1 - methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff, oom, view.methodQ), k);
     removal.SCHEME = Math.max(removal.SCHEME ?? 0, rAS);
     if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
   }
@@ -890,7 +894,7 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
     signals: sg, omega, D: view.D, w: view.w, mods, amp: uModeAmp(view.uModes), removal,
     removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult, hackGen: inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff) : 1,
+    eaMult, hackGen: inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff, oom, view.methodQ) : 1,
     afGate: afCapGate(gAf),
   };
 }
@@ -919,20 +923,28 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
   // efficacy, detection-gated removal with the believed stack (`v`: the model the stack meets), AG18 healing at believed
   // efficacy, anti-scheming's removal and the alignment-audit visibility, as the engine applies them.
   // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
-  const env: TraitEnv = {
-    ...runEnv(s, est, sg, omega, post, lineage, believedRunView(s, post, v), gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+  const gT = gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline);
+  const envAt = (methodQ?: number): TraitEnv => ({
+    ...runEnv(s, est, sg, omega, post, lineage, { ...believedRunView(s, post, v), methodQ }, gT),
     omegaSafety, memory,
     lh, // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget)
     pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)
     ...(hackH !== undefined ? { hackTarget: hackTargetOf(s, hackH) } : {}), // SR-24b: public rule, the player's own suites
     ...(growthBy ? { growthBy } : {}),
-  };
-  const next = stepTraits(est, env);
+  });
+  const next = stepTraits(est, envAt());
+  // CP3i: a listed method the trained model has outgrown (its source tested weaker models) has a strength the lab knows
+  // only as the stated range: the prediction at both ends of it, and its uniform spread (range ÷ √12) adds to the noise.
+  const oomT = gT - gV0(s.hidden.timeline);
+  const untested = !!post && post.methods.some((m) => methodUntested(m, oomT) > 0 && !!s.player.safety.techniques[m]?.unlocked);
+  const nLo = untested ? stepTraits(est, envAt(METHOD_SCALE.hi)) : undefined;
+  const nHi = untested ? stepTraits(est, envAt(METHOD_SCALE.lo)) : undefined;
   const out = {} as Record<TraitId, TraitBelief>;
   const day = s.time.day;
   for (const t of TRAIT_IDS) {
     const p: TraitBelief = prior[t] ?? { est: TRAIT_START[t], sd: SD_MAX, clarity: 0, evidence: [] };
-    const wd = 0.3 * Math.abs(next[t] - est[t]) + floor;
+    const wm = nLo && nHi ? Math.abs(nHi[t] - nLo[t]) / Math.sqrt(12) : 0;
+    const wd = Math.sqrt((0.3 * Math.abs(next[t] - est[t]) + floor) ** 2 + wm * wm);
     const sd = Math.min(SD_MAX, Math.sqrt(p.sd * p.sd + wd ** 2));
     let evidence: BeliefEvidence[];
     if (from !== 'stream') evidence = withEvidence(undefined, { day, source: from, reading: next[t], noise: wd });

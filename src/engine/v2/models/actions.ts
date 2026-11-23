@@ -137,7 +137,7 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Pr
   // SR-14: the run's methods, each with its effect and its cost where one exists; train-against with its honest preview.
   const gains0: CostLine[] = [];
   if (lp.post) {
-    const ml = methodLines(s, lp.post, lp.baseId ? s.player.models.bases.find((b) => b.id === lp.baseId)?.lineage : undefined);
+    const ml = methodLines(s, lp.post, lp.baseId ? s.player.models.bases.find((b) => b.id === lp.baseId)?.lineage : undefined, plan.g.G > 0 ? plan.g.G : undefined); // CP3i: at the planned model's capability
     gains0.push(...ml.gains);
     exposure.push(...ml.exposure);
   }

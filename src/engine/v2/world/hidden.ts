@@ -1,7 +1,7 @@
 // Hidden world sampling at newGame (V2-SPEC §2.3). Owner: WS1. All draws from stream 'world', in spec order.
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
-import { AGENDAS, ORGANISM_REALISM } from '../../../data/v2/agendas';
+import { AGENDAS, METHOD_SCALE, METHOD_TESTED_OOM, ORGANISM_REALISM } from '../../../data/v2/agendas';
 import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { V3_CAL } from '../../../data/v2/workTypes';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
@@ -139,7 +139,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   // 10. Doom threshold: drawn inside makeWorld (0.40, or U(0.30, 0.50) when alignment is sampled).
   return {
     timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity, econ,
-    doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), organismRealism: organismRealismOf(setup.seed), difficultyMult,
+    doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), organismRealism: organismRealismOf(setup.seed), methodScale: methodScaleOf(setup.seed), difficultyMult,
     actorPresets: { gov, public: pub, china, rivals }, rivalPostures, chinaPosture,
   };
 }
@@ -160,6 +160,17 @@ export function drawLineageUModes(rng: Pick<Rng, 'chance'>, h: Pick<HiddenWorld,
 export function toleranceNoiseOf(seed: number): number {
   const u = (hash32(seed, 'control:tolerance') + 0.5) / 4294967296;
   return CONTROL.toleranceSd * Math.log(u / (1 - u));
+}
+
+/** CP3i: the world's hidden method strength at scale q ~ U[METHOD_SCALE.lo, hi], one per method in METHOD_TESTED_OOM,
+ *  each a hash of the seed and the method id (no named stream moves). */
+export function methodScaleOf(seed: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const id of Object.keys(METHOD_TESTED_OOM)) {
+    const u = (hash32(seed, `safety:methodScale:${id}`) + 0.5) / 4294967296;
+    out[id] = METHOD_SCALE.lo + (METHOD_SCALE.hi - METHOD_SCALE.lo) * u;
+  }
+  return out;
 }
 
 /** SR-24b: the world's organism realism r ~ U[ORGANISM_REALISM.lo, hi] from a hash of the seed (no named stream moves). */

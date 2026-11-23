@@ -1,7 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { ALIGN_EVAL_N, evalRecord } from '../safety/alignmentEvals';
-import { organismRealismOf } from '../world/hidden';
+import { methodScaleOf, organismRealismOf } from '../world/hidden';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
 import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
@@ -180,8 +180,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  94 → 95 sets it from the save's seed (organismRealismOf), the value a new game with that seed draws.
  *  96 (SR-16b): SafetyDept.envFixJobs (environment fixes being built: work on the 'envFix' need, in force when done;
  *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force).
+ *  97 (CP3i): HiddenWorld.methodScale (per run method q ~ U[0, 1], a hash of the seed; safety/methods.ts). Migration
+ *  96 → 97 sets it from the save's seed (methodScaleOf), the values a new game with that seed draws.
  */
-export const SCHEMA_REV = 96;
+export const SCHEMA_REV = 97;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1090,6 +1092,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     // (envFixes); its busy-until flag goes, so its engineers are released (no job is made for it). envFixJobs is optional (absent = none), so none is added: a state of rev 95 loads unchanged.
     const r = raw as { flags?: Record<string, unknown> };
     if (r.flags) delete r.flags['ws2.patchUntil'];
+  },
+  96: (raw) => {
+    // 96 → 97 (CP3i): the world's hidden method strengths at scale from its seed (see SCHEMA_REV's note).
+    const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
+    if (r.hidden && r.hidden.methodScale === undefined) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
   },
 };
 
