@@ -3476,3 +3476,13 @@ passes. No state change (no SCHEMA_REV bump).
 Left: external evaluators still add evidence twice (SR-07's note); incidents are not real-use readings.
 Moves calibration: yes (S4/S5: eval evidence raises believed misbehaviour by the gap midpoint and is noisier early,
 when EA is unknown; red flags and gates on believed traits move).
+
+### Merge p3-d (SR-07, 24b, 07b) → rd
+- Conflicts: core/save.ts (SCHEMA_REV note and migrations), hygiene.ts (two rev pins), BUILD-NOTES (RD-P10 / SR-07
+  sections, both kept). research/RD-SR24-safety-params.md identical on both sides.
+- **SCHEMA_REV 95**: 92 → 93 RD-P10 (servedBy, no rewrite); 93 → 94 SR-07 (alignment evals k of n, was p3-d's 92 → 93);
+  94 → 95 SR-24b (organismRealism from seed, was p3-d's 93 → 94). Hygiene pins 95; `_sr07` / `_sr24b` checks pin
+  `>= 94` / `>= 95`.
+- Checks: tsc (app, scripts/v2) clean; build ok; `_p10`, `_ui0a`, `_sr07`, `_sr07b`, `_sr24b` all ok. Hygiene and heavy
+  runs not run.
+- Moves calibration: yes (SR-07 / SR-07b / SR-24b change believed traits and validation; P10 adds misuse exposure).
