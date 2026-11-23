@@ -787,7 +787,7 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   // CP3c (DD-05 (a)): no stream before the lab has adopted continual learning (P08, as the player); the stream's FLOP
   // accrues from the adoption on, not from day 0.
   if (!(rivalIdea(r, 'P08') > 0)) {
-    r.phys.clDay = undefined;
+    delete r.phys.clDay;
     return false;
   }
   if (r.phys.clDay === undefined) {
