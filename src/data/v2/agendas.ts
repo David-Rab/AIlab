@@ -138,7 +138,10 @@ export const VAL_N = 20;
  *  lab knows only the range [D: proxy, research/RD-SR24-safety-params.md §1b R3, R4: low end AuditBench arXiv 2602.22755
  *  §4 Fig. 4 (TD+KTO 22.2% ÷ SDF+SFT 51.3% = 0.43); high end Goldowsky-Dill et al. 2025 arXiv 2502.03407 (AUROC
  *  0.96–0.999 from simple to realistic prompted deception); R2: no measured organism → natural ratio exists (Smith,
- *  Chughtai, Nanda 2025 arXiv 2511.22662)]. */
+ *  Chughtai, Nanda 2025 arXiv 2511.22662)]. CAL-S: kept as the proxy; abstracts re-checked (AuditBench: demonstration-
+ *  trained and adversarially trained organisms are harder to audit; Goldowsky-Dill: "AUROCs between 0.96 and 0.999",
+ *  "insufficient as a robust defence"); no direct organism → natural measurement exists (research/CAL-safety-sources.md
+ *  §5) [proxy, low]. */
 export const ORGANISM_REALISM = { lo: 0.4, hi: 1.0 } as const;
 /** CP3i (designer decision 2026-11-23): method efficacy at scale. Each run method's sourced effect was measured on
  *  models of one capability; it holds there. Above that capability its true strength is a hidden per-world draw q
