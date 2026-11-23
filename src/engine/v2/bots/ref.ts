@@ -248,7 +248,7 @@ export interface RefPlayOpts {
   /** Extra launchBase params (data, quality, hazard, safetyPretrain) and `days`: the base run's target
    *  length at 60% of the pool (default REF_BASE_DAYS; followers FOLLOWER_MAX_BASE_DAYS). */
   base?: Params;
-  /** launchPost params (pref, rlFocus, rlBudget, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
+  /** launchPost params (pref, rlFocus, rlBudget, cot, safety, methods). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
   /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
@@ -271,7 +271,6 @@ const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`]
  *  inoculation, hazard filtering and safety pretraining are research projects now). */
 function known(s: GameStateV2, p: Params): Params {
   const out = { ...p };
-  if (out.inoculation === true && optionLocked(s, 'inoculation', true)) out.inoculation = false;
   if (out.hazard === true && optionLocked(s, 'curation', 'hazard')) out.hazard = false;
   if (out.safetyPretrain === true && optionLocked(s, 'curation', 'safetyPretrain')) out.safetyPretrain = false;
   return out;

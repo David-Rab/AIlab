@@ -65,7 +65,7 @@ export function baseFromParams(p: Params): BaseDesign {
 export const RUN_PARAM_DEFAULTS: Readonly<Record<string, string | number | boolean>> = {
   params: REFERENCE_BASE.params, tpp: REFERENCE_BASE.tpp, shape: REFERENCE_BASE.shape, data: REFERENCE_BASE.data,
   quality: REFERENCE_BASE.curation.quality, hazard: REFERENCE_BASE.curation.hazard, safetyPretrain: REFERENCE_BASE.curation.safetyPretrain,
-  pref: REFERENCE_POST.pref, rlFocus: 'broad', rlBudget: REFERENCE_POST.rlBudget, inoculation: REFERENCE_POST.inoculation,
+  pref: REFERENCE_POST.pref, rlFocus: 'broad', rlBudget: REFERENCE_POST.rlBudget,
   cot: REFERENCE_POST.cot, safety: REFERENCE_POST.safety,
 };
 
@@ -77,7 +77,7 @@ export function postFromParams(p: Params, s?: GameStateV2): PostDesign {
   const f = str(p, 'rlFocus', 'broad');
   return {
     pref: str(p, 'pref', r.pref) as PostDesign['pref'], rlFocus: f === 'broad' ? 'broad' : (f.split(',').filter(Boolean) as RLFamily[]),
-    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'], inoculation: bool(p, 'inoculation', r.inoculation),
+    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'],
     cot: str(p, 'cot', r.cot) as PostDesign['cot'], safety: str(p, 'safety', r.safety) as PostDesign['safety'],
     methods: s ? methodsFromParam(s, p.methods) : [],
   };

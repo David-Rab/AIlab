@@ -121,7 +121,7 @@ export const REFERENCE_BASE: BaseDesign = {
 };
 
 export const REFERENCE_POST: PostDesign = {
-  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false,
+  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard',
   cot: 'visible', safety: 'standard', methods: [],
 };
 

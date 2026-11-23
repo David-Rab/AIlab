@@ -105,7 +105,11 @@ function worldProbe(seed: number): WorldProbe {
   const swe = (x: number): FamilyMap => ({ swe: x });
   const ctrl = probeRun(s, x0, post(), swe(0));
   const hack = probeRun(s, x0, post(), swe(EXPLOIT_CHEAP.swe));
-  const inoc = probeRun(s, x0, post({ inoculation: true }), swe(EXPLOIT_CHEAP.swe));
+  const inocT = s.player.safety.techniques['T-INOC'];
+  const inocWas = inocT.unlocked;
+  inocT.unlocked = true; // SR-14b: inoculation is the method T-INOC (owned for this probe)
+  const inoc = probeRun(s, x0, post({ methods: ['T-INOC'] }), swe(EXPLOIT_CHEAP.swe));
+  inocT.unlocked = inocWas;
   // Capability RL (Schoen): the reference run at ρ_ref vs 10× (one OOM more RL), on the start suites.
   const start = suiteExploitMap(s);
   const eaRef = probeRun(s, x0, post(), start).x.EA;

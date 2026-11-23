@@ -105,8 +105,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  70 (SR-14): training-time safety methods are run-plan options: PostDesign.techniques and .trainAgainst become one
  *  list PostDesign.methods (method ids and `against:<instrument>` entries); SafetyDept.useAllMethods (the policy "Use
  *  all known methods", on by default). Migration 69 → 70 rewrites every post design in the save and turns the policy on.
+ *  71 (SR-14b / SR-15): PostDesign.inoculation (a boolean) is the method T-INOC in PostDesign.methods. Migration 70 → 71
+ *  adds T-INOC to every post design that had inoculation on and drops the field.
  */
-export const SCHEMA_REV = 70;
+export const SCHEMA_REV = 71;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -721,6 +723,20 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     walk(raw, 0);
     const dept = (raw as { player?: { safety?: { useAllMethods?: boolean } } }).player?.safety;
     if (dept) dept.useAllMethods ??= true;
+  },
+  70: (raw) => {
+    // 70 → 71 (SR-14b): inoculation is the method T-INOC: every post design with `inoculation` true lists it; the field goes.
+    const walk = (o: unknown, depth: number): void => {
+      if (!o || typeof o !== 'object' || depth > 12) return;
+      if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+      const r = o as Record<string, unknown>;
+      if ('inoculation' in r && 'pref' in r && Array.isArray(r.methods)) {
+        if (r.inoculation === true && !(r.methods as string[]).includes('T-INOC')) (r.methods as string[]).push('T-INOC');
+        delete r.inoculation;
+      }
+      for (const v of Object.values(r)) walk(v, depth + 1);
+    };
+    walk(raw, 0);
   },
 };
 

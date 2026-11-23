@@ -4,6 +4,7 @@
 // nothing, E17 Continue.
 // Model cadence: WS1's reference play with race designs; compute and money: WS3's autopilot at 2× capex, no guard.
 import { financeAutopilot, RACE_AUTOPILOT } from '../finance/plan';
+import { defaultMethods } from '../safety/methods';
 import type { BotPolicy } from '../types';
 import { every, mergerChoice, pickByTags, tryAct } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
@@ -11,7 +12,8 @@ import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 const RACE_PLAY: RefPlayOpts = {
   safetyShare: () => 0.01,
   base: { days: 150 },
-  post: () => ({ pref: 'engagement', rlBudget: 'standard', cot: 'pressured', safety: 'minimal', inoculation: false }),
+  // SR-14b: no inoculation (was inoculation: false); the policy's other methods as before.
+  post: (s) => ({ pref: 'engagement', rlBudget: 'standard', cot: 'pressured', safety: 'minimal', methods: defaultMethods(s).filter((m) => m !== 'T-INOC').join(',') }),
   tree: () => REF_TREE,
   release: 'frontier',
 };

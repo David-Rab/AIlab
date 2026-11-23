@@ -533,11 +533,11 @@ export interface PostDesign {
   rlFocus: RLFamily[] | 'broad'; // pick 2 or broad
   /** RL budget: RL FLOP as a share of the base's pretraining FLOP (light 0.03, standard 0.15, heavy 0.4). */
   rlBudget: 'light' | 'standard' | 'heavy';
-  inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';
   /** SR-14: the training-time safety methods this run uses (fix technique ids, safety/methods.ts METHODS) and the
-   *  instruments it trains against (`against:<id>`, Goodhart, §3.5.6). A method's effect applies only if listed here. */
+   *  instruments it trains against (`against:<id>`, Goodhart, §3.5.6). A method's effect applies only if listed here.
+   *  SR-14b: inoculation prompting is the method T-INOC (no separate boolean). */
   methods: TechniqueId[];
 }
 
@@ -1018,7 +1018,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 

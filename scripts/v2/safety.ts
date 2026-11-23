@@ -10,7 +10,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx } from '../../src/engine/v2/core/loop';
 import { expectedObservation, familyPenalty, observeVersion } from '../../src/engine/v2/safety/detection';
 import { fireFinding } from '../../src/engine/v2/safety/findings';
-import { applyResponse } from '../../src/engine/v2/safety/responses';
+import { goodhartTrain } from '../../src/engine/v2/safety/traits';
 import { safetyAgentVersion, safetyFleet, trustedShare } from '../../src/engine/v2/safety/agents';
 import { lineLabour, resetSafAllocation } from '../../src/engine/v2/safety/lineProjects';
 import { openInvestigation } from '../../src/engine/v2/safety/investigations';
@@ -100,7 +100,7 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
       const vis0 = expectedObservation(s, v, trait, fam);
       if (vis0 < 1e-6) continue; // e.g. COT monitors are blind in worlds where λ2_eff ≤ −1
       const x0 = v.traitsTrue[trait];
-      applyResponse(s, ctx, 'retrainAgainst', v.id, undefined, { trait, techniqueId: tech });
+      goodhartTrain(s, ctx.rng('safety'), v, tech, [trait]); // SR-14b: the train-against method's mechanism (no longer a response)
       const vd = 1 - expectedObservation(s, v, trait, fam) / vis0;
       const td = 1 - v.traitsTrue[trait] / x0;
       visDrops.push(vd);

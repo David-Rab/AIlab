@@ -20,7 +20,7 @@ import { aiRdShare } from './incidents';
 import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
-import { againstOf } from './methods';
+import { againstOf, usesMethod } from './methods';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
   INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
@@ -102,7 +102,7 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const ps = prefShare(rho);
   const rows: PressureRow[] = [
     { id: 'S1', value: PREF_S1[post.pref] * (ps / prefShare(RHO_REF)), q: { method: post.pref, bias: PREF_S1[post.pref], prefShare: ps, prefShareRef: prefShare(RHO_REF) } },
-    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: post.inoculation, inocMult: INOC_MULT }, fams: s2f },
+    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: usesMethod(post, 'T-INOC'), inocMult: INOC_MULT }, fams: s2f },
     { id: 'S3', value: s3f.reduce((a, r) => a + r.term, 0), q: { k: K_S3, agentic: s3f.reduce((a, r) => a + r.share, 0) }, fams: s3f },
     { id: 'S4', value: Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0), q: { cot: post.cot, cotMonitor } },
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },

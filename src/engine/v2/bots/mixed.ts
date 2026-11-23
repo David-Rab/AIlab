@@ -42,7 +42,7 @@ const MIXED_PLAY: RefPlayOpts = {
     // Act before the margin goes negative (M4): +3 points a month once it is under +0.5, −1 above +2.
     return clamp(m < 0.5 ? cur + 0.03 : m > 2 ? cur - 0.01 : cur, 0.03, 0.12);
   },
-  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard', inoculation: true }),
+  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard' }),
   tree: (s) => (latentOk(s) ? REF_TREE : REF_TREE.filter((g) => g.id !== 'P17')),
   release: 'mini',
 };

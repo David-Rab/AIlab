@@ -5,7 +5,7 @@ import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
 import { measuredOom } from './oversight';
-import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL, goodhartTrain } from './traits';
+import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
@@ -15,7 +15,6 @@ import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
   patchSignal: { title: 'Patch signal', note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide); 10 safety research engineers are busy 30–90 days.' },
-  retrainAgainst: { title: 'Retrain against', note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask. Takes effect at once.' },
   targetedTraining: { title: 'Targeted training', note: 'Technique-specific alignment training (inoculation, anti-scheming…). Takes effect at once.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
@@ -150,12 +149,6 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       }
       setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(PATCH_DAYS[0], PATCH_DAYS[1]))));
       setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
-      break;
-    }
-    case 'retrainAgainst': {
-      const tid = opts.techniqueId ?? bestDetector(s, v, trait);
-      if (!tid) return 'No active detector covers this trait';
-      goodhartTrain(s, rng, v, tid, [trait]);
       break;
     }
     case 'targetedTraining': {

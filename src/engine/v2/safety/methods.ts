@@ -5,9 +5,10 @@
 // "Train against an instrument" is a method entry `against:<instrument id>` (flagged, never filled by the policy) whose
 // preview says what the mechanism does (safety/traits.ts goodhartTrain): visible trait −70–90%, true trait −20–40%, and
 // the instrument's reliability on the new model falls (a trained-against mark).
+// SR-14b: inoculation prompting (T-INOC) is a method like the others (was a run boolean); the safety level
+// (minimal / standard / heavy) is only the generic safety-training intensity: anti-scheming and confession are methods.
 // Folded (no longer separate methods): constitution / spec (T-SPEC) is the run's "Rewarded for: Constitution" option;
-// environment hardening (T-HARDEN) is suite hardening (Suites tab); inoculation prompting (T-INOC) is the run's
-// Inoculation option; hazard data filtering (T-FILTER) is the base run's Hazard data filter (a pretraining choice).
+// environment hardening (T-HARDEN) is suite hardening (Suites tab); hazard data filtering (T-FILTER) is the base run's Hazard data filter (a pretraining choice).
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { CostLine, GameStateV2, PostDesign, TechniqueId } from '../types';
 import { ANTISCHEME_EA_MULT, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
@@ -28,6 +29,7 @@ export const METHODS: MethodDef[] = [
   { id: 'T-W2S', effect: 'Weak-to-strong supervision: sycophancy and proxy-goal growth ×0.8' },
   { id: 'T-CONFESS', effect: 'Honesty & confession training: oversight-conditional reward (E17) ×0.6' },
   { id: 'T-ANTISCHEME', effect: 'Anti-scheming training: scheming growth ×0.1 and −95% of scheming per run', cost: 'Eval awareness rises (×2) the first time a lineage gets it (Schoen et al. 2025)' },
+  { id: 'T-INOC', effect: 'Inoculation prompting: hacking → misalignment ×0.15 (bad persona E04, learned-hacking generalisation to proxy goals, AF, sabotage, scheming)' },
   { id: 'T-UNDO', effect: 'Distill-after-unlearn: hazardous bio / cyber capability ×0.5 for misuse, kept under open-weights fine-tuning' },
 ];
 export const METHOD_BY_ID = Object.fromEntries(METHODS.map((m) => [m.id, m])) as Record<string, MethodDef>;
@@ -36,7 +38,6 @@ export const METHOD_BY_ID = Object.fromEntries(METHODS.map((m) => [m.id, m])) as
 export const FOLDED_METHODS: Record<string, string> = {
   'T-SPEC': 'the run\'s "Rewarded for: Constitution" option',
   'T-HARDEN': 'suite hardening (Suites tab)',
-  'T-INOC': 'the run\'s Inoculation option',
   'T-FILTER': 'the base run\'s Hazard data filter',
   'T-CCLASS': 'deployment safeguards (classifiers)',
 };

@@ -27,7 +27,7 @@ import { P12_DEMO_T } from './suites';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'graders' | 'cot' | 'inoculation' | 'effort';
+export type OptionSlot = 'shape' | 'tpp' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'graders' | 'cot' | 'effort';
 
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
@@ -202,7 +202,7 @@ export const TREE: TreeNodeDef[] = [
   S('T-SPEC', 'Constitution / spec', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, options: [['pref', 'constitution']], cap: 'Appeal 1.0', saf: 'Honesty +0.05; low approval-reward pressure; two power-seeking paths −30% (not with minimal alignment training); the training-signal line heals value traits best with it' }),
   S('T-HARDEN', 'Environment hardening', 'alignment', 'training', [], 'AG18', undefined, {}, { star: true, saf: 'No effect of its own: it leads to inoculation prompting. Suites are hardened on the Suites tab' }),
   S('T-CONFESS', 'Honesty & confession training', 'alignment', 'training', ['T-SPEC'], 'AG18', 'M', { saf: 1 }, { saf: 'Concealment removal' }),
-  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { options: [['inoculation', 'true']], saf: 'Hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
+  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { saf: 'Run method: hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
   S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'hazard']], cap: 'Δ −0.02 y; BIO −1.0', saf: 'Survives fine-tuning (open weights)' }),
   S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'safetyPretrain']], cap: 'Δ −0.02 y', saf: 'Situational-awareness pressure −' }),
   S('T-PERSONA', 'Persona vectors', 'alignment', 'training', ['T-STEER'], 'AG03', 'M', { saf: 1 }, { saf: 'Sycophancy / persona fix' }),

@@ -589,7 +589,7 @@ export const OC_DETECT_TRAIN = 0.375;
 /** Anti-scheming training (E25; Schoen et al. 2025, research/20 F5, research/05 §1.7): covert actions o3 13% → 0.4%,
  *  o4-mini 8.7% → 0.3% (−97%); verbalised eval awareness o3 2.3% → 4.5% (×2.0), o4-mini 0.9% → 5.5% (×6.1). E10:
  *  SCHEME removal per run 0.9 → 0.95 (a SCHEME 0.13 model: −92% after the run's own growth, band 90–98%) and the
- *  one-time EA multiplier 1.5 → 2 (the lower source value). Heavy safety training includes it. The EA multiplier moves
+ *  one-time EA multiplier 1.5 → 2 (the lower source value). SR-14b: a run method only (Heavy no longer includes it). The EA multiplier moves
  *  S5's mixed bot (believed EA lowers Understanding): its median margin to SAR is +0.31 at ×1.5 and −0.08 at ×2 with
  *  OC_VIS 0.1 (−0.57 at ×2 with OC_VIS 0.2; S5 needs ≥ −0.5). */
 export const ANTISCHEME_REMOVAL = 0.95;
@@ -650,7 +650,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const dept = s.player.safety;
   if (dept.evalGate !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
-  if (post?.inoculation) mul('E04', INOC_MULT);
+  if (inRun(s, post, 'T-INOC')) mul('E04', INOC_MULT); // SR-14b: inoculation is a method
   if (inRun(s, post, 'T-PERSONA')) {
     mul('E04', 0.7);
     mul('E05', 0.7);
@@ -676,7 +676,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   // SR-14 (SAF-04b): monitoring effects follow the monitor deployment, not AG07 staffing.
   if (techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
-  if (inRun(s, post, 'T-CONFESS') || post?.safety === 'heavy') mul('E17', 0.6);
+  if (inRun(s, post, 'T-CONFESS')) mul('E17', 0.6); // SR-14b: no longer bundled in Heavy
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
   if (inRun(s, post, 'T-ANTISCHEME')) {
     mul('E19', 0.1);
@@ -712,16 +712,16 @@ export function runMemoryOn(s: GameStateV2, run?: Pick<TrainingRun, 'recipe'>) {
  * traits whether or not the stack can see them — the R14 λ4 "benign generalization" bet, carried by AG18
  * training-signal design. SR-14 (SAF-04c): it reads the run's own safety training, not AG18 staffing. Removal fraction
  * per post-run = HEAL_K · e_AG18(true) · √(min(2.5, 1 + AG18 methods the run uses)) · preference factor · safety-training
- * factor; the AG18 methods are honesty / confession and anti-scheming training and inoculation (its run option).
+ * factor; the AG18 methods are honesty / confession, anti-scheming training and inoculation prompting (all run methods).
  */
 export const HEAL_K = 0.35;
 /** SR-14: AG18 methods that add to healing, and the cap of 1 + their count (the old line-multiplier cap 2.5) [D]. */
-const HEAL_METHODS = ['T-CONFESS', 'T-ANTISCHEME'];
+const HEAL_METHODS = ['T-CONFESS', 'T-ANTISCHEME', 'T-INOC'];
 const HEAL_MAX = 2.5;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
 export function healRate(s: GameStateV2, post: PostDesign): number {
-  const n = HEAL_METHODS.filter((id) => inRun(s, post, id)).length + (post.inoculation ? 1 : 0);
+  const n = HEAL_METHODS.filter((id) => inRun(s, post, id)).length;
   return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(HEAL_MAX, 1 + n)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
@@ -739,9 +739,9 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     if (h > 0) for (const t of REMOVABLE_TRAITS) removal[t] = 1 - (1 - (removal[t] ?? 0)) * (1 - h);
   }
   let eaMult = 1;
-  // Heavy safety training and anti-scheming training (E25): SCHEME −0.95 × current per run; EA × 2 the first time
+  // Anti-scheming training (E25; SR-14b: a method, no longer bundled in Heavy): SCHEME −0.95 × current per run; EA × 2 the first time
   // a lineage gets it (R14: anti-scheming training doubled EA 2.3 → 4.5% once; re-applying maintains it) [D].
-  if (post && (post.safety === 'heavy' || inRun(s, post, 'T-ANTISCHEME'))) {
+  if (post && inRun(s, post, 'T-ANTISCHEME')) {
     removal.SCHEME = Math.max(removal.SCHEME ?? 0, ANTISCHEME_REMOVAL);
     if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
   }
@@ -750,7 +750,7 @@ export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: nu
     signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
     removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult, hackGen: post?.inoculation ? INOC_MULT : 1,
+    eaMult, hackGen: inRun(s, post, 'T-INOC') ? INOC_MULT : 1,
     // E18: the trained model's G (the new version's, a base's pretraining G; else the lab's best model).
     afGate: afCapGate(gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
   };
@@ -776,9 +776,9 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
     signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
     removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory, growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult: post?.safety === 'heavy' && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
+    eaMult: inRun(s, post, 'T-ANTISCHEME') && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
     // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
-    lh, hackGen: post?.inoculation ? INOC_MULT : 1,
+    lh, hackGen: inRun(s, post, 'T-INOC') ? INOC_MULT : 1,
     // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
     afGate: afCapGate(gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
     pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)

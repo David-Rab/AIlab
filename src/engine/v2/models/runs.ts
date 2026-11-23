@@ -544,8 +544,7 @@ function planRl(s: GameStateV2, p: LaunchRunParams): ActPlan | string {
   // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
   let reason: string | undefined;
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
-  reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
-    ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
+  reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined);
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
   if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
   if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
@@ -669,7 +668,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const G = gOfBuild(build);
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
-    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', methods: [] }) },
+    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', cot: 'visible', safety: 'standard', methods: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, fpt: base.fpt, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),

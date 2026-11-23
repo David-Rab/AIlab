@@ -8,7 +8,7 @@ import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TechniqueState, TraitId } from '../types';
 import { believedEfficacy, clamp01, flagNum, versionById } from './common';
-import { measuredOom, oomOfLevel } from './oversight';
+import { oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
 import { gradePlayer } from '../actors/index';
 import { dateOf } from '../core/time';
@@ -18,10 +18,10 @@ import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
-  DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, bestDetector, discloseScrutiny, discloseTrust,
+  DISCLOSE_CPS, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, applyResponse, discloseScrutiny, discloseTrust,
   patchLevel, pendingRunPenalty, responseTrait, restrictTargets, targetedPlan,
 } from './responses';
-import { ANTISCHEME_EA_MULT, RETRAIN_OBF, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
+import { ANTISCHEME_EA_MULT } from './traits';
 import { strengthBelieved } from './techniques';
 import { METHOD_BY_ID, ownedMethods } from './methods';
 import { believedPenalty, combineTools } from './detection';
@@ -166,7 +166,6 @@ const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 const f2 = (x: number) => x.toFixed(2);
 const fmtActs = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
 const pctOf = (x: number) => `${Math.round(x * 100)}%`;
-const pctRange = (a: number, b: number) => `${Math.round(a * 100)}–${Math.round(b * 100)}%`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** F6e: how removal can fall short (the engine's U-mode removal multiplier and crystallised training gaming, which the
  *  player cannot see per model). */
@@ -204,27 +203,6 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
           ? [{ currency: 'alignment', amount: 0, target: pl.n ? `training pressure into ${name} is already at the floor ×${PATCH_FLOOR}: no further effect` : `no training pressure feeds ${name}` }]
           : [{ currency: 'alignment', amount: pl.n, unit: pl.n === 1 ? 'training pressure' : 'training pressures', target: `into ${name}: weight ${now} → ×${f2(lo)}–${f2(hi)} on every later run, lab-wide (floor ×${PATCH_FLOOR})` }],
         exposure: [],
-      };
-    }
-    case 'retrainAgainst': {
-      // goodhartTrain: true −20–40% (× removal), the detector family's reading −70–90% (a mask), OBF +0.1, the
-      // detector's trainedAgainst +1 (its strength × (1 − G·n)). The detector is the one apply picks (bestDetector).
-      if (!v) return none('no model');
-      const tid = o.techniqueId ?? bestDetector(s, v, trait);
-      const t = tid ? s.player.safety.techniques[tid] : undefined;
-      if (!t) return none(`no active detector covers ${trait}: nothing to train against`);
-      const X = measuredOom(s, v);
-      const sNow = strengthBelieved(s, t, X);
-      const sAfter = strengthBelieved(s, { ...t, trainedAgainst: t.trainedAgainst + 1 }, X);
-      const name = TECHNIQUE_BY_ID[t.id]?.name ?? t.id;
-      const obf = v.beliefs.OBF?.est ?? 0;
-      return {
-        costs: [
-          { currency: 'monitorability', amount: -r2(sNow - sAfter), unit: 'strength', target: `${name} ${f2(sNow)} → ${f2(sAfter)} (Goodhart ${t.goodhart} per retrain)` },
-          { currency: 'monitorability', amount: -RETRAIN_OBF, unit: 'OBF', target: `obfuscated reasoning (believed ${f2(obf)} → ${f2(Math.min(1, obf + RETRAIN_OBF))}): CoT monitors read less` },
-        ],
-        gains: [{ currency: 'alignment', amount: r2(est * (RETRAIN_TRUE[0] + RETRAIN_TRUE[1]) / 2), unit: trait, target: `true level −${pctRange(RETRAIN_TRUE[0], RETRAIN_TRUE[1])} (believed ${f2(est)} → ${f2(est * (1 - RETRAIN_TRUE[1]))}–${f2(est * (1 - RETRAIN_TRUE[0]))}, ${SHORT})` }],
-        exposure: [{ currency: 'monitorability', amount: -1, unit: 'mask', probability: 1, target: `hides more than it heals: ${t.family} tools will read ${trait} at ${pctRange(1 - RETRAIN_VISIBLE[1], 1 - RETRAIN_VISIBLE[0])} of today's reading` }],
       };
     }
     case 'targetedTraining': {

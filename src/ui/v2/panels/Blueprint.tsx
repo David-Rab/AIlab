@@ -73,7 +73,7 @@ const TRAINING: Slot[] = [
   { field: 'rlBudget', label: 'RL budget', term: 'rlBudget', lockSlot: 'rlBudget', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'light', label: 'Light' }] },
   { field: 'cot', label: 'Reasoning', term: 'cot', lockSlot: 'cot', opts: [{ v: 'visible', label: 'Visible' }, { v: 'pressured', label: 'Pressured' }, { v: 'faithful', label: 'Faithful' }, { v: 'latent', label: 'Latent' }] },
   { field: 'pref', label: 'Rewarded for', term: 'preference', lockSlot: 'pref', opts: [{ v: 'constitution', label: 'Constitution' }, { v: 'engagement', label: 'Engagement' }, { v: 'persuasion', label: 'Persuasion' }, { v: 'minimal', label: 'Minimal' }] },
-  { field: 'safety', label: 'Alignment', term: 'safetyTraining', lockSlot: 'safety', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'minimal', label: 'Minimal' }, { v: 'inoculation', label: 'Inoculation' }] },
+  { field: 'safety', label: 'Alignment', term: 'safetyTraining', lockSlot: 'safety', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'minimal', label: 'Minimal' }] }, // SR-14b: inoculation is a method (Methods row)
 ];
 
 const focusOf = (p: Params) => (String(p.rlFocus) === 'broad' ? [] : String(p.rlFocus).split(',').filter(Boolean));
@@ -81,7 +81,6 @@ const focusOf = (p: Params) => (String(p.rlFocus) === 'broad' ? [] : String(p.rl
 function isOn(sl: Slot, p: Params, v: Val): boolean {
   if (sl.multi === 'focus') return v === 'broad' ? String(p.rlFocus) === 'broad' : focusOf(p).includes(String(v));
   if (sl.multi === 'toggle') return p[String(v)] === true;
-  if (sl.field === 'safety' && v === 'inoculation') return p.inoculation === true;
   return p[sl.field] === v;
 }
 /** Params with option `v` of slot `sl` clicked. */
@@ -93,17 +92,15 @@ function withOpt(sl: Slot, p: Params, v: Val): Params {
     return { ...p, rlFocus: next.length ? next.join(',') : 'broad' };
   }
   if (sl.multi === 'toggle') return { ...p, [String(v)]: !p[String(v)] };
-  if (sl.field === 'safety' && v === 'inoculation') return { ...p, inoculation: !p.inoculation };
   return { ...p, [sl.field]: v };
 }
 /** Params with slot `sl` at the reference card(s). */
 function atRef(sl: Slot, p: Params): Params {
   if (sl.multi === 'toggle') return { ...p, quality: DEFAULTS.quality, hazard: DEFAULTS.hazard, safetyPretrain: DEFAULTS.safetyPretrain };
-  if (sl.field === 'safety') return { ...p, safety: DEFAULTS.safety, inoculation: DEFAULTS.inoculation };
   return { ...p, [sl.field]: DEFAULTS[sl.field] };
 }
-const lockKey = (sl: Slot, v: Val) => (sl.field === 'safety' && v === 'inoculation' ? 'inoculation' : sl.lockSlot);
-const lockVal = (sl: Slot, v: Val): string | boolean => (sl.field === 'safety' && v === 'inoculation' ? true : sl.multi === 'toggle' ? String(v) : v);
+const lockKey = (sl: Slot, _v: Val) => sl.lockSlot;
+const lockVal = (sl: Slot, v: Val): string | boolean => (sl.multi === 'toggle' ? String(v) : v);
 
 const latestTeacher = (s: GameStateV2) => s.player.models.versions.filter((v) => v.variant === 'full' && v.status !== 'retired').slice(-1)[0]?.id ?? '';
 function toLP(s: GameStateV2, kind: Kind, p: Params): LaunchRunParams {
@@ -215,7 +212,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
           row[String(o.v)] = effectOf(evaluate(s, kind, { ...p, [String(o.v)]: true }), evaluate(s, kind, { ...p, [String(o.v)]: false }), false);
           continue;
         }
-        const op = sl.multi === 'focus' ? { ...rp, rlFocus: String(o.v) } : sl.field === 'safety' && o.v === 'inoculation' ? { ...rp, inoculation: true } : { ...rp, [sl.field]: o.v };
+        const op = sl.multi === 'focus' ? { ...rp, rlFocus: String(o.v) } : { ...rp, [sl.field]: o.v };
         const isRef = JSON.stringify(op) === JSON.stringify(rp);
         row[String(o.v)] = effectOf(isRef ? ref : evaluate(s, kind, op), ref, isRef);
       }
