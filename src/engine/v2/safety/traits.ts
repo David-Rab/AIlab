@@ -10,7 +10,7 @@ import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/
 import { UMODES } from '../../../data/v2/umodes';
 import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
-import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
+import { S2_PER_EXPLOIT, suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
@@ -129,6 +129,9 @@ export const INOC_MULT = 0.15;
 // a run's RH moves toward its hack share h = Σ_f w_f·x_f·p(ρ) (+ the self-play curricula term of S2) and gets there
 // within one reference post-train, instead of E02's per-run / per-day accumulation toward 1 (the stream and IDA move
 // by their share of a reference run's ω, so 42 stream days = one post-train).
+// RF-S9: this is the one rule for every lab and run kind (E02's accumulation is gone): E02 (S2 → RH) is the edge, its
+// form is this saturation. Runs with no rewarded hacking (base, continued pretraining, distillation: S2 = 0) have
+// target 0, so RH does not move; a rival's post run saturates toward its hack share read from its S2 (rivalHackShare).
 
 /** Share of the gap to the run's hack share closed by one reference post-train (ω = OMEGA_KIND.post) [S: Chen et al. 2025
  *  arXiv 2505.05410 §5.2 "> 99% within 30 steps"; research/RD-SR24-safety-params.md §3 H1, H2]. */
@@ -137,6 +140,9 @@ export const HACK_SAT_PER_RUN = 0.99;
 export const hackSaturation = (omega: number) => 1 - Math.pow(1 - HACK_SAT_PER_RUN, Math.max(0, omega) / 0.6);
 /** The RH a run saturates toward: its hack share h plus self-play curricula's hackable reward (S2's P11 term). */
 export const hackTargetOf = (s: GameStateV2, h: number) => clamp01(h + (adopted(s, 'P11') ? 0.2 : 0));
+/** RF-S9: a rival's hack share from its posture S2 (rivalSignals), through the player's identity S2 = S2_PER_EXPLOIT ·
+ *  h (no suites on rivals; lead conversion, see BUILD-NOTES RF-S9). */
+export const rivalHackShare = (sg: Signals) => clamp01(sg.S2 / S2_PER_EXPLOIT);
 
 /** RL-weighted hack rate h = Σ_f w_f · h_f (share of the run's RL episodes that are rewarded hacks). */
 export function hackShare(w: FamilyMap, exploit: FamilyMap, rho: number): number {
@@ -511,9 +517,9 @@ export interface TraitEnv {
   /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
    *  E13, E14 and E27, learned-hacking term included; default 1). */
   afGate?: number;
-  /** SR-24b: the run's rewarded (undetected) hack share h + the self-play curricula term (hackTarget): when set, RH
-   *  saturates toward it within the run (hackSaturation) in place of E02's open-ended growth. Unset: E02 as before
-   *  (rivals' and base runs). */
+  /** SR-24b / RF-S9: the run's rewarded (undetected) hack share h + the self-play curricula term (hackTargetOf): RH
+   *  saturates toward it within the run (hackSaturation), E02's one form for every lab. Unset = 0: a run that rewards
+   *  no hacks (base, continued pretraining, distillation). */
   hackTarget?: number;
   /** Model v3 E20: a pretraining run (a new base, continued pretraining, a rival's base): E13 and E27 do not fire
    *  (PRETRAIN_OFF). Default false (post-training, IDA, stream, distillation). */
@@ -573,7 +579,6 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
   const hg = env.hackGen ?? 1;
   switch (id) {
     case 'E01': return sg.S1;
-    case 'E02': return sg.S2;
     case 'E03': return x.SYC;
     case 'E04': return lh; // E19: learned hacking only (was RH + K_LH·λ); inoculation: E04's moderator
     case 'E05': return sg.S6;
@@ -615,11 +620,11 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
       if (env.pretrain && PRETRAIN_OFF.has(e.id)) continue; // E20: no AF growth in pretraining
-      if (e.id === 'E02' && env.hackTarget !== undefined) continue; // SR-24b: the within-run saturating rule below
+      if (e.id === 'E02') continue; // SR-24b / RF-S9: E02's form is the within-run saturation below
       g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
-    const sat = j === 'RH' && env.hackTarget !== undefined ? Math.max(0, env.hackTarget - x.RH) * hackSaturation(omega) : 0;
+    const sat = j === 'RH' ? Math.max(0, (env.hackTarget ?? 0) - x.RH) * hackSaturation(omega) : 0;
     const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0) + sat) * (env.growthBy?.[j] ?? 1);
     const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
     x[j] = clamp01(x[j] + grow - rem);
@@ -1419,6 +1424,7 @@ export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind
     return;
   }
   env.signals = rivalSignals(s, lab, posture, !!opts.latent);
+  env.hackTarget = rivalHackShare(env.signals); // RF-S9: the one hack-saturation rule
   env.growthMult = clamp01(1 - eff * (0.3 + 0.7 * pool));
   // Public techniques diffuse (inoculation, honesty training) in proportion to eff × pool [D].
   env.mods.E04 = 1 - 0.85 * eff * pool;
