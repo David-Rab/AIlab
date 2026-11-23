@@ -705,7 +705,7 @@ async function b2Check(where) {
   ok(`B2 ${where}: no clipped feature effect line`, clipped.length === 0, clipped.map((x) => `${x.card}/${x.f}: ${x.clipped}`).join(', '));
   let ftip = 0;
   const fmiss = [];
-  for (const x of feats.filter((y) => y.f !== 'sectorPacks')) {
+  for (const x of feats) {
     const tx = await hoverTip(`[data-product="${x.card}"] [data-feature="${x.f}"] .ft-fx`);
     if (/Build/.test(tx) && /Upkeep/.test(tx) && /\d\.\d\d engineer team-wk\/wk/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
     else fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);

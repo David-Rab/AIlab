@@ -160,4 +160,4 @@ export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep'
 export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: ['cases', 'patches', 'safExp', 'reval'], max: {}, share: {} };
 export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = { cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', reval: 'Tool re-validation' };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments' };
-export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };
+export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector adaptations)' };

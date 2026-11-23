@@ -11,7 +11,7 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
-import { SECTOR_PACK_DG, lineupVersions, markupOf, serveDollarsPerHour } from './serving';
+import { lineupVersions, markupOf, serveDollarsPerHour } from './serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { CONSUMER_MKT, CUSTOMER_TAU, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
@@ -171,7 +171,7 @@ export interface FeatureView {
   /** Internal agents' work types it also applies to once built (names); empty = none. */
   internal: string[];
   /** C2: engineers' upkeep once built, team-weeks per week: in use, and built but in use nowhere (keep-alive; equal to
-   *  `upkeepTW` for a feature that helps the internal agents, which is always in use). 0 for sector packs. */
+   *  `upkeepTW` for a feature that helps the internal agents, which is always in use).  */
   upkeepTW: number;
   idleTW: number;
 }
@@ -206,8 +206,6 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
     } else if (fx.kind === 'horizon') {
       push({ kind: 'horizon', effect: `horizon ${mult(fx.mult)}`, tokens: 1, where: scopeText(fx.work) }, scoped(fx.work), `${mult(fx.mult)} longer tasks`);
       for (const x of internalOf(fx.work)) internal.add(x);
-    } else if (fx.packs) {
-      push({ kind: 'enabler', effect: `sector products; +${SECTOR_PACK_DG.toFixed(2)} OOM fit per certified pack`, tokens: 1, where: 'the pack\'s sector' }, true, `+${SECTOR_PACK_DG.toFixed(2)} OOM per pack`);
     } else {
       // RD-P07: a tool: Chat appeal in the users' app choice; in the sectors it lists, the tasks needing it (coverage).
       const need = `${Math.round(enablerNeed(fx.share) * 100)}%`;

@@ -1,7 +1,7 @@
 // newGame: build a complete, valid GameStateV2 (V2-SPEC §2.3, §3 start values). Owner: WS1.
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
-import { LEADER_FEATURES, toolsFromFeatures } from '../../../data/v2/features';
+import { toolsFromFeatures } from '../../../data/v2/features';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { DISTILL_TPP, PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
@@ -197,7 +197,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
     ...(channel === 'internal' || channel === 'open' || !minis.length ? {} : { lineup: minis.map((x) => x.id) }),
-    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, packs: [], features: [],
+    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, adaptations: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });
@@ -251,10 +251,9 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     // Model v3 V2: the recipe stacks start at the leader's day-0 recipe, a follower its start lag k (OOM) lower.
     research: { ...initialResearch(roster.teams), stacks: initialStacks(k) },
     build: initialBuild(),
-    // D5: the leader start's features (sector packs) are the ×1 baseline; other starts build their own set.
-    features: leader ? [...LEADER_FEATURES] : [...def.features],
+    features: [...def.features],
     // RD-A06: the internal tools equivalent to the start's built features (the start's internal agents do not change).
-    tooling: toolsFromFeatures(leader ? LEADER_FEATURES : def.features),
+    tooling: toolsFromFeatures(def.features),
     morale: { overall: 70, safety: 65 },
     dataPortfolio,
     suites: startSuites(start), // model v3 D5: leader, challenger, big tech hardened; the spinout cheap (data/v2/suites.ts)

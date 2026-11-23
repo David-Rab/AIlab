@@ -32,6 +32,7 @@ import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { distillLift, labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
+import { rivalAdaptStep } from '../models/adaptations';
 import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, rivalLineupStep, rivalToolStep, recordToolShips, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
@@ -380,6 +381,8 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   } else rivalLineupStep(wl, r, day, false);
   // RD-P07: the product tools it acquires after the first lab shipped them.
   rivalToolStep(s, r, day);
+  // RD-P08: its sector adaptations (own gate, build and certification delay).
+  rivalAdaptStep(s, r, day);
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
   // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety

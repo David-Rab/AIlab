@@ -573,8 +573,9 @@ export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'tr
 export type DeploymentKind = 'product' | 'internal' | 'open';
 /** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
 export type PriceTier = 'budget' | 'standard' | 'premium';
-/** A sector pack on a product (RD-B12): the sector and the day its certification ends (built + SECTOR_CERT_DAYS). */
-export interface SectorPack { sector: SectorId; certDay: Day }
+/** RD-P08 (DD-04): a sector adaptation owned by a product (models/adaptations.ts): its scaffold for the sector is built;
+ *  `certDone` the day its certification ends where the sector requires one (CERT_SECTORS), unset where it needs none. */
+export interface Adaptation { sector: SectorId; certDone?: Day }
 
 /** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ an optional lineup of other models) and an
  *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
@@ -608,11 +609,10 @@ export interface Deployment {
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
-  /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
-   *  (worldfx/serving.ts: it wins buyers in the choice, RD-P03), and while live and certified US
-   *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
-   *  stop acting when the product is retired (the sector can then be packed again). */
-  packs: SectorPack[];
+  /** RD-P08 (DD-04): this product's sector adaptations (models/adaptations.ts): each raises this product's coverage of
+   *  its sector's tasks once built and, where the sector requires it, certified (worldfx/serving.ts offerOf). They move
+   *  to the next launch on the channel (a relaunch) and stop acting when the product is retired. */
+  adaptations: Adaptation[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
   status: 'live' | 'restricted' | 'withdrawn';
@@ -788,7 +788,7 @@ export type ReNeed = 'ops' | 'evals' | 'exp';
  *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
  *  capacity none takes is idle. */
 export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
-/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
+/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
  *  share of the capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. */
@@ -1134,7 +1134,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'adaptation' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -1156,7 +1156,7 @@ export interface BuildItem {
   priority: number;
   /** Day it was queued. */
   day: Day;
-  /** kind 'launch': the product settings; kind 'sectorPack': the host product id (ref = the sector); kind 'adopt': ref = the
+  /** kind 'launch': the product settings; kind 'adaptation': the host product id (ref = the sector); kind 'adopt': ref = the
    *  project (tree node) whose result is built into the stack (model v3 V2). */
   launch?: PendingLaunch;
   host?: string;
@@ -1899,6 +1899,11 @@ export interface RivalLab {
   tools?: string[];
   /** RD-P07b: tools it is building itself (it passed the feature's gate): the day each build finishes and it ships. */
   toolBuild?: Record<string, Day>;
+  /** RD-P08 (DD-04 rival part): sectors the lab sells an adaptation in (models/adaptations.ts rivalAdaptStep); its
+   *  offers there cover more of the sector's tasks. */
+  adapts?: SectorId[];
+  /** RD-P08: adaptations it is building (and certifying): the day each goes on sale. */
+  adaptBuild?: Partial<Record<SectorId, Day>>;
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;

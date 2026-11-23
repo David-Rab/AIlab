@@ -29,7 +29,8 @@ import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '.
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
-import { activeFeatures, packCertified } from '../models/products';
+import { activeFeatures } from '../models/products';
+import { ADAPT_COVER, adaptedHere } from '../models/adaptations';
 import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
@@ -181,7 +182,7 @@ export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
  *  needed for (data/v2/features.ts enablerNeed). */
 const TOOL_NEED: Partial<Record<SectorId, [string, number][]>> = {};
 for (const id of ENABLER_TOOLS) for (const f of FEATURE_BY_ID[id].fx) {
-  if (f.kind !== 'enabler' || f.packs) continue;
+  if (f.kind !== 'enabler') continue;
   for (const sid of f.sectors ?? []) (TOOL_NEED[sid] ??= []).push([id, enablerNeed(f.share)]);
 }
 /** RD-P07: share of a sector's tasks an offer cannot do for lack of tools: Σ need over the tools the sector needs that
@@ -204,7 +205,7 @@ export function chatToolAppeal(tools?: readonly string[]): number {
   }
   return 1 + x;
 }
-/** RD-P07: the tools (enabler features other than Sector packs) a product has switched on. */
+/** RD-P07: the tools (enabler features) a product has switched on. */
 export const productTools = (s: GameStateV2, d: Deployment): string[] =>
   activeFeatures(s, d).filter((f) => ENABLER_TOOLS.includes(f.id)).map((f) => f.id);
 
@@ -220,7 +221,8 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
 /** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number; tools?: readonly string[] }
+/** `adapted`: the offer's lab has a live sector adaptation for this sector (RD-P08, models/adaptations.ts). */
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -300,6 +302,13 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   if (keep < 1) {
     a *= keep;
     k *= keep;
+  }
+  // RD-P08 (DD-04): a sector adaptation's scaffold covers ×(1 + ADAPT_COVER) of the sector's tasks (all at most), its
+  // agent work with it (λ kept, as the tools).
+  if (o.adapted && sid !== 'CHAT' && a > 0) {
+    const up = Math.min(1, a * (1 + ADAPT_COVER)) / a;
+    a *= up;
+    k *= up;
   }
   const cost = hph * o.rate;
   const costAg = hphAg * o.rate;
@@ -425,15 +434,13 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (d.controlLayer ? CONTROL_LAYER_DG : 0);
 
-/** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
+/** A product's offer on a sector (RD-P08: its own live adaptation there raises its coverage, offerOf). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
  *  and the revenue read the same price. RD-P07: its tools (productTools) widen the tasks it covers where the sector
  *  needs them. */
-export const SECTOR_PACK_DG = 0.4167; // OOM of fit in the sector (RD-U01: was 0.5 L ÷ 1.2)
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
-  const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────

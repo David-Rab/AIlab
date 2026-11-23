@@ -27,7 +27,6 @@ import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { engine } from '../../src/engine/v2/index';
 import { WORLD_TECHS } from '../../src/data/v2/techs';
 import { internalVersion } from '../../src/engine/v2/models/labs';
-import { sectorCertDay } from '../../src/engine/v2/models/products';
 import { techBlocker } from '../../src/engine/v2/worldfx/techtree';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -322,18 +321,6 @@ if (!SMOKE) {
   tf.apply(s2, ctx, { amount: 10 });
   for (let i = 0; i < 365; i++) tick(s2, { skip: ['endings'] });
   check(s2.player.policies.transitionFund === 10 && s2.player.finance.cash < cash0 + 1e3, 'transition fund: set and paid from cash');
-  const sp = wa.find((a) => a.id === 'wfx.sectorProduct')!;
-  const ok = sp.available(s2);
-  sp.apply(s2, makeCtx(s2), { sector: 'LEGAL' });
-  // J2 P1: engineers build the pack first (build queue); certification starts when it is built.
-  const queued = s2.player.build.queue.some((it) => it.kind === 'sectorPack' && it.ref === 'LEGAL');
-  let built = -1;
-  for (let i = 0; i < 120 && built < 0; i++) {
-    tick(s2, { skip: ['endings'] });
-    if (sectorCertDay(s2, 'LEGAL') !== undefined) built = s2.time.day;
-  }
-  const host = s2.player.deployments.find((d) => d.packs.some((x) => x.sector === 'LEGAL'));
-  check(ok === true && queued && !!host && built >= 0 && Math.abs((sectorCertDay(s2, 'LEGAL') ?? 0) - (built + 120)) <= 1, 'sector product: pack built by engineers, then focus added and certification in 120 days', `built day ${built}`);
   const ms = wa.find((a) => a.id === 'wfx.moonshot')!;
   // [M2 test fix] At day 30 the start model researches nothing (every tech is gated: W03 needs REASON 7), so the
   // action is unavailable there; use the day-900 fixture, where a beneficial non-risk tech is researchable.

@@ -21,6 +21,7 @@ import type { EvalDepth } from '../types';
 import { externallyEvaluated, retireVersion } from './deployments';
 import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
+import { ADAPT_ACTIONS } from './adaptations';
 import { internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
 import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamRecipeGap, type LaunchRunParams } from './runs';
@@ -385,4 +386,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS, ...DATA_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...ADAPT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS, ...DATA_ACTIONS];

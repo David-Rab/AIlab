@@ -11,7 +11,7 @@ import {
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { containment } from '../safety/techniques';
-import type { Deployment, GameStateV2, ModelVersion, SectorPack, TraitId } from '../types';
+import type { Deployment, GameStateV2, ModelVersion, TraitId } from '../types';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
@@ -23,35 +23,12 @@ export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channe
 export const kindOfChannel = (c: Deployment['channel']): Deployment['kind'] => (c === 'internal' ? 'internal' : c === 'open' ? 'open' : 'product');
 
 /** RD-B12 (B20): the features a new product starts with: every lab-built feature its channel offers (as the start
- *  products have theirs on). The Sector
- *  packs feature is lab-level (packs are per product), never switched on. */
+ *  products have theirs on). */
 export function launchFeatures(s: GameStateV2, channel: Deployment['channel']): string[] {
   return s.player.features.filter((id) => {
     const f = FEATURE_BY_ID[id as FeatureId];
-    return !!f && f.products.includes(channel) && !f.fx.some((x) => x.kind === 'enabler' && x.packs);
+    return !!f && f.products.includes(channel);
   });
-}
-
-// ───────────────────────────── sector packs (RD-B12) ─────────────────────────────
-
-/** The packs a new launch on a channel takes over (a relaunch): those of the latest retired product on the channel,
- *  minus sectors a live product already holds. Read-only (deploy moves them). */
-export function relaunchPacks(s: GameStateV2, channel: Deployment['channel']): { from?: Deployment; packs: SectorPack[] } {
-  const from = [...s.player.deployments].reverse().find((d) => d.channel === channel && d.status === 'withdrawn' && d.packs.length > 0);
-  if (!from) return { packs: [] };
-  return { from, packs: from.packs.filter((p) => sectorCertDay(s, p.sector) === undefined).map((p) => ({ ...p })) };
-}
-
-/** Whether a product's pack on a sector is certified on a day. */
-export const packCertified = (d: Pick<Deployment, 'packs'>, sector: string, day: number) => d.packs.some((p) => p.sector === sector && p.certDay <= day);
-/** The live products' earliest certification day on a sector (the world-level effect of a pack), or undefined. */
-export function sectorCertDay(s: GameStateV2, sector: string): number | undefined {
-  let c: number | undefined;
-  for (const d of s.player.deployments) {
-    if (d.status === 'withdrawn') continue;
-    for (const p of d.packs) if (p.sector === sector && (c === undefined || p.certDay < c)) c = p.certDay;
-  }
-  return c;
 }
 
 /** Features switched on for a product that the lab has built. */

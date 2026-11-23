@@ -20,7 +20,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationLive, adaptationsBuilding, CERT_CASH, CERT_DAYS, needsCert,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -579,6 +579,29 @@ function Features({ s, d }: { s: GameStateV2; d: Deployment }) {
     <div className="pc-feat" data-test={`prod-feats.${d.id}`}>
       <div className="pc-cap"><Term id="feature">Features</Term><span className="sp" /><Tip content={() => <TipCard title="Built once, on here">Engineers build a feature once for the whole lab; switch it on for each product that offers it. Scaffolds and horizon extenders also help your internal agents once built.</TipCard>}><span className="dim">built once · on here</span></Tip></div>
       {feats.map((f) => <FeatureRow key={f.id} s={s} d={d} f={f} eta={etas.get(s.player.build.queue.find((it) => it.kind === 'feature' && it.ref === f.id)?.id ?? '')} />)}
+      {(d.channel === 'enterprise' || d.channel === 'api' || d.channel === 'agents') && <Adaptations s={s} d={d} />}
+    </div>
+  );
+}
+
+/** RD-P08 (DD-04): this product's sector adaptations (scaffold + certification where the sector needs one) and the
+ *  button to add one. Minimal hook; the products redesign comes later. */
+function Adaptations({ s, d }: { s: GameStateV2; d: Deployment }) {
+  const own = d.adaptations;
+  const building = adaptationsBuilding(s, d.id);
+  const etas = buildEtas(s).etas;
+  const name = (id: string) => SECTORS.find((x) => x.id === id)?.name ?? id;
+  const rows = [
+    ...own.map((a) => ({ label: name(a.sector), value: adaptationLive(a, s.time.day) ? 'live' : `in certification until ${fmtDate(dateOf(s, a.certDone ?? s.time.day))}` })),
+    ...building.map((it) => ({ label: name(it.ref), value: `engineers build the scaffold · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}${needsCert(it.ref as Deployment['adaptations'][number]['sector']) ? `, then ${CERT_DAYS} d certification (${F.money(CERT_CASH)})` : ''}` })),
+  ];
+  return (
+    <div className="ft2" data-test={`prod-adapt.${d.id}`}>
+      <Tip content={() => <TipCard title={<Term id="adaptation">Sector adaptations</Term>} rows={rows}>{`Each adapts this product to one sector: a scaffold for its workflows (${ADAPT_TW} engineer team-weeks) covers ×${(1 + ADAPT_COVER).toFixed(2)} of the sector's tasks for this product only; finance, health, government and defence also need a certification first.`}</TipCard>}>
+        <div className="ft"><Layers size={12} /><span className="ft-n">{own.length ? own.map((a) => a.sector).join(' · ') : 'Sector adaptations'}{building.length > 0 && <span className="dim"> · {building.length} building</span>}</span><span className="sp" />
+          <ActBtn id="product.adapt" testId={`prod-adapt-add.${d.id}`} params={{ deploymentId: d.id }} label="+ sector" />
+        </div>
+      </Tip>
     </div>
   );
 }
@@ -593,12 +616,12 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
   const rv = toolRivalsView(s, f.id);
   return <TipCard title={f.name} value={v.kinds.map((k) => FT_LABEL[k]).join(' + ')} rows={[
     ...v.lines.map((l) => ({ label: <><Term id={FT_TERM[l.kind]}>{FT_LABEL[l.kind]}</Term> <span className="dim">· {l.where}</span></>, value: `${l.effect}${l.tokens !== 1 ? ` · tokens ×${l.tokens}` : ''}${l.here ? '' : ' (not on this product)'}` })),
-    ...(f.id === 'sectorPacks' ? [{ label: 'Build', value: 'per pack: 4 engineer team-weeks + $0.4B, then 120 d certification' }] : [{ label: 'Build', value: `${f.buildTW} engineer team-weeks · ${F.money(f.cash)}` }]),
+    { label: 'Build', value: `${f.buildTW} engineer team-weeks · ${F.money(f.cash)}` },
     { label: <Term id="productUpkeep">Upkeep</Term>, value: [
       ...(v.upkeepTW > 0 ? [`${v.upkeepTW.toFixed(2)} engineer team-wk/wk${v.idleTW < v.upkeepTW ? ` (${v.idleTW.toFixed(2)} while off everywhere)` : ''}`] : []),
       ...(tok > 1 ? [`serving ×${tok} tokens`] : []),
     ].join(' · ') || 'none' },
-    ...(f.id === 'sectorPacks' ? [] : [{ label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' }]),
+    { label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' },
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },
     ...(rv ? [{ label: 'Rivals', value: rv.first === undefined ? `no lab sells it yet; a rival that knows the idea builds it itself; the others get it ${rv.lag} d after the first ship (yours too)` : `first shipped by ${rv.first.by} ${fmtDate(dateOf(s, rv.first.day))}; ${rv.have >= rv.of ? 'every rival has it' : `${rv.have} of ${rv.of} rivals have it, the others from ${fmtDate(dateOf(s, rv.day!))}`}` }] : []),
@@ -627,23 +650,6 @@ function FeatureFxLine({ f, ch, right }: { f: FeatureDef; ch: Channel; right?: R
 
 function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: FeatureDef; eta?: number }) {
   const tip = () => <FeatureTip s={s} d={d} f={f} />;
-  if (f.id === 'sectorPacks') {
-    const packs = d.packs;
-    const secs = packs.map((x) => x.sector);
-    // J2 P1: packs being built (build queue) before their certification starts.
-    const building = s.player.build.queue.filter((it) => it.kind === 'sectorPack' && (it.host ?? d.id) === d.id);
-    const etas = buildEtas(s).etas;
-    return (
-      <div className="ft2" data-feature={f.id}>
-        <Tip content={() => <TipCard title={<Term id="sectorPack">Sector packs</Term>} rows={[...packs.map((x) => ({ label: x.sector, value: x.certDay <= s.time.day ? 'certified' : `certified ${fmtDate(dateOf(s, x.certDay))}` })), ...building.map((it) => ({ label: it.ref, value: `engineers build it · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}, then 120 d certification` }))]}>{f.effect}</TipCard>}>
-          <div className="ft"><Layers size={12} /><span className="ft-n">{secs.length ? secs.join(' · ') : 'Sector packs'}{building.length > 0 && <span className="dim" data-test={`prod-pack-building.${d.id}`}> · {building.length} building</span>}</span><span className="sp" />
-            <ActBtn id="wfx.sectorProduct" testId={`prod-pack.${d.id}`} params={{ deploymentId: d.id }} label="+ pack" />
-          </div>
-        </Tip>
-        <Tip as="div" content={tip}><FeatureFxLine f={f} ch={d.channel} /></Tip>
-      </div>
-    );
-  }
   const built = s.player.features.includes(f.id);
   const on = d.features.includes(f.id);
   const building = eta !== undefined;

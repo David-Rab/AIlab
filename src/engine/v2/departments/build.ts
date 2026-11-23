@@ -14,27 +14,26 @@
 //             (model v3 D5) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
 //             feature (model v3 C2: featureUpkeepTW)
-//   builds    the rest of the queue in priority order: product launches, product features, sector packs, suite builds
+//   builds    the rest of the queue in priority order: product launches, product features, sector adaptations, suite builds
 //             and hardening passes (model v3 D5)
-// Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and packs wait; the wait
+// Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and adaptations wait; the wait
 // shows on Products and Company). Run setups come first so the run cadence holds (the reference lab's runs never wait
 // on upkeep). Engineering agents raise capacity through the coding CES (their model's SWE coverage and their compute;
 // departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
 import { FEATURE_BY_ID, PRICE_TIERS, TOOL_BY_ID, type FeatureDef, type FeatureId, type ToolId } from '../../../data/v2/features';
-import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { AGENT_USES } from '../../../data/v2/agents';
-import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SectorId, SystemCtx, TrainingRun } from '../types';
+import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SystemCtx, TrainingRun } from '../types';
 import { agentSplitShare, monitorVersion } from './agents';
 import { deploy } from '../models/deployments';
 import { launchFeatures } from '../models/products';
-import { bookCash } from '../finance/ledger';
 import { buildCapacity } from './teams';
 import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
 import { completeSuiteWork, suiteFamilies, suiteUpkeepTW } from '../models/suites';
 import { evalEngDone } from '../models/evals';
+import { completeAdaptation } from '../models/adaptations';
 import type { EngNeed } from '../types';
 
 type Params = Record<string, number | string | boolean>;
@@ -70,13 +69,8 @@ export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
  *  knots (×4.7 at the start); the physical SWE coverage of a 2025 model (≈ 0.2) gives ×1.35, and at the old upkeep the
  *  start lab's products alone needed twice its capacity. */
 export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, monitor: 0.4, featureYr: 0.5, featureIdle: 0.1 } as const;
-/** One-off builds [D]: launching a product 4 team-weeks; a sector pack 4 (then 120 days of certification). */
+/** One-off builds [D]: launching a product 4 team-weeks (a sector adaptation: models/adaptations.ts ADAPT_TW). */
 export const LAUNCH_TW = 4;
-export const SECTOR_PACK_TW = 4;
-/** Certification after a sector pack is built (research/16 §1A.3: "costs months and money"). */
-export const SECTOR_CERT_DAYS = 120;
-/** Cash booked when a sector pack is queued ($B); refunded if it is built with no live product to carry it (RD-B12). */
-export const SECTOR_PACK_CASH = 0.4;
 
 export type UpkeepKind = 'product' | 'monitor' | 'feature' | 'tooling' | 'suite';
 export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
@@ -87,7 +81,7 @@ const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'w
  *  each year (UPKEEP.featureYr × buildTW ÷ 52 team-weeks per week; Memory, 12 team-weeks to build, ≈0.12 a week); one
  *  built but in use nowhere costs a keep-alive of UPKEEP.featureIdle × that. In use = switched on for a live product
  *  that offers it (RD-A06: features no longer act on the internal agents; an internal tool is always in use, at the
- *  same rate, data/v2/features.ts INTERNAL_TOOLS). Sector packs (0 team-weeks; each pack is its own build) cost nothing here.
+ *  same rate, data/v2/features.ts INTERNAL_TOOLS).
  *  Charged on the 'upkeep' need, with products and monitors. */
 export const featureUpkeepTW = (f: Pick<FeatureDef, 'buildTW'>, inUse = true) => ((UPKEEP.featureYr * f.buildTW) / 52) * (inUse ? 1 : UPKEEP.featureIdle);
 /** Whether a built feature is in use: on for a live product that offers it. */
@@ -210,8 +204,6 @@ export const runWaiting = (r: TrainingRun) => r.setupId !== undefined && r.ready
 
 /** A product launch waiting on the queue for a channel. */
 export const pendingLaunch = (s: GameStateV2, channel: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'launch' && it.launch?.channel === channel);
-/** A sector pack waiting on the queue for a sector. */
-export const pendingPack = (s: GameStateV2, sector: string): BuildItem | undefined => s.player.build.queue.find((it) => it.kind === 'sectorPack' && it.ref === sector);
 
 /** A finished item takes effect. */
 function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
@@ -250,21 +242,7 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
     });
     if (typeof d === 'string') ctx.log('company', `The ${l.channel} launch is built but cannot go live: ${d}.`, 2);
   }
-  if (it.kind === 'sectorPack') {
-    const sector = it.ref as SectorId;
-    const host = s.player.deployments.find((d) => d.id === it.host && d.status !== 'withdrawn')
-      ?? s.player.deployments.find((d) => d.status !== 'withdrawn' && (d.channel === 'enterprise' || d.channel === 'api' || d.channel === 'agents'));
-    const name = SECTOR_BY_ID[sector]?.name ?? sector;
-    if (!host) {
-      // RD-B12 (B18): no live product to carry the pack: the cash comes back and the player is told.
-      bookCash(s, ctx, SECTOR_PACK_CASH, 'world', 'sector product', `${name} (refund)`);
-      ctx.log('company', `The ${name} pack was built but no live Enterprise, API or Agents product can carry it: $${SECTOR_PACK_CASH}B refunded.`, 2);
-      return;
-    }
-    // RD-B12 (B18): the pack (and its certification) lives on the host product.
-    if (!host.packs.some((p) => p.sector === sector)) host.packs.push({ sector, certDay: ctx.day + SECTOR_CERT_DAYS });
-    ctx.log('company', `${name} pack built: in certification (${SECTOR_CERT_DAYS} days).`, 1, host.id);
-  }
+  if (it.kind === 'adaptation') completeAdaptation(s, ctx, it); // RD-P08: models/adaptations.ts
 }
 
 /** Work queue items of one class in queue order with `left` team-weeks; returns what is left and the work done. */
@@ -325,7 +303,7 @@ export function prioritizeBuild(s: GameStateV2, id: string): string | undefined 
   return undefined;
 }
 
-/** Cancel a queued product launch or sector pack (work done is lost). */
+/** Cancel a queued product launch or sector adaptation (work done is lost). */
 export function cancelBuild(s: GameStateV2, id: string): string | undefined {
   const b = s.player.build;
   const i = b.queue.findIndex((x) => x.id === id);

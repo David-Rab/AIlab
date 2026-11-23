@@ -26,7 +26,7 @@ import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { previewEdit } from '../../src/engine/v2/models/productOps';
-import { agentsGate, catchRate, monitorOverhead, sectorCertDay } from '../../src/engine/v2/models/products';
+import { agentsGate, catchRate, monitorOverhead } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
@@ -41,7 +41,7 @@ import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
 import { evalDaysFor } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { packRevenueGain } from '../../src/engine/v2/worldfx/actions';
+import { adaptRevenueGain } from '../../src/engine/v2/models/adaptations';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { openAbsorbG, ownProgressDays, releaseRecG } from '../../src/engine/v2/actors/rivals';
 
@@ -319,7 +319,6 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // RD-P07: a tool acts on Chat through the app choice (consumer share), on a sector through its coverage there.
   const enOn = (fx: FeatureFx, sid: SectorId | 'CHAT') => fx.kind === 'enabler' && fx.share > 0 && (sid === 'CHAT' ? !!fx.consumer : !!fx.sectors?.includes(sid));
   const acts = (fx: FeatureFx, ch: Deployment['channel']): boolean => {
-    if (fx.kind === 'enabler' && fx.packs) return ch !== 'consumer';
     if (ch === 'consumer') return fx.kind === 'enabler' ? enOn(fx, 'CHAT') : moves(fxOn([fx], 'CHAT'));
     return sectorsOf(ch).some((sid) => (fx.kind === 'enabler' ? enOn(fx, sid) : moves(fxOn([fx], sid))));
   };
@@ -364,8 +363,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(near(m, featureUpkeepTW(mem), 1e-9) && featureInUse(s, mem), 'C2c Memory (horizon on all work, internal agents too) is in use once built even when off on every product', `${m.toFixed(3)} t-wk/wk`);
   const vc = featureView(comp, 'consumer');
   const vm = featureView(mem, 'consumer');
-  check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && vm.idleTW === vm.upkeepTW && featureView(FEATURE_BY_ID.sectorPacks, 'api').upkeepTW === 0,
-    'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere; sector packs none)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
+  check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && vm.idleTW === vm.upkeepTW,
+    'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
 }
 // ───────── RD-B12 product lifecycle: packs on the product, launch features, deep effort ─────────
 {
@@ -377,38 +376,32 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   };
   const ent = prod(s, 'enterprise');
   const api = prod(s, 'api');
-  const e1 = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: ent.id });
-  const built = until(s, () => ent.packs.some((p) => p.sector === 'LEGAL'));
-  const pk = ent.packs.find((p) => p.sector === 'LEGAL');
-  check(!e1 && built && !!pk && pk.certDay === s.time.day + 120 && sectorCertDay(s, 'LEGAL') === pk.certDay,
-    'RD-B12 a built sector pack (and its certification day) is stored on its host product', e1 ?? JSON.stringify(ent.packs));
-  const again = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: api.id });
-  check(!!again, 'RD-B12 a sector a live product holds cannot be packed twice', again ?? 'queued');
-  // Relaunch (retire, then launch on the same channel): the new product takes the pack over, certification kept.
+  const e1 = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: ent.id });
+  const built = until(s, () => ent.adaptations.some((p) => p.sector === 'LEGAL'));
+  const pk = ent.adaptations.find((p) => p.sector === 'LEGAL');
+  check(!e1 && built && !!pk && pk.certDone === undefined,
+    'RD-P08 a built sector adaptation is stored on its product (Legal needs no certification)', e1 ?? JSON.stringify(ent.adaptations));
+  const again = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: ent.id });
+  const other = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: api.id });
+  check(!!again && !other, 'RD-P08 a product cannot adapt to a sector twice; another product can adapt to the same sector', `${again ?? 'queued'} / ${other ?? 'queued'}`);
+  // Relaunch (retire, then launch on the same channel): the new product takes the adaptation over.
   const re = deserialize(serialize(s));
   const reEnt = prod(re, 'enterprise');
   act(re, 'product.retire', { id: reEnt.id });
   const l = act(re, 'product.launch', { channel: 'enterprise', versionId: reEnt.versionId });
   until(re, () => re.player.deployments.some((d) => d.channel === 'enterprise' && d.status !== 'withdrawn'));
   const ne = prod(re, 'enterprise');
-  check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.packs) === JSON.stringify([pk]) && reEnt.packs.length === 0,
-    'RD-B12 a relaunch on the channel takes over the retired product\'s pack with its certification day', l ?? JSON.stringify(ne?.packs));
-  // Retire → the pack ends (no world effect) and the sector can be packed again on another product.
-  act(s, 'product.retire', { id: ent.id });
-  const gone = sectorCertDay(s, 'LEGAL') === undefined;
-  const e2 = act(s, 'wfx.sectorProduct', { sector: 'LEGAL', deploymentId: api.id });
-  const rebuilt = until(s, () => api.packs.some((p) => p.sector === 'LEGAL'));
-  check(gone && !e2 && rebuilt && sectorCertDay(s, 'LEGAL') === api.packs.find((p) => p.sector === 'LEGAL')?.certDay,
-    'RD-B12 retire → re-pack: a retired host\'s pack stops acting and the sector can be packed again', e2 ?? JSON.stringify(api.packs));
-  // A pack that finishes with no live host: the cash comes back and the player is told.
+  check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.adaptations) === JSON.stringify([pk]) && reEnt.adaptations.length === 0,
+    'RD-B12 a relaunch on the channel takes over the retired product\'s adaptations', l ?? JSON.stringify(ne?.adaptations));
+  // An adaptation that finishes with no live product: no certification is started or paid, the player is told.
   const n = game();
   run(n, 10);
-  const e3 = act(n, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: prod(n, 'enterprise').id });
+  const e3 = act(n, 'product.adapt', { sector: 'FIN', deploymentId: prod(n, 'enterprise').id });
   for (const d of n.player.deployments) if (d.status !== 'withdrawn' && ['enterprise', 'api', 'agents'].includes(d.channel)) act(n, 'product.retire', { id: d.id });
-  const refunded = until(n, () => n.log.some((x) => /refunded/.test(x.text)));
-  const cause = Object.values(n.causes.byKey).flat().find((c) => c.source === 'sector product' && /refund/.test(c.detail ?? ''));
-  check(!e3 && refunded && !n.player.deployments.some((d) => d.packs.length > 0) && !!cause && near(cause.delta, 0.4, 1e-6),
-    'RD-B12 a pack built with no live host refunds its $0.4B and logs a player-facing message', `${e3 ?? ''} cause ${cause?.delta}`);
+  const told = until(n, () => n.log.some((x) => /work is lost/.test(x.text)));
+  const paid = Object.values(n.causes.byKey).flat().some((c) => c.source === 'sector certification');
+  check(!e3 && told && !n.player.deployments.some((d) => d.adaptations.length > 0) && !paid,
+    'RD-P08 an adaptation built with no live product starts no certification and logs a player-facing message', `${e3 ?? ''} paid ${paid}`);
   // A new launch starts with the lab's built features for its channel on.
   const f = game();
   run(f, 10);
@@ -418,7 +411,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const la = act(f, 'product.launch', { channel: 'api', versionId: fa.versionId });
   until(f, () => f.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
   const na = prod(f, 'api');
-  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion') && !na.features.includes('sectorPacks') && na.effort === 'max',
+  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion') && na.effort === 'max',
     "RD-B12 a new launch has the lab's built features for its channel on (other channels' and lab-level features not)", la ?? JSON.stringify(na?.features));
   // RD-P06: deep effort is a setting; its one lock is the model's capability (the tree idea), no feature to build.
   const dz = game();
@@ -446,18 +439,18 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     return ok();
   };
   const ent = prod(s, 'enterprise');
-  // Sector pack: cash and engineer team-weeks as applied; the revenue line is the market run with the pack certified.
-  const pk = pvOf(s, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: ent.id });
+  // Sector adaptation: engineer team-weeks as applied, the certification's cash and the revenue line; the revenue line is
+  // the market run with the adaptation live.
+  const pk = pvOf(s, 'product.adapt', { sector: 'FIN', deploymentId: ent.id });
   const c = clone(s);
-  const cash0 = c.player.finance.cash;
-  const e = act(c, 'wfx.sectorProduct', { sector: 'FIN', deploymentId: ent.id });
-  const item = c.player.build.queue.find((it) => it.kind === 'sectorPack' && it.ref === 'FIN');
+  const e = act(c, 'product.adapt', { sector: 'FIN', deploymentId: ent.id });
+  const item = c.player.build.queue.find((it) => it.kind === 'adaptation' && it.ref === 'FIN');
   const tw = pk.costs.find((l) => l.currency === 'staffTime');
-  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && near(c.player.finance.cash - cash0, signed(pk, 'cash'), 1e-6) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6),
-    'RD-B20 sector pack preview: only cash, engineer team-weeks and revenue, the first two as applied (no product-team time, no approval risk)', `${e ?? ''} ${JSON.stringify(pk)}`);
+  const cc = pk.costs.find((l) => l.currency === 'cash');
+  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6) && !!cc && near(-cc.amount, 0.4, 1e-9),
+    'RD-B20 sector adaptation preview: engineer team-weeks as queued, the certification\'s cash, revenue (no product-team time, no approval risk)', `${e ?? ''} ${JSON.stringify(pk)}`);
   const host = prod(c, 'enterprise');
-  const certified = until(c, () => host.packs.some((x) => x.sector === 'FIN' && x.certDay <= c.time.day));
-  // The engine's certified pack against the same state without it, the sector's customers at their target shares.
+  const certified = until(c, () => host.adaptations.some((x) => x.sector === 'FIN' && x.certDone !== undefined && x.certDone <= c.time.day));
   const strip = (st: GameStateV2) => {
     const x = clone(st);
     for (const r of Object.keys(x.world.fx.cust ?? {}) as (keyof NonNullable<GameStateV2['world']['fx']['cust']>)[]) delete x.world.fx.cust![r][('FIN')];
@@ -466,14 +459,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const withP = strip(c);
   const noP = strip(c);
   const hn = prod(noP, 'enterprise');
-  hn.packs = hn.packs.filter((x) => x.sector !== 'FIN');
+  hn.adaptations = hn.adaptations.filter((x) => x.sector !== 'FIN');
   const real = revenueReadout(withP).total - revenueReadout(noP).total;
   const raw = clone(c);
   const hr = prod(raw, 'enterprise');
-  hr.packs = hr.packs.filter((x) => x.sector !== 'FIN');
-  const prev = packRevenueGain(raw, hr, 'FIN');
+  hr.adaptations = hr.adaptations.filter((x) => x.sector !== 'FIN');
+  const prev = adaptRevenueGain(raw, hr, 'FIN');
   check(certified && real > 0 && near(prev, real, 1e-6) && signed(pk, 'revenue') > 0,
-    'RD-B20 sector pack revenue line = the market with the engine\'s certified pack minus without (customers switched), not v2 share arithmetic', `real ${real} preview-fn ${prev} day-10 line ${signed(pk, 'revenue')}`);
+    'RD-B20 sector adaptation revenue line = the market with the engine\'s live adaptation minus without (customers switched)', `real ${real} preview-fn ${prev} day-10 line ${signed(pk, 'revenue')}`);
   // Retire: revenue, serving compute and rivals' distillation exactly as the withdrawal leaves them (same day).
   const api = prod(s, 'api');
   const rt = pvOf(s, 'product.retire', { id: api.id });

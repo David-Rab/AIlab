@@ -13,7 +13,8 @@ import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
 import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf } from './products';
+import { relaunchAdaptations } from './adaptations';
 import { evalPolicyView } from './evals';
 import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
@@ -57,7 +58,7 @@ export function changesFromParams(p: Params): ProductChanges {
 
 /** The product after an edit (a copy). RD-P06: effort is a plain setting (locked only by the model's capability, effortLock). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
-  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], packs: d.packs.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
+  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], adaptations: d.adaptations.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
   if (c.lineup !== undefined) {
     if (c.lineup.length) n.lineup = [...c.lineup];
@@ -242,8 +243,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's packs).
-          safeguards: 'classifiers', controlLayer: false, packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's adaptations).
+          safeguards: 'classifiers', controlLayer: false, adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);
@@ -303,7 +304,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       }
       const tmp: Deployment = {
         id: '__open', kind: 'product', versionId: v.id, channel: 'open', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-        safeguards: 'classifiers', controlLayer: false, packs: [], features: [], kyc: 0, status: 'live',
+        safeguards: 'classifiers', controlLayer: false, adaptations: [], features: [], kyc: 0, status: 'live',
         usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
       };
       // Rivals' lift at their next post-training (distillationLeak with the open deployment), in OOM: the per-year days
@@ -348,7 +349,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'product.retire', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Retire product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
-      // RD-B20: the market run without the product (its serving goes to the other products; its packs end).
+      // RD-B20: the market run without the product (its serving goes to the other products; its adaptations end).
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
       if (!d) return { costs: [], gains: [], exposure: [] };
       const deps = s.player.deployments.map((x) => (x.id === d.id ? { ...x, status: 'withdrawn' as const } : x));

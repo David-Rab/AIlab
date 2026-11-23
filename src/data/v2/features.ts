@@ -10,7 +10,7 @@
 // scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
 // effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
 // agents on the internal work types they list (SWE, EXP, IDEAS), once built. Hazard multipliers stay (incidents).
-// D5: the frontier-leader start's set (sector packs) is the neutral ×1 baseline; every other feature is a gain when on.
+// Every feature is a gain when on (no start type has one for free; sector adaptations are per product: models/adaptations.ts).
 // [D] = design value.
 import type { Channel, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
 import type { WorkTypeId } from './workTypes';
@@ -42,7 +42,7 @@ export interface ProductDef {
 export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
   consumer: { channel: 'consumer', name: 'Chat', segment: 'consumer spend', blurb: 'The chat app for the public. Large demand, low price per user.' },
   api: { channel: 'api', name: 'API', segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
-  enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
+  enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, adapted to their sectors.' },
   agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
   gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (any full or mini model; usage terms on the product).' },
   trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at ×3 the price (buyers see it); almost no leak.' },
@@ -76,13 +76,13 @@ export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', '
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
 export const AGENT_TASK_HOURS = 4;
 
-export type FeatureId = 'memory' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
+export type FeatureId = 'memory' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion';
 
 /** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */
 export type WorkScope = 'all' | (SectorId | WorkTypeId | 'CHAT')[];
 /** Typed feature effects (V4.3). */
 export type FeatureFx =
-  | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; packs?: boolean; share: number }
+  | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; share: number }
   | { kind: 'horizon'; mult: number; work: WorkScope }
   | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope };
 
@@ -96,8 +96,6 @@ export interface FeatureDef {
   /** Build: team-weeks of engineering and cash ($B). */
   buildTW: number;
   cash: number;
-  /** In the frontier-leader start set (built and on where today's game has it): the ×1 baseline (D5). */
-  leader?: boolean;
   /** Effect text and the engine terms it maps to. */
   effect: string;
   risk?: string;
@@ -133,9 +131,6 @@ export const FEATURES: FeatureDef[] = [
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
     effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
     risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
-  { id: 'sectorPacks', name: 'Sector packs', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
-    effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
-    fx: [{ kind: 'enabler', packs: true, share: 0 }] },
 ];
 /** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
  *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
@@ -174,8 +169,8 @@ export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTE
  *  that part of the tasks: its coverage × (1 − need) (worldfx/serving.ts offerOf, inside the buyers' choice), need =
  *  share ÷ (1 + share), so an offer with the tool covers ×(1 + share) what the same offer without it covers (the effect
  *  size the old after-the-choice multiplier had) [D stand-in]. On Chat (consumer: true) the tool stays a term of the
- *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector packs are per-product fit (SECTOR_PACK_DG), not a
- *  tool. */
+ *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector adaptations are per product (models/adaptations.ts),
+ *  not tools. */
 export const enablerNeed = (share: number) => share / (1 + share);
 /** RD-P07 (DD-03 rival part, DD-18 stand-in): every rival and China gets a tool TOOL_LAG_DAYS after the first lab ships
  *  it on a live product (world.fx.toolShip: the player or a rival; RD-P07b: a rival or China may ship it first, by the
@@ -187,7 +182,5 @@ export const TOOL_LAG_DAYS = 120;
  *  (buildTW × 7 days: Computer use 112 d), the player's build time at one team; a rival has no build queue. */
 export const RIVAL_TOOL_DAYS_PER_TW = 7;
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
-/** The frontier-leader start's built features (D5 baseline). */
-export const LEADER_FEATURES: FeatureId[] = FEATURES.filter((f) => f.leader).map((f) => f.id);
-/** RD-P07: the features that are tools (enablers other than Sector packs): the ones rivals acquire after a lag. */
-export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler' && !x.packs)).map((f) => f.id);
+/** RD-P07: the features that are tools (enablers): the ones rivals acquire after a lag. */
+export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler')).map((f) => f.id);

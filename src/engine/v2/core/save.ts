@@ -2,7 +2,8 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { Deployment, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import type { Adaptation, Deployment, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import { needsCert } from '../models/adaptations';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
@@ -98,8 +99,12 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  shipped that day).
  *  69 (RD-P07b): a rival or China may ship a tool first (its own gate and build, RivalLab.toolBuild); world.fx.toolShip
  *  records who shipped first. Migration 68 → 69 turns each recorded day into { day, by: 'player' } (only the player
- *  shipped first before). */
-export const SCHEMA_REV = 69;
+ *  shipped first before).
+ *  70 (RD-P08): sector packs become sector adaptations (Deployment.adaptations, models/adaptations.ts); the Sector packs
+ *  feature goes. Migration 69 → 70: each product's packs → adaptations on the same product (certification end kept in a
+ *  sector that needs one, none elsewhere); queued pack builds → adaptation builds; 'sectorPacks' dropped from the lab's
+ *  and the products' features and the build queue. */
+export const SCHEMA_REV = 70;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -327,7 +332,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const day = s.time?.day ?? 0;
     for (const d of s.player?.deployments ?? []) {
       const o = d as unknown as { sectorFocus?: string[]; packs?: unknown };
-      if (!Array.isArray(o.packs)) d.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
+      if (!Array.isArray(o.packs)) o.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
       delete o.sectorFocus;
     }
     if (fx) delete fx.certDay;
@@ -691,6 +696,25 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const fx = (s.world as { fx?: { toolShip?: Record<string, unknown> } } | undefined)?.fx;
     const ship = fx?.toolShip;
     if (ship) for (const k of Object.keys(ship)) if (typeof ship[k] === 'number') ship[k] = { day: ship[k], by: 'player' };
+  },
+  /** 69 → 70 (RD-P08): sector packs → sector adaptations on the product that had them; the Sector packs feature goes.
+   *  Idempotent. */
+  69: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const pl = s.player;
+    if (!pl) return;
+    if (pl.features) pl.features = pl.features.filter((f) => f !== 'sectorPacks');
+    for (const d of pl.deployments ?? []) {
+      const o = d as unknown as { packs?: { sector: SectorId; certDay?: number }[]; adaptations?: Adaptation[] };
+      if (!Array.isArray(o.adaptations)) o.adaptations = (o.packs ?? []).map((p) => (needsCert(p.sector) && p.certDay !== undefined ? { sector: p.sector, certDone: p.certDay } : { sector: p.sector }));
+      delete o.packs;
+      if (d.features) d.features = d.features.filter((f) => f !== 'sectorPacks');
+    }
+    if (pl.build?.queue) {
+      pl.build.queue = pl.build.queue.filter((x) => !(x.kind === 'feature' && x.ref === 'sectorPacks'));
+      for (const x of pl.build.queue) if ((x.kind as string) === 'sectorPack') x.kind = 'adaptation';
+      pl.build.queue.forEach((x, i) => (x.priority = i + 1));
+    }
   },
 };
 
