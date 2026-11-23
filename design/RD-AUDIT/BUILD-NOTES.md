@@ -2024,3 +2024,17 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
 - **moves calibration: yes (worldfx / control / techs).** Settings now move bestPublic by their offer ΔG (not the
   hidden ±0.3 L), no horizon cap, gates below a knot threshold (GOV adviser 12, internal ops 10) open on the upper
   slope, M_sci and the macro boost change above SC, rival domain ideas drop out of world effects.
+
+### RD-P04c
+- **Done (commit a68da04).** A rival's (and China's) adopted-idea domain offsets (`SimpleModel.domainDg`, RD-X02: P09 /
+  P11 / P22) enter the one domain-G path: models/capability.ts `versionDomainG` returns G + domainDg[d] for a version
+  without a build (the player's versions read their build's dgD as before). So domainScaleG, the market's per-provider
+  domain G vectors (worldfx/mix.ts gvecOf: SectorMix.g, bestPublic, socialG), control / tech gates reading a rival model,
+  workfit domainG and horizonG all see it; the displayed domains (setModelG) were already G + dg and now agree with it by
+  construction. Lineup students (RD-P02, rivalModel.ts) copy their teacher's domainDg as built. No new constants, no
+  state change (65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04c.ts` (untracked, run alone) 2 / 2:
+  ai2027 seed 2027 day 20, rival r0 with domainDg CODE +1.5 vs none: market US SOFT CODE G 27.306 → 27.586 OOM,
+  bestPublic CODE 27.618 → 28.646. Not run: test:quick / full.
+- **moves calibration: yes (worldfx, rivals).** Rival domain ideas are back in world effects (α, PHYS gate, bestPublic,
+  persuasion), as before RD-P04b, now in OOM.
