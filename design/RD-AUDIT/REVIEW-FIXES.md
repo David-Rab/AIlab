@@ -87,6 +87,8 @@ labour rows INFO). Still off, not reopened:
 4. Safety programmes stop after a finished project (SAF-23 / RD-R03 rule): safety teams idle for the rest of the game
    (day-900 fixture: 0 of 18 staffed). Lead recommendation: queue the programme's next project automatically, like
    capability programmes (BUILD-NOTES "SCI"). Moves S4 / S5.
+5. Monitor stop rate isn't SR-12's one formula: a monitor watching 1.2% of actions still gets about half its catch
+   (found by the SAFETY › Safeguards mockup, DATA-c.md). Check against SR-12 (stop = watched share × …).
 
 ## For the UI build (found while making mockups, 2026-11-23)
 - Readouts that read hidden values: bestPlayerVersion ranks by true values; measuredDomain and the act table fall back
