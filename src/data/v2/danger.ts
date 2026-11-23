@@ -82,6 +82,10 @@ export const HUMAN_REVIEW = 0.3;
 /** Misuse (same structure): κ · demand · σ((L_d − θ)/s) · reach · (1 − safeguards). θ = 9, κ = 5e-4 keep v2's
  *  1e-4·max(0, L − 7) within ±30% on L 8–12 [C]. */
 export const MISUSE = { kappa: 5e-4, theta: 9, s: 1, floor: 3, span: 1.5 };
+/** RD-P10: tokens a day of one model's served usage that give misuse reach 1 (× MISUSE_REACH): reach = its served
+ *  tokens ÷ this. [D stand-in] about the player's total served tokens a day at the ai2027 start (2.9e12), so day-0 exposure
+ *  sits near the old serving-share reach; it then grows with usage. To source from abuse-report rates per query. */
+export const MISUSE_TOKENS_REF = 3e12;
 /** Misuse reach by channel (v2's exposure table). */
 export const MISUSE_REACH: Record<Channel, number> = {
   consumer: 1.0, api: 0.8, agents: 1.5, enterprise: 1.0, gov: 0.5, trusted: 0.3, internal: 0, open: 1.0,

@@ -169,8 +169,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  92 (SR-22): the Safety work package's spot-check share (AgentPackage.spotCheck, absent = none) and its staff, the
  *  'spotCheck' need; safety jobs carry SafJobResult records (optional). Migration 91 → 92 puts 'spotCheck' after 'review'
  *  in research.safRe (first when there is no review).
+ *  93 (RD-P10): Deployment.servedBy (tokens a day per model of the product, derived daily by the revenue system; optional,
+ *  so 92 → 93 changes nothing: the next daily tick fills it; until then a product has no misuse exposure).
  */
-export const SCHEMA_REV = 92;
+export const SCHEMA_REV = 93;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1046,6 +1048,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const i = order.indexOf('review');
     order.splice(i >= 0 ? i + 1 : 0, 0, 'spotCheck');
     sr.order = order;
+  },
+  92: () => {
+    // 92 → 93 (RD-P10): Deployment.servedBy is derived daily (see SCHEMA_REV's note); nothing to rewrite.
   },
 };
 

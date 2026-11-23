@@ -649,9 +649,14 @@ export interface Deployment {
   /** Chat: the part of needH100e its paying users need (served first, on the main model; the rest is free users on the
    *  mini when it has one). A6: usage data counts each tier's tokens at its own model's FLOP per token. */
   needPaidH100e?: number;
-  /** RD-P09: output tokens served per day (served H100e at the main model's decode throughput); the distillation leak
-   *  through this product reads its anonymous share (production/diffusion.ts teacherAccess). */
+  /** RD-P09 / RD-P10: output tokens served per day (the sum of servedBy); the distillation leak through this product
+   *  reads its anonymous share (production/diffusion.ts teacherAccess). */
   servedTokensDay?: number;
+  /** RD-P10: output tokens a day each model of the product serves (version id → tokens): the demand its buyers and users
+   *  put on that model (billed hours per lineup tier, Chat's paying users on the main model and free users on the free
+   *  tier), as far as the serving split serves it, at the model's own FLOP per token. Spare compute is not usage. Misuse
+   *  exposure and product incident sites read it (safety/incidents.ts), never servingShare (an allocation only). */
+  servedBy?: Record<string, number>;
   /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
   hist?: number[];
 }

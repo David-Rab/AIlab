@@ -39,7 +39,7 @@ import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
 import {
-  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, effortTokens, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -101,6 +101,8 @@ export interface DeploymentRevenue {
   /** TIERS (sector products): per tier of its lineup (worldfx/serving.ts productLineup order) the billed hours a year
    *  (adopted task-hours + agent-hours) and their demand ($B/yr) before the serving cut. */
   tiers?: { hours: number; dem: Money }[];
+  /** RD-P10: output tokens a day each of its models serves (Deployment.servedBy). */
+  servedBy: Record<string, number>;
 }
 
 export interface RevenueReadout {
@@ -255,12 +257,22 @@ interface Acc {
   dem: number; hours: number; need: number; cost: number; capped: number; users: number; subs: number; needPaid: number; subCost: number; subPrice: number; paidTarget: number;
   adopted: number; agent: number; adoptedDem: number; agentDem: number; seats: number; seatHours: number; seatDem: number; seatNeed: number; seatCost: number; seatPrice: number;
   tH: number[]; tD: number[];
+  /** RD-P10: serving need (H100e, before the monitor) per sector lineup tier (index into the lineup); Chat's free users'
+   *  need runs on `freeId`. */
+  tN: number[]; freeId?: string;
 }
 const acc0 = (): Acc => ({
   dem: 0, hours: 0, need: 0, cost: 0, capped: 0, users: 0, subs: 0, needPaid: 0, subCost: 0, subPrice: 0, paidTarget: 0,
   adopted: 0, agent: 0, adoptedDem: 0, agentDem: 0, seats: 0, seatHours: 0, seatDem: 0, seatNeed: 0, seatCost: 0, seatPrice: 0,
-  tH: [], tD: [],
+  tH: [], tD: [], tN: [],
 });
+/** RD-P10: add `x` hours a year's serving need per tier (each tier's own H100e-hours per hour `hphOf`), split by `tw`. */
+function addTierNeed(a: Acc, line: readonly Offer[], tw: readonly number[] | undefined, x: number, hphOf: (t: Offer) => number) {
+  for (let k = 0; k < line.length; k++) {
+    const w = tw ? tw[k] ?? 0 : k === 0 ? 1 : 0;
+    if (w > 0) a.tN[k] = (a.tN[k] ?? 0) + (x * w * hphOf(line[k])) / SERVE_HOURS_PER_YEAR;
+  }
+}
 /** TIERS readout: add `x` billed hours at per-tier prices `priceOf(k)` split by the tier weights `tw` (main model alone
  *  without weights). */
 function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefined, x: number, priceOf: (t: Offer) => number) {
@@ -378,6 +390,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.adoptedDem += (x * price) / 1e9;
           addTiers(a, line, tw, x, (t) => Math.max(t.cost, Math.min(t.price, value)));
           a.need += (x * o.hph) / SERVE_HOURS_PER_YEAR;
+          addTierNeed(a, line, tw, x, (t) => t.hph);
           a.cost += (x * o.cost) / 1e9;
           if (want > value) a.capped += (x * price) / 1e9;
         }
@@ -393,6 +406,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.agentDem += (x * ag.price) / 1e9;
           addTiers(a, line, tw, x, (t) => Math.max(t.costAg, Math.min(t.priceAg, wage)));
           a.need += (x * o.hphAg) / SERVE_HOURS_PER_YEAR;
+          addTierNeed(a, line, tw, x, (t) => t.hphAg);
           a.cost += (x * o.costAg) / 1e9;
           if (o.priceAg > ag.price) a.capped += (x * ag.price) / 1e9;
         }
@@ -405,6 +419,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.seatHours += hs;
           a.seatDem += (n * o.seat * 12) / 1e9;
           a.seatNeed += (hs * o.hphAs) / SERVE_HOURS_PER_YEAR;
+          addTierNeed(a, line, tw, hs, (t) => t.hphAs);
           a.seatCost += (hs * o.hphAs * rate) / 1e9;
           a.seatPrice = o.seat;
         }
@@ -429,7 +444,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const tMain = tokEff(main);
         const ft = chatFreeTier(s, d);
         const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);
-        return { d, o, sp, fMain, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud };
+        return { d, o, sp, fMain, freeId: ft?.id ?? d.versionId, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud };
       });
       const best = Math.max(...offs.map((x) => x.freeFit));
       // A5: users pick by quality alone (most pay nothing), as the market's user-share logit; A7: on the free tier's.
@@ -454,6 +469,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e * x.tMain, x.ud)) / 24;
         const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free, x.tFree, x.ud)) / 24;
         a.needPaid += paid;
+        a.freeId = x.freeId;
         a.need += paid + free;
         a.subCost = x.sp.cost;
         a.subPrice = x.sp.price;
@@ -507,11 +523,12 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     else if (need > h * 1.0001) bound = 'capacity';
     else bound = d.price === 'premium' ? 'price' : 'quality';
     const allHours = a.hours + a.seatHours;
+    const servedBy = servedByModel(s, d, a, h, mon);
     out.push({
       id: d.id, channel: d.channel, demand, capacity, revenue, bound, servingH100e: h, rpH: sp.rpH, needH100e: need, cutH100e: sp.cut,
       hours: a.hours, capHours: allHours > 0 && need > 0 ? (allHours * h) / need : 0,
       costPerHour: a.hours > 0 ? (a.cost * 1e9) / a.hours : 0, pricePerHour: a.hours > 0 ? (a.dem * 1e9) / a.hours : 0,
-      valueCapped: demand > 0 ? a.capped / demand : 0,
+      valueCapped: demand > 0 ? a.capped / demand : 0, servedBy,
       ...(d.channel === 'consumer' ? {
         users: a.users, subs: a.subs, subCost: a.subCost, subPrice: a.subPrice, paidTarget: a.paidTarget,
         needPaid: a.needPaid * mon, needFree: (a.need - a.needPaid) * mon, cutFree: Math.max(0, Math.min((a.need - a.needPaid) * mon, sp.cut)),
@@ -528,13 +545,26 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent };
 }
 
-/** RD-P09: output tokens a product serves per day on `h100e` served H100e: decode throughput (PEAK_FLOPS × the lab's
- *  decode utilisation ÷ the main model's FLOP per token) × 86 400 s. Prefill time is ignored (decode dominates serving
- *  time), so this is a slight upper bound; lineup tiers are counted at the main model's FLOP per token. */
-export function servedTokensPerDay(s: GameStateV2, d: Deployment, h100e: number): number {
-  const v = versionById(s, d.versionId);
-  if (!v || !(h100e > 0)) return 0;
-  return (h100e * PEAK_FLOPS * decodeUtilNow(s) * 86400) / flopPerToken(s, v);
+/** RD-P10: tokens a day per model of product `d` from its demand as served: Chat in serving order (paying users on the
+ *  main model first, then free users on the free tier); sector products at the served share of their need, split by
+ *  each lineup tier's own need. Spare H100e beyond the need serve nobody. Each model at its own FLOP per token. */
+function servedByModel(s: GameStateV2, d: Deployment, a: Acc, h: number, mon: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  const tok = (id: string, need: number) => {
+    const v = versionById(s, id);
+    if (!v || !(need > 0)) return;
+    out[id] = (out[id] ?? 0) + (need * PEAK_FLOPS * decodeUtilNow(s) * 86400) / flopPerToken(s, v);
+  };
+  if (d.channel === 'consumer') {
+    const paid = Math.min(a.needPaid, h / mon);
+    tok(d.versionId, paid);
+    tok(a.freeId ?? d.versionId, Math.min(a.need - a.needPaid, Math.max(0, h / mon - a.needPaid)));
+    return out;
+  }
+  const f = a.need + a.seatNeed > 0 ? Math.min(1, h / ((a.need + a.seatNeed) * mon)) : 0;
+  const ids = [d.versionId, ...lineupVersions(s, d).map((v) => v.id)];
+  a.tN.forEach((n, k) => { if (ids[k]) tok(ids[k], n * f); });
+  return out;
 }
 
 /** Revenue rate ($B/yr) of a deployment, as last computed by the revenue system. */
@@ -588,6 +618,7 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     if (!x) {
       if (d.revenueRate !== undefined) d.revenueRate = 0;
       if (d.servedTokensDay !== undefined) d.servedTokensDay = 0;
+      if (d.servedBy !== undefined) d.servedBy = {};
       continue;
     }
     d.revenueRate = Math.round(x.revenue * 1e4) / 1e4;
@@ -596,12 +627,14 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
     d.servedH100e = Math.round(x.servingH100e);
     d.cutH100e = Math.round(x.cutH100e);
     if (x.needPaid !== undefined) d.needPaidH100e = Math.round(x.needPaid);
-    d.servedTokensDay = servedTokensPerDay(s, d, x.servingH100e);
+    // RD-P10: usage per model (spare compute excluded); the RD-P09 leak reads its sum.
+    d.servedBy = x.servedBy;
+    d.servedTokensDay = Object.values(x.servedBy).reduce((a, b) => a + b, 0);
     if (ctx.day % 30 === 0) {
       (d.hist ??= []).push(d.revenueRate);
       if (d.hist.length > 12) d.hist.shift();
     }
-    // Auto: the share it actually gets (incident usage and the manual starting point read it).
+    // Auto: the share it actually gets (the manual starting point reads it; RD-P10: incidents read servedBy, not this).
     if (s.player.policies.servingAuto) {
       const pool = servingPool(s);
       d.servingShare = pool > 0 ? x.servingH100e / pool : 0;

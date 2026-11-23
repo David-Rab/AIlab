@@ -32,8 +32,8 @@ import { footholdView } from './footholdDetection';
 import { lossOfControlRisk, unstoppedHarmPerYear, type LossRisk } from './lossRisk';
 import { controlProtocol, oversightGap, underControl, type ControlReadout } from './oversight';
 
-/** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach (revenue.ts,
- *  incidents.ts misuseHazards) by the same 0.3; F6e: the Restrict context preview reads it. */
+/** Restricted status scales opportunity (incidents.ts siteOf), and usage and revenue (revenue.ts) by the same 0.3; misuse
+ *  reach follows that usage (RD-P10, incidents.ts misuseReach); F6e: the Restrict context preview reads it. */
 export { RESTRICT } from './actTable';
 
 /** One act at one site, as the player estimates it. */

@@ -38,7 +38,8 @@ import { misalignmentBand } from './traits';
 import { uModeContainMult } from './umodes';
 
 const YEAR = 365;
-/** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach by the same 0.3. */
+/** Restricted status scales opportunity (incidents.ts siteOf), and usage and revenue by the same 0.3 (misuse reach through
+ *  that usage, RD-P10). */
 import { RESTRICT } from './safeguards';
 export { RESTRICT };
 /** z of the 90% range on a belief (est ± 1.64 sd). */
@@ -149,9 +150,10 @@ export function actSite(s: GameStateV2, target: ActTarget, believed: boolean, o:
 function productSite(s: GameStateV2, d: Deployment, believed: boolean, o: ActOpts): ActSite | undefined {
   const v = versionById(s, d.versionId);
   if (!v || v.status === 'retired') return undefined;
-  const usage = d.channel === 'open' ? 1 : d.servingShare;
+  // RD-P10: the main model's share of the player's served tokens (billed usage, which the player sees), not servingShare.
+  const usage = d.channel === 'open' ? 1 : usageOf(s, d, v);
   const layer = o.control ?? controlOn(d);
-  const base = siteOf(s, d, v, believed ? usage : usageOf(s, d));
+  const base = siteOf(s, d, v, believed ? usage : usageOf(s, d, v));
   const restricted = isRestricted(d) || !!o.restrict;
   const contain = believed ? containment(s, measuredOom(s, v), layer, true) : containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
   const site: Site = { ...base, scale: base.scale * (o.restrict && !isRestricted(d) ? RESTRICT : 1), contain };

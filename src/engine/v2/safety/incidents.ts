@@ -11,7 +11,7 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
-import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
+import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
@@ -127,10 +127,12 @@ export const UNDO_MISUSE_MULT = 0.5;
 const SAFEGUARD: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 0.3, classifiers: 0.6, hardened: 0.85 };
 
 /** Misuse (§3.5.10, same structure): h = κ · demand · σ((L_d − 9)/1) · reach · (1 − safeguards), BIO and CYBER;
- *  demand ×2 on minimal safety training, ×3 for 90 days after a jailbreak; severity 3 + 1.5 · capability. */
+ *  demand ×2 on minimal safety training, ×3 for 90 days after a jailbreak; severity 3 + 1.5 · capability. RD-P10: reach =
+ *  model v's own served usage on d (misuseReach); restriction and Slowdown act through that usage (fewer users), not
+ *  again here. */
 export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, believed?: MisuseBelieved): HazardRow[] {
   if (d.channel === 'internal') return [];
-  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * restrictMult(d);
+  const reach = misuseReach(d, v);
   const cls = s.player.safety.techniques['T-CCLASS'];
   const clsS = (t: TechniqueState) => (believed ? believed.strength(t) : strengthTrue(s, t, versionOom(s, v)));
   const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, clsS(cls) / 0.4) : 1;
@@ -160,9 +162,33 @@ function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): numb
   return containment(s, versionOom(s, v), controlOn(d), false, uModeContainMult(v.uModes));
 }
 
-export function usageOf(s: GameStateV2, d: Deployment): number {
+/** RD-P10: misuse reach of model v on product d: its served tokens a day ÷ MISUSE_TOKENS_REF × the channel's reach (an
+ *  open release 1 × reach: its usage is unobserved). 0 with no usage. */
+export function misuseReach(d: Deployment, v: Pick<ModelVersion, 'id'>): number {
+  if (d.channel === 'internal') return 0;
+  const usage = d.channel === 'open' ? 1 : (d.servedBy?.[v.id] ?? 0) / MISUSE_TOKENS_REF;
+  return usage * MISUSE_REACH[d.channel];
+}
+
+/** RD-P10: the player's served tokens a day over all its products (the serving fleet's usage). */
+function playerServedTokens(s: GameStateV2): number {
+  let t = 0;
+  for (const d of s.player.deployments) if (d.status !== 'withdrawn' && d.servedBy) for (const k in d.servedBy) t += d.servedBy[k];
+  return t;
+}
+
+/** Usage of a site: an internal fleet 1 while internal agents run; a product its share of the player's served tokens
+ *  (RD-P10: actual usage, model `v` alone when given, else all its models; never servingShare, an allocation only); an
+ *  open release 0 (no served usage; its misuse rows reach 1 in misuseReach). */
+export function usageOf(s: GameStateV2, d: Deployment, v?: Pick<ModelVersion, 'id'>): number {
   if (d.channel === 'internal') return (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
-  return d.servingShare;
+  if (d.channel === 'open' || !d.servedBy) return 0;
+  const T = playerServedTokens(s);
+  if (!(T > 0)) return 0;
+  if (v) return (d.servedBy[v.id] ?? 0) / T;
+  let x = 0;
+  for (const k in d.servedBy) x += d.servedBy[k];
+  return x / T;
 }
 
 /** Work type each internal use does (its task horizon is the work type's H). */
@@ -386,8 +412,18 @@ export function forEachIncidentSite(s: GameStateV2, visit: (d: Deployment, v: Mo
     if (d.status === 'withdrawn') continue;
     const v = versionById(s, d.versionId);
     if (!v || v.status === 'retired') continue;
-    if (d.channel !== 'internal') {
+    if (d.channel === 'open') {
       visit(d, v, usageOf(s, d));
+      continue;
+    }
+    if (d.channel !== 'internal') {
+      // RD-P10: every model serving the product (main, lineup, Chat's free tier) is a site of its own at its own usage.
+      const by = d.servedBy ?? {};
+      for (const id in by) {
+        const mv = id === v.id ? v : versionById(s, id);
+        if (!mv || mv.status === 'retired' || !(by[id] > 0)) continue;
+        visit(d, mv, usageOf(s, d, mv));
+      }
       continue;
     }
     // R7: the internal deployment carries every internal fleet. Each model running internal uses rolls with usage =

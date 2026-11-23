@@ -67,8 +67,8 @@ export const DISTILL_HARVEST_SHARE = 0.01;
 /** RD-P09: days of usage a distiller harvests before the post-training it feeds [stand-in: a quarter, about a rival's
  *  post-training cadence]. */
 export const DISTILL_HARVEST_DAYS = 90;
-/** RD-P09: output tokens a distiller can harvest from a served product: its tokens served per day (worldfx/revenue.ts
- *  servedTokensPerDay) × its anonymous share after KYC (models/deployments.ts anonShare) × DISTILL_HARVEST_SHARE ×
+/** RD-P09: output tokens a distiller can harvest from a served product: its tokens served per day (Deployment.servedTokensDay,
+ *  RD-P10 usage per model) × its anonymous share after KYC (models/deployments.ts anonShare) × DISTILL_HARVEST_SHARE ×
  *  DISTILL_HARVEST_DAYS. 0 with no usage. */
 export function harvestTokens(d: Pick<Deployment, 'channel' | 'kyc' | 'servedTokensDay'>): number {
   return Math.max(0, d.servedTokensDay ?? 0) * anonShare(d) * DISTILL_HARVEST_SHARE * DISTILL_HARVEST_DAYS;
