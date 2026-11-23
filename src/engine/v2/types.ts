@@ -924,7 +924,7 @@ export type FrameworkEvidence = 'suite' | 'external';
 export interface FrameworkRule {
   id: string;
   label: string;
-  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number; clarity: number };
+  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number };
   holds: 'deploy' | 'training';
   safeguards: FrameworkSafeguard[];
   evidence: FrameworkEvidence[];
@@ -998,8 +998,9 @@ export interface Disagreement { day: number; model: string; trait: TraitId; a: D
 
 /** SR-10: one update of an instrument's believed reliability (trust factor f after it). */
 export interface TrustEvidence { day: number; source: 'validation' | 'disagreement'; model: string; note: string; f: number }
-/** SR-10: the player's trust factor on an instrument (multiplies its BELIEVED reliability; absent = 1). */
-export interface InstrumentTrust { f: number; evidence: TrustEvidence[] }
+/** SR-10 / RF-S5: the player's trust factor on an instrument PER MODEL (multiplies its BELIEVED reliability on that
+ *  model; a model with no entry reads the entry of the model the instrument was last validated on, else 1). */
+export interface InstrumentTrust { byModel: Record<string, number>; evidence: TrustEvidence[] }
 
 /** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */
 export interface ValidationJob {
@@ -2167,7 +2168,7 @@ export interface RelationsState {
 /** Relation commitment card (research/17 §1.2). Conditions are predicate ids evaluated by WS4. */
 export interface Commitment {
   id: string;
-  kind: 'framework' | 'testingAgreement' | 'voluntaryAccord' | 'usageRestriction' | 'monitorabilityPledge' | 'whistleblower' | 'pausePledge' | 'communityPledge';
+  kind: 'framework' | 'testingAgreement' | 'voluntaryAccord' | 'usageRestriction' | 'monitorabilityPledge' | 'whistleblower' | 'communityPledge';
   title: string;
   condition: { predicate: string; params: Record<string, number | string> };
   audience: CounterpartyId[];
@@ -2500,8 +2501,6 @@ export interface Ws4State {
   loose?: { day: Day; versionId: string; mis: number };
   /** Open internal whistleblower report (E18) and its fix-or-escalate deadline. */
   internalReport?: { day: Day; deadline: Day };
-  /** Frontier runs paused until this day (E17 Pause, pauseIfRedline). WS1 reads it (cross-WS need). */
-  frontierPauseUntil: Day;
   /** Consecutive days each competitor has led the player by ≥ 365 d after its SC (overtaken rule). */
   overtakenDays: Record<LabId, number>;
   taiwanDisrupted: boolean;

@@ -5,7 +5,6 @@ import { SITE_PATHS } from '../../../data/v2/deals';
 import { decimalYear } from './time';
 import { diffusionPerDay } from '../production/production';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
-import { ws4r } from '../actors/state';
 import { wslFloor } from '../security/security';
 import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
@@ -38,8 +37,7 @@ export function labSpeedLimits(s: GameStateV2): SpeedLimitLine[] {
   const out: SpeedLimitLine[] = [];
   const p = s.player;
   // Pause of frontier experiments.
-  const until = ws4r(s).frontierPauseUntil;
-  if (s.flags.paused || until > s.time.day) out.push({ id: 'speed.pause', mult: 0, binding: true, text: until > s.time.day ? `no experiment FLOP for capability projects for ${until - s.time.day} d (ideation goes on)` : 'no experiment FLOP for capability projects while paused (ideation goes on)' });
+  if (s.flags.paused) out.push({ id: 'speed.pause', mult: 0, binding: true, text: 'no experiment FLOP for capability projects while paused (ideation goes on)' });
   // Knowledge diffusion (RD-X04 rule A): recipe from the best public recipe above the player's.
   {
     const dif = diffusionPerDay(s);

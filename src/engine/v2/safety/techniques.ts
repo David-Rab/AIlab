@@ -33,12 +33,21 @@ export function goodhartFactor(t: TechniqueState): number {
  *  (1 − G·trainedAgainst). TRUE: hidden efficacy, falseValidated → 0 (engine only); BELIEVED: posterior-mean efficacy
  *  (or `eff`), a false-validated instrument looks real. The per-model penalties are added by
  *  safety/instruments.ts reliability(), the one reliability definition. */
-export function reliabilityBase(s: GameStateV2, t: TechniqueState, x: number, believed: boolean, eff?: number): { base: number; efficacy: number; decay: number; goodhart: number } {
+/** RF-S5: the player's trust factor on instrument `t` for one model: that model's own entry (a validation on it, or
+ *  disagreements about it), else the entry of the model it was last validated on (extrapolated, SAFETY-REDESIGN §2.2
+ *  concept 4), else 1. Model-free readers pass no model and get the validated model's. Believed only. */
+export function trustOf(t: Pick<TechniqueState, 'trust' | 'validatedOn'>, model?: string): number {
+  const m = t.trust?.byModel;
+  return (model !== undefined ? m?.[model] : undefined) ?? (t.validatedOn ? m?.[t.validatedOn] : undefined) ?? 1;
+}
+
+export function reliabilityBase(s: GameStateV2, t: TechniqueState, x: number, believed: boolean, eff?: number, model?: string): { base: number; efficacy: number; decay: number; goodhart: number } {
   const efficacy = eff ?? (believed ? believedEfficacy(s, t.agenda) : trueEfficacy(s, t.agenda));
   const decay = decayAt(s, t, x, lambda2Delta(s) <= -2);
   const goodhart = goodhartFactor(t);
-  // SR-10: the believed side carries the player's trust factor from evidence (validations, disagreements); true unchanged.
-  const base = believed ? Math.min(1, t.s0 * efficacy * decay * goodhart * (t.trust?.f ?? 1)) : t.falseValidated ? 0 : t.s0 * efficacy * decay * goodhart;
+  // SR-10 / RF-S5: the believed side carries the player's trust factor on this model from evidence (validations,
+  // disagreements); true unchanged.
+  const base = believed ? Math.min(1, t.s0 * efficacy * decay * goodhart * trustOf(t, model)) : t.falseValidated ? 0 : t.s0 * efficacy * decay * goodhart;
   return { base, efficacy, decay, goodhart };
 }
 

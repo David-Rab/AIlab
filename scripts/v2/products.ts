@@ -114,8 +114,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const hi = cloneVersion(s, v0, 'VH', {});
   hi.Lg = 11;
   mini.Lg = 9.5;
-  const same = catchRate(s, hi, hi);
-  const weak = catchRate(s, hi, mini);
+  const same = catchRate(s, hi, hi, false, false);
+  const weak = catchRate(s, hi, mini, false, false);
   check(same.rate > weak.rate && weak.gap > 0 && same.gap === 0, 'P4 catch rate falls with the oversight gap (AG05 rule)', `same ${same.rate.toFixed(2)}, mini ${weak.rate.toFixed(2)}, gap ${weak.gap.toFixed(2)}`);
   // P5: force hazard on Chat with a same-model monitor: caught incidents are internal.
   const chat = prod(s, 'consumer');
@@ -135,7 +135,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const inc = chatInc();
   const caught = inc.filter((x) => x.exposure === 'internal').length;
   check(inc.length >= 10 && caught / inc.length > 0.5 && inc.filter((x) => x.exposure === 'internal').every((x) => x.publicTimerDays === undefined),
-    'P5 a monitored product\'s incidents are mostly caught and stay internal', `${caught}/${inc.length} caught (rate ${catchRate(s, v0, v0).rate.toFixed(2)})`);
+    'P5 a monitored product\'s incidents are mostly caught and stay internal', `${caught}/${inc.length} caught (rate ${catchRate(s, v0, v0, false, false).rate.toFixed(2)})`);
 }
 
 // ───────── P6 Auto serving ─────────
@@ -281,7 +281,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(Math.abs(b.need - watched) < 1e-12 && Math.abs(b.coverage - Math.min(1, (0.2 * S) / watched)) < 1e-12 && Math.abs(b.used - Math.min(0.2, watched / S)) < 1e-12,
     'M2 copies of the watched models: coverage = budget (20% of the safety pool) ÷ the watched compute (cost ratio 1); unspent budget stays with the lines', JSON.stringify(b));
   const iv = internalVersion(s)!;
-  check(Math.abs(fleetMonitor(s, iv) - b.coverage) < 1e-12 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength = coverage (no gap)', `${fleetMonitor(s, iv)}`);
+  check(Math.abs(fleetMonitor(s, iv, undefined, false) - b.coverage) < 1e-12 && internalFleets(s).length === 1 && internalFleets(s)[0].usage === 1, 'A1 default: one internal fleet at usage 1, monitor strength = coverage (no gap)', `${fleetMonitor(s, iv, undefined, false)}`);
   const more = clone(s);
   more.player.split.monitors = 0.6;
   const mini = s.player.models.versions.find((v) => v.variant === 'mini' && (v.status === 'ready' || v.status === 'deployed'));
@@ -309,7 +309,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(pe.after.build < pe.before.build && pe.after.mExp > pe.before.mExp, 'A5 less engineering compute: less build capacity, more research agents', `${pe.before.build.toFixed(1)} → ${pe.after.build.toFixed(1)}`);
   act(s, 'agents.set', { use: 'capRoutine', monitorId: '' });
   act(s, 'agents.set', { use: 'capFrontier', monitorId: '' });
-  check(monitorBudget(s).used === 0 && fleetMonitor(s, iv) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
+  check(monitorBudget(s).used === 0 && fleetMonitor(s, iv, undefined, false) === 0, 'A6 no monitors: no safety compute reserved and no monitoring of the fleet');
   const t0 = s.player.policies.trustedToAI;
   const r = act(s, 'agents.trusted', { share: 0.9 });
   check(!r && Math.abs(s.player.policies.trustedToAI - 0.9) < 1e-12 && s.player.policies.trustedToAI > t0 && s.player.split.safetyAgents > 0, 'A7 Trusted to AI: any share 0–100% (E2: no cap); starts the safety agents', `${s.player.policies.trustedToAI} · ${s.player.split.safetyAgents}`);

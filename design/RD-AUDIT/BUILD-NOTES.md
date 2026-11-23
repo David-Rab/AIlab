@@ -4345,3 +4345,113 @@ player's starts, not DAY0_TOOLS.
 - **Moves calibration: no.**
 - **Note:** the "if they beat the best open-weight model" condition is in words, not checked, since the version's true
   G is hidden; the recipe gap itself is not known to the player, so the preview gives the share, not days.
+
+### RF-S1
+Framework hold and trusted rule read the upper end of the belief (review safety #1, decision 4; SAFETY-REDESIGN §2.4,
+§3.8, OD-6).
+- **One reading.** `detection.beliefHi(b)` = est + 1.64·sd (clamped; no belief = 0 ± SD_MAX), beside `beliefRange`. The
+  framework's belief rule (`ruleTriggered`) and `trustOf` both read it; the line is unchanged (Misalignment signs 30%,
+  `TRUST_EST_DEFAULT` 30%), now meaning "top of the 90% range".
+- **Clarity gate deleted.** `FrameworkRule` belief trigger is `{ kind: 'belief'; est }` (the `clarity` field is gone from
+  the type and the default rule; old saves keep an unread field, no migration).
+- **OD-6 capability clause.** A model is also trusted when measured (a suite of it) below the scheming act's capability
+  threshold: `measuredDomain(v, DANGER_ACTS.SCHEME.domain) < DANGER_ACTS.SCHEME.theta` (CYBER 5.0 today; Able to = ½
+  there). Existing number, no new parameter. Never measured = no capability reading = trust on beliefs only.
+- Player text: hold reason "SCHEME could be as high as 35% (top of your 90% range)", trust reasons likewise; Safety
+  framework tooltip row and glossary `safetyFramework` say "top of belief range" / "not knowing counts as risk".
+- Not touched: `common.redFlags` / `RED_FLAG.clarity` (PBC charter committee and finance observers) and the bots' own
+  `clarity` gates (mixed / safe): not in this row.
+- **Check.** `npx tsx scripts/v2/_rfs1/check.ts`: 7 ok. Info: the default framework now holds frontier training on the
+  day-0 fixture (V0's top of range > 30%; needs a control protocol on internal AI work), and on day 400 / 900; at day 400
+  only the mini model (measured CYBER 4.9 < 5.0) is trusted, the others are wide on AF / SAND. tsc (app, scripts/v2)
+  clean.
+- Moves calibration: **yes**. Training holds from day 0 for any player who does not run a control protocol; RefBot / race
+  / capex override every new internal version (morale −5, scrutiny +3, a red flag each); safe / mixed add control from
+  day 0; fewer models are trusted as auto watchers (more "no model you trust" / self-copy fallbacks until RF-S2).
+
+### RF-S2
+The Safety framework replaces the old pledges, the pause commitment and the fixed packages; no self-copy auto watcher;
+RefBot's cheap monitor back (review safety #4, #14, decision 9; SAFETY-REDESIGN §3.3, §3.8).
+- **Publishing.** A3 "Publish framework" signs one card, kind 'framework', predicate `safetyFramework` ("Published
+  Safety framework"; break cost trust 8 / credibility 15 as the old framework card). The predicate never binds: the
+  framework's holds enforce its rules and an override is the departure (credibility −5 once published, unchanged).
+  `frameworkPublished` (now in actors/commitments, re-exported by safety/framework) reads the live 'framework' kind, so
+  a card signed before RF-S2 still counts; no migration.
+- **Deleted.** `noDeployAbove` (predicate, breach helper, deploy scope, E30 honour), `pauseIfRedline` (predicate, E30
+  honour), the 'pausePledge' kind, A3's `strong` option (UI variant, SafeBot's call), `Ws4State.frontierPauseUntil`
+  (init, workfit `frontierExp`, `runs.frontierPaused` now = `trainingHeld`, LIMITS pause line keeps `flags.paused`).
+  Old cards with the deleted predicates stay in saves and never bind. Transparency (Index) for "pause": the existential
+  +0.3 and the framework 0.75 now read `frameworkPublished` (the pause is the framework's misalignment rule).
+- **One package.** `safety/packages.ts`: "Meet my framework" = the safeguards your triggered, not overridden rules ask
+  of this deployment (`framework.requiredSafeguards`: products the deploy rules over main + lineup models; internal the
+  training rules) that it lacks; it only adds (misuse level up to classifiers / hardened, human review, control at the
+  default defer 10%). Standard / High / Critical, `SAFEGUARD_PACKAGES`, `SafeguardPackageId` and the `pkg` param are
+  gone; "Already meets your Safety framework" when nothing is missing. Preview machinery unchanged. UI: one button per
+  deployment, tooltip lists what the framework asks.
+- **"Applied by default": not built.** Read as "the one package offered", not auto-applied. Whether the framework
+  should apply it itself (at launch, or on a hold) is a designer call (see report): with RF-S1 the misalignment rule
+  holds training from day 0, so auto-apply would put every player's internal work under control from day 0.
+- **Auto watcher.** `autoWatcher` no longer falls back to a copy of the watched model: none when no other model is
+  trusted (the player can still pick 'same').
+- **RefBot.** `refMonitors` picker restored as before SR-20b (cost nearest `REF_MONITOR_COST` 0.1 of the watched
+  model's, AI 2027 fn 51; a copy while nothing is cheaper); the old `variant !== 'open'` filter dropped (no such variant).
+- **Check.** `npx tsx scripts/v2/_rfs2/check.ts`: 12 ok. Updated `scripts/v2/ws4.ts` C1 (signs the new card; the
+  standing breach is a framework hold, not an E30 card). Superseded and now failing by design: `_sr20/check.ts`
+  (three packages), `_sr20b/check.ts` part 2 (RefBot on 'auto'). tsc (app, scripts/v2) clean.
+- Moves calibration: **yes**. RefBot's internal monitors change (cheap model / copy instead of the trusted picker);
+  players / bots on 'auto' lose the self-copy watcher when no other model is trusted (no monitor); SafeBot signs no pause
+  pledge (its 60-day E30 pauses are gone; framework holds remain); Index grades read the one card.
+
+### RF-S3 (partial)
+Oversight truth hygiene (review safety #7, #13).
+- **`believed` required.** No default on `catchRate`, `monitorStop`, `productMonitor` (and its `controlled`),
+  `useMonitor` / `monitorStrength` (budget `undefined` = today's), `fleetMonitor` (trait `undefined` = any), `useControl`.
+  Every caller now says which: engine paths `false` (workfit control tax, productCatch, detection's monitor strengths
+  and act-table truth sites, routineMonitor), readouts `true` as before.
+- **Engine catch roll on true tool strength.** `catchRate`'s AG07 containment part reads `containment(…, believed)`
+  (was always believed): true strength for the engine, believed for readouts.
+- **Package preview on beliefs.** `packages.internalCharges` reads the believed `useControl` (measured levels) for the
+  Slowdown; it was the true-level default.
+- **Not done: the Publish "+0.02 rivals' alignment (shared pool)" line** (safety.publish preview; also A4's and C3's
+  alignment lines). The effect is still live: publishing raises `knowledge.sharedTechniquePool`, which lowers rivals'
+  misalignment drift in `rivalTraitStep`. Removing the line alone would break "previews match effects"; removing the
+  effect or replacing it with §3.9's "rivals gain this method" is a rival-safety change (RF-A1, decision 5). Needs a
+  designer call.
+- Updated callers in `scripts/v2/oversight.ts` / `products.ts` (explicit `false`).
+- **Check.** `npx tsx scripts/v2/_rfs3/check.ts`: 5 ok (with AG07 tools forced on and a true efficacy apart from the
+  posterior: engine catch rate's containment = true strength 0.897, readout = believed 0.614; package preview Slowdown
+  unchanged when every true level moves +1.5). tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (only once a player or bot runs AG07 containment tools under a monitor: engine catch then
+  uses true, not believed, strength).
+
+### RF-S4
+SR-05 fixed against SAFETY-REDESIGN §4.1 / §2.3 (review safety #9). UI only.
+- **Which model.** `safetyRule.safetyModel`: named model, else the selected one, else **your riskiest running model**
+  (`lossOfControlRisk(s).versionId`: the highest Loss-of-control risk over `runningModels`); was the internal frontier
+  model. The lab headline (Control card) already is that max and names its model; unchanged.
+- **Danger line removed.** `RISK_BANDS.level` = [15%, 30%]: bad at the Safety framework's default Misalignment-signs line
+  (`TRUST_EST_DEFAULT` 0.3), watch at half (was 0.2 / 0.4 = "the published danger line"). An existing number, no new
+  parameter. MisCard: the dashed danger-line marker and its tooltip row are gone (and `.mis-danger` CSS, glossary
+  `dangerLine`; GLOSSARY.md regenerated with `lint-ux --doc`). 0.4 stays only as the centre of the published
+  survivability range inside Loss-of-control risk.
+- Not touched: the five threshold kinds (prob / level / factor / rate / pull) the review also counted.
+- **Check.** `npx tsx scripts/v2/_rfs4/check.ts`: 7 ok (day 900: default = Atlas-3.3 at 22.6%, not the internal Atlas-4.0).
+  `lint-ux`: one FAIL, pre-existing ("Numbers have a tooltip", other panels' lines). tsc (app, scripts/v2) clean.
+- Moves calibration: no (UI only).
+
+### RF-S5
+SR-10's trust factor per model, not one global factor per instrument (review safety #8; `DISAGREE_DROP` 0.1, floor 0.5,
+cap 1.5 kept, decision 1).
+- **State.** `InstrumentTrust` = `{ byModel: model id → factor, evidence }` (was `{ f, evidence }`).
+- **One reader.** `techniques.trustOf(t, model?)` (re-exported by disagreement.ts): the model's own entry, else the
+  entry of the model the instrument was last validated on (the extrapolation of SAFETY-REDESIGN §2.2 concept 4), else 1.
+  `reliabilityBase` takes the model (`reliability` passes `r.v`); model-free readers get the validated model's.
+- **Writers.** A disagreement on model v lowers both sides' factor on v only; a validation on v sets v's factor
+  (measured ÷ believed). `setTrust` writes the evidence's model. Validation view: factor on the internal model.
+- **Save.** SCHEMA_REV 98; migration 97 → 98 moves an old factor to the instrument's validated model (else its last
+  evidence's model). hygiene pins 98.
+- **Check.** `npx tsx scripts/v2/_rfs5/check.ts`: 8 ok (disagreement on Atlas-2.7 → 0.9 there, Atlas-2.0-mini unchanged;
+  human-run validation on the mini sets 0.454 there, 2.7 keeps 0.9, an unvalidated model reads 0.454; migration).
+  `_sr10/check.ts` updated (reads `trustOf(f, model)`): 16 ok. tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (a disagreement no longer lowers believed reliability on other models; believed only, so
+  only through bot / policy choices that read beliefs).

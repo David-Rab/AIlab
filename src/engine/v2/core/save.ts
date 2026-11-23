@@ -188,8 +188,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  shipped by 2025-07-01 (data/v2/features.ts DAY0_TOOLS) and only tools new in the game follow the lag rule.
  *  Migration 98 → 99 drops RivalLab.adapts / adaptBuild / toolBuild, adds each lab's DAY0_TOOLS to its tools, and keeps
  *  in world.fx.toolShip only the tools new in that game, as a day (RD-P07b's { day, by } → day).
+ *  100 (RF-S5): TechniqueState.trust is per model (byModel: model id → factor) instead of one factor f. Migration
+ *  99 → 100 puts the old factor on the model the instrument was last validated on (else its last evidence's model).
  */
-export const SCHEMA_REV = 99;
+export const SCHEMA_REV = 100;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1132,6 +1134,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
         if (old.has(k) || typeof day !== 'number') delete ship[k];
         else ship[k] = day;
       }
+    }
+  },
+  99: (raw) => {
+    // 99 → 100 (RF-S5): instrument trust per model (see SCHEMA_REV's note).
+    type OldTrust = { f?: number; byModel?: Record<string, number>; evidence?: { model?: string }[] };
+    const r = raw as { player?: { safety?: { techniques?: Record<string, { validatedOn?: string | null; trust?: OldTrust }> } } };
+    for (const t of Object.values(r.player?.safety?.techniques ?? {})) {
+      const tr = t.trust;
+      if (!tr || tr.byModel) continue;
+      const model = t.validatedOn ?? tr.evidence?.at(-1)?.model;
+      tr.byModel = model && tr.f !== undefined ? { [model]: tr.f } : {};
+      delete tr.f;
     }
   },
 };

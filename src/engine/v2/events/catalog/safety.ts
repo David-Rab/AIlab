@@ -194,9 +194,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
 function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   const ext = (ch: string) => ch !== 'internal' && ch !== 'trusted';
   switch (c.condition.predicate) {
-    case 'noDeployAbove':
-      for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.safeguards !== 'hardened') d.safeguards = 'classifiers';
-      break;
     case 'preDeployTesting':
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) addSafeguard(s, d, 'restrict');
       break;
@@ -214,10 +211,6 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
         d.usagePolicy.noSurveillance = true;
         d.usagePolicy.noAutonomousWeapons = true;
       }
-      break;
-    case 'pauseIfRedline':
-      ws4(s).frontierPauseUntil = ctx.day + 60;
-      for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
       break;
     case 'incidentReporting':
       for (const i of s.player.safety.incidents) if (i.status === 'open' || i.status === 'covered') i.status = 'disclosed';

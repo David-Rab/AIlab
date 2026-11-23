@@ -8,7 +8,7 @@ import { frontierGPerYear, PACE_WINDOW_DAYS } from '../models/capability';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
 import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, RivalLab, StructureSystem, SystemCtx } from '../types';
-import { signCommitment, hasCommitment } from './commitments';
+import { signCommitment, hasCommitment, frameworkPublished } from './commitments';
 import { addCoverup } from './relations';
 import {
   ALL_PUBLIC_CPS, L, bloc, cash, cred, grantAccess, grantFavor, hasFavor, morale, moraleSafety, pv, regStance, rivalMeter, scrutiny, spendFavor,
@@ -115,11 +115,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'A3', verb: 'policy', system: 'relations', title: 'Publish framework',
-    available: (s) => (hasCommitment(s, 'noDeployAbove') ? 'Framework already live' : true),
-    preview: (_s, p) => pv([L('freedom', p.strong ? 2 : 1, 'thresholds bind')], [L('credibility', 5), L('approval', 6, 'bloc:safety')], [L('credibility', -8, 'moving goalposts if relaxed', { probability: 0.3 })]),
-    apply(s, ctx, p) {
-      signCommitment(s, ctx, 'framework', 'Frontier safety framework: no BIO ≥ 10 deployment without classifiers', 'noDeployAbove', { domain: 'BIO', level: 10, mitigation: 'classifiers' }, ['evalGov', 'evalIndep', 'exec', 'bloc:safety'], { trust: 8, credibility: 15 });
-      if (p.strong) signCommitment(s, ctx, 'pausePledge', 'Pause frontier runs on a scheming red line', 'pauseIfRedline', { trait: 'SCHEME', belief: 0.3 }, ['evalGov', 'evalIndep', 'bloc:safety', 'academia'], { trust: 10, credibility: 20 });
+    available: (s) => (frameworkPublished(s) ? 'Framework already live' : true),
+    preview: () => pv([L('freedom', 1, 'thresholds bind')], [L('credibility', 5), L('approval', 6, 'bloc:safety')], [L('credibility', -8, 'moving goalposts if relaxed', { probability: 0.3 })]),
+    // RF-S2 (review safety #4, decision 9): publishing = committing to your Safety framework's rules (safety/framework.ts);
+    // its holds enforce them and an override is the visible departure (its credibility cost once published). The old
+    // BIO ≥ 10 pledge (noDeployAbove) and the pause pledge (pauseIfRedline) are gone: both are framework rules.
+    apply(s, ctx) {
+      signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {}, ['evalGov', 'evalIndep', 'exec', 'bloc:safety'], { trust: 8, credibility: 15 });
       cred(ctx, 5, 'A3 framework published');
       bloc(s, ctx, 'safety', 6, 0, 'A3');
     },

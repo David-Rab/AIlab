@@ -7,7 +7,7 @@ import { clamp } from '../../rng';
 import type { EngineSystem, GameStateV2, IndexGrade, LabId } from '../types';
 import { activeRivals } from '../models/labs';
 import { bloc, talent } from './fx';
-import { hasCommitment } from './commitments';
+import { frameworkPublished, hasCommitment } from './commitments';
 import { evalIndepAccess } from './researchBodies';
 import { postureOf } from './rivals';
 import { ws4 } from './state';
@@ -32,7 +32,7 @@ const g43 = (x: number) => Math.round(clamp(x, 0, 1) * 4.3 * 100) / 100;
 /** Player grade from what outsiders can see. */
 export function gradePlayer(s: GameStateV2): IndexGrade {
   const w = ws4(s);
-  const framework = hasCommitment(s, 'noDeployAbove') || hasCommitment(s, 'pauseIfRedline') ? 0.75 : s.gov.statutes.sb53 ? 0.4 : 0.15;
+  const framework = frameworkPublished(s) ? 0.75 : s.gov.statutes.sb53 ? 0.4 : 0.15;
   const testers = (hasCommitment(s, 'preDeployTesting') ? 0.4 : 0) + (evalIndepAccess(s) ? 0.4 : 0) + 0.1;
   const disclosure = clamp(0.4 + 0.08 * w.disclosed - 0.15 * w.leaked, 0, 1);
   const pub = { none: 0.15, selective: 0.45, all: 0.8 }[s.player.policies.publishSafety] + 0.02 * w.papers;
@@ -41,7 +41,7 @@ export function gradePlayer(s: GameStateV2): IndexGrade {
     risk: g43(0.3 + 0.5 * testers + (s.player.safety.framework?.externalReview ? 0.15 : 0)),
     harms: g43(disclosure * 0.8 + (s.player.policies.whistleblowerChannel ? 0.15 : 0)),
     frameworks: g43(framework - goal),
-    existential: g43(0.15 + (hasCommitment(s, 'pauseIfRedline') ? 0.3 : 0) + (hasCommitment(s, 'monitorabilityPledge') ? 0.15 : 0) + 0.2 * pub),
+    existential: g43(0.15 + (frameworkPublished(s) ? 0.3 : 0) + (hasCommitment(s, 'monitorabilityPledge') ? 0.15 : 0) + 0.2 * pub),
     governance: g43((GOV_SCORE[s.player.board.preset] ?? 0.5) + (s.player.policies.whistleblowerChannel ? 0.1 : 0) - goal),
     sharing: g43(0.6 * pub + 0.3 * disclosure),
   });

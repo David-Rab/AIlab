@@ -19,7 +19,7 @@ import {
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
-import { RISK_BANDS, riskClass, riskColor, safetyModel } from '../safetyRule';
+import { riskClass, riskColor, safetyModel } from '../safetyRule';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
 import * as F from '../fmt';
@@ -461,7 +461,7 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `believed > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new version waits for its capability assessment: its eval suite&apos;s work at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} held` : 'nothing held'}</span></Tip></span>
+        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `top of belief range > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new version waits for its capability assessment: its eval suite&apos;s work at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} held` : 'nothing held'}</span></Tip></span>
         <span className="sp" />
         <Ref id="evalPolicy" to={{ panel: 'models', tab: 'evals' }}>Evals</Ref>
         {on && <span className={`sf-mini ${fw.externalReview ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.external" params={{ external: !fw.externalReview }} label="external" /></span>}
@@ -789,7 +789,6 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
   );
 }
 
-const DANGER = RISK_BANDS.level[1];
 function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const bv = beliefView(s, safetyModel(s, versionId)?.id);
   if (!bv) return <Card title={<Term id="misalign">Estimated misalignment</Term>}><div className="dim small">No model yet</div></Card>;
@@ -801,11 +800,10 @@ function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
   const col = riskColor(bv.misEst, 'level');
   return (
     <Card title={<Term id="misalign">Estimated misalignment</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
-      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: <Term id="dangerLine">Danger line</Term>, value: F.num(DANGER, 2) }, { label: 'Critical traits under-observed', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
+      <Tip as="div" content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: 'Critical traits under-observed', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>
       <div className="mis-bar">
         <span className="mis-band" style={{ left: f(lo), width: `calc(${f(hi)} - ${f(lo)})`, background: col }} />
         <span className="mis-est" style={{ left: f(bv.misEst) }}><b className="num">{F.num(bv.misEst, 2)}</b></span>
-        <span className="mis-danger" style={{ left: f(DANGER) }}><span><Term id="dangerLine">danger line</Term> <span className="num">{F.num(DANGER, 2)}</span> (published)</span></span>
       </div>
       <div className="small dim"><Term id="misBand">band</Term> <span className="num">{F.num(lo, 2)}–{F.num(hi, 2)}</span>: {thin ? <>wide because {thin} critical traits are under-observed</> : 'your evidence on the critical traits is fresh'}</div>
       </Tip>

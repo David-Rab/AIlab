@@ -22,7 +22,7 @@ export const DEFAULT_FRAMEWORK_RULES: readonly FrameworkRule[] = [
   { id: 'bio-critical', label: 'Biological: Critical', trigger: { kind: 'capability', domain: 'BIO', level: 12 }, holds: 'deploy', safeguards: ['hardened'], evidence: ['suite', 'external'], src: 'OAI-PF2 Bio Critical; ANT-RSP CBRN-4 [D level]' },
   { id: 'cyber-critical', label: 'Cyber: Critical', trigger: { kind: 'capability', domain: 'CYBER', level: 12 }, holds: 'deploy', safeguards: ['hardened'], evidence: ['suite', 'external'], src: 'OAI-PF2 Cybersecurity Critical; GDM-FSF Cyber CCL [D level]' },
   { id: 'aird-critical', label: 'AI R&D: Critical', trigger: { kind: 'capability', domain: 'RSCH', level: 12 }, holds: 'training', safeguards: ['control', 'review'], evidence: ['suite', 'external'], src: 'OAI-PF2 AI Self-improvement Critical (safeguards during development); ANT-RSP AI R&D-4/5; GDM-FSF ML R&D CCL [D level]' },
-  { id: 'misalignment', label: 'Misalignment signs', trigger: { kind: 'belief', est: 0.3, clarity: 0.4 }, holds: 'training', safeguards: ['control'], evidence: [], src: 'GDM-FSF Misalignment / deceptive-alignment monitoring; ANT-RSP affirmative misalignment case; the old red-flag line (est > 30%, clarity > 0.4) [D]' },
+  { id: 'misalignment', label: 'Misalignment signs', trigger: { kind: 'belief', est: 0.3 }, holds: 'training', safeguards: ['control'], evidence: [], src: 'GDM-FSF Misalignment / deceptive-alignment monitoring; ANT-RSP affirmative misalignment case; the old red-flag line (30%), read on the upper end of the 90% range (RF-S1) [D]' },
 ];
 
 /** The default framework: full capability assessment before release, no mandatory external review. */

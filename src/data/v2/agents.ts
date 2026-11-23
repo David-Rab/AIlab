@@ -49,10 +49,10 @@ export const DEFAULT_CAP_SHARES: Record<CapUse, number> = {
  *  oversight gap; it follows model swaps). An override since SR-20. */
 export const MONITOR_SAME = 'same';
 /** SR-20 (OD-6): monitor id meaning "chosen automatically": the most capable live model the lab TRUSTS (believed
- *  aligned: no red-flag trait believed above the trust line; safety/trusted.ts), never the watched model unless it is
- *  the only trusted one. The default watcher on routine and frontier research; a model id or 'same' overrides it. */
+ *  aligned or below the scheming-capable level; safety/trusted.ts), never the watched model (none when no other model
+ *  is trusted). The default watcher on routine and frontier research; a model id or 'same' overrides it. */
 export const MONITOR_AUTO = 'auto';
-/** SR-20: the trust line when the framework has no Misalignment-signs rule: believed SCHEME / AF / SAND ≤ 30% (the
+/** SR-20: the trust line when the framework has no Misalignment-signs rule: upper end of believed SCHEME / AF / SAND ≤ 30% (the
  *  framework's default misalignment line, data/v2/framework.ts) [D]. */
 export const TRUST_EST_DEFAULT = 0.3;
 /** Default monitoring budget, as a share of the old safety pool (RD-A05a: the reference allocation puts it on split.monitors): the pre-R7 runtime-monitoring reserve

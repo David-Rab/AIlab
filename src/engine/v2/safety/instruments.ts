@@ -59,7 +59,7 @@ export interface Reliability {
 
 /** THE reliability of instrument t on a model (see the file header). */
 export function reliability(s: GameStateV2, t: TechniqueState, r: ReadTarget, believed: boolean): Reliability {
-  const b = reliabilityBase(s, t, r.x, believed, r.eff);
+  const b = reliabilityBase(s, t, r.x, believed, r.eff, r.v?.id);
   let penalty = 1;
   let tests = 1;
   let legible = 1;

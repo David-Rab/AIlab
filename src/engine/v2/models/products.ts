@@ -95,7 +95,7 @@ export interface MonitorStop {
  */
 export function monitorStop(
   s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined,
-  monitorCompute: number, watchedCompute: number, costRatio: number, controlled = false, believed = false,
+  monitorCompute: number, watchedCompute: number, costRatio: number, controlled: boolean, believed: boolean,
 ): MonitorStop {
   const c = catchRate(s, watched, monitor, controlled, believed);
   const need = watchedCompute * costRatio;
@@ -136,7 +136,7 @@ export function monitorOverhead(s: GameStateV2, d: Deployment): number {
 
 /** SR-12: a product's monitor through the one formula: monitor compute = its billed overhead × the product's serving
  *  (both scale with what is served, so the watched share is PRODUCT_MONITOR_WATCH). Open weights: no monitor. */
-export function productMonitor(s: GameStateV2, d: Deployment, controlled = controlOn(d), believed = false): MonitorStop {
+export function productMonitor(s: GameStateV2, d: Deployment, controlled: boolean, believed: boolean): MonitorStop {
   const mon = d.monitorId && d.channel !== 'open' ? productMonitorVersion(s, d) : undefined;
   const r = productMonitorCostRatio(s, d);
   return monitorStop(s, versionById(s, d.versionId), mon, monitorOverhead(s, d), 1, r, controlled, believed);
@@ -151,7 +151,7 @@ export interface CatchRate {
   elo: number;
   /** Before control tools. */
   base: number;
-  /** AI-control containment strength added (AG07 tools, believed). */
+  /** AI-control containment strength added (AG07 tools: true strength for the engine, believed for readouts; RF-S3). */
   control: number;
   /** Deferral to the trusted model when the deployment runs under the control layer: the miss multiplier (1 = off). */
   defer: number;
@@ -164,19 +164,19 @@ export interface CatchRate {
 /**
  * Catch rate of a monitor watching a model (model v3 E6): monitorCatchAt(gap) = 85% × (10%/85%)^(gap ÷ 6.8 OOM), the
  * gap in OOM of effective compute between the two models' levels (Engels et al. 2025's Backdoor Code rate at a 400-Elo
- * gap; safety/oversight.ts), then the AG07 containment tools halve what slips through at full strength (believed tool
- * strength). Levels: true (Lg) for the engine's rolls; `believed` (readouts, beliefs) reads the measured levels instead
- * (RD-M01 follow-up, merge p3-d → rd). `controlled`: the deployment runs under the control layer, whose deferral cuts
+ * gap; safety/oversight.ts), then the AG07 containment tools halve what slips through at full strength. Levels and tool
+ * strength: true (Lg, true strength) for the engine's rolls; `believed` (readouts, beliefs) reads the measured levels
+ * and believed tool strength instead (RD-M01 follow-up; RF-S3: the flag is required, so every caller says which). `controlled`: the deployment runs under the control layer, whose deferral cuts
  * the misses by Greenblatt's 0.17/0.38.
  */
-export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined, controlled = false, believed = false): CatchRate {
+export function catchRate(s: GameStateV2, watched: ModelVersion | undefined, monitor: ModelVersion | undefined, controlled: boolean, believed: boolean): CatchRate {
   if (!watched || !monitor) return { rate: 0, gap: 0, gapL: 0, elo: 0, base: 0, control: 0, defer: 1, copy: false, collusion: 0 };
   const w = s.hidden.timeline;
   const lv = (v: ModelVersion) => (believed ? measuredLOf(s, v).L : v.Lg);
   const Lw = lv(watched);
   const g = oversightGap(w, Lw, lv(monitor));
   const base = monitorCatchAt(g.oom);
-  const control = containment(s, oomOfLevel(w, Lw), true, true);
+  const control = containment(s, oomOfLevel(w, Lw), true, believed);
   const defer = controlled ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   const rate = Math.min(0.99, 1 - (1 - base) * (1 - 0.5 * control) * defer);
   const copy = sameLineage(watched, monitor);
@@ -194,7 +194,7 @@ export const collusionTrait = (t: TraitId | undefined) => !!t && COLLUSION_TRAIT
  *  from `trait`: the collusion rate when it is collusion-relevant). */
 export function productCatch(s: GameStateV2, d: Deployment, trait?: TraitId): number {
   if (!d.monitorId) return 0;
-  const m = productMonitor(s, d);
+  const m = productMonitor(s, d, controlOn(d), false);
   return collusionTrait(trait) ? m.stopColl : m.stop;
 }
 

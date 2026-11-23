@@ -2,7 +2,7 @@
 // safety frameworks (data/v2/framework.ts). Owner: WS2.
 //
 //   rule       trigger on a MEASURED domain level (the benchmark fit, actors/commitments.measuredDomain; RD-M01) or on a
-//              believed trait (the red-flag traits' estimate and clarity) → required safeguards and evidence.
+//              believed trait (the upper end of a red-flag trait's 90% range, RF-S1) → required safeguards and evidence.
 //   hold       a rule whose trigger is met and whose requirements are not, and that the player has not overridden for
 //              that version. Deploy holds: an external launch or swap of the version is refused (deployGate) and a live
 //              external deployment serves nobody while held (productUsageMult 0). Training holds: frontier (base / post)
@@ -14,9 +14,10 @@
 // Holds read only what the player can see (measured levels, beliefs, owned safeguards), never truth.
 import type { Deployment, EngineSystem, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
 import { defaultFramework, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
-import { measuredDomain, hasCommitment } from '../actors/commitments';
+import { frameworkPublished, measuredDomain } from '../actors/commitments';
 import { ws4, ws4r } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
+import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
 import { internalVersion } from '../models/labs';
 
@@ -30,11 +31,11 @@ export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
   return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }
 
-/** The framework is published when the lab's framework commitment is live (actors/actions.ts: breaking it is visible). */
-export const frameworkPublished = (s: GameStateV2) => hasCommitment(s, 'noDeployAbove');
+export { frameworkPublished };
 
 /** Why the rule's trigger is met for `v`, or undefined. Capability: measured domain level ≥ threshold (a version never
- *  measured has no reading; the base rule holds its release). Belief: a red-flag trait above the estimate and clarity. */
+ *  measured has no reading; the base rule holds its release). Belief: the upper end of a red-flag trait's 90% range
+ *  above the line (RF-S1, decision 4: not knowing counts as risk, so a barely observed model is held; no clarity gate). */
 export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | undefined {
   const t = rule.trigger;
   if (t.kind === 'capability') {
@@ -43,8 +44,8 @@ export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | un
     return L >= t.level ? `${v.name} measures ${t.domain} ${L.toFixed(1)} ≥ ${t.level}` : undefined;
   }
   for (const tr of RED_FLAG_TRAITS) {
-    const b = v.beliefs[tr];
-    if (b && b.est > t.est && b.clarity > t.clarity) return `${v.name}: believed ${tr} ${Math.round(b.est * 100)}% (clarity ${b.clarity.toFixed(2)})`;
+    const hi = beliefHi(v.beliefs[tr]);
+    if (hi > t.est) return `${v.name}: ${tr} could be as high as ${Math.round(hi * 100)}% (top of your 90% range)`;
   }
   return undefined;
 }
@@ -126,6 +127,28 @@ export function trainingHolds(s: GameStateV2): Omit<FrameworkHold, 'since'>[] {
       const missing = missingFor(s, rule, v);
       if (missing.length) { out.push({ ruleId: rule.id, versionId: v.id, target: 'training', missing }); break; }
     }
+  }
+  return out;
+}
+
+/** RF-S2: the safeguards your framework's triggered (not overridden) rules ask of deployment `d`: a product, the deploy
+ *  rules on any model it sells (main and lineup); internal AI work, the training rules (they ask it of every live
+ *  internal deployment). The "meet my framework" package (safety/packages.ts) adds what of this is missing. */
+export function requiredSafeguards(s: GameStateV2, d: Deployment): Set<FrameworkRule['safeguards'][number]> {
+  const out = new Set<FrameworkRule['safeguards'][number]>();
+  if (d.channel === 'open' || d.channel === 'trusted') return out;
+  const fw = frameworkOf(s);
+  if (d.channel === 'internal') {
+    for (const rule of fw.rules) {
+      if (rule.holds !== 'training') continue;
+      if (trainingSubjects(s, rule).some((v) => !overridden(s, rule.id, v.id) && ruleTriggered(rule, v))) for (const g of rule.safeguards) out.add(g);
+    }
+    return out;
+  }
+  for (const vid of [d.versionId, ...(d.lineup ?? [])]) {
+    const v = s.player.models.versions.find((x) => x.id === vid);
+    if (!v) continue;
+    for (const rule of fw.rules) if (rule.holds === 'deploy' && !overridden(s, rule.id, v.id) && ruleTriggered(rule, v)) for (const g of rule.safeguards) out.add(g);
   }
   return out;
 }

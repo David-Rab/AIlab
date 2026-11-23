@@ -9,7 +9,6 @@ export function initialWs4(): Ws4State {
   return {
     govSeenL: 0, leakedL: 0, evalL: 0, claimedL: 0,
     coverups: [], redFlags: 0, theftAttempts: 0,
-    frontierPauseUntil: -1,
     overtakenDays: {},
     taiwanDisrupted: false, taiwanUntil: -1,
     accessCap: { exec: 1, evalGov: 1 },
