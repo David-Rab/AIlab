@@ -68,7 +68,8 @@ export function alphaOf(w: TimelineWorld, def: SectorDef, gAgency: number): numb
 const ALPHA_START_SIG = sigmoid((AGENT0_PROFILE.AGENCY - ALPHA_MID_L) / ALPHA_SPREAD_L);
 
 /** Pre-LLM (late 2022) feasibility per sector: hiring baseline for ΔF. */
-/** Consumer SOCIAL level at which the AI-friend share is half its ceiling (research/16 §2.1) [D]. M2: 7 → 6.5 on
+/** Consumer SOCIAL level at which the AI-friend share is half its ceiling (RD-P04b: read on the users' share-weighted
+ *  SOCIAL domain G, OOM, through the one λ) (research/16 §2.1) [D]. M2: 7 → 6.5 on
  *  integrated RefBot play, whose consumer channel serves distilled minis (SOCIAL ≈ 0.5 L below the WS5 probe's
  *  "internal − 0.5 L" public model). */
 const FRIEND_SOCIAL_MID = 6.5;
@@ -287,8 +288,8 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     physE += E * (def.tasks.PHYS ?? 0);
   }
   const mismatch = 1 - 0.5 * (physE / Math.max(1, allE));
-  const Lag = mix.bestPublic.AGENCY;
-  const nuEff = econ.nu * (1 - sigmoid((Lag - 10) / 1.5));
+  // RD-P04b: the best public AGENCY domain G (OOM); v2's L 10 / 1.5 L gate through the one λ.
+  const nuEff = econ.nu * (1 - levelGate(w, mix.bestPublic.AGENCY, 10, 1.5));
   const gAI = Math.max(0, W.macro[r].g - (r === 'US' ? 0.018 : r === 'CN' ? 0.04 : 0.028));
   const openJobs = 0.4 * (1 - 0.6 * (Dw / Math.max(1, Ew))) + 5 * nuEff * gAI;
   const retrain = r === 'US' ? retrainOf(s, pol) : 0;
@@ -360,7 +361,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - FRIEND_SOCIAL_MID) / 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
+    const friendStar = 0.03 + 0.18 * levelGate(s.hidden.timeline, cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

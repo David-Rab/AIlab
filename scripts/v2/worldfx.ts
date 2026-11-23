@@ -10,7 +10,7 @@
 import { dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
 import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { ACTIONS } from '../../src/engine/v2/core/registry';
-import { gOfLevel } from '../../src/engine/v2/models/capability';
+import { domainScaleGs, gOfLevel } from '../../src/engine/v2/models/capability';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { LEVERAGE_THRESHOLDS, leverage, leverageTier } from '../../src/engine/v2/worldfx/control';
 import { HEADLINES } from '../../src/engine/v2/worldfx/headlines';
@@ -339,7 +339,7 @@ if (!SMOKE) {
   // action is unavailable there; use the day-900 fixture, where a beneficial non-risk tech is researchable.
   const s3 = deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
   const iv = internalVersion(s3);
-  const tech = WORLD_TECHS.find((x) => s3.world.techs[x.id]?.discoveredDay === undefined && x.effects.benefit && !x.risk && iv && techBlocker(s3, x, iv.domains) === undefined)?.id ?? 'W03';
+  const tech = WORLD_TECHS.find((x) => s3.world.techs[x.id]?.discoveredDay === undefined && x.effects.benefit && !x.risk && iv && techBlocker(s3, x, domainScaleGs(s3.hidden.timeline, iv)) === undefined)?.id ?? 'W03';
   const avail = ms.available(s3);
   const pv = ms.preview(s3, { tech, share: 0.05 });
   ms.apply(s3, makeCtx(s3), { tech, share: 0.05 });

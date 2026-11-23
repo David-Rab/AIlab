@@ -147,6 +147,12 @@ export function domainRefShift(w: TimelineWorld, d: DomainId): number {
 /** RD-P04: a model's domain G on the general λ scale (OOM): G_d − (best_d − G_SC), so λ of it is the domain score. The
  *  one capability input the world effects read (α, the PHYS gate, control, tech gates, bestPublic). */
 export const domainScaleG = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId) => versionDomainG(v, d) - domainRefShift(w, d);
+/** RD-P04b: every domain's scale G of a model (domainScaleG), as a record. */
+export function domainScaleGs(w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>): Record<DomainId, number> {
+  const out = {} as Record<DomainId, number>;
+  for (const d of DOMAIN_IDS) out[d] = domainScaleG(w, v, d);
+  return out;
+}
 
 /** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain
  *  effective compute (versionDomainG: training, data and design specialisation, all in OOM) measured against that

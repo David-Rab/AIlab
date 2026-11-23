@@ -11,7 +11,7 @@ import {
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { containment } from '../safety/techniques';
-import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorPack, TraitId } from '../types';
+import type { Deployment, GameStateV2, ModelVersion, SectorPack, TraitId } from '../types';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
@@ -72,15 +72,6 @@ export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
     if (f && s.player.features.includes(id) && f.products.includes(d.channel)) out.push(f);
   }
   return out;
-}
-
-/**
- * Display domain levels of a product: its main model's own record (feature effects are typed and act on work-type fit,
- * horizon and tokens, worldfx/serving.ts, not on these levels). RD-B11 (B15): a Chat mini serves only the free users
- * (worldfx/serving.ts chatFreeTier) and no longer blends in.
- */
-export function productDomains(s: GameStateV2, d: Deployment, v: ModelVersion | undefined = versionById(s, d.versionId)): Record<DomainId, number> | undefined {
-  return v?.domains;
 }
 
 /** Incident-hazard multiplier of a trait on a product from its features. */

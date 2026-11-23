@@ -5,7 +5,8 @@ import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, Deployment, GameStateV2, SectorId, SystemCtx } from '../types';
 import { paidDeployments, worldMix } from './mix';
 import { moonshotH100e } from './revenue';
-import { mSci, lSci, scienceRate, techBlocker } from './techtree';
+import { gSci, mSci, scienceRate, techBlocker } from './techtree';
+import { domainScaleGs } from '../models/capability';
 import { internalVersion } from '../models/labs';
 import { useShareOf } from './use';
 import { revenueReadout } from './revenue';
@@ -172,7 +173,9 @@ function defaultTech(s: GameStateV2): string | undefined {
   const best = worldMix(s).bestPublic;
   const iv = internalVersion(s);
   const lv = { ...best };
-  if (iv) for (const k of Object.keys(lv) as (keyof typeof lv)[]) lv[k] = Math.max(lv[k], iv.domains[k]);
+  // RD-P04b: domain G (OOM) of the best public model and the internal model, as the tech gates read.
+  const ivg = iv ? domainScaleGs(s.hidden.timeline, iv) : undefined;
+  if (ivg) for (const k of Object.keys(lv) as (keyof typeof lv)[]) lv[k] = Math.max(lv[k], ivg[k]);
   for (const t of WORLD_TECHS) {
     const st = s.world.techs[t.id];
     if (!st || st.discoveredDay !== undefined || t.risk) continue;
@@ -207,7 +210,7 @@ const moonshot: ActionDef = {
     const util = rd.capacity > 0 ? Math.min(1, rd.total / rd.capacity) : 0;
     const revLoss = Math.round(dH * perH * Math.max(0.3, util) * 100) / 100;
     const v = internalVersion(s);
-    const sPlayer = v ? mSci(lSci(v.domains)) * Math.abs(dShare) * 10 : 0;
+    const sPlayer = v ? mSci(s.hidden.timeline, gSci(domainScaleGs(s.hidden.timeline, v))) * Math.abs(dShare) * 10 : 0;
     const { S } = scienceRate(s);
     const yearsSaved = t ? Math.max(0, (1 - (s.world.techs[techId]?.prog ?? 0)) * t.effort * (1 / S - 1 / (S + sPlayer))) : 0;
     const benefit = t?.effects.benefit ?? 1;

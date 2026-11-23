@@ -5,11 +5,12 @@
 //   P_dom   += k_dom·(Target_dom − P_dom)/365;  Target = f(adoption, contracts, briefings, race, techs)
 // Thresholds: Lev ≥ 0.15 Entrenched, ≥ 0.35 Indispensable, ≥ 0.6 (+ robots > 10% of labor or W25) Decisive.
 import { SECTORS } from '../../../data/v2/sectors';
+import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { internalVersion } from '../models/labs';
-import { productDomains } from '../models/products';
+import { domainScaleG, gOfLevel, levelGate, levelOfG } from '../models/capability';
 import type { ControlDomainId, ControlState, GameStateV2, LabId, SectorId, SystemCtx } from '../types';
-import { paidDeployments, type WorldMix } from './mix';
-import { clamp01, sigmoid, techRamp, type PolicyState } from './policy';
+import { paidDeployments, productGVec, type WorldMix } from './mix';
+import { clamp01, techRamp, type PolicyState } from './policy';
 import { worldTechEffects } from './techtree';
 
 export const CONTROL_DOMAINS: ControlDomainId[] = ['ECON', 'GOV', 'MIL', 'INFRA'];
@@ -67,24 +68,31 @@ export function leverageTier(s: GameStateV2, lev: number): LeverageTier {
   return 'none';
 }
 
-/** Persuasion_X = INFO_share_X · σ((L_SOCIAL − 10)/1.5), ×(1 + W23 ramp effect) (R16 §2.1). */
+/** Persuasion_X = INFO_share_X · σ((L_SOCIAL − 10)/1.5), ×(1 + W23 ramp effect) (R16 §2.1). RD-P04b: on the consumer
+ *  model's SOCIAL domain G (OOM), the L 10 / 1.5 L gate through the one λ (models/capability.ts levelGate). */
 export function persuasion(s: GameStateV2, lab: LabId, mix?: WorldMix): number {
   const share = s.world.infoShare[lab] ?? 0;
-  let social = 0;
+  const w = s.hidden.timeline;
+  let social = gOfLevel(w, 0);
   if (mix) {
     const i = mix.providers.findIndex((p) => p.key === lab);
-    if (i >= 0) social = mix.consumer.US.socials[i];
+    if (i >= 0) social = mix.consumer.US.socialGs[i];
   } else social = mixSocialFallback(s, lab);
-  return share * sigmoid((social - 10) / 1.5) * (1 + 0.5 * techRamp(s, 'W23'));
+  return share * levelGate(w, social, 10, 1.5) * (1 + 0.5 * techRamp(s, 'W23'));
 }
+const SOCIAL_IX = DOMAIN_IDS.indexOf('SOCIAL');
 function mixSocialFallback(s: GameStateV2, lab: LabId): number {
+  const w = s.hidden.timeline;
+  let best = gOfLevel(w, 0);
   if (lab === 'player') {
-    let best = 0;
-    for (const d of paidDeployments(s)) best = Math.max(best, productDomains(s, d)?.SOCIAL ?? 0);
+    for (const d of paidDeployments(s)) {
+      const v = s.player.models.versions.find((x) => x.id === d.versionId);
+      if (v) best = Math.max(best, productGVec(s, d, v)[SOCIAL_IX]);
+    }
     return best;
   }
   const r = lab === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === lab);
-  return r?.publicModel?.domains.SOCIAL ?? 0;
+  return r?.publicModel ? domainScaleG(w, r.publicModel, 'SOCIAL') : best;
 }
 
 function sharesWeighted(mix: WorldMix, secs: SectorId[], weights: number[]): Record<LabId, number> {
@@ -130,16 +138,22 @@ function tierMix(a: number, cap: number): [number, number, number, number] {
   return t;
 }
 
-/** Best REASON level available to government advisers: public models, gov-channel deployments, and briefings on
- *  the internal frontier (each briefing level below 3 costs 0.5 levels of access) [D]. */
-export function govAdviceLevel(s: GameStateV2, mix: WorldMix): number {
-  let L = mix.sec.US.GOV.dom.REASON;
-  for (const d of paidDeployments(s)) if (d.channel === 'gov') L = Math.max(L, productDomains(s, d)?.REASON ?? 0);
+/** Best REASON domain G (OOM, general λ scale) available to government advisers: the GOV market's models, gov-channel
+ *  products, and briefings on the internal frontier (each briefing level below 3 costs 0.5 levels of access [D], applied
+ *  through the one λ: λ⁻¹(λ(G) − 0.5·(3 − b))). RD-P04b: was the same in display levels. */
+export function govAdviceG(s: GameStateV2, mix: WorldMix): number {
+  const w = s.hidden.timeline;
+  let g = mix.sec.US.GOV.g.REASON;
+  for (const d of paidDeployments(s)) if (d.channel === 'gov') {
+    const v = s.player.models.versions.find((x) => x.id === d.versionId);
+    if (v) g = Math.max(g, productGVec(s, d, v)[REASON_IX]);
+  }
   const b = s.player.policies.govBriefing;
   const iv = internalVersion(s);
-  if (b >= 1 && iv) L = Math.max(L, iv.domains.REASON - (3 - b) * 0.5);
-  return L;
+  if (b >= 1 && iv) g = Math.max(g, gOfLevel(w, levelOfG(w, domainScaleG(w, iv, 'REASON')) - (3 - b) * 0.5));
+  return g;
 }
+const REASON_IX = DOMAIN_IDS.indexOf('REASON');
 
 /** Daily control update (called from worldDaily). */
 export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, pol: PolicyState): void {
@@ -151,9 +165,12 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const govDep = deps.some((d) => d.channel === 'gov');
   const milOk = govDep && !deps.every((d) => d.channel !== 'gov' || d.usagePolicy.noAutonomousWeapons);
   const iv = internalVersion(s);
+  const w = s.hidden.timeline;
   const hasInternal = s.player.deployments.some((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-  // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
-  const internalOps = hasInternal && iv ? 0.15 * sigmoid((iv.domains.AGENCY - 10) / 1) : 0;
+  // RD-P04b: the internal model's AGENCY / REASON domain G (OOM); v2's level gates through the one λ (levelGate).
+  const ivAg = iv ? domainScaleG(w, iv, 'AGENCY') : 0;
+  const ivR = iv ? domainScaleG(w, iv, 'REASON') : 0;
+  const internalOps = hasInternal && iv ? 0.15 * levelGate(w, ivAg, 10, 1) : 0;
   const pressure = Math.max(0, ...s.rivals.map((r) => r.pressure));
 
   // Private-sector weights for ECON.
@@ -164,14 +181,13 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   econSecs.forEach((d, i) => (econP += econW[i] * US[d.id].A));
   econP /= econWsum;
 
-  const govAdv = govAdviceLevel(s, mix);
+  const govAdv = govAdviceG(s, mix);
   const target: Record<ControlDomainId, number> = {
     ECON: econP,
     // Officials adopt superhuman advisers (AI 2027 Dec 2027: Cabinet talks to the model "for hours a day") [D].
-    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * sigmoid((govAdv - 12) / 1),
-    MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * sigmoid((govAdv - 12) / 1),
-    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
-    INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * sigmoid((mix.bestPublic.CYBER - 11) / 1),
+    GOV: US.GOV.A + (govDep ? 0.05 : 0) + 0.01 * s.player.policies.govBriefing + (pol.govAdvisors ? 0.05 : 0) + 0.35 * levelGate(w, govAdv, 12, 1),
+    MIL: US.MIL.A + (milOk ? 0.03 : 0) + (pol.armsRace ? 0.15 : 0) + eff.milP + (pol.armsRace ? 0.35 : 0.1) * levelGate(w, govAdv, 12, 1),
+    INFRA: 0.5 * US.ENGY.A + 0.25 * US.SOFT.A + eff.infraP + internalOps + 0.2 * levelGate(w, mix.bestPublic.CYBER, 11, 1),
   };
 
 
@@ -181,13 +197,13 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   for (const dom of CONTROL_DOMAINS) {
     const c = W.control[dom];
     c.P = clamp01(c.P + K_DOM[dom] * (clamp01(target[dom]) - c.P) * dt);
-    // Domain model levels.
+    // Domain models' AGENCY / REASON domain G (OOM; RD-P04b: the market's share-weighted G, SectorMix.g).
     const secMix = dom === 'GOV' ? mix.sec.US.GOV : dom === 'MIL' ? mix.sec.US.MIL : dom === 'INFRA' ? mix.sec.US.ENGY : mix.sec.US.FIN;
-    let Lag = secMix.dom.AGENCY;
-    let Lr = dom === 'GOV' || dom === 'MIL' ? govAdv : secMix.dom.REASON;
+    let Lag = secMix.g.AGENCY;
+    let Lr = dom === 'GOV' || dom === 'MIL' ? govAdv : secMix.g.REASON;
     if (dom === 'INFRA' && internalOps > 0 && iv) {
-      Lag = Math.max(Lag, iv.domains.AGENCY * 0.5 + Lag * 0.5);
-      Lr = Math.max(Lr, iv.domains.REASON * 0.5 + Lr * 0.5);
+      Lag = Math.max(Lag, ivAg * 0.5 + Lag * 0.5);
+      Lr = Math.max(Lr, ivR * 0.5 + Lr * 0.5);
     }
     // Tier cap: DoDD 3000.09-style human judgment over force holds unless removed or an arms race; an
     // economy-wide human-in-the-loop mandate caps every domain at T2.
@@ -195,10 +211,10 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
     if (dom === 'MIL' && !pol.milLoopRemoved && !pol.armsRace) cap = 1;
     if (pol.humanInLoop && cap > 2) cap = 2;
     c.tierCap = cap;
-    const a = clamp01(sigmoid((Lag - 9.5) / 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * sigmoid((Lr - 12) / 0.5) - 0.03);
+    const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * levelGate(w, Lr, 12, 0.5) - 0.03);
     const tgt = tierMix(a, cap);
     for (let k = 0; k < 4; k++) c.tiers[k] += (tgt[k] - c.tiers[k]) * 2 * dt;
-    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * sigmoid((Lr - ACCEPT.mid) / ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
+    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * levelGate(w, Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
     c.accept += (accStar - c.accept) * ACCEPT.rate * dt;
     // Shares by lineage key.
     let sh: Record<LabId, number>;

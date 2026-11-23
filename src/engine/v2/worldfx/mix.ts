@@ -19,8 +19,9 @@
 // (k after the buyer's gate) and their price, and the seat price (open weights sell none); prices[] are per adopted
 // task-hour (the hours billed per hour). A4: agent-hours stop at the sector's work demand (worldfx/use.ts agentCeilingOf:
 // adopted + agent hours ≤ E0·2000·(1 + η·CR), their spend ≤ that × the wage); agentK is after the ceiling.
-// Display levels (the share-weighted domain vector `dom`, Le_d = min(L_d, L_AGENCY + 2)) still feed substitution α, the
-// integration boost, control and the tech tree, as in v2.
+// RD-P04: capability reaches the world by one path: each model's domain G (OOM, models/capability.ts domainScaleG; the
+// player's products with the settings ΔG their offer has). SectorMix.g (share-weighted), the consumer SOCIAL G and
+// bestPublic (max) are what α, the PHYS gate, control and the tech tree read; no display levels here.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
@@ -32,7 +33,6 @@ import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
 import { surplusChoice, type Choice, type Tier } from './choice';
 import { techRamp } from './policy';
-import { productDomains } from '../models/products';
 import { domainScaleG, gOfLevel, levelGate, oomPerLevel } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
@@ -53,10 +53,8 @@ export const SECTOR_CHANNELS: Deployment['channel'][] = ['api', 'agents', 'enter
 const ND = DOMAIN_IDS.length;
 const I = Object.fromEntries(DOMAIN_IDS.map((d, i) => [d, i])) as Record<DomainId, number>;
 const PHYS = I.PHYS;
-const AGENCY = I.AGENCY;
-const COG_IDX = DOMAIN_IDS.map((_, i) => i).filter((i) => i !== PHYS);
 
-/** Precomputed sector task vectors: cognitive (domain index, weight) pairs and the PHYS weight (display levels). */
+/** Precomputed sector task vectors: cognitive (domain index, weight) pairs and the PHYS weight (the PHYS gate). */
 export const SECTOR_TASKS = SECTORS.map((def) => {
   const idx: number[] = [];
   const w: number[] = [];
@@ -73,8 +71,6 @@ export interface Provider {
   lab: LabId;
   paid: boolean; // earns player revenue
   open: boolean;
-  /** Model domain levels (non-player providers, and the player's open release). */
-  dom?: Record<DomainId, number>;
   /** The model (non-player providers): fit reads its G, cost its FLOP per token. */
   model?: SimpleModel | ModelVersion;
   fpt?: number;
@@ -92,9 +88,6 @@ export interface SectorMix {
   /** Customer stock shares by provider index (what the sector uses today), and the logit target they move toward. */
   share: number[];
   target: number[];
-  /** Provider display sector levels (v2's Le_X,s), by provider index; −Infinity = not serving. */
-  level: number[];
-  best: number;
   /** Per provider: fit (OOM), coverage of the sector's cognitive work, price per adopted task-hour ($, value-capped). */
   fit: number[];
   cover: number[];
@@ -109,8 +102,6 @@ export interface SectorMix {
   /** A4: the demand ceiling on AI work here (use.ts agentCeilingOf). agentK is after it: every provider's agent-hours
    *  × agentCeiling.fill. */
   agentCeiling: AgentCeiling;
-  /** Share-weighted effective domain levels (the world model m*). */
-  dom: Record<DomainId, number>;
   /** RD-P04a: the market's share-weighted domain G on the general λ scale (OOM; models/capability.ts domainScaleG: each
    *  model's domain G, the player's products with their settings ΔG as in the offer); PHYS robot-bound. What α, the
    *  Bass q and the PHYS gate read. */
@@ -142,7 +133,10 @@ export interface SectorMix {
 export type TierKind = 'model' | 'mini' | 'student';
 
 export interface ConsumerMix {
-  share: number[]; target: number[]; level: number[]; socials: number[]; best: number; social: number;
+  share: number[]; target: number[];
+  /** RD-P04b: per provider its consumer model's SOCIAL domain G (OOM, general λ scale), and the users' share-weighted
+   *  SOCIAL G (what the AI-friend share and persuasion read). */
+  socialGs: number[]; socialG: number;
   /** Per provider: consumer-chat fit (its consumer model: what subscribers get), coverage and subscription price
    *  ($/month); A7: the consumer-chat fit of its free tier (what users choose on). */
   fit: number[]; freeFit: number[]; cover: number[]; prices: number[];
@@ -162,7 +156,9 @@ export interface WorldMix {
   /** A8: per region and provider index, the share of sector buyers who buy from the provider at all (its reach, a
    *  stock: fx.secReach) and the target it moves toward (MULTI_HOMING). */
   reach: Record<RegionId, { stock: number[]; target: number[] }>;
-  /** Best public general level and domain levels (max over providers' raw model levels). */
+  /** RD-P04b: best public domain G (OOM, general λ scale: max over the player's paid products with their settings ΔG and
+   *  the other providers' models); the tech gates, science rate, control and macro read it. bestPublicLg: the best
+   *  public general level λ(G) (the hype term). */
   bestPublic: Record<DomainId, number>;
   bestPublicLg: number;
   /** The player's offer per sector (its best product's). */
@@ -172,14 +168,6 @@ export interface WorldMix {
   offerBy: Map<string, Offer>;
   /** TIERS: every player sector product's lineup per sector (same key; productLineup order), valid as offerBy. */
   lineupBy: Map<string, Offer[]>;
-}
-
-/** Domain level adjustment of a deployment for the display mix: effort, safeguards, control layer [D]. */
-function depOffset(d: Deployment): number {
-  let o = d.effort === 'low' ? -0.4 : d.effort === 'deep' ? 0.3 : 0;
-  o += d.safeguards === 'hardened' ? -0.2 : d.safeguards === 'classifiers' ? -0.05 : 0;
-  if (d.controlLayer) o -= 0.1;
-  return o;
 }
 
 /** Appeal of a version's character training for consumers (§3.11.3 "appeal (pref option)"): the version's own
@@ -206,15 +194,6 @@ function filled(n: number, x: number): number[] {
 /** Domain vector (DOMAIN_IDS order) → record, as a fixed-shape literal (fast property access). */
 function domRecord(v: ArrayLike<number>): Record<DomainId, number> {
   return { CODE: v[I.CODE], RSCH: v[I.RSCH], REASON: v[I.REASON], AGENCY: v[I.AGENCY], SOCIAL: v[I.SOCIAL], MEDIA: v[I.MEDIA], CYBER: v[I.CYBER], BIO: v[I.BIO], PHYS: v[I.PHYS] };
-}
-
-/** Horizon-capped domain vector (Le for cognitive domains; raw PHYS). */
-function capVec(dom: Record<DomainId, number>, offset = 0): number[] {
-  const v = new Array<number>(ND);
-  for (let i = 0; i < ND; i++) v[i] = Math.max(0, dom[DOMAIN_IDS[i]] + offset);
-  const cap = v[AGENCY] + 2;
-  for (const i of COG_IDX) if (v[i] > cap) v[i] = cap;
-  return v;
 }
 
 function access(p: Provider, r: RegionId): number {
@@ -340,15 +319,15 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
       const v = ver.get(d.versionId);
       if (v && (!best || v.Lg > best.Lg)) best = v;
     }
-    if (best) providers.push({ key: 'player:open', lab: 'player', paid: false, open: true, dom: best.domains, model: best, fpt: best.fpt, brand: 1, appeal: 1, markup: OPEN_MARKUP, ud: decodeUtilNow(s) });
+    if (best) providers.push({ key: 'player:open', lab: 'player', paid: false, open: true, model: best, fpt: best.fpt, brand: 1, appeal: 1, markup: OPEN_MARKUP, ud: decodeUtilNow(s) });
   }
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -359,16 +338,18 @@ const versionMap = (s: GameStateV2) => {
   return ver;
 };
 
-/** Best public domain levels (max over the player's paid products, with their effort/safeguard offsets, and the other
- *  providers' models). */
-function bestPublicFrom(cands: readonly { dep: Deployment; dom: Record<DomainId, number> }[], providers: readonly Provider[]): Record<DomainId, number> {
-  const bestPublic = domRecord(new Float64Array(ND));
-  for (const c of cands) for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], c.dom[k] + depOffset(c.dep));
-  for (const p of providers) {
-    if (!p.dom) continue;
-    for (const k of DOMAIN_IDS) bestPublic[k] = Math.max(bestPublic[k], p.dom[k]);
-  }
-  return bestPublic;
+/** RD-P04: a model's domain G vector (DOMAIN_IDS order; OOM on the general λ scale) plus a ΔG (a product's settings). */
+const gvecOf = (s: GameStateV2, m: Pick<ModelVersion, 'G' | 'build'>, dG = 0) => DOMAIN_IDS.map((d) => domainScaleG(s.hidden.timeline, m, d) + dG);
+/** RD-P04: a player product's domain G vector: its model's, plus the settings ΔG its offer has (safeguards, control layer,
+ *  effort; worldfx/serving.ts settingsDG / effortDG, as in productOffer). */
+export const productGVec = (s: GameStateV2, d: Deployment, mv: Pick<ModelVersion, 'G' | 'build'>) => gvecOf(s, mv, settingsDG(d) + effortDG(effortTokens(d.effort)));
+
+/** Best public domain G (max over the player's paid products and the other providers' models; floor λ⁻¹(0), v2's L 0). */
+function bestPublicFrom(s: GameStateV2, cands: readonly { g: number[] }[], pg: readonly (number[] | undefined)[]): Record<DomainId, number> {
+  const v = filled(ND, gOfLevel(s.hidden.timeline, 0));
+  for (const c of cands) for (let k = 0; k < ND; k++) v[k] = Math.max(v[k], c.g[k]);
+  for (const g of pg) if (g) for (let k = 0; k < ND; k++) v[k] = Math.max(v[k], g[k]);
+  return domRecord(v);
 }
 
 /** P2: the world mix's bestPublic alone (the same values), for readers that need nothing else (macro's automation
@@ -376,12 +357,12 @@ function bestPublicFrom(cands: readonly { dep: Deployment; dom: Record<DomainId,
 export function bestPublicOf(s: GameStateV2): Record<DomainId, number> {
   const paid = paidDeployments(s);
   const ver = versionMap(s);
-  const cands: { dep: Deployment; dom: Record<DomainId, number> }[] = [];
+  const cands: { g: number[] }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
-    if (mv) cands.push({ dep: d, dom: productDomains(s, d, mv)! });
+    if (mv) cands.push({ g: productGVec(s, d, mv) });
   }
-  return bestPublicFrom(cands, providersOf(s, paid, ver));
+  return bestPublicFrom(s, cands, providersOf(s, paid, ver).map((p) => (p.model ? gvecOf(s, p.model) : undefined)));
 }
 
 function computeMix(s: GameStateV2): WorldMix {
@@ -398,20 +379,16 @@ function computeMix(s: GameStateV2): WorldMix {
   const brandPow = providers.map((p, i) => p.brand * (i === playerIdx ? 1 - pen.sector : 1));
   const rate = serveDollarsPerHour(s);
 
-  // Capped domain vectors (display): non-player providers, and player candidate deployments.
-  const pvec: (number[] | undefined)[] = providers.map((p) => (p.dom ? capVec(p.dom) : undefined));
-  // RD-P04a: domain G vectors (OOM, general λ scale) from the same model the offer reads; the player's products add their
-  // settings ΔG (safeguards, control layer, effort: worldfx/serving.ts settingsDG / effortDG, as in productOffer).
+  // RD-P04: domain G vectors (OOM, general λ scale) from the same model the offer reads: other providers', and the
+  // player's candidate products with their settings ΔG (productGVec).
   const w = s.hidden.timeline;
-  const gvecOf = (m: Pick<ModelVersion, 'G' | 'build'>, dG = 0) => DOMAIN_IDS.map((d) => domainScaleG(w, m, d) + dG);
-  const pg: (number[] | undefined)[] = providers.map((p) => (p.model ? gvecOf(p.model) : undefined));
-  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
+  const pg: (number[] | undefined)[] = providers.map((p) => (p.model ? gvecOf(s, p.model) : undefined));
+  const cands: { dep: Deployment; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
     if (!mv) continue;
-    const dom = productDomains(s, d, mv)!;
     const tiers = productTierUses(s, d);
-    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), g: gvecOf(mv, settingsDG(d) + effortDG(effortTokens(d.effort))), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
+    cands.push({ dep: d, g: productGVec(s, d, mv), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
   }
   // A8 multi-homing: in a sector's choice each provider is in a buyer's set with probability R (its reach: a stock in
   // fx.secReach, ≤ its access). Start (and a provider with no stock yet): access × min(1, MULTI_HOMING.providers ÷ the
@@ -426,17 +403,16 @@ function computeMix(s: GameStateV2): WorldMix {
     return providers.map((p, i) => (!sells[i] ? 0 : p.open ? row[i] : Math.min(row[i], st?.[p.key] ?? row[i] * q)));
   });
 
-  const bestPublic = bestPublicFrom(cands, providers);
+  const bestPublic = bestPublicFrom(s, cands, pg);
   let bestPublicLg = 0;
   for (const c of cands) bestPublicLg = Math.max(bestPublicLg, ver.get(c.dep.versionId)!.Lg);
   for (const r of [...s.rivals, s.china.lab]) if (r.publicModel) bestPublicLg = Math.max(bestPublicLg, r.publicModel.Lg);
 
-  // Per sector (region-independent): each provider's offer (fit, coverage, price before the value cap) and display
-  // level; the player's best product by offer utility.
+  // Per sector (region-independent): each provider's offer (fit, coverage, price before the value cap); the player's best
+  // product by offer utility.
   const S = SECTOR_TASKS.length;
   const B = MARKET_BANDS;
   const offers: (Offer | undefined)[][] = [];
-  const cogL: number[][] = [];
   const pCand: number[] = [];
   const playerOffers: Partial<Record<SectorId, Offer>> = {};
   const offerBy = new Map<string, Offer>();
@@ -450,17 +426,10 @@ function computeMix(s: GameStateV2): WorldMix {
   for (let si = 0; si < S; si++) {
     const t = SECTOR_TASKS[si];
     const row: (Offer | undefined)[] = new Array(n);
-    const lrow = filled(n, -Infinity);
     const lines: Offer[][] = [];
     const kind: TierKind[][] = [];
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      const v = pvec[i];
-      if (v) {
-        let L = 0;
-        for (let k = 0; k < t.idx.length; k++) L += t.w[k] * v[t.idx[k]];
-        lrow[i] = L;
-      }
       if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
@@ -490,12 +459,6 @@ function computeMix(s: GameStateV2): WorldMix {
           playerOffers[t.id] = o;
         }
       }
-      if (bc >= 0) {
-        const cd = cands[bc];
-        let L = 0;
-        for (let k = 0; k < t.idx.length; k++) L += t.w[k] * cd.v[t.idx[k]];
-        lrow[playerIdx] = L;
-      }
     }
     // TIERS / RD-P02: the other providers' lineups, lab state (RivalLab.lineup: their earlier public models and the
     // students their distill step made), each real model at its own fit and serving cost and the lab's markup (the
@@ -511,7 +474,6 @@ function computeMix(s: GameStateV2): WorldMix {
     let aTop = 0;
     for (const L of lines) for (const o of L) if (o.a > aTop) aTop = o.a;
     offers.push(row);
-    cogL.push(lrow);
     pCand.push(bc);
     lineOff.push(lines);
     kinds.push(kind);
@@ -545,9 +507,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const closed = reachTargets(lw, acc[ri], MULTI_HOMING.providers);
     reach[r] = { stock: accSec[ri], target: closed.map((x, i) => (providers[i].open && sells[i] ? acc[ri][i] : x)) };
   });
-  // Display vectors per sector (the player's is its best candidate's).
-  const vecs: (number[] | undefined)[][] = [];
-  for (let si = 0; si < S; si++) vecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.v : pvec[i])));
+  // Domain G vectors per sector (the player's is its best candidate's).
   const gvecs: (number[] | undefined)[][] = [];
   for (let si = 0; si < S; si++) gvecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.g : pg[i])));
   // RD-P04a: the PHYS gate on domain G (OOM): v2's robot-bound PHYS level (floor 10·W16 ramp, +3·W19 on LOG, cap
@@ -571,10 +531,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const agentK = filled(n, 0);
       const agentPrices = filled(n, 0);
       const seatPrices = filled(n, 0);
-      const level = filled(n, -Infinity);
-      const physLe = filled(n, 0);
       const physG = filled(n, 0);
-      const vs = vecs[si];
       const gs = gvecs[si];
       const physCapG = gOfLevel(w, physCap);
       // A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts), on value-capped tier prices.
@@ -635,11 +592,6 @@ function computeMix(s: GameStateV2): WorldMix {
         agentK[i] = ag.k;
         agentPrices[i] = ag.price;
         seatPrices[i] = providers[i].open ? 0 : seat;
-        const v = vs[i];
-        if (v) {
-          physLe[i] = Math.min(Math.max(v[PHYS], pfFloor) + (t.id === 'LOG' ? pfLog : 0), physCap);
-          level[i] = cogL[si][i] + t.physW * physLe[i];
-        }
         const gv = gs[i];
         if (gv) physG[i] = Math.min(Math.max(gv[PHYS], pfFloorG) + (t.id === 'LOG' ? pfLogG : 0), physCapG);
       }
@@ -670,9 +622,6 @@ function computeMix(s: GameStateV2): WorldMix {
         }
       }
       const share = stockShares(s, providers, r, t.id, target);
-      let best = -Infinity;
-      for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && level[i] > best) best = level[i];
-      const dv = filled(ND, 0);
       const gw = filled(ND, 0);
       let gsum = 0;
       let px = 0;
@@ -699,8 +648,6 @@ function computeMix(s: GameStateV2): WorldMix {
           kb += kk * (agentPrices[i] + wage / Math.max(1e-9, oi.lam));
         }
         wsum += x;
-        const v = vs[i];
-        if (v) for (let k = 0; k < ND; k++) dv[k] += x * (k === PHYS ? physLe[i] : v[k]);
         const gv = gs[i];
         if (gv) {
           for (let k = 0; k < ND; k++) gw[k] += x * (k === PHYS ? physG[i] : gv[k]);
@@ -719,7 +666,6 @@ function computeMix(s: GameStateV2): WorldMix {
         K += x / (1 + Math.pow(Math.max(1e-9, bc) / wage, invK));
       }
       if (wsum > 0 && Math.abs(wsum - 1) > 1e-9) {
-        for (let k = 0; k < ND; k++) dv[k] /= wsum;
         px /= wsum;
         pc /= wsum;
         aCog /= wsum;
@@ -738,7 +684,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const agentCeiling = agentCeilingOf(SECTORS[si], st.E0 * ECON.hours, wage, wh.adopted, wh.adopted * price, pCost, wh.supervising * kw, wh.supervising * kp, kw > 0 ? kb / kw : wage);
       if (agentCeiling.fill < 1) for (let i = 0; i < n; i++) agentK[i] *= agentCeiling.fill;
       rowOut[t.id] = {
-        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, agentCeiling, dom: domRecord(dv), g: domRecord(gw),
+        share, target, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, agentCeiling, g: domRecord(gw),
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
@@ -755,17 +701,13 @@ function computeMix(s: GameStateV2): WorldMix {
   const cFree = filled(n, -Infinity);
   const cCover = filled(n, 0);
   const cPrice = filled(n, 0);
-  const cLevel = filled(n, -Infinity);
-  const cSocial = filled(n, 0);
+  const cSocial = filled(n, gOfLevel(w, 0));
   const cApp = providers.map((p) => p.appeal);
   let cDep: string | undefined;
   for (let i = 0; i < n; i++) {
     const p = providers[i];
-    const v = pvec[i];
-    if (v) {
-      cLevel[i] = (v[I.SOCIAL] + v[I.REASON] + v[I.MEDIA]) / 3;
-      cSocial[i] = v[I.SOCIAL];
-    }
+    const g = pg[i];
+    if (g) cSocial[i] = g[I.SOCIAL];
     if (!p.model) continue;
     const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud });
     cFit[i] = o.fit;
@@ -793,8 +735,7 @@ function computeMix(s: GameStateV2): WorldMix {
         cPrice[playerIdx] = price;
         cDep = c.dep.id;
         cApp[playerIdx] = appealOf(ver.get(c.dep.versionId)) * (1 + enablerShare(c.fx, 'CHAT'));
-        cLevel[playerIdx] = (c.v[I.SOCIAL] + c.v[I.REASON] + c.v[I.MEDIA]) / 3;
-        cSocial[playerIdx] = c.v[I.SOCIAL];
+        cSocial[playerIdx] = c.g[I.SOCIAL];
       }
     }
   }
@@ -807,12 +748,8 @@ function computeMix(s: GameStateV2): WorldMix {
     // they choose on is the free tier's, the offer they get (each lab's cheapest real model; RD-P02).
     const target = logit(cFree, cOnes, acc[ri], cBrand);
     const share = stockShares(s, providers, r, 'consumer', target);
-    let best = -Infinity;
     let bestCover = 0;
-    for (let i = 0; i < n; i++) if (acc[ri][i] > 0) {
-      if (cLevel[i] > best) best = cLevel[i];
-      if (cCover[i] > bestCover) bestCover = cCover[i];
-    }
+    for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && cCover[i] > bestCover) bestCover = cCover[i];
     let soc = 0;
     let px = 0;
     for (let i = 0; i < n; i++) {
@@ -834,7 +771,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const pst = s.world.fx.paid?.[r];
     const paid = providers.map((p, i) => pst?.[p.key] ?? paidTarget[i]);
     consumer[r] = {
-      share, target, level: cLevel, socials: cSocial, best: best === -Infinity ? 0 : best, social: soc, fit: cFit, freeFit: cFree, cover: cCover, prices: cPrice, bestCover, paid, paidTarget, going,
+      share, target, socialGs: cSocial, socialG: soc, fit: cFit, freeFit: cFree, cover: cCover, prices: cPrice, bestCover, paid, paidTarget, going,
       ...(cDep ? { playerDep: cDep } : {}), playerPrice: pp, priceFactor: pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
     };
   });

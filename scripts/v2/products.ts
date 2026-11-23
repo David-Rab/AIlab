@@ -1,6 +1,6 @@
 // Products and live edit (BUILD-PLAN R6; STRUCTURE §1 R4, §4.4; decisions D5, D7). Owner: WS1.
 //   P1  products at the leader start: kind, standard tier, no features/mini/monitor; policies; sector packs built (D5)
-//   P2  neutral package: productDomains is the model's own record; capacity rate has no monitor/mini term
+//   P2  neutral package: a product's domain G is its model's plus its settings ΔG (RD-P04b productGVec); capacity rate has no monitor/mini term
 //   P3  live edit: product.update (price, model, monitor) keeps the product live (same id, start day); the before →
 //       after preview equals what the next tick computes; changes apply at the next tick (D7)
 //   P4  D7 monitor overhead = 0.25 × serve ratio (mini on its full model 6.25%); catch rate falls with the gap
@@ -16,14 +16,17 @@
 import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
-import { enablerShare, fxOn } from '../../src/engine/v2/worldfx/serving';
+import { effortDG, effortTokens, enablerShare, fxOn, settingsDG } from '../../src/engine/v2/worldfx/serving';
+import { productGVec } from '../../src/engine/v2/worldfx/mix';
+import { domainScaleGs } from '../../src/engine/v2/models/capability';
+import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { featureView } from '../../src/engine/v2/worldfx/productView';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { previewEdit } from '../../src/engine/v2/models/productOps';
-import { agentsGate, catchRate, monitorOverhead, productDomains, sectorCertDay } from '../../src/engine/v2/models/products';
+import { agentsGate, catchRate, monitorOverhead, sectorCertDay } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
 import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
@@ -65,7 +68,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && !pol.autoSplit.on, 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; Auto-split idle compute off');
   check(s.player.features.join() === 'sectorPacks', 'P1 D5: the leader start has sector packs built (the ×1 baseline)', s.player.features.join());
   const v0 = s.player.models.versions[0];
-  check(ext.every((d) => productDomains(s, d) === v0.domains), 'P2 a plain product uses its model\'s own domain record (neutral)');
+  const g0 = domainScaleGs(s.hidden.timeline, v0);
+  check(ext.every((d) => productGVec(s, d, v0).every((x, i) => Math.abs(x - g0[DOMAIN_IDS[i]] - settingsDG(d) - effortDG(effortTokens(d.effort))) < 1e-12)), 'P2 a plain product\'s domain G is its model\'s plus its settings ΔG (neutral)');
   check(ext.every((d) => monitorOverhead(s, d) === 0), 'P2 no monitor, no overhead');
 }
 
