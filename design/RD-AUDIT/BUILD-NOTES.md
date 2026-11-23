@@ -2553,3 +2553,52 @@ Cause-aware responses; disclosure is a separate policy (SAFETY-REDESIGN §3.7; O
   with the method policy on) and their patches apply only to signal traits; must-report incidents are now disclosed by
   default (scrutiny up, statutory fines down); fixes no longer turn timed incidents into quiet cover-ups (they leak at
   ×1.5 unless disclosed).
+
+### SR-19
+Safety framework replaces the eval gate and the E17 "Red flags" event (SAFETY-REDESIGN §3.8, OD-5).
+- **Done.** `SafetyDept.framework` (types `SafetyFramework`, `FrameworkRule`, `FrameworkOverride`, `FrameworkHold`):
+  capability assessment (`evalDepth` none / basic / full / deep, `externalReview`) = the base rule every external release
+  needs (the old gate's job); rules with a trigger on a MEASURED domain level (`measuredDomain`, the benchmark fit) or on
+  beliefs (red-flag traits' est / clarity, internal model), required safeguards (classifiers / hardened on the product;
+  control / review on live internal deployments for training rules) and evidence (suite, external evaluation).
+  `safety/framework.ts`: `deployHolds`, `frameworkDeployBlock` (deployGate, launch and swap; GateOpts gains `guards`),
+  `trainingHolds`, `refreshFramework` (new `frameworkSystem`, order 39, before runs): sets `Deployment.held` on live external
+  products (productUsageMult → 0: they serve nobody), pauses running base / post runs, logs new and released holds;
+  `frontierPaused` and workfit's frontier experiments also read `trainingHeld`. `overrideRule` (per rule and version):
+  safety morale −5, one red flag (whistleblower odds), scrutiny +3, credibility −5 only if published (= the framework
+  commitment is live); the consequences are stated in the preview and stored on the override. `editRule`: threshold
+  within ±2 L (beliefs ±20 pts) of the default, safeguards / evidence only added. Actions `safety.frameworkEvals`,
+  `safety.frameworkRule`, `safety.frameworkOverride`. Default rules (data/v2/framework.ts): Bio High / Cyber High ≥ 10 →
+  classifiers + suite (launches); Bio / Cyber Critical ≥ 12 → hardened + external (launches); AI R&D (RSCH) Critical ≥ 12
+  → control + review + external (training); Misalignment signs (est > 30%, clarity > 0.4) → control (training).
+- **Deleted.** `SafetyDept.evalGate`, action `safety.evalGate`, event E17 and its helpers (frontierRunsGo,
+  controlLayerGo, pledgeBreakLines), refDecide / mixed E17 branches, glossary `evalGate` (→ `safetyFramework`),
+  DecisionModal E17 hint. ws4.frontierPauseUntil stays for the pauseIfRedline pledge.
+- **Edits.** types, data/v2/framework.ts, safety/framework.ts, models/deployments.ts (externallyEvaluated re-exported from
+  framework), models/evals.ts (gateDepth / policyDepth / evalDaysFor read the framework depth), models/runs.ts,
+  departments/workfit.ts, safety/{actions, agendas, traits, view, safeguards, common}.ts, actors/index.ts (Index reads
+  externalReview), models/actions.ts (external-eval preview line), events/catalog/safety.ts, core/{registry, save}.ts,
+  bots (common `answerFramework`: ref / race / capex override training holds = old E17 Continue; safe / mixed add control
+  where the rule asks for it, else the hold stands = old Continue + control / Pause), UI Safety › Policies row
+  (framework summary tooltip, depth / external toggles, one row per hold with an override button), Evals policy card,
+  RiskSources, scripts (evals, lint-tradeoffs, lint-ux, safety-emu, ws4, hygiene pins 80, _sr17 pin ≥ 79).
+- **Sources.** OpenAI Preparedness Framework v2 (15 Apr 2025: High → safeguards before deployment, Critical →
+  safeguards during development); Anthropic RSP v2.2 (2025: CBRN-3/4, AI R&D-4/5, ASL-3 standard, pause if the standard
+  cannot be met); Google DeepMind Frontier Safety Framework v3.0 (Sep 2025: CCLs incl. cyber, ML R&D, misalignment). The
+  levels and override costs are [D].
+- **Save.** SCHEMA_REV 80; migration 79 → 80: evalGate none / basic / full / fullPlusExternal → depth none / basic / full /
+  deep (+ external review), default rules, empty holds; evalGate deleted.
+- **Check.** `npx tsx scripts/v2/_sr19/check.ts`: 12 ok (migration; no eval-gate action or E17; measured CYBER 10.5 with
+  standard safeguards → launch held, classifiers → not held; live product held, usage 0; product.update to classifiers
+  releases it; override preview states morale / red flag / scrutiny and what it releases; override releases, records
+  three consequence lines, applies morale 65 → 60, scrutiny +3, red flag +1; AI R&D Critical without control holds
+  training). tsc (app, scripts/v2) clean; npm run build passes.
+- **Left.** No internal-deployment holds (GDM's "large-scale internal deployment" rule); no case evidence ("alignment
+  audit passed"); pledges (monitorability, pause) not yet folded into rules; publishing is still the separate BIO ≥ 10
+  commitment; the story beat when a rule first fires on hidden-goal evidence (§3.8) not written; editor UI (SR-28);
+  default safeguard packages / trusted rule (SR-20); bots do not add classifier safeguards when a launch is held;
+  MOOD_BASE.pause now has no reader; GLOSSARY.md not regenerated; scratch `scripts/v2/_sr19/*.cjs, *.txt` untracked.
+- Moves calibration: yes (S4/S5, relations, products): E17's pause / control / continue are gone; RefBot / race / capex
+  now pay override costs (morale, scrutiny, red flags) each time a training rule fires; mixed / safe keep frontier
+  training paused while a misalignment or AI R&D rule lacks more than control; products of models measured ≥ 10 in BIO
+  or CYBER on standard safeguards, and ≥ 12 without hardened safeguards and an external evaluation, stop serving.
