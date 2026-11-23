@@ -52,7 +52,7 @@ import { TREE_BY_ID } from '../../../data/v2/tree';
  *  delay, kept as the bot's habit; the player can reopen at once). */
 const REF_RETRY_DAYS = 180;
 import { COLUMN_DEPT } from '../../../data/v2/teams';
-import { sizedTarget, staffLines, type LinePlan } from './common';
+import { answerFramework, sizedTarget, staffLines, type LinePlan } from './common';
 import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
@@ -693,10 +693,10 @@ export function choiceByLabel(d: PendingDecision, label: string): number {
   return i >= 0 ? i : (def?.defaultChoice ?? 0);
 }
 
-/** RefBot's decisions (§7.4): E17 Continue, E20 Accept, E23 Reject; everything else takes the event's default. (The
+/** RefBot's decisions (§7.4): E20 Accept, E23 Reject (E17 Continue is now an override of the framework's training
+ *  holds, answerFramework); everything else takes the event's default. (The
  *  board is handled by the finance autopilot: FIN3b dropped E37 for the critics' seat action.) */
 export function refDecide(_s: GameStateV2, d: PendingDecision): number {
-  if (d.id === 'E17') return choiceByLabel(d, 'Continue');
   if (d.id === 'E20') return choiceByLabel(d, 'Accept');
   if (d.id === 'E23') return choiceByLabel(d, 'Reject');
   return EVENT_BY_ID.get(d.id)?.defaultChoice ?? 0;
@@ -759,6 +759,7 @@ export const REF_PLAY: RefPlayOpts = { safetyShare: refSafetyShare };
 export function refAct(s: GameStateV2, api: EngineApi, o: RefPlayOpts = REF_PLAY, lines: LinePlan[] = REF_LINES, sciTeams = REF_SAFETY_SCI_TEAMS): void {
   if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, sciTeams) });
   staffLines(s, api, lines);
+  answerFramework(s, api, 'override');
   refTrusted(s, api);
   refFootholds(s, api);
   refPlay(s, api, o);

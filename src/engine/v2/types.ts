@@ -598,6 +598,8 @@ export interface Deployment {
   monitorId?: string;
   channel: Channel;
   startDay: Day;
+  /** SR-19: the Safety framework hold stopping this deployment today (usage 0 while set; refreshed daily). */
+  held?: string;
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
   /** Price tier (R6); priceIndex is kept equal to its index. */
@@ -868,6 +870,39 @@ export interface ProductionReadout {
 
 // ───────────────────────────── Safety (§3.5) ─────────────────────────────
 
+/** SR-19: what a framework rule requires before the thing it holds may go ahead. Safeguards: on the deployment
+ *  ('classifiers' = classifier or hardened misuse safeguards, 'hardened'), or on the lab's live internal deployments for
+ *  a training hold ('control' = control protocol, 'review' = human review). Evidence: 'suite' (an eval suite read the
+ *  version), 'external' (external evaluators read it). */
+export type FrameworkSafeguard = 'classifiers' | 'hardened' | 'control' | 'review';
+export type FrameworkEvidence = 'suite' | 'external';
+/** SR-19: a framework rule. Trigger on a MEASURED domain level (the benchmark fit, RD-M01) or on a believed trait
+ *  (estimate and clarity of the player's own beliefs, never truth). `holds`: external deployments of the version, or the
+ *  lab's frontier training (base / post runs and frontier experiments). */
+export interface FrameworkRule {
+  id: string;
+  label: string;
+  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number; clarity: number };
+  holds: 'deploy' | 'training';
+  safeguards: FrameworkSafeguard[];
+  evidence: FrameworkEvidence[];
+  /** Source of the default rule (primary framework documents). */
+  src: string;
+}
+/** SR-19: an explicit override of a rule for one version, with the consequences that were stated and applied. */
+export interface FrameworkOverride { ruleId: string; versionId: string; day: Day; consequences: string[] }
+/** SR-19: a hold in force today (refreshed daily; a deploy hold names the live deployment it stops). */
+export interface FrameworkHold { ruleId: string; versionId: string; target: 'deploy' | 'training'; depId?: string; missing: string[]; since: Day }
+export interface SafetyFramework {
+  /** Capability assessment every version needs before an external release: the suite depth ('none' = no release suite)
+   *  and whether external evaluators must have read it. */
+  evalDepth: EvalDepth | 'none';
+  externalReview: boolean;
+  rules: FrameworkRule[];
+  overrides: FrameworkOverride[];
+  holds: FrameworkHold[];
+}
+
 export interface SafetyDept {
   agendas: Record<AgendaId, AgendaState>;
   techniques: Record<TechniqueId, TechniqueState>;
@@ -875,8 +910,9 @@ export interface SafetyDept {
   investigations: Investigation[];
   incidents: Incident[];
   discoveredUModes: UModeId[]; // known to the player (cards visible)
-  /** Pre-deployment eval gate level: what runs before any external deployment. */
-  evalGate: 'none' | 'basic' | 'full' | 'fullPlusExternal';
+  /** SR-19: the lab's Safety framework (its own rules: capability thresholds on measured levels, required safeguards and
+   *  evidence, holds, overrides; safety/framework.ts). Replaces the eval gate. */
+  framework: SafetyFramework;
   monitorabilityCommitment: boolean; // F31 / faithful-CoT pledge
   edgeGrades: Record<string, 'A' | 'B' | 'C' | 'D'>; // player-visible grade, can be raised by AG08 (§3.5.4)
   edgeRevealed: Record<string, boolean>; // true weight revealed for this world

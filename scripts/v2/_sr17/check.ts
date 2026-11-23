@@ -25,7 +25,7 @@ const action = (id: string) => ACTIONS.find((a) => a.id === id)!;
 
 // 1. migration
 let s = load();
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 79 && s.player.safety.disclosure === 'legal' && Array.isArray(s.player.safety.requiredMethods)
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV >= 79 && s.player.safety.disclosure === 'legal' && Array.isArray(s.player.safety.requiredMethods)
   && !s.player.safety.incidents.some((i) => (i.responses as string[]).some((k) => k === 'targetedTraining' || k === 'disclose')), 'save migrates to 79: disclosure legal minimum', `rev ${s.schemaRev}`);
 
 // 2. case job

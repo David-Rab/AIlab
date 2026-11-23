@@ -12,6 +12,8 @@ import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
 import { EDGES } from '../../../data/v2/edges';
 import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team } from '../types';
+import { defaultFramework } from '../../../data/v2/framework';
+import { frameworkOf } from './framework';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
@@ -33,7 +35,7 @@ export function initialSafetyDept(): SafetyDept {
     investigations: [],
     incidents: [],
     discoveredUModes: [],
-    evalGate: 'full',
+    framework: defaultFramework(),
     monitorabilityCommitment: false,
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
@@ -167,7 +169,7 @@ function suiteHook(s: GameStateV2, ctx: SystemCtx) {
     const key = `suite.${v.id}`;
     if (flagNum(s, key, -1e9) >= v.evals.suiteDay) continue;
     setFlag(s, key, v.evals.suiteDay);
-    if (s.player.safety.evalGate === 'none' && v.evals.suiteDay > 0) continue;
+    if (frameworkOf(s).evalDepth === 'none' && v.evals.suiteDay > 0) continue;
     safetyEvalSuite(s, ctx.rng('safety'), ctx.day, v);
   }
 }

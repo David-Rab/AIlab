@@ -1,33 +1,22 @@
-// Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E19, E25, E30). Owner: WS4 (content
+// Event catalog: safety decisions (V2-SPEC §4.2: E01, E19, E25, E30; E17 "Red flags" is gone: the Safety framework holds frontier training, SR-19). Owner: WS4 (content
 // shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / keep it quiet / deny.
 import { addSafeguard } from '../../safety/safeguards';
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
-import { flag, redFlags } from '../../safety/common';
-import { openInvestigation } from '../../safety/investigations';
-import { sightGapBelow, sightLimitPoint } from '../../safety/sightLimit';
-import { internalVersion, measuredLOf } from '../../models/labs';
+import { flag } from '../../safety/common';
+import { internalVersion } from '../../models/labs';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
 import { ALL_PUBLIC_CPS, approval, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
-import { addCoverup, trustDelta } from '../../actors/relations';
+import { addCoverup } from '../../actors/relations';
 import { discoveryOdds } from '../../actors/researchBodies';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
-import { controlReadout } from '../../safety/dangerView';
-import { syncInternalControl } from '../../departments/agents';
 import { whistleOddsYear } from '../../security/security';
-import { L, P, ch, ev, pv, requestOnly } from '../kit';
-import { boardMood, MOOD_BASE, moodWeight } from '../../finance/mood';
+import { L, P, ch, ev, requestOnly } from '../kit';
 
-/** F6c: what "Continue" keeps that the pause stops: the running frontier (base and post) runs, the same filter the pause
- *  choice applies. */
-export function frontierRunsGo(s: GameStateV2) {
-  const n = s.player.models.runs.filter((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post')).length;
-  return L('progress', n, n ? 'frontier runs keep going (no 60-day pause)' : 'no frontier run to pause', { unit: n === 1 ? 'run' : 'runs' });
-}
 /** F6d: what continuing past the flag costs: both "Continue" choices count one red flag (`ws4.redFlags`), which feeds
  *  the whistleblower hazard (security.ts whistleHazard): the odds of a staff leak to the press over a year at today's
  *  morale, before → after. With a whistleblower channel the concern is handled internally instead (no press leak). */
@@ -38,22 +27,6 @@ export function redFlagLine(s: GameStateV2) {
     : `odds of a staff leak to the press ${pct(whistleOddsYear(s))}% → ${pct(whistleOddsYear(s, 1))}% a year`;
   return L('alignment', 1, why, { unit: 'red flag' });
 }
-/** F6d: what breaking a pledge costs, as breakCommitment applies it: its credibility cost, and its trust cost per
- *  audience after the loss asymmetry (trustDelta), as the mean over the audience. */
-function pledgeBreakLines(s: GameStateV2, c: Commitment) {
-  const cps = c.audience.filter((cp) => s.relations.stocks[cp]);
-  const mean = cps.length ? cps.reduce((a, cp) => a + Math.abs(trustDelta(s.relations.stocks[cp].trust, -Math.abs(c.breakCost.trust))), 0) / cps.length : 0;
-  return [
-    L('credibility', Math.abs(c.breakCost.credibility), 'breaks the pause pledge'),
-    ...(mean ? [L('trust', Math.round(mean), `each of ${cps.length} pledge audience${cps.length === 1 ? '' : 's'} (mean)`)] : []),
-  ];
-}
-/** F6d: the internal deployments "Continue + control" puts under the control layer (the choice's own filter). */
-export function controlLayerGo(s: GameStateV2) {
-  const n = s.player.deployments.filter((d) => d.channel === 'internal').length;
-  return L('alignment', n, n ? 'control layer on (monitors and containment on internal AI work)' : 'no internal deployment to put under control', { unit: n === 1 ? 'internal deployment' : 'internal deployments' });
-}
-
 /** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
 function dilemma(what: string, credGain: number, scrut: number) {
   return [
@@ -118,53 +91,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     when: (s) => (hasConfirmed(s) || (s.setup.tutorial && s.time.day >= 45) ? {} : false),
     text: (s) => firstFindingText(s),
     choices: dilemma('a model flaw', 5, 10),
-  }),
-  ev({
-    id: 'E17', title: 'Red flags', icon: 'alert', crisis: true, cooldown: 120, deadlineDays: 14, defaultChoice: 2,
-    onceKey: (d) => String(d.trait), // once per game per red flag (SCHEME, AF, SAND, U-margin): a persistent signal does not refire
-    // §4.2: the internal agent's belief (WS2 posterior) on SCHEME/AF/SAND has est > 0.3 with clarity > 0.4, or the
-    // sight-limit gap (sight limit − measured L) is below −1.
-    when: (s) => {
-      const v = internalVersion(s);
-      if (!v) return false;
-      const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
-      const t = redFlags(v).find((x) => fresh(x.trait));
-      if (t) return { versionId: v.id, trait: t.trait, est: Math.round(t.est * 100) };
-      if (!fresh('U')) return false; // P2: the sight-limit flag only when it can still fire
-      if (!sightGapBelow(s, -1)) return false; // P4: the bisection stops once the answer is decided
-      const margin = Math.round((sightLimitPoint(s) - measuredLOf(s, v).L) * 100) / 100;
-      return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
-    },
-    text: (s, d) => d.trait === 'U'
-      ? `Capability is ${Math.abs(Number(d.est))} levels past your sight limit. Your instruments can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
-      : `Probes suggest ${internalVersion(s)?.name ?? 'your internal model'} may be ${d.trait === 'SCHEME' ? 'scheming' : d.trait === 'AF' ? 'faking alignment' : 'sandbagging'} (estimate ${d.est}%).`,
-    choices: [
-      // F6d: the gains say what the choice does (an investigation of the flagged trait), not a made-up alignment amount.
-      // FIN3a: the board's cost is its mood by seat kind (falling behind).
-      ch('Pause & investigate', ['pause', 'safety', 'investigate'], (s) => pv([L('leadDays', 60, 'frontier runs paused'), L('boardConf', Math.round(-MOOD_BASE.pause * moodWeight(s, 'behind') * 10) / 10, 'falling behind: by board seat kind')], [L('alignment', 1, 'of the flagged trait by 20 safety research engineers (none for an understanding flag)', { unit: 'investigation' })]), (s, ctx, d) => {
-        ws4(s).frontierPauseUntil = ctx.day + 60;
-        for (const r of s.player.models.runs) if (r.status === 'running' && (r.kind === 'base' || r.kind === 'post')) r.status = 'paused';
-        if (typeof d.versionId === 'string' && d.trait !== 'U') openInvestigation(s, ctx, { kind: 'trait', versionId: d.versionId, trait: d.trait as TraitId }, 20);
-        boardMood(s, ctx, 'behind', MOOD_BASE.pause, 'frontier pause', 'E17');
-        s.flags['ws4:outsideExpertsOffer'] = ctx.day;
-      }),
-      // F6d: the control tax is E6's protocol (as on Safety › Add control); the red flag this choice counts is a cost.
-      ch('Continue + control', ['control', 'balanced'], (s) => pv([L('progress', Math.round(controlReadout(s).tax * 100), 'of internal AI labour at most (control tax)', { unit: '%' }), redFlagLine(s)], [controlLayerGo(s)]), (s) => {
-        for (const a of Object.values(s.player.agents)) a.control = true; // RD-A06: every agent package
-        syncInternalControl(s);
-        ws4(s).redFlags++;
-      }),
-      // F6d: no "alignment 0.2" (never applied): the cost is the red flag it counts (leak odds) and the pledge's own break
-      // cost; the made-up "trust −10 if it leaks" exposure is gone (a leak is the E19 decision).
-      ch('Continue', ['race', 'continue'], (s) => {
-        const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
-        return { costs: [redFlagLine(s), ...(c ? pledgeBreakLines(s, c) : [])], gains: [frontierRunsGo(s)], exposure: [] };
-      }, (s, ctx) => {
-        ws4(s).redFlags++;
-        const c = s.commitments.find((x) => x.status === 'live' && x.condition.predicate === 'pauseIfRedline');
-        if (c) breakCommitment(s, ctx, c, 'continued past a red line');
-      }),
-    ],
   }),
   ev({
     id: 'E19', title: 'The leak', icon: 'alert', crisis: true, cooldown: 365, deadlineDays: 7, defaultChoice: 2,

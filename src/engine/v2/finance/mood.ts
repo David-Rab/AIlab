@@ -40,7 +40,7 @@ export const MOOD_BASE = {
   distressEnded: 10, // spec §7.5 "results restore it": out of distress
   failedRaise: -5, // kept
   behindQ: -5, // kept: behind the best rival at a quarterly review
-  pause: -5, // E17: frontier runs paused (falling behind by choice)
+  pause: -5, // frontier runs paused (falling behind by choice; no reader since E17 was deleted, SR-19)
 } as const;
 
 /** Public incidents [D; FIN3a rebalance, was −(10 + 5 × (sev − 1)) ≤ 30 each, ≤ 20 a quarter, M4]: −(4 + 3 × (severity

@@ -40,7 +40,7 @@ export const safeRecipeBot: BotPolicy = {
   act(s, api) {
     const day = s.time.day;
     if (day === 0) {
-      tryAct(s, api, 'safety.evalGate', { level: 'fullPlusExternal' });
+      tryAct(s, api, 'safety.frameworkEvals', { depth: 'deep', external: true });
       tryAct(s, api, 'safety.pledge', {});
       tryAct(s, api, 'safety.publishPolicy', { policy: 'all' });
     }

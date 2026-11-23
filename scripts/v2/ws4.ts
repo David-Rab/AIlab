@@ -53,7 +53,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   const ids = new Set(EVENTS.map((e) => e.id));
   // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
-  const want = ['E01', 'E10', 'E12', 'E16', 'E17', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32'];
+  const want = ['E01', 'E10', 'E12', 'E16', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32'];
   check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 14 kept events', `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
@@ -355,7 +355,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 {
   const s = deserialize(fixtures[1]);
   const ctx = makeCtx(s);
-  s.player.safety.evalGate = 'none';
+  s.player.safety.framework.evalDepth = 'none';
   const v = [...s.player.models.versions].reverse().find((x) => x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed'));
   check(!!v, 'C1 fixture has a deployable full version');
   if (v) {

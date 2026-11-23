@@ -63,7 +63,7 @@ ok(`UI terms resolve (${used.size} used)`, missing.length === 0, missing.join(',
 const REQUIRED = [
   'h100e', 'runway', 'covenant', 'dilution', 'evalaware', 'monitorability', 'rlBudget', 'distill', 'spv', 'lta', 'wsl', 'U', 'L', 'gap',
   'bottleneck', 'computeBound', 'catRisk', 'lead', 'idleChips', 'computeOnline', 'pool', 'split', 'burn', 'netBurn', 'liquidity', 'ledger',
-  'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'evalGate',
+  'raiseCeiling', 'valuation', 'boardConf', 'rdmult', 'misalign', 'agenda', 'technique', 'finding', 'traitGraph', 'evidenceGrade', 'safetyFramework',
   'channel', 'servingShare', 'capacityBound', 'kyc', 'leverage', 'sector', 'trust', 'credibility', 'scrutiny', 'access', 'commitment', 'watch',
   // R10: the tycoon-restructure vocabulary (STRUCTURE, TECH-TREE, mockups-v3 *-IA.md glossary lists).
   'coreLoop', 'takeoffLoop', 'verbSet', 'limit', 'startType', 'parentBudget', 'revenueRun',

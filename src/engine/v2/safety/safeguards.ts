@@ -158,6 +158,7 @@ export function productSafeguardOverhead(d: Deployment): number {
 /** Usage kept on a product by its safeguards: restriction × RESTRICT and the control protocol's Slowdown at the full
  *  trusted gap (products defer to the trusted model with no measured gap: actTable's product line). */
 export function productUsageMult(d: Deployment): number {
+  if (d.held) return 0; // SR-19: held by the Safety framework (serves nobody until released or overridden)
   const g = guardOf(d, 'control');
   return restrictMult(d) * (g ? 1 - controlTerms(g.setting ?? 'defer10', undefined).slowdown : 1);
 }

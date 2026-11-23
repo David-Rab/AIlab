@@ -21,6 +21,7 @@ import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
+import { defaultFramework } from '../../../data/v2/framework';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev.
  *  Saves below MIN_SCHEMA_REV (33) do not load (designer decision DD-20, RD-C03): v1, v2 and model v3 V1–V3 saves
@@ -134,7 +135,7 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  ResponseKind loses targetedTraining and disclose (addMethod added). Migration 78 → 79 sets the policy to legal
  *  minimum, an empty required-method list, and drops the two old kinds from incidents' response records.
  */
-export const SCHEMA_REV = 79;
+export const SCHEMA_REV = 80;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -856,6 +857,16 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     dept.disclosure ??= 'legal';
     dept.requiredMethods ??= [];
     for (const i of dept.incidents ?? []) if (i.responses) i.responses = i.responses.filter((k) => k !== 'targetedTraining' && k !== 'disclose');
+  },
+  79: (raw) => {
+    // 79 → 80 (SR-19): the eval gate becomes the Safety framework's capability assessment (none → none, basic → basic,
+    // full → full, full + external → deep with external review), with the default rules; holds start empty (refreshed on
+    // the next day).
+    const dept = (raw as { player?: { safety?: { evalGate?: string; framework?: unknown } } }).player?.safety;
+    if (!dept) return;
+    const g = dept.evalGate ?? 'full';
+    if (!dept.framework) dept.framework = defaultFramework(g === 'none' ? 'none' : g === 'basic' ? 'basic' : g === 'fullPlusExternal' ? 'deep' : 'full', g === 'fullPlusExternal');
+    delete dept.evalGate;
   },
 };
 

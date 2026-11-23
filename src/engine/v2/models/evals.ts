@@ -16,8 +16,8 @@
 // the task's depth and evaluator, and a release suite lets the version out of 'evaluating'.
 //
 // Standing policy (R7: no chores):
-//   release gate        a finished version waits in 'evaluating' for a suite at the gate's depth (basic → basic, full →
-//                       full, full + external → deep; external reports stay WS4's). Gate 'none': the version is ready at
+//   release suite       a finished version waits in 'evaluating' for a suite at the Safety framework's assessment depth
+//                       (SR-19, safety/framework.ts; external reports stay WS4's). Depth 'none': the version is ready at
 //                       once and, under auto-evaluate, gets a basic suite that blocks nothing.
 //   auto-evaluate       the internal models and the continual-learning stream are re-run when they changed in place by
 //                       ≥ REEVAL_DG OOM (the recipe the stream applied) or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
@@ -26,7 +26,8 @@ import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
-import type { EvalDepth, EvalTask, GameStateV2, ModelVersion, SafetyDept, SystemCtx } from '../types';
+import type { EvalDepth, EvalTask, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
+import { frameworkOf } from '../safety/framework';
 import { flopPerToken, workContext } from '../departments/workfit';
 import { buildEtas, queueBuild } from '../departments/build';
 import { agentVersion } from '../departments/agents';
@@ -35,12 +36,13 @@ import { versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
 import { allocate, capReCapacity, expPoolH100e, reAllocation, reDemand } from './research';
 
-/** Suite depth the eval gate asks for before release (none: no release suite). */
-export function gateDepth(gate: SafetyDept['evalGate']): EvalDepth | undefined {
-  return gate === 'none' ? undefined : gate === 'basic' ? 'basic' : gate === 'full' ? 'full' : 'deep';
+/** Suite depth the Safety framework's capability assessment asks for before release (SR-19; none: no release suite). */
+export function gateDepth(depth: SafetyFramework['evalDepth']): EvalDepth | undefined {
+  return depth === 'none' ? undefined : depth;
 }
-/** Depth of the standing policy's suites: the gate's, basic when there is no gate. */
-export const policyDepth = (s: GameStateV2): EvalDepth => gateDepth(s.player.safety.evalGate) ?? 'basic';
+const fwDepth = (s: GameStateV2) => frameworkOf(s).evalDepth;
+/** Depth of the standing policy's suites: the framework's assessment depth, basic when it asks for none. */
+export const policyDepth = (s: GameStateV2): EvalDepth => gateDepth(fwDepth(s)) ?? 'basic';
 
 /** Benchmarks in one suite (capability and safety evals). */
 export const SUITE_BENCHMARKS = BENCHMARKS.length + SAFETY_EVALS.length;
@@ -173,7 +175,7 @@ function finishEval(s: GameStateV2, ctx: SystemCtx, t: EvalTask, v: ModelVersion
 /** Release gate (runs system, daily): each version in evaluation has its release suite queued; with no gate it is ready
  *  at once (auto-evaluate then gives it a basic suite that blocks nothing). */
 export function releaseEvals(s: GameStateV2) {
-  const depth = gateDepth(s.player.safety.evalGate);
+  const depth = gateDepth(fwDepth(s));
   for (const v of s.player.models.versions) {
     if (v.status !== 'evaluating') continue;
     if (!depth) {
@@ -233,10 +235,10 @@ export function evalDaysEstimate(s: GameStateV2, depth: EvalDepth): number {
   const h = Math.min(max, Math.max(0, extra));
   return h > 0 ? Math.max(1, Math.ceil((D.staffWeeks / TEAM_SIZE.re) / ((h * m) / 7) - 1e-9)) : Infinity;
 }
-/** Days the eval gate adds to a release today (0 without a gate; readout, at most a year when no research engineer is
- *  free for evals). */
-export const evalDaysFor = (s: GameStateV2, gate: SafetyDept['evalGate'] = s.player.safety.evalGate): number => {
-  const d = gateDepth(gate);
+/** Days the framework's capability assessment adds to a release today (0 when it asks for none; readout, at most a year
+ *  when no research engineer is free for evals). */
+export const evalDaysFor = (s: GameStateV2, depth: SafetyFramework['evalDepth'] = fwDepth(s)): number => {
+  const d = gateDepth(depth);
   return d ? Math.min(365, evalDaysEstimate(s, d)) : 0;
 };
 

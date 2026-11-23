@@ -445,8 +445,8 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
 }
 
 function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const gate = sv.evalGate;
-  const on = gate !== 'none';
+  const fw = sv.framework;
+  const on = fw.evalDepth !== 'none';
   const mon = monitoredUses(s);
   const budget = s.player.split.monitors; // RD-A05a: the monitors' allocation line, a share of total compute
   const at = (x: number) => Math.max(0, Math.min(1, Math.round(x * 1e4) / 1e4));
@@ -460,12 +460,19 @@ function Policies({ s, sv }: { s: GameStateV2; sv: SV }) {
     <Card title="Policies" home="safetyPolicy" id="ctl-policy" className="sf-pol">
       <div className="sf-prow">
         <ClipboardCheck size={18} />
-        <span><b><Term id="evalGate">Evaluate before release</Term></b><br /><Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={`+${evalDaysFor(s)} d`}>Days a new version waits in evaluation before it can be used or sold: its eval suite's work at today's research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{gate === 'fullPlusExternal' ? ' · external review' : ''}</span></Tip></span>
+        <span><b><Term id="safetyFramework">Safety framework</Term></b><br /><Tip content={() => <TipCard title={<Term id="safetyFramework">Safety framework</Term>} value={`+${evalDaysFor(s)} d`} rows={fw.rules.map((r) => ({ label: r.label, value: r.trigger.kind === 'capability' ? `${r.trigger.domain} ≥ ${r.trigger.level} → ${r.holds === 'deploy' ? 'holds launches' : 'holds training'}` : `believed > ${Math.round(r.trigger.est * 100)}% → holds training` }))}>Your own rules: capability thresholds on measured levels, the safeguards and evidence each needs, and holds until they are met. Days a new version waits for its capability assessment: its eval suite&apos;s work at today&apos;s research engineers.</TipCard>}><span className="small dim">+{evalDaysFor(s)} d per release{fw.externalReview ? ' · external review' : ''} · {fw.holds.length ? `${fw.holds.length} held` : 'nothing held'}</span></Tip></span>
         <span className="sp" />
         <Ref id="evalPolicy" to={{ panel: 'models', tab: 'evals' }}>Evals</Ref>
-        {on && <span className={`sf-mini ${gate === 'fullPlusExternal' ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.external" params={{ level: gate === 'fullPlusExternal' ? 'full' : 'fullPlusExternal' }} label="external" /></span>}
-        <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.evalGate" testId="safety.evalGate.toggle" params={{ level: on ? 'none' : 'full' }} label={<i />} /></span>
+        {on && <span className={`sf-mini ${fw.externalReview ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.external" params={{ external: !fw.externalReview }} label="external" /></span>}
+        <span className={`sf-toggle ${on ? 'on' : ''}`}><ActBtn id="safety.frameworkEvals" testId="safety.frameworkEvals.toggle" params={{ depth: on ? 'none' : 'full' }} label={<i />} /></span>
       </div>
+      {fw.holds.map((h) => (
+        <div className="sf-prow" key={`${h.ruleId}-${h.versionId}-${h.depId ?? 't'}`} data-test="framework-hold">
+          <span className="small"><b>{fw.rules.find((r) => r.id === h.ruleId)?.label ?? h.ruleId}</b>: {h.target === 'training' ? 'frontier training held' : `product ${h.depId} held`}; needs {h.missing.join(', ')}</span>
+          <span className="sp" />
+          <ActBtn id="safety.frameworkOverride" testId="safety.frameworkOverride" params={{ ruleId: h.ruleId, versionId: h.versionId }} label="override" />
+        </div>
+      ))}
       <div className="sf-prow">
         <ICON.agents size={18} />
         <span><b><Term id="agentMonitor">Monitor internal agents</Term></b><br /><Tip content={() => <TipCard title={<Term id="monitorCoverage">Monitoring coverage</Term>} value={F.pct(mb.coverage)} rows={[

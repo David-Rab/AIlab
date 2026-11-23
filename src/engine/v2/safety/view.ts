@@ -233,7 +233,7 @@ export function safetyView(s: GameStateV2) {
     incidents: incidentRows(s),
     uModes: uModeCards(s),
     beliefs: beliefView(s),
-    evalGate: s.player.safety.evalGate,
+    framework: s.player.safety.framework,
     utilisation: safetyUtilisation(s),
     validation: validationPanel(s),
     monitorabilityCommitment: s.player.safety.monitorabilityCommitment,

@@ -4,13 +4,13 @@
 // suites (model v3 D5: the start suites, never re-hardened) with inoculation and visible CoT; latent reasoning only if AG01 or AG02's posterior mean > 0.6; reference
 // capex with one strategic deal, runway ≥ 5 q; releases minis and enterprise products; discloses findings; signs
 // A1 and A2; briefs government at level 2; patches or targets, never retrains-against; pursues the China D-track;
-// E17: investigate if belief > 0.4, otherwise control.
+// Safety framework training holds: control on internal AI work where the rule asks for it, otherwise the hold stands.
 import { sightLimitPoint } from '../safety/sightLimit';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
-import { byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
+import { answerFramework, byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
@@ -50,6 +50,7 @@ const MIXED_PLAY: RefPlayOpts = {
 export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
+    answerFramework(s, api, 'control'); // the old E17 Continue + control (holds control does not answer stay: Pause)
     if (s.time.day === 0) {
       tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, MIXED_SCI_TEAMS) });
       tryAct(s, api, 'teams.target', { key: 're.saf', n: sizedTarget(s, MIXED_RE_TEAMS) });
@@ -96,12 +97,6 @@ export const mixedBot: BotPolicy = {
     switch (d.id) {
       case 'E10': return byLabel(d, 'Public + retaliate');
       case 'E12': return byLabel(d, 'Comply');
-      case 'E17': {
-        const v = internalVersion(s);
-        const t = d.data.trait;
-        const est = typeof t === 'string' && v?.beliefs[t as keyof typeof v.beliefs] ? v.beliefs[t as keyof typeof v.beliefs].est : 0;
-        return est > 0.4 ? byLabel(d, 'Pause & investigate') : byLabel(d, 'Continue + control', 1);
-      }
       case 'E20': return byLabel(d, 'Accept');
       case 'E22': return byLabel(d, 'Decline', 1);
       case 'E23': return byLabel(d, 'Verified talks');

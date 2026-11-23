@@ -19,6 +19,7 @@ import { MODEL_ACTIONS } from '../models/actions';
 import { safetyResearchSystem } from '../safety/agendas';
 import { traitsDailySystem } from '../safety/traits';
 import { incidentsSystem } from '../safety/incidents';
+import { frameworkSystem } from '../safety/framework';
 import { SAFETY_ACTIONS } from '../safety/actions';
 // WS3
 import { computeOnlineSystem } from '../compute/power';
@@ -58,6 +59,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   productionSystem, // 30 WS1 daily
   researchSystem, // 35 WS1 daily (R4 tree projects)
   buildSystem, // 38 WS1 daily (R5 engineers' build queue)
+  frameworkSystem, // 39 WS2 daily (SR-19: Safety framework holds, before runs)
   runsSystem, // 40 WS1 daily
   continualSystem, // 45 WS1+WS2 daily
   milestonesSystem, // 50 WS1 daily

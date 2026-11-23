@@ -2,7 +2,7 @@
 // (revenue per deployment: WS5 writes deployment.revenueRate).
 import { commitmentDeployBlock, committedUsagePolicy } from '../actors/commitments';
 import { charterReleaseBlock } from '../finance/charter';
-import { ws4r } from '../actors/state';
+import { frameworkDeployBlock } from '../safety/framework';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, uniqueVersionName, versionById } from './labs';
 import { optionLocked } from './tree';
@@ -24,9 +24,7 @@ const external = (c: Channel) => c !== 'internal';
 /** An external evaluator has tested this version (M4 fix: evaluators file reports — WS4's evalReports, and
  *  evalIndep's behavioural suite in evals.safety — but never write evals.bench, so the old bench-only check could
  *  never pass and a fullPlusExternal gate blocked every launch). */
-export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
-  return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
-}
+export { externallyEvaluated } from '../safety/framework';
 
 /** Why an inference effort is locked, or undefined (B5; R4: the tree node that unlocks it, e.g. deep think needs
  *  Multi-agent orchestration). */
@@ -35,7 +33,7 @@ export function effortLock(s: GameStateV2, effort: Deployment['effort']): string
 }
 
 /** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */
-export interface GateOpts { safeguards?: Deployment['safeguards']; usagePolicy?: Deployment['usagePolicy'] }
+export interface GateOpts { safeguards?: Deployment['safeguards']; guards?: Deployment['guards']; usagePolicy?: Deployment['usagePolicy'] }
 
 /** Pre-deployment gate (§3.3.5): external channels need an eval suite (R6: no expiry; the auto-evaluate policy keeps
  *  suites current instead of a 30-day expiry that blocked launches) at the eval-gate depth; the Agents product needs a
@@ -50,11 +48,9 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   // a capability-threshold model). Finance reaches the release path only here.
   const charter = charterReleaseBlock(s, v, channel);
   if (charter) return charter;
-  const gate = s.player.safety.evalGate;
-  if (gate !== 'none') {
-    if (v.evals.suiteDay === undefined) return 'Not evaluated yet';
-    if (gate === 'fullPlusExternal' && !externallyEvaluated(s, v)) return 'Needs an external evaluation';
-  }
+  // SR-19: the Safety framework (capability assessment, then its rules' holds) replaces the eval gate.
+  const held = frameworkDeployBlock(s, v, channel, { safeguards: opts.safeguards ?? 'classifiers', guards: opts.guards ?? [] });
+  if (held) return held;
   if (channel === 'agents') {
     const g = agentsGate(v);
     if (g !== true) return g;
@@ -73,7 +69,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   if (!v) return 'Unknown version';
   const cu = committedUsagePolicy(s, p.channel);
   const usagePolicy = { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: cu.noSurveillance, noAutonomousWeapons: cu.noAutonomousWeapons, minorsProtections: p.channel === 'consumer' }) };
-  const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', usagePolicy });
+  const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', guards: p.guards ?? [], usagePolicy });
   if (ok !== true) return ok;
   const lock = effortLock(s, p.effort ?? 'max') ?? launchEffortBlock(s, p.channel, p.effort);
   if (lock) return lock;
@@ -107,7 +103,7 @@ export function swapDeployment(s: GameStateV2, depId: string, versionId: string)
   const v = versionById(s, versionId);
   if (!d || !v) return 'Unknown deployment or version';
   if (d.channel === 'open') return 'Open weights cannot be replaced';
-  const ok = deployGate(s, v, d.channel, { safeguards: d.safeguards, usagePolicy: d.usagePolicy });
+  const ok = deployGate(s, v, d.channel, { safeguards: d.safeguards, guards: d.guards, usagePolicy: d.usagePolicy });
   if (ok !== true) return ok;
   d.versionId = v.id;
   d.versionSince = s.time.day;

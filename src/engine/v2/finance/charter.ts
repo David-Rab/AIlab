@@ -29,7 +29,7 @@ export function charterRights(s: GameStateV2): CharterRight[] {
 const external = (c: Channel) => c !== 'internal';
 
 /** The safety committee halts a release when the player's evals show a red-flag trait (scheming, alignment faking,
- *  sandbagging) more likely than not: estimate above 50% with clarity above 0.4 [D, FIN3b]. E17's 30% is the early
+ *  sandbagging) more likely than not: estimate above 50% with clarity above 0.4 [D, FIN3b]. the Safety framework's 30% (SR-19) is the early
  *  warning; a halt needs more. On the bots (10 seeds each) 50% held 13% of the reference bot's full models, half of the
  *  race bot's and almost none of the careful bots'; at 30% it held 70% of the reference bot's (FIN3b notes). */
 export const COMMITTEE_EST = 0.5;

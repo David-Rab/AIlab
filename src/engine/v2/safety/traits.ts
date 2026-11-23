@@ -655,7 +655,7 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: E
     for (const e of edges) mul(e, k);
   };
   const dept = s.player.safety;
-  if (dept.evalGate !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
+  if ((dept.framework?.evalDepth ?? 'full') !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
   meth('T-INOC', INOC_MULT, 'E04'); // SR-14b: inoculation is a method
   meth('T-PERSONA', 0.7, 'E04', 'E05', 'E01');
   if (post && post.pref === 'constitution' && post.safety !== 'minimal') {

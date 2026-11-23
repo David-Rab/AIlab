@@ -13,7 +13,7 @@ import './risk.css';
 
 type Lever = { label: string; act?: { id: string; params?: Record<string, string | number | boolean> }; go?: GoTarget };
 const LEVERS: Record<RiskSource['kind'], Lever[]> = {
-  ownModel: [{ label: 'Research lines', go: { panel: 'safety', tab: 'lines' } }, { label: 'Tighten eval gate', act: { id: 'safety.evalGate', params: { level: 'full' } } }, { label: 'Investigate scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
+  ownModel: [{ label: 'Research lines', go: { panel: 'safety', tab: 'lines' } }, { label: 'Full capability assessment', act: { id: 'safety.frameworkEvals', params: { depth: 'full' } } }, { label: 'Investigate scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
   rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
   // Jank RL2: security controls have one home (Company › Security); Risk links there.
   china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'company', tab: 'security' } }],

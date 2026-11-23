@@ -6,7 +6,7 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, SafetyDept, TechniqueState, TraitId } from '../types';
+import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, TechniqueState, TraitId } from '../types';
 import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { clamp01, flagNum, versionById } from './common';
@@ -25,7 +25,10 @@ import {
   setIncidentDisclosure,
 } from './responses';
 import { methodPolicyOn } from './methods';
-import type { DisclosurePolicy } from '../types';
+import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
+import { editRule, frameworkOf, overrideConsequences, overrideRule, refreshFramework } from './framework';
+import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
+import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
 import { METHOD_BY_ID, ownedMethods } from './methods';
 import { believedPenalty, combineTools } from './detection';
@@ -516,39 +519,113 @@ const PLEDGE: ActionDef = {
   },
 };
 
-/** Model v3 D7: the days a release waits are the gate depth's eval suite at today's rates (models/evals.ts). */
-const GATES: SafetyDept['evalGate'][] = ['none', 'basic', 'full', 'fullPlusExternal'];
+/** SR-19: the Safety framework's capability assessment (replaces the eval gate): the suite depth every version needs
+ *  before an external release (none / basic / full / deep) and whether external evaluators must have read it. The days a
+ *  release waits are that suite at today's rates (models/evals.ts). */
+const FW_DEPTHS: SafetyFramework['evalDepth'][] = ['none', 'basic', 'full', 'deep'];
+const fwDepthParam = (p: P, s: GameStateV2): SafetyFramework['evalDepth'] => {
+  const d = str(p, 'depth') as SafetyFramework['evalDepth'] | undefined;
+  return d && FW_DEPTHS.includes(d) ? d : frameworkOf(s).evalDepth;
+};
+const fwExternalParam = (p: P, s: GameStateV2): boolean => (typeof p.external === 'boolean' ? p.external : frameworkOf(s).externalReview);
 
-const EVAL_GATE: ActionDef = {
-  id: 'safety.evalGate', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Eval gate',
+const FRAMEWORK_EVALS: ActionDef = {
+  id: 'safety.frameworkEvals', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: capability assessment',
   available: () => true,
   preview(s, p) {
-    const g = (str(p, 'level') as SafetyDept['evalGate']) ?? 'fullPlusExternal';
-    const to = GATES.includes(g) ? g : 'fullPlusExternal';
-    // SR-01 (inventory E1): what apply does. The gate holds new EXTERNAL products until the suite is done (internal
-    // use is not gated, models/deployments.ts); with the propensity evals tool, a gate also weakens hacking → persona
-    // drift (E01) ×0.7 in training (safety/traits.ts playerMods); the Safety Index reads an external gate.
-    const from = s.player.safety.evalGate;
-    const d = evalDaysFor(s, to) - evalDaysFor(s, from);
+    // What apply does: external releases wait for a suite at this depth (internal use is never held by it); with the
+    // propensity evals tool, any assessment weakens hacking → persona drift (E01) ×0.7 in training (traits.ts); the
+    // Safety Index reads external review.
+    const fw = frameworkOf(s);
+    const to = fwDepthParam(p, s);
+    const ext = fwExternalParam(p, s);
+    const d = evalDaysFor(s, to) - evalDaysFor(s, fw.evalDepth);
     const costs: CostLine[] = [];
     const gains: CostLine[] = [];
     const wait: CostLine = { currency: 'leadDays', amount: -d, target: 'each new external product waits this much longer for its eval suite; internal use is never held' };
     if (d > 0) costs.push(wait);
     else if (d < 0) gains.push(wait);
     else costs.push({ ...wait, target: 'no change in how long external launches wait' });
-    if (s.player.safety.techniques['T-PROP']?.unlocked && (from === 'none') !== (to === 'none')) {
+    if (ext !== fw.externalReview) {
+      costs.push({ currency: 'progress', amount: ext ? 1 : -1, unit: 'release check', target: ext ? 'every external launch needs an external evaluation of its version' : 'external launches no longer need an external evaluation' });
+    }
+    if (s.player.safety.techniques['T-PROP']?.unlocked && (fw.evalDepth === 'none') !== (to === 'none')) {
       const line: CostLine = { currency: 'alignment', amount: 1, unit: 'training pressure', target: `reward hacking → persona drift in training: weight ${to === 'none' ? '×0.7 → ×1' : '×1 → ×0.7'} (with propensity evals)` };
       if (to === 'none') costs.push({ ...line, amount: -1 });
       else gains.push(line);
     }
-    for (const l of indexLines(s, (c) => (c.player.safety.evalGate = to))) (l.amount >= 0 ? gains : costs).push(l);
+    for (const l of indexLines(s, (c) => { const f = frameworkOf(c); f.evalDepth = to; f.externalReview = ext; })) (l.amount >= 0 ? gains : costs).push(l);
     return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
-    const g = str(p, 'level') as SafetyDept['evalGate'];
-    if (!GATES.includes(g)) return void ctx.log('alert', 'Eval gate: none, basic, full or fullPlusExternal.');
-    s.player.safety.evalGate = g;
-    ctx.log('company', `Pre-deployment eval gate: ${g}.`, 1);
+    const d = str(p, 'depth');
+    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return void ctx.log('alert', 'Capability assessment: none, basic, full or deep.');
+    const fw = frameworkOf(s);
+    fw.evalDepth = fwDepthParam(p, s);
+    fw.externalReview = fwExternalParam(p, s);
+    ctx.log('company', `Safety framework: ${fw.evalDepth === 'none' ? 'no' : fw.evalDepth} capability assessment before release${fw.externalReview ? ', external review' : ''}.`, 1);
+  },
+};
+
+function ruleEdit(p: P) {
+  const sg = str(p, 'addSafeguard') as FrameworkSafeguard | undefined;
+  const ev = str(p, 'addEvidence') as FrameworkEvidence | undefined;
+  const level = num(p, 'level');
+  const est = num(p, 'est');
+  return {
+    ...(level !== undefined ? { level } : {}),
+    ...(est !== undefined ? { est } : {}),
+    ...(sg && ['classifiers', 'hardened', 'control', 'review'].includes(sg) ? { addSafeguard: sg } : {}),
+    ...(ev && ['suite', 'external'].includes(ev) ? { addEvidence: ev } : {}),
+  };
+}
+const RULE_SLACK = { level: FRAMEWORK_LEVEL_SLACK, belief: FRAMEWORK_BELIEF_SLACK };
+
+/** SR-19: edit a framework rule within limits (threshold near its default; safeguards and evidence only added). */
+const FRAMEWORK_RULE: ActionDef = {
+  id: 'safety.frameworkRule', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: edit rule',
+  available: () => true,
+  preview(s, p) {
+    const c = structuredClone(s);
+    const why = editRule(c, str(p, 'ruleId') ?? '', ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    if (why) return { costs: [{ currency: 'progress', amount: 0, target: why }], gains: [], exposure: [] };
+    const before = frameworkOf(s).holds.length;
+    const after = refreshFramework(c).length;
+    const line: CostLine = { currency: 'progress', amount: Math.abs(after - before), unit: 'holds', target: `holds in force today ${before} → ${after}` };
+    return after > before ? { costs: [line], gains: [], exposure: [] } : { costs: [], gains: [line], exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const id = str(p, 'ruleId') ?? '';
+    const why = editRule(s, id, ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    if (why) return void ctx.log('alert', why);
+    refreshFramework(s, ctx);
+    ctx.log('company', `Safety framework rule edited: ${frameworkOf(s).rules.find((r) => r.id === id)?.label ?? id}.`, 1);
+  },
+};
+
+/** SR-19: override a framework rule for one version: its holds on that version end; the consequences are stated here and
+ *  applied as stated (safety/framework.ts overrideConsequences). */
+const FRAMEWORK_OVERRIDE: ActionDef = {
+  id: 'safety.frameworkOverride', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Framework: override',
+  available: () => true,
+  preview(s, p) {
+    const c = overrideConsequences(s);
+    const ruleId = str(p, 'ruleId');
+    const versionId = str(p, 'versionId');
+    const released = frameworkOf(s).holds.filter((h) => h.ruleId === ruleId && h.versionId === versionId);
+    const costs: CostLine[] = [
+      { currency: 'morale', amount: c.moraleSafety, target: c.lines[0] },
+      redFlagLine(s),
+      { currency: 'scrutiny', amount: c.scrutiny, target: c.lines[1] },
+      ...(c.credibility ? [{ currency: 'credibility' as const, amount: c.credibility, target: c.lines[2] }] : []),
+    ];
+    const what = released.map((h) => (h.target === 'training' ? 'frontier training' : `product ${h.depId}`)).join(', ');
+    const gains: CostLine[] = [{ currency: 'progress', amount: released.length, unit: released.length === 1 ? 'hold' : 'holds', target: `released: ${what || 'none in force (launches of this version stop being held by this rule)'}` }];
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const why = overrideRule(s, ctx, str(p, 'ruleId') ?? '', str(p, 'versionId') ?? '');
+    if (why) ctx.log('alert', why);
   },
 };
 
@@ -635,6 +712,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, EVAL_GATE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
 
 

@@ -38,7 +38,7 @@ export function gradePlayer(s: GameStateV2): IndexGrade {
   const pub = { none: 0.15, selective: 0.45, all: 0.8 }[s.player.policies.publishSafety] + 0.02 * w.papers;
   const goal = 0.12 * (w.goalposts.player ?? 0);
   return grade({
-    risk: g43(0.3 + 0.5 * testers + (s.player.safety.evalGate === 'fullPlusExternal' ? 0.15 : 0)),
+    risk: g43(0.3 + 0.5 * testers + (s.player.safety.framework?.externalReview ? 0.15 : 0)),
     harms: g43(disclosure * 0.8 + (s.player.policies.whistleblowerChannel ? 0.15 : 0)),
     frameworks: g43(framework - goal),
     existential: g43(0.15 + (hasCommitment(s, 'pauseIfRedline') ? 0.3 : 0) + (hasCommitment(s, 'monitorabilityPledge') ? 0.15 : 0) + 0.2 * pub),

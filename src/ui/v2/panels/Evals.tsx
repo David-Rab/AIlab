@@ -70,20 +70,21 @@ export function Evals({ s, v }: { s: GameStateV2; v?: ModelVersion }) {
 // ───────── policy ─────────
 function PolicyCard({ s }: { s: GameStateV2 }) {
   const p = evalPolicyView(s);
-  const gate = s.player.safety.evalGate;
+  const fw = s.player.safety.framework;
+  const gate = fw.evalDepth;
   const auto = !!s.player.policies.autoEvaluate;
   const c = p.perSuite;
   const D = EVAL_DEPTHS[p.depth];
   return (
     <Card title={<span className="row-i"><ListChecks size={15} /><Term id="evals">Eval policy</Term></span>} home="evalPolicy" className="ev-pol">
       <div className="ev-pol-row" data-test="eval-policy">
-        <Tip content={() => <TipCard title={<Term id="evalGate">Eval gate</Term>} value={gate === 'none' ? 'off' : D.label} rows={[
-          { label: 'Release suites', value: gate === 'none' ? 'none (ready at once)' : `${D.label}${gate === 'fullPlusExternal' ? ' (full + external)' : ''}` },
+        <Tip content={() => <TipCard title={<Term id="safetyFramework">Capability assessment</Term>} value={gate === 'none' ? 'off' : D.label} rows={[
+          { label: 'Release suites', value: gate === 'none' ? 'none (ready at once)' : `${D.label}${fw.externalReview ? ' + external' : ''}` },
           { label: 'Policy re-runs', value: D.label },
-        ]} footer="Set on Safety › Policies.">The depth of the suite a new version must pass before release, and of the policy&apos;s re-runs (basic without a gate).</TipCard>}>
-          <span className="ev-pol-item" data-test="eval-policy-depth"><span className="tip-cap"><Term id="evalGate">Gate</Term></span><b>{gate === 'none' ? 'off' : D.label}</b>{gate === 'fullPlusExternal' && <span className="dim small">+ external</span>}</span>
+        ]} footer="Set in your Safety framework (Safety › Policies).">The depth of the suite your Safety framework asks of a new version before release, and of the policy&apos;s re-runs (basic when it asks for none).</TipCard>}>
+          <span className="ev-pol-item" data-test="eval-policy-depth"><span className="tip-cap"><Term id="safetyFramework">Assessment</Term></span><b>{gate === 'none' ? 'off' : D.label}</b>{fw.externalReview && <span className="dim small">+ external</span>}</span>
         </Tip>
-        <Ref id="evalGate" to={{ panel: 'safety', tab: 'overview', anchor: 'policy' }}>Safety</Ref>
+        <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'overview', anchor: 'policy' }}>Safety</Ref>
         <span className="ev-sep" />
         <ActBtn id="products.policy" testId="products.policy.autoEvaluate" params={{ autoEvaluate: !auto }}
           label={<span className="psw"><span className={`sw ${auto ? 'on' : ''}`}><i /></span><Term id="autoEvaluate">Auto-evaluate</Term></span>} />

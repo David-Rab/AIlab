@@ -27,7 +27,7 @@ export function tryAct(s: GameStateV2, api: EngineApi, id: string, params: Param
 /** Intent → registered action ids in other spheres (first registered one is used). Model cadence, compute and money
  *  are shared policies instead: WS1's `refPlay` (bots/ref.ts) and WS3's `financeAutopilot` (finance/plan.ts). */
 export const BOT_INTENTS: Record<string, string[]> = {
-  evalGate: ['safety.evalGate'], // params { level: none | basic | full | fullPlusExternal }
+  frameworkEvals: ['safety.frameworkEvals'], // params { depth: none | basic | full | deep, external: boolean }
   raise: ['fin.raise'],
   split: ['setSplit'], // params: ComputeSplit keys (must sum to 1)
   release: ['product.launch'], // params { versionId, channel }
@@ -131,6 +131,20 @@ export function keepLockdown(s: GameStateV2, api: EngineApi) {
   if (!s.player.safety.techniques['T-LOCK']?.unlocked) return;
   const ids = new Set(s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live' && !d.guards?.some((g) => g.kind === 'lockdown')).map((d) => d.versionId));
   for (const versionId of ids) tryAct(s, api, 'safety.respond', { kind: 'addLockdown', versionId });
+}
+
+/** SR-19 (replaces the E17 "Red flags" decision): what a bot does about the Safety framework's training holds.
+ *  'override': override each (the old E17 Continue: RefBot, race, capex); 'control': put the held lab's internal AI work
+ *  under the control protocol where control is what the rule lacks (the old Continue + control) and otherwise leave the
+ *  hold (the old Pause). */
+export function answerFramework(s: GameStateV2, api: EngineApi, mode: 'override' | 'control') {
+  for (const h of s.player.safety.framework?.holds ?? []) {
+    if (h.target !== 'training') continue;
+    if (mode === 'override') tryAct(s, api, 'safety.frameworkOverride', { ruleId: h.ruleId, versionId: h.versionId });
+    else if (h.missing.some((m) => m.startsWith('control'))) {
+      for (const d of s.player.deployments) if (d.channel === 'internal' && d.status === 'live' && !d.guards?.some((g) => g.kind === 'control')) tryAct(s, api, 'safety.respond', { kind: 'addControl', versionId: d.versionId });
+    }
+  }
 }
 
 /** Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40). */
