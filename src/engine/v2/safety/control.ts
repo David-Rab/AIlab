@@ -179,8 +179,9 @@ export function escapeNoticed(s: GameStateV2, v: ModelVersion, day: number): boo
 /** The lab's believed control of model v: its belief estimate of Mis, believed oversight (E15: believedOversight.ts,
  *  the same terms as the danger readout: believed tool strengths and masks, measured levels, no U-modes), and only the
  *  footholds it knows of (located at their size, suspected ones at suspectedF each). */
-export function believedTerms(s: GameStateV2, v: ModelVersion): { mis: number; oversight: number; F: number; exposure: number; control: number } {
-  const o = believedInternalOversight(s, v, CONTROL.trait);
+export function believedTerms(s: GameStateV2, v: ModelVersion, aiShare?: number): { mis: number; oversight: number; F: number; exposure: number; control: number } {
+  // UB-2: readouts pass the measured AI share of R&D work (workfit.ts believedRdShare); controlStep keeps the default.
+  const o = aiShare === undefined ? believedInternalOversight(s, v, CONTROL.trait) : believedInternalOversight(s, v, CONTROL.trait, aiShare);
   const lin = lineageOf(s, v);
   let F = 0;
   let miss = 1;

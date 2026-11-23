@@ -11,12 +11,14 @@ export const PARADIGM_BY_ID = Object.fromEntries(PARADIGMS.map((p) => [p.id, p])
  *  once built in; P27 when its AG17 test works). */
 export const adopted = (s: GameStateV2, id: string) => s.player.tree[id]?.status === 'known';
 
-/** Best measured domain level across non-retired versions (benchmark-based, visible). */
+/** Best measured domain level across non-retired versions (benchmark-based, visible). UB-2: only versions with a fit
+ *  for d count (the old fallback added the version's true domain offset). */
 export function measuredDomain(s: GameStateV2, d: DomainId): number {
   let best = 0;
   for (const v of s.player.models.versions) {
-    if (v.status === 'retired' || v.evals.measuredL === undefined) continue;
-    best = Math.max(best, v.evals.measuredDom?.[d] ?? v.domains[d] + (v.evals.measuredL - v.Lg)); // RD-M01(b): the benchmark fit; fallback only for a record with no fit for d
+    const fit = v.evals.measuredDom?.[d];
+    if (v.status === 'retired' || fit === undefined) continue;
+    best = Math.max(best, fit);
   }
   return best;
 }

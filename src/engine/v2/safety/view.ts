@@ -60,7 +60,7 @@ export function lineRows(s: GameStateV2): LineRow[] {
       id: a.id, name: a.name, column: a.column, T1: a.T1, band: posteriorBand(st), status: st.status,
       teams: teams.map((t) => ({ id: t.id, specialty: t.specialty, heads: t.heads, quality: t.quality, projectId: t.projectId })),
       heads: teams.reduce((x, t) => x + t.heads, 0), capacity: lineCapacity(s, a.id), mult: lineMult(s, a.id), computeShare: st.computeShare,
-      aiLabour: teams.length ? lineLabour(s, a.id).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100, expObs: lineExpectedObserved(s, a.id),
+      aiLabour: teams.length ? lineLabour(s, a.id, false /* UB-2: no hidden sandbagging */).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100, expObs: lineExpectedObserved(s, a.id),
       deadEndTM: st.deadEndTM ?? 0,
       projects: projIds.map((id) => {
         const n = id === lineNodeId(a.id) ? undefined : TREE.find((x) => x.id === id);

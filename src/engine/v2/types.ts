@@ -2311,6 +2311,9 @@ export interface SeriesV2 {
   Lmeasured: number[]; U: number[]; M: number[]; cash: number[]; revenue: number[]; valuation: number[];
   compute: number[]; approval: number[]; trustGov: number[]; scrutiny: number[]; gdpG: number[]; unemp: number[];
   misTrue: number[]; misEst: number[];
+  /** UB-2: Research speed (× the leading lab in July 2025, labSpeedRel) and the part of it the lab credits to AI staff
+   *  (production.ts aiStaffSpeedPart), weekly; absent on saves before UB-2 (the history starts then). */
+  speed?: number[]; speedAI?: number[];
 }
 
 export interface TutorialState { act: 1 | 2 | 3 | 4; unlocked: string[]; seen: string[]; }

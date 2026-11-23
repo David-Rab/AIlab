@@ -27,8 +27,8 @@ import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
-import { believedProd, believedWorld, elasticitiesAt, observedScale } from './believed';
-import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { believedProd, believedWorld, elasticitiesAt } from './believed';
+import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
@@ -72,7 +72,7 @@ export interface LabInputs {
 /** RD-R01: the one aggregate piece left, the lab's experiment throughput at inputs (h, k, c): X(c̄, ℓ) of a unit project
  *  and the number of unit projects. READOUTS ONLY since RD-A02 (no mechanism, no Auto mix): the response charts
  *  (readout.ts) and labSpeedRel. */
-function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number } {
+function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h: number): { X: number; units: number; l: number } {
   const v = inp.v3 as V3Inputs;
   const Pp = w.prod;
   const hs = h / Math.max(1e-12, v.h0);
@@ -83,7 +83,7 @@ function throughputAt(w: TimelineWorld, inp: LabInputs, c: number, k: number, h:
   const cbar = Math.max(1e-12, (c * DAY0_REF.flop * v.flopEff) / units / C_UNIT_FLOP_PER_DAY);
   const L = effLabour(Pp, v.a, H, AI, v.assist);
   const l = Math.pow(Math.max(1e-12, L / H), Pp.lam);
-  return { X: Xces(Pp, cbar, l), units };
+  return { X: Xces(Pp, cbar, l), units, l };
 }
 
 /** The lab's total experiment throughput (Σ unit projects' X) at inputs, other inputs as in `inp` (readouts only). */
@@ -166,10 +166,69 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
  *  the believed CES at today's inputs scaled to the lab's observed throughput (observedScale), so the level is what the
  *  lab's experiments did, never a hidden parameter. */
 export function labSpeedRel(s: GameStateV2): number {
-  const inp = labInputs(s, PLAYER_ID);
-  if (!inp) return 1;
-  const k = observedScale(s, researchMods(s).speed);
-  return (expThroughput(believedWorld(s), inp) * k * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
+  const raw = labInputs(s, PLAYER_ID);
+  if (!raw) return 1;
+  // UB-2: today's experiment coverage, assist and taste as the lab measures / believes them (believedInputs), and the
+  // observed scale taken at that believed labour (so the level is still the observed throughput when today's compute
+  // equals the last research day's).
+  const inp = believedInputs(s, raw);
+  const w = believedWorld(s);
+  const t = throughputAt(w, inp, inp.c, inp.k, inp.h);
+  const x = s.player.research.last?.x;
+  const speed = researchMods(s).speed;
+  const b = x && x.X > 0 && x.c > 0 && speed > 0 ? Xces(w.prod, x.c, t.l) * speed : 0;
+  const k = b > 0 ? x!.X / b : 1;
+  return (t.X * t.units * k * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
+}
+
+/** UB-2: the player's research inputs with the parts the lab cannot observe directly read as it measures / believes
+ *  them, for readouts (labSpeedRel, the response curves): experiment coverage and assist from the AI staff model's
+ *  measured skills (departments/workfit.ts measuredLabour), team taste from the believed AI taste inputs. Physics keeps
+ *  labInputs. */
+export function believedInputs(s: GameStateV2, inp: LabInputs): LabInputs {
+  if (!inp.v3) return inp;
+  const wc = workContext(s);
+  const ml = measuredLabour(s, wc.slots.EXP);
+  const { sAI, sdAI, m2b } = believedTasteInputs(s);
+  const star = starTaste(s);
+  let cap = 0, tai = 0;
+  for (const tm of s.player.teams) {
+    if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
+    cap += tm.heads;
+    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star);
+  }
+  return { ...inp, v3: { ...inp.v3, a: ml.fit.a, assist: ml.fit.assist, Tai: cap > 0 ? tai / cap : 1 } };
+}
+
+/** UB-2: the part of Research speed the lab believes its AI staff give (×; 1 = none): research speed ÷ the speed with
+ *  the same people, compute and ideas but no AI staff. Two parts, both from measured skills and believed parameters
+ *  (departments/workfit.ts measuredLabour, production/believed.ts): experiments, the believed CES at the observed unit
+ *  inputs with the experiment labour multiplier vs without (labour index 1); ideas, the capability teams' taste with AI's
+ *  share of the ideas vs without. Readout only. */
+export function aiStaffSpeedPart(s: GameStateV2): { total: number; experiments: number; ideas: number } {
+  const x = s.player.research.last?.x;
+  const P = believedProd(s).mid;
+  const wc = workContext(s);
+  let experiments = 1;
+  if (x && x.c > 0 && wc.slots.EXP.aiFte > 0) {
+    const m = measuredLabour(s, wc.slots.EXP).m;
+    const x0 = Xces(P, x.c, 1);
+    if (x0 > 0 && m > 0) experiments = Xces(P, x.c, Math.pow(Math.max(1, m), P.lam)) / x0;
+  }
+  let ideas = 1;
+  const { sAI, sdAI } = believedTasteInputs(s);
+  if (sAI > 0) {
+    const star = starTaste(s);
+    let w = 0, a = 0, h = 0;
+    for (const tm of s.player.teams) {
+      if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
+      w += tm.heads;
+      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star);
+      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star);
+    }
+    if (w > 0 && h > 0) ideas = a / h;
+  }
+  return { total: experiments * ideas, experiments, ideas };
 }
 
 /** The player's production readout (§3.2.5) at inputs `inp`, from the research engine's last day. */

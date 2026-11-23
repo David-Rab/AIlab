@@ -4,7 +4,6 @@
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
 import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
 import { COGNITIVE_WORK, MILESTONE_COVER, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
-import { E_START } from '../../../data/v2/runDesign';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { labSpeedRel } from '../production/production';
@@ -14,16 +13,16 @@ import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  agentFpt, costPerWorkHour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, measuredLabour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
 import { versionById } from './labs';
 import {
-  allocate, attemptOdds, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, sciOn, teamsWanted, wantIsAuto,
+  allocate, attemptOdds, believedSciOn, capEta, capReCapacity, isCapProject, isUnlockProject, linePool, poolMean, projectExpInputs, reAllocation, reDemand, teamsWanted, wantIsAuto,
 } from './research';
 import { measuredSd } from './benchmarks';
-import { latestBaseFlop, rlCeilNow, rlMidNow, STACK_KEYS, stackAt, trainNow } from './stacks';
+import { gEquivOf, latestBaseFlop, STACK_KEYS } from './stacks';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey, Team } from '../types';
@@ -121,7 +120,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const known = nodeStatus(s, id) === 'known';
   const failed = ts?.status === 'failed';
   const ready = projectReady(s, id);
-  const sci = sciOn(s, id);
+  const sci = believedSciOn(s, id); // UB-2: believed taste (was the true AI taste); capacity is a fact
   const teams: ProjectTeamView[] = p.teams.filter((t) => t.role === 'sci' && t.projectId === id).map((t) => ({
     id: t.id, ...(t.specialty ? { specialty: t.specialty } : {}), quality: t.quality, heads: t.heads, match: t.specialty === n.column, why: t.why ?? 'Placed by the assignment',
   }));
@@ -229,8 +228,12 @@ export interface AdoptedView extends Omit<AdoptedIdea, 'eff'> {
  *  the engine's stacks hold the true effects. */
 export interface StackView {
   key: StackKey; name: string; unit: string; now: number; adopted: number; adoptedSd: number; base: number;
-  /** What the internal model embodies and the stack beyond it (pretraining, RL efficiency, RL ceiling only). */
-  inModel?: number; gap?: number;
+  /** What the internal model embodies and the stack beyond it (pretraining, RL efficiency, RL ceiling only). UB-2:
+   *  believed: `gap` (Waiting) = Σ the estimates of the ideas adopted after the internal model's recipe froze (its base's
+   *  start for the pretraining recipe, its post-training run for the two post-training areas), ± `gapSd`, over `gapN`
+   *  ideas since `gapSince`; `inModel` = now − gap. Only the last 30 results are kept (research.adopted), so a long
+   *  wait can read low. */
+  inModel?: number; gap?: number; gapSd?: number; gapN?: number; gapSince?: number;
   /** Ideas adopted into it (a batch counts its ideas; a second stack an idea also moves does not count it). */
   n: number;
   ideas: AdoptedView[];
@@ -293,24 +296,30 @@ function otherEmbodiedBy(n: TreeNodeDef | undefined): EmbodiedBy {
  *  the first evaluated model trained with each). */
 export function stackViews(s: GameStateV2): StackView[] {
   const res = s.player.research;
-  const F = latestBaseFlop(s);
   const v = agentVersion(s, 'capRoutine');
   const base = v ? s.player.models.bases.find((b) => b.id === v.baseId) : undefined;
-  const inModel: Partial<Record<StackKey, number>> = {};
-  if (base) inModel.pre = base.ePre - E_START;
+  // UB-2: the day each area's recipe froze for the internal model (facts: run dates); Waiting sums the believed
+  // estimates adopted after it (was: the true stack now minus the true recipe the model took).
+  const frozen: Partial<Record<StackKey, number>> = {};
+  if (base) frozen.pre = base.startDay ?? base.day;
   if (v?.build) {
-    inModel.rlMid = v.build.eRL;
-    if (v.build.aRL !== undefined) inModel.rlCeil = v.build.aRL;
+    frozen.rlMid = v.trained?.rlDay ?? v.day;
+    if (v.build.aRL !== undefined) frozen.rlCeil = v.trained?.rlDay ?? v.day;
   }
-  const nowOf = (k: StackKey) => (k === 'pre' ? stackAt(res.stacks.pre, F) : k === 'rlMid' ? rlMidNow(s) : k === 'rlCeil' ? rlCeilNow(s) : k === 'train' ? trainNow(s) : stackAt(res.stacks.serve));
   return STACK_KEYS.map((k) => {
     const st = res.stacks[k];
     const est = st.est ?? 0;
-    const im = inModel[k];
+    const since = frozen[k];
+    let w: { gap: number; gapSd: number; gapN: number; gapSince: number; inModel: number } | undefined;
+    if (since !== undefined) {
+      let g = 0, vv = 0, n = 0;
+      for (const a of res.adopted) if (a.stack === k && a.day > since) { g += a.est; vv += a.estSd ** 2; n += a.b ?? 1; }
+      const gap = Math.max(0, Math.min(est, g));
+      w = { gap, gapSd: Math.sqrt(vv), gapN: n, gapSince: since, inModel: st.base + est - gap };
+    }
     return {
       key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: st.base + est, adopted: est, adoptedSd: Math.sqrt(st.estVar ?? 0), base: st.base,
-      // "Not trained in" still reads the engine's values (the true stack now vs the true recipe the model took; RF-R5 left).
-      ...(im !== undefined ? { inModel: im, gap: Math.max(0, nowOf(k) - im) } : {}), n: st.n,
+      ...(w ?? {}), n: st.n,
       ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };
   });
@@ -337,13 +346,36 @@ export function otherEffectViews(s: GameStateV2): OtherEffectView[] {
   return out;
 }
 
-/** Software progress of the recipe (OOM of effective compute per year, 14-day average: the lab's own adopted ideas and
- *  tuning at a fixed base, RD-B16), the ideas adopted per year (over the last 14 weekly samples), and public knowledge received (OOM per year, 14-day
- *  average: diffusion, tacit knowledge, safety spillover; not part of Software progress). */
+/** UB-2: the BELIEVED know-how the lab's own results added to each area since `since` (day, exclusive): Σ the adopted
+ *  results' estimates (OOM of the area's quantity), the band √Σ sd², and the ideas counted. Only the last 30 results are
+ *  kept (research.adopted), so a long window can read low. */
+export function believedAdoptedSince(s: GameStateV2, since: number): Record<StackKey, { oom: number; sd: number; n: number }> {
+  const out = Object.fromEntries(STACK_KEYS.map((k) => [k, { oom: 0, sd: 0, n: 0 }])) as Record<StackKey, { oom: number; sd: number; n: number }>;
+  for (const a of s.player.research.adopted) {
+    if (!a.stack || a.day <= since) continue;
+    const o = out[a.stack];
+    o.oom += a.est;
+    o.sd = Math.hypot(o.sd, a.estSd);
+    o.n += a.b ?? 1;
+  }
+  return out;
+}
+
+/** Software progress of the recipe (OOM of effective compute per year: the lab's own adopted ideas at its latest base,
+ *  RD-B16), the ideas adopted per year (over the last 14 weekly samples), and public knowledge received (OOM per year,
+ *  14-day average: diffusion, tacit knowledge, safety spillover; public, a fact; not part of Software progress). UB-2:
+ *  BELIEVED: the recipe's effective compute at the believed areas (start + Σ estimates) minus the same without the
+ *  last 365 days' results (was research.gRate, the change of the true stacks). */
 export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear: number; publicPerYear: number } {
   const h = s.player.research.hist;
   const ideas = h.length >= 2 ? ((h[h.length - 1].n - h[0].n) / Math.max(1, h[h.length - 1].day - h[0].day)) * 365 : 0;
-  return { oomPerYear: (s.player.research.gRate ?? 0) * 365, ideasPerYear: Math.max(0, ideas), publicPerYear: Math.max(0, (s.player.research.pubRate ?? 0) * 365) };
+  const st = s.player.research.stacks;
+  const now = (k: StackKey) => st[k].base + (st[k].est ?? 0);
+  const y = believedAdoptedSince(s, s.time.day - 365);
+  const F = latestBaseFlop(s);
+  const g1 = gEquivOf(F, now('pre'), now('rlMid'), now('rlCeil'), now('train'));
+  const g0 = gEquivOf(F, now('pre') - y.pre.oom, now('rlMid') - y.rlMid.oom, now('rlCeil') - y.rlCeil.oom, now('train') - y.train.oom);
+  return { oomPerYear: Math.max(0, g1 - g0), ideasPerYear: Math.max(0, ideas), publicPerYear: Math.max(0, (s.player.research.pubRate ?? 0) * 365) };
 }
 
 // ───────────────────────────── allocations ─────────────────────────────
@@ -426,10 +458,13 @@ export interface WorkTypeView {
   t: number; A: number;
   /** AI cost per work-hour vs the lab's best engineers ($). */
   costAI: number; costHuman: number;
+  /** UB-2: false while the AI staff model has no measured skills of its own (its relative's are read). */
+  measured: boolean;
 }
 
 /** AI labour in each of the lab's work types today (the safety ones on the safety package through Trusted to AI,
- *  model v3 E2). */
+ *  model v3 E2). UB-2: fit, coverage (AI share), win rate, assist and work done (L, m) are measured / believed
+ *  (measuredLabour), never the model's true effective compute or the hidden production parameters. */
 export function workTypeViews(s: GameStateV2): WorkTypeView[] {
   const wc = workContext(s);
   const saf = safetyLabour(s);
@@ -439,12 +474,14 @@ export function workTypeViews(s: GameStateV2): WorkTypeView[] {
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
     const fpt = v ? agentFpt(s, v) : 0;
     const cost = v ? costPerWorkHour(s, fpt) : { ai: Infinity, human: costPerWorkHour(s, 1).human };
+    const ml = measuredLabour(s, sl);
+    const f = ml.fit;
     return {
       wt, name: def.name, slot: wt, ...(v ? { version: v.name } : {}),
-      fit: sl.fit.fit, med: sl.fit.med, best: sl.fit.best, coverage: sl.fit.a,
-      h50: sl.fit.h50, h80: sl.fit.h50 / 5, H: def.H, pAtH: v ? pSuccess(def.H, sl.fit.h50) : 0, win: sl.fit.win, assist: sl.fit.assist,
+      fit: f.fit, med: f.med, best: f.best, coverage: f.a,
+      h50: f.h50, h80: f.h50 / 5, H: def.H, pAtH: v ? pSuccess(def.H, f.h50) : 0, win: f.win, assist: f.assist,
       copies: sl.copies, speed: sl.copies > 0 ? speedOfCopy() : 0, aiFte: sl.aiFte, h100e: sl.h100e,
-      humans: sl.H, ai: sl.AI, L: sl.L, m: sl.m, wH: sl.wH, t: sl.t, A: sl.A, costAI: cost.ai, costHuman: cost.human,
+      humans: sl.H, ai: sl.AI, L: ml.L, m: ml.m, wH: ml.wH, t: sl.t, A: ml.A, costAI: cost.ai, costHuman: cost.human, measured: ml.measured,
     };
   });
 }

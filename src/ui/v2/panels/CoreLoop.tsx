@@ -4,7 +4,7 @@
 //   Compute feeds Research, Models and Products; the takeoff loop: internal agents take over the teams' work.
 import type { ReactNode } from 'react';
 import {
-  aiShareByRole, bestPlayerVersion, divisionView, engine, idleChips, idleTeams, measuredLOf, productReadouts, runwayOf,
+  aiShareByRole, bestMeasuredVersion, divisionView, engine, idleChips, idleTeams, measuredLOf, productReadouts, runwayOf,
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
@@ -73,7 +73,7 @@ function readings(s: GameStateV2): Record<string, Reading> {
   const active = p.research.queue.filter((id) => p.teams.some((t) => t.projectId === id)).length;
   const pr = engine.production(s, 'player');
   out.research = { text: `${active} project${active === 1 ? '' : 's'} active`, tone: active > 0 ? 'good' : 'watch', tip: [{ label: <Term id="rdmult">Research speed</Term>, value: pr ? `total effort ${F.mult(p.research.last?.x?.mExp ?? 1)} in experiments · ${LIMITED_BY[pr.label] ?? pr.label}` : '—' }] };
-  const best = bestPlayerVersion(s);
+  const best = bestMeasuredVersion(s);
   const running = p.models.runs.filter((r) => r.status === 'running').length;
   out.models = { text: best ? `${best.name}${running ? ` · ${running} run${running > 1 ? 's' : ''}` : ''}` : 'no model', tone: best ? (running ? 'good' : 'watch') : 'bad', tip: best ? [{ label: 'Best model', value: `${best.name} · level ${F.level(measuredLOf(s, best).L)}` }, { label: 'Runs in progress', value: String(running) }] : [] };
   const u = engine.sightLimit(s);

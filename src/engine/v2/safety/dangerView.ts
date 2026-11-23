@@ -18,6 +18,7 @@
 // model that sets it, the footholds the lab knows of, and the control layer's tax (E6).
 // SR-03: both danger readouts are the believed act table's trait rows (actTable.ts actSite + siteActs), so this view and
 // the SAFETY act table cannot drift.
+import { believedRdShare } from '../departments/workfit';
 import { controlOn, labControlSetting } from './safeguards';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { DANGER_ACTS } from '../../../data/v2/danger';
@@ -228,7 +229,7 @@ export function controlReadout(s: GameStateV2): ControlRead {
     if (b) cv = { believed: Math.round(b.control * 1e4) / 1e4, versionId: b.versionId };
   }
   const v = versionById(s, cv.versionId);
-  const t = v ? believedTerms(s, v) : { mis: 0, oversight: 0, F: 0, exposure: 0, control: 1 };
+  const t = v ? believedTerms(s, v, believedRdShare(s)) : { mis: 0, oversight: 0, F: 0, exposure: 0, control: 1 };
   const fv = footholdView(s);
   const w = s.hidden.timeline;
   const L = v ? measuredLOf(s, v).L : 0;

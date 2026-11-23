@@ -2,7 +2,7 @@
 // `production(s, lab)` = label / binding, labour (copies × speed), ratios vs the reference path. The response charts
 // plot the lab's experiment throughput (production.ts expThroughput, a readout only; RD-R01: no aggregate multiplier M),
 // relative to today's. RD-A02: the research-mix chart went with the Auto mix (INP-V02).
-import { computeProduction, expThroughput, labInputs, type LabInputs } from './production';
+import { believedInputs, computeProduction, expThroughput, labInputs, type LabInputs } from './production';
 import { believedWorld } from './believed';
 import type { GameStateV2, LabId, ProductionReadout } from '../types';
 
@@ -21,8 +21,9 @@ export interface ResponseCurves { scales: number[]; humans: number[]; research: 
 export const RESPONSE_SCALES = [0.25, 0.35, 0.5, 0.7, 1, 1.4, 2, 2.8, 4];
 
 export function responseCurves(s: GameStateV2): ResponseCurves | undefined {
-  const inp = labInputs(s, 'player');
-  if (!inp) return undefined;
+  const raw = labInputs(s, 'player');
+  if (!raw) return undefined;
+  const inp = believedInputs(s, raw); // UB-2: measured coverage / assist, believed taste
   const w = believedWorld(s); // RD-UI0a: believed production parameters (published prior), never the hidden draw
   const X0 = Math.max(1e-12, expThroughput(w, inp));
   const rel = (o: Partial<Pick<LabInputs, 'h' | 'k' | 'c'>>) => expThroughput(w, inp, o) / X0;

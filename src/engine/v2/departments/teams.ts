@@ -20,7 +20,7 @@ import {
 import { START_BY_ID } from '../../../data/v2/starts';
 import { decimalYear } from '../core/time';
 import { Phi } from '../production/ces';
-import { workContext } from './workfit';
+import { measuredLabour, sdAIOf, workContext } from './workfit';
 import type {
   BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, RngLike, StaffByRole, StartType, SystemCtx, Team, TeamCandidate, TeamDept,
   TeamHiring, TeamKey, TeamQuality, TeamRole,
@@ -404,7 +404,11 @@ export function hireStar(s: GameStateV2) {
 /** AI share of each role's work (STRUCTURE §4.1): engineers their SWE coverage (model v3 V3); research engineers 1 − wH (the AI part of coding
  *  labour); scientists Φ(sdAI), the share of human scientists AI taste exceeds. */
 export function aiShareByRole(s: GameStateV2): Record<TeamRole, number> {
-  const pr = s.player.prodCache;
-  if (!pr) return { eng: 0, re: 0, sci: 0 };
-  return { eng: pr.labor.aEng ?? 0, re: 1 - pr.labor.wH, sci: Phi(pr.sdAI) };
+  // UB-2: from the measured / believed labour (workfit.ts measuredLabour), never the true fit or the hidden production
+  // parameters (was the production cache: the engine's coverage, 1 ÷ m_EXP and AI taste).
+  const wc = workContext(s);
+  const eng = measuredLabour(s, wc.slots.SWE);
+  const exp = measuredLabour(s, wc.slots.EXP);
+  const ideas = wc.slots.IDEAS.aiFte > 0 ? measuredLabour(s, wc.slots.IDEAS) : undefined;
+  return { eng: wc.slots.SWE.aiFte > 0 ? eng.fit.a : 0, re: exp.m > 1 ? 1 - 1 / exp.m : 0, sci: ideas ? Phi(sdAIOf(s.hidden.timeline, ideas.fit.fit)) : 0 };
 }

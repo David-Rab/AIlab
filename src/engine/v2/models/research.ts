@@ -52,7 +52,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -194,6 +194,24 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
   return { cap, q: cap > 0 ? qw / cap : 1 };
 }
 
+/** UB-2: sciOn for readouts: the same capacity (fact) with the believed taste (departments/workfit.ts
+ *  believedTasteInputs: the frontier-research AI staff's measured fit, the believed taste spread) in place of the true. */
+export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap: number; q: number } {
+  const n = node(id);
+  if (!n) return { cap: 0, q: 1 };
+  const { sdAI, sAI, m2b } = believedTasteInputs(s);
+  const star = starTaste(s);
+  let cap = 0;
+  let qw = 0;
+  for (const t of teams) {
+    if (t.projectId !== id || t.role !== 'sci') continue;
+    const c = teamCapacity(onDuty(s, t), n.column);
+    cap += c;
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, star);
+  }
+  return { cap, q: cap > 0 ? qw / cap : 1 };
+}
+
 /** A project's experiment inputs as the next research day gives them: its research-engineer team-equivalents from the
  *  allocation that day runs (reAllocation; a project not yet in experiments is read at a full project's RE_MAX_PER_PROJECT,
  *  what it gets when its test starts if engineers are free), its experiment compute c (a full project's share of FLOP,
@@ -217,7 +235,7 @@ export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAlloc
  *  RF-R4 (a readout, never the hidden draw): the believed production parameters (production/believed.ts) at the project's
  *  inputs, scaled to the lab's observed experiment throughput (observedScale), so the ETA's level is what the lab's
  *  experiments did and only the step to the project's inputs or other staffing is a belief. */
-export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number } = sciOn(s, id)): { ideation: number; experiments: number; eta: number } {
+export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number } = believedSciOn(s, id)): { ideation: number; experiments: number; eta: number } {
   const n = node(id);
   const ts = s.player.tree[id];
   const st = ts?.cap;

@@ -123,7 +123,7 @@ export function demandModifiers(s: GameStateV2, d: Deployment): { label: string;
 
 export { PENALTY_MAX } from '../worldfx/revenue';
 export { DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, disclosurePolicy, hardenLevel, mustReport, responseOptions, willDisclose } from '../safety/responses';
-export { bestPlayerVersion } from '../models/labs';
+export { bestMeasuredVersion } from '../models/labs';
 
 // ───────── Idle stocks (STRUCTURE R5 and §8 idle test) ─────────
 /** Resource stocks the player owns that can sit unused with no default use. Training compute (spare → experiments or

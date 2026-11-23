@@ -5,7 +5,7 @@
 // The WS1 production system (order 30) advances every active lab's research: the player's projects, the other labs'
 // aggregate recipe (model v3 F1, actors/rivalModel.ts). Non-player labs carry SimpleModel versions on a physical base;
 // WS4's labDaily (actors/rivals.ts) is their one daily policy (split, staff, base run, continual learner, releases).
-import type { GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
+import type { DomainId, GameStateV2, LabCore, LabId, ModelVersion, RivalLab } from '../types';
 
 export const PLAYER_ID: LabId = 'player';
 export const CHINA_ID: LabId = 'china';
@@ -64,6 +64,28 @@ export function measuredLOf(s: GameStateV2, v: ModelVersion | undefined): { L: n
   return { L: bestMeasuredL(s), evaluating: true };
 }
 
+/** RD-M01(b): the domain's benchmark fit (every domain has a row). UB-2: a version with no fit for the domain (in
+ *  evaluation, or a pre-RD-M01b suite without MEDIA / PHYS rows) reads its nearest measured ancestor's fit, else the best
+ *  measured version's, else the lineage's measured general level: never its true domain offset. The row then says
+ *  "not measured yet" (ActRow.measured false). */
+export function measuredDomainOf(s: GameStateV2, v: ModelVersion, d: DomainId): number {
+  const vs = s.player.models.versions;
+  let p: ModelVersion | undefined = v;
+  for (let i = 0; p && i < 50; i++) {
+    const fit = p.evals.measuredDom?.[d];
+    if (fit !== undefined) return fit;
+    const pid: string | undefined = p.parentVersionId;
+    p = pid ? vs.find((x) => x.id === pid) : undefined;
+  }
+  let best: number | undefined;
+  let bestL = -Infinity;
+  for (const x of vs) {
+    const fit = x.status !== 'retired' ? x.evals.measuredDom?.[d] : undefined;
+    if (fit !== undefined && (x.evals.measuredL ?? 0) > bestL) { best = fit; bestL = x.evals.measuredL ?? 0; }
+  }
+  return best ?? measuredLOf(s, v).L;
+}
+
 /** Player version by id. */
 export function versionById(s: GameStateV2, id: string | undefined): ModelVersion | undefined {
   return id === undefined ? undefined : s.player.models.versions.find((v) => v.id === id);
@@ -84,6 +106,20 @@ export function bestPlayerVersion(s: GameStateV2): ModelVersion | undefined {
   let best: ModelVersion | undefined;
   for (const v of s.player.models.versions) if (LIVE(v) && (!best || v.G > best.G)) best = v;
   return best;
+}
+
+/** UB-2: the player's best non-retired version as the lab knows it, for readouts: the highest MEASURED general level
+ *  (evals.measuredL); with nothing measured, the newest live version. Never ranks by the true G. */
+export function bestMeasuredVersion(s: GameStateV2): ModelVersion | undefined {
+  let best: ModelVersion | undefined;
+  let last: ModelVersion | undefined;
+  for (const v of s.player.models.versions) {
+    if (!LIVE(v)) continue;
+    last = v;
+    const L = v.evals.measuredL;
+    if (L !== undefined && (!best || L > (best.evals.measuredL ?? -Infinity))) best = v;
+  }
+  return best ?? last;
 }
 
 /** TRUE best general effective compute G (OOM) of a lab's internal frontier (hidden — engine use only); −∞ without a

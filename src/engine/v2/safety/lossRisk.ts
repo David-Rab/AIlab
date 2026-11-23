@@ -26,7 +26,8 @@
 import { COVERT_ACTS, CONTROL, DANGER_ACTS, FOOTHOLD, MISUSE } from '../../../data/v2/danger';
 import { computeOnlineOf } from '../compute/power';
 import { internalFleets } from '../departments/agents';
-import { bestPlayerVersion } from '../models/labs';
+import { bestMeasuredVersion } from '../models/labs';
+import { believedRdShare } from '../departments/workfit';
 import type { Foothold, GameStateV2, ModelVersion, TraitId } from '../types';
 import { clamp01, sigmoid, versionById } from './common';
 import { actTable, type ActTable } from './actTable';
@@ -132,7 +133,7 @@ function pLoss(s: GameStateV2, m: number, sd: number, k: number): number {
 /** Loss-of-control risk of model v (believed only: beliefs, measured levels, believed safeguards, known footholds,
  *  the table's expected unfound ones, the published prior on θ). Never reads s.hidden or true traits. */
 export function modelLossRisk(s: GameStateV2, v: ModelVersion, m: LossMods = {}): LossRisk {
-  const o = believedInternalOversight(s, v, CONTROL.trait);
+  const o = believedInternalOversight(s, v, CONTROL.trait, believedRdShare(s)); // UB-2: the measured AI share of R&D work
   const known = m.noFootholds ? { F: 0, reach: 0 } : knownFootholds(s, v);
   const unfound = m.noFootholds ? { F: 0, reach: 0 } : unfoundFootholds(s, v);
   const reach = Math.min(FOOTHOLD.reachMax, 1 - (1 - known.reach) * (1 - unfound.reach));
@@ -153,7 +154,7 @@ export function modelLossRisk(s: GameStateV2, v: ModelVersion, m: LossMods = {})
 export function runningModels(s: GameStateV2): ModelVersion[] {
   const out: ModelVersion[] = [];
   const add = (v: ModelVersion | undefined) => { if (v && v.status !== 'retired' && !out.includes(v)) out.push(v); };
-  add(bestPlayerVersion(s));
+  add(bestMeasuredVersion(s)); // UB-2: the best model as measured, never ranked by the true G
   for (const fl of internalFleets(s)) add(fl.v);
   for (const d of s.player.deployments) if (d.status !== 'withdrawn' && d.channel !== 'internal') add(versionById(s, d.versionId));
   return out;

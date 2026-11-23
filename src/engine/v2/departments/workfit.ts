@@ -17,7 +17,7 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
-  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
+  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H50_PER_OOM, HORIZON_BETA,
   MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
@@ -27,7 +27,9 @@ import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
-import { h50Of, versionDomainG } from '../models/capability';
+import { domainRefShift, gOfLevel, h50Of, versionDomainG } from '../models/capability';
+import { measuredDomainOf } from '../models/labs';
+import { believedProd } from '../production/believed';
 import { adopted } from '../models/paradigms';
 import { REF_RL_PROFILE } from '../models/effective';
 import { decimalYear } from '../core/time';
@@ -332,6 +334,52 @@ export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H:
   const hh = Math.max(1e-12, H * as);
   const wH = A >= 1 - 1e-12 ? 0 : A <= 1e-9 ? 1 : (Math.pow(1 - A, 1 - P.rc) * Math.pow(hh, P.rc)) / Math.pow(L, P.rc);
   return { L, m: L / H, wH, A, assist: as };
+}
+
+/** UB-2: a labour slot as the lab measures and believes it: the work fit read from the AI staff model's MEASURED skills
+ *  (measuredDomainOf: its benchmark fits, or a measured relative's while it is in evaluation) in place of its true
+ *  effective compute, with the same owned-tool effects (the slot's fit minus the model's own, a fact of the tools the lab
+ *  built); coverage, win rate and assist from that fit on the public reference points; work done from the BELIEVED
+ *  production parameters (production/believed.ts). Humans, AI team-equivalents, copies and compute are facts. */
+export interface MeasuredLabour { fit: WorkFit; L: number; m: number; wH: number; A: number; measured: boolean }
+export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
+  const v = sl.versionId ? s.player.models.versions.find((x) => x.id === sl.versionId) : undefined;
+  if (!v) return { fit: sl.fit, L: sl.H, m: sl.H > 1e-12 ? 1 : 0, wH: 1, A: 0, measured: false }; // no model: no fit to read
+  const w = s.hidden.timeline; // public reference points (G_SC, Δ_bm, level knots) only
+  const gMeas = (d: DomainId) => gOfLevel(w, measuredDomainOf(s, v, d)) + domainRefShift(w, d);
+  const ws = WORK_TYPES[sl.wt].w as Record<DomainId, number>;
+  let fit = sl.fit.fit;
+  for (const d in ws) fit += ws[d as DomainId] * (gMeas(d as DomainId) - versionDomainG(v, d as DomainId));
+  const hd = WORK_TYPES[sl.wt].horizon;
+  const h50 = sl.fit.h50 * Math.pow(H50_PER_OOM, gMeas(hd) - versionDomainG(v, hd));
+  const win = winRate(w, sl.wt, fit);
+  const f: WorkFit = { fit, best: sl.fit.best, med: sl.fit.med, h50, a: coverage(w, sl.wt, fit, h50), win, assist: assistOf(win) };
+  const r = handedLabour(believedProd(s).mid, f.a, sl.t, sl.H, sl.AI, f.assist);
+  return { fit: f, L: r.L, m: r.m, wH: r.wH, A: r.A, measured: v.evals.measuredL !== undefined };
+}
+
+/** UB-2: the AI taste inputs as the lab believes them: AI research taste (SDs above the median scientist) from the
+ *  frontier-research AI staff's MEASURED fit, AI's share of the ideas from the believed labour (measuredLabour), and the
+ *  believed taste spread m2b. sAI 0 without AI staff on ideas. */
+export function believedTasteInputs(s: GameStateV2): { sdAI: number; sAI: number; m2b: number } {
+  const sl = workContext(s).slots.IDEAS;
+  const m2b = believedProd(s).mid.m2b;
+  if (!(sl.aiFte > 0)) return { sdAI: -6, sAI: 0, m2b };
+  const ml = measuredLabour(s, sl);
+  return { sdAI: sdAIOf(s.hidden.timeline, ml.fit.fit), sAI: aiIdeasShare(sl.H, ml.fit.assist, ml.L), m2b }; // public reference points only
+}
+
+/** UB-2: AI share of the lab's own R&D labour as the lab measures it (incidents.ts aiRdShare's formula on measuredLabour's
+ *  effective labour): readouts only (the believed act table's site). */
+export function believedRdShare(s: GameStateV2): number {
+  const w = workContext(s).slots;
+  let H = 0;
+  let L = 0;
+  for (const k of ['SWE', 'EXP', 'IDEAS'] as const) {
+    H += w[k].H;
+    L += Math.max(w[k].H, measuredLabour(s, w[k]).L);
+  }
+  return L > 1e-12 ? Math.max(0, Math.min(1, 1 - H / L)) : 0;
 }
 
 const ctxMemo = new WeakMap<GameStateV2, WorkContext>();

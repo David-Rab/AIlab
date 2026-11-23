@@ -32,7 +32,7 @@ import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetS
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, sciOn, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, believedSciOn, stepProject, takesTeams,
   type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
@@ -201,9 +201,9 @@ export function projectEta(s: GameStateV2, id: string, staff?: number | StaffCha
   const same = staff === undefined || Math.abs(c - now) < 1e-9;
   if (isCapProject(n)) {
     if (same) return capEta(s, id).eta;
-    if (typeof staff === 'number') return capEta(s, id, { cap: c, q: sciOn(s, id).q }).eta;
+    if (typeof staff === 'number') return capEta(s, id, { cap: c, q: believedSciOn(s, id).q }).eta;
     const teams = s.player.teams.filter((t) => t.id !== staff.remove && t.id !== staff.add?.id);
-    return capEta(s, id, sciOn(s, id, staff.add ? [...teams, { ...staff.add, projectId: id }] : teams)).eta;
+    return capEta(s, id, believedSciOn(s, id, staff.add ? [...teams, { ...staff.add, projectId: id }] : teams)).eta;
   }
   return isLineNode(n) && c > 0 ? lineEtaDays(s, id, same ? undefined : c) : Infinity;
 }

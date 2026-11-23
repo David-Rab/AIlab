@@ -33,7 +33,8 @@ import { allocate } from '../models/research';
 import { jobComputeNeed, jobStaffing, liveJobs, validationDemand } from './validation';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
-import { handedLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
+import { aiIdeasShare, handedLabour, measuredLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
+import { believedProd } from '../production/believed';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafReNeed, SafProjectState, TreeNodeState } from '../types';
@@ -72,13 +73,18 @@ export function safProgress(st: SafProjectState | undefined): number {
  *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
  *  fit, weighted by AI's share of the SAF_IDEAS labour (DD-13; departments/workfit.ts aiIdeasShare); on the
  *  benchmarked agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). */
-export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; heads: number } {
+export function safSciOn(s: GameStateV2, id: string, truth = true): { cap: number; q: number; heads: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1, heads: 0 };
-  const m2b = s.hidden.timeline.prod.m2b;
   const sl = safetyLabour(s);
   const dG = aarFindingOom(s, agendaOf(n));
-  const sdAI = dG ? sdAIOf(s.hidden.timeline, sl.ideas.fit.fit + dG, 'SAF_IDEAS') : sl.sdAI;
+  // UB-2: the readouts (truth false) take the believed taste spread and the safety model's MEASURED fit
+  // (measuredLabour) for AI taste and AI's share of the ideas; physics keeps the true ones.
+  const m2b = truth ? s.hidden.timeline.prod.m2b : believedProd(s).mid.m2b;
+  const mi = truth || !(sl.ideas.aiFte > 0) ? undefined : measuredLabour(s, sl.ideas);
+  const fitI = mi ? mi.fit.fit : sl.ideas.fit.fit;
+  const sAI = mi ? aiIdeasShare(sl.ideas.H, mi.fit.assist, mi.L) : sl.sAI;
+  const sdAI = dG || mi ? sdAIOf(s.hidden.timeline, fitI + dG, 'SAF_IDEAS') : sl.sdAI;
   let cap = 0;
   let qw = 0;
   let heads = 0;
@@ -87,7 +93,7 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
     heads += onDuty(s, t).heads;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sl.sAI, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b);
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
 }
@@ -106,7 +112,8 @@ export function safSciOn(s: GameStateV2, id: string): { cap: number; q: number; 
 export function lineLabour(s: GameStateV2, ag: AgendaId, truth = true): { ideas: number; exp: number; aiShare: number } {
   const sl = safetyLabour(s);
   if (sl.t <= 0) return { ideas: 1, exp: 1, aiShare: 0 };
-  const P = s.hidden.timeline.prod;
+  // UB-2: the readouts (truth false) use the believed production parameters and the measured fits.
+  const P = truth ? s.hidden.timeline.prod : believedProd(s).mid;
   const auto = aarAuto(s, AGENDA_BY_ID[ag].auto);
   // Model v3 E7: the share of their own work the safety agents sandbag (SAFSAB attempts containment does not stop) is lost;
   // SAFMECH: on the lines whose work would expose them (× the line's threat). Hidden: the readouts (`truth` false: ETAs,
@@ -115,7 +122,7 @@ export function lineLabour(s: GameStateV2, ag: AgendaId, truth = true): { ideas:
   const dG = aarFindingOom(s, ag);
   const one = (x: LabourOf) => {
     if (x.aiFte <= 0) return { m: 1, A: 0 };
-    const f = shiftFit(s.hidden.timeline, x.wt, x.fit, dG);
+    const f = shiftFit(s.hidden.timeline, x.wt, truth ? x.fit : measuredLabour(s, x).fit, dG);
     return handedLabour(P, f.a * auto, sl.t, x.H, x.AI * kept, f.assist);
   };
   const e = one(sl.exp);
@@ -303,8 +310,8 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   if (!n || !isLineNode(n)) return zero;
   const ag = agendaOf(n);
   const def = AGENDA_BY_ID[ag];
-  const P = s.hidden.timeline.prod;
-  const sci = safSciOn(s, id);
+  const P = truth ? s.hidden.timeline.prod : believedProd(s).mid; // UB-2: readouts on the believed parameters
+  const sci = safSciOn(s, id, truth);
   const capNow = cap ?? sci.cap;
   const m = lineLabourMult(s, ag, truth);
   const speed = researchMods(s).speed;

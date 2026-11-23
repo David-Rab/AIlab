@@ -33,7 +33,6 @@ export type * from './types';
 import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId, RunPrediction } from './types';
 import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
 import { planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
-import { measuredDomain } from './actors/commitments';
 import { DOMAIN_IDS } from '../../data/v2/calibration';
 
 export const ACTION_DEFS: readonly ActionDef[] = REG_ACTIONS;
@@ -108,9 +107,12 @@ export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
  *  band; [0, 0] when nothing is measured). */
 export const runBand = (s: GameStateV2, r: { predicted: RunPrediction }): [number, number] => runForecast(s, r.predicted)?.band ?? [0, 0];
 
-/** Measured domain levels of a version (what the player's evals show). */
-export function measuredDomains(v: ModelVersion): Record<DomainId, number> {
-  return Object.fromEntries(DOMAIN_IDS.map((d) => [d, measuredDomain(v, d)])) as Record<DomainId, number>;
+/** Measured domain levels of a version (what the player's evals show). UB-2: only the domains with a benchmark fit
+ *  (the old fallback for a version not measured yet read its true domain offset): a missing domain is "not measured yet". */
+export function measuredDomains(v: ModelVersion): Partial<Record<DomainId, number>> {
+  const out: Partial<Record<DomainId, number>> = {};
+  for (const d of DOMAIN_IDS) { const fit = v.evals.measuredDom?.[d]; if (fit !== undefined) out[d] = fit; }
+  return out;
 }
 
 export { runwayOf, RUNWAY_CAP } from './finance/runway';
@@ -140,6 +142,10 @@ export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 // End screen only (truth): the causal replay.
 export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
+export * from './models/rdReadouts';
+export * from './safety/safetyReadouts';
+export * from './core/certainty';
+export { sightCurve } from './safety/sightLimit';
 // Model v3 D5: RL environment suites (readout and costs).
 export { suitesView, suiteWorkCost, suiteWorkEffect, familyDomain, demosAvailable, type SuiteRow } from './models/suites';
 // Model v3 D6: the suites view (Models › Suites): previews of suite work on a planned post-train (output only).

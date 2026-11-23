@@ -216,6 +216,24 @@ export function sightGrid(s: GameStateV2, span = 4): { L: number; levels: number
   return { L, levels, rows: CRITICAL_TRAITS.map((trait) => ({ trait, det: levels.map((l) => det(trait, l)) })) };
 }
 
+/** UB-2: the sight chart (SAFETY › Instruments / header): the believed reading of hidden goals on the internal model at
+ *  each capability level from 0 to 15 in `step` levels: the mean over the critical traits (the sight limit is where it
+ *  crosses 50%) and the lowest trait (the band floor). Beliefs only (the detector the sight limit uses). */
+export function sightCurve(s: GameStateV2, step = 0.25): { L: number; points: { level: number; mean: number; min: number }[] } {
+  const v = internalVersion(s);
+  const L = measuredLOf(s, v).L;
+  if (!v) return { L, points: [] };
+  const det = detector(s, v, detTools(s), L);
+  const points: { level: number; mean: number; min: number }[] = [];
+  for (let i = 0; i * step <= 15 + 1e-9; i++) {
+    const level = Math.round(i * step * 100) / 100;
+    let min = 1;
+    for (const k of CRITICAL_TRAITS) min = Math.min(min, det(k, level));
+    points.push({ level, mean: meanDet(det, level), min });
+  }
+  return { L, points };
+}
+
 /**
  * TRUE sight limit (hidden, engine only: endings and analysis): the same bisection on the TRUE reliability of the active
  * instruments on the internal model (true efficacy, true eval awareness projected upward with capability as for the

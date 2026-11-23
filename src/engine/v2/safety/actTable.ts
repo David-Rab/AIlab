@@ -20,7 +20,8 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import { CHANNEL_AFFORD, COVERT_ACTS, DANGER_ACTS, MISUSE, type ActDef, type CovertActDef, type CovertActId } from '../../../data/v2/danger';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { agentSplitShare, agentVersion, fleetMonitor, monitorVersion, useMonitor } from '../departments/agents';
-import { measuredLOf } from '../models/labs';
+import { measuredDomainOf, measuredLOf } from '../models/labs';
+import { believedRdShare, measuredLabour, workContext, type CapSlot } from '../departments/workfit';
 import { collusionTrait, productHazardMult, productMonitor, type MonitorStop } from '../models/products';
 import type { AgentUse, Deployment, DomainId, GameStateV2, ModelVersion, TraitId, TraitVector } from '../types';
 import { clamp01, versionById } from './common';
@@ -84,6 +85,12 @@ export interface ActRow {
   /** Stop rate = 1 − (1 − block)(1 − catch). */
   block: number; catch: number; stopRate: number;
   attempts: number; unstopped: number;
+  /** UB-2 (believed tables): false when the model has no measured skill of its own in the row's domain yet (Able to then
+   *  reads a measured relative's skill: show "not measured yet"). */
+  measured?: boolean;
+  /** UB-2: the act's base rate per chance (data κ; absent on the composite and escape rows): Chances / yr = κ × chances
+   *  × 365 (per item: κ × chances), so Would try × Able to × Chances / yr = attempts. */
+  kappa?: number;
 }
 
 /** The site the table reads: its deployment and model, the incidents.ts Site and the safeguard parts shared by every
@@ -105,9 +112,8 @@ export type ActTarget = { deploymentId: string } | { use: AgentUse } | { deploym
  *  the trait acts only (dangerView). */
 export interface ActOpts { control?: boolean; restrict?: boolean; core?: boolean }
 
-// RD-M01(b): the domain's benchmark fit (every domain has a row). Fallback only for a record with no fit for the domain
-// (version in evaluation, or a pre-RD-M01b suite without MEDIA / PHYS rows): lineage measured general + offset.
-const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => v.evals.measuredDom?.[d] ?? measuredLOf(s, v).L + (v.domains[d] - v.Lg);
+// RD-M01(b), UB-2: the domain's benchmark fit, or a measured relative's (models/labs.ts measuredDomainOf).
+const measuredDomainL = measuredDomainOf;
 const liveInternal = (s: GameStateV2) => s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
 
 /** Usage of an internal lane: its share of internal agent compute (E5/R7's fleet usage, split by use). */
@@ -142,6 +148,7 @@ export function actSite(s: GameStateV2, target: ActTarget, believed: boolean, o:
   if (!believed) {
     return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: site.contain, monitor: fleetMonitor(s, v, undefined, false), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }) };
   }
+  site.rd = believedRdShare(s); // UB-2: the AI share of R&D labour as measured, not the true one
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
   return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: p.block, monitor: fleetMonitor(s, v, undefined, true), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss) };
@@ -183,6 +190,7 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
     return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v, undefined, false), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
   }
   // E15: the same believed oversight as E9's believed control (believedOversight.ts).
+  site.rd = believedRdShare(s); // UB-2: the AI share of R&D labour as measured, not the true one
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
   return { d, v, use, site, usage, layer, restricted, monitored, contain: p.block, monitor: fleetMonitor(s, v, undefined, true), human: p.human, controlMiss: p.controlMiss, catchOf: believedInternalCatch(s, v, p.L, p.human, p.controlMiss), monitorParts };
@@ -215,7 +223,7 @@ export function siteActs(s: GameStateV2, a: ActSite, believed: boolean): ActRow[
     const [lo, hi] = believed ? range(x, v.beliefs[t]?.sd ?? 0, dispositionOf) : [k.disposition, k.disposition];
     out.push({
       ...info(t), per: 'year', x, wouldTry: k.disposition, wouldTryLo: lo, wouldTryHi: hi, domain: def.domain, level, theta: actTheta(s.hidden.timeline, def), ableTo: k.capability,
-      chances, alpha: def.alpha, block: k.block, catch: c, stopRate, attempts, unstopped: attempts * (1 - stopRate),
+      chances, alpha: def.alpha, block: k.block, catch: c, stopRate, attempts, unstopped: attempts * (1 - stopRate), kappa: def.kappa,
     });
   }
   return out;
@@ -243,7 +251,7 @@ function covertRow(s: GameStateV2, id: CovertActId, t: CovertTerms, per: 'year' 
   const k = per === 'year' ? YEAR : 1;
   return {
     ...info(id), per, x, wouldTry: t.disposition, wouldTryLo: lohi[0], wouldTryHi: lohi[1], domain: def.domain, level, theta: actTheta(s.hidden.timeline, def), ableTo: t.capability,
-    chances: t.opportunity, alpha: def.alpha, block: t.block, catch: t.catch, stopRate: t.oversight, attempts: t.attempts * k, unstopped: t.rate * k,
+    chances: t.opportunity, alpha: def.alpha, block: t.block, catch: t.catch, stopRate: t.oversight, attempts: t.attempts * k, unstopped: t.rate * k, kappa: def.kappa,
   };
 }
 
@@ -284,6 +292,23 @@ function itemRow(s: GameStateV2, v: ModelVersion, id: CovertActId, share: number
   return covertRow(s, id, t, 'item', level, x, range(x, sd, dispositionOf));
 }
 
+/** UB-2: covert.ts rdParts on the measured labour (measuredLabour): each AI staff model's share of the lab's R&D work as
+ *  the lab measures it (believed tables). */
+function believedRdParts(s: GameStateV2): { slot: CapSlot; v: ModelVersion; share: number }[] {
+  const w = workContext(s).slots;
+  const Lm = { SWE: measuredLabour(s, w.SWE).L, EXP: measuredLabour(s, w.EXP).L, IDEAS: measuredLabour(s, w.IDEAS).L };
+  let L = 0;
+  for (const k of ['SWE', 'EXP', 'IDEAS'] as const) L += Math.max(w[k].H, Lm[k]);
+  const out: { slot: CapSlot; v: ModelVersion; share: number }[] = [];
+  if (L <= 1e-12) return out;
+  for (const k of ['SWE', 'EXP', 'IDEAS'] as const) {
+    const v = w[k].versionId ? versionById(s, w[k].versionId) : undefined;
+    const share = (Math.max(w[k].H, Lm[k]) - w[k].H) / L;
+    if (v && share > 0) out.push({ slot: k, v, share });
+  }
+  return out;
+}
+
 /** The covert, composite and escape rows of model v's internal work. */
 function labRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
   const { v } = a;
@@ -295,11 +320,11 @@ function labRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
     const eng = believed ? undefined : safetySabotage(s, share);
     if (share > 0) out.push(itemRow(s, v, 'SAFSAB', share, WORK_TYPES.SAF_EXP.H, believed, eng));
   }
-  const parts = rdParts(s).filter((p) => p.v.id === v.id).sort((x, y) => y.share - x.share);
+  const parts = (believed ? believedRdParts(s) : rdParts(s)).filter((p) => p.v.id === v.id).sort((x, y) => y.share - x.share);
   if (parts[0]) for (const id of ['STEER', 'SUCCSTEER'] as const) out.push(itemRow(s, v, id, parts[0].share, WORK_TYPES[parts[0].slot].H, believed));
   // The composite row: E9's exposure Mis · (1 − O_eff) · (1 + F) (control.ts; believed: believedTerms + the Mis band).
   // believedTerms' oversight is its O_eff (backdoor reach of located backdoors applied).
-  const c: { mis: number; oEff: number; F: number; exposure: number } = believed ? (({ mis, oversight, F, exposure }) => ({ mis, oEff: oversight, F, exposure }))(believedTerms(s, v)) : controlTerms(s, v);
+  const c: { mis: number; oEff: number; F: number; exposure: number } = believed ? (({ mis, oversight, F, exposure }) => ({ mis, oEff: oversight, F, exposure }))(believedTerms(s, v, believedRdShare(s))) : controlTerms(s, v);
   const mis = c.mis;
   const oEff = c.oEff;
   const [lo, hi] = believed ? misalignmentBand(v) : [mis, mis];
@@ -336,7 +361,7 @@ function misuseRows(s: GameStateV2, a: ActSite, believed: boolean): ActRow[] {
     return {
       ...info(id), per: 'year', x: r.disposition, wouldTry: r.disposition, wouldTryLo: r.disposition, wouldTryHi: r.disposition, domain: r.domain,
       level: believed ? measuredDomainL(s, v, r.domain!) : v.domains[r.domain!], theta: MISUSE.theta, ableTo: r.capability,
-      chances: r.opportunity, alpha: 0, block: r.block, catch: 0, stopRate: r.block, attempts, unstopped: r.h * YEAR,
+      chances: r.opportunity, alpha: 0, block: r.block, catch: 0, stopRate: r.block, attempts, unstopped: r.h * YEAR, kappa: MISUSE.kappa,
     } satisfies ActRow;
   });
 }
@@ -352,6 +377,7 @@ export function actTable(s: GameStateV2, target: ActTarget, believed: boolean, o
   if (!a) return undefined;
   const rows = siteActs(s, a, believed);
   if (!o.core) rows.push(...(a.site.internal ? labRows(s, a, believed) : misuseRows(s, a, believed)));
+  if (believed) for (const r of rows) r.measured = r.domain ? a.v.evals.measuredDom?.[r.domain] !== undefined : a.v.evals.measuredL !== undefined;
   const gap = a.use ? useControl(s, a.v, monitorVersion(s, a.use), true, believed).gapOom : undefined;
   return { site: a, rows, guards: safeguardLines(a.d, { block: a.contain, human: a.human, gapOom: gap, humanShare: a.site.internal ? 1 - a.site.rd : 0 }) };
 }

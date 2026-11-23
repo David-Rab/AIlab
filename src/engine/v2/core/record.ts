@@ -5,6 +5,7 @@ import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
 import { METHOD_BY_ID } from '../safety/methods';
 import { recordCause, trimCauses } from './causes';
+import { aiStaffSpeedPart, labSpeedRel } from '../production/production';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
 export function emptySeries(labIds: string[]): SeriesV2 {
@@ -39,7 +40,10 @@ export function sampleSeries(s: GameStateV2) {
   // Hidden: level − true sight limit, read by bot diagnostics only (SR-02 removed the trait-growth amplifier).
   const tu = trueSightLimit(s);
   s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.level - tu.L));
-  S.M.push(r3(s.player.research.last?.x?.mExp ?? 1)); // RD-R01: the engine's AI labour multiplier in experiments (was the aggregate M)
+  S.M.push(r3(s.player.research.last?.x?.mExp ?? 1));
+  // UB-2: Research speed history (readouts; believed / observed, like the L0 item). Aligned to day from the end.
+  (S.speed ??= []).push(r3(labSpeedRel(s)));
+  (S.speedAI ??= []).push(r3(aiStaffSpeedPart(s).total)); // RD-R01: the engine's AI labour multiplier in experiments (was the aggregate M)
   S.cash.push(r3(s.player.finance.cash));
   S.revenue.push(r3(s.player.finance.revenueRun));
   S.valuation.push(r3(s.player.finance.valuation));
