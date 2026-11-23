@@ -18,13 +18,13 @@
 // fit their G. Nothing here reads a relative serve cost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { CHANNEL_PRICE, P05_ORCHESTRATION, TOOL_BY_ID, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
-import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
+import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
@@ -354,62 +354,20 @@ export function productTierUses(s: GameStateV2, d: Deployment): ModelUse[][] {
   return lineupVersions(s, d).map((v) => [{ v, fpt: flopPerToken(s, v), w: 1 }]);
 }
 
-/** Coverage of a student g OOM below a teacher of sector fit `fit` and h50 `h50` (every domain shifted down by g). */
-const studentCover = (w: TimelineWorld, sid: SectorId, fit: number, h50: number, g: number) => sectorCover(w, sid, fit - g, h50 * Math.pow(H50_PER_OOM, -g));
-function memoAt<K, V>(m: Map<K, V>, k: K, mk: () => V): V {
-  let x = m.get(k);
-  if (x === undefined) m.set(k, (x = mk()));
-  return x;
-}
-const newMap = () => new Map();
-
 // ───────────────────────────── lineups (TIERS) ─────────────────────────────
 
-/** TIERS: the students in a lineup under a model of `nT` active parameters (data/v2/serving.ts LINEUP): per rung its
- *  size ratio r = N_S/N_T (N_S ≥ PARAM_RANGE[0]: the 1B floor can leave a rung closer) and its distillation gap g =
- *  DISTILL.a + DISTILL.b·log₁₀(1/r) (OOM below the model in every domain, as runs.ts distillBuild). Rungs the floor
- *  merges are dropped; none under a model at the floor. */
-export interface LineupRung { r: number; g: number }
-const rungMemo = new Map<number, LineupRung[]>();
-export function lineupOf(nT: number): LineupRung[] {
-  const hit = rungMemo.get(nT);
-  if (hit) return hit;
-  const out: LineupRung[] = [];
+/** TIERS / RD-P02: the student sizes a distill step makes under a model of `nT` active parameters (data/v2/serving.ts
+ *  LINEUP): per rung its size ratio r = N_S/N_T (N_S ≥ PARAM_RANGE[0]: the 1B floor can leave a rung closer). Rungs the
+ *  floor merges are dropped; none under a model at the floor. Used when models are made (day-0 minis, rivals' distill
+ *  step), never by the market at read time. */
+export function lineupSizes(nT: number): number[] {
+  const out: number[] = [];
   for (const r0 of LINEUP.ratios) {
     const nS = Math.max(PARAM_RANGE[0], nT * r0);
-    if (!(nS < nT * (1 - 1e-9)) || (out.length && nS >= nT * out[out.length - 1].r * (1 - 1e-9))) continue;
-    out.push({ r: nS / nT, g: DISTILL.a + DISTILL.b * Math.log10(nT / nS) });
+    if (!(nS < nT * (1 - 1e-9)) || (out.length && nS >= nT * out[out.length - 1] * (1 - 1e-9))) continue;
+    out.push(nS / nT);
   }
-  if (rungMemo.size > 5000) rungMemo.clear();
-  rungMemo.set(nT, out);
   return out;
-}
-type RungMemo = Map<string, Map<number, Map<number, Map<number, { a: number; lam: number }>>>>; // sector → fit → h50 → g
-const rungFitMemo = new WeakMap<TimelineWorld, { m: RungMemo; n: number }>();
-/** TIERS: the offer of the lineup student `rung` under a model whose offer on sector `sid` is `o` (fit o.fit, h50
- *  `h50`, both after the product's settings and features): the model shifted down by the rung's gap in every domain
- *  (coverage and agent leverage at fit − g, h50·H50_PER_OOM^−g), its H100e-hours, costs and prices × r (FLOP per token
- *  ∝ active parameters; the markup is the model's, so a premium price tier applies to every tier), its seat price the
- *  model's list price at that markup (never below its own serving cost). Coverage and leverage are memoised on these
- *  inputs per world (P2-style). */
-export function rungOffer(s: GameStateV2, o: Offer, sid: SectorId, h50: number, rung: LineupRung, markup: number, rate: number): Offer {
-  const w = s.hidden.timeline;
-  let memo = rungFitMemo.get(w);
-  if (!memo || memo.n > 20000) rungFitMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  const byG = memoAt(memoAt(memoAt(memo.m, sid, newMap), o.fit, newMap), h50, newMap) as Map<number, { a: number; lam: number }>;
-  let f = byG.get(rung.g);
-  if (!f) {
-    const a = studentCover(w, sid, o.fit, h50, rung.g);
-    f = { a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -rung.g)) };
-    byG.set(rung.g, f);
-    memo.n++;
-  }
-  const r = rung.r;
-  const seatCost = seatHoursPerMonth(sid) * o.hphAs * r * rate;
-  return {
-    fit: o.fit - rung.g, a: f.a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: f.a * f.lam, lam: f.lam, hphAg: o.hphAg * r, costAg: o.costAg * r,
-    priceAg: o.priceAg * r, hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
-  };
 }
 /** TIERS / RD-P01a: a product's lineup on a sector: its main model's offer `main`, then each real lineup entry
  *  (productTierUses, Deployment.lineup order) at its own fit and serving cost, the product's settings, features and
@@ -454,14 +412,6 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses 
 /** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
  *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
-/** A7: the free chat tier of a model with `nT` active parameters (data/v2/serving.ts FREE_TIER): the student that holds
- *  the model's fit less FREE_TIER.oom OOM, sized by the cheapestAt rule (studentParamsFor; the 1B floor
- *  can leave it closer). Its size ratio to the teacher and its gap below it (OOM); ratio 1 and gap 0 when no student is
- *  DISTILL.a below the teacher (the model itself is the cheapest adequate one). */
-export function freeTierOf(nT: number): { r: number; gap: number } {
-  const nS = studentParamsFor(nT, FREE_TIER.oom);
-  return nS < nT ? { r: nS / nT, gap: DISTILL.a + DISTILL.b * Math.log10(nT / nS) } : { r: 1, gap: 0 };
-}
 /** RD-P01a: the model in a Chat product's free-tier slot: Deployment.freeTierId when it is in the lineup (the main model
  *  or a lineup entry), else the lineup's cheapest model to serve (lowest FLOP per token; the main model alone: itself). */
 export function freeTierVersion(s: GameStateV2, d: Deployment): ModelVersion | undefined {

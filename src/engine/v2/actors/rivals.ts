@@ -32,7 +32,7 @@ import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { distillLift, labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, rivalLineupStep, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -373,9 +373,11 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
       open = gapToFrontier < 183 && r.meters.openness > 50;
     }
     if (r.core.kind === 'china') open = s.china.meters.openWeights > 50 && s.china.rung < 3;
+    const prev = r.publicModel;
     r.publicModel = { ...rel, traitsTrue: { ...rel.traitsTrue }, uModes: [...rel.uModes], isPublic: true, openWeights: open };
     if (open) openWeightsReleased(s, ctx, id, rel.G, rel.recG ?? recipeOf(s, r));
-  }
+    rivalLineupStep(wl, r, day, true, prev);
+  } else rivalLineupStep(wl, r, day, false);
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
   // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety

@@ -176,8 +176,8 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
 
 /** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
  *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
- *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
- *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). The player's Chat runs its mini instead when the player sets one.
+ *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (δ =
+ *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). RD-P02: rivals' and China's free users now run their cheapest real lineup model; FREE_TIER sizes RefBot's cheap tier only.
  *  Free tiers in mid-2025 ran a generation below the paid frontier: ChatGPT's free users on GPT-4o (a May 2024 model)
  *  with a GPT-4.1 mini fallback at the limits, paid users on o3 [P/R: ChatGPT release notes, 14 May 2025 (help.openai.com,
  *  read via an extract)]; the Gemini app on 2.0 / 2.5 Flash [P: Gemini release notes 2025-01-30 (extract); Google blog
@@ -190,7 +190,7 @@ export const FREE_TIER = { oom: 1.2 } as const; // was 1 progress-year
 /** TIERS: product lineups (design/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
  *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices
  *  per token relative to the model's (serving cost ∝ active parameters at one markup [D]). Each student's fit follows
- *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupOf); buyers
+ *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupSizes; RD-P02: rivals' students are made by their distill step after RIVAL_DISTILL_LAG_DAYS, actors/rivalModel.ts); buyers
  *  choose among every tier on offer by band (worldfx/choice.ts). The rungs are the geometric means of the two four-tier
  *  lineups on the labs' pricing pages, Nov 2026 [P, fetched 2026-11-21; input / output $ per M tokens]:
  *  - Anthropic (platform.claude.com/docs/en/about-claude/pricing): Claude Fable 5.2 $8 / $40, Opus 5.5 $4 / $20,

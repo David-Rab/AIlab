@@ -34,7 +34,7 @@ import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
 import { distilledBeliefs, distilledStart } from '../safety/traits';
-import { lineupOf } from '../worldfx/serving';
+import { lineupSizes } from '../worldfx/serving';
 import { labCore } from '../models/labs';
 import { initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
@@ -179,8 +179,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   // teacher's distilled-start traits, masks, U-modes and distilled beliefs (safety/traits.ts, E19, without the run's
   // step: no run happened in the game). Known since before the start, measured like V0.
   const nT = REFERENCE_BASE.params;
-  const minis: ModelVersion[] = lineupOf(nT).map((rung, i) => {
-    const nS = rung.r * nT;
+  const minis: ModelVersion[] = lineupSizes(nT).map((r, i) => {
+    const nS = r * nT;
     const gap = distillGap(nT, nS, DISTILL_TPP * nS);
     const b = { ...build, dg: build.dg - gap, sD: { ...build.sD }, dgD: { ...build.dgD }, dgRLd: { ...build.dgRLd }, rlW: { ...build.rlW }, signals: { ...build.signals } };
     const G = gOfBuild(b);
@@ -190,7 +190,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     for (const t of TRAIT_IDS) mk[t] = { ...masks[t] };
     return {
       id: `V0-${i + 1}`, name: `${V0.name}-${START_MINI_NAMES[i] ?? `mini${i + 1}`}`, baseId: 'B0', parentVersionId: 'V0', day: -20, variant: 'mini', design: { ...REFERENCE_POST },
-      G, Lg: L, domains: ds, traitsTrue: distilledStart(V0.traitsTrue), masks: mk, uModes: [...uModes], monitorability: V0.monitorability, fpt: sm.fpt * rung.r,
+      G, Lg: L, domains: ds, traitsTrue: distilledStart(V0.traitsTrue), masks: mk, uModes: [...uModes], monitorability: V0.monitorability, fpt: sm.fpt * r,
       params: nS, evals: startEvals(ds, Math.round(L * 100) / 100, -20), beliefs: distilledBeliefs(beliefs), status: 'deployed', flags: {}, build: b, appeal: 1,
     };
   });

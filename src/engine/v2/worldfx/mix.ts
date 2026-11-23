@@ -23,11 +23,10 @@
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
-import { REFERENCE_BASE, SHAPE } from '../../../data/v2/runDesign';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
-import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, SectorId, SimpleModel, SystemCtx } from '../types';
+import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, RivalLab, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
 import { adequacy, surplusChoice, type Choice, type Tier } from './choice';
@@ -38,7 +37,7 @@ import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  agentDemandOf, chatFreeTier, freeTierOf, lineupOf, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productUses, rungOffer, savedPerAdoptedHour, sectorH50, serveDollarsPerHour, settingsDG, subPrice,
+  agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
@@ -77,8 +76,9 @@ export interface Provider {
   /** The model (non-player providers): fit reads its G, cost its FLOP per token. */
   model?: SimpleModel | ModelVersion;
   fpt?: number;
-  /** Active parameters of a non-player provider's model (its own base, model v3 F1): its cheap tiers are students of it. */
-  params?: number;
+  /** RD-P02: a non-player lab's lineup below its model (RivalLab.lineup: earlier public models, distilled students), each
+   *  real model at its own serving FLOP per token; the lab sells them all at its markup. */
+  tiers?: { model: SimpleModel; fpt: number }[];
   /** Model v3 D10: the provider's decode utilisation (its lab's serving stack; the player's for its open release). */
   ud?: number;
   markup: number;
@@ -317,6 +317,9 @@ function stockShares(s: GameStateV2, providers: Provider[], r: RegionId, seg: st
   return out;
 }
 
+/** RD-P02: a lab's lineup tiers on sale (an inactive lab's open-weight ones only: others host those). */
+const tiersOf = (r: RivalLab) =>
+  (r.lineup ?? []).filter((m) => r.core.status === 'active' || m.openWeights).map((m) => ({ model: m, fpt: rivalServeFpt(r, m) }));
 /** The market's providers (computeMix's list, in its order). */
 function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelVersion>): Provider[] {
   const providers: Provider[] = [];
@@ -333,10 +336,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, params: m.params, fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, dom: m.domains, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, params: cn.params, fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, dom: cn.domains, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -430,7 +433,6 @@ function computeMix(s: GameStateV2): WorldMix {
   const kinds: TierKind[][][] = [];
   const pTiers: { c: number; k: number }[][] = [];
   const aTops: number[] = [];
-  const refTokMult = SHAPE[REFERENCE_BASE.shape].tokenMult;
   for (let si = 0; si < S; si++) {
     const t = SECTOR_TASKS[si];
     const row: (Offer | undefined)[] = new Array(n);
@@ -481,18 +483,14 @@ function computeMix(s: GameStateV2): WorldMix {
         lrow[playerIdx] = L;
       }
     }
-    // TIERS: the other providers' lineups by the same rule as the player's products (data/v2/serving.ts LINEUP: students
-    // of their model at the sourced size ratios; the player's open release sells only its model), then the coverable
-    // range.
+    // TIERS / RD-P02: the other providers' lineups, lab state (RivalLab.lineup: their earlier public models and the
+    // students their distill step made), each real model at its own fit and serving cost and the lab's markup (the
+    // player's open release sells only its model); then the coverable range.
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      const o = row[i];
-      if (!o || !p.model || p.lab === 'player') continue;
-      const rungs = lineupOf(p.params ?? (p.fpt ?? 2e12) / (2 * refTokMult));
-      if (!rungs.length) continue;
-      const h50 = sectorH50(s, p.model, t.id);
-      for (const g of rungs) {
-        lines[i].push(rungOffer(s, o, t.id, h50, g, p.markup, rate));
+      if (!row[i] || !p.tiers?.length) continue;
+      for (const x of p.tiers) {
+        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud }));
         kind[i].push('student');
       }
     }
@@ -713,7 +711,8 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // Consumer market (the consumer-chat work type; price per subscriber-month).
   const cFit = filled(n, -Infinity);
-  // A7: the consumer-chat fit of each provider's free tier (what most users get: freeTierOf, the player's chatFreeTier).
+  // A7 / RD-P02: the consumer-chat fit of each provider's free tier (what most users get): its cheapest real model to
+  // serve (lowest FLOP per token among its model and lineup; the player's: chatFreeTier).
   const cFree = filled(n, -Infinity);
   const cCover = filled(n, 0);
   const cPrice = filled(n, 0);
@@ -731,7 +730,9 @@ function computeMix(s: GameStateV2): WorldMix {
     if (!p.model) continue;
     const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud });
     cFit[i] = o.fit;
-    cFree[i] = o.fit - freeTierOf(p.params ?? (p.fpt ?? 2e12) / (2 * refTokMult)).gap;
+    let free = { model: p.model as SimpleModel | ModelVersion, fpt: p.fpt ?? 2e12 };
+    for (const x of p.tiers ?? []) if (x.fpt < free.fpt) free = x;
+    cFree[i] = free.model === p.model ? o.fit : offerOf(s, [{ v: free.model, fpt: free.fpt, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud }).fit;
     cCover[i] = o.a;
     cPrice[i] = subPrice(s, p.fpt ?? 2e12, p.markup, tokEff(p.model), p.ud).price;
   }
@@ -764,7 +765,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const cBrand = providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1));
     // A5: users choose an app by quality alone: most pay nothing (free users ≈ 95%), so the subscription price is not in
     // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock. A7: the quality
-    // they choose on is the free tier's, the offer they get (every lab's by the same rule, data/v2/serving.ts FREE_TIER).
+    // they choose on is the free tier's, the offer they get (each lab's cheapest real model; RD-P02).
     const target = logit(cFree, cOnes, acc[ri], cBrand);
     const share = stockShares(s, providers, r, 'consumer', target);
     let best = -Infinity;

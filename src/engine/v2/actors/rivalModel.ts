@@ -27,18 +27,18 @@ import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_LEVEL, PRE_RATE0, RIVAL_TPP
 import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research';
 import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
 import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
-import { E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
+import { DISTILL_TPP, E_START, GOODPUT, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { P05_ORCHESTRATION } from '../../../data/v2/features';
 import { domainRefShift, domainsOf, gV0, levelOfG, startLab } from '../models/capability';
-import { flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
+import { distillGap, flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, refRlGain, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, assistOf, copiesOf, coverage, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, winRate } from '../departments/workfit';
-import { tokEff } from '../worldfx/serving';
+import { lineupSizes, tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
@@ -524,6 +524,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
   r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolOf };
   setModelG(w, r.internal, versionG(base, st.eRL, 0), base);
   if (r.publicModel) setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapOom, base);
+  seedRivalLineup(w, r);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
   if (start < 0) {
     // The run in flight launched before day 0: its recipe is today's less the lab's own day-0 growth since launch.
@@ -582,4 +583,64 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   setModelG(w, r.internal, G, r.phys.base, rivalDomainDg(r));
   r.internal.recG = recipeOf(s, r);
   return true;
+}
+
+// ───────────────────────────── lineups (RD-P02) ─────────────────────────────
+
+/** RD-P02 [D]: days from a release to its distilled students on sale: Haiku 4.5 matched Sonnet 4 five months after it
+ *  (design/V3-TASKS.md TIERS2). One lag for every lab: a stated stand-in for the distill run's length and the release
+ *  work (DD-18). */
+export const RIVAL_DISTILL_LAG_DAYS = Math.round(5 * 30.4);
+/** RD-P02 [D]: the most models a rival lineup keeps besides its public model (the oldest on sale leave first; bounds the
+ *  market's work): the labs' pricing pages list 4–6 current text models (design/RD-AUDIT/BUILD-NOTES.md RD-P02). */
+export const RIVAL_LINEUP_MAX = 6;
+const STUDENT_SUFFIX = ['mini', 'micro', 'nano'];
+
+/** RD-P02 (DD-01, DD-18): the students a rival's aggregate distill step makes of `teacher` at the lineup sizes
+ *  (worldfx/serving.ts lineupSizes: data/v2/serving.ts LINEUP ratios of its active parameters), each a SimpleModel of its
+ *  own: G = the teacher's less the distillation gap at full teacher-output tokens (models/effective.ts distillGap at
+ *  DISTILL_TPP × N_S, as the player's day-0 minis), active parameters and FLOP per token × r, the teacher's RL part,
+ *  domain offsets, traits, U-modes and openness; on sale from `day`. */
+export function distillStudents(w: TimelineWorld, teacher: SimpleModel, day: number): SimpleModel[] {
+  const nT = teacher.params ?? B0_PARAMS;
+  const fpt = fptOfSimpleModel(teacher);
+  return lineupSizes(nT).map((r, k) => {
+    const nS = r * nT;
+    const m: SimpleModel = {
+      ...teacher, id: `${teacher.id}/s${k + 1}`, name: `${teacher.name} ${STUDENT_SUFFIX[k] ?? `s${k + 1}`}`, day, traitsTrue: { ...teacher.traitsTrue }, uModes: [...teacher.uModes],
+      params: nS, fpt: fpt * r, isPublic: true, openWeights: teacher.openWeights, ...(teacher.domainDg ? { domainDg: { ...teacher.domainDg } } : {}),
+    };
+    setModelG(w, m, teacher.G - distillGap(nT, nS, DISTILL_TPP * nS));
+    return m;
+  });
+}
+/** RD-P02: a lineup at the start (and in a migrated save): the public model's students, made before the game began. */
+export function seedRivalLineup(w: TimelineWorld, r: RivalLab) {
+  r.lineup = r.publicModel ? distillStudents(w, r.publicModel, r.publicModel.day) : [];
+  r.distilling = [];
+}
+/** RD-P02: a rival's lineup day. On a release (`prev`: the public model it replaced, `released` true) the previous public
+ *  model stays on sale as a tier and the new one's students enter distillation, on sale RIVAL_DISTILL_LAG_DAYS later.
+ *  Students due today go on sale. A tier leaves once another model the lab sells is at least as good and no dearer to
+ *  serve (G ≥ and FLOP per token ≤, the newer one on a tie: replaced, as real labs retire a model a newer one beats on
+ *  both); past RIVAL_LINEUP_MAX the oldest leave. */
+export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, released: boolean, prev?: SimpleModel) {
+  const pub = r.publicModel;
+  let changed = false;
+  if (released && pub && prev?.id !== pub.id) {
+    if (prev) (r.lineup ??= []).push(prev);
+    (r.distilling ??= []).push(...distillStudents(w, pub, day + RIVAL_DISTILL_LAG_DAYS));
+    changed = true;
+  }
+  if (r.distilling?.some((m) => m.day <= day)) {
+    (r.lineup ??= []).push(...r.distilling.filter((m) => m.day <= day));
+    r.distilling = r.distilling.filter((m) => m.day > day);
+    changed = true;
+  }
+  if (!changed || !r.lineup) return;
+  const list = r.lineup;
+  const sellers = pub ? [...list, pub] : list; // on-sale order, the public model newest
+  const fp = sellers.map((m) => fptOfSimpleModel(m));
+  const keep = list.filter((m, i) => !sellers.some((o, j) => j !== i && o.G >= m.G && fp[j] <= fp[i] && (o.G > m.G || fp[j] < fp[i] || j > i)));
+  r.lineup = keep.slice(Math.max(0, keep.length - RIVAL_LINEUP_MAX));
 }

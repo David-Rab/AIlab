@@ -10,6 +10,7 @@ import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
+import { seedRivalLineup } from '../actors/rivalModel';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
@@ -86,8 +87,10 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  Migration 62 → 63 makes an existing mini the second lineup entry (Chat: its free tier).
  *  64 (RD-P01b): the "Auto-make cheap tiers" product policy (policies.autoCheapTier; TrainingRun / ModelVersion
  *  autoTier marks); a new game starts with V0's distilled students in its products' lineups. Migration 63 → 64 sets
- *  the policy off in an existing game. */
-export const SCHEMA_REV = 64;
+ *  the policy off in an existing game.
+ *  65 (RD-P02): rivals' and China's lineups are lab state (RivalLab.lineup, distilling). Migration 64 → 65 gives each
+ *  lab its public model's distilled students, on sale now. */
+export const SCHEMA_REV = 65;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -611,6 +614,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   63: (raw) => {
     const s = raw as unknown as GameStateV2;
     if (s.player?.policies && typeof s.player.policies.autoCheapTier !== 'boolean') s.player.policies.autoCheapTier = false;
+  },
+  /** 64 → 65 (RD-P02): each rival's and China's lineup as lab state: its public model's students on sale now (as at a
+   *  new game's start). Idempotent. */
+  64: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden?.timeline;
+    if (!w) return;
+    for (const r of [...(s.rivals ?? []), ...(s.china?.lab ? [s.china.lab] : [])]) if (!r.lineup) seedRivalLineup(w, r);
   },
 };
 

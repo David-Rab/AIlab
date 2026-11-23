@@ -1886,6 +1886,11 @@ export interface RivalLab {
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;
+  /** RD-P02 (DD-01, DD-18): the lab's lineup besides its public model, real models on sale as cheaper tiers: its earlier
+   *  public models and the distilled students of its releases (actors/rivalModel.ts rivalLineupStep). */
+  lineup?: SimpleModel[];
+  /** RD-P02: students its aggregate distill step is making; each goes on sale on its `day`. */
+  distilling?: SimpleModel[];
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;

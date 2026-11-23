@@ -46,11 +46,11 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, effortDG, studentParamsFor, lineupOf, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
-  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier, freeTierOf,
+  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, effortDG, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
-import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, SHAPE } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../src/data/v2/runDesign';
 import { consumerUse, workBilling } from '../../src/engine/v2/worldfx/readouts';
 import { monitorOverhead } from '../../src/engine/v2/models/products';
 import { paramsOfVersion, planRun } from '../../src/engine/v2/models/runs';
@@ -377,23 +377,22 @@ for (const d of [400, 900]) {
 }
 {
   // A7 free tiers with parity: every provider's free tier holds its consumer model's chat fit less one year of the
-  // reference frontier (freeTierOf: the cheapestAt rule); users choose on the free tier; the start's free users are
+  // reference frontier (RD-P02: rivals: their cheapest real lineup model); users choose on the free tier; the start's free users are
   // served and a free message costs within ≈ 3× of Google's measured 0.24 Wh median (arXiv 2508.15734).
   const s = game();
   run(s, 1);
   const mix = worldMix(s);
-  const tokMult = SHAPE[REFERENCE_BASE.shape].tokenMult;
+  // RD-P02: a rival's free tier is its cheapest real lineup model (below its model's fit when it has a lineup).
   let bad = 0;
   mix.providers.forEach((p, i) => {
     if (!p.model || p.key === 'player') return;
-    const ft = freeTierOf(p.params ?? (p.fpt ?? 2e12) / (2 * tokMult));
-    if (!near(mix.consumer.US.freeFit[i], mix.consumer.US.fit[i] - ft.gap, 1e-9) || !(ft.r < 1)) bad++;
+    if (!(mix.consumer.US.freeFit[i] <= mix.consumer.US.fit[i] + 1e-9) || (p.tiers?.length && !(mix.consumer.US.freeFit[i] < mix.consumer.US.fit[i]))) bad++;
   });
   const chat = prod(s, 'consumer');
   const ft = chatFreeTier(s, chat)!;
   const v = versionById(s, chat.versionId)!;
   const pi = mix.providers.findIndex((p) => p.key === 'player');
-  const gap = freeTierOf(v.params ?? REFERENCE_BASE.params).gap;
+  const gap = v ? mix.consumer.US.fit[pi] - ft.fit : 0;
   check(bad === 0 && near(mix.consumer.US.freeFit[pi], mix.consumer.US.fit[pi] - gap, 1e-6) && Math.abs(gap - PRE_GAME_G_PER_YEAR) < 1e-9,
     'A7 every lab\'s free tier is the student of its consumer model one year of frontier progress below it; users choose on it',
     `gap ${gap.toFixed(2)} OOM, player free fit ${mix.consumer.US.freeFit[pi].toFixed(2)} (model ${mix.consumer.US.fit[pi].toFixed(2)}), ${bad} rivals off the rule`);
@@ -1054,7 +1053,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   const sh0 = mix0.sec.US.SOFT.share[pi];
   const stud = 1 - (w0[0] ?? 1);
   const blended = blendTiers(mix0.lineupBy.get(`${api.id}|SOFT`) ?? [main], w0);
-  check(w0.length === 1 + lineupOf(paramsOfVersion(s, v0)).length && stud > 0.05 && near(w0.reduce((a, x) => a + x, 0), 1, 1e-9) && blended.cost < main.cost && blended.price < main.price,
+  check(w0.length === 1 + lineupSizes(paramsOfVersion(s, v0)).length && stud > 0.05 && near(w0.reduce((a, x) => a + x, 0), 1, 1e-9) && blended.cost < main.cost && blended.price < main.price,
     'TIERS E7 the API sells its lineup: its students take the US Software bands they do adequately (hours by tier sum to 1), so its cost and price per adopted task-hour there are below its main model\'s',
     `hours by tier ${w0.map((x) => x.toFixed(2)).join(' / ')}; cost $${main.cost.toFixed(3)} → $${blended.cost.toFixed(3)}, price $${main.price.toFixed(3)} → $${blended.price.toFixed(3)} per adopted task-hour (main model → lineup)`);
   // A mini of the player's own (a student 1.2 OOM below, between the lineup's 0.88 and 1.94 OOM rungs) is one more tier.
@@ -1090,28 +1089,26 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
         // a lineup: one 'model' tier then its students (the player has one per sector product)
         if (K[k] !== 'model') { k++; continue; }
         const T = L[k];
-        const nT = p.lab === 'player' ? undefined : p.params;
-        const rungs = nT !== undefined ? lineupOf(nT) : undefined;
+        // RD-P02: rivals' tiers are lab-state models (RivalLab.lineup), each at its own fit and cost: below the model.
+        const rival = p.lab !== 'player';
         let j = k + 1;
         let q = 0;
         while (j < L.length && K[j] === 'student') {
           const o = L[j];
           const r = o.cost / T.cost;
           const g = DISTILL.a + DISTILL.b * Math.log10(1 / r);
-          if (rungs && (!rungs[q] || !near(rungs[q].r, r, 1e-9))) bad++;
-          if (!near(o.price / T.price, r, 1e-9) || !near(o.fit, T.fit - g, 1e-9) || o.a > T.a + 1e-12) bad++;
+          if (rival ? !(o.fit <= T.fit + 1e-9) : !near(o.price / T.price, r, 1e-9) || !near(o.fit, T.fit - g, 1e-9) || o.a > T.a + 1e-12) bad++;
           if (i === pi) nP++;
           else n++;
           j++;
           q++;
         }
-        if (rungs && q !== rungs.length) bad++;
         k = j;
       }
     });
   }
-  const rr = lineupOf(1e12).map((x) => x.r);
-  check(n > 0 && nP > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupOf(2e9).length === 1 && lineupOf(1e9).length === 0,
+  const rr = lineupSizes(1e12);
+  check(n > 0 && nP > 0 && bad === 0 && rr.length === LINEUP.ratios.length && near(rr[rr.length - 1], 1 / 80, 1e-12) && lineupSizes(2e9).length === 1 && lineupSizes(1e9).length === 0,
     'TIERS E8 day 400: every provider sells its model and the LINEUP students of it (rivals and China under their model, the player under each sector product\'s main model): each at r × the model\'s cost and price, DISTILL.a + DISTILL.b·log₁₀(1/r) below its fit, covering no more; the bottom rung 1/80 above the 1B floor',
     `${n} rival and China student tiers, ${nP} of the player's, ${bad} off; rungs under a 1T model ${rr.map((x) => `1/${(1 / x).toFixed(1)}`).join(', ')}`);
 }
