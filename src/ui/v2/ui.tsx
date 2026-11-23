@@ -149,6 +149,10 @@ function amt(c: CostLine): string {
   }
 }
 export function lineText(c: CostLine, sign = true): string {
+  // UB-4 (VOCAB §1): engine units never reach the player. An OOM line reads as a multiplier (+0.12 OOM → ×1.32);
+  // a capability-level line reads in "levels".
+  if (c.unit === 'OOM') { const m = 10 ** c.amount; return `×${m >= 10 ? m.toFixed(0) : m >= 1.995 ? m.toFixed(1) : m.toFixed(m > 0.995 && m < 1.005 ? 3 : 2)}`; }
+  if (c.unit === 'L') c = { ...c, unit: 'levels' };
   const sg = sign ? (c.amount < 0 ? '−' : '+') : '';
   // F6b: '%' sits on its number (+5% research speed). RD-B19: `progress` lines carry a unit (lint-tradeoffs).
   const label = c.unit === '%' ? '%' : c.unit ? ` ${c.unit}` : c.currency === 'cash' ? '' : ` ${CUR_LABEL[c.currency]}`;

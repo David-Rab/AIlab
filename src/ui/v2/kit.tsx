@@ -266,3 +266,23 @@ export function KV({ k, term, children, home, tip }: { k: ReactNode; term?: stri
   );
 }
 export { TipCard };
+
+/** UB-4 (VOCAB §1, OQ-1): an effective-compute change given in orders of magnitude, in player units: "+10%",
+ *  "−9%", "×2.5", "÷2.5". OOM never reaches the player. */
+export function effX(dOom: number): string {
+  const m = Math.pow(10, dOom);
+  if (Math.abs(dOom) < 0.0005) return '±0%';
+  if (m >= 2) return `×${m >= 10 ? m.toFixed(0) : m.toFixed(1)}`;
+  if (m <= 0.5) return `÷${1 / m >= 10 ? (1 / m).toFixed(0) : (1 / m).toFixed(1)}`;
+  const p = (m - 1) * 100;
+  return `${p >= 0 ? '+' : '−'}${Math.abs(p) >= 10 ? Math.abs(p).toFixed(0) : Math.abs(p).toFixed(1)}%`;
+}
+/** A multiplier given in orders of magnitude, as "×2.5" (know-how and effective-compute totals). */
+export const effMult = (oom: number) => { const m = Math.pow(10, oom); return `×${m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)}`; };
+/** UB-4 (VOCAB §3 MODELS): skill-domain display names. Domain codes never reach the player. */
+export const DOMAIN_WORD: Record<string, string> = { CODE: 'Code', RSCH: 'AI research', REASON: 'Math & reasoning', AGENCY: 'Long tasks', SOCIAL: 'Social', MEDIA: 'Media', CYBER: 'Cyber', BIO: 'Bio', PHYS: 'Physical' };
+export const domainWord = (d?: string) => (d ? DOMAIN_WORD[d] ?? d : '');
+/** UB-4: model states in player words. */
+export const STATUS_WORD: Record<string, string> = { evaluating: 'Testing', ready: 'Ready', deployed: 'In use', retired: 'Retired', rolledBack: 'Rolled back' };
+/** UB-4: model kinds (variant) in player words. */
+export const VARIANT_WORD: Record<string, string> = { full: 'full size', mini: 'smaller size', imported: 'imported' };
