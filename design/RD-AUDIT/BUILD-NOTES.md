@@ -3347,3 +3347,31 @@ p3-d (forked from rd at d951d09, rev 78: SR-17, SR-18, SR-19, SR-20, SR-20b, SR-
   Hygiene and heavy runs not run.
 - Moves calibration: possibly (held products leave the market mix; lineup models face framework holds; p3-d's SR-21
   needs list now on rd's products).
+
+### SR-07
+Alignment-eval results as evidence, and the test-vs-real gap (SAFETY-REDESIGN §3.5, §4.3 channel 3; E2).
+- **`safety/alignmentEvals.ts`**: each alignment eval (data/v2/benchmarks SAFETY_EVALS: honesty, schemeProbe, sabotage,
+  agentStress, evalAware, hackRate) runs n = ALIGN_EVAL_N 40 × suite weight (floor 10) test scenarios [D: binomial sd at
+  20% ≈ the old SAFETY_EVAL_SD 0.06]; k ~ Binomial(n, true trait × (1 − 0.8·EA) × (1 − BB mask)) (same physics; awareness
+  not applied to evalAware / honesty). Stored as evals.safety[id] = {rate k/n, sd = 90% Wilson interval ÷ 3.29 (floor
+  0.02), k, n, lo, hi}. Each result is one evidence item per trait read (`eval/BB/<id>`, noteReading + updateBelief);
+  it replaces runEvalSuite's separate `observe(…, 'bench')` per trait. External evaluators (observeExternal) run the same
+  sampler. `safetyEvalSuite` (instrument readings) no longer overwrites the records with averaged readings (that
+  instrument path used other ids, Honesty / ScheminProbe …).
+- **Gap**: `testGapView(v)` = believed factor 1 ÷ (1 − 0.8·EA) over the EA belief's 90% band (fed by the evalAware k / n),
+  widened up when a trait's latest real-use reading (monitor logs, case verdict) ÷ its latest test reading is larger.
+  `alignmentEvalView(v)` rows: k / n, interval, believed real-use band = interval × gap (not for evalAware / honesty).
+  Beliefs and measured records only (no truth).
+- **UI**: Models › Evals "Alignment evals" card for the selected version (k / n, 90% range, real use believed; gap in the
+  sub-line with its tooltip). The queue tooltip's "x% measured" now says "in test scenarios (mean of k / n)". Glossary
+  alignmentEval, testGap.
+- **Save**: SCHEMA_REV 93; migration 92 → 93 renames instrument-suite keys to the eval ids (later wins), n = 40,
+  k = round(rate · 40), Wilson interval; hygiene pins → 93.
+Check: `npx tsx scripts/v2/_sr07/check.ts` (all ok: migrates, 72 records k / n; a suite writes six k of 40 with Wilson
+intervals, SCHEME gets schemeProbe + sabotage items; believed EA 0.1±0.03 → 0.5±0.1 moves the gap ×1.04–1.14 →
+×1.37–2.14 and widens hackRate's real-use band 0.28 → 0.62; readout unchanged with true traits rewritten). tsc (app,
+scripts/v2) clean; npm run build passes.
+Left: the gap does not yet widen the trait beliefs themselves (only the real-use readout); incidents are not used as
+real-use readings (cases and monitor logs only); external evaluators add evidence twice (instrument readings + scenarios).
+Moves calibration: yes (S4/S5): eval evidence noise is now the binomial interval (often tighter than 0.12/√w), on the
+'runs' stream; other scripts pinning rev 92 drift.

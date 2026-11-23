@@ -1,5 +1,6 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
+import { ALIGN_EVAL_N, evalRecord } from '../safety/alignmentEvals';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
 import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
@@ -169,8 +170,11 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  92 (SR-22): the Safety work package's spot-check share (AgentPackage.spotCheck, absent = none) and its staff, the
  *  'spotCheck' need; safety jobs carry SafJobResult records (optional). Migration 91 → 92 puts 'spotCheck' after 'review'
  *  in research.safRe (first when there is no review).
+ *  93 (SR-07): alignment-eval results are k of n test scenarios with a 90% interval (evals.safety[id].k / n / lo / hi;
+ *  safety/alignmentEvals.ts). Migration 92 → 93 renames the instrument-suite keys (Honesty, ScheminProbe, …) to the eval
+ *  ids (the later record wins) and gives each record n = 40, k = round(rate · 40) and its Wilson interval.
  */
-export const SCHEMA_REV = 92;
+export const SCHEMA_REV = 93;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1046,6 +1050,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const i = order.indexOf('review');
     order.splice(i >= 0 ? i + 1 : 0, 0, 'spotCheck');
     sr.order = order;
+  },
+  92: (raw) => {
+    // 92 → 93 (SR-07): alignment evals as k of n (see SCHEMA_REV's note).
+    const ren: Record<string, string> = { Honesty: 'honesty', ScheminProbe: 'schemeProbe', Sabotage: 'sabotage', AgentStress: 'agentStress', EvalAware: 'evalAware', HackRate: 'hackRate' };
+    const vs = (raw as { player?: { models?: { versions?: { evals?: { safety?: Record<string, { rate: number; sd: number; day: number; by: 'self' | 'evalGov' | 'evalIndep'; k?: number; n?: number }> } }[] } } }).player?.models?.versions ?? [];
+    for (const v of vs) {
+      const old = v.evals?.safety;
+      if (!old || !v.evals) continue;
+      const out: NonNullable<typeof old> = {};
+      for (const [id, r] of Object.entries(old)) {
+        const key = ren[id] ?? id;
+        if (out[key] && out[key].day >= r.day) continue;
+        out[key] = r.n ? r : evalRecord(Math.round(Math.min(1, Math.max(0, r.rate)) * ALIGN_EVAL_N), ALIGN_EVAL_N, r.day, r.by);
+      }
+      v.evals.safety = out;
+    }
   },
 };
 
