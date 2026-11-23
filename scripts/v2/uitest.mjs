@@ -1036,12 +1036,12 @@ async function e11Check(where, plant = false) {
   if (await page.$('[data-act="control-add"]')) {
     await page.click('[data-act="control-add"]');
     await wait(150);
-    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && d.controlLayer)'));
+    const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && (d.guards || []).some((g) => g.kind === "control"))'));
     const btn = await page.$('[data-act="control-remove"]');
     let rtip = '';
     if (btn) { await page.hover('[data-act="control-remove"]'); await wait(350); rtip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? ''); await clearTips(); await page.click('[data-act="control-remove"]'); await wait(150); }
-    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && d.controlLayer)'));
-    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /control tax ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
+    const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && (d.guards || []).some((g) => g.kind === "control"))'));
+    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /slowdown ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
   }
   await clearTips();
   await tabTo('safeguards');

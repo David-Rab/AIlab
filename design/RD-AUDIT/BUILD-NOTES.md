@@ -5692,7 +5692,9 @@ numbers in ResearchProjects / Work); lint-structure: 1 fail, pre-existing (actio
 `scripts/v2/_ub9/check.ts` (day 400 and 900): picker's first = the L0 model; tile = Σ per-year rows = Σ severity bins;
 Would try × Able to × Chances / yr × (1 − Stop rate) = Unstopped on every per-year row; composite row on AI staff work
 only; nothing moves when hidden values are rewritten: all pass. uitest SAFETY steps rewritten (R8 section, E11 Safety
-part, E12 model tab). Screenshots: scripts/v2/shots/ub9/ (d0, d400, d900 risks; wide = the day-400 fixture with every
+part, E12 model tab; E12 / F6 checks updated to the UB-4 wording): every SAFETY step passes. The run still stops at the
+stale D6 step (`P10` undefined), as after UB-5; the other failures (Blueprint, Products, Research, Agents, D8, E11
+product tooltip, E12 Blueprint signals) are outside SAFETY and unchanged. Screenshots: scripts/v2/shots/ub9/ (d0, d400, d900 risks; wide = the day-400 fixture with every
 trait belief's sd tripled, at least 0.12; d400 tooltips and the other tabs), script scripts/v2/shots/ub9.mjs (ignored).
 
 **Differences from the mockup.** "Next rule" names the capability rule closest to the picked model (day 400: Biological:
