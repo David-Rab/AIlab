@@ -19,29 +19,31 @@ import { SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { agentCompute, agentVersion, monitorBudget, monitorVersion, syncInternalControl } from '../departments/agents';
 import { hypothetical, previewDeployments } from '../worldfx/productView';
 import { actTable, type ActTarget } from './actTable';
-import { requiredSafeguards } from './framework';
+import { refreshFramework, requiredSafeguards } from './framework';
 import { safeguardFte } from './investigations';
 import { useControl } from './oversight';
 import { CONTROL_SETTINGS, addSafeguard, controlOn, reviewOn, setControl } from './safeguards';
-import type { Deployment, GameStateV2 } from '../types';
+import type { Deployment, EngineSystem, FrameworkRule, GameStateV2, SystemCtx } from '../types';
 
 export const PACKAGE_LABEL = 'Meet my framework';
 
 const isInternal = (d: Deployment) => d.channel === 'internal';
 const MISUSE_RANK: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 1, classifiers: 2, hardened: 3 };
 
-type Step = { label: string; run: (s: GameStateV2, d: Deployment) => void };
+type Need = FrameworkRule['safeguards'][number];
+type Step = { label: string; need: Need; run: (s: GameStateV2, d: Deployment) => void };
 /** The package's parts as ordered steps: only what the framework asks of `d` and `d` lacks (each sets one part). */
 function steps(s: GameStateV2, d: Deployment): Step[] {
   const need = requiredSafeguards(s, d);
   const out: Step[] = [];
   if (!isInternal(d)) {
-    const want: Deployment['safeguards'] | undefined = need.has('hardened') ? 'hardened' : need.has('classifiers') ? 'classifiers' : undefined;
-    if (want && MISUSE_RANK[want] > MISUSE_RANK[d.safeguards]) out.push({ label: `Misuse safeguards: ${want}`, run: (_s, x) => { x.safeguards = want; } });
+    const want: 'classifiers' | 'hardened' | undefined = need.has('hardened') ? 'hardened' : need.has('classifiers') ? 'classifiers' : undefined;
+    if (want && MISUSE_RANK[want] > MISUSE_RANK[d.safeguards]) out.push({ label: `Misuse safeguards: ${want}`, need: want, run: (_s, x) => { x.safeguards = want; } });
   }
-  if (need.has('review') && !reviewOn(d)) out.push({ label: 'Human review', run: (st, x) => { addSafeguard(st, x, 'review'); } });
+  if (need.has('review') && !reviewOn(d)) out.push({ label: 'Human review', need: 'review', run: (st, x) => { addSafeguard(st, x, 'review'); } });
   if (need.has('control') && !controlOn(d)) out.push({
     label: `Control protocol: ${CONTROL_SETTINGS.defer10.label}`,
+    need: 'control',
     run: (st, x) => {
       setControl(x, true, 'defer10', st.time.day);
       if (!isInternal(x)) return;
@@ -151,3 +153,45 @@ export function previewPackage(s: GameStateV2, d: Deployment): PackagePreview {
   }
   return { label: PACKAGE_LABEL, meets: packageMeets(s, d), parts, total, stops };
 }
+
+/** RF-S13 (DECISIONS, follow-ups to the review fixes): the framework applies its package itself. On every live
+ *  deployment a triggered rule asks safeguards of, the parts it lacks are added, once per version and safeguard (the
+ *  record `Deployment.frameworkApplied`): the player can still change them, and a part removed afterwards is not put
+ *  back (the rule then holds, or the player overrides it). Its costs are the engine's own charges for those parts (the
+ *  package preview's totals, stated in the log). Returns the deployments it changed. */
+export function autoApplyPackages(s: GameStateV2, ctx?: SystemCtx): Deployment[] {
+  const out: Deployment[] = [];
+  for (const d of s.player.deployments) {
+    if (d.status !== 'live' || d.channel === 'open' || d.channel === 'trusted') continue;
+    const done = new Set(d.frameworkApplied ?? []);
+    const key = (st: Step) => `${d.versionId}:${st.need}`;
+    const todo = steps(s, d).filter((st) => !done.has(key(st)));
+    if (!todo.length) continue;
+    const t = ctx && todo.length === steps(s, d).length ? previewPackage(s, d).total : undefined;
+    for (const st of todo) { st.run(s, d); done.add(key(st)); }
+    d.frameworkApplied = [...done];
+    out.push(d);
+    if (!ctx) continue;
+    const cost = t ? [
+      t.computeH100e > 1e-6 ? `${Math.round(t.computeH100e * 10) / 10} H100e control compute` : '',
+      t.people > 1e-6 ? `${Math.round(t.people)} safety engineers reviewing` : '',
+      t.slowdown > 1e-6 ? `Slowdown ${Math.round(t.slowdown * 1000) / 10}% of agent work` : '',
+      Math.abs(t.revenue) > 1e-4 ? `revenue ${t.revenue > 0 ? '+' : '−'}$${Math.abs(Math.round(t.revenue * 100) / 100)}B/yr` : '',
+      t.servingH100e > 0.5 ? `serving need +${Math.round(t.servingH100e)} H100e` : '',
+    ].filter(Boolean) : [];
+    ctx.log('company', `Your Safety framework applied "${PACKAGE_LABEL}" to ${isInternal(d) ? 'internal AI work' : `product ${d.id}`}: ${todo.map((x) => x.label).join(', ')}${cost.length ? ` (${cost.join(', ')})` : ''}. You can change it; a part you remove is not put back, and the rule then holds.`, 1, d.versionId);
+  }
+  return out;
+}
+
+/** frameworkSystem (39, daily, before runs): the framework applies its package where a rule asks (RF-S13), then the
+ *  holds are refreshed: what is still held is what the package cannot meet (evidence, no internal AI work to put under
+ *  control) or a part the player removed. */
+export const frameworkSystem: EngineSystem = {
+  id: 'safetyFramework', owner: 'WS2', cadence: 'daily', order: 39, system: 'safety',
+  run(s: GameStateV2, ctx: SystemCtx) {
+    if (s.player.status !== 'active') return;
+    autoApplyPackages(s, ctx);
+    refreshFramework(s, ctx);
+  },
+};

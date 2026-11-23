@@ -3,7 +3,8 @@
 //     triggers it, a low tight belief does not (no clarity gate);
 //  2. the trusted rule reads the same upper end, and a model measured below the scheming act's capability level is
 //     trusted whatever its beliefs (OD-6 capability clause); a never-measured wide-belief model is not trusted;
-//  3. info: whether the day-0 / day-400 fixtures now hold frontier training.
+//  3. info: what the training rules ask on the day-0 / day-400 / day-900 fixtures (before the daily system: since RF-S13
+//     the framework applies its package then, so only what it cannot meet stays held; scripts/v2/_rfs13).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../../src/engine/v2/core/save';

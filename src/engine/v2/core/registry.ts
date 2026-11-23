@@ -19,7 +19,7 @@ import { MODEL_ACTIONS } from '../models/actions';
 import { safetyResearchSystem } from '../safety/agendas';
 import { traitsDailySystem } from '../safety/traits';
 import { incidentsSystem } from '../safety/incidents';
-import { frameworkSystem } from '../safety/framework';
+import { frameworkSystem } from '../safety/packages';
 import { SAFETY_ACTIONS } from '../safety/actions';
 // WS3
 import { computeOnlineSystem } from '../compute/power';

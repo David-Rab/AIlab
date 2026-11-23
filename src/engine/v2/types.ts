@@ -629,6 +629,9 @@ export interface Deployment {
   startDay: Day;
   /** SR-19: the Safety framework hold stopping this deployment today (usage 0 while set; refreshed daily). */
   held?: string;
+  /** RF-S13: the safeguards the Safety framework applied itself ("versionId:safeguard"; safety/packages.ts
+   *  autoApplyPackages): applied once, so a part the player removes is not put back. */
+  frameworkApplied?: string[];
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
   /** Price tier (R6); priceIndex is kept equal to its index. */

@@ -10,7 +10,7 @@ export const capex2xBot: BotPolicy = {
   id: 'capex2x',
   act(s, api) {
     refPlay(s, api);
-    answerFramework(s, api, 'override'); // RefBot's old E17 Continue
+    answerFramework(s, api); // RefBot's old E17 Continue
     financeAutopilot(s, CAPEX2X_AUTOPILOT);
   },
   decide(s, d) {

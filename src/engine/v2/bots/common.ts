@@ -133,17 +133,13 @@ export function keepLockdown(s: GameStateV2, api: EngineApi) {
   for (const versionId of ids) tryAct(s, api, 'safety.respond', { kind: 'addLockdown', versionId });
 }
 
-/** SR-19 (replaces the E17 "Red flags" decision): what a bot does about the Safety framework's training holds.
- *  'override': override each (the old E17 Continue: RefBot, race, capex); 'control': put the held lab's internal AI work
- *  under the control protocol where control is what the rule lacks (the old Continue + control) and otherwise leave the
- *  hold (the old Pause). */
-export function answerFramework(s: GameStateV2, api: EngineApi, mode: 'override' | 'control') {
+/** SR-19 (replaces the E17 "Red flags" decision): RefBot, race and capex override each training hold in force (the old
+ *  E17 Continue). RF-S13: the framework applies its own package (safety/packages.ts autoApplyPackages), so a hold here
+ *  is one the package cannot meet (evidence, no internal AI work to control); the safe / mixed bots' 'control' answer
+ *  (add control where a hold lacked it) is gone with it, and they leave such holds (the old Pause). */
+export function answerFramework(s: GameStateV2, api: EngineApi) {
   for (const h of s.player.safety.framework?.holds ?? []) {
-    if (h.target !== 'training') continue;
-    if (mode === 'override') tryAct(s, api, 'safety.frameworkOverride', { ruleId: h.ruleId, versionId: h.versionId });
-    else if (h.missing.some((m) => m.startsWith('control'))) {
-      for (const d of s.player.deployments) if (d.channel === 'internal' && d.status === 'live' && !d.guards?.some((g) => g.kind === 'control')) tryAct(s, api, 'safety.respond', { kind: 'addControl', versionId: d.versionId });
-    }
+    if (h.target === 'training') tryAct(s, api, 'safety.frameworkOverride', { ruleId: h.ruleId, versionId: h.versionId });
   }
 }
 

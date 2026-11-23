@@ -761,7 +761,7 @@ export const REF_PLAY: RefPlayOpts = { safetyShare: refSafetyShare };
 export function refAct(s: GameStateV2, api: EngineApi, o: RefPlayOpts = REF_PLAY, lines: LinePlan[] = REF_LINES, sciTeams = REF_SAFETY_SCI_TEAMS): void {
   if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, sciTeams) });
   staffLines(s, api, lines);
-  answerFramework(s, api, 'override');
+  answerFramework(s, api);
   refTrusted(s, api);
   refFootholds(s, api);
   refPlay(s, api, o);

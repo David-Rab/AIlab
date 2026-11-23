@@ -202,7 +202,7 @@ export function FootholdsTab({ s }: { s: GameStateV2 }) {
 export function PackageRow({ s, depId, testId }: { s: GameStateV2; depId: string; testId: string }) {
   return (
     <span className="row-i small" data-test={testId}>
-      <Tip content={() => { const d = s.player.deployments.find((x) => x.id === depId); return <TipCard title="Safeguard package">Adds what {d ? packageMeets(s, d) : 'your Safety framework asks'} that this deployment lacks. Safeguards you already run stay; each part's cost in the preview is the engine's own charge.</TipCard>; }}><span className="dim">Package</span></Tip>
+      <Tip content={() => { const d = s.player.deployments.find((x) => x.id === depId); return <TipCard title="Safeguard package">Adds what {d ? packageMeets(s, d) : 'your Safety framework asks'} that this deployment lacks. Your Safety framework applies it by itself when a rule starts asking (once per model and safeguard; the log says what it cost); use this to put back a part you removed. Safeguards you already run stay; each part's cost in the preview is the engine's own charge.</TipCard>; }}><span className="dim">Package</span></Tip>
       <ActBtn id="safety.package" testId={`${testId}.framework`} params={{ deploymentId: depId }} label={PACKAGE_LABEL} />
     </span>
   );

@@ -62,5 +62,5 @@ gap, CP3f U05_SHIFT, misuse per token vs per user, uncommitted CP3l edits on p3-
 ## Follow-ups (after merge 39bfc40)
 | ID | Task | Source |
 |---|---|---|
-| RF-S13 | Framework applies its computed package automatically when a rule requires safeguards (no day-0 hold; bots don't override) | DECISIONS follow-ups; merge report (_ui0a, evals EV6 fail from the hold) |
+| RF-S13 | Framework applies its computed package automatically when a rule requires safeguards (no day-0 hold; bots don't override) | DECISIONS follow-ups; merge report (_ui0a, evals EV6 fail from the hold) — done (RF-S13 commit) |
 | RF-S14 | Method validation job narrows the at-scale belief (proposal in BUILD-NOTES RF-S10) | DECISIONS follow-ups |

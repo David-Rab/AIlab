@@ -7,12 +7,16 @@
 //              that version. Deploy holds: an external launch or swap of the version is refused (deployGate) and a live
 //              external deployment serves nobody while held (productUsageMult 0). Training holds: frontier (base / post)
 //              runs cannot start, running ones pause, frontier experiments stop (models/runs.frontierPaused).
+//   package    RF-S13: before the holds are refreshed each day, the framework applies its "Meet my framework" package
+//              to live deployments a triggered rule asks safeguards of (safety/packages.ts autoApplyPackages, which also
+//              holds the daily frameworkSystem); a hold remains for what the package cannot meet (evidence; no live
+//              internal deployment) or a part the player removed afterwards.
 //   override   explicit, per rule and version; its consequences are stated in the preview and applied as stated
 //              (safety morale, one red flag, scrutiny, credibility when the framework is published).
 //   base rule  every external release needs a capability assessment: a suite at `evalDepth` (none = no release
 //              suite) and, with `externalReview`, external evaluators' reading (replaces the eval gate).
 // Holds read only what the player can see (measured levels, beliefs, owned safeguards), never truth.
-import type { Deployment, EngineSystem, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
+import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
 import { defaultFramework, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { frameworkPublished, measuredDomain } from '../actors/commitments';
 import { ws4, ws4r } from '../actors/state';
@@ -249,12 +253,3 @@ export function editRule(s: GameStateV2, ruleId: string, edit: { level?: number;
   if (edit.addEvidence && !rule.evidence.includes(edit.addEvidence)) rule.evidence.push(edit.addEvidence);
   return undefined;
 }
-
-/** frameworkSystem (39, daily, before runs): refresh the holds. */
-export const frameworkSystem: EngineSystem = {
-  id: 'safetyFramework', owner: 'WS2', cadence: 'daily', order: 39, system: 'safety',
-  run(s: GameStateV2, ctx: SystemCtx) {
-    if (s.player.status !== 'active') return;
-    refreshFramework(s, ctx);
-  },
-};

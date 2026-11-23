@@ -22,7 +22,7 @@ export const raceBot: BotPolicy = {
   id: 'race',
   act(s, api) {
     if (s.time.day === 0) tryAct(s, api, 'safety.frameworkEvals', { depth: 'none', external: false });
-    answerFramework(s, api, 'override'); // the old E17 Continue
+    answerFramework(s, api); // the old E17 Continue
     refPlay(s, api, RACE_PLAY);
     financeAutopilot(s, RACE_AUTOPILOT);
     if (every(s, 30)) {

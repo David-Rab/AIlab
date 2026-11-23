@@ -10,7 +10,7 @@ import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
-import { answerFramework, byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
+import { byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, refPlay, type RefPlayOpts } from './ref';
 
 const LOTTERY: AgendaId[] = ['AG01', 'AG04', 'AG10', 'AG11', 'AG12', 'AG13'];
@@ -50,7 +50,6 @@ const MIXED_PLAY: RefPlayOpts = {
 export const mixedBot: BotPolicy = {
   id: 'mixed',
   act(s, api) {
-    answerFramework(s, api, 'control'); // the old E17 Continue + control (holds control does not answer stay: Pause)
     if (s.time.day === 0) {
       tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, MIXED_SCI_TEAMS) });
       tryAct(s, api, 'teams.target', { key: 're.saf', n: sizedTarget(s, MIXED_RE_TEAMS) });

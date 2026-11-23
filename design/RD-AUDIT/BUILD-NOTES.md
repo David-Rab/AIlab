@@ -4606,3 +4606,35 @@ cap 1.5 kept, decision 1).
   from rf-s1 (fail on rf-s1 alone, pass on rf-r / base): `_ui0a` "physics still reads the hidden draw" and evals.ts
   EV6 crash (no version reaches evaluation): the default framework now holds frontier training from day 0 (RF-S1's
   top-of-range belief rule, noted in its block), so experiment FLOP is 0 in those fixtures. Hygiene not run.
+
+## RF-S13: the Safety framework applies its package itself (DECISIONS, follow-ups to the review fixes)
+
+- **Changed.** `safety/packages.ts autoApplyPackages`: each day, before the holds are refreshed, every live product and
+  internal deployment gets the "Meet my framework" parts its triggered rules ask and it lacks (RF-S2's `steps`, each
+  now tagged with its safeguard). Once per version and safeguard: `Deployment.frameworkApplied` ("versionId:safeguard",
+  optional field, no migration), so a part the player removes afterwards is not put back and the rule then holds (the
+  player can override, or re-apply with the package button). The engine charges the parts as for the manual package;
+  the log line states the package preview's totals (day-0 fixture: control protocol, defer 10%, 360 H100e control
+  compute, Slowdown 7% of agent work). `frameworkSystem` (order 39, daily) moved to packages.ts (it now runs
+  auto-apply, then `refreshFramework`; registry import updated; avoids an import cycle). Player text: package tooltip
+  (SafetyControl), glossary `safetyFramework`; design/ux/GLOSSARY.md regenerated (lint-ux --doc; also picked up 8
+  other rows that had drifted since the last regen).
+- **Deleted.** `answerFramework`'s 'control' mode (safe / mixed added control where a training hold lacked it); the
+  safe and mixed bots no longer call it. Kept: the override mode (RefBot / race / capex override each training hold in
+  force) and `overrideRule`: what still holds is what the package cannot meet, and that is still their old E17 Continue.
+- **Still held** (cannot be met by safeguards): evidence (an eval suite, an external evaluation; e.g. day-900 fixture
+  `aird-critical` asks an external evaluation of V46), and a training rule while the lab has no live internal
+  deployment (`missingFor` asks control of every live internal deployment, and of at least one). Not changed: external
+  launches / swaps are still refused at the launch when their chosen safeguards miss a deploy rule (the launch default
+  is classifiers, so only Critical / hardened bites); the auto-apply acts on live products only.
+- **Checks.** `npx tsx scripts/v2/_rfs13/check.ts` (new): 9 ok (day-0 fixture: control applied, no training hold,
+  engine control compute = preview 360.0 H100e, log line, no override; removed by the player → not re-applied, held;
+  new game, RefBot / race / capex: 0 overrides, no training hold by day 30; `RFS13_DAYS=400`: same at day 400, safe /
+  mixed too). `_rfs1` all ok (info comment: fixtures' rule state before the daily system), `_rfs2` 12 ok, `_ui0a` all
+  passed (was failing on the hold), evals.ts: EV6 passes (was a crash); 1 failure EV9 "release suites about two weeks"
+  (34, 33 d; the known CP3 EV9 30 / 33 d item, not this task). lint-ux: 1 failure, "Numbers have a tooltip"
+  (ResearchProjects, Safety, SafetyControl:40, Split, Work sites; none touched here). tsc (app, scripts/v2) clean.
+- Moves calibration: **yes**. No lab's frontier training is held from day 0 any more; instead every lab (player and
+  bots) runs a control protocol on internal AI work from day 0 (with no trusted watcher it is at the full usefulness
+  loss: 7% Slowdown on the day-0 fixture, plus control compute on the monitors' line); RefBot / race / capex no longer
+  pay override costs (morale −5, scrutiny +3, red flag) per internal version. Thresholds unchanged (calibration item 1).

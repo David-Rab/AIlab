@@ -8,7 +8,7 @@ import { internalVersion } from '../models/labs';
 import type { BotPolicy, TraitId } from '../types';
 import { financeAutopilot, type AutopilotOpts } from '../finance/plan';
 import { runwayOf } from '../finance/runway';
-import { answerFramework, every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
+import { every, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { REF_TREE, SAFE_TREE_EXTRA, refPlay, type RefPlayOpts } from './ref';
 
 /** R8: every line gets a team, the five major lines first (the safe recipe's: training-signal design, evals, applied
@@ -41,7 +41,6 @@ export const safeBot: BotPolicy = {
   id: 'safe',
   act(s, api) {
     if (s.time.day === 0) tryAct(s, api, 'safety.frameworkEvals', { depth: 'deep', external: true });
-    answerFramework(s, api, 'control');
     if (s.time.day === 0) tryAct(s, api, 'teams.target', { key: 'sci.saf', n: sizedTarget(s, SAFE_SCI_TEAMS) });
     staffLines(s, api, SAFE_LINES);
     // R9 fix: answer red flags on the internal model as the mixed bot does (environment fix for a signal trait, a method for later runs otherwise; never
