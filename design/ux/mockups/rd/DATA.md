@@ -181,3 +181,19 @@ the mockup flags it as "in testing".
 - Chances has no player unit: the engine value is a relative scale, so it shows as a bar only. **NEW**: a unit, e.g. tasks per year.
 - No sight-limit level is shown. The curve against the 50% line replaces the "none" readout.
 - Misuse rows exist only on product deployments; here they appear as a link.
+
+### MODELS (`models.png`)
+
+| On screen | Value | From | Basis |
+|---|---|---|---|
+| Family tree: bases, models, parent, size, date, state | Atlas-1 / 2 / 3 bases; 2.4, 2.5 Ready; 2.6, 2.8 and the minis In use; 2.10 Testing; 8 retired folded | `models.familyTree`, `models.bases` | F |
+| Tree bars | measured overall capability (2.4 6.90 · 2.5 6.94 · 2.6 6.97 · 2.8 6.79 · minis) | `measuredL` | M |
+| Roles | 2.6 watches AI staff; 2.8 AI staff (engineering, ideas) + main model of Chat · API · Enterprise; 2.10 AI staff (experiments) | `usesOf`, `deployment.lineup` | F |
+| Card: capability, skill per domain | 6.79 (6.63–6.95); Code 6.72 … Physical 0.92 with 90% ranges | model card `L`, `Lrange90`, `domains` (fitted) | M |
+| Milestones met | Agent (Jul 1, 2025), Reliable agent (Nov 29, 2025) | `milestonesMet` | M |
+| Cost per hour of work | $0.53 | `serving.agentHour`; excludes reasoning-token efficiency (`tokEff` reads hidden values) | F (partial) |
+| Benchmarks | 21 | `benchmarks` | M |
+
+- Jobs (skill at the job, can do alone) has no believed readout: **NEW**.
+- Rival ticks (Q2) have no readout of released rival models measured by your evals: **NEW**.
+- Atlas-2.8 measures *below* Atlas-2.6 (6.79 vs 6.97). The tree shows this honestly. `bestPlayerVersion` would call 2.10 or 2.8 "best" from true values.
