@@ -2121,3 +2121,35 @@ listed; healing 0.258 → 0.407 with two AG18 methods; mods and healing equal wi
 misuse; policy on fills 4 owned methods, off none; explicit list wins). tsc (app, scripts/v2) clean; npm run build passes.
 Moves calibration: yes (S4/S5): methods now apply to every policy-filled run regardless of staffing (bots included),
 healing no longer needs AG18 staffing, monitoring edges no longer need AG07 staffing.
+
+### SR-14b
+Finishes SR-14 (SAFETY-REDESIGN §3.4 P1 / I5; OD-11).
+- **Inoculation** is the method T-INOC in PostDesign.methods (METHODS; no longer folded); PostDesign.inoculation and the
+  tree option slot 'inoculation' are gone; T-INOC is an AG18 healing method. Blueprint's Alignment row is Standard /
+  Heavy / Minimal only; the Methods row carries inoculation. Race bot: policy methods without T-INOC (was inoculation off).
+- **Safety level** (minimal / standard / heavy) sets only the generic safety-training intensity (SAFETY_REMOVAL, healing
+  factor, HONEST bracket). Anti-scheming (E19 / E28, SCHEME removal, EA ×2) and confession (E17) apply only when listed.
+- **Retrain against** leaves the incident response menu (ResponseKind, preview, apply, SAFETY list, glossary); it is the
+  run method `against:<instrument>`. scripts/v2/safety.ts E24 calls goodhartTrain directly.
+- **Save**: SCHEMA_REV 71 (shared with SR-15); migration 70 → 71 adds T-INOC where inoculation was on; hygiene pins → 71.
+- **Not done**: Heavy's alignment audit (AG02 WB, OC_VIS_AUDIT, pendingAudit) stays in Heavy (becomes a case type, §3.6).
+Check: tsc (app, scripts/v2) clean; npm run build passes (no own targeted check; SR-15's check covers the methods).
+Moves calibration: yes (S4/S5): Heavy no longer gives anti-scheming / confession to runs that do not list them; the
+safe bot gets them only through the policy once owned; inoculation needs T-INOC owned.
+
+### SR-15
+Method effects scale with research efficacy; prediction = mechanism on a copy (SAFETY-REDESIGN §3.4, SAF-07, P6).
+- **Scaling**: mult = clamp01(1 − (1 − base)·s0·e), s0 = 1 / prior mean efficacy of the method's agenda (so at e = ē the
+  sourced base applies); removal = clamp01(base·s0·e). Engine e = trueEfficacy; prediction / preview e = believedEfficacy.
+  All run methods' moderators, inoculation's hackGen, anti-scheming's SCHEME removal (0.95 base), T-UNDO misuse (0.5 base).
+  Healing keeps HEAL_K · e_AG18 (already linear in e), read in the view.
+- **One mechanism**: safety/traits.ts runEnv(view) builds the run environment; playerEnv = trueRunView (true w, D,
+  U-modes, stackDetectionMap); predictBeliefs = believedRunView (w̄ / revealed, D 1, no U-modes,
+  detection.ts believedStackDetectionMap on the model the stack meets). The prediction now includes detection-gated
+  removal, healing, anti-scheming removal and the audit visibility (it had none of them). selectors.runTraitPressure
+  passes the internal model. Run preview: each method line states its believed scale (×s0·e).
+- Helpers in safety/methods.ts: methodEfficacy, methodS0, methodMult, methodRemoval, EffView.
+Check: `npx tsx scripts/v2/_sr15/check.ts` (E05 ×0.85 / 0.7 / 0.55 at half / mean / 1.5× mean; beliefs = truth with no
+active instruments → max |Δ| 0; a weaker hidden AG18 efficacy moves the engine's SCHEME only). tsc clean; build passes.
+Moves calibration: yes (S4/S5): method strength now varies by world with agenda efficacy (AG12 CAST s0 ≈ 9: wide);
+predicted beliefs now carry healing / detection-gated removal, so believed traits after runs fall further.
