@@ -46,7 +46,7 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 ## Analysis (no code)
 | ID | Task |
 |---|---|
-| RF-A1 | Rival safety physics: list what `rivalTraitStep` lacks vs the player's mechanisms, and propose a simplified rival version with the right overall shape (decision 5) |
+| RF-A1 | Rival safety physics analysis — done: review/rival-safety.md; designer: leave as is, dedicated rivals session later |
 
 ## Deferred to calibration (decision 1)
 Source or refit: product tool shares, Companion ×1.2, Memory ×1.3, Computer use +0.25, ADAPT_COVER, CERT_CASH / CERT_DAYS,
