@@ -4670,3 +4670,31 @@ cap 1.5 kept, decision 1).
   not exercised directly (same helpers). `_rfs2` 12 ok. tsc (app, scripts/v2) clean.
 - Moves calibration: **maybe** (edits / lineups of High / Critical models now go through with added safeguards; a lab
   with no internal agents is no longer held).
+### RF-S14 Method validation narrows the at-scale belief (DECISIONS follow-ups; RF-S10's proposal)
+- **Changed:** a safety method is validated by the instruments' job (safety/validation.ts: same `ValidationJob`, queue,
+  'validation' need, VAL_ENGINEERS × VAL_DAYS, compute share, VAL_N, SR-22 job record, AI-run sabotage path). The job plants
+  the trait in a test copy, trains it with the method and counts planted cases removed (k of 20): true share =
+  `plantedRemoval` = 1 − base^(s0·e·strength) at the model's true capability (base = the method's run effect, one home
+  `METHOD_MULT` / `methodBase`, playerMods now reads it), through the one organism-realism rule (`plantedRecall`, real ÷ r).
+  Only a model the method has outgrown (τ > 0 at its measured level) can be chosen; no trust factor, no "validated on".
+  Belief (safety/methods.ts `methodQRange`): the q whose believed removal (believed efficacy, same formula) lies in the
+  real-use interval (`realUseRange`, factored out of validationRange: Beta 90% × the stated realism range); above the
+  validated model it relaxes back to [0, 2] by smoothstep over METHOD_SCALE.k. The believed strength reads its midpoint;
+  predictBeliefs' spread reads each method's own ends (`methodQ` 'lo' / 'hi'); the run preview says "known only from your
+  validation on X (it removed k of n planted cases): anywhere from A% to B%". Ordering: Safety › Validation "Validate
+  methods on X (n)" (`safety.validate` tool 'methods' or a method id) and "Methods auto" (`safety.validationPolicy`
+  `methods`, default off: the policy then also queues each owned method the new internal model has outgrown).
+  record.ts U-cause "validation" counts instruments only.
+- **Reused:** the job, need, cost, queue, policy action, sampleRange, plantedRecall, believedTransfer, ORGANISM_REALISM,
+  METHOD_SCALE (range and k), methodUntested's smoothstep.
+- **Stand-ins:** none new. Method auto-validation off by default (no number; a choice, see below).
+- **Save:** SCHEMA_REV 102; migration 101 → 102 is a no-op (all new fields optional); hygiene, `_rfs5`, `_rfs8` pins → 102.
+- **Check:** tsc (app, scripts/v2) clean; lint-hidden passes; scripts/v2/_rfs14/check.ts all ok: day 400, T-CONFESS on
+  Atlas-2.7 (+1.98 OOM): one job (+8 engineers on the need); 11 of 20 removed → q 0–2 → 0.29–2.00 at the validated
+  model, 0.14–2.00 at +1 OOM, 0–2 at +2; preview 55–168% → 71–168% (expected 111% → 120%); predicted strength ends
+  0.49–1.51 → 0.64–1.51; range, preview, prediction unchanged with hidden q and r rewritten; q 0.2 vs 1.8 removes 6.9 vs
+  12.6 of 20; r 0.4 vs 1.0 16.8 vs 6.9; true q inside the range in 91 of 100 worlds (info). _rfs10, _rfs5, _rfs8 all ok.
+- **Notes:** narrowing is modest: the realism range [0.4, 1.0] spans most of the interval, and the high end often clamps at
+  q = 2. Inversion uses believed efficacy, so a wrong efficacy belief shifts the range (9 of 100 misses).
+- **moves calibration: maybe** (no by default: only player / bot orders queue method jobs; then belief-only, through
+  previews and predicted beliefs).

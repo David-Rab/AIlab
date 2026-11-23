@@ -194,8 +194,11 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  SafetyDept.envFixes / envFixJobs (fixes in force and being built are lost: the planned save break) and the 'envFix'
  *  need from research.safRe (order and caps). RF-S10: it also redraws HiddenWorld.methodScale from the seed on the
  *  two-sided range U[0, 2] (methodScaleOf). RF-S12: Investigation.clarity → progress (clarity ÷ 0.8, capped at 1).
+ *  102 (RF-S14): a safety method can be validated (ValidationJob.tool a method id; its TechniqueState.measured = planted
+ *  cases removed, k of n) and SafetyDept.validation.methods (the policy also queues methods; absent = off). Migration
+ *  101 → 102: nothing to rewrite (all optional).
  */
-export const SCHEMA_REV = 101;
+export const SCHEMA_REV = 102;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1169,6 +1172,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!sr) return;
     sr.order = (sr.order ?? []).filter((k) => k !== 'envFix');
     for (const cap of [sr.max, sr.share]) if (cap) delete cap.envFix;
+  },
+  101: () => {
+    // 101 → 102 (RF-S14): method validation (see SCHEMA_REV's note); all new fields optional, nothing to rewrite.
   },
 };
 

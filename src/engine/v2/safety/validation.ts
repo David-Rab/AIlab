@@ -14,6 +14,10 @@
 // (believed r = its midpoint, range lo–hi on the readout). A finished job sets "validated on"
 // that model (the capability gap the decay is measured from) and `measured`. Away from the measured model believed
 // reliability is extrapolated with a range that widens with the gap (validationRange).
+// RF-S14: a safety METHOD is validated by the same job (need, cost, VAL_N, queue, policy): plant the trait in a test copy,
+// train it with the method, count the planted cases it removes (k of VAL_N); the true share is the method's true strength
+// at that model's capability (methods.ts plantedRemoval), through the same organism-realism rule. The result narrows the
+// lab's belief about the method's strength at scale (methods.ts methodQRange); no trust factor, no "validated on".
 import { AGENDA_BY_ID, ORGANISM_REALISM, ORGANISM_REALISM_BELIEVED, VAL_COMPUTE_FRAC, VAL_DAYS, VAL_ENGINEERS, VAL_N, VAL_UNMEASURED_HALF, VAL_WIDEN_PER_OOM } from '../../../data/v2/agendas';
 import { organismRealismOf } from '../world/hidden';
 import { safetyLabour } from '../departments/workfit';
@@ -22,7 +26,8 @@ import { internalVersion } from '../models/labs';
 import type { GameStateV2, ModelVersion, RngLike, SafetyDept, SystemCtx, TechniqueId, TechniqueState, ValidationJob } from '../types';
 import { clamp01, versionById } from './common';
 import { instrumentName, instrumentReads, instruments, reliability } from './instruments';
-import { versionOom } from './oversight';
+import { measuredOom, versionOom } from './oversight';
+import { METHOD_BY_ID, methodUntested, ownedMethods, plantedRemoval } from './methods';
 import { safAllocation } from './lineProjects';
 import { disagreementsOn, setTrust, trustOf } from './disagreement';
 
@@ -73,12 +78,18 @@ export function jobStaffing(s: GameStateV2, got: number): Map<string, number> {
 /** Whether a job for (tool, model) is queued. */
 export const isQueued = (s: GameStateV2, tool: TechniqueId, model: string) => !!s.player.safety.validation?.jobs.some((j) => j.tool === tool && j.model === model);
 
-/** Whether an instrument can be validated on a model: owned, the model exists, not already measured there or queued. */
+/** RF-S14: whether a technique id is a safety method (validated through the same job). */
+export const isMethod = (tool: TechniqueId) => !!METHOD_BY_ID[tool];
+
+/** Whether an instrument (RF-S14: or a method) can be validated on a model: owned, the model exists, not already measured
+ *  there or queued; a method only on a model past the scale its source tested (below it a validation says nothing new). */
 export function canValidate(s: GameStateV2, tool: TechniqueId, model: string): true | string {
   const t = s.player.safety.techniques[tool];
-  if (!t?.unlocked || !instruments(s).includes(t)) return 'Not an owned instrument';
+  const method = isMethod(tool);
+  if (method ? !ownedMethods(s).includes(tool) : !t?.unlocked || !instruments(s).includes(t)) return method ? 'Not an owned method' : 'Not an owned instrument';
   const v = versionById(s, model);
   if (!v || v.status === 'retired') return 'No such model';
+  if (method && methodUntested(tool, measuredOom(s, v)) <= 0) return `${v.name} is within the scale it was tested at: nothing new to learn`;
   if (isQueued(s, tool, model)) return 'Already queued';
   if (t.measured?.on === model) return `Already validated on ${v.name}`;
   return true;
@@ -127,6 +138,7 @@ export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j:
   const t = s.player.safety.techniques[j.tool];
   const v = versionById(s, j.model);
   if (!t || !v) return;
+  if (isMethod(j.tool)) return completeMethodValidation(s, rng, day, j, t, v);
   t.validatedOn = v.id;
   t.validatedOom = versionOom(s, v);
   const human = humanRun(s, j);
@@ -148,13 +160,32 @@ export function completeValidation(s: GameStateV2, rng: RngLike, day: number, j:
   setTrust(t, f, { day, source: 'validation', model: v.id, note: `${human ? 'human-run' : 'AI-assisted'} validation on ${v.name}: found ${found} of ${VAL_N} planted (believed ${Math.round(believed * 100)}%)` });
 }
 
-/** One day: the policy queues every owned instrument on a new internal model; staffed jobs progress (VAL_DAYS at full
+/** RF-S14: finish a method's job: k of VAL_N planted cases removed. True share = the method's true removal at the model's
+ *  true capability ÷ organism realism (plantedRecall, the one rule); the expected share (SR-22 job record, the AI-run
+ *  sabotage path) is the believed removal at its measured level before this result, ÷ the believed r. */
+function completeMethodValidation(s: GameStateV2, rng: RngLike, day: number, j: ValidationJob, t: TechniqueState, v: ModelVersion): void {
+  const human = humanRun(s, j);
+  const prior = t.measured;
+  t.measured = null;
+  const believed = clamp01(plantedRemoval(s, t.id, 'believed', measuredOom(s, v)));
+  t.measured = prior;
+  const job = jobRecord(s, jobAiShare(s, 'validation', { human }), believed);
+  const real = plantedRecall(s, plantedRemoval(s, t.id, 'true', versionOom(s, v)));
+  const believedPlanted = clamp01(believed / ORGANISM_REALISM_BELIEVED);
+  const p = t.falseValidated && !human ? job.spot * real + (1 - job.spot) * believedPlanted : real;
+  const found = binomial(rng, VAL_N, p);
+  t.measured = { on: v.id, found, n: VAL_N, day, human, job: { ...job, observed: Math.round((found / VAL_N) * 1000) / 1000 } };
+}
+
+/** One day: the policy queues every owned instrument on a new internal model (RF-S14: and, with `methods` on, every owned
+ *  method that model has outgrown); staffed jobs progress (VAL_DAYS at full
  *  staffing); finished jobs measure. */
 export function validationStep(s: GameStateV2, ctx: SystemCtx, got?: number): void {
   const val = validationOf(s);
   const iv = internalVersion(s);
   if (val.autoNew && iv && val.lastModel !== iv.id) {
     for (const t of instruments(s)) if (t.measured?.on !== iv.id) queueValidation(s, t.id, iv.id, 'policy', ctx.day);
+    if (val.methods) for (const id of ownedMethods(s)) if (canValidate(s, id, iv.id) === true) queueValidation(s, id, iv.id, 'policy', ctx.day);
     val.lastModel = iv.id;
   }
   const live = new Set(liveJobs(s).map((j) => j.id));
@@ -171,7 +202,9 @@ export function validationStep(s: GameStateV2, ctx: SystemCtx, got?: number): vo
     completeValidation(s, ctx.rng('safety'), ctx.day, j);
     const t = s.player.safety.techniques[j.tool];
     const v = versionById(s, j.model);
-    if (t?.measured) ctx.log('research', `Validation (${t.measured.human ? 'human-run' : 'AI-assisted'}): ${instrumentName(t)} found ${t.measured.found} of ${t.measured.n} planted on ${v?.name ?? j.model} (reliability ${Math.round((100 * t.measured.found) / t.measured.n)}%).`, 1);
+    if (t?.measured) ctx.log('research', isMethod(j.tool)
+      ? `Validation (${t.measured.human ? 'human-run' : 'AI-assisted'}): ${instrumentName(t)} removed ${t.measured.found} of ${t.measured.n} planted cases on ${v?.name ?? j.model}.`
+      : `Validation (${t.measured.human ? 'human-run' : 'AI-assisted'}): ${instrumentName(t)} found ${t.measured.found} of ${t.measured.n} planted on ${v?.name ?? j.model} (reliability ${Math.round((100 * t.measured.found) / t.measured.n)}%).`, 1);
   }
   val.jobs = val.jobs.filter((j) => !done.includes(j));
 }
@@ -184,6 +217,13 @@ export function sampleRange(found: number, n: number): { mean: number; half: num
   const b = n - found + 1;
   const sd = Math.sqrt((a * b) / ((a + b) ** 2 * (a + b + 1)));
   return { mean: found / n, half: 1.64 * sd };
+}
+
+/** SR-24b: a planted count read as real use: value = planted share × the believed r, 90% range = the sample's range ×
+ *  the stated realism range [lo, hi] (instruments: validationRange; RF-S14 methods: methodQRange). */
+export function realUseRange(found: number, n: number): { value: number; lo: number; hi: number } {
+  const r = sampleRange(found, n);
+  return { value: believedTransfer(r.mean), lo: clamp01(clamp01(r.mean - r.half) * ORGANISM_REALISM.lo), hi: clamp01(clamp01(r.mean + r.half) * ORGANISM_REALISM.hi) };
 }
 
 /** Mean believed reliability over the traits an instrument reads, at model v's measured capability (or OOM x). */
@@ -218,14 +258,14 @@ export function validationRange(s: GameStateV2, t: TechniqueState, v: ModelVersi
   const mv = m ? versionById(s, m.on) : undefined;
   const x = versionOom(s, v);
   if (m && mv) {
-    const r = sampleRange(m.found, m.n);
     const gap = Math.abs(x - versionOom(s, mv));
     // SR-24b: planted → real use at the believed r; the range spans the stated realism range [lo, hi].
-    const pLo = clamp01(r.mean - r.half) * ORGANISM_REALISM.lo, pHi = clamp01(r.mean + r.half) * ORGANISM_REALISM.hi;
-    if (mv.id === v.id) return { value: believedTransfer(r.mean), lo: clamp01(pLo), hi: clamp01(pHi), basis: 'measured', from: mv.id, gap: 0, human: m.human ?? null };
+    const ru = realUseRange(m.found, m.n);
+    const pLo = ru.lo, pHi = ru.hi;
+    if (mv.id === v.id) return { value: ru.value, lo: pLo, hi: pHi, basis: 'measured', from: mv.id, gap: 0, human: m.human ?? null };
     const at = believedOn(s, t, mv);
     const ratio = at > 1e-9 ? believedOn(s, t, v, x) / at : 0;
-    const value = clamp01(believedTransfer(r.mean) * ratio);
+    const value = clamp01(ru.value * ratio);
     const w = VAL_WIDEN_PER_OOM * gap;
     return { value, lo: clamp01(pLo * ratio - w), hi: clamp01(pHi * ratio + w), basis: 'extrapolated', from: mv.id, gap, human: m.human ?? null };
   }
@@ -250,6 +290,10 @@ export function validationView(s: GameStateV2) {
   const staff = jobStaffing(s, safAllocationGot(s));
   return {
     autoNew: val.autoNew,
+    /** RF-S14: the policy also queues the owned methods each new model has outgrown. */
+    autoMethods: !!val.methods,
+    /** RF-S14: owned methods that can be validated on the internal model now (outgrown, not measured or queued there). */
+    methodsOpen: iv ? ownedMethods(s).filter((id) => canValidate(s, id, iv.id) === true).length : 0,
     model: iv?.name,
     jobs: liveJobs(s).map((j) => ({
       id: j.id, tool: j.tool, name: instrumentName(s.player.safety.techniques[j.tool]), model: versionById(s, j.model)?.name ?? j.model,
