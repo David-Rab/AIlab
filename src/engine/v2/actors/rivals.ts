@@ -6,7 +6,6 @@
 // and labs with status !== 'active' are never chosen as subjects or named (activeRivals).
 import { LAB_ARCHETYPES } from '../../../data/actors';
 import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES, LEADER_MAX_BINDINGNESS } from '../../../data/v2/postures';
-import { LEADER_CAL } from '../../../data/v2/calibration';
 import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
@@ -125,7 +124,7 @@ export const PHYS_PLACEHOLDER = (): RivalLab['phys'] => ({ base: makeBase(1, -60
  *  model (V0's G), capabilities staff hRef, compute refTotal, split shareRef, taste 1 (the rivals'
  *  default policy may read the reference path, MODEL-V3 §13). Appended after the sampled rivals with the fixed id
  *  LEADER_ID; its draws come from its own `rng` (Rng(hash32(seed,'leaderLab'))), never from 'world'. Its posture and
- *  archetype are written into `h` here. Model v3 F1: research efficiency 10^LEADER_CAL [fit, T1L]. */
+ *  archetype are written into `h` here. Research efficiency 1: the aggregate function as is, no per-lab factor (DD-18, RF-R1). */
 export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 'rivals' | 'world'>, playerG: number): RivalLab {
   const id = LEADER_ID;
   const w = h.timeline;
@@ -160,7 +159,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     pressure: 0,
     pressureDays: 0,
   };
-  initRivalPhys(w, lab, Math.pow(10, LEADER_CAL[setup.world] ?? 0), 0);
+  initRivalPhys(w, lab, 1, 0);
   return lab;
 }
 

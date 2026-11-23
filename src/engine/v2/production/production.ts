@@ -197,7 +197,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 
 /** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
  *  compute (the rivals' aggregate policy, actors/rivalModel.ts bestRivalMix), research speed through the aggregate CES with its internal model's AI labour,
- *  its efficiency (the leader's LEADER_CAL, China's effLab) and modifiers (a binding leader, a verified treaty), and the
+ *  its efficiency (China's effLab) and modifiers (a binding leader, a verified treaty), and the
  *  recipe growth that gives. `apply` re-splits the mix and advances the recipe by a day. */
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;

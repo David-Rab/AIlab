@@ -1,10 +1,10 @@
 // Multi-seed calibration scans (model v3 F4). Owner: WS1.
 //
 //   npx tsx scripts/v2/calscan.ts t1  <preset> [--gsc a,b,…] [--dbm a,b,…] [--sd a,b,…] [--workers N]
-//   npx tsx scripts/v2/calscan.ts t1l <preset> --lc a,b,… [--gsc …] [--dbm …] [--sd …] [--workers N]
+//   npx tsx scripts/v2/calscan.ts t1l <preset> [--gsc …] [--dbm …] [--sd …] [--workers N]
 //
 // T1 and T1L bind on the median over CAL_SEEDS (calseeds.ts), so the per-preset values (V3_CAL G_SC, Δ_bm, sd_SC in
-// src/data/v2/workTypes.ts; LEADER_CAL in src/data/v2/calibration.ts) are fitted here, on the same seeds: every grid point
+// src/data/v2/workTypes.ts) are fitted here, on the same seeds: every grid point
 // (the product of the lists; unset lists keep the committed value) is played on every seed — RefBot on the reference
 // compute stub (t1) or the leader lab with a passive player (t1l), as calib.ts does — and the table prints, per point, the
 // median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y), p10 / p90, the seeds within tolerance,
@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
+import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { V3_CAL } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
@@ -27,7 +27,7 @@ const ME = fileURLToPath(import.meta.url);
 const argv = process.argv.slice(2);
 const [mode, preset] = argv as ['t1' | 't1l', WorldPresetId];
 if (!['t1', 't1l'].includes(mode) || !['ai2027', 'authors2026', 'fast', 'slow'].includes(preset)) {
-  console.error('usage: calscan.ts t1|t1l <ai2027|authors2026|fast|slow> [--gsc …] [--dbm …] [--sd …] [--lc …] [--workers N]');
+  console.error('usage: calscan.ts t1|t1l <ai2027|authors2026|fast|slow> [--gsc …] [--dbm …] [--sd …] [--workers N]');
   process.exit(2);
 }
 const list = (name: string, dflt: number) => {
@@ -35,9 +35,9 @@ const list = (name: string, dflt: number) => {
   return i >= 0 ? argv[i + 1].split(',').map(Number) : [dflt];
 };
 const last = (preset === 'slow' ? 3 : 6) as MilestoneIdx;
-type Point = { gSC: number; dBM: number; sdSC: number; lc: number };
+type Point = { gSC: number; dBM: number; sdSC: number };
 const points: Point[] = [];
-for (const gSC of list('gsc', V3_CAL[preset].gSC)) for (const dBM of list('dbm', V3_CAL[preset].dBM)) for (const sdSC of list('sd', V3_CAL[preset].sdSC)) for (const lc of mode === 't1l' ? list('lc', LEADER_CAL[preset]) : [0]) points.push({ gSC, dBM, sdSC, lc });
+for (const gSC of list('gsc', V3_CAL[preset].gSC)) for (const dBM of list('dbm', V3_CAL[preset].dBM)) for (const sdSC of list('sd', V3_CAL[preset].sdSC)) points.push({ gSC, dBM, sdSC });
 
 function play(p: Point, seed: number): Partial<Record<MilestoneIdx, number>> {
   return cached(`calscan-${mode}`, { preset, ...p, seed }, [ME], () => {
@@ -47,7 +47,6 @@ function play(p: Point, seed: number): Partial<Record<MilestoneIdx, number>> {
       runRef(s, 365 * 16, (x) => x.player.milestoneDays[last] !== undefined);
       return s.player.milestoneDays;
     }
-    LEADER_CAL[preset] = p.lc;
     const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
     const L = s.rivals.find((r) => r.core.id === LEADER_ID);
     if (!L) throw new Error('no leader lab');
@@ -89,6 +88,6 @@ for (const p of points) {
     const inTol = days.filter((d) => Math.abs(d - want) / 365 <= tol).length;
     cells.push(`${NAMES[i]} ${f(med)} [${f((quantOf(days, 0.1) - want) / 365)}, ${f((quantOf(days, 0.9) - want) / 365)}] ${inTol}/${days.length} (seed ${CAL_SEED} ${f(one)})`);
   }
-  const head = mode === 't1' ? `G_SC ${p.gSC} Δ_bm ${p.dBM} sd_SC ${p.sdSC}` : `LEADER_CAL ${p.lc} (G_SC ${p.gSC} Δ_bm ${p.dBM} sd_SC ${p.sdSC})`;
+  const head = mode === 't1' ? `G_SC ${p.gSC} Δ_bm ${p.dBM} sd_SC ${p.sdSC}` : `leader lab (G_SC ${p.gSC} Δ_bm ${p.dBM} sd_SC ${p.sdSC})`;
   console.log(`${head}: worst ${worst.toFixed(2)} tol ${worst <= 1 ? 'PASS' : 'FAIL'}\n    ${cells.join('\n    ')}`);
 }

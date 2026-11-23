@@ -4100,3 +4100,16 @@ hygiene.ts's calibration shift drops it).
   3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
   for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
   compute ratio is ≈ 2.7×.
+
+## RF-R1: LEADER_CAL deleted (research review F2)
+
+- **Changed:** the simulated leader lab's research efficiency is 1 (`initRivalPhys(w, lab, 1, 0)` in actors/rivals.ts):
+  the aggregate research function as is, no per-lab factor (DD-18). Comments in production.ts, types.ts, rivalModel.ts
+  data header, calib.ts and calscan.ts no longer describe a leader fit knob.
+- **Deleted:** `LEADER_CAL` and its 30-line fit history (data/v2/calibration.ts); calib.ts `--fit-leader` with
+  `fitLeader` / `worstErrL`; calscan.ts's `--lc` axis (t1l now runs the leader as is); hygiene.ts's LEADER_CAL shift in
+  the process-history check (its eff check now asserts eff = 1); the `LEADER_CAL.ai2027 = −0.15` line in the
+  `_cp3e/shared.ts` probe (it no longer reproduces the pre-CP3g state).
+- **Stand-ins:** none.
+- **Check:** tsc (app + scripts); new games on ai2027 and slow with the leader lab: leader eff = 1.
+- **Moves calibration:** no (every value was already 0 since CP3g).

@@ -1,6 +1,6 @@
 // Rivals, China and the simulated leader lab in effective compute (model v3 F1: design/MODEL-V3.md §12; engine
 // src/engine/v2/actors/rivalModel.ts). Owner: WS4 (behaviour) / WS1 (capability). Tags: [R12 §x] research/12, [R20 xx]
-// research/20, [D] design value, [fit] fitted by the calibration harness (scripts/v2/calib.ts --fit-leader, ws4 T3).
+// research/20, [D] design value, [fit] fitted by the calibration harness (ws4 T3).
 //
 // A non-player lab has no ideas and no blueprint: it has a recipe in the player's three stack parts (pretraining
 // efficiency, RL efficiency, RL ceiling; model v3 F2) that grows from its own research inputs through the player's

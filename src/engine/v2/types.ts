@@ -2015,7 +2015,7 @@ export interface RivalPhys {
   base: RivalBase;
   /** The base run in training: launch day, FLOP so far, the pretraining recipe frozen at launch. */
   run?: { day: Day; flop: number; ePre: number };
-  /** Research-efficiency multiplier (the leader lab's 10^LEADER_CAL [fit]; 1 otherwise; China's effLab applies on top). */
+  /** Research-efficiency multiplier (1 for every rival lab; China's effLab applies on top). */
   eff: number;
   /** Model v3 D10: serving efficiency (OOM over the 2025 reference serving stack), the player's serving stack at
    *  aggregate level: grows from the lab's research speed with the Inference-efficiency line's returns; its first 0.33 OOM

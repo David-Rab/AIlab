@@ -37,7 +37,7 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 ## Lane R: research readouts and measurement (branch rf-r)
 | ID | Task | Source |
 |---|---|---|
-| RF-R1 | Delete LEADER_CAL (data + read at rivals.ts) | research F2 |
+| RF-R1 | Delete LEADER_CAL (data + read at rivals.ts) | research F2 — done |
 | RF-R2 | Measured level pools all suites per version (inverse variance, current edition); band shrinks with suites; restore EV2 monotone-precision check | research F4 |
 | RF-R3 | Restore a real runEvals preview-vs-result check (016a173 made it a tautology) | research F6 |
 | RF-R4 | Research speed and capEta from observed progress; believed elasticities stay | research F7 |
