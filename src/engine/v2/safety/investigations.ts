@@ -20,7 +20,7 @@ import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
 import { caseThreat, safetySabotage } from './covert';
-import { patchFte } from './responses';
+import { removalFte } from './footholds';
 import { caseOnModel } from './footholdDetection';
 import { casesServed, safAllocation } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
@@ -40,8 +40,8 @@ export function safetyReHeads(s: GameStateV2): number {
 export function safeguardFte(s: GameStateV2): number {
   return labReviewOn(s) ? reviewStaff(1 - aiRdShare(s)) : 0;
 }
-/** Safety research engineers committed before line experiments: investigations, patches and safeguards. */
-export const committedFte = (s: GameStateV2) => investigationFte(s) + patchFte(s) + safeguardFte(s);
+/** Safety research engineers committed before line experiments: investigations, foothold removals and safeguards. */
+export const committedFte = (s: GameStateV2) => investigationFte(s) + removalFte(s) + safeguardFte(s);
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;

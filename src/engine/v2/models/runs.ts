@@ -24,7 +24,7 @@ import { playerDraw, type DataDraw } from '../production/data';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
-import { runExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
+import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import type {
   BaseDesign, BaseModel, Day, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RLFamily, RunKind, RunPrediction, SystemCtx,
@@ -269,7 +269,7 @@ export function baseGOf(d: BaseDesign, fz: BaseFreeze): BaseGOut {
 /** The RL recipe a post-training run launched today freezes: the RL stack's efficiency and ceiling, and (model v3 D5)
  *  the environment suites' fidelity and exploitability per family. */
 export interface RlRecipe { rlMid: number; rlCeil: number; fid?: FamilyMap; exploit?: FamilyMap }
-export const rlRecipeNow = (s: GameStateV2): RlRecipe => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s), fid: suiteFidMap(s), exploit: runExploitMap(s) });
+export const rlRecipeNow = (s: GameStateV2): RlRecipe => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s), fid: suiteFidMap(s), exploit: suiteExploitMap(s) });
 /** Everything a post-training run freezes at launch (RD-B02): the RL recipe, adopted ideas' domain effects, P07 (its
  *  horizon multiplier here, its persistent memory in the trait hook) and the serving stack's FLOP part. */
 export interface PostRecipe extends RlRecipe { domainG: Partial<Record<DomainId, number>>; p07: boolean; serveOom: number }

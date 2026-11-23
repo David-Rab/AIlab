@@ -4125,3 +4125,29 @@ hygiene.ts's calibration shift drops it).
   family's missed share equals SWE's at the same exploitability (0.100 / 0.233 / 0.702).
 - **moves calibration: yes** (safety S4: less missed hacking on long tasks past ≈ 1.7 OOM above V0; CP3h's S4
   0.117 → 0.329 included this gap).
+
+### RF-S8 Fix environment folds into Harden
+- **Changed:** the "Fix environment" response (`patchSignal`, offered for a training-signal cause) is now **Harden
+  environments**: it queues the family's suite hardening pass through `queueSuiteWork` (models/suites.ts, which
+  suite.build / suite.harden also use): Harden's cost (cash for red-teamers + engineer team-weeks on the build queue),
+  Harden's cut (`hardenCut`) and Harden's floor (`exploitFloor`). Its Respond preview is suite.harden's own preview (plus
+  the block reason). Default family = the most exploitable suite (`hardenFamily`, was envFixFamily). The response card's
+  limit is `response.hardenFloor` (gameable tasks now · floor). Runs freeze `suiteExploitMap` (one quantity).
+  Safety › Staff "Patches" label → "Foothold removals" (it is only removals now).
+- **Deleted:** safety/envFix.ts (jobs, step, preview), `safety.envFix` action and the Environments tab's "Environment
+  fix" column, `SafetyDept.envFixes / envFixJobs` and their types, `envFixMult`, `runExploitMap`, the 'envFix' safety
+  need (SafReNeed, SAF_RE_NEEDS, label, demand), `PATCH_FLOOR / PATCH_MULT / PATCH_DAYS / PATCH_FTE`, `RUN_PENALTY_OOM`
+  (the fix's next-run G cost; hardening has none; the runPenalty flag stays for foothold removals), `envFixFte`,
+  `patchFte` (callers use `removalFte`), `patchLevel`, limit `response.patchFloor`, the stale _sr16 / _sr16b checks.
+- **Save:** SCHEMA_REV 98; migration 97 → 98 drops envFixes / envFixJobs (fixes in force or being built are lost: the
+  planned save break) and 'envFix' from research.safRe order / caps; hygiene pins → 98. Other lanes bumping the rev
+  will conflict here: renumber at merge.
+- **Stand-ins:** none new (Harden's existing D5 numbers apply).
+- **Files touched outside safety mechanisms:** safety/actions.ts (lane S1 also edits it: only the env-fix preview /
+  action and imports changed), Suites.tsx / suites.css, Safety.tsx (label, limit), glossary safReNeeds.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs8/check.ts all ok: day 400 migrates to 98 with no envFix
+  state or need; the Respond preview equals suite.harden's ($0.05B, 1.5 team-weeks, Coding 18% → 11.5%); the response
+  pays that and queues the pass, nothing in force yet; a second is refused; completing it gives hardenedExploit (floor
+  1.8%).
+- **moves calibration: yes** (safety S4 / S5 and bots: a fix now costs $50M × size and capability engineers' team-weeks
+  instead of 10 safety engineers for 30–90 d; cut 40% to a lower floor instead of ×0.3–0.6 to ×0.2; no next-run G cost).

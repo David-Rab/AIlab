@@ -106,19 +106,12 @@ export function suiteFidMap(s: GameStateV2): FamilyMap {
   for (const f of suiteFamilies(s)) out[f] = suiteFidelity(s, f);
   return out;
 }
+/** What a post-training run trains on (the snapshot a run freezes at launch, rlRecipeNow, and the plan's preview /
+ *  prediction read). RF-S8: an incident's environment fix is a hardening pass (the patch response queues one), so the
+ *  suites' exploitability is the one quantity. */
 export function suiteExploitMap(s: GameStateV2): FamilyMap {
   const out: FamilyMap = {};
   for (const f of suiteFamilies(s)) out[f] = suiteOf(s, f)!.exploit;
-  return out;
-}
-/** SR-16: the lab's owned environment fix on a family (×1 = none): a patched grader / reward model / environment stops
- *  rewarding the hack it was fixed for, on every later run that trains on the family. */
-export const envFixMult = (s: GameStateV2, f: RLFamily) => s.player.safety.envFixes?.[f]?.mult ?? 1;
-/** What a post-training run trains on: each suite's exploitability × the family's environment fix (SR-16). The snapshot
- *  a run freezes at launch (rlRecipeNow) and the plan's preview / prediction read; suitesView shows the raw suites. */
-export function runExploitMap(s: GameStateV2): FamilyMap {
-  const out: FamilyMap = {};
-  for (const f of suiteFamilies(s)) out[f] = suiteOf(s, f)!.exploit * envFixMult(s, f);
   return out;
 }
 
@@ -315,17 +308,23 @@ export const SUITE_ACTIONS: ActionDef[] = (['build', 'harden'] as SuiteWork[]).m
     return { costs, gains, exposure: [] };
   },
   apply: (s, ctx, p) => {
-    const f = famParam(p);
-    const demos = work === 'build' && demosParam(p);
-    const why = suiteWorkBlock(s, f, work, demos);
+    const why = queueSuiteWork(s, ctx, famParam(p), work, work === 'build' && demosParam(p));
     if (why) throw new Error(why);
-    materialiseSuite(s, f);
-    const c = suiteWorkCost(s, f, work, demos);
-    queueBuild(s, 'suite', suiteRef(f, work, demos), c.tw);
-    if (c.cashB > 0) bookCash(s, ctx, -c.cashB, 'training', work === 'build' ? 'expert data' : 'environment hardening', f);
-    ctx.log('research', `Engineers start ${work === 'build' ? 'building out' : 'hardening'} the ${RL_FAMILY_LABEL[f]} environments.`, 1, f);
   },
 }));
+/** Queue a build or hardening pass on a family's suite (cash paid now, engineers' team-weeks on the build queue); the
+ *  error when it cannot be queued. suite.build / suite.harden and the incident's environment fix (RF-S8: the
+ *  patchSignal response is a hardening pass) both order through it. */
+export function queueSuiteWork(s: GameStateV2, ctx: SystemCtx, f: RLFamily, work: SuiteWork, demos = false): string | undefined {
+  const why = suiteWorkBlock(s, f, work, demos);
+  if (why) return why;
+  materialiseSuite(s, f);
+  const c = suiteWorkCost(s, f, work, demos);
+  queueBuild(s, 'suite', suiteRef(f, work, demos), c.tw);
+  if (c.cashB > 0) bookCash(s, ctx, -c.cashB, 'training', work === 'build' ? 'expert data' : 'environment hardening', f);
+  ctx.log('research', `Engineers start ${work === 'build' ? 'building out' : 'hardening'} the ${RL_FAMILY_LABEL[f]} environments.`, 1, f);
+  return undefined;
+}
 
 // ───────────────────────────── readout (Blueprint today, D6's suites view) ─────────────────────────────
 

@@ -10,7 +10,7 @@ import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/
 import { UMODES } from '../../../data/v2/umodes';
 import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
-import { runExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
+import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
@@ -170,7 +170,7 @@ export interface RunHack {
 // with AI-assisted oversight (P15) the critic's share Aeff of the grading is done at the safety critic's level (at least
 // the humans'), the two catches mixed by share; scalable oversight's debate finding (F16, Khan et al. 2024 [P]) takes
 // AG05_OVERSIGHT.debateCreditOom (≈ 4.0 OOM) off every gap, as it does for AG05's tools (techniques.ts). Hardening
-// (lower x_f) and environment fixes act on x_f as before. Missed hacks feed the existing paths unchanged: S2's hackable
+// (lower x_f; an incident's environment fix is a hardening pass, RF-S8) acts on x_f as before. Missed hacks feed the existing paths unchanged: S2's hackable
 // reward, the hack share h → RH saturation (SR-24b) and learned hacking λ past LH_ONSET → MacDiarmid's generalisation.
 // (b) Long-task RL trains on tasks the model can sometimes do: RL curricula drop prompts the policy always or never
 // solves (Yu et al. 2025 DAPO, arXiv 2503.14476 [P], dynamic sampling filters accuracy-0 and accuracy-1 prompts), so the
@@ -224,7 +224,7 @@ export function missedExploit(s: GameStateV2, exploit: FamilyMap, policy: Policy
 /** A post-training design's hack share and learned hacking, with the same suites, shares, ρ and policy as postSignals. */
 export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
   const rho = rhoOf(post, q);
-  const x0 = exploit ?? runExploitMap(s);
+  const x0 = exploit ?? suiteExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const x = missedExploit(s, x0, policyOfQ(s, q), believedQ(q));
   const h = hackShare(w, x, rho);
@@ -396,7 +396,7 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   // CP3h: the suites as the run's policy meets them (graders outgrown) and its task lengths (horizon-tracking long tasks).
   const policy = policyOfQ(s, q);
-  const x = missedExploit(s, exploit ?? runExploitMap(s), policy, believedQ(q));
+  const x = missedExploit(s, exploit ?? suiteExploitMap(s), policy, believedQ(q));
   sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
   sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
   let s3 = 0;
@@ -783,8 +783,8 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: E
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
   if (techActive(s, 'T-TMON') && routineMonitor(s) > 0) mul('E22', 0.5);
   // Targeted inoculation training's lab-wide E04 multiplier (responses.ts targetedPlan patchE04). SR-16: the old
-  // per-edge signal patches are gone; an environment fix is owned per RL family and lowers the family's frozen
-  // exploitability (models/suites.ts runExploitMap), i.e. the run's hack rate, not a trait edge.
+  // per-edge signal patches are gone; an environment fix is a hardening pass on one RL family (RF-S8): it lowers the family's
+  // exploitability (models/suites.ts suiteExploitMap), i.e. the run's hack rate, not a trait edge.
   const inoc = s.flags[LAB_PATCH + 'E04'];
   if (typeof inoc === 'number') mul('E04', inoc);
   return m;

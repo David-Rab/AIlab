@@ -9,7 +9,7 @@ import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { planRun, type LaunchRunParams } from '../models/runs';
-import { runExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
+import { suiteExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
 import { measuredLOf, versionById } from '../models/labs';
 import { fleetMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
@@ -87,7 +87,7 @@ const famTerms = (w: FamilyMap, f: (k: RLFamily, wf: number) => { x: number; ter
 export function postPressure(s: GameStateV2, post: PostDesign, rho: number, exploit?: FamilyMap, s8?: number): PressureRow[] {
   // CP3h: the suites as the lab's internal model (measured) meets them: graders outgrown, horizon-tracking long tasks.
   const policy = policyOf(s, undefined, true);
-  const x = missedExploit(s, exploit ?? runExploitMap(s), policy, true);
+  const x = missedExploit(s, exploit ?? suiteExploitMap(s), policy, true);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const p = optimisationPressure(rho);
   const p11 = adopted(s, 'P11');

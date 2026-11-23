@@ -81,7 +81,7 @@ export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some
  *  order, safety/lineProjects.ts safAllocation; SR-13b: the safeguards' staff first); idle = what no need takes. */
 export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; validation: number; evals: number; idle: number } {
   const al = safAllocation(s);
-  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.envFix + al.got.removal, safeguards: al.safeguards, experiments: al.exp, validation: al.got.validation, evals: al.got.evals, idle: al.idle };
+  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.removal, safeguards: al.safeguards, experiments: al.exp, validation: al.got.validation, evals: al.got.evals, idle: al.idle };
 }
 
 // ───────── compute ─────────

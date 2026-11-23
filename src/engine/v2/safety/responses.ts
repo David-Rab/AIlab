@@ -1,25 +1,23 @@
 // Response menu per incident or believed finding, cause-aware (SAFETY-REDESIGN §3.7, SR-18). Owner: WS2.
 // What the player can do depends on the BELIEVED cause (the incident's apparent source after any case, or the trait a
-// response names): a training signal → an environment fix; a trait in the model → a method for later runs, roll back,
-// restrict, safeguards; misuse → product-side restriction; a located foothold → remove it; unknown → contain. Disclosure
+// response names): a training signal → a hardening pass on that family's environments (RF-S8: one verb, Harden); a
+// trait in the model → a method for later runs, roll back, restrict, safeguards; misuse → product-side restriction; a located foothold → remove it; unknown → contain. Disclosure
 // is a separate policy (legal minimum by default, OD-8) with a per-incident override; fixing never closes it.
 import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, labControlSetting, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import type { DisclosurePolicy, GameStateV2, Incident, ModelVersion, ResponseKind, RLFamily, SystemCtx, TechniqueId, TraitId, UModeId } from '../types';
-import { envFixMult, runExploitMap } from '../models/suites';
+import { exploitFloor, queueSuiteWork, suiteExploitMap } from '../models/suites';
 import { flagNum, setFlag, versionById } from './common';
 import { measuredOom } from './oversight';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { revealToWorld } from './umodes';
 import { ownedMethods } from './methods';
-import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
-import { orderEnvFix } from './envFix';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
-  patchSignal: { title: 'Fix environment', note: 'Patch the RL environments, grader or reward model of one family so it stops rewarding the hack: the family’s rewarded hacks × 0.3–0.6 on every later run that trains on it (an owned environment fix, floor × 0.2), in force once its work is done: 300–900 safety-engineer-days on the environment-fix need (10 engineers, 30–90 days when fully staffed).' },
+  patchSignal: { title: 'Harden environments', note: 'Harden the RL environments of one family (the Harden pass of Training › Environments): expert red-teamers close the holes in its graders, cutting the share of gameable tasks by 40% of what is left above the floor (10% of the family’s start share) on every later run that trains on it. Cash and engineer team-weeks; in force when the pass is done.' },
   addMethod: { title: 'Add method to later runs', note: 'Every later run plan that takes the default methods lists this owned safety method (persona vectors, anti-scheming, inoculation…); its effect shows in the next run\'s predicted traits, not in this model.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
@@ -31,13 +29,10 @@ export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }
   removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
 };
 
-/** Lowest multiplier repeated environment fixes on one family reach (some hacks always slip through) [D: V2-SPEC 3.5.9]. */
-export const PATCH_FLOOR = 0.2;
-
-/** SR-16: the family an environment fix patches: the one asked for (if the lab has its environments), else the family
- *  whose environments reward the most hacks now (highest exploitability after earlier fixes). */
-export function envFixFamily(s: GameStateV2, family?: RLFamily): RLFamily | undefined {
-  const x = runExploitMap(s);
+/** The family the environment-fix response hardens: the one asked for (if the lab has its environments), else the
+ *  family whose environments reward the most hacks now (highest exploitability). */
+export function hardenFamily(s: GameStateV2, family?: RLFamily): RLFamily | undefined {
+  const x = suiteExploitMap(s);
   if (family) return x[family] !== undefined ? family : undefined;
   let best: RLFamily | undefined;
   for (const [f, v] of Object.entries(x) as [RLFamily, number][]) if (best === undefined || v > (x[best] ?? 0)) best = f;
@@ -72,7 +67,7 @@ export function bestDetector(s: GameStateV2, v: ModelVersion, trait: TraitId): s
   return best;
 }
 
-/** G penalty (OOM) the next post-run should pay (patch/targeted training). WS1 reads and consumes it. */
+/** G penalty (OOM) the next post-run should pay (a foothold removal, footholdDetection.ts). WS1 reads and consumes it. */
 export function pendingRunPenalty(s: GameStateV2): number {
   return flagNum(s, 'runPenalty');
 }
@@ -82,23 +77,6 @@ export function consumeRunPenalty(s: GameStateV2): number {
   return p;
 }
 
-/** SR-21 / SR-16b: safety engineers the environment fixes being built ask (the 'envFix' need): PATCH_FTE per open
- *  job (safety/envFix.ts); released when the job's work is done. */
-export const envFixFte = (s: GameStateV2): number => PATCH_FTE * (s.player.safety.envFixJobs?.length ?? 0);
-/** Safety FTE tied up by environment fixes and foothold removals (released when they end). */
-export function patchFte(s: GameStateV2): number {
-  return envFixFte(s) + removalFte(s);
-}
-
-// ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────
-
-/** Environment fix (SR-16): the family's fix × PATCH_MULT (drawn), floor PATCH_FLOOR; PATCH_FTE safety research
- *  engineers for PATCH_DAYS (drawn); the next post-training run pays RUN_PENALTY_OOM OOM of G. */
-export const PATCH_MULT: [number, number] = [0.3, 0.6];
-export const PATCH_DAYS: [number, number] = [30, 90];
-export const PATCH_FTE = 10;
-/** OOM of G the next post-training run loses after a patch or a targeted training. Was 0.02 progress-years. */
-export const RUN_PENALTY_OOM = 0.024;
 
 // ───────────── SR-18: believed cause → the responses offered ─────────────
 
@@ -195,18 +173,14 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   // SR-18: only the responses for the believed cause apply (safeguard off-switches always do).
   const opt = responseOptions(s, v, inc, opts.trait);
   if (!UNDO_RESPONSES.includes(kind) && !opt.kinds.includes(kind)) return `not a response to ${opt.label}`;
-  const rng = ctx.rng('safety');
   switch (kind) {
     case 'patchSignal': {
-      // SR-16: an owned environment fix on one RL family (the patched environment / grader / reward model is the
-      // lab's): every later run that trains on the family freezes its exploitability × the fix at launch
-      // (runExploitMap), so it learns less of the hack; runs not on the family are unchanged. Repeated fixes on one
-      // family bottom out at PATCH_FLOOR [D].
-      const f = envFixFamily(s, opts.family);
+      // RF-S8: the environment fix is a hardening pass on the family's suite (models/suites.ts queueSuiteWork, the
+      // suite.harden verb): one cost model (cash + engineer team-weeks), one floor (exploitFloor). Every later run that
+      // trains on the family freezes the hardened exploitability at launch; runs not on the family are unchanged.
+      const f = hardenFamily(s, opts.family);
       if (!f) return 'No environments of that family';
-      // SR-16b: ordered, not in force: engineering work on the 'envFix' need; envFixStep (safety/envFix.ts) applies
-      // the fix and the next-run G penalty when the work is done.
-      const busy = orderEnvFix(s, rng, f, ctx.day, trait, v.id);
+      const busy = queueSuiteWork(s, ctx, f, 'harden');
       if (busy) return busy;
       break;
     }
@@ -346,11 +320,11 @@ export function disclosureStep(s: GameStateV2, ctx: SystemCtx): void {
 }
 
 
-/** SR-16: the environment fix the patch response would extend (its family) and that family's current multiplier
- *  (1 = never fixed; PATCH_FLOOR = as low as fixes go): the response card's "diminishing fixes" readout (LIMITS
- *  response.patchFloor). */
-export function patchLevel(s: GameStateV2, family?: RLFamily): { family?: RLFamily; mult: number; atFloor: boolean; n: number } {
-  const f = envFixFamily(s, family);
-  const mult = f ? envFixMult(s, f) : 1;
-  return { family: f, mult, atFloor: mult <= PATCH_FLOOR + 1e-9, n: f ? s.player.safety.envFixes?.[f]?.n ?? 0 : 0 };
+/** The family the environment-fix response would harden, its exploitability now and its hardening floor: the response
+ *  card's "diminishing fixes" readout (LIMITS response.hardenFloor). */
+export function hardenLevel(s: GameStateV2, family?: RLFamily): { family?: RLFamily; exploit: number; floor: number; atFloor: boolean } {
+  const f = hardenFamily(s, family);
+  const exploit = f ? suiteExploitMap(s)[f] ?? 0 : 0;
+  const floor = f ? exploitFloor(f) : 0;
+  return { family: f, exploit, floor, atFloor: !!f && exploit <= floor + 1e-9 };
 }

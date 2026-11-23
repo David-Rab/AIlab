@@ -13,7 +13,7 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
+  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, hardenLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
   projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
   FOLDED_METHODS,
 } from '../../../engine/v2';
@@ -34,7 +34,7 @@ const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 /** SR-18: short button labels; which responses an incident offers comes from its believed cause (responseOptions). */
 const RESPONSE_LABEL: Record<ResponseKind, string> = {
-  patchSignal: 'Fix environment', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
+  patchSignal: 'Harden environments', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
   addControl: 'Add control', removeControl: 'Remove control', addLockdown: 'Comms lockdown', removeLockdown: 'Lift lockdown', rollback: 'Roll back', removeFoothold: 'Remove foothold',
 };
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
@@ -598,12 +598,12 @@ function ValidationCard({ sv }: { sv: SV }) {
   return (
     <Card title={<Term id="validation">Validation</Term>} sub="safety research engineers" home="validation" id="ctl-validation">
       <div className="stack2 load-bar" data-test="re-bar">{seg(up.investigations, C.watch, 'inv')}{seg(up.patches, C.neutral, 'pat')}{seg(up.experiments, SPHERE.ops, 'exp')}{seg(up.validationHeads, C.und, 'val')}</div>
-      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validation jobs', value: F.count(up.validationHeads) }, { label: 'Line experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Patches', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Company › Work).</TipCard>}>
+      <Tip as="div" content={() => <TipCard title="Safety research engineers" value={F.count(up.heads)} rows={[{ label: 'Validation jobs', value: F.count(up.validationHeads) }, { label: 'Line experiments', value: F.count(up.experiments) }, { label: 'Cases', value: F.count(up.investigations) }, { label: 'Foothold removals', value: F.count(up.patches) }]}>Where the safety research engineers work now, in the order of <Term id="safReNeeds">their needs list</Term> (Company › Work).</TipCard>}>
       <div className="small dim load-legend">
         <span className="load-key"><i style={{ background: C.und }} />validation <span className="num">{F.count(up.validationHeads)}</span></span>
         {up.experiments > 0 && <span className="load-key"><i style={{ background: SPHERE.ops }} />experiments <span className="num">{F.count(up.experiments)}</span></span>}
         <span className="load-key"><i style={{ background: C.watch }} />cases <span className="num">{F.count(up.investigations)}</span></span>
-        {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />patches <span className="num">{F.count(up.patches)}</span></span>}
+        {up.patches > 0 && <span className="load-key"><i style={{ background: C.neutral }} />removals <span className="num">{F.count(up.patches)}</span></span>}
       </div>
       </Tip>
       <Tip as="div" content={() => <TipCard title={<Term id="validation">Validation</Term>} value={`${up.jobs.length} queued`} rows={[
@@ -858,7 +858,7 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           const opt = v ? responseOptions(s, v, s.player.safety.incidents.find((x) => x.id === i.id)) : undefined;
           return (
             <div className="inc-menu">
-              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
+              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = hardenLevel(s); return <Limit id="response.hardenFloor" tone={tr.atFloor ? 'bind' : 'quiet'}>{`gameable tasks ${F.pct(tr.exploit)} · floor ${F.pct(tr.floor)}`}</Limit>; })()}</span>
               <div className="btn-row wrap">
                 {(opt?.kinds ?? []).filter((k) => k !== 'removeFoothold').map((k) => <ActBtn key={k} id="safety.respond" testId={`safety.respond.${k}`} params={{ kind: k, incidentId: i.id, versionId: i.versionId }} label={RESPONSE_LABEL[k]} />)}
                 <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />

@@ -14,7 +14,7 @@
 // discoveries, negatives, spillovers, tools no node owns). No candidates, no beliefs.
 //
 // Research engineers (RD-A04, SR-21): one needs list in the player's order (research.safRe, set in LAB; models/research.ts
-// allocate, the capability engineers' allocator): human review, open cases, validation jobs, eval suites, environment fixes,
+// allocate, the capability engineers' allocator): human review, open cases, validation jobs, eval suites,
 // foothold removals, line experiments (each project in priority order asks SAF_RE_ASK labour units × its science
 // staffing); the rest is idle. safetySpend sums the filled needs' staff and compute cost.
 // Compute: the safety line after cases and eval suites (in the list's order) goes to validation and the projects in experiments by need (RD-R02a, the capability
@@ -40,7 +40,6 @@ import { aiShareOf } from './agents';
 import { spotCheckFte } from './workPackage';
 import { safetySandbag } from './covert';
 import { investigationFte, safeguardFte, safetyReHeads } from './investigations';
-import { envFixFte } from './responses';
 import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -227,11 +226,11 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   // are needs in it; eval staff are safety engineers (heads × quality = team-equivalents × TEAM_SIZE.re).
   const demand: Record<SafReNeed, number> = {
     review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
-    envFix: envFixFte(s), removal: removalFte(s), safExp: askSum,
+    removal: removalFte(s), safExp: askSum,
   };
   const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
   const got = allocate(heads, order, demand);
-  const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.envFix - got.removal);
+  const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.removal);
   let left = got.safExp;
   const re = new Map<string, number>();
   for (const id of ids) {

@@ -19,8 +19,8 @@ import { publishFinding } from './findings';
 import { caseComputeScale } from './lineProjects';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, casePreview, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
-  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, PATCH_FLOOR, PATCH_FTE, RESPONSE_INFO, RUN_PENALTY_OOM, UNDO_RESPONSES, applyResponse,
-  discloseScrutiny, discloseTrust, disclosurePolicy, envFixFamily, methodChoice, mustReport, pendingRunPenalty, responseOptions, responseTrait, restrictTargets,
+  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
+  discloseScrutiny, discloseTrust, disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
   setIncidentDisclosure,
 } from './responses';
 import { methodPolicyOn } from './methods';
@@ -39,7 +39,7 @@ import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, vali
 import { instrumentName, instruments } from './instruments';
 import { believedSpotCatch, spotCheckChosen, spotCheckFte } from './workPackage';
 import { safetyAgentVersion } from './agents';
-import { envFixPreview, orderEnvFix } from './envFix';
+import { SUITE_ACTIONS, suiteWorkBlock } from '../models/suites';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -190,48 +190,22 @@ const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 const f2 = (x: number) => x.toFixed(2);
 const fmtActs = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** F6e: the next post-training run's cost of a patch or targeted training (consumeRunPenalty in models/runs.ts). */
-function runPenaltyLine(s: GameStateV2): CostLine {
-  const pending = pendingRunPenalty(s);
-  return { currency: 'progress', amount: -RUN_PENALTY_OOM, unit: 'OOM', target: `of G off the next post-training run${pending > 0 ? `; ${pending.toFixed(3)} OOM already pending` : ''}` };
-}
-
 /** SR-16: the RL family named in an action's params (environment fix), if any. */
 const familyParam = (p: Record<string, unknown> | undefined): RLFamily | undefined => {
   const f = p?.family;
   return typeof f === 'string' && (RL_FAMILY_IDS as string[]).includes(f) ? (f as RLFamily) : undefined;
 };
 
-/** SR-16 / SR-16b: ordering an environment fix as preview lines (envFixPreview: the work, the engineers the 'envFix'
- *  need gives it at today's staffing, the days that takes, the family's fix when done). Used by the Respond menu and
- *  Training › Environments (safety.envFix). */
-function envFixLines(s: GameStateV2, family?: RLFamily): Preview {
-  const pv = envFixPreview(s, family);
-  const days = Number.isFinite(pv.days[0]) ? `${pv.days[0]}–${pv.days[1]} d at today's staffing (${pv.fte.toFixed(1)} of ${PATCH_FTE} engineers)` : 'waits: no safety engineers left for the environment-fix need';
-  return {
-    costs: [
-      { currency: 'staffTime', amount: PATCH_FTE, unit: 'safety engineers', target: `${pv.work[0]}–${pv.work[1]} engineer-days of work: ${days}${pv.pending ? `; ${pv.pending} fix already being built on ${pv.label}` : ''}` },
-      runPenaltyLine(s),
-    ],
-    gains: pv.block
-      ? [{ currency: 'alignment', amount: 0, target: pv.family ? `the ${pv.label} environments' fix is ${pv.block}: no further effect` : pv.block }]
-      : [{ currency: 'alignment', amount: 1, unit: 'environment fix', target: `${pv.label}, when the work is done: rewarded hacks ×${f2(pv.mult)} → ×${f2(pv.after[0])}–${f2(pv.after[1])} on every later run that trains on ${pv.label} (floor ×${PATCH_FLOOR}); runs on other families unchanged` }],
-    exposure: [],
-  };
+/** RF-S8: the environment-fix response is a hardening pass on the family's suite; its preview is suite.harden's own
+ *  (models/suites.ts SUITE_ACTIONS: cash, engineer team-weeks, exploitable share before → after, floor included), with
+ *  the reason when the pass cannot be queued. */
+function hardenLines(s: GameStateV2, family?: RLFamily): Preview {
+  const f = hardenFamily(s, family);
+  if (!f) return { costs: [{ currency: 'progress', amount: 0, target: 'no environments of that family' }], gains: [], exposure: [] };
+  const pv = SUITE_ACTIONS.find((x) => x.id === 'suite.harden')!.preview(s, { family: f });
+  const block = suiteWorkBlock(s, f, 'harden');
+  return block ? { ...pv, gains: [{ currency: 'alignment', amount: 0, target: block }] } : pv;
 }
-
-/** SR-16b: order an environment fix on one RL family from Training › Environments (no finding needed). */
-const ENV_FIX: ActionDef = {
-  id: 'safety.envFix', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Fix environment',
-  available: (s) => !!envFixFamily(s) || 'No RL environments',
-  preview: (s, p) => envFixLines(s, familyParam(p)),
-  apply(s, ctx, p) {
-    const pv = envFixPreview(s, familyParam(p));
-    if (!pv.family || pv.block) return void ctx.log('alert', `Fix environment: ${pv.block ?? 'pick a family'}.`, 1);
-    orderEnvFix(s, ctx.rng('safety'), pv.family, ctx.day);
-    ctx.log('company', `Environment fix ordered: ${pv.label} (${pv.work[0]}–${pv.work[1]} engineer-days).`, 1);
-  },
-};
 
 function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, o: { footholdId?: string; trait?: TraitId; techniqueId?: string; family?: RLFamily } = {}): Preview {
   if (kind === 'removeFoothold') return removalPreview(s, o.footholdId);
@@ -249,7 +223,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
   // believed levels (beliefs, measured levels, believed strengths) only.
   switch (kind) {
     case 'patchSignal':
-      return envFixLines(s, o.family);
+      return hardenLines(s, o.family);
     case 'addMethod': {
       // SR-18: a method for later runs (applyResponse adds it to SafetyDept.requiredMethods; defaultMethods lists it).
       // Its effect is the run's own (methodLines in the run preview); nothing changes in this model.
@@ -803,6 +777,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK, ENV_FIX];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
 
 
