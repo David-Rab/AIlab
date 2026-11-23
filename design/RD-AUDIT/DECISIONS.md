@@ -49,3 +49,5 @@ can attribute it.
 - **Safety methods uncertain at scale (designer, S4).** A method keeps its sourced effect at the capability it was tested
   on; above that its true efficacy moves toward a wide per-world hidden draw. P_mis is emergent from that uncertainty;
   the S4 target (RefBot P_mis at ASI 0.55–0.85) applies to the average over worlds. The player sees believed efficacy only.
+- **China compute anchor (designer, CP3k).** China's main lab keeps AI 2027's compute share (≈ 1/3 of the US leader),
+  equal recipe efficiency with diffusion; CHINA_CAL deleted.
