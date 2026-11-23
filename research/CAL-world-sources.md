@@ -99,3 +99,24 @@ input-driven and should be close for Eli, not verified); G_SC unsourced.
 
 **Moves calibration:** strongly. CP3j: at sd_SC 0.5, (33.85, 5.0) put SC +0.7 y and SAR +2.1 y late; a lower Δ_bm moves
 SAR / SIAR / ASI closer to SC. The next step refits G_SC (the one stand-in) and judges the milestone spacing.
+
+## 4. Fast preset sd_SC 0, Δ_bm 0.6, G_SC 31.35 (V3_CAL `fast`)
+
+**Values:** all **kept**.
+
+**Source:** AIFM `config/sampling_config_daniel.yaml` (inherited by `sampling_config_q2_daniel.yaml`):
+`ai_research_taste_at_coding_automation_anchor_sd: normal, ci80: [-3, 3]` (median 0; `progress_model/config.py`
+"0.0, # Daniel"); `ai_research_taste_slope: lognormal, ci80: [1, 9]` (median 3, "Daniel: sqrt(1 * 9)"). AIFM golden run
+(`tests/golden_data/default_*.json`, Daniel's defaults): `progress_at_aa` 37.752 at `aa_time` 2027.79;
+`anchor_progress_rate` 1.6185; trajectory progress 33.967 at 2025.5 where the p80 horizon is 41 min, 34.123 at 2025.6.
+
+**Mapping:**
+- sd_SC 0 = Daniel's median.
+- Δ_bm = 3.09·1.618/slope: Daniel's median 1.67, his 80% CI 0.56–5.0. 0.6 sits at the fast end (slope p90 9 → 0.56),
+  which is the fast preset's stated identity ("AI 2027 p10 takeoff" on Daniel's timelines, world.ts). It is the floor
+  of the source's 80% range, not outside it. Kept; the median 1.67 would contradict the preset's p10-takeoff identity.
+- G_SC = G_V0 + (AIFM progress at AC − progress at V0's horizon or date) = 27.60 + 3.63…3.79 = **31.23–31.39**; 31.35
+  is inside. This also confirms CP3j's value by a route that does not go through the horizon law.
+
+**Confidence:** high for sd_SC and G_SC; medium for Δ_bm (a tail value chosen for the preset's identity: the designer
+should confirm that "fast" means Daniel's p10 taste slope).
