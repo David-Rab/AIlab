@@ -95,8 +95,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  queue; each product keeps its effort setting.
  *  68 (RD-P07): product tools act in the offer's coverage; rivals and China acquire them after a lag (RivalLab.tools,
  *  world.fx.toolShip: optional, so 67 → 68 changes nothing: the next daily tick records the tools on live products as
- *  shipped that day). */
-export const SCHEMA_REV = 68;
+ *  shipped that day).
+ *  69 (RD-P07b): a rival or China may ship a tool first (its own gate and build, RivalLab.toolBuild); world.fx.toolShip
+ *  records who shipped first. Migration 68 → 69 turns each recorded day into { day, by: 'player' } (only the player
+ *  shipped first before). */
+export const SCHEMA_REV = 69;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -683,6 +686,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   /** 67 → 68 (RD-P07): no field to convert (RivalLab.tools and world.fx.toolShip are optional and start empty). */
   67: () => {},
+  /** 68 → 69 (RD-P07b): world.fx.toolShip day → { day, by: 'player' }. */
+  68: (s) => {
+    const fx = (s.world as { fx?: { toolShip?: Record<string, unknown> } } | undefined)?.fx;
+    const ship = fx?.toolShip;
+    if (ship) for (const k of Object.keys(ship)) if (typeof ship[k] === 'number') ship[k] = { day: ship[k], by: 'player' };
+  },
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */

@@ -44,7 +44,7 @@ check(Math.abs(uB.share - uA.share) < 1e-9, 'player target share unchanged in SO
 
 // 3. Rivals: the first ship is recorded by the daily tick; a rival has the tool only from ship + TOOL_LAG_DAYS.
 tick(b);
-const ship = b.world.fx.toolShip?.computerUse;
+const ship = b.world.fx.toolShip?.computerUse?.day;
 check(ship !== undefined, 'the tick records the first ship of Computer use', `day ${ship}`);
 const r0 = b.rivals.find((r) => r.core.status === 'active')!;
 check(!r0.tools?.includes('computerUse'), 'a rival does not have it the day after the ship');
@@ -52,11 +52,11 @@ const i0 = worldMix(b).providers.findIndex((p) => p.key === r0.core.id);
 const before = worldMix(b).sec.US.OFFICE.cover[i0];
 const pBefore = target(b, 'OFFICE').share;
 // Move the ship day back so the next tick's day is TOOL_LAG_DAYS − 1 after it, the one after exactly TOOL_LAG_DAYS.
-b.world.fx.toolShip!.computerUse = b.time.day + 1 - (TOOL_LAG_DAYS - 1); // the tick runs on the next day
+b.world.fx.toolShip!.computerUse = { day: b.time.day + 1 - (TOOL_LAG_DAYS - 1), by: 'player' }; // the tick runs on the next day
 tick(b);
 check(!r0.tools?.includes('computerUse'), `no tool at ship + ${TOOL_LAG_DAYS - 1} d`);
 tick(b);
-check(!!r0.tools?.includes('computerUse') && !!b.china.lab.tools?.includes('computerUse') === (b.china.lab.core.status === 'active'), `rivals (and China) have it at ship + ${TOOL_LAG_DAYS} d`, `day ${b.time.day}, shipped ${b.world.fx.toolShip!.computerUse}`);
+check(!!r0.tools?.includes('computerUse') && !!b.china.lab.tools?.includes('computerUse') === (b.china.lab.core.status === 'active'), `rivals (and China) have it at ship + ${TOOL_LAG_DAYS} d`, `day ${b.time.day}, shipped ${b.world.fx.toolShip!.computerUse.day}`);
 const after = worldMix(b).sec.US.OFFICE.cover[i0];
 const pAfter = target(b, 'OFFICE').share;
 check(after > before * 1.1, 'the rival\'s OFFICE coverage rises once it has the tool', `${before.toFixed(4)} → ${after.toFixed(4)}`);

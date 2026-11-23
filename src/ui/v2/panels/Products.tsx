@@ -601,7 +601,7 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
     ...(f.id === 'sectorPacks' ? [] : [{ label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' }]),
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },
-    ...(rv ? [{ label: 'Rivals', value: rv.have >= rv.of ? 'every rival has it' : rv.day === undefined ? `no lab sells it yet; rivals get it ${rv.lag} d after you ship it` : `${rv.have} of ${rv.of} have it; the others from ${fmtDate(dateOf(s, rv.day))}` }] : []),
+    ...(rv ? [{ label: 'Rivals', value: rv.first === undefined ? `no lab sells it yet; a rival that knows the idea builds it itself; the others get it ${rv.lag} d after the first ship (yours too)` : `first shipped by ${rv.first.by} ${fmtDate(dateOf(s, rv.first.day))}; ${rv.have >= rv.of ? 'every rival has it' : `${rv.have} of ${rv.of} rivals have it, the others from ${fmtDate(dateOf(s, rv.day!))}`}` }] : []),
     ...(f.risk ? [{ label: 'Cost / risk', value: f.risk }] : []),
   ]}>{f.effect}</TipCard>;
 }
