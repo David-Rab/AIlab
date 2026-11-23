@@ -4113,3 +4113,27 @@ hygiene.ts's calibration shift drops it).
 - **Stand-ins:** none.
 - **Check:** tsc (app + scripts); new games on ai2027 and slow with the leader lab: leader eff = 1.
 - **Moves calibration:** no (every value was already 0 since CP3g).
+
+## RF-R2: measured level pools every suite on the current edition (research review F4)
+
+- **Changed:** `runEvalSuite` pools each benchmark's new score with the reading the version already holds, by inverse
+  variance in score space (`poolReading`; score noise is additive on the score, so the pooled mean is the best estimate
+  of the score on that edition), and the fit (`fitDomains` / `fitGeneral`, unchanged) reads the pooled table. The band
+  therefore shrinks with suites; a basic suite after a deep one no longer widens it. `checkSaturation` already deletes
+  retired editions' readings, so a new edition starts a new pool. Special rows (horizon, speedrun) keep the latest
+  reading; danger flags still read the suite's own score. `nEff` again means something: the full-suite equivalents in the
+  pool (Evals "Full-suite equivalents" tooltip, the no-fit fallback band).
+- **One rule beyond the row (needed for pooling to be honest):** a version changed in place since its last suite (the
+  continual-learning stream; `inPlaceRecipe` ≠ `recipeAt`) starts a new pool (`changedSinceSuite`), since its old
+  readings measured an earlier model. The re-run policy (`reevalReason`: never / changed / cadence) is unchanged.
+- **Previews:** `expectedFitSd` pools today's readings with one more at the new suite's noise (or `alone`, or fresh after
+  an in-place change); `evalDepthView` bandOne = one such suite alone, bandAfter = pooled (they were equal before).
+- **Deleted:** the "fitted from that suite's table alone" basis (expectedFitSd, evalDepthView, EvalRecord docs).
+- **Stand-ins:** none. Pooled sd stored to 0.01 (score 0.1 as before); MIN_SCORE_SD 0.5 still floors a reading's weight.
+- **Check:** tsc (app + scripts). EV2 monotone-precision restored in scripts/v2/evals.ts (basic, full, deep, basic, full on
+  V0 with cleared evals: band non-increasing, last < first / 2, nEff 6.4). Own run, seed 7: band 0.197 → 0.082 → 0.039
+  → 0.039 → 0.035, previews before each suite 0.081 / 0.040 / 0.039 / 0.035, nEff 6.4, L 5.11 vs true 5.00; after an
+  in-place change a basic suite gives 0.205, nEff 0.2. rdm01.ts now clears V0's start readings before its one-suite reads
+  (the start scores were taken at SAND 0; pooled they would dilute the sandbagging test): all pass.
+- **Moves calibration:** maybe (RefBot's internal model reads a tighter, more stable measured level; RefBot's mini
+  timing reads it — see REEVAL_DG note in data/v2/evals.ts).

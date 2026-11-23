@@ -454,11 +454,13 @@ export interface TraitBelief { est: number; sd: number; clarity: number; lastObs
 
 export interface EvalRecord {
   suiteDay?: Day; // last full suite run
+  /** Per benchmark: the reading pooled by inverse variance over the suites on its current edition (RF-R2; score ± sd);
+   *  day / by = the latest suite's. Special rows (horizon, speedrun): the latest reading. */
   bench: Record<BenchmarkId, { score: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
   /** Alignment evals (SR-07): k of n test scenarios with misbehaviour, rate = k/n, 90% Wilson interval lo–hi, sd = the
    *  interval's sd (safety/alignmentEvals.ts). k / n / lo / hi absent only on records from before rev 93. */
   safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep'; k?: number; n?: number; lo?: number; hi?: number }>;
-  /** Measured general level (RD-M01, DD-08): fitted from the last suite's benchmark scores (models/benchmarks.ts fitDomains, fitGeneral). */
+  /** Measured general level (RD-M01, DD-08): fitted from the pooled benchmark readings (models/benchmarks.ts fitDomains, fitGeneral). */
   measuredL?: number;
   /** RD-M01: fitted level per domain with a benchmark reading (MEDIA, PHYS have none). */
   measuredDom?: Partial<Record<DomainId, number>>;
@@ -466,7 +468,8 @@ export interface EvalRecord {
   fitSd?: number;
   /** Full suites run on this version (M1: the estimate's band narrows as 0.2/√n). */
   nSuites?: number;
-  /** Model v3 D7: precision of the measurement in full-suite equivalents (Σ rollouts ÷ the full suite's); the band is
+  /** Model v3 D7: precision of the measurement in full-suite equivalents (Σ rollouts ÷ the full suite's) of the suites
+   *  in the pooled readings (RF-R2: restarts when the version changed in place); the band of a record with no fit is
    *  0.2/√nEff. Absent on old records: nSuites. */
   nEff?: number;
   /** Model v3 F6: the recipe the version embodied at its last suite (OOM, stacks.ts inPlaceRecipe; "changed in place"

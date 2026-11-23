@@ -19,6 +19,7 @@ function read(sand: number, depth: 'basic' | 'full' | 'deep', n = 12) {
     const s: GameStateV2 = game(100 + i);
     const v = s.player.models.versions[0] as ModelVersion;
     v.traitsTrue.SAND = sand;
+    v.evals.bench = {}; // RF-R2: readings pool over suites; read this suite alone (the start scores were taken at SAND 0)
     runEvalSuite(s, makeCtx(s), v.id, 'self', depth);
     L += v.evals.measuredL! / n;
     rsch += measuredDomain(v, 'RSCH') / n;

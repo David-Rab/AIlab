@@ -1,6 +1,6 @@
 // Model v3 D7 evaluations as work (MODEL-V3 §10; src/engine/v2/models/evals.ts, src/data/v2/evals.ts). Owner: WS1.
-//   EV1 deeper suites cost more work and compute; EV2 and measure with lower error (the drawn-once error shrinks by the
-//   suites' weights); EV3 no fixed days: more research engineers on evals finish a suite faster; EV4 evals draw their
+//   EV1 deeper suites cost more work and compute; EV2 and measure with lower noise (RF-R2: the pooled band narrows with
+//   every suite); EV3 no fixed days: more research engineers on evals finish a suite faster; EV4 evals draw their
 //   compute from the experiments pool (not serving), as far as the pool goes; EV5 the standing policy queues suites
 //   (release gate at its depth, re-runs when a model changed or on the cadence, off = none); EV6 a version waits in
 //   evaluation until its suite's work is done, and the gate 'none' releases it at once; EV7 independent evaluators keep
@@ -81,7 +81,23 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   // CP3: the two RMS-by-depth checks (drawn error shrunk by weight, 0.2 L at full) are deleted: RD-M01 deleted errTrue and
   // fits the level from the scores (band = fitSd; honesty is rdm01.ts's check).
   check(sds.basicBench > sds.fullBench && sds.fullBench > sds.deepBench, 'EV2 benchmark scores are noisier on shallower suites', `PatchBench sd ${sds.basicBench} / ${sds.fullBench} / ${sds.deepBench} points`);
-  // CP3: "the error is drawn once and shrinks by weight" deleted (RD-M01: no stored error draw; the fit re-reads the scores).
+  // RF-R2 (restates the deleted "shrinks with each suite by its weight" on the fit): the readings pool over the suites on
+  // the current edition, so an unchanged model's band (fitSd) narrows with every suite, a basic suite after a deep one
+  // does not widen it, and nEff sums the weights (basic 0.2 + full 1 + deep 4 + basic 0.2 + full 1 = 6.4).
+  {
+    const s = game(7);
+    const v = v0(s);
+    v.evals = { bench: {}, safety: {} };
+    const ctx = makeCtx(s);
+    const bands: number[] = [];
+    for (const depth of ['basic', 'full', 'deep', 'basic', 'full'] as const) {
+      runEvalSuite(s, ctx, v.id, 'self', depth);
+      bands.push(measuredSd(v));
+    }
+    const mono = bands.every((b, i) => i === 0 || b <= bands[i - 1] + 0.002) && bands[4] < bands[0] / 2;
+    check(mono && v.evals.nEff !== undefined && Math.abs(v.evals.nEff - 6.4) < 1e-9, 'EV2 the band of the measured level narrows with every suite on the current edition (pooled readings; nEff 0.2 + 1 + 4 + 0.2 + 1 = 6.4)',
+      `band ${bands.map((b) => b.toFixed(3)).join(' → ')} L, nEff ${v.evals.nEff}`);
+  }
 }
 
 // ───────── EV3 no fixed days: research engineers on evals set the duration ─────────
