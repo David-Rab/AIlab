@@ -1963,3 +1963,20 @@ Synthetic mix follows the teacher (TRN-19). Commit 14d46d5. **Moves calibration:
 - **Check:** `npx tsx scripts/v2/rdt09.ts` (4 checks, run alone: V0 even; a teacher with CODE +0.3 / REASON +0.2 OOM
   data specialisation writes CODE 42%, REASON 21%, others 5%; sums to 1; target weight acts). tsc main + scripts clean;
   build ok.
+
+### RD-T10
+
+Tree node roles split (SYNTHESIS RD-T10; TRN-21). Commit 97be985. Moves calibration: no.
+
+- **Roles.** A node carries its research effect (`effect`, typed) and nothing it unlocks; `TreeNodeDef.options` is gone.
+  What a node unlocks is derived from the unlock tables, each thing → node in one place: design options in
+  `OPTION_NODE` (data/v2/tree.ts, now a literal table, 26 entries; `OPTIONS_OF` / `optionsOf(id)` derive each node's
+  list in table order), product features in `FeatureDef.node`, the long-tasks demonstrations build in
+  `DEMO_BUILD.needs`. treeActions and the Research card read `optionsOf(n.id)`.
+- **Purchases.** No node books cash (RD-T06 already moved P12's data purchase to the suite build); P12 is a plain unlock.
+- **Texts.** P12 card in player language (what experts' demos do, the build buys its own data, research costs no
+  cash); P10 "unlocks the synthetic-heavy mix" → "you can train on a synthetic-heavy mix".
+- **Behaviour.** Identical: the table equals the pre-T10 derived map (pinned in the check).
+- **Check.** `npx tsx scripts/v2/rdt10.ts` (run alone, 6 pass: no node carries an unlock list or cash cost; every
+  option / gated feature / demos build names a tree node; node lists = the table; table = the pre-T10 map). tsc (app,
+  scripts/v2) clean; npm run build ok.
