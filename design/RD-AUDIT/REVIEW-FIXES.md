@@ -84,3 +84,14 @@ labour rows INFO). Still off, not reopened:
    and foothold uncertainty; "Unknown" from the belief band; "< 0.1%". Moves S4 / S5 / framework hold / trusted rule.
 2. S5 option (a): instruments get harder with capability even after re-fitting (sourced).
 3. S4 re-judge (0.377 vs 0.40–0.80) after 1–2; rival safety physics (with the rivals session).
+
+## For the UI build (found while making mockups, 2026-11-23)
+- Readouts that read hidden values: bestPlayerVersion ranks by true values; measuredDomain and the act table fall back
+  to true skill for an unmeasured version; stackViews "waiting" and softwareRate read true know-how stacks; AI share and
+  work done read hidden production parameters. Each needs a belief/measured basis before its screen is built.
+- New readouts the mockups need: listed as NEW in design/ux/mockups/rd/DATA.md on ui-mock (research speed history,
+  common value for Best moves, safety programme stages/priority, per-programme compute, a certainty word, AI staff's
+  part of research speed, a public median-expert reference, a unit for "Chances").
+- Odd readings: Atlas-2.8 measures below Atlas-2.6 on the day-400 fixture (6.79 vs 6.97); owned + rented compute < online.
+- Measurement scale (Social / Media / Bio near 0 for 2026 models on the skill bars) is visible on MODELS / TRAINING: do
+  the measurement-scale task (sourced best-human reference per domain) before building those screens.
