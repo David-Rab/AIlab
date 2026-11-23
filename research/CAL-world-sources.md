@@ -33,3 +33,38 @@ residual, but the text gives no number for it. The designer's CP3k decision (equ
 applies: 1 on every preset; the sampled draw is removed (so `sampled` worlds' later draws shift by one RNG step).
 
 **Confidence:** high that the source gives nothing separable; the residual in "mainly" is unquantified.
+
+## 3. authors2026 sd_SC, Δ_bm, G_SC (V3_CAL `authors2026`)
+
+**Values:** sd_SC 2.15 → **0.5**; Δ_bm 4.65 → **2.17**; G_SC 33.45 **kept [D stand-in]**.
+
+**Source:** AIFM code `config/sampling_config_q2_eli.yaml` (authors2026 = Eli's Q2 2026 columns; parent
+`sampling_config.yaml`):
+
+- `ai_research_taste_at_coding_automation_anchor_sd`: inherited from the parent, `dist: normal, ci80: [-2.5, 3.5]` →
+  median 0.5. The web preset (`constants/parameters.ts`, `'eli-08-16-26'`) states the same: "0.5, // (-2.5 + 3.5) / 2".
+- `ai_research_taste_slope`: `lognormal, ci80: [0.8, 6.6125]` (Eli's Q2 sheet) → median 2.3 SD per progress-year (the
+  web preset still carries the parent's sqrt(0.7·6.3) = 2.1).
+- `progress_model/_impl.py` `_convert_anchor_year_slopes`: "SDs per progress-year" → per OOM by dividing by the
+  present-day progress rate; `tests/golden_data/default_milestones.json`: `anchor_progress_rate` 1.6185 OOM/yr.
+- `constants/parameters.ts` Eli preset: "Solved-uplift mode: the automation schedule is solved from the uplift level
+  and doubling time, so ac_time_horizon_minutes is carried along but has no effect on AC." The Q2 sampling config mixes
+  AC anchors "uplift-solved 0.6 / time-horizon 0.2 / revenue 0.2".
+
+**Mapping:** Δ_bm is the best-to-median gap (TOP_SD 3.09 SD) in OOM of effective compute: 3.09 / (2.3 / 1.618) = 2.17
+(with CP3j's E = 1.2–1.56 OOM/yr instead of AIFM's own rate: 1.61–2.10; with the web preset's 2.1: 2.38). sd_SC maps
+1:1 (both are AI research taste at the automated coder, SD).
+
+G_SC: CP3j mapped Eli's 125 work-year AC horizon through the game's exponential horizon law (36.6 median). That mapping
+does not hold here: AIFM's horizon trend is superexponential (`decaying doubling time`, factor 0.92) and Eli's AC is
+anchored by uplift, not horizon. For Daniel the golden run shows the gap: AC at progress 37.75 OOM, the 41-min p80
+horizon of the game's V0 at 33.97 (2025.5; 34.12 at 2025.6), so AC is 3.6–3.8 OOM above V0, while the horizon law puts
+Daniel's 1 work-year at 5.6 OOM above V0. The sourced G_SC for Eli needs AIFM's progress at AC for Eli's medians, which
+needs a run of the AIFM model (not done: running the downloaded code was not permitted in this session). Kept.
+
+**Confidence:** high for sd_SC; medium for Δ_bm (the per-OOM rate is Daniel's golden run, the human-only/anchor rate is
+input-driven and should be close for Eli, not verified); G_SC unsourced.
+
+**Moves calibration:** strongly. CP3j: at sd_SC 0.5, (33.85, 5.0) put SC +0.7 y and SAR +2.1 y late; a lower Δ_bm moves
+SAR / SIAR / ASI closer to SC. The next step refits G_SC (the one stand-in) and judges the milestone spacing.
+
