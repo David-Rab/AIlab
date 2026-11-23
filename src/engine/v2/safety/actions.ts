@@ -27,7 +27,8 @@ import { methodPolicyOn } from './methods';
 import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
 import { editRule, frameworkOf, overrideConsequences, overrideRefusal, overrideRule, refreshFramework } from './framework';
 import { PACKAGE_LABEL, applyPackage, packageBlock, previewPackage } from './packages';
-import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
+import { FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
+import { worldFrameworkRules } from './framework';
 import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
 import { METHOD_BY_ID, methodQRange, ownedMethods } from './methods';
@@ -577,7 +578,7 @@ const FRAMEWORK_RULE: ActionDef = {
   available: () => true,
   preview(s, p) {
     const c = structuredClone(s);
-    const why = editRule(c, str(p, 'ruleId') ?? '', ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    const why = editRule(c, str(p, 'ruleId') ?? '', ruleEdit(p), worldFrameworkRules(s), RULE_SLACK);
     if (why) return { costs: [{ currency: 'progress', amount: 0, target: why }], gains: [], exposure: [] };
     const before = frameworkOf(s).holds.length;
     const after = refreshFramework(c).length;
@@ -586,7 +587,7 @@ const FRAMEWORK_RULE: ActionDef = {
   },
   apply(s, ctx, p) {
     const id = str(p, 'ruleId') ?? '';
-    const why = editRule(s, id, ruleEdit(p), DEFAULT_FRAMEWORK_RULES, RULE_SLACK);
+    const why = editRule(s, id, ruleEdit(p), worldFrameworkRules(s), RULE_SLACK);
     if (why) return void ctx.log('alert', why);
     refreshFramework(s, ctx);
     ctx.log('company', `Safety framework rule edited: ${frameworkOf(s).rules.find((r) => r.id === id)?.label ?? id}.`, 1);

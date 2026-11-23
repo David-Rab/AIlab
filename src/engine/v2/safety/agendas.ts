@@ -25,7 +25,7 @@ import { caseOnModel } from './footholdDetection';
 
 /** Player safety department at game start (lines are idle until teams work their projects; models/tree.ts puts the
  *  start teams on their lines). */
-export function initialSafetyDept(): SafetyDept {
+export function initialSafetyDept(highL?: number): SafetyDept {
   const agendas = {} as Record<AgendaId, AgendaState>;
   for (const a of AGENDAS) agendas[a.id] = { computeShare: 0, posterior: { a: a.prior[0], b: a.prior[1] }, status: 'idle', deadEndTM: 0 };
   return {
@@ -35,7 +35,7 @@ export function initialSafetyDept(): SafetyDept {
     investigations: [],
     incidents: [],
     discoveredUModes: [],
-    framework: defaultFramework(),
+    framework: defaultFramework('full', false, highL), // CAL2-S: High at the world's median expert (init.ts)
     monitorabilityCommitment: false,
     edgeGrades: Object.fromEntries(EDGES.map((e) => [e.id, e.grade])),
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),

@@ -17,7 +17,7 @@
 //              suite) and, with `externalReview`, external evaluators' reading (replaces the eval gate).
 // Holds read only what the player can see (measured levels, beliefs, owned safeguards), never truth.
 import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
-import { defaultFramework, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
+import { defaultFramework, defaultFrameworkRules, frameworkHighL, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { frameworkPublished, measuredDomain } from '../actors/commitments';
 import { ws4, ws4r } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
@@ -25,8 +25,13 @@ import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
 import { schemingReading } from './trusted';
 import { internalVersion } from '../models/labs';
+import { medianExpertLevel } from '../models/capability';
 
-export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety.framework ??= defaultFramework());
+/** CAL2-S (decision 11): the world's High level, its own median expert. */
+export const worldHighL = (s: GameStateV2) => frameworkHighL(medianExpertLevel(s.hidden.timeline));
+/** The default rules in this world (the edit limits are read around them). */
+export const worldFrameworkRules = (s: GameStateV2) => defaultFrameworkRules(worldHighL(s));
+export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety.framework ??= defaultFramework('full', false, worldHighL(s)));
 
 const isExternal = (ch: string) => ch !== 'internal' && ch !== 'trusted';
 const liveInternal = (s: GameStateV2) => s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live');

@@ -29,7 +29,7 @@ import { startStory } from '../finance/story';
 import { recordThesisHist } from '../finance/promises';
 import { startDivision } from '../finance/parent';
 import { applyFit, benchScore } from '../models/benchmarks';
-import { domainsOf, gOfBuild, gV0, levelOfG, startLab, startStateOf, updateMilestones } from '../models/capability';
+import { domainsOf, gOfBuild, gV0, levelOfG, medianExpertLevel, startLab, startStateOf, updateMilestones } from '../models/capability';
 import { initialStacks } from '../models/stacks';
 import { fillRecipe } from '../models/runs';
 import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
@@ -43,6 +43,7 @@ import { computeProduction } from '../production/production';
 import { portfolioU, startPortfolio } from '../production/data';
 import { startExpertAssets, startSuites } from '../models/suites';
 import { initialSafetyDept } from '../safety/agendas';
+import { frameworkHighL } from '../../../data/v2/framework';
 import { initialSecurity } from '../security/security';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
@@ -212,7 +213,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
         ...def.products.map((x, i) => ({ ...dep(`D${i + 1}`, x.channel, x.servingShare, x.channel === 'api' ? 1 : 0), features: [...(x.features ?? [])] })),
         dep(`D${def.products.length + 1}`, 'internal', 0, 0),
       ];
-  const safety = initialSafetyDept();
+  const safety = initialSafetyDept(frameworkHighL(medianExpertLevel(hidden.timeline))); // CAL2-S decision 11
   // Known safety ideas come with their tools (research/18 §5: probes, SAEs).
   for (const id of def.known) {
     const t = leader ? undefined : safety.techniques[id];
