@@ -5644,6 +5644,147 @@ Research experiments" stays a share move (`setSplit`) and its card now says, in 
 will need N% of compute back (Training a → b)". Nothing new in the engine. (2) Run names: new runs are named
 "<kind> run N" ("Post-training run 30"); runs from older saves and the fixtures ("post 30", "distill 64") show the same
 way in the bottom bar's headline and alerts (`fmt.runText`).
+### UB-2b (run forecast on beliefs and measured builds; branch ub2b-forecast from rd 306d4c4)
+
+- **Changed (readouts only):** `runForecast(s, plan, ref?)` (runs.ts) now takes the plan, not the engine's
+  prediction. It runs planRun on the lab's believed view (`believedView`, a shallow copy): the pretraining, RL-efficiency
+  and RL-ceiling areas at their believed values (start and public knowledge + Σ adopted estimates, RF-R5 `est`;
+  scale-free), every base at its measured build (`baseAnchor`: each measured full version post-trained on it, not
+  streamed, read as measured level → effective compute minus its RL gain at the believed RL recipe its run took
+  (`believedAreaAt` on its rlDay) minus its design's effect; pooled by inverse measurement variance), else its physical
+  part (gPre − ePre: FLOP, shape, tokens, data) + the believed pretraining recipe on its start day; every version on its
+  base's believed part with its believed RL part and the rest set so its effective compute is its measured level
+  (unmeasured: design effect, a student's distillation gap). Training and serving efficiency stay engine values (chip
+  throughput, facts). On top, what completeRl adds that planRun does not: the lift from the best released rival model
+  (distillLift, public models; also on a new / continued base, forecast through its post-training) and the pending run
+  penalty (fresh RL). With no measured start model the mid adds the policy suite's known elicitation (0 at Full).
+- **Band:** sd = √(ideas² + start² + eval²): ideas = each area's √Σ estSd² × the level's response to that area (planRun
+  on the view with the area +0.01); start = the start model's measurement sd (teacher for amplify / distil, the base's
+  pooled anchor for RL / continue, none for a new base or an unmeasured base); eval = the reference's measuredSd (the
+  new model's own first measurement). `band` and the domain ranges are now the **90% range** (mid ± 1.64 sd,
+  `forecastBand`; was ±1 SD). New fields `sdParts`, `startName`. `gain` = mid − the reference's measured level, as before.
+- **Snapshot:** `TrainingRun.forecast?: { mid, sd }` set at launch (launchRun), readouts only. `runBand` (Models run
+  queue) reads it ([0, 0] for runs launched before it); it no longer re-forecasts a running run from its true
+  prediction. No save change needed (optional field; older runs lack it).
+- **Callers:** runCard, runPreview (actions.ts), skillGains pass the plan. lint-tradeoffs' B45 check rewritten (sd
+  parts, 90% band, base measurements +0.3 move the forecast up by 0.15–0.32: less than 1:1 where the rival lift shrinks).
+- **Physics unchanged:** completion, recipes and builds untouched; launchRun only stores the readout field.
+- **Check:** `scripts/v2/_ub2b/check.ts`. (1) Six plans (new base, post on latest / previous base, heavy, amplify,
+  distil) on the day-400 fixture vs a copy with hidden recipe / build values rewritten (true buckets ×2.5, ideas' true
+  effects ×3, versions' G / Lg / domains / build gPre, dg, eRL, aRL, dgRL(d), bases' gPre and ePre together, runs'
+  launch recipes): forecasts, skillGains, runCard and the launch preview identical: pass. `_ub2` "gains" now passes (its
+  KNOWN WARN removed). (2) Coverage: those six plans launched from days 400, 445, 490 (18 launches), forecast at launch
+  vs the made model's first measured level: **9/18 inside the 90% range, 5/18 inside ±1 sd.** By start: measured start
+  model 6/9 (two misses are a rival release during the run, d445: +0.39 OOM lift at completion no launch-day forecast
+  can see); no measured start (new base, B3 with no measured version) 3/9: there the forecast sits on the true level
+  (e.g. 9.175 vs true 9.177) while the measured level reads 0.1–0.35 below the true one (−0.16 mean on all 18), so the
+  miss is the measurement's own offset, which an anchored forecast absorbs.
+- tsc app + scripts/v2 clean; lint-hidden ok; lint-tradeoffs, _ub2, _ui0a, rdm02 pass. hygiene: the same FAILs as rd
+  306d4c4 (15: registry, leader-lab newGame, old-save migrations, tick performance); newGame launches no run.
+- **Left:** (a) the measured-below-true offset for plans with no measured start model (sandbagging on dangerous
+  benches and other eval effects; the lab could learn it from its own predicted-vs-measured record, run.forecast vs the
+  made model's first fit: needs a run → version link). (b) Believed values at a past day subtract the kept results
+  (last 30), so an old start day reads high (only the unanchored-base fallback and old versions' RL recipe use it).
+  (c) The level map λ(G) is the world's (`s.hidden.timeline` knots), as before. (d) Domain effects of adopted ideas
+  (`research.domainG`) and environment-suite fidelity still enter the believed view at engine values; the stream's
+  continued pretraining on an unmeasured streamed version is not in its believed build.
+
+### UB-5c (lend idle training compute policy; branch ub5c-lend from rd a8b0ca1; DECISIONS "Lend idle training compute")
+
+**Engine.** New optional policy `player.policies.lendTraining` (absent = off; no migration). `lentTrainingH100e(s)`
+(models/runs.ts) = idle training share (runs that train now) × the training pool while on; read fresh each time, so the
+compute returns the moment a run trains, and the training pool itself is never reduced (a run always draws its full
+share). Readers: `expPoolH100e` (experiment FLOP for projects), `playerInputs` c (research speed), `labSpeedView`
+research compute; `idleShares` counts lent training compute as not idle, so Auto-split does not move it. Action
+`compute.lendTraining` (policy · compute, "Lend idle training compute"): preview = believed research-speed gain from the
+response curve ("at least" past its ×4 range) and "returns automatically when a run launches"; log line.
+
+**UI (LAB).** The Training segment draws the lent part dotted in the experiments colour with "1.5M lent to
+experiments" (tooltip row); the editor and the Idle chip tooltip show the policy; Best move 1 is now "Lend idle
+Training compute → Research experiments" (Do = the policy on; "≥ +66%" when past the curve's range), the amber "move it
+back" line is gone; share moves remain only for unallocated / idle serving compute. Glossary `lendTraining`.
+
+**Check** (`scripts/v2/_ub5c/check.ts`, all pass): policy off, day-400 fixture + RefBot 60 days hashes as on rd
+(7c7639d2088b2e4d); on: experiments get exactly the idle training compute (267k + 1.51M H100e), Training shows no idle;
+a launched run that trains gets the same training FLOP per day as with the policy off, and the lent compute falls to
+what the run leaves idle (1.51M → 1.21M) the same day. tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux and
+lint-structure: the same pre-existing failures. Screenshots scripts/v2/shots/ub5/d400-lab.png, d400-lab-lent.png.
+
+### UB-6 (RESEARCH › Portfolio; branch ub6-research from rd 241bdb7; mockups rd/portfolio.png, portfolio-drawer.png)
+
+**Portfolio (panels/Portfolio.tsx, portfolio.css, researchWords.ts).** Limited-by strip: four segments (compute ·
+research engineers · scientists · idea quality), verdict words only; the binding one lit (`production().label`, the
+believed elasticities) with a `best move ▸` link to LAB; the others from `reAllocView` (short / spare / enough), idle
+science teams and `teamGain` (more would help / enough); red "None" / "Experiments held" when an input is zero.
+Science-team split read-only (`scientists ▸` → LAB's split). One board, Capability | Safety side by side, one card
+grammar: rank · field icon · name (VOCAB display names) · ongoing / one-off chip · output tag (safety: see / stop / fix
+from the role of the next result's technique) · field · returns ("results now ~¾ of the first", 1 ÷ `line.harder` as a
+simple fraction) or chance it works (projects) · team pips; stage track (capability Ideas · Small test · Big test ·
+Build-in, unlock projects Test · Build-in, safety Ideas · Small test · Validate per the lead call) · next result ~N d
+(tooltip: the parts and the next result's × with range and certainty) · rate ≈ × / yr at current staffing
+(`programmeRates`, tooltip: results a year, one result's days, each result, so far) or the expected effect where it
+lands; safety: new instrument / safeguard / method: <name> and the outlook chip; per-card "limited by research engineers"
+when safety research experiments are short. Failed projects: Failed chip, retry odds, Retry. Drag (both columns; a
+safety card not on your list is queued at the drop place) and Alt+↑/↓ on a focused card. Safety column: staffed
+programmes plus the best by outlook up to four, then "N more programmes, no team" (Mixed / Struggling counts) opening
+the rest. Drawer (L2, Escape / scrim closes): stage track + next result; the idea under test in words (size, tested at
+scale, grows / holds / shrinks), expected effect × with the 90% range and certainty word and a range strip; rate; at
+scale chip; takes effect + `next run ▸`; results so far (first vs next bar, built in = results and the believed sum of
+the kept results' estimates, dropped, ideas waiting to test); Gets (science teams, right field, teams wanted − + Auto
+with the max-teams limit, research engineers with the 2-per-programme limit, experiment compute share and H100e from
+`programmeGets` + `experiment compute ▸`, limited by vs the lab); idea choice Safe / Balanced / Bold (labelled
+lab-wide: the engine has one policy); Remove; Discoveries ▸. Safety drawer: next result, outlook with range, expected vs
+observed results (last 12 months), results so far, teams, results a year, compute share. Add project in the panel
+header. Alerts' Open on a capability result opens its drawer (`research.drawer`).
+
+**Deleted / redirected.** ResearchProjects.tsx (priority list, project card, belief band, binds column) and its CSS;
+the Research header links (research speed and research engineers live in L0 / LAB). Tabs: Portfolio · Discoveries ·
+Know-how (old tab id `recipe` maps to `knowhow`). Discoveries uses the display names; "Open in Portfolio" opens the
+drawer. New glossary: programmeRate, outputTag.
+
+**Differences from the mockup.** Rates use "now" (current staffing), so day 400 scaling reads ×1.12 / yr, not the
+mockup's ×1.19 ("so far" is in the tooltip). Applied interpretability sits at Small test (the engine's stage), not Big
+test. Add project is a select styled as a button. "In this test 3 ideas" reads "Waiting to test" (the ideas found,
+`cands`). Built in shows the believed sum of the kept results (the engine keeps the last 30 results lab-wide), marked
+"(last n)" when older results dropped out; `line.realised` is not shown (a model quantity, not an estimate).
+
+### UB-8 (RESEARCH › Know-how; same branch; mockup rd/knowhow.png)
+
+**Know-how (panels/KnowHow.tsx).** Five areas (VOCAB names, unit line): Public know-how bar (grey) and Yours (violet)
+on one log axis (×0.9 to the largest range end, 1-2-5 ticks kept 7% apart), the Waiting part hatched at the end of
+Yours (never more than Yours), the 90% range whisker, labels "×1.50 waiting · 13 ideas"; growth column (× over the last
+12 months, ideas counted). Click an area: its results (L2), newest first: × (range in the tooltip), date, the measured
+model it is in (or "not in a measured model yet"). Side: Waiting for your next model (largest area big, the others as
+rows, "Training and serving efficiency · apply at once", `Next run ▸`), Where it comes from (ideas built in over 12
+months, public know-how named, `Portfolio ▸`), Lab tools (DD-03): Coding harness, Research harness, Agent memory, each
+owned / building / not built, what it lifts (AI staff experiments / ideas %, build capacity, from `agentsView` with vs
+without the tool), upkeep, build cost in the tooltip, Build (tooling.build) for unbuilt ones, `build queue ▸`. Header:
+Lab tools (scrolls to the card), Publish policy ▸ (SAFETY, its home). LAB › AI staff's Tools strip is now a link here.
+Deleted: Recipe.tsx (stacks, headroom, software-rate card, domain-effect card).
+
+**Differences from the mockup.** "A new base takes ~104 days" is not shown (a TRAINING › Next run datum; the link goes
+there). Public know-how's 12-month growth has no readout (the engine keeps only today's public base), so the row names
+the source without a number. Domain / data effects (old Recipe card) have no home on Know-how yet (UI-IA L2 "domain
+effects"): they show on MODELS cards; a Know-how L2 row is a follow-up. Counts with fractional batches are rounded.
+
+**Check (UB-6 + UB-8).** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
+numbers in SafetyControl / Work; the two old ResearchProjects sites are gone); lint-structure: 1 pre-existing. uitest:
+every RESEARCH step passes (Discoveries, Limited by, split, both columns, drag and Alt+↓ reorder, drawer, teams wanted,
+idea choice, Escape, Add project, Remove, more safety programmes, rate tooltip, Know-how bars / Waiting / Lab tools /
+area results; B4 day 1: side-by-side, Auto, labels, keyboard reorder, log routing opens the drawer). Run: 276 OK, 34
+FAIL, none in RESEARCH (Blueprint, Safety, Products, E11/E12, D6/D8, B2/B4 serving: suites this task does not touch);
+the suite stops at a stale D4 day-1 step, so the day-400 / 900 B4 loops and the limits sweep (which now opens a card
+drawer for `research.maxTeams` / `research.rePerProject`) did not run. Escape closes an open tooltip first, then the
+drawer. Screenshots: scripts/v2/shots/ub6/ (d0, d400, d900: portfolio, drawer, drawer-safety, tip-rate, knowhow,
+knowhow-ideas), script scripts/v2/shots/ub6.mjs (git-ignored).
+
+**For the designer / lead.** (1) SAFETY › Programmes (Safety.tsx `lines` tab) still shows safety programme staffing,
+outlook and next result: once the SAFETY build lands, the Portfolio safety column is their home and that tab should link
+here (left to the parallel SAFETY task). (2) Idea choice is one lab-wide policy in the engine; the drawer says so
+(UI-IA asks for a per-programme choice: an engine change). (3) Day 900: safety teams exist but 0 of 18 programmes are
+staffed (teams on safety projects off the programmes), and day 0 shows all capability programmes unstaffed until the
+first research day: both engine state, shown as is. (4) Domain / data effects need a Know-how L2 home.
+
 
 ### UB-9 (SAFETY header + Risks; branch ub9-safety from rd 241bdb7; mockups rd/safety.png, safety-wide.png)
 

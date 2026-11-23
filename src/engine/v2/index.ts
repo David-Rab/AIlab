@@ -30,9 +30,9 @@ export type * from './types';
 
 // ───────────── M3 UI selectors (WS6/WS7; read-only, additive) ─────────────
 // The UI may only read the visible world. These wrap engine modules so src/ui/v2 never imports internals.
-import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId, RunPrediction } from './types';
+import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVersion, DomainId, TrainingRun } from './types';
 import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
-import { planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
+import { forecastBand, planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
 import { DOMAIN_IDS } from '../../data/v2/calibration';
 
 export const ACTION_DEFS: readonly ActionDef[] = REG_ACTIONS;
@@ -89,12 +89,12 @@ export function choiceVote(s: GameStateV2, eventId: string, choice: number, data
 }
 
 /** Run card for the run designer under UI-safe names. RD-B19 (B45): band and domains are the lab's forecast (runForecast:
- *  a measured reference plus the run's step, ± that reference's evaluation band), never the engine's true outcome;
+ *  UB-2b: the planned run on the believed recipe and the start model's measured build, its 90% range), never the engine's true outcome;
  *  [0, 0] when nothing is measured yet. */
 export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   const plan = planRunUI(s, p);
   const pr = plan.prediction;
-  const fc = runForecast(s, pr);
+  const fc = runForecast(s, p);
   return {
     fpt: pr.fpt,
     band: fc?.band ?? [0, 0] as [number, number], domains: fc?.domains ?? ({} as typeof pr.domains), forecastRef: fc?.refName, forecastSd: fc?.sd ?? 0, signals: pr.signals, etaDays: plan.etaDays, monitorability: pr.monitorability,
@@ -103,9 +103,9 @@ export function runCard(s: GameStateV2, p: LaunchRunParamsUI) {
   };
 }
 
-/** Forecast band of a launched run (run queue; RD-B19: today's measured reference plus the run's step, ± its evaluation
- *  band; [0, 0] when nothing is measured). */
-export const runBand = (s: GameStateV2, r: { predicted: RunPrediction }): [number, number] => runForecast(s, r.predicted)?.band ?? [0, 0];
+/** Forecast band of a launched run (run queue; UB-2b: the lab's forecast frozen at launch, runForecast, its 90% range; [0, 0] when
+ *  nothing was measured then or the run predates it). */
+export const runBand = (_s: GameStateV2, r: Pick<TrainingRun, 'forecast'>): [number, number] => (r.forecast ? forecastBand(r.forecast.mid, r.forecast.sd) : [0, 0]);
 
 /** Measured domain levels of a version (what the player's evals show). UB-2: only the domains with a benchmark fit
  *  (the old fallback for a version not measured yet read its true domain offset): a missing domain is "not measured yet". */

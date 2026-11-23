@@ -12,7 +12,7 @@ import { measuredSd } from '../../src/engine/v2/models/benchmarks';
 import { evalDepthView, openEval } from '../../src/engine/v2/models/evals';
 import { externallyEvaluated } from '../../src/engine/v2/models/deployments';
 import { activeRivals, internalVersion } from '../../src/engine/v2/models/labs';
-import { planRun, runForecast, streamPeriodGain } from '../../src/engine/v2/models/runs';
+import { runForecast, streamPeriodGain } from '../../src/engine/v2/models/runs';
 import { inPlaceRecipe } from '../../src/engine/v2/models/stacks';
 import { ownProgressDays, poachLeakG, publishLeakG } from '../../src/engine/v2/actors/rivals';
 import { STREAM_POOL_SHARE } from '../../src/data/v2/runDesign';
@@ -169,21 +169,23 @@ const iv = internalVersion(s4)!;
     `${ex ?? ''} before ${before} after ${externallyEvaluated(x, xv)} ${JSON.stringify(px.gains)}`);
 }
 {
-  // B45: the forecast is the reference's measured level plus the step; band = its evaluation band; gain like with like.
-  const plan = planRun(s4, { kind: 'post', baseId: iv.baseId, post: iv.design });
-  const fc = runForecast(s4, plan.prediction);
+  // B45 / UB-2b: the forecast is the planned run on the lab's believed view (believed recipe, the start model's measured
+  // build); sd = √(ideas² + start measurement² + evaluation band²), band its 90% range; gain like with like.
+  const lp = { kind: 'post' as const, baseId: iv.baseId, post: iv.design };
+  const fc = runForecast(s4, lp);
   const ref = s4.player.models.versions.find((v) => v.id === fc?.refId);
-  const truthMid = (plan.prediction.Lg[0] + plan.prediction.Lg[1]) / 2;
+  const start = s4.player.models.versions.find((v) => v.name === fc?.startName);
   const g = pvOf(s4, 'launchPost', { baseId: iv.baseId }).gains.find((l) => l.currency === 'progress');
-  // Another measurement on the reference moves the forecast with it and leaves the gain alone (no true level shows).
+  // Higher measurements of the base's versions move the forecast up with them (its measured build; at most 1:1, less
+  // where the lift from a better released teacher shrinks); the gain stays like with like (no true level shows).
   const c = clone(s4);
-  const cr = c.player.models.versions.find((v) => v.id === fc?.refId);
-  if (cr) cr.evals.measuredL = (cr.evals.measuredL ?? 0) + 0.3;
-  const fc2 = runForecast(c, plan.prediction);
-  check(!!fc && !!ref && !!fc2 && near(fc.mid, truthMid + (ref.evals.measuredL ?? 0) - ref.Lg, 1e-9) && near(fc.band[1] - fc.band[0], 2 * measuredSd(ref), 1e-9)
-    && near(fc2.mid - fc.mid, 0.3, 1e-9) && near(fc2.gain, fc.gain, 1e-9) && g?.unit === 'L',
-    'RD-B19 run forecast: measured reference + the run\'s step, ± the reference\'s evaluation band; the gain compares measured with measured',
-    `mid ${fc?.mid} ref ${ref?.name} sd ${ref ? measuredSd(ref) : NaN} gain ${fc?.gain} → ${fc2?.gain} line ${JSON.stringify(g)}`);
+  for (const v of c.player.models.versions) if (v.baseId === iv.baseId && v.evals.measuredL !== undefined) v.evals.measuredL += 0.3;
+  const fc2 = runForecast(c, lp);
+  const sdOk = !!fc && near(fc.sd, Math.hypot(fc.sdParts.ideas, fc.sdParts.start, fc.sdParts.eval), 1e-9) && !!ref && near(fc.sdParts.eval, measuredSd(ref), 1e-9);
+  check(!!fc && !!ref && !!start && !!fc2 && sdOk && near(fc.band[1] - fc.band[0], 2 * 1.64 * fc.sd, 1e-9) && near(fc.gain, fc.mid - (ref.evals.measuredL ?? 0), 1e-9)
+    && fc2.mid - fc.mid > 0.15 && fc2.mid - fc.mid <= 0.32 && g?.unit === 'L',
+    'RD-B19 / UB-2b run forecast: believed plan on the start model\'s measured build, ± ideas, start and evaluation bands; the gain compares measured with measured',
+    `mid ${fc?.mid} start ${fc?.startName} ref ${ref?.name} sd ${fc?.sd} (${JSON.stringify(fc?.sdParts)}) → mid ${fc2?.mid} line ${JSON.stringify(g)}`);
 }
 {
   // B37 / RD-T03: the stream's gain line is what a period's FLOP buys (the mechanism on a copy); costs as charged; stopping keeps the version.

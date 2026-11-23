@@ -36,7 +36,7 @@ export function logRoute(s: GameStateV2, e: Pick<LogEntry, 'kind' | 'ref'>): Log
   return { key: e.kind, panel: KIND_PANEL[e.kind] ?? 'overview', tag: kindTag(e.kind) };
 }
 export function openRoute(r: LogRoute) {
-  if (r.projectId) store.setTab('research.proj', r.projectId);
+  if (r.projectId) store.setTab('research.drawer', r.projectId);
   store.goto(r.panel, r.tab ? { tab: r.tab } : {});
 }
 

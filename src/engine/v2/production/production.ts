@@ -22,6 +22,7 @@ import { decimalYear } from '../core/time';
 import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab } from '../models/labs';
 import { addRivalKnowledge, adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
+import { lentTrainingH100e } from '../models/runs';
 import { poolsOf } from '../compute/power';
 import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
@@ -111,7 +112,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const kUnit = 1 / DAY0_REF.agents;
   const cUnit = PHI_FLOP_PER_H100E_DAY / DAY0_REF.flop;
   const k = Cag * kUnit;
-  const c = pools.experiments * cUnit * mod.frontierExp; // RD-A07: a frontier pause = no experiment FLOP
+  const c = (pools.experiments + lentTrainingH100e(s)) * cUnit * mod.frontierExp; // UB-5c: + lent idle training // RD-A07: a frontier pause = no experiment FLOP
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;

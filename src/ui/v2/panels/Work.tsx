@@ -182,7 +182,7 @@ function RoleCard({ s, w }: { s: GameStateV2; w: WorkTypeView }) {
           <Tip content={() => <TipCard title="Capability scientists" rows={sci.list.slice(0, 6).map((v) => ({ label: v.name, value: `${v.teams.length} of ${v.want}` }))}>Placed down the priority list (teams wanted, field first). Safety scientists work on Safety › Research.</TipCard>}>
             <span>{sci.list.length} projects · {sci.list.reduce((a, v) => a + v.teams.length, 0)} teams placed</span>
           </Tip>{' '}
-          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Priority list</Ref>
+          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Portfolio</Ref>
         </div>
       )}
     </Card>

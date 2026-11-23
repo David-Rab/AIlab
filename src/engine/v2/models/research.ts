@@ -56,6 +56,7 @@ import { believedTasteInputs, expFlopAllowed, onDuty, qualityZ, researchMods, st
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
+import { lentTrainingH100e } from './runs';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
 
@@ -670,7 +671,7 @@ export function projectFlopPerDay(s: GameStateV2): number {
 }
 /** H100e of the experiments pool today. */
 export function expPoolH100e(s: GameStateV2): number {
-  return poolsOf(s).experiments;
+  return poolsOf(s).experiments + lentTrainingH100e(s); // UB-5c: plus idle training compute on loan
 }
 
 /** The lab's research inputs today: labour multipliers (AI in experiments and in ideas), the speed modifiers (pauses,

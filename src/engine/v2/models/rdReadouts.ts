@@ -10,7 +10,7 @@ import { skillMarks } from './capability';
 import { internalVersion, measuredDomainOf, versionById } from './labs';
 import { believedAdoptedSince, capPriorityList, stackViews, type CapProjectView } from './researchView';
 import { believedSciOn, capEta } from './research';
-import { planRun, runForecast, type LaunchRunParams } from './runs';
+import { runForecast, type LaunchRunParams } from './runs';
 import type { DomainId, GameStateV2, ModelVersion, StackKey } from '../types';
 
 const Z90 = 1.64;
@@ -163,7 +163,7 @@ export function rankMoves(s: GameStateV2, moves: Move[]): RankedMove[] {
 /** A plan's skill gains per skill on the job scale (the skill bars' scale: skillMarks median expert / best human doing
  *  the job). Home: TRAINING › Next run prediction · L1 (ghosts), level changes in the tooltip (DQ-3). Unit: levels.
  *  Basis: today M (the reference model's measured skill, or a measured relative's: `measured` false), the plan B·fc
- *  (runForecast: measured reference + the run's step ± that measurement's range). One function for the next run, another
+ *  (runForecast, UB-2b: believed recipe, measured start model, 90% range). One function for the next run, another
  *  start-from model or another post-training budget: pass the plan. */
 export interface SkillGain {
   d: DomainId; now: number; next: [number, number]; mid: number; dLevels: number;
@@ -174,9 +174,8 @@ export interface SkillGain {
 }
 export interface SkillGains { ref?: string; gains: SkillGain[]; reason?: string }
 export function skillGains(s: GameStateV2, plan: LaunchRunParams, ref?: ModelVersion): SkillGains {
-  let pr;
-  try { pr = planRun(s, plan).prediction; } catch { return { gains: [], reason: 'No plan' }; }
-  const fc = runForecast(s, pr, ref);
+  let fc;
+  try { fc = runForecast(s, plan, ref); } catch { return { gains: [], reason: 'No plan' }; }
   if (!fc) return { gains: [], reason: 'No model of yours is measured yet' };
   const rv = versionById(s, fc.refId) ?? internalVersion(s);
   const w = s.hidden.timeline; // public reference points only (skillMarks)

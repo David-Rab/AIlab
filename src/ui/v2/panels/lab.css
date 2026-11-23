@@ -109,3 +109,6 @@
 .ts-hero .ts-v { font-size: 20px; display: inline-flex; align-items: center; gap: 4px; }
 .ts-click > .ts-runway { flex-direction: row; font-size: 12px; font-weight: 500; align-self: flex-end; margin: 0 0 8px -4px; }
 .lab-wh > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* UB-5c: training compute lent to research experiments (policy), drawn in the experiments colour, dotted. */
+.lab-s .lent { height: 100%; background-image: radial-gradient(rgba(255,255,255,.55) 1px, transparent 1.4px); background-size: 6px 6px; }
+.lab-s .lbl2 .lnw { color: #e3d4ff; font-family: var(--sans); }

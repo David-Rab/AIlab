@@ -26,3 +26,5 @@ not the mockup's four; programme rate = at current staffing (as planned); Best m
 - After UB-3: 14 one-off `_xxx` checks fail at their migration step and `_rfs5` / `_rfs8` / `_rfs14` pin rev 103 —
   delete or update at cleanup.
 - Leftover temp worktree AI27-ub2base (node_modules link → delete the link first).
+- UB-2b forecast coverage 9/18 in the 90% band: with no measured start model the measured level reads ~0.16 below true on
+  average (measurement bias? check RD-M01's fit for a systematic offset at CP4); only the last 30 results are kept.

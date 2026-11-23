@@ -117,7 +117,6 @@ function diffs(a: unknown, b: unknown, path = ''): string[] {
 }
 
 // Known deviations (reported as WARN, left for a later task; BUILD-NOTES UB-2 "Left"):
-KNOWN['gains: unchanged when hidden values are rewritten'] = 'the run forecast (runs.ts runForecast, RD-B19) adds the planned step computed by planRun from the true recipe and the true reference build; a believed run step is a separate task';
 KNOWN['safety: unchanged when hidden values are rewritten'] = 'results / yr and next-result days move with the safety research engineers each programme gets (safAllocation: a staffing fact the engine computes live from the true AI work to review), not with a hidden value read by the readout';
 KNOWN['moves: unchanged when hidden values are rewritten'] = 'the base rate of the safety moves is safety results / yr (see safety)';
 
