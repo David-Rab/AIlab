@@ -36,6 +36,9 @@ export interface Choice {
   pick: number[][];
   /** μ_b ($): the band's price scale. */
   mu: number[];
+  /** RD-P03: for a provider with seller groups (`groups[i]`), sub[i][b][k] = tier k's part of its band-b share (each
+   *  group's best tier for the band, split by the logit among the groups); undefined for the others. */
+  sub: (number[][] | undefined)[];
 }
 
 /** Share of band [lo, hi] of the tasks a tier with coverage a does adequately. */
@@ -280,8 +283,12 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
  * the coverable range (default: the best coverage among the serving providers' tiers). Access is a share of buyers, not
  * a utility weight: under the surplus choice a weight would be overwhelmed wherever one model does work no other can
  * (the old logit's weights and these shares agree for small shares) [D].
+ * RD-P03 (DD-02): `groups[i][k]` (optional) puts provider i's tier k in seller group g. Each group is its own seller in
+ * the logit (its best tier for the band), sharing the provider's brand and access (a buyer who can buy from the lab can
+ * buy each of its products). The provider's band utility is then the groups' log-sum, ln Σ_g e^u_g (the set's share is
+ * the sum of the separate sellers' shares), and its band share splits e^u_g ÷ Σ e^u (Choice.sub).
  */
-export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS): Choice {
+export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[]): Choice {
   const n = lineups.length;
   // P3: the serving providers' tiers flattened once (offsets per provider), the band-independent parts hoisted (the
   // quality term, the cheapest price), shares accumulated in a flat buffer per band; the same operations in the same
@@ -312,7 +319,9 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     pick.push(packed(B, -1));
   }
   const mu = zeros(B);
-  if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu };
+  const sub: (number[][] | undefined)[] = [];
+  for (let i = 0; i < n; i++) sub.push(groups?.[i] ? [] : undefined);
+  if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu, sub };
   const cs = choiceSets(acc, lineups, brand);
   if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt);
   if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
@@ -347,6 +356,9 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       const pk = pick[i];
       const j0 = off[i];
       const j1 = off[i + 1];
+      const gi = groups?.[i];
+      const gu: number[] = [];
+      const gk: number[] = [];
       for (let j = j0; j < j1; j++) {
         const a = ta[j];
         // tierUtility, adequacy (P4: a ≥ hi gives (a − lo)/w ≥ 1 and a ≤ lo gives ≤ 0 under rounding, so the clamp's
@@ -356,6 +368,25 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
           u[i] = x;
           pk[b] = j - j0;
         }
+        if (gi) {
+          const g = gi[j - j0];
+          if (gu[g] === undefined || x > gu[g]) {
+            gu[g] = x;
+            gk[g] = j - j0;
+          }
+        }
+      }
+      if (gi) {
+        // RD-P03: the groups as separate sellers: log-sum utility, the band's share split by e^u_g.
+        const tw = packed(j1 - j0, 0);
+        const u1 = u[i];
+        if (u1 > -Infinity) {
+          let z = 0;
+          for (let g = 0; g < gu.length; g++) if (gu[g] > -Infinity) z += Math.exp(gu[g] - u1);
+          for (let g = 0; g < gu.length; g++) if (gu[g] > -Infinity) tw[gk[g]] += Math.exp(gu[g] - u1) / z;
+          u[i] = u1 + Math.log(z);
+        }
+        sub[i]![b] = tw;
       }
       if (u[i] > uMax) uMax = u[i];
     }
@@ -368,5 +399,5 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       target[i] += x / B;
     }
   }
-  return { aTop: top, target, share, pick, mu };
+  return { aTop: top, target, share, pick, mu, sub };
 }

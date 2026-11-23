@@ -92,14 +92,12 @@ export const SEATS = {
  *                           the human hour (the research/16 cost gate)
  *  so agent-hours, tokens and API spend grow with the horizon and coverage faster than human hours (research/22 §7:
  *  human hours ×1.1–1.3 a year, tokens ×4–5, spend per hour ×5–10). Constants [D]: c = 15 min (write and hand off a task;
- *  no primary source), m = 0.02 h (λ ≤ 50). Agent-hours are sold through the API, the Agents product (weight × the share
- *  of half-day tasks, AGENT_TASK_HOURS, its model completes: the Agents horizon gate on the METR curve) and Enterprise
- *  usage beyond the seat. An agent-hour is worth at most the wage (value cap). */
+ *  no primary source), m = 0.02 h (λ ≤ 50). Agent-hours are bought from every provider by its share of the buyers' choice
+ *  (RD-P03: each of the player's sector products is its own seller there; no channel weights). An agent-hour is worth
+ *  at most the wage (value cap). */
 export const AGENT_WORK = {
   checkInH: 0.25,
   floorH: 0.02,
-  /** Channel weights of the player's agent-hours (the agents weight × p(AGENT_TASK_HOURS | h50)) [D]. */
-  channel: { api: 1, agents: 1.5, enterprise: 0.5 } as Partial<Record<'api' | 'agents' | 'enterprise' | 'trusted' | 'gov', number>>,
 };
 
 /** Consumer chat as a work type (MODEL-V3 §6.1): SOCIAL, REASON, MEDIA; minutes-long tasks [D]. */

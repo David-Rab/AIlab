@@ -11,9 +11,9 @@
 //                       cost-plus on the autonomous profile (≤ the wage); A4: only up to the sector's work demand
 //                       (mix agentCeiling: adopted + agent hours ≤ E0·2000·(1 + η·CR), spend ≤ that × the wage), the
 //                       rest is not bought (no revenue, no serving need)
-//   player      = customer-stock share × each stream × channel split × (1 + the product's enabler segments): A-hours by
-//                 CH_WEIGHT, agent-hours by AGENT_WORK.channel (Agents × the share of half-day tasks its model completes),
-//                 seats by Enterprise (Gov in GOV/MIL)
+//   player      = customer-stock share × each stream × the product's part (RD-P03: the buyers' choice among the
+//                 player's products, each its own seller in the surplus choice, mix playerProdW) × (1 + the product's
+//                 enabler segments); seats from its seat-selling products (Enterprise; Gov in GOV/MIL) by those parts
 //   demand $    = Σ hours × price + seats × seat price × 12;  need H100e = Σ hours × H100e-hours per hour ÷ 8766 (+ monitor)
 //   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
 //                 revenue line = subscribers × price per month × 12 (A6b: the market's flat plan price, the willingness to
@@ -28,28 +28,23 @@
 // excess, through the brand term of the logit); demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
-import { AGENT_WORK, CONSUMER_MKT, MARKUP, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
-import { AGENT_TASK_HOURS } from '../../../data/v2/features';
+import { CONSUMER_MKT, MARKUP, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SectorId, SystemCtx } from '../types';
 import { SECTOR_CHANNELS, advanceCustomers, paidDeployments, worldMix, type WorldMix } from './mix';
-import { monitorOverhead, productDomains } from '../models/products';
+import { monitorOverhead } from '../models/products';
 import { versionById } from '../models/labs';
-import { sigmoid } from './policy';
 import { savedAt, useShareOf, workHoursOf } from './use';
 import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
-import { flopPerToken, pSuccess } from '../departments/workfit';
-import { h50Of } from '../models/capability';
+import { flopPerToken } from '../departments/workfit';
 import {
   agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
 
-/** Channel weights splitting the player's sector demand between its deployments [D]. */
-const CH_WEIGHT: Partial<Record<Channel, number>> = { api: 1, agents: 1.5, enterprise: 1, trusted: 0.15, gov: 2 };
-// RD-B11 (B16): Trusted access's ×3 price is in its offer (worldfx/serving.ts productOffer, data/v2/features.ts
-// CHANNEL_PRICE), so the market's choice sees it; its volume here is the channel weight above.
+// RD-P03 (DD-02): the player's sector hours split between its products by the buyers' choice (each product its own
+// seller, worldfx/mix.ts playerProdW), not by channel weights. Trusted access's ×3 price is in its offer (RD-B11 B16).
 const GOV_SECTORS = new Set(['GOV', 'MIL']);
 /** Ceiling on share erosion from serving shortfall (a capacity-bound leader keeps a core of customers) [D]. */
 export const PENALTY_MAX = 0.75;
@@ -273,8 +268,8 @@ function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefi
     a.tD[k] = (a.tD[k] ?? 0) + (x * w * priceOf(line[k])) / 1e9;
   }
 }
-/** Seat channel weights (A2c): seats are sold by Enterprise, and by Gov in GOV/MIL [D]. */
-const SEAT_WEIGHT: Partial<Record<Channel, number>> = { enterprise: 1, gov: 1 };
+/** Seat channels (A2c): seats are sold by Enterprise, and by Gov in GOV/MIL [D]. */
+const SEAT_CHANNELS = new Set<Channel>(['enterprise', 'gov']);
 
 /** A product's need segments with their demand $ (B/yr), in serving order. */
 interface Seg { need: number; dem: Money }
@@ -288,40 +283,16 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const consumerSpendR = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const playerAgent: RevenueReadout['playerAgent'] = { US: {}, CN: {}, ROW: {} };
   const rate = serveDollarsPerHour(s);
-  const tl = s.hidden.timeline;
 
-  // Sector demand. Channel weights per sector are region-independent: compute once; offers per (product, sector) too.
+  // Sector demand: offers per (product, sector) are region-independent: compute once.
   const sectorDeps = deps.filter((d) => SECTOR_CHANNELS.includes(d.channel));
   const fxs = new Map(sectorDeps.map((d) => [d.id, productFx(s, d)]));
   const usesOf = new Map(deps.map((d) => [d.id, productUses(s, d)]));
-  const baseW = sectorDeps.map((d) => {
-    let x = CH_WEIGHT[d.channel] ?? 0;
-    if (d.channel === 'agents') x *= sigmoid(((productDomains(s, d)?.AGENCY ?? 0) - 6) / 1);
-    return x;
-  });
-  // A2c: agent-hours go to API, Agents (× the share of half-day tasks its model completes: the Agents horizon gate's task
-  // length on the METR curve) and Enterprise usage; seats to Enterprise (Gov in GOV/MIL).
-  const agW = sectorDeps.map((d) => {
-    let x = AGENT_WORK.channel[d.channel as keyof typeof AGENT_WORK.channel] ?? 0;
-    if (d.channel === 'agents') {
-      const v = versionById(s, d.versionId);
-      x *= v ? pSuccess(AGENT_TASK_HOURS, h50Of(tl, v, 'AGENCY')) : 0;
-    }
-    return x;
-  });
-  interface Row { d: Deployment; w: number; wAg: number; wSeat: number; o: Offer; line: Offer[]; en: number }
+  interface Row { d: Deployment; seat: boolean; o: Offer; line: Offer[]; en: number }
   const secW = SECTORS.map((def) => {
     const ws: Row[] = [];
-    let wsum = 0;
-    let agSum = 0;
-    let seatSum = 0;
-    sectorDeps.forEach((d, i) => {
-      if (d.channel === 'gov' && !GOV_SECTORS.has(def.id)) return;
-      const focus = d.channel === 'enterprise' && d.packs.some((p) => p.sector === def.id) ? 3 : 1;
-      const x = baseW[i] * focus;
-      const wAg = agW[i] * focus;
-      const wSeat = (SEAT_WEIGHT[d.channel] ?? 0) * focus;
-      if (x <= 0 && wAg <= 0 && wSeat <= 0) return;
+    for (const d of sectorDeps) {
+      if (d.channel === 'gov' && !GOV_SECTORS.has(def.id)) continue;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
       const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, usesOf.get(d.id), fxs.get(d.id));
       // TIERS: the product's lineup (main model, then its real lineup entries), blended per region by the hours its buyers
@@ -330,12 +301,9 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (!line) {
         line = productLineup(s, d, def.id, o, fxs.get(d.id));
       }
-      ws.push({ d, w: x, wAg, wSeat, o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
-      wsum += x;
-      agSum += wAg;
-      seatSum += wSeat;
-    });
-    return { ws, wsum, agSum, seatSum };
+      ws.push({ d, seat: SEAT_CHANNELS.has(d.channel), o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
+    }
+    return ws;
   });
   for (const r of REGIONS) {
     SECTORS.forEach((def, si) => {
@@ -346,8 +314,11 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       const wh = workHoursOf(st, def.id);
       const ps = m.share[playerIdx];
       const hf = savedAt(st.alpha);
-      const { ws: ws0, wsum, agSum, seatSum } = secW[si];
-      const ws = ws0.map((x) => (x.line.length > 1 ? { ...x, o: blendTiers(x.line, m.playerTierW?.[x.d.id]), tw: m.playerTierW?.[x.d.id] } : x));
+      // RD-P03: each product's part of the player's hours here is the buyers' choice among its products (playerProdW);
+      // seats are bought from its seat-selling products (Enterprise; Gov in GOV/MIL) in proportion to those parts.
+      const ws = secW[si].map((x) => ({ ...x, w: m.playerProdW?.[x.d.id] ?? 0, ...(x.line.length > 1 ? { o: blendTiers(x.line, m.playerTierW?.[x.d.id]), tw: m.playerTierW?.[x.d.id] } : {}) }));
+      let seatSum = 0;
+      for (const x of ws) if (x.seat) seatSum += x.w;
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
       // RD-B11 (B14): an enabler's segment is held to the sector's adoption: the player's hours, agent-hours and seats
@@ -365,13 +336,13 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       // value). 1 below the ceiling.
       const ac = m.agentCeiling;
       let pScale = 1;
-      if (agSum > 0) {
+      {
         let rawH = 0;
         let rawS = 0;
-        for (const { d, wAg, o, en } of ws) {
-          if (!(wAg > 0)) continue;
+        for (const { d, w, o, en } of ws) {
+          if (!(w > 0)) continue;
           const ag = agentDemandOf(o, wage);
-          const x = ((ps * wh.supervising * wAg) / agSum) * fOf(d, en) * ag.k * ac.fill;
+          const x = ps * wh.supervising * w * fOf(d, en) * ag.k * ac.fill;
           rawH += x;
           rawS += x * ag.price;
         }
@@ -388,12 +359,12 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           if (rawS * pScale > roomS) pScale = roomS / rawS;
         }
       }
-      for (const { d, w: x0, wAg, wSeat, o, en, line, tw } of ws as (Row & { tw?: number[] })[]) {
+      for (const { d, w, seat, o, en, line, tw } of ws as (Row & { w: number; tw?: number[] })[]) {
         const f = fOf(d, en);
         const a = acc.get(d.id)!;
         // Adopted task-hours, billed per hour.
-        if (wsum > 0 && x0 > 0) {
-          let x = ((ps * wh.adopted * x0) / wsum) * f;
+        if (w > 0) {
+          let x = ps * wh.adopted * w * f;
           // usage policy "no drop-in replacement" caps the player's α at 0.5 (fewer hours per adopted task)
           if (d.usagePolicy.noDropInReplacement) x *= savedAt(Math.min(st.alpha, 0.5)) / hf;
           // RD-B11 (B16): o.price already carries the channel's price (Trusted ×3, productOffer).
@@ -410,9 +381,9 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         }
         // Agent-hours (A2c): k after the buyer's gate × the supervising hours, billed per hour (≤ the wage); A4: × the
         // share the sector's demand ceiling lets be bought (1 below it).
-        if (agSum > 0 && wAg > 0) {
+        if (w > 0) {
           const ag = agentDemandOf(o, wage);
-          const x = ((ps * wh.supervising * wAg) / agSum) * f * ag.k * ac.fill * pScale;
+          const x = ps * wh.supervising * w * f * ag.k * ac.fill * pScale;
           playerAgent[r][def.id] = (playerAgent[r][def.id] ?? 0) + x;
           a.dem += (x * ag.price) / 1e9;
           a.hours += x;
@@ -424,8 +395,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           if (o.priceAg > ag.price) a.capped += (x * ag.price) / 1e9;
         }
         // Paid seats (A2c): seats × seat price × 12; their assisted hours need serving, served first.
-        if (seatSum > 0 && wSeat > 0) {
-          const g = (wSeat / seatSum) * f;
+        if (seat && seatSum > 0 && w > 0) {
+          const g = (w / seatSum) * f;
           const n = ps * wh.seats * g;
           const hs = ps * wh.seated * g;
           a.seats += n;

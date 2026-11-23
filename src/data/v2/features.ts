@@ -34,7 +34,8 @@ export function tierOfIndex(x: number): PriceTier {
 export interface ProductDef {
   channel: Channel;
   name: string;
-  /** The segment whose spend the product competes for (share readout). */
+  /** The segment whose spend the product competes for (share readout). RD-P03: sector products compete for the same
+   *  spend as separate sellers in the buyers' choice (each its own offer); no channel weights split it. */
   segment: string;
   blurb: string;
 }

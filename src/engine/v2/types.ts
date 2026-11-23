@@ -606,7 +606,7 @@ export interface Deployment {
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   controlLayer: boolean; // AG07 protocols active (usefulness tax)
   /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
-   *  (worldfx/serving.ts), Enterprise ×3 channel weight there (worldfx/revenue.ts), and while live and certified US
+   *  (worldfx/serving.ts: it wins buyers in the choice, RD-P03), and while live and certified US
    *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
    *  stop acting when the product is retired (the sector can then be packed again). */
   packs: SectorPack[];
