@@ -34,6 +34,38 @@ applies: 1 on every preset; the sampled draw is removed (so `sampled` worlds' la
 
 **Confidence:** high that the source gives nothing separable; the residual in "mainly" is unquantified.
 
+## 2. Slow preset r (V3_CAL `slow.r`)
+
+**Value:** 4.0 kept (CP3j's 1.2 → 4.0 is the right unit conversion, not a units error).
+
+**Source:** Davidson & Houlden, "How quick and big would a software intelligence explosion be?", Forethought (2025),
+https://www.forethought.org/research/how-quick-and-big-would-a-software-intelligence-explosion-be:
+
+- Model: Ṡ = a·R^λ·S^(1−β), R = (bL)^α (cC)^(1−α), L = dS; "After ASARA is deployed, the compute used for AI R&D
+  remains constant over time."
+- r_cog := λα/β, p := λα; r_cog: "When (cumulative) cognitive research inputs double, how many times does software
+  double?"
+- "Overall, our median estimate of rcog is 1.2." "We use a log-uniform distribution with the bounds 3X higher and lower
+  (0.4 to 3.6)." Derived from Epoch's ≈ 1.4 with adjustments (up for capability gains and post-training, down for
+  slower compute growth, fixed hardware and worsening returns).
+- "We use λ=0.6"; "the share of software progress that's attributable to cognitive labour is 0.5"; p 0.3, log-uniform
+  0.15–0.6. "Our median estimates of p and rcog correspond to α=0.5, λ=0.6, β=0.25."
+- Ceiling: software "6-16 OOMs from effective limits"; "each time software doubles we subtract some constant k from
+  rcog" so r_cog reaches 0 at the ceiling.
+
+**Mapping:** the game's line law is AIFM's SE = r·log₁₀ RS (models/research.ts lineRate), where RS is cumulative research
+input (experiment CES of compute and λ-penalised labour). In Forethought's law the same quantity is the cumulative
+penalised input R^λ, and software doubles 1/β times per doubling of it. So game r = 1/β = 1/0.25 = **4.0** at
+Forethought's stated medians (range at p = 0.3: r_cog 0.4–3.6 → 1.33–12). Forethought's λ also penalises compute, the
+game's λ only labour (a second-order difference while compute is held fixed, Forethought's own setting).
+
+**What this means for the preset:** the slow preset's world.ts sources (research/03 #12 slow takeoff, #13 titotal's METR
+exponential, compute schedule as #7) give no r at all; Forethought's median is not a slow world (its median SIE is fast).
+At Forethought's medians slow's returns equal ai2027's (4). A low-returns slow world would need Forethought's low tail
+(r_cog 0.4–0.5 → r 1.3–1.7, its p10 0.50 → 1.66) or the ceiling mechanism, which is a designer choice, not a units fix.
+
+**Confidence:** high on the conversion (the paper states β = 0.25); the preset's identity is a designer question.
+
 ## 3. authors2026 sd_SC, Δ_bm, G_SC (V3_CAL `authors2026`)
 
 **Values:** sd_SC 2.15 → **0.5**; Δ_bm 4.65 → **2.17**; G_SC 33.45 **kept [D stand-in]**.
@@ -67,4 +99,3 @@ input-driven and should be close for Eli, not verified); G_SC unsourced.
 
 **Moves calibration:** strongly. CP3j: at sd_SC 0.5, (33.85, 5.0) put SC +0.7 y and SAR +2.1 y late; a lower Δ_bm moves
 SAR / SIAR / ASI closer to SC. The next step refits G_SC (the one stand-in) and judges the milestone spacing.
-
