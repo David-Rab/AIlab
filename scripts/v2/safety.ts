@@ -145,7 +145,19 @@ const refP = mean(ref.map((o) => o.pmis));
 const safeP = mean(safe.map((o) => o.pmis));
 console.log(`      RefBot Mis at ASI: mean ${mean(ref.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...ref.map((o) => o.mis)).toFixed(2)}–${Math.max(...ref.map((o) => o.mis)).toFixed(2)}  (ASI day ≈ ${mean(ref.map((o) => o.asiDay ?? 0)).toFixed(0)})`);
 console.log(`      Safe-only Mis at ASI: mean ${mean(safe.map((o) => o.mis)).toFixed(3)}  range ${Math.min(...safe.map((o) => o.mis)).toFixed(2)}–${Math.max(...safe.map((o) => o.mis)).toFixed(2)}`);
-smokeCheck(refP >= 0.55 && refP <= 0.85, 'S4 RefBot/medium: P_mis at ASI ∈ [0.55, 0.85]', refP.toFixed(3));
+// CAL2-S (designer decision 2): the band is the AI Futures / AI 2027 authors' own credences. P_mis averaged over worlds
+// is the chance that the reference lab (no slowdown, AI 2027's safety share) reaches an ASI misaligned past the world's
+// tolerance. Authors' first-person statements: Kokotajlo "I think AI doom is 70% likely" (LessWrong comment, 25 May
+// 2023); Larsen, conditional on a nearcast with current techniques and little government action, "25/25/50%" on (1)
+// handled well / (2) "adversarially misaligned" / (3) "try to align their successors but fail", i.e. 75% misaligned
+// successors (LessWrong shortform, 28 Mar 2026); Alexander 20% that the first AIs past the point of no return "will want
+// to eliminate the human population" plus "an additional 30% chance that they otherwise permanently curtail human
+// potential" (ACX "My AI Opinions", 11 Jun 2026); the AI Goals Forecast (Apr 2025), credence that unintended goals
+// "feature prominently" in Agent-3: unintended spec 70 / 40 / 50%, proxies / ICGs 50 / 80 / 50% (Daniel / Thomas /
+// Eli). Takeover / doom also needs the misaligned ASI to escape control, so those credences are lower bounds on P_mis;
+// the band 0.40–0.80 spans the authors' spread (0.40 the lowest category credence, 0.80 the highest).
+// design/RD-AUDIT/BUILD-NOTES.md "CAL2-S". (The V2-SPEC row 0.55–0.85 had no source.)
+smokeCheck(refP >= 0.4 && refP <= 0.8, "S4 RefBot/medium: P_mis at ASI ∈ [0.40, 0.80] (AI Futures authors' credences)", refP.toFixed(3));
 smokeCheck(safeP <= 0.25, 'S4 Safe-only recipe: P_mis at ASI ≤ 0.25', safeP.toFixed(3));
 check([...ref, ...safe].every((o) => o.jsonOk), 'safety and model state stay plain JSON through ASI');
 
