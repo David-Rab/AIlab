@@ -454,7 +454,7 @@ function at(curve: number[], x: number): number {
   return curve[curve.length - 1];
 }
 
-interface MoveCard { id: string; kind: 'compute' | 'hire'; what: string; target: string; eff: string; pre?: string; cost: string; act: { id: string; params: Record<string, number | string | boolean> }; rank?: RankedMove; other?: boolean }
+interface MoveCard { id: string; kind: 'compute' | 'hire'; what: string; target: string; eff: string; pre?: string; cost: string; warn?: string; act: { id: string; params: Record<string, number | string | boolean> }; rank?: RankedMove; other?: boolean }
 const MIN_GAIN = 0.005;
 function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
   const p = s.player;
@@ -477,7 +477,8 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     if (g < MIN_GAIN) { wont.push(to === 'experiments' ? 'More experiment compute: no gain' : 'More AI staff compute: no gain'); return; }
     const next = { ...p.split };
     let left = mv;
-    for (const [k, x] of src) { const take = Math.min(left, x); next[k] -= take; left -= take; }
+    let fromTraining = 0;
+    for (const [k, x] of src) { const take = Math.min(left, x); next[k] -= take; left -= take; if (k === 'training') fromTraining = take; }
     if (to === 'experiments') next.experiments += mv;
     else { const r = p.split.routine / Math.max(1e-9, base); next.routine += mv * r; next.frontier += mv * (1 - r); }
     const id = `idle>${to}`;
@@ -485,7 +486,10 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     cards.push({
       id, kind: 'compute', what: `Idle ${mainSrc === 'idle' ? '' : `${SPLIT_LABEL[mainSrc!]} `}compute → ${to === 'experiments' ? 'Research experiments' : 'AI staff research'}`,
       target: 'Research speed', eff: `+${F.pct(g)}`, pre: `×${speed.toFixed(1)} → ×${(speed * (1 + g)).toFixed(1)}`,
-      cost: `+${pc(mv)} of compute (${to === 'experiments' ? 'experiments' : 'AI staff'} ×${F.short((base + mv) / base)}) · idle now${mainSrc === 'training' ? '; move it back when you queue a run' : ''}`,
+      cost: `+${pc(mv)} of compute (${to === 'experiments' ? 'experiments' : 'AI staff'} ×${F.short((base + mv) / base)}) · idle now`,
+      // UB-5b: no policy lends idle training compute and returns it at launch (Auto-split moves it for good), so this
+      // is a share move: the preview says what a queued run will need back.
+      ...(fromTraining > 1e-4 ? { warn: `A queued run will need ${pc(fromTraining)} of compute back (Training ${pc(p.split.training)} → ${pc(next.training)})` } : {}),
       act: { id: 'setSplit', params: { ...next } },
     });
   };
@@ -553,6 +557,7 @@ function BestMoves({ s }: { s: GameStateV2 }) {
             <div className="what">{m.what}</div>
             <div className="eff"><Term id={m.target === 'Research speed' ? 'labSpeed' : m.target === 'Safety results' ? 'safetyResults' : m.target === 'Build capacity' ? 'buildCapacity' : 'roleSci'}>{m.target}</Term> <b className="num">{m.eff}</b>{m.pre && <Tip content={() => <TipCard title={<Term id="labSpeed">Research speed</Term>} value={m.pre}>Today → after the move, × the leading lab in July 2025 (your estimate).</TipCard>}><span className="pre num">{m.pre}</span></Tip>}</div>
             <div className="cost">{m.cost}</div>
+            {m.warn && <Tip content={() => <TipCard title="Training compute" value={m.warn}>This move lowers the Training share. Training no run uses is idle today, but a run you queue later draws on the Training share: move this compute back first, or the run waits. No policy hands it back by itself.</TipCard>}><div className="cost tone-warn" data-test="move-warn"><ICON.alert size={11} /> {m.warn}</div></Tip>}
           </div>
           <ActBtn id={m.act.id} params={m.act.params} testId={`move.${m.id}`} label="Do" primary={i === 0} />
         </div>

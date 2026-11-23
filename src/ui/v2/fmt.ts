@@ -99,3 +99,8 @@ export const usd = (x: number) => {
 };
 /** Scientific notation for FLOP: 1.6e12. */
 export const sci = (x: number) => { const [m, e] = x.toExponential(1).split('e'); return `${m}e${Number(e)}`; };
+
+/** UB-5b: player run names in text. Runs launched before UB-4 (older saves, the fixtures) keep engine names such as
+ *  "post 30" or "distill 64" in their name and log lines; shown as VOCAB names ("Post-training run 30"). */
+const LEGACY_RUN: Record<string, string> = { post: 'Post-training', base: 'Pretraining', continue: 'Continued pretraining', distill: 'Distil', IDA: 'Amplify' };
+export const runText = (t: string) => t.replace(/\b(post|base|continue|distill|IDA) (\d+)\b/g, (_, k: string, n: string) => `${LEGACY_RUN[k]} run ${n}`);

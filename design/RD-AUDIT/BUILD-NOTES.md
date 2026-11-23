@@ -5604,3 +5604,10 @@ between departments (the engine moves only research-engineer teams; science team
 set keep-hiring targets. Research speed history is empty on the fixtures (series from UB-2 on), so no sparkline there.
 Allocation still settable outside LAB only as within-use shares (a run's share of training compute on Models, a
 product's serving share on Products); those are not the allocation itself.
+
+**UB-5b.** (1) No policy lends idle training compute and returns it when a run launches (`policies.spareTraining`
+was dropped in a save migration; Auto-split moves idle shares for good), so the Best move "idle Training compute →
+Research experiments" stays a share move (`setSplit`) and its card now says, in amber with a tooltip, "A queued run
+will need N% of compute back (Training a → b)". Nothing new in the engine. (2) Run names: new runs are named
+"<kind> run N" ("Post-training run 30"); runs from older saves and the fixtures ("post 30", "distill 64") show the same
+way in the bottom bar's headline and alerts (`fmt.runText`).

@@ -9,6 +9,7 @@ import { store } from '../store';
 import { Rich, Tip, TipCard } from '../ui';
 import { ICON } from '../icons';
 import { watchItems } from './watch';
+import { runText } from '../fmt';
 import { C } from '../theme';
 
 export const KIND_PANEL: Record<string, string> = {
@@ -82,7 +83,7 @@ export function AlertQueue({ s }: { s: GameStateV2 }) {
   const sevMax = groups.reduce((a, g) => Math.max(a, g.sev), 0);
   const heads = [
     ...s.headlines.slice(-12).map((h) => ({ day: h.day, text: h.text })),
-    ...s.log.filter((e) => (e.severity ?? 1) <= 1 && e.kind !== 'company').slice(-8).map((e) => ({ day: e.day, text: e.text })),
+    ...s.log.filter((e) => (e.severity ?? 1) <= 1 && e.kind !== 'company').slice(-8).map((e) => ({ day: e.day, text: runText(e.text) })),
   ].sort((a, b) => b.day - a.day).filter((x, i, arr) => i === 0 || x.text !== arr[i - 1].text).slice(0, 12);
   return (
     <div className="bottombar2">
@@ -126,7 +127,7 @@ export function AlertQueue({ s }: { s: GameStateV2 }) {
                   const e = g.items[g.items.length - 1];
                   return (
                     <div key={g.key} className="alert-row" data-alert-row={g.kind} data-route={g.route.panel + (g.route.tab ? '.' + g.route.tab : '')}>
-                      <span className="small"><I size={11} /> {e.text}{g.items.length > 1 ? <span className="dim"> (+{g.items.length - 1})</span> : null} <span className="dim">· {fmtDate(dateOf(s, e.day))}</span></span>
+                      <span className="small"><I size={11} /> {runText(e.text)}{g.items.length > 1 ? <span className="dim"> (+{g.items.length - 1})</span> : null} <span className="dim">· {fmtDate(dateOf(s, e.day))}</span></span>
                       <span className="sp" />
                       <button className="btn btn-sm btn-ghost" data-test="alert-open" onClick={() => { setOpen(false); openRoute(g.route); }}>Open ›</button>
                     </div>
