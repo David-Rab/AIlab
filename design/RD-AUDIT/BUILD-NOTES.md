@@ -2181,3 +2181,34 @@ Left: no ctx log / case auto-open on a disagreement (framework, SR-17/18); revea
 sabotage of honest instruments' validations); UI chips (SR-27); glossary terms (SR-30); SR-09 check not re-run.
 Moves calibration: yes (S4/S5): believed reliability now moves with disagreements (down, to ≥ 0.5×) and with each
 validation (to measured ÷ believed), so believed detection, understanding and gates shift; true side unchanged.
+
+### SR-16
+Environment fixes are owned method items per RL environment family (SAFETY-REDESIGN §3.4 "environment fixes", I4 patch
+→ CHANGE). Commit ee3a911.
+- **Owned item**: `SafetyDept.envFixes[family]` = { mult, n, day, trait, versionId } (types.ts EnvFix). The patch
+  response (kind `patchSignal`, now titled "Fix environment"; optional `family` param, default = the family whose
+  environments are most exploitable after earlier fixes, responses.ts envFixFamily) multiplies the family's fix by
+  PATCH_MULT 0.3–0.6 (drawn), floor PATCH_FLOOR 0.2 [D: V2-SPEC 3.5.9]; same staffing (PATCH_FTE for PATCH_DAYS) and
+  next-run G penalty as before.
+- **Effect**: models/suites.ts `runExploitMap` = suite exploitability × envFixMult per family. A post run freezes it at
+  launch (rlRecipeNow), so every later run that trains on the family gets a lower h_f, λ and S2 share for it; runs
+  launched earlier keep their snapshot; other families unchanged. postHack / postSignals / pressureView defaults and
+  suiteS2Parts read the same map, so the run plan's preview and the SR-15 prediction (runTraitPressure → runHack) show
+  it. suitesView still shows the raw suites.
+- **Deleted**: the per-edge lab-wide / per-lineage signal-patch flags (patchSignal wrote `patch.lab.<edge>` for every edge
+  into the trait: a free global switch); playerMods reads only targeted inoculation training's `patch.lab.E04`
+  (its `lineage` param is gone). patchLevel(s, family?) is the family readout; preview, LIMITS response.patchFloor and
+  the incident row's chip say "environment fix".
+- **Save**: SCHEMA_REV 73; migration 72 → 73 drops `ws2.patch.*` flags except `ws2.patch.lab.E04`, adds envFixes {};
+  hygiene pins → 73.
+Check: `npx tsx scripts/v2/_sr16/check.ts` (day 400 migrates; one SWE fix ×0.541: a SWE-focused run's h 0.095 → 0.066,
+S2 0.53 → 0.37; a math/cyber run loses only its 20% SWE share, other families' hack rates equal; a run without SWE
+suites unchanged; a pre-fix run's frozen snapshot unchanged; preview = launched run; predicted RH change 0.015 → −0.034;
+seven fixes reach the floor 0.2). tsc (app, scripts/v2) clean; npm run build passes. _sr14 / _sr15 checks: playerMods
+call sites updated, not re-run.
+Left: no "create from TRAINING › Environments" entry point (only the incident response; suite hardening stays a separate
+capability-side action); a fix is in force at once (not when its engineers finish); the bots' patches now go to the
+most exploitable family rather than following the trait; glossary term (SR-30) not written; old saves' trait-edge patches
+are dropped, not converted.
+Moves calibration: yes (S4/S5): patches no longer cut trait edges lab-wide (any trait, e.g. SYC / POWER edges); they cut
+one family's rewarded hacks (RH / S2 / learned hacking only), so safe / mixed bots' patch effects shift.
