@@ -4698,3 +4698,32 @@ cap 1.5 kept, decision 1).
   q = 2. Inversion uses believed efficacy, so a wrong efficacy belief shifts the range (9 of 100 misses).
 - **moves calibration: maybe** (no by default: only player / bot orders queue method jobs; then belief-only, through
   previews and predicted beliefs).
+### CAL-P sourcing (calibration step 1 + 2, products; REVIEW-FIXES "Deferred to calibration", review/products.md F1, F5, F9)
+Sources, quotes and units are in research/CAL-products-sources.md (IDs below). No mechanism was added. Rival-only code is
+not touched; rivals read the same tool shares through DAY0_TOOLS.
+
+| Number | Old → new | Source (ID) | Moves calibration |
+|---|---|---|---|
+| Voice & vision, Chat appeal | ×1.15 → ×1.075 (its own fx) | NBER w34255: Multimedia ~7% of ChatGPT messages (T2) | yes (Chat share) |
+| Voice & vision, Media | 0.15 kept [D] | Eloundou E2 bound ~0.37 (T2) | no |
+| Companion, Chat appeal | ×1.2 → ×1.025 | NBER w34255 2.4%; Anthropic <0.5% (T4) | yes (Chat share) |
+| Companion SYC | ×1.5 kept [D] | none found (T4) | no |
+| Computer use share | 0.15 kept [D]; text "assumed 13%" | Eloundou ζ−α bound 0.43–0.63 (T1) | no |
+| Computer use F | +0.25 kept [D] (a definition) | — (T1) | no |
+| Memory horizon / appeal | ×1.3 / ×1.1 kept [D]; text "assumed" | none (T3) | no |
+| ADAPT_COVER | 0.15 kept [D] | Eloundou E2 bound 0.3–0.6 (A1) | no |
+| CERT_DAYS | 120 → 240 | OpenAI FedRAMP 20x Moderate ~8 months; fedramp.gov (C1) | maybe (cert later) |
+| CERT_CASH | $0.4B → $0.004B | GAO-24-106591: $0.3–3.7M + agency $69–400k (C2) | yes (4 × $0.4B no longer spent) |
+| KYC_REFUSE | 0.1 → 0.25 | Ofcom Online Nation 2025: −24..31% visitors after age checks (K1) | yes (KYC costs more demand) |
+| KYC_REVIEW_COST | 0.02 → deleted | Ofcom per-check ~£0.06; Stripe Identity $1.50 (K2) | small (+revenue under KYC) |
+| DISTILL_HARVEST_SHARE | 0.01 kept [D] | bracket 3e-4..7e-3 from Anthropic campaign + OpenAI volume (D1) | no |
+| Misuse per token | kept; recommendation | Anthropic threat reports: actor-driven, agentic (F9) | no |
+
+- **Changed code:** features.ts (shares, the Voice & vision fx split into Chat and Media, text), adaptations.ts (CERT_*,
+  comments), deployments.ts (KYC_REFUSE; kycReviewShare and KYC_REVIEW_COST deleted), revenue.ts (review cost line
+  gone), selectors.ts (exports KYC_REFUSE), Products.tsx (KYC tip reads KYC_REFUSE), glossary (kyc, adaptation,
+  featEnabler), scripts/v2/_p08 (reads CERT_CASH).
+- **Check:** tsc (app, scripts/v2) clean; _p07, _p08, _p10, _p11, _rfp5, _rfp6, _r04 all ok.
+- **For the designer:** delete Memory's Chat appeal (no mechanism, no source) and Companion's appeal (now ×1.025)?
+  KYC_REFUSE 0.25 is an upper-end analogue. DISTILL_HARVEST_SHARE: lowering it toward 1e-3 makes KYC 1 matter on a big
+  API.
