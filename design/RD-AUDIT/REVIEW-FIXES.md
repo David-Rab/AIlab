@@ -16,13 +16,13 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 ## Lane S2: safety mechanisms (branch rf-s2)
 | ID | Task | Source |
 |---|---|---|
-| RF-S6 | Revert EV9 (8aae8b7): restore the accepted default safety needs order — done | safety #6 |
-| RF-S7 | Revert CP3h(b) `lengthGapOom` (unsourced length grading gap) | safety #3 |
-| RF-S8 | Fold Fix environment into Harden: one verb, one cost model, one floor | safety #4, decision 9 |
-| RF-S9 | One saturation rule: E02 vs SR-24b | safety #4 |
-| RF-S10 | CP3i: at-scale efficacy two-sided around the tested effect; validation narrows the belief; preview in player language (no arXiv cites) | safety #3, #13, decision 8 |
-| RF-S11 | SR-21: review's stop rate scales with staffing served; safety spend total complete (or renamed) | safety #10 |
-| RF-S12 | SR-17: replace the case clarity rate per SAFETY-REDESIGN §6 #7 | safety #5 |
+| RF-S6 | Revert EV9 (8aae8b7): restore the accepted default safety needs order — done 6c41c5f | safety #6 |
+| RF-S7 | Revert CP3h(b) `lengthGapOom` (unsourced length grading gap) — done 25fb638 | safety #3 |
+| RF-S8 | Fold Fix environment into Harden: one verb, one cost model, one floor — done d8bda41 | safety #4, decision 9 |
+| RF-S9 | One saturation rule: E02 vs SR-24b — done 4ecbed2 (player runs only; rivals as is, designer) | safety #4 |
+| RF-S10 | CP3i: at-scale efficacy two-sided around the tested effect; validation narrows the belief; preview in player language (no arXiv cites) — partial eee722b (no validation channel: proposal in BUILD-NOTES) | safety #3, #13, decision 8 |
+| RF-S11 | SR-21: review's stop rate scales with staffing served; safety spend total complete (or renamed) — done a0045ae (renamed) | safety #10 |
+| RF-S12 | SR-17: replace the case clarity rate per SAFETY-REDESIGN §6 #7 — done 5bf921b | safety #5 |
 
 ## Lane P: products (branch rf-p)
 | ID | Task | Source |
