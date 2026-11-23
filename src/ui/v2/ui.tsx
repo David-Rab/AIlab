@@ -99,11 +99,11 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
 export function termEntry(id: string): { title: string; body: string; src?: string } | undefined {
   if (id.startsWith('trait:')) {
     const t = TRAIT_BY_ID[id.slice(6) as keyof typeof TRAIT_BY_ID];
-    return t && { title: t.name, body: `${t.desc} ${t.protective ? 'Protective: higher is better.' : 'A [[traits|hidden trait]]: you see a [[belief]] band, never the truth.'}`, src: `research/04 ${t.r04}` };
+    return t && { title: t.name, body: `${t.desc} ${t.protective ? 'Protective: higher is better.' : 'A [[traits|hidden trait]]: you see your [[belief]] (best guess and range), never the truth.'}`, src: `research/04 ${t.r04}` };
   }
   if (id.startsWith('sig:')) {
     const x = SIGNALS.find((q) => q.id === id.slice(4));
-    return x && { title: `${x.id} ${x.name}`, body:'A [[signal|training signal]]: how strongly your run recipes push this pressure into the model. It feeds the [[traitGraph|trait graph]].' };
+    return x && { title: x.name, body: "A [[signal|training signal]]: how strongly this run pushes the model's tendencies this way." };
   }
   return GLOSSARY_V2[id];
 }
