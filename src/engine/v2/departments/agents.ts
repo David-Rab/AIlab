@@ -14,24 +14,25 @@
 // watched model, fully funded, is today's runtime monitoring exactly (strength 1).
 //
 // The default package (initialAgents): routine research on the start model, the other uses on the newest internal
-// model (RD-A06: named in the UI, no hidden "as routine" fallback), control off per package, monitors 'same' on routine and frontier research,
+// model (RD-A06: named in the UI, no hidden "as routine" fallback), control off per package, monitors 'auto' (SR-20: the most capable trusted model) on routine and frontier research,
 // the reference compute shares (DEFAULT_CAP_SHARES).
 import { flopPerToken } from './workfit';
 import {
-  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
+  AGENT_USES, CAP_USES, DEFAULT_CAP_SHARES, MONITOR_AUTO, MONITOR_SAME, RISK_FAMILIES, RISK_UNSEEN_CLARITY, RISK_WATCH_EST,
   type CapUse,
 } from '../../../data/v2/agents';
 import { versionById } from '../models/labs';
 import { collusionTrait, monitorStop, type MonitorStop } from '../models/products';
 import { researchAgents } from './split';
 import { controlComputeShare, controlOn, labControlSetting, setControl } from '../safety/safeguards';
+import { autoWatcher } from '../safety/trusted';
 import type { AgentPackage, AgentUse, ComputeSplit, GameStateV2, ModelVersion, TraitId } from '../types';
 
 export function initialAgents(versionId = 'V0'): Record<AgentUse, AgentPackage> {
   return {
     eng: {},
-    capRoutine: { versionId, monitorId: MONITOR_SAME },
-    capFrontier: { monitorId: MONITOR_SAME },
+    capRoutine: { versionId, monitorId: MONITOR_AUTO },
+    capFrontier: { monitorId: MONITOR_AUTO },
     safety: {},
   };
 }
@@ -76,11 +77,13 @@ export function syncInternalControl(s: GameStateV2): void {
   }
 }
 
-/** Monitor model of an internal use ('same' = a copy of the watched model). */
+/** Monitor model of an internal use ('same' = a copy of the watched model; SR-20 'auto' = the most capable trusted
+ *  model, safety/trusted.ts autoWatcher, the default). */
 export function monitorVersion(s: GameStateV2, use: AgentUse): ModelVersion | undefined {
   const id = s.player.agents[use].monitorId;
   if (!id) return undefined;
   if (id === MONITOR_SAME) return agentVersion(s, use);
+  if (id === MONITOR_AUTO) return autoWatcher(s, agentVersion(s, use)).v;
   const v = versionById(s, id);
   return live(v) ? v : undefined;
 }

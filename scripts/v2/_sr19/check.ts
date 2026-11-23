@@ -28,7 +28,7 @@ const setMeasured = (v: ModelVersion, d: 'CYBER' | 'RSCH' | 'BIO', L: number) =>
 // 1. migration and deletions
 const s = load();
 const fw = frameworkOf(s);
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 80 && fw.rules.some((r) => r.id === 'cyber-high') && !('evalGate' in s.player.safety),
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV >= 80 && fw.rules.some((r) => r.id === 'cyber-high') && !('evalGate' in s.player.safety),
   'save migrates to 80: Safety framework with default rules, no eval gate', `rev ${s.schemaRev}, depth ${fw.evalDepth}, ${fw.rules.length} rules`);
 check(!action('safety.evalGate') && !EVENT_BY_ID.get('E17') && !!action('safety.frameworkOverride'), 'no eval-gate action, no E17 event; framework actions registered');
 

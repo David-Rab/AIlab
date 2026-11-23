@@ -2,6 +2,7 @@
 // layer with its tax) and the Footholds tab (HOME of every foothold the lab knows of: symptoms of suspected ones with
 // where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
 // footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
+import { SAFEGUARD_PACKAGES, SAFEGUARD_PACKAGE_IDS } from '../../../engine/v2/safety/packages';
 import { LOCKDOWN_SLOWDOWN, controlOn, lockdownOn } from '../../../engine/v2/safety/safeguards';
 import { useMemo } from 'react';
 import { believedInternalOversight, controlReadout, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
@@ -90,6 +91,7 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
         {c.versionId && s.player.safety.techniques['T-LOCK']?.unlocked && (lockdownOn(s)
           ? <ActBtn id="safety.respond" testId="lockdown-remove" params={{ kind: 'removeLockdown', versionId: c.versionId }} label="Remove lockdown" />
           : <ActBtn id="safety.respond" testId="lockdown-add" params={{ kind: 'addLockdown', versionId: c.versionId }} label={`Add comms lockdown (−${Math.round(LOCKDOWN_SLOWDOWN * 100)}% work)`} />)}
+        {(() => { const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status === 'live'); return d ? <PackageRow depId={d.id} testId="internal-package" /> : null; })()}
         <Ref id="controlTax" to={AGENTS}>Tax per lane</Ref>
       </div>
     </Card>
@@ -191,5 +193,16 @@ export function FootholdsTab({ s }: { s: GameStateV2 }) {
       </div>
       <WatchCard />
     </div>
+  );
+}
+
+/** SR-20: the default safeguard packages on one deployment (product or internal agents): one button each; its preview
+ *  lists every part's charged cost and the stop rates (safety.package). Parts stay editable on their own controls. */
+export function PackageRow({ depId, testId }: { depId: string; testId: string }) {
+  return (
+    <span className="row-i small" data-test={testId}>
+      <Tip content={() => <TipCard title="Safeguard packages">{SAFEGUARD_PACKAGE_IDS.map((id) => `${SAFEGUARD_PACKAGES[id].label}: meets ${SAFEGUARD_PACKAGES[id].meets}.`).join(' ')} Applying one sets exactly its parts; each part's cost in the preview is the engine's own charge.</TipCard>}><span className="dim">Package</span></Tip>
+      {SAFEGUARD_PACKAGE_IDS.map((id) => <ActBtn key={id} id="safety.package" testId={`${testId}.${id}`} params={{ deploymentId: depId, pkg: id }} label={SAFEGUARD_PACKAGES[id].label} />)}
+    </span>
   );
 }

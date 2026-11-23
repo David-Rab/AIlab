@@ -27,6 +27,7 @@ import {
 import { methodPolicyOn } from './methods';
 import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
 import { editRule, frameworkOf, overrideConsequences, overrideRule, refreshFramework } from './framework';
+import { SAFEGUARD_PACKAGES, SAFEGUARD_PACKAGE_IDS, applyPackage, packageBlock, previewPackage, type SafeguardPackageId } from './packages';
 import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
 import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
@@ -629,6 +630,41 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
   },
 };
 
+
+/** SR-20: apply a default safeguard package (Standard / High / Critical) to one product or the internal agent deployment
+ *  in one act; the preview lists each part's true charged cost (safety/packages.ts previewPackage) and the stop rates. */
+const SAFEGUARD_PACKAGE: ActionDef = {
+  id: 'safety.package', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Safeguard package',
+  available: () => true,
+  preview(s, p) {
+    const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
+    const id = (str(p, 'pkg') ?? 'high') as SafeguardPackageId;
+    if (!d || packageBlock(s, d) || !SAFEGUARD_PACKAGE_IDS.includes(id)) return { costs: [], gains: [], exposure: [] };
+    const pv = previewPackage(s, d, id);
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    for (const l of pv.parts) {
+      if (Math.abs(l.computeH100e) > 1e-6) (l.computeH100e > 0 ? costs : gains).push({ currency: 'compute', amount: -r1(l.computeH100e), unit: 'H100e', target: `${l.label}: control compute (monitors' line)` });
+      if (Math.abs(l.people) > 1e-6) (l.people > 0 ? costs : gains).push({ currency: 'staffTime', amount: -Math.round(l.people), unit: 'safety engineers', target: `${l.label}: reviewers` });
+      if (Math.abs(l.slowdown) > 1e-6) (l.slowdown > 0 ? costs : gains).push({ currency: 'progress', amount: -Math.round(l.slowdown * 1000) / 10, unit: '% of agent work', target: `${l.label}: Slowdown` });
+      if (Math.abs(l.revenue) > 1e-4) (l.revenue < 0 ? costs : gains).push({ currency: 'revenue', amount: Math.round(l.revenue * 100) / 100, target: `${l.label}` });
+      if (Math.abs(l.servingH100e) > 0.5) (l.servingH100e > 0 ? costs : gains).push({ currency: 'compute', amount: -Math.round(l.servingH100e), unit: 'H100e', target: `${l.label}: serving need` });
+    }
+    const mean = (k: 'before' | 'after') => (pv.stops.length ? pv.stops.reduce((a, x) => a + x[k], 0) / pv.stops.length : 0);
+    if (pv.stops.length) gains.push({ currency: 'alignment', amount: Math.round((mean('after') - mean('before')) * 1000) / 10, unit: 'pts', target: `mean stop rate per act ${Math.round(mean('before') * 100)}% → ${Math.round(mean('after') * 100)}% (meets ${pv.meets})` });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
+    const id = (str(p, 'pkg') ?? '') as SafeguardPackageId;
+    if (!SAFEGUARD_PACKAGE_IDS.includes(id)) return void ctx.log('alert', 'Pick a package: standard, high or critical');
+    const why = d ? applyPackage(s, d, id) : 'Unknown deployment';
+    if (why) return void ctx.log('alert', why);
+    refreshFramework(s, ctx);
+    ctx.log('company', `${SAFEGUARD_PACKAGES[id].label} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
+  },
+};
 /** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model). */
 function validateTargets(s: GameStateV2, p: P): { model: string; tools: TechniqueState[] } {
   const model = str(p, 'model') ?? internalVersion(s)?.id ?? '';
@@ -712,6 +748,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
 
 

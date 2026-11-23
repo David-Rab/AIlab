@@ -134,8 +134,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  SafetyDept.disclosure (policy, default legal minimum, OD-8) and requiredMethods; Incident.disclose (override).
  *  ResponseKind loses targetedTraining and disclose (addMethod added). Migration 78 → 79 sets the policy to legal
  *  minimum, an empty required-method list, and drops the two old kinds from incidents' response records.
+ *  81 (SR-20): AgentPackage.monitorId 'auto' (the most capable trusted model, safety/trusted.ts; the new default).
+ *  Migration 80 → 81 moves routine and frontier research packages on the old default 'same' to 'auto'.
  */
-export const SCHEMA_REV = 80;
+export const SCHEMA_REV = 81;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -867,6 +869,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const g = dept.evalGate ?? 'full';
     if (!dept.framework) dept.framework = defaultFramework(g === 'none' ? 'none' : g === 'basic' ? 'basic' : g === 'fullPlusExternal' ? 'deep' : 'full', g === 'fullPlusExternal');
     delete dept.evalGate;
+  },
+  80: (raw) => {
+    // 80 → 81 (SR-20, OD-6): the default watcher on routine and frontier research becomes automatic (the most capable
+    // trusted model) instead of a copy of the watched model; packages on the old default 'same' move to 'auto'.
+    const agents = (raw as { player?: { agents?: Record<string, { monitorId?: string }> } }).player?.agents;
+    if (!agents) return;
+    for (const u of ['capRoutine', 'capFrontier']) if (agents[u]?.monitorId === 'same') agents[u].monitorId = 'auto';
   },
 };
 

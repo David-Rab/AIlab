@@ -7,7 +7,7 @@ import { controlOn } from '../../../engine/v2/safety/safeguards';
 // the agents' tooling (Coding harness, Research harness, Agent memory) is built here, not taken from product features.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
-import { AGENT_USES, AGENT_USE_DEF, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
+import { AGENT_USES, AGENT_USE_DEF, MONITOR_AUTO, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
   agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, newestInternal, previewAgentChange, previewTrusted, toolingView, versionById,
 } from '../../../engine/v2';
@@ -148,7 +148,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
     ...(isRoutine ? [] : [{ value: '', label: `newest · ${newest?.name ?? '—'}` }]),
     ...modelOptions(s, (x) => x.variant !== 'open'),
   ];
-  const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, (x) => x.variant !== 'open')];
+  const monitors = [{ value: MONITOR_AUTO, label: `auto · ${pkg.monitorId === MONITOR_AUTO && l.monitor ? (l.monitor.id === l.version?.id ? 'copy' : l.monitor.name) : 'most capable trusted'}` }, { value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, (x) => x.variant !== 'open')];
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';
   const monVal = draft?.monitorId !== undefined ? draft.monitorId ?? '' : pkg.monitorId ?? '';
   const budget = def.budget === 'saf' ? 'SAF' : 'CAP';
@@ -164,6 +164,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
       {/* F6b: catch rate and the same-model tag on a line under the picker (inline they squeezed the picker to its arrow). */}
       <div className="ag-mon">
       <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })} />
+      {l.monitorReason && <Tip content={() => <TipCard title="Automatic watcher">{l.monitorReason} A model is trusted when none of its red-flag traits (scheming, alignment faking, sandbagging) is believed above your Safety framework's misalignment line. Pick a model to override.</TipCard>}><div className="small dim" data-test={`monitor-auto.${use}`}>{l.monitor ? 'auto: most capable trusted' : 'auto: no trusted model'}</div></Tip>}
       {l.monitor && <div className="ag-mon-x small">
           <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
           {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}

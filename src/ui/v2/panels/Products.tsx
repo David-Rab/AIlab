@@ -32,6 +32,7 @@ import { C } from '../theme';
 import './products.css';
 import { CatchX, PkgChip } from './chips';
 import { DangerChip } from './Danger';
+import { PackageRow } from './SafetyControl';
 
 const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Briefcase, trusted: ShieldCheck, open: Unlock };
 const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifiers', 'hardened'];
@@ -220,6 +221,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
           <select className="msel small" data-test={`prod-sg.${d.id}`} value={n.safeguards} onChange={(e) => set({ safeguards: e.target.value as Deployment['safeguards'] })}>
             {SAFEGUARDS.map((g) => <option key={g} value={g}>{SG_LABEL[g]}</option>)}
           </select>
+          <PackageRow depId={d.id} testId={`prod-package.${d.id}`} />
         </div>
         {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
             <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level cuts distillation access by a quarter and this product's demand by 2%.</TipCard>}><span className="pc-k">KYC</span></Tip>
