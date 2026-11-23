@@ -4137,3 +4137,22 @@ hygiene.ts's calibration shift drops it).
   (the start scores were taken at SAND 0; pooled they would dilute the sandbagging test): all pass.
 - **Moves calibration:** maybe (RefBot's internal model reads a tighter, more stable measured level; RefBot's mini
   timing reads it — see REEVAL_DG note in data/v2/evals.ts).
+
+## RF-R3: runEvals preview-vs-result check restored (research review F6)
+
+- **Changed:** scripts/v2/lint-tradeoffs.ts RD-B19 runEvals (self) compares the band the order preview shows before the
+  suite (`evalDepthView` full row, bandAfter) with the band the finished suite really leaves (`measuredSd` after the
+  suite's work is done), on the day-400 fixture and 1, 2, 3 days later (different score draws): each within 25% of its
+  preview (the pre-016a173 tolerance). The other conditions (one reading line, no meter or lead lines) stay.
+- **Deleted:** 016a173's tautology (`bandAfter == expectedFitSd(...)`, `measuredSd(v) == fitSd`) and the then-unused
+  `expectedFitSd` import.
+- **Stand-ins:** none.
+- **Check result: FAILS, left failing.** Preview 0.064 → realised 0.098 / 0.098 / 0.101 / 0.101. Cause: fixture drift,
+  not the preview. The day-400 fixture (regenerated at CP1) holds readings for Atlas-2.0-mini taken under the CP1 model
+  (e.g. replicate 54.8, ctf 41.4, medal 53.9); today's code gives that version true expected scores of 21.8 / 2.7 / 16.6
+  (domains CYBER / BIO 0), and it has no MMMU / EmbodiedBench rows. The preview reads the lab's held readings (never the
+  truth), which sit mid-curve, so it expects a tight band; the real scores sit on the flat low end of the curves. Also
+  its stored recipeAt (1.1970) differs from today's inPlaceRecipe (1.1939), so the suite starts a fresh pool (the
+  preview accounts for that). On current games (own check, seeds 1–4, Atlas-1.0 at day 30): preview 0.044 → realised
+  0.044 on every seed (ratio 1.00). Expect the check to pass once the fixtures are regenerated (next checkpoint).
+- **Moves calibration:** no (test only).
