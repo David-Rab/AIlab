@@ -2686,3 +2686,38 @@ Safety needs list in LAB's one allocator (SAFETY-REDESIGN §5, OD-9 (a)). Commit
 - Moves calibration: yes (safety, research): eval suites now take safety engineers (they compete with cases and line
   experiments; the capability engineers and experiment pool get theirs back); human review is in the list (defaults
   first, as before); cases' compute is cut only by evals ahead of them; production's reRes no longer subtracts evals.
+
+### SR-22
+Safety work package: spot-checks, AI share per job, expected vs observed (SAFETY-REDESIGN §3.10, §4.3 channel 5; RD-S08 /
+SAF-26). Commit 19c7fd1.
+- **Package.** The safety agent package (player.agents.safety) keeps its model (RD-A06) and compute; new
+  `AgentPackage.spotCheck` (0 / 0.02 / 0.1; absent = none), action `safety.spotCheck {share}` (preview: safety engineers
+  taken, believed catch at the model's measured level). Company › Agents at work, safety lane: "Spot-checks" none / 2% /
+  10% beside Trusted to AI (tooltip: in effect, engineers, believed catch). Module `safety/workPackage.ts`.
+- **Staff.** SafReNeed 'spotCheck' (default order: review, spotCheck, cases, …): demand = q × SPOT_COST × the human
+  heads the AI's share of safety work would take (Σ A·H·heads over SAF_EXP, SAF_IDEAS); SPOT_COST = 1 [D] (a re-check
+  takes the time of the work). In effect q·σ, σ = needServed('spotCheck').
+- **Catch.** `safetySabotage` (every SAFSAB: line results, open-study results, cases): catch = 1 − (1 − catch)(1 − spot),
+  spot = q·σ · HUMAN_REVIEW · humanReviewFactor (the same human-review rule as E6) × oversightOpen. AI-assisted
+  validation of a false instrument: each planted case re-run by humans with prob q·σ finds the true recall (SR-10's
+  "AI-run hides it" now leaks in proportion to the spot-checks).
+- **Jobs.** `SafJobResult {aiShare, spot, expected, observed}` on FindingRecord (line tests and open-study results:
+  expected = believed efficacy before the result, observed = shown TECH / EVAL / DISC), ValidationResult.job (believed
+  recall vs found ÷ n), Investigation.job (believed level of the most severe target trait at opening vs found it:
+  confirmed / discovery), EvalRecord.suiteJob (believed vs measured mean misbehaviour rate over the safety evals).
+  AI share: lines `lineLabour().aiShare`, validation / case / self-run suite the SAF_EXP A (0 human-run / external).
+  Readouts: line row Results tooltip (last year Σ expected vs working, AI share), Results card tooltips, validation
+  queue rows ("AI x%" / human-run) and the Validation card tooltip (last results expected vs found), case card line,
+  Evals queue tooltip (AI share, last suite expected vs observed). No truth stored: expected from beliefs, observed =
+  what the player is shown. Glossary spotCheck, expectedObserved; safReNeeds mentions spot-checks.
+- **Save.** SCHEMA_REV 83; migration 82 → 83 puts 'spotCheck' after 'review' in research.safRe (first if no review);
+  hygiene pins → 83. scripts/v2/_sr21/check.ts still pins 82 (and the order length 7): fixture drift.
+- **Check.** `npx tsx scripts/v2/_sr22/check.ts` (all ok): migrates; A 0.23 at Trusted 80%; spot ask 0 → 0.5 → 2.5
+  engineers, SAFSAB catch 0.483 → 0.486 → 0.499 (uncaught rate down); case / suite / validation report AI share; false
+  instrument AI-assisted: unchecked observed 0.438 vs expected 0.444, 10% spot-checked 0.375 vs 0.444. tsc (app,
+  scripts/v2) clean; npm run build passes.
+- **Left.** The spot-check catch is small (human review's 0.3 × gap factor on 10%); no separate "spot-check
+  disagreement" chip (a caught SAFSAB is the existing internal incident); the sandbag slow-down (safetySandbag) is not
+  touched by spot-checks; expected is taken just before each job's own result (cases: at opening), not at queue time;
+  no picker UI for re-ordering the new need beyond the existing list.
+- Moves calibration: no (spot-checks default to none; the new need asks 0 at q = 0).
