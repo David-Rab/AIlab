@@ -3,6 +3,8 @@
 // use: model chip, monitor chip with catch rate, compute bar with its budget, AI share of the role's work, cost, the
 // model's four risk families. A model or monitor pick opens a before → after preview (applies at the next tick).
 import { controlOn } from '../../../engine/v2/safety/safeguards';
+import { SPOT_SHARES, believedSpotCatch, spotCheckChosen, spotCheckFte, spotShare } from '../../../engine/v2/safety/workPackage';
+import { safetyAgentVersion } from '../../../engine/v2/safety/agents';
 // RD-A06: every package names its model (no pick = the newest internal model, said so), has its own control switch, and
 // the agents' tooling (Coding harness, Research harness, Agent memory) is built here, not taken from product features.
 import { useMemo, useState, type ReactNode } from 'react';
@@ -137,6 +139,28 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   );
 }
 
+/** SR-22: the Safety work package's human spot-check share (none / 2% / 10% of AI-done safety work re-checked). */
+function SpotCheck({ s }: { s: GameStateV2 }) {
+  const q = spotCheckChosen(s);
+  const inEffect = spotShare(s);
+  const sv = safetyAgentVersion(s);
+  const tip = () => (
+    <TipCard title={<Term id="spotCheck">Spot-checks</Term>} value={q > 0 ? F.pct(q) : 'none'} rows={[
+      { label: 'In effect (staffed)', value: F.pct(inEffect) },
+      { label: 'Safety engineers it takes', value: F.count(spotCheckFte(s)) },
+      { label: 'Sabotaged AI work caught by re-checks', value: sv ? `${F.pct(believedSpotCatch(s, sv, inEffect))} (believed)` : 'no AI staff on safety work' },
+    ]} footer="Greenblatt et al. audited 2% of an untrusted model's work by hand.">Share of the safety work AI staff do that your safety engineers re-check by hand. It takes engineers from the safety needs list (Company › Work) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
+  );
+  return (
+    <div className="ag-trust" data-home="spotCheck">
+      <Tip content={tip}><span className="row-i"><Term id="spotCheck">Spot-checks</Term> <b className="num" data-test="spot-share">{q > 0 ? F.pct(q) : 'none'}</b></span></Tip>
+      <span className="stepper">
+        {SPOT_SHARES.map((x) => <ActBtn key={x} id="safety.spotCheck" testId={`spot.${x}`} params={{ share: x }} label={x > 0 ? `${Math.round(x * 100)}%` : 'none'} block={Math.abs(x - q) < 1e-9 ? 'Already chosen' : undefined} />)}
+      </span>
+    </div>
+  );
+}
+
 function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: AgentsView; use: AgentUse; danger?: DangerRead; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
   const l = v.lanes[use];
   const def = AGENT_USE_DEF[use];
@@ -187,7 +211,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
         </div>
       </div>
       <div className="ag-ai">
-        {use === 'safety' ? <Trusted s={s} v={v} /> : (
+        {use === 'safety' ? <><Trusted s={s} v={v} /><SpotCheck s={s} /></> : (
           <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share of the work</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "The agents' part of the engineers' labour margin (1 − the humans' share in the coding CES). More compute or a better-fitting model raises it, and build capacity with it." : use === 'capRoutine' ? "The agents' part of the research engineers' labour margin (1 − the humans' share)." : "The share of human scientists this model's research taste beats. The frontier model sets research taste."} Fit, coverage and effective labour: Company › Work.</TipCard>}>
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>

@@ -22,6 +22,7 @@
 //   auto-evaluate       the internal models and the continual-learning stream are re-run when they changed in place by
 //                       ≥ REEVAL_DG OOM (the recipe the stream applied) or REEVAL_DAYS after their last suite, at the policy depth (the gate's, basic if none).
 import { BENCHMARKS, BENCH_NOISE_SD, SAFETY_EVALS } from '../../../data/v2/benchmarks';
+import { jobAiShare } from '../safety/workPackage';
 import { EVAL_DEPTHS, EVAL_DEPTH_IDS, EVAL_TOKENS, EXT_EVAL_STAFF, FULL_ROLLOUTS, REEVAL_DAYS, REEVAL_DG } from '../../../data/v2/evals';
 import { TEAM_SIZE } from '../../../data/v2/teams';
 import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
@@ -275,6 +276,8 @@ export const evalDaysFor = (s: GameStateV2, depth: SafetyFramework['evalDepth'] 
 export interface EvalTaskView {
   id: string; versionId: string; name: string; depth: EvalDepth; by: Evaluator; why: EvalTask['why'];
   progress: number; reTW: number; engTW: number; h100eDays: number;
+  /** SR-22: share of the suite's work AI staff do (self-run: the safety experiments' A; external: 0). */
+  aiShare: number;
   /** What it waits for: research engineers, compute or the engineers' harness work (undefined = advancing). */
   waiting?: 'engineers' | 'researchEngineers' | 'compute';
   /** Which part sets the ETA (D8): the research engineers' work, the engineers' harness work or the compute. */
@@ -316,7 +319,7 @@ export function evalQueueView(s: GameStateV2): EvalTaskView[] {
     const binds = engDays > 0 && engDays >= Math.max(reDays, computeDays) ? 'engineers' : computeShort ? 'compute' : 'researchEngineers';
     return {
       id: t.id, versionId: t.versionId, name: v?.name ?? t.versionId, depth: t.depth, by: t.by, why: t.why, progress: t.progress,
-      reTW: t.reTW, engTW: t.engTW, h100eDays: t.h100eDays, ...(waiting ? { waiting } : {}), binds, reDays, engDays, computeDays,
+      reTW: t.reTW, engTW: t.engTW, h100eDays: t.h100eDays, aiShare: t.by === 'self' ? jobAiShare(s, 'suite') : 0, ...(waiting ? { waiting } : {}), binds, reDays, engDays, computeDays,
       reNow: h, reMax: t.by === 'self' ? EVAL_DEPTHS[t.depth].staff / TEAM_SIZE.re / m : 0, etaDays: Math.max(reDays, computeDays, engDays),
     };
   });

@@ -45,6 +45,7 @@ import { containment } from './techniques';
 import { versionOom } from './oversight';
 import { uModeContainMult } from './umodes';
 import { safetyAgentVersion, safetyFleet } from './agents';
+import { spotCatch } from './workPackage';
 import { ACT_FOOTHOLD, backdoorReach, footholdFromAct, footholdsOf, lineageOf, sweepOnCaught } from './footholds';
 import type { Foothold } from '../types';
 
@@ -242,7 +243,12 @@ export function lineThreat(s: GameStateV2, ag: AgendaId, v: ModelVersion | undef
 export function safetySabotage(s: GameStateV2, share: number, threat = 1): CovertTerms | undefined {
   const v = safetyAgentVersion(s);
   if (!v || share <= 0) return undefined;
-  const t = itemTerms(s, v, 'SAFSAB', share, WORK_TYPES.SAF_EXP.H);
+  const t0 = itemTerms(s, v, 'SAFSAB', share, WORK_TYPES.SAF_EXP.H);
+  // SR-22: the package's human spot-checks re-check a share of the AI-done work: catch = 1 − (1 − catch)(1 − spot).
+  const spot = t0.attempts > 0 ? spotCatch(s, v) * oversightOpen(s, v) : 0;
+  const c = 1 - (1 - t0.catch) * (1 - spot);
+  const o = 1 - (1 - t0.block) * (1 - c);
+  const t = spot > 0 ? { ...t0, catch: c, oversight: o, rate: t0.attempts * (1 - o) } : t0;
   const k = clamp01(threat);
   return k === 1 ? t : { ...t, attempts: t.attempts * k, rate: t.rate * k };
 }

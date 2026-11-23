@@ -38,6 +38,8 @@ import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } fro
 import { VAL_DAYS, VAL_N } from '../../../data/v2/agendas';
 import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
 import { instrumentName, instruments } from './instruments';
+import { believedSpotCatch, spotCheckChosen, spotCheckFte } from './workPackage';
+import { safetyAgentVersion } from './agents';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -728,6 +730,39 @@ const VALIDATION_POLICY: ActionDef = {
   },
 };
 
+/** SR-22: the Safety work package's human spot-check share (none / 2% / 10% of AI-done safety work re-checked). The
+ *  preview: the safety engineers it takes (the 'spotCheck' need, SR-21's list) and the believed share of sabotaged AI
+ *  safety work the re-checks catch (on top of the other oversight). */
+const SPOT_CHECK: ActionDef = {
+  id: 'safety.spotCheck', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Spot-check AI safety work',
+  available: () => true,
+  preview(s, p) {
+    const q = clamp01(typeof p.share === 'number' ? p.share : 0);
+    const q0 = spotCheckChosen(s);
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    const dFte = r1(spotCheckFte(s, q) - spotCheckFte(s, q0));
+    const v = safetyAgentVersion(s);
+    const c0 = v ? believedSpotCatch(s, v, q0) : 0;
+    const c1 = v ? believedSpotCatch(s, v, q) : 0;
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    if (dFte > 0) costs.push({ currency: 'staffTime', amount: dFte, unit: 'safety engineers', target: `re-checking ${Math.round(q * 100)}% of the AI's safety work (the spot-check need, ahead of what follows it in the list)` });
+    else if (dFte < 0) gains.push({ currency: 'staffTime', amount: -dFte, unit: 'safety engineers', target: 'back to the needs after it in the list' });
+    const dC = Math.round((c1 - c0) * 1000) / 10;
+    if (dC > 0) gains.push({ currency: 'alignment', amount: dC, unit: '%', target: 'of sabotaged AI safety work caught by the re-checks (believed, if fully staffed)' });
+    else if (dC < 0) costs.push({ currency: 'alignment', amount: dC, unit: '%', target: 'of sabotaged AI safety work caught by the re-checks (believed)' });
+    if (!costs.length && !gains.length) costs.push({ currency: 'alignment', amount: 0, target: v ? 'no change' : 'no AI staff on safety work: nothing to re-check' });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const q = clamp01(typeof p.share === 'number' ? p.share : 0);
+    const pkg = (s.player.agents.safety ??= {});
+    if (q > 0) pkg.spotCheck = q;
+    else delete pkg.spotCheck;
+    ctx.log('company', `Spot-checks of AI safety work: ${q > 0 ? `${Math.round(q * 100)}%` : 'none'}.`, 1);
+  },
+};
+
 /** SR-14: the standing policy "Use all known methods" (on by default): every new run plan lists every owned method.
  *  The preview shows what turning it on puts in each plan, with each method's cost where one exists. */
 const METHOD_POLICY: ActionDef = {
@@ -748,6 +783,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
 
 

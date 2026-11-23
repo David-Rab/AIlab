@@ -37,6 +37,7 @@ import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafReNeed, SafProjectState, TreeNodeState } from '../types';
 import { aiShareOf } from './agents';
+import { spotCheckFte } from './workPackage';
 import { safetySandbag } from './covert';
 import { investigationFte, safeguardFte, safetyReHeads } from './investigations';
 import { envFixFte } from './responses';
@@ -225,12 +226,12 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   // SR-21: one needs list; human review (SR-13b's pre-commit) and eval suites (the capability engineers' 'evals' need)
   // are needs in it; eval staff are safety engineers (heads × quality = team-equivalents × TEAM_SIZE.re).
   const demand: Record<SafReNeed, number> = {
-    review: safeguardFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
+    review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
     envFix: envFixFte(s), removal: removalFte(s), safExp: askSum,
   };
   const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
   const got = allocate(heads, order, demand);
-  const free = Math.max(0, heads - got.review - got.cases - got.envFix - got.removal);
+  const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.envFix - got.removal);
   let left = got.safExp;
   const re = new Map<string, number>();
   for (const id of ids) {

@@ -573,7 +573,7 @@ function LineRowView({ s, l }: { s: GameStateV2; l: LineRow }) {
           </span>
         )) : <span className="dim small ellip">{l.next ? <>next: {PROJECT_BY_ID[l.next]?.followUp ? 'follow-up' : PROJECT_BY_ID[l.next]?.name}</> : l.nextReason}</span>}
       </span>
-      <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }]} />}>
+      <Tip content={() => <TipCard title="Results" value={l.findings} rows={[...resTypes.filter((t) => l.results[t]).map((t) => ({ label: FTYPE[t].label, value: l.results[t] as number })), { label: 'Per year now', value: F.num(l.resultsPerYear, 1) }, ...(l.expObs.n ? [{ label: <Term id="expectedObserved">Expected vs observed (last year)</Term>, value: `${F.num(l.expObs.expected, 1)} expected · ${F.num(l.expObs.observed, 0)} working of ${l.expObs.n} tests` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(l.expObs.aiShare) }] : [])]} />}>
         <span className="sf-res">{resTypes.filter((t) => l.results[t]).map((t) => { const I = FTYPE[t].icon; return <span key={t} className={`ftype2 ${FTYPE[t].tone}`}><I size={11} />{l.results[t]}</span>; })}{!l.findings && <span className="dim small">—</span>}</span>
       </Tip>
       <Tip content={() => <TipCard title={<Term id="deadEnd">Dead ends</Term>} value={`${F.num(l.deadEndTM, 1)} team-months`}>Team time spent on results that went nowhere in this line.</TipCard>}><span className="num small">{l.deadEndTM >= 0.05 ? `${F.num(l.deadEndTM, 1)} tm` : <span className="dim">—</span>}</span></Tip>
@@ -608,8 +608,9 @@ function ValidationCard({ sv }: { sv: SV }) {
       <Tip as="div" content={() => <TipCard title={<Term id="validation">Validation</Term>} value={`${up.jobs.length} queued`} rows={[
         { label: 'Per job', value: `${F.count(up.perJob)} engineers · ${up.days} d · ${up.n} planted cases` },
         { label: `Not validated on ${up.model ?? 'the model'}`, value: `${up.notOnCurrent} of ${up.instruments}` },
+        ...up.results.slice(0, 6).map((r) => ({ label: <>{r.name} on {r.on} <span className="dim">{r.human ? 'human-run' : `AI ${F.pct(r.job.aiShare)}, spot-checked ${F.pct(r.job.spot)}`}</span></>, value: `expected ${F.pct(r.job.expected)} · found ${F.pct(r.job.observed ?? 0)}` })),
       ]}>A job plants known behaviour in a test copy of the model and counts how often the instrument finds it: that sets its measured reliability on that model. Elsewhere reliability is extrapolated, with a wider range.</TipCard>}>
-        <div className="small" data-test="validation-queue">{up.jobs.length ? up.jobs.slice(0, 4).map((j) => <div key={j.id} className="row-i"><ICON.revalidate size={13} /> {j.name} on {j.model} <span className="sp" /><HBar v={j.progress} max={1} w={60} /> <span className="num dim">{Number.isFinite(j.daysLeft) ? F.days(j.daysLeft) : 'waiting'}</span></div>) : (up.notOnCurrent ? `${up.notOnCurrent} instruments not validated on ${up.model}` : 'all instruments validated on the model')}</div>
+        <div className="small" data-test="validation-queue">{up.jobs.length ? up.jobs.slice(0, 4).map((j) => <div key={j.id} className="row-i"><ICON.revalidate size={13} /> {j.name} on {j.model} <span className="dim" data-test={`val-ai.${j.id}`}>{j.human ? 'human-run' : `AI ${F.pct(j.aiShare)}`}</span> <span className="sp" /><HBar v={j.progress} max={1} w={60} /> <span className="num dim">{Number.isFinite(j.daysLeft) ? F.days(j.daysLeft) : 'waiting'}</span></div>) : (up.notOnCurrent ? `${up.notOnCurrent} instruments not validated on ${up.model}` : 'all instruments validated on the model')}</div>
       </Tip>
       <div className="btn-row">
         <ActBtn id="safety.validate" params={{ tool: 'all' }} label={`Validate all on ${up.model ?? 'model'}`} testId="validate-all" />
@@ -632,7 +633,7 @@ function ResultsCard({ s, sv }: { s: GameStateV2; sv: SV }) {
           return (
             <div className="sf-find" key={f.id + f.day} data-finding={f.id}>
               <span className={`ftype2 ${ft.tone}`}><ft.icon size={12} />{ft.label}</span>
-              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Line', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
+              <Tip content={() => <TipCard title={f.title} rows={[{ label: 'Line', value: lineName(f.agenda) }, { label: 'Date', value: fmtDate(dateOf(s, f.day)) }, ...(f.job ? [{ label: <Term id="expectedObserved">Expected vs observed</Term>, value: `${F.pct(f.job.expected)} chance it works · ${f.job.observed ? 'worked' : 'did not'}` }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(f.job.aiShare)}${f.job.aiShare > 0 ? ` · spot-checked ${F.pct(f.job.spot)}` : ''}` }] : [])]} />}><span className={`ellip ${f.retracted ? 'strike' : ''}`}>{f.title}</span></Tip>
               {f.published ? <span className="tag2 good">published</span> : f.retracted ? <span className="tag2 bad">retracted</span> : <ActBtn id="safety.publish" testId={`safety.publish.${f.id}`} params={{ findingId: f.id }} label="Publish" />}
             </div>
           );
@@ -695,6 +696,9 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come before validation jobs in the default order.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
+          {x.job && <Tip content={() => <TipCard title={<Term id="expectedObserved">Expected vs observed</Term>} rows={[{ label: 'Believed level at opening', value: F.pct(x.job!.expected) }, { label: 'Verdict found it', value: x.job!.observed === undefined ? 'open' : x.job!.observed ? 'yes' : 'no' }, { label: <Term id="spotCheck">Spot-checked</Term>, value: F.pct(x.job!.spot) }]}>What the case expected from your beliefs when it opened, and what it found. A case run with much AI help that keeps finding nothing where you expected something is a sign to re-run it with humans.</TipCard>}>
+            <span className="small" data-test="case-ai">AI share {F.pct(x.job.aiShare)}{x.job.aiShare > 0 ? `, spot-checked ${F.pct(x.job.spot)}` : ''} · expected {F.pct(x.job.expected)}{x.job.observed !== undefined ? ` · found: ${x.job.observed ? 'yes' : 'no'}` : ''}</span>
+          </Tip>}
           {x.outcome && <div className="small" data-test="case-verdict">
             {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: believed {F.num(c.from.est, 2)} ± {F.num(c.from.sd, 2)} → {F.num(c.to.est, 2)} ± {F.num(c.to.sd, 2)}</div>) : <div className="dim">No belief moved.</div>}
             {(x.outcomeDetail?.evidence ?? []).map((e, n) => <div key={n} className="dim">+ {e}</div>)}

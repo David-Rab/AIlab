@@ -458,6 +458,9 @@ export interface EvalRecord {
   recipeAt?: number;
   /** Model v3 D7: depth of the last suite. */
   depth?: EvalDepth;
+  /** SR-22: the last suite's AI share, spot-check, expected (believed mean misbehaviour rate over the safety evals)
+   *  vs observed (the measured mean rate). */
+  suiteJob?: SafJobResult;
 }
 
 export type RunKind = 'base' | 'post' | 'continue' | 'distill';
@@ -793,7 +796,7 @@ export type ReNeed = 'ops' | 'exp';
 /** Safety research-engineer needs (RD-A04, SR-21, SAFETY-REDESIGN §5): human review on the safeguards, open cases,
  *  validation jobs, eval suites, environment fixes, foothold removals, line-project experiments (by project priority).
  *  Each has a real staff (and compute) demand; capacity none takes is idle. */
-export type SafReNeed = 'review' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
+export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -965,6 +968,8 @@ export interface ValidationResult {
   on: string; found: number; n: number; day: number;
   /** SR-10: who ran it: true = humans only (an AI share of the work can corrupt the result). */
   human?: boolean;
+  /** SR-22: AI share, spot-check, expected (believed recall before this result) vs observed (found ÷ n). */
+  job?: SafJobResult;
 }
 
 /** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
@@ -1057,6 +1062,13 @@ export interface TechniqueState {
 
 export type FindingType = 'TECH' | 'EVAL' | 'DISC' | 'DEAD' | 'NEG' | 'SPILL' | 'FALSE';
 
+/** SR-22 (RD-S08, SAF-26): one safety job's record: the share of its work AI staff did, the share of that work humans
+ *  spot-checked (served), its expected result from the lab's beliefs before the job's own evidence and its observed
+ *  result once done (both 0–1 in the job's unit: chance it works / works; believed / measured recall; believed /
+ *  measured misbehaviour rate; believed level of the trait / found it). A gap is evidence the player reads; it feeds
+ *  beliefs only through the job's own result (nothing true is stored here). */
+export interface SafJobResult { aiShare: number; spot: number; expected: number; observed?: number }
+
 export interface FindingRecord {
   id: FindingId;
   agenda: AgendaId;
@@ -1067,6 +1079,8 @@ export interface FindingRecord {
   revealedFalseDay?: Day;
   /** The project whose result it was (R8). */
   nodeId?: string;
+  /** SR-22: AI share, spot-check, expected (believed chance it works) vs observed (1 = a working result). */
+  job?: SafJobResult;
 }
 
 export interface Investigation {
@@ -1083,6 +1097,9 @@ export interface Investigation {
   before?: Partial<Record<TraitId, { est: number; sd: number }>>;
   /** SR-17: readings the case added to beliefs (monthly observations). */
   readings?: number;
+  /** SR-22: AI share, spot-check, expected (believed level of the most severe target trait at opening) vs observed
+   *  (1 if the verdict found it: confirmed or a discovery; else 0). */
+  job?: SafJobResult;
 }
 
 /** SR-17: one belief a case's verdict moved (believed values only). */
@@ -1236,6 +1253,9 @@ export interface AgentPackage {
   monitorId?: string;
   /** RD-A06: the control layer (trusted monitoring with deferral, safety/oversight.ts useControl) on this package. */
   control?: boolean;
+  /** SR-22 (safety package only): the human spot-check share, the fraction of AI-done safety work the safety engineers
+   *  re-check (0, 0.02 or 0.1; absent = 0). Its staff are the 'spotCheck' need in the safety needs list. */
+  spotCheck?: number;
 }
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────

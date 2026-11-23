@@ -19,7 +19,8 @@ import { TREE, type TreeNodeDef } from '../../../data/v2/tree';
 import { UMODE_BY_ID, UMODES } from '../../../data/v2/umodes';
 import { CHINA_ID, internalVersion } from '../models/labs';
 import type { AgendaId, FindingRecord, FindingType, GameStateV2, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
-import { clamp01, setFlag, trueEfficacy } from './common';
+import { believedEfficacy, clamp01, setFlag, trueEfficacy } from './common';
+import { jobAiShare, jobRecord } from './workPackage';
 import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
@@ -254,8 +255,12 @@ function falseTool(s: GameStateV2, agenda: AgendaId, id: string, fh: Foothold | 
   }
 }
 
-function record(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, id: string, shown: FindingType, type: FindingType, title: string, nodeId?: string): FindingRecord {
-  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false, ...(nodeId ? { nodeId } : {}) };
+/** SR-22: `expected` = the believed chance the line's work yields a working result (before this one); the record carries the
+ *  line's AI share, the spot-checks in effect and observed = 1 for a working result as shown (a tool, an evaluation or a
+ *  discovery; a rigged FALSE result shows as working, a sandbagged one as a dead end). */
+function record(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, id: string, shown: FindingType, type: FindingType, title: string, nodeId?: string, expected?: number): FindingRecord {
+  const job = expected === undefined ? undefined : { ...jobRecord(s, jobAiShare(s, 'line', { agenda }), expected), observed: shown === 'TECH' || shown === 'EVAL' || shown === 'DISC' ? 1 : 0 };
+  const rec: FindingRecord = { id, agenda, type: shown, trueType: type, day: ctx.day, published: false, ...(nodeId ? { nodeId } : {}), ...(job ? { job } : {}) };
   s.player.safety.findings.push(rec);
   ctx.log('research', `${AGENDA_BY_ID[agenda].name}: ${title}.`, type === 'DISC' || type === 'NEG' ? 3 : 2, id);
   if (s.player.policies.publishSafety === 'all' && type !== 'SPILL') publishFinding(s, ctx, id);
@@ -272,13 +277,14 @@ export function nodeTestResult(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, w
   const agenda = n.agenda as AgendaId;
   const st = s.player.safety.agendas[agenda];
   const rng = ctx.rng('safety');
+  const exp0 = believedEfficacy(s, agenda); // SR-22: expected (beliefs before this result)
   const own = ownRow(n);
   const tech = n.technique;
   const generic = !!tech && TECHNIQUE_BY_ID[tech]?.unlockedBy === 'generic';
   const ok = works && (own ? !fired(s, own.id) && requiresOk(s, own.requires, agenda) : generic || (!tech && !n.finding));
   if (!ok) {
     st.posterior.b += 1;
-    return record(s, ctx, agenda, nextId(s, `${agenda}-DEAD`), 'DEAD', 'DEAD', `${n.name}: does not work on this attempt`, n.id);
+    return record(s, ctx, agenda, nextId(s, `${agenda}-DEAD`), 'DEAD', 'DEAD', `${n.name}: does not work on this attempt`, n.id, exp0);
   }
   const sv = safetyAgentVersion(s);
   const sab = sabotage(s, ctx, agenda, sv ? lineThreat(s, agenda, sv) : 0, true, () => rng.float());
@@ -295,19 +301,19 @@ export function nodeTestResult(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, w
     const id = fired(s, 'F49') ? nextId(s, 'F49') : 'F49';
     falseTool(s, agenda, id, sab.fh);
     markKnown();
-    return record(s, ctx, agenda, id, shownTool, 'FALSE', `${n.name} works (AI-validated)`, n.id);
+    return record(s, ctx, agenda, id, shownTool, 'FALSE', `${n.name} works (AI-validated)`, n.id, exp0);
   }
   if (own) {
     applyEffects(s, ctx, agenda, own.effects);
-    return record(s, ctx, agenda, own.id, own.type, own.type, own.title, n.id);
+    return record(s, ctx, agenda, own.id, own.type, own.type, own.title, n.id, exp0);
   }
   if (tech) {
     unlockTechnique(s, tech);
     ctx.log('research', `New tool: ${TECHNIQUE_BY_ID[tech].name}.`, 2, tech);
-    return record(s, ctx, agenda, nextId(s, `${agenda}-${shownTool}`), shownTool, 'TECH', `${TECHNIQUE_BY_ID[tech].name} validated`, n.id);
+    return record(s, ctx, agenda, nextId(s, `${agenda}-${shownTool}`), shownTool, 'TECH', `${TECHNIQUE_BY_ID[tech].name} validated`, n.id, exp0);
   }
   markKnown();
-  return record(s, ctx, agenda, nextId(s, `${agenda}-TECH`), 'TECH', 'TECH', `${n.name} works`, n.id);
+  return record(s, ctx, agenda, nextId(s, `${agenda}-TECH`), 'TECH', 'TECH', `${n.name} works`, n.id, exp0);
 }
 
 /** A line's open study (its follow-up project) ends: an event drawn from the line's hidden efficacy (a tool no node owns,
@@ -319,6 +325,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
   const st = dept.agendas[agenda];
   const def = AGENDA_BY_ID[agenda];
   const rng = ctx.rng('safety');
+  const exp0 = believedEfficacy(s, agenda); // SR-22: expected (beliefs before this result)
   const e = trueEfficacy(s, agenda);
   const iv = internalVersion(s);
   const X = versionOom(s, iv);
@@ -439,7 +446,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
     }
   }
   if (!id) return undefined;
-  return record(s, ctx, agenda, id, shown, type, title, nodeId);
+  return record(s, ctx, agenda, id, shown, type, title, nodeId, exp0);
 }
 
 /**

@@ -26,6 +26,7 @@ import { casesServed, safAllocation } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
 import { labReviewOn, reviewStaff } from './safeguards';
 import { aiRdShare } from './incidents';
+import { jobAiShare, jobRecord } from './workPackage';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
 export function safetyReHeads(s: GameStateV2): number {
@@ -119,6 +120,8 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   const inv: Investigation = {
     id: `INV${n}`, target, fte, computeShare: clamp01(opts.computeShare ?? 0.05), tools,
     startDay: ctx.day, clarity: 0, before, readings: 0,
+    // SR-22: expected = the believed level of the most severe target trait at opening (the case's chance to find it).
+    job: jobRecord(s, jobAiShare(s, 'case'), Math.max(0, ...Object.values(before).map((b) => b?.est ?? 0))),
   };
   dept.investigations.push(inv);
   ctx.log('research', `Investigation opened (${traits.length === 1 ? traits[0] : 'unexplained'}).`, 2, inv.id);
@@ -262,6 +265,10 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
     }
   }
   inv.outcome = outcome;
+  // SR-22: the AI share and spot-checks the work ran at; observed = the verdict found it (a corrupted case reads as
+  // benign or inconclusive: below its expected).
+  const job0 = jobRecord(s, jobAiShare(s, 'case'), inv.job?.expected ?? 0);
+  inv.job = { ...job0, observed: outcome === 'confirmed' || outcome === 'discovery' ? 1 : 0 };
   const detail: NonNullable<Investigation['outcomeDetail']> = {};
   if (corrupted) detail.corrupted = true;
   if (outcome === 'confirmed') {

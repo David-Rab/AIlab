@@ -140,8 +140,11 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  (eval suites, was the capability engineers' ReNeed 'evals') and splits 'patches' into 'envFix' and 'removal'.
  *  Migration 81 → 82 rewrites research.safRe (review first, patches → envFix, removal in place, evals before line
  *  experiments; patches' caps go to envFix) and drops 'evals' from research.re.
+ *  83 (SR-22): the Safety work package's spot-check share (AgentPackage.spotCheck, absent = none) and its staff, the
+ *  'spotCheck' need; safety jobs carry SafJobResult records (optional). Migration 82 → 83 puts 'spotCheck' after 'review'
+ *  in research.safRe (first when there is no review).
  */
-export const SCHEMA_REV = 82;
+export const SCHEMA_REV = 83;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -901,6 +904,16 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const k of ['cases', 'validation', 'evals', 'envFix', 'removal', 'safExp']) if (!out.includes(k)) out.push(k);
     sr.order = [...new Set(out)]; // an older migration may already have written today's default order
     for (const cap of [sr.max, sr.share]) if (cap && cap.patches !== undefined) { cap.envFix = cap.patches; delete cap.patches; }
+  },
+  82: (raw) => {
+    // 82 → 83 (SR-22): the spot-check need in the safety needs list (see SCHEMA_REV's note).
+    const sr = (raw as { player?: { research?: { safRe?: { order?: string[] } } } }).player?.research?.safRe;
+    if (!sr) return;
+    const order = sr.order ?? [];
+    if (order.includes('spotCheck')) return;
+    const i = order.indexOf('review');
+    order.splice(i >= 0 ? i + 1 : 0, 0, 'spotCheck');
+    sr.order = order;
   },
 };
 

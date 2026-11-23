@@ -154,7 +154,8 @@ function QueueRow({ s, t }: { s: GameStateV2; t: EvalTaskView }) {
         : [{ label: by.label, value: `their own staff · ${daysTxt(t.reDays)}` }]),
       { label: <Term id="roleEng">Engineers</Term>, value: t.engDays > 0 ? `${tw(t.engTW)} team-wk on the build queue · ${daysTxt(t.engDays)}` : 'harness ready' },
       { label: <Term id="h100e">Compute</Term>, value: `${F.count((1 - t.progress) * t.h100eDays)} of ${F.count(t.h100eDays)} H100e-days left · ${daysTxt(t.computeDays)}` },
-      ...(t.by === 'self' ? [{ label: 'Research engineers on it', value: `${F.num(t.reNow, 2)} of ${F.num(t.reMax, 2)} teams it can use` }] : []),
+      ...(t.by === 'self' ? [{ label: 'Research engineers on it', value: `${F.num(t.reNow, 2)} of ${F.num(t.reMax, 2)} teams it can use` }, { label: <Term id="aiDoneShare">AI share</Term>, value: F.pct(t.aiShare) }] : []),
+      ...(() => { const j = versionById(s, t.versionId)?.evals.suiteJob; return j ? [{ label: <Term id="expectedObserved">Last suite: expected vs observed</Term>, value: `${F.pct(j.expected)} believed misbehaviour · ${F.pct(j.observed ?? 0)} measured` }] : []; })(),
     ]} footer="The slowest part sets the finish date. Shares of the evaluations need go to suites in queue order.">Work left on this suite at today&apos;s rates.</TipCard>
   );
   return (

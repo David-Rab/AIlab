@@ -1,4 +1,5 @@
 // Benchmark scores, eval suites, saturation and successors, eval-awareness confound (V2-SPEC §3.3.4). Owner: WS1.
+import { jobAiShare, jobRecord } from '../safety/workPackage';
 import {
   BENCHMARKS, BENCH_NOISE_SD, DANGER_THRESHOLD, EA_CONFOUND, ELICITATION, SAFETY_EVALS, SAFETY_EVAL_SD, SAND_GAP, SUCCESSOR_STEP,
   type BenchmarkDef,
@@ -162,6 +163,9 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
     if (b.flag && !b.special && score > DANGER_THRESHOLD) v.flags[b.flag] = true;
   }
   const ea = evalAwarenessFactor(v);
+  // SR-22: expected = the believed mean misbehaviour rate over the safety evals (beliefs before this suite's readings).
+  const mean = (f: (e: (typeof SAFETY_EVALS)[number]) => number) => SAFETY_EVALS.length ? SAFETY_EVALS.reduce((a, e) => a + f(e), 0) / SAFETY_EVALS.length : 0;
+  const job = jobRecord(s, by === 'self' ? jobAiShare(s, 'suite') : 0, mean((e) => e.traits.reduce((a, t) => a + (v.beliefs[t]?.est ?? 0), 0) / e.traits.length));
   for (const e of SAFETY_EVALS) {
     const truth = e.traits.reduce((a, t) => a + (v.traitsTrue[t] ?? 0), 0) / e.traits.length;
     const mask = e.traits.reduce((a, t) => a + (v.masks[t]?.BB ?? 0), 0) / e.traits.length;
@@ -171,6 +175,7 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
     for (const t of e.traits) observe(s, ctx, v.id, t, 'BB', Math.sqrt(w), 1, 'bench'); // WS2 turns observations into beliefs
   }
   v.evals.suiteDay = day;
+  v.evals.suiteJob = { ...job, observed: Math.round(mean((e) => v.evals.safety[e.id]?.rate ?? 0) * 1000) / 1000 };
   const n = (v.evals.nSuites ?? 0) + 1;
   const nEff = (v.evals.nEff ?? v.evals.nSuites ?? 0) + w;
   v.evals.nSuites = n;
