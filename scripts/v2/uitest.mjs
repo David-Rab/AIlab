@@ -534,22 +534,11 @@ ok('SAFETY › Instruments: instruments, detection by level, the capability vs s
 await check('Instruments: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
 await tabTo('model');
 ok('SAFETY › Model: 4 risk families, trait graph, successor steering', (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-test=traitgraph]')) && !!(await page.$('[data-home=successorPull]')));
-await tabTo('lines');
-ok('Research lines: staffed lines with health and teams', (await page.$$('[data-home=researchLines] [data-line]')).length >= 2 && !!(await page.$('[data-home=researchLines] [data-line] [data-team]')) && /Promising|Mixed|Struggling/.test(await page.$eval('[data-home=researchLines]', (e) => e.textContent ?? '')));
-{
-  const tid = JSON.parse(await get('(s.player.teams.find((t) => t.role === "sci" && t.dept === "saf" && t.projectId) || {}).id || ""'));
-  const line = JSON.parse(await get(`(() => { const t = s.player.teams.find((x) => x.id === "${tid}"); const r = document.querySelector('[data-line] [data-team="${tid}"]'); return r ? r.closest('[data-line]').getAttribute('data-line') : ''; })()`));
-  if (tid && line) {
-    await page.evaluate((id) => { window.ai27v2.state.player.research.autoAssign = false; window.ai27v2.act('research.unassign', { team: id }); }, tid);
-    await wait(80);
-    if (!(await page.$(`[data-test="line-add.${line}"]`))) await page.click('[data-test=lines-all]');
-    await wait(60);
-    await page.click(`[data-test="line-add.${line}"]`);
-    await check('Research lines: + team assigns an idle safety team to the line', `(s.player.teams.find((t) => t.id === "${tid}") || {}).projectId || ""`, () => page.click(`[data-act="line-assign.${tid}"]`));
-    await page.evaluate(() => { window.ai27v2.state.player.research.autoAssign = true; });
-  }
-}
-await check('Research lines: show all / staffed only', 'document.querySelectorAll("[data-home=researchLines] [data-line]").length', () => page.click('[data-test=lines-all]'));
+// UB-9: safety programmes live on RESEARCH › Portfolio (UB-6); SAFETY has a link chip, no second copy.
+ok('SAFETY: no Programmes tab; a Safety programmes chip links to RESEARCH › Portfolio', !(await page.$('main.center [data-tabs=safety] [data-tab=lines]')) && !(await page.$('[data-home=researchLines]')) && !!(await page.$('.sf-tabs [data-ref=safetyProgrammes]')));
+await check('SAFETY: the Safety programmes chip opens RESEARCH › Portfolio', 'store.panel + "." + (store.tab.research || "")', () => page.click('.sf-tabs [data-ref=safetyProgrammes]'));
+ok('SAFETY: the chip lands on the Portfolio safety column', !!(await page.$('[data-home=safetyProgrammes]')));
+await nav('safety');
 await tabTo('cases');
 await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
 ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));

@@ -288,7 +288,7 @@
 .sfh-nohold { color: var(--pos) !important; }
 .sfh-hold { color: var(--neg) !important; }
 .sfh-link { align-self: flex-start; margin-top: auto; }
-.sf-tabs { align-self: flex-start; }
+.sf-tabs { align-self: flex-start; display: flex; align-items: center; gap: 12px; }
 .sf-tabgrid { display: grid; grid-template-columns: minmax(0, 1fr) 470px; gap: 12px; align-items: start; }
 
 .sfr { display: flex; flex-direction: column; padding: 0; }

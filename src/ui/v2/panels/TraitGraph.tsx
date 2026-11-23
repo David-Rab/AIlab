@@ -250,8 +250,8 @@ function EvidenceCard({ s, id, versionId, edges, det, pinned, onClose }: { s: Ga
       <div className="tip-sec btn-row wrap">
         {versionId && <ActBtn id="safety.investigate" testId="safety.investigate.trait" params={{ versionId, trait: id, fte: 15 }} icon={ICON.investigate} label="Open a case · 15 engineers" />}
         {sigIn && <GoBtn to={{ panel: 'blueprint' }} label={`Less ${SIGNAL_SHORT[sigIn].toLowerCase()}`} testId={`tg.recipe.${sigIn}`} />}
-        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Validate instruments" testId="tg.upkeep" />}
-        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Safety programmes" testId="tg.lines" />
+        {critical && det !== undefined && det < 0.5 && <GoBtn to={{ panel: 'safety', tab: 'instruments' }} label="Validate instruments" testId="tg.upkeep" />}
+        <GoBtn to={{ panel: 'research', tab: 'projects' }} label="Safety programmes" testId="tg.lines" />
       </div>
     </div>
   );

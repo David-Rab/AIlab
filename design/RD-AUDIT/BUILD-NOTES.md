@@ -5815,18 +5815,22 @@ with a Safeguards link. Every factor has its tooltip (term, value, range, certai
 `actReadouts` rows carry `unstoppedRange` and (per-year rows) `severity`. lossRisk.ts exports `rowSev`; selectors export
 `measuredDomainOf`; the store's test readouts add `lossOfControlRisk`.
 
-**Other tabs (regrouped, not redesigned).** Tabs: Risks · Model · Instruments · Safeguards · Incidents & cases ·
-Programmes. Model: risk families, trait graph, successor steering, new failure modes. Instruments: instruments list,
+**Other tabs (regrouped, not redesigned).** Tabs: Risks · Model · Instruments · Safeguards · Incidents & cases, plus a
+"Safety programmes ▸" chip to RESEARCH › Portfolio (UB-6 made the Portfolio's safety column their home; the old
+Programmes tab and its programme rows are deleted). Model: risk families, trait graph, successor steering, new failure modes. Instruments: instruments list,
 detection by level, the capability vs sight-limit history chart (L2 home of the old race chart), validation, results.
 Safeguards: **AI staff safeguards** card (the old Control card without the risk: blocked / caught by monitors / caught by
 human review bars, watcher, control protocol and lockdown buttons, framework package), footholds and what to watch,
-policies. Programmes stays until RESEARCH holds the safety programmes. Old tab ids still open (`overview` → risks, `graph`
-→ model, `footholds` → safeguards, `incidents` → cases); links in Blueprint, Evals, TraitGraph, Risk updated.
+policies. Old tab ids still open (`overview` → risks, `graph` → model, `footholds` → safeguards, `incidents` → cases,
+`lines` → risks); every "Safety programmes" link (Research, Risk, TraitGraph, footholds watch list, Onboarding, watch
+list) now opens RESEARCH › Portfolio; publish policy and AI share allowed links open SAFETY › Safeguards' policies; store
+anchors `safety#successorPull` / `#policy` / `#footholds` open their tabs (the side-switch anchor is gone).
 
 **Deleted (one home per datum).** The Overview verdict banner (sight-limit verdict and its cause chains: the sight curve
 is the home), the Control card's Loss-of-control gauge and its Would try / Stop rate / Footholds drivers (header tile and
 its tooltip), the "Would try (act against the lab)" card (the composite act row), the side switch (families / successor),
-the families' and trait graph's own model pickers (the header picker), the Overview tab itself.
+the families' and trait graph's own model pickers (the header picker), the Overview tab itself, the Programmes tab
+(programme rows, their badge) after the RESEARCH merge.
 
 **Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped
 numbers in ResearchProjects / Work); lint-structure: 1 fail, pre-existing (action title length). Own test
