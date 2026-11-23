@@ -51,3 +51,28 @@ can attribute it.
   the S4 target (RefBot P_mis at ASI 0.55–0.85) applies to the average over worlds. The player sees believed efficacy only.
 - **China compute anchor (designer, CP3k).** China's main lab keeps AI 2027's compute share (≈ 1/3 of the US leader),
   equal recipe efficiency with diffusion; CHINA_CAL deleted.
+
+## Post-compaction review decisions (2026-11-23)
+
+Three independent reviews of the post-compaction work (design/RD-AUDIT/review/*.md). Designer's answers:
+
+1. **Numbers kept for now.** Stand-in numbers carried over from the old effects (tool shares 10/15/20%, ×1.2, ×1.3,
+   ADAPT_COVER, certification $0.4B / 120 d, KYC costs, BRAND_INSTALLED, China efficiency, slow preset r, ...) stay
+   until the calibration stage, which first tries to source each number (primary sources) before refitting.
+2. **Day-0 tools from history.** Every lab starts with the product tools it really had shipped by 2025-07-01; RD-P07b
+   (rivals shipping tools through an idea gate) is deleted.
+3. **Rivals stay simplified, with the right overall shape.** The automatic rival sector-adaptation rule (RD-P08) is
+   deleted unless something critical depends on it.
+4. **Not knowing counts as risk.** The Safety framework hold and the trusted-watcher rule read the upper end of the
+   belief, not the best guess; no clarity gate.
+5. **Rival safety physics: same laws in principle**, but whether to simplify is open: the lead brings a proposal for a
+   simplified rival version with the right shape.
+6. China efficiency and 7. slow preset r: see 1 (source at calibration).
+8. **Safety methods at scale:** the hidden at-scale efficacy can go either way around the tested effect, and validation
+   narrows the player's belief about it.
+9. **One mechanism per job (safety):** Fix environment folds into Harden; the Safety framework replaces the old pledges
+   and pause commitment and the fixed safeguard packages (one "meet my framework" package by default).
+10. **UI-IA.md:** its unapproved items (loss-of-control gauge on every tab, top-bar changes, internal tooling in LAB) and
+    its open questions wait for the UI phase.
+
+The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaults.
