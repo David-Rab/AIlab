@@ -52,7 +52,7 @@ export const MONITOR_SAME = 'same';
  *  aligned: no red-flag trait believed above the trust line; safety/trusted.ts), never the watched model unless it is
  *  the only trusted one. The default watcher on routine and frontier research; a model id or 'same' overrides it. */
 export const MONITOR_AUTO = 'auto';
-/** SR-20: the trust line when the framework has no Misalignment-signs rule: believed SCHEME / AF / SAND ≤ 30% (the
+/** SR-20: the trust line when the framework has no Misalignment-signs rule: upper end of believed SCHEME / AF / SAND ≤ 30% (the
  *  framework's default misalignment line, data/v2/framework.ts) [D]. */
 export const TRUST_EST_DEFAULT = 0.3;
 /** Default monitoring budget, as a share of the old safety pool (RD-A05a: the reference allocation puts it on split.monitors): the pre-R7 runtime-monitoring reserve

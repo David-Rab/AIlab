@@ -33,6 +33,11 @@ export function beliefRange(b: Pick<TraitBelief, 'sd'> | undefined): number {
 export function beliefUnknown(b: Pick<TraitBelief, 'sd'> | undefined): boolean {
   return beliefRange(b) > UNKNOWN_RANGE;
 }
+/** RF-S1 (decision 4, "not knowing counts as risk"): the upper end of a belief's 90% range, est + 1.64·sd (clamped); no
+ *  belief at all reads as 0 with the widest sd. The Safety framework's belief rule and the trusted rule read this. */
+export function beliefHi(b: Pick<TraitBelief, 'est' | 'sd'> | undefined): number {
+  return clamp01((b?.est ?? 0) + 1.64 * (b?.sd ?? SD_MAX));
+}
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 /** `list` with `e` appended: a new array capped at BELIEF_EVIDENCE_CAP (oldest dropped), numbers to 3 decimals. */
 export function withEvidence(list: readonly BeliefEvidence[] | undefined, e: BeliefEvidence): BeliefEvidence[] {

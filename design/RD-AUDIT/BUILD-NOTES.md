@@ -4100,3 +4100,26 @@ hygiene.ts's calibration shift drops it).
   3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
   for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
   compute ratio is ≈ 2.7×.
+
+### RF-S1
+Framework hold and trusted rule read the upper end of the belief (review safety #1, decision 4; SAFETY-REDESIGN §2.4,
+§3.8, OD-6).
+- **One reading.** `detection.beliefHi(b)` = est + 1.64·sd (clamped; no belief = 0 ± SD_MAX), beside `beliefRange`. The
+  framework's belief rule (`ruleTriggered`) and `trustOf` both read it; the line is unchanged (Misalignment signs 30%,
+  `TRUST_EST_DEFAULT` 30%), now meaning "top of the 90% range".
+- **Clarity gate deleted.** `FrameworkRule` belief trigger is `{ kind: 'belief'; est }` (the `clarity` field is gone from
+  the type and the default rule; old saves keep an unread field, no migration).
+- **OD-6 capability clause.** A model is also trusted when measured (a suite of it) below the scheming act's capability
+  threshold: `measuredDomain(v, DANGER_ACTS.SCHEME.domain) < DANGER_ACTS.SCHEME.theta` (CYBER 5.0 today; Able to = ½
+  there). Existing number, no new parameter. Never measured = no capability reading = trust on beliefs only.
+- Player text: hold reason "SCHEME could be as high as 35% (top of your 90% range)", trust reasons likewise; Safety
+  framework tooltip row and glossary `safetyFramework` say "top of belief range" / "not knowing counts as risk".
+- Not touched: `common.redFlags` / `RED_FLAG.clarity` (PBC charter committee and finance observers) and the bots' own
+  `clarity` gates (mixed / safe): not in this row.
+- **Check.** `npx tsx scripts/v2/_rfs1/check.ts`: 7 ok. Info: the default framework now holds frontier training on the
+  day-0 fixture (V0's top of range > 30%; needs a control protocol on internal AI work), and on day 400 / 900; at day 400
+  only the mini model (measured CYBER 4.9 < 5.0) is trusted, the others are wide on AF / SAND. tsc (app, scripts/v2)
+  clean.
+- Moves calibration: **yes**. Training holds from day 0 for any player who does not run a control protocol; RefBot / race
+  / capex override every new internal version (morale −5, scrutiny +3, a red flag each); safe / mixed add control from
+  day 0; fewer models are trusted as auto watchers (more "no model you trust" / self-copy fallbacks until RF-S2).

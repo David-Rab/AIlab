@@ -2,7 +2,7 @@
 // safety frameworks (data/v2/framework.ts). Owner: WS2.
 //
 //   rule       trigger on a MEASURED domain level (the benchmark fit, actors/commitments.measuredDomain; RD-M01) or on a
-//              believed trait (the red-flag traits' estimate and clarity) → required safeguards and evidence.
+//              believed trait (the upper end of a red-flag trait's 90% range, RF-S1) → required safeguards and evidence.
 //   hold       a rule whose trigger is met and whose requirements are not, and that the player has not overridden for
 //              that version. Deploy holds: an external launch or swap of the version is refused (deployGate) and a live
 //              external deployment serves nobody while held (productUsageMult 0). Training holds: frontier (base / post)
@@ -17,6 +17,7 @@ import { defaultFramework, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LA
 import { measuredDomain, hasCommitment } from '../actors/commitments';
 import { ws4, ws4r } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
+import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
 import { internalVersion } from '../models/labs';
 
@@ -34,7 +35,8 @@ export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
 export const frameworkPublished = (s: GameStateV2) => hasCommitment(s, 'noDeployAbove');
 
 /** Why the rule's trigger is met for `v`, or undefined. Capability: measured domain level ≥ threshold (a version never
- *  measured has no reading; the base rule holds its release). Belief: a red-flag trait above the estimate and clarity. */
+ *  measured has no reading; the base rule holds its release). Belief: the upper end of a red-flag trait's 90% range
+ *  above the line (RF-S1, decision 4: not knowing counts as risk, so a barely observed model is held; no clarity gate). */
 export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | undefined {
   const t = rule.trigger;
   if (t.kind === 'capability') {
@@ -43,8 +45,8 @@ export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | un
     return L >= t.level ? `${v.name} measures ${t.domain} ${L.toFixed(1)} ≥ ${t.level}` : undefined;
   }
   for (const tr of RED_FLAG_TRAITS) {
-    const b = v.beliefs[tr];
-    if (b && b.est > t.est && b.clarity > t.clarity) return `${v.name}: believed ${tr} ${Math.round(b.est * 100)}% (clarity ${b.clarity.toFixed(2)})`;
+    const hi = beliefHi(v.beliefs[tr]);
+    if (hi > t.est) return `${v.name}: ${tr} could be as high as ${Math.round(hi * 100)}% (top of your 90% range)`;
   }
   return undefined;
 }

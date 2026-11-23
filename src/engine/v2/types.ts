@@ -917,7 +917,7 @@ export type FrameworkEvidence = 'suite' | 'external';
 export interface FrameworkRule {
   id: string;
   label: string;
-  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number; clarity: number };
+  trigger: { kind: 'capability'; domain: DomainId; level: number } | { kind: 'belief'; est: number };
   holds: 'deploy' | 'training';
   safeguards: FrameworkSafeguard[];
   evidence: FrameworkEvidence[];
