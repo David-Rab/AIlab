@@ -13,18 +13,18 @@ export { navBadges };
 export interface NavItem { id: string; label: string; icon: LucideIcon; desc: string; group?: string }
 export const NAV: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: ICON.overview, desc: 'Your company at a glance (the core loop), who is close, how the race got here, and what needs you now.' },
-  { id: 'company', label: 'Company', icon: ICON.company, desc: 'Where compute goes and what it produces; people, compute split, security.', group: 'COMPANY' },
+  { id: 'company', label: 'Company', icon: ICON.company, desc: 'Where compute goes and what it produces; people, AI staff, security.', group: 'COMPANY' },
   { id: 'finance', label: 'Finance', icon: ICON.finance, desc: 'Cash flow, raising, contracts, debt, board and markets.', group: 'COMPANY' },
-  { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites and power.', group: 'COMPANY' },
-  { id: 'research', label: 'Research', icon: ICON.research, desc: 'Research projects in priority order, the recipe stacks and the tech tree.', group: 'MODELS' },
-  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card, runs in progress, the data portfolio and the RL environment suites.', group: 'MODELS' },
-  { id: 'blueprint', label: 'Blueprint', icon: ICON.runs, desc: 'Design your next model and start its training run: size, slots, limits and plan.', group: 'MODELS' },
-  { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: model and monitor, features, price, safeguards (all live), and the serving split.', group: 'MODELS' },
-  { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Trait graph, agendas, tools, incidents and findings.', group: 'SAFETY' },
-  { id: 'risk', label: 'Risk', icon: ICON.risks, desc: 'Where catastrophe risk comes from, and the flows that feed it.', group: 'SAFETY' },
+  { id: 'compute', label: 'Compute', icon: ICON.computePanel, desc: 'Chip market, orders, sites, power and your compute allocation.', group: 'COMPANY' },
+  { id: 'research', label: 'Research', icon: ICON.research, desc: 'Your research portfolio in priority order, your know-how and your discoveries.', group: 'MODELS' },
+  { id: 'models', label: 'Models', icon: ICON.models, desc: 'Lineage, model card, runs in progress, your training data and environments.', group: 'MODELS' },
+  { id: 'blueprint', label: 'Next run', icon: ICON.runs, desc: 'Design your next run and start it: size, options, limits and prediction.', group: 'MODELS' },
+  { id: 'products', label: 'Products', icon: ICON.deploy, desc: 'What customers buy: lineup, tools, price, safeguards (all live), and serving.', group: 'MODELS' },
+  { id: 'safety', label: 'Safety', icon: ICON.safety, desc: 'Traits, safety research, instruments, safeguards, incidents and cases.', group: 'SAFETY' },
+  { id: 'risk', label: 'Risk', icon: ICON.risks, desc: 'Where risk comes from, and the flows that feed it.', group: 'SAFETY' },
   { id: 'relations', label: 'Relations', icon: ICON.relations, desc: 'Government, public, rivals, China, evaluators; commitments.', group: 'WORLD' },
   { id: 'world', label: 'World', icon: ICON.world, desc: 'AI at work by sector, jobs, control index, technologies.', group: 'WORLD' },
-  { id: 'codex', label: 'Codex', icon: ICON.codex, desc: 'How the game works (the core loop), every limit, term, trait, idea, benchmark and event, with sources.' },
+  { id: 'codex', label: 'Codex', icon: ICON.codex, desc: 'How the game works (the core loop), every limit, term, trait, idea, benchmark and event.' },
 ];
 
 export function Nav({ s }: { s: GameStateV2 }) {

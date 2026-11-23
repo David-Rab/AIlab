@@ -19,24 +19,28 @@ const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraini
 const STAGE_LABEL: Record<StageId, string> = { test: 'Test', ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
 const STAGE_SHORT: Record<StageId, string> = { test: 'Test', ideation: 'Ideas', small: 'Small test', scale: 'Big test', adoption: 'Build-in' };
 const STAGE_TERM: Record<StageId, string> = { test: 'stageTest', ideation: 'stageIdeation', small: 'stageSmall', scale: 'stageScale', adoption: 'stageAdoption' };
-const STACK_NAME: Record<string, string> = { pre: 'pretraining', rlMid: 'RL efficiency', rlCeil: 'RL ceiling', train: 'training throughput', serve: 'serving' };
-const RISK_OPTS = [{ v: 'safe', label: 'Safe' }, { v: 'balanced', label: 'Balanced' }, { v: 'speculative', label: 'Speculative' }] as const;
+const STACK_NAME: Record<string, string> = { pre: 'Pretraining recipe', rlMid: 'Post-training method', rlCeil: 'Post-training ceiling', train: 'Training efficiency', serve: 'Serving efficiency' };
+/** VOCAB OQ-3: a line is a programme (ongoing), an idea or axis a project (one-off). */
+export const KIND_LABEL: Record<string, string> = { line: 'programme', idea: 'project', axis: 'project' };
+const RISK_OPTS = [{ v: 'safe', label: 'Safe' }, { v: 'balanced', label: 'Balanced' }, { v: 'speculative', label: 'Bold' }] as const;
 
 const ui = (k: string, d = '') => store.tab[`research.${k}`] ?? d;
 const setUi = (k: string, v: string) => store.setTab(`research.${k}`, v);
 export const eta = (d: number) => (!Number.isFinite(d) ? '—' : d < 1 ? '<1 d' : F.days(d));
-/** Effect in its unit: OOM (stack ideas) with enough digits for small numbers, × of design (domain effects). */
+/** Effect in player units (VOCAB: no OOM on screen): a know-how effect (engine OOM) as the % change of its area's
+ *  quantity (10^x − 1); a domain effect as × of design. */
 export const fmtEff = (x: number, unit: CapProjectView['unit'] = 'oom', signed = true) => {
   if (unit === 'design') return `×${x.toFixed(2)}`;
-  const a = Math.abs(x);
-  const s = signed && x > 0 ? '+' : x < 0 ? '−' : '';
-  if (a > 0 && a < 0.001) return `${s}${a.toExponential(1).replace('e-', 'e−')}`;
-  const d = a === 0 ? 2 : a < 0.01 ? 4 : a < 0.1 ? 3 : 2;
-  return `${s}${a.toFixed(d)}`;
+  const p = (Math.pow(10, x) - 1) * 100;
+  const a = Math.abs(p);
+  const s = signed && p > 0 ? '+' : p < 0 ? '−' : '';
+  const d = a === 0 ? 0 : a < 1 ? 2 : a < 10 ? 1 : 0;
+  return `${s}${a.toFixed(d)}%`;
 };
+/** Best guess with its likely range (VOCAB §1: a range, never ± SD): "+1.5% (0.5% to 3%)". */
+export const effRange = (mu: number, sd: number, unit: CapProjectView['unit'] = 'oom') => `${fmtEff(mu, unit)} (${fmtEff(mu - sd, unit)} to ${fmtEff(mu + sd, unit)})`;
 /** RD-R05: an unlock project's steps (test, build-in); the idea pipeline's four otherwise. */
 const stagesOfView = (v: CapProjectView): readonly StageId[] => (v.unlock ? UNLOCK_STAGES : STAGES);
-const sci = (x: number) => (x > 0 ? x.toExponential(1).replace('e+', 'e') : '0');
 const Q_N = { solid: 1, strong: 2, elite: 3 } as const;
 
 /** Four-step stage track: done steps filled, the current one partial, later ones empty. */
@@ -48,7 +52,7 @@ export function StageTrack({ v, big = false }: { v: CapProjectView; big?: boolea
     <div className={`rp-track ${big ? 'big' : ''} ${failed ? 'failed' : ''} ${v.state === 'waiting' ? 'waiting' : ''}`} data-test={`track.${v.id}`} data-stage={v.stage}>
       {steps.map((st, i) => (
         <Tip key={st} content={() => <TipCard title={<Term id={STAGE_TERM[st]}>{STAGE_LABEL[st]}</Term>} value={i < cur ? 'done' : i === cur ? (st === 'adoption' ? `engineers: ${eta(v.adoption?.eta ?? Infinity)}` : F.pct(v.stageFrac)) : 'later'}>
-          {st === 'test' ? `Chance it works: ${F.pct(v.odds)}. Science teams, research engineers and compute do the work; then it works or it doesn't.` : st === 'ideation' ? `Candidates found: ${v.cands} (the team tests one once it has ${v.pickAt}).` : st === 'adoption' && v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left.` : undefined}
+          {st === 'test' ? `Chance it works: ${F.pct(v.odds)}. Science teams, research engineers and compute do the work; then it works or it doesn't.` : st === 'ideation' ? `Ideas found: ${v.cands} (the team tests one once it has ${v.pickAt}).` : st === 'adoption' && v.adoption ? `${v.adoption.tw.toFixed(1)} engineer team-weeks left.` : undefined}
         </TipCard>}>
           <i className={i < cur ? 'done' : i === cur ? 'cur' : ''}>{i === cur && <b style={{ width: `${Math.round((st === 'adoption' ? 1 : v.stageFrac) * 100)}%` }} />}</i>
         </Tip>
@@ -64,7 +68,7 @@ function TeamDots({ v }: { v: CapProjectView }) {
       {Array.from({ length: n }, (_, i) => {
         const t = v.teams[i];
         return (
-          <Tip key={i} content={() => t ? <TipCard title={`${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team`} value={QUALITY[t.quality].label} rows={[{ label: 'People', value: F.count(t.heads) }, { label: <Term id="specialtyBonus">Specialty</Term>, value: t.match ? '×1.5' : '×1.0' }]}><Term id="scienceWhy">Why here</Term>: {t.why}</TipCard>
+          <Tip key={i} content={() => t ? <TipCard title={`${t.specialty ? COLUMN_LABEL[t.specialty as Column] : 'Science'} team`} value={QUALITY[t.quality].label} rows={[{ label: 'People', value: F.count(t.heads) }, { label: <Term id="specialtyBonus">Field match</Term>, value: t.match ? '×1.5' : '×1.0' }]}><Term id="scienceWhy">Why this team</Term>: {t.why}</TipCard>
             : <TipCard title="Wanted, not placed">No free team: higher-priority projects took them. Hire science teams or lower another project's teams wanted.</TipCard>}>
             <i className={t ? (t.quality === 'elite' ? 'el' : '') : 'off'} data-team={t?.id} />
           </Tip>
@@ -81,7 +85,7 @@ function WantStepper({ v }: { v: CapProjectView }) {
   return (
     <span className="stepper" data-test={`want.${v.id}`}>
       <ActBtn id="research.want" testId={`want-down.${v.id}`} ariaLabel={`Fewer teams wanted for ${v.name}`} params={{ id: v.id, n: Math.max(0, v.want - 1) }} icon={ICON.minus} label="" block={v.want <= 0 && !v.auto ? 'Already 0 (paused)' : undefined} />
-      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={shown} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.auto ? 'Auto: one team first, then the spare science teams go where they add the most progress, by priority and fit. Fixed numbers on other projects are filled first; − or + fixes the number.' : v.want === 0 ? 'No science teams: no new candidates. A candidate already in test keeps its engineers and compute until it is read.' : 'The game fills the list in order, best specialty first.'}</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="teamsWanted">Teams wanted</Term>} value={shown} rows={[{ label: 'Placed', value: String(v.teams.length) }]}>{v.auto ? 'Auto: one team first, then the spare science teams go where they add the most progress, by priority and fit. Fixed numbers on other projects are filled first; − or + fixes the number.' : v.want === 0 ? 'No science teams: no new ideas. An idea already in test keeps its research engineers and compute until it is read.' : 'The game fills the list in order, best field first.'}</TipCard>}>
         <b className={`num ${v.auto ? 'rp-auto-n' : ''}`} data-test={`want-n.${v.id}`}>{v.auto ? <>{v.want}<span className="dim small"> auto</span></> : shown}</b>
       </Tip>
       <ActBtn id="research.want" testId={`want-up.${v.id}`} ariaLabel={`More teams wanted for ${v.name}`} params={{ id: v.id, n: Math.min(PROJECT_MAX_TEAMS, v.want + 1) }} icon={ICON.plus} label="" block={v.want >= PROJECT_MAX_TEAMS ? `At most ${PROJECT_MAX_TEAMS} teams per project` : undefined} />
@@ -104,11 +108,11 @@ function Binds({ v }: { v: CapProjectView }) {
   if (v.bound === 'none' || v.state === 'adopting' || v.state === 'failed') return <span className="dim small">—</span>;
   const term = v.bound === 'compute' ? 'computeBound' : 'laborBound';
   return (
-    <Tip content={() => <TipCard title={<Term id={term}>{v.bound === 'compute' ? 'Compute-bound (believed)' : 'Labour-bound (believed)'}</Term>} rows={[
+    <Tip content={() => <TipCard title={<Term id={term}>{v.bound === 'compute' ? 'Limited by compute (believed)' : 'Limited by research engineers (believed)'}</Term>} rows={[
       { label: <Term id="expCompute">+10% experiment compute</Term>, value: bandPct(v.eC, v.eCBand) },
       { label: <Term id="expLabour">+10% research engineers</Term>, value: bandPct(v.eL, v.eLBand) },
-    ]}>{`${v.re > 0 ? 'Speed of this project\'s experiments.' : 'What would bind once it reaches experiments (it gets research engineers then).'} Believed, from the published estimate of how research responds to compute and labour; the range is its 80% band.`}</TipCard>}>
-      <span className={`rp-bind ${v.bound}`} data-test={`binds.${v.id}`}>{v.bound}</span>
+    ]}>{`${v.re > 0 ? 'Speed of this project\'s experiments.' : 'What would bind once it reaches experiments (it gets research engineers then).'} Believed, from published estimates of how research responds to compute and people; the range is likely (4 in 5).`}</TipCard>}>
+      <span className={`rp-bind ${v.bound}`} data-test={`binds.${v.id}`}>{v.bound === 'compute' ? 'compute' : 'research engineers'}</span>
     </Tip>
   );
 }
@@ -122,7 +126,7 @@ function Next({ v }: { v: CapProjectView }) {
     ] : [
       { label: <Term id="stageIdeation">Ideas</Term>, value: eta(v.etaParts.ideation) },
       { label: <Term id="stageSmall">Small and big tests</Term>, value: eta(v.etaParts.experiments) },
-    ]}>{v.wait ? v.wait : v.unlock ? 'At today\'s teams, research engineers and compute; when the test ends it works or it does not.' : 'At today\'s teams, research engineers and compute; candidates can be dropped, which restarts the ideas step.'}</TipCard>}>
+    ]}>{v.wait ? v.wait : v.unlock ? 'At today\'s teams, research engineers and compute; when the test ends it works or it does not.' : 'At today\'s teams, research engineers and compute; ideas can be dropped, which restarts the ideas step.'}</TipCard>}>
       <span className={`num ${v.state === 'failed' ? 'tone-neg' : ''}`} data-test={`next.${v.id}`}>{label}</span>
     </Tip>
   );
@@ -130,8 +134,8 @@ function Next({ v }: { v: CapProjectView }) {
 
 function SubLine({ v }: { v: CapProjectView }) {
   const bits: ReactNode[] = [<span key="a">{v.area}</span>];
-  if (v.line) bits.push(<Tip key="l" content={() => <TipCard title={<Term id="linePool">Line so far</Term>} rows={[{ label: 'Ideas adopted or in build', value: String(v.line?.gen ?? 0) }, { label: <Term id="linePool">Realised</Term>, value: `${fmtEff(v.line?.realised ?? 0)} OOM` }]} />}><span>{v.line.gen} ideas · {fmtEff(v.line.realised)} OOM</span></Tip>);
-  else bits.push(<Tip key="o" content={() => <TipCard title={<Term id="odds">Odds</Term>} value={F.pct(v.odds)}>{v.spec ? `Speculative reopening ${v.spec}: odds halved each time.` : 'Chance the direction works in this world.'}</TipCard>}><span>odds {F.pct(v.odds)}</span></Tip>);
+  if (v.line) bits.push(<Tip key="l" content={() => <TipCard title={<Term id="linePool">Programme so far</Term>} rows={[{ label: 'Results built in or building', value: String(v.line?.gen ?? 0) }, { label: <Term id="linePool">Results so far</Term>, value: fmtEff(v.line?.realised ?? 0) }]} />}><span>{v.line.gen} results · {fmtEff(v.line.realised)}</span></Tip>);
+  else bits.push(<Tip key="o" content={() => <TipCard title={<Term id="odds">Chance it works</Term>} value={F.pct(v.odds)}>{v.spec ? `Retry ${v.spec}: the chance halves each time.` : 'Your current odds this works, from attempts so far.'}</TipCard>}><span>{F.pct(v.odds)} chance</span></Tip>);
   if (v.wait && v.state === 'waiting') bits.push(<span key="w" className="tone-warn">{v.wait}</span>);
   return <span className="small dim rp-sub">{bits.map((b, i) => <span key={i}>{i > 0 && ' · '}{b}</span>)}</span>;
 }
@@ -158,7 +162,7 @@ function Row({ s, v, sel, capQ, onDrop }: { s: GameStateV2; v: CapProjectView; s
       onClick={() => setUi('proj', v.id)}>
       <span className="rp-grip"><GripVertical size={13} /></span>
       <Tip content={() => <TipCard title={<Term id="projectQueue">Priority</Term>} value={`#${v.rank}`}>Drag, ▲▼, or Alt+↑ / Alt+↓ on a focused row (Tab to it) to reorder. Teams, research engineers and compute go down the list.</TipCard>}><span className="rp-rk num">{v.rank}</span></Tip>
-      <span className="rp-nm"><span className="row-i"><Ic size={13} /><b className="ellip">{v.name}</b><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{v.kind}</Term></span></span><SubLine v={v} /></span>
+      <span className="rp-nm"><span className="row-i"><Ic size={13} /><b className="ellip">{v.name}</b><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{KIND_LABEL[v.kind] ?? v.kind}</Term></span></span><SubLine v={v} /></span>
       <StageTrack v={v} />
       <span className="row-i" onClick={(e) => e.stopPropagation()}><WantStepper v={v} /><TeamDots v={v} /></span>
       <Binds v={v} />
@@ -179,10 +183,10 @@ function Row({ s, v, sel, capQ, onDrop }: { s: GameStateV2; v: CapProjectView; s
 function AddProject({ s }: { s: GameStateV2 }) {
   const opts = addableProjects(s);
   return (
-    <Tip content={() => <TipCard title="Add a project" value={`${opts.length} open`}>Adds it to the bottom of the priority list; move it up to give it teams sooner. The Tree tab shows what each one does and needs.</TipCard>}>
+    <Tip content={() => <TipCard title="Add a project" value={`${opts.length} open`}>Adds it to the bottom of the priority list; move it up to give it teams sooner. The Discoveries tab shows what each one does and needs.</TipCard>}>
       <select className="chip-select rp-add" data-test="add-project" value="" onChange={(e) => { if (e.target.value) store.act('research.queue', { id: e.target.value }); }}>
         <option value="">+ Add project</option>
-        {opts.map((o) => <option key={o.id} value={o.id}>{o.name} · {o.kind} · {o.area}</option>)}
+        {opts.map((o) => <option key={o.id} value={o.id}>{o.name} · {KIND_LABEL[o.kind] ?? o.kind} · {o.area}</option>)}
       </select>
     </Tip>
   );
@@ -194,7 +198,7 @@ function ExpHeld({ s }: { s: GameStateV2 }) {
   if (researchMods(s).frontierExp > 0) return null;
   return (
     <div className="rp-foot small" data-test="exp-held">
-      <span className="tone-warn">Experiments held: capability projects get no experiment compute while frontier work is paused. The experiment compute in your split sits unused.</span>
+      <span className="tone-warn">Experiments held: capability projects get no experiment compute while frontier work is paused. The experiment compute in your allocation sits idle.</span>
     </div>
   );
 }
@@ -209,33 +213,33 @@ export function Priorities({ s }: { s: GameStateV2 }) {
   const capQ = pl.list.map((x) => x.id);
   const onDrop = (from: string, to: string) => store.act('research.move', { id: from, to: q.indexOf(to) });
   return (
-    <Card className="rp-list" home="priorities" title={<span className="row-i"><ICON.experiments size={14} /><Term id="projectQueue">Priorities</Term></span>}
-      sub={<Tip content={() => <TipCard title="Capability science teams" rows={[{ label: 'Teams', value: String(teams.length) }, { label: 'Placed', value: String(placed) }, { label: 'Idle', value: String(teams.length - placed) }]}>The game places them down this list. Safety teams work on Safety › Research lines.</TipCard>}>
+    <Card className="rp-list" home="priorities" title={<span className="row-i"><ICON.experiments size={14} /><Term id="projectQueue">Priority list</Term></span>}
+      sub={<Tip content={() => <TipCard title="Capability scientists" rows={[{ label: 'Teams', value: String(teams.length) }, { label: 'Placed', value: String(placed) }, { label: 'Idle', value: String(teams.length - placed) }]}>The game places them down this list. Safety scientists work on Safety › Research.</TipCard>}>
         <span>{pl.list.length} projects · {placed}/{teams.length} science teams placed</span></Tip>}
       right={(
         <span className="row-i">
-          <Tip content={() => <TipCard title={<Term id="riskPolicy">Risk policy</Term>} value={risk}>Which candidate each team tests: safe = surer and smaller, speculative = bigger and less certain.</TipCard>}><span className="small dim"><Term id="riskPolicy">Risk policy</Term></span></Tip>
+          <Tip content={() => <TipCard title={<Term id="riskPolicy">Idea choice</Term>} value={RISK_OPTS.find((o) => o.v === risk)?.label ?? risk}>Which ideas each team tries first: Safe = surer and smaller, Bold = bigger and less certain.</TipCard>}><span className="small dim"><Term id="riskPolicy">Idea choice</Term></span></Tip>
           <span className="seg" data-test="risk-policy">
             {RISK_OPTS.map((o) => <button key={o.v} className={`seg-btn ${risk === o.v ? 'active' : ''}`} data-opt={o.v} onClick={() => store.act('research.risk', { risk: o.v })}>{o.label}</button>)}
           </span>
           <AddProject s={s} />
         </span>
       )}>
-      <div className="rp-head"><span /><span>#</span><span>Project</span><span><Term id="projectStage">Stage</Term></span><span><Term id="teamsWanted">Teams wanted</Term></span><span><Term id="bottleneck">Binds</Term></span><span>Next</span><span /></div>
+      <div className="rp-head"><span /><span>#</span><span>Project</span><span><Term id="projectStage">Stage</Term></span><span><Term id="teamsWanted">Teams wanted</Term></span><span><Term id="bottleneck">Limited by</Term></span><span>Next</span><span /></div>
       <ExpHeld s={s} />
-      {pl.list.length === 0 && <div className="dim small rs-empty">No capability projects. Add one with + Add project, or from the Tree tab.</div>}
+      {pl.list.length === 0 && <div className="dim small rs-empty">No capability projects. Add one with + Add project, or from the Discoveries tab.</div>}
       {pl.list.map((v) => <Row key={v.id} s={s} v={v} sel={v.id === selId} capQ={capQ} onDrop={onDrop} />)}
       {pl.failed.map((v) => (
         <div key={v.id} className="rp-fail" data-failed={v.id} onClick={() => setUi('proj', v.id)}>
-          <span className={`rp-kind ${v.kind}`}>{v.kind}</span><b>{v.name}</b>
-          <Tip content={() => <TipCard title="Failed" rows={[{ label: 'Candidates dropped', value: String(v.maxDrops) }, { label: <Term id="odds">Odds if reopened</Term>, value: F.pct(v.odds) }]}><Term id="reopenSpeculative">Reopen</Term>: odds halve, the expected effect falls to 70% and the spread widens.</TipCard>}>
-            <span className="dim small">failed: {v.maxDrops} candidates dropped · reopen at {F.pct(v.odds)}</span>
+          <span className={`rp-kind ${v.kind}`}>{KIND_LABEL[v.kind] ?? v.kind}</span><b>{v.name}</b>
+          <Tip content={() => <TipCard title="Failed" rows={[{ label: 'Ideas dropped', value: String(v.maxDrops) }, { label: <Term id="odds">Chance if retried</Term>, value: F.pct(v.odds) }]}><Term id="reopenSpeculative">Retry</Term>: the chance halves, the expected effect falls to 70% and the range widens.</TipCard>}>
+            <span className="dim small">failed: {v.maxDrops} ideas dropped · retry at {F.pct(v.odds)}</span>
           </Tip>
           <span className="sp" />
-          <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" testId={`reopen.${v.id}`} />
+          <ActBtn id="research.reopen" params={{ id: v.id }} label="Retry (lower odds)" testId={`reopen.${v.id}`} />
         </div>
       ))}
-      {pl.idleTeams.length > 0 && <div className="rp-foot small"><Tip content={() => <TipCard title="Idle science teams" rows={pl.idleTeams.map((t) => ({ label: t.id, value: '' }))}>{pl.idleTeams[0].why}</TipCard>}><span className="tone-warn" data-test="idle-teams">{pl.idleTeams.length} idle: {pl.idleTeams[0].why.replace(/^Idle: /, '')}</span></Tip></div>}
+      {pl.idleTeams.length > 0 && <div className="rp-foot small"><Tip content={() => <TipCard title="Idle science teams" rows={pl.idleTeams.map((_, i) => ({ label: `Team ${i + 1}`, value: 'idle' }))}>{pl.idleTeams[0].why}</TipCard>}><span className="tone-warn" data-test="idle-teams">{pl.idleTeams.length} idle: {pl.idleTeams[0].why.replace(/^Idle: /, '')}</span></Tip></div>}
     </Card>
   );
 }
@@ -270,51 +274,50 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
   const v = all.find((x) => x.id === ui('proj')) ?? all[0];
   if (!v) return <Card className="rp-card" title="Project"><div className="dim small">Add a capability project to see its stages, beliefs and inputs.</div></Card>;
   const Ic = COL_ICON[v.column as Column];
-  const unitLbl = v.unit === 'oom' ? 'OOM' : v.unit === 'design' ? 'of design' : '';
-  const steps = stagesOfView(v);
+    const steps = stagesOfView(v);
   const cur = steps.indexOf(v.stage);
   const cMax = Math.max(v.c, v.l, 1);
   const rel = (x: number) => Math.min(100, (Math.log10(1 + x) / Math.log10(1 + cMax * 1.2)) * 100);
   return (
     <Card className="rp-card" home="projectCard" title={<span className="row-i"><Ic size={15} /><span data-test="project-card" data-card={v.id}>{v.name}</span></span>}
-      sub={<span className="row-i"><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{v.kind}</Term></span><span>{v.area}{v.stack ? ` · ${STACK_NAME[v.stack]} stack` : v.unit === 'design' ? ' · domain effect' : ' · unlock'}</span></span>}
-      right={<span className="row-i">{v.state !== 'failed' && <ActBtn id="research.dequeue" params={{ id: v.id }} icon={X} label="Remove" testId={`dequeue.${v.id}`} />}<button className="btn btn-sm btn-ghost" data-test="project-tree" onClick={() => { setUi('sel', v.id); store.setTab('research', 'tree'); }}>Tree ›</button></span>}>
+      sub={<span className="row-i"><span className={`rp-kind ${v.kind}`}><Term id="projectKind">{KIND_LABEL[v.kind] ?? v.kind}</Term></span><span>{v.area}{v.stack ? ` · know-how: ${STACK_NAME[v.stack]}` : v.unit === 'design' ? ' · domain effect' : ' · discovery'}</span></span>}
+      right={<span className="row-i">{v.state !== 'failed' && <ActBtn id="research.dequeue" params={{ id: v.id }} icon={X} label="Remove" testId={`dequeue.${v.id}`} />}<button className="btn btn-sm btn-ghost" data-test="project-tree" onClick={() => { setUi('sel', v.id); store.setTab('research', 'tree'); }}>Discoveries ›</button></span>}>
       <StageTrack v={v} big />
-      <div className="rp-tlab">{steps.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation' || st === 'test') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the candidates a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
+      <div className="rp-tlab">{steps.map((st, i) => <span key={st} className={i === cur ? 'cur' : ''}><Term id={STAGE_TERM[st]}>{STAGE_SHORT[st]}</Term>{i === cur && (st === 'small' || st === 'scale' || st === 'ideation' || st === 'test') ? <Tip content={() => <TipCard title={STAGE_LABEL[st]} value={F.pct(v.stageFrac)}>{st === 'ideation' ? 'Toward the ideas a team picks from.' : 'Work done in this stage.'}</TipCard>}><span> {F.pct(v.stageFrac)}</span></Tip> : null}</span>)}</div>
       <div className="rp-secs">
-      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">{v.unlock ? <>The test showed it does not work on this attempt. A speculative reopening works with odds {F.pct(v.odds)}.</> : <>The team gave up after {v.maxDrops} weak candidates. Weak results can be bad luck: a speculative reopening works with odds {F.pct(v.odds)}.</>}</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Reopen as speculative" /></div>}
+      {v.state === 'failed' && <div className="rp-sec"><span className="tone-neg small">{v.unlock ? <>The test showed it does not work on this attempt. A retry works with chance {F.pct(v.odds)}.</> : <>The team gave up after {v.maxDrops} weak ideas. Weak results can be bad luck: a retry works with chance {F.pct(v.odds)}.</>}</span> <ActBtn id="research.reopen" params={{ id: v.id }} label="Retry (lower odds)" /></div>}
       {(v.belief || v.result) && (
-        <Sec k={v.result && !v.belief ? 'Result · estimate at your latest base' : 'Belief · candidate in test'} term="beliefBand">
+        <Sec k={v.result && !v.belief ? 'Result · expected effect' : 'Expected effect · idea in test'} term="beliefBand">
           {v.belief && <BeliefBand mu={v.belief.mu} sd={v.belief.sd} ref={v.line?.nextPrior !== undefined ? v.line.nextPrior * v.belief.b : undefined} unit={v.unit} />}
-          {v.belief && <KVr k={<>Effect at small scale{v.belief.b > 1 ? ` (${v.belief.b} ideas)` : ''}</>} v={`${fmtEff(v.belief.mu, v.unit)} ± ${fmtEff(v.belief.sd, v.unit, false)} ${unitLbl}`} tip={() => <TipCard title={<Term id="beliefBand">Belief</Term>} rows={[{ label: 'Novelty', value: F.pct(v.belief?.nov ?? 0) }, { label: <Term id="researchTaste">Team taste</Term>, value: `×${v.taste.toFixed(2)}` }]}>Mean ± one SD. Novel candidates are bigger if they work and less certain; small experiments narrow the band, the scale test reads it at scale.</TipCard>} />}
-          {v.belief && v.unit === 'oom' && <KVr k={<Term id="scaleBehaviour">Scale behaviour</Term>} v={`${v.belief.sMu > 0.02 ? 'grows' : v.belief.sMu < -0.02 ? 'fades' : 'holds'} (s ${F.num(v.belief.sMu, 2, true)} ± ${v.belief.sSd.toFixed(2)})`} tip={() => <TipCard title={<Term id="scaleBehaviour">Scale behaviour</Term>} value={v.belief?.tested ? 'measured at the scale test' : 'prior'}>Effect × (run FLOP ÷ test FLOP)^s.</TipCard>} />}
-          {v.line && <KVr k={<><Term id="nextPrior">Next idea's prior</Term> <span className="dim">(dashed)</span></>} v={`${fmtEff(v.line.nextPrior * (v.belief?.b ?? 1))} OOM`} tip={() => <TipCard title={<Term id="nextPrior">Next prior</Term>} value={`${fmtEff(v.line?.nextPrior ?? 0)} OOM per idea`}>What your teams on it expect from the line's next idea now (their taste is research input per idea).</TipCard>} />}
-          {v.result && <KVr k={<Term id="stageResult">Estimate at latest base</Term>} v={`${fmtEff(v.result.est, v.unit)} ± ${fmtEff(v.result.estSd, v.unit, false)} ${unitLbl}`} tip={() => <TipCard title={<Term id="stageResult">Result</Term>} value={fmtDate(dateOf(s, v.result?.day ?? 0))}>The final estimate band. The true effect shows on Recipe once a model trained with it is evaluated.</TipCard>} />}
+          {v.belief && <KVr k={<>Effect at small scale{v.belief.b > 1 ? ` (${v.belief.b} ideas)` : ''}</>} v={effRange(v.belief.mu, v.belief.sd, v.unit)} tip={() => <TipCard title={<Term id="beliefBand">Expected effect</Term>} rows={[{ label: 'Novelty', value: F.pct(v.belief?.nov ?? 0) }, { label: <Term id="researchTaste">Team taste</Term>, value: `×${v.taste.toFixed(2)}` }]}>Best guess and its likely range. Novel ideas are bigger if they work and less certain; small tests narrow the range, the big test reads it at scale.</TipCard>} />}
+          {v.belief && v.unit === 'oom' && <KVr k={<Term id="scaleBehaviour">At scale</Term>} v={v.belief.sMu > 0.02 ? 'grows' : v.belief.sMu < -0.02 ? 'shrinks' : 'holds'} tip={() => <TipCard title={<Term id="scaleBehaviour">At scale</Term>} value={v.belief?.tested ? 'read at the big test' : 'first guess'}>Whether the effect grows, holds or shrinks from the test to a full run.</TipCard>} />}
+          {v.line && <KVr k={<><Term id="nextPrior">Next idea expected</Term> <span className="dim">(dashed)</span></>} v={fmtEff(v.line.nextPrior * (v.belief?.b ?? 1))} tip={() => <TipCard title={<Term id="nextPrior">Next idea expected</Term>} value={`${fmtEff(v.line?.nextPrior ?? 0)} per idea`}>What your teams on it expect from the programme's next idea now (their taste sets how much each idea is worth).</TipCard>} />}
+          {v.result && <KVr k={<Term id="stageResult">Expected effect</Term>} v={effRange(v.result.est, v.result.estSd, v.unit)} tip={() => <TipCard title={<Term id="stageResult">Result</Term>} value={fmtDate(dateOf(s, v.result?.day ?? 0))}>The final range. The measured effect shows on Know-how once a model built with it is evaluated.</TipCard>} />}
         </Sec>
       )}
-      {v.unlock && v.state !== 'failed' && v.state !== 'known' && <Sec k="Test" term="stageTest"><KVr k={<Term id="odds">Chance it works</Term>} v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Chance it works</Term>} rows={[{ label: 'Speculative reopenings', value: String(v.spec) }]}>One test: when its work is done it works (the engineers build it in) or it does not (reopen at half the odds).</TipCard>} />{v.state !== 'adopting' && <KVr k="Time left" v={eta(v.eta)} tip={() => <TipCard title={<Term id="stageTest">Test</Term>} value={F.pct(v.stageFrac)}>At today's science teams, research engineers and compute.</TipCard>} />}</Sec>}
-      {v.kind !== 'line' && !v.unlock && v.state !== 'failed' && <Sec k="Odds" term="odds"><KVr k="Works in this world" v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Odds</Term>} rows={[{ label: 'Candidates dropped', value: `${v.drops} of ${v.maxDrops}` }, { label: 'Speculative reopenings', value: String(v.spec) }]}>Three dropped candidates in a row end the project as failed.</TipCard>} /></Sec>}
+      {v.unlock && v.state !== 'failed' && v.state !== 'known' && <Sec k="Test" term="stageTest"><KVr k={<Term id="odds">Chance it works</Term>} v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Chance it works</Term>} rows={[{ label: 'Retries', value: String(v.spec) }]}>One test: when its work is done it works (the engineers build it in) or it does not (retry at half the chance).</TipCard>} />{v.state !== 'adopting' && <KVr k="Time left" v={eta(v.eta)} tip={() => <TipCard title={<Term id="stageTest">Test</Term>} value={F.pct(v.stageFrac)}>At today's science teams, research engineers and compute.</TipCard>} />}</Sec>}
+      {v.kind !== 'line' && !v.unlock && v.state !== 'failed' && <Sec k="Chance it works" term="odds"><KVr k="Chance it works" v={F.pct(v.odds)} tip={() => <TipCard title={<Term id="odds">Chance it works</Term>} rows={[{ label: 'Ideas dropped', value: `${v.drops} of ${v.maxDrops}` }, { label: 'Retries', value: String(v.spec) }]}>Three dropped ideas in a row and the project has failed.</TipCard>} /></Sec>}
       {v.state !== 'failed' && v.state !== 'adopting' && (
-        <Sec k="Inputs today" term="prodfn">
+        <Sec k="Gets" term="prodfn">
           <div className="rp-bars">
-            <Tip content={() => <TipCard title={<Term id="expCompute">Experiment compute c</Term>} value={`×${v.c.toFixed(2)}`} rows={[{ label: 'FLOP per day', value: sci(v.flopDay) }]}>Leader lab's day-0 project = 1.</TipCard>}><span className="row-i"><Term id="expCompute">Compute c</Term></span></Tip>
-            <span className="hb"><i style={{ width: `${rel(v.c)}%`, background: 'var(--warn)' }} /></span><Tip content={() => <TipCard title="c" value={`×${v.c.toFixed(2)}`} />}><span className="num">×{v.c.toFixed(1)}</span></Tip>
-            <Tip content={() => <TipCard title={<Term id="expLabour">Experiment labour ℓ</Term>} value={`×${v.l.toFixed(2)}`} rows={[{ label: 'Research engineers', value: `${v.re.toFixed(1)} team-eq` }]}>With the agents' help, to the power λ.</TipCard>}><span className="row-i"><Term id="expLabour">Labour ℓ</Term></span></Tip>
-            <span className="hb"><i style={{ width: `${rel(v.l)}%`, background: '#5aa9ff' }} /></span><Tip content={() => <TipCard title="ℓ" value={`×${v.l.toFixed(2)}`} />}><span className="num">×{v.l.toFixed(1)}</span></Tip>
+            <Tip content={() => <TipCard title={<Term id="expCompute">Experiment compute</Term>} value={`×${v.c.toFixed(2)}`}>Against the leading lab's project in July 2025 (= ×1).</TipCard>}><span className="row-i"><Term id="expCompute">Experiment compute</Term></span></Tip>
+            <span className="hb"><i style={{ width: `${rel(v.c)}%`, background: 'var(--warn)' }} /></span><Tip content={() => <TipCard title="Experiment compute" value={`×${v.c.toFixed(2)}`} />}><span className="num">×{v.c.toFixed(1)}</span></Tip>
+            <Tip content={() => <TipCard title={<Term id="expLabour">Research engineers</Term>} value={`×${v.l.toFixed(2)}`} rows={[{ label: 'Research engineers', value: `${v.re.toFixed(1)} teams` }]}>With your AI staff's help, against the leading lab's project in July 2025 (= ×1). Doubling them less than doubles output.</TipCard>}><span className="row-i"><Term id="expLabour">Research engineers</Term></span></Tip>
+            <span className="hb"><i style={{ width: `${rel(v.l)}%`, background: '#5aa9ff' }} /></span><Tip content={() => <TipCard title="Research engineers" value={`×${v.l.toFixed(2)}`} />}><span className="num">×{v.l.toFixed(1)}</span></Tip>
           </div>
-          <div className="rp-kv"><span>What binds</span><Binds v={v} /></div>
-          <KVr k={<>Research engineers · FLOP</>} v={v.re > 0 ? `${v.re.toFixed(1)} team-eq · ${sci(v.flopDay)}/day` : 'none yet (in ideation)'} tip={() => <TipCard title="Research engineers on it" value={`${v.re.toFixed(1)} team-eq`} rows={[{ label: 'Experiment FLOP per day', value: sci(v.flopDay) }]}>Given to projects in experiments in priority order; compute follows them.</TipCard>} />
-          <div className="rp-kv"><span /><Limit id="research.rePerProject" tone={v.re >= 2 - 1e-9 ? 'warn' : 'quiet'}>≤ 2 team-eq per project</Limit><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>Research engineers</Ref></div>
+          <div className="rp-kv"><span>Limited by</span><Binds v={v} /></div>
+          <KVr k={<>Research engineers</>} v={v.re > 0 ? `${v.re.toFixed(1)} teams` : 'none yet (in ideas)'} tip={() => <TipCard title="Research engineers on it" value={`${v.re.toFixed(1)} teams`}>Given to projects in testing in priority order; experiment compute follows them.</TipCard>} />
+          <div className="rp-kv"><span /><Limit id="research.rePerProject" tone={v.re >= 2 - 1e-9 ? 'warn' : 'quiet'}>≤ 2 teams per project</Limit><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>Research engineers</Ref></div>
         </Sec>
       )}
       {v.line && (
-        <Sec k="Pool · ideas get harder" term="linePool">
-          <KVr k={<Term id="linePool">Realised so far</Term>} v={`${fmtEff(v.line.realised)} OOM · ${v.line.gen} ideas`} tip={() => <TipCard title={<Term id="linePool">Line</Term>} rows={[{ label: 'Returns r of the line', value: v.line?.r.toFixed(2) ?? '' }, { label: 'Research input so far', value: F.short(v.line?.input ?? 0) }]}>r × log₁₀ of the research input over the start.</TipCard>} />
-          <KVr k="Ideas harder than at the start" v={`×${F.short(v.line.harder)}`} tip={() => <TipCard title={<Term id="linePool">Ideas get harder</Term>} value={`×${F.short(v.line?.harder ?? 1)}`}>Each result raises the line's research input; the next idea's prior falls with it.</TipCard>} />
+        <Sec k="Returns falling" term="linePool">
+          <KVr k={<Term id="linePool">Results so far</Term>} v={`${fmtEff(v.line.realised)} · ${v.line.gen} results`} tip={() => <TipCard title={<Term id="linePool">Programme</Term>} rows={[{ label: 'How fast returns fall', value: v.line?.r.toFixed(2) ?? '' }, { label: 'Research put in so far', value: F.short(v.line?.input ?? 0) }]}>Grows with the research put in so far, more slowly each time.</TipCard>} />
+          <KVr k="Ideas harder than at the start" v={`×${F.short(v.line.harder)}`} tip={() => <TipCard title={<Term id="linePool">Returns falling</Term>} value={`×${F.short(v.line?.harder ?? 1)}`}>Each result raises the research the programme has had; the next idea's expected effect falls with it.</TipCard>} />
         </Sec>
       )}
-      <Sec k="Science teams · why here" term="scienceWhy">
-        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? (v.stage === 'test' ? 'Teams wanted 0: research engineers and compute carry the test on.' : v.stage === 'small' || v.stage === 'scale' ? 'Teams wanted 0: no new candidates; the test in progress continues.' : 'Teams wanted 0: paused.') : 'None placed: higher-priority projects took the teams.'}</div>}
+      <Sec k="Science teams · why this team" term="scienceWhy">
+        {v.teams.length === 0 && <div className="small dim">{v.want === 0 ? (v.stage === 'test' ? 'Teams wanted 0: research engineers and compute carry the test on.' : v.stage === 'small' || v.stage === 'scale' ? 'Teams wanted 0: no new ideas; the test in progress continues.' : 'Teams wanted 0: paused.') : 'None placed: higher-priority projects took the teams.'}</div>}
         {v.teams.map((t, k) => {
           const TI = t.specialty ? COL_ICON[t.specialty as Column] : ICON.roleSci;
           // F6d: teams of the same specialty are numbered (two "Pretraining" rows read as a duplicate).

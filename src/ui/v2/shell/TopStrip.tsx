@@ -1,7 +1,7 @@
 // Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { dateOf, divisionView, engine, fmtDate, internalEval, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS } from '../../../engine/v2';
+import { dateOf, divisionView, engine, fmtDate, internalEval, MILESTONE_NAMES, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS } from '../../../engine/v2';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import type { GameStateV2 } from '../../../engine/v2';
 import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
@@ -17,7 +17,7 @@ import { catRisk, customerCount, customerShare, divisionStatus, nearestRival, ru
 export { catRisk, nearestRival, runwayLive };
 
 /** What triggers each act (engine tutorial rules; shown in the date hover and the Goals card). */
-export const ACT_TRIGGER: Record<number, string> = { 2: 'capability L ≥ 6.5 or day 150', 3: 'capability L ≥ 8.5', 4: 'capability L ≥ 12 or R&D speed ≥ 25×' };
+export const ACT_TRIGGER: Record<number, string> = { 2: 'capability level 6.5 or day 150', 3: 'capability level 8.5', 4: 'capability level 12 or research speed ×25' };
 
 function RaceTip({ s }: { s: GameStateV2 }) {
   const u = engine.sightLimit(s);
@@ -31,7 +31,7 @@ function RaceTip({ s }: { s: GameStateV2 }) {
   const hist = s.series.U.slice(-13);
   return (
     <TipCard title="Sight limit vs capability" value={`Sight limit ${F.sight(u)}`}>
-      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range).{u.none ? ' None: at no level do your instruments read them at 50% on average, so the model is past it at any level.' : ''} Gap {F.num(u.gap, 1, true)} levels.</div>
+      <div className="why-body">Violet: the <Term id="L">measured capability</Term> of your newest internal model{ev.evaluating ? ' (still in testing: the last measured level of its lineage)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range).{u.none ? ' None: at no level do your instruments read them at 50% on average, so the model is past it at any level.' : ''} {u.gap >= 0 ? `${F.num(u.gap, 1)} levels past your best model.` : `${F.num(-u.gap, 1)} levels short of your best model.`}</div>
       <div className="tip-sec">
         <div className="tip-cap">Reading at the model's level vs 50%</div>
         {CRITICAL_TRAITS.map((t) => {
@@ -50,16 +50,16 @@ function RaceTip({ s }: { s: GameStateV2 }) {
         <div className="tip-cap">Why the sight limit moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
         {/* Jank M2: the engine's weekly U drivers (new model, tools, eval-awareness belief, re-validation). */}
         {(s.causes.byKey.U ?? []).filter((e) => e.day > s.time.day - 90).slice(-4).reverse().map((e, i) => <div className="small" key={`u${i}`} data-test="u-cause"><span className={e.delta >= 0 ? 'tone-pos' : 'tone-neg'}>{F.num(e.delta, 1, true)}</span> <span className="dim">{fmtDate(dateOf(s, e.day)).replace(/,? \d{4}$/, '')}</span> {e.detail ?? e.source}</div>)}
-        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">fading</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="halfStrength">capability outgrows it</Term>)</span></div>)}
-        {gone.length > 0 && <div className="small dim"><ICON.revalidate size={11} /> {gone.length} tool{gone.length > 1 ? 's' : ''} no longer work at this capability: {gone.map((t) => t.name).join(', ')}</div>}
-        {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">masked {F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
-        {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in evaluation</Term></div>}
-        {!active.length && <div className="small dim">No detection tools active yet: staff a safety research line.</div>}
+        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">reliability down</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="halfStrength">capability outgrows it</Term>)</span></div>)}
+        {gone.length > 0 && <div className="small dim"><ICON.revalidate size={11} /> {gone.length} instrument{gone.length > 1 ? 's' : ''} no longer work at this capability: {gone.map((t) => t.name).join(', ')}</div>}
+        {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">reliability −{F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
+        {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in testing</Term></div>}
+        {!active.length && <div className="small dim">No instruments yet: staff a safety programme.</div>}
       </div>
       <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
-        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Research lines" testId="race.lines" />
-        <GoBtn to={{ panel: 'company', tab: 'people' }} label="Safety RE teams" testId="race.upkeep" />
-        <GoBtn to={{ panel: 'blueprint' }} label="Safer recipe" testId="race.runs" />
+        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Safety research" testId="race.lines" />
+        <GoBtn to={{ panel: 'company', tab: 'people' }} label="Safety research engineers" testId="race.upkeep" />
+        <GoBtn to={{ panel: 'blueprint' }} label="Safer next run" testId="race.runs" />
       </div></div>
     </TipCard>
   );
@@ -82,7 +82,7 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
         <div className="race2-lbls">
           <span className="race2-cap"><ICON.L size={12} /> CAPABILITY</span>
           <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>
-          {ev.evaluating && <button className="tag2 warn ts-evchip" data-test="evaluating" data-ref="evalQueue" onClick={(e) => { e.stopPropagation(); store.goto('models', { tab: 'evals', anchor: 'evalQueue' }); }}>evaluating</button>}
+          {ev.evaluating && <button className="tag2 warn ts-evchip" data-test="evaluating" data-ref="evalQueue" onClick={(e) => { e.stopPropagation(); store.goto('models', { tab: 'evals', anchor: 'evalQueue' }); }}>testing</button>}
           <span className="sp" />
           <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {F.num(gap, 1, true)}</span>
           <span className="sp" />
@@ -97,8 +97,8 @@ function RaceMeter({ s }: { s: GameStateV2 }) {
           <rect x={4} y={12} width={x(U) - 4} height={8} rx={4} fill={C.und} />
           {U < L && <rect x={x(U)} y={12} width={x(L) - x(U)} height={8} fill="url(#hatch2)" opacity={0.9} />}
           {band.hi - band.lo > 0.05 && <rect data-test="u-band" x={x(band.lo)} y={11} width={Math.max(1, x(band.hi) - x(band.lo))} height={10} rx={3} fill="none" stroke={C.und} strokeWidth={1.5} strokeDasharray="3 2" />}
-          {([[6.5, 'agent'], [8.5, 'research'], [10, 'SC'], [12, 'SAR'], [15, 'ASI']] as const).map(([v, n]) => (
-            <g key={n}><line x1={x(v)} x2={x(v)} y1={0} y2={21} stroke={C.text3} strokeDasharray="2 2" opacity={0.7} /><text x={Math.min(W - 10, x(v))} y={28} textAnchor="middle" className="race2-ms">{n}</text></g>
+          {([[6.5, 'agent', 0], [8.5, 'research', 2], [10, 'SC', 3], [12, 'SAR', 4], [15, 'ASI', 6]] as const).map(([v, n, mi]) => (
+            <g key={n}><title>{MILESTONE_NAMES[mi]}</title><line x1={x(v)} x2={x(v)} y1={0} y2={21} stroke={C.text3} strokeDasharray="2 2" opacity={0.7} /><text x={Math.min(W - 10, x(v))} y={28} textAnchor="middle" className="race2-ms">{n}</text></g>
           ))}
         </svg>
       </div>

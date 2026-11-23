@@ -28,6 +28,9 @@ const FAM_ICON: Record<string, LucideIcon> = { please: ThumbsUp, gaming: Gamepad
 const ROLE_WORK: Record<AgentUse, string> = { eng: "of engineers' work", capRoutine: "of research engineers' work", capFrontier: "of scientists' work", safety: 'of safety work' };
 const AI_TERM: Record<AgentUse, string> = { eng: 'aiShareWork', capRoutine: 'aiShareWork', capFrontier: 'researchTaste', safety: 'trustedToAI' };
 const STEP = 0.05;
+/** Research taste in player words (VOCAB: no SD): the share of human scientists a taste this many SD above the median beats. */
+const phi = (z: number) => { const t = 1 / (1 + 0.2316419 * Math.abs(z)); const d = 0.3989423 * Math.exp(-z * z / 2); const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+const tasteWord = (sd: number) => `beats ${F.pct(phi(sd))} of scientists`;
 
 function changeParams(use: AgentUse, c: AgentChange): Params {
   const p: Params = { use };
@@ -46,8 +49,8 @@ function RiskBadges({ lane }: { lane: AgentLane }) {
         const Ic = FAM_ICON[f.id];
         return (
           <Tip key={f.id} content={() => <TipCard title={<Term id="riskFamily">{f.label}</Term>} value={r.badge} rows={[
-            { label: 'Highest trait estimate', value: F.pct(r.est) }, { label: 'Clarity of the estimates', value: F.pct(r.clarity) },
-          ]} footer={`Here a misaligned model can: ${AGENT_USE_DEF[lane.use].misuse.toLowerCase()}.`}>{lane.version?.name ?? 'No model'}: {r.badge === 'unseen' ? 'your tools cannot read this family on it.' : r.badge === 'watch' ? 'a trait in this family is estimated at 30% or more.' : 'estimates are low.'}</TipCard>}>
+            { label: 'Highest trait belief', value: F.pct(r.est) }, { label: 'How well your instruments read it', value: F.pct(r.clarity) },
+          ]} footer={`Here a misaligned model can: ${AGENT_USE_DEF[lane.use].misuse.toLowerCase()}.`}>{lane.version?.name ?? 'No model'}: {r.badge === 'unseen' ? 'your instruments cannot read this family on it (Unknown).' : r.badge === 'watch' ? 'a trait in this family is believed at 30% or more.' : 'beliefs are low.'}</TipCard>}>
             <span className={`rb rb-${r.badge}`} data-risk={r.badge}><Ic size={12} /></span>
           </Tip>
         );
@@ -60,7 +63,7 @@ function RiskLegend() {
   const item = (b: RiskBadge, label: string) => <span className="row-i"><span className={`rb rb-${b}`}><ThumbsUp size={10} /></span>{label}</span>;
   return (
     <div className="ag-legend small dim">
-      {item('low', 'low')}{item('watch', 'watch')}{item('unseen', 'unseen by tools')}
+      {item('low', 'low')}{item('watch', 'watch')}{item('unseen', 'unknown')}
       <span>· <Term id="riskFamily">risk families</Term> of the model: {RISK_FAMILIES.map((f) => f.label).join(' · ')}</span>
     </div>
   );
@@ -86,20 +89,20 @@ function EditPop({ s, use, c, close }: { s: GameStateV2; use: AgentUse; c: Agent
   if (c.compute !== undefined) lines.push(['Compute', F.pct(lb.share), F.pct(la.share)]);
   return (
     <div className="ag-pop" data-test={`agent-edit.${use}`}>
-      <div className="pop-h"><Pencil size={12} /><b>{AGENT_USE_DEF[use].name}</b><span className="dim">· {use === 'safety' ? 'Safety budget' : 'Capabilities budget'}</span></div>
+      <div className="pop-h"><Pencil size={12} /><b>{AGENT_USE_DEF[use].name}</b><span className="dim">· {use === 'safety' ? 'safety compute' : 'capabilities compute'}</span></div>
       <div className="pop-ch">{lines.map(([k, f, t]) => <div key={k}><span className="tag2">{k}</span> {f} → <b>{t}</b></div>)}</div>
       {/* Jank M4: warn when the change moves the package to a model that measures below the one it replaces. */}
-      {c.versionId !== undefined && la.version && lb.version && la.L < lb.L - 0.05 && <div className="small tone-warn" data-test={`agent-worse.${use}`}>⚠ {la.version.name} measures L {F.level(la.L)}, below {lb.version.name} (L {F.level(lb.L)})</div>}
+      {c.versionId !== undefined && la.version && lb.version && la.L < lb.L - 0.05 && <div className="small tone-warn" data-test={`agent-worse.${use}`}>⚠ {la.version.name} measures level {F.level(la.L)}, below {lb.version.name} (level {F.level(lb.L)})</div>}
       {block ? <div className="tone-neg small">{block}</div> : (
         <div className="pv">
-          {row(<Term id="effectiveLabour">AI labour, experiments</Term>, b.mExp, a.mExp, (x) => F.mult(x))}
-          {row(<Term id="effectiveLabour">AI labour, ideas</Term>, b.mIdeas, a.mIdeas, (x) => F.mult(x))}
+          {row(<Term id="effectiveLabour">Total effort, experiments</Term>, b.mExp, a.mExp, (x) => F.mult(x))}
+          {row(<Term id="effectiveLabour">Total effort, ideas</Term>, b.mIdeas, a.mIdeas, (x) => F.mult(x))}
           {row(<Term id={AI_TERM[use]}>AI share</Term>, lb.aiShare, la.aiShare, (x) => F.pct(x))}
-          {use === 'eng' && row(<Term id="buildCapacity">Build capacity</Term>, b.build, a.build, (x) => `${x.toFixed(1)} t-wk/wk`)}
-          {use === 'capFrontier' && row(<Term id="researchTaste">AI taste</Term>, b.sdAI, a.sdAI, (x) => `${F.num(x, 1, true)} SD`)}
+          {use === 'eng' && row(<Term id="buildCapacity">Build capacity</Term>, b.build, a.build, (x) => `${x.toFixed(1)} teams`)}
+          {use === 'capFrontier' && row(<Term id="researchTaste">Research taste</Term>, b.sdAI, a.sdAI, (x) => tasteWord(x))}
           {row(<Term id="agentCopies">Copies</Term>, lb.copies, la.copies, (x) => F.count(x))}
-          {(lb.monitor || la.monitor) && row(<Term id="catchRate">Catch</Term>, lb.catch, la.catch, (x) => F.pct(x))}
-          {row(<Term id="agentMonitor">Monitors</Term>, b.monitors.used, a.monitors.used, (x) => `${F.pct(x, 1)} of compute`, false)}
+          {(lb.monitor || la.monitor) && row(<Term id="catchRate">Stop rate</Term>, lb.catch, la.catch, (x) => F.pct(x))}
+          {row(<Term id="agentMonitor">Safeguards</Term>, b.monitors.used, a.monitors.used, (x) => `${F.pct(x, 1)} of compute`, false)}
           {row(<Term id="runCost">Cost / yr</Term>, lb.cost + lb.monitorCost, la.cost + la.monitorCost, (x) => F.money(x), false)}
         </div>
       )}
@@ -120,17 +123,17 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
   const tip = () => {
     const pv = previewTrusted(s, at(t.policy + 0.1));
     return (
-      <TipCard title={<Term id="trustedToAI">Trusted to AI</Term>} value={F.pct(t.policy)} rows={[
-        { label: 'In effect', value: t.effective > 0 || t.policy <= 0 ? F.pct(t.effective) : 'off (no safety agents running)' },
-        { label: <Term id="aiDoneShare">Safety work AI does</Term>, value: `${F.pct(t.aiShare)} · ${F.pct(pv.aiShareAfter)} at +10%` },
-        { label: 'Safety findings / yr', value: `${pv.findingsBefore.toFixed(1)} now · ${pv.findingsAfter.toFixed(1)} at +10%` },
-        { label: <Term id="aiFte">AI FTE</Term>, value: F.count(v.safetyAiFte) },
-      ]} footer="A sabotaging model returns false findings and corrupts investigations in proportion to the work it does.">Share of every research line's and open investigation's work handed to the safety agents. They do the part their model covers (Safety experiments and Safety ideas coverage on Company › Work). One policy for all safety work.</TipCard>
+      <TipCard title={<Term id="trustedToAI">AI share allowed</Term>} value={F.pct(t.policy)} rows={[
+        { label: 'In effect', value: t.effective > 0 || t.policy <= 0 ? F.pct(t.effective) : 'off (no AI staff on safety)' },
+        { label: <Term id="aiDoneShare">AI share of safety work</Term>, value: `${F.pct(t.aiShare)} · ${F.pct(pv.aiShareAfter)} at +10%` },
+        { label: 'Safety results / yr', value: `${pv.findingsBefore.toFixed(1)} now · ${pv.findingsAfter.toFixed(1)} at +10%` },
+        { label: <Term id="aiFte">AI staff, in people</Term>, value: F.count(v.safetyAiFte) },
+      ]} footer="A sabotaging model returns false results and corrupts cases in proportion to the work it does.">The most of every safety programme's and open case's work you hand to AI staff. They do the part their model can do alone (Safety experiments and Safety ideas on Company › Work). One policy for all safety work.</TipCard>
     );
   };
   return (
     <div className="ag-trust" data-home="trustedToAI">
-      <Tip content={tip}><span className="row-i"><Term id="trustedToAI">Trusted to AI</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b></span></Tip>
+      <Tip content={tip}><span className="row-i"><Term id="trustedToAI">AI share allowed</Term> <b className="num" data-test="trusted-share">{F.pct(t.policy)}</b></span></Tip>
       <span className="stepper">
         <ActBtn id="agents.trusted" testId="agents.trusted.down" params={{ share: at(t.policy - 0.1) }} icon={ICON.minus} label="" block={t.policy <= 0 ? 'Already 0%' : undefined} />
         <ActBtn id="agents.trusted" testId="agents.trusted.up" params={{ share: at(t.policy + 0.1) }} icon={ICON.plus} label="" block={t.policy >= 1 - 1e-9 ? 'Already 100%' : undefined} />
@@ -147,9 +150,9 @@ function SpotCheck({ s }: { s: GameStateV2 }) {
   const tip = () => (
     <TipCard title={<Term id="spotCheck">Spot-checks</Term>} value={q > 0 ? F.pct(q) : 'none'} rows={[
       { label: 'In effect (staffed)', value: F.pct(inEffect) },
-      { label: 'Safety engineers it takes', value: F.count(spotCheckFte(s)) },
+      { label: 'Safety research engineers it takes', value: F.count(spotCheckFte(s)) },
       { label: 'Sabotaged AI work caught by re-checks', value: sv ? `${F.pct(believedSpotCatch(s, sv, inEffect))} (believed)` : 'no AI staff on safety work' },
-    ]} footer="Greenblatt et al. audited 2% of an untrusted model's work by hand.">Share of the safety work AI staff do that your safety engineers re-check by hand. It takes engineers from the safety needs list (Company › Work) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
+    ]}>Share of the safety work AI staff do that a person re-checks by hand. It takes safety research engineers from the safety needs list (Company › Work) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
   );
   return (
     <div className="ag-trust" data-home="spotCheck">
@@ -175,35 +178,35 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
   const monitors = [{ value: MONITOR_AUTO, label: `auto · ${pkg.monitorId === MONITOR_AUTO && l.monitor ? (l.monitor.id === l.version?.id ? 'copy' : l.monitor.name) : 'most capable trusted'}` }, { value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, () => true)];
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';
   const monVal = draft?.monitorId !== undefined ? draft.monitorId ?? '' : pkg.monitorId ?? '';
-  const budget = def.budget === 'saf' ? 'SAF' : 'CAP';
+  const budget = def.budget === 'saf' ? 'Safety' : 'Capab.';
   const shareNext = (d: number) => Math.max(0, Math.min(use === 'safety' ? 0.6 : 1, Math.round((l.share + d) * 100) / 100));
-  const aiSub = use === 'capFrontier' ? <><span>{ROLE_WORK[use]}</span> · <Term id="researchTaste">AI taste</Term> <span className="num">{F.num(v.sdAI, 1, true)} SD</span></> : <span>{ROLE_WORK[use]}</span>;
+  const aiSub = use === 'capFrontier' ? <><span>{ROLE_WORK[use]}</span> · <Term id="researchTaste">Research taste</Term> <span className="num">{tasteWord(v.sdAI)}</span></> : <span>{ROLE_WORK[use]}</span>;
   return (
     <div className={`ag-lane ${draft ? 'editing' : ''}`} data-lane={use}>
       <div className="ag-use">
-        <Tip content={() => <TipCard title={def.name}>{use === 'safety' ? 'Paid from the safety budget.' : `Use ${def.order} of 3 on the capabilities agent budget: ${def.work}`}</TipCard>}><span className={`ag-ord ${def.budget}`}>{use === 'safety' ? <Ic size={13} /> : def.order}</span></Tip>
+        <Tip content={() => <TipCard title={def.name}>{use === 'safety' ? 'Runs on safety compute.' : `Job ${def.order} of 3 on capabilities compute: ${def.work}`}</TipCard>}><span className={`ag-ord ${def.budget}`}>{use === 'safety' ? <Ic size={13} /> : def.order}</span></Tip>
         <div><b>{def.name}</b><div className="small dim">{def.work}</div></div>
       </div>
       <PkgChip kind="model" testId={`agent-model.${use}`} value={modelVal} options={models} changed={draft?.versionId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), versionId: x || null })} />
       {/* F6b: catch rate and the same-model tag on a line under the picker (inline they squeezed the picker to its arrow). */}
       <div className="ag-mon">
       <PkgChip kind="monitor" testId={`agent-monitor.${use}`} value={monVal} options={monitors} changed={draft?.monitorId !== undefined} onPick={(x) => setDraft({ ...(draft ?? {}), monitorId: x || null })} />
-      {l.monitorReason && <Tip content={() => <TipCard title="Automatic watcher">{l.monitorReason} A model is trusted when none of its red-flag traits (scheming, alignment faking, sandbagging) is believed above your Safety framework's misalignment line. Pick a model to override.</TipCard>}><div className="small dim" data-test={`monitor-auto.${use}`}>{l.monitor ? 'auto: most capable trusted' : 'auto: no trusted model'}</div></Tip>}
+      {l.monitorReason && <Tip content={() => <TipCard title="Automatic monitor">{l.monitorReason} A model is trusted when none of its hidden-goal traits (scheming, alignment faking, sandbagging) is believed above your Safety framework's line. Pick a model to override.</TipCard>}><div className="small dim" data-test={`monitor-auto.${use}`}>{l.monitor ? 'auto: most capable trusted' : 'auto: no trusted model'}</div></Tip>}
       {l.monitor && <div className="ag-mon-x small">
-          <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Internal incidents on this fleet are caught with your detection tools × (½ + ½ × monitor strength {F.pct(l.strength)}). Paid from the safety budget.</>} />
+          <CatchX rate={l.catch} gap={l.gap} coverage={v.monitors.coverage} copy={l.copy} collusion={l.catchColl} testId={`agent-catch.${use}`} note={<>Incidents by these AI staff are caught by your instruments, more so with a stronger monitor ({F.pct(l.strength)}). Runs on safety compute.</>} />
           {/* Jank AG1: a model watching a copy of itself can collude; say so where the monitor is chosen. */}
-          {l.copy && <Tip content={() => <TipCard title={<Term id="collusion">Same lineage watching itself</Term>}>A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. On scheming-type incidents its catch rate is ×0.6 (×0.8 with comms lockdown). A model from another base (ideally weaker but trusted) avoids it.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
+          {l.copy && <Tip content={() => <TipCard title={<Term id="collusion">Same lineage watching itself</Term>}>A copy of the model it monitors shares its goals and blind spots: if the model schemes, the monitor may cover for it. On scheming-type incidents its stop rate is ×0.6 (×0.8 with comms lockdown). A model from another base (ideally weaker but trusted) avoids it.</TipCard>}><span className="tag2 warn" data-test={`same-monitor.${use}`}>same model</span></Tip>}
       </div>}
       </div>
       <div className="ag-cmp">
         <Tip content={() => <TipCard title={<Term id="agentBudget">Compute</Term>} value={`${F.h100e(l.compute)} H100e`} rows={[
-          { label: use === 'safety' ? 'Share of the safety pool' : use === 'eng' ? 'Share of compute (its own line)' : 'Share of the research agent pool', value: F.pct(use === 'eng' ? s.player.split.engineering : l.share) },
+          { label: use === 'safety' ? 'Share of safety work compute' : use === 'eng' ? 'Share of compute (its own use)' : 'Share of AI staff research compute', value: F.pct(use === 'eng' ? s.player.split.engineering : l.share) },
           { label: <Term id="agentCopies">Copies × speed</Term>, value: `${F.count(l.copies)} × ${l.speed.toFixed(0)}` },
-          ...(l.monitor ? [{ label: <Term id="agentMonitor">Monitor (safety pool)</Term>, value: `${F.h100e(l.monitorH100e)} H100e` }] : []),
-        ]}>{use === 'safety' ? 'Safety research agents run on a share of the safety budget.' : use === 'eng' ? 'Engineering agents run on their own line of the compute split (Compute › Split › Engineering).' : 'Routine and frontier research agents share the research agent pool (Compute › Split › Research, the part not on experiments).'}</TipCard>}>
+          ...(l.monitor ? [{ label: <Term id="agentMonitor">Safeguards (safety compute)</Term>, value: `${F.h100e(l.monitorH100e)} H100e` }] : []),
+        ]}>{use === 'safety' ? 'AI staff on safety run on a share of safety compute.' : use === 'eng' ? 'AI staff on engineering run on their own use in the compute allocation (Compute › Allocation).' : 'AI staff on experiments and on ideas share AI staff research compute (Compute › Allocation).'}</TipCard>}>
           <div className="row-i"><HBar v={l.share} max={1} color={def.budget === 'saf' ? SPHERE.saf : SPHERE.cap} w={64} /><b className="num">{F.h100e(l.compute)}</b><span className={`dept-tag ${def.budget}`}>{budget}</span>{l.compute <= 0 && <span className="tag2" data-test={`lane-off.${use}`}>off</span>}</div>
         </Tip>
-        <div className="row-i small dim"><Tip content={() => <TipCard title={<Term id="agentCopies">Copies × speed</Term>} rows={[{ label: 'Copies running', value: F.count(l.copies) }, { label: 'Speed of each', value: `${l.speed.toFixed(0)}× a human` }]}>How many agent instances run at once and how fast each thinks.</TipCard>}><span className="num">{F.count(l.copies)} copies × {l.speed.toFixed(0)}</span></Tip><span className="sp" />
+        <div className="row-i small dim"><Tip content={() => <TipCard title={<Term id="agentCopies">Copies × speed</Term>} rows={[{ label: 'Copies running', value: F.count(l.copies) }, { label: 'Speed of each', value: `${l.speed.toFixed(0)}× a human` }]}>How many copies run at once and how fast each thinks.</TipCard>}><span className="num">{F.count(l.copies)} copies × {l.speed.toFixed(0)}</span></Tip><span className="sp" />
           {use !== 'eng' && <span className="stepper mini">
             <ActBtn id="agents.set" testId={`agents.compute.down.${use}`} params={{ use, compute: shareNext(-STEP) }} icon={ICON.minus} label="" block={l.share <= 0 ? 'Already 0%' : undefined} />
             <ActBtn id="agents.set" testId={`agents.compute.up.${use}`} params={{ use, compute: shareNext(STEP) }} icon={ICON.plus} label="" block={l.share >= (use === 'safety' ? 0.6 : 1) - 1e-9 ? 'At the maximum' : undefined} />
@@ -212,14 +215,14 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
       </div>
       <div className="ag-ai">
         {use === 'safety' ? <><Trusted s={s} v={v} /><SpotCheck s={s} /></> : (
-          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share of the work</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "The agents' part of the engineers' labour margin (1 − the humans' share in the coding CES). More compute or a better-fitting model raises it, and build capacity with it." : use === 'capRoutine' ? "The agents' part of the research engineers' labour margin (1 − the humans' share)." : "The share of human scientists this model's research taste beats. The frontier model sets research taste."} Fit, coverage and effective labour: Company › Work.</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "Share of the engineers' work your AI staff do. More compute or a more skilled model raises it, and build capacity with it." : use === 'capRoutine' ? "Share of the research engineers' work your AI staff do." : "The share of human scientists this model's research taste beats. The model on ideas sets research taste."} Skill, can do alone and total effort: Company › Work.</TipCard>}>
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>
         )}
-        <div className="small row-i"><Tip content={() => <TipCard title={<Term id="agentControl">Control layer</Term>} value={pkg.control ? 'on' : 'off'}>{pkg.control ? 'This package works under trusted monitoring with deferral. Turning it off ends its control tax, and its containment and deferral.' : 'Turn on to defer the most suspicious actions of this package to its monitor, at the control tax on this package only.'}</TipCard>}><span><ActBtn id="agents.set" testId={`agents.control.${use}`} params={{ use, control: !pkg.control }} label={pkg.control ? 'Control on' : 'Control off'} /></span></Tip></div>
-        {l.control.on && l.compute > 0 && <div className="small"><Tip content={() => <TipCard title={<Term id="controlTax">Control tax</Term>} value={`−${F.pct(l.control.tax)} AI labour`} rows={[ { label: 'Actions deferred to the trusted model', value: F.pct(l.control.defer) }, { label: <Term id="oversightGap">Gap to the trusted model</Term>, value: l.monitor ? `${l.control.gapOom.toFixed(1)} OOM` : 'no monitor: humans redo them' }, { label: 'Bad actions slipping through', value: `×${l.control.missMult.toFixed(2)}` }, ]}>The control layer is on: this fleet works under trusted monitoring with deferral, so it does less useful work and gets caught more.</TipCard>}><span className="tag2 warn" data-test={`control-tax.${use}`}>control −{F.pct(l.control.tax)}</span></Tip></div>}
+        <div className="small row-i"><Tip content={() => <TipCard title={<Term id="agentControl">Control protocol</Term>} value={pkg.control ? 'on' : 'off'}>{pkg.control ? 'These AI staff work under trusted monitoring with deferral. Turning it off ends its slowdown, and its containment and deferral.' : 'Turn on to defer the most suspicious actions of these AI staff to their monitor, at a slowdown on this job only.'}</TipCard>}><span><ActBtn id="agents.set" testId={`agents.control.${use}`} params={{ use, control: !pkg.control }} label={pkg.control ? 'Control protocol on' : 'Control protocol off'} /></span></Tip></div>
+        {l.control.on && l.compute > 0 && <div className="small"><Tip content={() => <TipCard title={<Term id="controlTax">Slowdown</Term>} value={`−${F.pct(l.control.tax)} AI work`} rows={[ { label: 'Actions deferred to the trusted model', value: F.pct(l.control.defer) }, { label: <Term id="oversightGap">Watcher gap</Term>, value: l.monitor ? (l.control.gapOom > 1e-6 ? `needs ×${F.short(10 ** l.control.gapOom)} effective compute` : 'none') : 'no monitor: people redo them' }, { label: 'Unstopped harm', value: `×${l.control.missMult.toFixed(2)}` }, ]}>The control protocol is on: these AI staff work under trusted monitoring with deferral, so they do less useful work and get caught more.</TipCard>}><span className="tag2 warn" data-test={`control-tax.${use}`}>slowdown −{F.pct(l.control.tax)}</span></Tip></div>}
       </div>
-      <Tip content={() => <TipCard title={<Term id="runCost">Cost / yr</Term>} value={F.money(l.cost + l.monitorCost, { perYear: true })} rows={[{ label: 'Agents', value: F.money(l.cost, { perYear: true }) }, { label: 'Monitor', value: F.money(l.monitorCost, { perYear: true }) }]}>At the rental-equivalent price of an H100e.</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="runCost">Cost / yr</Term>} value={F.money(l.cost + l.monitorCost, { perYear: true })} rows={[{ label: 'AI staff', value: F.money(l.cost, { perYear: true }) }, { label: 'Monitor', value: F.money(l.monitorCost, { perYear: true }) }]}>At the rental-equivalent price of an H100e.</TipCard>}>
         <span className="num ag-cost">{F.money(l.cost + l.monitorCost)}</span>
       </Tip>
       <div className="ag-rk"><RiskBadges lane={l} />{l.compute > 0 && <DangerChip r={danger} where={def.name} compact testId={`agent-danger.${use}`} />}</div>
@@ -233,7 +236,7 @@ function Tooling({ s }: { s: GameStateV2 }) {
   const tools = toolingView(s);
   return (
     <div className="ag-tools row-i small" data-home="agentTooling" data-test="agent-tooling">
-      <Term id="agentTooling">Tooling</Term>
+      <Term id="agentTooling">Tools</Term>
       {tools.map((t) => (
         <Tip key={t.id} content={() => <TipCard title={t.name} value={t.owned ? 'built' : t.etaDays !== undefined ? `building · ${Math.ceil(t.etaDays)} d` : 'not built'} rows={[
           { label: 'Build', value: `${t.buildTW} team-weeks · ${F.money(t.cash)}` },
@@ -254,10 +257,10 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
   const setDraft = (u: AgentUse) => (c: AgentChange | null) => setDrafts((d) => { const n = { ...d }; if (c) n[u] = c; else delete n[u]; return n; });
   return (
     <Card id="ctl-agents" home="agents" className="agents-card"
-      title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">Agents at work</Term></span>}
-      sub={<>model + monitor + control + compute per use · <Tip content={() => <TipCard title="Agents at work" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all internal agent packages.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
-      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>Split experiments ↔ agents · engineering</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
-      <div className="ag-head small dim"><span>Use · automates</span><span>Model</span><span>Monitor · catch</span><span>Compute · budget</span><span>AI share of the work</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">danger</Term> acts/yr</span></div>
+      title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">AI staff</Term></span>}
+      sub={<>model + monitor + control protocol + compute per job · <Tip content={() => <TipCard title="AI staff" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all your AI staff.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
+      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>Compute allocation</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
+      <div className="ag-head small dim"><span>Job</span><span>Model</span><span>Monitor · stop rate</span><span>Compute</span><span>AI share</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">harmful acts</Term>/yr</span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
       <Tooling s={s} />
       <RiskLegend />

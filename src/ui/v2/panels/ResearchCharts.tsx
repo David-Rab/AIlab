@@ -12,10 +12,10 @@ import { C } from '../theme';
 const AX = { fontSize: 10, fill: C.text3 } as const;
 
 const SERIES: { id: 'humans' | 'research' | 'experiments' | 'agents'; term: string; label: string }[] = [
-  { id: 'humans', term: 'poolHumans', label: 'Researchers' },
+  { id: 'humans', term: 'poolHumans', label: 'People' },
   { id: 'research', term: 'poolResearch', label: 'Research compute' },
-  { id: 'experiments', term: 'poolExperiments', label: 'Experiments only' },
-  { id: 'agents', term: 'poolAgents', label: 'Agents only' },
+  { id: 'experiments', term: 'poolExperiments', label: 'Research experiments' },
+  { id: 'agents', term: 'poolAgents', label: 'AI staff' },
 ];
 
 export function ResponseCharts({ s }: { s: GameStateV2 }) {
@@ -55,7 +55,7 @@ export function ResponseCharts({ s }: { s: GameStateV2 }) {
               <div className="rc-mult-f small">
                 {h !== undefined
                   ? <span className="num">×{rc.scales[h]} → {F.pct(v[h] - 1, 0, true)}</span>
-                  : <span className={sat ? 'dim' : 'num'}>{sat ? 'saturated' : `×4 → ${F.pct(top - 1, 0, true)}`}</span>}
+                  : <span className={sat ? 'dim' : 'num'}>{sat ? 'no gain' : `×4 → ${F.pct(top - 1, 0, true)}`}</span>}
               </div>
             </Tip>
           </div>

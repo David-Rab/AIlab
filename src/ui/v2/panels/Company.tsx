@@ -67,7 +67,7 @@ function Flow({ s }: { s: GameStateV2 }) {
   // column 2 departments
   const depts: { id: Dept; label: string; color: string; v: number }[] = [
     { id: 'cap', label: 'Capabilities', color: SPHERE.cap, v: keys.filter((x) => POOL_DEPT[x] === 'cap').reduce((a, x) => a + pools[x], 0) },
-    { id: 'serve', label: 'Serving', color: SPHERE.prod, v: keys.filter((x) => POOL_DEPT[x] === 'serve').reduce((a, x) => a + pools[x], 0) },
+    { id: 'serve', label: 'Products', color: SPHERE.prod, v: keys.filter((x) => POOL_DEPT[x] === 'serve').reduce((a, x) => a + pools[x], 0) },
     { id: 'saf', label: 'Safety', color: SPHERE.saf, v: keys.filter((x) => POOL_DEPT[x] === 'saf').reduce((a, x) => a + pools[x], 0) },
   ];
   let y2 = top;
@@ -82,7 +82,7 @@ function Flow({ s }: { s: GameStateV2 }) {
   const bands0 = keys.map((x) => { const b = band(cx[0] + nodeW, y0, cx[1], pos1[x].y, Math.max(1, pools[x] * k), POOL_FILL[x], `on>${x}`); y0 += pools[x] * k; return b; });
   const bands1 = keys.map((x) => { const d = POOL_DEPT[x]; if (!d) return null; const p2 = pos2[d]; const h = Math.max(1, pools[x] * k); const b = band(cx[1] + nodeW, pos1[x].y, cx[2], p2.y + p2.fill, h, POOL_FILL[x], `${x}>${d}`); p2.fill += h; return b; });
   const out: Record<string, { label: string; tag?: { t: string; tone: string }; ref: string; to: { panel: string; tab?: string } }> = {
-    cap: { label: 'Research speed', tag: { t: prod.label.replace('labor', 'labour'), tone: 'warn' }, ref: 'M', to: { panel: 'company' } },
+    cap: { label: 'Research speed', tag: { t: BOUND_LABEL[prod.label] ?? prod.label, tone: 'warn' }, ref: 'M', to: { panel: 'company' } },
     serve: { label: 'Revenue', tag: capped ? { t: `${capped} capped`, tone: 'bad' } : undefined, ref: 'revenueRun', to: { panel: 'finance' } },
     saf: { label: 'Sight limit', tag: { t: F.sight(u), tone: u.gap < 0 ? 'bad' : 'good' }, ref: 'sightLimit', to: { panel: 'safety', tab: 'overview' } },
   };
@@ -90,7 +90,7 @@ function Flow({ s }: { s: GameStateV2 }) {
     <div className="flow-wrap" data-home="computeFlow">
       <svg viewBox={`0 0 ${W} ${Math.max(H, y2 - 20)}`} className="flow-svg" onMouseLeave={() => setHover(undefined)}>
         <text x={cx[0]} y={18} className="flow-cap">COMPUTE · H100e</text>
-        <text x={cx[1]} y={18} className="flow-cap">POOLS (your split)</text>
+        <text x={cx[1]} y={18} className="flow-cap">COMPUTE ALLOCATION</text>
         <text x={cx[2]} y={18} className="flow-cap">DEPARTMENTS</text>
         <text x={cx[3] + 20} y={18} className="flow-cap">OUTPUTS</text>
         {bands0}{bands1}
@@ -99,12 +99,12 @@ function Flow({ s }: { s: GameStateV2 }) {
           <g data-home="computeOnline"><rect x={cx[0]} y={top} width={nodeW} height={onH} rx={3} fill="#c9d4e2" /><text x={cx[0] + nodeW + 6} y={top + 14} className="flow-lbl">Compute online</text><text x={cx[0] + nodeW + 6} y={top + 29} className="flow-sub">{F.count(online)} H100e</text></g>
         </Tip>
         {idle > 0 && (
-          <Tip as="g" content={() => <TipCard title={<Term id="idleChips">Idle chips</Term>}>Delivered chips with no rack space. Details on Compute.</TipCard>}>
-            <g onClick={() => store.goto('compute', { tab: 'overview' })} className="flow-click"><rect x={cx[0]} y={idleY} width={nodeW} height={Math.max(3, idle * k)} rx={3} fill={C.bad} /><text x={cx[0] + 120} y={idleY + 12} className="flow-lbl bad">Idle · racks full</text><text x={cx[0] + 120} y={idleY + 27} className="flow-sub">Compute ›</text></g>
+          <Tip as="g" content={() => <TipCard title={<Term id="idleChips">Unracked chips</Term>}>Delivered chips with no rack space. Details on Compute.</TipCard>}>
+            <g onClick={() => store.goto('compute', { tab: 'overview' })} className="flow-click"><rect x={cx[0]} y={idleY} width={nodeW} height={Math.max(3, idle * k)} rx={3} fill={C.bad} /><text x={cx[0] + 120} y={idleY + 12} className="flow-lbl bad">Unracked · racks full</text><text x={cx[0] + 120} y={idleY + 27} className="flow-sub">Compute ›</text></g>
           </Tip>
         )}
         {keys.map((x) => (
-          <Tip as="g" key={x} content={() => <TipCard title={POOL_TERM[x] ? <Term id={POOL_TERM[x] as string}>{SPLIT_LABEL[x]}</Term> : SPLIT_LABEL[x]} value={`${F.count(pools[x])} H100e`}>Set by your compute split. Click to change it.</TipCard>}>
+          <Tip as="g" key={x} content={() => <TipCard title={POOL_TERM[x] ? <Term id={POOL_TERM[x] as string}>{SPLIT_LABEL[x]}</Term> : SPLIT_LABEL[x]} value={`${F.count(pools[x])} H100e`}>Set by your compute allocation. Click to change it.</TipCard>}>
             <g onMouseEnter={() => setHover(x)} onClick={() => store.goto('compute', { tab: 'split', anchor: `split-${x}` })} className="flow-click" data-pool={x}>
               <rect x={cx[1]} y={pos1[x].y} width={nodeW} height={pos1[x].h} rx={3} fill={POOL_FILL[x]} />
               <text x={cx[1] + nodeW + 6} y={pos1[x].y + Math.min(pos1[x].h, 14) - 2 + 4} className="flow-lbl">{SPLIT_LABEL[x]} <tspan className="flow-sub">{F.count(pools[x])}</tspan></text>
@@ -118,7 +118,7 @@ function Flow({ s }: { s: GameStateV2 }) {
             <g key={d.id} onMouseEnter={() => setHover(d.id)}>
               <rect x={cx[2]} y={p2.y} width={nodeW} height={p2.h} rx={3} fill={d.color} />
               <text x={cx[2] + nodeW + 8} y={p2.y + 13} className="flow-lbl">{d.label}</text>
-              <text x={cx[2] + nodeW + 8} y={p2.y + 28} className="flow-sub">{F.count(d.v)} H100e{d.id !== 'serve' ? ` · ${F.count(s.player.staff[d.id])} staff` : ''}</text>
+              <text x={cx[2] + nodeW + 8} y={p2.y + 28} className="flow-sub">{F.count(d.v)} H100e{d.id !== 'serve' ? ` · ${F.count(s.player.staff[d.id])} people` : ''}</text>
               <path d={`M${cx[2] + 150},${p2.y + 10} L${cx[3] + 10},${p2.y + 10}`} stroke={d.color} strokeWidth={2} strokeDasharray="4 3" opacity={0.6} />
               <g className="flow-click" data-ref={o.ref} onClick={() => store.goto(o.to.panel, o.to)}><text x={cx[3] + 20} y={p2.y + 14} className="flow-lbl flow-out">{o.label} ›</text></g>
               {o.tag && <text x={cx[3] + 20} y={p2.y + 30} className={`flow-tag ${o.tag.tone}`}>{o.tag.t}</text>}
@@ -151,7 +151,7 @@ function SpeedLimits({ s }: { s: GameStateV2 }) {
 }
 
 const BOUND_TERM: Record<string, string> = { 'compute-bound': 'computeBound', 'labor-bound': 'laborBound', 'human-bound': 'humanBound', 'taste-bound': 'tasteBound' };
-const BOUND_LABEL: Record<string, string> = { 'compute-bound': 'compute-bound', 'labor-bound': 'labour-bound', 'human-bound': 'human-bound', 'taste-bound': 'taste-bound' };
+const BOUND_LABEL: Record<string, string> = { 'compute-bound': 'Limited by compute', 'labor-bound': 'Limited by research engineers', 'human-bound': 'Limited by research engineers', 'taste-bound': 'Limited by idea quality' };
 
 /** Research speed (HOME of research speed; model v3 V2b): speed vs the leader lab's day 0, the AI labour multipliers the
  *  research engine ran at (RD-R01: no aggregate M or per-dollar levers), a unit project's compute c and labour ℓ (what
@@ -165,31 +165,31 @@ function ResearchSpeed({ s }: { s: GameStateV2 }) {
     <Card title={<Term id="labSpeed">Research speed</Term>} right={<span className="tag2 warn" data-test="speed-bound"><Term id={BOUND_TERM[p.label]}>{BOUND_LABEL[p.label]}</Term></span>} home="M">
       <div className="rs-chain">
         <Tip content={() => <TipCard title={<Term id="labSpeed">Research speed</Term>} value={`×${F.short(v.rel)}`} rows={[
-          { label: <Term id="expCompute">Unit project compute c</Term>, value: `×${F.short(v.c)}` }, { label: <Term id="expLabour">Unit project labour ℓ</Term>, value: `×${F.short(v.l)}` },
-          { label: 'Experiment throughput X', value: `×${F.short(v.X)}` },
-        ]}>Your research throughput relative to the leader lab's on its first day (= 1): every project's experiments at its compute and labour, × taste.</TipCard>}>
-          <span className="sp-node hero" data-test="speed-rel"><b className="num">×{F.short(v.rel)}</b><span>vs leader day 0</span></span>
+          { label: <Term id="expCompute">Experiment compute</Term>, value: `×${F.short(v.c)}` }, { label: <Term id="expLabour">Research engineers</Term>, value: `×${F.short(v.l)}` },
+          { label: 'Experiments run', value: `×${F.short(v.X)}` },
+        ]}>How fast your lab turns compute and people into results, against the leading lab in July 2025 (= ×1): every project's experiments at its compute and staff, times the quality of its ideas.</TipCard>}>
+          <span className="sp-node hero" data-test="speed-rel"><b className="num">×{F.short(v.rel)}</b><span>vs leading lab, Jul 2025</span></span>
         </Tip>
-        <Tip content={() => <TipCard title={<Term id="effectiveLabour">AI labour</Term>} value={F.mult(v.mExp)} rows={[
+        <Tip content={() => <TipCard title={<Term id="effectiveLabour">Total effort</Term>} value={F.mult(v.mExp)} rows={[
           { label: <Term id="effectiveLabour">In experiments</Term>, value: F.mult(v.mExp) },
-          { label: <Term id="effectiveLabour">On research ideas</Term>, value: F.mult(v.mIdeas) },
+          { label: <Term id="effectiveLabour">On ideas</Term>, value: F.mult(v.mIdeas) },
           ...(Math.abs(v.mods - 1) > 1e-3 ? [{ label: 'Siloing, migrations', value: F.mult(v.mods) }] : []),
-        ]}>Effective labour ÷ the people's own, as your projects ran yesterday.</TipCard>}>
-          <span className="sp-node"><b className="num">{F.mult(v.mExp)}</b><span><Term id="effectiveLabour">AI labour</Term></span></span>
+        ]}>The work of your people and AI staff together, × the people alone, as your projects ran yesterday.</TipCard>}>
+          <span className="sp-node"><b className="num">{F.mult(v.mExp)}</b><span><Term id="effectiveLabour">Total effort</Term></span></span>
         </Tip>
       </div>
-      <div className="tip-cap" style={{ marginTop: 10 }}><Term id="bottleneck">Unit project inputs</Term></div>
+      <div className="tip-cap" style={{ marginTop: 10 }}><Term id="bottleneck">Inputs per project</Term></div>
       <div className="rp-bars">
-        <span><Term id="expCompute">Compute c</Term></span><span className="hb"><i style={{ width: w(v.c), background: 'var(--warn)' }} /></span>
-        <Tip content={() => <TipCard title={<Term id="expCompute">Experiment compute c</Term>} value={`×${F.short(v.c)}`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }, { label: 'On experiments', value: F.pct(v.expShare) }]}>Per two research-engineer teams, leader day 0 = 1.</TipCard>}><span className="num">×{F.short(v.c)}</span></Tip>
-        <span><Term id="expLabour">Labour ℓ</Term></span><span className="hb"><i style={{ width: w(v.l), background: '#5aa9ff' }} /></span>
-        <Tip content={() => <TipCard title={<Term id="expLabour">Experiment labour ℓ</Term>} value={`×${F.short(v.l)}`}>Research engineers with the agents' help, to the power λ.</TipCard>}><span className="num">×{F.short(v.l)}</span></Tip>
+        <span><Term id="expCompute">Experiment compute</Term></span><span className="hb"><i style={{ width: w(v.c), background: 'var(--warn)' }} /></span>
+        <Tip content={() => <TipCard title={<Term id="expCompute">Experiment compute</Term>} value={`×${F.short(v.c)}`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }, { label: 'On experiments', value: F.pct(v.expShare) }]}>Experiment compute per two research-engineer teams, against the leading lab in July 2025 (= ×1).</TipCard>}><span className="num">×{F.short(v.c)}</span></Tip>
+        <span><Term id="expLabour">Research engineers</Term></span><span className="hb"><i style={{ width: w(v.l), background: '#5aa9ff' }} /></span>
+        <Tip content={() => <TipCard title={<Term id="expLabour">Research engineers</Term>} value={`×${F.short(v.l)}`}>Research engineers with your AI staff's help, against the leading lab in July 2025 (= ×1). Doubling them less than doubles output.</TipCard>}><span className="num">×{F.short(v.l)}</span></Tip>
       </div>
-      <Tip content={() => <TipCard title={<Term id="autoSplit">Research compute mix</Term>} value={`${F.pct(v.expShare)} experiments`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }]}>Set by you on Compute › Split.</TipCard>}>
-        <div className="small dim" data-test="speed-mix">Mix: <b className="num">{F.pct(v.expShare)}</b> of research compute on experiments</div>
+      <Tip content={() => <TipCard title={<Term id="poolExperiments">Research experiments</Term>} value={`${F.pct(v.expShare)} of research compute`} rows={[{ label: 'Research compute', value: `${F.count(v.researchH100e)} H100e` }]}>Set by your compute allocation (Compute › Allocation).</TipCard>}>
+        <div className="small dim" data-test="speed-mix">Experiments: <b className="num">{F.pct(v.expShare)}</b> of research compute</div>
       </Tip>
       <SpeedLimits s={s} />
-      <div className="row-i small" style={{ marginTop: 8 }}><Ref id="softwareRate" to={{ panel: 'research', tab: 'recipe' }}>Software progress</Ref><Ref id="work" to={{ panel: 'company', tab: 'work' }}>AI labour by work type</Ref></div>
+      <div className="row-i small" style={{ marginTop: 8 }}><Ref id="softwareRate" to={{ panel: 'research', tab: 'recipe' }}>Know-how growth</Ref><Ref id="work" to={{ panel: 'company', tab: 'work' }}>AI share by job</Ref></div>
     </Card>
   );
 }
@@ -199,10 +199,10 @@ const ROLE_ICON: Record<TeamRole, typeof ICON.L> = { eng: ICON.roleEng, re: ICON
 const ROLE_TERM: Record<TeamRole, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
 const COL_ICON: Record<Column, typeof ICON.L> = { pretraining: ICON.colPretraining, posttraining: ICON.colPosttraining, systems: ICON.colSystems, alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
-const KEY_SHORT: Record<TeamKey, string> = { eng: 'Engineering', 're.cap': 'Research eng.', 'sci.cap': 'Science', 're.saf': 'Research eng.', 'sci.saf': 'Science' };
+const KEY_SHORT: Record<TeamKey, string> = { eng: 'Engineers', 're.cap': 'Research engineers', 'sci.cap': 'Scientists', 're.saf': 'Safety research engineers', 'sci.saf': 'Safety scientists' };
 const keyIcon = (k: TeamKey) => ROLE_ICON[k === 'eng' ? 'eng' : (k.split('.')[0] as TeamRole)];
 const teamIcon = (t: Pick<Team, 'role' | 'specialty'>) => (t.role === 'sci' && t.specialty ? COL_ICON[t.specialty] : ROLE_ICON[t.role]);
-const teamTitle = (t: Pick<Team, 'role' | 'dept' | 'specialty'>) => (t.role === 'sci' ? `Science · ${t.specialty ? COLUMN_LABEL[t.specialty] : ''}` : t.role === 'eng' ? 'Engineering' : `Research eng. · ${t.dept === 'saf' ? 'safety' : 'capabilities'}`);
+const teamTitle = (t: Pick<Team, 'role' | 'dept' | 'specialty'>) => (t.role === 'sci' ? `${t.dept === 'saf' ? 'Safety scientists' : 'Scientists'}${t.specialty ? ` · ${COLUMN_LABEL[t.specialty]}` : ''}` : t.role === 'eng' ? 'Engineers' : t.dept === 'saf' ? 'Safety research engineers' : 'Research engineers');
 
 /** Quality as 1–3 filled dots (Solid / Strong / Elite). */
 function QDots({ q }: { q: TeamQuality }) {
@@ -217,14 +217,14 @@ function QDots({ q }: { q: TeamQuality }) {
  *  day on a copy with the team): build capacity, the capability project it speeds most, safety results per year. */
 function GainChip({ s, t }: { s: GameStateV2; t: Pick<Team, 'role' | 'dept' | 'quality' | 'specialty'> }) {
   const g = teamGain(s, t);
-  const text = g.currency === 'staffTime' ? `+${F.num(g.amount, 1)} build`
+  const text = g.currency === 'staffTime' ? `+${F.num(g.amount, 1)} build capacity`
     : g.currency === 'alignment' ? `${F.num(g.amount, 2, true)} results/yr`
     : g.unit === 'days' ? (g.amount === 0 ? 'no project faster today' : `${F.num(g.amount, 0, true)} d`)
     : `${F.num(g.amount, 2, true)} tuning`;
-  const body = g.currency === 'staffTime' ? 'Build capacity, engineering team-weeks per week, with the engineers\' AI tools: what one day of the build system gives with the team.'
-    : g.currency === 'alignment' ? 'Safety research results per year across the lines, after one research day with the team (safety research engineers go to experiments; a science team joins the safety projects on the priority list, or waits idle if there are none).'
-    : t.role === 'sci' ? 'Days sooner for the capability project this team speeds most, after one research day with it: the priority assignment places it (×1.5 on a project in its specialty; its quality sets its taste).'
-    : 'Days sooner for the capability project these research engineers speed most, after one research day with them; when no project needs more, they go to routine tuning (team-equivalents).';
+  const body = g.currency === 'staffTime' ? 'Build capacity in team-weeks per week, with your AI staff\'s help: what one day of engineering gives with the team.'
+    : g.currency === 'alignment' ? 'Safety research results per year across your programmes, after one research day with the team (safety research engineers run experiments; a science team joins the safety work on the priority list, or waits idle if there is none).'
+    : t.role === 'sci' ? 'Days sooner for the capability project this team speeds most, after one research day with it: the priority assignment places it (×1.5 on a project in its field; its quality sets its taste).'
+    : 'Days sooner for the capability project these research engineers speed most, after one research day with them; when no project needs more, they go to tuning.';
   return <Tip content={() => <TipCard title="If hired, once full" value={g.target}>{body}</TipCard>}><span className={`pill2 ${g.amount < 0 ? 'cost' : 'gain'}`} data-test="team-gain">{text}</span></Tip>;
 }
 
@@ -240,8 +240,8 @@ function Teams({ s }: { s: GameStateV2 }) {
     const Ic = ROLE_ICON[r];
     return (
       <div className="role-hd" data-role={r}>
-        <Ic size={15} /><Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research eng.' : 'Scientists'}</Term>
-        <Tip content={() => <TipCard title={<Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists'}</Term>} rows={[{ label: 'Teams', value: String(role(r).length) }, { label: 'People', value: F.count(heads(role(r))) }, { label: 'Seats open', value: F.count(vacant(role(r))) }, { label: <Term id="payroll">Payroll</Term>, value: F.money(role(r).reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }]} />}>
+        <Ic size={15} /><Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists'}</Term>
+        <Tip content={() => <TipCard title={<Term id={ROLE_TERM[r]}>{r === 'eng' ? 'Engineers' : r === 're' ? 'Research engineers' : 'Scientists'}</Term>} rows={[{ label: 'Teams', value: String(role(r).length) }, { label: 'People', value: F.count(heads(role(r))) }, { label: 'Open positions', value: F.count(vacant(role(r))) }, { label: <Term id="payroll">Payroll</Term>, value: F.money(role(r).reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }]} />}>
           <span className="row-i"><b className="num">{role(r).length}</b><span className="dim num">· {F.count(heads(role(r)))}</span></span>
         </Tip>
         <span className="sp" />{right}
@@ -253,8 +253,8 @@ function Teams({ s }: { s: GameStateV2 }) {
     const v = vacant(ts);
     return (
       <div className={`team-pile ${ts.length > 1 ? 'stacked' : ''}`} data-pile={k}>
-        <div className="pile-top"><Tip content={() => <TipCard title={label} rows={[{ label: 'Teams', value: String(ts.length) }, { label: 'People', value: F.count(heads(ts)) }, { label: 'Seats open', value: F.count(v) }]} />}><b className="num">×{ts.length}</b></Tip><span>{label}</span><span className="sp" />{ts.map((t) => <QDots key={t.id} q={t.quality} />).slice(0, 6)}</div>
-        <div className="pile-sub small">{sub}{v >= 1 && <Tip content={() => <TipCard title="Seats open" value={F.count(v)}>People still to hire into these teams; keep-hiring fills them at the weekly cap.</TipCard>}><span className="tone-warn"> · {F.count(v)} seats open</span></Tip>}<span className="sp" />{actions}</div>
+        <div className="pile-top"><Tip content={() => <TipCard title={label} rows={[{ label: 'Teams', value: String(ts.length) }, { label: 'People', value: F.count(heads(ts)) }, { label: 'Open positions', value: F.count(v) }]} />}><b className="num">×{ts.length}</b></Tip><span>{label}</span><span className="sp" />{ts.map((t) => <QDots key={t.id} q={t.quality} />).slice(0, 6)}</div>
+        <div className="pile-sub small">{sub}{v >= 1 && <Tip content={() => <TipCard title="Open positions" value={F.count(v)}>People still to hire into these teams; keep-hiring fills them at the weekly cap.</TipCard>}><span className="tone-warn"> · {F.count(v)} open positions</span></Tip>}<span className="sp" />{actions}</div>
       </div>
     );
   };
@@ -277,22 +277,22 @@ function Teams({ s }: { s: GameStateV2 }) {
       <div className="teams-body">
         <div className="teams-col">
           <RoleHead r="eng" />
-          <Pile k="eng" label="shared pool"
+          <Pile k="eng" label="All engineers"
             sub={<Ref id="buildCapacity" to={{ panel: 'company', tab: 'work' }}><ICON.build size={11} /> build capacity · Work</Ref>}
             actions={releaseBtn(newest('eng'))} />
           <RoleHead r="re" />
           <Pile k="re.cap" label="Capabilities"
-            sub={<Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>experiments · tuning · run ops · Work</Ref>}
+            sub={<Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>experiments · tuning · run operations · Work</Ref>}
             actions={<>{moveBtn(newest('re.cap'))}{releaseBtn(newest('re.cap'))}</>} />
-          <Pile k="re.saf" label="Safety" sub={<span>tools · investigations</span>} actions={<>{moveBtn(newest('re.saf'))}{releaseBtn(newest('re.saf'))}</>} />
+          <Pile k="re.saf" label="Safety" sub={<span>validations · cases</span>} actions={<>{moveBtn(newest('re.saf'))}{releaseBtn(newest('re.saf'))}</>} />
         </div>
         <div className="teams-col wide">
           <RoleHead r="sci" right={(
             <span className="row-i small">
-              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }, { label: 'Per star', value: `+${F.num(STAR_HIRE.dTaste, 2)} each, up to ×${F.num(STAR_HIRE.maxTaste, 1)}` }]}>Star hires multiply the human taste of every capabilities science team. Each team's taste (its quality, the stars and AI): Research › Projects; AI taste: Company › Work.</TipCard>}>
-                <span><ICON.taste size={12} /> star taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
+              <Tip content={() => <TipCard title={<Term id="researchTaste">Research taste</Term>} value={`×${p.tasteHire.toFixed(2)}`} rows={[{ label: 'Stars', value: String(p.stars) }, { label: 'Per star', value: `+${F.num(STAR_HIRE.dTaste, 2)} each, up to ×${F.num(STAR_HIRE.maxTaste, 1)}` }]}>Star hires multiply the human taste of every capabilities science team. Each team's taste (its quality, the stars and AI): Research › Portfolio; AI staff's taste: Company › Work.</TipCard>}>
+                <span><ICON.taste size={12} /> Star hire taste <b className="num">×{p.tasteHire.toFixed(2)}</b></span>
               </Tip>
-              <ActBtn id="starHire" icon={ICON.hiring} label="Star" />
+              <ActBtn id="starHire" icon={ICON.hiring} label="Star hire" />
             </span>
           )} />
           {(['cap', 'saf'] as const).map((d) => (
@@ -429,10 +429,10 @@ export function Company({ s }: { s: GameStateV2 }) {
   const tab = tabOf('company', 'flow');
   return (
     <div className="panel-v2 company" data-panel="company">
-      <PanelHead icon={ICON.company} title="Company" sub="where compute goes and what it produces" tabs={<Tabs panel="company" def="flow" tabs={[{ id: 'flow', label: 'Flow', icon: ICON.company }, { id: 'people', label: 'Agents & teams', icon: ICON.staff }, { id: 'work', label: 'Work', icon: ICON.build }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
+      <PanelHead icon={ICON.company} title="Company" sub="where compute goes and what it produces" tabs={<Tabs panel="company" def="flow" tabs={[{ id: 'flow', label: 'Flow', icon: ICON.company }, { id: 'people', label: 'AI staff & teams', icon: ICON.staff }, { id: 'work', label: 'Work', icon: ICON.build }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
       {tab === 'flow' && (
         <div className="company-flow">
-          <Card title="Where your compute goes" sub="widths are live · hover to trace · click a pool to change the split"><Flow s={s} /></Card>
+          <Card title="Where your compute goes" sub="widths are live · hover to trace · click a use to change the allocation"><Flow s={s} /></Card>
           <ResearchSpeed s={s} />
         </div>
       )}

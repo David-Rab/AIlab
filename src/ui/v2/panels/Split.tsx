@@ -13,6 +13,7 @@ import * as F from '../fmt';
 import { POOL_COLOR } from '../theme';
 
 type Key = keyof ComputeSplit;
+const PRESET_LABEL: Record<string, string> = { reference: 'Default', race: 'Race', balanced: 'Balanced', safety: 'Safety-first' };
 const TERM: Partial<Record<Key, string>> = {
   training: 'poolTraining', synthetic: 'poolSynthetic', experiments: 'poolExperiments', routine: 'poolAgents', frontier: 'poolAgents',
   engineering: 'engAgents', safetyAgents: 'safetyAgents', monitors: 'agentMonitor', safety: 'poolSafety', serving: 'poolServing',
@@ -22,10 +23,10 @@ const COLOR: Record<Key, string> = {
   engineering: POOL_COLOR.engineering, safetyAgents: POOL_COLOR.safety, monitors: POOL_COLOR.safety, safety: POOL_COLOR.safety, serving: POOL_COLOR.serving, idle: '#8a8f98',
 };
 const WHAT: Record<Key, string> = {
-  training: 'Training runs in the queue.', synthetic: 'Synthetic data for bigger bases.', experiments: 'Research experiments (with the research agents, the research engine).',
-  routine: 'AI agents doing routine research (experiments).', frontier: 'AI agents doing frontier research (ideas, research taste).',
-  engineering: 'AI agents coding for the build queue.', safetyAgents: 'AI agents doing safety research.', monitors: "Monitors watching the internal agents' forward passes; what full coverage does not need stays unused (shown on Safety).",
-  safety: 'Safety research: open cases take their compute first, the research lines take the rest.', serving: 'Inference for your products.', idle: 'Compute you have not given to any use. It stays idle unless Auto-split is on.',
+  training: 'Compute your training runs draw on.', synthetic: 'Compute your models spend writing training data.', experiments: 'Compute for your teams\' small and big tests.',
+  routine: 'Compute for your AI staff running experiments.', frontier: 'Compute for your AI staff working on ideas (research taste).',
+  engineering: 'Compute for your AI staff working through the build queue.', safetyAgents: 'Compute for your AI staff doing safety work.', monitors: 'Safeguards: compute spent watching your AI staff\'s actions; what full watch does not need stays idle (shown on Safety).',
+  safety: 'Safety work: open cases take their compute first, safety programmes and projects the rest.', serving: 'Compute that serves your customers.', idle: 'Compute no use draws on: it costs money and does nothing. It stays idle unless Auto-split is on.',
 };
 
 /** Idle compute inside a use (RD-A05b, DD-19): what the use does not need today. It stays idle, shown here, unless
@@ -53,8 +54,8 @@ function AutoSplitRow({ s }: { s: GameStateV2 }) {
       <div className="row-i">
         <ActBtn id="compute.autoSplit" testId="autoSplit.toggle" params={{ on: !pol.on }} label={<span className="psw"><span className={`sw ${pol.on ? 'on' : ''}`}><i /></span><Term id="autoSplit">Auto-split idle compute</Term></span>} />
         <Tip content={() => <TipCard title={<Term id="idleCompute">Idle compute now</Term>} value={F.pct(idle.total, 1)} rows={[
-          { label: 'Unallocated', value: F.pct(idle.unallocated, 1) }, { label: 'Training no run uses', value: F.pct(idle.training, 1) },
-          { label: 'Serving no product needs', value: F.pct(idle.serving, 1) }, { label: 'Monitors beyond full coverage', value: F.pct(idle.monitors, 1) },
+          { label: 'Not allocated', value: F.pct(idle.unallocated, 1) }, { label: 'Training no run uses', value: F.pct(idle.training, 1) },
+          { label: 'Serving no product needs', value: F.pct(idle.serving, 1) }, { label: 'Safeguards beyond full watch', value: F.pct(idle.monitors, 1) },
         ]}>Compute that does nothing today. Off: it stays idle where it is. On: once a day it moves to the uses you pick (in equal parts) and the log says so.</TipCard>}>
           <span className="num small dim" data-test="autoSplit.idle">{F.pct(idle.total, 1)} idle now{pol.on && moved > 0 ? ` · moves ${F.pct(moved, 1)} today` : ''}</span>
         </Tip>
@@ -83,7 +84,7 @@ export function Split({ s }: { s: GameStateV2 }) {
   // What a zero share does (no floors: the allocation always applies; these say what stops).
   const warns: string[] = [];
   if (norm.training <= 1e-4 && p.models.runs.some((r) => r.status === 'running')) warns.push('Running training runs pause: no training compute');
-  if (norm.serving <= 1e-4 && p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open')) warns.push('Every product goes capacity-bound: no serving compute');
+  if (norm.serving <= 1e-4 && p.deployments.some((d) => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open')) warns.push('Every product is limited by serving compute: none allocated');
   const label = (k: Key) => (TERM[k] ? <Term id={TERM[k] as string}>{SPLIT_LABEL[k]}</Term> : SPLIT_LABEL[k]);
   const row = (k: Key) => (
     <div key={k} className="alloc-row split-row" id={`ctl-split-${k}`}>
@@ -95,14 +96,14 @@ export function Split({ s }: { s: GameStateV2 }) {
   );
   return (
     <div className="split-page">
-      <Card title={<Term id="split">Compute allocation</Term>} sub="every use a share of your compute · drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={F.words(x)} onDone={reset} />)}</div>}>
+      <Card title={<Term id="split">Compute allocation</Term>} sub="every use a share of your compute · drag, then apply" home="split" right={<div className="btn-row">{SPLIT_PRESETS.map((x) => <ActBtn key={x} id="splitPreset" testId={`splitPreset.${x}`} params={{ preset: x }} label={PRESET_LABEL[x] ?? F.words(x)} onDone={reset} />)}</div>}>
         <div className="split-bar">{SPLIT_KEYS.map((k) => <i key={k} style={{ flex: Math.max(0.0001, norm[k]), background: COLOR[k] }} title={SPLIT_LABEL[k]} />)}</div>
         {SPLIT_KEYS.map((k) => (
           <div key={k} className="split-group">
             {row(k)}
             {k === 'training' && <IdleRow s={s} k="training" h={idleTrainingShare(s) * poolsOf(s).training} what="Training compute no run uses now." />}
             {k === 'serving' && <IdleRow s={s} k="serving" h={idleServing(s)} what="Serving compute no product needs today." />}
-            {k === 'monitors' && monitorBudget(s).need > 0 && <IdleRow s={s} k="monitors" h={(monitorBudget(s).budget - monitorBudget(s).used) * p.computeOnline} what="Monitoring compute beyond full coverage." />}
+            {k === 'monitors' && monitorBudget(s).need > 0 && <IdleRow s={s} k="monitors" h={(monitorBudget(s).budget - monitorBudget(s).used) * p.computeOnline} what="Safeguard compute beyond full watch." />}
           </div>
         ))}
         <AutoSplitRow s={s} />
@@ -113,7 +114,7 @@ export function Split({ s }: { s: GameStateV2 }) {
         </div>
       </Card>
       <div className="g2">
-        <Card title={<Term id="responseCurve">What more of each buys</Term>} sub="R&D speed at ×¼ … ×4 of one input">
+        <Card title={<Term id="responseCurve">What 10% more buys</Term>} sub="research speed at ×¼ … ×4 of one input">
           <ResponseCharts s={s} />
         </Card>
       </div>

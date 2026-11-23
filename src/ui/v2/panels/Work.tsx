@@ -32,14 +32,15 @@ const NEED_COLOR: Record<NeedKey, string> = {
   review: '#5a9a6a', spotCheck: '#8aa84a', cases: '#d0604a', validation: '#4f8fd1', evals: '#c06bb0', removal: '#c08a3a', safExp: '#3aa88a',
 };
 const NEED_SHORT: Record<NeedKey, string> = {
-  ops: 'Run operations', exp: 'Project experiments', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds',
-  review: 'Human review', spotCheck: 'Spot-checks', cases: 'Open cases', validation: 'Validation jobs', evals: 'Evaluations', removal: 'Foothold removals', safExp: 'Line experiments',
+  ops: 'Run operations', exp: 'Research experiments', runs: 'Run setups', upkeep: 'Upkeep', builds: 'Build queue',
+  review: 'Human review', spotCheck: 'Spot-checks', cases: 'Cases', validation: 'Validations', evals: 'Evals', removal: 'Foothold removal', safExp: 'Research experiments',
 };
 const SHARES = [0.25, 0.5, 0.75, 0.9];
 const COUNTS = [1, 2, 4, 8, 16];
 const fmtH = (min: number) => (min >= 60 * 24 * 365 ? `${F.short(min / (60 * 24 * 365))} y` : min >= 60 * 24 ? `${F.short(min / (60 * 24))} d` : min >= 60 ? `${F.short(min / 60)} h` : `${Math.round(min)} min`);
-const WT_SHORT: Record<string, string> = { SWE: 'Software', EXP: 'Experiments', IDEAS: 'Research ideas', SAF_EXP: 'Safety experiments', SAF_IDEAS: 'Safety ideas', OTHER: 'Other expert work' };
-const oom = (x: number) => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(2)} OOM`;
+const WT_SHORT: Record<string, string> = { SWE: 'Software engineering', EXP: 'Experiments', IDEAS: 'Ideas', SAF_EXP: 'Safety experiments', SAF_IDEAS: 'Safety ideas', OTHER: 'Other expert work' };
+/** A gap in effective compute as a player multiple (VOCAB: no OOM on screen). Needs a levels readout (UB-2) to say "levels". */
+const oom = (x: number) => (x >= 0 ? `×${F.short(10 ** x)} past it` : `needs ×${F.short(10 ** -x)} more`);
 
 /** Fit on a shared OOM axis: the median expert, the best human, the model. */
 function FitAxis({ w }: { w: WorkTypeView }) {
@@ -49,12 +50,12 @@ function FitAxis({ w }: { w: WorkTypeView }) {
   const x = (v: number) => `${((v - lo) / (hi - lo)) * 100}%`;
   const has = Number.isFinite(w.fit);
   return (
-    <Tip content={() => <TipCard title={<Term id="fit">Fit</Term>} value={has ? oom(w.fit - w.best) : 'no model'} rows={[
+    <Tip content={() => <TipCard title={<Term id="fit">Skill at this job</Term>} value={has ? oom(w.fit - w.best) : 'no model'} rows={[
       { label: 'vs the median expert', value: has ? oom(w.fit - w.med) : '—' },
       { label: 'vs the best human', value: has ? oom(w.fit - w.best) : '—' },
       { label: <Term id="winRate">Win rate vs median expert</Term>, value: F.pct(w.win) },
-      { label: <Term id="assist">Assist to people</Term>, value: `×${w.assist.toFixed(2)}` },
-    ]}>{`${w.version ?? 'No model'} on ${w.name.toLowerCase()}, in OOM of effective compute in this work's domains.`}</TipCard>}>
+      { label: <Term id="assist">Speed-up to people</Term>, value: `×${w.assist.toFixed(2)}` },
+    ]}>{`${w.version ?? 'No model'} at ${w.name.toLowerCase()}: the effective compute it would need to match each mark.`}</TipCard>}>
       <div className="wk-fit" data-test={`fit.${w.wt}`}>
         <i className="ax" />
         <i className="tick" style={{ left: x(w.med) }} /><span className="tl" style={{ left: x(w.med) }}><Term id="medianExpert">median</Term></span>
@@ -126,8 +127,8 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<NeedKey>; act: string;
           </div>
         );
       })}
-      <Tip content={() => <TipCard title={<Term id="overflow">Overflow</Term>} value={`${F.short(a.idle)} ${unit} idle`}>Capacity no need takes. Engineers: queue a feature or launch; research engineers stay idle once run operations, evaluations and the projects in experiments are full: add a project to put them to work.</TipCard>}>
-        <div className="small dim wk-idle" data-test={`idle.${act}`}><Term id="overflow">idle</Term> {F.short(a.idle)} {unit}</div>
+      <Tip content={() => <TipCard title={<Term id="overflow">Spare</Term>} value={`${F.short(a.idle)} ${unit} spare`}>Capacity no need takes. Engineers: queue a tool or a launch; research engineers stay spare once run operations, evals and the projects in experiments are full: add a project to put them to work.</TipCard>}>
+        <div className="small dim wk-idle" data-test={`idle.${act}`}><Term id="overflow">spare</Term> {F.short(a.idle)} {unit}</div>
       </Tip>
     </div>
   );
@@ -140,16 +141,16 @@ function RoleCard({ s, w }: { s: GameStateV2; w: WorkTypeView }) {
   const L = bs ? bs.capacity : w.L;
   const H = bs ? bs.human : w.humans;
   const m = H > 0 ? L / H : 0;
-  const unit = role === 'eng' ? 'team-wk/wk' : 'team-eq';
+  const unit = 'teams';
   const labourTip = () => (
-    <TipCard title={<Term id={role === 'eng' ? 'buildCapacity' : 'effectiveLabour'}>{role === 'eng' ? 'Build capacity' : 'Effective labour'}</Term>} value={`${F.short(L)} ${unit}`} rows={[
+    <TipCard title={<Term id={role === 'eng' ? 'buildCapacity' : 'effectiveLabour'}>{role === 'eng' ? 'Build capacity' : 'Total effort'}</Term>} value={`${F.short(L)} ${unit}${role === 'eng' ? ' (team-weeks per week)' : ''}`} rows={[
       { label: 'People (teams × quality)', value: H.toFixed(1) },
-      { label: <Term id="assist">Assist on their work</Term>, value: `×${w.assist.toFixed(2)}` },
-      { label: <Term id="aiFte">AI FTE</Term>, value: F.count(w.aiFte) },
+      { label: <Term id="assist">Speed-up from AI tools</Term>, value: `×${w.assist.toFixed(2)}` },
+      { label: <Term id="aiFte">AI staff, in people</Term>, value: F.count(w.aiFte) },
       { label: <Term id="agentCopies">Copies × speed</Term>, value: `${F.count(w.copies)} × ${w.speed.toFixed(0)}` },
-      { label: 'Agent compute', value: `${F.count(w.h100e)} H100e` },
-      { label: <Term id="humanShare">Humans' share of the margin</Term>, value: F.pct(w.wH) },
-    ]}>People and agents in the coding CES: AI does the covered share. It is not a sum: the bar shows the people and what AI adds.</TipCard>
+      { label: 'AI staff compute', value: `${F.count(w.h100e)} H100e` },
+      { label: <Term id="humanShare">People's part of the gain</Term>, value: F.pct(w.wH) },
+    ]}>People and AI staff together: AI does the share of the work it can do alone. Not a sum: the bar shows the people and what AI staff add.</TipCard>
   );
   const sci = role === 'sci' ? capPriorityList(s) : undefined;
   return (
@@ -158,30 +159,30 @@ function RoleCard({ s, w }: { s: GameStateV2; w: WorkTypeView }) {
       <div className="wk-hero" data-wt={w.wt} {...(role === 'eng' ? { 'data-home': 'buildCapacity' } : {})}>
         <Tip content={labourTip}><b className="num" data-test={`labour.${w.wt}`}>{F.short(L)}</b></Tip>
         <span className="dim">{unit}{role === 'eng' ? ' build' : ''}</span>
-        <Tip content={labourTip}><span className="wk-m num">×{F.short(m)} with AI</span></Tip>
+        <Tip content={labourTip}><span className="wk-m num">×{F.short(m)} the people alone</span></Tip>
       </div>
       <Tip content={labourTip}>
         <span className="wk-split"><i style={{ flex: Math.max(1e-6, H), background: '#3a4d66' }} /><i style={{ flex: Math.max(0, L - H), background: '#4fd1bd' }} /></span>
       </Tip>
-      <Tip content={labourTip}><div className="small dim wk-split-l"><span><i className="sw" style={{ background: '#3a4d66' }} />people {F.short(H)}</span><span><i className="sw" style={{ background: '#4fd1bd' }} />AI adds {F.short(Math.max(0, L - H))}</span></div></Tip>
-      <div className="rp-k" style={{ marginTop: 10 }}><Term id="fit">Fit vs people</Term> · <Term id="coverage">coverage</Term></div>
+      <Tip content={labourTip}><div className="small dim wk-split-l"><span><i className="sw" style={{ background: '#3a4d66' }} />people {F.short(H)}</span><span><i className="sw" style={{ background: '#4fd1bd' }} />AI staff {F.short(Math.max(0, L - H))}</span></div></Tip>
+      <div className="rp-k" style={{ marginTop: 10 }}><Term id="fit">Skill at this job</Term> · <Term id="coverage">can do alone</Term></div>
       <FitAxis w={w} />
-      <Tip content={() => <TipCard title={<Term id="coverage">Coverage</Term>} value={F.pct(w.coverage)} rows={[
-        { label: <Term id="timeHorizon">50% time horizon</Term>, value: fmtH(w.h50) }, { label: '80% time horizon', value: fmtH(w.h80) },
+      <Tip content={() => <TipCard title={<Term id="coverage">Can do alone</Term>} value={F.pct(w.coverage)} rows={[
+        { label: <Term id="timeHorizon">Time horizon (half the time)</Term>, value: fmtH(w.h50) }, { label: 'Time horizon (4 in 5)', value: fmtH(w.h80) },
         { label: <Term id="pAtLength">{`Success at ${w.H} h tasks`}</Term>, value: F.pct(w.pAtH) },
         { label: 'Superhuman mark', value: '90%' },
-      ]}>Share of this work AI does on its own: fit around the best human × finishing a task of the work's typical length.</TipCard>}>
-        <div className="wk-cov" data-test={`coverage.${w.wt}`}><span className="small">coverage</span><span className="hb"><i style={{ width: `${w.coverage * 100}%` }} /><i className="mk" style={{ left: '90%' }} /></span><b className="num">{F.pct(w.coverage)}</b></div>
+      ]}>Share of this job's tasks your AI staff finish unaided: their skill against the best human, and how often they finish a task of the job's usual length.</TipCard>}>
+        <div className="wk-cov" data-test={`coverage.${w.wt}`}><span className="small">can do alone</span><span className="hb"><i style={{ width: `${w.coverage * 100}%` }} /><i className="mk" style={{ left: '90%' }} /></span><b className="num">{F.pct(w.coverage)}</b></div>
       </Tip>
-      <div className="rp-k" style={{ marginTop: 10 }}>{role === 'sci' ? 'Where it goes' : <Term id={role === 'eng' ? 'engNeeds' : 'reNeeds'}>Where it goes · priority order</Term>}</div>
-      {role === 'eng' && <><BuildLoad s={s} compact /><NeedList a={engAllocView(s)} act="build.engAlloc" unit="team-wk/wk" /></>}
-      {role === 're' && <NeedList a={reAllocView(s)} act="research.reAlloc" unit="team-eq" />}
+      <div className="rp-k" style={{ marginTop: 10 }}>{role === 'sci' ? 'Needs' : <Term id={role === 'eng' ? 'engNeeds' : 'reNeeds'}>Needs · priority order</Term>}</div>
+      {role === 'eng' && <><BuildLoad s={s} compact /><NeedList a={engAllocView(s)} act="build.engAlloc" unit="teams" /></>}
+      {role === 're' && <NeedList a={reAllocView(s)} act="research.reAlloc" unit="teams" />}
       {role === 'sci' && sci && (
         <div className="small">
-          <Tip content={() => <TipCard title="Capability science teams" rows={sci.list.slice(0, 6).map((v) => ({ label: v.name, value: `${v.teams.length} of ${v.want}` }))}>Placed down the priority list (teams wanted, specialty first). Safety scientists work on Safety › Research lines.</TipCard>}>
+          <Tip content={() => <TipCard title="Capability scientists" rows={sci.list.slice(0, 6).map((v) => ({ label: v.name, value: `${v.teams.length} of ${v.want}` }))}>Placed down the priority list (teams wanted, field first). Safety scientists work on Safety › Research.</TipCard>}>
             <span>{sci.list.length} projects · {sci.list.reduce((a, v) => a + v.teams.length, 0)} teams placed</span>
           </Tip>{' '}
-          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Priorities</Ref>
+          <Ref id="projectQueue" to={{ panel: 'research', tab: 'projects' }}>Research › Priority list</Ref>
         </div>
       )}
     </Card>
@@ -195,14 +196,14 @@ function Criterion({ c }: { c: MilestoneView['criteria'][number] }) {
     </Tip>
   );
   if (c.kind === 'cost') return (
-    <Tip content={() => <TipCard title={c.label} rows={[{ label: 'AI per work-hour', value: `$${F.short(c.have)}` }, { label: 'Best engineer per hour', value: `$${F.short(c.need)}` }]} />}>
+    <Tip content={() => <TipCard title={c.label} rows={[{ label: 'AI cost per hour of work', value: `$${F.short(c.have)}` }, { label: 'Best engineer per hour', value: `$${F.short(c.need)}` }]} />}>
       <div className="small">cost {c.met ? '✓' : '✗'} <span className="num">${F.short(c.have)} vs ${F.short(c.need)}/h</span></div>
     </Tip>
   );
   const d = c.have - c.need;
   return (
-    <Tip content={() => <TipCard title={c.label} value={oom(d)}>{c.need > 0 ? 'Beyond the best human by twice the best-to-median gap.' : 'Fit minus the best human\'s.'}</TipCard>}>
-      <div className="small">{c.wt ? WT_SHORT[c.wt] : ''} fit <span className={`num ${c.met ? 'tone-pos' : ''}`}>{c.met ? '✓' : oom(d)}</span></div>
+    <Tip content={() => <TipCard title={c.label} value={oom(d)}>{c.need > 0 ? 'Beyond the best human by twice the best-to-median gap.' : 'Its skill against the best human\'s.'}</TipCard>}>
+      <div className="small">{c.wt ? WT_SHORT[c.wt] : ''} skill <span className={`num ${c.met ? 'tone-pos' : ''}`}>{c.met ? '✓' : oom(d)}</span></div>
     </Tip>
   );
 }
@@ -229,8 +230,8 @@ function SafetySpendLine({ s }: { s: GameStateV2 }) {
         label: <>{r.label}{r.filled ? '' : <span className="tone-warn"> · short</span>}</>,
         value: `${F.short(r.staffGot)}/${F.short(r.staffAsk)} people · ${F.short(r.computeGot)}/${F.short(r.computeAsk)} H100e · ${F.money(r.staffCost + r.computeCost, { perYear: true })}`,
       })),
-      { label: 'Idle (not in the total)', value: `${F.short(sp.idleStaff)} people · ${F.short(sp.idleCompute)} H100e · ${F.money(sp.idleCost, { perYear: true })}` },
-    ]} footer="Not in this total: safety scientists' pay, idle engineers (above) and product monitors (billed to serving).">Every safety use of people and compute is a need here, in this order (compute: cases and eval suites first, validation and line experiments share the rest; monitoring and control use their own compute line, set in Safety). The total is the people and compute the needs got: payroll share plus compute at the rental rate.</TipCard>}>
+      { label: 'Spare (not in the total)', value: `${F.short(sp.idleStaff)} people · ${F.short(sp.idleCompute)} H100e · ${F.money(sp.idleCost, { perYear: true })}` },
+    ]} footer="Not in this total: safety scientists' pay, spare staff (above) and product safeguards (billed to serving).">Every safety use of people and compute is a need here, in this order (compute: cases and evals first, validations and research experiments share the rest; safeguards use their own compute share, set in Safety). The total is the people and compute the needs got: payroll share plus compute at the rental rate.</TipCard>}>
       <div className="small dim">Safety needs spend {F.money(sp.total, { perYear: true })} · people {F.money(sp.staffCost, { perYear: true })} + compute {F.money(sp.computeCost, { perYear: true })}</div>
     </Tip>
   );
@@ -257,10 +258,10 @@ function Milestones({ s }: { s: GameStateV2 }) {
       </div>
       {saf && safI && <div className="small dim wk-saf">
         <Tip content={() => <TipCard title="Safety work" rows={[
-          { label: <>Safety experiments <Term id="coverage">coverage</Term></>, value: F.pct(saf.coverage) }, { label: 'Safety ideas coverage', value: F.pct(safI.coverage) },
-          { label: <Term id="aiFte">AI FTE</Term>, value: F.count(saf.aiFte + safI.aiFte) }, { label: <Term id="aiDoneShare">Work AI does</Term>, value: `${F.pct(saf.A)} experiments · ${F.pct(safI.A)} ideas` },
-        ]}>The safety research agents' work types, on the same labour function as capabilities work: Trusted to AI hands them a share of safety work and they do the part they cover. Lower verifiability and longer tasks put their coverage behind Experiments and Research ideas.</TipCard>}>
-          <span><Term id="workType">Safety work</Term>: used by the safety research agents · coverage {F.pct(saf.coverage)} experiments, {F.pct(safI.coverage)} ideas</span>
+          { label: <>Safety experiments: <Term id="coverage">can do alone</Term></>, value: F.pct(saf.coverage) }, { label: 'Safety ideas: can do alone', value: F.pct(safI.coverage) },
+          { label: <Term id="aiFte">AI staff, in people</Term>, value: F.count(saf.aiFte + safI.aiFte) }, { label: <Term id="aiDoneShare">AI share</Term>, value: `${F.pct(saf.A)} experiments · ${F.pct(safI.A)} ideas` },
+        ]}>Your AI staff's safety jobs, on the same rules as capability work: AI share allowed hands them part of the safety work and they do what they can do alone. Safety work is harder to check and has longer tasks, so they can do less of it alone than Experiments and Ideas.</TipCard>}>
+          <span><Term id="workType">Safety work</Term>: AI staff (safety) can do alone {F.pct(saf.coverage)} of experiments, {F.pct(safI.coverage)} of ideas</span>
         </Tip>{' '}<Ref id="trustedToAI" to={{ panel: 'safety', tab: 'lines' }}>Safety</Ref>
       </div>}
     </Card>
