@@ -35,3 +35,14 @@ carried until then are listed in BUILD-NOTES (first: authors2026 SIAR −0.27 y 
 fitted G_SC / Δ_bm / sd_SC were fitted with the bug present — RDB08-CAL.md; sd_SC 2.15 vs AIFM median 0.5 to be
 re-checked against its source at the refit). Tasks still report calibration movement ("moves calibration") so CP runs
 can attribute it.
+
+## CP3 decisions (2026-11-23)
+
+- **Start in equilibrium (designer).** Each lab's day-0 recipe gap to the leader is capped at what the diffusion rule
+  sustains in steady state; the rest of a lab's day-0 capability (e.g. Anthropos's near-frontier model on 40% of the
+  leader's compute) belongs to its start model's own build, which others cannot copy. No day-0 diffusion jump.
+- **RL gain form (lead, from research/RD-RL-scaling.md).** RL gain per OOM of RL FLOP as the sources measure it, midpoint
+  ∝ FLOP_pre^0.5, so base size still matters (DD-06) but sub-linearly (≈ 1.2 G per OOM of training FLOP, not ≈ 1.6).
+- **"What binds" readout (lead, UI-IA OQ-5).** Reads the lab's believed production parameters (published prior band);
+  physics keeps the hidden draw.
+- **Pre-release evals before validation jobs (lead, EV9)** in the default safety order.
