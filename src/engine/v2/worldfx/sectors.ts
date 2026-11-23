@@ -14,7 +14,7 @@
 //              share-weighted AGENCY domain G, OOM; v2's L 8 / 1.5 L restated through the one λ)
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
-//   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
+//   8 Hire   = 1 − hireSlope·ΔF (1.2, CAL2-X; ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
 //   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr (×3 with UBI); U = U_base + Pool/LF
 import {
   AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,

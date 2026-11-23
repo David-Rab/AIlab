@@ -125,10 +125,12 @@ export const ECON = {
   LS0: 0.56, psi: 0.1,
   /** Income Gini (Census money income). [R16 §4.4] */
   gini0: 0.48,
-  /** Hiring index: HireRate = 1 − slope·ΔF vs the pre-LLM (late-2022) feasibility. R16 writes 1.5 [D]. (The WS5 probe
-   *  fit 1.2; on integrated RefBot play, whose public minis trail the probe's public model, R16's 1.5 puts
-   *  "hiring of programmers nearly stopped" in mid-2027 on the reference path (§7.3). */
-  hireSlope: 1.5,
+  /** Hiring index: HireRate = 1 − slope·ΔF vs the pre-LLM (late-2022) feasibility. R16 writes 1.5 [D, no source]. CAL2-X
+   *  (decision 6): 1.2, a once-fitted stand-in that lands HireRate_SOFT ≤ 10% ("hiring new programmers has nearly
+   *  stopped", AI 2027 Jul 2027) near Jul 2027: first day over five RefBot classic seeds 2027-05-12 … 2027-07-19, median
+   *  2027-05-21 (1.5: median 2027-01-10; probe scripts/v2/_cal2x/hire.ts). ≤ 10% needs ΔF ≥ 0.75, about R16's F_SOFT 0.8
+   *  at Agent-3-mini (the WS5 probe's 1.2). */
+  hireSlope: 1.2,
   /** Youth (22–25) employment relaxes toward the hire rate with this time constant (years) [D]. */
   youthTau: 2,
   /** Canaries: exposed 22–25-year-olds −13% vs counterfactual in 2025 (−19% by Aug 2026). [V, R16 N2a] */
