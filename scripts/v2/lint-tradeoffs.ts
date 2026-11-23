@@ -74,7 +74,6 @@ const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> =
 const PENDING: Record<string, string> = {
   'A6 trust': 'the trust line names no counterparty and nothing applies it (relations previews; not RD-B19)',
   'starHire trust': 'applied to rivals\' cooperation directly, not as trust (people previews, RD-B18)',
-  'wfx.moonshot credibility': 'no credibility is applied at the start (world previews; not RD-B19)',
 };
 const appliedLabel = (id: string, cur: string, day: number) => `action ${id} @day ${day}: its ${cur} line is applied`;
 for (const [k, why] of Object.entries(PENDING)) {

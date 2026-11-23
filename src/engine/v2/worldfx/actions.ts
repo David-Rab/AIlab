@@ -4,7 +4,7 @@ import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, GameStateV2, SystemCtx } from '../types';
 import { worldMix } from './mix';
 import { moonshotH100e } from './revenue';
-import { gSci, mSci, scienceRate, techBlocker } from './techtree';
+import { gSci, MOONSHOT_K, mSci, scienceRate, techBlocker } from './techtree';
 import { domainScaleGs } from '../models/capability';
 import { internalVersion } from '../models/labs';
 import { revenueReadout } from './revenue';
@@ -111,21 +111,30 @@ const moonshot: ActionDef = {
     const dH = s.player.computeOnline * dShare;
     const util = rd.capacity > 0 ? Math.min(1, rd.total / rd.capacity) : 0;
     const revLoss = Math.round(dH * perH * Math.max(0.3, util) * 100) / 100;
+    // CP3d: the moonshot moves when the technology is discovered, nothing else at once. Its approval (+0.3·benefit on
+    // discovery, +0.5·benefit when it reaches patients: techtree.ts advanceTechs) comes with or without the moonshot,
+    // so the preview states the days it moves discovery, not an approval or credibility gain of its own.
     const v = internalVersion(s);
-    const sPlayer = v ? mSci(s.hidden.timeline, gSci(domainScaleGs(s.hidden.timeline, v))) * Math.abs(dShare) * 10 : 0;
+    const perShare = v ? mSci(s.hidden.timeline, gSci(domainScaleGs(s.hidden.timeline, v))) * MOONSHOT_K : 0;
     const { S } = scienceRate(s);
-    const yearsSaved = t ? Math.max(0, (1 - (s.world.techs[techId]?.prog ?? 0)) * t.effort * (1 / S - 1 / (S + sPlayer))) : 0;
-    const benefit = t?.effects.benefit ?? 1;
+    const left = t ? Math.max(0, 1 - (s.world.techs[techId]?.prog ?? 0)) * t.effort : 0;
+    const daysTo = (sh: number) => (left * 365) / Math.max(1e-9, S + perShare * sh);
+    const dDays = Math.round(daysTo(cur) - daysTo(share));
+    const benefit = t?.effects.benefit ?? 0;
+    const timing: CostLine = {
+      currency: 'progress', amount: dDays, unit: 'days',
+      target: `${t?.name ?? techId}: discovery ${Math.abs(dDays)} d ${dDays >= 0 ? 'sooner' : 'later'} at today's science rate${benefit ? ` (its approval, +${Math.round(benefit * 3) / 10} on discovery and +${Math.round(benefit * 5) / 10} when it reaches patients, comes either way)` : ''}`,
+    };
     if (dShare >= 0) {
       const exposure: CostLine[] = t?.risk ? [{ currency: 'scrutiny', amount: 5, probability: 0.5, lagDays: 180 }, { currency: 'chinaTension', amount: 3, probability: 0.3 }] : [];
       return {
         costs: [{ currency: 'compute', amount: -Math.round(dH) }, { currency: 'revenue', amount: -revLoss }],
-        gains: [{ currency: 'approval', amount: Math.round(benefit * 0.8 * 10) / 10, target: t?.name, lagDays: Math.round(yearsSaved * 365) }, { currency: 'credibility', amount: 2 }],
+        gains: [timing],
         exposure,
       };
     }
     return {
-      costs: [{ currency: 'approval', amount: -Math.round(benefit * 0.5 * 10) / 10, target: t?.name }],
+      costs: [timing],
       gains: [{ currency: 'compute', amount: Math.round(-dH) }, { currency: 'revenue', amount: revLoss }],
       exposure: [],
     };
