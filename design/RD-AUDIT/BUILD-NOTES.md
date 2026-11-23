@@ -3676,3 +3676,76 @@ Root cause per item (CP3.md "Left (18)" and "Unit note"; worktree p3-d on rd + c
   (EV9 left: two release suites 30 / 33 d); products 67 / 5 (P6, M2, A5, C2c ×2: unchanged, CP3 list); lint-ux
   U resolves, 1 fail left (tooltips); control 31 / 1 (E15, above). lint-tradeoffs and evals were re-run once after
   their check edits.
+
+### CP3f safety
+
+Worktree p3-d (on rd f815123). Targets: CP3.md "Calibration targets missed" → Safety S4 / S5 and rates.
+
+**Causes (evidence)**
+- **MO anchor 1.0%, F2 sabotage after learned hacking 0.9%, STEER κ check, danger start SYC 0.00:** RD-U05 moved the
+  domain score's reference point (best human = 10) and flagged every act threshold for review (not done). V0's ai2027
+  levels went CODE 5 → 5.00, RSCH 4.5 → 1.55, AGENCY 4 → 5.00, SOCIAL 5 → 0, CYBER 4 → 0 (clamped). The per-item covert
+  acts kept θ RSCH 5, so the organism's capability fell σ(−0.5) 0.38 → σ(−3.45) 0.031 (sabotage.ts: "C 0.031"), ×12
+  below the anchor the κ formula assumes; SYC (SOCIAL θ 4) fell to σ(−4).
+- **F5 anti-scheming 99.4%, F2 inoculation 90.2 / 90.8 / 95.4%:** (1) SR-15's linear efficacy scaling
+  clamp01(base·s0·e) / clamp01(1 − (1 − base)·s0·e) reaches a full effect at s0·e ≥ 1/base (anti-scheming: e > 0.57 on
+  AG18's Beta(3.5, 3)) or 1/(1 − base) (inoculation: e > 0.63), i.e. 100% cuts in about half the worlds (diag seed 500:
+  SCHEME removal 1.00 per run from day 391, SCHEME 0.000 at ASI). (2) SR-14's healing bump √(1 + AG18 methods used)
+  counted T-ANTISCHEME and T-INOC a second time on top of their sourced whole-method effects.
+- **S4 P_mis at ASI ×6 low (not fixed):** RefBot's runs see frozen training signals all game (scripts/v2/_cp3f/diag2.ts,
+  seed 503, 15 post runs day 7–705: S2 0.36, S3 0.75, S5 0.05, S7 0.35, ρ 0.15, RL-weighted hack share 6.5% → λ 0, no
+  suite builds, no environment fixes). With the gap amplifier gone (SR-02) nothing raises trait pressure with
+  capability, so post-run models settle at Mis ≈ 0.04–0.06 (removal + healing ≈ 0.36–0.48 per run on AF / SCHEME / SAND,
+  anti-scheming on SCHEME); the ASI model's Mis (0.05–0.24) comes mostly from SA / EA, S8 (COLLUDE, SUCC) and U-modes.
+  Healing on oversight-conditional traits off moved Mis at ASI only 0.054 → 0.086 / 0.241 → 0.273 (seeds 500 / 503);
+  heavy RL on hardened suites still gives h 8.5% (λ 0); hack saturation (SR-24b) pins RH at h 6.5%, which lowers CONCEAL
+  and raises HONEST (−0.05 Mis) but is not the main lever. Environment fixes are not applied by RefBot (envFixes {}).
+- **EV9 release suites 30 / 33 d (not fixed):** the safety needs list's order (SAFETY-REDESIGN §5: cases → validations &
+  ports → pre-release evals) puts the validation policy's ports of every owned instrument on each new internal model
+  (8 engineers each, SR-24b) ahead of evals: day 15 validation asks 120 people of ~100 (review 35 first), evals get 0;
+  day 30, 9 of 30. Emergent from the designer's order and the sourced validation cost.
+
+**Changes (sources)**
+- data/v2/danger.ts `U05_SHIFT` + `th()`: every incident / covert act θ = θ_v2 + (L_new(V0) − L_v2(V0)) on ai2027 (CODE 0,
+  RSCH −2.95, AGENCY +1, SOCIAL −5, CYBER −4). The θ are [D] set on the 2025 start model's behaviour (research/05
+  §1.1–1.10; MacDiarmid's organism is V0), so they keep their distance from V0. κ unchanged (the anchor formula's
+  σ(4.5 − 5) = σ(1.55 − 2.05)). MISUSE / EXFIL θ unchanged (fitted to v2's absolute level curves). scripts/v2/danger.ts:
+  the CYBER-raises-scheming check's base CYBER set 4 below the new θ (as before).
+- safety/methods.ts: methodMult = base^(s0·e), methodRemoval = 1 − (1 − base)^(s0·e). Same sourced effect at e = ē;
+  never 100% (Schoen 2025 13% → 0.4%, not 0; RD-SR24 H3 Denison 2024 "not to zero"). Also moves T-UNDO and the run
+  preview's believed scale the same way.
+- safety/traits.ts HEAL_METHODS = ['T-CONFESS'] (anti-scheming and inoculation anchors are each method's whole effect).
+- safety/traits.ts runEnv: anti-scheming removal reads E12's EA visibility relative to V0's EA (exponent
+  vis(EA) ÷ vis(0.15)); Schoen: eval awareness causally lowers covert actions in the training's own environments
+  (13.2% → 24.2% when ablated), the cut is "discounted by eval awareness". F5 probe unchanged (V0 EA); small in play.
+
+**Before → after** (safetyrates 4 seeds / 12 worlds; safety.ts 40 + 40 + 20 games)
+
+| Check | CP3 | CP3f | target |
+|---|---|---|---|
+| MO anchor (sabotage.ts) | 1.0% | 12.0% | 12% |
+| STEER / SUCCSTEER anchor | 1.0% | 12.0% | 12% |
+| F2 sabotage after learned hacking | 0.9% | 12.9% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | — / 90.2 / 90.8 / 95.4% | 87.8 / 87.1 / 87.8 / 93.4% | 75–120 / 75–90 / 75–90 / 75–95 |
+| F5 anti-scheming cut | 99.4% | 94.2% | 90–98% |
+| danger start SYC / RH per lab-year | 0.00 / 0.10 | 0.15 / 0.10 | > 0.1 / > 0.05 |
+| S4 RefBot P_mis at ASI | 0.090 | 0.117 | 0.55–0.85 |
+| S4 safe recipe | pass | 0.028 | ≤ 0.25 |
+| S5 U below L by SAR | 20% | 23% (median U − L +0.35) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −3.96 / 25% | −4.47 / 30% | median holds |
+| EV9 release suites | 30 / 33 d | unchanged | ≈ 14 |
+
+sabotage, danger, footholds all pass; safetyrates all pass (WARN: F5 EA 2026-12-31 51.2%, F6 persistence 64%, known).
+
+**Still off, suspected mechanism**
+- S4 / S5: no sourced channel grows trait pressure with capability in the reference lab's recipe. Candidates, each
+  needs a source before a number: (a) graders' miss share rising as the policy outgrows its graders (RD-SR24 H5 Wen
+  2024 +18–24% false positives under RLHF; research/04 T02 "smarter agents find more exploits") → hack share past
+  LH_ONSET → MacDiarmid spill; (b) RL task length tracking the model's horizon (S3 uses fixed RL_FAMILIES.taskH);
+  (c) RefBot's recipe never scales RL (ρ 0.15 all game) nor builds suites — capability-side, with the timelines refit;
+  (d) F6: AG18 healing on oversight-conditional traits contradicts Hubinger (π 64% vs ≥ 80%) — lead's design bet,
+  small effect on S4 (above). S5 Mixed-bot margin worsened slightly (more visible incidents from the act thresholds
+  move believed traits; not traced).
+- EV9: lead decision whether pre-release evals rank above ports in the default order, or ports cover only the
+  instruments the release gate reads.
+- Acts on clamped domains (SOCIAL, CYBER) rise later than v2 (they leave the clamp only near the expert range).

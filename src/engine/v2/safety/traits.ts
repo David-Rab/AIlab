@@ -781,8 +781,17 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
   // Anti-scheming training (E25; SR-14b: a method, no longer bundled in Heavy): SCHEME −0.95 × current per run at a
   // typical AG18 efficacy (SR-15: × s0·e); EA × 2 the first time a lineage gets it (R14: anti-scheming training doubled
   // EA 2.3 → 4.5% once; re-applying maintains it) [D].
+  // CP3f: the training removes what its environments elicit, so its strength reads E12's eval-awareness visibility
+  // relative to the source's model (o3 ≈ V0, EA TRAIT_START 0.15): (1 − r) = (1 − r_method)^(vis(EA) ÷ vis(EA_V0)),
+  // vis = 1 − eaCoef·EA·(1 − suppression). Schoen et al. 2025 (research/06 §2.3, research/05 §1.5): eval awareness
+  // causally lowers covert actions in the very environments the training uses (ablating it raised o3's 13.2% → 24.2%),
+  // the 30× cut is "discounted by eval awareness" and "not sufficient for future models". Unchanged at V0 (the F5
+  // probe); weaker on eval-aware frontier models.
   if (post && inRun(s, post, 'T-ANTISCHEME')) {
-    removal.SCHEME = Math.max(removal.SCHEME ?? 0, methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff));
+    const vis = (ea: number) => Math.max(0, 1 - eaCoef(s) * ea * (1 - eaSuppression(s)));
+    const k = vis(x.EA) / Math.max(1e-9, vis(TRAIT_START.EA));
+    const rAS = 1 - Math.pow(1 - methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff), k);
+    removal.SCHEME = Math.max(removal.SCHEME ?? 0, rAS);
     if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
   }
   const tier = tierOfLevel(labLevel(s));
