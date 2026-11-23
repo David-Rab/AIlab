@@ -48,10 +48,22 @@ function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: nu
   p.research.queue = [id];
   p.split.safetyAgents = 0;
   p.computeOnline = 1e6;
-  // Line pool = c × computeRef × 1e6 H100e (fixed point: the monitors' share does not depend on the safety split).
+  // SR-21: the other needs in LAB's list (human review at the start) take engineers before the line experiments; staff
+  // them on top so the line still gets `re` × the ask (heads × quality: scaled by the allocation's heads per team head).
+  resetSafAllocation(s);
+  const a0 = safAllocation(s);
+  let other = 0;
+  for (const [k, v] of Object.entries(a0.demand)) if (k !== 'safExp') other += v;
+  re.heads += (other * re.heads) / Math.max(1e-12, a0.heads);
+  // Line pool = c × computeRef × 1e6 H100e (fixed point: the monitors' share does not depend on the safety split). The
+  // allocation is memoised per day, so it is recomputed after each split change.
   const want = (o.c ?? 1) * AGENDA_BY_ID[ag].computeRef * 1e6;
   p.split.safety = 0.05;
-  for (let i = 0; i < 4; i++) p.split.safety *= want / Math.max(1e-9, linePoolH100e(s));
+  for (let i = 0; i < 4; i++) {
+    resetSafAllocation(s);
+    p.split.safety *= want / Math.max(1e-9, linePoolH100e(s));
+  }
+  resetSafAllocation(s);
   return { s, id };
 }
 
@@ -113,9 +125,10 @@ function results(s: GameStateV2, id: string, n: number, maxDays = 4000, onResult
     const { s, id } = lab('AG02', o);
     return lineRates(s, id, safAllocation(s, id)).X;
   };
-  const x0 = X({ re: 0.5, c: 1 });
-  const gRe = X({ re: 1, c: 1 }) / x0;
-  const gC = X({ re: 0.5, c: 2 }) / x0;
+  // Below the ask (re 0.5 = the full ask; a line takes no more than its ask since RD-A04).
+  const x0 = X({ re: 0.25, c: 1 });
+  const gRe = X({ re: 0.5, c: 1 }) / x0;
+  const gC = X({ re: 0.25, c: 2 }) / x0;
   check(gRe > 1.05 && gC > 1.05, 'E1 doubling safety research engineers or line compute speeds the experiments', `×${gRe.toFixed(2)} (engineers), ×${gC.toFixed(2)} (compute)`);
   // Compute-bound (little compute per engineer) vs labour-bound (plenty of compute, few engineers). AIFM's experiment CES
   // is close to Cobb-Douglas (worktypes.ts), so the bound input shows only far from balance.
