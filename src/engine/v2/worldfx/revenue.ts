@@ -12,8 +12,8 @@
 //                       (mix agentCeiling: adopted + agent hours ≤ E0·2000·(1 + η·CR), spend ≤ that × the wage), the
 //                       rest is not bought (no revenue, no serving need)
 //   player      = customer-stock share × each stream × the product's part (RD-P03: the buyers' choice among the
-//                 player's products, each its own seller in the surplus choice, mix playerProdW) × (1 + the product's
-//                 enabler segments); seats from its seat-selling products (Enterprise; Gov in GOV/MIL) by those parts
+//                 player's products, each its own seller in the surplus choice, mix playerProdW; a product's tools act in
+//                 its offer, RD-P07); seats from its seat-selling products (Enterprise; Gov in GOV/MIL) by those parts
 //   demand $    = Σ hours × price + seats × seat price × 12;  need H100e = Σ hours × H100e-hours per hour ÷ 8766 (+ monitor)
 //   consumer    = users (online adults × reach R_r × user share, both stocks) × paid share P (a stock, A2b) = subscribers;
 //                 revenue line = subscribers × price per month × 12 (A6b: the market's flat plan price, the willingness to
@@ -38,7 +38,7 @@ import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
 import {
-  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, enablerShare, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendTiers, chatFreeTier, chatHoursPerDay, effortTokens, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -288,7 +288,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const sectorDeps = deps.filter((d) => SECTOR_CHANNELS.includes(d.channel));
   const fxs = new Map(sectorDeps.map((d) => [d.id, productFx(s, d)]));
   const usesOf = new Map(deps.map((d) => [d.id, productUses(s, d)]));
-  interface Row { d: Deployment; seat: boolean; o: Offer; line: Offer[]; en: number }
+  interface Row { d: Deployment; seat: boolean; o: Offer; line: Offer[] }
   const secW = SECTORS.map((def) => {
     const ws: Row[] = [];
     for (const d of sectorDeps) {
@@ -301,7 +301,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (!line) {
         line = productLineup(s, d, def.id, o, fxs.get(d.id));
       }
-      ws.push({ d, seat: SEAT_CHANNELS.has(d.channel), o, line, en: 1 + enablerShare(fxs.get(d.id) ?? [], def.id) });
+      ws.push({ d, seat: SEAT_CHANNELS.has(d.channel), o, line });
     }
     return ws;
   });
@@ -321,17 +321,16 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       for (const x of ws) if (x.seat) seatSum += x.w;
       const value = valuePerHour(s, def.id, r);
       const wage = wagePerHour(def.id, r);
-      // RD-B11 (B14): an enabler's segment is held to the sector's adoption: the player's hours, agent-hours and seats
-      // here never exceed the sector's (share × (1 + enabler) ≤ 1).
-      const enMax = 1 / ps;
-      const fOf = (d: Deployment, en: number) => {
-        let f = Math.min(en, enMax);
+      // RD-P07 (DD-03): a product's tools act inside its offer (coverage, worldfx/serving.ts offerOf), so they reach the
+      // hours only through the buyers' choice; no multiplier here (the RD-B11 capped ×(1 + enabler) is gone).
+      const fOf = (d: Deployment) => {
+        let f = 1;
         if (d.channel === 'api' || d.channel === 'agents') f *= 1 - 0.02 * d.kyc;
         if (d.status === 'restricted') f *= 0.3;
         return f;
       };
       // A4: the mix's ceiling factor (fill) scales every provider's agent-hours; the player's products can add more here
-      // than its share of the mix's view (enabler segments, channel weights, each product's own k), so its agent-hours are
+      // than its share of the mix's view (each product's own k), so its agent-hours are
       // also held to the room the ceiling leaves after the adopted hours and the other providers' agent-hours (hours and
       // value). 1 below the ceiling.
       const ac = m.agentCeiling;
@@ -339,10 +338,10 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       {
         let rawH = 0;
         let rawS = 0;
-        for (const { d, w, o, en } of ws) {
+        for (const { d, w, o } of ws) {
           if (!(w > 0)) continue;
           const ag = agentDemandOf(o, wage);
-          const x = ps * wh.supervising * w * fOf(d, en) * ag.k * ac.fill;
+          const x = ps * wh.supervising * w * fOf(d) * ag.k * ac.fill;
           rawH += x;
           rawS += x * ag.price;
         }
@@ -359,8 +358,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           if (rawS * pScale > roomS) pScale = roomS / rawS;
         }
       }
-      for (const { d, w, seat, o, en, line, tw } of ws as (Row & { w: number; tw?: number[] })[]) {
-        const f = fOf(d, en);
+      for (const { d, w, seat, o, line, tw } of ws as (Row & { w: number; tw?: number[] })[]) {
+        const f = fOf(d);
         const a = acc.get(d.id)!;
         // Adopted task-hours, billed per hour.
         if (w > 0) {
@@ -437,7 +436,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       // A2b: the player's paid share (stock) applies to each of its chat products; subscribers × price × 12 is the line.
       const P = cm.paid[playerIdx];
       offs.forEach((x, i) => {
-        // RD-B11 (B14): Chat's enablers act once, in the users' app choice (worldfx/mix.ts appeal), not again here.
+        // RD-B11 (B14) / RD-P07: Chat's tools act once, in the users' app choice (worldfx/mix.ts appeal), not again here.
         let u = (users * ws[i]) / wsum;
         if (x.d.status === 'restricted') u *= 0.3;
         const subs = u * P;

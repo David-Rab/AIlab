@@ -21,7 +21,7 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, P05_ORCHESTRATION, TOOL_BY_ID, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -177,16 +177,36 @@ export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
   if (adopted(s, 'P05')) fx.push(P05_ORCHESTRATION);
   return fxOn(fx, wt);
 }
-/** Segment a product's enablers open (share of the market's AI work only products with it can reach): per sector and for
- *  consumer chat. RD-B11 (B14), applied once: on Chat in the users' app choice (worldfx/mix.ts, × the player's appeal),
- *  not again on its users; on a sector product × its hours, agent-hours and seats (worldfx/revenue.ts), held so the
- *  player never sells more than the sector adopts (share × (1 + enabler) ≤ 1). Interim until enablers become
- *  capabilities in the offer (SYNTHESIS RD-P07). */
-export function enablerShare(fx: FeatureFx[], sid: SectorId | 'CHAT'): number {
-  let x = 0;
-  for (const f of fx) if (f.kind === 'enabler' && (sid === 'CHAT' ? f.consumer : f.sectors?.includes(sid))) x += f.share;
-  return x;
+/** RD-P07 (DD-03): per sector, the tools (enabler features) its work needs and the share of its tasks each one is
+ *  needed for (data/v2/features.ts enablerNeed). */
+const TOOL_NEED: Partial<Record<SectorId, [string, number][]>> = {};
+for (const id of ENABLER_TOOLS) for (const f of FEATURE_BY_ID[id].fx) {
+  if (f.kind !== 'enabler' || f.packs) continue;
+  for (const sid of f.sectors ?? []) (TOOL_NEED[sid] ??= []).push([id, enablerNeed(f.share)]);
 }
+/** RD-P07: share of a sector's tasks an offer cannot do for lack of tools: Σ need over the tools the sector needs that
+ *  `tools` lacks (0 on Chat: Chat's tools act in the app choice, chatToolAppeal). */
+export function toolGap(sid: SectorId | 'CHAT', tools?: readonly string[]): number {
+  if (sid === 'CHAT') return 0;
+  const need = TOOL_NEED[sid];
+  if (!need) return 0;
+  let g = 0;
+  for (const [id, x] of need) if (!tools?.includes(id)) g += x;
+  return Math.min(1, g);
+}
+/** RD-P07: Chat appeal from a provider's tools (consumer enablers: × (1 + share) each summed, as RD-B11 applied it once in
+ *  the users' app choice), the same rule for the player and the rivals who acquired the tools. */
+export function chatToolAppeal(tools?: readonly string[]): number {
+  let x = 0;
+  for (const id of tools ?? []) {
+    const f = FEATURE_BY_ID[id as keyof typeof FEATURE_BY_ID];
+    if (f) for (const e of f.fx) if (e.kind === 'enabler' && e.consumer) x += e.share;
+  }
+  return 1 + x;
+}
+/** RD-P07: the tools (enabler features other than Sector packs) a product has switched on. */
+export const productTools = (s: GameStateV2, d: Deployment): string[] =>
+  activeFeatures(s, d).filter((f) => ENABLER_TOOLS.includes(f.id)).map((f) => f.id);
 
 // ───────────────────────────── offers: a model's fit, coverage, cost and price on a work type ─────────────────────────────
 
@@ -199,7 +219,8 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
  *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number }
+/** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number; tools?: readonly string[] }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -272,6 +293,13 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
     hph += u.w * hphOf(u.fpt, tok.input, tok.output * tau, ud);
     hphAg += u.w * hphOf(u.fpt, tokAg.input, tokAg.output * tau, ud);
     hphAs += u.w * hphOf(u.fpt, tokAs.input, tokAs.output * tau, ud);
+  }
+  // RD-P07 (DD-03): tasks needing a tool the offer lacks are not covered (coverage and agent work × (1 − gap); the agent
+  // leverage λ keeps the covered tasks' review, a stand-in).
+  const keep = 1 - toolGap(sid, o.tools);
+  if (keep < 1) {
+    a *= keep;
+    k *= keep;
   }
   const cost = hph * o.rate;
   const costAg = hphAg * o.rate;
@@ -372,9 +400,9 @@ export function lineupSizes(nT: number): number[] {
 /** TIERS / RD-P01a: a product's lineup on a sector: its main model's offer `main`, then each real lineup entry
  *  (productTierUses, Deployment.lineup order) at its own fit and serving cost, the product's settings, features and
  *  markup (productOffer). No phantom students for the player (DD-01). */
-export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, fx = productFx(s, d), tiers = productTierUses(s, d)): Offer[] {
+export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, fx = productFx(s, d), tiers = productTierUses(s, d), tools = productTools(s, d)): Offer[] {
   const out = [main];
-  for (const u of tiers) out.push(productOffer(s, d, sid, u, fx));
+  for (const u of tiers) out.push(productOffer(s, d, sid, u, fx, tools));
   return out;
 }
 /** TIERS: a product's offer when its buyers take its tiers by hours shares `w` (product order, sum 1): costs and prices
@@ -399,12 +427,13 @@ export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) +
 
 /** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
- *  and the revenue read the same price. */
+ *  and the revenue read the same price. RD-P07: its tools (productTools) widen the tasks it covers where the sector
+ *  needs them. */
 export const SECTOR_PACK_DG = 0.4167; // OOM of fit in the sector (RD-U01: was 0.5 L ÷ 1.2)
-export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d)): Offer {
+export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
   const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────

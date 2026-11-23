@@ -32,7 +32,7 @@ import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { distillLift, labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, rivalLineupStep, setModelG, trainDay } from './rivalModel';
+import { addRivalKnowledge, clRefresh, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionG, rivalDomainDg, rivalLineupStep, rivalToolStep, recordToolShips, setModelG, trainDay } from './rivalModel';
 import { chinaDaily } from './china';
 import { ws4, ws4r } from './state';
 
@@ -378,6 +378,8 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     if (open) openWeightsReleased(s, ctx, id, rel.G, rel.recG ?? recipeOf(s, r));
     rivalLineupStep(wl, r, day, true, prev);
   } else rivalLineupStep(wl, r, day, false);
+  // RD-P07: the product tools it acquires after the first lab shipped them.
+  rivalToolStep(s, r, day);
 
   // Incidents: WS2's danger formula on the lab's deployed model at a generic product site (E5) plus a
   // misuse hazard like the player's (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety
@@ -504,6 +506,7 @@ export function goalpostsQ(s: GameStateV2, ctx: SystemCtx) {
 export const rivalsChinaSystem: EngineSystem = {
   id: 'rivalsChina', owner: 'WS4', cadence: 'daily', order: 100, system: 'relations',
   run(s, ctx) {
+    recordToolShips(s, ctx.day);
     for (const r of activeRivals(s)) labDaily(s, ctx, r);
     if (s.china.lab.core.status === 'active') labDaily(s, ctx, s.china.lab);
     chinaDaily(s, ctx);

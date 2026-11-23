@@ -32,7 +32,7 @@ import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/cal
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, H50_PER_OOM, H50_V0_MIN, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
-import { P05_ORCHESTRATION } from '../../../data/v2/features';
+import { ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
 import { domainRefShift, domainsOf, gV0, levelOfG, startLab } from '../models/capability';
 import { distillGap, flopOfDesign, gPreOf, paramsForFlop } from '../models/effective';
 import { distillLift } from '../production/diffusion';
@@ -643,4 +643,32 @@ export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, rele
   const fp = sellers.map((m) => fptOfSimpleModel(m));
   const keep = list.filter((m, i) => !sellers.some((o, j) => j !== i && o.G >= m.G && fp[j] <= fp[i] && (o.G > m.G || fp[j] < fp[i] || j > i)));
   r.lineup = keep.slice(Math.max(0, keep.length - RIVAL_LINEUP_MAX));
+}
+
+// ───────────────────────────── product tools (RD-P07, DD-03 rival part) ─────────────────────────────
+
+/** RD-P07: records the first day each product tool (data/v2/features.ts ENABLER_TOOLS) is on a live player product
+ *  (built, switched on, offered by the channel; open releases and internal deployments carry no product tools). Only
+ *  the player ships tools first (stand-in: rivals have no feature research at their aggregate level, DD-18). */
+export function recordToolShips(s: GameStateV2, day: number) {
+  for (const d of s.player.deployments) {
+    if (d.status === 'withdrawn' || d.channel === 'internal' || d.channel === 'open') continue;
+    for (const id of d.features) {
+      if (!ENABLER_TOOLS.includes(id as FeatureId) || !s.player.features.includes(id)) continue;
+      if (!FEATURE_BY_ID[id as FeatureId].products.includes(d.channel)) continue;
+      const ship = (s.world.fx.toolShip ??= {});
+      if (ship[id] === undefined) ship[id] = day;
+    }
+  }
+}
+/** RD-P07 (DD-18 stand-in): a rival (or China) gets each tool TOOL_LAG_DAYS after the first lab shipped it
+ *  (world.fx.toolShip); it keeps it. */
+export function rivalToolStep(s: GameStateV2, r: RivalLab, day: number) {
+  const ship = s.world.fx.toolShip;
+  if (!ship) return;
+  for (const id of ENABLER_TOOLS) {
+    const d0 = ship[id];
+    if (d0 === undefined || day < d0 + TOOL_LAG_DAYS || r.tools?.includes(id)) continue;
+    (r.tools ??= []).push(id);
+  }
 }

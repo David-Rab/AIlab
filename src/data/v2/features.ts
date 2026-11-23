@@ -5,8 +5,8 @@
 // live (rule R4); edits take effect at the next tick (D7).
 //
 // Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
-// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (opens a segment
-// of the listed markets that only products with it can sell into), a horizon extender (× h50 on chosen work types), a
+// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (a tool: RD-P07,
+// offers without it cannot do the part of the listed sectors' tasks that needs it; rivals get it after a lag), a horizon extender (× h50 on chosen work types), a
 // scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
 // effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
 // agents on the internal work types they list (SWE, EXP, IDEAS), once built. Hazard multipliers stay (incidents).
@@ -109,17 +109,17 @@ export interface FeatureDef {
 
 export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; opens 10% more Chat users (people who come back)',
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); rivals get the Chat part 120 days after you ship it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
-    effect: 'Task enabler: operates desktops and browsers, opening 15% more work in Admin, Finance, Legal and Government (GUI-only tasks)',
+    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; rivals get it 120 days after you ship it',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
     risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
   // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
   // is where its Media segment acts; on Chat it opens the Chat users.
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images, opening 15% more Chat users (on Chat) and 15% more Media work (on the API)',
+    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.15 (on Chat); on the API it does the media tasks (13% of Media work) offers without it cannot; rivals get it 120 days after you ship it',
     fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
   // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
@@ -131,7 +131,7 @@ export const FEATURES: FeatureDef[] = [
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
     risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'Task enabler: a persistent persona, opening 20% more Chat users', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
+    effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; rivals get it 120 days after you ship it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
     risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
   { id: 'sectorPacks', name: 'Sector packs', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
     effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
@@ -169,6 +169,21 @@ export const INTERNAL_TOOLS: ToolDef[] = [
 export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t])) as Record<ToolId, ToolDef>;
 /** Internal tools equivalent to a set of built product features (starts, the RD-A06 save migration). */
 export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTERNAL_TOOLS.filter((t) => features.includes(t.from)).map((t) => t.id);
+/** RD-P07 (DD-03): a product enabler is a tool part of a sector's work needs (Computer use: GUI-only steps in Admin,
+ *  Finance, Legal and Government; Voice & vision: media work). In a sector it lists, an offer without the tool cannot do
+ *  that part of the tasks: its coverage × (1 − need) (worldfx/serving.ts offerOf, inside the buyers' choice), need =
+ *  share ÷ (1 + share), so an offer with the tool covers ×(1 + share) what the same offer without it covers (the effect
+ *  size the old after-the-choice multiplier had) [D stand-in]. On Chat (consumer: true) the tool stays a term of the
+ *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector packs are per-product fit (SECTOR_PACK_DG), not a
+ *  tool. */
+export const enablerNeed = (share: number) => share / (1 + share);
+/** RD-P07 (DD-03 rival part, DD-18 stand-in): every rival and China gets a tool TOOL_LAG_DAYS after the first lab ships
+ *  it on a live product (only the player ships tools first: rivals have no feature research at their aggregate level;
+ *  world.fx.toolShip). 120 days [D]: 2024–25 launches followed each other by about 50–270 days (computer use: Anthropic
+ *  Oct 2024, Google Project Mariner Dec 2024, OpenAI Operator Jan 2025; memory: ChatGPT Feb 2024, Gemini Nov 2024). */
+export const TOOL_LAG_DAYS = 120;
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
 /** The frontier-leader start's built features (D5 baseline). */
 export const LEADER_FEATURES: FeatureId[] = FEATURES.filter((f) => f.leader).map((f) => f.id);
+/** RD-P07: the features that are tools (enablers other than Sector packs): the ones rivals acquire after a lag. */
+export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler' && !x.packs)).map((f) => f.id);

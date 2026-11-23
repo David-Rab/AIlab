@@ -5,7 +5,7 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { type FeatureDef, type WorkScope } from '../../../data/v2/features';
+import { ENABLER_TOOLS, TOOL_LAG_DAYS, enablerNeed, type FeatureDef, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
@@ -209,9 +209,10 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
     } else if (fx.packs) {
       push({ kind: 'enabler', effect: `sector products; +${SECTOR_PACK_DG.toFixed(2)} OOM fit per certified pack`, tokens: 1, where: 'the pack\'s sector' }, true, `+${SECTOR_PACK_DG.toFixed(2)} OOM per pack`);
     } else {
-      const pct = `+${Math.round(fx.share * 100)}%`;
-      if (fx.consumer) push({ kind: 'enabler', effect: `${pct} Chat users`, tokens: 1, where: 'Chat' }, !channel || chat, `${pct} users`);
-      if (fx.sectors?.length) push({ kind: 'enabler', effect: `${pct} reachable work`, tokens: 1, where: fx.sectors.map((x) => SECTOR_SHORT[x] ?? x).join(', ') }, !channel || !chat, `${pct} work`);
+      // RD-P07: a tool: Chat appeal in the users' app choice; in the sectors it lists, the tasks needing it (coverage).
+      const need = `${Math.round(enablerNeed(fx.share) * 100)}%`;
+      if (fx.consumer) push({ kind: 'enabler', effect: `Chat appeal ×${(1 + fx.share).toFixed(2)}`, tokens: 1, where: 'Chat' }, !channel || chat, `appeal ×${(1 + fx.share).toFixed(2)}`);
+      if (fx.sectors?.length) push({ kind: 'enabler', effect: `does the ${need} of tasks that need it (coverage ×${(1 + fx.share).toFixed(2)} vs without)`, tokens: 1, where: fx.sectors.map((x) => SECTOR_SHORT[x] ?? x).join(', ') }, !channel || !chat, `+${need} of tasks`);
     }
   }
   const kinds = [...new Set((lines.some((l) => l.here) ? lines.filter((l) => l.here) : lines).map((l) => l.kind))];
@@ -220,6 +221,16 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
   // RD-A06 (DD-03): a feature acts only inside its product's offer; internal agents get tools (Company › Agents).
   void internal;
   return { kinds, lines, short: short.join(' · '), internal: [], upkeepTW, idleTW };
+}
+
+/** RD-P07 (DD-03): rivals and a tool: how many of the active rival labs (and China) have it, and the day the others get
+ *  it (TOOL_LAG_DAYS after the first ship, world.fx.toolShip; undefined before anyone ships it). Undefined for features
+ *  that are not tools. */
+export function toolRivalsView(s: GameStateV2, id: string): { have: number; of: number; day?: number; lag: number } | undefined {
+  if (!ENABLER_TOOLS.includes(id as FeatureId)) return undefined;
+  const labs = [...s.rivals.filter((r) => r.core.status === 'active'), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
+  const ship = s.world.fx.toolShip?.[id];
+  return { have: labs.filter((r) => r.tools?.includes(id)).length, of: labs.length, day: ship === undefined ? undefined : ship + TOOL_LAG_DAYS, lag: TOOL_LAG_DAYS };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours

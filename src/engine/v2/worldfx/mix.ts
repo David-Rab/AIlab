@@ -38,8 +38,8 @@ import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, effortDG, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
-  agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
+  CHINA_MARKUP, RIVAL_MARKUP, chatToolAppeal, effortDG, effortTokens, fptOfSimple, fxOn, markupOf, offerOf,
+  agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
@@ -81,7 +81,11 @@ export interface Provider {
   ud?: number;
   markup: number;
   brand: number;
+  /** Chat appeal; a rival's includes its acquired Chat tools (RD-P07 chatToolAppeal). */
   appeal: number;
+  /** RD-P07: the tools (enabler features) a non-player lab has acquired (RivalLab.tools); none for the player's open
+   *  release (a release carries no product tools). The player's products read their own (productTools). */
+  tools?: readonly string[];
 }
 
 export interface SectorMix {
@@ -324,10 +328,10 @@ function providersOf(s: GameStateV2, paid: Deployment[], ver: Map<string, ModelV
   for (const r of s.rivals) {
     const m = r.publicModel;
     if (!m || (r.core.status !== 'active' && !m.openWeights)) continue;
-    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: 1, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
+    providers.push({ key: r.core.id, lab: r.core.id, paid: false, open: m.openWeights, model: m, tiers: tiersOf(r), fpt: rivalServeFpt(r, m), ud: rivalDecodeU(r), brand: r.core.status === 'active' ? 1 : 0.5, appeal: chatToolAppeal(r.tools), tools: r.tools, markup: m.openWeights ? OPEN_MARKUP : RIVAL_MARKUP });
   }
   const cn = s.china.lab.publicModel;
-  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: 1, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
+  if (cn && (s.china.lab.core.status === 'active' || cn.openWeights)) providers.push({ key: CHINA_ID, lab: CHINA_ID, paid: false, open: cn.openWeights, model: cn, tiers: tiersOf(s.china.lab), fpt: rivalServeFpt(s.china.lab, cn), ud: rivalDecodeU(s.china.lab), brand: 1, appeal: chatToolAppeal(s.china.lab.tools), tools: s.china.lab.tools, markup: cn.openWeights ? OPEN_MARKUP : CHINA_MARKUP });
   for (const p of providers) if (p.model && !p.fpt) p.fpt = 'baseId' in p.model ? flopPerToken(s, p.model) : fptOfSimple(s, p.model);
   return providers;
 }
@@ -383,12 +387,12 @@ function computeMix(s: GameStateV2): WorldMix {
   // player's candidate products with their settings ΔG (productGVec).
   const w = s.hidden.timeline;
   const pg: (number[] | undefined)[] = providers.map((p) => (p.model ? gvecOf(s, p.model) : undefined));
-  const cands: { dep: Deployment; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
+  const cands: { dep: Deployment; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx>; tools: string[] }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
     if (!mv) continue;
     const tiers = productTierUses(s, d);
-    cands.push({ dep: d, g: productGVec(s, d, mv), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
+    cands.push({ dep: d, g: productGVec(s, d, mv), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d), tools: productTools(s, d) });
   }
   // A8 multi-homing: in a sector's choice each provider is in a buyer's set with probability R (its reach: a stock in
   // fx.secReach, ≤ its access). Start (and a provider with no stock yet): access × min(1, MULTI_HOMING.providers ÷ the
@@ -430,7 +434,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const kind: TierKind[][] = [];
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud });
+      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
     }
@@ -441,10 +445,10 @@ function computeMix(s: GameStateV2): WorldMix {
       for (let c = 0; c < cands.length; c++) {
         const cd = cands[c];
         if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
-        const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx);
+        const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx, cd.tools);
         offerBy.set(`${cd.dep.id}|${t.id}`, o);
         // TIERS / RD-P01a: the product's lineup (main model, then its real lineup entries; no phantom students).
-        const line = productLineup(s, cd.dep, t.id, o, cd.fx, cd.tiers);
+        const line = productLineup(s, cd.dep, t.id, o, cd.fx, cd.tiers, cd.tools);
         lineupBy.set(`${cd.dep.id}|${t.id}`, line);
         for (let k = 0; k < line.length; k++) {
           lines[playerIdx].push(line[k]);
@@ -467,7 +471,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const p = providers[i];
       if (!row[i] || !p.tiers?.length) continue;
       for (const x of p.tiers) {
-        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud }));
+        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }));
         kind[i].push('student');
       }
     }
@@ -734,7 +738,7 @@ function computeMix(s: GameStateV2): WorldMix {
         cCover[playerIdx] = o.a;
         cPrice[playerIdx] = price;
         cDep = c.dep.id;
-        cApp[playerIdx] = appealOf(ver.get(c.dep.versionId)) * (1 + enablerShare(c.fx, 'CHAT'));
+        cApp[playerIdx] = appealOf(ver.get(c.dep.versionId)) * chatToolAppeal(c.tools);
         cSocial[playerIdx] = c.g[I.SOCIAL];
       }
     }

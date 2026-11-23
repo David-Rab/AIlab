@@ -19,7 +19,7 @@ import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
-  demandModifiers, featureView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
+  demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
   LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -590,6 +590,7 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
   const on = d.features.includes(f.id);
   const tok = v.lines.reduce((a, l) => Math.max(a, l.tokens), 1);
   const gate = f.node ? TREE_BY_ID[f.node]?.name ?? f.node : undefined;
+  const rv = toolRivalsView(s, f.id);
   return <TipCard title={f.name} value={v.kinds.map((k) => FT_LABEL[k]).join(' + ')} rows={[
     ...v.lines.map((l) => ({ label: <><Term id={FT_TERM[l.kind]}>{FT_LABEL[l.kind]}</Term> <span className="dim">· {l.where}</span></>, value: `${l.effect}${l.tokens !== 1 ? ` · tokens ×${l.tokens}` : ''}${l.here ? '' : ' (not on this product)'}` })),
     ...(f.id === 'sectorPacks' ? [{ label: 'Build', value: 'per pack: 4 engineer team-weeks + $0.4B, then 120 d certification' }] : [{ label: 'Build', value: `${f.buildTW} engineer team-weeks · ${F.money(f.cash)}` }]),
@@ -600,6 +601,7 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
     ...(f.id === 'sectorPacks' ? [] : [{ label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' }]),
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },
+    ...(rv ? [{ label: 'Rivals', value: rv.have >= rv.of ? 'every rival has it' : rv.day === undefined ? `no lab sells it yet; rivals get it ${rv.lag} d after you ship it` : `${rv.have} of ${rv.of} have it; the others from ${fmtDate(dateOf(s, rv.day))}` }] : []),
     ...(f.risk ? [{ label: 'Cost / risk', value: f.risk }] : []),
   ]}>{f.effect}</TipCard>;
 }

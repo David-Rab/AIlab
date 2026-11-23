@@ -10,7 +10,7 @@ import { incidentHit, INCIDENT_BC_CAP_Q, moodWeight } from '../finance/mood';
 import { spotRentalCap } from '../compute/orders';
 import { leaseAvailableGW } from '../compute/sites';
 import { revenueReadout, servingPool } from '../worldfx/revenue';
-import { enablerShare, productFx } from '../worldfx/serving';
+import { chatToolAppeal, productTools, toolGap } from '../worldfx/serving';
 import { SECTOR_CHANNELS } from '../worldfx/mix';
 import { SECTORS } from '../../../data/v2/sectors';
 import { idleChips } from '../compute/forecast';
@@ -96,24 +96,24 @@ export function siteSizeView(s: GameStateV2, path: keyof typeof SITE_PATHS): { m
   return { min: 50, max: SITE_PATHS[path].maxMW, ...(path === 'lease' ? { leaseGW: leaseAvailableGW(s) } : {}) };
 }
 
-/** A product's demand modifiers (LIMITS product.demandMods): each factor on its demand. RD-B11 (B42): the feature
- *  enablers are listed (Chat: × its appeal in the users' app choice; sector products: × its hours in the sectors they
- *  open, held to the sector's adoption); Trusted's ×3 is a price, in its offer and the Price row, not here. */
+/** A product's demand modifiers (LIMITS product.demandMods): each factor on its demand. RD-B11 (B42) / RD-P07: its tools
+ *  are listed (Chat: × its appeal in the users' app choice; sector products: × its coverage in the sectors that need
+ *  them, over the same offer without them, inside the buyers' choice); Trusted's ×3 is a price, in its offer and the Price row, not here. */
 export function demandModifiers(s: GameStateV2, d: Deployment): { label: string; mult: number }[] {
   const out: { label: string; mult: number }[] = [];
   if ((d.channel === 'api' || d.channel === 'agents') && d.kyc > 0) out.push({ label: `KYC ${d.kyc}`, mult: 1 - 0.02 * d.kyc });
-  const fx = productFx(s, d);
+  const tools = productTools(s, d);
   if (d.channel === 'consumer') {
-    const e = enablerShare(fx, 'CHAT');
-    if (e > 0) out.push({ label: 'Feature enablers (app choice)', mult: 1 + e });
+    const e = chatToolAppeal(tools);
+    if (e > 1) out.push({ label: 'Tools (app choice)', mult: e });
   } else if (SECTOR_CHANNELS.includes(d.channel)) {
     const by = new Map<number, string[]>();
     for (const def of SECTORS) {
       if (d.channel === 'gov' && def.id !== 'GOV' && def.id !== 'MIL') continue;
-      const e = enablerShare(fx, def.id);
-      if (e > 0) by.set(e, [...(by.get(e) ?? []), def.name.split(/[ ,]/)[0]]);
+      const e = (1 - toolGap(def.id, tools)) / Math.max(1e-9, 1 - toolGap(def.id, []));
+      if (e > 1 + 1e-9) by.set(e, [...(by.get(e) ?? []), def.name.split(/[ ,]/)[0]]);
     }
-    for (const [e, names] of by) out.push({ label: `Feature enablers in ${names.join(', ')} (≤ the sector's adoption)`, mult: 1 + e });
+    for (const [e, names] of by) out.push({ label: `Tools in ${names.join(', ')} (coverage in the buyers' choice)`, mult: e });
   }
   if (d.status === 'restricted') out.push({ label: 'Restricted', mult: 0.3 });
   if (d.usagePolicy.noDropInReplacement) out.push({ label: 'No drop-in agents', mult: NaN });

@@ -92,8 +92,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  lab its public model's distilled students, on sale now.
  *  67 (RD-P06): reasoning effort is a plain product setting (locked only by its tree idea); the Deep think feature is
  *  gone. Migration 66 → 67 drops 'deepThink' from the lab's built features, every product's features and the build
- *  queue; each product keeps its effort setting. */
-export const SCHEMA_REV = 67;
+ *  queue; each product keeps its effort setting.
+ *  68 (RD-P07): product tools act in the offer's coverage; rivals and China acquire them after a lag (RivalLab.tools,
+ *  world.fx.toolShip: optional, so 67 → 68 changes nothing: the next daily tick records the tools on live products as
+ *  shipped that day). */
+export const SCHEMA_REV = 68;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -678,6 +681,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       pl.build.queue.forEach((x, i) => (x.priority = i + 1));
     }
   },
+  /** 67 → 68 (RD-P07): no field to convert (RivalLab.tools and world.fx.toolShip are optional and start empty). */
+  67: () => {},
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */

@@ -1894,6 +1894,9 @@ export interface RivalLab {
   lineup?: SimpleModel[];
   /** RD-P02: students its aggregate distill step is making; each goes on sale on its `day`. */
   distilling?: SimpleModel[];
+  /** RD-P07 (DD-03 rival part): the product tools (enabler feature ids) the lab sells with, acquired TOOL_LAG_DAYS after
+   *  the first lab shipped each (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
+  tools?: string[];
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;
@@ -2068,6 +2071,8 @@ export interface WorldFxState {
    *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
    *  even spread (data/v2/serving.ts MULTI_HOMING). */
   secReach?: Record<RegionId, Record<string, number>>;
+  /** RD-P07: the day each product tool (enabler feature id) was first shipped on a live product (recordToolShips). */
+  toolShip?: Record<string, Day>;
 }
 
 export interface SectorState {

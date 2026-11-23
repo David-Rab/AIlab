@@ -16,7 +16,7 @@
 import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
-import { effortDG, effortTokens, enablerShare, fxOn, settingsDG } from '../../src/engine/v2/worldfx/serving';
+import { effortDG, effortTokens, fxOn, settingsDG } from '../../src/engine/v2/worldfx/serving';
 import { productGVec } from '../../src/engine/v2/worldfx/mix';
 import { domainScaleGs } from '../../src/engine/v2/models/capability';
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
@@ -307,7 +307,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── C2: every feature acts where it is offered; feature upkeep ─────────
 //   C2a for each feature and each product it is offered on, at least one typed effect acts there (engine functions:
-//       Chat reads fxOn / enablerShare on 'CHAT'; sector products on the sectors they sell to; sector packs act
+//       Chat reads fxOn / a tool's Chat appeal on 'CHAT' (RD-P07); sector products on the sectors they sell to; sector packs act
 //       on every product); every typed effect acts on at least one of its products; the card's "here" flags agree
 //   C2b Voice & vision on the API opens Media work (preview demand rises)
 //   C2c built features charge the engineers' upkeep: ½ buildTW a year in use, a tenth while off everywhere, always in
@@ -316,10 +316,12 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const GOVS: SectorId[] = ['GOV', 'MIL'];
   const sectorsOf = (ch: Deployment['channel']): SectorId[] => (ch === 'gov' ? GOVS : SECTORS.map((x) => x.id));
   const moves = (x: { dG: number; hMult: number; tok: number }) => x.dG !== 0 || x.hMult !== 1 || x.tok !== 1;
+  // RD-P07: a tool acts on Chat through the app choice (consumer share), on a sector through its coverage there.
+  const enOn = (fx: FeatureFx, sid: SectorId | 'CHAT') => fx.kind === 'enabler' && fx.share > 0 && (sid === 'CHAT' ? !!fx.consumer : !!fx.sectors?.includes(sid));
   const acts = (fx: FeatureFx, ch: Deployment['channel']): boolean => {
     if (fx.kind === 'enabler' && fx.packs) return ch !== 'consumer';
-    if (ch === 'consumer') return fx.kind === 'enabler' ? enablerShare([fx], 'CHAT') > 0 : moves(fxOn([fx], 'CHAT'));
-    return sectorsOf(ch).some((sid) => (fx.kind === 'enabler' ? enablerShare([fx], sid) > 0 : moves(fxOn([fx], sid))));
+    if (ch === 'consumer') return fx.kind === 'enabler' ? enOn(fx, 'CHAT') : moves(fxOn([fx], 'CHAT'));
+    return sectorsOf(ch).some((sid) => (fx.kind === 'enabler' ? enOn(fx, sid) : moves(fxOn([fx], sid))));
   };
   const deadPairs: string[] = [];
   const deadFx: string[] = [];

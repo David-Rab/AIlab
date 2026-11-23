@@ -157,7 +157,7 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
 export { WSL_TARGET_RANGE } from '../security/security';
 
 // R6 products: readouts, live-edit previews and package helpers (visible data: measured levels, revenue).
-export { productReadouts, previewDeployments, featureView, CONVERGED } from '../worldfx/productView';
+export { productReadouts, previewDeployments, featureView, toolRivalsView, CONVERGED } from '../worldfx/productView';
 export { freeTierVersion, lineupVersions, studentToHold, tokEff, useHourCost } from '../worldfx/serving';
 export { flopPerToken } from '../departments/workfit';
 export type { ProductRead, ProductEcon, EditPreview, CustomerView, CustomerSeg, FeatureView, FeatureKind, FeatureLine, LineupRow } from '../worldfx/productView';
