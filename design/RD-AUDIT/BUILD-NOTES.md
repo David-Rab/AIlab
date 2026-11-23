@@ -2442,3 +2442,47 @@ most exploitable family rather than following the trait; glossary term (SR-30) n
 are dropped, not converted.
 Moves calibration: yes (S4/S5): patches no longer cut trait edges lab-wide (any trait, e.g. SYC / POWER edges); they cut
 one family's rewarded hacks (RH / S2 / learned hacking only), so safe / mixed bots' patch effects shift.
+
+### Merge p3-d → rd
+
+`git merge p3-d` into `rd` (base e4447a7; rd 22 commits RD-T06..RD-X03, p3-d 32 commits SR-01..SR-16). Merge commit
+f74e1b0; truth-reader fix bada45f. Moves calibration: yes (both lanes' changes meet; the truth-reader fix moves catch
+and control tax wherever measured ≠ true).
+
+- **SCHEMA_REV 78.** rd's chain first (65 RD-T06, 66 RD-T07, 67 RD-T08, 68 RD-M01, 69 RD-X03), then p3-d's renumbered
+  (+5 each). Map old → new (rev; migration key): SR-01 65 → 70 (64 → 69), SR-06 66 → 71 (65 → 70), SR-13 67 → 72
+  (66 → 71), SR-08 68 → 73 (67 → 72), SR-09 69 → 74 (68 → 73), SR-14 70 → 75 (69 → 74), SR-14b / SR-15 71 → 76
+  (70 → 75), SR-10 72 → 77 (71 → 76), SR-16 73 → 78 (72 → 77). Bodies unchanged; each touches only safety / deployment
+  / post-design / flag fields rd's migrations do not, so each still applies to a state of the previous rev. save.ts
+  header docs renumbered. Pins: hygiene.ts (two, → 78), `_sr10/check.ts` (was `=== 72`, already stale on p3-d after
+  SR-16; now `>= 77`), `_sr16/check.ts` (→ 78).
+- **Conflicts and resolution.**
+  - `core/save.ts`: imports (rd's refitMeasured + suites helpers, p3-d's techniqueRole); rev docs and migrations as
+    above.
+  - `data/v2/tree.ts`: OptionSlot = rd's (tpp, graders gone) minus p3-d's 'inoculation'; T-INOC keeps rd's form (no
+    options, RD-T10 OPTION_NODE table) with p3-d's "Run method:" text; `'inoculation:true': 'T-INOC'` dropped from
+    OPTION_NODE; T-FILTER / safetyPretrain take rd's (options in OPTION_NODE, RD-T08 texts).
+  - `data/v2/glossary.ts`: rd's L (benchmark fit, RD-M01); p3-d's sightLimit replaces U / uRange (rd had not changed
+    them); rd's hazardFilter text plus p3-d's safetyMethod.
+  - `safety/dangerView.ts`: p3-d's version (reads through the act table, SR-03). rd's RD-M01 domain reading moved
+    into `safety/actTable.measuredDomainL`: `v.evals.measuredDom?.[d]` first, measured general + offset as fallback.
+  - `models/suitesPreview.ts`: import union (rd's queuedSuiteWork / tasksOf, p3-d's envFixMult; suiteRef unused
+    after rd's queue change, dropped).
+  - `ui/v2/panels/Blueprint.tsx`: both import sets (rd dropped TPP_FREE_MAX; p3-d's method helpers); p3-d's
+    MethodsRow with rd's PRESET_LABEL (no 'natural').
+  - `scripts/v2/hygiene.ts`: rev pins → 78. BUILD-NOTES: all blocks of both sides kept (rd's RD-T06..RD-X03, then
+    p3-d's SR-09..SR-16).
+- **Truth-reader fix (RD-M01's open note).** `models/products.catchRate(…, controlled, believed = false)` and
+  `safety/oversight.useControl(…, on, believed = false)` take the oversight gap on true levels (Lg); `believed` reads
+  measured. The flag is threaded through `monitorStop`, `productMonitor`, `useMonitor`, `monitorStrength`,
+  `fleetMonitor`. On truth (default): incident catch (`incidents` → productCatch; `detection.monitoringCatch` →
+  fleetMonitor), runtime-monitoring strength (`detection.runtimeMonitoring`), the control usefulness tax on work
+  (`workfit`), T-TMON's routineMonitor gate (traits), the act table's true sites and true guards gap. Pass believed:
+  the act table's believed sites (fleetMonitor, productMonitor, useMonitor, guards gap via useControl),
+  `believedOversight.believedMonitorCatch`, `pressureView` believed successor catch, `agentActions` lanes view
+  (monitorStrength, useControl), `worldfx/productView`, `ui/v2/panels/Products.tsx` (three catchRate readouts).
+  Unchanged: catchRate's AG07 containment term still uses believed tool strength (levels only were in scope);
+  dangerView's oversight block and the rollback preview read measured directly (readouts).
+- **Checks.** tsc (app, scripts/v2) clean; npm run build ok (merge and fix). After the merge, before the fix:
+  `rdm01.ts` pass, `_sr10/check.ts` 16 ok, `_sr15/check.ts` 4 ok, `_sr16/check.ts` 11 ok, all exit 0 (no re-run after
+  the fix).
