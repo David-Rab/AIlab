@@ -92,8 +92,13 @@ export function againstOptions(s: GameStateV2): TechniqueId[] {
 }
 /** The policy "Use all known methods" (on by default). */
 export const methodPolicyOn = (s: GameStateV2) => s.player.safety.useAllMethods !== false;
-/** A new run plan's methods: every owned method with the policy on, else none. Never trains against an instrument. */
-export const defaultMethods = (s: GameStateV2): TechniqueId[] => (methodPolicyOn(s) ? ownedMethods(s) : []);
+/** A new run plan's methods: every owned method with the policy on, else the methods responses required (SR-18,
+ *  SafetyDept.requiredMethods; owned only). Never trains against an instrument. */
+export const defaultMethods = (s: GameStateV2): TechniqueId[] => {
+  if (methodPolicyOn(s)) return ownedMethods(s);
+  const owned = new Set(ownedMethods(s));
+  return (s.player.safety.requiredMethods ?? []).filter((m) => owned.has(m));
+};
 
 /** Parse a params `methods` comma list (undefined → the policy default; '' → none). Unknown or unowned entries drop. */
 export function methodsFromParam(s: GameStateV2, raw: unknown): TechniqueId[] {

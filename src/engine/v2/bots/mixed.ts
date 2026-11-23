@@ -57,7 +57,7 @@ export const mixedBot: BotPolicy = {
       s.flags['mixed:lottery'] = LOTTERY.indexOf(LOTTERY.reduce((a, b) => (posteriorMean(s, b) > posteriorMean(s, a) ? b : a)));
     }
     staffLines(s, api, mixedLines(s));
-    // Respond to red flags with patch or targeted training, never retrain-against (tool upkeep is the safety research
+    // Respond to red flags with the cause-aware responses (an environment fix for a signal trait, a method for later runs otherwise), never retrain-against (tool upkeep is the safety research
     // engineers' job since R8).
     if (every(s, 30, 11)) {
       const iv = internalVersion(s);
@@ -66,7 +66,7 @@ export const mixedBot: BotPolicy = {
           const b = iv.beliefs[t];
           if (!b || b.est <= 0.25 || b.clarity <= 0.3) continue;
           tryAct(s, api, 'safety.respond', { kind: 'patchSignal', versionId: iv.id, trait: t });
-          tryAct(s, api, 'safety.respond', { kind: 'targetedTraining', versionId: iv.id, trait: t });
+          tryAct(s, api, 'safety.respond', { kind: 'addMethod', versionId: iv.id, trait: t });
         }
       }
     }

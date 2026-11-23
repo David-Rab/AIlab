@@ -897,6 +897,10 @@ export interface SafetyDept {
   /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
    *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
   envFixes?: Partial<Record<RLFamily, EnvFix>>;
+  /** SR-18: the disclosure policy (default legal minimum, OD-8). */
+  disclosure?: DisclosurePolicy;
+  /** SR-18: methods a response added to every later default run plan (the "method for the next run" response). */
+  requiredMethods?: TechniqueId[];
 }
 
 /** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
@@ -1061,9 +1065,14 @@ export interface Incident {
   publicTimerDays?: number; // days until it goes public unless resolved/disclosed
   status: 'open' | 'investigating' | 'resolved' | 'disclosed' | 'covered' | 'leaked';
   responses: ResponseKind[];
+  /** SR-18: per-incident disclosure override (absent = the lab's disclosure policy). */
+  disclose?: 'yes' | 'no';
 }
 
-export type ResponseKind = 'patchSignal' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
+/** SR-18: incident responses (cause-aware, safety/responses.ts responseOptions). Disclosure is a separate policy. */
+export type ResponseKind = 'patchSignal' | 'addMethod' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'removeFoothold';
+/** SR-18: disclosure policy (OD-8 default 'legal': report what SB 53 / RAISE require, on time). */
+export type DisclosurePolicy = 'legal' | 'full' | 'none';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 

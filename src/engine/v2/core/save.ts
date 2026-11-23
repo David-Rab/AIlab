@@ -129,8 +129,12 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  78 (SR-16): SafetyDept.envFixes (owned environment fixes per RL family; the patch response makes them). The per-edge
  *  signal-patch flags (ws2.patch.<lineage | lab>.<edge>) are gone: migration 77 → 78 drops them (keeps targeted
  *  inoculation training's ws2.patch.lab.E04) and adds an empty fix list.
+ *  79 (SR-17 / SR-18): Investigation.before / readings and outcomeDetail.changes / evidence (verdicts say what changed);
+ *  SafetyDept.disclosure (policy, default legal minimum, OD-8) and requiredMethods; Incident.disclose (override).
+ *  ResponseKind loses targetedTraining and disclose (addMethod added). Migration 78 → 79 sets the policy to legal
+ *  minimum, an empty required-method list, and drops the two old kinds from incidents' response records.
  */
-export const SCHEMA_REV = 78;
+export const SCHEMA_REV = 79;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -844,6 +848,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixes?: object } } };
     for (const k of Object.keys(r.flags ?? {})) if (k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04') delete r.flags![k];
     if (r.player?.safety) r.player.safety.envFixes ??= {};
+  },
+  78: (raw) => {
+    // 78 → 79 (SR-17 / SR-18): disclosure policy (legal minimum), required methods; old bundled response kinds go.
+    const dept = (raw as { player?: { safety?: { disclosure?: string; requiredMethods?: string[]; incidents?: { responses?: string[] }[] } } }).player?.safety;
+    if (!dept) return;
+    dept.disclosure ??= 'legal';
+    dept.requiredMethods ??= [];
+    for (const i of dept.incidents ?? []) if (i.responses) i.responses = i.responses.filter((k) => k !== 'targetedTraining' && k !== 'disclose');
   },
 };
 

@@ -10,6 +10,7 @@
 // opportunity per copy. Incidents are the main visible proxy of hidden traits and U-modes: the player sees `apparent`
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
+import { disclosureStep } from './responses';
 import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -416,6 +417,8 @@ export const incidentsSystem: EngineSystem = {
     footholdsStep(s, ctx);
     // E9: footholds grow once control is low; today's effective control (safety/control.ts).
     controlStep(s, ctx);
+    // SR-18: the disclosure policy (or the incident's override) applies to new incidents the day they appear.
+    disclosureStep(s, ctx);
     tickTimers(s, ctx, rng);
   },
 };

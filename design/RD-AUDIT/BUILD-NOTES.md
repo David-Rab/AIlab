@@ -2510,3 +2510,46 @@ Cases are jobs with a true preview; verdicts say what changed (SAFETY-REDESIGN �
 - **Left.** No case types (alignment audit stays in Heavy); framework auto-open on S3+ / disagreements (SR-19+); human-run
   option on cases (validation has it); the case rate formula itself (SAF-25) is unchanged.
 - Moves calibration: no (bookkeeping and preview text only; same draws, same belief updates).
+
+### SR-18
+Cause-aware responses; disclosure is a separate policy (SAFETY-REDESIGN §3.7; OD-8 default legal minimum).
+- **Done.** `responses.believedCause(s, v, inc?, trait?)` from what the player sees (the incident's apparent source, a
+  located foothold of the lineage, else the trait named): signal (RH / TGAME / PROXY: an exploitable environment, grader
+  or reward model), trait, misuse, foothold, unknown. `CAUSE_RESPONSES`: signal → Fix environment (SR-16); trait →
+  Method for later runs, Roll back, Restrict context, Add control, Comms lockdown; misuse → Restrict context (product
+  side; KYC stays on the product); foothold → Remove foothold + containment; unknown → Restrict, Add control (+ open a
+  case). `responseOptions` feeds the incident card (believed cause shown, only its buttons); applyResponse and the
+  Respond preview refuse a kind outside the list ("not a response to …"); safeguard off-switches (lift / remove) always
+  apply.
+- **New response `addMethod`.** Adds an owned method fitting the trait (anti-scheming, inoculation, persona vectors,
+  CAST, W2S, confession) to `SafetyDept.requiredMethods`; `methods.defaultMethods` lists them when "Use all known
+  methods" is off. No instant change; the preview says where it lands (the next run's predicted traits) and "already in
+  every default run plan" when the policy is on.
+- **Disclosure.** `SafetyDept.disclosure` legal (default) / full / none, `Incident.disclose` override (yes / no).
+  `disclosureStep` (daily, incidents step, before timers) on open incidents: willDisclose → `discloseIncident` (the old
+  disclose effects: scrutiny 3 + 2·sev, trust by credibility, the discovered failure mode goes public, timer ends); not
+  disclosing a must-report incident (SB 53 / RAISE in force, external, sev ≥ 3: statutoryDaily's rule) → 'covered' (the
+  explicit cover-up: fine, trust, ×3 if found); anything else runs its public timer. Actions `safety.disclosurePolicy`
+  (preview: what gets reported, the cover-up's costs under none) and `safety.disclose` {incidentId, choice yes / no /
+  policy} (preview: disclosure lines or the withholding consequences). Fixing no longer sets 'covered' / ends the timer:
+  a fixed incident with a running timer stays open; without one it resolves.
+- **Deleted.** Response kinds `targetedTraining` (instant true-trait cuts, targetedPlan) and `disclose`; their previews,
+  RESPONSE_INFO rows, the UI's fixed seven-button menu. Bots (mixed, safe) and safety-emu call `addMethod` instead.
+- **Save.** SCHEMA_REV 79; migration 78 → 79 (policy legal, empty requiredMethods, old kinds dropped from incident
+  response records); hygiene pins → 79; `_sr16/check.ts` pin → ≥ 78 and its repeated fixes name trait RH.
+- **Edits.** types.ts, safety/responses.ts, safety/actions.ts, safety/incidents.ts, safety/methods.ts, safety/agendas.ts,
+  core/save.ts, core/limitsView.ts (exports), ui Safety.tsx (cause line, cause buttons, per-incident disclosure row,
+  policy buttons), glossary response / disclosure, bots.
+- **Check.** `npx tsx scripts/v2/_sr17/check.ts`: 14 ok (migration; case job; RH incident → patchSignal only; SCHEME →
+  addMethod / rollback / restrict / control / lockdown, no fix; misuse → restrict; addMethod refused on the RH incident in
+  apply and preview; fix applies; fix leaves a timed incident open; legal minimum reports the sev-3 customer incident and
+  not the sev-1 one; none → covered; override yes discloses; policy preview names the fine). tsc (app, scripts/v2) clean;
+  npm run build passes.
+- **Left.** Per-cause responses for footholds offered only via the foothold tab button (removeFoothold needs its id);
+  'full' also reports internal sev ≥ 3 (a choice, [D]); the incident's apparent cause is still the hidden-table guess
+  until a case names it (I11 card note not written); no rollback / restrict "effects land at date X" lines beyond the
+  existing previews; framework automation (SR-19+); _sr13 / _sr16 checks not re-run.
+- Moves calibration: yes (S4/S5 and relations): bots lose targeted training's instant trait cuts (addMethod is a no-op
+  with the method policy on) and their patches apply only to signal traits; must-report incidents are now disclosed by
+  default (scrutiny up, statutory fines down); fixes no longer turn timed incidents into quiet cover-ups (they leak at
+  ×1.5 unless disclosed).

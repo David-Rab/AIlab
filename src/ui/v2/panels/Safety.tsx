@@ -13,7 +13,7 @@ import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { PROJECT_BY_ID, TREE, isLineNode } from '../../../data/v2/tree';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import {
-  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules,
+  beliefView, dateOf, sightGrid, sightLimit, evalDaysFor, fmtDate, footholdView, INV_FTE, INV_MAX_DAYS, internalVersion, MONITOR_BUDGET_STEP, monitorAt, monitoredUses, nodeKnown, PATCH_FLOOR, patchLevel, projectEta, publicTimerRules, responseOptions, disclosurePolicy, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, mustReport, willDisclose,
   projectReady, riskFamilies, safIdleFlag, safetyAgentVersion, safetyFleet, safetyView, successorPullView, teamsOn, versionById,
   FOLDED_METHODS,
 } from '../../../engine/v2';
@@ -31,10 +31,11 @@ import './safety.css';
 type SV = ReturnType<typeof safetyView>;
 const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
-const RESPONSES: { k: ResponseKind; label: string }[] = [
-  { k: 'patchSignal', label: 'Fix environment' }, { k: 'targetedTraining', label: 'Targeted training' },
-  { k: 'restrictContext', label: 'Restrict context' }, { k: 'liftRestriction', label: 'Lift restriction' }, { k: 'addControl', label: 'Add control' }, { k: 'rollback', label: 'Roll back' }, { k: 'disclose', label: 'Disclose' },
-];
+/** SR-18: short button labels; which responses an incident offers comes from its believed cause (responseOptions). */
+const RESPONSE_LABEL: Record<ResponseKind, string> = {
+  patchSignal: 'Fix environment', addMethod: 'Method for later runs', restrictContext: 'Restrict context', liftRestriction: 'Lift restriction',
+  addControl: 'Add control', removeControl: 'Remove control', addLockdown: 'Comms lockdown', removeLockdown: 'Lift lockdown', rollback: 'Roll back', removeFoothold: 'Remove foothold',
+};
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
   TECH: { icon: Wrench, label: 'Tool', tone: 'good' }, EVAL: { icon: Ruler, label: 'Eval', tone: 'good' }, DISC: { icon: Telescope, label: 'Discovery', tone: 'warn' },
   DEAD: { icon: Ban, label: 'Dead end', tone: 'neu' }, NEG: { icon: TrendingDown, label: 'Negative', tone: 'bad' }, SPILL: { icon: Droplets, label: 'Spillover', tone: 'neu' },
@@ -687,11 +688,11 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           <Tip content={() => <TipCard title={<Term id="caseStaffing">Case staffing</Term>} value={`${F.count(x.fte)} people`}>Safety research engineers on the case: {INV_FTE[0]}–{INV_FTE[1]}. Clarity grows with √(people ÷ 15); the engineers come before validation jobs in the default order.</TipCard>}>
             <span className="small" data-test="case-staff"><ICON.roleRE size={12} /> {F.count(x.fte)} safety research engineers <span className="dim">({INV_FTE[0]}–{INV_FTE[1]})</span></span>
           </Tip>
-          <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
           {x.outcome && <div className="small" data-test="case-verdict">
             {(x.outcomeDetail?.changes ?? []).length ? (x.outcomeDetail?.changes ?? []).map((c) => <div key={c.trait}><Term id={`trait:${c.trait}`}>{tname(c.trait)}</Term>: believed {F.num(c.from.est, 2)} ± {F.num(c.from.sd, 2)} → {F.num(c.to.est, 2)} ± {F.num(c.to.sd, 2)}</div>) : <div className="dim">No belief moved.</div>}
             {(x.outcomeDetail?.evidence ?? []).map((e, n) => <div key={n} className="dim">+ {e}</div>)}
           </div>}
+          <Limit id="case.staffing"><span data-test="case-close">{x.outcome ? `opened ${fmtDate(dateOf(s, x.startDay))}` : `closes by ${fmtDate(dateOf(s, closeDay))} · ${INV_MAX_DAYS} d max · ${INV_FTE[0]}–${INV_FTE[1]} people`}</span></Limit>
         </div>
       </div>
     );
@@ -839,16 +840,34 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
           {i.publicTimerDays !== undefined && i.status === 'open' && (() => { const pr = publicTimerRules(s); return <Limit id="incident.publicTimer" tone="bind">public in {F.days(i.publicTimerDays)}{pr.raise ? ' · RAISE ≤ 3 d' : pr.sb53 ? ' · SB 53 ≤ 15 d' : ''}</Limit>; })()}
           <span className={`tag2 ${isLive ? 'warn' : ''}`}>{i.status}</span>
         </div>
-        {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSES.find((x) => x.k === r)?.label ?? r).join(', ')}</div>}
-        {isLive && (
-          <div className="inc-menu">
-            <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{(() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
-            <div className="btn-row wrap">
-              {RESPONSES.map((r) => <ActBtn key={r.k} id="safety.respond" testId={`safety.respond.${r.k}`} params={{ kind: r.k, incidentId: i.id, versionId: i.versionId }} label={r.label} />)}
-              <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />
+        {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSE_LABEL[r] ?? r).join(', ')}</div>}
+        {isLive && (() => {
+          const v = versionById(s, i.versionId);
+          const opt = v ? responseOptions(s, v, s.player.safety.incidents.find((x) => x.id === i.id)) : undefined;
+          return (
+            <div className="inc-menu">
+              <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{opt && <span className="small dim" data-test="inc-cause">believed cause: {opt.label}</span>}{opt?.cause === 'signal' && (() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
+              <div className="btn-row wrap">
+                {(opt?.kinds ?? []).filter((k) => k !== 'removeFoothold').map((k) => <ActBtn key={k} id="safety.respond" testId={`safety.respond.${k}`} params={{ kind: k, incidentId: i.id, versionId: i.versionId }} label={RESPONSE_LABEL[k]} />)}
+                <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
+        {(i.status !== 'disclosed' && i.status !== 'leaked') && (() => {
+          const inc = s.player.safety.incidents.find((x) => x.id === i.id);
+          if (!inc) return null;
+          const yes = willDisclose(s, inc);
+          return (
+            <div className="row-i small" data-test="inc-disclosure">
+              <span className="tip-cap"><Term id="disclosure">Disclosure</Term></span>
+              <span className="dim">{inc.disclose ? `your choice: ${inc.disclose === 'yes' ? 'disclose' : 'withhold'}` : `policy ${DISCLOSURE_LABEL[disclosurePolicy(s)]}: ${yes ? 'reported' : 'not reported'}`}{mustReport(s, inc) ? ' · the law requires a report' : ''}</span>
+              <span className="sp" />
+              {!yes && <ActBtn id="safety.disclose" params={{ incidentId: i.id, choice: 'yes' }} label="Disclose" testId={`inc-disclose.${i.id}`} />}
+              {yes || inc.status === 'covered' ? null : !inc.disclose && <ActBtn id="safety.disclose" params={{ incidentId: i.id, choice: 'no' }} label="Withhold" testId={`inc-withhold.${i.id}`} />}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -858,6 +877,10 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
         {live.map(card)}
         {!live.length && <div className="row-i small"><ICON.check size={14} className="tone-pos" /> No open incidents</div>}
         {past.length > 0 && <><div className="tip-cap" style={{ marginTop: 10 }}>Closed</div>{past.map(card)}</>}
+        <div className="row-i small" style={{ marginTop: 10 }} data-test="disclosure-policy">
+          <span className="tip-cap"><Term id="disclosure">Disclosure policy</Term></span>
+          <div className="btn-row">{DISCLOSURE_POLICIES.map((p) => <ActBtn key={p} id="safety.disclosurePolicy" params={{ policy: p }} label={DISCLOSURE_LABEL[p]} primary={disclosurePolicy(s) === p} testId={`disclosure.${p}`} />)}</div>
+        </div>
       </Card>
     </div>
   );
