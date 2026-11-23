@@ -2074,3 +2074,25 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   its model side, PRD-05); Trusted / Gov terms beyond the existing usage policy and KYC are not modelled.
 - **moves calibration: no.** Same effects as the old copy path (a gov copy was the same model; the open release was
   already the open deployment); only bots that made copies (none) or saves with copies change.
+
+### RD-P06
+- **Done (commit 3f5c7ef).** PRD-14 / PRD-V01 / B19. Reasoning effort (low ×0.3 / max ×1 / deep ×4 tokens per
+  answer) is a plain product setting with its true consequences (fit +0.4 OOM per ×10 tokens, serving cost per answer
+  with the tokens, price follows cost). Its one lock is the model's capability: `effortLock` (tree option, deep ← P05).
+  The Deep think feature, `FeatureFx` kind `'effort'`, `FeatureDef.effortDeep`, `FeatureKind` 'effort' and glossary
+  `featEffort` are deleted.
+- **Edits.** productOps.ts `editedProduct`: effort just set (no feature sync); launch lock = effortLock only;
+  feature.build preview no longer sets effort. products.ts: `launchEffortBlock` deleted, `launchFeatures(s, channel)`
+  (callers build.ts, productOps.ts). deployments.ts deploy lock = effortLock. productView.ts: the effort feature line
+  gone. Products.tsx: effort Seg locked by `effortLock(s, e)` only; label "deep"; tip says deep needs the tree idea.
+  Glossary `effort` / `feature` and tree P05 text reworded.
+- **Migration 66 → 67 (SCHEMA_REV 67):** 'deepThink' dropped from `player.features`, every product's features and
+  queued feature builds; each product's effort kept (deep stays deep). Hygiene SCHEMA_REV asserts → 67.
+- **Tests.** scripts/v2/products.ts: P7 text, RD-B12 launch checks rewritten (launch at deep refused without P05,
+  live at deep with it, no feature); `acts` drops the effort kind. uitest.mjs: deep lock keyed on P05.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p06/check.ts` (run alone) 6 / 6: deep on
+  the start API with P05 known and no feature built, SOFT fit 27.617 → 27.858 and cost per work-hour 0.280 → 0.681;
+  refused without P05; no Deep think / effort kind in src (save.ts migration excepted); a rev-66 save with Deep think
+  loads with it gone and effort deep kept. Not run: test:quick / full, products.ts suite, uitest.
+- **Left:** GLOSSARY.md not regenerated (`lint-ux --doc`); latency of deep effort is not modelled (no latency term in
+  the engine).
