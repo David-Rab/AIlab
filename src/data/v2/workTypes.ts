@@ -240,12 +240,21 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  too short: not a G_SC miss). slow G_SC 35.575 → 38.3, the top of its source range (AI 2027 Eli h_SC p90 1,200
  *  work-years ⇔ 31.6–38.3), so SC reaches the sourced 2034–2035 (research/11 §5.5; AIFP Dec 2025): SC 2466 d at 35.575
  *  (CAL1), 2856 d at 37.4, 3121 d = 2034.04 at 38.3. A stand-in for the source's slower horizon trend (METR 7-month
- *  doubling), which no mechanism carries (designer question pending); the source's own h_SC 120 work-months is G_SC ≈ 34.9. */
+ *  doubling), which no mechanism carries (designer question pending); the source's own h_SC 120 work-months is G_SC ≈ 34.9.
+ *  CAL2-T (sourced, not fitted; one run of the AI Futures Model, aifm-public 1c40ecd, on its preset "Eli's median
+ *  parameters (08/16/26)" with Eli's Q2-sheet taste slope 2.3 and median-to-top 4; design/RD-AUDIT/BUILD-NOTES.md
+ *  "CAL2-T"): authors2026 G_SC 33.1 → 34.09 and sd_SC 0.5 → 2.94, both read at AIFM's AI2027-SC, the milestone the
+ *  preset's golden SC is (research/11 #8: SC = AC + 0.52). G_SC = G(V0) 27.627 + AIFM progress at AI2027-SC 40.223 −
+ *  its progress at V0's date (2025.445) 33.757 (34.27 by V0's 41-min p80 horizon instead of its date); sd_SC = AIFM's AI
+ *  taste at AI2027-SC (0.5 SD is its taste at AC, 1.67 OOM earlier: AC ⇔ G_SC 32.42–32.60). */
 export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 33.1, dBM: 2.17, r: 3.19, sdSC: SD_AT_SC },
+  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94 },
   fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0 },
+  // slow gSC 38.3: a STATED STAND-IN (DECISIONS "Calibration decisions after CAL1 refits" item 7): the top of its source
+  // range, standing in for the source's slower horizon trend (METR 7-month doubling), which no mechanism carries; with
+  // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
   slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
   sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
 };

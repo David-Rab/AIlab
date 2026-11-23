@@ -4971,3 +4971,93 @@ wall): S4 RefBot P_mis 0.344, safe-only pass; S5 RefBot below in 23% (median U �
   sight limit at SAR is higher than RefBot's", a comparison the sources support); (c) drop it. Recommendation: (b),
   and read S5 RefBot together with the true gap (10% below), since the lab-view and true numbers now differ by 1.3
   levels at SAR.
+
+### CAL2-T (timelines round 2: AIFM run, authors2026 refit, start M per preset, slow stand-in; branch cal2-time from rd 0397bd2)
+
+DECISIONS "Calibration decisions after CAL1 refits" items 1, 3, 7. tsc (app, scripts/v2) clean. Runs: one AIFM run
+(two variants) plus counterfactuals, three `calscan.ts t1 authors2026` scans (20 seeds; logs in .scratch/, untracked),
+two probes of RefBot's authors2026 run (seed 2027, .scratch/probe-a26*.ts) and a start-M readout (.scratch/m1.ts).
+
+**AIFM run.** https://github.com/AI-Futures-Project/aifm-public, commit `1c40ecd` (the commit CAL-W read), cloned
+outside the repo; Python 3.12.0, numpy 2.4.1, scipy 1.17.0 (the repo pins these; it asks for Python 3.14). The run
+reproduces the repo's golden test exactly (Daniel defaults: aa_time 2027.785926, progress_at_aa 37.752434). Inputs
+`inputs/input_data.csv`, time range [2017, 2100], `ProgressModel.compute_progress_trajectory`. Parameters: the site's
+preset `eli-08-16-26` ("Eli's median parameters (08/16/26)", `constants/parameters.ts`), verbatim (uplift-solved AC
+anchor, serial uplift 1.7 at 2026.578, excess doubling 6.5 mo, taste at AC 0.5 SD, taste slope 2.1 SD/progress-yr,
+median-to-top 3.70, inf_labor_asymptote 15.14, taste_limit 8); variant "Q2 sheet" = the same with Eli's Q2-sheet medians
+where the preset still carries the parent's (`sampling_config_q2_eli.yaml`: taste slope 2.3, median-to-top 4.0), the
+values CAL-W sourced Δ_bm from.
+
+| AIFM output (progress = log₁₀ cumulative effective compute) | preset | Q2 sheet |
+|---|---|---|
+| r_software (calibrated); present-day progress rate | 3.138; 1.574 OOM/yr | same |
+| AC | 2028.411 (38.551) | 2028.413 (38.551) |
+| AI2027-SC | 2029.020 (40.223) | 2029.003 (40.223) |
+| SAR | 2029.091 (40.497) | 2029.029 (40.334) |
+| TED-AI | 2029.786 (43.966) | 2029.585 (43.498) |
+| SIAR | 2030.008 (45.130) | 2029.743 (44.566) |
+| ASI | 2030.897 (48.598) | 2030.290 (47.725) |
+| gaps SC → SAR / SAR → SIAR / SAR → ASI | 26 d / 335 d / 660 d | 9 d / 261 d / 461 d |
+| AI taste at AI2027-SC | 2.73 SD | 2.94 SD |
+| progress rate: peak; 2031; 2033 | 5.4 (2029.75); 2.9; 1.6 OOM/yr | — |
+| progress at V0's date 2025.445; at V0's 41-min p80 horizon (2025.330) | 33.757; 33.577 | same |
+| software progress multiplier at 2025.45 | 1.056 | — |
+
+The preset's golden (research/11 #8, from the Monte Carlo medians: AC p50 2029.16 and the medians of the gaps) is SC
+2029.68 / SAR 2029.89 / SIAR 2031.48 / ASI 2033.73 (SC → SAR 78 d, SAR → ASI 1,402 d). The run on median parameters is
+0.66 y earlier at SC and its SAR → ASI is 1.3–1.8 y, not 3.8 y: the medians of sampled gaps (heavy right tails, the
+60 / 20 / 20 anchor-mode mixture) are not the gaps of the median-parameter run. Not changed (target question below).
+
+**G_SC.** Same route as CAL-W's fast: G_SC = G(V0) 27.627 + AIFM progress at the milestone − AIFM progress at V0.
+
+| game SC read as | G_SC (V0 by date … by horizon) | sd_SC (AIFM taste there) | T1 median SC / SAR / SIAR / ASI (y vs golden) | worst |
+|---|---|---|---|---|
+| CAL-T (stand-in) | 33.1 | 0.5 | −0.029 / +0.6 / −0.75 / −2.91 (CAL-T test:cal) | fail |
+| AC | 32.42 … 32.60 | 0.5 | 32.5: −0.463 / −0.140 / −1.311 / −3.456 | 28.8 |
+| AI2027-SC (committed) | 34.09 … 34.27 | 2.94 (Q2 sheet; preset 2.73) | 34.09: **+0.047** / −0.148 / −1.290 / −3.423 | 28.5 |
+| AI2027-SC, horizon route | 34.27 | 2.94 | +0.162 / −0.005 / −1.089 / −3.232 | 26.9 |
+
+Committed: authors2026 (G_SC, sd_SC) (33.1, 0.5) → **(34.09, 2.94)**, Δ_bm 2.17 kept (this run's present-day rate gives
+3.09·1.574/2.3 = 2.11; the web preset's slope 2.1 gives 2.32). Why AI2027-SC: the preset's golden SC is AIFM's AI2027-SC
+(AC + 0.52, research/11 #8), and both numbers are read at that one milestone of one run. At AC (32.5, 0.5, consistent
+with CAL-W's "0.5 at the automated coder") the game's SC lands on AIFM's own AC p50 (2029.16 + 0.05) but 0.46 y before
+the golden SC. CAL-W's sd_SC 0.5 is AIFM's taste at AC; AI2027-SC comes 1.67 OOM later, where AIFM's taste is 2.7–2.9 SD
+(M10's fitted 2.15 had found the same direction). With it SC passes unfitted and the game's SC → SAR is 7 d (median; AIFM
+9–26 d, golden 78 d), against CAL-T's 284 d. **For the designer:** the game's SC = AIFM's AI2027-SC (committed) or AC
+(then G_SC 32.5, sd_SC 0.5, and the SC target should become AC's 2029.16).
+
+**Takeoff shape: what slows AIFM after SC on Eli's medians.** Counterfactuals on the preset (one parameter each):
+
+| AIFM change | SAR → ASI | peak progress rate |
+|---|---|---|
+| none | 660 d | 5.4 OOM/yr |
+| inf_labor_asymptote 15.14 → 1000 | 230 d | 18.8 |
+| taste_limit 8 → 32 | 555 d | 6.1 |
+| inf_compute_asymptote 1001 → 1e6 | 665 d | 5.2 |
+
+The mechanism is the **experiment-compute bottleneck**: the experiment-capacity CES saturates in labour (infinite coding
+labour buys at most ≈ 15× experiment capacity at fixed compute; after AC the headroom `exp_cap_mult_with_infinite_labor`
+falls from 12.5 to 1.27), so after AC research effort grows only with experiment compute (experiment capacity +0.37 OOM/yr 2029–31, +0.13 2031–33) and AI taste,
+and under the research-stock law (software rate = r × growth of research stock) the rate falls from 5.4 to 2.9 OOM/yr by
+2031. AIFM's bounded taste distribution (taste_limit) is second-order.
+
+**Does the game have it?** RefBot's own research does: the same CES with La 15 for authors2026 (PROD_PRESETS; research.ts
+stepProject / stepFlow bound the tests by the CES). It has no taste limit (workfit.ts teamTaste is an unbounded lognormal,
+σ = ln m2b / 3.09), the second-order part. But RefBot's own CES is not what sets T1's post-SAR shape. Probe (seed 2027,
+CAL-T values): RefBot SAR day 1540, ASI 1652; from day ≈ 1562 to ASI its safety framework holds training (framework.ts
+trainingHeld ⇒ researchMods.frontierExp 0: no experiment FLOP) (91 held days in days 1500–1652), and its recipe G still rises 5.09 OOM on
+them, all of it public knowledge (the stacks' bases: knowledge diffusion toward the best public recipe). The rival xLab
+(actors/rivalModel.ts aggregate) reached SAR 1480, SIAR 1536, ASI 1564 (SAR → ASI 84 d). So T1's SIAR / ASI on
+authors2026 follow a rival's aggregate takeoff through diffusion while RefBot is held; the rival model carries the CES
+(rawAggregate E = X(c, ℓ)·units·taste, rs = min(E, I)) and no taste limit; why it takes off in 84 d was not examined
+(rival mechanics deferred). One seed; not built, not changed.
+
+**Start M per preset (item 3).** scripts/v2/calib.ts: the V3.7 check now runs on every T1 preset against the preset's
+source, the AI 2027 takeoff integrator's progress multiplier at the start (src/data/world.ts multiplierAt at p0 = 1 + pEx,
+recorded on day 1 next to the readout), ± 0.1; was ≈ 1 ± 0.1 on ai2027 only. RefBot's day-1 m_EXP (seed 2027; .scratch/
+m1.ts): ai2027 1.202 vs 1.25 pass; authors2026 1.002 vs 1.10 pass (edge, 0.098; 1.003 at CAL-T's values; AIFM's own
+Eli run starts at 1.056); fast 1.058 vs 1.15 pass; slow 1.000 vs 1.01 pass. Note: research/11 calls the pEx of the AIFM
+presets (authors2026 0.1, fast 0.15) "[D] calibration knobs" of the v1 integrator; ai2027's 0.25 is fitted to the
+scenario's "50% faster" in early 2026.
+
+**slow G_SC 38.3 (item 7):** marked a stated stand-in at V3_CAL (workTypes.ts); no change.

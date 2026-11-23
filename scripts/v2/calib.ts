@@ -40,6 +40,7 @@ import { KNOWN, SMOKE, calGolden, calTol, check, finish, refGame, runRef, smokeC
 import { cached, prefill } from './simcache';
 import { CAL_SEED, CAL_SEEDS, medianOf, quantOf } from './calseeds';
 import { LINE_FIT } from '../../src/data/v2/research';
+import { multiplierRef } from '../../src/engine/v2/world/calibration';
 import { ePreAt, latestBaseFlop, stacksGEquiv } from '../../src/engine/v2/models/stacks';
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { REF_TPP } from '../../src/data/v2/runDesign';
@@ -300,7 +301,7 @@ function t1Rec(preset: T1Preset) {
   const watch = buildDelays(waits);
   // V3.7 checks: research speed at the start (the M readout and research speed vs the leader's day 0) and the METR h50
   // doubling time of the best model from the start to 2027.0 (2025–26).
-  let start: { M: number; rs: number } | undefined;
+  let start: { M: number; rs: number; src: number } | undefined;
   let h0: number | undefined;
   let h1: { day: number; h: number } | undefined;
   const d2027 = dayOfDate(START_DATE, '2027-01-01');
@@ -310,7 +311,7 @@ function t1Rec(preset: T1Preset) {
   const gPath: { day: number; g: number }[] = [];
   const s = runT1(preset, cal, SEED, lastIdx(preset), MAX_DAYS, (x) => {
     watch(x);
-    if (x.time.day === 1) start = { M: x.player.research.last?.x?.mExp ?? 0, rs: labSpeedRel(x) };
+    if (x.time.day === 1) start = { M: x.player.research.last?.x?.mExp ?? 0, rs: labSpeedRel(x), src: multiplierRef(x.hidden.timeline, x.hidden.timeline.p0) };
     const bv = bestPlayerVersion(x);
     if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
     if (bv && x.time.day === d2027) h1 = { day: x.time.day, h: h50Of(x.hidden.timeline, bv) };
@@ -447,11 +448,14 @@ for (const preset of PRESETS) {
   }
   if (start && h0 && h1) {
     const months = (h1.day / 30.44) / Math.log2(h1.h / h0);
-    v3checks.push(`${preset}: research speed at start M ${start.M.toFixed(3)}, vs the leader's day 0 ×${start.rs.toFixed(2)}; METR h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0 = doubling every ${months.toFixed(1)} months (METR 4.2 ± 1)`);
+    v3checks.push(`${preset}: research speed at start M ${start.M.toFixed(3)} (source ${start.src.toFixed(2)}), vs the leader's day 0 ×${start.rs.toFixed(2)}; METR h50 ${Math.round(h0)} → ${Math.round(h1.h)} min by 2027.0 = doubling every ${months.toFixed(1)} months (METR 4.2 ± 1)`);
+    // The readout is M (research speed vs the same lab without AI labour). Research speed vs the leader's day-0 inputs is
+    // reported: on day 1 the auto mix has moved research compute to experiments (5% → ≈ 8% of compute), ≈ ×1.2.
+    // CAL2-T (DECISIONS "Calibration decisions after CAL1 refits" item 3): the target is each preset's source value, the
+    // AI 2027 takeoff integrator's progress multiplier at the start (src/data/world.ts multiplierAt at p0 = 1 + pEx:
+    // ai2027 1.25, authors2026 1.10, fast 1.15, slow 1.01), ± 0.1; was ≈ 1 ± 0.1 on ai2027 only (V3.7 [D]).
+    check(Math.abs(start.M - start.src) <= 0.1, `V3.7 research speed readout M at the start ≈ the preset's source (AI 2027 integrator M(p0), ± 0.1; ${preset})`, `M ${start.M.toFixed(3)} vs ${start.src.toFixed(2)}; ×${start.rs.toFixed(2)} the leader's day-0 research speed after the auto mix`);
     if (preset === 'ai2027') {
-      // The readout is M (research speed vs the same lab without AI labour). Research speed vs the leader's day-0 inputs is
-      // reported: on day 1 the auto mix has moved research compute to experiments (5% → ≈ 8% of compute), ≈ ×1.2.
-      check(Math.abs(start.M - 1) <= 0.1, 'V3.7 research speed readout M ≈ 1 at the start (leader, ai2027)', `M ${start.M.toFixed(3)}; ×${start.rs.toFixed(2)} the leader's day-0 research speed after the auto mix`);
       check(months >= 3.2 && months <= 5.2, 'V3.7 METR h50 doubling ≈ 4.2 months for the reference frontier 2025–26 (±1)', `${months.toFixed(1)} months`);
     }
   }
