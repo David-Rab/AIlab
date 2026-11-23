@@ -2,14 +2,14 @@
 // exposure.
 //  1. the fixture migrates to rev 72 (empty disagreement list);
 //  2. two independent instruments (behavioural tests BB, internals WB) whose readings of one trait on one model are
-//     outside each other's ranges produce one disagreement item and lower the believed reliability of both sides'
-//     instruments by DISAGREE_DROP (true reliability unchanged); the same pair is recorded once; agreeing readings and
+//     outside each other's ranges produce one disagreement item and leave every instrument's believed reliability
+//     unchanged (CAL2-S, decision 10: the DISAGREE_DROP cut deleted); the same pair is recorded once; agreeing readings and
 //     same-family readings (logs/COT vs reasoning/COT) record nothing;
 //  3. a falsely-trusted instrument (hidden falseValidated) keeps its believed reliability through AI-assisted
 //     validations (mean trust about 1) and loses it after one human-run validation (found 0 of 20).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DISAGREE_DROP, VAL_N } from '../../../src/data/v2/agendas';
+import { VAL_N } from '../../../src/data/v2/agendas';
 import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
 import { Rng } from '../../../src/engine/rng';
 import { safetyLabour } from '../../../src/engine/v2/departments/workfit';
@@ -58,10 +58,10 @@ observeVersion(s, noise([-0.3]), day + 1, v, trait, 'WB', 1, 1, 'audit');
 const dis = s.player.safety.disagreements ?? [];
 check(dis.length === 1 && dis[0].model === v.id && dis[0].trait === trait && dis[0].a.kind !== dis[0].b.kind, 'conflicting independent readings: one disagreement item', JSON.stringify(dis.map((d) => [d.a.kind, d.a.reading, d.b.kind, d.b.reading])));
 const b1 = sides.map(bel);
-check(sides.every((_t, i) => Math.abs(b1[i] - b0[i] * (1 - DISAGREE_DROP)) < 1e-9), 'both sides\' believed reliability x (1 - DISAGREE_DROP)', sides.map((t, i) => `${t.id} ${b0[i].toFixed(3)}->${b1[i].toFixed(3)}`).join(', '));
+check(sides.every((_t, i) => Math.abs(b1[i] - b0[i]) < 1e-9), 'CAL2-S: both sides\' believed reliability unchanged (no automatic cut)', sides.map((t, i) => `${t.id} ${b0[i].toFixed(3)}->${b1[i].toFixed(3)}`).join(', '));
 check(sides.every((t, i) => tru(t) === t0[i]), 'true reliability unchanged');
 check(others.every((t, i) => bel(t) === o0[i]), 'instruments of other families unchanged');
-check(sides.every((t) => t.trust?.evidence.at(-1)?.source === 'disagreement'), 'each side carries a disagreement evidence entry', sides[0].trust?.evidence.at(-1)?.note);
+check(sides.every((t) => t.trust?.evidence.at(-1)?.source !== 'disagreement'), 'CAL2-S: no trust evidence entry from a disagreement');
 observeVersion(s, noise([0.3]), day + 2, v, trait, 'BB', 1, 1, 'suite');
 check((s.player.safety.disagreements ?? []).length === 1 && sides.every((t, i) => bel(t) === b1[i]), 'same model / trait / pair: recorded once');
 const s2 = load('day400.json');

@@ -87,7 +87,8 @@ misalignment rule, whose gate sits below Cyber High).
 
 ## 4. DISAGREE_DROP = 0.1 (agendas.ts, SR-10)
 
-**Kept, [D stand-in].** No primary source states how much a lab should lower its trust in an instrument when two
+**Deleted (CAL2-S, designer decision 10).** The disagreement record, chip and framework / case hook stay; trust moves
+only on a validation. (CAL-S had kept it as [D stand-in].) No primary source states how much a lab should lower its trust in an instrument when two
 independent instruments disagree. The review (review/safety.md §3 #8) recommends deleting the automatic cut (keep the
 disagreement record, the chip and the framework / case hook) as an invented effect on beliefs. That is a mechanism
 decision for the designer, not a number this step can source.
@@ -105,14 +106,15 @@ decision for the designer, not a number this step can source.
 | U05_SHIFT (danger.ts) | kept | Not a sourced number: a unit conversion (RD-U05 moved each domain's reference point; θ_new = θ_v2 + (L_new(V0) − L_v2(V0))). The θ themselves are [D] set on 2025 observed behaviour (research/05 §1.1–1.10). Nothing to source beyond the θ. | n/a |
 | Grader / monitor gap curve (oversight.ts ENGELS_400) | kept | Engels et al. 2025, "Scaling Laws for Scalable Oversight", arXiv 2504.18530, abstract: "NSO success rates at a general Elo gap of 400 are 13.5% for Mafia, 51.7% for Debate, 10.0% for Backdoor Code, and 9.4% for Wargames"; "these rates decline further when overseeing stronger systems." Backdoor Code (10%) for monitors and RL graders; Debate (51.7%) for AG05. Using the code-review game for RL graders is an analogy [D mapping]. | medium on the numbers, low on the analogy |
 | Debate credit ≈ 4.0 OOM (AG05_OVERSIGHT.debateCreditOom) | kept | Khan et al. 2024, "Debating with More Persuasive LLMs Leads to More Truthful Answers", arXiv 2402.06782, abstract: debate gets non-expert models and humans to "76% and 88% accuracy respectively (naive baselines obtain 48% and 60%)". Converted at logit gain → 235 Elo → 4.0 OOM [D: domain Elo read 1:1 as general Elo]. | low on the conversion |
-| Graders at L 10 (HUMAN_REVIEW_L, AG05 overseerL) | **kept, flagged** | No source places RL graders at a capability level. On the RD-U05 scale 10 is the **best** human (SC "as good as the best human coders"); "expert human graders" read literally would be the median expert, 6.39 on ai2027 (the same number as the framework's High). Moving it would start the grader gap ≈ 1.5 OOM earlier (moves S4 / S5): a designer call (review §4 CP3h). | none for the level |
+| Graders at L 10 (HUMAN_REVIEW_L, AG05 overseerL) | **CAL2-S (decision 9): RL graders → the world's median expert, G_SC − Δ_bm (traits.ts graderOoms); human review of R&D (HUMAN_REVIEW_L) and AG05 overseerL stay at 10** | No source places RL graders at a capability level. On the RD-U05 scale 10 is the **best** human (SC "as good as the best human coders"); "expert human graders" read literally would be the median expert, 6.39 on ai2027 (the same number as the framework's High). Moving it would start the grader gap ≈ 1.5 OOM earlier (moves S4 / S5): a designer call (review §4 CP3h). | none for the level |
 
 ---
 
 ## Stand-ins left (no primary source)
 - Misalignment-signs line 30% (top of the 90% range).
-- One High level (6.4) for all worlds (the median expert is 6.0–9.2 by world).
+- (CAL2-S, decision 11: High is now each world's own median expert: ai2027 6.4, authors2026 8.0, slow 9.2, fast 9.2 at the CAL-T presets.)
 - q upper end 2; k = 2 OOM; T-UNDO / T-CAST tested OOM.
-- DISAGREE_DROP 0.1 (and DISAGREE_FLOOR, TRUST_MAX).
+- TRUST_MAX (DISAGREE_DROP and DISAGREE_FLOOR deleted, CAL2-S).
 - CASE_WORK 30 (proxy), organism realism range (proxy), VAL_COMPUTE_FRAC.
-- HUMAN_REVIEW_L 10 for graders; the Backdoor Code → RL grader analogy; debate credit conversion.
+- HUMAN_REVIEW_L 10 for human review of R&D and AG05's overseer (graders moved to the median expert, CAL2-S); the Backdoor
+  Code → RL grader analogy; debate credit conversion.

@@ -5161,3 +5161,69 @@ about these two values); worldfx 0 fails, F11 2026 / 2027 $46.7B / $104.2B → $
 0.01 → **0.0015**, inside the sourced bracket 3e-4 (MiniMax's ~1e11 tokens over 90 days of OpenAI's 6B API tokens/min) –
 7e-3 (the game's day-0 API) (CAL-products-sources D1). Effect on the day-0 player API (3.4e11 tokens/day, anonymous ½):
 a distiller's access 1.00 → 0.84 with no KYC, 0.80 → 0.59 at KYC 1, so KYC now matters on a big API (review products F1).
+### CAL2-S (calibration round 2, SAFETY; branch cal2-saf from rd 0397bd2)
+DECISIONS "Calibration decisions after CAL1 refits" items 2, 4, 9, 10, 11, 12. No new mechanism; one run of the S4 / S5
+scripts at the end (`run.ts --tier full --only safety,safetyrates`, 14.2 min wall).
+
+**Changes**
+- **Graders at the median expert (9).** CP3h(a)'s RL graders (safety/traits.ts graderOoms) sit at the world's own
+  median expert, G_SC − Δ_bm (new models/capability.ts `medianExpertLevel(w)` = λ(G_SC − Δ_bm)), not the best human
+  (L 10). ai2027: 0.69 OOM above V0 instead of 2.49, so the grader gap opens from L 6.4. Human review of R&D
+  (HUMAN_REVIEW_L) and AG05's overseer stay at 10 (not covered by decision 9; designer question below).
+- **DISAGREE_DROP deleted (10).** safety/disagreement.ts records the disagreement (chip, framework / case hook) and
+  leaves trust alone; only a validation moves an instrument's factor. DISAGREE_DROP and DISAGREE_FLOOR removed.
+  _sr10 / _rfs5 expect unchanged trust (their disagreement-count FAILs are fixture drift, identical on the base).
+- **Framework High per world (11).** Default Bio / Cyber High = the world's median expert to 0.1 L, set at game
+  start (init.ts → initialSafetyDept(highL) → defaultFramework(…, highL); framework.ts `worldHighL`,
+  `worldFrameworkRules`: the edit limit reads around it). At the CAL-T presets: ai2027 **6.4**, authors2026 **8.0**,
+  slow **9.2**, fast **9.2** (CAL-S's 6.0 / 9.0 were before CAL-T moved authors2026 and slow G_SC). FRAMEWORK_HIGH_L 6.4
+  stays as the reference-world default for the SR-19 migration (no world at hand); old saves keep their stored rules.
+- **q upper end 2 (12):** confirmed marked "[stand-in: the width mirrors CP3i's downside]" and "[D stand-in]" in
+  data/v2/agendas.ts METHOD_SCALE and research/CAL-safety-sources.md §3. No change.
+- **S4 band (2):** 0.55–0.85 (V2-SPEC, no source) → **0.40–0.80**. Sources (first-person, authors of AI 2027):
+  Kokotajlo, LessWrong comment 25 May 2023: "I think AI doom is 70% likely"; Larsen, LessWrong shortform 28 Mar 2026,
+  on a nearcast with current techniques and little government action: "I'm something like 25/25/50% on 1/2/3", (1)
+  handled well, (2) "The AIs were adversarially misaligned", (3) "The AIs try to align their successors but fail" (75%
+  misaligned successors); Alexander, ACX "My AI Opinions" 11 Jun 2026: "a 20% chance that the first AIs to cross the
+  point of no return will want to eliminate the human population" and "an additional 30% chance that they otherwise
+  permanently curtail human potential"; AI Goals Forecast (ai-2027.com, Apr 2025), credence a goal type features
+  prominently in Agent-3 (Daniel / Thomas / Eli): unintended version of the spec 70 / 40 / 50%, proxies / ICGs
+  50 / 80 / 50%. Not verified on a primary page: Lifland "If they don't slow down, AI takeover is ~67%" (X, Oct 2026;
+  newsletter only). No AI Futures page states one project-wide P(misalignment). **Mapping:** S4's P_mis averaged over
+  worlds = the chance the reference lab (no slowdown, AI 2027's safety share) reaches an ASI misaligned past the
+  world's tolerance. Doom / takeover also needs the misaligned ASI uncontained, so the takeover credences (50–75%) are
+  lower bounds on it; the Goals Forecast's per-category credences span 40–80%. Band = 0.40–0.80 (lowest to highest).
+- **S5 Mixed (4):** the check is now "the Mixed bot's sight limit at SAR is above RefBot's (mean over the worlds that
+  reach SAR; unpaired seeds 900+ vs 500+)". The old "U ≥ L − 0.5 up to SAR" row prints as INFO.
+
+**Before → after** (before = CAL-S2's run on rd 399f212 + its fixes; not re-run on 0397bd2)
+
+| Check | CAL-S2 | CAL2-S | target |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI | 0.344 (Mis 0.319, range 0.05–0.77) | **0.382** (Mis 0.342, range 0.09–0.71) | 0.40–0.80 (was 0.55–0.85): **fail, −0.018** |
+| S4 safe recipe | 0.055 | 0.066 | ≤ 0.25 pass |
+| S5 RefBot U below L by SAR | 23% (median +0.34) | 23% (median +0.45; true below 13%, median +1.71) | ≥ 50% fail (unchanged) |
+| S5 Mixed (new): sight limit at SAR, Mixed vs RefBot | — | **11.54 vs 10.53 mean** (medians 12.05 vs 12.00) | Mixed above: **pass** |
+| S5 Mixed old row (INFO): median min margin / holds | −5.00 / 35% | −2.02 / 45% | — |
+| S5 neuralese mechanism | pass | pass | — |
+| safetyrates | pass (F6 WARN) | 20 pass / 0 fail / 6 WARN (F6 ×5, F5 AF compliance gap 21.1%, known deviation) | — |
+| F2 sabotage after hacking / inoculation | 11.2% / pass | 11.2% / pass | 6–20% |
+| F5 EA 2026-12-31 | 44.7% (CP3i) | 46.6% | 20–50% |
+
+**S4 gap and driving draws** (probe `_cals2/s4dist.ts`, 40 cache hits): still bimodal, 15 / 40 worlds P_mis > 0.5,
+18 < 0.1. Mis correlates with the hidden at-scale draws q of T-W2S (r −0.48) and T-UNDO (−0.24); ≈ 0 with
+anti-scheming / inoculation (RefBot leans on neither). Mis 0.319 → 0.342 is tasks 1–3 plus base drift together (not separated, no bisect); the expected main part is the grader move:
+RefBot's graders now fall behind from L 6.4, but the missed-hack path into Mis passes through inoculation (×0.15,
+MacDiarmid) and the q draws. The 0.018 miss is within one or two worlds flipping across the 0.06-wide P_mis curve
+(se of the 40-world mean ≈ 0.07). No further tuning (task rule).
+
+**Designer**
+1. Human review of R&D (HUMAN_REVIEW_L) and AG05's overseer are still at the best human (10); decision 9 named the
+   graders only. Same "expert human" reading would move them to the median expert too.
+2. S5 Mixed now passes on means, but the medians are 12.05 vs 12.00: the difference is RefBot's low-tail worlds, not a
+   typical-world gap. A paired version (Mixed on seeds 500+) would be the honest strength test (+20 games to SAR).
+3. authors2026's High is now 8.0 (CAL-T's G_SC 33.1), not 6.0 as CAL-S listed.
+
+Checks: tsc (app, scripts/v2) clean; new `scripts/v2/_cal2s/check.ts` all ok (High per world, Critical 10, graders at
+G_SC − Δ_bm, sound up to their level, edit limit per world); _rfs1, _rfs13, _rfs7 all ok; _rfs2 (2), _sr19 (1), _sr10
+(fixture counts), _rfs5 (1) FAILs identical to the base.

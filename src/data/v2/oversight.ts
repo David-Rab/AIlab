@@ -56,7 +56,9 @@ export const AG05_OVERSIGHT = { base: ENGELS_400.debate, overseerL: 10, debateCr
  *  their catch falls with the gap like a monitor's (Engels Backdoor Code). Expert-human level = the superhuman-coder
  *  level L 10 [D: SC is "as good as the best human coders"]. CAL-S: no source places graders at a level; on the RD-U05
  *  scale 10 is the best human and a median expert is λ(G_SC − Δ_bm) = 6.39 on ai2027 (the framework's High level):
- *  kept at 10, a designer call (research/CAL-safety-sources.md §6). */
+ *  kept at 10, a designer call (research/CAL-safety-sources.md §6). CAL2-S (decision 9): the RL graders (CP3h(a),
+ *  safety/traits.ts graderOoms) moved to the world's median expert; this level now serves human review of R&D only
+ *  (not covered by decision 9; still 10). */
 export const HUMAN_REVIEW_L = 10;
 
 /** Technique decay with capability above the level a tool was validated on (MODEL-V3 §11.5): strength factor

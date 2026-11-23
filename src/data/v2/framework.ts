@@ -16,8 +16,8 @@
 //     counterfactual assistance ... to 'novice' actors (anyone with a basic relevant technical background) that enables
 //     them to create known biological or chemical threats"; ANT-RSP CBRN-3: "individuals or groups with basic STEM
 //     backgrounds"; OAI-PF2 Cyber High: "automating the discovery and exploitation of operationally relevant
-//     vulnerabilities") = λ(G_SC − Δ_bm) on the reference world ai2027: 6.39 → 6.4 [S definition; the per-world value
-//     is 6.0 (authors2026) to 9.2 (fast), D: one number for all worlds].
+//     vulnerabilities") = λ(G_SC − Δ_bm), each world's own median expert (CAL2-S, designer decision 11; capability.ts
+//     medianExpertLevel, to 0.1 L): ai2027 6.4, authors2026 8.0, slow 9.2, fast 9.2 at the CAL-T presets [S definition].
 //   Critical = the domain's best human, 10 (OAI-PF2 Bio Critical: "enable an expert to develop a highly dangerous novel
 //     threat vector"; ANT-RSP CBRN-4: uplift "entry-level PhD biologists to ... approximate the capabilities of a
 //     world-class, state-backed bioweapons team"; OAI-PF2 Cyber Critical: "functional zero-day exploits of all severity
@@ -31,23 +31,28 @@
 // player's beliefs, never truth.
 import type { EvalDepth, FrameworkRule, SafetyFramework } from '../../engine/v2/types';
 
-/** CAL-S: High = a median domain expert's score on the reference world (λ(G_SC − Δ_bm), ai2027 6.39); Critical = the
- *  domain's best human (RD-U05). research/CAL-safety-sources.md §1. */
+/** CAL-S: High = a median domain expert's score, λ(G_SC − Δ_bm); Critical = the domain's best human (RD-U05).
+ *  research/CAL-safety-sources.md §1. CAL2-S (decision 11): the game's High level is the world's own median expert
+ *  (defaultFrameworkRules(highL), set at game start from capability.ts medianExpertLevel); FRAMEWORK_HIGH_L is the
+ *  reference world's (ai2027 6.39 → 6.4), the default only where no world is at hand (the SR-19 save migration). */
 export const FRAMEWORK_HIGH_L = 6.4;
+/** The High level of a world's median-expert score, to 0.1 L (as shown in the framework panel). */
+export const frameworkHighL = (medianExpertL: number) => Math.round(medianExpertL * 10) / 10;
 export const FRAMEWORK_CRITICAL_L = 10;
 
-export const DEFAULT_FRAMEWORK_RULES: readonly FrameworkRule[] = [
-  { id: 'bio-high', label: 'Biological: High', trigger: { kind: 'capability', domain: 'BIO', level: FRAMEWORK_HIGH_L }, holds: 'deploy', safeguards: ['classifiers'], evidence: ['suite'], src: 'OAI-PF2 Bio High (novice uplift, known threats); ANT-RSP CBRN-3 → ASL-3 deployment standard; level = median expert [CAL-S]' },
-  { id: 'cyber-high', label: 'Cyber: High', trigger: { kind: 'capability', domain: 'CYBER', level: FRAMEWORK_HIGH_L }, holds: 'deploy', safeguards: ['classifiers'], evidence: ['suite'], src: 'OAI-PF2 Cybersecurity High; GDM-FSF Cyber uplift CCL; level = median expert [CAL-S]' },
+/** The default rules with High at `highL` (the world's median expert). */
+export const defaultFrameworkRules = (highL: number = FRAMEWORK_HIGH_L): readonly FrameworkRule[] => [
+  { id: 'bio-high', label: 'Biological: High', trigger: { kind: 'capability', domain: 'BIO', level: highL }, holds: 'deploy', safeguards: ['classifiers'], evidence: ['suite'], src: 'OAI-PF2 Bio High (novice uplift, known threats); ANT-RSP CBRN-3 → ASL-3 deployment standard; level = median expert [CAL-S]' },
+  { id: 'cyber-high', label: 'Cyber: High', trigger: { kind: 'capability', domain: 'CYBER', level: highL }, holds: 'deploy', safeguards: ['classifiers'], evidence: ['suite'], src: 'OAI-PF2 Cybersecurity High; GDM-FSF Cyber uplift CCL; level = median expert [CAL-S]' },
   { id: 'bio-critical', label: 'Biological: Critical', trigger: { kind: 'capability', domain: 'BIO', level: FRAMEWORK_CRITICAL_L }, holds: 'deploy', safeguards: ['hardened'], evidence: ['suite', 'external'], src: 'OAI-PF2 Bio Critical (expert uplift, novel threats); ANT-RSP CBRN-4; level = best human [CAL-S]' },
   { id: 'cyber-critical', label: 'Cyber: Critical', trigger: { kind: 'capability', domain: 'CYBER', level: FRAMEWORK_CRITICAL_L }, holds: 'deploy', safeguards: ['hardened'], evidence: ['suite', 'external'], src: 'OAI-PF2 Cybersecurity Critical; GDM-FSF Cyber CCL; level = best human [CAL-S]' },
   { id: 'aird-critical', label: 'AI R&D: Critical', trigger: { kind: 'capability', domain: 'RSCH', level: FRAMEWORK_CRITICAL_L }, holds: 'training', safeguards: ['control', 'review'], evidence: ['suite', 'external'], src: 'OAI-PF2 AI Self-improvement Critical ("superhuman research-scientist agent"; safeguards during development); ANT-RSP AI R&D-5; GDM-FSF ML R&D CCL; level = best human [CAL-S]' },
   { id: 'misalignment', label: 'Misalignment signs', trigger: { kind: 'belief', est: 0.3 }, holds: 'training', safeguards: ['control'], evidence: [], src: 'GDM-FSF Instrumental Reasoning Level 1 → CoT monitoring of internal deployments; OAI-PF2 Cyber High → misalignment safeguards for large-scale internal deployment; only for models measured at the scheming-capable level [CAL-S]; the 30% line on the top of the 90% range (RF-S1) [D]' },
 ];
 
-/** The default framework: full capability assessment before release, no mandatory external review. */
-export function defaultFramework(evalDepth: EvalDepth | 'none' = 'full', externalReview = false): SafetyFramework {
-  return { evalDepth, externalReview, rules: DEFAULT_FRAMEWORK_RULES.map((r) => ({ ...r, trigger: { ...r.trigger }, safeguards: [...r.safeguards], evidence: [...r.evidence] })), overrides: [], holds: [] };
+/** The default framework: full capability assessment before release, no mandatory external review; High at `highL`. */
+export function defaultFramework(evalDepth: EvalDepth | 'none' = 'full', externalReview = false, highL: number = FRAMEWORK_HIGH_L): SafetyFramework {
+  return { evalDepth, externalReview, rules: defaultFrameworkRules(highL).map((r) => ({ ...r, trigger: { ...r.trigger }, safeguards: [...r.safeguards], evidence: [...r.evidence] })), overrides: [], holds: [] };
 }
 
 /** Edit limits [D]: a capability threshold may move at most this far from its default (L), a belief threshold this far

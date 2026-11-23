@@ -341,7 +341,7 @@ row('F6 RefBot: persistence of SCHEME per post run without anti-scheming (all ge
 row('F3 hidden-trait transfer into a distilled student (a new network): share of a teacher’s AF excess carried', 'Cloud 2025 [P]: "we do not observe the effect when the teacher and student have different base models" (GPT-4.1 / mini / nano pairs: not reliably); research/20 F3 [G]: 0 across lineages → [D] ≤ 15% (what ordinary outputs show)', [0, 0.15], probes.map((p) => (p.afStudent - p.afStudentCtrl) / (p.afTeacher - TRAIT_START.AF)));
 row('F3 subliminal share per run across a shared initialisation (ω_distill × E06; no game path after E19: the IDA cycle copies its teacher)', 'Cloud 2025: owl 12% → 60%+ ≈ half the gap; research/20 F3 [G] 0.2–0.5 → report', null, probes.map((p) => OMEGA_KIND.distill * p.w06));
 // The criterion this calibration must keep (S4) on fewer seeds than safety.ts.
-row('S4 RefBot P_mis at ASI (mean)', 'safety.ts S4 band 0.55–0.85 (binding there, on 40 seeds)', null, [mean(refs.map((r) => r.pmis))], '');
+row('S4 RefBot P_mis at ASI (mean)', 'safety.ts S4 band 0.40–0.80, AI Futures authors’ credences (CAL2-S; binding there, on 40 seeds)', null, [mean(refs.map((r) => r.pmis))], '');
 
 const fmt = (x: number, u: string) => (!Number.isFinite(x) ? '—' : u === '%' ? `${(x * 100).toFixed(1)}%` : u === 'x' ? `×${x.toFixed(2)}` : x.toFixed(3));
 console.log(`\n      safety rates vs research/20 F (${N_SEEDS} RefBot seeds, ${N_WORLDS} probe worlds; median [p10–p90])`);

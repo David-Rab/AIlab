@@ -46,6 +46,11 @@ export function levelOfG(w: TimelineWorld, G: number): number {
   for (let i = 0; i < g.length - 1; i++) if (G < g[i + 1]) return LEVEL_AT[i] + ((LEVEL_AT[i + 1] - LEVEL_AT[i]) * (G - g[i])) / Math.max(1e-9, g[i + 1] - g[i]);
   return LEVEL_AT[LEVEL_AT.length - 1];
 }
+/** CAL2-S: the median expert's score in world w, λ(G_SC − Δ_bm) (RD-U05: the same on the general scale and on every
+ *  domain score, since each domain's median expert sits Δ_bm below its best human). ai2027 6.39, authors2026 8.02,
+ *  slow 9.24, fast 9.18 at the CAL-T presets (scripts/v2/_cals/medexp.ts). Read by the framework's default High rules (decision 11); the RL
+ *  graders (CP3h(a), decision 9) read the same point as effective compute, G_SC − Δ_bm. */
+export const medianExpertLevel = (w: TimelineWorld): number => levelOfG(w, w.v3.gSC - w.v3.dBM);
 /** Inverse of λ on [0, 15): the effective compute at display level L (the smallest G with λ(G) ≥ L; λ is increasing
  *  there). L ≥ 15 returns the ASI point, L ≤ 0 the G where the first slope reaches 0. */
 export function gOfLevel(w: TimelineWorld, L: number): number {

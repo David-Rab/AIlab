@@ -1,11 +1,10 @@
 // RF-S5 targeted check (run alone: npx tsx scripts/v2/_rfs5/check.ts). Trust per model, not one factor per instrument.
-//  1. a disagreement on model A lowers the instruments' believed reliability on A only (B keeps its own);
-//  2. a validation on B sets B's factor; A keeps its disagreement-lowered factor; a model with no entry reads the last
+//  1. a disagreement on model A records one item and leaves trust as it was (CAL2-S, decision 10: no automatic cut);
+//  2. a validation on B sets B's factor; A keeps its own factor; a model with no entry reads the last
 //     validated model's (extrapolated);
 //  3. migration 99 → 100: an old single factor goes to the model the instrument was validated on.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DISAGREE_DROP } from '../../../src/data/v2/agendas';
 import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
 import { Rng } from '../../../src/engine/rng';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
@@ -13,6 +12,7 @@ import { observeVersion } from '../../../src/engine/v2/safety/detection';
 import { instruments, reliability } from '../../../src/engine/v2/safety/instruments';
 import { versionOom } from '../../../src/engine/v2/safety/oversight';
 import { trustOf } from '../../../src/engine/v2/safety/techniques';
+import { setTrust } from '../../../src/engine/v2/safety/disagreement';
 import { completeValidation } from '../../../src/engine/v2/safety/validation';
 import type { GameStateV2, ModelVersion, RngLike, TechniqueState, TraitId } from '../../../src/engine/v2/types';
 import { FIXTURE_DIR } from '../lib';
@@ -38,15 +38,17 @@ const fA0 = sides.map((t) => trustOf(t, A.id)), fB0 = sides.map((t) => trustOf(t
 observeVersion(s, noise([0.3]), s.time.day, A, trait, 'BB', 1, 1, 'suite');
 observeVersion(s, noise([-0.3]), s.time.day, A, trait, 'WB', 1, 1, 'audit');
 check((s.player.safety.disagreements ?? []).length === 1, 'one disagreement on A');
-check(sides.every((t, i) => Math.abs(trustOf(t, A.id) - Math.max(0.5, fA0[i] * (1 - DISAGREE_DROP))) < 1e-3), 'A: trust × (1 − DISAGREE_DROP)', sides.map((t) => `${t.id} ${trustOf(t, A.id)}`).join(', '));
+check(sides.every((t, i) => trustOf(t, A.id) === fA0[i]), 'CAL2-S: A: trust unchanged by the disagreement', sides.map((t) => `${t.id} ${trustOf(t, A.id)}`).join(', '));
 check(sides.every((t, i) => trustOf(t, B.id) === fB0[i] && Math.abs(bel(t, B) - rB0[i]) < 1e-12), 'B: trust and believed reliability unchanged', sides.map((t) => `${t.id} ${trustOf(t, B.id)}`).join(', '));
 
 // 2. validation on B
 const t = sides[0];
+// CAL2-S: disagreements no longer write a factor, so A gets its own entry directly (as an earlier validation on A would).
+setTrust(t, 0.9, { day: s.time.day, source: 'validation', model: A.id, note: 'test: own factor on A' });
 completeValidation(s, new Rng(5) as unknown as RngLike, s.time.day, { id: 'v', tool: t.id, model: B.id, progress: 1, by: 'player', day: 0, human: true });
 const fB = trustOf(t, B.id);
 check(t.trust!.byModel[B.id] === fB && t.validatedOn === B.id, 'validation on B sets B\'s own factor', `${fB}`);
-check(Math.abs(trustOf(t, A.id) - Math.max(0.5, fA0[0] * (1 - DISAGREE_DROP))) < 1e-3, 'A keeps its own factor', `${trustOf(t, A.id)}`);
+check(trustOf(t, A.id) === 0.9 && fB !== 0.9, 'A keeps its own factor', `${trustOf(t, A.id)}`);
 const C = s.player.models.versions.find((v) => v.id !== A.id && v.id !== B.id && !t.trust!.byModel[v.id]);
 if (C) check(trustOf(t, C.id) === fB, 'a model with no entry reads the last validated model\'s (extrapolated)', `${C.name} ${trustOf(t, C.id)}`);
 
