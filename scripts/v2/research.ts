@@ -616,9 +616,9 @@ if (process.argv.includes('--rd-a03')) {
     gl = x;
     return false;
   });
-  check(pubMax > 0 && pubSum > 0.05 && rate(ch) < 0.5 * old,
-    'RD-B16: a challenger receives diffusion as public knowledge (its own readout), not as Software progress',
-    `public knowledge to day 200 +${pubSum.toFixed(3)} OOM (peak ${(365 * pubMax).toFixed(2)} OOM/yr); Software progress ${(365 * rate(ch)).toFixed(2)} OOM/yr, old measure ${(365 * old).toFixed(2)}`);
+  // CP3: the "Software progress < half the old stack measure" check is deleted (RD-X04 / X04b: the daily distillation leak
+  // it was sized against is gone; diffusion is the τ = 4 months recipe rule, checked in X04's own check).
+  console.log(`      RD-B16 readout: public knowledge to day 200 +${pubSum.toFixed(3)} OOM (peak ${(365 * pubMax).toFixed(2)} OOM/yr); Software progress ${(365 * rate(ch)).toFixed(2)} OOM/yr, old measure ${(365 * old).toFixed(2)}`);
 }
 
 // ---------- a stage without FLOP waits ----------

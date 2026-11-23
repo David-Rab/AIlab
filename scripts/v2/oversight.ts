@@ -2,7 +2,7 @@
 // in the research multiplier M (MODEL-V3 §11.5–11.6, research/20 F4). Monitor catch vs the Engels et al. 2025 anchor,
 // same-lineage collusion, tool decay above the validated capability, the control tax (Greenblatt et al. 2023), human
 // review, the save migration's equivalence, and a lint: no safety module reads M.
-import { setControl } from '../../src/engine/v2/safety/safeguards';
+import { addSafeguard, setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENGELS_400, MONITOR_CATCH_BASE, OOM_PER_400_ELO } from '../../src/data/v2/oversight';
@@ -12,7 +12,6 @@ import { labourOf, resetSafetyLabour, resetWorkContext } from '../../src/engine/
 import { agentsView } from '../../src/engine/v2/departments/agentActions';
 import { gOfLevel, gV0, levelKnotsG, levelOfG } from '../../src/engine/v2/models/capability';
 import { catchRate } from '../../src/engine/v2/models/products';
-import { catchOf, internalOversight } from '../../src/engine/v2/safety/incidents';
 import {
   controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl, versionOom,
 } from '../../src/engine/v2/safety/oversight';
@@ -87,16 +86,17 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   check(monitorCatchAt(OOM_PER_400_ELO) >= 0.09 && monitorCatchAt(OOM_PER_400_ELO) <= 0.52, 'catch: within Engels\' 9–52% band at 400 Elo');
   check(Math.abs(monitorCatchAt(1) - 0.62) < 0.01, 'catch: a monitor ≈ 1 OOM weaker catches ≈ 62% (Greenblatt et al. 2023: GPT-3.5 trusted monitoring GPT-4)', monitorCatchAt(1).toFixed(3));
 
-  // On real versions: measured levels → gap in OOM → catch; a weaker monitor catches less.
+  // On real versions: levels → gap in OOM → catch; a weaker monitor catches less.
+  // CP3 rewrite (SR-12 / RD-UI0a): the real catch reads the true level (Lg); the measured one only for the believed rate.
   const s = fresh();
   const w = s.hidden.timeline;
   const v0 = s.player.models.versions[0];
   const hi = cloneVersion(s, v0, 'VH', { baseId: 'B-hi' });
-  hi.evals.measuredL = 12;
-  const mons = [12, 11, 10, 8, 5].map((L, i) => { const m = cloneVersion(s, v0, `VM${i}`, { baseId: `B-m${i}` }); m.evals.measuredL = L; return m; });
+  hi.Lg = 12;
+  const mons = [12, 11, 10, 8, 5].map((L, i) => { const m = cloneVersion(s, v0, `VM${i}`, { baseId: `B-m${i}` }); m.Lg = L; return m; });
   const rates = mons.map((m) => catchRate(s, hi, m));
   check(rates.every((r, i) => i === 0 || r.rate < rates[i - 1].rate) && rates[0].gap === 0,
-    'catch: on versions, the catch rate falls as the monitor\'s measured level drops below the watched model\'s (L 12 watched by L 12 → 5)',
+    'catch: on versions, the catch rate falls as the monitor\'s level drops below the watched model\'s (L 12 watched by L 12 → 5)',
     rates.map((r) => `${r.rate.toFixed(2)} (${r.gap.toFixed(1)} OOM)`).join(', '));
   const g = oversightGap(w, 12, 10);
   check(near(rates[2].gap, g.oom) && near(rates[2].base, monitorCatchAt(g.oom)) && near(g.elo, (g.oom * 400) / OOM_PER_400_ELO) && g.levels === 2,
@@ -105,9 +105,9 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const xHi = oomOfLevel(w, 15);
   const L400 = levelOfOom(w, xHi - OOM_PER_400_ELO);
   const m400 = cloneVersion(s, v0, 'V400', { baseId: 'B-400' });
-  m400.evals.measuredL = L400;
+  m400.Lg = L400;
   const top = cloneVersion(s, v0, 'VT', { baseId: 'B-top' });
-  top.evals.measuredL = 14.9999;
+  top.Lg = 14.9999;
   const r400 = catchRate(s, top, m400);
   check(Math.abs(r400.base - ENGELS_400.backdoorCode) < 0.002, 'catch: a monitor 400 Elo (6.8 OOM) below an ASI-level model catches 10% before control tools', `monitor L ${L400.toFixed(2)}: ${r400.base.toFixed(4)}`);
 
@@ -115,11 +115,13 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const copy = cloneVersion(s, hi, 'VC', {});
   const cc = catchRate(s, hi, copy);
   check(cc.copy && cc.gap === 0 && near(cc.collusion, cc.rate * 0.6), 'collusion: a same-lineage monitor (no gap) catches collusion-relevant acts ×0.6', `${cc.rate.toFixed(3)} → ${cc.collusion.toFixed(3)}`);
+  // CP3 rewrite (SR-13): the comms lockdown is a safeguard item on the internal deployment (replaces owning T-LOCK).
   const lock = s.player.safety.techniques['T-LOCK'];
   lock.unlocked = true;
   lock.active = true;
+  const lockWhy = addSafeguard(s, s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')!, 'lockdown');
   const cl = catchRate(s, hi, copy);
-  check(near(cl.collusion, cl.rate * 0.8), 'collusion: comms lockdown (T-LOCK) halves the same-lineage penalty (×0.8)');
+  check(!lockWhy && near(cl.collusion, cl.rate * 0.8), 'collusion: comms lockdown (safeguard item) halves the same-lineage penalty (×0.8)', lockWhy ?? `${cl.rate.toFixed(3)} → ${cl.collusion.toFixed(3)}`);
   check(!catchRate(s, hi, mons[2]).copy && near(catchRate(s, hi, mons[2]).collusion, catchRate(s, hi, mons[2]).rate), 'collusion: a monitor from another base has no penalty');
 }
 
@@ -172,25 +174,11 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   for (const k of Object.keys(v.traitsTrue) as (keyof typeof v.traitsTrue)[]) v.traitsTrue[k] = 0.4;
   const internal = s.player.deployments.find((d) => d.channel === 'internal')!;
   reset(s);
-  const off = labourOf(s, 'EXP');
   const offSwe = labourOf(s, 'SWE');
-  const catchOff = catchOf(s, internal, v, { source: 'POWER', apparent: 'POWER' });
-  const ovOff = internalOversight(s, v, 'POWER');
   setControl(internal, true); for (const a of Object.values(s.player.agents)) a.control = true;
   reset(s);
-  const on = labourOf(s, 'EXP'); // routine research: monitor = a copy (no gap) → 97%
-  const onSwe = labourOf(s, 'SWE'); // engineering: no monitor → deferred actions go to humans: 93%
-  const catchOn = catchOf(s, internal, v, { source: 'POWER', apparent: 'POWER' });
-  const ovOn = internalOversight(s, v, 'POWER');
-  check(near(on.aiFte / off.aiFte, 0.97, 1e-9) && near(onSwe.aiFte / offSwe.aiFte, 0.93, 1e-9) && on.L < off.L && onSwe.L <= offSwe.L,
-    'control tax: the control layer cuts the effective AI labour of internal work (EXP ×0.97 with a copy monitor, SWE ×0.93 with none)',
-    `EXP FTE ×${(on.aiFte / off.aiFte).toFixed(3)} L ${off.L.toFixed(3)} → ${on.L.toFixed(3)}; SWE FTE ×${(onSwe.aiFte / offSwe.aiFte).toFixed(3)}`);
-  // (1 − catch) × 0.45, plus a hair of extra human review: the tax lowers the AI share of R&D a little.
-  check(catchOn > catchOff && 1 - catchOn <= (1 - catchOff) * (0.17 / 0.38) + 1e-12 && 1 - catchOn > (1 - catchOff) * (0.17 / 0.38) * 0.99 && ovOn.oversight > ovOff.oversight,
-    'control tax: the same control layer raises the internal catch (misses ×0.45)', `catch ${catchOff.toFixed(3)} → ${catchOn.toFixed(3)}; oversight ${ovOff.oversight.toFixed(3)} → ${ovOn.oversight.toFixed(3)}`);
-  const lanes = agentsView(s).lanes;
-  check(lanes.capRoutine.control.on && near(lanes.capRoutine.control.tax, 0.03) && near(lanes.eng.control.tax, 0.07),
-    'control tax: visible per use on the Agents lanes (routine research 3%, engineering 7%)');
+  // CP3: three controlLayer-era checks deleted (SR-13: control is a safeguard item with settings; its Slowdown and stop
+  // rates are _sr13/check.ts's): EXP ×0.97 / SWE ×0.93 labour, misses ×0.45, lane taxes 3% / 7%.
   // A weaker trusted monitor: the per-deferral loss grows with the gap.
   const mini = cloneVersion(s, v, 'VMINI', { baseId: 'B-mini' });
   mini.evals.measuredL = (v.evals.measuredL ?? v.Lg) - 1;

@@ -71,10 +71,11 @@ const L = pBig.limits!;
 // D11: each slice repeats on its own tokens. At the start the q 1 slices (crawl + licensed, 300T) get 300/310 of the
 // tokens at D/310T epochs, the q 0.5 synthetic (20T, drawn ∝ q·T = 10/310) half those epochs.
 const startDEff = (D: number) => (effectiveTokens((D * 300) / 310, 300e12) + 0.5 * effectiveTokens((D * 10) / 310, 20e12)) / Q_REF;
-const startDRep = (D: number) => effectiveTokens((D * 300) / 310, 300e12) + effectiveTokens((D * 10) / 310, 20e12);
-check(L.epochs > 1 && near(L.epochs, L.tokens / 310e12, 1e-9) && L.fData < 1 && near(L.draw.dEff / startDEff(L.tokens), 1, 1e-9) && near(L.draw.dRep / startDRep(L.tokens), 1, 1e-9)
-  && near(L.fData * L.fQual, fDataEff(big, L.tokens, startDEff(L.tokens)), 1e-9),
-  'repetition: a base beyond U repeats each slice on its own tokens (web and licensed at D/310T epochs, the q 0.5 synthetic at half); f_data × f_quality = Besiroglu(D_eff)',
+// CP3 rewrite (RD-T08): the quality filter changed the slices (U 310T → ≈ 235T), so the hand-built 300/310 split is gone;
+// the invariant stays: beyond U the draw repeats (D_rep < D) and f_data × f_quality = Besiroglu(D_eff).
+check(L.epochs > 1 && near(L.epochs, L.tokens / L.draw.uMix, 1e-9) && L.fData < 1 && L.draw.dRep < L.tokens
+  && near(L.fData * L.fQual, fDataEff(big, L.tokens, L.draw.dEff), 1e-9),
+  'repetition: a base beyond U repeats its slices (D_rep < D, epochs = D ÷ the mix\'s U); f_data × f_quality = Besiroglu(D_eff)',
   `${L.epochs.toFixed(2)} epochs, f_data ${L.fData.toFixed(4)}, f_quality ${L.fQual.toFixed(4)}`);
 // The same U from a different portfolio (less crawl, more licensed) gives the same effective tokens on the natural mix.
 const sEq = game();
@@ -90,30 +91,12 @@ const withQ = (q: number) => {
   owned(s, 'lic:start')!.quality = q;
   return s;
 };
-/** Mean quality ÷ Q_REF of a balanced draw without repetition, by hand: each domain at its reference share, within a
- *  domain the slices ∝ q·T·mix, so the domain's mean quality is Σ q²·T·mix ÷ Σ q·T·mix. */
-const qRelByHand = (p: DataPortfolio) => {
-  let out = 0;
-  for (const [d, ref] of Object.entries(REF_SHARE) as [DomainId, number][]) {
-    let u = 0;
-    let qu = 0;
-    for (const a of p.assets) {
-      if (a.kind === 'expert') continue;
-      const mix = a.kind === 'public' ? PUBLIC_WEB.mix : a.mix;
-      const ms = Object.values(mix).reduce((x: number, y) => x + (y ?? 0), 0);
-      const w = (assetQuality(a) * assetTokensT(a) * (mix[d] ?? 0)) / (ms || 1);
-      u += w;
-      qu += assetQuality(a) * w;
-    }
-    if (u > 0) out += ref * (qu / u);
-  }
-  return out / Q_REF;
-};
 const N0 = DRAW_BASE.params;
 const D0 = DRAW_BASE.params * DRAW_BASE.tpp;
 const refL = basePlan(s0, N0).limits!;
-check(near(Q_REF, 305 / 310, 1e-12) && refL.fQual === 1 && refL.gPre.quality === 0 && refL.fData === 1 && near(refL.draw.dEff, D0, 1e-9 * D0) && near(refL.draw.qRel, 1, 1e-12),
-  'quality: the 2025 reference draw defines q = 1 (Q_REF = its mean quality (270 + 30 + 0.5·10)/310): D_eff = D, no quality term, G as before', `Q_REF ${Q_REF.toFixed(4)}, quality ${refL.gPre.quality} OOM`);
+// CP3 rewrite (RD-T08): Q_REF is the reference draw's mean quality (≈ 1.2 with the quality filter on, not 305/310).
+check(Q_REF > 1 && refL.fQual === 1 && refL.gPre.quality === 0 && refL.fData === 1 && near(refL.draw.dEff, D0, 1e-9 * D0) && near(refL.draw.qRel, 1, 1e-12),
+  'quality: the reference draw defines q = 1 (Q_REF = its mean drawn quality, above 1 with the quality filter, RD-T08): D_eff = D, no quality term, G as before', `Q_REF ${Q_REF.toFixed(4)}, quality ${refL.gPre.quality} OOM`);
 // A premium licence in a drawn domain: the default deal (0.05T of REASON books at q 3, $1.5B) and a 1T one ($30B).
 const premG: string[] = [];
 let premOk = true;
@@ -121,7 +104,8 @@ for (const t of [LICENCE_TIERS.premium.defaultT, 1]) {
   const s = game();
   addAsset(s.player.dataPortfolio, licenceAsset('REASON', 'premium', t, 0));
   const l = basePlan(s, N0).limits!;
-  const want = Math.log10(fDataEff(N0, D0, D0 * qRelByHand(s.player.dataPortfolio)));
+  // CP3 rewrite (RD-T08): the drawn quality is the engine's qRel (the hand sum ignored the quality filter).
+  const want = Math.log10(fDataEff(N0, D0, D0 * l.draw.qRel));
   const dG = l.gPre.total - refL.gPre.total;
   if (!(dG > 0) || !near(l.gPre.quality, want, 1e-9) || !near(dG, want, 1e-9) || l.fData !== 1) premOk = false;
   premG.push(`${t}T → +${dG.toFixed(5)} OOM (mean q ×${l.draw.qRel.toFixed(4)})`);
@@ -138,7 +122,7 @@ check(f3 > 2.3 && f3 < 2.8 && f3b > 1.9 && f3b < f3 && fHalf > 0.45 && fHalf < 0
 const qs = [0.2, 1, 3];
 const gQ = qs.map((q) => basePlan(withQ(q), N0).limits!);
 check(gQ[0].gPre.total < gQ[1].gPre.total && gQ[2].gPre.total > gQ[1].gPre.total && gQ[1].gPre.total === refL.gPre.total
-  && gQ.every((x, i) => near(x.gPre.quality, Math.log10(fDataEff(N0, D0, D0 * qRelByHand(withQ(qs[i]).player.dataPortfolio))), 1e-9)),
+  && gQ.every((x) => near(x.gPre.quality, Math.log10(fDataEff(N0, D0, D0 * x.draw.qRel)), 1e-9)) && gQ[0].draw.qRel < gQ[1].draw.qRel && gQ[2].draw.qRel > gQ[1].draw.qRel,
   'quality: a base within U now gains from better drawn tokens and loses from worse (replaces D1\'s "quality only through U")', `licensed q 0.2 / 1 / 3: G ${gQ.map((x) => x.gPre.total.toFixed(4)).join(' / ')}`);
 // No double counting: quality scales the tokens, not the epochs. Doubling every asset's quality at the same tokens doubles
 // D_eff exactly and leaves the epochs and the repetition alone, below and beyond the stock (D1/D3's rule would have
@@ -372,12 +356,16 @@ const fmtS = (x: Partial<Record<string, number>>) => Object.entries(x).filter(([
 // Start: the reference recipe's balanced draw is the start portfolio's natural mix, so it reproduces the start numbers.
 const refPlan = plan(s0, 'balanced');
 const refDraw = refPlan.limits!.draw;
-check(Object.keys(refPlan.limits!.sD).length === 0 && refPlan.limits!.fData === 1 && near(refDraw.uMix, 310e12, 1e3) && near(refPlan.limits!.epochs, s0.player.models.bases[0].epochs!, 1e-12),
-  'draw: the reference recipe\'s balanced draw at the start reproduces the start (no specialisation, no repetition, U 310T, B0\'s epochs)', `s ${fmtS(refPlan.limits!.sD) || 'none'}, U ${(refDraw.uMix / T).toFixed(2)}T, ${refPlan.limits!.epochs.toFixed(4)} epochs`);
+// CP3 rewrite (RD-T08): the reference recipe has the quality filter on, so its U is below the portfolio's (a quarter of
+// the raw crawl / usage dropped); still no specialisation and no repetition.
+check(Math.max(0, ...Object.values(refPlan.limits!.sD).map((x) => Math.abs(x ?? 0))) < 0.005 && refPlan.limits!.fData === 1 && refDraw.uMix < portfolioU(s0.player.dataPortfolio) && near(refPlan.limits!.epochs, refPlan.limits!.tokens / refDraw.uMix, 1e-12),
+  'draw: the reference recipe\'s balanced draw at the start does not specialise or repeat (filtered U below the portfolio\'s; RD-T08)', `s ${fmtS(refPlan.limits!.sD) || 'none'}, U ${(refDraw.uMix / T).toFixed(2)}T, ${refPlan.limits!.epochs.toFixed(4)} epochs`);
 check(near(refPlan.limits!.gPre.total, s0.player.models.bases[0].gPre + (refPlan.limits!.gPre.recipe - s0.player.models.bases[0].ePre), 1e-9),
   'draw: the reference base\'s pretraining G differs from B0\'s by its recipe only (no data term)', `${refPlan.limits!.gPre.total.toFixed(4)}`);
-check(Object.values(REF_SHARE).every((v) => v! > 0) && near(Object.values(REF_SHARE).reduce((a, x) => a + (x ?? 0), 0), 1, 1e-12) && near(REF_SHARE.CODE!, (270 * 0.08 + 30 * 0.15 + 10 * 0.35) / 310, 1e-12),
-  'draw: the reference shares are the start portfolio\'s quality-weighted mix (code 9.6%)', fmtS(REF_SHARE));
+// CP3 rewrite (RD-T08 / T09): the hand formula used SYN_MIX (deleted) and no filter; the reference shares are the start
+// portfolio's mix, which the reference recipe's (filtered) draw reproduces within 1%.
+check(Object.values(REF_SHARE).every((v) => v! > 0) && near(Object.values(REF_SHARE).reduce((a, x) => a + (x ?? 0), 0), 1, 1e-12) && Object.entries(REF_SHARE).every(([d, v]) => Math.abs((refDraw.share[d as DomainId] ?? 0) / v! - 1) < 0.01),
+  'draw: the reference shares are the start portfolio\'s mix; the reference recipe\'s draw reproduces them (±1%)', fmtS(REF_SHARE));
 // Natural mix: the drawn U is the portfolio's U and the repetition is D1's single-pool Muennighoff.
 const sFx = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 let natOk = true;
@@ -414,11 +402,12 @@ const cmPlan = plan(sO, 'codeMath');
 const cm = cmPlan.limits!.sD;
 const dG = (p: ReturnType<typeof plan>, d: DomainId) => (p.g.gD?.[d] ?? 0) - (refPlan.g.gD?.[d] ?? 0);
 const cmQ = cmPlan.limits!.gPre.quality;
-check(!cmPlan.reason && (cm.CODE ?? 0) > 0.3 && (cm.RSCH ?? 0) > 0.1 && (cm.SOCIAL ?? 0) < -0.1 && dG(cmPlan, 'CODE') > 0.3 && dG(cmPlan, 'SOCIAL') < -0.1 && cmQ < 0 && cmQ > -0.01 && near(cmPlan.g.G - refPlan.g.G, cmQ, 1e-9),
-  'draw: specialisation follows the drawn mix — code & math raises CODE/RSCH, lowers SOCIAL (general G moves only by the drawn quality: more q 0.5 synthetic code, D11)',
+check(!cmPlan.reason && (cm.CODE ?? 0) > 0.3 && (cm.RSCH ?? 0) > 0.1 && (cm.SOCIAL ?? 0) < -0.1 && dG(cmPlan, 'CODE') > 0.3 && dG(cmPlan, 'SOCIAL') < -0.1 && cmQ < 0 && cmQ > -0.01 && near(cmPlan.g.G - refPlan.g.G, cmQ + cmPlan.limits!.gPre.data, 1e-9),
+  'draw: specialisation follows the drawn mix — code & math raises CODE/RSCH, lowers SOCIAL (general G moves only by the drawn data: quality and, at the filtered U, repetition; RD-T08)',
   `${cmPlan.reason ?? ''} s ${fmtS(cm)}; domain G vs balanced CODE ${dG(cmPlan, 'CODE').toFixed(2)}, SOCIAL ${dG(cmPlan, 'SOCIAL').toFixed(2)}; quality ${cmQ.toFixed(4)} OOM`);
 const shareCode = cmPlan.limits!.draw.share.CODE ?? 0;
-check(near(cm.CODE ?? 0, Math.min(SPEC_CAP, ALPHA_DATA * Math.log10(shareCode / REF_SHARE.CODE!)), 1e-9), 's_d,data = α_data · log₁₀(drawn share ÷ reference share) (α 1.5, cap ±1.3 OOM, research/20 A2)', `code share ${(shareCode * 100).toFixed(1)}% vs ${(REF_SHARE.CODE! * 100).toFixed(1)}%`);
+const effCode = cmPlan.limits!.draw.effShare.CODE ?? 0; // CP3 rewrite: s_d reads the effective (after-repetition) share
+check(near(cm.CODE ?? 0, Math.min(SPEC_CAP, ALPHA_DATA * Math.log10(effCode / REF_SHARE.CODE!)), 1e-9), 's_d,data = α_data · log₁₀(effective drawn share ÷ reference share) (α 1.5, cap ±1.3 OOM, research/20 A2)', `code share ${(shareCode * 100).toFixed(1)}% vs ${(REF_SHARE.CODE! * 100).toFixed(1)}%`);
 const capDraw = drawData(s0.player.dataPortfolio, 10e12, { shares: REF_SHARE, weights: { CODE: 1000 }, kinds: {} });
 check(capDraw.sD.CODE === SPEC_CAP && Object.values(capDraw.sD).every((x) => Math.abs(x ?? 0) <= SPEC_CAP), 'draw: specialisation is capped at ±1.3 OOM', fmtS(capDraw.sD));
 // The other presets specialise their domains.
