@@ -2030,3 +2030,36 @@ Recipe "realised" from the measured eval delta (CAP-03, RD-B17 follow-up). Moves
 - **Check.** `npx tsx scripts/v2/rdm02.ts` (run alone, all pass: not yet measured before; ΔL 0.31 ± 0.117 from the fits;
   no true value in the view; domain row reads Δ REASON; changing the true value leaves it unchanged). research.ts
   RD-B17 B30 check reads `measured`. tsc (app, scripts/v2) clean; npm run build ok.
+
+### RD-X03
+
+Rivals train through the player's baseG / rlGains on a stated reference portfolio; reference-profile build (DD-18,
+TRN-22, MEA-11; theme X). Commit 265f9b9. Moves calibration: **yes**.
+- **Done.** A rival base's G_pre is `baseGOf` (models/runs.ts, the player's baseG split into a pure function on the
+  launch freeze) on the reference design and draw at the lab's frozen pretraining part; a version's RL gain is
+  `rlGains` on the reference suites at the lab's RL recipe (`rivalRlGains`, `rivalVersionBuild`); G = gOfBuild. The
+  stream (clApply), new versions, new bases, theft (`holdStolen`) and the start state all go through these. The old
+  special path (`rlOnBase` → stacks.ts `refRlGain` / `rlGainGeneral`, direct `gPreOf`; the audit's `clG`) is deleted
+  from the rivals' training (refRlGain stays only for the recipe G-equivalent recipeG, shared with the player).
+- **Reference-profile build.** New `SimpleModel.build` (VersionBuild). `setModelG` keeps it consistent with G (a move
+  not made by a run, e.g. a release dated back, a kept stronger version, enters as general ΔG; builds never mutated in
+  place). Rival domains = `domainsOf(w, G, build)`; aggregate research reads EXP / IDEAS coverage, assist, horizon and
+  AI taste through the player's work fit (`workFitW`, new pure form of workFit); `otherLabMilestones` reads the stored
+  build (referenceProfileModel only for a model known by G alone). The day-0 unit is V0 as a rival build (`v0ModelOf`).
+- **Stand-ins [D]** (rivalModel.ts "reference portfolio" block): design = REFERENCE_BASE resized to the run (tpp
+  adjusted if PARAM_RANGE clamps); data = the 2025 reference draw (REF_SHARE, Q_REF) with no repetition (the lab's
+  portfolio keeps pace: f_data = f_qual = 1, s_d = 0); suites = the start families, broad weights, fidelity 1; RL budget
+  = standard on every version. Recipe = the lab's adopted research (rec); run sizes from its aggregate split.
+- **Save.** SCHEMA_REV 68 → 69; migration 68 builds every stored rival / leader-lab / China model's build on its current
+  base at its RL recipe (rest of G as general ΔG; G unchanged). hygiene.ts pins → 69. scripts/v2/rivals.ts adapted
+  (evalAggregate / bestRivalMix take a model).
+- **Check.** `npx tsx scripts/v2/_x03/check.ts` (run alone, all pass): no clG in src, no refRlGain / rlOnBase / gPreOf in
+  rivalModel.ts; 200 days ai2027 leader: each lab's (china, r0–r2) new internal version has G = G_pre + rlGains.general
+  on the reference inputs (|ΔG| 0) and the base's G_pre = baseGOf's; domains and work fit read the build; migration
+  68 → 69. tsc (app, scripts/v2) clean; npm run build ok. Nothing else run.
+- **Left.** Rivals still have no data / suite strategy of their own (stated stand-ins, by DD-18); the public release
+  copy is checked through its internal version; GLOSSARY.md not regenerated.
+- **Moves calibration: yes.** G itself is unchanged at fidelity 1 and reference data (same expressions), but rival
+  research now reads per-domain work fit and the horizon domain (EXP / IDEAS fit ≈ G − 0.03 OOM at day 0–200 instead of
+  G) and the day-0 normalisation reads V0's build: rival research speed, recipe growth and rival domain readouts /
+  milestones shift slightly.
