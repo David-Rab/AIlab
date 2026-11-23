@@ -5303,3 +5303,54 @@ breadth ×1.2–1.4, so F7 / FC1 / FC2 point at the intensity / agent channel, n
 Changed: src/data/v2/sectors.ts (mansfieldA, mansfieldPiRef), src/engine/v2/worldfx/sectors.ts (mansfieldDq, q),
 src/engine/v2/types.ts (SectorState.v0), new scripts/v2/_cal3a/. Fixtures predate v0: a loaded fixture sets v0 on its
 first tick (the reference moves to the fixture's day). tsc (app, scripts/v2) clean. Moves calibration: slightly (above).
+### CAL3-I (usage intensity per adopter; branch cal3-intensity from rd 5751407; DECISIONS "After CAL2", last calibration task)
+Probe: `scripts/v2/_cal3i/intensity.ts [seed] [end]` (quarterly world billing by stream, tokens a day, tokens per hour of
+use, $ per hour; `DEPS=1` adds the player's products: demand, revenue, bound, serving need / cut). Checks: `run.ts --tier
+full --only worldfx,finance` (20 CAL_SEEDS / 12 finance seeds, 10.4 min wall).
+
+**Result: no engine change. Intensity per adopter is already modelled and already grows at the measured rate**, so
+fitting it to the measured 2025–26 token growth moves nothing; adding the ×15–30 would be tuning to finance.
+- **Where it lives (A2c).** Revenue = Σ hours × price per stream (one path, worldfx/revenue.ts): adopted A-hours (breadth;
+  tokens α·autonomous + (1 − α)·assisted per hour), seats, consumer subscriptions, and agent-hours k·supervising hours,
+  k = a·λ·gate, λ = 1/(c/h80 + ρ(1 − a) + m), so what one adopter's hour buys rises with coverage and the horizon (h80).
+  Per-agent-hour tokens are fixed (TOKENS.autonomous, R20 D2) × τ (D10) × effort × scaffold tokens. Revenue does not
+  track breadth: world work spend mid-2026 (seed 2027) $64B/yr = adopted $14.8B + agents $33.2B + seats $16.1B; end-2026
+  agent demand $307B. k over 2026: 0.10 → 0.47 → 1.89.
+- **Measured vs game.** Work tokens per hour of use (new INFO row in worldfx A2c): 23k (Jul 2025) → 34k → 90k (Jul 2026)
+  → 306k (Dec 2026); Jul → Jul ×4.0 (seed 1 ×5.1). Measured ×4.0–4.6 a year: Google first-party API tokens 7B → 32B a
+  minute Q3 2025 → Q3 2026 (research/22 3a [P, 2026-11-19]; not re-read here: abc.xyz serves a JS shell) over RPS hours
+  of use ×1.0–1.15. OpenRouter "State of AI" (Dec 2025, openrouter.ai/state-of-ai, read): prompt tokens per request
+  1.5k → 6k (×4 since early 2024), completions 150 → 400, sequence < 2k (late 2023) → > 5.4k (late 2025): ×1.8–2.2 a year
+  per request. OpenAI enterprise report (8 Dec 2025, read): reasoning tokens per organisation ×320 in 12 months, messages
+  per worker +30% (reasoning-only, per org: an upper outlier, as the A2c band comment says). Tokens a day over 2026: 20-seed
+  median ×5.8 (band ×4.6–20).
+- **The ×15–30 in research/22 §7 is not a token measurement**: it is Anthropic's revenue ×6–12 ÷ hours ÷ per-token
+  price, one lab gaining share (Menlo enterprise share 24% → 40%). The token instruments give ×4–4.6 per hour of use.
+- Small lag, not fixed: Jul 2025 → Jan 2026 work tokens ×1.56 vs Google 7 → 16B/min (Q3 2025 → Q1 2026) ×2.3; agent
+  work grows only from the first release. Moves 2025 revenue only.
+
+**Why F7 / FC1 / FC2 stay short (reported, not opened).** (1) Capacity: when a product is capacity-bound, revenue =
+served H100e × markup × $ per H100e-hour (the price is cost-plus on the same tokens), so intensity cancels; seed 2027
+Jan 2027 demand $221B vs revenue $45B (need 4.6M H100e, served 0.8M), also capacity-bound Apr and Oct 2026. (2) Share:
+seed 1 is demand-bound ("quality") through H2 2026: world spend $82B → $127B (Apr → Oct) while the player's revenue goes
+$49B → $42B (share ≈ 60% → 33%) as rivals release: rival mechanics, deferred. The story's momentum driver reads that flat
+run-rate. Measured leader: $47B (May) → $81B (Oct 2026).
+
+**Oct 2027 labour rows now INFO** (worldfx.ts dateCheck `info`, comment to DECISIONS "After CAL2"): "25% of remote work by
+AI" and "U +1 pp within 12 months" are AI 2027 scenario projections (research/01 row 37), like F11's floor.
+
+| Row (full tier) | before (CAL2 full / CAL3-A) | after | target |
+|---|---|---|---|
+| F7 2026 revenue (12 seeds) | $47.5B | $47.6B | $45–56B ±20% (pass) |
+| F7 end-2026 valuation | $0.94T | $0.95T | $1–3T (fail) |
+| FC1 late-2026 marks | $2.08T | $2.09T | $2.5–3T (fail) |
+| FC2 2026 ×2.5+ vs slower | 18.6× vs 21.8× | 18.6× vs 21.8× | slower < faster (fail); 2027 32.5× vs 27.3× ordered |
+| FC2 leader multiple at high growth | 20.5× | 20.5× | 20–37× (pass) |
+| F11 2026 / 2027 (seed 2027) | $46.3B / $105.8B | $46.3B / $105.8B | pass; 20-seed 2027 median $105.0B (floor $98B) |
+| A2a hours of use / saved / workers mid-2026 | 5.9% / 2.2% / 39.3% | same | pass |
+| W4 firm adoption Jul 2026; U Nov 2026; W2 | 21.0%; +0.07 pp; +1.0% | same | pass |
+| Remote 25% / U +1 pp (20 seeds) | never / never (fail) | never / never | INFO |
+worldfx full: 35 pass, 0 fail. finance full: 186 pass, 3 fail (F7 valuation, FC1, FC2 ordering; as CAL2).
+
+Changed: scripts/v2/worldfx.ts (two rows INFO, intensity INFO row), new scripts/v2/_cal3i/. No src change. tsc (app,
+scripts/v2) clean. Moves calibration: no.
