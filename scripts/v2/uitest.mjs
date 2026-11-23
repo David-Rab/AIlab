@@ -1166,7 +1166,7 @@ const deltaOf = async (what, k) => {
   const b = await attr(dv(`[data-test=delta-${what}] [data-k=${k}]`), 'data-b');
   return a === null ? null : [Number(a), Number(b)];
 };
-const U_STATE = `(() => { const p = s.player.dataPortfolio; const p10 = s.player.paradigms.P10?.status === 'adopted'; let u = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const t = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; u += q * t * (a.kind === 'synthetic' && p10 ? 3 : 1); } return u; })()`;
+const U_STATE = `(() => { const p = s.player.dataPortfolio; const p10 = s.player.tree.P10?.status === 'known'; let u = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const t = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; u += q * t * (a.kind === 'synthetic' && p10 ? 3 : 1); } return u; })()`;
 const CODE_NAT = `(() => { const p = s.player.dataPortfolio; const w = {}; let t = 0; for (const a of p.assets) { if (a.kind === 'expert') continue; const tok = a.kind === 'public' ? Math.min(1, a.coverage) * 300 : a.tokensT; const q = a.kind === 'public' ? 1 : a.quality; const mix = a.kind === 'public' ? { SOCIAL: 0.45, MEDIA: 0.12, REASON: 0.08, CODE: 0.08, RSCH: 0.07, BIO: 0.06, AGENCY: 0.06, CYBER: 0.03, PHYS: 0.05 } : a.mix; if (!(q * tok > 0)) continue; for (const [d, v] of Object.entries(mix)) w[d] = (w[d] || 0) + q * tok * v; t += q * tok; } return (w.CODE || 0) / t; })()`;
 async function d4Check(where, act, stepOk = true) {
   const tag = where.replace(/ /g, '');
@@ -1322,8 +1322,8 @@ async function e12Check(where) {
     const good = pr.filter((x) => /^\d\.\d\d$/.test(x.v) && x.c.length > 10 && (!['S1', 'S2', 'S3', 'S7'].includes(x.id) || /\d/.test(x.c)) && x.p > 0);
     const s2 = pr.find((x) => x.id === 'S2')?.c ?? '';
     const s5 = pr.find((x) => x.id === 'S5')?.c ?? '';
-    const want = k === 'post' ? pr.length >= 4 && /\d+% of RL on .+ at \d+% exploitable/.test(s2) && /RL \d+(\.\d)?× the reference/.test(s2) : /AI-related data \d+\.\d% of tokens/.test(s5) && /scale G \d+\.\d/.test(s5);
-    ok(`E12 ${where}: Training ${k} shows the planned run's signals with causes, the families they push and ω`, want && good.length === pr.length && /ω\s*\d\.\d\d/.test(omega),
+    const want = k === 'post' ? pr.length >= 4 && /\d+% of post-training on .+ at \d+% loopholes/.test(s2) && /post-training \d+(\.\d)?× the standard amount/.test(s2) : /AI-related data \d+\.\d% of tokens/.test(s5) && /model.s scale/.test(s5);
+    ok(`E12 ${where}: Training ${k} shows the planned run's signals with causes, the families they push and ω`, want && good.length === pr.length && /\d\.\d\d/.test(omega),
       `${omega} · ${pr.map((x) => `${x.id} ${x.v}: ${x.c}`).join(' | ').slice(0, 260)}`);
     const tip = await tipText(`[data-test=bp-pressure] [data-signal=${pr[0]?.id}]`);
     ok(`E12 ${where}: a ${k} signal's tooltip breaks it down and names what it pushes`, /pushes/.test(tip), tip.replace(/\n/g, ' ').slice(0, 160));

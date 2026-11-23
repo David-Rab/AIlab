@@ -5688,3 +5688,76 @@ way in the bottom bar's headline and alerts (`fmt.runText`).
   (c) The level map λ(G) is the world's (`s.hidden.timeline` knots), as before. (d) Domain effects of adopted ideas
   (`research.domainG`) and environment-suite fidelity still enter the believed view at engine values; the stream's
   continued pretraining on an unmeasured streamed version is not in its believed build.
+### UB-7 (TRAINING › Next run; branch ub7-training from rd 4ba6208; mockup rd/training.png)
+
+**TRAINING (panels/Training.tsx, training.css; nav id stays `blueprint`).** Tabs Next run · Data · Environments · Runs
+(Data and Environments moved from MODELS; `store.goto('models', { tab: data | suites | runs })` lands on TRAINING).
+- **Prediction (L1):** the shared SkillBars (below) for the planned run over the reference model (`skillGains(s, plan)`:
+  today = `measuredDomainOf`, range ± 1.64 measured sd; ghost = `runForecast` mid, its 90% range above the bar), each
+  skill's own job-scale ticks (`skillMarksOf`), the milestone axis (`milestoneMarks`, met ✓). Banner "Would meet <name>"
+  (`planMilestone`: highest unmet milestone level ≤ the forecast mid, else "No new milestone · next: …") · "ready
+  <date>" = run + standard post-training after a new base (`postDaysAfterBase`) + evals (`evalDaysFor`). Know-how
+  waiting chip (`knowHowAreas`: pretraining recipe for a new base, post-training method for a post-train) → RESEARCH ›
+  Know-how. Instruments row: `sightCurve` mean reading at the reference's measured level and at the forecast mid →
+  SAFETY › Instruments. Level changes, standings ("1.4 levels short of the best human") and the test facts only in the
+  row tooltip.
+- **Run plan (L1):** stage 1 Pretraining: Start from (New base · Use <latest two bases> · Continue · Distil; locked
+  ones say why) with the start-from table (Skill ▲/▼ · Time · Cost · Serving · Risk against the selected start; numbers
+  in the row tooltip), Size (five parameter snaps around the pick + tokens per parameter), Data mix (+ the drawn mix as
+  an L2 toggle, the old D4 row), Model design, Data filter; post-train / continue show the base's facts, distil the
+  teacher and student size. Stage 2 Post-training: Focus, Budget, Reasoning, Preference, Safety training, Methods
+  ("train against" behind a toggle), Environments (→ Environments with the plan). Every option pill previews Skill ·
+  Time · Cash · Serving · the four families on hover; locked pills name their discovery and open it in Research.
+  Pushes: ▲/▼ per family + "little", details (L2) = the signal rows, ω and successor pull (home `runPressure`).
+- **Limits strip (L1):** Compute (days, share asked → gets, run-share pills, `training share ▸` LAB) · Ready (date,
+  pretraining end + post-training, `evals ▸` MODELS › Evals) · Data (reads per token, re-read cost, `data ▸`) · Cash
+  (at launch, compute-equivalent worth) · Run operations (setup days, research engineers spare, `run operations ▸`);
+  Enough / Short / Long verdicts; Launch with its blocking reason and warnings.
+- **Runs:** running / paused runs only (timeline from launch to expected finish with today marked, stalls amber; rows
+  with progress, forecast at launch, share ± , ETA, Cancel; "auto" chip for policy distils), continual learning, idle
+  (→ LAB), "Last finished: … → <model> ▸" (MODELS card). The fixture at day 400 has no live run (R30 finished day
+  ~391), so its list is empty by fact.
+- **Deleted:** Blueprint.tsx / blueprint.css (size hero, seven limit tiles, slot table by layer, Predicted card,
+  Schedule Gantt, Pressure card, templates "Save"); the drawn-mix row and the locked-pill style kept in Training.
+- **New readouts (rdReadouts.ts):** `skillMarksOf(s, d)` (public job-scale marks; the UI may not read `s.hidden`),
+  `milestoneMarks(s)`, `planMilestone(s, mid)`, `postDaysAfterBase(s, baseFlop)`.
+
+### UB-10 (MODELS; same branch; mockup rd/models.png)
+
+**MODELS (panels/Models.tsx, models.css).** Tabs Your models · Evals (Evals.tsx unchanged: the home of evals; TRAINING
+links there). Family tree by base (newest first): base header (size, date; "post-train it ▸" opens Next run on that
+base when it has no model), retired models folded ("› 3 retired: …", click to show), nodes with measured capability
+bar (tick = Reliable agent), state word (Testing · Ready · In use · Retired · Rolled back) and role chips (AI staff:
+jobs → LAB; watches AI staff; products → PRODUCTS). Card: name, state, `beliefs ▸` / `risks ▸` (SAFETY › Model /
+Risks, the SAFETY build's tab ids), facts (parameters, design, from <parent>, ready date), SkillBars (Capability + nine
+skills, measured, ± 1.64 sd range; "not measured yet" rows), milestone ladder (lab dates, next), Works as chips; L2
+drawers: Benchmarks (scores, maxed out, Order evals), Trained with (run, base, data specialisation, pushes + signals
+incl. the base's), Actions (continual learning, amplify, release open weights, distil, roll back, retire); cost per
+hour of work with its tooltip. Default model: the internal model if measured, else the newest measured live full
+model (the mockup's Atlas-2.8). Deleted: lineage list, radar, KV block (monitorability, horizon, appeal, flags), run
+queue (→ TRAINING › Runs). Evals: alignment-evals rows fixed (the tooltip wrapper broke the grid).
+
+**Shared SkillBars (panels/SkillBars.tsx, skillbars.css):** one row per skill: measured bar + range whisker, predicted
+ghost + 90% range, the skill's median-expert / best-human ticks (job scale, "doing the job" in the legend), optional
+rival tick (no readout yet), header labels over the shared coding marks, milestone axis (labels stagger when close).
+
+**UB-7 / UB-10 checks.** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (the 4
+untipped number sites from before UB-5; Training's limit-tile sub-lines and run-share pills allow-listed with reasons,
+the Blueprint entries removed); lint-structure: 1 pre-existing. uitest: TRAINING / MODELS / Runs / B4 / D3 / D4 / E12
+Training steps rewritten (Blueprint ones replaced; stale `paradigms.P10` read and old vocabulary regexes fixed, which let
+the run reach the day-400 / day-900 steps for the first time since UB-5): **608 passed, 66 failed, no crash**; none of
+the failures are TRAINING / MODELS steps except D8 "evalGate term" (that control was removed before UB-5); the rest are
+E11 / E12 Safety, F6, D6 Environments content, D8 Evals content, Research, Products, Agents, J2 (pre-existing, other
+builds). Limits registry: `run.stream` home → TRAINING › Runs, `model.dataSpec` → TRAINING › Next run (Data limit).
+Screenshots: scripts/v2/shots/ub7/ (d0, d400, d900: training, training-post, training-tip, runs, models,
+models-bench, evals); capture script scripts/v2/shots/ub7.mjs (git-ignored).
+
+**Differences from the mockups.** (1) A new base's stage 2 is one line ("Standard post-training follows; you choose its
+options when the base is done"): the engine runs pretraining and post-training as separate runs, so post-training
+options cannot be set at launch of a base; the forecast assumes Standard. (2) Skill ticks are per skill (job scale:
+Social / Media / Cyber / Bio marks sit at 10.7–12.7), so only the coding pair is labelled in the header. (3) Ready
+includes the release evals (Feb 17 vs the mockup's Feb 3). (4) Start-from offers the two newest bases, not every base.
+(5) No rival ticks and no Jobs drawer (no readout: DATA.md NEW items). (6) Milestones on the card are the lab's (dated)
+ladder, not per model. (7) Evals tab unchanged apart from the row fix: its capability column still shows raw levels
+(1…11) and "± 0.06 levels" (OQ-6) — **designer item**. (8) beliefs / risks link to SAFETY tabs `model` / `risks` (the
+SAFETY build's ids; empty on this branch until it merges).

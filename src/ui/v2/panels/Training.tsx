@@ -709,7 +709,7 @@ function LimitsStrip({ s, kind, card, p, setShare, children }: { s: GameStateV2;
       const reads = L.tokens / Math.max(1, L.tokensUnique);
       lims.push({
         id: 'data', icon: ICON.data, label: <Term id="dataTokens">Data</Term>, v: F.num(reads, 2), u: 'reads per token', word: L.fData < 0.99 ? 'Short' : 'Enough', tone: L.fData < 0.99 ? 'short' : 'ok',
-        sub: <>{reads <= 1 ? 'no token read twice' : `re-reading costs ${effX(Math.log10(L.fData))}`} <button className="tr-link" data-test="bp-to-data" onClick={() => store.goto('blueprint', { tab: 'data' })}>data <ChevronRight size={11} /></button></>,
+        sub: <>{reads <= 1 ? 'no token read twice' : `re-reading costs ${effX(Math.log10(L.fData))}`} <Limit id="model.dataSpec" tone="quiet">mix ≤ {effX(SPEC_CAP)}</Limit> <button className="tr-link" data-test="bp-to-data" onClick={() => store.goto('blueprint', { tab: 'data' })}>data <ChevronRight size={11} /></button></>,
         tip: () => <TipCard title={<Term id="dataTokens">Data</Term>} value={`${F.num(reads, 2)} reads per token`} rows={[
           { label: 'Tokens of this base model', value: `${F.short(L.tokens / 1e12)}T` }, { label: <Term id="uniqueTokens">Unique tokens for this mix</Term>, value: `${F.short(L.tokensUnique / 1e12)}T` },
           { label: <Term id="dataWall">Effective compute kept</Term>, value: F.pct(L.fData) }, { label: <Term id="dataQuality">Mean quality drawn</Term>, value: F.num(L.draw.quality, 2) },
