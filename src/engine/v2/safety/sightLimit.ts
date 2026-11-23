@@ -21,8 +21,8 @@ import { reliability } from './instruments';
 
 /** The sight limit as the player sees it, for the internal model. `level`: that model's measured level; `gap` =
  *  L − level (negative: the model is beyond what your instruments read); `perTrait`: the reading of each hidden-goal
- *  trait at `level` (drill-down). */
-export interface SightLimit { L: number; lo: number; hi: number; level: number; gap: number; versionId?: string; perTrait: Partial<Record<TraitId, number>> }
+ *  trait at `level` (drill-down); `none`: no level at all is read at 50% (L is then 0 as a floor, not a level that is read). */
+export interface SightLimit { none: boolean; L: number; lo: number; hi: number; level: number; gap: number; versionId?: string; perTrait: Partial<Record<TraitId, number>> }
 
 function detTools(s: GameStateV2): TechniqueState[] {
   return Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && techniqueRole(t) !== 'fix');
@@ -154,7 +154,7 @@ const memo = new WeakMap<GameStateV2, { key: string; r: SightLimit }>();
 export function sightLimit(s: GameStateV2): SightLimit {
   const v = internalVersion(s);
   const level = measuredLOf(s, v).L;
-  if (!v) return { L: 0, lo: 0, hi: 0, level, gap: Math.round(-level * 100) / 100, perTrait: {} };
+  if (!v) return { none: true, L: 0, lo: 0, hi: 0, level, gap: Math.round(-level * 100) / 100, perTrait: {} };
   const tools = detTools(s);
   const dept = s.player.safety;
   const key = `${s.time.day}|${v.id}|${level}|${dept.findings.length}|${tools.map((t) => `${t.id}:${t.validatedOom}:${t.trainedAgainst}`).join(',')}|${JSON.stringify(v.beliefs.EA)}|${JSON.stringify(v.beliefs.OBF)}`;
@@ -188,7 +188,7 @@ export function sightLimit(s: GameStateV2): SightLimit {
   const r20 = (x: number) => Math.round(x * 20) / 20;
   const perTrait: Partial<Record<TraitId, number>> = {};
   for (const k of CRITICAL_TRAITS) perTrait[k] = Math.round(det(k, level) * 1000) / 1000;
-  const r: SightLimit = { L, lo: r20(Math.min(L, q(SIGHT_RANGE_Q[0]))), hi: r20(Math.max(L, q(SIGHT_RANGE_Q[1]))), level, gap: Math.round((L - level) * 100) / 100, versionId: v.id, perTrait };
+  const r: SightLimit = { none: L === 0 && meanDet(det, 0) < 0.5, L, lo: r20(Math.min(L, q(SIGHT_RANGE_Q[0]))), hi: r20(Math.max(L, q(SIGHT_RANGE_Q[1]))), level, gap: Math.round((L - level) * 100) / 100, versionId: v.id, perTrait };
   memo.set(s, { key, r });
   return r;
 }

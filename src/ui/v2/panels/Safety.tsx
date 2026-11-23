@@ -153,7 +153,7 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
   const title = m < 0 ? 'Model past your sight limit' : m < 0.5 ? 'Sight limit barely above the model' : unseen.length ? `Sight limit above the model, but ${unseen.length} of ${fams.length} risk families unseen` : 'Sight limit above the model';
   const widening = up.capPerMo > 0.02;
   const unval = up.notOnCurrent > 0 && !up.jobs.length;
-  const sub = [`Sight limit L ${F.level(sl.L)} (${F.level(sl.lo)}–${F.level(sl.hi)})`, m < 0 ? `${F.num(-m, 1)} levels past it` : `${F.num(m, 1)} levels above the model`, widening ? 'gap widening' : 'holding',
+  const sub = [`Sight limit ${F.sight(sl)}`, m < 0 ? `${F.num(-m, 1)} levels past it` : `${F.num(m, 1)} levels above the model`, widening ? 'gap widening' : 'holding',
     up.notOnCurrent > 0 && up.model ? `${up.notOnCurrent} of ${up.instruments} instruments not validated on ${up.model}` : ''].filter(Boolean).join(' · ');
   const weak = weakFamily(fams, sl.perTrait);
   const weakRead = weak ? famRead(weak, sl.perTrait) : 1;
@@ -173,7 +173,7 @@ function Verdict({ sv, fams, cand }: { sv: SV; fams: Fams; cand: ReturnType<type
       <div className="sf-vt">
         <b>{title}</b>
         <Tip content={() => <TipCard title={<Term id="sightLimit">Sight limit vs capability</Term>} value={`${F.num(m, 1, true)} levels`} rows={[
-          { label: 'Capability (measured)', value: F.level(up.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: `L ${F.level(sl.L)} (${F.level(sl.lo)}–${F.level(sl.hi)})` },
+          { label: 'Capability (measured)', value: F.level(up.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: F.sight(sl) },
           { label: 'Capability per month', value: `+${F.num(up.capPerMo, 2)} L` }, { label: <Term id="validation">Validation jobs queued</Term>, value: F.count(up.jobs.length) },
         ]}>Positive: your instruments read the model past its level. Instruments lose reliability as the model outgrows the one they were validated on; research raises it, validation measures it.</TipCard>}><span className="small">{sub}</span></Tip>
       </div>
@@ -287,7 +287,7 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
 function UTip({ s, sv, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: ReturnType<typeof bestIdea>; ifU?: number }) {
   const up = sv.validation;
   return (
-    <TipCard title={<><Term id="sightLimit">Sight limit</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={`L ${F.level(sv.sightLimit.L)} (${F.level(sv.sightLimit.lo)}–${F.level(sv.sightLimit.hi)})`} rows={[
+    <TipCard title={<><Term id="sightLimit">Sight limit</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={F.sight(sv.sightLimit)} rows={[
       { label: <>capability {F.num(up.capPerMo, 2, true)}/mo</>, value: up.notOnCurrent ? `${up.notOnCurrent} not validated on ${up.model ?? 'the model'}` : 'all validated on the model', tone: up.notOnCurrent ? 'neg' : 'pos' },
       ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `L ${F.num(sv.sightLimit.L, 1)} → ${F.num(ifU, 1)}` }] : []),
     ]}>The highest level at which your instruments together still read the hidden-goal traits at 50% or better; the range is what your uncertainty about each instrument allows. From what you believe, not the truth.</TipCard>

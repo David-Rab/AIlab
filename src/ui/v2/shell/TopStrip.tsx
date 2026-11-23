@@ -30,8 +30,8 @@ function RaceTip({ s }: { s: GameStateV2 }) {
   const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
   const hist = s.series.U.slice(-13);
   return (
-    <TipCard title="Sight limit vs capability" value={`Sight limit L ${F.level(u.L)} (${F.level(u.lo)}–${F.level(u.hi)})`}>
-      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range). Gap {F.num(u.gap, 1, true)} levels.</div>
+    <TipCard title="Sight limit vs capability" value={`Sight limit ${F.sight(u)}`}>
+      <div className="why-body">Violet: the <Term id="L">measured level</Term> of your internal model{ev.evaluating ? ' (still in evaluation: last measured level of its line)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range).{u.none ? ' None: at no level do your instruments read them at 50% on average, so the model is past it at any level.' : ''} Gap {F.num(u.gap, 1, true)} levels.</div>
       <div className="tip-sec">
         <div className="tip-cap">Reading at the model's level vs 50%</div>
         {CRITICAL_TRAITS.map((t) => {

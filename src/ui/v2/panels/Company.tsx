@@ -84,7 +84,7 @@ function Flow({ s }: { s: GameStateV2 }) {
   const out: Record<string, { label: string; tag?: { t: string; tone: string }; ref: string; to: { panel: string; tab?: string } }> = {
     cap: { label: 'Research speed', tag: { t: prod.label.replace('labor', 'labour'), tone: 'warn' }, ref: 'M', to: { panel: 'company' } },
     serve: { label: 'Revenue', tag: capped ? { t: `${capped} capped`, tone: 'bad' } : undefined, ref: 'revenueRun', to: { panel: 'finance' } },
-    saf: { label: 'Sight limit', tag: { t: `L ${u.L.toFixed(1)} (${u.lo.toFixed(1)}–${u.hi.toFixed(1)})`, tone: u.gap < 0 ? 'bad' : 'good' }, ref: 'sightLimit', to: { panel: 'safety', tab: 'overview' } },
+    saf: { label: 'Sight limit', tag: { t: F.sight(u), tone: u.gap < 0 ? 'bad' : 'good' }, ref: 'sightLimit', to: { panel: 'safety', tab: 'overview' } },
   };
   return (
     <div className="flow-wrap" data-home="computeFlow">
