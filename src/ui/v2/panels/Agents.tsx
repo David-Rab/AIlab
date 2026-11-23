@@ -11,7 +11,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Crown, Gamepad2, Ghost, Pencil, ThumbsUp, X, type LucideIcon } from 'lucide-react';
 import { AGENT_USES, AGENT_USE_DEF, MONITOR_AUTO, MONITOR_SAME, RISK_FAMILIES } from '../../../data/v2/agents';
 import {
-  agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, newestInternal, previewAgentChange, previewTrusted, toolingView, versionById,
+  agentChangeBlock, agentsView, dangerView, dateOf, fmtDate, newestInternal, previewAgentChange, previewTrusted, versionById,
 } from '../../../engine/v2';
 import type { AgentChange, AgentLane, AgentUse, AgentsView, DangerRead, GameStateV2, RiskBadge } from '../../../engine/v2';
 import { ActBtn, Term, Tip, TipCard, type Params } from '../ui';
@@ -231,20 +231,12 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
   );
 }
 
-/** RD-A06: the internal agents' tooling (owned items, built by engineers; product features do not act here). */
-function Tooling({ s }: { s: GameStateV2 }) {
-  const tools = toolingView(s);
+/** RD-A06 / UB-8: the internal tools (Lab tools) are owned things on Research › Know-how (DD-03): a link here. */
+function Tooling() {
   return (
-    <div className="ag-tools row-i small" data-home="agentTooling" data-test="agent-tooling">
-      <Term id="agentTooling">Tools</Term>
-      {tools.map((t) => (
-        <Tip key={t.id} content={() => <TipCard title={t.name} value={t.owned ? 'built' : t.etaDays !== undefined ? `building · ${Math.ceil(t.etaDays)} d` : 'not built'} rows={[
-          { label: 'Build', value: `${t.buildTW} team-weeks · ${F.money(t.cash)}` },
-        ]}>{t.effect}.</TipCard>}>
-          <span data-test={`tool.${t.id}`}>{t.owned ? <span className="tag2">{t.name} ✓</span> : t.etaDays !== undefined ? <span className="tag2 dim">{t.name} · {Math.ceil(t.etaDays)} d</span>
-            : <ActBtn id="tooling.build" testId={`tooling.build.${t.id}`} params={{ id: t.id }} label={`Build ${t.name}`} block={t.block} />}</span>
-        </Tip>
-      ))}
+    <div className="ag-tools row-i small" data-test="agent-tooling">
+      <Term id="agentTooling">Tools</Term> <span className="dim">coding harness, research harness, memory</span>
+      <Ref id="labTools" to={{ panel: 'research', tab: 'knowhow', anchor: 'labTools' }}>Lab tools</Ref>
     </div>
   );
 }
@@ -262,7 +254,7 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
       right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref><Ref id="rdmult" to={{ panel: 'lab' }}>Research speed</Ref></span>}>
       <div className="ag-head small dim"><span>Job</span><span>Model</span><span>Monitor · stop rate</span><span>Compute</span><span>AI share</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">harmful acts</Term>/yr</span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
-      <Tooling s={s} />
+      <Tooling />
       <RiskLegend />
     </Card>
   );
