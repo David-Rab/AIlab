@@ -30,7 +30,7 @@ import { previewEdit } from '../../src/engine/v2/models/productOps';
 import { agentsGate, catchRate, monitorOverhead } from '../../src/engine/v2/models/products';
 import { incidentsSystem } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, GameStateV2, ModelVersion, SectorId } from '../../src/engine/v2/types';
-import { revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
+import { applyRevenue, revenueReadout, servingPool } from '../../src/engine/v2/worldfx/revenue';
 import { FIXTURE_DIR, check, finish } from './lib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -125,8 +125,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const before = s.player.safety.incidents.length;
   const ctx = makeCtx(s);
   for (const t of Object.keys(v0.traitsTrue) as (keyof typeof v0.traitsTrue)[]) v0.traitsTrue[t] = 1;
-  for (let i = 0; i < 30000 && s.player.safety.incidents.length - before < 60; i++) incidentsSystem.run(s, ctx);
-  const inc = s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
+  // CP3d: RD-P10 rolls each product at its served usage per model (servedBy), which the revenue system (order 60) sets
+  // before incidents (80) every day; a fresh game has none yet, so serve once first.
+  applyRevenue(s, ctx);
+  // CP3d: since TIERS Chat is also served by a cheap tier and V0 serves the other products too, so count Chat's own
+  // non-misuse incidents (not every incident) until there are enough to read the catch share.
+  const chatInc = () => s.player.safety.incidents.slice(before).filter((x) => x.deploymentId === chat.id && x.trueSource !== 'misuse');
+  for (let i = 0; i < 30000 && chatInc().length < 30; i++) incidentsSystem.run(s, ctx);
+  const inc = chatInc();
   const caught = inc.filter((x) => x.exposure === 'internal').length;
   check(inc.length >= 10 && caught / inc.length > 0.5 && inc.filter((x) => x.exposure === 'internal').every((x) => x.publicTimerDays === undefined),
     'P5 a monitored product\'s incidents are mostly caught and stay internal', `${caught}/${inc.length} caught (rate ${catchRate(s, v0, v0).rate.toFixed(2)})`);
