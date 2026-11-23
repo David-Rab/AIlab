@@ -140,7 +140,7 @@ export function actSite(s: GameStateV2, target: ActTarget, believed: boolean, o:
   const restricted = isRestricted(d) || !!o.restrict;
   const site: Site = { ...base, scale: base.scale * (o.restrict && !isRestricted(d) ? RESTRICT : 1) };
   if (!believed) {
-    return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }) };
+    return { d, v, site, usage: target.usage, layer, restricted, monitored: true, contain: site.contain, monitor: fleetMonitor(s, v, undefined, false), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }) };
   }
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));
   site.contain = p.block;
@@ -180,7 +180,7 @@ function laneSite(s: GameStateV2, use: AgentUse, believed: boolean, o: ActOpts):
   const monitorParts = monitored ? useMonitor(s, use, undefined, believed) : undefined;
   if (!believed) {
     site.contain = containment(s, versionOom(s, v), layer, false, uModeContainMult(v.uModes));
-    return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
+    return { d, v, use, site, usage, layer, restricted, monitored, contain: site.contain, monitor: fleetMonitor(s, v, undefined, false), human: 0, controlMiss: 1, catchOf: (t) => engineCatch(s, d, v, { source: t, apparent: t }), monitorParts };
   }
   // E15: the same believed oversight as E9's believed control (believedOversight.ts).
   const p = believedOversightParts(s, v, layer, site.rd, layer, reviewOn(d));

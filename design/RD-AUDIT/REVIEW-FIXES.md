@@ -8,7 +8,7 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 | ID | Task | Source |
 |---|---|---|
 | RF-S1 | Framework hold and trusted-watcher rule read the 90% upper bound of the belief; drop the clarity gate; add OD-6's capability clause | safety #1, decision 4 — done 8649d51 |
-| RF-S2 | Framework replaces old pledges / pause commitment (`noDeployAbove`, `frontierPauseUntil`); fixed packages become one "meet my framework" package, applied by default; fix SR-20 self-copy watcher fallback and RefBot's cheap-monitor choice | safety #4, #14, decision 9 |
+| RF-S2 | Framework replaces old pledges / pause commitment (`noDeployAbove`, `frontierPauseUntil`); fixed packages become one "meet my framework" package, applied by default; fix SR-20 self-copy watcher fallback and RefBot's cheap-monitor choice | safety #4, #14, decision 9 — done afc6f17 |
 | RF-S3 | Oversight truth hygiene: `believed` flag required (or split true / believed catch); engine catch roll uses true strength; package preview reads beliefs; Publish preview "+0.02 rivals' alignment" leftover removed | safety #7, #13 |
 | RF-S4 | SR-05: default model = riskiest running model, lab number = max with its model; remove the 0.4 danger line | safety #9 |
 | RF-S5 | SR-10: validation trust per model, not one global factor per instrument (DISAGREE_DROP number kept, decision 1) | safety #8 |

@@ -243,7 +243,7 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
     const b = monitorBudget(s);
     if (b.controlShort > 1e-12 && b.control > 0) h100e *= 1 - (b.controlShort / b.control) * controlComputeShare(labControlSetting(s));
   }
-  let mult = useControl(s, v, monitorVersion(s, use), !!p.agents[use].control).usefulness;
+  let mult = useControl(s, v, monitorVersion(s, use), !!p.agents[use].control, false).usefulness;
   // SR-13: the comms-lockdown safeguard's Slowdown on internal work.
   if (lockdownOn(s)) mult *= 1 - LOCKDOWN_SLOWDOWN;
   return { v, h100e, mult };

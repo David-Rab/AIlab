@@ -84,7 +84,7 @@ function internalCharges(s: GameStateV2) {
   for (const u of AGENT_USES) {
     const h = agentCompute(s, u);
     c += h;
-    lost += h * (1 - useControl(s, agentVersion(s, u), monitorVersion(s, u), !!s.player.agents[u].control).usefulness);
+    lost += h * (1 - useControl(s, agentVersion(s, u), monitorVersion(s, u), !!s.player.agents[u].control, true).usefulness);
   }
   return { computeH100e: monitorBudget(s).control * s.player.computeOnline, people: safeguardFte(s), slowdown: c > 0 ? lost / c : 0 };
 }

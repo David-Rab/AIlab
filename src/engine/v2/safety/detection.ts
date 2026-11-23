@@ -19,6 +19,7 @@ import { hiddenUModes } from './umodes';
 import { cotResist } from './ideas';
 import { fleetMonitor, internalFleets, routineMonitor } from '../departments/agents';
 import { productMonitor } from '../models/products';
+import { controlOn } from './safeguards';
 
 export const SD_MAX = 0.35;
 
@@ -297,10 +298,10 @@ export function runtimeMonitoring(s: GameStateV2, ctx: SystemCtx): void {
     if (d.status === 'withdrawn') continue;
     if (d.channel === 'internal') {
       const v = versionById(s, d.versionId);
-      put(d.versionId, v ? fleetMonitor(s, v) : 0);
-    } else put(d.versionId, d.monitorId ? Math.max(lab, productMonitor(s, d).strength) : lab);
+      put(d.versionId, v ? fleetMonitor(s, v, undefined, false) : 0);
+    } else put(d.versionId, d.monitorId ? Math.max(lab, productMonitor(s, d, controlOn(d), false).strength) : lab);
   }
-  for (const f of internalFleets(s)) put(f.v.id, fleetMonitor(s, f.v));
+  for (const f of internalFleets(s)) put(f.v.id, fleetMonitor(s, f.v, undefined, false));
   const rng = ctx.rng('safety');
   for (const [id, strength] of q) {
     if (strength <= 0.05) continue;
@@ -394,7 +395,7 @@ export function monitoringCatch(s: GameStateV2, v: ModelVersion, trait: TraitId)
   const wb = familyDetection(s, v, trait, 'WB', X) * familyPenalty(s, v, trait, 'WB');
   // R7: the monitor strength on the fleet running v (1 = the pre-R7 default monitoring share); J2 AG1: a same-lineage
   // monitor is weaker on collusion-relevant traits.
-  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v, trait)));
+  return clamp01((1 - (1 - cot) * (1 - wb)) * (0.5 + 0.5 * fleetMonitor(s, v, trait, false)));
 }
 
 // SR-06 (SAFETY-REDESIGN §6 #6): no belief drift with time (driftBeliefs deleted). Evidence is about a checkpoint and a

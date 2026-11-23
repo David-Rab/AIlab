@@ -94,7 +94,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const hi = cloneVersion(s, v0, 'VH', { baseId: 'B-hi' });
   hi.Lg = 12;
   const mons = [12, 11, 10, 8, 5].map((L, i) => { const m = cloneVersion(s, v0, `VM${i}`, { baseId: `B-m${i}` }); m.Lg = L; return m; });
-  const rates = mons.map((m) => catchRate(s, hi, m));
+  const rates = mons.map((m) => catchRate(s, hi, m, false, false));
   check(rates.every((r, i) => i === 0 || r.rate < rates[i - 1].rate) && rates[0].gap === 0,
     'catch: on versions, the catch rate falls as the monitor\'s level drops below the watched model\'s (L 12 watched by L 12 → 5)',
     rates.map((r) => `${r.rate.toFixed(2)} (${r.gap.toFixed(1)} OOM)`).join(', '));
@@ -108,21 +108,21 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   m400.Lg = L400;
   const top = cloneVersion(s, v0, 'VT', { baseId: 'B-top' });
   top.Lg = 14.9999;
-  const r400 = catchRate(s, top, m400);
+  const r400 = catchRate(s, top, m400, false, false);
   check(Math.abs(r400.base - ENGELS_400.backdoorCode) < 0.002, 'catch: a monitor 400 Elo (6.8 OOM) below an ASI-level model catches 10% before control tools', `monitor L ${L400.toFixed(2)}: ${r400.base.toFixed(4)}`);
 
   // (a) same-lineage collusion kept.
   const copy = cloneVersion(s, hi, 'VC', {});
-  const cc = catchRate(s, hi, copy);
+  const cc = catchRate(s, hi, copy, false, false);
   check(cc.copy && cc.gap === 0 && near(cc.collusion, cc.rate * 0.6), 'collusion: a same-lineage monitor (no gap) catches collusion-relevant acts ×0.6', `${cc.rate.toFixed(3)} → ${cc.collusion.toFixed(3)}`);
   // CP3 rewrite (SR-13): the comms lockdown is a safeguard item on the internal deployment (replaces owning T-LOCK).
   const lock = s.player.safety.techniques['T-LOCK'];
   lock.unlocked = true;
   lock.active = true;
   const lockWhy = addSafeguard(s, s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')!, 'lockdown');
-  const cl = catchRate(s, hi, copy);
+  const cl = catchRate(s, hi, copy, false, false);
   check(!lockWhy && near(cl.collusion, cl.rate * 0.8), 'collusion: comms lockdown (safeguard item) halves the same-lineage penalty (×0.8)', lockWhy ?? `${cl.rate.toFixed(3)} → ${cl.collusion.toFixed(3)}`);
-  check(!catchRate(s, hi, mons[2]).copy && near(catchRate(s, hi, mons[2]).collusion, catchRate(s, hi, mons[2]).rate), 'collusion: a monitor from another base has no penalty');
+  check(!catchRate(s, hi, mons[2], false, false).copy && near(catchRate(s, hi, mons[2], false, false).collusion, catchRate(s, hi, mons[2], false, false).rate), 'collusion: a monitor from another base has no penalty');
 }
 
 // ───────────── (b) technique decay above the validated capability ─────────────
@@ -182,7 +182,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   // A weaker trusted monitor: the per-deferral loss grows with the gap.
   const mini = cloneVersion(s, v, 'VMINI', { baseId: 'B-mini' });
   mini.evals.measuredL = (v.evals.measuredL ?? v.Lg) - 1;
-  const c1 = useControl(s, v, mini, true);
+  const c1 = useControl(s, v, mini, true, false);
   check(c1.tax > 0.03 && c1.tax <= 0.07 + 1e-12, 'control tax: grows with the gap to the trusted model (between 3% and 7%)', `${c1.gapOom.toFixed(2)} OOM: ${(c1.tax * 100).toFixed(1)}%`);
   setControl(internal, false); for (const a of Object.values(s.player.agents)) delete a.control;
   reset(s);

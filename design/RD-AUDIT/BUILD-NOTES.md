@@ -4156,3 +4156,25 @@ RefBot's cheap monitor back (review safety #4, #14, decision 9; SAFETY-REDESIGN 
 - Moves calibration: **yes**. RefBot's internal monitors change (cheap model / copy instead of the trusted picker);
   players / bots on 'auto' lose the self-copy watcher when no other model is trusted (no monitor); SafeBot signs no pause
   pledge (its 60-day E30 pauses are gone; framework holds remain); Index grades read the one card.
+
+### RF-S3 (partial)
+Oversight truth hygiene (review safety #7, #13).
+- **`believed` required.** No default on `catchRate`, `monitorStop`, `productMonitor` (and its `controlled`),
+  `useMonitor` / `monitorStrength` (budget `undefined` = today's), `fleetMonitor` (trait `undefined` = any), `useControl`.
+  Every caller now says which: engine paths `false` (workfit control tax, productCatch, detection's monitor strengths
+  and act-table truth sites, routineMonitor), readouts `true` as before.
+- **Engine catch roll on true tool strength.** `catchRate`'s AG07 containment part reads `containment(…, believed)`
+  (was always believed): true strength for the engine, believed for readouts.
+- **Package preview on beliefs.** `packages.internalCharges` reads the believed `useControl` (measured levels) for the
+  Slowdown; it was the true-level default.
+- **Not done: the Publish "+0.02 rivals' alignment (shared pool)" line** (safety.publish preview; also A4's and C3's
+  alignment lines). The effect is still live: publishing raises `knowledge.sharedTechniquePool`, which lowers rivals'
+  misalignment drift in `rivalTraitStep`. Removing the line alone would break "previews match effects"; removing the
+  effect or replacing it with §3.9's "rivals gain this method" is a rival-safety change (RF-A1, decision 5). Needs a
+  designer call.
+- Updated callers in `scripts/v2/oversight.ts` / `products.ts` (explicit `false`).
+- **Check.** `npx tsx scripts/v2/_rfs3/check.ts`: 5 ok (with AG07 tools forced on and a true efficacy apart from the
+  posterior: engine catch rate's containment = true strength 0.897, readout = believed 0.614; package preview Slowdown
+  unchanged when every true level moves +1.5). tsc (app, scripts/v2) clean.
+- Moves calibration: **maybe** (only once a player or bot runs AG07 containment tools under a monitor: engine catch then
+  uses true, not believed, strength).

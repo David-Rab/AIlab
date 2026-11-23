@@ -120,7 +120,7 @@ export const greenblattAt = lerpTable;
 /** Control on one internal use (its model watched, its monitor the trusted model; a copy of itself = no gap). True
  *  levels (Lg): the usefulness tax applies to the lab's work; `believed` (readouts) reads the measured levels (RD-M01
  *  follow-up). Off when the package's control layer is off (`on`, RD-A06). */
-export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined, on: boolean, believed = false): ControlReadout {
+export function useControl(s: GameStateV2, model: ModelVersion | undefined, monitor: ModelVersion | undefined, on: boolean, believed: boolean): ControlReadout {
   if (!on || !model) return NO_CONTROL;
   const w = s.hidden.timeline;
   const lv = (v: ModelVersion) => (believed ? measuredLOf(s, v).L : v.Lg);
