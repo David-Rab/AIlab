@@ -1,7 +1,7 @@
 // Research verbs (STRUCTURE §4.2, BUILD-PLAN R4): queue a project, start it now, reorder, drop it, assign or take off a
 // science team, and the auto-assign policy. Owner: WS1. Previews work with empty params (defaults: the first open idea,
 // the first capabilities science team) and show what apply() does (§2.7, lint-tradeoffs).
-import { PROJECT_BY_ID, TREE, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
+import { PROJECT_BY_ID, TREE, optionsOf, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
@@ -58,7 +58,7 @@ function capLines(s: GameStateV2, n: TreeNodeDef, odds: number, spec: number): {
     if (eff.data?.synQMax) g(per * eff.data.synQMax, 'q', 'synthetic-quality ceiling, the web = 1 (expected)');
     if (eff.data?.worthOom) g(per * eff.data.worthOom, 'OOM', 'worth of each drawn token (expected)');
   }
-  const opts = n.options?.length ?? 0;
+  const opts = optionsOf(n.id).length ?? 0;
   if ((n.fx.cap ?? 0) > 0 && (opts || !eff)) g(Math.max(1, opts), opts > 1 ? 'options' : opts ? 'option' : 'unlock', n.cap ?? n.name);
   if ((n.fx.cap ?? 0) < 0) {
     // Paid when the option is used: the node states it ("−0.3 OOM effective compute …"), else in words.
@@ -116,7 +116,7 @@ export function safLines(n: TreeNodeDef, odds: number): { gains: CostLine[]; exp
   if (!saf) return { gains: [], exposure: [] };
   const p = { probability: odds };
   const per = isLineNode(n) ? ' (odds per result)' : '';
-  if (saf < 0) return { gains: [], exposure: [{ currency: 'alignment', amount: 1, unit: 'safety risk', ...p, target: `${n.options?.length ? 'when used: ' : ''}${n.saf ?? 'safety side effect'}` }] };
+  if (saf < 0) return { gains: [], exposure: [{ currency: 'alignment', amount: 1, unit: 'safety risk', ...p, target: `${optionsOf(n.id).length ? 'when used: ' : ''}${n.saf ?? 'safety side effect'}` }] };
   const t = n.technique ? TECHNIQUE_BY_ID[n.technique] : undefined;
   const g = (unit: string, target: string, amount = 1): { gains: CostLine[]; exposure: CostLine[] } => ({ gains: [{ currency: 'alignment', amount, unit, ...p, target: target + per }], exposure: [] });
   if (t && Object.keys(t.coverage).length) return g(t.role === 'contain' ? 'control protocol' : 'detector', `${t.role === 'contain' ? 'contains' : 'detects'} by coverage: ${traitList(t.coverage)}`);

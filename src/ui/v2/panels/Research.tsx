@@ -11,7 +11,7 @@ import {
 } from '../../../engine/v2';
 import type { Column, GameStateV2, NodeStatus } from '../../../engine/v2';
 import { PICK_AT } from '../../../data/v2/research';
-import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, PROJECT_BY_ID, isLineNode, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
+import { SAFETY_COLUMNS, TREE, TREE_CHILDREN, PROJECT_BY_ID, isLineNode, optionsOf, type Layer, type TreeNodeDef } from '../../../data/v2/tree';
 import { AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { COLUMNS, COLUMN_LABEL } from '../../../data/v2/teams';
 import { store, useV2 } from '../store';
@@ -324,10 +324,10 @@ function NodeCard({ s, n, st }: { s: GameStateV2; n: TreeNodeDef; st: NodeStatus
           })}
         </div>
       )}
-      {(n.options?.length || children.length) ? (
+      {(optionsOf(n.id).length || children.length) ? (
         <div className="sec">
           <div className="k">Unlocks</div>
-          {(n.options ?? []).map(([slot, v]) => (
+          {optionsOf(n.id).map(([slot, v]) => (
             <div key={slot + v} className="row-i small">{slot === 'effort' ? <ICON.deploy size={12} /> : <ICON.run size={12} />}<span>{SLOT_LABEL[slot]}: <b>{v === 'true' ? 'on' : F.words(v)}</b></span><span className="sp" />
               <Ref id="designOption" to={{ panel: slot === 'effort' ? 'products' : 'blueprint' }}>{slot === 'effort' ? 'Products' : 'Blueprint'}</Ref></div>
           ))}

@@ -19,6 +19,8 @@
 // is the line's T₁ at serious staffing (data/v2/agendas.ts SERIOUS_CAP). Every line also has a follow-up project
 // (LINE_NODES, not drawn on the tree) that keeps producing results once its ideas are known.
 // Product-feature nodes (Scaffold) are projects like any other; a known feature node lets the engineers build the feature (R6).
+// RD-T10: a node carries its research effect (`effect`) and nothing it unlocks; what it unlocks is derived from the
+// unlock tables (OPTION_NODE here, FeatureDef.node, DEMO_BUILD.needs). Nodes never cost cash: purchases are actions.
 import type { AgendaId, Column, DomainId, StackKey } from '../../engine/v2/types';
 import { AGENDAS, AGENDA_BY_ID, SERIOUS_CAP } from './agendas';
 import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
@@ -82,8 +84,6 @@ export interface TreeNodeDef {
   star?: boolean;
   /** Not researchable yet: product features become projects with live products. */
   soon?: 'products';
-  /** Design options this node unlocks. */
-  options?: [OptionSlot, string][];
   /** Capability projects (model v3 V2): kind and typed effect (absent effect = an unlock). */
   kind?: ProjectKind;
   effect?: ProjectEffect;
@@ -135,41 +135,41 @@ const S = (id: string, name: string, column: Column, layer: Layer, needs: string
 const SAFETY_COLUMNS_SET = new Set<Column>(['alignment', 'interp', 'evals']);
 export const TREE: TreeNodeDef[] = [
   // ── Pretraining (Backbone unless noted) ──
-  STAR('moe', 'MoE', 'pretraining', 'backbone', {}, { options: [['shape', 'moe']], cap: 'Reference architecture: 8× total parameters per active one', cost: 'Memory for 8× the active parameters' }),
-  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { options: [['shape', 'dense']], cap: 'Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP', cost: 'No 8× memory: total parameters = active ones' }),
-  STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { options: [['curation', 'quality']], cap: 'Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner' }),
-  STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { options: [['data', 'codeMath']], cap: 'Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner' }),
+  STAR('moe', 'MoE', 'pretraining', 'backbone', {}, { cap: 'Reference architecture: 8× total parameters per active one', cost: 'Memory for 8× the active parameters' }),
+  STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { cap: 'Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP', cost: 'No 8× memory: total parameters = active ones' }),
+  STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { cap: 'Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner' }),
+  STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { cap: 'Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner' }),
   LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.36 }, { cap: 'Architecture and compute rebalancing at scale: pretraining efficiency (OOM); grows with run FLOP', payoff: 'Most measured algorithmic progress is scale-dependent (Gundlach et al.)' }),
   LINE('L.data', 'Data filtering & mixing', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0.05], rShare: 0.22 }, { cap: 'Better data for the same tokens: pretraining efficiency (OOM)' }),
   LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], rShare: 0.22 }, { cap: 'Small scale-invariant gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale' }),
   LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence: pretraining efficiency (OOM)' }),
-  N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['data', 'science']], cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
-  N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { options: [['data', 'multimodal']], cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
+  N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
+  N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
   N('elastic', 'Elastic training', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { kind: 'idea', effect: { stack: 'train', mean: 0.023, sd: 0.3 }, cap: 'Training throughput +0.023 OOM (goodput 0.90 → 0.95)' }),
-  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, options: [['data', 'synthetic']], cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering); unlocks the synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
-  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cap: 'Unlocks the demonstrations build of the long-tasks suite (Suites): experts record days-long work, 20B tokens of demonstrations join the suite for $1B at the expert-data price, raising its fidelity, its RL ceiling and so the time horizon', cost: 'Research only: each demonstrations build pays for its own data' }),
-  P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { options: [['cot', 'faithful']], cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
-  P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { options: [['shape', 'latent']], cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
+  P('P10', 'Synthetic data flywheel', 'pretraining', 'backbone', ['codeMath'], 'L', { cap: 1, saf: -1 }, { kind: 'axis', effect: { mean: 1, sd: 0.3, data: { synQMax: P10_SYN_Q_RAISE } }, cap: 'Generated data can beat web text: the quality ceiling of synthetic data rises from the web\'s 1 to 1.5 (strong teachers, rephrasing, filtering), and you can train on a synthetic-heavy mix', saf: 'Reward-model exploitation ×1.5; inherits teacher traits', payoff: 'Pays off with a teacher well above V0 (quality 1 at +2 OOM, 1.5 at +4 OOM)' }),
+  P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cap: 'Experts can record days-long work for your long-tasks suite: a demonstrations build (Suites tab) adds their demos, raising its fidelity, its RL ceiling and so the time horizon', cost: 'Research costs no cash; each demonstrations build buys its own expert data' }),
+  P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
+  P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
   // RD-E01a (DD-14): P24 is a capability idea in the pretraining stack (OOM), through the normal idea pipeline. Prior
   // mean 0.96 OOM = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 (wide: no measurement) [D].
   P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, cap: 'AI-designed architecture and recipe: pretraining efficiency ≈ +1 OOM (wide uncertainty) for bases trained after adoption', saf: 'New lineage: traits redrawn, tools may not transfer' }),
 
   // ── Post-training (Training unless noted) ──
-  STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, options: [['cot', 'visible']], cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
+  STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
   STAR('P02', 'Agentic environments', 'posttraining', 'training', {}, { paradigm: true, cap: 'Baseline agents' }),
   STAR('hardenedGraders', 'Hardened graders', 'posttraining', 'training', {}, { saf: 'Known practice, no option of its own: harden each RL environment suite (Suites tab: red-teamers and team-weeks) to cut its reward hacking' }),
-  STAR('engagement', 'Engagement tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { options: [['pref', 'engagement']], cap: 'Appeal 1.2', saf: 'Sycophancy pressure high' }),
-  STAR('persuasion', 'Persuasion tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { options: [['pref', 'persuasion']], cap: 'SOCIAL +0.8', saf: 'Persuasion flag; honesty −' }),
+  STAR('engagement', 'Engagement tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { cap: 'Appeal 1.2', saf: 'Sycophancy pressure high' }),
+  STAR('persuasion', 'Persuasion tuning', 'posttraining', 'training', { cap: 1, saf: -1 }, { cap: 'SOCIAL +0.8', saf: 'Persuasion flag; honesty −' }),
   LINE('L.rlalg', 'RL algorithms', 'posttraining', [], { stack: 'rlMid', mean: 0.015, rShare: 0.08 }, { cap: 'RL compute efficiency (OOM): the RL curve reaches its ceiling with less RL compute' }),
   LINE('L.env', 'Environments & rewards', 'posttraining', [], { stack: 'rlCeil', mean: 0.006, rShare: 0.12 }, { cap: 'RL ceiling (OOM): better environments and graders raise what RL can reach' }),
-  N('rl.math', 'RL focus: math', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1 }, { options: [['rlFocus', 'math']], cap: 'Mainly improves REASON; a little carries over to every other domain', saf: 'Verifier-hacking pressure (low)' }),
-  N('rl.swe', 'RL focus: SWE', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['rlFocus', 'swe']], cap: 'Mainly improves CODE; also helps RSCH, CYBER; a little carries over to the rest', saf: 'Reward-hacking pressure' }),
-  N('rl.mlResearch', 'RL focus: ML research', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['rlFocus', 'mlResearch']], cap: 'Mainly improves RSCH; a little carries over to every other domain', saf: 'Reward hacking; eval awareness' }),
-  N('rl.longHorizon', 'RL focus: long tasks', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['rlFocus', 'longHorizon']], cap: 'Mainly improves AGENCY; the more RL on long tasks, the longer the time horizon (about ×2 at the standard budget)', saf: 'Power-seeking pressure' }),
-  N('rl.cyber', 'RL focus: cyber', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['rlFocus', 'cyber']], cap: 'Mainly improves CYBER; a little carries over to every other domain', saf: 'Cyber-offense flag' }),
-  N('rl.bio', 'RL focus: bio', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { options: [['rlFocus', 'bio']], cap: 'Mainly improves BIO; a little carries over to every other domain', saf: 'Bio-uplift flag' }),
-  P('P06', 'Computer use', 'posttraining', 'training', ['multimodal'], 'M', { cap: 1, saf: -1 }, { options: [['rlFocus', 'computerUse']], cap: 'Computer-use RL focus: mainly improves AGENCY; also helps REASON; a little carries over to the rest', saf: 'Overreach incidents' }),
+  N('rl.math', 'RL focus: math', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1 }, { cap: 'Mainly improves REASON; a little carries over to every other domain', saf: 'Verifier-hacking pressure (low)' }),
+  N('rl.swe', 'RL focus: SWE', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Mainly improves CODE; also helps RSCH, CYBER; a little carries over to the rest', saf: 'Reward-hacking pressure' }),
+  N('rl.mlResearch', 'RL focus: ML research', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Mainly improves RSCH; a little carries over to every other domain', saf: 'Reward hacking; eval awareness' }),
+  N('rl.longHorizon', 'RL focus: long tasks', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Mainly improves AGENCY; the more RL on long tasks, the longer the time horizon (about ×2 at the standard budget)', saf: 'Power-seeking pressure' }),
+  N('rl.cyber', 'RL focus: cyber', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Mainly improves CYBER; a little carries over to every other domain', saf: 'Cyber-offense flag' }),
+  N('rl.bio', 'RL focus: bio', 'posttraining', 'training', ['P02'], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Mainly improves BIO; a little carries over to every other domain', saf: 'Bio-uplift flag' }),
+  P('P06', 'Computer use', 'posttraining', 'training', ['multimodal'], 'M', { cap: 1, saf: -1 }, { cap: 'Computer-use RL focus: mainly improves AGENCY; also helps REASON; a little carries over to the rest', saf: 'Overreach incidents' }),
   P('P08', 'Continual learning', 'posttraining', 'training', ['P07'], 'L', { cap: 2, saf: -1 }, { cap: 'A stream run keeps the internal model current (κ = 1)', saf: 'Evals go stale; drift', cost: '15% of the training pool while the stream runs' }),
   P('P09', 'Test-time training', 'posttraining', 'training', [], 'M', { cap: 1, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.3 } }, cap: 'REASON +0.3 OOM for new versions', saf: 'Audit coverage −10%' }),
   P('P11', 'Self-play curricula', 'posttraining', 'training', ['rl.math'], 'L', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.4, domains: { REASON: 0.66, CODE: 0.33 } }, cap: 'REASON +0.66, CODE +0.33 OOM for new versions', saf: 'Verifier-hacking pressure' }),
@@ -178,12 +178,12 @@ export const TREE: TreeNodeDef[] = [
   P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
-  STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, options: [['effort', 'low'], ['effort', 'max']], cap: 'Effort low / max', cost: 'Tokens' }),
+  STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Effort low / max', cost: 'Tokens' }),
   STAR('P04', 'Distillation', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Mini variants: a smaller student below its teacher (the distillation gap), serving ∝ its parameters', saf: 'Minis inherit traits' }),
   STAR('quantization', 'Quantization', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   STAR('specDecoding', 'Speculative decoding', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   LINE('L.infer', 'Inference efficiency', 'systems', [], { stack: 'serve', mean: 0.05, rShare: 0.15 }, { cap: 'Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it' }),
-  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
+  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { cap: 'Deep-think effort; scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Long-tasks RL horizon ×1.2 on post-trains launched after adoption [D]; memory', saf: 'Memory → successor-risk pressure' }),
   // RD-E01a (DD-14): P13 (automated AI research agents) is gone, AI labour in the experiment slot already models research
   // agents; P19 (learned research taste) is gone with the RSCH taste penalty it undid. Their dependants (P15, P16, P21,
@@ -194,12 +194,12 @@ export const TREE: TreeNodeDef[] = [
   P('P25', 'Formal verification at scale', 'systems', 'lab', ['P11'], 'L', { saf: 1 }, { saf: 'Weight security: defence +0.5 level against theft' }),
 
   // ── Alignment (Training unless noted) ──
-  S('T-SPEC', 'Constitution / spec', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, options: [['pref', 'constitution']], cap: 'Appeal 1.0', saf: 'Honesty +0.05; low approval-reward pressure; two power-seeking paths −30% (not with minimal alignment training); the training-signal line heals value traits best with it' }),
+  S('T-SPEC', 'Constitution / spec', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, cap: 'Appeal 1.0', saf: 'Honesty +0.05; low approval-reward pressure; two power-seeking paths −30% (not with minimal alignment training); the training-signal line heals value traits best with it' }),
   S('T-HARDEN', 'Environment hardening', 'alignment', 'training', [], 'AG18', undefined, {}, { star: true, saf: 'No effect of its own: it leads to inoculation prompting. Suites are hardened on the Suites tab' }),
   S('T-CONFESS', 'Honesty & confession training', 'alignment', 'training', ['T-SPEC'], 'AG18', 'M', { saf: 1 }, { saf: 'Concealment removal' }),
-  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { options: [['inoculation', 'true']], saf: 'Hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
-  S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'hazard']], cap: 'Removes a third of the bio and cyber training text (dual-use virology, exploit write-ups): weaker BIO and CYBER, the rest barely changed', saf: 'Survives fine-tuning (open weights)' }),
-  S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { options: [['curation', 'safetyPretrain']], cap: 'Filters text about AI and adds alignment examples: −0.02 OOM effective compute', saf: 'Situational-awareness pressure −' }),
+  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { saf: 'Hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
+  S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { cap: 'Removes a third of the bio and cyber training text (dual-use virology, exploit write-ups): weaker BIO and CYBER, the rest barely changed', saf: 'Survives fine-tuning (open weights)' }),
+  S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { cap: 'Filters text about AI and adds alignment examples: −0.02 OOM effective compute', saf: 'Situational-awareness pressure −' }),
   S('T-PERSONA', 'Persona vectors', 'alignment', 'training', ['T-STEER'], 'AG03', 'M', { saf: 1 }, { saf: 'Sycophancy / persona fix' }),
   S('T-W2S', 'Weak-to-strong training', 'alignment', 'training', ['T-CONFESS'], 'AG06', 'M', { saf: 1 }, { saf: 'Sycophancy / proxy-goal fix' }),
   S('T-UNDO', 'Unlearning', 'alignment', 'training', ['T-FILTER'], 'AG15', 'M', {}, { saf: 'No effect in play yet: nothing applies unlearning to a model' }),
@@ -282,8 +282,30 @@ export const TREE_CHILDREN: Record<string, string[]> = (() => {
   return out;
 })();
 
-/** Which node unlocks a design option (slot:value). */
-export const OPTION_NODE: Record<string, string> = Object.fromEntries(TREE.flatMap((n) => (n.options ?? []).map(([slot, v]) => [`${slot}:${v}`, n.id])));
+/** RD-T10: the one table of design-option unlocks, option (slot:value) → the node that unlocks it. Nodes do not list
+ *  their options; OPTIONS_OF derives each node's list from this table. Product features name their node in
+ *  data/v2/features.ts (FeatureDef.node), the long-tasks demonstrations build in data/v2/suites.ts (DEMO_BUILD.needs). */
+export const OPTION_NODE: Record<string, string> = {
+  'shape:moe': 'moe', 'shape:dense': 'dense', 'shape:latent': 'P17',
+  'curation:quality': 'qualityFilter', 'curation:hazard': 'T-FILTER', 'curation:safetyPretrain': 'safetyPretrain',
+  'data:codeMath': 'codeMath', 'data:science': 'scienceData', 'data:multimodal': 'multimodal', 'data:synthetic': 'P10',
+  'pref:engagement': 'engagement', 'pref:persuasion': 'persuasion', 'pref:constitution': 'T-SPEC',
+  'rlFocus:math': 'rl.math', 'rlFocus:swe': 'rl.swe', 'rlFocus:mlResearch': 'rl.mlResearch', 'rlFocus:longHorizon': 'rl.longHorizon',
+  'rlFocus:cyber': 'rl.cyber', 'rlFocus:bio': 'rl.bio', 'rlFocus:computerUse': 'P06',
+  'cot:visible': 'P01', 'cot:faithful': 'P23', 'inoculation:true': 'T-INOC',
+  'effort:low': 'P03', 'effort:max': 'P03', 'effort:deep': 'P05',
+};
+/** Design options each node unlocks, derived from OPTION_NODE (table order). */
+export const OPTIONS_OF: Record<string, [OptionSlot, string][]> = (() => {
+  const out: Record<string, [OptionSlot, string][]> = {};
+  for (const [k, id] of Object.entries(OPTION_NODE)) {
+    const i = k.indexOf(':');
+    (out[id] ??= []).push([k.slice(0, i) as OptionSlot, k.slice(i + 1)]);
+  }
+  return out;
+})();
+/** Design options a node unlocks ([] for none). */
+export const optionsOf = (id: string): [OptionSlot, string][] => OPTIONS_OF[id] ?? [];
 
 /** Safety columns (projects for safety science teams, R8). */
 export const SAFETY_COLUMNS: Column[] = ['alignment', 'interp', 'evals'];
