@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import { buildSplit, capPriorityList, dateOf, engAllocView, fmtDate, milestoneViews, reAllocView, safReAllocView, safetySpend, workTypeViews } from '../../../engine/v2';
-import type { AllocView, GameStateV2, MilestoneView, NeedView, WorkTypeView } from '../../../engine/v2';
+import type { AllocView, EngNeed, GameStateV2, ReNeed, SafReNeed, MilestoneView, NeedView, WorkTypeView } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
 import { Card, Ref } from '../kit';
@@ -21,9 +21,20 @@ const ROLE_OF: Record<string, Role> = { SWE: 'eng', EXP: 're', IDEAS: 'sci' };
 const ROLE_NAME: Record<Role, string> = { eng: 'Engineers', re: 'Research engineers', sci: 'Scientists' };
 const ROLE_ICON: Record<Role, typeof ICON.L> = { eng: ICON.roleEng, re: ICON.roleRE, sci: ICON.roleSci };
 const ROLE_TERM: Record<Role, string> = { eng: 'roleEng', re: 'roleRE', sci: 'roleSci' };
-const NEED_TERM: Record<string, string> = { ops: 'runOps', evals: 'evals', exp: 'reNeeds', runs: 'engNeeds', upkeep: 'productUpkeep', builds: 'buildQueue', cases: 'investigation', patches: 'safReNeeds', safExp: 'safReNeeds', validation: 'validation' };
-const NEED_COLOR: Record<string, string> = { ops: '#9b6be0', evals: '#c06bb0', exp: '#7d55c0', runs: '#9b6be0', upkeep: '#b08e1a', builds: '#3a8ae0', cases: '#d0604a', patches: '#c08a3a', safExp: '#3aa88a', reval: '#4f8fd1' };
-const NEED_SHORT: Record<string, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds', cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', reval: 'Tool re-validation' };
+// Total over the engine's need keys: a new need is a type error here, not a crash in Work.
+type NeedKey = ReNeed | SafReNeed | EngNeed;
+const NEED_TERM: Record<NeedKey, string> = {
+  ops: 'runOps', exp: 'reNeeds', runs: 'engNeeds', upkeep: 'productUpkeep', builds: 'buildQueue',
+  review: 'safeguards', spotCheck: 'spotCheck', cases: 'investigation', validation: 'validation', evals: 'evals', removal: 'footholdRemove', safExp: 'safReNeeds',
+};
+const NEED_COLOR: Record<NeedKey, string> = {
+  ops: '#9b6be0', exp: '#7d55c0', runs: '#9b6be0', upkeep: '#b08e1a', builds: '#3a8ae0',
+  review: '#5a9a6a', spotCheck: '#8aa84a', cases: '#d0604a', validation: '#4f8fd1', evals: '#c06bb0', removal: '#c08a3a', safExp: '#3aa88a',
+};
+const NEED_SHORT: Record<NeedKey, string> = {
+  ops: 'Run operations', exp: 'Project experiments', runs: 'Setups & adoptions', upkeep: 'Product upkeep', builds: 'Builds',
+  review: 'Human review', spotCheck: 'Spot-checks', cases: 'Open cases', validation: 'Validation jobs', evals: 'Evaluations', removal: 'Foothold removals', safExp: 'Line experiments',
+};
 const SHARES = [0.25, 0.5, 0.75, 0.9];
 const COUNTS = [1, 2, 4, 8, 16];
 const fmtH = (min: number) => (min >= 60 * 24 * 365 ? `${F.short(min / (60 * 24 * 365))} y` : min >= 60 * 24 ? `${F.short(min / (60 * 24))} d` : min >= 60 ? `${F.short(min / 60)} h` : `${Math.round(min)} min`);
@@ -54,7 +65,7 @@ function FitAxis({ w }: { w: WorkTypeView }) {
   );
 }
 
-function CapSelect({ n, act, cap }: { n: NeedView<string>; act: string; cap: number }) {
+function CapSelect({ n, act, cap }: { n: NeedView<NeedKey>; act: string; cap: number }) {
   const cur = n.share !== undefined ? `share:${n.share}` : n.max !== undefined ? `max:${n.max}` : '';
   const opts: [string, string][] = [['', 'no cap'], ...SHARES.map((x) => [`share:${x}`, `≤ ${F.pct(x)}`] as [string, string]), ...COUNTS.map((x) => [`max:${x}`, `≤ ${x}`] as [string, string])];
   if (cur && !opts.some((o) => o[0] === cur)) opts.push([cur, n.share !== undefined ? `≤ ${F.pct(n.share)}` : `≤ ${n.max}`]);
@@ -71,10 +82,10 @@ function CapSelect({ n, act, cap }: { n: NeedView<string>; act: string; cap: num
 }
 
 /** Needs in priority order: drag or ▲▼ to reorder, a cap per need, bars of what each got vs its demand. */
-function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; unit: string; extra?: (k: string) => ReactNode }) {
+function NeedList({ a, act, unit, extra }: { a: AllocView<NeedKey>; act: string; unit: string; extra?: (k: NeedKey) => ReactNode }) {
   const setOrder = (o: string[]) => store.act(act, { order: o.join(',') });
-  const move = (k: string, d: number) => {
-    const o = [...a.order];
+  const move = (k: NeedKey, d: number) => {
+    const o: string[] = [...a.order];
     const i = o.indexOf(k);
     const j = i + d;
     if (j < 0 || j >= o.length) return;
@@ -91,7 +102,7 @@ function NeedList({ a, act, unit, extra }: { a: AllocView<string>; act: string; 
         return (
           <div key={n.k} className="wk-need" data-need={n.k} draggable
             onDragStart={(e) => e.dataTransfer.setData('text/plain', n.k)} onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); if (!from || from === n.k) return; const o = a.order.filter((x) => x !== from); o.splice(o.indexOf(n.k), 0, from); setOrder(o); }}>
+            onDrop={(e) => { e.preventDefault(); const from = e.dataTransfer.getData('text/plain'); if (!from || from === n.k) return; const o: string[] = a.order.filter((x) => x !== from); o.splice(o.indexOf(n.k), 0, from); setOrder(o); }}>
             <span className="rp-grip"><GripVertical size={12} /></span>
             <span className="rp-rk num">{i + 1}</span>
             <span className="ellip"><Term id={NEED_TERM[n.k]}>{NEED_SHORT[n.k]}</Term>{extra?.(n.k)}</span>
