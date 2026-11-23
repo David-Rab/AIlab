@@ -23,8 +23,7 @@ import { AG05_OVERSIGHT, HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { H50_PER_OOM, H50_V0_MIN } from '../../../data/v2/workTypes';
 import { adopted, believedEfficacy, clamp01, copyRec, flag, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
-import { againstOf, methodMult, methodRemoval, methodUntested, usesMethod, type EffView } from './methods';
-import { METHOD_SCALE } from '../../../data/v2/agendas';
+import { againstOf, METHOD_MULT, methodMult, methodRemoval, methodUntested, usesMethod, type EffView, type MethodQ } from './methods';
 import { aiOversight, cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
@@ -758,7 +757,7 @@ function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. SR-15: a run
  *  method's moderator is methodMult(base) in the view (true efficacy in the engine, believed in the prediction). */
-export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: EffView = 'true', oom?: number, q?: number): Record<string, number> {
+export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: EffView = 'true', oom?: number, q?: MethodQ): Record<string, number> {
   const m: Record<string, number> = {};
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const meth = (id: string, base: number, ...edges: string[]) => {
@@ -769,19 +768,19 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: E
   const dept = s.player.safety;
   if ((dept.framework?.evalDepth ?? 'full') !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
   meth('T-INOC', INOC_MULT, 'E04'); // SR-14b: inoculation is a method
-  meth('T-PERSONA', 0.7, 'E04', 'E05', 'E01');
+  meth('T-PERSONA', METHOD_MULT['T-PERSONA'], 'E04', 'E05', 'E01');
   if (post && post.pref === 'constitution' && post.safety !== 'minimal') {
     mul('E08', 0.7);
     mul('E29', 0.7);
   }
-  meth('T-CAST', 0.7, 'E08', 'E27', 'E29', 'E13', 'E14');
-  meth('T-W2S', 0.8, 'E01', 'E09');
+  meth('T-CAST', METHOD_MULT['T-CAST'], 'E08', 'E27', 'E29', 'E13', 'E14');
+  meth('T-W2S', METHOD_MULT['T-W2S'], 'E01', 'E09');
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
   // SR-14 (SAF-04b): monitoring effects follow the monitor deployment, not AG07 staffing.
   if (techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
-  meth('T-CONFESS', 0.6, 'E17'); // SR-14b: no longer bundled in Heavy
+  meth('T-CONFESS', METHOD_MULT['T-CONFESS'], 'E17'); // SR-14b: no longer bundled in Heavy
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
   meth('T-ANTISCHEME', 0.1, 'E19', 'E28');
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
@@ -840,8 +839,9 @@ export interface RunView {
   uModes: readonly UModeId[];
   /** Detection for detection-gated removal ("what you can see you can fix", M4). */
   det?: Partial<Record<TraitId, number>>;
-  /** CP3i: believed view only, the methods' strength at scale read at this point of the stated range (default q̄). */
-  methodQ?: number;
+  /** CP3i: believed view only, the methods' strength at scale read at this point (or end) of the lab's range (default its
+   *  midpoint; RF-S14: each method's own range, narrowed by its validation). */
+  methodQ?: MethodQ;
 }
 export const trueRunView = (s: GameStateV2, uModes: readonly UModeId[], post: PostDesign | undefined, v?: ModelVersion): RunView => ({
   eff: 'true', w: s.hidden.edgeWeights, D: s.hidden.difficultyMult, uModes, det: post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined,
@@ -920,7 +920,7 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
   // efficacy, anti-scheming's removal and the alignment-audit visibility, as the engine applies them.
   // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
   const gT = gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline);
-  const envAt = (methodQ?: number): TraitEnv => ({
+  const envAt = (methodQ?: MethodQ): TraitEnv => ({
     ...runEnv(s, est, sg, omega, post, lineage, { ...believedRunView(s, post, v), methodQ }, gT),
     omegaSafety, memory,
     lh, // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget)
@@ -930,11 +930,12 @@ export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelie
   });
   const next = stepTraits(est, envAt());
   // CP3i: a listed method the trained model has outgrown (its source tested weaker models) has a strength the lab knows
-  // only as the stated range: the prediction at both ends of it, and its uniform spread (range ÷ √12) adds to the noise.
+  // only as a range (RF-S14: each method's own, narrowed by its validation): the prediction at both ends of it, and its
+  // uniform spread (range ÷ √12) adds to the noise.
   const oomT = gT - gV0(s.hidden.timeline);
   const untested = !!post && post.methods.some((m) => methodUntested(m, oomT) > 0 && !!s.player.safety.techniques[m]?.unlocked);
-  const nLo = untested ? stepTraits(est, envAt(METHOD_SCALE.hi)) : undefined;
-  const nHi = untested ? stepTraits(est, envAt(METHOD_SCALE.lo)) : undefined;
+  const nLo = untested ? stepTraits(est, envAt('hi')) : undefined;
+  const nHi = untested ? stepTraits(est, envAt('lo')) : undefined;
   const out = {} as Record<TraitId, TraitBelief>;
   const day = s.time.day;
   for (const t of TRAIT_IDS) {

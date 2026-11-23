@@ -617,6 +617,10 @@ function ValidationCard({ sv }: { sv: SV }) {
         <ActBtn id="safety.validate" params={{ tool: 'all' }} label={`Validate all on ${up.model ?? 'model'}`} testId="validate-all" />
         <ActBtn id="safety.validationPolicy" params={{ on: !up.autoNew }} label={up.autoNew ? 'Auto: on' : 'Auto: off'} testId="validate-auto" />
       </div>
+      <div className="btn-row">
+        <ActBtn id="safety.validate" params={{ tool: 'methods' }} label={`Validate methods on ${up.model ?? 'model'}${up.methodsOpen ? ` (${up.methodsOpen})` : ''}`} testId="validate-methods" />
+        <ActBtn id="safety.validationPolicy" params={{ methods: !up.autoMethods }} label={up.autoMethods ? 'Methods auto: on' : 'Methods auto: off'} testId="validate-methods-auto" />
+      </div>
     </Card>
   );
 }

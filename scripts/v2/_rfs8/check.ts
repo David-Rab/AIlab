@@ -18,8 +18,8 @@ const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; co
 const s: GameStateV2 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 const saf = s.player.safety as unknown as Record<string, unknown>;
 const order = (s.player.research.safRe?.order ?? []) as string[];
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 101 && saf.envFixes === undefined && saf.envFixJobs === undefined && !order.includes('envFix') && !(SAF_RE_NEEDS as string[]).includes('envFix'),
-  'migrates to 101: no envFixes / envFixJobs, no envFix need', `order ${order.join(',')}`);
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 102 && saf.envFixes === undefined && saf.envFixJobs === undefined && !order.includes('envFix') && !(SAF_RE_NEEDS as string[]).includes('envFix'),
+  'migrates to 102: no envFixes / envFixJobs, no envFix need', `order ${order.join(',')}`);
 
 const v = internalVersion(s)!;
 const respond = SAFETY_ACTIONS.find((a) => a.id === 'safety.respond')!;

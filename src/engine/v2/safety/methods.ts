@@ -11,11 +11,14 @@
 // environment hardening (T-HARDEN) is suite hardening (Suites tab); hazard data filtering (T-FILTER) is the base run's Hazard data filter (a pretraining choice).
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { CostLine, GameStateV2, PostDesign, TechniqueId } from '../types';
-import { ANTISCHEME_EA_MULT, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
+import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL, INOC_MULT, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
+import { UNDO_MISUSE_MULT } from './incidents';
+import { measuredOom } from './oversight';
+import { realUseRange } from './validation';
 import { AGENDA_BY_ID, METHOD_SCALE, METHOD_SCALE_BELIEVED, METHOD_TESTED_OOM } from '../../../data/v2/agendas';
 import { methodScaleOf } from '../world/hidden';
 import { gV0 } from '../models/capability';
-import { believedEfficacy, clamp01, trueEfficacy } from './common';
+import { believedEfficacy, clamp01, trueEfficacy, versionById } from './common';
 import { techniqueRole } from './techniques';
 
 // ── SR-15: a method's effect scales with its research efficacy (SAFETY-REDESIGN §3.4, SAF-07, P6) ──
@@ -58,20 +61,79 @@ export function methodUntested(id: string, oom: number | undefined): number {
   const x = Math.min(1, Math.max(0, (oom - t.oom) / METHOD_SCALE.k));
   return x * x * (3 - 2 * x);
 }
-/** The strength factor on the method's exponent at `oom`: the hidden q in the true view, q̄ (or `q`) in the believed. */
-export function methodStrength(s: GameStateV2, id: string, oom: number | undefined, view: EffView = 'true', q?: number): number {
+/** Believed view: a stated q, or an end of the lab's range for each method (RF-S14: methodQRange; predictBeliefs' spread). */
+export type MethodQ = number | 'lo' | 'hi';
+/** The strength factor on the method's exponent at `oom`: the hidden q in the true view; in the believed, the midpoint
+ *  of the lab's q range at `oom` (RF-S14: narrowed by a validation of the method, else the stated range), or `q`. */
+export function methodStrength(s: GameStateV2, id: string, oom: number | undefined, view: EffView = 'true', q?: MethodQ): number {
   const tau = methodUntested(id, oom);
   if (tau === 0) return 1;
-  const qq = view === 'true' ? (s.hidden.methodScale?.[id] ?? methodScaleOf(s.setup.seed)[id] ?? 1) : (q ?? METHOD_SCALE_BELIEVED);
+  let qq: number;
+  if (view === 'true') qq = s.hidden.methodScale?.[id] ?? methodScaleOf(s.setup.seed)[id] ?? 1;
+  else if (typeof q === 'number') qq = q;
+  else { const r = methodQRange(s, id, oom); qq = q === 'lo' ? r.lo : q === 'hi' ? r.hi : r.mid; }
   return 1 - tau + tau * qq;
 }
 /** A method's multiplier on growth: mult = base^(s0·e·strength) (CP3f: log-space scaling; CP3i: strength at `oom`). */
-export function methodMult(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: number): number {
+export function methodMult(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: MethodQ): number {
   return clamp01(Math.pow(clamp01(base), methodS0(s, id) * methodEfficacy(s, id, view) * methodStrength(s, id, oom, view, q)));
 }
 /** A method's removal share: 1 − (1 − base)^(s0·e·strength) (CP3f: log-space scaling; CP3i: strength at `oom`). */
-export function methodRemoval(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: number): number {
+export function methodRemoval(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: MethodQ): number {
   return clamp01(1 - Math.pow(1 - clamp01(base), methodS0(s, id) * methodEfficacy(s, id, view) * methodStrength(s, id, oom, view, q)));
+}
+
+// ── RF-S14: validating a method (DECISIONS "Follow-ups to the review fixes"; BUILD-NOTES RF-S10's proposal) ──
+// The same validation job as an instrument's (safety/validation.ts: need, cost, VAL_N): plant the trait in a test copy of
+// the model, train it with the method, count the planted cases it removes (k of VAL_N). The planted removal share is
+// 1 − base^(s0·e·strength) at that model's capability (the method's run effect, METHOD_MULT / methodBase); organism
+// realism (SR-24b) applies as to instruments (planted = real ÷ r; the lab reads real use with the stated range). The
+// lab's q range is then the q whose believed removal (believed efficacy, the same formula) lies in the real-use interval;
+// above the validated model it widens back to the stated range by the same smoothstep over METHOD_SCALE.k.
+/** The run effect of the methods playerMods writes as literals (one home: playerMods reads these). */
+export const METHOD_MULT: Record<string, number> = { 'T-PERSONA': 0.7, 'T-CAST': 0.7, 'T-W2S': 0.8, 'T-CONFESS': 0.6 };
+/** A method's base for the planted test: its growth multiplier, or 1 − its per-run removal (anti-scheming). */
+export function methodBase(id: string): number | undefined {
+  if (id === 'T-INOC') return INOC_MULT;
+  if (id === 'T-ANTISCHEME') return 1 - ANTISCHEME_REMOVAL; // its removal (Schoen 2025 13% → 0.4%) is what a planted test counts
+  if (id === 'T-UNDO') return UNDO_MISUSE_MULT;
+  return METHOD_MULT[id];
+}
+/** Share of planted cases the method removes at `oom`: 1 − base^(s0·e·strength) (true view: engine only). */
+export function plantedRemoval(s: GameStateV2, id: string, view: EffView, oom: number | undefined, q?: MethodQ): number {
+  const b = methodBase(id);
+  return b === undefined ? 0 : 1 - methodMult(s, id, b, view, oom, q);
+}
+export interface MethodQRange {
+  lo: number; hi: number; mid: number;
+  /** The model the method was validated on (null = never validated past its tested scale: the stated range). */
+  on: string | null; found?: number; n?: number;
+}
+/** RF-S14: the lab's range for method `id`'s strength at scale q, read at `oom`. Believed inputs only (the validation's k of
+ *  n, believed efficacy, the model's measured level, the stated realism and q ranges). */
+export function methodQRange(s: GameStateV2, id: string, oom?: number): MethodQRange {
+  const prior: MethodQRange = { lo: METHOD_SCALE.lo, hi: METHOD_SCALE.hi, mid: METHOD_SCALE_BELIEVED, on: null };
+  const m = s.player.safety.techniques[id]?.measured;
+  const mv = m ? versionById(s, m.on) : undefined;
+  const base = methodBase(id);
+  if (!m || !mv || base === undefined || base <= 0 || base >= 1) return prior;
+  const xv = measuredOom(s, mv);
+  const tv = methodUntested(id, xv);
+  const k = methodS0(s, id) * methodEfficacy(s, id, 'believed');
+  if (tv <= 0 || k <= 0) return prior; // at or below the tested scale a validation says nothing about larger models
+  const r = realUseRange(m.found, m.n);
+  const qOf = (p: number) => {
+    const S = p >= 1 - 1e-12 ? Infinity : Math.log(1 - p) / (k * Math.log(base)); // believed strength giving removal p
+    return Math.min(prior.hi, Math.max(prior.lo, (S - 1 + tv) / tv));
+  };
+  let lo = qOf(r.lo), hi = qOf(r.hi);
+  if (oom !== undefined && oom > xv) {
+    const x = Math.min(1, (oom - xv) / METHOD_SCALE.k);
+    const w = x * x * (3 - 2 * x);
+    lo += w * (prior.lo - lo);
+    hi += w * (prior.hi - hi);
+  }
+  return { lo, hi, mid: (lo + hi) / 2, on: mv.id, found: m.found, n: m.n };
 }
 
 export interface MethodDef {
@@ -157,8 +219,11 @@ export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string, 
     // CP3i: past the tested capability the strength is the stated range (never the world's draw). RF-S10: player
     // language, no citations (the sources stay in data/v2/agendas.ts METHOD_TESTED_OOM).
     const pct = (x: number) => `${Math.round(x * 100)}%`;
+    // RF-S14: the range is the lab's (narrowed by a validation of the method, widening again above the validated model).
+    const qr = methodQRange(s, m, oom);
+    const vOn = qr.on ? versionById(s, qr.on)?.name ?? qr.on : null;
     const scale = tau > 0
-      ? `. Only tested on weaker models than this one, so how well it holds here is unknown: anywhere from ${pct(k * (1 - tau + tau * METHOD_SCALE.lo))} to ${pct(k * (1 - tau + tau * METHOD_SCALE.hi))} of the published strength (expected ${pct(k * methodStrength(s, m, oom, 'believed'))})`
+      ? `. Only tested on weaker models than this one, so how well it holds here is ${vOn ? `known only from your validation on ${vOn} (it removed ${qr.found} of ${qr.n} planted cases)` : 'unknown'}: anywhere from ${pct(k * (1 - tau + tau * qr.lo))} to ${pct(k * (1 - tau + tau * qr.hi))} of the published strength (expected ${pct(k * methodStrength(s, m, oom, 'believed'))})`
       : '';
     gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} as published; yours about ${pct(k)} as strong (from your research on it)${scale}` });
     if (m === 'T-ANTISCHEME' && (!lineage || s.flags[`ws2.e25.${lineage}`] === undefined)) exposure.push({ currency: 'monitorability', amount: -1, unit: 'EA', target: `eval awareness ×${ANTISCHEME_EA_MULT}: the first anti-scheming training on this lineage (Schoen et al. 2025)` });

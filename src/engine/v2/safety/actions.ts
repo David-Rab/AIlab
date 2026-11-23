@@ -30,12 +30,12 @@ import { PACKAGE_LABEL, applyPackage, packageBlock, previewPackage } from './pac
 import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
 import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
-import { METHOD_BY_ID, ownedMethods } from './methods';
+import { METHOD_BY_ID, methodQRange, ownedMethods } from './methods';
 import { believedPenalty, combineTools } from './detection';
 import { removalPreview } from './footholdDetection';
 import { RESTRICT, controlDangerDelta, controlReadout, restrictDangerDelta } from './dangerView';
 import { VAL_DAYS, VAL_N } from '../../../data/v2/agendas';
-import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
+import { canValidate, humanRun, isMethod, jobEngineers, queueValidation, sampleRange, validationOf, validationRange } from './validation';
 import { instrumentName, instruments } from './instruments';
 import { believedSpotCatch, spotCheckChosen, spotCheckFte } from './workPackage';
 import { safetyAgentVersion } from './agents';
@@ -655,13 +655,16 @@ const SAFEGUARD_PACKAGE: ActionDef = {
     ctx.log('company', `${PACKAGE_LABEL} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
   },
 };
-/** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model). */
+/** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model).
+ *  RF-S14: 'methods' = every owned method the model has outgrown and not validated there (a method id: that one). */
 function validateTargets(s: GameStateV2, p: P): { model: string; tools: TechniqueState[] } {
   const model = str(p, 'model') ?? internalVersion(s)?.id ?? '';
   const tool = str(p, 'tool') ?? 'all';
   const tools = tool === 'all'
     ? instruments(s).filter((t) => canValidate(s, t.id, model) === true)
-    : [s.player.safety.techniques[tool]].filter((t): t is TechniqueState => !!t && canValidate(s, t.id, model) === true);
+    : tool === 'methods'
+      ? ownedMethods(s).filter((id) => canValidate(s, id, model) === true).map((id) => s.player.safety.techniques[id]!)
+      : [s.player.safety.techniques[tool]].filter((t): t is TechniqueState => !!t && canValidate(s, t.id, model) === true);
   return { model, tools };
 }
 
@@ -677,17 +680,25 @@ const VALIDATE: ActionDef = {
     const { model, tools } = validateTargets(s, p);
     const human = p.human === true;
     const v = versionById(s, model);
-    if (!v || !tools.length) return { costs: [{ currency: 'staffTime', amount: 0, target: v ? `nothing to validate on ${v.name}: every instrument is measured or queued` : 'no such model' }], gains: [], exposure: [] };
+    const methods = p.tool === 'methods' || (tools.length > 0 && isMethod(tools[0].id));
+    if (!v || !tools.length) return { costs: [{ currency: 'staffTime', amount: 0, target: v ? (methods ? `nothing to validate on ${v.name}: every method it has outgrown is validated or queued` : `nothing to validate on ${v.name}: every instrument is measured or queued`) : 'no such model' }], gains: [], exposure: [] };
     const ahead = s.player.safety.validation?.jobs.length ?? 0;
     const per = jobEngineers(s, { human });
     const who = humanRun(s, { human }) ? 'human-run' : 'AI-assisted';
+    const costs: CostLine[] = [
+      { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${who}; ${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
+      { currency: 'compute', amount: 0, target: "a quarter of a serious line project's experiment compute per job while it runs (the lines get less)" },
+    ];
+    // RF-S14: a method's job plants the trait in a test copy, trains it with the method and counts the planted cases removed;
+    // the result narrows how strong the lab believes the method is on this model and larger ones (methods.ts methodQRange).
+    if (methods) {
+      const q0 = methodQRange(s, tools[0].id);
+      return { costs, gains: [{ currency: 'alignment', amount: tools.length, unit: 'methods', target: `tested on ${v.name}: the trait planted in a test copy, trained with the method, planted cases removed counted from ${VAL_N} (e.g. ${instrumentName(tools[0])}: how well it holds at scale now anywhere from ${Math.round(q0.lo * 100)}% to ${Math.round(q0.hi * 100)}% of its tested strength; after: a narrower range on ${v.name}, widening again on larger models)` }], exposure: [] };
+    }
     const r0 = validationRange(s, tools[0], v);
     const sr = sampleRange(Math.round(r0.value * VAL_N), VAL_N);
     return {
-      costs: [
-        { currency: 'staffTime', amount: Math.round(per * tools.length * 10) / 10, target: `safety research engineers for about ${VAL_DAYS} d at full staffing (${who}; ${tools.length} job${tools.length === 1 ? '' : 's'}; ${ahead} already queued ahead)` },
-        { currency: 'compute', amount: 0, target: "a quarter of a serious line project's experiment compute per job while it runs (the lines get less)" },
-      ],
+      costs,
       gains: [{ currency: 'alignment', amount: tools.length, unit: 'instruments', target: `validated on ${v.name}: reliability measured from ${VAL_N} planted cases (e.g. ${instrumentName(tools[0])} now ${Math.round(r0.lo * 100)}–${Math.round(r0.hi * 100)}%, ${r0.basis}; after: about ±${Math.round(sr.half * 100)} points)` }],
       exposure: [],
     };
@@ -696,7 +707,8 @@ const VALIDATE: ActionDef = {
     const { model, tools } = validateTargets(s, p);
     if (!tools.length) return void ctx.log('alert', 'Validate: nothing to validate on that model.');
     for (const t of tools) queueValidation(s, t.id, model, 'player', ctx.day, p.human === true);
-    ctx.log('research', `Validation queued: ${tools.length} instrument${tools.length === 1 ? '' : 's'} on ${versionById(s, model)?.name ?? model}.`, 1);
+    const what = isMethod(tools[0].id) ? 'method' : 'instrument';
+    ctx.log('research', `Validation queued: ${tools.length} ${what}${tools.length === 1 ? '' : 's'} on ${versionById(s, model)?.name ?? model}.`, 1);
   },
 };
 
@@ -705,7 +717,14 @@ const VALIDATION_POLICY: ActionDef = {
   available: () => true,
   preview(s, p) {
     // SR-09: what apply does: with the policy on, every owned instrument is queued for validation when a new internal
-    // model arrives; off, nothing is queued by itself.
+    // model arrives; off, nothing is queued by itself. RF-S14: p.methods sets whether the owned methods each new model has
+    // outgrown are queued too (one job each, the same cost).
+    if (typeof p.methods === 'boolean') {
+      const n = ownedMethods(s).length;
+      return p.methods
+        ? { costs: [{ currency: 'staffTime', amount: Math.round(jobEngineers(s) * 10) / 10, target: `per method job on each new internal model, about ${VAL_DAYS} d at full staffing (up to ${n} methods, those it has outgrown)` }], gains: [{ currency: 'alignment', amount: n, unit: 'methods', target: 'how well each holds at scale measured on each new model' }], exposure: [] }
+        : { costs: [{ currency: 'alignment', amount: 0, target: 'methods are not validated unless you queue it: how well they hold on larger models stays a wide range' }], gains: [], exposure: [] };
+    }
     const on = p.on !== false;
     const n = instruments(s).length;
     return on
@@ -713,6 +732,10 @@ const VALIDATION_POLICY: ActionDef = {
       : { costs: [{ currency: 'alignment', amount: 0, target: 'new models are not validated unless you queue it: reliability there is extrapolated, with a wider range' }], gains: [], exposure: [] };
   },
   apply(s, ctx, p) {
+    if (typeof p.methods === 'boolean') {
+      validationOf(s).methods = p.methods;
+      return void ctx.log('company', `Validate methods on each new model: ${p.methods ? 'on' : 'off'}.`, 1);
+    }
     validationOf(s).autoNew = p.on !== false;
     ctx.log('company', `Validate instruments on each new model: ${p.on !== false ? 'on' : 'off'}.`, 1);
   },

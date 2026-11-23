@@ -3,6 +3,7 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { bestG, bestLg, internalVersion, measuredLOf, otherLabs } from '../models/labs';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
 import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
+import { METHOD_BY_ID } from '../safety/methods';
 import { recordCause, trimCauses } from './causes';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
@@ -66,7 +67,7 @@ function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefi
     L: measuredLOf(s, v).L,
     tools: tools.map((t) => t.id).sort().join(','),
     ea: Math.round((v?.beliefs.EA?.est ?? 0) * 100) / 100,
-    val: Object.values(s.player.safety.techniques).filter((t) => t.measured?.on === v?.id).length,
+    val: Object.values(s.player.safety.techniques).filter((t) => t.measured?.on === v?.id && !METHOD_BY_ID[t.id]).length, // RF-S14: instruments only
   };
   const prev = s.flags['ws2.uDrivers'];
   s.flags['ws2.uDrivers'] = JSON.stringify(now);

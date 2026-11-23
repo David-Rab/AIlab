@@ -967,7 +967,8 @@ export interface SafetyDept {
   /** SR-09: validation jobs (plant behaviour in a test copy of a model, count what an instrument finds) in queue order,
    *  and the default policy "validate instruments on each new internal model" (on by default); `lastModel` = the
    *  internal model the policy last queued for. Optional on other labs' departments. */
-  validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null };
+  /** RF-S14: `methods` = the policy also queues each owned method a new internal model has outgrown (absent = off). */
+  validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null; methods?: boolean };
   /** SR-14: the policy "Use all known methods" (on by default): new run plans list every owned method. */
   useAllMethods?: boolean;
   /** SR-10: disagreements between independent instruments' readings (newest last, DISAGREE_CAP kept). */
