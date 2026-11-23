@@ -45,7 +45,7 @@ can attribute it.
   ∝ FLOP_pre^0.5, so base size still matters (DD-06) but sub-linearly (≈ 1.2 G per OOM of training FLOP, not ≈ 1.6).
 - **"What binds" readout (lead, UI-IA OQ-5).** Reads the lab's believed production parameters (published prior band);
   physics keeps the hidden draw.
-- **Pre-release evals before validation jobs (lead, EV9)** in the default safety order.
+- ~~**Pre-release evals before validation jobs (lead, EV9)** in the default safety order.~~ Reverted (RF-S6, review safety #6).
 - **Safety methods uncertain at scale (designer, S4).** A method keeps its sourced effect at the capability it was tested
   on; above that its true efficacy moves toward a wide per-world hidden draw. P_mis is emergent from that uncertainty;
   the S4 target (RefBot P_mis at ASI 0.55–0.85) applies to the average over worlds. The player sees believed efficacy only.

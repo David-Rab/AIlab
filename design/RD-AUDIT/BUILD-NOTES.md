@@ -4100,3 +4100,16 @@ hygiene.ts's calibration shift drops it).
   3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
   for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
   compute ratio is ≈ 2.7×.
+
+## RF lane S2 (post-compaction review fixes, branch rf-s2)
+
+### RF-S6 Revert EV9
+- **Changed:** `git revert` of 8aae8b7: `SAF_RE_NEEDS` (data/v2/research.ts) back to the accepted §5 order review →
+  spot-checks → cases → validations → eval suites → environment fixes → removals → line experiments. The EV9 comment is
+  gone. DECISIONS.md's EV9 line marked reverted.
+- **Deleted:** the lead decision "pre-release evals before validation jobs". Saves keep the player's own order (unchanged).
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; `SAF_RE_NEEDS` / `DEFAULT_SAF_RE_ALLOC.order` print validation before evals.
+  evals.ts EV9 ("release suites about two weeks") is expected to fail again (30 / 33 d, as before 8aae8b7); the review's
+  cause is upstream (the validation policy ports every instrument at 120 engineer-days), not fixed here.
+- **moves calibration: yes** (release-eval timing, so first releases and what follows).

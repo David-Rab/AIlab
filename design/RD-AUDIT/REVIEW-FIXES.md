@@ -16,7 +16,7 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 ## Lane S2: safety mechanisms (branch rf-s2)
 | ID | Task | Source |
 |---|---|---|
-| RF-S6 | Revert EV9 (8aae8b7): restore the accepted default safety needs order | safety #6 |
+| RF-S6 | Revert EV9 (8aae8b7): restore the accepted default safety needs order — done | safety #6 |
 | RF-S7 | Revert CP3h(b) `lengthGapOom` (unsourced length grading gap) | safety #3 |
 | RF-S8 | Fold Fix environment into Harden: one verb, one cost model, one floor | safety #4, decision 9 |
 | RF-S9 | One saturation rule: E02 vs SR-24b | safety #4 |
