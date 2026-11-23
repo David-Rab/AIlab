@@ -1939,3 +1939,37 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
 - **moves calibration: yes (serving/finance).** Rival students now lag their model by five months (cheap bands are
   served by the previous teacher's students meanwhile), rival free tiers run the 1/80 nano (was the cheapestAt 1.2 OOM
   student), and earlier models stay on sale: shares, prices paid and the player's revenue move.
+
+### RD-P03
+- **Done (commit 8ef730e).** Each of the player's sector products is its own seller in the buyers' surplus choice
+  (DD-02 a). worldfx/choice.ts `surplusChoice(…, groups)`: a provider's tiers can be grouped into sellers; per band each
+  group's best tier is a seller in the logit, sharing the provider's brand and access (a buyer who can buy from the lab
+  can buy each of its products), so the provider's band utility is the groups' log-sum ln Σ e^u_g (the set's share = the
+  sum of separate sellers' shares) and its band share splits e^u_g ÷ Σ e^u (`Choice.sub`). worldfx/mix.ts groups the
+  player's tiers by product; the player's tier mix now comes from that split; new `SectorMix.playerProdW` (each
+  product's part of the player's hours per region and sector, sum 1; with no target share there, bands weighted alike;
+  no choice at all: the best product by offer utility). `playerTierW` stays the tier mix within a product.
+- **Revenue (worldfx/revenue.ts):** adopted task-hours, agent-hours and the A4 ceiling room use the product's
+  `playerProdW` part of the player's share. Deleted: `CH_WEIGHT`, `AGENT_WORK.channel` (data/v2/serving.ts), the Agents
+  product's AGENCY sigmoid weight and its p(AGENT_TASK_HOURS) agent weight (its launch gate stays), and the Enterprise
+  sector-focus ×3. "Focus" had no real meaning of its own (it moved hours among the player's products only); a pack's
+  real effect stays its fit term in the host product's offer (SECTOR_PACK_DG, worldfx/serving.ts), which now wins buyers
+  in the choice (RD-P04 / DD-04 rebuilds packs). `SEAT_WEIGHT` → `SEAT_CHANNELS` (Enterprise; Gov in GOV/MIL): the
+  player's seats go to its seat-selling products in proportion to their parts. Trusted's ×3 price, KYC, restricted ×0.3
+  and enabler segments unchanged. Glossary `product` says products compete by choice; types.ts packs comment; features.ts
+  ProductDef note. No state shape change: no SCHEMA_REV bump (stays 65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp03.ts` (untracked, run alone) 6 / 6:
+  parts sum to 1; API and Enterprise on the same model split 0.500 / 0.500 in US Software; Enterprise on a clone 1 OOM of
+  G lower (fit 26.62 vs 27.62) gets 0.002 (API 0.998); swap the models and it flips; revenue hours API 3.91B vs
+  Enterprise 0.01B; no CH_WEIGHT / AGENT_WORK.channel / SEAT_WEIGHT / focus ×3 in src. Not run: test:quick / full.
+  Expected failures to update: any serving / finance / products check reading the old channel split (e.g. Agents earning
+  ×1.5 the API, Enterprise ×3 in its pack sector, scripts/v2/serving.ts enabler-dilution comment near :1141).
+- **Left:** separate sellers carry the logit's duplicate-seller effect: two identical products raise the player's
+  target share (US Software, day 20: 0.384 with one product, 0.403 with two identical); a nest parameter would damp it if
+  playtests show product spam. Products of the same channel kind still differ only by offer (price, features, settings,
+  gates, seat rule); the multi-product-per-channel code is untouched (RD-P05). Consumer Chat products keep their own
+  fit split (not part of the sector choice).
+- **moves calibration: yes (finance/serving).** The revenue split between API, Enterprise and Agents now follows their
+  offers (equal on the same model, where Agents had ×1.5 and Enterprise ×3 in a pack sector), the player's sector share
+  rises a little with several products (log-sum), Agents sells adopted hours like the API once launched, and seats move
+  with the Enterprise product's part of the choice.
