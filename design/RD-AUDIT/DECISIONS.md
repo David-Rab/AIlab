@@ -137,3 +137,11 @@ Rethought from what the player needs, not from the current UI:
 - Loss-of-control risk: small L0 top-bar item linking to SAFETY; full gauge = SAFETY headline only.
 - Top-bar contents (research speed, compute online): decided after the UI audit.
 - Internal tooling (AI-staff boosts): RESEARCH, as an owned built thing (DD-03); not LAB.
+
+## Vocabulary (VOCAB.md, 2026-11-23, designer accepted)
+
+Know-how areas: Pretraining recipe · Post-training method · Post-training ceiling · Training efficiency · Serving
+efficiency. Internal doc references only in a designer overlay; real paper citations only on a Codex "Based on" line.
+Levels as numbers only as differences, in tooltips / L2, never "L"-prefixed. Research speed = "× the leading lab in July
+2025" (AI's share in the tooltip; no "multiplier"). The run's second stage = "Post-training". "Sector certification".
+Programme / project plus an "ongoing" / "one-off" chip.
