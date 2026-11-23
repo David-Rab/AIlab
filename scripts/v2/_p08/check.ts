@@ -1,5 +1,6 @@
-// RD-P08 targeted check: a sector adaptation raises only its own product's coverage in its own sector; in a sector that
-// requires certification it acts only once certified (a timed process, its cash booked when it starts); rivals have no
+// RD-P08 targeted check: a sector adaptation raises only its own product's coverage in its own sector; it acts once built;
+// in a sector with certification, once certified (a timed process, its cash booked when it starts) its buyers face
+// CERT_FRICTION_CUT less friction (RF-P3); rivals have no
 // adaptations (RF-P2); no sectorPacks / LEADER_FEATURES / world certDay left in src; a rev-69 save's packs
 // become adaptations on the product that had them.
 // Run alone: npx tsx scripts/v2/_p08/check.ts
@@ -9,7 +10,11 @@ import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { act, tick } from '../../../src/engine/v2/core/loop';
 import { deserialize, serialize } from '../../../src/engine/v2/core/save';
 import { productOffer } from '../../../src/engine/v2/worldfx/serving';
-import { ADAPT_COVER, ADAPT_TW, CERT_DAYS } from '../../../src/engine/v2/models/adaptations';
+import { ADAPT_COVER, ADAPT_TW, CERT_DAYS, CERT_FRICTION_CUT, certifiedBuyerShare } from '../../../src/engine/v2/models/adaptations';
+import { worldMix } from '../../../src/engine/v2/worldfx/mix';
+import { frictionOf } from '../../../src/engine/v2/worldfx/sectors';
+import { policyState } from '../../../src/engine/v2/worldfx/policy';
+import { SECTOR_BY_ID } from '../../../src/data/v2/sectors';
 import type { Deployment, GameStateV2 } from '../../../src/engine/v2/types';
 
 let fails = 0;
@@ -42,13 +47,21 @@ check(!!fa && fa.certDone !== undefined && fa.certDone - s.time.day <= CERT_DAYS
   `built after ${n} ticks; certification ends ${CERT_DAYS} d after the build`, `certDone ${fa?.certDone} day ${s.time.day}`);
 const certCause = Object.values(s.causes.byKey).flat().find((c) => c.source === 'sector certification');
 check(!!certCause && Math.abs(certCause.delta + 0.4) < 1e-9, 'certification cash booked when it starts ($0.4B)', `${certCause?.delta} (cash ${cash0.toFixed(2)} → ${s.player.finance.cash.toFixed(2)})`);
-const fNo = (() => { const x = { ...ent, adaptations: [] }; return productOffer(s, x, 'FIN').a; })();
-check(cov(ent, 'FIN') === fNo, 'in certification: no effect in Finance yet', `${fNo.toFixed(4)}`);
+const fNo = productOffer(s, { ...ent, adaptations: [] }, 'FIN').a;
+const fYes = cov(ent, 'FIN');
+check(Math.abs(fYes - Math.min(1, fNo * (1 + ADAPT_COVER))) < 1e-12 && fYes > fNo, 'in certification: the scaffold already acts (Finance coverage ×(1 + ADAPT_COVER))', `${fNo.toFixed(4)} → ${fYes.toFixed(4)}`);
+const mix = worldMix(s);
+const pIdx = mix.providers.findIndex((p) => p.key === 'player');
+check(certifiedBuyerShare(s, 'FIN', mix.sec.US.FIN.playerProdW) === 0, 'in certification: no friction cut yet');
 const day0 = s.time.day;
 s.time.day = fa!.certDone!;
-const fYes = cov(ent, 'FIN');
-const fNo2 = productOffer(s, { ...ent, adaptations: [] }, 'FIN').a;
-check(Math.abs(fYes - Math.min(1, fNo2 * (1 + ADAPT_COVER))) < 1e-12 && fYes > fNo2, 'certified: Finance coverage ×(1 + ADAPT_COVER)', `${fNo2.toFixed(4)} → ${fYes.toFixed(4)}`);
+const cs = certifiedBuyerShare(s, 'FIN', mix.sec.US.FIN.playerProdW);
+const pol = policyState(s);
+const R0 = frictionOf(s, 'US', SECTOR_BY_ID.FIN, pol);
+const share = mix.sec.US.FIN.share[pIdx] * cs;
+const R1 = frictionOf(s, 'US', SECTOR_BY_ID.FIN, pol, share);
+check(cs > 0 && share > 0 && Math.abs(R0 - R1 - CERT_FRICTION_CUT * share) < 1e-12, `certified: US Finance friction − ${CERT_FRICTION_CUT} × the certified product's buyers' share`, `buyers ${share.toFixed(3)}, R ${R0.toFixed(4)} → ${R1.toFixed(4)}`);
+check(frictionOf(s, 'ROW', SECTOR_BY_ID.FIN, pol) === frictionOf(s, 'ROW', SECTOR_BY_ID.FIN, pol, share), 'outside the US no cut');
 s.time.day = day0;
 
 // 4. Old names gone from src (the save migrations excepted).

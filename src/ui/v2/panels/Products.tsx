@@ -23,7 +23,7 @@ import { autoWatcher } from '../../../engine/v2/safety/trusted';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationLive, adaptationsBuilding, CERT_CASH, CERT_DAYS, needsCert, kycDemandFactor, kycReviewShare,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified, needsCert, kycDemandFactor, kycReviewShare,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -598,12 +598,12 @@ function Adaptations({ s, d }: { s: GameStateV2; d: Deployment }) {
   const etas = buildEtas(s).etas;
   const name = (id: string) => SECTORS.find((x) => x.id === id)?.name ?? id;
   const rows = [
-    ...own.map((a) => ({ label: name(a.sector), value: adaptationLive(a, s.time.day) ? 'live' : `in certification until ${fmtDate(dateOf(s, a.certDone ?? s.time.day))}` })),
+    ...own.map((a) => ({ label: name(a.sector), value: a.certDone === undefined ? 'live' : certified(a, s.time.day) ? 'live, certified' : `live; certified from ${fmtDate(dateOf(s, a.certDone))}` })),
     ...building.map((it) => ({ label: name(it.ref), value: `engineers build the scaffold · ${Number.isFinite(etas.get(it.id) ?? Infinity) ? F.days(etas.get(it.id) ?? 0) : 'waits'}${needsCert(it.ref as Deployment['adaptations'][number]['sector']) ? `, then ${CERT_DAYS} d certification (${F.money(CERT_CASH)})` : ''}` })),
   ];
   return (
     <div className="ft2" data-test={`prod-adapt.${d.id}`}>
-      <Tip content={() => <TipCard title={<Term id="adaptation">Sector adaptations</Term>} rows={rows}>{`Each adapts this product to one sector: a scaffold for its workflows (${ADAPT_TW} engineer team-weeks) covers ×${(1 + ADAPT_COVER).toFixed(2)} of the sector's tasks for this product only; finance, health, government and defence also need a certification first.`}</TipCard>}>
+      <Tip content={() => <TipCard title={<Term id="adaptation">Sector adaptations</Term>} rows={rows}>{`Each adapts this product to one sector: a scaffold for its workflows (${ADAPT_TW} engineer team-weeks) covers ×${(1 + ADAPT_COVER).toFixed(2)} of the sector's tasks for this product only, from the day it is built. In finance, health, government and defence the product is then certified (${CERT_DAYS} d, ${F.money(CERT_CASH)}): once certified, its buyers there face ${CERT_FRICTION_CUT} less adoption friction.`}</TipCard>}>
         <div className="ft"><Layers size={12} /><span className="ft-n">{own.length ? own.map((a) => a.sector).join(' · ') : 'Sector adaptations'}{building.length > 0 && <span className="dim"> · {building.length} building</span>}</span><span className="sp" />
           <ActBtn id="product.adapt" testId={`prod-adapt-add.${d.id}`} params={{ deploymentId: d.id }} label="+ sector" />
         </div>

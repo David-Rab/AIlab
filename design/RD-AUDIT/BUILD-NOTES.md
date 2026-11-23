@@ -4116,3 +4116,22 @@ hygiene.ts's calibration shift drops it).
   rejects `rivalAdaptStep` / `RIVAL_ADAPT_GATE_A` / `adaptBuild` / `.adapts`).
 - **Moves calibration: yes** (small): rival coverage in every sector above 1 % adoption drops by the ×1.15 it had from
   about day 30 (regulated sectors about day 150), so the player's sector shares and revenue rise somewhat.
+
+### RF-P3 certification lifts friction for the product's buyers (DD-04)
+- **Changed:** certification no longer gates the scaffold: an adaptation acts from its build on (`adaptedHere` reads
+  only that it exists). Once certified (FIN / HEALTH / GOV / MIL, same CERT_DAYS / CERT_CASH, started when the scaffold
+  is built), US sector friction is cut by `CERT_FRICTION_CUT × the player's customer share × the certified products'
+  part of the player's hours there` (`certifiedBuyerShare`, SectorMix.playerProdW; worldfx/sectors.ts frictionOf's new
+  `certShare` argument): the certified product's buyers face R − 0.1, the sector's friction is the buyers' average.
+  Preview: the revenue line's lag is the build only, and says the friction cut is not in it; the certification cost line
+  says what it does. Products adaptation rows: "live" / "live; certified from …" / "live, certified"; tooltip and
+  glossary `adaptation` in player words.
+- **Deleted:** `adaptationLive` (replaced by `certified`).
+- **Stand-ins:** CERT_FRICTION_CUT 0.1 is research/16 §1A.3's number (the old pack's sector-wide −0.1), not new. The
+  extra adoption it causes is shared among all providers by the buyers' choice (sector-level adoption; a stated
+  simplification). US only, as before.
+- **Save:** no field changes; adaptations still in certification in an old save act at once.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p08/check.ts` all ok (scaffold acts during certification; no cut before
+  it is done; cut = 0.1 × buyers' share in US Finance; none outside the US).
+- **Moves calibration: maybe** (only where the player builds certified adaptations: earlier scaffold effect, small
+  friction cut).
