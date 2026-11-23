@@ -123,10 +123,12 @@ export function gOfDomain(b: VersionBuild, d: DomainId): number {
   const rl = b.dgRLd[d] !== undefined ? (b.dgRLd[d] ?? 0) - REF_RL_PROFILE[d] : b.dgRL;
   return b.gPre + (b.sD[d] ?? 0) + rl + b.dg + (b.dgD[d] ?? 0);
 }
-/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon and the displayed
- *  domain level read (OOM): the build's domain G (a version without a build: its general G; RD-E01a deleted P19's RSCH gain). */
-export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
-  return v.build ? gOfDomain(v.build, d) : v.G;
+/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon, the displayed
+ *  domain level and the world effects read (OOM): the build's domain G (a version without a build: its general G plus
+ *  its domain offset, RD-P04c: a rival / China version's adopted-idea `domainDg`, SimpleModel; RD-E01a deleted P19's
+ *  RSCH gain). */
+export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'> & { domainDg?: Partial<Record<DomainId, number>> }, d: DomainId): number {
+  return v.build ? gOfDomain(v.build, d) : v.G + (v.domainDg?.[d] ?? 0);
 }
 
 /** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
