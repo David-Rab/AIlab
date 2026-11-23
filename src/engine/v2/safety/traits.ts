@@ -18,8 +18,8 @@ import type {
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0, h50Of } from '../models/capability';
-import { gapFactor, measuredOom, oomOfLevel, versionOom } from './oversight';
-import { AG05_OVERSIGHT, HUMAN_REVIEW_L } from '../../../data/v2/oversight';
+import { gapFactor, measuredOom, versionOom } from './oversight';
+import { AG05_OVERSIGHT } from '../../../data/v2/oversight';
 import { H50_PER_OOM, H50_V0_MIN } from '../../../data/v2/workTypes';
 import { adopted, believedEfficacy, clamp01, copyRec, flag, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
@@ -169,7 +169,9 @@ export interface RunHack {
 // equal to x_f while the policy is below its graders (every 2025 run). Direction and size check: Wen et al. 2024 (arXiv
 // 2409.12822 [P]): RLHF against human judges raised their false-positive rate by 24.1% (QuALITY) and 18.3% (APPS) with
 // no gain in correctness; what graders miss is what RL amplifies (research/04 T02 "smarter agents find more exploits").
-// The graders: expert humans at HUMAN_REVIEW_L (the superhuman-coder level, L 10: "as good as the best human coders");
+// The graders: expert humans at the world's median-expert level, G_SC − Δ_bm (CAL2-S, designer decision 9: "expert
+// human graders" read as the median expert, ai2027 L 6.39; CP3h put them at the best human, L 10, with no source for
+// the level; research/CAL-safety-sources.md §6);
 // with AI-assisted oversight (P15) the critic's share Aeff of the grading is done at the safety critic's level (at least
 // the humans'), the two catches mixed by share; scalable oversight's debate finding (F16, Khan et al. 2024 [P]) takes
 // AG05_OVERSIGHT.debateCreditOom (≈ 4.0 OOM) off every gap, as it does for AG05's tools (techniques.ts). Hardening
@@ -203,7 +205,8 @@ export function runTaskH(f: RLFamily, policy?: Policy): number {
 }
 /** (a) The graders' capability in OOM above V0: expert humans, and the AI critic's level and share under P15. */
 export function graderOoms(s: GameStateV2, believed = false): { human: number; critic: number; aiShare: number } {
-  const human = oomOfLevel(s.hidden.timeline, HUMAN_REVIEW_L);
+  const w = s.hidden.timeline;
+  const human = w.v3.gSC - w.v3.dBM - gV0(w);
   const ai = aiOversight(s);
   const cv = ai.Aeff > 0 ? agentVersion(s, 'safety') : undefined;
   const c = cv ? (believed ? measuredOom(s, cv) : versionOom(s, cv)) : human;
