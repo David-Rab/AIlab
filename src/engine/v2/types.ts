@@ -826,8 +826,10 @@ export type ReNeed = 'ops' | 'exp';
 export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
-/** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
- *  share of the capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. */
+/** A broad allocation: needs in priority order and optional caps per need: an amount (`max`) and a share of the
+ *  capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. CP3d: `max` is in the list's own unit,
+ *  the one its capacity, demand and gets are in (AllocView.unit): research engineers team-equivalents, engineers
+ *  team-weeks / week, the safety needs list people (heads × quality; safety/lineProjects.ts safAllocation). */
 export interface Allocation<K extends string> { order: K[]; max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }
 
 export interface ResearchState {
