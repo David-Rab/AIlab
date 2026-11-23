@@ -4,7 +4,7 @@
 //   Lev_X    = Σ_dom W_dom · Ctrl_dom · Share_X,dom      W: ECON .25, GOV .20, MIL .30, INFRA .25
 //   P_dom   += k_dom·(Target_dom − P_dom)/365;  Target = f(adoption, contracts, briefings, race, techs)
 // Thresholds: Lev ≥ 0.15 Entrenched, ≥ 0.35 Indispensable, ≥ 0.6 (+ robots > 10% of labor or W25) Decisive.
-import { SECTORS } from '../../../data/v2/sectors';
+import { SECTORS, U05_SHIFT_G } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import { internalVersion } from '../models/labs';
 import { domainScaleG, gOfLevel, levelGate, levelOfG } from '../models/capability';
@@ -214,7 +214,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
     const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + (dom === 'MIL' && pol.armsRace ? 0.2 : 0) + 0.2 * levelGate(w, Lr, 12, 0.5) - 0.03);
     const tgt = tierMix(a, cap);
     for (let k = 0; k < 4; k++) c.tiers[k] += (tgt[k] - c.tiers[k]) * 2 * dt;
-    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * levelGate(w, Lr, ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
+    const accStar = clampR01(ACCEPT.base + ACCEPT.gain * levelGate(w, Lr + (U05_SHIFT_G.REASON ?? 0), ACCEPT.mid, ACCEPT.spread) + 0.2 * topPers - (pol.adviceTransparency ? 0.2 : 0), 0.98);
     c.accept += (accStar - c.accept) * ACCEPT.rate * dt;
     // Shares by lineage key.
     let sh: Record<LabId, number>;

@@ -13,7 +13,7 @@
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { decimalYear } from '../../src/engine/v2/core/time';
 import { shareRefAt } from '../../src/engine/v2/departments/split';
-import { domainsOf, gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
+import { domainsOf, gOfBuild, gOfLevel, levelOfG } from '../../src/engine/v2/models/capability';
 import type { EngineSystem, GameStateV2, ModelVersion, SetupV2 } from '../../src/engine/v2/types';
 import { revenueReadout } from '../../src/engine/v2/worldfx/revenue';
 
@@ -53,8 +53,14 @@ export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSys
       const V0 = s.player.models.versions.find((v) => v.id === 'V0')!;
       if (opts.freezeAt !== undefined) {
         // Freeze every lab at a fixed capability (W2 test): Agent-1-level models for a decade.
-        for (const m of [V0, ...s.rivals.flatMap((r) => [r.internal, r.publicModel!]), s.china.lab.internal, s.china.lab.publicModel!]) {
+        // CAL-X: the world effects read a model's domain G from its build when it has one (versionDomainG: the player's
+        // versions and, since RD-X03, the rivals'), so the build is shifted onto the frozen G too (its domain profile
+        // kept), and the labs' lineup tiers are frozen with them; before, only G was set and the market kept reading
+        // the rivals' growing builds (market AGENCY L 6.3 → 10.4, best public 13.1 over the decade).
+        const labs = [...s.rivals, s.china.lab];
+        for (const m of [V0, ...labs.flatMap((r) => [r.internal, r.publicModel!, ...(r.lineup ?? [])])]) {
           if (!m) continue;
+          if (m.build) m.build.gPre += opts.freezeAt - gOfBuild(m.build);
           m.G = opts.freezeAt;
           m.Lg = levelOfG(w, m.G);
           m.domains = domainsOf(w, m.G);

@@ -4779,3 +4779,65 @@ framework thresholds from the real 2025 frameworks). Quotes, mappings and confid
   on the base (RF-S13b auto-parts; superseded), setup reads the lowest rule level per domain. _cp3i: pre-existing FAILs
   (U[0, 1] superseded by RF-S10's U[0, 2]). New probes `scripts/v2/_cals/fresh.ts` (day-0 triggers), `medexp.ts`
   (median expert level per world). Old saves keep their stored rule levels (no migration; development branch).
+
+### CAL-X world refit (calibration step 4, world effects; branch cal-wfx from rd 399f212)
+Run: `run.ts --tier full --only worldfx,finance` (20 CAL_SEEDS for the date checks), probes `scripts/v2/_calx/`
+(probe.ts world quantities over a RefBot run, w2.ts W2 with yearly detail, gov.ts T1 Accept inputs, soc.ts domain shifts).
+
+| Target | CAL1 | now | want | |
+|---|---|---|---|---|
+| AI-friend share Jul 2027 | 3.0% | 8.2% | 10 ±3 | **pass** (bug fix 1) |
+| GOV T1 Accept ≥ 0.85 | never (7/20) | 2028-02-21 (12/20; p10 2028-01-11, p90 never) | Dec 2027 ±3 mo | **pass**, late edge (bug fix 1) |
+| W2 Normal Technology TFP / decade | +17.3% | +1.9% | +0.5–1% | fail, 2× (bug fix 2; residual below) |
+| W4 firm adoption | 24.3% (Nov 2026) | 18.9% (Jul 2026 mark) | 17–20 ±2 | **pass** (target restated, 3) |
+| HireRate_SOFT ≤ 10% | 2027-02-10 | 2027-02-10 | Jul 2027 ±3 mo | fail (no change) |
+| A2a hours of use / saved, mid-2026 | 6.9% / 2.7% | 6.9% / 2.7% | 5–6.5% / 1.7–2.7% | fail (no change) |
+| W4 aggregate U, Nov 2026 | +0.20 pp | +0.20 pp | ≈ 0 (±0.15) | fail (no change) |
+| finance | — | 187 pass, 2 fail (FIN3c ×2, CAL1-known rig premise) | — | unchanged |
+
+1. **Bug: RD-U05 × RD-P04b unit mismatch on fitted domain gates.** RD-U05 put each domain's 10 at its best human, so a
+   model's REASON / SOCIAL domain G sits δ_d·Δ_bm below its general G (ai2027: REASON 1.51, SOCIAL / MEDIA / CYBER /
+   BIO / PHYS 3.85 OOM). RD-P04b then read v2's level thresholds on that shifted G. The AI-friend gate (SOCIAL L 6.5)
+   needed general G ≈ 32.3 (above SIAR): friend share stayed at its 3% floor in every run (V0 SOCIAL = L 0). T1 Accept
+   (REASON L 11.5, the G1 fit "adviser near L 12.9, between SAR and SIAR") needed 1.51 OOM more than G1 fitted; at CP3
+   the timeline ran ~0.3 y early and hid it, CAL1's on-golden timeline exposed it (the "never" is this, not CAL-P / CAL-S).
+   Fix as CP3f's danger.ts U05_SHIFT: the fitted gate keeps its distance from the start model, G_v2 = G_d + shift,
+   shift = ai2027 domainRefShift (Δ_bm 2.9). New `U05_SHIFT_G` { REASON 1.51, SOCIAL 3.85 } in data/v2/sectors.ts, read by
+   sectors.ts friendStar and control.ts accStar only. Check: gov.ts shows the adviser's internal REASON on the v2 scale
+   equal to the internal model's general level (12.27 = 12.27), as G1 assumed. Parameters: none moved (unit conversion).
+2. **Bug (test harness): the W2 freeze did not freeze.** worldfx-refplay.ts set `m.G` only; the world reads a model's
+   domain G from its build (versionDomainG: the player's versions and, since RD-X03, the rivals'), and rival lineups
+   were not frozen: the market's AGENCY ran L 6.3 → 10.4 (best public 13.1) over the "frozen" decade. Now the build is
+   shifted onto the frozen G (domain profile kept) and lineup tiers are frozen too: AGENCY stays 6.44–6.50; TFP
+   +17.3% → +1.9%.
+3. **Target restated: W4 firm adoption.** research/22 1f [P]: BTOS 17–20% over Dec 2025–May 2026 (19.8% on 3 May 2026,
+   new question since Nov 2025). The check read it at Nov 2026, when press readings were 21.7% (Jul) and 23.8% (Sep)
+   [UNVERIFIED]. Now read at the Jul 2026 mark (first after the window); INFO line prints Jan / Jul / Nov 2026 against
+   the BTOS series. The game's Nov 2026 24.3% sits on the press trend.
+
+**Not met with sourced parameters (no change):**
+- **Shared cause: task adoption A grows ~2× faster than measured.** Game US Jul 2025 → Jul 2026: firm adoption ×2.1
+  (9.1 → 18.9%), hours of use ×1.3 (5.4 → 6.9%), saved ×1.5 (1.84 → 2.7%); measured: BTOS ×1.2–1.4, RPS hours ×1.0–1.15,
+  saved ×1.2 (research/22 §7 table). A* = F·K·(1 − R) follows each model release at once (SOFT F 0.08 → 0.34 in a year,
+  0.53 at the Nov 2026 release) and the Bass p / q (SOFT 0.10 / 2.0) are R16 [D] table values (research/16 §N: "Bick et
+  al.: use Bass p, q", never fitted). The same step makes W4 U +0.20: U 4.32 → 4.50 at the Oct–Nov 2026 release, because
+  α (market AGENCY 6.8 → 7.9) and A* move on the release day and E jumps to its target (layoffs above 1.5%/month
+  attrition). Slowing A would cut revenue (F11 2027 $101.5B is near its $98B floor): designer question.
+- **HireRate_SOFT:** reads F only (hire = 1 − hireSlope·ΔF; ≤ 10% at F ≥ 0.62). R16's own anchor puts F_SOFT ≈ 0.8 at
+  Agent-3-mini (Jul 2027 in AI 2027); the game reaches 0.76 at Jul 2027 on seed 2027 (a late seed), so the F path is
+  about right and the slope is what dates the check. hireSlope 1.5 is R16 [D]; the WS5 probe fit 1.2 (sectors.ts
+  comment), which would put ≤ 10% near F 0.77, about Agent-3-mini. Unsourced either way: designer question.
+- **W2 residual (+1.9% vs +0.5–1%):** decade-end value-weighted A ≈ 2× Acemoglu's 4.6% of tasks. The target equates
+  Acemoglu's 2024-exposure estimate with "Agent-1-level" (LEVEL_KNOTS[1], L 6.5) models (research/16 §4.2 [D]); at V0's
+  level it would be lower. The Normal preset's frictionScale 1.5 / diffMult 0.4 and the F map are [D].
+- **Other world gates on non-zero-shift domains, not converted (RD-U05's "need a source review"):** control persuasion
+  (SOCIAL 10 / 1.5, also feeds Accept), tier gate (REASON 12 / 0.5), INFRA CYBER 11 / 1, risk exposure (BIO 10, CYBER 8,
+  SOCIAL 12), techBlocker domain gates, the PHYS gate (fMid + θ; PHYS 3.85 OOM), mSci (RSCH 1.51). Which are "best
+  human" thresholds (right as they are) and which are fitted v2 levels (need U05_SHIFT_G) is the designer's call.
+- **U05_SHIFT_G is ai2027's shift as a constant** (as CP3f). If the rf-r lane changes ai2027's sd_SC / Δ_bm, the gates
+  keep CAL-X's distance; a per-world shift would make REASON / SOCIAL gates read the general G in every world.
+
+**Changed:** src/data/v2/sectors.ts (U05_SHIFT_G), src/engine/v2/worldfx/sectors.ts (friend gate), worldfx/control.ts
+(Accept gate), scripts/v2/worldfx-refplay.ts (W2 freeze), scripts/v2/worldfx.ts (W4 firm date, INFO line), new
+scripts/v2/_calx/. tsc (app, scripts/v2) clean. **Moves calibration: yes** (friend share → public.ts activism /
+companion incidents; Accept → T1 control and leverage). No state change.
