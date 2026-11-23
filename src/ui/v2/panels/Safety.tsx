@@ -267,7 +267,7 @@ function RaceChart({ s, sv, fams, cand }: { s: GameStateV2; sv: SV; fams: Fams; 
         {ifU !== undefined && ifWk !== undefined && ifWk <= ahead && ifU > projU[ifWk] + 0.05 && (
           <g>
             <path d={`M${x(t0)},${y(Unow)} L${x(t0 + ifWk)},${y(projU[ifWk])} L${x(t0 + ifWk)},${y(ifU)} L${x(t0 + ahead)},${y(ifU + (projU[ahead] - projU[ifWk]))}`} stroke={C.watch} strokeWidth={2} fill="none" strokeDasharray="4 3" />
-            <text x={x(t0 + ahead) + 4} y={y(ifU + (projU[ahead] - projU[ifWk])) + 3} className="sf-lab" fill={C.watch}>U, if {cand?.name.split(' ')[0].toLowerCase()}</text>
+            <text x={x(t0 + ahead) + 4} y={y(ifU + (projU[ahead] - projU[ifWk])) + 3} className="sf-lab" fill={C.watch}><tspan>Sight limit</tspan><tspan x={x(t0 + ahead) + 4} dy={11}>if {cand?.name.split(' ')[0].toLowerCase()} works</tspan></text>
           </g>
         )}
         <text x={x(total) + 4} y={y(projL[ahead]) + 3} className="sf-lab" fill={C.cap}>capability</text>
@@ -289,7 +289,7 @@ function UTip({ s, sv, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: 
   return (
     <TipCard title={<><Term id="sightLimit">Sight limit</Term> · {fmtDate(dateOf(s, s.time.day))}</>} value={F.sight(sv.sightLimit)} rows={[
       { label: <>capability {F.num(up.capPerMo, 2, true)}/mo</>, value: up.notOnCurrent ? `${up.notOnCurrent} not validated on ${up.model ?? 'the model'}` : 'all validated on the model', tone: up.notOnCurrent ? 'neg' : 'pos' },
-      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `L ${F.num(sv.sightLimit.L, 1)} → ${F.num(ifU, 1)}` }] : []),
+      ...(cand && ifU !== undefined ? [{ label: <>{cand.name} works</>, value: `${sv.sightLimit.none ? 'none' : `L ${F.num(sv.sightLimit.L, 1)}`} → L ${F.num(ifU, 1)}` }] : []),
     ]}>The highest level at which your instruments together still read the hidden-goal traits at 50% or better; the range is what your uncertainty about each instrument allows. From what you believe, not the truth.</TipCard>
   );
 }

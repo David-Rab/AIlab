@@ -156,7 +156,7 @@ function KindLine({ s, r, v, maxU }: { s: GameStateV2; r: KindRow; v: DataPortfo
         <Tip content={() => <TipCard title={<Term id="uniqueTokens">Unique tokens from {k.label.toLowerCase()}</Term>} value={tokT(r.weightedT)} rows={[{ label: 'Share of unique tokens', value: F.pct(r.weightedT / Math.max(1e-9, v.uT)) }]}>Quality × tokens.</TipCard>}>
           <span className="dv-u"><HBar v={r.weightedT} max={maxU} w={110} h={8} color={C.und} /><b className="num">{tokT(r.weightedT)}</b></span>
         </Tip>
-      ) : <Tip content={() => <TipCard title={<Term id="expertData">Expert data</Term>}>Not pretraining data: it does not enter U.</TipCard>}><span className="dim small">not in U</span></Tip>}
+      ) : <Tip content={() => <TipCard title={<Term id="expertData">Expert data</Term>}>Not pretraining data: it does not count toward unique tokens.</TipCard>}><span className="dim small">not pretraining data</span></Tip>}
       <span className="dv-doms">{DOMAIN_IDS.map((dm) => {
         const x = r.mix[dm] ?? 0;
         return (
