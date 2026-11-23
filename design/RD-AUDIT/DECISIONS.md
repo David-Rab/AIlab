@@ -106,3 +106,13 @@ The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaul
 13. Memory's chat appeal deleted.
 14. KYC_REFUSE 0.25 kept (sourced, high end).
 15. DISTILL_HARVEST_SHARE into its sourced range: 0.0015.
+
+## After CAL2 (2026-11-23, designer accepted)
+
+- authors2026 sd_SC 2.94 (AIFM taste at SC, not at AC) accepted.
+- Human review of R&D and the debate overseer stay at the best human (only RL graders moved to the median expert).
+- V0 measuring BIO 0 and AGENCY gates reading one level above v2: a later measurement-scale task (sourced best-human
+  reference per domain), not this calibration.
+- Last calibration round: (1) adoption during takeoff (a sourced mechanism for adoption speeding up with capability /
+  value, keeping the 2025–26 Census fit); (2) S5 RefBot 15% analysis only. Then calibration closes; S4 (0.377 vs
+  0.40–0.80) and authors2026 post-SC shape (rival diffusion) are re-judged in the rivals session.
