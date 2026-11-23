@@ -4199,3 +4199,14 @@ public beta; waitlist or trusted-tester previews not counted):
 
 Deep research and the Coding agent are player features only (rival offers read enabler tools only), so they enter the
 player's starts, not DAY0_TOOLS.
+
+### RF-P4 brand counted once
+- **Deleted:** `BRAND_INSTALLED` (data/v2/serving.ts) and `installedBrand` (worldfx/mix.ts): the second, fitted term that
+  multiplied each provider's choice weight by its customer stock share, on top of the stock's own switching inertia
+  (CUSTOMER_TAU, sourced from Menlo's switching data). Sector and Chat choices now use the base brand (player: 1 ± 0.1
+  with approval; rivals 1, inactive 0.5) × Chat appeal, as before RD-P11's brand part. Nothing replaces it.
+- **Stand-ins:** none new.
+- **Check:** tsc (src, scripts/v2); `scripts/v2/_p11/check.ts` all ok (section 2 now checks that the SOFT and Chat
+  target shares do not move with the customer stock, and that no installed-brand term is left).
+- **Moves calibration: yes.** The incumbent (the player's leader start, ~40 % stock) loses about ×1.2 of choice weight in
+  every segment, rivals with small stocks lose less: the player's target shares and revenue fall somewhat.

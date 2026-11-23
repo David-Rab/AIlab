@@ -24,7 +24,7 @@
 // bestPublic (max) are what α, the PHYS gate, control and the tech tree read; no display levels here.
 import { SECTORS, REGIONS, ECON } from '../../../data/v2/sectors';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
-import { BRAND_INSTALLED, CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, MARKET_BANDS, MULTI_HOMING, PRICE_ELASTICITY, SEATS, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import { ASSIST } from '../../../data/v2/workTypes';
 import { memo } from '../core/memo';
 import { CHINA_ID } from '../models/labs';
@@ -207,18 +207,9 @@ function access(p: Provider, r: RegionId): number {
 }
 
 function playerBrand(s: GameStateV2): number {
-  // ±0.1 with approval (§3.11.1). RD-P11: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
-  // stock (installedBrand), by the same rule as every provider.
+  // ±0.1 with approval (§3.11.1). RD-P11, RF-P4: the flat ×1.2 incumbent factor is gone; the incumbent's pull is its customer
+  // stock (CUSTOMER_TAU switching inertia), the same for every provider.
   return 1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50));
-}
-
-/** RD-P11: each provider's brand in one segment: its base brand × (1 + BRAND_INSTALLED × its customer stock share there)
- *  (data/v2/serving.ts BRAND_INSTALLED; no stock yet: ×1). */
-export function installedBrand(s: GameStateV2, providers: readonly Provider[], r: RegionId, seg: string, base: readonly number[]): number[] {
-  const st = s.world.fx.cust?.[r]?.[seg];
-  let sum = 0;
-  if (st) for (const p of providers) sum += st[p.key] ?? 0;
-  return base.map((b, i) => (sum > 1e-12 ? b * (1 + (BRAND_INSTALLED * (st![providers[i].key] ?? 0)) / sum) : b));
 }
 
 /** Compute the world mix (memoised per tick when a ctx is given). */
@@ -570,7 +561,7 @@ function computeMix(s: GameStateV2): WorldMix {
       }
       // RD-P03 (DD-02): each player product is its own seller (its lineup's tiers a group), sharing the player's brand and
       // reach.
-      const ch = surplusChoice(lineups, installedBrand(s, providers, r, t.id, brandPow), accSec[ri], value, aTops[si], B, groups[si]);
+      const ch = surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si]);
       const target = ch.target;
       const tierW: number[][] = [];
       for (let i = 0; i < n; i++) {
@@ -758,7 +749,7 @@ function computeMix(s: GameStateV2): WorldMix {
   const consumer = {} as Record<RegionId, ConsumerMix>;
   const cOnes = filled(n, 1);
   REGIONS.forEach((r, ri) => {
-    const cBrand = installedBrand(s, providers, r, 'consumer', providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1)));
+    const cBrand = providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1));
     // A5: users choose an app by quality alone: most pay nothing (free users ≈ 95%), so the subscription price is not in
     // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock. A7: the quality
     // they choose on is the free tier's, the offer they get (each lab's cheapest real model; RD-P02).
