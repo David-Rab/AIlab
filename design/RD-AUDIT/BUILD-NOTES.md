@@ -3486,3 +3486,27 @@ when EA is unknown; red flags and gates on believed traits move).
 - Checks: tsc (app, scripts/v2) clean; build ok; `_p10`, `_ui0a`, `_sr07`, `_sr07b`, `_sr24b` all ok. Hygiene and heavy
   runs not run.
 - Moves calibration: yes (SR-07 / SR-07b / SR-24b change believed traits and validation; P10 adds misuse exposure).
+
+### SR-16b
+Environment fixes take real time and have a Training › Environments entry point (SR-16's "Left").
+- **Job.** `SafetyDept.envFixJobs: EnvFixJob[]` {family, work, done, day, factor, trait?, versionId?} (safety/envFix.ts).
+  `orderEnvFix` draws work = PATCH_FTE × PATCH_DAYS (300–900 safety-engineer-days) and the fix factor PATCH_MULT; one job
+  per family at a time. `envFixFte` (SR-21's 'envFix' need) = PATCH_FTE per open job; `envFixStep` (daily, incidents
+  system after footholdsStep) advances each job by PATCH_FTE × needServed('envFix'); when done the family's envFixes entry
+  is multiplied (floor PATCH_FLOOR) and the next-run G penalty is added (was: both at order). With no engineers on the need
+  the job waits. The `ws2.patchUntil` busy-until flag is gone.
+- **Entry points.** The "Fix environment" response (patchSignal) queues a job; new action `safety.envFix {family}` queues
+  one with no finding. Shared preview `envFixPreview` (work, the engineers the need gives a new job at today's staffing
+  via allocate() with PATCH_FTE more asked, days, family, multiplier before → after range, block if pending / at floor);
+  the Respond preview and the action use one `envFixLines`. Training › Environments (Suites.tsx): an "Environment fix"
+  column per family with a Fix button (tooltip = the preview) or "fixing N d" while a job runs.
+- **Save.** SCHEMA_REV 96; migration 95 → 96 drops ws2.patchUntil (fixes ordered before stay in force; their engineers
+  are released) and adds envFixJobs []; hygiene pins → 96.
+- **Check.** `npx tsx scripts/v2/_sr16b/check.ts` (all ok): migrates; preview 300–900 ed, 10 engineers, 30–90 d; order
+  queues a job, fix not in force; second order refused; fix in force only after its work (780 ed → day 78, within the
+  preview), ×1 → ×0.322; with the need capped at 0 the job waits 200 d. tsc (app, scripts/v2) clean; npm run build passes.
+  _sr16 / _sr21 checks (fix instant; patchUntil) not re-run: fixture drift expected.
+- **Left.** Bots still order through patchSignal (their fixes now take time); no glossary term; jobs on several families
+  share the need evenly (no per-job priority).
+- Moves calibration: yes (S4/S5 slightly): fixes land 30–90+ days later than before, and not at all without safety
+  engineers on the need.

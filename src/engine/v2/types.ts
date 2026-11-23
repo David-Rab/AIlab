@@ -963,6 +963,9 @@ export interface SafetyDept {
   /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
    *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
   envFixes?: Partial<Record<RLFamily, EnvFix>>;
+  /** SR-16b: environment fixes being built (ordered from a finding's response or Training › Environments): engineering
+   *  work on the 'envFix' need; envFixStep applies each one (to envFixes) when its work is done. */
+  envFixJobs?: EnvFixJob[];
   /** SR-18: the disclosure policy (default legal minimum, OD-8). */
   disclosure?: DisclosurePolicy;
   /** SR-18: methods a response added to every later default run plan (the "method for the next run" response). */
@@ -972,6 +975,9 @@ export interface SafetyDept {
 /** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
  *  PATCH_FLOOR), how many fixes it holds and the day of the latest; the trait and model of the latest finding. */
 export interface EnvFix { mult: number; n: number; day: number; trait?: TraitId; versionId?: string }
+/** SR-16b: an environment fix being built: work in safety-engineer-days (PATCH_FTE × a drawn PATCH_DAYS), done so far,
+ *  the day ordered, the drawn fix factor (× the family's multiplier when it completes) and the finding behind it. */
+export interface EnvFixJob { family: RLFamily; work: number; done: number; day: number; factor: number; trait?: TraitId; versionId?: string }
 
 /** SR-10: one reading in a disagreement: instrument kind (instruments.ts InstrumentKind), family, reading, its noise. */
 export interface DisagreementSide { kind: string; family: ToolFamily; reading: number; noise: number; day: number }

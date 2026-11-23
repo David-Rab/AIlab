@@ -14,11 +14,12 @@ import { revealToWorld } from './umodes';
 import { ownedMethods } from './methods';
 import { removalFte } from './footholds';
 import { removeFoothold } from './footholdDetection';
+import { orderEnvFix } from './envFix';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 
 export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
-  patchSignal: { title: 'Fix environment', note: 'Patch the RL environments, grader or reward model of one family so it stops rewarding the hack: the family’s rewarded hacks × 0.3–0.6 on every later run that trains on it (an owned environment fix, floor × 0.2); 10 safety research engineers are busy 30–90 days.' },
+  patchSignal: { title: 'Fix environment', note: 'Patch the RL environments, grader or reward model of one family so it stops rewarding the hack: the family’s rewarded hacks × 0.3–0.6 on every later run that trains on it (an owned environment fix, floor × 0.2), in force once its work is done: 300–900 safety-engineer-days on the environment-fix need (10 engineers, 30–90 days when fully staffed).' },
   addMethod: { title: 'Add method to later runs', note: 'Every later run plan that takes the default methods lists this owned safety method (persona vectors, anti-scheming, inoculation…); its effect shows in the next run\'s predicted traits, not in this model.' },
   restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
   liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
@@ -81,8 +82,9 @@ export function consumeRunPenalty(s: GameStateV2): number {
   return p;
 }
 
-/** SR-21: safety engineers an environment fix being built takes (the 'envFix' need; released when it ends). */
-export const envFixFte = (s: GameStateV2): number => (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0);
+/** SR-21 / SR-16b: safety engineers the environment fixes being built ask (the 'envFix' need): PATCH_FTE per open
+ *  job (safety/envFix.ts); released when the job's work is done. */
+export const envFixFte = (s: GameStateV2): number => PATCH_FTE * (s.player.safety.envFixJobs?.length ?? 0);
 /** Safety FTE tied up by environment fixes and foothold removals (released when they end). */
 export function patchFte(s: GameStateV2): number {
   return envFixFte(s) + removalFte(s);
@@ -202,11 +204,10 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       // family bottom out at PATCH_FLOOR [D].
       const f = envFixFamily(s, opts.family);
       if (!f) return 'No environments of that family';
-      const fixes = (s.player.safety.envFixes ??= {});
-      const prev = fixes[f];
-      fixes[f] = { mult: Math.round(Math.max(PATCH_FLOOR, envFixMult(s, f) * rng.range(PATCH_MULT[0], PATCH_MULT[1])) * 1000) / 1000, n: (prev?.n ?? 0) + 1, day: ctx.day, trait, versionId: v.id };
-      setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(PATCH_DAYS[0], PATCH_DAYS[1]))));
-      setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
+      // SR-16b: ordered, not in force: engineering work on the 'envFix' need; envFixStep (safety/envFix.ts) applies
+      // the fix and the next-run G penalty when the work is done.
+      const busy = orderEnvFix(s, rng, f, ctx.day, trait, v.id);
+      if (busy) return busy;
       break;
     }
     case 'addMethod': {

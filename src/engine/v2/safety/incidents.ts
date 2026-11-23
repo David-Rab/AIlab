@@ -28,6 +28,7 @@ import { productCatch, productHazardMult, productSiteTerms } from '../models/pro
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
 import { copiesOf, flopPerToken, safetyLabour, workContext } from '../departments/workfit';
 import { rollFleetCovert } from './covert';
+import { envFixStep } from './envFix';
 import { footholdsStep } from './footholdDetection';
 import { backdoorReach, lineageOf } from './footholds';
 import { controlStep } from './control';
@@ -453,6 +454,8 @@ export const incidentsSystem: EngineSystem = {
     rollFleetCovert(s, ctx);
     // E8: symptoms of hidden footholds (monitors, compute accounting, eval drift, model organisms); hash draws.
     footholdsStep(s, ctx);
+    // SR-16b: environment fixes being built advance; a finished one comes into force.
+    envFixStep(s, ctx);
     // E9: footholds grow once control is low; today's effective control (safety/control.ts).
     controlStep(s, ctx);
     // SR-18: the disclosure policy (or the incident's override) applies to new incidents the day they appear.

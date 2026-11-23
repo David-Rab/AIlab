@@ -178,8 +178,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  ids (the later record wins) and gives each record n = 40, k = round(rate · 40) and its Wilson interval.
  *  95 (SR-24b): HiddenWorld.organismRealism (r ~ U[0.4, 1.0], a hash of the seed; safety/validation.ts). Migration
  *  94 → 95 sets it from the save's seed (organismRealismOf), the value a new game with that seed draws.
+ *  96 (SR-16b): SafetyDept.envFixJobs (environment fixes being built: work on the 'envFix' need, in force when done;
+ *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force) and adds [].
  */
-export const SCHEMA_REV = 95;
+export const SCHEMA_REV = 96;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1079,6 +1081,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     // 94 → 95 (SR-24b): the world's organism realism from its seed (see SCHEMA_REV's note).
     const r = raw as { hidden?: { organismRealism?: number }; setup?: { seed?: number } };
     if (r.hidden && r.hidden.organismRealism === undefined) r.hidden.organismRealism = organismRealismOf(r.setup?.seed ?? 0);
+  },
+  95: (raw) => {
+    // 95 → 96 (SR-16b): environment fixes are jobs on the 'envFix' need. A fix ordered before is already in force
+    // (envFixes); its busy-until flag goes, so its engineers are released (no job is made for it).
+    const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixJobs?: unknown[] } } };
+    if (r.flags) delete r.flags['ws2.patchUntil'];
+    if (r.player?.safety) r.player.safety.envFixJobs ??= [];
   },
 };
 
