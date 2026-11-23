@@ -159,3 +159,25 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 - The engine's own `ideasPerYear` reads 92 (a rate). The mockup shows the 30 ideas actually adopted in the last 12 months; the two disagree.
 - "Waiting" counts against Atlas-2.10's base recipe. The pretrained Atlas-3 base (Jul 22) may already hold these ideas: **NEW**, a per-base readout.
 - No waiting value for training or serving efficiency: those apply to every run at once.
+
+### SAFETY › Risks (`safety.png`)
+
+The model shown is Atlas-2.8 doing AI staff work: `safety.allInternalFleetTables[1]` = `actTable.ts:350 actTable(…, true)`, measured.
+Atlas-2.10 is the engine's "riskiest" model, but its Able to rows read true domain offsets (it has no benchmark fit yet), so
+the mockup flags it as "in testing".
+
+| On screen | Value | From | Basis |
+|---|---|---|---|
+| Loss-of-control risk | 0% (0–0%) | `lossRisk.ts:lossOfControlRisk` (Atlas-2.8: believed "acts against the lab" 11.3%, stop rate 82.8%) | B. **Check**: exactly 0 |
+| Unstopped harm | 0.02 acts / yr: Serious 0.017, Severe 0.002 | sum of the table's Unstopped column, binned by the rows' severity (1.5–2.5 Serious, 2.5–3.5 Severe) | B |
+| Sight curve | mean detection 48% at levels 3–6, 40% at 7, 11% at 8, 3.5% at 9; band floor = min row | `sightLimit.ts:sightGrid` | B (flag: hidden level ↔ OOM map) |
+| Sight markers | Atlas-2.8 (6.79) ~40% · next run (9.16) ~3% | measured L; planned prediction | M / B·fc |
+| Validation | 5 instruments on Atlas-2.10, 53%, 7 d left | `safety.validation.jobs` | F |
+| Framework | no hold; next rule AI R&D: Critical (AI research at best-human level) holds training | `framework` rules | F |
+| Act rows | Would try (90% range), Able to, Chances (bar only), Stop rate, Unstopped / yr | `actTable` rows: `wouldTry`, `wouldTryRange90`, `ableTo`, `chances`, `stopRate`, `unstopped` | B · M · F · B · B |
+| Unknown | range wider than 30 pts (Optimises the wrong target 0–49%, Copies itself out 12–47%) | VOCAB rule | B |
+| Safeguards line | Human review (19 people), control protocol defer 10% (slowdown 7%) | `actTable.guards` | F |
+
+- Chances has no player unit: the engine value is a relative scale, so it shows as a bar only. **NEW**: a unit, e.g. tasks per year.
+- No sight-limit level is shown. The curve against the 50% line replaces the "none" readout.
+- Misuse rows exist only on product deployments; here they appear as a link.
