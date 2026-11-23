@@ -3561,3 +3561,75 @@ Root causes of CP3's (d) suspected bugs (design/RD-AUDIT/CP3.md).
   pass / 4 fail (registry lists no safetyFramework / autoSplit; three performance budgets). safetyideas runs to the end:
   37 pass / 2 fail (P15 lockdown halving, P23 CoT factor: calibration / outdated). The migration checks live in hygiene
   (finance.ts not run).
+
+### CP3c timelines
+
+Why the frontier ran early at CP3 (G path 0.76 G off at 1.77 G/yr, h50 doubling 2.4 mo, all milestones early). Probes in
+scripts/v2/_cp3c/ (gpath.ts: calib's G-path / h50 / M reads on seed 2027; rivals.ts: every lab's G, base, recipe;
+check.ts: this task's checks, all pass). Commit 01012a0. tsc (app, scripts/v2) clean.
+
+**Causes found (evidence on ai2027 seed 2027, RefBot):**
+- **Rivals streamed from day 0 (RD-T03), against DD-05 (a).** DD-05 (a) says rivals adopt the continual-learning stream
+  "by the same route" as the player (P08); RD-T03 gave them CL_POOL_SHARE of their training pool from day 0 with no
+  adoption ([Q] in its notes). A rival base is only ≈ 24 pool-days of FLOP, so 90 days of stream at the day-0 recipe
+  added ≈ 0.7 OOM to G_pre on the same base: r1 27.20 → 28.21, DeepCent 26.94 → 28.08 by day 90 (player 27.72); their
+  public models passed RefBot's. Since RD-X04 the player then distils from them (rule B, `completeRl`): +0.17 (day 95,
+  DeepCent), +0.11 … +0.31 OOM on every post-training of base 2 (xLab) — a frontier pulled up by rivals that had a 2027
+  capability in 2025. **Fix:** P08 joins RIVAL_IDEA_IDS (the X02 adoption steps, effort 14.8 TM, the player's), and
+  `clRefresh` runs only once it is adopted (FLOP accrues from adoption). RefBot adopts P08 on day 507; rivals now reach
+  it on their own research. After: rival internal G at day 120 27.29–27.45 (r0 28.57 after its new base); the player's
+  lifts 0 / 0.003 / 0.08 OOM.
+- **The horizon counted the RL gain twice (RD-T05).** h50Of already gives 4.2× per OOM of AGENCY effective compute,
+  which holds the RL gain of a bigger base / budget / RL recipe; `longTasksHorizonMult` anchored its x at B0's reference
+  run, so a *broad* post-train on a 3.2× base read ×2.54 (×3.91 by 2027) on top. **Fix:** the anchors (broad / long-tasks
+  focus gain) are read at the run's own base FLOP, RL FLOP and RL recipe (fidelity 1): broad ×1, focus ×2, with P07 ×2.4
+  on any base; a long-tasks suite above fidelity 1 (P12) still raises it (RD-T05's intent). LONG_TASKS_HORIZON and
+  P07_LONG_TASKS_HORIZON unchanged.
+- **Day-0 rival releases leaked the lab's live recipe (RD-X04 stand-in).** An unstamped release revealed `recipeOf`
+  of every later day until the lab's first new release. Now stamped at init with the day-0 recipe (the convention every
+  later release uses: the lab's recipe on its release day). Small: the player's diffused recipe 0.240 → 0.21 OOM.
+- **Not causes (checked):** T08's quality filter (base data / quality parts −0.34 … −0.40 at all three bases, as B0);
+  base FLOP growth (3e26 → 9.6e26 day 116 → 2.4e27 day 386: 0.63 OOM/yr between run midpoints, Epoch's 4–5×/yr);
+  the player's own pretraining research (≈ 0.5 OOM/yr, Ho et al.); M (below).
+
+**No constant changed; nothing fitted.** LEADER_CAL kept: `calscan.ts t1l` (20 seeds) at 0 vs current — ai2027 0: SC
+−0.311 / SAR −0.300 / SIAR −0.274 / ASI −0.241 y, FAIL 3.89 tol; −0.15: −0.074 / +0.008 / +0.036 / +0.068, PASS 0.92; slow 0:
+SC −3.32 y, 0.8: −4.94 y (both fail far). The mechanisms do not carry it yet, so deleting it would not be an improvement.
+
+**Before → after (test:cal, 20 seeds T1, 5 seeds T1L; days):**
+
+| Target | CP3 | CP3c | want |
+|---|---|---|---|
+| frontier G path (ai2027 line) | 0.76 G, 1.77 G/yr | 0.61 G, 1.69 G/yr | ±0.2, 1.1–1.3 |
+| METR h50 doubling (ai2027) | 2.4 mo | **3.3 mo (pass)**; authors2026 4.0, fast 3.6, slow 4.8 | 4.2 ±1 |
+| start M (ai2027) | 1.379 | 1.379 | ≈ 1 ±0.1 |
+| pretraining stack, first year (ai2027) | 0.78 OOM/yr | 0.71 | 0.48 ±30% |
+| T1 ai2027 SC / SAR / SIAR / ASI | 499 / 615 / 791.5 / 867.5 | 524 / 669 / 802 / **907 (pass)** | 638 / 791 / 883 / 915 |
+| T1 authors2026 SC / SAR / SIAR / ASI | 1236.5 / 1303.5 / 1722.5 / 2106 | 1280.5 / 1360.5 / 1763.5 / 2103.5 | 1495 / 1573 / 2151 / 2975 |
+| T1 fast SC / SAR / SIAR / ASI | 671 / 685.5 / 702.5 / 709.5 | 727 / 748 / 762 / 762 | 880 / 880 / 925 / 956 |
+| T1 slow SC | 2919.5 | 3566.5 | 4758 |
+| T1L ai2027 SC / SAR / SIAR / ASI | 467 / 642 / 775 / 838 | 529 / 698 / 812 / 870 | 638 / 791 / 883 / 915 |
+| T1L authors2026 SC / SAR | 1242 / 1339 | 1312 / 1403 | 1495 / 1573 |
+| T1L fast SC / SAR / SIAR / ASI | 719 / 731 / 731 / 737 | 754 / 762 / 769 / 769 | 880 / 880 / 925 / 956 |
+| T1L slow SC | 1820 | 1924 | 4758 |
+
+T4 rival gaps 3.3–5.0 months (pass), R5 pass.
+
+**Still off, and the mechanism suspected:**
+- **G path 0.61 G (all presets 1.4–1.7 G/yr).** The miss sits on RefBot's base-3 step (day 444: G 29.94 vs the
+  2026-10-15 anchor 29.09). Decomposed: physical FLOP +0.9 OOM and own recipe ≈ Ho match the anchors' 1.16 G/yr; the
+  excess is (1) the RL gain rising with absolute RL FLOP on bigger bases (0.67 → 1.01 → 1.16 OOM; RD-T04 / DD-06's
+  absolute midpoint: G grows ≈ 1.5 OOM per OOM of training FLOP at fixed recipe), ≈ 0.5 of the 0.85; (2) rule-A
+  diffusion of Anthropos's day-0 recipe lead (+0.31 recipe G: startLab solves it from its G at 40% of the leader's pool,
+  with base FLOP ∝ training pool, DD-18), +0.21 OOM to the player within 150 days and +0.2–0.34 to every other lab — a
+  start state out of the diffusion rule's equilibrium (IFP's equal-efficiency premise, RD-X04r §2). Both need a design
+  call (what "effective compute" the RL gain adds at scale; the start recipe rule), not a constant.
+- **M 1.379 (ai2027 only; authors2026 1.003, fast 1.078, slow 1.000).** Mechanism: V0's EXP win rate vs the median
+  expert is 0.463 (GDPval Aug 2025: 0.35–0.4), assist ×1.222, coverage 0.077 (×1.128 through the CES at rc −2). The
+  median expert sits 0.28 OOM above V0 only because ai2027's V3_CAL (G_SC 30.15, Δ_bm 2.9) is low; the per-preset refit
+  (calscan t1) should come after the frontier pace above, since the dates still carry that excess.
+- **Milestones still early everywhere**, by less; slow most (T1 −3.3 y, T1L −7.8 y). Expect the RL-at-scale and start
+  recipe items above to move all presets; refit V3_CAL only after.
+- **Rig discrepancy:** calib's T1L ai2027 (5 seeds, prefill) gives SC 529, calscan t1l at the same LEADER_CAL (20 seeds)
+  −0.074 y ≈ 611 with p10–p90 −0.08 … −0.05 y: the two runners disagree by ≈ 80 days. Suspect state shared between the
+  RefBot and leader runs in one prefill worker (module memos / V3_CAL writes); not investigated (budget).
