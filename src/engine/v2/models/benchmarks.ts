@@ -140,19 +140,32 @@ export const measuredSd = (v: Pick<ModelVersion, 'evals'>) => {
   const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
   return MEASURE_SD / Math.sqrt(n > 0 ? n : 1);
 };
-/** CP3d (RD-M01): the band (±1 SD, L) a suite of `depth` by `by` is expected to leave: the measured level is fitted from
- *  that suite's table alone, so its band is the fit of the lab's current readings (scores it already holds, never the
- *  truth) at the new suite's noise. The fitted sd depends on the scores the suite will draw, so this is the expectation
- *  at today's readings. Without readings: 0.2/√(nEff + weight). */
-export function expectedFitSd(s: Pick<GameStateV2, 'flags' | 'setup' | 'hidden'>, v: ModelVersion, by: Evaluator, depth: EvalDepth): number {
+/** RF-R2: inverse-variance pool of a benchmark's held reading (score ± sd, the current edition) and a new one. Score
+ *  noise is additive on the score, so the pooled mean is the best estimate of the version's score on that edition and its
+ *  sd shrinks with every reading. Stored to 0.1 point (score) and 0.01 (sd). */
+export function poolReading(prev: { score: number; sd: number } | undefined, score: number, sd: number): { score: number; sd: number } {
+  if (!prev) return { score, sd };
+  const w0 = 1 / Math.max(1e-6, prev.sd) ** 2, w1 = 1 / Math.max(1e-6, sd) ** 2;
+  return { score: Math.round(((w0 * prev.score + w1 * score) / (w0 + w1)) * 10) / 10, sd: Math.round((1 / Math.sqrt(w0 + w1)) * 100) / 100 };
+}
+/** RF-R2: the version changed in place (the continual-learning stream) since its last suite, so the readings it holds
+ *  measured an earlier state of the model and the next suite starts a new pool. */
+export const changedSinceSuite = (s: GameStateV2, v: ModelVersion) => v.evals.recipeAt !== undefined && Math.abs(inPlaceRecipe(s, v) - v.evals.recipeAt) > 1e-9;
+
+/** CP3d (RD-M01), RF-R2: the band (±1 SD, L) a suite of `depth` by `by` is expected to leave: the fit of the lab's
+ *  current readings (scores it already holds, never the truth), each pooled with one more reading at the new suite's
+ *  noise (`alone`: that suite's readings alone, e.g. on a fresh version). The fitted sd depends on the scores the suite
+ *  will draw, so this is the expectation at today's readings. Without readings: 0.2/√(nEff + weight). */
+export function expectedFitSd(s: GameStateV2, v: ModelVersion, by: Evaluator, depth: EvalDepth, alone = false): number {
   const w = suiteWeight(depth);
   const sd = Math.round(BENCH_NOISE_SD[by] * (1 / Math.sqrt(w)) * 10) / 10;
+  const fresh = alone || changedSinceSuite(s, v);
   const bench: EvalRecord['bench'] = {};
-  for (const [id, r] of Object.entries(v.evals.bench)) if (r) bench[id] = { ...r, sd };
+  for (const [id, r] of Object.entries(v.evals.bench)) if (r) bench[id] = { ...r, sd: fresh ? sd : poolReading(r, r.score, sd).sd };
   const f = fitDomains(bench, (id) => benchGen(s, id), s.setup.alignment === 'hard');
   const g = fitGeneral(s.hidden.timeline, v, f.dom, f.sd);
   if (g) return Math.round(g.sd * 1000) / 1000;
-  const n = v.evals.nEff ?? v.evals.nSuites ?? 0;
+  const n = fresh ? 0 : v.evals.nEff ?? v.evals.nSuites ?? 0;
   return MEASURE_SD / Math.sqrt(n + w);
 }
 
@@ -161,9 +174,11 @@ export function expectedFitSd(s: Pick<GameStateV2, 'flags' | 'setup' | 'hidden'>
  * benchmarks (noisy, sandbagging-biased on dangerous ones), safety evals (traits through the eval-awareness confound and
  * BB masks), the measured level, flags. `depth` sets the noise of every reading (1/√weight) and the elicitation.
  *
- * Measured level (RD-M01, DD-08): fitted from this suite's benchmark scores (fitDomains, fitGeneral), so the suite's noise, its
- * elicitation, the evaluator's and sandbagging all flow into it. nEff still sums the suites' weights (the re-run policy
- * reads it). No stored error draw.
+ * Measured level (RD-M01, DD-08): fitted from the version's benchmark scores (fitDomains, fitGeneral), so the suites' noise,
+ * their elicitation, the evaluator's and sandbagging all flow into it. RF-R2: each benchmark's reading pools every suite
+ * on the current edition by inverse variance (poolReading; checkSaturation drops retired editions), so the band shrinks
+ * with suites; nEff sums the pooled suites' weights. A version changed in place since its last suite starts a new pool.
+ * Special rows (horizon, speedrun) keep the latest reading. Danger flags read the suite's own score. No stored error draw.
  */
 export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, by: Evaluator = 'self', depth: EvalDepth = 'full'): void {
   const v = versionById(s, versionId);
@@ -172,9 +187,12 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
   const day = ctx.day;
   const w = suiteWeight(depth);
   const k = 1 / Math.sqrt(w);
+  const fresh = changedSinceSuite(s, v);
+  if (fresh) v.evals.bench = {};
   for (const b of BENCHMARKS) {
     const score = measureBench(s, v, b, by, rng, depth);
-    v.evals.bench[b.id] = { score, sd: Math.round(BENCH_NOISE_SD[by] * k * 10) / 10, day, by };
+    const sd = Math.round(BENCH_NOISE_SD[by] * k * 10) / 10;
+    v.evals.bench[b.id] = { ...(b.special ? { score, sd } : poolReading(v.evals.bench[b.id], score, sd)), day, by };
     if (b.flag && !b.special && score > DANGER_THRESHOLD) v.flags[b.flag] = true;
   }
   const ea = evalAwarenessFactor(v);
@@ -186,7 +204,7 @@ export function runEvalSuite(s: GameStateV2, ctx: SystemCtx, versionId: string, 
   v.evals.suiteDay = day;
   v.evals.suiteJob = { ...job, observed: Math.round(mean((e) => v.evals.safety[e.id]?.rate ?? 0) * 1000) / 1000 };
   const n = (v.evals.nSuites ?? 0) + 1;
-  const nEff = (v.evals.nEff ?? v.evals.nSuites ?? 0) + w;
+  const nEff = (fresh ? 0 : v.evals.nEff ?? v.evals.nSuites ?? 0) + w;
   v.evals.nSuites = n;
   v.evals.nEff = Math.round(nEff * 1000) / 1000;
   v.evals.recipeAt = inPlaceRecipe(s, v);

@@ -27,12 +27,18 @@ export const STACK_KEYS: StackKey[] = ['pre', 'rlMid', 'rlCeil', 'train', 'serve
 /** Start stacks: the leader's day-0 recipe is 0 in every stack; a follower starts `lag` OOM lower in the pretraining
  *  and RL-efficiency stacks (its start lag as V1 solved it). */
 export function initialStacks(lag = 0): Record<StackKey, StackState> {
-  const mk = (base: number): StackState => ({ base, buckets: [], n: 0 });
+  const mk = (base: number): StackState => ({ base, buckets: [], n: 0, est: 0, estVar: 0 });
   return { pre: mk(-lag), rlMid: mk(-lag), rlCeil: mk(0), train: mk(0), serve: mk(0) };
 }
 
 const stacksOf = (s: GameStateV2) => s.player.research.stacks;
 const lg = (F: number) => Math.log10(Math.max(1, F));
+
+/** RF-R5: add an adopted result's believed estimate ± sd to a stack's believed total (readouts; never the true effect). */
+export function addBelief(st: StackState, est: number, sd: number) {
+  st.est = Math.round(((st.est ?? 0) + est) * 1e4) / 1e4;
+  st.estVar = Math.round(((st.estVar ?? 0) + sd * sd) * 1e8) / 1e8;
+}
 
 /** Value of a stack at run FLOP F (OOM): base + Σ adopted · 10^(s·log₁₀F). */
 export const stackAt = (st: StackState, F = FLOP_RL_REF): number => st.base + adoptedAt(st, F);

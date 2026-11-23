@@ -4100,3 +4100,108 @@ hygiene.ts's calibration shift drops it).
   3e26). **Designer decision:** which compute anchor DeepCent uses (or whether rule A's equal-efficiency premise holds
   for China). GAP_ALGO_OFFSET (4 months, a fit in the R10 formula) absorbs the same gap: the game's US-labs / China
   compute ratio is ≈ 2.7×.
+
+## RF-R1: LEADER_CAL deleted (research review F2)
+
+- **Changed:** the simulated leader lab's research efficiency is 1 (`initRivalPhys(w, lab, 1, 0)` in actors/rivals.ts):
+  the aggregate research function as is, no per-lab factor (DD-18). Comments in production.ts, types.ts, rivalModel.ts
+  data header, calib.ts and calscan.ts no longer describe a leader fit knob.
+- **Deleted:** `LEADER_CAL` and its 30-line fit history (data/v2/calibration.ts); calib.ts `--fit-leader` with
+  `fitLeader` / `worstErrL`; calscan.ts's `--lc` axis (t1l now runs the leader as is); hygiene.ts's LEADER_CAL shift in
+  the process-history check (its eff check now asserts eff = 1); the `LEADER_CAL.ai2027 = −0.15` line in the
+  `_cp3e/shared.ts` probe (it no longer reproduces the pre-CP3g state).
+- **Stand-ins:** none.
+- **Check:** tsc (app + scripts); new games on ai2027 and slow with the leader lab: leader eff = 1.
+- **Moves calibration:** no (every value was already 0 since CP3g).
+
+## RF-R2: measured level pools every suite on the current edition (research review F4)
+
+- **Changed:** `runEvalSuite` pools each benchmark's new score with the reading the version already holds, by inverse
+  variance in score space (`poolReading`; score noise is additive on the score, so the pooled mean is the best estimate
+  of the score on that edition), and the fit (`fitDomains` / `fitGeneral`, unchanged) reads the pooled table. The band
+  therefore shrinks with suites; a basic suite after a deep one no longer widens it. `checkSaturation` already deletes
+  retired editions' readings, so a new edition starts a new pool. Special rows (horizon, speedrun) keep the latest
+  reading; danger flags still read the suite's own score. `nEff` again means something: the full-suite equivalents in the
+  pool (Evals "Full-suite equivalents" tooltip, the no-fit fallback band).
+- **One rule beyond the row (needed for pooling to be honest):** a version changed in place since its last suite (the
+  continual-learning stream; `inPlaceRecipe` ≠ `recipeAt`) starts a new pool (`changedSinceSuite`), since its old
+  readings measured an earlier model. The re-run policy (`reevalReason`: never / changed / cadence) is unchanged.
+- **Previews:** `expectedFitSd` pools today's readings with one more at the new suite's noise (or `alone`, or fresh after
+  an in-place change); `evalDepthView` bandOne = one such suite alone, bandAfter = pooled (they were equal before).
+- **Deleted:** the "fitted from that suite's table alone" basis (expectedFitSd, evalDepthView, EvalRecord docs).
+- **Stand-ins:** none. Pooled sd stored to 0.01 (score 0.1 as before); MIN_SCORE_SD 0.5 still floors a reading's weight.
+- **Check:** tsc (app + scripts). EV2 monotone-precision restored in scripts/v2/evals.ts (basic, full, deep, basic, full on
+  V0 with cleared evals: band non-increasing, last < first / 2, nEff 6.4). Own run, seed 7: band 0.197 → 0.082 → 0.039
+  → 0.039 → 0.035, previews before each suite 0.081 / 0.040 / 0.039 / 0.035, nEff 6.4, L 5.11 vs true 5.00; after an
+  in-place change a basic suite gives 0.205, nEff 0.2. rdm01.ts now clears V0's start readings before its one-suite reads
+  (the start scores were taken at SAND 0; pooled they would dilute the sandbagging test): all pass.
+- **Moves calibration:** maybe (RefBot's internal model reads a tighter, more stable measured level; RefBot's mini
+  timing reads it — see REEVAL_DG note in data/v2/evals.ts).
+
+## RF-R3: runEvals preview-vs-result check restored (research review F6)
+
+- **Changed:** scripts/v2/lint-tradeoffs.ts RD-B19 runEvals (self) compares the band the order preview shows before the
+  suite (`evalDepthView` full row, bandAfter) with the band the finished suite really leaves (`measuredSd` after the
+  suite's work is done), on the day-400 fixture and 1, 2, 3 days later (different score draws): each within 25% of its
+  preview (the pre-016a173 tolerance). The other conditions (one reading line, no meter or lead lines) stay.
+- **Deleted:** 016a173's tautology (`bandAfter == expectedFitSd(...)`, `measuredSd(v) == fitSd`) and the then-unused
+  `expectedFitSd` import.
+- **Stand-ins:** none.
+- **Check result: FAILS, left failing.** Preview 0.064 → realised 0.098 / 0.098 / 0.101 / 0.101. Cause: fixture drift,
+  not the preview. The day-400 fixture (regenerated at CP1) holds readings for Atlas-2.0-mini taken under the CP1 model
+  (e.g. replicate 54.8, ctf 41.4, medal 53.9); today's code gives that version true expected scores of 21.8 / 2.7 / 16.6
+  (domains CYBER / BIO 0), and it has no MMMU / EmbodiedBench rows. The preview reads the lab's held readings (never the
+  truth), which sit mid-curve, so it expects a tight band; the real scores sit on the flat low end of the curves. Also
+  its stored recipeAt (1.1970) differs from today's inPlaceRecipe (1.1939), so the suite starts a fresh pool (the
+  preview accounts for that). On current games (own check, seeds 1–4, Atlas-1.0 at day 30): preview 0.044 → realised
+  0.044 on every seed (ratio 1.00). Expect the check to pass once the fixtures are regenerated (next checkpoint).
+- **Moves calibration:** no (test only).
+
+## RF-R4: research speed and project ETAs from observed throughput (research review F7)
+
+- **Changed:** new `observedScale` (production/believed.ts): the unit project's realised experiment throughput on the
+  research engine's last day (`research.last.x.X`, what the lab's experiments did) ÷ the believed CES at the same inputs
+  and research speed. `labSpeedRel` (Research speed) = the believed throughput at today's inputs × that scale, so its
+  level is observed. `capEta` (every project ETA, the Assign / Take off / priority previews) reads the believed
+  parameters (λ and the CES) at the project's inputs × the same scale; it no longer reads `s.hidden.timeline.prod`.
+  `sciWorkRate` takes λ as an argument (physics passes the hidden λ, capEta the believed one; λ is never drawn, so the
+  values are equal). Speed and ETAs now share one basis, so on `sampled` worlds they no longer disagree.
+- **Kept on beliefs:** What binds, the +10% elasticities and bands, the response curves (unchanged; the scale cancels).
+- **Deleted:** capEta's truth reads (hidden prod, the true X of `projectExpInputs`).
+- **Left:** `projectExpInputs` itself still computes X with the hidden draw: it feeds the auto-assign planner's value
+  (`valueEnv`, player automation) and `capProjectView` c / ℓ / X; not in this row. Previews that run an engine day on a
+  copy (teamActions `readDay`) observe a simulated day, so they see the true response to the edit (existing design).
+- **Stand-ins:** none (the scale is derived, no new parameter).
+- **Check:** tsc (app + scripts). Own check, seed 5 day 30, ETAs vs the true experiment rate: ai2027 scale 0.9996 (the
+  stored x is rounded to 0.001), ETAs as before; sampled with hidden La forced to 2 / 180: scale 0.9971 / 1.0036, Research
+  speed 1.196 / 1.204, ETAs follow the true rates (0.0941 / 0.0947 work/day). `_ui0a/check.ts` all pass (worlds that
+  differ only in the hidden draw, with the same observations, give the same readouts).
+- **Moves calibration:** no (readouts and previews only; no bot reads capEta or labSpeedRel for decisions — calib.ts
+  prints labSpeedRel).
+
+## RF-R5: know-how shown from believed estimates; measured gain once per model (research review F5, F8.1)
+
+- **Changed (engine):** each recipe stack keeps a believed adopted total next to its true buckets (`StackState.est`,
+  `estVar`: Σ the adopted results' estimates when adopted, in the stack's OOM at the then-latest base, and Σ estSd²;
+  `addBelief` in stacks.ts, called where research.ts adds the idea, with an `also` stack's share). The engine's stacks
+  and physics keep the true effects. `stackViews` `now` / `adopted` read the believed total (+ new `adoptedSd`).
+- **Changed (readouts, minimal labels):** an adopted idea shows its believed band and "in <first evaluated model trained
+  with it>" / "not in a model yet" (Recipe.tsx `SeenIn`, replacing `MeasuredEffect`); domain / data rows likewise.
+  The measured gain is shown once per model: Models LevelTip row "Measured gain over <comparable model>" (± the two fits'
+  band) from `measuredDelta` (now exported, per model). Stack hero and make-up tooltips say "believed" with the band.
+  Glossary: `realisedEffect` is now "Measured gain" (per model), `stackEfficiency` and `otherEffects` say believed.
+- **Deleted:** `AdoptedView.measured`, `EffectRowView.measured` (the per-idea model delta in L), `MeasuredEffect`.
+- **Save:** SCHEMA_REV 97 → 98; migration 97 → 98 sums each stack's `est` / `estVar` from `research.adopted` (only the
+  last 30 results are kept, so a long save starts with a low believed total). hygiene.ts's rev constants → 98.
+- **Left (needs a decision; bigger than the row):** "Not trained in" (`gap`, `inModel`) still reads the engine's values
+  (true stack now vs the true recipe the internal model took). A believed version needs a believed recipe snapshot at
+  launch carried through the run recipe, the base, the RL build and the stream's FLOP-weighted mixing (runs.ts
+  rlAddOnVersion), plus init. `softwareRate` (Software progress OOM/yr, `research.gRate` from `researchG`) also reads
+  the true stacks. Train stack: the believed total is not capped at TRAIN_CAP as the true one is.
+- **Stand-ins:** none.
+- **Check:** tsc (app + scripts). scripts/v2/rdm02.ts rewritten as the RF-R5 check (stack total = Σ estimates ± band
+  while the buckets hold a different true effect; an idea names its model and has no measured number; the model's
+  measured gain 0.31 ± 0.163; changing true effects leaves the believed readouts unchanged): all pass. research.ts RD-B17
+  checks updated (`now` = base + believed; B30 reads `seenIn`). Own check: day-400 fixture migrates to rev 98 (pre believed
+  0.174 ± 0.011 from 14 listed results, n 32), grows to 0.205 after 120 days.
+- **Moves calibration:** no (readouts only).

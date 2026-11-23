@@ -8,9 +8,8 @@
 //       the same seeds) and take the middle of the passing window. `--fit-v3 [preset …]` (seed 2027 only) is kept for a
 //       first guess: it bisects G_SC on SC for each Δ_bm and searches Δ_bm on the worst later milestone.
 //   T1L Leader lab (setup.leaderLab, BUILD-PLAN R2) with a passive player: the simulated leader's milestone days hit
-//       the same golden days and tolerances, on the median over the same seeds. LEADER_CAL (its research efficiency,
-//       log₁₀; model v3 F1) is its per-preset knob (src/data/v2/calibration.ts): `calscan.ts t1l <preset> --lc …`;
-//       `--fit-leader [preset …]` (seed 2027 only) bisects it on SC for a first guess.
+//       the same golden days and tolerances, on the median over the same seeds. The leader has no per-lab knob
+//       (RF-R1 deleted LEADER_CAL): it runs the aggregate research function as is.
 //   T2  Copies × speed in Mar 2027 (ai2027 RefBot) ≈ 200k at ~30× (±30%).
 //   T3  China lead 150–200 d before any theft (default China lab, WS1 lab API).
 //   T4  Rival gaps at start 3–9 months.
@@ -22,7 +21,7 @@
 //              G-path reads, so those run at full strength); the milestone checks print SMOKE (the binding basis is the
 //              median over CAL_SEEDS, test:cal); T4 runs; the integrated runs, T2 and T3 are skipped.
 import { readFileSync } from 'node:fs';
-import { GOLDEN_TOL, LEADER_CAL } from '../../src/data/v2/calibration';
+import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { ASI_EXTRA, V3_CAL } from '../../src/data/v2/workTypes';
 import { gOfBuild, h50Of } from '../../src/engine/v2/models/capability';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
@@ -163,76 +162,15 @@ if (process.argv.includes('--fit-v3')) {
 }
 
 // ---------- T1L helpers: the simulated leader lab with a passive player ----------
-/** New game with the leader lab on (LEADER_CAL[preset] = lc), ticked with no player actions (endings skipped) until
+/** New game with the leader lab on, ticked with no player actions (endings skipped) until
  *  the leader records milestone `stopAt`. Returns the leader's milestone days. */
-function runT1L(preset: T1Preset, lc: number, stopAt: MilestoneIdx, seed = SEED, maxDays = 365 * 16): Partial<Record<MilestoneIdx, number>> {
-  LEADER_CAL[preset] = lc;
+function runT1L(preset: T1Preset, stopAt: MilestoneIdx, seed = SEED, maxDays = 365 * 16): Partial<Record<MilestoneIdx, number>> {
   const s = newGame(defaultSetupV2({ world: preset, alignment: 'medium', seed, tutorial: false, leaderLab: true }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID);
   if (!L) throw new Error('T1L: no leader lab');
   while (s.time.day < maxDays && L.core.milestoneDays[stopAt] === undefined && L.core.status === 'active') tick(s, { skip: ['endings'] });
   return L.core.milestoneDays;
 }
-/** Worst |Δ| over SC … last milestone of the leader lab, in units of its tolerance (≤ 1 passes T1L). */
-function worstErrL(preset: T1Preset, lc: number): number {
-  const md = runT1L(preset, lc, lastIdx(preset));
-  const g = golden.presets[preset].days;
-  let worst = 0;
-  for (let i = 3; i <= lastIdx(preset); i++) {
-    const want = g[NAMES[i]];
-    if (want === undefined) continue;
-    const got = md[i as MilestoneIdx];
-    const tol = i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after;
-    worst = Math.max(worst, got === undefined ? 99 : Math.abs(got - want) / 365 / tol);
-  }
-  return worst;
-}
-/** Bisect LEADER_CAL so the leader's SC day equals the golden SC day (model v3 F1: research efficiency, so SC day falls
- *  as it rises). The aggregate leader has no idea projects and runs SC → ASI slower than RefBot, so the SC root
- *  over-delays the late milestones: refine on a grid around it by the worst |Δ|/tolerance over SC … last (0.025 steps,
- *  then 0.005). */
-function fitLeader(preset: T1Preset): number {
-  const want = golden.presets[preset].days.SC;
-  let lo = -1;
-  let hi = 1;
-  for (let i = 0; i < 12; i++) {
-    const mid = (lo + hi) / 2;
-    const sc = runT1L(preset, mid, 3)[3] ?? 1e9;
-    if (sc < want) hi = mid;
-    else lo = mid;
-  }
-  const c0 = Math.round(((lo + hi) / 2) * 1000) / 1000;
-  let best = c0;
-  let bestErr = worstErrL(preset, c0);
-  const tryAt = (c: number) => {
-    c = Math.round(c * 1000) / 1000;
-    if (c === best) return;
-    const e = worstErrL(preset, c);
-    if (e < bestErr - 1e-6) {
-      best = c;
-      bestErr = e;
-    }
-  };
-  for (let d = -0.05; d <= 0.1501; d += 0.025) tryAt(c0 + d);
-  const mid = best;
-  for (let d = -0.02; d <= 0.0201; d += 0.005) tryAt(mid + d);
-  // Model v3 F1: where no value brings every milestone within tolerance, keep the SC root (the leader's superhuman coder
-  // on time matters most to the follower starts that race it).
-  const pick = bestErr <= 1 ? best : c0;
-  console.log(`  ${preset}: bisection ${c0}, refined ${best} (worst |Δ|/tol ${bestErr.toFixed(2)}) → ${pick}`);
-  return pick;
-}
-if (process.argv.includes('--fit-leader')) {
-  const out: Record<string, number> = {};
-  const named = process.argv.slice(process.argv.indexOf('--fit-leader') + 1).filter((p): p is T1Preset => (T1_PRESETS as string[]).includes(p));
-  for (const p of named.length ? named : T1_PRESETS) {
-    out[p] = fitLeader(p);
-    console.log(`LEADER_CAL ${p} = ${out[p]}`);
-  }
-  console.log(`LEADER_CAL = ${JSON.stringify(out)}  (sampled: use the ai2027 value)`);
-  process.exit(0);
-}
-
 // ---------- --fit-tree (R4; model v3 V2): reference efforts of RefBot's paradigm projects ----------
 // RefBot starts each paradigm project when the old gate would have opened (bots/ref.ts REF_TREE). Model v3 V2 runs them
 // through the research lifecycle (models/research.ts: ideation by science teams, experiments by research engineers),
@@ -339,7 +277,7 @@ Object.assign(KNOWN, {
   'T1 authors2026 A1': 'see T1 ai2027 A1', 'T1 authors2026 A2': 'see T1 ai2027 A1',
   'T1 fast A1': 'see T1 ai2027 A1', 'T1 fast A2': 'see T1 ai2027 A1',
   'T1 slow A1': 'see T1 ai2027 A1', 'T1 slow A2': 'see T1 ai2027 A1',
-  // Model v3 F4: no LEADER_CAL brings these in with SC and SAR (median over CAL_SEEDS; F4 notes).
+  // Model v3 F4: no leader efficiency brought these in with SC and SAR (median over CAL_SEEDS; F4 notes; LEADER_CAL since deleted, RF-R1).
   'T1L authors2026 SIAR': 'The aggregate leader lab (no idea projects) runs authors2026 SAR → ASI in 2.2 y where the golden takes 3.8 y: at LEADER_CAL 0.11 (SC −0.02, SAR 0.00 y) SIAR is −0.83 y and ASI −1.66 y; at 0.05, where SC is already +0.23 y, still −0.57 / −1.39 y (F2, M7, F4).',
   'T1L authors2026 ASI': 'see T1L authors2026 SIAR',
 });
@@ -391,8 +329,7 @@ function t1SeedRec(preset: T1Preset, seed: number): Partial<Record<MilestoneIdx,
 }
 /** T1L leader-lab milestone days for a preset and seed (cached). */
 function t1lRec(preset: T1Preset, seed = SEED) {
-  const lc = LEADER_CAL[preset];
-  return cached('calib-t1l', { preset, lc, stopAt: lastIdx(preset), seed, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lc, lastIdx(preset), seed, MAX_DAYS));
+  return cached('calib-t1l', { preset, stopAt: lastIdx(preset), seed, maxDays: MAX_DAYS, env: ENV }, ME, () => runT1L(preset, lastIdx(preset), seed, MAX_DAYS));
 }
 /** T1 integrated RefBot record for a preset (cached): milestone days, worst R5 wait, final cash and finance state. */
 function intRec(preset: T1Preset) {
@@ -541,11 +478,10 @@ for (const r of v3checks) console.log('  ' + r);
 {
   const tableL: string[] = [];
   for (const preset of PRESETS) {
-    const lc = LEADER_CAL[preset];
     const t0 = performance.now();
     const mds = T1L_SEEDS.map((x) => t1lRec(preset, x));
     const { row, spread } = medianChecks('T1L', preset, mds, 3);
-    tableL.push(`${preset.padEnd(12)} LEADER_CAL ${lc.toFixed(3)}  median ${row}  [${(performance.now() - t0).toFixed(0)} ms]`, ...spread.map((x) => `${' '.repeat(14)}${x}`), `${' '.repeat(14)}seed ${SEED}: ${seedRow(preset, t1lRec(preset), 1)}`);
+    tableL.push(`${preset.padEnd(12)} median ${row}  [${(performance.now() - t0).toFixed(0)} ms]`, ...spread.map((x) => `${' '.repeat(14)}${x}`), `${' '.repeat(14)}seed ${SEED}: ${seedRow(preset, t1lRec(preset), 1)}`);
   }
   console.log(`\nT1L leader lab milestone years (passive player), median over ${T1L_SEEDS.length} seeds (Δ vs golden, years; SC and later bind):`);
   for (const r of tableL) console.log('  ' + r);

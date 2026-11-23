@@ -755,22 +755,22 @@ if (process.argv.includes('--rd-a03')) {
     'RD-B17 P09 is not under pretraining: domain and data effects are listed apart, in their own units', `P09 rows ${p09?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}; P10 ${p10?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}`);
   const keys = gs.map((g) => g.key);
   const src = readFileSync(join(HERE, '../../src/ui/v2/panels/Recipe.tsx'), 'utf8');
-  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (g.key === 'pre' ? stackAt(s.player.research.stacks.pre, latestBaseFlop(s)) : g.now)) < 1e-12) && !/\.reduce\(/.test(src),
+  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (s.player.research.stacks[g.key].base + (s.player.research.stacks[g.key].est ?? 0))) < 1e-12) && !/\.reduce\(/.test(src),
     'RD-B17 no Recipe card sums mixed units: one card per stack, no sums in the panel', keys.join(', '));
-  // B30: who reveals an RL idea's true effect.
+  // B30: which model first embodies an RL idea (RF-R5: the idea names it; its measured gain is the model's).
   const day = s.time.day;
   const vs = s.player.models.versions;
   const proto = vs[vs.length - 1];
   const add = (id: string, extra: Partial<typeof proto>) => vs.push({ ...proto, id, name: id, day: day + 10, status: 'ready', ...extra });
   const rl = () => stackViews(s).find((g) => g.key === 'rlMid')!.ideas.find((a) => a.id === 'L.rlalg')!;
   add('Tmini', { variant: 'mini', trained: undefined });
-  const afterMini = rl().measured;
+  const afterMini = rl().seenIn;
   add('Told', { variant: 'full', trained: { rlDay: day - 5, post: true } });
-  const afterOld = rl().measured;
+  const afterOld = rl().seenIn;
   add('Tnew', { variant: 'full', trained: { rlDay: day + 1, post: true } });
   const after = rl();
-  check(afterMini === undefined && afterOld === undefined && after.measured !== undefined && after.seenIn === 'Tnew',
-    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later ${after.measured} seen in ${after.seenIn}`);
+  check(afterMini === undefined && afterOld === undefined && after.seenIn === 'Tnew',
+    'RD-B17 a distill (or a post-train launched before it) does not reveal an RL idea; a post-train launched after does', `mini ${afterMini}, earlier launch ${afterOld}, later seen in ${after.seenIn}`);
 }
 
 

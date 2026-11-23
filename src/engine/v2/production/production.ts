@@ -27,7 +27,7 @@ import { withResearchAgents } from '../departments/split';
 import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
-import { believedProd, believedWorld, elasticitiesAt } from './believed';
+import { believedProd, believedWorld, elasticitiesAt, observedScale } from './believed';
 import { effLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
@@ -162,11 +162,14 @@ function playerReadout(s: GameStateV2, inp: LabInputs): ProductionReadout {
 }
 
 /** The player's research speed relative to the leader lab's day-0 research (the Research speed readout): the lab's
- *  experiment throughput × taste × modifiers, ÷ the leader's day-0 value (≈ 1 at the start). */
+ *  experiment throughput × taste × modifiers, ÷ the leader's day-0 value (≈ 1 at the start). RF-R4: the throughput is
+ *  the believed CES at today's inputs scaled to the lab's observed throughput (observedScale), so the level is what the
+ *  lab's experiments did, never a hidden parameter. */
 export function labSpeedRel(s: GameStateV2): number {
   const inp = labInputs(s, PLAYER_ID);
   if (!inp) return 1;
-  return (expThroughput(believedWorld(s), inp) * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
+  const k = observedScale(s, researchMods(s).speed);
+  return (expThroughput(believedWorld(s), inp) * k * inp.v3.Tai * inp.v3.mods * inp.v3.rateMult) / (DAY0_REF.re / RE_LABOUR_UNIT);
 }
 
 /** The player's production readout (§3.2.5) at inputs `inp`, from the research engine's last day. */
@@ -197,7 +200,7 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 
 /** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
  *  compute (the rivals' aggregate policy, actors/rivalModel.ts bestRivalMix), research speed through the aggregate CES with its internal model's AI labour,
- *  its efficiency (the leader's LEADER_CAL, China's effLab) and modifiers (a binding leader, a verified treaty), and the
+ *  its efficiency (China's effLab) and modifiers (a binding leader, a verified treaty), and the
  *  recipe growth that gives. `apply` re-splits the mix and advances the recipe by a day. */
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;

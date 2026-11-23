@@ -339,8 +339,8 @@ export function evalDepthView(s: GameStateV2, v: ModelVersion): EvalDepthRow[] {
     const w = D.rollouts / FULL_ROLLOUTS;
     return {
       depth, label: D.label, rollouts: D.rollouts, cost: evalCost(s, v, depth), days: evalDaysEstimate(s, depth),
-      // CP3d: the fitted band (RD-M01): the measured level is fitted from the latest suite alone, so one suite's band is the band after it.
-      ...(() => { const b = expectedFitSd(s, v, 'self', depth); return { bandOne: b, bandNow: measuredSd(v), bandAfter: b }; })(),
+      // RF-R2: the fitted band (RD-M01) pools every suite on the current edition: one such suite alone, and today's readings plus it.
+      bandOne: expectedFitSd(s, v, 'self', depth, true), bandNow: measuredSd(v), bandAfter: expectedFitSd(s, v, 'self', depth),
       benchSd: BENCH_NOISE_SD.self / Math.sqrt(w), elic: D.elic,
     };
   });

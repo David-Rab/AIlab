@@ -51,10 +51,11 @@ import type {
 } from '../types';
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
+import { believedProd, observedScale } from '../production/believed';
 import { expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
-import { addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
+import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
 import { steerAdoption } from '../safety/covert';
 import { trueEfficacy } from '../safety/common';
 
@@ -212,27 +213,31 @@ export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAlloc
 /** RD-B18 (B31): the one capability-project ETA, in days, that every readout and preview uses. Ideation to PICK_AT
  *  candidates at the science teams' rate (as stepProject: (m_IDEAS × capacity)^λ × taste × speed over the ideation
  *  stage's team-months, a line's batch), then the test stages at the project's experiment inputs (projectExpInputs).
- *  `sci` previews other staffing (default: the teams on it). 0 for a project past its tests; Infinity = stalled. */
+ *  `sci` previews other staffing (default: the teams on it). 0 for a project past its tests; Infinity = stalled.
+ *  RF-R4 (a readout, never the hidden draw): the believed production parameters (production/believed.ts) at the project's
+ *  inputs, scaled to the lab's observed experiment throughput (observedScale), so the ETA's level is what the lab's
+ *  experiments did and only the step to the project's inputs or other staffing is a belief. */
 export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number } = sciOn(s, id)): { ideation: number; experiments: number; eta: number } {
   const n = node(id);
   const ts = s.player.tree[id];
   const st = ts?.cap;
   if (!n || ts?.status === 'known' || ts?.status === 'failed' || !takesTeams(st)) return { ideation: 0, experiments: 0, eta: 0 };
-  const P = s.hidden.timeline.prod;
+  const P = believedProd(s).mid;
   const x = s.player.research.last?.x;
   const sg = stagesOf(n);
   const b = 1; // RD-R08: every candidate is one idea (the flow runs at the same rates)
   const speed = researchMods(s).speed;
+  // The project's experiment CES at its inputs (projectExpInputs' compute; labour at the believed λ), believed, scaled to observed.
+  const { cc, reEval } = projectExpInputs(s, id);
+  const X = cc > 0 && reEval > 0 ? Xces(P, cc, Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_LABOUR_UNIT), P.lam)) * observedScale(s, speed) : 0;
   if (isUnlockProject(n)) {
     // RD-R05: one test, science teams and the experiment CES on the same work.
     const left = st?.trial ? Math.max(0, st.trial.workNeed - st.trial.work) : trialWork(n) * (1 - (st ? capProgress(st) : 0));
-    const { X } = projectExpInputs(s, id);
-    const rate = sciWorkRate(s, x?.mIdeas ?? 1, sci, speed) + (X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0);
+    const rate = sciWorkRate(P.lam, x?.mIdeas ?? 1, sci, speed) + (X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0);
     const experiments = rate > 0 ? left / rate : Infinity;
     return { ideation: 0, experiments, eta: experiments };
   }
   const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * sci.q * speed) / (sg.idea * b * 30) : 0;
-  const { X } = projectExpInputs(s, id);
   const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0;
   const t = st?.test;
   const ideation = t ? 0 : ideaPerDay > 0 ? Math.max(0, PICK_AT - (st?.cands.length ?? 0) - (st?.idea ?? 0)) / ideaPerDay : Infinity;
@@ -291,8 +296,8 @@ export const trialWork = (n: TreeNodeDef) => {
   return PICK_AT * sg.idea + sg.small + sg.scale;
 };
 /** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × taste × speed / 30). */
-const sciWorkRate = (s: GameStateV2, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
-  sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), s.hidden.timeline.prod.lam) * sci.q * speed) / 30 : 0;
+const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
+  sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * sci.q * speed) / 30 : 0;
 /** An unlock project's test state, started (or restated from an older save's idea pipeline at its progress) on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
   if (!st.trial) {
@@ -816,7 +821,11 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   if (eff?.stack) {
     // RD-B17: a batch counts its b ideas; the second stack an idea also moves adds no idea.
     addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, count);
-    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
+    addBelief(res.stacks[eff.stack], r.est, r.estSd);
+    for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) {
+      addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
+      addBelief(res.stacks[k], r.est * ratio, r.estSd * Math.abs(ratio));
+    }
     realised = xTest * Math.pow(latestBaseFlop(s) / r.fTest, truth.s);
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);
@@ -1123,7 +1132,7 @@ export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, day:
  *  the FLOP used. */
 function stepTrial(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProjectState, inp: ResearchInputs, sci: { cap: number; q: number }, expRate: number, flopDay: number, queueBuild: (tw: number) => string): number {
   const tr = trialOf(n, st);
-  const { used, done } = stepTest(tr, sciWorkRate(s, inp.mIdeas, sci, inp.speed), expRate, flopDay);
+  const { used, done } = stepTest(tr, sciWorkRate(s.hidden.timeline.prod.lam, inp.mIdeas, sci, inp.speed), expRate, flopDay);
   if (!done) return used;
   const spec = st.spec ?? 0;
   const ts = s.player.tree[n.id];

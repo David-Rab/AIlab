@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { ACTIONS, ACTION_BY_ID, EVENTS, EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { deserialize } from '../../src/engine/v2/core/save';
 import { act, makeCtx, tick } from '../../src/engine/v2/core/loop';
-import { expectedFitSd, measuredSd } from '../../src/engine/v2/models/benchmarks';
+import { measuredSd } from '../../src/engine/v2/models/benchmarks';
 import { evalDepthView, openEval } from '../../src/engine/v2/models/evals';
 import { externallyEvaluated } from '../../src/engine/v2/models/deployments';
 import { activeRivals, internalVersion } from '../../src/engine/v2/models/labs';
@@ -131,22 +131,30 @@ const run = (s: GameStateV2, days: number) => {
 };
 const iv = internalVersion(s4)!;
 {
-  // B36: a self suite gives a new reading and leaves the band previewed; no meter lines. CP3d: the band is the fit of the
-  // new suite's scores (RD-M01), so the preview is its expectation at today's readings (expectedFitSd); the finished suite's band is its own
-  // fit (fitSd), which moves with the scores it drew (detail prints both). On a live version with no
-  // open suite.
+  // B36: a self suite gives a new reading and leaves the band previewed; no meter lines. RF-R3 (replaces CP3d's
+  // tautology, which compared expectedFitSd with itself and fitSd with itself): the band previewed before the suite
+  // (the order preview's "after") against the band the finished suite really leaves, on a live version with no open
+  // suite, from the fixture and 1–3 days later (other days, other score draws): each within 25% of its preview.
   const ev = s4.player.models.versions.find((v) => (v.status === 'ready' || v.status === 'deployed') && !openEval(s4, v.id) && !openEval(s4, v.id, 'evalIndep'))!;
   const pv = pvOf(s4, 'runEvals', { versionId: ev.id, by: 'self', depth: 'full' });
-  const row = evalDepthView(s4, ev).find((r) => r.depth === 'full')!;
-  const c = clone(s4);
-  const e = act(c, 'runEvals', { versionId: ev.id, by: 'self', depth: 'full' });
-  const day0 = c.time.day;
-  for (let i = 0; i < 200 && (c.player.models.evals ?? []).some((t) => t.versionId === ev.id && t.why === 'order'); i++) run(c, 1);
-  const v = c.player.models.versions.find((x) => x.id === ev.id)!;
+  const pairs: { pre: number; got: number; done: boolean }[] = [];
+  let e: string | undefined;
+  for (const k of [0, 1, 2, 3]) {
+    const c = clone(s4);
+    run(c, k);
+    const cv = c.player.models.versions.find((x) => x.id === ev.id)!;
+    if (openEval(c, cv.id)) continue;
+    const pre = evalDepthView(c, cv).find((r) => r.depth === 'full')!.bandAfter;
+    const err = act(c, 'runEvals', { versionId: ev.id, by: 'self', depth: 'full' });
+    if (k === 0) e = err;
+    const day0 = c.time.day;
+    for (let i = 0; i < 200 && (c.player.models.evals ?? []).some((t) => t.versionId === ev.id && t.why === 'order'); i++) run(c, 1);
+    pairs.push({ pre, got: measuredSd(cv), done: (cv.evals.suiteDay ?? -1) > day0 });
+  }
   check(!e && !pv.exposure.length && pv.gains.length === 1 && pv.gains[0].unit === 'reading' && pv.gains[0].currency === 'progress'
-    && (v.evals.suiteDay ?? -1) > day0 && near(row.bandAfter, expectedFitSd(s4, ev, 'self', 'full'), 1e-12) && v.evals.fitSd !== undefined && near(measuredSd(v), v.evals.fitSd, 1e-12),
-    'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the previewed ± is the fitted band expected at the current readings and the finished suite band is its own fit',
-    `${e ?? ''} ${JSON.stringify(pv.gains)} fitted sd ${measuredSd(v)}, expected ${row.bandAfter}`);
+    && pairs.length >= 3 && pairs.every((x) => x.done && near(x.got, x.pre, 0.25 * x.pre)),
+    'RD-B19 runEvals (self): one reading line, no meter gains or lead risk; the finished suite leaves the previewed ± (within 25%, 4 start days)',
+    `${e ?? ''} ${JSON.stringify(pv.gains)} previewed → realised ${pairs.map((x) => `${x.pre.toFixed(3)} → ${x.got.toFixed(3)}${x.done ? '' : ' (not done)'}`).join(', ')}`);
   // External evaluators under the framework's external review: the release check is previewed and the finished suite meets it.
   const x = clone(s4);
   x.player.safety.framework.evalDepth = 'deep'; x.player.safety.framework.externalReview = true;
