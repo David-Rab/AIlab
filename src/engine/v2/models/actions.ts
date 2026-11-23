@@ -123,12 +123,12 @@ function runParams(s: GameStateV2, kind: LaunchRunParams['kind'], p: Params): La
 }
 
 /** Run preview: compute and cash costs, the forecast level gain, the training pressure. RD-B19 (B45): the gain is the
- *  lab's forecast (runForecast: a measured reference plus the run's step) minus that reference's measured level, so it
+ *  lab's forecast (runForecast, UB-2b: believed recipe on the start model's measured build) minus that reference's measured level, so it
  *  compares like with like and shows no true level; the band is the reference's evaluation band. The pressure is the
  *  sum of the run's training signals (what applyRunToTraits applies), shown as pressure, not as an alignment change. */
 function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Preview {
   const plan = planRun(s, lp);
-  const fc = runForecast(s, plan.prediction, ref);
+  const fc = runForecast(s, lp, ref);
   const costs: CostLine[] = [{ currency: 'compute', amount: plan.poolShare, target: 'training pool share' }];
   if (plan.cashCost > 0) costs.push({ currency: 'cash', amount: plan.cashCost });
   const exposure: CostLine[] = [];
