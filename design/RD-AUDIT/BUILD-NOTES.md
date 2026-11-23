@@ -5022,3 +5022,32 @@ Before → after (worldfx --smoke, seed 2027, ai2027): AI-friend 8.2 → 8.1%; A
 (in window); firm adoption Jul 2026 18.9 → 19.4%; hours of use mid-2026 6.9 → 7.0%, saved 2.7 → 2.8%; W4 U +0.20 →
 +0.21 pp; W2 +1.9 → +2.0%; F11 2026 $51.9B → $52.3B, 2027 $102.8B → $102.9B; three more headlines fire (H13, H16, H18:
 techs now open on the v2 schedule). Same pass / fail set.
+
+**2. Adoption (decision 5): Bass p / q fitted to the measured BTOS growth.** Source, primary: Census story "AI use
+among businesses" (census.gov/library/stories/2026/05/ai-use-businesses.html, 26 May 2026), Figure 1, current AI use
+(last two weeks, new "any business function" question since Nov 2025): 17.3% (14 Dec 2025) → 19.8% (3 May 2026), ×1.42
+a year (research/22 §7: ×1.2–1.4; the 21.7% Jul / 23.8% Sep 2026 readings are still press only, not found on census.gov).
+On the reference path the game's readout grew ×2.4 a year over the same window (A tracks A* = F·K·(1 − R), which steps
+with each release, at R16's [D] p / q). Fit: one factor on every sector's p and q, `ECON.bassFit` **0.33** (sector ratios
+kept; probe _cal2x/bass.ts): window growth ×2.41 → ×1.37–1.43 (seed 2027; seed 5 ×2.53 → ×1.48). The readout's own k
+was fitted on the old, too-fast path, so it is refitted with it to the same BTOS release: `firmK` 10 → **19** (19.8% on
+3 May 2026). Readout shape left as a stand-in: SOFT ≈ 66% vs BTOS Information 39.7%, FIN ≈ 41% vs Finance 33.9%.
+
+Before → after (worldfx --smoke, seed 2027; task 1 included):
+
+| Target | before | after | want |
+|---|---|---|---|
+| W4 firm adoption, Jan / Jul / Nov 2026 | 12.4 / 19.4 / 25.0% | 17.7 / 20.9 / 23.4% | BTOS 17.7 (Jan), 19.8 (May) |
+| A2a hours of use, mid-2026 | 7.0% FAIL | 5.9% pass | 5–6.5% |
+| A2a hours saved, mid-2026 | 2.8% FAIL | 2.2% pass | 1.7–2.7% |
+| A2a workers using AI 2026 | 40.8% | 39.2% | 35–45% |
+| W4 aggregate U, Nov 2026 | +0.21 pp FAIL | +0.07 pp pass | ≈ 0 ±0.15 |
+| W2 Normal Technology TFP / decade | +2.0% FAIL | +1.0% pass | +0.5–1% |
+| F11 2026 / 2027 revenue | $52.3B / $102.9B | $46.2B / $105.4B | $36–67B / ≥ $98B |
+| AI-friend Jul 2027; Accept ≥ 0.85 | 8.1%; 2028-03-09 | 8.1%; 2028-03-11 | 10 ±3; Dec 2027 ±3 mo |
+worldfx --smoke: 29 pass, 0 fail (was 4 fail).
+**Revenue floor:** 2027 revenue does not fall: by 2027 the player's revenue is agent spend, not the adopted-hour Bass
+stock (seed 5: $96.9B at R16's p / q, $96.5B fitted, both under the floor; seed 2027 $105.4B). The floor's own source:
+F11 "$140B 2027 (±30%)" = AI 2027's compute forecast §5 OpenBrain revenue table ($14B / $45B / $140B for 2025–27,
+research/02 F6, V2-SPEC §9 row 9), a scenario projection, not a measurement; ±30% is [D]. Measured since (research/22
+§7): Anthropic run-rate $14B (Feb 2026) → $81B (Oct 2026), i.e. reality runs at or above the scenario's path.

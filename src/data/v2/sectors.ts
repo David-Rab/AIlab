@@ -135,8 +135,17 @@ export const ECON = {
   youthRel0: 0.87,
   /** US youth (22–25) unemployment base (%) [D]. */
   youthU0: 8.0,
-  /** Firm AI use ≈ 1 − exp(−k·A): Census BTOS Information 39.7%, Finance 33.9% (Dec 2025–May 2026) [V; fit k]. */
-  firmK: 10,
+  /** Firm AI use ≈ 1 − exp(−k·A) (a readout, nothing else reads it). CAL2-X refit with bassFit: k 10 → 19 puts the US
+   *  employment-weighted readout at 19.8% on 3 May 2026 (Census BTOS, current use, new question; census.gov story
+   *  2026-05 "ai-use-businesses") on the fitted Bass path (RefBot classic, seed 2027). Its sector shape is a stand-in:
+   *  SOFT reads ≈ 66% vs BTOS Information 39.7%, FIN ≈ 41% vs Finance 33.9% (BUILD-NOTES CAL2-X). */
+  firmK: 19,
+  /** CAL2-X: one factor on every sector's Bass p and q (research/16 §1A table values [D], never fitted; "Bick et al.: use
+   *  Bass p, q"), fitted to the measured firm-adoption growth: Census BTOS current AI use 17.3% (14 Dec 2025) → 19.8%
+   *  (3 May 2026), ×1.42 a year (census.gov story 2026-05, Figure 1; research/22 §7: ×1.2–1.4). On the reference path
+   *  (RefBot classic, seed 2027) R16's values grew the readout ×2.4 a year over the same window; 0.33 gives ×1.37–1.43
+   *  (the range over the readout's k). Once-fitted [fit]. */
+  bassFit: 0.33,
 };
 
 

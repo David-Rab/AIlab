@@ -6,7 +6,7 @@
 //              (1 − w_PHYS)·Σ share·a_cog + w_PHYS·σ((Le_PHYS − fMid − θ_s)/fSpread)
 //   3 K      = Σ share·σ(ln(Wage·W0 / (price + review))/0.7)   price per work-hour from each provider's physical cost
 //   4 A*     = F·K·(1 − R)                   R = R0·frictionScale + policy + incidents − certification
-//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult;  A* < A → decays at 0.5/yr
+//   5 A     += (p + q'·A/A*)(A* − A)/365·DiffMult (p, q: R16's × ECON.bassFit, CAL2-X);  A* < A → decays at 0.5/yr
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
@@ -241,14 +241,16 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     st.R = frictionOf(s, r, def, pol, certShare);
     st.Astar = st.F * st.K * (1 - st.R);
     // RD-P04a: v2's +0.15 per AGENCY level above 8, per OOM of AGENCY G above λ⁻¹(8) (the slope at L 8).
-    let q = def.q * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
+    // CAL2-X: R16's p, q × ECON.bassFit (fitted to the BTOS growth).
+    const p = def.p * ECON.bassFit;
+    let q = def.q * ECON.bassFit * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
-    if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
+    if (st.A < st.Astar) st.A += (p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
     st.A = clamp01(st.A);
     // A2a: workers who use AI at work (Bass at the sector's p and q toward W*; slow disadoption as for A).
     const Wstar = workerTarget(def, r, st.F, st.A);
-    if (st.W < Wstar) st.W += (def.p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
+    if (st.W < Wstar) st.W += (p + (q * st.W) / Math.max(1e-6, Wstar)) * (Wstar - st.W) * dt * econ.diffMult;
     else st.W -= 0.5 * (st.W - Wstar) * dt;
     st.W = clamp01(Math.max(st.W, st.A));
     // A2c: paid seats, a share σ of those workers: imitation (SEATS.q) toward σ* = K_seat·(1 − R) (the seat's cost gate
