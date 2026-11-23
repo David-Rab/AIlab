@@ -1954,7 +1954,7 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   product's AGENCY sigmoid weight and its p(AGENT_TASK_HOURS) agent weight (its launch gate stays), and the Enterprise
   sector-focus ×3. "Focus" had no real meaning of its own (it moved hours among the player's products only); a pack's
   real effect stays its fit term in the host product's offer (SECTOR_PACK_DG, worldfx/serving.ts), which now wins buyers
-  in the choice (RD-P04 / DD-04 rebuilds packs). `SEAT_WEIGHT` → `SEAT_CHANNELS` (Enterprise; Gov in GOV/MIL): the
+  in the choice (RD-P08 / DD-04 rebuilds packs). `SEAT_WEIGHT` → `SEAT_CHANNELS` (Enterprise; Gov in GOV/MIL): the
   player's seats go to its seat-selling products in proportion to their parts. Trusted's ×3 price, KYC, restricted ×0.3
   and enabler segments unchanged. Glossary `product` says products compete by choice; types.ts packs comment; features.ts
   ProductDef note. No state shape change: no SCHEMA_REV bump (stays 65).
