@@ -1,128 +1,114 @@
-// Top strip (IA.md L0): time · the race (hero) · catastrophe risk · cash·runway · nearest lead · help · menu.
+// Top strip (UB-5; UI-IA §0 L0): clock · research speed · lead · cash·runway (revenue in its tooltip) · loss-of-control
+// risk (small) · help · menu. The alert channel is the bottom bar. Capability and catastrophe risk left L0 (UI-IA §0).
 // Each item is the HOME of its datum (data-home); hover = why, click = the panel that changes it.
 import { useState } from 'react';
-import { dateOf, divisionView, engine, fmtDate, internalEval, MILESTONE_NAMES, productReadouts, RUNWAY_CAP, safetyView, SLOT_KEYS } from '../../../engine/v2';
-import { PRODUCT_DEFS } from '../../../data/v2/features';
+import { chanceCertainty, dateOf, divisionView, engine, fmtDate, isUnknown, labSpeedLimits, lossOfControlRisk, poolsOf, researchSpeedReadout, RUNWAY_CAP, SLOT_KEYS, teamsOfKey, workTypeViews } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
-import { CRITICAL_TRAITS, TRAIT_BY_ID } from '../../../data/v2/traits';
+import { TrendingDown, TrendingUp } from 'lucide-react';
 import { store } from '../store';
-import { ACT_NAMES, Term, Tip, TipCard, WhyCard } from '../ui';
-import { Gauge, GoBtn, HBar, Spark2 } from '../kit';
+import { ACT_NAMES, Limit, Term, Tip, TipCard, WhyCard } from '../ui';
+import { GoBtn, Spark2 } from '../kit';
 import * as F from '../fmt';
-import { ICON, TRAIT_ICON } from '../icons';
+import { ICON } from '../icons';
 import { C, STATE_COLOR } from '../theme';
 import { SpeedControl } from './SpeedControl';
-import { catRisk, customerCount, customerShare, divisionStatus, nearestRival, runwayLive } from './selectors';
+import { catRisk, divisionStatus, nearestRival, runwayLive } from './selectors';
 
 export { catRisk, nearestRival, runwayLive };
 
 /** What triggers each act (engine tutorial rules; shown in the date hover and the Goals card). */
 export const ACT_TRIGGER: Record<number, string> = { 2: 'capability level 6.5 or day 150', 3: 'capability level 8.5', 4: 'capability level 12 or research speed ×25' };
 
-function RaceTip({ s }: { s: GameStateV2 }) {
-  const u = engine.sightLimit(s);
-  const ev = internalEval(s);
-  const sv = safetyView(s);
-  // Jank S2: list tools that are fading now; tools that no longer work at all are one line, not "decayed 100%".
-  const active = sv.techniques.filter((t) => t.unlocked && t.active && t.role !== 'fix');
-  const decaying = active.filter((t) => t.decay > 0.05 && t.decay < 0.99).sort((a, b) => b.decay - a.decay).slice(0, 3);
-  const gone = active.filter((t) => t.decay >= 0.99);
-  const masked = sv.techniques.filter((t) => t.unlocked && t.trainedAgainst > 0.05);
-  const hist = s.series.U.slice(-13);
+/** L0 #6 Research speed (UB-5; UI-IA §0): × the leading lab in July 2025, a 90-day trend arrow; the tooltip shows what
+ *  it runs on, AI staff's part and its history (UB-2 researchSpeedReadout, beliefs and measurements only). Click → RESEARCH. */
+function SpeedChip({ s }: { s: GameStateV2 }) {
+  const r = researchSpeedReadout(s);
+  const tr = r.trend90;
+  const up = tr !== undefined && tr > 1.02;
+  const down = tr !== undefined && tr < 0.98;
+  const Arrow = up ? TrendingUp : down ? TrendingDown : undefined;
+  const tip = () => {
+    const pools = poolsOf(s);
+    const wts = workTypeViews(s);
+    const exp = wts.find((w) => w.wt === 'EXP');
+    const ideas = wts.find((w) => w.wt === 'IDEAS');
+    const lim = engine.production(s, 'player').label;
+    const hist = r.history.filter((h) => h.day >= s.time.day - 90).map((h) => h.speed);
+    const ago = (d: number) => [...r.history].reverse().find((h) => h.day <= s.time.day - d);
+    const h90 = ago(90);
+    const h30 = ago(30);
+    return (
+      <TipCard title={<Term id="labSpeed">Research speed</Term>} value={`×${r.now.toFixed(1)}`} rows={[
+        { label: <span><Term id="poolExperiments">Compute on research</Term> <span className="dim">· experiments {F.h100e(pools.experiments)} · AI staff {F.h100e(pools.routine + pools.frontier)}</span></span>, value: `${F.h100e(pools.experiments + pools.routine + pools.frontier)} H100e` },
+        ...(exp ? [{ label: <span><Term id="roleRE">Research engineers</Term> <span className="dim">· {teamsOfKey(s.player, 're.cap').length} teams</span></span>, value: <span>work ×{Math.max(1, exp.m).toFixed(1)}</span> }] : []),
+        ...(ideas ? [{ label: <span><Term id="roleSci">Scientists</Term> <span className="dim">· {teamsOfKey(s.player, 'sci.cap').length} teams</span></span>, value: <span>work ×{Math.max(1, ideas.m).toFixed(1)}</span> }] : []),
+        { label: <span>From <Term id="agentPackage">AI staff</Term> <span className="dim">· experiments ×{r.aiExperiments.toFixed(2)} · ideas ×{r.aiIdeas.toFixed(2)}</span></span>, value: `×${r.ai.toFixed(2)}` },
+        { label: 'Without AI staff', value: `×${r.withoutAI.toFixed(1)}` },
+        ...(h90 ? [{ label: <span>90 days ago{h30 ? ` · 30 days ago ×${h30.speed.toFixed(1)}` : ''}</span>, value: `×${h90.speed.toFixed(1)}` }] : []),
+        { label: <span className="row-i"><Term id="bottleneck">Limited by</Term> <GoBtn to={{ panel: 'lab', anchor: 'bestMoves' }} label="best moves" testId="speed.moves" /></span>, value: <span className="tone-warn">{LIMIT_WORD[lim] ?? F.words(lim)}</span> },
+        ...labSpeedLimits(s).map((l) => ({ label: <span className="dim">{l.id === 'speed.pause' ? 'Research pause' : <Term id="diffusion">Knowledge diffusion</Term>}</span>, value: <Limit id={l.id} tone={l.binding ? (l.mult < 1 ? 'bind' : 'warn') : 'quiet'}>{l.text}</Limit> })),
+      ]} footer={hist.length > 2 ? <span className="row-i">Last 90 days <Spark2 data={hist} w={110} h={18} /></span> : 'History builds up week by week.'}>
+        How fast your lab turns compute and people into research results, against the leading lab in July 2025 (×1). Your estimate.
+      </TipCard>
+    );
+  };
   return (
-    <TipCard title="Sight limit vs capability" value={`Sight limit ${F.sight(u)}`}>
-      <div className="why-body">Violet: the <Term id="L">measured capability</Term> of your newest internal model{ev.evaluating ? ' (still in testing: the last measured level of its lineage)' : ''}. Teal: your <Term id="sightLimit">sight limit</Term>, the highest level at which your instruments still read the hidden-goal traits at 50% or better (dashed: its range).{u.none ? ' None: at no level do your instruments read them at 50% on average, so the model is past it at any level.' : ''} {u.gap >= 0 ? `${F.num(u.gap, 1)} levels past your best model.` : `${F.num(-u.gap, 1)} levels short of your best model.`}</div>
-      <div className="tip-sec">
-        <div className="tip-cap">Reading at the model's level vs 50%</div>
-        {CRITICAL_TRAITS.map((t) => {
-          const p = u.perTrait[t] ?? 0;
-          const Ic = TRAIT_ICON[t];
-          return (
-            <div className="det-row" key={t}>
-              <span className="det-lbl">{Ic && <Ic size={12} />}<Term id={`trait:${t}`}>{TRAIT_BY_ID[t].name}</Term></span>
-              <HBar v={p} max={1} color={p >= 0.5 ? C.und : C.bad} w={130} mark={0.5} />
-              <span className={`num ${p >= 0.5 ? 'tone-pos' : 'tone-neg'}`}>{F.pct(p)}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="tip-sec">
-        <div className="tip-cap">Why the sight limit moved · last 90 d <Spark2 data={hist} w={70} h={14} /></div>
-        {/* Jank M2: the engine's weekly U drivers (new model, tools, eval-awareness belief, re-validation). */}
-        {(s.causes.byKey.U ?? []).filter((e) => e.day > s.time.day - 90).slice(-4).reverse().map((e, i) => <div className="small" key={`u${i}`} data-test="u-cause"><span className={e.delta >= 0 ? 'tone-pos' : 'tone-neg'}>{F.num(e.delta, 1, true)}</span> <span className="dim">{fmtDate(dateOf(s, e.day)).replace(/,? \d{4}$/, '')}</span> {e.detail ?? e.source}</div>)}
-        {decaying.map((t) => <div className="small" key={t.id}><ICON.revalidate size={11} /> <Term id="technique">{t.name}</Term> <span className="dim">reliability down</span> <b className={t.decay > 0.5 ? 'tone-neg' : 'tone-warn'}>{F.pct(t.decay)}</b> <span className="dim">(<Term id="halfStrength">capability outgrows it</Term>)</span></div>)}
-        {gone.length > 0 && <div className="small dim"><ICON.revalidate size={11} /> {gone.length} instrument{gone.length > 1 ? 's' : ''} no longer work at this capability: {gone.map((t) => t.name).join(', ')}</div>}
-        {masked.map((t) => <div className="small" key={`m${t.id}`}><ICON.blind size={11} /> {t.name} <span className="tone-neg">reliability −{F.pct(t.trainedAgainst)}</span> <span className="dim">(<Term id="goodhart">trained against</Term>)</span></div>)}
-        {ev.evaluating && <div className="small"><ICON.finding size={11} /> {ev.name} is <Term id="evaluating">in testing</Term></div>}
-        {!active.length && <div className="small dim">No instruments yet: staff a safety programme.</div>}
-      </div>
-      <div className="tip-sec"><div className="tip-cap">Levers</div><div className="btn-row wrap">
-        <GoBtn to={{ panel: 'safety', tab: 'lines' }} label="Safety research" testId="race.lines" />
-        <GoBtn to={{ panel: 'company', tab: 'people' }} label="Safety research engineers" testId="race.upkeep" />
-        <GoBtn to={{ panel: 'blueprint' }} label="Safer next run" testId="race.runs" />
-      </div></div>
-    </TipCard>
-  );
-}
-
-function RaceMeter({ s }: { s: GameStateV2 }) {
-  const u = engine.sightLimit(s);
-  const ev = internalEval(s);
-  const L = ev.L;
-  const U = u.L;
-  const band = u;
-  const W = 470;
-  const lo = 4;
-  const hi = 15;
-  const x = (v: number) => 4 + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (W - 8);
-  const gap = u.gap;
-  return (
-    <Tip as="div" className="ts-race2" content={() => <RaceTip s={s} />}>
-      <div data-test="race" data-home="race" onClick={() => store.goto('safety', { tab: 'overview' })}>
-        <div className="race2-lbls">
-          <span className="race2-cap"><ICON.L size={12} /> CAPABILITY</span>
-          <b className="num" style={{ color: C.cap }} data-home="L">{F.level(L)}</b>
-          {ev.evaluating && <button className="tag2 warn ts-evchip" data-test="evaluating" data-ref="evalQueue" onClick={(e) => { e.stopPropagation(); store.goto('models', { tab: 'evals', anchor: 'evalQueue' }); }}>testing</button>}
-          <span className="sp" />
-          <span className={`tag2 ${gap < 0 ? 'bad' : 'good'}`} data-home="gap">{gap < 0 ? <ICON.blind size={12} /> : <ICON.check size={12} />} {F.num(gap, 1, true)}</span>
-          <span className="sp" />
-          <b className="num" style={{ color: C.und }} data-home="U">{u.none ? 'none' : F.level(U)}</b>
-          <span className="race2-und">SIGHT LIMIT <ICON.U size={12} /></span>
-        </div>
-        <svg width={W} height={28} className="race2-svg">
-          <defs><pattern id="hatch2" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" fill={C.bad} /></pattern></defs>
-          <rect x={4} y={2} width={W - 8} height={8} rx={4} fill={C.line} />
-          <rect x={4} y={2} width={x(L) - 4} height={8} rx={4} fill={C.cap} opacity={ev.evaluating ? 0.6 : 1} />
-          <rect x={4} y={12} width={W - 8} height={8} rx={4} fill={C.line} />
-          <rect x={4} y={12} width={x(U) - 4} height={8} rx={4} fill={C.und} />
-          {U < L && <rect x={x(U)} y={12} width={x(L) - x(U)} height={8} fill="url(#hatch2)" opacity={0.9} />}
-          {band.hi - band.lo > 0.05 && <rect data-test="u-band" x={x(band.lo)} y={11} width={Math.max(1, x(band.hi) - x(band.lo))} height={10} rx={3} fill="none" stroke={C.und} strokeWidth={1.5} strokeDasharray="3 2" />}
-          {([[6.5, 'agent', 0], [8.5, 'research', 2], [10, 'SC', 3], [12, 'SAR', 4], [15, 'ASI', 6]] as const).map(([v, n, mi]) => (
-            <g key={n}><title>{MILESTONE_NAMES[mi]}</title><line x1={x(v)} x2={x(v)} y1={0} y2={21} stroke={C.text3} strokeDasharray="2 2" opacity={0.7} /><text x={Math.min(W - 10, x(v))} y={28} textAnchor="middle" className="race2-ms">{n}</text></g>
-          ))}
-        </svg>
+    <Tip as="div" className="ts-stat ts-hero" content={tip}>
+      <div className="ts-click" data-test="speed" data-home="labSpeed" onClick={() => store.goto('research')}>
+        <span className="ts-ic"><ICON.M size={16} /></span>
+        <div className="ts-col"><span className="ts-l"><Term id="labSpeed">RESEARCH SPEED</Term></span><span className="ts-v num">×{r.now.toFixed(1)}{Arrow && <Arrow size={14} className={up ? 'tone-pos' : 'tone-neg'} />}</span></div>
       </div>
     </Tip>
   );
 }
+const LIMIT_WORD: Record<string, string> = { 'compute-bound': 'compute', 'labor-bound': 'research engineers', 'human-bound': 'research engineers', 'taste-bound': 'idea quality' };
 
-function RiskChip({ s }: { s: GameStateV2 }) {
-  const r = catRisk(s);
-  const col = r.est > 0.2 ? C.bad : r.est > 0.05 ? C.watch : C.good;
-  const top = [...r.rows].sort((a, b) => b.estimate - a.estimate).slice(0, 3);
+/** L0 #5 Lead · nearest (UB-5): "154 d behind Meridian"; each lab's estimate with its 90% range in the tooltip (B·intel). */
+function LeadChip({ s }: { s: GameStateV2 }) {
+  const { nearest, all } = nearestRival(s);
+  if (!nearest) return null;
+  const d = Math.round(nearest.est);
+  const word = d >= 0 ? 'ahead of' : 'behind';
+  const rng = (r: { est: number; sd: number }) => `${Math.round(r.est - 1.64 * r.sd)} to ${Math.round(r.est + 1.64 * r.sd)} d`;
   return (
     <Tip as="div" className="ts-stat" content={() => (
-      <TipCard title={<Term id="catRisk">Catastrophe risk</Term>} value={`${F.pct(r.est, 1)} (${F.pct(r.lo)}–${F.pct(r.hi)})`} rows={top.map((x) => ({ label: x.label, value: F.pct(x.estimate, 1), tone: x.estimate > 0.1 ? 'neg' : 'neutral' }))}>
-        Estimated from your beliefs, intel and exposure, never from the truth. Biggest <Term id="riskSource">sources</Term>:
+      <TipCard title={<Term id="lead">Lead</Term>} value={`${Math.abs(d)} d ${word} ${nearest.name}`} rows={all.map((r) => ({ label: r.name, value: <span>{Math.round(r.est) >= 0 ? '+' : '−'}{Math.abs(Math.round(r.est))} d <span className="dim">({rng(r)})</span></span>, tone: r.est >= 0 ? 'pos' as const : 'neg' as const }))}>
+        Days your best internal model is ahead of each lab (minus = behind): estimates from intel, with a 90% range.
       </TipCard>
     )}>
-      <div className="ts-click" data-test="risk" data-home="catRisk" onClick={() => store.setPanel('risk')}>
-        <Gauge value={r.est} max={1} band={[r.lo, r.hi]} fill={col} w={50} h={32} />
-        <div className="ts-col"><span className="ts-l">CATASTROPHE RISK</span><span className="ts-v num" style={{ color: col }}>{F.pct(r.est)} <span className="ts-sub">{F.pct(r.lo)}–{F.pct(r.hi)}</span></span></div>
+      <div className="ts-click" data-test="lead" onClick={() => store.goto('overview', { anchor: 'leadtrack' })}>
+        <span className="ts-ic" style={{ color: nearest.id === 'china' ? C.china : C.rival }}><ICON.lead size={16} /></span>
+        <div className="ts-col"><span className="ts-l"><Term id="lead">LEAD</Term></span><span className="ts-v num" data-home="leadNearest"><span className={d >= 0 ? 'tone-pos' : 'tone-neg'}>{Math.abs(d)} d</span> <span className="ts-sub">{word} {nearest.name}</span></span></div>
       </div>
     </Tip>
   );
 }
+
+/** L0 #7 Loss-of-control risk (UB-5; small): the highest believed chance over the models you run, "< 0.1%", its range,
+ *  or Unknown when the range is wider than 30 points (isUnknown). The gauge lives on SAFETY. */
+function LossChip({ s }: { s: GameStateV2 }) {
+  const r = lossOfControlRisk(s);
+  const unknown = !!r && isUnknown(r.lo, r.hi);
+  const show = (x: number) => (x < 0.001 ? '< 0.1%' : F.pct(x, x < 0.1 ? 1 : 0));
+  const v = !r ? 'none' : unknown ? 'Unknown' : show(r.p);
+  const col = !r || unknown ? C.text2 : r.p >= 0.1 ? C.bad : r.p >= 0.01 ? C.watch : C.text;
+  return (
+    <Tip as="div" className="ts-stat ts-small" content={() => (
+      <TipCard title={<Term id="lossRisk">Loss-of-control risk</Term>} value={v} rows={r ? [
+        { label: 'Best guess', value: show(r.p) }, { label: '90% range', value: `${show(r.lo)} – ${show(r.hi)}` },
+        { label: 'Certainty', value: chanceCertainty(r.lo, r.hi).unknown ? 'Unknown (range wider than 30 points)' : chanceCertainty(r.lo, r.hi).word },
+      ] : []} footer="Click for Safety › Risks.">
+        {r ? 'Your believed chance that a model you run could act against you with nothing able to stop it, if it could act now: the highest over your running models.' : 'No model of yours runs inside the lab yet.'}
+      </TipCard>
+    )}>
+      <div className="ts-click" data-test="risk" data-home="lossRisk" onClick={() => store.goto('safety')}>
+        <span className="ts-ic"><ICON.risk size={14} /></span>
+        <div className="ts-col"><span className="ts-l"><Term id="lossRisk">LOSS-OF-CONTROL RISK</Term></span><span className="ts-v num" style={{ color: col, fontSize: 15 }}>{v}</span></div>
+      </div>
+    </Tip>
+  );
+}
+
 
 const PART_WORD: Record<string, string> = { operating: 'Payroll & operations', commitments: 'Contracts (ledger)', chips: 'Chip balances', sites: 'Site capex', revenue: 'Revenue', funding: 'Equity tranches', debt: 'Debt repayment' };
 /** Big-tech division (jank F2, FIN5c): cash is the budget balance; the verdict is the budget year, not a runway (the
@@ -172,6 +158,7 @@ function CashChip({ s }: { s: GameStateV2 }) {
           { label: 'Minimum cash', value: F.money(rw.floor) },
           ...Object.entries(rw.parts).filter(([, v]) => Math.abs(v) > 1e-3).map(([k, v]) => ({ label: PART_WORD[k] ?? k, value: F.money(-v, { signed: true, perQ: true }), tone: (v > 0 ? 'neg' : 'pos') as 'neg' | 'pos' })),
           { label: <Term id="netBurn">Net burn</Term>, value: F.money(rw.burnQ, { perQ: true }) },
+          { label: <Term id="revenueRun">Revenue · 30-day average</Term>, value: F.money(f.revenueRun, { perYear: true }) },
           ...(flips ? [{ label: <span>Board review {fmtDate(review)}</span>, value: <span style={{ color: STATE_COLOR[live] }}>{official} → {live}</span> }] : []),
         ]}
         body={`Projected cash over the next ${RUNWAY_CAP} quarters, each payment in the quarter it falls due (rows: per quarter, next 4 quarters). Runway zones: [[distress]] < 3q, [[tight]] < 6q, else [[healthy]].`}
@@ -180,55 +167,7 @@ function CashChip({ s }: { s: GameStateV2 }) {
     )}>
       <div className="ts-click" data-test="cash" onClick={() => store.setPanel('finance')}>
         <span className="ts-ic"><ICON.cash size={14} /></span>
-        <div className="ts-col"><span className="ts-l">CASH · RUNWAY</span><span className="ts-v num" data-home="cash">{F.money(f.cash)}</span>{flips && <span className="tag2 warn ts-flip" title={`The board reviews runway on ${fmtDate(review)}`}>{live} on {fmtDate(review).replace(/,? \d{4}$/, '')}</span>}</div>
-        <div className="ts-runway" data-home="runway">
-          <Gauge value={Math.min(RUNWAY_CAP, rw.q)} max={RUNWAY_CAP} zones={[{ to: 3, color: C.bad }, { to: 6, color: C.watch }, { to: RUNWAY_CAP, color: C.good }]} w={58} h={30} />
-          <span className="num" style={{ color: col }}>{F.runway(rw.q, RUNWAY_CAP)} {f.state === 'insolvent' ? 'insolvent' : live}</span>
-        </div>
-      </div>
-    </Tip>
-  );
-}
-
-/** Revenue run-rate (L0 home, STRUCTURE §5): revenue only; per product its customers (Chat: weekly users and paying;
- *  seats where sold; otherwise the customer share → target, B4) live in the tooltip. */
-function RevenueChip({ s }: { s: GameStateV2 }) {
-  const f = s.player.finance;
-  const big = s.player.board.preset === 'parent';
-  const hist = s.series.revenue?.slice(-13) ?? [];
-  return (
-    <Tip as="div" className="ts-stat" content={() => {
-      const rd = productReadouts(s);
-      const rows = s.player.deployments.filter((d) => d.status === 'live' && rd.has(d.id)).map((d) => ({ d, r: rd.get(d.id)! })).sort((a, b) => b.r.revenue - a.r.revenue);
-      const now = rows.reduce((a, x) => a + x.r.revenue, 0);
-      return (
-        <TipCard title={<Term id="revenueRun">Revenue · 30-day average</Term>} value={F.money(f.revenueRun, { perYear: true })} rows={[
-          ...rows.map(({ d, r }) => ({ label: <span>{PRODUCT_DEFS[d.channel]?.name ?? d.channel} now <span className="dim">· {customerCount(r) ?? customerShare(r)}</span></span>, value: F.money(r.revenue, { perYear: true }) })),
-          { label: <b><Term id="revenueNow">All products, now</Term></b>, value: <b>{F.money(now, { perYear: true })}</b> },
-        ]} footer={big ? 'A division books revenue to its parent.' : 'The 30-day average is what the board and investors judge; it trails the figure now.'}>Annualised revenue of your live products, averaged over 30 days. Click for Products.</TipCard>
-      );
-    }}>
-      <div className="ts-click" data-test="revenue" onClick={() => store.setPanel('products')}>
-        <span className="ts-ic"><ICON.revenue size={14} /></span>
-        <div className="ts-col"><span className="ts-l">REVENUE · 30 D</span><span className="ts-v num" data-home="revenueRun">{F.money(f.revenueRun)}<span className="ts-sub">/yr</span></span></div>
-        {hist.length > 2 && <Spark2 data={hist} w={44} h={18} color={C.good} />}
-      </div>
-    </Tip>
-  );
-}
-
-function LeadChip({ s }: { s: GameStateV2 }) {
-  const { nearest, all } = nearestRival(s);
-  if (!nearest) return null;
-  return (
-    <Tip as="div" className="ts-stat" content={() => (
-      <TipCard title={<Term id="lead">Lead</Term>} rows={all.map((r) => ({ label: r.name, value: `${F.lead(r.est)} ± ${r.sd}`, tone: r.est >= 0 ? 'pos' : 'neg' }))}>
-        Days your best internal model is ahead of each lab (estimates, ± <Term id="intelError">intel error</Term>).
-      </TipCard>
-    )}>
-      <div className="ts-click" data-test="lead" onClick={() => store.goto('overview', { anchor: 'leadtrack' })}>
-        <span className="ts-ic" style={{ color: nearest.id === 'china' ? C.china : C.rival }}><ICON.lead size={14} /></span>
-        <div className="ts-col"><span className="ts-l">LEAD · NEAREST</span><span className="ts-v num" data-home="leadNearest"><span className={nearest.est >= 0 ? 'tone-pos' : 'tone-neg'}>{F.lead(nearest.est)}</span> <span className="ts-sub">{nearest.name}</span></span></div>
+        <div className="ts-col"><span className="ts-l">CASH · <Term id="runway">RUNWAY</Term></span><span className="ts-v num"><span data-home="cash">{F.money(f.cash)}</span> <span className="ts-sub" data-home="runway" style={{ color: col }}>· {rw.q >= RUNWAY_CAP ? `${RUNWAY_CAP}+ qtrs` : `${rw.q.toFixed(1)} qtrs`}{live !== 'healthy' || f.state === 'insolvent' ? ` ${f.state === 'insolvent' ? 'insolvent' : live}` : ''}</span></span>{flips && <span className="tag2 warn ts-flip" title={`The board reviews runway on ${fmtDate(review)}`}>{live} on {fmtDate(review).replace(/,? \d{4}$/, '')}</span>}</div>
       </div>
     </Tip>
   );
@@ -244,11 +183,10 @@ export function TopStrip({ s }: { s: GameStateV2 }) {
           <div className="ts-date"><span className="num" data-test="date" data-home="date">{fmtDate(dateOf(s))}</span><span className="ts-act">Act {act} · {ACT_NAMES[act]}</span></div>
         </Tip>
       </div>
-      <RaceMeter s={s} />
-      <RiskChip s={s} />
-      <CashChip s={s} />
-      <RevenueChip s={s} />
+      <SpeedChip s={s} />
       <LeadChip s={s} />
+      <CashChip s={s} />
+      <LossChip s={s} />
       <span className="sp" />
       <button className="btn btn-sm btn-icon ts-help" data-test="help" title="Help: controls and coach (?)" onClick={() => store.setHelp(!store.help)}><ICON.help size={15} /></button>
       <GameMenu />

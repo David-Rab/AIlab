@@ -2,7 +2,7 @@
 // projects (order, teams wanted, stage track, what binds, next result) with the lab's risk policy; L2: the selected
 // project's card under the list (B4: full width, its sections side by side, so a short list leaves no empty column) (stage track, belief band, odds, inputs c and ℓ, the line's pool, its teams and why). The game assigns
 // teams, research engineers and compute down this list; the player only orders it, sets teams wanted and the policy.
-// One home per datum: research speed lives on Company › Flow, research engineers' needs on Company › Work (links).
+// One home per datum: research speed lives on Lab, research engineers' needs on Lab › AI staff & needs (links).
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, X } from 'lucide-react';
 import { addableProjects, capPriorityList, dateOf, fmtDate, PROJECT_MAX_TEAMS, researchMods, STAGES, UNLOCK_STAGES } from '../../../engine/v2';
@@ -307,7 +307,7 @@ export function ProjectCard({ s }: { s: GameStateV2 }) {
           </div>
           <div className="rp-kv"><span>Limited by</span><Binds v={v} /></div>
           <KVr k={<>Research engineers</>} v={v.re > 0 ? `${v.re.toFixed(1)} teams` : 'none yet (in ideas)'} tip={() => <TipCard title="Research engineers on it" value={`${v.re.toFixed(1)} teams`}>Given to projects in testing in priority order; experiment compute follows them.</TipCard>} />
-          <div className="rp-kv"><span /><Limit id="research.rePerProject" tone={v.re >= 2 - 1e-9 ? 'warn' : 'quiet'}>≤ 2 teams per project</Limit><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}>Research engineers</Ref></div>
+          <div className="rp-kv"><span /><Limit id="research.rePerProject" tone={v.re >= 2 - 1e-9 ? 'warn' : 'quiet'}>≤ 2 teams per project</Limit><Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}>Research engineers</Ref></div>
         </Sec>
       )}
       {v.line && (

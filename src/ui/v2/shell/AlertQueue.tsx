@@ -13,7 +13,7 @@ import { C } from '../theme';
 
 export const KIND_PANEL: Record<string, string> = {
   incident: 'safety', research: 'safety', finance: 'finance', gov: 'relations', china: 'relations', rival: 'relations', public: 'relations',
-  world: 'world', company: 'company', milestone: 'models', alert: 'risk', news: 'world', model: 'safety', security: 'company',
+  world: 'world', company: 'lab', milestone: 'models', alert: 'risk', news: 'world', model: 'safety', security: 'lab',
 };
 export const KIND_ICON: Record<string, typeof ICON.alert> = {
   incident: ICON.incident, research: ICON.finding, finance: ICON.finance, gov: ICON.exec, china: ICON.china, rival: ICON.rival, public: ICON.public,

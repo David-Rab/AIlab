@@ -1,5 +1,5 @@
 // Package chips (STRUCTURE §4.9): one model chip and one monitor chip, shared by Products (product packages) and
-// Company › Agents at work (internal packages). A chip is a compact picker; the caller decides what a pick does
+// Lab › AI staff & needs (internal packages). A chip is a compact picker; the caller decides what a pick does
 // (both screens open a before → after preview before anything applies).
 import type { ReactNode } from 'react';
 import { Eye } from 'lucide-react';

@@ -123,7 +123,7 @@ function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | u
 function levers(s: GameStateV2, d: Deployment, acts: DangerActRead[], monitored: boolean, restricted: boolean, what: (o: Opts) => number | undefined): DangerLever[] {
   const out: DangerLever[] = [];
   if (!controlOn(d)) out.push({ id: 'control', label: 'Control protocol', after: what({ control: true }), note: 'blocks risky actions and defers the most suspicious to a trusted model (Safety › Overview)' });
-  if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Company › AI staff' : 'the monitor chip on this card' });
+  if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Lab › AI staff & needs' : 'the monitor chip on this card' });
   if (!restricted) out.push({ id: 'restrict', label: 'Restrict context', after: what({ restrict: true }), note: d.channel === 'internal' ? 'chances ×0.3 (an incident response)' : 'chances ×0.3; revenue ×0.5 (an incident response)' });
   const top = acts[0];
   if (top && top.harmful > 0) out.push({ id: 'train', label: 'Train it down', note: `targeted training on ${TRAIT_BY_ID[top.trait as TraitId]?.name ?? top.trait} (best guess ${Math.round(top.est * 100)}%)` });
@@ -131,7 +131,7 @@ function levers(s: GameStateV2, d: Deployment, acts: DangerActRead[], monitored:
   return out;
 }
 
-/** The danger readout of every product and every internal agent lane (Products cards, Company › Agents at work). */
+/** The danger readout of every product and every internal agent lane (Products cards, Lab › AI staff & needs). */
 export function dangerView(s: GameStateV2): { products: Record<string, DangerRead>; lanes: Partial<Record<AgentUse, DangerRead>> } {
   const products: Record<string, DangerRead> = {};
   for (const d of s.player.deployments) {

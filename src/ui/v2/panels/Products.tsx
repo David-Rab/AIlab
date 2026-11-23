@@ -7,7 +7,7 @@
 // locked by an idea; each with its type and typed effect, B2) and settings (price tier, safeguards, KYC, effort), all editable live: an edit opens a before →
 // after preview anchored to the card (Apply / Cancel, "stays live", effective date). L3: tooltips (catch-rate
 // breakdown, capacity breakdown → Auto rule, feature effects, price elasticity, safeguard and KYC costs).
-// One home per datum: total revenue lives in the top strip; the serving budget on Company › Split.
+// One home per datum: total revenue lives in the top strip; the serving budget on Lab.
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Blocks, Bot, Briefcase, Building2, Check, Clock3, DoorOpen, Hammer, Layers, Lock, MessageCircle, Pencil, Ruler, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
@@ -537,7 +537,7 @@ function Customers({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRead 
 /** Binding cause and its best lever (a preview; click sets the draft or opens the control). */
 function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRead; set: (c: ProductChanges) => void }) {
   const lever = useMemo((): { label: ReactNode; gain: number; act: () => void } | undefined => {
-    if (r.bound === 'capacity') return r.cutH100e >= 1 && r.unserved >= 0.005 ? { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('compute', { tab: 'split', anchor: 'split-serving' }) } : undefined;
+    if (r.bound === 'capacity') return r.cutH100e >= 1 && r.unserved >= 0.005 ? { label: <>+{F.h100e(r.cutH100e)} H100e serving</>, gain: r.unserved, act: () => store.goto('lab', { anchor: 'split' }) } : undefined;
     if (r.bound === 'price') {
       const i = PRICE_TIER_IDS.indexOf(d.price);
       if (i <= 0) return undefined;
@@ -761,7 +761,7 @@ function LaunchCard({ s, live }: { s: GameStateV2; live: Deployment[] }) {
           {missing.map((c) => <option key={c} value={c}>{PRODUCT_DEFS[c]?.name ?? c}{pendingLaunch(s, c) ? ' · building' : ''}</option>)}
         </select>
         <span className="sp" />{pend
-          ? <Tip content={() => <TipCard title="Being built" value={eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'} rows={[{ label: 'Work left', value: `${(pend.needTW - pend.doneTW).toFixed(1)} of ${pend.needTW.toFixed(0)} team-weeks` }]}>Engineers build the launch on the <Term id="buildQueue">build queue</Term>; it goes live when built. <Term id="buildCapacity">Build capacity</Term>: Company › People.</TipCard>}><span className="pc-st" data-test="prod-launch-building"><Hammer size={11} /> {eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'}</span></Tip>
+          ? <Tip content={() => <TipCard title="Being built" value={eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'} rows={[{ label: 'Work left', value: `${(pend.needTW - pend.doneTW).toFixed(1)} of ${pend.needTW.toFixed(0)} team-weeks` }]}>Engineers build the launch on the <Term id="buildQueue">build queue</Term>; it goes live when built. <Term id="buildCapacity">Build capacity</Term>: Lab › Hiring & teams.</TipCard>}><span className="pc-st" data-test="prod-launch-building"><Hammer size={11} /> {eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'}</span></Tip>
           : <span className="pc-st off">Not launched</span>}
       </div>
       <div className="dim small">{PRODUCT_DEFS[ch]?.blurb}</div>
@@ -801,7 +801,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
     <Card className="prod-serve" home="servingSplit" title={<Term id="poolServing">Serving compute</Term>} sub="H100e by product"
       right={<span className="row-i">
         <ActBtn id="products.policy" testId="products.policy.servingAuto" params={{ servingAuto: !auto }} label={<span className="psw"><span className={`sw ${auto ? 'on' : ''}`}><i /></span><Term id="autoServing">Auto</Term><span className="dim">most $ per H100e first</span></span>} />
-        <button className="btn btn-sm" data-go="compute" onClick={() => store.goto('compute', { tab: 'split', anchor: 'split-serving' })}>Budget ›</button>
+        <button className="btn btn-sm" data-go="compute" onClick={() => store.goto('lab', { anchor: 'split' })}>Budget ›</button>
       </span>}>
       <div className="sv-bar" data-test="serving-bar">
         {rows.map(({ d, r }) => (
@@ -813,7 +813,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
             <span className={`sv-seg ${r.bound === 'capacity' ? 'cap' : ''}`} data-serve={d.id}><b>{F.h100e(used(r))}</b></span>
           </Tip>
         ))}
-        {spare > 0.5 && <Tip className="sv-w" style={{ width: `${(spare / total) * 100}%` }} content={() => <TipCard title={<Term id="idleServing">Idle serving</Term>} value={`${F.h100e(spare)} H100e`}>Serving compute no product needs today. It stays idle (headroom when demand rises); lower the serving share or turn on Auto-split in Compute › Split.</TipCard>}>
+        {spare > 0.5 && <Tip className="sv-w" style={{ width: `${(spare / total) * 100}%` }} content={() => <TipCard title={<Term id="idleServing">Idle serving</Term>} value={`${F.h100e(spare)} H100e`}>Serving compute no product needs today. It stays idle (headroom when demand rises); lower the serving share or turn on Auto-split in Lab.</TipCard>}>
           <span className="sv-seg spare" data-test="serving-spare"><b>{F.h100e(spare)}</b></span>
         </Tip>}
       </div>
@@ -827,7 +827,7 @@ function ServingCard({ s, live, reads }: { s: GameStateV2; live: Deployment[]; r
         </Tip>}
       </div>
       <div className="sv-foot dim small">
-        <Tip content={() => <TipCard title={<Term id="poolServing">Serving pool</Term>} value={`${F.h100e(pool)} H100e`} rows={[{ label: "Share of compute", value: F.pct(s.player.split.serving) }]}>Set on Compute › Split.</TipCard>}><span>Pool {F.h100e(pool)} H100e ({F.pct(s.player.split.serving)} of compute)</span></Tip>
+        <Tip content={() => <TipCard title={<Term id="poolServing">Serving pool</Term>} value={`${F.h100e(pool)} H100e`} rows={[{ label: "Share of compute", value: F.pct(s.player.split.serving) }]}>Set on Lab.</TipCard>}><span>Pool {F.h100e(pool)} H100e ({F.pct(s.player.split.serving)} of compute)</span></Tip>
         {auto && order.length > 1 && <span> · Auto order: {order.map((x) => `${PRODUCT_DEFS[x.d.channel]?.name} ${rate(x.r.rpH)}`).join(' › ')}</span>}
       </div>
       {!auto && (

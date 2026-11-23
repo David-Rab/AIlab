@@ -1,4 +1,4 @@
-// Company › Agents at work (STRUCTURE §4.9, BUILD-PLAN R7, mockups-v3 v3-company). HOME of every internal agent
+// Lab › AI staff & needs (STRUCTURE §4.9, BUILD-PLAN R7, mockups-v3 v3-company). HOME of every internal agent
 // package (model, monitor, compute), the AI share of each role's work, and Trusted to AI (D4). One lane per internal
 // use: model chip, monitor chip with catch rate, compute bar with its budget, AI share of the role's work, cost, the
 // model's four risk families. A model or monitor pick opens a before → after preview (applies at the next tick).
@@ -128,7 +128,7 @@ function Trusted({ s, v }: { s: GameStateV2; v: AgentsView }) {
         { label: <Term id="aiDoneShare">AI share of safety work</Term>, value: `${F.pct(t.aiShare)} · ${F.pct(pv.aiShareAfter)} at +10%` },
         { label: 'Safety results / yr', value: `${pv.findingsBefore.toFixed(1)} now · ${pv.findingsAfter.toFixed(1)} at +10%` },
         { label: <Term id="aiFte">AI staff, in people</Term>, value: F.count(v.safetyAiFte) },
-      ]} footer="A sabotaging model returns false results and corrupts cases in proportion to the work it does.">The most of every safety programme's and open case's work you hand to AI staff. They do the part their model can do alone (Safety experiments and Safety ideas on Company › Work). One policy for all safety work.</TipCard>
+      ]} footer="A sabotaging model returns false results and corrupts cases in proportion to the work it does.">The most of every safety programme's and open case's work you hand to AI staff. They do the part their model can do alone (Safety experiments and Safety ideas on Lab › AI staff & needs). One policy for all safety work.</TipCard>
     );
   };
   return (
@@ -152,7 +152,7 @@ function SpotCheck({ s }: { s: GameStateV2 }) {
       { label: 'In effect (staffed)', value: F.pct(inEffect) },
       { label: 'Safety research engineers it takes', value: F.count(spotCheckFte(s)) },
       { label: 'Sabotaged AI work caught by re-checks', value: sv ? `${F.pct(believedSpotCatch(s, sv, inEffect))} (believed)` : 'no AI staff on safety work' },
-    ]}>Share of the safety work AI staff do that a person re-checks by hand. It takes safety research engineers from the safety needs list (Company › Work) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
+    ]}>Share of the safety work AI staff do that a person re-checks by hand. It takes safety research engineers from the safety needs list (Lab › AI staff & needs) and catches sabotaged AI work; a re-checked validation of a false instrument finds what it really finds.</TipCard>
   );
   return (
     <div className="ag-trust" data-home="spotCheck">
@@ -203,7 +203,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
           { label: use === 'safety' ? 'Share of safety work compute' : use === 'eng' ? 'Share of compute (its own use)' : 'Share of AI staff research compute', value: F.pct(use === 'eng' ? s.player.split.engineering : l.share) },
           { label: <Term id="agentCopies">Copies × speed</Term>, value: `${F.count(l.copies)} × ${l.speed.toFixed(0)}` },
           ...(l.monitor ? [{ label: <Term id="agentMonitor">Safeguards (safety compute)</Term>, value: `${F.h100e(l.monitorH100e)} H100e` }] : []),
-        ]}>{use === 'safety' ? 'AI staff on safety run on a share of safety compute.' : use === 'eng' ? 'AI staff on engineering run on their own use in the compute allocation (Compute › Allocation).' : 'AI staff on experiments and on ideas share AI staff research compute (Compute › Allocation).'}</TipCard>}>
+        ]}>{use === 'safety' ? 'AI staff on safety run on a share of safety compute.' : use === 'eng' ? 'AI staff on engineering run on their own use in the compute allocation (Lab).' : 'AI staff on experiments and on ideas share AI staff research compute (Lab).'}</TipCard>}>
           <div className="row-i"><HBar v={l.share} max={1} color={def.budget === 'saf' ? SPHERE.saf : SPHERE.cap} w={64} /><b className="num">{F.h100e(l.compute)}</b><span className={`dept-tag ${def.budget}`}>{budget}</span>{l.compute <= 0 && <span className="tag2" data-test={`lane-off.${use}`}>off</span>}</div>
         </Tip>
         <div className="row-i small dim"><Tip content={() => <TipCard title={<Term id="agentCopies">Copies × speed</Term>} rows={[{ label: 'Copies running', value: F.count(l.copies) }, { label: 'Speed of each', value: `${l.speed.toFixed(0)}× a human` }]}>How many copies run at once and how fast each thinks.</TipCard>}><span className="num">{F.count(l.copies)} copies × {l.speed.toFixed(0)}</span></Tip><span className="sp" />
@@ -215,7 +215,7 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
       </div>
       <div className="ag-ai">
         {use === 'safety' ? <><Trusted s={s} v={v} /><SpotCheck s={s} /></> : (
-          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "Share of the engineers' work your AI staff do. More compute or a more skilled model raises it, and build capacity with it." : use === 'capRoutine' ? "Share of the research engineers' work your AI staff do." : "The share of human scientists this model's research taste beats. The model on ideas sets research taste."} Skill, can do alone and total effort: Company › Work.</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id={AI_TERM[use]}>AI share</Term>} value={F.pct(l.aiShare)}>{use === 'eng' ? "Share of the engineers' work your AI staff do. More compute or a more skilled model raises it, and build capacity with it." : use === 'capRoutine' ? "Share of the research engineers' work your AI staff do." : "The share of human scientists this model's research taste beats. The model on ideas sets research taste."} Skill, can do alone and total effort: Lab › AI staff & needs.</TipCard>}>
             <div><div className="row-i"><HBar v={l.aiShare} max={1} color={C.good} w={120} /><b className="num" data-test={`ai-share.${use}`}>{F.pct(l.aiShare)}</b></div><div className="small dim">{aiSub}</div></div>
           </Tip>
         )}
@@ -259,7 +259,7 @@ export function AgentsAtWork({ s }: { s: GameStateV2 }) {
     <Card id="ctl-agents" home="agents" className="agents-card"
       title={<span className="row-i"><ICON.agents size={15} /><Term id="agentPackage">AI staff</Term></span>}
       sub={<>model + monitor + control protocol + compute per job · <Tip content={() => <TipCard title="AI staff" rows={[...AGENT_USES.map((u) => ({ label: AGENT_USE_DEF[u].name, value: `${F.h100e(v.lanes[u].compute)} H100e · ${F.money(v.lanes[u].cost + v.lanes[u].monitorCost, { perYear: true })}` }))]}>Compute and yearly cost of all your AI staff.</TipCard>}><span><span className="num">{F.h100e(v.total)}</span> <Term id="h100e">H100e</Term> · <span className="num">{F.money(v.totalCost, { perYear: true })}</span></span></Tip></>}
-      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'compute', tab: 'split', anchor: 'split-experiments' }}>Compute allocation</Ref><Ref id="rdmult" to={{ panel: 'company', tab: 'flow' }}>Research speed</Ref></span>}>
+      right={<span className="row-i small"><Ref id="researchMix" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref><Ref id="rdmult" to={{ panel: 'lab' }}>Research speed</Ref></span>}>
       <div className="ag-head small dim"><span>Job</span><span>Model</span><span>Monitor · stop rate</span><span>Compute</span><span>AI share</span><span>Cost/yr</span><span><Term id="riskFamily">Risk</Term> · <Term id="danger">harmful acts</Term>/yr</span></div>
       {AGENT_USES.map((u) => <Lane key={u} s={s} v={v} use={u} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
       <Tooling s={s} />

@@ -3,7 +3,7 @@
 // Jank RL1 (hierarchy cleanup, not a redesign): L1 = the four meters in the header and who matters now (lowest trust
 // first); government and China rows in plain words; tables trimmed to their top rows with "show all"; columns that are
 // zero for everyone are hidden; the action catalogue sits behind a group picker; security actions live on
-// Company › Security (RL2, one home); Retire (ends the game) stands apart behind a confirm.
+// Lab › Security (RL2, one home); Retire (ends the game) stands apart behind a confirm.
 import { useState } from 'react';
 import { BLOC_BY_ID } from '../../../data/v2/blocs';
 import { RELATION_ACTION_META } from '../../../data/v2/actions';
@@ -173,7 +173,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
         </table>
       </Section>
 
-      <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'company', tab: 'security' }}>Company › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'models', tab: 'data' }}>Models › Data</Ref></span>}>
+      <div className="span2"><Section title="Actions" right={<span className="row-i small"><span className="dim">security:</span><Ref id="wsl" to={{ panel: 'lab', tab: 'security' }}>Lab › Security</Ref><span className="dim">data deals:</span><Ref id="dataPortfolio" to={{ panel: 'models', tab: 'data' }}>Models › Data</Ref></span>}>
         <div className="rel-groups" data-test="rel-groups"><Seg value={grp} options={ACT_GROUPS.map((x) => ({ v: x, label: GROUPS[x] }))} onChange={setGrp} /></div>
         <div className="catalog">
           <div className="cat-group">

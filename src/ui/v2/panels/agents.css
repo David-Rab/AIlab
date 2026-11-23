@@ -1,4 +1,4 @@
-/* Company › Agents at work (R7; mockups-v3 v3-company). */
+/* Lab › AI staff & needs (R7; mockups-v3 v3-company). */
 .agents-card { margin-bottom: 12px; }
 .ag-head, .ag-lane { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(150px, 0.9fr) minmax(170px, 1.2fr) 64px 128px; gap: 12px; align-items: center; }
 .ag-head { text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; padding: 0 0 6px; border-bottom: 1px solid var(--line); }

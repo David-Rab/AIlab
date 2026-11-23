@@ -21,7 +21,7 @@ function goals(s: GameStateV2): Goal[] {
   const postDone = p.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0 && r.status === 'done');
   if (s.tutorial.act <= 1) {
     return [
-      { id: 'race', text: <>Read the race: <Term id="L">capability</Term> vs <Term id="sightLimit">sight limit</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
+      { id: 'race', text: <>Read the race: <Term id="labSpeed">research speed</Term> vs <Term id="lossRisk">loss-of-control risk</Term></>, done: seen(s, 'coach:race') || seen(s, 'coach:skip') },
       { id: 'run', text: 'Launch a post-training run', done: postLaunched, go: { panel: 'blueprint' }, goLabel: 'Next run' },
       { id: 'ff', text: <>Fast-forward to the result <span className="kbd">F</span></>, done: postDone },
       { id: 'finding', text: 'Decide on your first result', done: s.decisions.some((d) => d.eventId === 'E01') },
@@ -33,7 +33,7 @@ function goals(s: GameStateV2): Goal[] {
     { id: 'chips', text: 'Order chips or start a site', done: p.orders.some((o) => o.qty > 0) || p.sites.length > 1, go: { panel: 'compute' }, goLabel: 'Compute' },
     { id: 'base', text: <>Launch a <Term id="baseRun">pretraining run</Term></>, done: p.models.runs.some((r) => r.kind === 'base' && r.startDay > 0), go: { panel: 'blueprint' }, goLabel: 'Next run' },
     { id: 'agenda', text: <>Staff a safety <Term id="researchLine">programme</Term></>, done: p.teams.some((t) => t.role === 'sci' && t.dept === 'saf' && !!t.projectId), go: { panel: 'safety', tab: 'lines' }, goLabel: 'Safety research' },
-    { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:company'), go: { panel: 'company' }, goLabel: 'Company' },
+    { id: 'company', text: 'See where your compute goes', done: seen(s, 'panel:lab'), go: { panel: 'lab' }, goLabel: 'Lab' },
     { id: 'commit', text: <>Make a public <Term id="commitment">commitment</Term></>, done: s.commitments.length > 0, go: { panel: 'relations' }, goLabel: 'Relations' },
   ];
 }
@@ -66,7 +66,7 @@ export function Goals({ s }: { s: GameStateV2 }) {
 // ───────── coach cards ─────────
 interface Step { id: string; act: number; target: string; title: string; body: ReactNode; when?: (s: GameStateV2) => boolean; action?: { label: string; go: GoTarget; test: string } }
 const STEPS: Step[] = [
-  { id: 'race', act: 1, target: '[data-test=race]', title: 'Keep understanding ahead', body: <>Violet is how capable your best model is. Teal is the highest level your instruments can still read. If violet passes teal, you are flying blind.</> },
+  { id: 'race', act: 1, target: '[data-test=speed]', title: 'Speed against risk', body: <>Research speed is how fast your lab improves its models. Loss-of-control risk, on the right, is the chance a model you run could act against you. Push the first without letting the second climb.</> },
   { id: 'runs', act: 1, target: '[data-nav=blueprint]', title: 'Train your first model', body: <>A starter run is ready. Every option shows what it pushes, so try one change and watch the arrows.</>, when: (s) => !s.player.models.runs.some((r) => r.kind === 'post' && r.startDay >= 0), action: { label: 'Open Next run', go: { panel: 'blueprint' }, test: 'firstRun' } },
   { id: 'why', act: 1, target: '[data-test=cash]', title: 'Hover for why, click to go', body: <>Hover any number to see what moved it. Click it to open the panel that changes it. Dotted words explain themselves.</> },
   { id: 'watch', act: 1, target: '#watch', title: 'Watch: what needs you', body: <>When something goes wrong, it shows up here as cause → fix, with a button to the control.</>, when: () => store.panel === 'overview' },
@@ -167,7 +167,7 @@ export function HelpOverlay({ s }: { s: GameStateV2 }) {
           </div>
           <div>
             <div className="tip-cap">Reading the screen</div>
-            <div className="small">The top strip is the whole game in one look: the race, catastrophe risk, money and your lead. The Overview shows who is close, how the race got here and what needs you. Everything else is one click away.</div>
+            <div className="small">The top strip is the whole game in one look: research speed, your lead, money and loss-of-control risk. The Overview shows who is close, how the race got here and what needs you. Everything else is one click away.</div>
             <div className="small" style={{ marginTop: 6 }}><b>Hover</b> any number for why it moved. <b>Click</b> it to go to the control. <span className="term">Dotted words</span> explain themselves, and their tooltips nest.</div>
           </div>
         </div>

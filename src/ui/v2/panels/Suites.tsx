@@ -4,7 +4,7 @@
 // bars with their marks). L2: build and harden buttons with cost and the after value inline. L3: tooltips (the work's
 // cost, the suite's before → after, the planned run's ΔG per domain and S2 before → after, builds/hardenings done).
 // The Blueprint's post-train card shows only the run's weighted summary and links here; the RL ceiling stack lives on
-// Research › Recipe and the engineers' load on Company › Work (links only).
+// Research › Recipe and the engineers' load on Lab › AI staff & needs (links only).
 import { useMemo } from 'react';
 import { Dumbbell, Hammer, Lock, ShieldCheck, type LucideIcon } from 'lucide-react';
 import {
@@ -76,7 +76,7 @@ export function Suites({ s }: { s: GameStateV2 }) {
       <PlanCard s={s} plan={plan} rows={d.view.rows} s2={d.s2} reason={d.before.reason} />
       <Card title={<span className="row-i"><Dumbbell size={15} /><Term id="envSuite">Environments</Term></span>} home="suites" className="sx-card"
         sub={<>{d.view.rows.length} families</>}
-        right={<span className="row-i"><Ref id="rlCeiling" to={{ panel: 'research', tab: 'recipe' }}>Post-training ceiling</Ref><Ref id="buildCapacity" to={{ panel: 'company', tab: 'work' }}>Engineers</Ref></span>}>
+        right={<span className="row-i"><Ref id="rlCeiling" to={{ panel: 'research', tab: 'recipe' }}>Post-training ceiling</Ref><Ref id="buildCapacity" to={{ panel: 'lab', tab: 'work' }}>Engineers</Ref></span>}>
         <div className="sx-grid">
           <span className="ch">Family</span>
           <span className="ch"><Term id="suiteFidelity">Realism</Term></span>
@@ -188,7 +188,7 @@ function WorkCell({ s, r, pv, pend, demos }: { s: GameStateV2; r: SuiteRow; pv: 
         { label: 'Left', value: `${pend.leftTW.toFixed(1)} team-weeks` },
         { label: 'Done in', value: eta !== undefined ? F.days(eta) : 'waits for engineers' },
         { label: 'Then', value: build ? `realism ${fid(pv.effect.fid[0])} → ${fid(pv.effect.fid[1])}` : `loopholes ${F.pct(pv.effect.exploit[0], 1)} → ${F.pct(pv.effect.exploit[1], 1)}` },
-      ]} footer="On the build queue (Company › Work); paid when queued.">One {build ? 'expansion' : 'hardening'} per family at a time.</TipCard>}>
+      ]} footer="On the build queue (Lab › AI staff & needs); paid when queued.">One {build ? 'expansion' : 'hardening'} per family at a time.</TipCard>}>
         <span className="sx-work pend" data-pending={`${r.family}:${pv.work}`}>{build ? <Hammer size={12} /> : <ShieldCheck size={12} />}<span>{build ? 'building' : 'hardening'}</span><b className="num">{eta !== undefined ? F.days(eta) : 'waits'}</b></span>
       </Tip>
     );

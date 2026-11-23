@@ -1,6 +1,6 @@
 // Compute (design/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
-// compute (chips, data centres, cloud) with fine options folded away. Tabs (L2): Sites, Split (the compute split editor,
-// panels/Split.tsx) and Orders & market (deliveries, cloud and the chip market on one tab).
+// compute (chips, data centres, cloud) with fine options folded away. Tabs (L2): Sites and Orders & market (deliveries, cloud
+// and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, the split, orders, cloud contracts and the
 // chip market. Compute online lives in Company (its flow tab) and is only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
@@ -23,7 +23,6 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
 import './compute.css';
-import { Split } from './Split';
 import { payOptionsPV } from '../../../engine/v2/finance/pv';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
@@ -718,18 +717,18 @@ function Market({ s }: { s: GameStateV2 }) {
 // ═════════════════════════ panel ═════════════════════════
 
 export function Compute({ s }: { s: GameStateV2 }) {
-  const tab = tabOf('compute', 'overview');
+  const tab0 = tabOf('compute', 'overview');
+  const tab = tab0 === 'split' ? 'overview' : tab0; // UB-5: the allocation moved to LAB
   const sitesBadge = chipFit(s).idle > 0 || s.player.sites.some((x) => x.stage === 'permitting' && !x.ws3?.rolled && oppositionOdds(s, x).block > 0.1) ? '!' : undefined;
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'split', label: 'Split', icon: ICON.split }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
-        right={<span className="row-i"><Ref id="computeOnline" to={{ panel: 'company', tab: 'flow' }}>Compute online</Ref></span>} />
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
+        right={<span className="row-i"><Ref id="split" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
       {tab === 'sites' && <SitesTab s={s} />}
       {/* Jank C4: orders, cloud and the chip market share one tab (each used under 40% of the screen alone). */}
       {(tab === 'orders' || tab === 'market') && <div className="g3"><Deliveries s={s} /><Cloud s={s} /><Market s={s} /></div>}
-      {tab === 'split' && <Split s={s} />}
     </div>
   );
 }

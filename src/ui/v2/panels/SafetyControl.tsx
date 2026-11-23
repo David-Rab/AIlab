@@ -22,7 +22,7 @@ const RISK_ZONES = riskZones('prob');
 const riskKind = (p: number) => ({ good: 'good', watch: 'warn', bad: 'bad' } as const)[riskTone(p, 'prob')];
 const riskWord = (p: number) => ({ good: 'low', watch: 'elevated', bad: 'high' } as const)[riskTone(p, 'prob')];
 const FOOTHOLDS_TAB = { panel: 'safety', tab: 'footholds' } as const;
-const AGENTS = { panel: 'company', tab: 'people', anchor: 'agents' } as const;
+const AGENTS = { panel: 'lab', tab: 'work', anchor: 'agents' } as const;
 
 /** Safety › Overview: believed control (L1 gauge + band), its three drivers, the control layer and its tax. */
 export function ControlCard({ s }: { s: GameStateV2 }) {
@@ -83,7 +83,7 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
         <Tip content={() => <TipCard title={<Term id="controlLayer">Control protocol</Term>} value={c.layer ? 'on' : 'off'} rows={[
           { label: <Term id="controlTax">Slowdown</Term>, value: `−${F.pct(c.tax)} AI staff work (largest job)${c.layer ? '' : ' if on'}` },
           { label: <Term id="unstoppedHarm">Unstopped harm</Term>, value: `×${F.num(c.missMult, 2)}${c.layer ? '' : ' if on'}` },
-        ]} footer="Slowdown per job: Company › AI staff.">Blocks risky actions and sends the most suspicious 10% to a trusted monitor. Removing it ends the slowdown and the protection.</TipCard>}>
+        ]} footer="Slowdown per job: Lab › AI staff & needs.">Blocks risky actions and sends the most suspicious 10% to a trusted monitor. Removing it ends the slowdown and the protection.</TipCard>}>
           <span className="row-i" data-test="control-layer"><ICON.wsl size={13} /><Term id="controlLayer">Control protocol</Term> <b>{c.layer ? 'on' : 'off'}</b> <span className="dim small">· <Term id="controlTax">slowdown</Term> −{F.pct(c.tax)}{c.layer ? '' : ' if on'}</span></span>
         </Tip>
         <span className="sp" />
@@ -119,7 +119,7 @@ const WATCH: { kind: string; symptom: string; by: string; to?: { panel: string; 
   { kind: 'hiddenCompute', symptom: 'unexplained compute use', by: 'monitors and compute accounting', to: AGENTS, lever: 'Monitors' },
   { kind: 'steeredSuccessor', symptom: 'evals drift from predicted traits', by: 'your eval stack', to: { panel: 'safety', tab: 'lines' }, lever: 'Instruments' },
   { kind: 'corruptedTool', symptom: 'anomalous research results', by: 'model organisms, cross-checks', to: { panel: 'safety', tab: 'lines' }, lever: 'Programmes' },
-  { kind: 'exfiltratedCopy', symptom: 'outbound traffic', by: 'weight security', to: { panel: 'company', tab: 'security' }, lever: 'Security' },
+  { kind: 'exfiltratedCopy', symptom: 'outbound traffic', by: 'weight security', to: { panel: 'lab', tab: 'security' }, lever: 'Security' },
 ];
 
 function WatchCard() {

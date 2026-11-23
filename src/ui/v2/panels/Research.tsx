@@ -3,7 +3,7 @@
 // project's card), Recipe (the recipe stacks, headroom, adopted ideas), Tree (the discovery map: lanes = science
 // specialties, left → right by depth from what you know; L2: the node card). L3: tooltips.
 // One home per datum: a project's stage, beliefs and inputs on Projects; idea state on the tree node; the recipe on
-// Recipe; research speed on Company › Flow and research engineers' needs on Company › Work (links only).
+// Recipe; research speed on Lab and research engineers' needs on Lab › AI staff & needs (links only).
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Building2, CircleCheck, CircleDashed, CircleX, Hourglass, Layers, LoaderCircle, WandSparkles, Wrench, X } from 'lucide-react';
 import {
@@ -359,7 +359,7 @@ export function Research({ s }: { s: GameStateV2 }) {
   return (
     <div className="panel-v2 rs-panel" data-panel="research">
       <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'recipe', label: 'Know-how', icon: Layers }, { id: 'tree', label: 'Discoveries', icon: ICON.split }]} />}
-        right={<span className="row-i"><Ref id="labSpeed" to={{ panel: 'company', tab: 'flow' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'company', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
+        right={<span className="row-i"><Ref id="labSpeed" to={{ panel: 'lab' }}><ICON.M size={13} /> Research speed</Ref><Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}><ICON.roleRE size={13} /> Research engineers</Ref></span>} />
       {tab === 'projects' && <div className="rp-grid"><Priorities s={s} /><ProjectCard s={s} /></div>}
       {tab === 'recipe' && <Recipe s={s} />}
       {tab === 'tree' && <Tree s={s} />}

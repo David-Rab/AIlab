@@ -1,5 +1,5 @@
 // Engineers' load (jank J2 P1): one bar of build capacity split into product upkeep (incl. monitors, features), builds
-// (run setups and adoptions first) and idle (RD-B09: research engineers operate running runs, Company › Work); the numbers and every line live in its tooltip. Home of utilisation (Company › Work, engineers card;
+// (run setups and adoptions first) and idle (RD-B09: research engineers operate running runs, Lab › AI staff & needs); the numbers and every line live in its tooltip. Home of utilisation (Lab › AI staff & needs, engineers card;
 // model v3 V2b: build capacity's number lives in that card's hero, so this bar is `compact` there). Products and Models
 // show only their own waits (links here).
 import type { GameStateV2, RLFamily } from '../../../engine/v2';

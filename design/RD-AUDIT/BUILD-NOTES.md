@@ -5550,3 +5550,54 @@ rd 8c7560c (dud direction drops; assignment optimum 91.5%).
 - Designer: the mockup's safety stage track shows "Big test"; the engine has Ideas · Small test · Validate. Programme
   rate "now" vs "so far" differ (scaling ×1.12 vs ×1.19); the cards use "now" (accepted plan: at current staffing).
 - UB-5..10: `measuredDomains` is partial now (the MODELS radar and Blueprint chips need a "not measured yet" state).
+
+### UB-5 (L0 shell + LAB screen; branch ub5-lab from rd 306d4c4; mockups rd/lab.png, lab-needs.png, lab-tip.png)
+
+**L0 (TopStrip.tsx).** Clock · Research speed (`researchSpeedReadout`: ×, 90-day trend arrow when history exists;
+tooltip: compute on research, research engineers' and scientists' work ×, AI staff's part ×, without AI staff, 90 / 30
+days ago, limits (`labSpeedLimits`, data-limit), Limited by with a `best moves ▸` link; click → RESEARCH) · Lead
+("154 d behind Meridian"; tooltip every lab ± 90% range) · Cash · runway ("$51.6B · 8+ qtrs"; revenue 30-day average a
+row of its tooltip) · Loss-of-control risk (small: `lossOfControlRisk` highest over running models; "< 0.1%", range and
+certainty word in the tooltip, **Unknown** via `isUnknown`; click → SAFETY). Removed: race meter (capability, sight
+limit), catastrophe-risk chip, revenue chip. Nav: Overview · R&D (Compute, Lab, Research, Training = the Next-run
+panel, Models, Products, Safety) · Company & world (Finance, Risk, Relations, World) · Codex. LAB badge: "idle" (idle
+> 5% of compute) or "short" (a safety RE need short ≥ 1 person). Coach step / goals / help text name research speed and
+loss-of-control risk.
+
+**LAB (panels/Lab.tsx, lab.css).** Allocation bar: one segment per use in the mockup order, idle hatched inside its
+use (training no run uses, serving no product needs, safeguards beyond full watch, not allocated), labels on segments
+> 6% of the bar; the AI-staff / Safety work / Safeguards cluster (< 15% together) is drawn dashed in the bar and
+magnified in an inset with connector lines; group legend (Capability · Safety · Products %); Idle chip (total, Auto-split
+state). Clicking a segment or the Idle chip opens the allocation editor (L2): one slider per use (Safeguards read-only,
+"set by safeguards ▸"), Apply = `setSplit` with its preview, Reset, Close, and Auto-split idle compute. Presets dropped.
+Workforce: one line per role (engineers; capability RE / scientists; safety RE / scientists): people · teams · quality
+dots, AI staff model chip + AI share (`workTypeViews` A, measured), work done × the people alone (bar linear to ×10,
+log above), short / spare chip (`engAllocView`, `reAllocView`, `safReAllocView`, idle science teams). Click opens the
+needs list (priority order, gets / needs bars, short in amber, Spare last; VOCAB need names) with links to the order
+editor, AI staff and Hiring. Scientists split: capability | safety teams bar with steppers that set each side's
+keep-hiring target (`teams.target`). Best moves: idle compute → research experiments / AI staff research (believed
+`responseCurves`, up to ×4 of the use; Do = `setSplit` with the moved shares), +1 team per kind (Do = `teams.target`
++1; gain: RE `responseCurves.humans`, safety `teamGain` results / yr; payroll and fill weeks), ranked with `rankMoves`
+(days of progress a year, in the rank tooltip); gains in another unit (build capacity, a project's days sooner) listed
+after the ranked ones; top 5. "Won't help now": spare REs / engineers, no programme waiting, flat AI-staff curve.
+L2 tabs: Hiring & teams (old Company › People without the agents), AI staff & needs (Agents at work + Work: the needs
+order editor), Security.
+
+**Deleted / redirected.** Company panel → LAB (`store.setPanel('company')` / `goto('company', …)` land on LAB; Flow →
+the LAB board); Company Flow Sankey and its Research speed card deleted (research speed → L0); Compute › Split tab and
+`Split.tsx` deleted (Compute header links to LAB); `ResearchCharts.tsx` ("What 10% more buys") deleted (IA §4 → Best
+moves). Every `Compute › Split` / `Company › …` link and player string now points to LAB (UI, glossary, 4 engine
+strings). Limits `speed.pause` / `speed.diffusion` home → LAB (shown in the L0 tooltip); `security.floor` → LAB ›
+Security. New glossary: workDone, bestMoves, safetyResults.
+
+**Check.** tsc app + scripts/v2 clean; build ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (untipped numbers: 4
+old sites, the 2 Split sites gone); lint-structure: 1 pre-existing. uitest: LAB / Company / split / race / revenue steps
+rewritten (see below for the run). Screenshots: scripts/v2/shots/ub5/ (d0, d400, d900: lab, lab-needs, lab-editor,
+tip-speed, tip-risk, tip-lead), capture script scripts/v2/shots/ub5.mjs (git-ignored).
+
+**Differences from the mockup.** Alerts stay in the bottom bar (the one alert channel; not moved into the top bar).
+L2 is a tab row (Hiring & teams · AI staff & needs · Security), not a drawer. The scientists split cannot move a team
+between departments (the engine moves only research-engineer teams; science teams are hired per field): the steppers
+set keep-hiring targets. Research speed history is empty on the fixtures (series from UB-2 on), so no sparkline there.
+Allocation still settable outside LAB only as within-use shares (a run's share of training compute on Models, a
+product's serving share on Products); those are not the allocation itself.
