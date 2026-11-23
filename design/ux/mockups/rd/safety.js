@@ -23,15 +23,18 @@
       ['Copies itself out', 0.276, 0.123, 0.469, 0, 0, 0, 0, 5],
     ]],
   ];
+  const WIDE = location.hash === '#wide';
+  // #wide: an ILLUSTRATIVE variant (not fixture data): beliefs as wide as they should be after the belief fix
+  if (WIDE) G.forEach((g) => g[2].forEach((r) => { if (r[1] != null) { r[2] = Math.max(0, r[1] * 0.2); r[3] = Math.min(0.9, r[1] * 6 + 0.05); } if (typeof r[7] === 'number' && r[7] > 0) r[9] = r[7] * 5; }));
   const pct = (v) => (v < 0.01 ? (v * 100).toFixed(1) : Math.round(v * 100)) + '%';
   const bar = (v, color, lo, hi, max = 1) => `<span class="bt"><i style="width:${Math.min(100, (v / max) * 100)}%;background:${color}"></i>${lo != null ? `<span class="rg" style="left:${(lo / max) * 100}%;width:${((Math.min(hi, max) - lo) / max) * 100}%"></span>` : ''}</span>`;
-  const MAXU = 0.012;
+  const MAXU = WIDE ? 0.055 : 0.012;
   const row = (r) => {
     const [n, t, lo, hi, a, c, s, u] = r;
     const unknown = hi - lo > 0.3;
     if (u === 'risk') {
       return `<div class="tr hero"><span class="an">${ic('skull', 's14')}<u>${n}</u></span>
-        <span class="cellb">${bar(t, '#c4a5f5', lo, hi, 0.5)}<span class="v">${pct(t)}</span></span>
+        <span class="cellb">${bar(t, '#c4a5f5', lo, hi, 0.5)}${unknown ? '<span class="unk">Unknown</span>' : `<span class="v">${pct(t)}</span>`}</span>
         <span class="t3" style="font-size:12.5px">any capability</span><span class="t3" style="font-size:12.5px">—</span>
         <span class="cellb"><span class="v" style="text-align:left">${pct(s)}</span></span>
         <span class="row" style="gap:6px;font-size:12.5px"><span class="t2">feeds</span><span class="link sm">Loss-of-control risk ${ic('chevron-right', 's12')}</span></span></div>`;
@@ -41,7 +44,7 @@
       <span class="cellb">${bar(a, '#8da2bd')}<span class="v ${a < 0.05 ? 't3' : ''}">${a < 0.01 ? '~0' : pct(a)}</span></span>
       <span class="cellb">${bar(c, '#6f8fb5', null, null, 0.6)}</span>
       <span class="cellb"><span class="v" style="text-align:left">${s ? pct(s) : '—'}</span></span>
-      <span class="cellb">${u > 0 ? bar(u, '#e9b44c', null, null, MAXU) + `<span class="v">${u.toFixed(3)}</span>` : `<span class="bt" style="background:none;box-shadow:none"></span><span class="v t3">~0</span>`}</span></div>`;
+      <span class="cellb">${u > 0 ? bar(u, '#e9b44c', r[9] != null ? u * 0.3 : null, r[9], MAXU) + `<span class="v">${u.toFixed(3)}</span>` : `<span class="bt" style="background:none;box-shadow:none"></span><span class="v t3">~0</span>`}</span></div>`;
   };
   // sight: mean detection by level (sightGrid mean row, levels 3–11), min row as the band floor
   const lv = [3, 4, 5, 6, 7, 8, 9, 10, 11], mean = [0.478, 0.478, 0.478, 0.474, 0.397, 0.106, 0.035, 0.016, 0.009], min = [0.42, 0.42, 0.42, 0.418, 0.364, 0.096, 0.03, 0.014, 0.007];
@@ -57,6 +60,14 @@
     ${[['Agent', 5], ['Reliable agent', 6.5], ['Research agent', 8.5], ['Superhuman coder', 10]].map(([n, L]) => `<line x1="${x(L)}" y1="${H - 22}" x2="${x(L)}" y2="${H - 17}" stroke="#5d6f88"/><text x="${x(L)}" y="${H - 4}" fill="#6b7c91" font-size="10.5" text-anchor="middle" font-family="Segoe UI, sans-serif">${n}</text>`).join('')}
     ${mark(6.79, 'Atlas-2.8 ~40%', '#cfe3ff')}${mark(9.16, 'next run ~3%', '#e9b44c')}
   </svg>`;
+  const riskTile = ([p, lo, hi]) => {
+    const unk = hi - lo > 0.3, X = (v) => Math.min(100, (v / 0.5) * 100);
+    const big = unk ? 'Unknown' : p < 0.001 ? '&lt; 0.1%' : pct(p);
+    const sub = unk ? `best guess ${pct(p)} · range ${pct(lo)}–${pct(hi)}` : hi < 0.001 ? 'range &lt; 0.1%' : `range ${pct(lo)}–${pct(hi)}`;
+    return `<div class="big" style="${unk ? 'color:var(--warn)' : ''}">${big}</div>
+      <div class="rstrip"><span class="band" style="left:${X(lo)}%;width:max(3px, ${X(hi) - X(lo)}%)"></span><span class="gt" style="left:${X(p)}%"></span><span class="ax" style="left:0">0%</span><span class="ax" style="left:60%">30%</span><span class="ax" style="left:100%">50%</span></div>
+      <div class="t3" style="font-size:12.5px;margin-top:12px">${sub} · if it could act now</div>`;
+  };
   document.getElementById('main').innerHTML = `
   <div class="ph">
     <h1>${ic('microscope', 's22')} Safety</h1>
@@ -67,13 +78,12 @@
   <div class="shead">
     <div class="card tile">
       <div class="tt">${ic('skull', 's14')} <u>Loss-of-control risk</u></div>
-      <div class="big">0%<span class="u">range 0–0%</span></div>
-      <div class="t3" style="font-size:12.5px">if it could act now</div>
-      <div class="anno" style="position:static;max-width:none;font-size:11.5px;padding:4px 8px">Mockup note: the engine gives exactly 0 (0–0). Shown as is; being checked.</div>
+      ${riskTile(WIDE ? [0.06, 0.01, 0.38] : [0, 0, 0])}
+      <div class="anno" style="position:static;max-width:none;font-size:11.5px;padding:4px 8px">${WIDE ? 'Illustrative variant, not fixture data: beliefs as wide as expected after the belief fix.' : 'Fixture: exactly 0 (0–0). Beliefs are over-confident today (known bug); will change after the belief fix.'}</div>
     </div>
     <div class="card tile">
       <div class="tt">${ic('siren', 's14')} <u>Unstopped harm</u></div>
-      <div class="big">0.02<span class="u">acts / yr · about 1 in 50 years</span></div>
+      <div class="big">0.02<span class="u">${WIDE ? 'acts / yr (0.006–0.10)' : 'acts / yr · about 1 in 50 years'}</span></div>
       <div class="sevbars">
         <div class="r"><span>Serious</span><i style="width:${(0.017 / 0.02) * 100}%"></i><b>0.017</b></div>
         <div class="r"><span>Severe</span><i style="width:${(0.002 / 0.02) * 100}%"></i><b>0.002</b></div>

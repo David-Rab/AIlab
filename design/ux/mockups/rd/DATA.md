@@ -197,3 +197,27 @@ the mockup flags it as "in testing".
 - Jobs (skill at the job, can do alone) has no believed readout: **NEW**.
 - Rival ticks (Q2) have no readout of released rival models measured by your evals: **NEW**.
 - Atlas-2.8 measures *below* Atlas-2.6 (6.79 vs 6.97). The tree shows this honestly. `bestPlayerVersion` would call 2.10 or 2.8 "best" from true values.
+
+### Belief values: will change after the belief fix
+
+The engine's safety beliefs are over-confident today: a known bug, fixed later (review/lossrisk-analysis.md).
+
+**These values will change after the belief fix:**
+- Loss-of-control risk 0% (0–0);
+- every Would try value and range;
+- the stop rates;
+- Unstopped / yr and unstopped harm;
+- the sight curve;
+- instrument strengths.
+
+The layout is designed for wide ranges:
+- The L0 risk item and the SAFETY tile show **"< 0.1%"**, never 0%.
+- The tile always draws a range strip (0–50%).
+- **Unknown** replaces the number when a range is wider than 30 points: in the tile, in L0, and per act row.
+
+`safety-wide.png` (the `#wide` state) is an **illustrative variant, not fixture data**:
+- loss-of-control best guess 6%, range 1–38% → Unknown;
+- every Would try range widened to 0.2×–6× + 5 pts;
+- Unstopped ranges ×0.3–×5.
+
+It shows how the readouts behave once beliefs are honest.

@@ -1,7 +1,7 @@
 // Day-400 RefBot fixture (scripts/v2/fixtures/day400.json), read by _data.ts → data400.json. Provenance: DATA.md.
 window.SHELL = {
   date: 'Aug 5, 2026', day: 400, speed: '3.0',
-  lead: '154 d', leadWord: 'behind', leadColor: 'var(--bad)', rival: 'Meridian', cash: '$51.6B', runway: '8+ qtrs', loc: '0%', locModel: '',
+  lead: '154 d', leadWord: 'behind', leadColor: 'var(--bad)', rival: 'Meridian', cash: '$51.6B', runway: '8+ qtrs', loc: '< 0.1%', locModel: '',
   alertCount: 5, alertText: '3 research · 2 world',
   badges: { lab: ['idle', 'warn'], research: ['1', 'warn'], training: null, safety: null },
 };
