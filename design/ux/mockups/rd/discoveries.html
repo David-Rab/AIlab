@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RESEARCH › Discoveries</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.tree { padding: 0 16px 10px; display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; }
+.zh, .lane { display: grid; grid-template-columns: 112px 156px 660px 404px 368px; column-gap: 12px; }
+.zh { padding: 10px 0 6px; border-bottom: 1px solid var(--line); }
+.zh > div { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-weight: 650; display: flex; gap: 6px; align-items: center; }
+.zh > div b { color: #fff; font-family: var(--mono); letter-spacing: 0; }
+.lane { padding: 7px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.lane:last-child { border-bottom: 0; }
+.fieldn { font-size: 14.5px; font-weight: 650; color: #fff; display: flex; gap: 8px; align-items: center; padding-top: 12px; }
+.fieldn .sw { width: 4px; height: 18px; border-radius: 2px; }
+.known { display: flex; flex-direction: column; gap: 1px; padding-top: 6px; }
+.known span { font-size: 11.5px; color: var(--text-3); white-space: nowrap; display: flex; gap: 5px; align-items: center; }
+.known span svg { color: var(--good); opacity: .75; }
+.zone { display: grid; gap: 6px; }
+.z3 { grid-template-columns: repeat(3, 1fr); } .z2 { grid-template-columns: repeat(2, 1fr); }
+.nd { position: relative; height: 48px; border-radius: 7px; background: var(--panel-2); border: 1px solid var(--line-2); padding: 5px 9px 0 13px; overflow: hidden; }
+.nd::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; }
+.nd.ncap::before { background: var(--cap); } .nd.nsaf::before { background: var(--saf); }
+.nd .l1 { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; }
+.nd .l1 .nm { overflow: hidden; text-overflow: ellipsis; }
+.nd .l1 .op { margin-left: auto; font-size: 11.5px; color: #cfe3ff; font-weight: 600; flex-shrink: 0; display: inline-flex; gap: 2px; align-items: center; }
+.nd .l2 { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; margin-top: 3px; }
+.nd .l2 .ef { overflow: hidden; text-overflow: ellipsis; }
+.nd .l2 .rk { color: var(--warn); flex-shrink: 0; display: inline-flex; }
+.nd .si { flex-shrink: 0; display: inline-flex; }
+.nd.locked { background: transparent; border-style: dashed; }
+.nd.locked .l1 { color: var(--text); font-weight: 550; }
+.nd.locked .l2 { color: var(--text-3); }
+.nd.locked .l2 b { color: var(--text-2); font-weight: 600; }
+.nd.res { border-color: #3a8ae0; background: #16243a; }
+.nd.fail { border-color: rgba(239,107,107,.5); }
+.nd.sel { border-color: #fff; box-shadow: 0 0 0 1px #fff, 0 0 0 4px rgba(58,138,224,.35); }
+.nd.dimx { opacity: .35; }
+.ring { width: 12px; height: 12px; border-radius: 50%; background: conic-gradient(#5aa9ff calc(var(--p) * 1%), #33435a 0); -webkit-mask: radial-gradient(circle, transparent 3px, #000 3.5px); }
+.tagx { font-size: 10.5px; padding: 0 5px; border-radius: 3px; font-weight: 650; flex-shrink: 0; }
+.tagx.capability { background: rgba(155,107,224,.18); color: #c9b0f0; }
+.tagx.see, .tagx.stop, .tagx.fix, .tagx.meta { background: rgba(34,163,148,.18); color: #8fe0d4; }
+.legend2 { display: flex; gap: 14px; align-items: center; font-size: 12.5px; color: var(--text-3); }
+.legend2 span { display: inline-flex; gap: 5px; align-items: center; }
+.seg3 { display: inline-flex; gap: 2px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.seg3 span { padding: 3px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.seg3 span.on { background: var(--panel-3); color: #fff; }
+
+/* drawer (L2) */
+.scrim { position: absolute; inset: 0; background: rgba(5,8,12,.35); z-index: 40; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 640px; z-index: 50; background: #121922; border-left: 1px solid #3a4c66; box-shadow: -20px 0 50px rgba(0,0,0,.5); padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.drawer .sec { display: flex; flex-direction: column; gap: 8px; }
+.gv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gbox { border-radius: 9px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.gbox.up { background: rgba(155,107,224,.10); border: 1px solid rgba(155,107,224,.45); }
+.gbox.dn { background: var(--warn-bg); border: 1px solid rgba(233,180,76,.4); }
+.gbox .big { font: 700 26px var(--mono); color: #fff; }
+.kv3 { display: grid; grid-template-columns: 150px 1fr; gap: 7px 14px; font-size: 13.5px; align-items: center; }
+.kv3 .k { color: var(--text-3); }
+.road { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.road > div { border: 1px solid var(--line-2); border-radius: 9px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.road > div.this { border-color: #fff; }
+</style></head>
+<body data-tab="research">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script src="discoveries-drawer.js"></script>
+<script src="discoveries.js"></script>
+</body></html>
