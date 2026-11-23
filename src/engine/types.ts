@@ -38,7 +38,7 @@ export interface World {
   alignDifficulty: number;
   /** Threshold of hidden misalignment above which ASI goes wrong */
   doomThreshold: number;
-  /** China's research efficiency relative to OpenBrain at equal compute */
+  /** China's research efficiency relative to OpenBrain at equal compute (1 on every preset: CAL-W, AI 2027 has none separable) */
   chinaEfficiency: number;
   /** Neuralese speedup to progress if adopted */
   neuraleseBoost: number;

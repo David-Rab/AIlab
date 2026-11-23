@@ -17,7 +17,7 @@ export const DISTILL_FIT: readonly [number, number][] = [[1.5e9, 0.35], [7e9, 0.
 
 /** Synthetic data yield and quality: model v3 D1 moved them to data/v2/dataAssets.ts (SYN_OVERGEN, SYN_Q). */
 // CP3k: CHINA_CAL (a [fit] scale on DeepCent's research efficiency, last 1.5) deleted: at 1 the T3 lead is as good or
-// better (8 seeds, design/RD-AUDIT/BUILD-NOTES.md "CP3k China"); DeepCent's efficiency is chinaEfficiency × the preset's.
+// better (8 seeds, design/RD-AUDIT/BUILD-NOTES.md "CP3k China"); DeepCent's efficiency is chinaEfficiency × the preset's (both 1 since CAL-W).
 /** Start-state timing (§3.1.4): B0 started day −120, V0 finished day −20. */
 export const B0_DAY = -120;
 /** B0 run start: completed day −120 after a reference-length run, so its age equals the average base age under the
