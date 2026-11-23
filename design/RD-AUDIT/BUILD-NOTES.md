@@ -2153,3 +2153,31 @@ Check: `npx tsx scripts/v2/_sr15/check.ts` (E05 ×0.85 / 0.7 / 0.55 at half / me
 active instruments → max |Δ| 0; a weaker hidden AG18 efficacy moves the engine's SCHEME only). tsc clean; build passes.
 Moves calibration: yes (S4/S5): method strength now varies by world with agenda efficacy (AG12 CAST s0 ≈ 9: wide);
 predicted beliefs now carry healing / detection-gated removal, so believed traits after runs fall further.
+
+### SR-10
+Disagreement detection and false-instrument exposure (SAFETY-REDESIGN §4.3 channels 1–2, §3.10). Commit c1cbb30.
+- **`safety/disagreement.ts`**: `noteReading` runs inside detection.ts observeVersion before each belief update: the new
+  reading is compared with the latest reading of every INDEPENDENT instrument on the same trait and model (another kind
+  AND another family: logs/COT vs reasoning/COT is one instrument in two settings). |a − b| > DISAGREE_Z (1.64) ·
+  √(σa² + σb²) → one `Disagreement` in SafetyDept.disagreements (once per model × trait × pair, cap 40), and every owned
+  instrument of both families reading the trait loses DISAGREE_DROP = 0.1 of its trust (floor DISAGREE_FLOOR 0.5 from
+  disagreements alone) [D]: symmetric, says nothing about which is wrong. Readings and noises only (no truth).
+- **Trust**: `TechniqueState.trust` {f, evidence (cap 20: day, source validation | disagreement, model, note, f)};
+  reliabilityBase's BELIEVED base × f (≤ 1); true side unchanged.
+- **Validation** (validation.ts): `ValidationJob.human` (player option `human` on safety.validate: all VAL_ENGINEERS,
+  not ÷ m; preview says human-run / AI-assisted); `humanRun` = chosen, or no AI share (m = 1). `ValidationResult.human`
+  records who ran it (validationRange returns it). A false-validated instrument validated with an AI share samples at
+  its believed recall (the AI hides it, §3.10); human-run, at its true recall (0). Every result sets f = measured ÷
+  believed (before the result) on that model, so a validation supersedes disagreement drops. validationView: disagreements
+  on the internal model, each instrument's trust and last evidence note (data only; UI is SR-27).
+- **Save**: SCHEMA_REV 72; migration 71 → 72 (empty disagreement list; earlier measurements human: true, they read true
+  recall); hygiene pins → 72.
+Check: `npx tsx scripts/v2/_sr10/check.ts` (migration; BB vs WB readings 0.6 apart → one disagreement, both sides'
+believed reliability × 0.9, true and other families unchanged, same pair once, agreeing and COT-vs-COT readings none;
+day 900 with the safety agents line on: a false instrument through 300 AI-assisted validations keeps mean trust 0.997,
+one human-run validation finds 0 of 20 and its believed reliability goes to 0). tsc (app, scripts/v2) clean; build passes.
+Left: no ctx log / case auto-open on a disagreement (framework, SR-17/18); revealFalse still only via cases and footholds
+(a human-run 0 of 20 lowers trust, does not deactivate); AI-assisted rigging covers false instruments only (no general
+sabotage of honest instruments' validations); UI chips (SR-27); glossary terms (SR-30); SR-09 check not re-run.
+Moves calibration: yes (S4/S5): believed reliability now moves with disagreements (down, to ≥ 0.5×) and with each
+validation (to measured ÷ believed), so believed detection, understanding and gates shift; true side unchanged.
