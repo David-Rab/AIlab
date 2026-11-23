@@ -3380,3 +3380,24 @@ p3-d (forked from rd at d951d09, rev 78: SR-17, SR-18, SR-19, SR-20, SR-20b, SR-
 - **moves calibration: yes (safety).** Misuse shifts toward Chat (most tokens, mostly the free-tier nano) and away from
   the API (0.28 → ~0.07 reach at day 0), grows with usage instead of being capped by the pool share, and lineup models
   now raise their own trait-act and misuse incidents.
+
+### RD-UI0a (What binds without truth)
+- **Done (commit a7f4b80).** UI-IA OQ-5 and its "Existing leaks" line. New `production/believed.ts`: the lab's BELIEVED
+  production parameters, readouts only. Central = the setup preset's published values (PROD_DEFAULT / PROD_PRESETS);
+  for `sampled`, the one drawn parameter La at the prior's median 1 + √200 ≈ 15.1. Band = La at the prior's 80%
+  interval (2, 201) for every preset. Source of the prior (the one the hidden draw cites): AIFM `inf_labor_asymptote`,
+  1 + LN ci80 [1, 200] (research/13 §1.4, world/hidden.ts prodParamsFor). Prior only: the state keeps only the research
+  engine's last day (`research.last.x`), not 30 days of responses, so there is no measured tightening.
+- Switched to the belief: `capProjectView` eC / eL (+ new `eCBand` / `eLBand`) and `bound`; the player's
+  ProductionReadout label (What binds, compute / labour / human-bound); `responseCurves`; `labSpeedRel` (both through
+  `believedWorld`, readout-only expThroughput). Binds tooltip shows "(believed)" and the band. Physics unchanged (all of
+  models/research.ts, workfit.ts, the rivals still read the hidden draw). No state change, SCHEMA_REV stays 93.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_ui0a/check.ts` (run alone) all passed: worlds
+  differing only in hidden La (2, 180, a third sampled draw) give identical What-binds / elasticities / bands / response
+  curves / speed at day 0 and day 30; physics still differs; no view / readout / selector / panel file reads hidden
+  production parameters.
+- **Left:** for fixed presets the believed central equals the truth (the preset is the player's public setup);
+  `capEta` / `projectExpInputs` X (models/research.ts) and `research.last.x.X` (Company "Experiment throughput X") are
+  engine values computed with the truth (λ is never drawn, so only X / ETA carry La); other UI `hidden.timeline` reads
+  (World.tsx gOfLevel, milestoneViews, techniqueCurve) are level-scale conversions, not production parameters.
+- **moves calibration: no** (readouts only; bots that read the label now see the believed one).
