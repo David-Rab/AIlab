@@ -744,7 +744,7 @@ for (const a of FINANCE_ACTIONS) {
 // ───────────────────────────── FIN3b: charter rights, low confidence, distress (FINANCE-V3 §7.2, §7.5, §8) ─────────────
 {
   const fx = () => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
-  const B = (k: number, est: number, clarity = 0.7) => ({ est, sd: 0.1, clarity, lastObsDay: k });
+  const B = (k: number, est: number, clarity = 0.7) => ({ est, sd: 0.1, clarity, lastObsDay: k, evidence: [] });
   /** A ready full-model copy of the newest full version (so a live product can swap to it). */
   const candidate = (s: GameStateV2, id: string) => {
     const v = [...s.player.models.versions].reverse().find((x) => x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed'))!;

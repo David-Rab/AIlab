@@ -2,6 +2,7 @@
 // package (model, monitor, compute), the AI share of each role's work, and Trusted to AI (D4). One lane per internal
 // use: model chip, monitor chip with catch rate, compute bar with its budget, AI share of the role's work, cost, the
 // model's four risk families. A model or monitor pick opens a before → after preview (applies at the next tick).
+import { controlOn } from '../../../engine/v2/safety/safeguards';
 // RD-A06: every package names its model (no pick = the newest internal model, said so), has its own control switch, and
 // the agents' tooling (Coding harness, Research harness, Agent memory) is built here, not taken from product features.
 import { useMemo, useState, type ReactNode } from 'react';
@@ -221,9 +222,9 @@ function Tooling({ s }: { s: GameStateV2 }) {
 }
 
 export function AgentsAtWork({ s }: { s: GameStateV2 }) {
-  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), (s.player.tooling ?? []).join(','), s.player.policies.trustedToAI, (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const v = useMemo(() => agentsView(s), [s, s.time.day, JSON.stringify(s.player.agents), (s.player.tooling ?? []).join(','), s.player.policies.trustedToAI, (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && controlOn(d))]);
   // Model v3 E11: believed danger per lane (beliefs and measured levels only).
-  const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && d.controlLayer)]);
+  const danger = useMemo(() => dangerView(s).lanes, [s, s.time.day, JSON.stringify(s.player.agents), (s.player.split.routine + s.player.split.frontier), s.player.split.safety, s.player.deployments.some((d) => d.channel === 'internal' && controlOn(d))]);
   const [drafts, setDrafts] = useState<Partial<Record<AgentUse, AgentChange>>>({});
   const setDraft = (u: AgentUse) => (c: AgentChange | null) => setDrafts((d) => { const n = { ...d }; if (c) n[u] = c; else delete n[u]; return n; });
   return (

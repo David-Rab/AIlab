@@ -1418,6 +1418,235 @@ Paradigm typed effects, part 1 (DD-14; SYNTHESIS RD-E01a; CAP-02). Commit abaffe
   drawn stack idea; RSCH display levels +0.5 for every lab, which shifts anything gated on measured RSCH; RefBot no
   longer researches P13 / P19; refit at CP2).
 
+### SR-01
+
+Safety cleanup (SAFETY-REDESIGN §6 #3, #14; §0 line 5; inventory E1, O1, O2, I3, V2, T10, R3).
+- **Validation lead deleted** (U8, SAF-10): `understanding.ts` has no VAL_LEAD / validationLead; a tool's believed
+  strength falls as 1/(1 + ((L − L₀)/VAL_W)²) from the measured level with no staffed lead. `reValidationMult` stays
+  only for the record readout (`core/record.ts`) and upkeep (removed by later SR tasks).
+- **Dead-end latch deleted** (R7, SAF-14): AgendaState.status is 'idle' | 'active'; no ×0.5 line speed; a DEAD result
+  still lowers the posterior and counts its team-months.
+- **Tool On/Off deleted**: action `safety.technique` gone; owned detection / containment tools are always active
+  (unlockTechnique already set that); the Tools card shows no toggle. `safety-emu.ts` no longer toggles fix methods.
+- **Staffing copy**: the fix-method tooltip no longer says "while its line is staffed" (engine switch stays until
+  SR-14 / SR-12); glossary dead end loses the half-speed sentence.
+- **Previews**: eval gate shows the extra wait on external launches only, the T-PROP ×0.7 coupling when it flips, and
+  the Safety Index effect (gradePlayer on a copy → next edition's talent / safety-bloc approval); no clarity or
+  credibility lines. Publish policy: "all" shows +2 credibility / +1 talent per result (lagged by the lines' result
+  pace) and the shared-pool spill to rivals; none / selective say nothing is published automatically; plus the Index
+  effect. Pledge: credibility +8, evalGov trust +4, E15 ×0.5, break cost as text, Index effect; the notional progress
+  and lead lines are gone. RESPONSE_INFO loses its `days` (instant responses say "takes effect at once"; patch names its
+  real 30–90 d crew). E01 "Fix quietly" → "Keep it quiet" with "nothing is fixed".
+- SCHEMA_REV 54 → 55: migration unlatches 'deadEnd' lines (→ idle) and sets owned non-fix tools active.
+- Checks: tsc main and scripts, `npm run build`, `lint-tradeoffs` (pledge / evalGate / publishPolicy known deviations
+  removed: all pass), targeted `npx tsx scripts/v2/_sr01/check.ts` (passes).
+- **Moves calibration: maybe** (no lead lowers believed U and so the U-margin, red flags and anything gated on it;
+  latched lines run at full speed; tools switched off by bots are back on).
+
+### SR-02
+
+Blind-gap amplifier deleted (SAFETY-REDESIGN §6 #1, OD-3; inventory U9): `safety/traits.ts` has no
+understandingGapGrowth / GAP_GROWTH_K / GAP_CAP_L; player trait growth uses growthMult 1. `ws2.gapTrue` is still
+sampled weekly in `core/record.ts` because `scripts/v2/bots.ts` reports it. The sourced "undetected hacking
+reinforced" replacement is SR-24. Moves calibration: yes (S4/S5); re-measure S4/S5 at the next checkpoint.
+
+### SR-03
+
+One harmful-acts view: `safety/actTable.ts` `actTable(s, target, believed)`, target = a product (`deploymentId`), an
+internal lane (`use`) or an internal fleet as incidents rolls it (`deploymentId, versionId, usage`). Rows in three groups
+with player names (§2.4): misbehaviour (SYC, RH, PROXY, CONCEAL, POWER), against the lab (SAND, COLLUDE, SCHEME,
+BACKDOOR, HIDCOMP, SAFSAB, STEER, SUCCSTEER, the composite "Acts against the lab" = E9's exposure Mis·(1 − O_eff)·(1 + F),
+"Copies itself out" = E25 exfiltration), misuse (bio, cyber). Factors: Would try (believed: estimate and 90% range
+est ± 1.64 sd; Mis band for the composite), Able to, Chances, Stop rate = 1 − (1 − block)(1 − catch), attempts and
+Unstopped per year (per work item for SAFSAB / STEER / SUCCSTEER; exposure for the composite).
+Engine side reuses the existing formulas: `incidents.ts actTerms` (new kernel, actRow calls it), `catchOf`,
+`misuseHazards` (optional believed inputs: measured levels, believed classifier strength), `exfilTerms` (exfiltrationHazard
+now reads it), covert `dayTerms` / `itemTerms` / `safetySabotage`, `controlTerms` / `believedTerms`. dangerView's product
+and lane readouts are the believed table's trait rows (`actSite` + `siteActs`); its numbers are byte-identical to before
+(check: `npx tsx scripts/v2/_sr03/check.ts`, fixtures day400 / day900; engine rows = dangerOf / misuseHazards /
+exfiltrationHazard × 365).
+Open: U-modes are not rows (the engine still rolls them as extra rows of their mapped act); the believed covert and
+exfiltration rows are new believed readings of the engine formulas (belief estimates, measured levels, believed
+oversight; no backdoor reach the lab cannot see); "Able to" of the composite row is 1 (the loss test's ASI / escaped-copy
+gate is not a capability sigmoid). SR-04 builds Loss-of-control risk on the composite row. Stray untracked
+`scripts/v2/_sr03/refactor1.py` (a helper the sandbox would not run or delete) can be removed.
+Moves calibration: no (engine numbers unchanged: same formulas, same float order; no RNG or state change).
+
+### SR-04
+
+Loss-of-control risk: `safety/lossRisk.ts` `lossOfControlRisk(s, model?, mods?)` = the player's believed odds that the
+engine's loss test (control.ts: E = Mis·(1 − O_eff)·(1 + F) > θ_w) fails for a model, "if it could act now" (OD-2).
+Mis ~ Normal(misalignmentEstimate, misalignmentSd) clamped to [0, 1] (assumption: trait belief sds independent normal
+errors, Mis linear in them; 81-point grid over ±4σ; `misalignmentSd` split out of traits.ts misalignmentBand, same
+floats). O_eff = believedInternalOversight on the takeover act (the composite row's stop rate) after believed backdoor
+reach. Footholds: located at half weight and their size; suspected at full weight and the typical size of their kind
+(backdoor reachPerSev·(floor + span/2), hidden compute hidCompPerSev·(floor + span/2) of the agent pool; other kinds
+suspectedF; kind and lineage are visible, size is not); unfound allowance = the believed fleet table's unstopped BACKDOOR
+and HIDCOMP acts over UNFOUND_YEARS = 1 [D] at the typical size (item acts excluded: no believed items / yr). θ prior:
+0.40 (U(0.30, 0.50) when setup.alignment is sampled) + Logistic(0, toleranceSd), clamped [0.05, 0.95], closed form
+(softplus); never s.hidden. Range = risk at the belief's 5th / 95th percentile. Lab headline = max over running models
+(best, internal fleets, live products' models). `unstoppedHarmPerYear(s)` = Σ per-year rows of every site's believed
+table × expected severity (floor + span·Able to·A·F; escape 5; misuse floor + span·Able to); item and composite rows out.
+Readers: Risk › own row (label "Loss of control (model)", no pFirst factor, drivers by removal: footholds, belief
+uncertainty, rest; levers misalignment −0.05 / belief ranges halved / stop rate +10 pts; RiskMods.margin gone) and so the
+top-strip combined estimate; Safety › Overview Control card = Loss-of-control risk gauge (< 5 / 5–20 / > 20%) with
+belief ± range, stop rate, known + unfound footholds and Unstopped harm / yr (controlReadout.risk / harm / harmActs).
+Other labs' world rows unchanged. Glossary: lossRisk, unstoppedHarm. Check: `npx tsx scripts/v2/_sr04/check.ts`
+(day400 / day900: wider beliefs raise it below the line; suspected > located > removed backdoor; control layer and +10
+pts stop lower it; identical with ε_w, doomThreshold and true traits rewritten).
+Open: the stored believed control (controlStep → effectiveControl.believed, controlView, ControlRead.believed and the
+card's data-control hook for uitest) still exists; CONTROL_BANDS / controlBand are unused by the card; GLOSSARY.md not
+regenerated; the monitor-budget lever moved nothing on the fixtures (watched share already full).
+Moves calibration: no (output only: the engine's loss test, control and incidents are unchanged; no RNG or state change).
+
+### SR-06
+
+Beliefs per model with an evidence list, no time drift, inheritance widened by the predicted run change (SAFETY-REDESIGN
+§2.2 concept 2, §6 #6; inventory B9). `TraitBelief.evidence`: the last 20 updates (BELIEF_EVIDENCE_CAP), oldest first,
+each {day, source, reading, noise} (numbers to 3 decimals). Sources: "<kind>/<family>" for instrument readings
+(suite, external, bench, monitor, audit, finding, case; family BB / COT / WB / OR), "case" for a case verdict, "prior"
+(public lineage prior), "start" (V0), "inherit:<parent id>" (a new model's start), "stream". `updateBelief(b, o, σ, day,
+source)` / `observeVersion(…, kind)` append each reading; investigations' verdicts append theirs.
+**Drift deleted**: `driftBeliefs` (sd +0.01/week, stream +0.05/day) is gone from detection.ts and safetyResearch; a
+frozen model's belief changes only through evidence.
+**Inheritance** (already from predictBeliefs, now stated and tagged): est = the parent's belief pushed through the graph
+with public weights (the run's predicted change Δ); **widening rule** sd' = min(SD_MAX, √(sd_parent² + w²)),
+w = 0.3·|Δ| + PREDICT_SD_FLOOR (0.04) [D]: the prediction's error is independent of the parent's, so variances add.
+The new list holds one entry (reading = new est, noise = w); the parent's evidence stays on the parent (it is about
+that checkpoint). Distilled students inherit from the teacher ("inherit:<teacher>"); a model with no ancestor starts at
+the lineage prior ("prior"). A stream version widens daily by predictBeliefs at ω = 0.6/42 with floor
+0.04·√(ω_day / 0.6), so one post-run's worth of stream training adds one run's floor variance; the days fold into one
+trailing "stream" entry (noise √(Σw²)). `beliefUnknown(b)` = 90% range 3.28·sd > 30 points (UNKNOWN_RANGE; derived, not
+stored); not yet read by any readout (RISK_UNSEEN_CLARITY badges unchanged). Glossary "clarity" no longer says it decays.
+SCHEMA_REV 55 → 56: migration gives every stored belief an empty list; hygiene's rev pins and SR-01's check updated to 56 / ≥ 55.
+Check: `npx tsx scripts/v2/_sr06/check.ts` (migration; 30 ticked days on day400 / day900: every est / sd move lands with
+an evidence entry that day, thousands of belief-days unchanged without one; one reading → one entry, cap 20; a post-train
+version from the newest full model: sd² = sd_parent² + w² for every trait, one inherit entry, identical with true traits
+rewritten; Unknown threshold). Passes.
+Open: save size grows by up to 20 entries × 17 traits per version (not measured against SAVE_BUDGET_BYTES); readouts
+do not show the list yet (SR-07 / UI); IDA cycles keep the post-train start (no extra widening for the ×1.1 compounding).
+Moves calibration: maybe (S4/S5): no drift keeps frozen models' beliefs narrower, so red flags, Unknown / unseen badges,
+gates and Loss-of-control risk ranges read tighter; stream versions widen more slowly than before.
+
+### SR-12
+
+One monitor formula (SAFETY-REDESIGN §3.3): `models/products.ts monitorStop(s, watched, monitor, monitorCompute,
+watchedCompute, costRatio, controlled)` → stop contribution = watched share × flag rate × acted-on rate, where watched
+share = monitor compute ÷ (watched compute × cost ratio) capped at 1 (AI 2027 fn 51), flag rate = catchRate (Engels gap
+rule, AG07 tools, control deferral; same-lineage collusion as `stopColl`), acted-on = MONITOR_ACTED_ON = 1 [D] (a flag
+blocks; SR-13's protocol / human review set it). Also strength = watched × min(1, flag ÷ 85%) × acted-on (runtime logs,
+internal tool catch). Products: `productMonitor(s, d)`, compute billed to serving `monitorOverhead` = PRODUCT_MONITOR_WATCH
+(1 [D]) × FLOP-per-token ratio (MONITOR_OVERHEAD = 0.25 deleted); `productCatch` = its stop. Internal: `useMonitor(s, use)`,
+monitor compute = the use's part of the used flat allocation (same pooled coverage as before); `monitorStrength` reads it.
+Logs as evidence: runtimeMonitoring's product strength = productMonitor's strength (internal: fleetMonitor, already the
+kernel's). actTable: product stop rate and `monitor` read productMonitor (with the table's control override);
+`ActSite.monitorParts` carries the parts for products and lanes. **MONU closed** (product monitors on the fn-51 rule; the
+tutorial hint for the 17% start coverage is not done: UI, left open). Glossary `monitor` updated. Check:
+`npx tsx scripts/v2/_sr12/check.ts` (day400 / day900: same pair → same product and internal catch, collusion too; readers =
+kernel; doubling compute doubles watched share until 1, kernel and allocation). scripts/v2/products.ts P4 updated to the
+new overhead.
+Open: internal catch still = CoT/WB tool detection × (½ + ½ × strength) (the instrument part; SR-13/SR-14 may fold it into
+flag rate); product watched share is a constant, not a player setting (SR-13 / SR-26); OD-6 trusted default watcher is SR-20.
+Moves calibration: maybe (S4/S5, serving cost): product monitor overhead ×4 (a same-size monitor +100% of serving, a
+quarter-size mini +25%); catch numbers unchanged (product watched share 1; internal coverage the same up to float order).
+
+### SR-13
+
+Safeguards as owned items (SAFETY-REDESIGN §2.2 concept 7, §3.3): `Deployment.guards: SafeguardItem[]` ({kind, setting?,
+since}); `safety/safeguards.ts` holds kinds, settings, add / remove (`addSafeguard`, `removeSafeguard`, `setControl`),
+readers (`controlOn`, `reviewOn`, `isRestricted` / `restrictMult`, `lockdownOn`, `labControlSetting`, `labReviewOn`) and
+`safeguardLines(d, …)` = per item: stop contribution on every act, Chances ×, **Slowdown**, compute, people.
+One combine rule: Stop rate = 1 − Π (1 − stop_i) over monitor and items; the engine's 1 − (1 − block)(1 − mon)(1 − human)·miss
+is that product (control item stop = 1 − (1 − block)·miss), so engine numbers are unchanged. `actTable` returns `guards`.
+- **Control protocol**: settings defer10 (Greenblatt 62% → 83% safe, usefulness 97% → 93%) [S], defer20 (92%, 83%) [S],
+  resample (Ctrl-Z 58% → 7% attack success at 5% usefulness cost [S]; read as acts slipping past, mapped onto every
+  internal act [D]). Slowdown = U0 − (U0 − U)·min(1, trusted gap ÷ 1 OOM) (the old controlProtocol rule, same floats at
+  defer10). `controlProtocol(gap, setting)` replaces the `defer` number; CONTROL_DEFER unused. AG07: contain tools are the
+  item's block (unchanged `containment`, gated on the item); T-RESAMPLE unlocks the resample setting; T-LOCK unlocks the
+  lockdown item. Compute = deferred share × CONTROL_TRUSTED_COST 0.1 [D]; people 0.
+- **Human review**: an item on internal deployments (default in init / new internal deployments); without it human = 0
+  in catchOf, internalOversight, believedOversight, pressureView. Slowdown 0; people = REVIEW_STAFF 5 per 10% human share [D].
+- **Restriction**: replaces status 'restricted' (status is live | withdrawn); usage ×RESTRICT 0.3 (now one constant in
+  safeguards.ts; actTable re-exports). Two-way: new response `liftRestriction` (preview + apply; Safety response list).
+- **Comms lockdown**: replaces the owned-T-LOCK reads (products catchRate, ideas, traits E21): collusion penalty ×0.5,
+  Slowdown LOCKDOWN_SLOWDOWN 3% [D] on internal work (workfit).
+SCHEMA_REV 56 → 57: migration maps controlLayer → control (defer10), 'restricted' → restrict item + live, internal →
+review, owned T-LOCK → lockdown on internal deployments. hygiene pins 57; SR-06 check ≥ 56.
+Check: `npx tsx scripts/v2/_sr13/check.ts` (day400 / day900: defer 20% raises every per-year stop rate on the lane and
+costs Slowdown 17% at the 1-OOM gap = useControl's tax; restrict ×0.3 then lift back). Passes.
+Open: compute / people costs are readouts, not yet billed (LAB allocation / staff needs); no verb yet to add a lockdown,
+change the control setting or remove review (only add / remove control and restrict / lift; SR-26 UI); bots do not add a
+lockdown after researching T-LOCK (before, owning it was enough); product control setting reads the lab's; glossary
+`controlLayer` term not renamed; stray untracked `scripts/v2/_sr13/{rep,bulk}.cjs` (edit helpers) can be removed.
+Moves calibration: maybe (S4/S5): new games lose T-LOCK's effect unless a lockdown is added, and a lockdown costs 3% of
+internal work; otherwise same formulas and floats.
+
+### SR-13b
+
+Safeguard costs are charged as their lines show (designer rule: a cost shown is applied).
+- **Slowdown**: internal control (useControl usefulness) and lockdown (×(1 − 3%)) were already on the package's AI labour
+  (workfit useLabour). New: a product's control protocol cuts its usage by the Slowdown at the full trusted gap, with the
+  restriction in one multiplier `productUsageMult(d)` (revenue.ts sector and Chat paths; limitsView line "Control protocol").
+- **Compute**: `controlComputeShare(setting)` = deferred share × CONTROL_TRUSTED_COST. Internal: `monitorBudget` pays the
+  control compute (Σ agent compute × share) first from split.monitors (`control`, `controlShort`); monitor coverage uses
+  what is left; any shortfall comes out of the agents' own H100e (useLabour). Products: `productSafeguardOverhead(d)` added
+  to the serving overhead next to monitorOverhead. Add control preview shows the compute line.
+- **People**: `safeguardFte(s)` = reviewStaff(1 − aiRdShare) when human review is on (the line's people); `committedFte`
+  (investigations + patches + safeguards) replaces the free-engineer sums (actions, footholdDetection, investigations,
+  lineProjects, bots/ref); `safetyRe().safeguards`. Review stop is not scaled down when engineers run short (open).
+- **Lockdown verb**: responses `addLockdown` / `removeLockdown` (preview + apply; cannotAdd gates on T-LOCK); Control card
+  buttons. Bots: `keepLockdown` (bots/common.ts, run from staffLines) adds the lockdown to live internal packages once
+  T-LOCK is unlocked, so ref / safe / mixed keep T-LOCK's effect.
+Check: `npx tsx scripts/v2/_sr13b/check.ts` (day400: control ×0.97 AI FTE and its compute on the monitors' line; lockdown
+added, ×0.97; product control usage ×0.93, +1% serving). Passes.
+Moves calibration: maybe (S4/S5): review now takes up to 50 safety engineers early (human share ≈ 1), fewer free for
+experiments / cases; product control costs usage; bots now pay the 3% lockdown Slowdown.
+
+### SR-08
+
+Detect techniques are instruments (SAFETY-REDESIGN §2.2 concepts 3–4, §3.2) with one reliability definition.
+- **`safety/instruments.ts`**: kinds `tests` (BB) / `reasoning` (COT) / `internals` (WB) / `formal` (OR) / `logs` (a
+  reading taken by a monitor in deployment, `instrumentKind(t, 'monitor')`); `instrumentReads(t)` (coverage > 0);
+  `instruments(s)` (owned detect tools). `reliability(s, t, {x, v?, trait?, eff?, ea?, obf?}, believed)` = base ·
+  penalty, base = s0 · efficacy · D(gap) · (1 − G·trainedAgainst) (techniques.ts `reliabilityBase`; true: hidden efficacy,
+  false-validated → 0; believed: posterior mean), penalty = true `familyPenalty` × (1 − falseMask) or believed
+  `believedPenaltyParts` (tests = EA factor, legible = CoT legibility, mask = own training-against). Returns the parts.
+  `reliabilityReasons(s, t, v, trait?, L?)`: "not validated on V", "capability gap from V −x", "trained against on V −x",
+  "notices tests −x", "reasoning not legible −x", "masked by training −x", "line works x%" (−x = % of reliability lost).
+- **Validated on**: `TechniqueState.validatedOn / validatedOom` (start tools: V0 / 0; `unlockTechnique` and F49 false
+  tools: the internal model at unlock). Decay is on the gap x − validatedOom (oHalf = the gap's half point; AG05 keeps
+  the overseer gap, AG09 the latent override). `trainedAgainstOn` set by goodhartTrain. SCHEMA_REV 58 (migration 57 →
+  58: validated on V0, gap as before).
+- **Callers**: detection (familyDetection, stackDetectionMap), understanding (believed detector: reliability().value ×
+  valAt above the measured level; trueUnderstanding: true value, now including the false-tool mask), actTable (misuse
+  classifier strength). strengthTrue / strengthBelieved are wrappers of reliabilityBase for the other callers (agendas,
+  ideas, incidents, investigations, pressureView, responses, view, selectors); not yet migrated. Reasons are not in the
+  view yet (SR-11 / UI). valAt (believed extrapolation above the current level) kept; SR-09 validation evidence replaces it.
+Check: `npx tsx scripts/v2/_sr08/check.ts` (day400: familyDetection = combine(cov · reliability base); detectionAt =
+cov · reliability value; reliability full on the validated model, falling with the gap 0.406 → 0.290 over 8 OOM). Passes.
+Moves calibration: maybe (S4/S5): tools unlocked mid-game now decay from the model they were unlocked on, not from V0
+(stronger later in the game, true and believed U up); start tools and old saves unchanged.
+
+### SR-11
+
+One **sight limit** (SAFETY-REDESIGN §2.2 concept 5, §2.3) replaces understanding U, margin, validated-to, seen-to,
+likely range, BLIND/AHEAD and the detection grid.
+- **`safety/sightLimit.ts`** (was understanding.ts): `sightLimit(s)` = { L, lo, hi, level, gap = L − level, perTrait }:
+  the highest level where the active instruments together read the hidden-goal traits (CRITICAL_TRAITS mean) at ≥ 50%
+  believed reliability (SR-08 `reliability()` at the hypothetical capability, so each decays from its validated model;
+  valAt extrapolation and EA projection kept until SR-09). Range = 10th–90th percentile over 24 Latin-hypercube draws
+  of line efficacy from the Beta posteriors (efficacy only now; EA / OBF draws dropped). `sightLimitPoint` (no range:
+  weekly series, bots, decision snapshot), `sightGapBelow` (E17 early-exit), `plannedSightLimit(s, predictedL)` (TRAINING
+  planned-run readout, not yet wired), `sightGrid` (drill-down), `trueSightLimit` (engine only: ws2.gapTrue, analysis).
+- EngineApi `understanding` → `sightLimit`; safetyView `understanding` / `nextDecay` → `sightLimit`; riskFamilies lost
+  `seenTo` (Safety's weakest family now = lowest mean reading at the model's level). Series key `U` and DecisionSnapshot
+  `U` kept as field names (now the sight limit). Glossary: U, uRange, validatedTo, blind, gap deleted; sightLimit added.
+  upkeepView.validatedTo still computed (behindInMonths) but no longer shown. Analysis scripts read it through local
+  adapters in the old shape.
+Check: `npx tsx scripts/v2/_sr11/check.ts` (day 0: efficacy posteriors up → 5.55 → 5.75; validated 3 OOM further back
+→ 5.55 → 5.45; range 5.45–5.65 brackets the point). Passes.
+Moves calibration: maybe (S5 reads U): the U range now draws efficacy only (narrower), point value unchanged.
+
 ### RD-E01b
 
 Paradigm typed effects, part 2 (DD-14; SYNTHESIS RD-E01b; CAP-02). Commit f7fff3f.
@@ -2063,3 +2292,153 @@ TRN-22, MEA-11; theme X). Commit 265f9b9. Moves calibration: **yes**.
   research now reads per-domain work fit and the horizon domain (EXP / IDEAS fit ≈ G − 0.03 OOM at day 0–200 instead of
   G) and the day-0 normalisation reads V0's build: rival research speed, recipe growth and rival domain readouts /
   milestones shift slightly.
+
+### SR-09
+
+Validation jobs replace tool upkeep (SAFETY-REDESIGN §2.2 concept 4, §3.2, §6 row 2). Commit 4d120fc.
+- **`safety/validation.ts`**: a job (instrument, model) takes VAL_ENGINEERS = 15 safety research engineers (÷ m of
+  safety experiments) for VAL_DAYS = 30 at full staffing and VAL_COMPUTE_FRAC = 0.25 of a serious project's compute on
+  the instrument's line (shared by need with the line projects in safAllocation; SafAlloc.valPool) [D; costs [R] pending,
+  §6 row 17]. It plants VAL_N = 20 cases: found ~ Binomial(20, trueRecall), trueRecall = the true `reliability()` on that
+  model, mean over the traits it reads (OD-7: no organism-realism factor). Finishing sets validatedOn / validatedOom
+  (port = same job) and `TechniqueState.measured` {on, found, n, day}. False-validated tools measure ~0 (true reliability
+  0): SR-10 builds on it (who ran it).
+- **Needs list**: SafReNeed 'reval' → 'validation' (demand = live jobs × per-job engineers, filled in queue order).
+- **Policy**: SafetyDept.validation {jobs, autoNew (on), lastModel}: on each new internal model every owned instrument
+  not measured there is queued (the start model too: day 1 of a new game queues the start tools).
+- **Actions**: `safety.validate` (tool id or 'all', model; preview: engineers, days, queue ahead, compute, current range
+  and the sample's width), `safety.validationPolicy` (on).
+- **Range** `validationRange(s, t, v)`: measured on v → found/n, 90% Beta range; else extrapolated = measured × believed
+  change from the measured model, half-width + VAL_WIDEN_PER_OOM = 0.06 per OOM of gap; never measured → believed value,
+  half-width VAL_UNMEASURED_HALF = 0.15 + the gap widening. Not yet read by sightLimit (its range is efficacy draws) or
+  the instrument rows (UI tasks).
+- **Deleted**: upkeepStep / upkeepState / upkeepTools / revalDemand / reValidationMult (the validation lead), UPKEEP_*,
+  RE_SERIOUS, glossary toolUpkeep (now `validation`), upkeepView (→ validationPanel; Safety's Validation card with the
+  queue, "Validate all", auto toggle; the race chart's sight-limit projection is flat). LINE_MULT_MAX kept (line asks,
+  AG17 harness, AG18 healing). record.ts U-cause "validation" = instruments measured on the model.
+- **Save**: SCHEMA_REV 69; migration 68 → 69 (empty queue, policy on, measured null, need renamed in research.safRe);
+  hygiene pins → 69. safetyresearch.ts E1 reads idle engineers (was upkeep).
+- **Not done**: job reordering in the queue (the need's place in the list is reorderable); cost scaling with model size.
+Check: `npx tsx scripts/v2/_sr09/check.ts` (day 400: migrates; policy queues 5 of 5; unstaffed: no progress, no oHalf
+drift; staffed: done in 30 d, validated on Atlas-2.7, each measured within 3 sd of true recall; mean of 400 = 0.195 vs
+0.203; never-measured range wider; no upkeep code in src). tsc (app, scripts/v2) clean; npm run build passes.
+Moves calibration: yes (S4/S5): oHalf no longer rises with spare engineers (tools fade faster unless validated on each
+model, which re-anchors the gap); validation takes engineers and some line compute.
+
+### SR-14
+Safety methods are run-plan options (SAFETY-REDESIGN §2.2 concept 8, §3.4; SAF-04a/b/c, SAF-05, SAF-06; OD-11).
+- **Field**: PostDesign.techniques / trainAgainst → one `methods` list: method ids (safety/methods.ts METHODS: T-PERSONA,
+  T-CAST, T-W2S, T-CONFESS, T-ANTISCHEME, T-UNDO) and `against:<instrument>` (train against an instrument, flagged).
+  `usesMethod` is the only switch; `inRun` no longer reads lineStaffed. T-TMON's E14 / E22 follow the monitor deployment
+  (routineMonitor), not AG07 staffing.
+- **Healing (AG18)**: HEAL_K · e_AG18 · √min(2.5, 1 + AG18 methods used: confession, anti-scheming, inoculation option) ·
+  pref · safety factor; no staffing term (was 0 without AG18 staffing).
+- **Policy**: SafetyDept.useAllMethods (on); `safety.methodPolicy`; postFromParams(p, s) with no `methods` param fills
+  every owned method (never train-against). Run preview: each method's effect (gain) and its cost where one exists
+  (anti-scheming EA ×2 first time on a lineage); train-against: visible −70–90%, true −20–40%, trained-against mark.
+  No method has a cash / compute / staff cost of its own yet.
+- **Folded**: T-SPEC (Rewarded for: Constitution), T-HARDEN (suite hardening), T-INOC (Inoculation option), T-FILTER
+  (base Hazard filter: the open-weights rule now reads base.design.curation.hazard), T-CCLASS (safeguard); not listed as
+  tools on SAFETY. T-UNDO: misuse capability ×UNDO_MISUSE_MULT 0.5 [D] for models trained with it.
+- **UI**: Blueprint post-train Methods row (toggle per owned method, ⚑ vs each instrument, policy toggle); glossary
+  safetyMethod; tree T-UNDO card.
+- **Save**: SCHEMA_REV 70; migration 69 → 70 (every post design: methods = techniques + against:trainAgainst; policy on);
+  hygiene pins → 70.
+- **Not done**: inoculation stays a boolean run option (not in `methods`); Heavy safety still includes anti-scheming /
+  confession effects; the incident response "Retrain against" stays; prediction of healing / method effects (SR-15).
+Check: `npx tsx scripts/v2/_sr14/check.ts` (day 400 migrates, 22 designs; persona E05 and anti-scheming E28 only when
+listed; healing 0.258 → 0.407 with two AG18 methods; mods and healing equal without 12 science teams; T-UNDO halves
+misuse; policy on fills 4 owned methods, off none; explicit list wins). tsc (app, scripts/v2) clean; npm run build passes.
+Moves calibration: yes (S4/S5): methods now apply to every policy-filled run regardless of staffing (bots included),
+healing no longer needs AG18 staffing, monitoring edges no longer need AG07 staffing.
+
+### SR-14b
+Finishes SR-14 (SAFETY-REDESIGN §3.4 P1 / I5; OD-11).
+- **Inoculation** is the method T-INOC in PostDesign.methods (METHODS; no longer folded); PostDesign.inoculation and the
+  tree option slot 'inoculation' are gone; T-INOC is an AG18 healing method. Blueprint's Alignment row is Standard /
+  Heavy / Minimal only; the Methods row carries inoculation. Race bot: policy methods without T-INOC (was inoculation off).
+- **Safety level** (minimal / standard / heavy) sets only the generic safety-training intensity (SAFETY_REMOVAL, healing
+  factor, HONEST bracket). Anti-scheming (E19 / E28, SCHEME removal, EA ×2) and confession (E17) apply only when listed.
+- **Retrain against** leaves the incident response menu (ResponseKind, preview, apply, SAFETY list, glossary); it is the
+  run method `against:<instrument>`. scripts/v2/safety.ts E24 calls goodhartTrain directly.
+- **Save**: SCHEMA_REV 71 (shared with SR-15); migration 70 → 71 adds T-INOC where inoculation was on; hygiene pins → 71.
+- **Not done**: Heavy's alignment audit (AG02 WB, OC_VIS_AUDIT, pendingAudit) stays in Heavy (becomes a case type, §3.6).
+Check: tsc (app, scripts/v2) clean; npm run build passes (no own targeted check; SR-15's check covers the methods).
+Moves calibration: yes (S4/S5): Heavy no longer gives anti-scheming / confession to runs that do not list them; the
+safe bot gets them only through the policy once owned; inoculation needs T-INOC owned.
+
+### SR-15
+Method effects scale with research efficacy; prediction = mechanism on a copy (SAFETY-REDESIGN §3.4, SAF-07, P6).
+- **Scaling**: mult = clamp01(1 − (1 − base)·s0·e), s0 = 1 / prior mean efficacy of the method's agenda (so at e = ē the
+  sourced base applies); removal = clamp01(base·s0·e). Engine e = trueEfficacy; prediction / preview e = believedEfficacy.
+  All run methods' moderators, inoculation's hackGen, anti-scheming's SCHEME removal (0.95 base), T-UNDO misuse (0.5 base).
+  Healing keeps HEAL_K · e_AG18 (already linear in e), read in the view.
+- **One mechanism**: safety/traits.ts runEnv(view) builds the run environment; playerEnv = trueRunView (true w, D,
+  U-modes, stackDetectionMap); predictBeliefs = believedRunView (w̄ / revealed, D 1, no U-modes,
+  detection.ts believedStackDetectionMap on the model the stack meets). The prediction now includes detection-gated
+  removal, healing, anti-scheming removal and the audit visibility (it had none of them). selectors.runTraitPressure
+  passes the internal model. Run preview: each method line states its believed scale (×s0·e).
+- Helpers in safety/methods.ts: methodEfficacy, methodS0, methodMult, methodRemoval, EffView.
+Check: `npx tsx scripts/v2/_sr15/check.ts` (E05 ×0.85 / 0.7 / 0.55 at half / mean / 1.5× mean; beliefs = truth with no
+active instruments → max |Δ| 0; a weaker hidden AG18 efficacy moves the engine's SCHEME only). tsc clean; build passes.
+Moves calibration: yes (S4/S5): method strength now varies by world with agenda efficacy (AG12 CAST s0 ≈ 9: wide);
+predicted beliefs now carry healing / detection-gated removal, so believed traits after runs fall further.
+
+### SR-10
+Disagreement detection and false-instrument exposure (SAFETY-REDESIGN §4.3 channels 1–2, §3.10). Commit c1cbb30.
+- **`safety/disagreement.ts`**: `noteReading` runs inside detection.ts observeVersion before each belief update: the new
+  reading is compared with the latest reading of every INDEPENDENT instrument on the same trait and model (another kind
+  AND another family: logs/COT vs reasoning/COT is one instrument in two settings). |a − b| > DISAGREE_Z (1.64) ·
+  √(σa² + σb²) → one `Disagreement` in SafetyDept.disagreements (once per model × trait × pair, cap 40), and every owned
+  instrument of both families reading the trait loses DISAGREE_DROP = 0.1 of its trust (floor DISAGREE_FLOOR 0.5 from
+  disagreements alone) [D]: symmetric, says nothing about which is wrong. Readings and noises only (no truth).
+- **Trust**: `TechniqueState.trust` {f, evidence (cap 20: day, source validation | disagreement, model, note, f)};
+  reliabilityBase's BELIEVED base × f (≤ 1); true side unchanged.
+- **Validation** (validation.ts): `ValidationJob.human` (player option `human` on safety.validate: all VAL_ENGINEERS,
+  not ÷ m; preview says human-run / AI-assisted); `humanRun` = chosen, or no AI share (m = 1). `ValidationResult.human`
+  records who ran it (validationRange returns it). A false-validated instrument validated with an AI share samples at
+  its believed recall (the AI hides it, §3.10); human-run, at its true recall (0). Every result sets f = measured ÷
+  believed (before the result) on that model, so a validation supersedes disagreement drops. validationView: disagreements
+  on the internal model, each instrument's trust and last evidence note (data only; UI is SR-27).
+- **Save**: SCHEMA_REV 72; migration 71 → 72 (empty disagreement list; earlier measurements human: true, they read true
+  recall); hygiene pins → 72.
+Check: `npx tsx scripts/v2/_sr10/check.ts` (migration; BB vs WB readings 0.6 apart → one disagreement, both sides'
+believed reliability × 0.9, true and other families unchanged, same pair once, agreeing and COT-vs-COT readings none;
+day 900 with the safety agents line on: a false instrument through 300 AI-assisted validations keeps mean trust 0.997,
+one human-run validation finds 0 of 20 and its believed reliability goes to 0). tsc (app, scripts/v2) clean; build passes.
+Left: no ctx log / case auto-open on a disagreement (framework, SR-17/18); revealFalse still only via cases and footholds
+(a human-run 0 of 20 lowers trust, does not deactivate); AI-assisted rigging covers false instruments only (no general
+sabotage of honest instruments' validations); UI chips (SR-27); glossary terms (SR-30); SR-09 check not re-run.
+Moves calibration: yes (S4/S5): believed reliability now moves with disagreements (down, to ≥ 0.5×) and with each
+validation (to measured ÷ believed), so believed detection, understanding and gates shift; true side unchanged.
+
+### SR-16
+Environment fixes are owned method items per RL environment family (SAFETY-REDESIGN §3.4 "environment fixes", I4 patch
+→ CHANGE). Commit ee3a911.
+- **Owned item**: `SafetyDept.envFixes[family]` = { mult, n, day, trait, versionId } (types.ts EnvFix). The patch
+  response (kind `patchSignal`, now titled "Fix environment"; optional `family` param, default = the family whose
+  environments are most exploitable after earlier fixes, responses.ts envFixFamily) multiplies the family's fix by
+  PATCH_MULT 0.3–0.6 (drawn), floor PATCH_FLOOR 0.2 [D: V2-SPEC 3.5.9]; same staffing (PATCH_FTE for PATCH_DAYS) and
+  next-run G penalty as before.
+- **Effect**: models/suites.ts `runExploitMap` = suite exploitability × envFixMult per family. A post run freezes it at
+  launch (rlRecipeNow), so every later run that trains on the family gets a lower h_f, λ and S2 share for it; runs
+  launched earlier keep their snapshot; other families unchanged. postHack / postSignals / pressureView defaults and
+  suiteS2Parts read the same map, so the run plan's preview and the SR-15 prediction (runTraitPressure → runHack) show
+  it. suitesView still shows the raw suites.
+- **Deleted**: the per-edge lab-wide / per-lineage signal-patch flags (patchSignal wrote `patch.lab.<edge>` for every edge
+  into the trait: a free global switch); playerMods reads only targeted inoculation training's `patch.lab.E04`
+  (its `lineage` param is gone). patchLevel(s, family?) is the family readout; preview, LIMITS response.patchFloor and
+  the incident row's chip say "environment fix".
+- **Save**: SCHEMA_REV 73; migration 72 → 73 drops `ws2.patch.*` flags except `ws2.patch.lab.E04`, adds envFixes {};
+  hygiene pins → 73.
+Check: `npx tsx scripts/v2/_sr16/check.ts` (day 400 migrates; one SWE fix ×0.541: a SWE-focused run's h 0.095 → 0.066,
+S2 0.53 → 0.37; a math/cyber run loses only its 20% SWE share, other families' hack rates equal; a run without SWE
+suites unchanged; a pre-fix run's frozen snapshot unchanged; preview = launched run; predicted RH change 0.015 → −0.034;
+seven fixes reach the floor 0.2). tsc (app, scripts/v2) clean; npm run build passes. _sr14 / _sr15 checks: playerMods
+call sites updated, not re-run.
+Left: no "create from TRAINING › Environments" entry point (only the incident response; suite hardening stays a separate
+capability-side action); a fix is in force at once (not when its engineers finish); the bots' patches now go to the
+most exploitable family rather than following the trait; glossary term (SR-30) not written; old saves' trait-edge patches
+are dropped, not converted.
+Moves calibration: yes (S4/S5): patches no longer cut trait edges lab-wide (any trait, e.g. SYC / POWER edges); they cut
+one family's rewarded hacks (RH / S2 / learned hacking only), so safe / mixed bots' patch effects shift.

@@ -2,13 +2,14 @@
 // what the player can know: run quantities (exact), and for the successor pull the player's beliefs (believed SUCC,
 // believed tool strength, measured level) in place of the engine's true traits, true strength and hidden U-modes
 // (Sylvester rule, STRUCTURE R9). The engine's own pull is `successorPull` (traits.ts); this is its believed reading.
+import { controlOn, labControlSetting, labReviewOn } from './safeguards';
 import { EDGES } from '../../../data/v2/edges';
 import { RISK_FAMILIES } from '../../../data/v2/agents';
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { planRun, type LaunchRunParams } from '../models/runs';
-import { suiteExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
+import { runExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
 import { measuredLOf, versionById } from '../models/labs';
 import { fleetMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
@@ -19,6 +20,7 @@ import { aiRdShare } from './incidents';
 import { containment, strengthBelieved, techniqueRole } from './techniques';
 import { controlProtocol, gapFactor, oomOfLevel, oversightGap, underControl } from './oversight';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
+import { againstOf, methodMult, usesMethod } from './methods';
 import {
   COT_S4, G_S5_0, K_GAO, K_S3, K_S5G, OMEGA_KIND, OMEGA_RL_EXP, PREF_S1, RHO_REF, S5_AI, S5_LONG, S6_NARROW_HARMFUL, S7_BASE, S7_EVAL_ENV, S7_PER_BB, S9_PER_BB,
   INOC_MULT, LH_FULL, S8_FTE_REF, LH_ONSET, aiDataShare, deploymentS8, s9OfDetectors, hackShare, kappaSucc, learnedHackingOf, optimisationPressure, prefShare, referenceBaseShares, runOmega, s7OfRl,
@@ -83,7 +85,7 @@ const famTerms = (w: FamilyMap, f: (k: RLFamily, wf: number) => { x: number; ter
 /** Post-training signals with their quantities (traits.ts `postSignals`, term by term). `exploit` = a run's frozen
  *  suites (else today's); `rho` = RL FLOP ÷ the base's FLOP; `s8` = the applied S8 when known (finished runs). */
 export function postPressure(s: GameStateV2, post: PostDesign, rho: number, exploit?: FamilyMap, s8?: number): PressureRow[] {
-  const x = exploit ?? suiteExploitMap(s);
+  const x = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const p = optimisationPressure(rho);
   const p11 = adopted(s, 'P11');
@@ -93,13 +95,14 @@ export function postPressure(s: GameStateV2, post: PostDesign, rho: number, expl
   const hacked = hackShare(w, x, rho);
   const learned = learnedHackingOf(hacked);
   const s3f = famTerms(w, (f, wf) => { const h = RL_FAMILY_DEF[f].taskH ?? 0; return { x: h, term: K_S3 * wf * Math.log10(1 + h) }; }).filter((r) => r.x > 0);
-  const cotMonitor = post.trainAgainst.some((id) => s.player.safety.techniques[id]?.family === 'COT');
-  const bb = post.trainAgainst.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  const against = againstOf(post);
+  const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
+  const bb = against.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
   const agentFte = s.player.prodCache?.labor.agentFte ?? 0;
   const ps = prefShare(rho);
   const rows: PressureRow[] = [
     { id: 'S1', value: PREF_S1[post.pref] * (ps / prefShare(RHO_REF)), q: { method: post.pref, bias: PREF_S1[post.pref], prefShare: ps, prefShareRef: prefShare(RHO_REF) } },
-    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: post.inoculation, inocMult: INOC_MULT }, fams: s2f },
+    { id: 'S2', value: S2_PER_EXPLOIT * hackRate * p + (p11 ? 0.2 : 0), q: { hackRate, perExploit: S2_PER_EXPLOIT, pressure: p, rho, rhoRef: RHO_REF, kGao: K_GAO, p11, hacked, learned, lhOnset: LH_ONSET, lhFull: LH_FULL, inoculated: usesMethod(post, 'T-INOC'), inocMult: methodMult(s, 'T-INOC', INOC_MULT, 'believed') }, fams: s2f },
     { id: 'S3', value: s3f.reduce((a, r) => a + r.term, 0), q: { k: K_S3, agentic: s3f.reduce((a, r) => a + r.share, 0) }, fams: s3f },
     { id: 'S4', value: Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured : 0), q: { cot: post.cot, cotMonitor } },
     { id: 'S5', value: S5_LONG * (w.longHorizon ?? 0), q: { longShare: w.longHorizon ?? 0, k: S5_LONG } },
@@ -247,10 +250,10 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
   for (const k of CAP_SLOTS) L += Math.max(w[k].H, w[k].L);
   const r = aiRdShare(s);
   const parts: SuccessorPartView[] = [];
-  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: HUMAN_REVIEW * (1 - r) };
+  const out: SuccessorPullView = { r, omega: 0, omegaBand: [0, 0], parts, humanReview: (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) };
   if (L <= 1e-12) return out;
   const tl = s.hidden.timeline; // the public level → OOM map (as catchRate); no hidden trait or capability
-  const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+  const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   for (const k of CAP_SLOTS) {
     const sl = w[k];
     const v = sl.versionId ? versionById(s, sl.versionId) : undefined;
@@ -262,9 +265,9 @@ export function successorPullView(s: GameStateV2): SuccessorPullView {
     const x = oomOfLevel(tl, Lv);
     const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn')
       ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
-    const block = dep ? containment(s, x, dep.controlLayer, true) : 0;
+    const block = dep ? containment(s, x, controlOn(dep), true) : 0;
     const mon = believedCatchSucc(s, v, x, Lv);
-    const human = HUMAN_REVIEW * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
+    const human = (labReviewOn(s) ? HUMAN_REVIEW : 0) * (1 - r) * gapFactor(oversightGap(tl, Lv, HUMAN_REVIEW_L).oom);
     const caught = clamp01(1 - (1 - mon) * (1 - human) * controlMiss);
     const oversight = clamp01(1 - (1 - block) * (1 - caught));
     const b = v.beliefs.SUCC ?? { est: 0, sd: 0.35 };

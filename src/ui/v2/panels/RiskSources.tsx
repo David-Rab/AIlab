@@ -34,7 +34,7 @@ const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string
 const DRV_COLORS = ['#c9d4e2', '#8a9bb0', '#5b6b80', '#3d4b5e'];
 /** Why a source carries risk, in one line (the drivers give the split). */
 const KIND_WHY: Record<RiskSource['kind'], string> = {
-  ownModel: 'Chance your own models cause a catastrophe: their believed misalignment, how capable they are and how much they do unwatched.',
+  ownModel: 'Loss-of-control risk, if it could act now: your believed chance that the riskiest model you run could act against you with nothing able to stop it (your belief range on its misalignment, the stop rate on acts against the lab, known and unfound footholds, the published range of what the world survives).',
   rival: 'A rival lab adds risk from its own models (its safety culture and capability) even when it is behind you: being behind does not make its models safe.',
   china: 'China\'s lab: its capability, safety culture and the race pressure on it.',
   misuse: 'Misuse of your products: capability in dangerous domains, safeguards and how many users can reach it.',

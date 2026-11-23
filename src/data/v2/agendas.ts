@@ -115,24 +115,21 @@ export const SAF_RE_ASK = 0.25;
  *  level. */
 export const LINE_MULT_MAX = 2.5;
 
-/** Validation lead (STRUCTURE §4.5: from safety research engineers, not funding): free safety research engineers per
- *  research line with tools in the stack at which tools are validated as far ahead as a pre-R8 Serious agenda (VAL_LEAD
- *  levels) [calibration: the start lab's one team of 100 over four lines ≈ Seed]. */
-export const RE_SERIOUS = 100;
-
-/** Tool upkeep (R8, TECH-TREE "tool upkeep without chores"): safety research engineers not on investigations or patches
- *  re-validate tools on the current models. A tool whose strength factor D(M) on the internal model has fallen below
- *  UPKEEP_D needs upkeep; the free engineers are shared among those tools, and each one's M½ doubles every
- *  UPKEEP_DAYS ÷ min(UPKEEP_MAX, (engineers per tool − UPKEEP_MIN) ÷ UPKEEP_REF) days: re-validating a tool takes a
- *  crew, so engineers spread thinner than UPKEEP_MIN per fading tool re-validate nothing. Upkeep stops once a tool holds
- *  again on today's model, so M½ follows capability; there is no ceiling (pre-R8: refresh projects capped at ×8) [D;
- *  calibration: the start lab's single team keeps nothing up once several tools fade (S5 "RefBot falls behind"), five
- *  teams keep up (S5 mixed)]. */
-export const UPKEEP_D = 0.8;
-export const UPKEEP_DAYS = 90;
-export const UPKEEP_MIN = 15;
-export const UPKEEP_REF = 40;
-export const UPKEEP_MAX = 1.5;
+/** SR-09 validation jobs (SAFETY-REDESIGN §3.2; replace tool upkeep): plant known behaviour in a test copy of a model
+ *  (a model organism) and count how often the instrument finds it, as sleeper-agent probes and auditing games do
+ *  [S: research/06 §2.9, research/20 F6]. A job takes VAL_ENGINEERS safety research engineers (heads × quality; AI
+ *  labour of safety experiments carries part, ÷ m) for VAL_DAYS at full staffing, and VAL_COMPUTE_FRAC of a serious
+ *  project's experiment compute on the instrument's line while it runs; it plants VAL_N cases. A port (a validated
+ *  instrument on a new model) is the same job. [D: costs; [R] pending, research/20 §G gives eval costs, not organism
+ *  costs (§6 row 17).] */
+export const VAL_ENGINEERS = 15;
+export const VAL_DAYS = 30;
+export const VAL_COMPUTE_FRAC = 0.25;
+export const VAL_N = 20;
+/** SR-09: believed reliability away from the measured model is extrapolated: its 90% range widens by VAL_WIDEN_PER_OOM
+ *  per OOM of capability gap; never measured (start tools, unlocked tools before a job): VAL_UNMEASURED_HALF on top [D]. */
+export const VAL_WIDEN_PER_OOM = 0.06;
+export const VAL_UNMEASURED_HALF = 0.15;
 
 /** AG09 under latent reasoning (R14 §1.2: "250 / 1 legible → 5 / 2 neuralese"; v2 M½ 5 = the SC level; RD-U03: OOM literal, the value the removed reference-path conversion gave). */
 export const AG09_LATENT = { oHalf: 2.492, k: 2 };
@@ -140,3 +137,17 @@ export const AG09_LATENT = { oHalf: 2.492, k: 2 };
 export const AG17_MIN_L = 10;
 /** Tool verifiability for investigation corruption (§3.5.8). */
 export const VERIFIABILITY: Record<ToolFamily, number> = { WB: 0.7, OR: 0.9, BB: 0.5, COT: 0.6 };
+
+/** SR-10 (SAFETY-REDESIGN §4.3 channels 1–2): instrument trust. A reading of a trait disagrees with the latest reading
+ *  of an INDEPENDENT instrument (another kind and another family) on the same model when |a − b| > DISAGREE_Z ·
+ *  √(σa² + σb²) (the two readings' 90% test of a difference) [D]. A disagreement says one of them is wrong without
+ *  saying which, so every owned instrument of both families that reads the trait loses DISAGREE_DROP of its believed
+ *  reliability (symmetric), recorded once per (model, trait, pair), never below DISAGREE_FLOOR from disagreements alone
+ *  (only a validation measures how wrong) [D]. A validation sets the trust factor to measured ÷ believed (capped at
+ *  TRUST_MAX); TRUST_EVIDENCE_CAP entries per instrument, DISAGREE_CAP disagreements kept [D]. */
+export const DISAGREE_Z = 1.64;
+export const DISAGREE_DROP = 0.1;
+export const DISAGREE_FLOOR = 0.5;
+export const TRUST_MAX = 1.5;
+export const TRUST_EVIDENCE_CAP = 20;
+export const DISAGREE_CAP = 40;

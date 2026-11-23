@@ -123,8 +123,8 @@ export const REFERENCE_BASE: BaseDesign = {
 };
 
 export const REFERENCE_POST: PostDesign = {
-  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false,
-  cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [],
+  pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard',
+  cot: 'visible', safety: 'standard', methods: [],
 };
 
 // ── Base choices ──

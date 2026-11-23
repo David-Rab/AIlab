@@ -352,7 +352,7 @@ class StoreV2 {
   }
   private snap(s: GameStateV2): QSnap {
     const leads = [...activeRivals(s).map((r) => leadDays(s, r.core.id).est), leadDays(s, 'china').est];
-    return { q: quarterIndex(s.time.startDate, s.time.day), L: measuredL(s), U: engine.understanding(s).U, cash: s.player.finance.cash, lead: Math.min(...leads) };
+    return { q: quarterIndex(s.time.startDate, s.time.day), L: measuredL(s), U: engine.sightLimit(s).L, cash: s.player.finance.cash, lead: Math.min(...leads) };
   }
 
   /** UI-only weekly samples of visible market numbers (sparks); not saved. */

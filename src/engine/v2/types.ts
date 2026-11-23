@@ -427,7 +427,16 @@ export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'open' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 
-export interface TraitBelief { est: number; sd: number; clarity: number; lastObsDay?: Day; }
+/** One piece of evidence behind a belief (SR-06, SAFETY-REDESIGN §2.2 concept 2): the day, where it came from, what it
+ *  read and its noise (σ of the reading; for a prior or a predicted start, the sd it contributed). `source` is
+ *  "<kind>/<family>" for an instrument reading (suite/BB, external/BB, bench/BB, monitor/COT, monitor/WB, audit/WB,
+ *  finding/<family>, case/<family>), "case" for a case verdict, "prior" for the public lineage prior, "start" for the
+ *  starting model's evals, "inherit:<parent id>" for a new model's start (the parent's belief moved by the run's
+ *  predicted change), "stream" for a stream version's training since the last entry. */
+export interface BeliefEvidence { day: Day; source: string; reading: number; noise: number; }
+
+/** `evidence`: the last BELIEF_EVIDENCE_CAP (20) updates of this belief, oldest first. */
+export interface TraitBelief { est: number; sd: number; clarity: number; lastObsDay?: Day; evidence: BeliefEvidence[]; }
 
 export interface EvalRecord {
   suiteDay?: Day; // last full suite run
@@ -531,13 +540,12 @@ export interface PostDesign {
   rlFocus: RLFamily[] | 'broad'; // pick 2 or broad
   /** RL budget: RL FLOP as a share of the base's pretraining FLOP (light 0.03, standard 0.15, heavy 0.4). */
   rlBudget: 'light' | 'standard' | 'heavy';
-  inoculation: boolean;
   cot: 'visible' | 'pressured' | 'faithful' | 'latent';
   safety: 'minimal' | 'standard' | 'heavy';
-  /** Techniques from the safety stack applied in this run (e.g. persona-vector steering). */
-  techniques: TechniqueId[];
-  /** Detectors explicitly trained against in this run (Goodhart, §3.5.6). */
-  trainAgainst: TechniqueId[];
+  /** SR-14: the training-time safety methods this run uses (fix technique ids, safety/methods.ts METHODS) and the
+   *  instruments it trains against (`against:<id>`, Goodhart, §3.5.6). A method's effect applies only if listed here.
+   *  SR-14b: inoculation prompting is the method T-INOC (no separate boolean). */
+  methods: TechniqueId[];
 }
 
 export type RLFamily = 'math' | 'swe' | 'computerUse' | 'mlResearch' | 'longHorizon' | 'cyber' | 'bio';
@@ -602,7 +610,8 @@ export interface Deployment {
   /** Features switched on for this product (built lab-wide first, R6). */
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
-  controlLayer: boolean; // AG07 protocols active (usefulness tax)
+  /** Owned safeguard items (SR-13: control protocol, human review, restriction, comms lockdown; safety/safeguards.ts). */
+  guards: SafeguardItem[];
   /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
    *  (worldfx/serving.ts), Enterprise ×3 channel weight there (worldfx/revenue.ts), and while live and certified US
    *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
@@ -610,7 +619,7 @@ export interface Deployment {
   packs: SectorPack[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
-  status: 'live' | 'restricted' | 'withdrawn';
+  status: 'live' | 'withdrawn';
   // derived each day
   revenueRate?: Money; // $B/yr
   demandBound?: 'capacity' | 'demand' | 'price' | 'quality';
@@ -782,7 +791,7 @@ export type ReNeed = 'ops' | 'evals' | 'exp';
 /** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
  *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
  *  capacity none takes is idle. */
-export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'reval';
+export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'validation';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
@@ -877,6 +886,45 @@ export interface SafetyDept {
   /** Model v3 E9 (MODEL-V3 §11.4): effective control of the lab's AI, refreshed daily (safety/control.ts). `level` and
    *  `exposure` are hidden; the player sees `believed` (controlView). */
   effectiveControl: EffectiveControl;
+  /** SR-09: validation jobs (plant behaviour in a test copy of a model, count what an instrument finds) in queue order,
+   *  and the default policy "validate instruments on each new internal model" (on by default); `lastModel` = the
+   *  internal model the policy last queued for. Optional on other labs' departments. */
+  validation?: { jobs: ValidationJob[]; autoNew: boolean; lastModel: string | null };
+  /** SR-14: the policy "Use all known methods" (on by default): new run plans list every owned method. */
+  useAllMethods?: boolean;
+  /** SR-10: disagreements between independent instruments' readings (newest last, DISAGREE_CAP kept). */
+  disagreements?: Disagreement[];
+  /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
+   *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
+  envFixes?: Partial<Record<RLFamily, EnvFix>>;
+}
+
+/** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
+ *  PATCH_FLOOR), how many fixes it holds and the day of the latest; the trait and model of the latest finding. */
+export interface EnvFix { mult: number; n: number; day: number; trait?: TraitId; versionId?: string }
+
+/** SR-10: one reading in a disagreement: instrument kind (instruments.ts InstrumentKind), family, reading, its noise. */
+export interface DisagreementSide { kind: string; family: ToolFamily; reading: number; noise: number; day: number }
+/** SR-10: two independent instruments read the same trait of the same model outside each other's ranges. */
+export interface Disagreement { day: number; model: string; trait: TraitId; a: DisagreementSide; b: DisagreementSide }
+
+/** SR-10: one update of an instrument's believed reliability (trust factor f after it). */
+export interface TrustEvidence { day: number; source: 'validation' | 'disagreement'; model: string; note: string; f: number }
+/** SR-10: the player's trust factor on an instrument (multiplies its BELIEVED reliability; absent = 1). */
+export interface InstrumentTrust { f: number; evidence: TrustEvidence[] }
+
+/** SR-09: one validation (or port) job: instrument `tool` on model `model`; progress 0..1 (VAL_DAYS at full staffing). */
+export interface ValidationJob {
+  id: string; tool: TechniqueId; model: string; progress: number; by: 'player' | 'policy'; day: number;
+  /** SR-10: human-run (no AI share of the work: VAL_ENGINEERS heads, not ÷ m); absent = AI-assisted at the lab's m. */
+  human?: boolean;
+}
+
+/** SR-09: a validation result: found of n planted cases on model `on` (measured reliability = found ÷ n). */
+export interface ValidationResult {
+  on: string; found: number; n: number; day: number;
+  /** SR-10: who ran it: true = humans only (an AI share of the work can corrupt the result). */
+  human?: boolean;
 }
 
 /** Kinds of foothold (MODEL-V3 §11.4): a backdoor in the lab's infrastructure, a hidden compute reservation, a steered
@@ -933,8 +981,8 @@ export interface EffectiveControl {
 export interface AgendaState {
   computeShare: number; // of the safety pool (E1: its experiments' share, by research engineers × the agenda's compute need)
   posterior: { a: number; b: number }; // visible Beta posterior on efficacy (shown as a band)
-  /** idle: no team on the line; active: teams on it; deadEnd: posterior mean < 0.25 (projects run at half speed). */
-  status: 'idle' | 'active' | 'deadEnd';
+  /** idle: no team on the line; active: teams on it (SR-01: the dead-end latch is gone). */
+  status: 'idle' | 'active';
   /** Team-months spent on attempts that ended in a dead end. */
   deadEndTM: number;
 }
@@ -946,13 +994,24 @@ export interface TechniqueState {
   unlocked: boolean;
   active: boolean; // part of the deployed safety stack
   s0: number; // base strength
-  /** Model v3 E6: OOM of effective compute above the start model V0 at which strength halves (the capability the tool
-   *  is validated up to plus its headroom; raised by tool upkeep, lowered by negative results; 1e9 = never decays). */
+  /** Model v3 E6 / SR-08: capability gap in OOM above the model the tool was validated on (validatedOom) at which its
+   *  reliability halves (lowered by negative results; 1e9 = never decays). */
   oHalf: number;
   k: number;
   goodhart: number; // G
   trainedAgainst: number; // 0..1 cumulative
+  /** SR-08: the version this instrument was last trained against (the player chose it, so it is known); null = never. */
+  trainedAgainstOn: string | null;
+  /** SR-08: the model this instrument was last validated on (null = the start model V0) and that model's OOM above V0.
+   *  Reliability decays with the capability gap from it. A tool counts as validated on the internal model when it is
+   *  unlocked; SR-09 validation jobs move it and set `measured`. */
+  validatedOn: string | null;
+  validatedOom: number;
+  /** SR-09: the last validation's measurement (null / absent = never measured: reliability extrapolated, wider range). */
+  measured?: ValidationResult | null;
   falseValidated: boolean; // hidden: came from an F49 FALSE finding (masks, does not detect)
+  /** SR-10: trust in this instrument from evidence (validations, disagreements); absent = 1. Believed only. */
+  trust?: InstrumentTrust;
   coverage: Partial<Record<TraitId, number>>;
 }
 
@@ -997,7 +1056,7 @@ export interface Incident {
   responses: ResponseKind[];
 }
 
-export type ResponseKind = 'patchSignal' | 'retrainAgainst' | 'targetedTraining' | 'restrictContext' | 'addControl' | 'removeControl' | 'rollback' | 'disclose' | 'removeFoothold';
+export type ResponseKind = 'patchSignal' | 'targetedTraining' | 'restrictContext' | 'liftRestriction' | 'addControl' | 'removeControl' | 'addLockdown' | 'removeLockdown' | 'rollback' | 'disclose' | 'removeFoothold';
 
 // ───────────────────────────── Security (§3.6) ─────────────────────────────
 
@@ -2257,7 +2316,8 @@ export interface EngineApi {
   resolve(s: GameStateV2, instance: string, choice: number): void;
   // selectors (pure; UI and bots use these, never raw hidden state)
   production(s: GameStateV2, lab: LabId): ProductionReadout;
-  understanding(s: GameStateV2): { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> };
+  /** SR-11: the sight limit (believed; level L with its range) of the internal model, its measured level and the gap. */
+  sightLimit(s: GameStateV2): { L: number; lo: number; hi: number; level: number; gap: number; versionId?: string; perTrait: Partial<Record<TraitId, number>> };
   riskSources(s: GameStateV2): RiskSource[];
   leadDays(s: GameStateV2, other: LabId): { est: number; sd: number };
   raiseCeiling(s: GameStateV2): { max: Money; bound: 'pool' | 'dilution' | 'ask'; parts: Record<string, Money> };
@@ -2356,3 +2416,8 @@ export interface Ws4State {
   /** Event requests from WS4 systems; the director fires them under storyteller limits (E4). Expire after 60 d. */
   requests: { id: string; day: Day; data: Record<string, number | string> }[];
 }
+
+/** SR-13 safeguard items (safety/safeguards.ts). */
+export type SafeguardKind = 'control' | 'review' | 'restrict' | 'lockdown';
+export type ControlSetting = 'defer10' | 'defer20' | 'resample';
+export interface SafeguardItem { kind: SafeguardKind; setting?: ControlSetting; since: number }

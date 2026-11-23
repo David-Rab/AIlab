@@ -3,8 +3,7 @@
 // system is engine code: it turns truth into noisy evidence, always against the player's best INTERNAL version.
 import { clamp, sigmoid } from '../../rng';
 import { activeRivals, internalVersion } from '../models/labs';
-import { misalignmentEstimate } from '../safety/traits';
-import { understanding } from '../safety/understanding';
+import { lossOfControlRisk } from '../safety/lossRisk';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
 import { rivalMis, RELEASE_LAG } from './rivals';
 import { lagDays } from '../models/capability';
@@ -74,10 +73,12 @@ export const intelSystem: EngineSystem = {
 export interface RiskMods {
   /** Days added to your estimated lead over every lab. */
   leadDays?: number;
-  /** Levels added to the understanding margin (U − the internal model's level). */
-  margin?: number;
-  /** Added to the internal model's believed misalignment estimate. */
+  /** Added to the believed misalignment estimate (loss-of-control risk, SR-04). */
   mis?: number;
+  /** Belief ranges on misalignment scaled by this (loss-of-control risk). */
+  sdMult?: number;
+  /** Points of stop rate added on the "Acts against the lab" row (loss-of-control risk). */
+  stopAdd?: number;
   /** Weight-security levels added. */
   wsl?: number;
   /** Added to China's theft intent (0–100). */
@@ -97,7 +98,6 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   const v = internalVersion(s);
   const doom = 0.4; // the player does not know the world's threshold; uses the published-default 0.40
   const curve = (mis: number) => sigmoid((mis - doom) / 0.06);
-  const u = understanding(s);
   // Who reaches ASI first (M4): one distribution over the player and every active lab, w ∝ exp(−days behind the
   // estimated leader / 180) (the scoring epilogue's weights), so the lab rows no longer add up to more than 100%.
   const labs: RivalLab[] = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
@@ -107,13 +107,21 @@ export function riskSources(s: GameStateV2, m: RiskMods = {}): RiskSource[] {
   const wLab = behind.map((b) => Math.exp(-(lead + b) / 180));
   const wSum = wPlayer + wLab.reduce((a, x) => a + x, 0);
   const firstShare = (i: number) => wLab[i] / wSum;
-  if (v) {
-    const mis = clamp(misalignmentEstimate(v) + (m.mis ?? 0), 0, 1);
-    const sdAvg = Object.values(v.beliefs).reduce((a, b) => a + b.sd, 0) / Math.max(1, Object.keys(v.beliefs).length);
-    const marginRisk = clamp(-(u.margin + (m.margin ?? 0)) / 3, 0, 1);
-    const pFirst = wPlayer / wSum;
-    const est = clamp(pFirst * (curve(mis) * 0.7 + 0.3 * marginRisk), 0, 1);
-    out.push({ id: 'own', label: s.player.name, kind: 'ownModel', estimate: est, band: [clamp(pFirst * curve(mis - sdAvg) * 0.7, 0, 1), clamp(pFirst * (curve(mis + sdAvg) * 0.7 + 0.3 * marginRisk), 0, 1)], drivers: [{ label: 'Belief misalignment', share: 0.7 }, { label: 'Understanding gap', share: 0.3 }] });
+  // SR-04 (OD-1, OD-2): your row is Loss-of-control risk, "if it could act now": the believed odds that the engine's
+  // loss test fails for the riskiest model you run (safety/lossRisk.ts). Drivers: what removing footholds and what
+  // certain beliefs would take off it; the rest is believed misalignment the stop rate does not stop.
+  const lr = lossOfControlRisk(s, undefined, { misShift: m.mis, sdMult: m.sdMult, stopAdd: m.stopAdd });
+  if (lr) {
+    const noFoot = lossOfControlRisk(s, lr.versionId, { misShift: m.mis, sdMult: m.sdMult, stopAdd: m.stopAdd, noFootholds: true })!.p;
+    const certain = lossOfControlRisk(s, lr.versionId, { misShift: m.mis, sdMult: 0, stopAdd: m.stopAdd })!.p;
+    const dFoot = Math.max(0, lr.p - noFoot);
+    const dUnc = Math.max(0, lr.p - certain);
+    const rest = Math.max(0, lr.p - dFoot - dUnc);
+    const tot = dFoot + dUnc + rest;
+    const sh = (x: number, d: number) => (tot > 0 ? x / tot : d);
+    out.push({ id: 'own', label: `Loss of control (${lr.name})`, kind: 'ownModel', estimate: clamp(lr.p, 0, 1), band: [clamp(lr.lo, 0, 1), clamp(lr.hi, 0, 1)], drivers: [
+      { label: 'Believed misalignment not stopped', share: sh(rest, 1) }, { label: 'Uncertain beliefs', share: sh(dUnc, 0) }, { label: 'Footholds (known and unfound)', share: sh(dFoot, 0) },
+    ] });
   }
   const labRow = (r: RivalLab, kind: 'rival' | 'china'): RiskSource => {
     const [lo, hi] = r.intel.misalignBand;
@@ -155,9 +163,9 @@ export interface RiskLever { id: string; label: string; how: string; mod: RiskMo
 /** Levers by source kind [D: one plausible step each, so the size of each lever reads on one scale]. */
 export const RISK_LEVERS: Record<RiskSource['kind'], RiskLever[]> = {
   ownModel: [
-    { id: 'margin', label: 'Understanding +1 level', how: 'safety research lines, validated tools, investigations', mod: { margin: 1 } },
     { id: 'mis', label: 'Believed misalignment −0.05', how: 'alignment training, fixes from findings', mod: { mis: -0.05 } },
-    { id: 'slow', label: 'Lead −60 days', how: 'a slower release cadence: others are likelier to get there first', mod: { leadDays: -60 } },
+    { id: 'range', label: 'Belief ranges halved', how: 'validated instruments, evaluations and cases on the model', mod: { sdMult: 0.5 } },
+    { id: 'stop', label: 'Stop rate +10 pts', how: 'monitors, a control protocol, human review, containment', mod: { stopAdd: 0.1 } },
   ],
   rival: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, a new base sooner', mod: { leadDays: 60 } }],
   china: [{ id: 'lead', label: 'Your lead +60 days', how: 'research speed, compute, export controls', mod: { leadDays: 60 } }],

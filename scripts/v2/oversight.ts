@@ -2,6 +2,7 @@
 // in the research multiplier M (MODEL-V3 §11.5–11.6, research/20 F4). Monitor catch vs the Engels et al. 2025 anchor,
 // same-lineage collusion, tool decay above the validated capability, the control tax (Greenblatt et al. 2023), human
 // review, the save migration's equivalence, and a lint: no safety module reads M.
+import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENGELS_400, MONITOR_CATCH_BASE, OOM_PER_400_ELO } from '../../src/data/v2/oversight';
@@ -16,7 +17,10 @@ import {
   controlProtocol, gapFactor, humanReviewFactor, levelOfOom, monitorCatchAt, oomOfLevel, oversightGap, useControl, versionOom,
 } from '../../src/engine/v2/safety/oversight';
 import { decayAt, decayOom, strengthTrue } from '../../src/engine/v2/safety/techniques';
-import { understanding } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understanding = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, margin: r.gap, perTrait: r.perTrait }; };
+void trueSightLimit;
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { HERE, check, finish } from './lib';
 
@@ -172,7 +176,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   const offSwe = labourOf(s, 'SWE');
   const catchOff = catchOf(s, internal, v, { source: 'POWER', apparent: 'POWER' });
   const ovOff = internalOversight(s, v, 'POWER');
-  internal.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true;
+  setControl(internal, true); for (const a of Object.values(s.player.agents)) a.control = true;
   reset(s);
   const on = labourOf(s, 'EXP'); // routine research: monitor = a copy (no gap) → 97%
   const onSwe = labourOf(s, 'SWE'); // engineering: no monitor → deferred actions go to humans: 93%
@@ -192,7 +196,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   mini.evals.measuredL = (v.evals.measuredL ?? v.Lg) - 1;
   const c1 = useControl(s, v, mini, true);
   check(c1.tax > 0.03 && c1.tax <= 0.07 + 1e-12, 'control tax: grows with the gap to the trusted model (between 3% and 7%)', `${c1.gapOom.toFixed(2)} OOM: ${(c1.tax * 100).toFixed(1)}%`);
-  internal.controlLayer = false; for (const a of Object.values(s.player.agents)) delete a.control;
+  setControl(internal, false); for (const a of Object.values(s.player.agents)) delete a.control;
   reset(s);
   check(!agentsView(s).lanes.eng.control.on && near(labourOf(s, 'SWE').aiFte, offSwe.aiFte), 'control tax: none without the control layer');
 }

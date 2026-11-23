@@ -2,7 +2,7 @@
 import type { EngineApi } from './types';
 import { newGame } from './core/init';
 import { act, resolve, tick } from './core/loop';
-import { leadDays, production, raiseCeiling, riskSources, understanding } from './core/selectors';
+import { leadDays, production, raiseCeiling, riskSources, sightLimit } from './core/selectors';
 
 export const engine: EngineApi = {
   newGame,
@@ -16,7 +16,7 @@ export const engine: EngineApi = {
     if (err) throw new Error(err);
   },
   production,
-  understanding,
+  sightLimit,
   riskSources,
   leadDays,
   raiseCeiling: (s) => raiseCeiling(s),

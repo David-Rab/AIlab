@@ -29,6 +29,7 @@ import { studentToHold } from '../worldfx/serving';
 import { clamp } from '../../rng';
 import { bookCash } from '../finance/ledger';
 import { adopted } from './paradigms';
+import { methodLines, methodsFromParam } from '../safety/methods';
 
 /** Star hire cost: × the start type's modifier (spinout ×0.7 founder brand, big tech ×1.5; research/18 §6, R9). */
 const starCost = (s: GameStateV2) => STAR_HIRE.cost * startOf(s).mods.starCost;
@@ -78,18 +79,21 @@ export function baseFromParams(p: Params): BaseDesign {
 export const RUN_PARAM_DEFAULTS: Readonly<Record<string, string | number | boolean>> = {
   params: REFERENCE_BASE.params, tpp: REFERENCE_BASE.tpp, shape: REFERENCE_BASE.shape, data: REFERENCE_BASE.data,
   quality: REFERENCE_BASE.curation.quality, hazard: REFERENCE_BASE.curation.hazard, safetyPretrain: REFERENCE_BASE.curation.safetyPretrain,
-  pref: REFERENCE_POST.pref, rlFocus: 'broad', rlBudget: REFERENCE_POST.rlBudget, inoculation: REFERENCE_POST.inoculation,
+  pref: REFERENCE_POST.pref, rlFocus: 'broad', rlBudget: REFERENCE_POST.rlBudget,
   cot: REFERENCE_POST.cot, safety: REFERENCE_POST.safety,
 };
 
-/** Post design from params; rlFocus is 'broad' or a comma list of ≤ 2 families. */
-export function postFromParams(p: Params): PostDesign {
+/** Post design from params; rlFocus is 'broad' or a comma list of ≤ 2 families. SR-14: `methods` is a comma list of
+ *  owned methods and `against:<instrument>` entries; absent, the plan gets the policy default (every owned method with
+ *  "Use all known methods" on); without a state, none. */
+export function postFromParams(p: Params, s?: GameStateV2): PostDesign {
   const r = REFERENCE_POST;
   const f = str(p, 'rlFocus', 'broad');
   return {
     pref: str(p, 'pref', r.pref) as PostDesign['pref'], rlFocus: f === 'broad' ? 'broad' : (f.split(',').filter(Boolean) as RLFamily[]),
-    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'], inoculation: bool(p, 'inoculation', r.inoculation),
-    cot: str(p, 'cot', r.cot) as PostDesign['cot'], safety: str(p, 'safety', r.safety) as PostDesign['safety'], techniques: [], trainAgainst: [],
+    rlBudget: str(p, 'rlBudget', r.rlBudget) as PostDesign['rlBudget'],
+    cot: str(p, 'cot', r.cot) as PostDesign['cot'], safety: str(p, 'safety', r.safety) as PostDesign['safety'],
+    methods: s ? methodsFromParam(s, p.methods) : [],
   };
 }
 
@@ -99,7 +103,7 @@ function runParams(s: GameStateV2, kind: LaunchRunParams['kind'], p: Params): La
   if (kind === 'base') {
     lp.base = baseFromParams(p); // RD-B01: a base takes no teacher; its synthetic tokens carry their own (base.teacherData)
   } else if (kind === 'post') {
-    lp.post = postFromParams(p);
+    lp.post = postFromParams(p, s);
     const b = str(p, 'baseId', latestBase(s)?.id ?? '');
     lp.baseId = b;
     if (latestBase(s)?.design.shape === 'latent' && p.cot === undefined && b === latestBase(s)?.id) lp.post.cot = 'latent';
@@ -128,12 +132,19 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Pr
   const exposure: CostLine[] = [];
   const pressure = Object.values(plan.prediction.signals).reduce((a, x) => a + x, 0);
   if (pressure > 0) exposure.push({ currency: 'alignment', amount: -Math.round(pressure * 100) / 100, unit: 'pressure', lagDays: plan.etaDays, target: 'training pressure toward unwanted dispositions (the Blueprint shows which)' });
+  // SR-14: the run's methods, each with its effect and its cost where one exists; train-against with its honest preview.
+  const gains0: CostLine[] = [];
+  if (lp.post) {
+    const ml = methodLines(s, lp.post, lp.baseId ? s.player.models.bases.find((b) => b.id === lp.baseId)?.lineage : undefined);
+    gains0.push(...ml.gains);
+    exposure.push(...ml.exposure);
+  }
   const scrutiny = lp.base ? (plan.limits?.scrutiny ?? 0) : 0;
   if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   const gains: CostLine[] = fc
     ? [{ currency: 'progress', amount: Math.round(fc.gain * 100) / 100, unit: 'L', lagDays: plan.etaDays, target: `forecast over ${fc.refName}'s measured level (±${fc.sd.toFixed(2)} L)` }]
     : [];
-  return { costs, gains, exposure };
+  return { costs, gains: [...gains, ...gains0], exposure };
 }
 
 const runAction = (id: string, title: string, kind: LaunchRunParams['kind'], extra?: (s: GameStateV2) => true | string): ActionDef => ({

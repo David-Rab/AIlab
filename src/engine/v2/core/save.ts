@@ -15,6 +15,7 @@ import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
 import { refitMeasured } from '../models/benchmarks';
+import { techniqueRole } from '../safety/techniques';
 import { creditSuiteExpertData, familyDomain, keepUnlockedSuite, restateSuiteTasks, suiteFamilies, unbuiltSuiteFamilies } from '../models/suites';
 import { B0_PARAMS, SHAPE } from '../../../data/v2/runDesign';
 import { DEFAULT_SAF_RE_ALLOC } from '../../../data/v2/research';
@@ -101,8 +102,35 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  68 (RD-M01, DD-08): the measured level is fitted from the benchmark scores (EvalRecord.measuredDom, fitSd); the
  *  stored error draw errTrue goes. Migration 67 → 68 refits every player version with a bench table and drops errTrue.
  *  69 (RD-X03): a non-player lab's models carry a reference-profile build (SimpleModel.build: baseG + rlGains on the
- *  lab's reference portfolio). Migration 68 → 69 builds one for every stored rival, leader-lab and China model. */
-export const SCHEMA_REV = 69;
+ *  lab's reference portfolio). Migration 68 → 69 builds one for every stored rival, leader-lab and China model.
+ *  Merge p3-d → rd: the safety redesign's migrations (p3-d's 64→65 … 72→73) follow rd's chain as 69→70 … 77→78.
+ *  70 (SR-01): the dead-end latch and the tool On/Off toggle are gone: AgendaState.status loses 'deadEnd'; owned
+ *  detection / containment tools are always active. Migration 69 → 70 unlatches lines and sets those tools active.
+ *  71 (SR-06): every TraitBelief carries an evidence list. Migration 70 → 71 gives existing beliefs (player versions'
+ *  and any other model's) an empty list.
+ *  72 (SR-13): Deployment.controlLayer and status 'restricted' are gone; Deployment.guards holds safeguard items (control
+ *  protocol, human review, restriction, comms lockdown). Migration 71 → 72 maps the flag / status to items, gives
+ *  internal deployments human review, and an owned T-LOCK a comms lockdown on them.
+ *  73 (SR-08): detect techniques are instruments: TechniqueState.validatedOn / validatedOom (the model it was validated
+ *  on; reliability decays with the capability gap from it, oHalf is that gap's half point) and trainedAgainstOn.
+ *  Migration 72 → 73 sets every technique validated on the start model (gap = OOM above V0, as before) and
+ *  trainedAgainstOn null.
+ *  74 (SR-09): tool upkeep is replaced by validation jobs: SafetyDept.validation (jobs queue, policy "validate on each
+ *  new internal model", on), TechniqueState.measured, and the safety engineers' need 'reval' is 'validation'.
+ *  Migration 73 → 74 adds an empty queue with the policy on, measured null, and renames the need in research.safRe.
+ *  75 (SR-14): training-time safety methods are run-plan options: PostDesign.techniques and .trainAgainst become one
+ *  list PostDesign.methods (method ids and `against:<instrument>` entries); SafetyDept.useAllMethods (the policy "Use
+ *  all known methods", on by default). Migration 74 → 75 rewrites every post design in the save and turns the policy on.
+ *  76 (SR-14b / SR-15): PostDesign.inoculation (a boolean) is the method T-INOC in PostDesign.methods. Migration 75 → 76
+ *  adds T-INOC to every post design that had inoculation on and drops the field.
+ *  77 (SR-10): SafetyDept.disagreements (independent instruments' conflicting readings), TechniqueState.trust (trust
+ *  factor on believed reliability with its evidence), ValidationJob.human / ValidationResult.human (who ran it).
+ *  Migration 76 → 77 adds an empty disagreement list and marks earlier measurements human-run (they read true recall).
+ *  78 (SR-16): SafetyDept.envFixes (owned environment fixes per RL family; the patch response makes them). The per-edge
+ *  signal-patch flags (ws2.patch.<lineage | lab>.<edge>) are gone: migration 77 → 78 drops them (keeps targeted
+ *  inoculation training's ws2.patch.lab.E04) and adds an empty fix list.
+ */
+export const SCHEMA_REV = 78;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -547,7 +575,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const p = (raw as unknown as GameStateV2).player;
     if (!p) return;
     if (!Array.isArray(p.tooling)) p.tooling = toolsFromFeatures(p.features ?? []);
-    const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer);
+    const on = (p.deployments ?? []).some((d) => d.channel === 'internal' && d.status === 'live' && (d as unknown as { controlLayer?: boolean }).controlLayer);
     if (on && p.agents) for (const a of Object.values(p.agents)) a.control = true;
   },
   /** 57 → 58 (RD-T01a): the IDA run kind from its name ("IDA n", the only way it was recognised). Idempotent. */
@@ -693,6 +721,129 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
         setModelG(tw, m, m.G);
       }
     }
+  },
+  /** 69 → 70 (SR-01): the dead-end latch and the tool On/Off toggle are gone. A line latched 'deadEnd' becomes 'idle'
+   *  (the safety step sets active / idle from staffing on the next day); every owned detection or containment tool is
+   *  in use (active), as unlockTechnique sets it. Fix methods keep their flag. Idempotent. */
+  69: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const dept = s.player?.safety;
+    if (!dept) return;
+    for (const a of Object.values(dept.agendas ?? {})) if ((a.status as string) === 'deadEnd') a.status = 'idle';
+    for (const t of Object.values(dept.techniques ?? {})) if (t.unlocked && techniqueRole(t) !== 'fix') t.active = true;
+  },
+  71: (raw) => {
+    // 71 → 72 (SR-13): the control-layer flag, the 'restricted' status, always-on internal human review and an owned T-LOCK
+    // become safeguard items on each deployment.
+    const p = (raw as { player?: { deployments?: Record<string, unknown>[]; safety?: { techniques?: Record<string, { unlocked?: boolean }> } } }).player;
+    const lock = !!p?.safety?.techniques?.['T-LOCK']?.unlocked;
+    for (const d of p?.deployments ?? []) {
+      const g: { kind: string; setting?: string; since: number }[] = Array.isArray(d.guards) ? (d.guards as never) : [];
+      if (d.controlLayer) g.push({ kind: 'control', setting: 'defer10', since: 0 });
+      if (d.status === 'restricted') { g.push({ kind: 'restrict', since: 0 }); d.status = 'live'; }
+      if (d.channel === 'internal') { g.push({ kind: 'review', since: 0 }); if (lock) g.push({ kind: 'lockdown', since: 0 }); }
+      delete d.controlLayer;
+      d.guards = g;
+    }
+  },
+  70: (raw) => {
+    // 70 → 71 (SR-06): any object under a `beliefs` key whose values look like TraitBeliefs (est, sd) gets an empty evidence list.
+    const walk = (x: unknown, depth: number) => {
+      if (!x || typeof x !== 'object' || depth > 12) return;
+      if (Array.isArray(x)) {
+        for (const y of x) walk(y, depth + 1);
+        return;
+      }
+      for (const [k, y] of Object.entries(x as Record<string, unknown>)) {
+        if (k === 'beliefs' && y && typeof y === 'object' && !Array.isArray(y)) {
+          for (const b of Object.values(y as Record<string, unknown>)) {
+            const tb = b as { est?: unknown; sd?: unknown; evidence?: unknown };
+            if (tb && typeof tb === 'object' && typeof tb.est === 'number' && typeof tb.sd === 'number' && !Array.isArray(tb.evidence)) tb.evidence = [];
+          }
+        } else walk(y, depth + 1);
+      }
+    };
+    walk(raw, 0);
+  },
+  72: (raw) => {
+    // 72 → 73 (SR-08): any record under a `techniques` key whose values look like TechniqueStates (s0, oHalf) gets the SR-08 fields.
+    const walk = (x: unknown, depth: number) => {
+      if (!x || typeof x !== 'object' || depth > 10) return;
+      if (Array.isArray(x)) {
+        for (const y of x) walk(y, depth + 1);
+        return;
+      }
+      for (const [k, y] of Object.entries(x as Record<string, unknown>)) {
+        if (k === 'techniques' && y && typeof y === 'object' && !Array.isArray(y)) {
+          for (const t of Object.values(y as Record<string, Record<string, unknown>>)) {
+            if (!t || typeof t !== 'object' || typeof t.s0 !== 'number' || typeof t.oHalf !== 'number') continue;
+            t.validatedOn ??= null;
+            t.validatedOom ??= 0;
+            t.trainedAgainstOn ??= null;
+          }
+        } else walk(y, depth + 1);
+      }
+    };
+    walk(raw, 0);
+  },
+  73: (raw) => {
+    // 73 → 74 (SR-09): validation jobs replace tool upkeep.
+    const s = raw as unknown as GameStateV2;
+    const dept = s.player?.safety;
+    if (dept) {
+      dept.validation ??= { jobs: [], autoNew: true, lastModel: null };
+      for (const t of Object.values(dept.techniques ?? {})) t.measured ??= null;
+    }
+    const al = s.player?.research?.safRe as unknown as { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } | undefined;
+    if (al) {
+      if (Array.isArray(al.order)) al.order = al.order.map((k) => (k === 'reval' ? 'validation' : k));
+      for (const m of [al.max, al.share]) if (m && 'reval' in m) { m.validation = m.reval; delete m.reval; }
+    }
+  },
+  74: (raw) => {
+    // 74 → 75 (SR-14): every post design (runs, versions, templates anywhere in the save) gets one `methods` list from
+    // its old `techniques` and `trainAgainst` (as `against:<id>`); the policy "Use all known methods" is on.
+    const walk = (o: unknown, depth: number): void => {
+      if (!o || typeof o !== 'object' || depth > 12) return;
+      if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+      const r = o as Record<string, unknown>;
+      if (Array.isArray(r.techniques) && Array.isArray(r.trainAgainst) && 'pref' in r) {
+        r.methods = [...(r.techniques as string[]), ...(r.trainAgainst as string[]).map((id) => `against:${id}`)];
+        delete r.techniques;
+        delete r.trainAgainst;
+      }
+      for (const v of Object.values(r)) walk(v, depth + 1);
+    };
+    walk(raw, 0);
+    const dept = (raw as { player?: { safety?: { useAllMethods?: boolean } } }).player?.safety;
+    if (dept) dept.useAllMethods ??= true;
+  },
+  75: (raw) => {
+    // 75 → 76 (SR-14b): inoculation is the method T-INOC: every post design with `inoculation` true lists it; the field goes.
+    const walk = (o: unknown, depth: number): void => {
+      if (!o || typeof o !== 'object' || depth > 12) return;
+      if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+      const r = o as Record<string, unknown>;
+      if ('inoculation' in r && 'pref' in r && Array.isArray(r.methods)) {
+        if (r.inoculation === true && !(r.methods as string[]).includes('T-INOC')) (r.methods as string[]).push('T-INOC');
+        delete r.inoculation;
+      }
+      for (const v of Object.values(r)) walk(v, depth + 1);
+    };
+    walk(raw, 0);
+  },
+  76: (raw) => {
+    // 76 → 77 (SR-10): disagreement list; earlier validation results measured true recall, i.e. were human-run.
+    const dept = (raw as { player?: { safety?: { disagreements?: unknown[]; techniques?: Record<string, { measured?: { human?: boolean } | null }> } } }).player?.safety;
+    if (!dept) return;
+    dept.disagreements ??= [];
+    for (const t of Object.values(dept.techniques ?? {})) if (t?.measured) t.measured.human ??= true;
+  },
+  77: (raw) => {
+    // 77 → 78 (SR-16): environment fixes are owned per RL family; the old per-edge signal patches go.
+    const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixes?: object } } };
+    for (const k of Object.keys(r.flags ?? {})) if (k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04') delete r.flags![k];
+    if (r.player?.safety) r.player.safety.envFixes ??= {};
   },
 };
 

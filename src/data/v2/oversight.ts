@@ -31,6 +31,16 @@ export const MONITOR_CATCH_BASE = 0.85;
  *  for hidden backdoors): its catch falls log-linearly from MONITOR_CATCH_BASE at no gap to 10% at a 400-Elo gap. */
 export const MONITOR_ANCHOR = ENGELS_400.backdoorCode;
 
+/** SR-12 (SAFETY-REDESIGN §3.3): one monitor formula for products and internal agent packages,
+ *  stop contribution = watched share × flag rate × acted-on rate (models/products.ts monitorStop). Acted-on rate: the
+ *  share of a monitor's flags acted on in time (blocked, deferred or audited) [D]: 1 = a flag blocks the action (the
+ *  monitor is the gate); SR-13's control protocol and human review set it per deployment. */
+export const MONITOR_ACTED_ON = 1;
+/** SR-12: share of a product's served tokens its monitor reads [D]: 1 = every forward pass (D7's full coverage). The
+ *  monitor's compute, watched share × the product's serving × the monitor's cost ratio (FLOP per token ÷ the watched
+ *  model's), is billed to the product's serving need (AI 2027 fn 51's rule; replaces D7's 0.25 × the FLOP ratio). */
+export const PRODUCT_MONITOR_WATCH = 1;
+
 /** AG05 scalable oversight (research/14 §1.6A, re-based): decay = 0.517^(gap ÷ 6.8 OOM), Engels' debate rate, with the
  *  gap measured from a fixed overseer at the superhuman-coder level (L 10; v2's M_overseer = 5 = M at SC). F16
  *  (debate raises judge accuracy 48–60% → 76–88%, Khan et al. 2024 [P]) is worth logit(0.82) − logit(0.54) in Elo

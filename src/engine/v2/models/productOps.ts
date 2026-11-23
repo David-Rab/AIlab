@@ -233,7 +233,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
           // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's packs).
-          safeguards: 'classifiers', controlLayer: false, packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch, 'max'), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          safeguards: 'classifiers', guards: [], packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch, 'max'), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);

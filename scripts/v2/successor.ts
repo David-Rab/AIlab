@@ -5,6 +5,7 @@
 //   successor-trainer passes its traits on in full), oversight = E5's internal terms (containment, monitors on SUCC,
 //   human review of the human share). Checks: AI share, oversight and SUCC move the pull the right way; no AI share, no
 //   pull; the pull touches dispositions only, never capability; the reference fixtures' numbers.
+import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { REFERENCE_POST } from '../../src/data/v2/runDesign';
@@ -80,7 +81,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
 // ---------- stronger oversight lowers the pull ----------
 {
   const off = withFleet();
-  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true; });
+  const on = withFleet(undefined, (s) => { for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(s.player.agents)) a.control = true; });
   const vOff = off.player.models.versions.find((v) => v.id === 'VF')!;
   const vOn = on.player.models.versions.find((v) => v.id === 'VF')!;
   const oOff = successorOversight(off, vOff);
@@ -149,7 +150,7 @@ const fmtPull = (s: GameStateV2) => { const p = successorPull(s); return `r ${p.
     'the pull acts only on dispositions (B-layer and PERSONA): awareness, learned behaviours and the protective traits keep the prior',
     `moved: ${moved.join(' ')}`);
   // A full post-training run: same capability with a clean or a misaligned fleet, different dispositions.
-  const post: PostDesign = { ...REFERENCE_POST, techniques: [], trainAgainst: [] };
+  const post: PostDesign = { ...REFERENCE_POST, methods: [] };
   const train = (fleet: Partial<TraitVector>) => {
     const g = withFleet(fleet, undefined);
     const v0 = g.player.models.versions[0];

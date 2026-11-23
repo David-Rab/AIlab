@@ -97,7 +97,7 @@ function startRun(w: TimelineWorld, lag: number, b0Flop: number, Lg: number, dom
   const zero = { S1: 0, S2: 0, S3: 0, S4: 0, S5: 0, S6: 0, S7: 0, S8: 0, S9: 0 };
   return {
     id: 'R0', kind: 'post', name: 'post 0', startDay: start, flopNeeded, flopDone: 0.3 * flopNeeded,
-    poolShare: 0.5, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, techniques: [], trainAgainst: [] },
+    poolShare: 0.5, cashCost: 0, baseId: 'B0', post: { ...REFERENCE_POST, methods: [] },
     predicted: {
       Lg: [Lg, Lg + 0.5], domains: Object.fromEntries(Object.entries(domains).map(([d, v]) => [d, [v, v + 0.5]])) as Record<DomainId, [number, number]>,
       signals: zero, etaDays: 7, fpt: fptOfDesign(REFERENCE_BASE.params, REFERENCE_BASE.shape), monitorability: 'high',
@@ -161,7 +161,8 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const beliefs = {} as Record<TraitId, TraitBelief>;
   const masks = {} as Record<TraitId, Partial<Record<ToolFamily, number>>>;
   for (const t of TRAIT_IDS) {
-    beliefs[t] = { est: clamp(TRAIT_START[t] + rng.normal(0, 0.08), 0, 1), sd: 0.2, clarity: 1 - 0.2 / 0.35, lastObsDay: -20 };
+    const est = clamp(TRAIT_START[t] + rng.normal(0, 0.08), 0, 1);
+    beliefs[t] = { est, sd: 0.2, clarity: 1 - 0.2 / 0.35, lastObsDay: -20, evidence: [{ day: -20, source: 'start', reading: Math.round(est * 1000) / 1000, noise: 0.2 }] };
     masks[t] = {};
   }
   const V0: ModelVersion = {
@@ -172,7 +173,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   applyFit(hidden.timeline, V0, () => 0, false); // RD-M01: the start scores are the original editions, survive not 'hard'
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, effort: 'max', servingShare,
-    safeguards: channel === 'internal' ? 'standard' : 'classifiers', controlLayer: false, packs: [], features: [],
+    safeguards: channel === 'internal' ? 'standard' : 'classifiers', guards: channel === 'internal' ? [{ kind: 'review', since: -20 }] : [], packs: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });

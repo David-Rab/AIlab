@@ -1,10 +1,11 @@
 // Response menu per confirmed finding or incident (V2-SPEC §3.5.9). Owner: WS2.
-import { EDGES } from '../../../data/v2/edges';
+import { LOCKDOWN_SLOWDOWN, addSafeguard, controlOn, isRestricted, labControlSetting, lockdownOnDep, removeSafeguard, setControl } from './safeguards';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
-import type { GameStateV2, Incident, ModelVersion, ResponseKind, SystemCtx, TraitId, UModeId } from '../types';
+import type { GameStateV2, Incident, ModelVersion, ResponseKind, RLFamily, SystemCtx, TraitId, UModeId } from '../types';
+import { envFixMult, runExploitMap } from '../models/suites';
 import { clamp01, flagNum, setFlag, trueEfficacy, versionById } from './common';
 import { measuredOom } from './oversight';
-import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL, goodhartTrain } from './traits';
+import { ANTISCHEME_EA_MULT, ANTISCHEME_REMOVAL } from './traits';
 import { strengthBelieved, techniqueRole } from './techniques';
 import { crystalMult, revealToWorld, uModeRemovalMult } from './umodes';
 import { removalFte } from './footholds';
@@ -12,24 +13,31 @@ import { removeFoothold } from './footholdDetection';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { agentVersion, syncInternalControl } from '../departments/agents';
 
-export const RESPONSE_INFO: Record<ResponseKind, { title: string; days: [number, number]; note: string }> = {
-  patchSignal: { title: 'Patch signal', days: [30, 90], note: 'Fix the training signal: edge weight × 0.3–0.6 for every later run (lab-wide).' },
-  retrainAgainst: { title: 'Retrain against', days: [14, 14], note: 'Hide, not heal: visible −70–90%, true −20–40%, adds a mask.' },
-  targetedTraining: { title: 'Targeted training', days: [21, 35], note: 'Technique-specific alignment training (inoculation, anti-scheming…).' },
-  restrictContext: { title: 'Restrict context', days: [0, 0], note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
-  addControl: { title: 'Add control', days: [0, 0], note: 'AI-control layer: 5% usefulness tax; catastrophe conversion × (1 − Contain).' },
-  removeControl: { title: 'Remove control', days: [0, 0], note: 'Turn the AI-control layer off: the usefulness tax ends; containment and deferral end with it (model v3 F6).' },
-  rollback: { title: 'Roll back', days: [0, 0], note: 'Return to the checkpoint version; lose the newer model.' },
-  disclose: { title: 'Disclose', days: [0, 0], note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
-  removeFoothold: { title: 'Remove foothold', days: [14, 30], note: 'A located foothold: safety engineers, agents off for the downtime; its effect ends (model v3 E8).' },
+export const RESPONSE_INFO: Record<ResponseKind, { title: string; note: string }> = {
+  patchSignal: { title: 'Fix environment', note: 'Patch the RL environments, grader or reward model of one family so it stops rewarding the hack: the family’s rewarded hacks × 0.3–0.6 on every later run that trains on it (an owned environment fix, floor × 0.2); 10 safety research engineers are busy 30–90 days.' },
+  targetedTraining: { title: 'Targeted training', note: 'Technique-specific alignment training (inoculation, anti-scheming…). Takes effect at once.' },
+  restrictContext: { title: 'Restrict context', note: 'Restricted products: usage, revenue, misuse reach and incident opportunity × 0.3.' },
+  liftRestriction: { title: 'Lift restriction', note: 'Remove the restriction safeguard: usage, revenue, misuse reach and incident opportunity back to full.' },
+  addControl: { title: 'Add control protocol', note: 'Control-protocol safeguard (trusted monitoring, defer 10% to trusted): about 7% of the work lost at a 1-OOM trusted gap; acts slipping past monitors ×0.45; AI-control tools block.' },
+  removeControl: { title: 'Remove control protocol', note: 'Remove the control-protocol safeguard: its slowdown ends; blocking and deferral end with it.' },
+  addLockdown: { title: 'Add comms lockdown', note: `Comms-lockdown safeguard on the model's internal agents (shared memory bank locked): the same-lineage collusion penalty halves; ${Math.round(LOCKDOWN_SLOWDOWN * 100)}% of internal AI work lost.` },
+  removeLockdown: { title: 'Remove comms lockdown', note: 'Remove the comms-lockdown safeguard: its slowdown ends; the collusion penalty is back to full.' },
+  rollback: { title: 'Roll back', note: 'Return to the checkpoint version; lose the newer model.' },
+  disclose: { title: 'Disclose', note: 'Scrutiny +5–15; trust by credibility; the world learns any U-mode.' },
+  removeFoothold: { title: 'Remove foothold', note: 'A located foothold: safety research engineers busy while it runs, agents off for the downtime; its effect ends (model v3 E8).' },
 };
 
-/** Lowest edge multiplier repeated signal patches reach (some of every pressure is irreducible) [D, M4]. */
+/** Lowest multiplier repeated environment fixes on one family reach (some hacks always slip through) [D: V2-SPEC 3.5.9]. */
 export const PATCH_FLOOR = 0.2;
 
-/** Edges that feed a trait (patch targets). */
-function edgesInto(trait: TraitId): string[] {
-  return EDGES.filter((e) => e.to === trait).map((e) => e.id);
+/** SR-16: the family an environment fix patches: the one asked for (if the lab has its environments), else the family
+ *  whose environments reward the most hacks now (highest exploitability after earlier fixes). */
+export function envFixFamily(s: GameStateV2, family?: RLFamily): RLFamily | undefined {
+  const x = runExploitMap(s);
+  if (family) return x[family] !== undefined ? family : undefined;
+  let best: RLFamily | undefined;
+  for (const [f, v] of Object.entries(x) as [RLFamily, number][]) if (best === undefined || v > (x[best] ?? 0)) best = f;
+  return best;
 }
 
 function lineageOf(s: GameStateV2, v: ModelVersion): string {
@@ -81,7 +89,7 @@ function removal(v: ModelVersion): number {
 
 // ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────
 
-/** Patch signal: each edge into the trait × PATCH_MULT (drawn) lab-wide, floor PATCH_FLOOR; PATCH_FTE safety research
+/** Environment fix (SR-16): the family's fix × PATCH_MULT (drawn), floor PATCH_FLOOR; PATCH_FTE safety research
  *  engineers for PATCH_DAYS (drawn); the next post-training run pays RUN_PENALTY_OOM OOM of G. */
 export const PATCH_MULT: [number, number] = [0.3, 0.6];
 export const PATCH_DAYS: [number, number] = [30, 90];
@@ -107,7 +115,7 @@ export function targetedPlan(s: GameStateV2, v: ModelVersion, trait: TraitId, ef
 
 /** The live external deployments Restrict context restricts (the incident's own deployment when it names one). */
 export function restrictTargets(s: GameStateV2, v: ModelVersion, inc?: Incident) {
-  return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
+  return s.player.deployments.filter((d) => d.versionId === v.id && d.status === 'live' && !isRestricted(d) && d.channel !== 'internal' && (!inc?.deploymentId || d.id === inc.deploymentId));
 }
 
 /** Disclosure's trust change per counterparty at today's credibility (below 30 it costs trust, §3.9.1), after the
@@ -120,7 +128,7 @@ export function discloseTrust(s: GameStateV2, cp: (typeof DISCLOSE_CPS)[number])
 }
 export const discloseScrutiny = (inc?: Incident) => 3 + 2 * (inc?.severity ?? 2);
 
-export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string }
+export interface ResponseOpts { trait?: TraitId; techniqueId?: string; /** removeFoothold: the located foothold. */ footholdId?: string; /** patchSignal (SR-16): the RL family to fix. */ family?: RLFamily }
 
 /**
  * Apply a response to a version (and optionally an incident). Returns an error string if it cannot apply.
@@ -138,20 +146,17 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
   const lineage = lineageOf(s, v);
   switch (kind) {
     case 'patchSignal': {
-      // M4: the patched environment / grader / reward model is the lab's, so the fix applies to every later run
-      // (all lineages); repeated patches on one edge bottom out at PATCH_FLOOR [D].
-      for (const e of edgesInto(trait)) {
-        const key = `patch.lab.${e}`;
-        setFlag(s, key, Math.round(Math.max(PATCH_FLOOR, flagNum(s, key, 1) * rng.range(PATCH_MULT[0], PATCH_MULT[1])) * 1000) / 1000);
-      }
+      // SR-16: an owned environment fix on one RL family (the patched environment / grader / reward model is the
+      // lab's): every later run that trains on the family freezes its exploitability × the fix at launch
+      // (runExploitMap), so it learns less of the hack; runs not on the family are unchanged. Repeated fixes on one
+      // family bottom out at PATCH_FLOOR [D].
+      const f = envFixFamily(s, opts.family);
+      if (!f) return 'No environments of that family';
+      const fixes = (s.player.safety.envFixes ??= {});
+      const prev = fixes[f];
+      fixes[f] = { mult: Math.round(Math.max(PATCH_FLOOR, envFixMult(s, f) * rng.range(PATCH_MULT[0], PATCH_MULT[1])) * 1000) / 1000, n: (prev?.n ?? 0) + 1, day: ctx.day, trait, versionId: v.id };
       setFlag(s, 'patchUntil', Math.max(flagNum(s, 'patchUntil', 0), ctx.day + Math.round(rng.range(PATCH_DAYS[0], PATCH_DAYS[1]))));
       setFlag(s, 'runPenalty', flagNum(s, 'runPenalty') + RUN_PENALTY_OOM);
-      break;
-    }
-    case 'retrainAgainst': {
-      const tid = opts.techniqueId ?? bestDetector(s, v, trait);
-      if (!tid) return 'No active detector covers this trait';
-      goodhartTrain(s, rng, v, tid, [trait]);
       break;
     }
     case 'targetedTraining': {
@@ -175,7 +180,13 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
     case 'restrictContext': {
       const deps = restrictTargets(s, v, inc);
       if (!deps.length) return 'No live external deployment of this model';
-      for (const d of deps) d.status = 'restricted';
+      for (const d of deps) addSafeguard(s, d, 'restrict');
+      break;
+    }
+    case 'liftRestriction': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && isRestricted(d) && (!inc?.deploymentId || d.id === inc.deploymentId));
+      if (!deps.length) return 'No restricted deployment of this model';
+      for (const d of deps) removeSafeguard(d, 'restrict');
       break;
     }
     case 'addControl': {
@@ -183,18 +194,33 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
       const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn');
       const uses = AGENT_USES.filter((u) => agentVersion(s, u)?.id === v.id);
       if (!deps.length && !uses.length) return 'Model is not deployed';
-      for (const d of deps) d.controlLayer = true;
+      for (const d of deps) setControl(d, true, labControlSetting(s), s.time.day);
       for (const u of uses) s.player.agents[u].control = true;
       syncInternalControl(s);
       break;
     }
     case 'removeControl': {
-      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && d.controlLayer);
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.status !== 'withdrawn' && controlOn(d));
       const uses = AGENT_USES.filter((u) => s.player.agents[u].control && agentVersion(s, u)?.id === v.id);
       if (!deps.length && !uses.length) return 'No control layer on this model';
-      for (const d of deps) d.controlLayer = false;
+      for (const d of deps) setControl(d, false);
       for (const u of uses) s.player.agents[u].control = false;
       syncInternalControl(s);
+      break;
+    }
+    case 'addLockdown': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && d.channel === 'internal' && d.status === 'live');
+      if (!deps.length) return 'No internal agent package runs this model';
+      for (const d of deps) {
+        const why = addSafeguard(s, d, 'lockdown');
+        if (why) return why;
+      }
+      break;
+    }
+    case 'removeLockdown': {
+      const deps = s.player.deployments.filter((d) => d.versionId === v.id && lockdownOnDep(d));
+      if (!deps.length) return 'No comms lockdown on this model';
+      for (const d of deps) removeSafeguard(d, 'lockdown');
       break;
     }
     case 'rollback': {
@@ -234,12 +260,11 @@ export function applyResponse(s: GameStateV2, ctx: SystemCtx, kind: ResponseKind
 }
 
 
-/** Current lab-wide patch multipliers on the edges into a trait (1 = never patched; PATCH_FLOOR = as low as patches go):
- *  the response card's "diminishing patches" readout (LIMITS response.patchFloor). */
-export function patchLevel(s: GameStateV2, trait: TraitId): { lo: number; hi: number; atFloor: boolean; n: number } {
-  const xs = edgesInto(trait).map((e) => flagNum(s, `patch.lab.${e}`, 1));
-  if (!xs.length) return { lo: 1, hi: 1, atFloor: false, n: 0 };
-  const lo = Math.min(...xs);
-  const hi = Math.max(...xs);
-  return { lo, hi, atFloor: hi <= PATCH_FLOOR + 1e-9, n: xs.length };
+/** SR-16: the environment fix the patch response would extend (its family) and that family's current multiplier
+ *  (1 = never fixed; PATCH_FLOOR = as low as fixes go): the response card's "diminishing fixes" readout (LIMITS
+ *  response.patchFloor). */
+export function patchLevel(s: GameStateV2, family?: RLFamily): { family?: RLFamily; mult: number; atFloor: boolean; n: number } {
+  const f = envFixFamily(s, family);
+  const mult = f ? envFixMult(s, f) : 1;
+  return { family: f, mult, atFloor: mult <= PATCH_FLOOR + 1e-9, n: f ? s.player.safety.envFixes?.[f]?.n ?? 0 : 0 };
 }

@@ -22,12 +22,16 @@ import { financeAutopilot, REF_AUTOPILOT } from '../../src/engine/v2/finance/pla
 import { engine } from '../../src/engine/v2/index';
 import { bestPlayerVersion, internalVersion } from '../../src/engine/v2/models/labs';
 import { misalignment, misalignmentEstimate, pMis } from '../../src/engine/v2/safety/traits';
-import { trueUnderstanding, understanding, understandingBand } from '../../src/engine/v2/safety/understanding';
+import { sightLimit, trueSightLimit } from '../../src/engine/v2/safety/sightLimit';
+// SR-11: the sight limit in the shape these analyses read (U = sight limit, margin = sight limit − level).
+const understanding = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, margin: r.gap, perTrait: r.perTrait }; };
+const understandingBand = (s: GameStateV2) => { const r = sightLimit(s); return { U: r.L, lo: r.lo, hi: r.hi }; };
+const trueUnderstanding = (s: GameStateV2) => { const r = trueSightLimit(s); return { U: r.L, L: r.level }; };
+void trueSightLimit;
 import { flagNum } from '../../src/engine/v2/safety/common';
 import type { AlignDiffId, BotPolicy, GameStateV2, TraitId } from '../../src/engine/v2/types';
 import { validateJson } from './lib';
 
-const FIX = ['T-PERSONA', 'T-ANTISCHEME', 'T-CONFESS', 'T-CAST', 'T-W2S'];
 const RED: TraitId[] = ['SCHEME', 'AF', 'SAND', 'POWER', 'SUCC', 'COLLUDE', 'TGAME'];
 
 /** Safe-only recipe on reference finance (see header). */
@@ -46,13 +50,12 @@ export const safeRecipeBot: BotPolicy = {
       safetyShare: () => 0.2,
       safStaffShare: 0.25,
       base: { quality: true, hazard: true, safetyPretrain: true },
-      post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy', inoculation: true }),
+      post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'faithful', safety: 'heavy' }),
       tree: () => [...REF_TREE.filter((g) => g.id !== 'P17'), ...SAFE_TREE_EXTRA],
       release: 'mini',
     });
     financeAutopilot(s, REF_AUTOPILOT);
     if (day % 30 === 0) {
-      for (const id of FIX) if (s.player.safety.techniques[id]?.unlocked && !s.player.safety.techniques[id].active) tryAct(s, api, 'safety.technique', { id });
       const iv = internalVersion(s);
       if (iv) {
         for (const t of RED) {

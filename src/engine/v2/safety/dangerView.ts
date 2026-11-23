@@ -16,27 +16,25 @@
 // model add up to E5's fleet row.
 // Control: E9's controlView (stored believed control) with its believed parts (believedTerms), the oversight gap of the
 // model that sets it, the footholds the lab knows of, and the control layer's tax (E6).
+// SR-03: both danger readouts are the believed act table's trait rows (actTable.ts actSite + siteActs), so this view and
+// the SAFETY act table cannot drift.
+import { controlOn, labControlSetting } from './safeguards';
 import { AGENT_USES } from '../../../data/v2/agents';
-import { CHANNEL_AFFORD, DANGER_ACTS, type ActDef } from '../../../data/v2/danger';
+import { DANGER_ACTS } from '../../../data/v2/danger';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
-import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
-import { agentSplitShare, agentVersion, fleetMonitor, monitorVersion } from '../departments/agents';
+import { agentSplitShare, agentVersion, monitorVersion } from '../departments/agents';
 import { measuredLOf } from '../models/labs';
-import { catchRate, collusionTrait, productHazardMult } from '../models/products';
-import type { AgentUse, Deployment, DomainId, GameStateV2, ModelVersion, TraitId, TraitVector } from '../types';
+import type { AgentUse, Deployment, DomainId, GameStateV2, TraitId } from '../types';
 import { versionById } from './common';
-import { believedMonitorCatch, believedOversightParts } from './believedOversight';
+import { actSite, siteActs, type ActOpts, type ActRow, type ActSite } from './actTable';
 import { believedLowest, believedTerms, controlView } from './control';
 import { footholdView } from './footholdDetection';
-import { aiRdShare, autonomyOf, capabilityOf, dispositionOf, internalScale, siteOf, type Site } from './incidents';
-import { controlProtocol, measuredOom, oversightGap, underControl, type ControlReadout } from './oversight';
-import { containment } from './techniques';
+import { lossOfControlRisk, unstoppedHarmPerYear, type LossRisk } from './lossRisk';
+import { controlProtocol, oversightGap, underControl, type ControlReadout } from './oversight';
 
-const YEAR = 365;
-const USE_WORK: Record<AgentUse, WorkTypeId> = { eng: 'SWE', capRoutine: 'EXP', capFrontier: 'IDEAS', safety: 'SAF_EXP' };
 /** Restricted status scales opportunity (incidents.ts siteOf), and usage, revenue and misuse reach (revenue.ts,
  *  incidents.ts misuseHazards) by the same 0.3; F6e: the Restrict context preview reads it. */
-export const RESTRICT = 0.3;
+export { RESTRICT } from './actTable';
 
 /** One act at one site, as the player estimates it. */
 export interface DangerActRead {
@@ -70,39 +68,15 @@ export interface DangerRead {
   levers: DangerLever[];
 }
 
-/** Belief estimates as a trait vector (0 where the lab holds no belief). */
-function estTraits(v: ModelVersion): TraitVector {
-  const out = {} as TraitVector;
-  for (const t of Object.keys(DANGER_ACTS) as TraitId[]) out[t] = v.beliefs[t]?.est ?? 0;
-  return out;
-}
-
-/** Measured level of an act's domain: the measured general level plus the version's domain offset. */
-// RD-M01: the domain's benchmark fit; lineage fallback (measured general + offset) while the version is in evaluation.
-const measuredDomainL = (s: GameStateV2, v: ModelVersion, d: DomainId) => v.evals.measuredDom?.[d] ?? measuredLOf(s, v).L + (v.domains[d] - v.Lg);
-
 /** control: undefined = as it is, true = the layer on, false = off (model v3 F6: the remove-control preview). */
-interface Opts { control?: boolean; restrict?: boolean }
+type Opts = Pick<ActOpts, 'control' | 'restrict'>;
 
-/** One site's believed acts. `opp(def)` = the act's opportunity; `catchOf(trait)` = the believed catch. */
-function readActs(s: GameStateV2, v: ModelVersion, site: Site, d: Deployment, catchOf: (t: TraitId) => number): DangerActRead[] {
-  const est = estTraits(v);
-  const af = site.autonomy * site.afford;
-  const out: DangerActRead[] = [];
-  for (const [t, def] of Object.entries(DANGER_ACTS) as [TraitId, ActDef][]) {
-    if (def.internalOnly && !site.internal) continue;
-    const disposition = dispositionOf(est[t]);
-    const level = measuredDomainL(s, v, def.domain);
-    const capability = capabilityOf(level, def);
-    const feat = site.internal || !d.features.length ? 1 : productHazardMult(s, d, t);
-    const opportunity = site.scale * (1 - def.alpha + def.alpha * af) * (def.rd && site.internal ? site.rd : 1) * feat;
-    const block = 1 - (1 - site.contain) * (1 - (site.internal && def.security ? (def.security * site.wsl) / 5 : 0));
-    const c = catchOf(t);
-    const attempts = def.kappa * disposition * capability * opportunity * YEAR;
-    const oversight = 1 - (1 - block) * (1 - c);
-    out.push({ trait: t, act: def.act, est: est[t], disposition, domain: def.domain, level, theta: def.theta, capability, opportunity, alpha: def.alpha, block, catch: c, oversight, attempts, harmful: attempts * (1 - oversight) });
-  }
-  return out.sort((a, b) => b.harmful - a.harmful);
+/** One site's believed acts: the believed act table's trait rows (SR-03), largest harmful rate first. */
+function readActs(s: GameStateV2, a: ActSite): DangerActRead[] {
+  return siteActs(s, a, true).map((r: ActRow) => ({
+    trait: r.id as TraitId, act: DANGER_ACTS[r.id as TraitId]!.act, est: r.x, disposition: r.wouldTry, domain: r.domain as DomainId, level: r.level, theta: r.theta,
+    capability: r.ableTo, opportunity: r.chances, alpha: r.alpha, block: r.block, catch: r.catch, oversight: r.stopRate, attempts: r.attempts, harmful: r.unstopped,
+  })).sort((a, b) => b.harmful - a.harmful);
 }
 
 function summed(acts: DangerActRead[]) {
@@ -119,63 +93,34 @@ function summed(acts: DangerActRead[]) {
 
 /** Believed danger of a product (a live external deployment). */
 function productDanger(s: GameStateV2, d: Deployment, o: Opts = {}): DangerRead | undefined {
-  const v = versionById(s, d.versionId);
-  if (!v || v.status === 'retired' || d.status === 'withdrawn') return undefined;
-  const usage = d.channel === 'open' ? 1 : d.servingShare;
-  const layer = o.control ?? d.controlLayer;
-  const base = siteOf(s, d, v, usage);
-  const restricted = d.status === 'restricted' || !!o.restrict;
-  const site: Site = { ...base, scale: base.scale * (o.restrict && d.status !== 'restricted' ? RESTRICT : 1), contain: containment(s, measuredOom(s, v), layer, true) };
-  const mon = d.monitorId && d.channel !== 'open' ? versionById(s, d.monitorId) : undefined;
-  const cr = mon ? catchRate(s, v, mon, layer) : undefined;
-  const acts = readActs(s, v, site, d, (t) => (cr ? (collusionTrait(t) ? cr.collusion : cr.rate) : 0));
+  const a = d.channel === 'internal' ? undefined : actSite(s, { deploymentId: d.id }, true, o);
+  if (!a) return undefined;
+  const { site } = a;
+  const acts = readActs(s, a);
   return {
-    site: 'product', deploymentId: d.id, versionId: v.id, usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: 0,
-    contain: site.contain, monitor: cr?.rate ?? 0, human: 0, controlMiss: cr?.defer ?? 1, controlLayer: layer, acts, top: acts[0], ...summed(acts),
-    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, !!mon, restricted, (x) => productDanger(s, d, x)?.harmful),
+    site: 'product', deploymentId: d.id, versionId: a.v.id, usage: a.usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: 0,
+    contain: a.contain, monitor: a.monitor, human: 0, controlMiss: a.controlMiss, controlLayer: a.layer, acts, top: acts[0], ...summed(acts),
+    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, a.monitored, a.restricted, (x) => productDanger(s, d, x)?.harmful),
   };
-}
-
-/** Usage of an internal lane: its share of internal agent compute (E5/R7's fleet usage, split by use). */
-function laneUsage(s: GameStateV2, use: AgentUse): number {
-  let total = 0;
-  for (const u of AGENT_USES) {
-    if (!agentVersion(s, u)) continue;
-    const w = agentSplitShare(s, u);
-    if (w <= 0 && u !== 'capRoutine') continue;
-    total += w;
-  }
-  return total > 0 ? agentSplitShare(s, use) / total : 0;
 }
 
 /** Believed danger of one internal agent lane (its model at its use's horizon and compute share). */
 function laneDanger(s: GameStateV2, use: AgentUse, o: Opts = {}): DangerRead | undefined {
-  const v = agentVersion(s, use);
-  const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status !== 'withdrawn');
-  if (!v || !d || v.status === 'retired') return undefined;
-  const on = (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
-  const usage = laneUsage(s, use) * (v.id === d.versionId ? on : 1);
-  const layer = o.control ?? d.controlLayer;
-  const restricted = d.status === 'restricted' || !!o.restrict;
-  const site: Site = {
-    internal: true, scale: usage * internalScale(s) * (restricted ? RESTRICT : 1), autonomy: autonomyOf(WORK_TYPES[USE_WORK[use]].H),
-    afford: CHANNEL_AFFORD.internal, rd: aiRdShare(s), contain: 0, wsl: s.player.security.wsl,
-  };
-  // E15: the same believed oversight as E9's believed control (believedOversight.ts).
-  const { L, block, human, controlMiss: miss } = believedOversightParts(s, v, layer, site.rd);
-  site.contain = block;
-  const acts = readActs(s, v, site, d, (t) => 1 - (1 - believedMonitorCatch(s, v, t, L)) * (1 - human) * miss);
+  const a = actSite(s, { use }, true, o);
+  if (!a) return undefined;
+  const { site, d } = a;
+  const acts = readActs(s, a);
   return {
-    site: 'internal', deploymentId: d.id, versionId: v.id, use, usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: site.rd,
-    contain: site.contain, monitor: fleetMonitor(s, v), human, controlMiss: miss, controlLayer: layer, acts, top: acts[0], ...summed(acts),
-    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, !!monitorVersion(s, use), restricted, (x) => laneDanger(s, use, x)?.harmful),
+    site: 'internal', deploymentId: d.id, versionId: a.v.id, use, usage: a.usage, scale: site.scale, autonomy: site.autonomy, afford: site.afford, rd: site.rd,
+    contain: a.contain, monitor: a.monitor, human: a.human, controlMiss: a.controlMiss, controlLayer: a.layer, acts, top: acts[0], ...summed(acts),
+    levers: o.control !== undefined || o.restrict ? [] : levers(s, d, acts, a.monitored, a.restricted, (x) => laneDanger(s, use, x)?.harmful),
   };
 }
 
 /** What lowers a site's danger, with the same selector's estimate after each lever where it has one. */
 function levers(s: GameStateV2, d: Deployment, acts: DangerActRead[], monitored: boolean, restricted: boolean, what: (o: Opts) => number | undefined): DangerLever[] {
   const out: DangerLever[] = [];
-  if (!d.controlLayer) out.push({ id: 'control', label: 'Control layer', after: what({ control: true }), note: 'AI-control containment and deferral (Safety › Overview › Control)' });
+  if (!controlOn(d)) out.push({ id: 'control', label: 'Control layer', after: what({ control: true }), note: 'AI-control containment and deferral (Safety › Overview › Control)' });
   if (!monitored) out.push({ id: 'monitor', label: 'Add a monitor', note: d.channel === 'internal' ? 'Company › Agents at work' : 'the monitor chip on this card' });
   if (!restricted) out.push({ id: 'restrict', label: 'Restrict context', after: what({ restrict: true }), note: d.channel === 'internal' ? 'opportunity ×0.3 (an incident response)' : 'opportunity ×0.3; revenue ×0.5 (an incident response)' });
   const top = acts[0];
@@ -267,6 +212,9 @@ export interface ControlRead {
   layer: boolean; tax: number; missMult: number; taxUse?: AgentUse;
   /** The model whose internal deployment carries the layer (the Remove control response's target; model v3 F6). */
   layerVersionId?: string;
+  /** SR-04 headline: Loss-of-control risk of the riskiest model the lab runs ("if it could act now") and the
+   *  companion Unstopped harm / yr (severity-weighted) with the unweighted unstopped acts / yr. */
+  risk?: LossRisk; harm: number; harmActs: number;
 }
 
 /** The control readout on Safety › Overview: believed only (never effectiveControl.level, exposure or the tolerance). */
@@ -293,10 +241,12 @@ export function controlReadout(s: GameStateV2): ControlRead {
     const m = agentVersion(s, u);
     if (!m || agentSplitShare(s, u) <= 0) continue;
     const mu = monitorVersion(s, u);
-    const c = controlProtocol(mu ? oversightGap(w, measuredLOf(s, m).L, measuredLOf(s, mu).L).oom : undefined);
+    const c = controlProtocol(mu ? oversightGap(w, measuredLOf(s, m).L, measuredLOf(s, mu).L).oom : undefined, labControlSetting(s));
     if (!best || c.tax > best.tax) { best = c; bestUse = u; }
   }
-  const p = best ?? controlProtocol(undefined);
+  const p = best ?? controlProtocol(undefined, labControlSetting(s));
+  const risk = lossOfControlRisk(s);
+  const h = unstoppedHarmPerYear(s);
   return {
     believed: cv.believed, band: controlBand(cv.believed), versionId: v?.id, name: v?.name,
     mis: t.mis, oversight: t.oversight, F: t.F, exposure: t.exposure,
@@ -304,6 +254,7 @@ export function controlReadout(s: GameStateV2): ControlRead {
     humanGapOom: oversightGap(w, L, HUMAN_REVIEW_L).oom,
     suspected: fv.suspected, located: fv.located, removed: fv.removed,
     layer, tax: p.tax, missMult: p.missMult, taxUse: bestUse,
-    layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && d.controlLayer)?.versionId,
+    layerVersionId: s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live' && controlOn(d))?.versionId,
+    risk, harm: h.harm, harmActs: h.acts,
   };
 }

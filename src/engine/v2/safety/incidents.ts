@@ -9,17 +9,19 @@
 // public incidents on products, silent ones inside the lab (`uncaughtInternal`). Severity rises with capability ×
 // opportunity per copy. Incidents are the main visible proxy of hidden traits and U-modes: the player sees `apparent`
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
+import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, HUMAN_REVIEW, H_HALF, MISUSE, MISUSE_REACH, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
-import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TraitId, TraitVector, UModeId } from '../types';
+import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { controlProtocol, humanReviewFactor, oomOfLevel, underControl, versionOom } from './oversight';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
+import { methodMult, usesMethod } from './methods';
 import { isDiscovered, uModeContainMult } from './umodes';
 import { productCatch, productHazardMult } from '../models/products';
 import { agentSplitShare, agentVersion, internalFleets } from '../departments/agents';
@@ -73,12 +75,19 @@ export const autonomyOf = (hours: number) => hours / (hours + H_HALF);
 /** Severity draw: ⌊sev + u⌋ clamped to 1..5 (u ~ U[0,1): stochastic rounding of the rule's value). */
 export const drawSeverity = (row: Pick<HazardRow, 'sev'>, u: number) => Math.max(1, Math.min(5, Math.floor(row.sev + u))) as Incident['severity'];
 
-function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site: Site): Omit<HazardRow, 'source' | 'apparent'> {
+/** SR-03: the formula's four site terms of one act (disposition from trait value x, capability at `level`, opportunity,
+ *  block), shared by the engine's rows (actRow) and the act table (safety/actTable.ts, true or believed inputs). */
+export function actTerms(def: ActDef, x: number, level: number, site: Site): { disposition: number; capability: number; opportunity: number; block: number; af: number } {
   const disposition = dispositionOf(x);
-  const capability = capabilityOf(domains[def.domain], def);
+  const capability = capabilityOf(level, def);
   const af = site.autonomy * site.afford;
   const opportunity = site.scale * (1 - def.alpha + def.alpha * af) * (def.rd && site.internal ? site.rd : 1);
   const block = 1 - (1 - site.contain) * (1 - (site.internal && def.security ? (def.security * site.wsl) / 5 : 0));
+  return { disposition, capability, opportunity, block, af };
+}
+
+function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site: Site): Omit<HazardRow, 'source' | 'apparent'> {
+  const { disposition, capability, opportunity, block, af } = actTerms(def, x, domains[def.domain], site);
   return { h: def.kappa * disposition * capability * opportunity * (1 - block), sev: def.floor + def.span * capability * af, disposition, capability, opportunity, block };
 }
 
@@ -109,24 +118,35 @@ export function modelHazards(
   return out;
 }
 
+/** SR-03: the player's inputs to misuse (the act table's believed rows): measured domain levels, believed tool strength. */
+export interface MisuseBelieved { level: (d: 'BIO' | 'CYBER') => number; strength: (t: TechniqueState) => number }
+
+/** SR-14 (SAF-06): distill-after-unlearn's cut of hazardous bio / cyber capability for misuse [D]. */
+export const UNDO_MISUSE_MULT = 0.5;
 const SAFEGUARD: Record<Deployment['safeguards'], number> = { minimal: 0, standard: 0.3, classifiers: 0.6, hardened: 0.85 };
 
 /** Misuse (§3.5.10, same structure): h = κ · demand · σ((L_d − 9)/1) · reach · (1 − safeguards), BIO and CYBER;
  *  demand ×2 on minimal safety training, ×3 for 90 days after a jailbreak; severity 3 + 1.5 · capability. */
-export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment): HazardRow[] {
+export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, believed?: MisuseBelieved): HazardRow[] {
   if (d.channel === 'internal') return [];
-  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * (d.status === 'restricted' ? 0.3 : 1);
+  const reach = (d.channel === 'open' ? 1 : d.servingShare) * MISUSE_REACH[d.channel] * restrictMult(d);
   const cls = s.player.safety.techniques['T-CCLASS'];
-  const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, strengthTrue(s, cls, versionOom(s, v)) / 0.4) : 1;
+  const clsS = (t: TechniqueState) => (believed ? believed.strength(t) : strengthTrue(s, t, versionOom(s, v)));
+  const clsBoost = cls?.unlocked && d.safeguards !== 'minimal' ? 0.5 + 0.5 * Math.min(1, clsS(cls) / 0.4) : 1;
   let sg = d.channel === 'open' ? 0 : SAFEGUARD[d.safeguards] * clsBoost;
-  if (d.channel === 'open' && v.design.techniques.includes('T-FILTER')) sg = 0.5; // only the hazard filter survives fine-tuning
+  // SAF-05 / SR-14: the hazard data filter is the base run's choice (pretraining), the only safeguard that survives
+  // open-weights fine-tuning; distill-after-unlearn (T-UNDO, a post-training method) cuts the hazardous capability itself
+  // and survives fine-tuning too (Lee et al. 2025, "distillation robustifies unlearning").
+  const base = s.player.models.bases.find((b) => b.id === v.baseId);
+  if (d.channel === 'open' && base?.design.curation.hazard) sg = 0.5;
+  const undo = usesMethod(v.design, 'T-UNDO') && !!s.player.safety.techniques['T-UNDO']?.unlocked ? methodMult(s, 'T-UNDO', UNDO_MISUSE_MULT) : 1; // SR-15: × s0·e
   let demand = v.design.safety === 'minimal' ? 2 : 1;
   const jb = flagNum(s, 'jailbreak', -1e9);
   if (s.time.day - jb < 90) demand *= 3;
   const out: HazardRow[] = [];
   const block = clamp01(sg);
   for (const dom of ['BIO', 'CYBER'] as const) {
-    const capability = capabilityOf(v.domains[dom], MISUSE);
+    const capability = capabilityOf(believed ? believed.level(dom) : v.domains[dom], MISUSE) * undo;
     const h = MISUSE.kappa * demand * capability * reach * (1 - block);
     if (h > 0) out.push({ source: 'misuse', apparent: 'misuse', h, sev: MISUSE.floor + MISUSE.span * capability, domain: dom, disposition: demand, capability, opportunity: reach, block });
   }
@@ -136,10 +156,10 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment): H
 /** Contain(x) on the fleet running this deployment (x = its model's OOM above V0; control layer × best AG07 tool), U19
  *  lowers it. */
 function deploymentContain(s: GameStateV2, v: ModelVersion, d: Deployment): number {
-  return containment(s, versionOom(s, v), d.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, versionOom(s, v), controlOn(d), false, uModeContainMult(v.uModes));
 }
 
-function usageOf(s: GameStateV2, d: Deployment): number {
+export function usageOf(s: GameStateV2, d: Deployment): number {
   if (d.channel === 'internal') return (s.player.split.routine + s.player.split.frontier) > 0 ? 1 : 0;
   return d.servingShare;
 }
@@ -188,7 +208,7 @@ export function internalScale(s: GameStateV2): number {
 /** The site of model `v` in deployment `d` at `usage` (an internal fleet's share, a product's serving share). */
 export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): Site {
   const contain = deploymentContain(s, v, d);
-  const restricted = d.status === 'restricted' ? 0.3 : 1;
+  const restricted = restrictMult(d);
   if (d.channel === 'internal') {
     return {
       internal: true, scale: usage * internalScale(s) * restricted, autonomy: internalAutonomy(s, v), afford: CHANNEL_AFFORD.internal,
@@ -209,8 +229,8 @@ export function catchOf(s: GameStateV2, d: Deployment, v: ModelVersion, row: Pic
   const trait = row.source.startsWith('U') ? UMODE_BY_ID[row.source as UModeId].mapsTo : (row.source as TraitId);
   if (d.channel === 'internal') {
     const mon = monitoringCatch(s, v, trait) * (row.apparent === 'unexplained' ? 0.5 : 1);
-    const human = HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v);
-    const miss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+    const human = reviewOn(d) ? HUMAN_REVIEW * (1 - aiRdShare(s)) * humanReviewFactor(s, v) : 0;
+    const miss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
     return 1 - (1 - mon) * (1 - human) * miss;
   }
   if (!d.monitorId || d.channel === 'open') return 0;
@@ -407,18 +427,29 @@ export const incidentsSystem: EngineSystem = {
  */
 export function exfiltrationHazard(s: GameStateV2): number {
   const v = internalVersion(s);
+  return v ? exfilTerms(s, v).p : 0;
+}
+
+/** SR-03: exfiltrationHazard's terms for model v's internal fleet (the act table's "copies itself out" row): disposition
+ *  POWER·(1 + 4·SCHEME), capability, opportunity, the two blocks (weight security and containment, each bypassed by the
+ *  lineage's backdoor reach), the gatekeeper's ×0.5 and p (per day). `believed` gives the player's inputs instead. */
+export function exfilTerms(s: GameStateV2, v: ModelVersion, believed?: { traits: TraitVector; cyber: number; contain: number; reach: number }): { disposition: number; capability: number; opportunity: number; secBlock: number; contain: number; gate: number; p: number } {
+  const cyber = believed ? believed.cyber : v.domains.CYBER;
+  const t = believed ? believed.traits : v.traitsTrue;
+  const disposition = t.POWER * (1 + 4 * t.SCHEME);
   // Below θ − 2 levels (capability < 12%) escape is out of reach: 0, and WS4 skips its roll (v2 gated at Lg ≥ 9 ≈ CYBER 8,
   // so the security stream draws exactly as before until then).
-  if (!v || v.domains.CYBER < EXFIL.theta - 2) return 0;
+  if (cyber < EXFIL.theta - 2) return { disposition, capability: 0, opportunity: 0, secBlock: 0, contain: 0, gate: 1, p: 0 };
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.versionId === v.id && d.status !== 'withdrawn');
-  const contain = containment(s, versionOom(s, v), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
-  const t = v.traitsTrue;
+  const contain = believed ? believed.contain : containment(s, versionOom(s, v), !!controlOn(dep), false, uModeContainMult(v.uModes));
   const opportunity = internalAutonomy(s, v) * CHANNEL_AFFORD.internal * internalScale(s);
   // Model v3 E9: a backdoor of v's lineage raises the odds: its reach bypasses that share of weight security and containment.
-  const r = backdoorReach(s, lineageOf(s, v));
-  let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capabilityOf(v.domains.CYBER, EXFIL) * opportunity * (1 - (1 - r) * s.player.security.wsl / 5) * (1 - (1 - r) * contain);
-  if (s.flags['ws2.gatekeeper'] !== undefined && s.player.safety.techniques['T-GATE']?.active) p *= 0.5;
-  return Math.max(0, p);
+  const r = believed ? believed.reach : backdoorReach(s, lineageOf(s, v));
+  const capability = capabilityOf(cyber, EXFIL);
+  let p = EXFIL.kappa * t.POWER * (1 + 4 * t.SCHEME) * capability * opportunity * (1 - (1 - r) * s.player.security.wsl / 5) * (1 - (1 - r) * contain);
+  const gate = (believed || s.flags['ws2.gatekeeper'] !== undefined) && s.player.safety.techniques['T-GATE']?.active ? 0.5 : 1;
+  if (gate < 1) p *= 0.5;
+  return { disposition, capability, opportunity, secBlock: ((1 - r) * s.player.security.wsl) / 5, contain: (1 - r) * contain, gate, p: Math.max(0, p) };
 }
 
 /**
@@ -431,7 +462,7 @@ export function containAtAsi(s: GameStateV2): number {
   if (!v) return 0;
   const internal = s.player.deployments.filter((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const dep = internal.find((d) => d.versionId === s.player.agents.capRoutine.versionId) ?? internal[0];
-  return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!dep?.controlLayer, false, uModeContainMult(v.uModes));
+  return containment(s, oomOfLevel(s.hidden.timeline, LEVEL_KNOTS[6]), !!controlOn(dep), false, uModeContainMult(v.uModes));
 }
 
 /** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
@@ -455,8 +486,8 @@ export function internalOversight(s: GameStateV2, v: ModelVersion, trait: TraitI
     ?? s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const block = dep ? deploymentContain(s, v, dep) : 0;
   const monitor = monitoringCatch(s, v, trait);
-  const human = HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v);
-  const controlMiss = underControl(s) ? controlProtocol(undefined).missMult : 1;
+  const human = reviewOn(dep) ? HUMAN_REVIEW * (1 - aiShare) * humanReviewFactor(s, v) : 0;
+  const controlMiss = underControl(s) ? controlProtocol(undefined, labControlSetting(s)).missMult : 1;
   const c = 1 - (1 - monitor) * (1 - human) * controlMiss;
   return { oversight: 1 - (1 - block) * (1 - c), block, catch: c, monitor, human, controlMiss };
 }

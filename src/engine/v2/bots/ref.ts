@@ -43,8 +43,7 @@ import { believedInternalOversight } from '../safety/believedOversight';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
-import { investigationFte, safetyReHeads } from '../safety/investigations';
-import { patchFte } from '../safety/responses';
+import { committedFte, safetyReHeads } from '../safety/investigations';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
@@ -250,7 +249,7 @@ export interface RefPlayOpts {
   /** Extra launchBase params (data, quality, hazard, safetyPretrain) and `days`: the base run's target
    *  length at 60% of the pool (default REF_BASE_DAYS; followers FOLLOWER_MAX_BASE_DAYS). */
   base?: Params;
-  /** launchPost params (pref, rlFocus, rlBudget, cot, safety, inoculation). cot 'faithful' falls back to 'visible'
+  /** launchPost params (pref, rlFocus, rlBudget, cot, safety, methods). cot 'faithful' falls back to 'visible'
    *  until P23 is adopted; a latent base always forces latent CoT. */
   post?: (s: GameStateV2) => Params;
   /** Tree projects (default REF_TREE); a function lets a bot decide over time. */
@@ -277,7 +276,6 @@ const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`]
  *  inoculation, hazard filtering and safety pretraining are research projects now). */
 function known(s: GameStateV2, p: Params): Params {
   const out = { ...p };
-  if (out.inoculation === true && optionLocked(s, 'inoculation', true)) out.inoculation = false;
   if (out.hazard === true && optionLocked(s, 'curation', 'hazard')) out.hazard = false;
   if (out.safetyPretrain === true && optionLocked(s, 'curation', 'safetyPretrain')) out.safetyPretrain = false;
   return out;
@@ -747,7 +745,7 @@ export function refFootholds(s: GameStateV2, api: EngineApi): void {
     if (r.status === 'detected') tryAct(s, api, 'safety.respond', { kind: 'removeFoothold', footholdId: r.id });
     if (r.status !== 'suspected' || !r.caseVersionId || !r.caseTrait) continue;
     const open = s.player.safety.investigations.some((i) => !i.outcome && i.target.kind === 'trait' && i.target.versionId === r.caseVersionId && i.target.trait === r.caseTrait);
-    if (open || safetyReHeads(s) - investigationFte(s) - patchFte(s) < FOOTHOLD_CASE_FTE) continue;
+    if (open || safetyReHeads(s) - committedFte(s) < FOOTHOLD_CASE_FTE) continue;
     tryAct(s, api, 'safety.investigate', { versionId: r.caseVersionId, trait: r.caseTrait, fte: FOOTHOLD_CASE_FTE });
   }
 }

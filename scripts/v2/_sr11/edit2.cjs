@@ -1,0 +1,5 @@
+const fs = require('fs');
+const rep = (f, pairs) => { let t = fs.readFileSync(f, 'utf8'); for (const [a, b] of pairs) { if (!t.includes(a)) { console.error('MISSING in', f, ':', a.slice(0, 80)); process.exitCode = 1; continue; } t = t.split(a).join(b); } fs.writeFileSync(f, t); };
+rep('src/engine/v2/bots/mixed.ts', [["import { internalVersion } from '../models/labs';\n", ''], ]);
+rep('src/engine/v2/events/catalog/safety.ts', [["import { internalVersion } from '../../models/labs';\n", ''], ["import { measuredLOf } from '../../models/labs';", "import { internalVersion, measuredLOf } from '../../models/labs';"]]);
+rep('src/engine/v2/types.ts', [["  understanding(s: GameStateV2): { U: number; margin: number; perTrait: Partial<Record<TraitId, number>> };", "  /** SR-11: the sight limit (believed; level L with its range) of the internal model, its measured level and the gap. */\n  sightLimit(s: GameStateV2): { L: number; lo: number; hi: number; level: number; gap: number; versionId?: string; perTrait: Partial<Record<TraitId, number>> };"]]);

@@ -6,21 +6,19 @@
 // (safety/lineProjects.ts, the capability project mechanism) and each finished validation is one result (findings.ts
 // fireFinding, typed by the line's hidden efficacy). This file owns the line's capacity and multiplier (capacity ÷
 // SERIOUS_CAP, the old FTE ÷ FTE_ref; AG18 healing reads it), its compute share, its results per year, its visible
-// health (the Beta posterior), and tool upkeep by the safety research engineers experiments leave free.
-import { AGENDAS, LINE_MULT_MAX, RE_SERIOUS, SERIOUS_CAP, UPKEEP_D, UPKEEP_DAYS, UPKEEP_MAX, UPKEEP_MIN, UPKEEP_REF } from '../../../data/v2/agendas';
-import { OOM_PER_HALVING } from '../../../data/v2/oversight';
+// health (the Beta posterior). SR-09: tool upkeep is gone; validation jobs (safety/validation.ts) run in the daily system.
+import { AGENDAS, LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
-import { safetyLabour } from '../departments/workfit';
 import { EDGES } from '../../../data/v2/edges';
-import { internalVersion } from '../models/labs';
-import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team, TechniqueState } from '../types';
-import { clamp01, flagNum, lambda2Delta, setFlag, versionById } from './common';
+import type { AgendaId, AgendaState, EngineSystem, GameStateV2, SafetyDept, SystemCtx, Team } from '../types';
+import { clamp01, flagNum, setFlag, versionById } from './common';
 import { versionOom } from './oversight';
 import { lineCycleDays, lineProjectsOf, safAllocation } from './lineProjects';
-import { combineTools, driftBeliefs, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
+import { combineTools, observeVersion, runtimeMonitoring, safetyEvalSuite } from './detection';
 import { investigationsStep, safetyReHeads } from './investigations';
-import { decayAt, initialTechniques, strengthTrue } from './techniques';
+import { initialTechniques, strengthTrue } from './techniques';
+import { initialValidation, validationStep } from './validation';
 import { caseOnModel } from './footholdDetection';
 
 /** Player safety department at game start (lines are idle until teams work their projects; models/tree.ts puts the
@@ -41,6 +39,8 @@ export function initialSafetyDept(): SafetyDept {
     edgeRevealed: Object.fromEntries(EDGES.map((e) => [e.id, false])),
     footholds: [],
     effectiveControl: { level: 1, exposure: 0, lowest: 1, believed: 1 },
+    validation: initialValidation(),
+    useAllMethods: true,
   };
 }
 
@@ -65,7 +65,7 @@ export function lineCapacity(s: GameStateV2, ag: AgendaId): number {
 
 /** Line multiplier m = capacity ÷ SERIOUS_CAP (pre-R8: FTE ÷ FTE_ref; Seed 0.25, Serious 1, Major 2.5). */
 export const lineMult = (s: GameStateV2, ag: AgendaId) => lineCapacity(s, ag) / SERIOUS_CAP;
-/** Line multiplier capped at the old Major level (validation lead, AG18 healing). */
+/** Line multiplier capped at the old Major level (AG18 healing). */
 export const lineMultCapped = (s: GameStateV2, ag: AgendaId) => Math.min(LINE_MULT_MAX, lineMult(s, ag));
 
 /** Teams on a line's projects. */
@@ -74,10 +74,10 @@ export const lineTeams = (s: GameStateV2, ag: AgendaId): Team[] => s.player.team
 export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some((t) => t.role === 'sci' && lineOfTeam(t) === ag);
 
 /** Safety research engineers (heads × quality) and what each need got today (RD-A04: one needs list in the player's
- *  order, safety/lineProjects.ts safAllocation); idle = what no need takes. */
-export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; experiments: number; upkeep: number; idle: number } {
+ *  order, safety/lineProjects.ts safAllocation; SR-13b: the safeguards' staff first); idle = what no need takes. */
+export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; validation: number; idle: number } {
   const al = safAllocation(s);
-  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.patches, experiments: al.exp, upkeep: al.upkeep, idle: al.idle };
+  return { heads: safetyReHeads(s), investigations: al.got.cases, patches: al.got.patches, safeguards: al.safeguards, experiments: al.exp, validation: al.got.validation, idle: al.idle };
 }
 
 // ───────── compute ─────────
@@ -136,64 +136,6 @@ export function promisingIdle(s: GameStateV2): AgendaId[] {
 /** Team-months lost on dead ends, all lines. */
 export const deadEndTotal = (s: GameStateV2) => Object.values(s.player.safety.agendas).reduce((a, g) => a + (g.deadEndTM ?? 0), 0);
 
-// ───────── tool upkeep ─────────
-
-/** Validation lead multiplier (STRUCTURE §4.5: the lead comes from safety research engineers, not funding): free safety
- *  research engineers per research line with tools in the stack, ÷ RE_SERIOUS, capped at the old Major level. The
- *  start lab (one team over four lines) is at the pre-R8 Seed level; investigations and patches take from it. */
-export function reValidationMult(s: GameStateV2): number {
-  const lines = new Set<AgendaId>();
-  for (const t of Object.values(s.player.safety.techniques)) if (t.unlocked && t.active && !t.falseValidated) lines.add(t.agenda);
-  if (!lines.size) return 0;
-  return Math.min(LINE_MULT_MAX, safetyRe(s).upkeep / lines.size / RE_SERIOUS);
-}
-
-/** Whether a tool needs upkeep now: unlocked, real, capability-sensitive, and its strength factor D(x) on the internal
- *  model is below UPKEEP_D. AG05 (oversight-gap rule) and AG09 under known latent reasoning cannot be re-validated. */
-function needsUpkeep(s: GameStateV2, t: TechniqueState, x: number, latent: boolean): boolean {
-  if (!t.unlocked || t.falseValidated || t.k <= 0 || t.oHalf >= 1e8 || t.agenda === 'AG05') return false;
-  if (t.agenda === 'AG09' && latent) return false;
-  return decayAt(s, t, x, latent) < UPKEEP_D;
-}
-
-/** Tools that need re-validation now (none without an internal model). */
-export function upkeepTools(s: GameStateV2): TechniqueState[] {
-  const iv = internalVersion(s);
-  if (!iv) return [];
-  const x = versionOom(s, iv);
-  const latent = lambda2Delta(s) <= -2;
-  return Object.values(s.player.safety.techniques).filter((t) => needsUpkeep(s, t, x, latent));
-}
-
-/** RD-A04: tool re-validation's demand (safety research engineers, heads × quality): per tool in upkeep, the engineers at
- *  which its re-validation rate saturates (effective engineers per tool = UPKEEP_MIN + UPKEEP_MAX × UPKEEP_REF), ÷ m of
- *  safety experiments (AI labour carries the rest). Zero when no tool needs upkeep; more engineers add nothing. */
-export function revalDemand(s: GameStateV2): number {
-  const n = upkeepTools(s).length;
-  return n ? (n * (UPKEEP_MIN + UPKEEP_MAX * UPKEEP_REF)) / Math.max(1, safetyLabour(s).exp.m) : 0;
-}
-
-/** Tools in upkeep now and how fast their half-strength point oHalf rises (OOM per day) at today's free safety research
- *  engineers. Model v3 E6: v2's rate in M½ doublings per day × log10(2)/κ OOM per doubling (the same speed on the
- *  reference path). */
-export function upkeepState(s: GameStateV2): { tools: TechniqueState[]; perTool: number; oomPerDay: number; heads: number } {
-  const re = safetyRe(s);
-  const tools = upkeepTools(s);
-  const perTool = tools.length ? re.upkeep / tools.length : re.upkeep;
-  // Model v3 E2: AI labour re-validates tools as the same input as the engineers (effective heads = heads × m of safety
-  // experiments, SAF_EXP through the Trusted-to-AI share).
-  const eff = perTool * safetyLabour(s).exp.m;
-  const doublingsPerDay = re.upkeep > 0 ? Math.min(UPKEEP_MAX, Math.max(0, eff - UPKEEP_MIN) / UPKEEP_REF) / UPKEEP_DAYS : 0;
-  return { tools, perTool, oomPerDay: doublingsPerDay * OOM_PER_HALVING, heads: re.upkeep };
-}
-
-/** One day of tool upkeep: every tool that needs it is re-validated further: oHalf + rate. */
-function upkeepStep(s: GameStateV2) {
-  const u = upkeepState(s);
-  if (!u.tools.length || u.oomPerDay <= 0) return;
-  for (const t of u.tools) t.oHalf += u.oomPerDay;
-}
-
 // ───────── daily system ─────────
 
 /** Process alignment audits queued by heavy-safety runs (WB observations of AF and SCHEME, clarity ≈ +0.15). */
@@ -208,7 +150,7 @@ function auditStep(s: GameStateV2, ctx: SystemCtx) {
     let dMax = 0;
     for (const trait of ['AF', 'SCHEME'] as const) {
       const d = combineTools(wb.map((t) => ({ agenda: t.agenda, d: (t.coverage[trait] ?? 0) * strengthTrue(s, t, X) })));
-      observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d));
+      observeVersion(s, ctx.rng('safety'), ctx.day, v, trait, 'WB', Math.max(0.3, d), 1, 'audit');
       dMax = Math.max(dMax, d);
     }
     // Model v3 E8: the audit is a case on the model at clarity = its white-box strength (footholds of its lineage).
@@ -228,8 +170,8 @@ function suiteHook(s: GameStateV2, ctx: SystemCtx) {
   }
 }
 
-/** safetyResearch (70, daily): line compute and status; tool upkeep; investigations; eval-suite hook; weekly runtime
- *  monitoring; belief drift. Line projects progress and resolve in the research system (models/tree.ts). U is computed
+/** safetyResearch (70, daily): line compute and status; validation jobs (SR-09); investigations; eval-suite hook; weekly runtime
+ *  monitoring (no belief drift: SR-06). Line projects progress and resolve in the research system (models/tree.ts). U is computed
  *  on demand by understanding(). */
 export const safetyResearchSystem: EngineSystem = {
   id: 'safetyResearch', owner: 'WS2', cadence: 'daily', order: 70, system: 'safety',
@@ -238,13 +180,12 @@ export const safetyResearchSystem: EngineSystem = {
     recomputeComputeShares(s);
     for (const a of AGENDAS) {
       const st = dept.agendas[a.id];
-      if (st.status !== 'deadEnd') st.status = lineStaffed(s, a.id) ? 'active' : 'idle';
+      st.status = lineStaffed(s, a.id) ? 'active' : 'idle';
     }
-    upkeepStep(s);
+    validationStep(s, ctx);
     investigationsStep(s, ctx);
     auditStep(s, ctx);
     suiteHook(s, ctx);
-    driftBeliefs(s);
     if (ctx.day % 7 === 0) runtimeMonitoring(s, ctx);
   },
 };

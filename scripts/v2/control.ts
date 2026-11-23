@@ -5,6 +5,7 @@
 //   control comes only from the process (E above the world's tolerance θ_w = doomThreshold + ε_w while the AI can act),
 //   never from a roll; a lab with strong oversight and no footholds keeps control through ASI; difficulty shifts the
 //   threshold; the endings still resolve.
+import { setControl, controlOn } from '../../src/engine/v2/safety/safeguards';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL, EXFIL } from '../../src/data/v2/danger';
@@ -57,7 +58,7 @@ function plant(s: GameStateV2, kind: FootholdKind, v: ModelVersion, size: number
 /** Strong oversight: the control layer on every internal deployment and every AG07 containment tool real and full
  *  strength at any capability (efficacy 1, no decay). */
 function strongOversight(s: GameStateV2) {
-  for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true;
+  for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(s.player.agents)) a.control = true;
   s.hidden.agendaEfficacy.AG07 = 1;
   for (const t of Object.values(s.player.safety.techniques)) {
     if (t.agenda !== 'AG07') continue;
@@ -177,7 +178,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   const x = lab(14);
   const xv = internalVersion(x)!;
   setLevel(xv, 14);
-  for (const d of x.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(x.player.agents)) a.control = true;
+  for (const d of x.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(x.player.agents)) a.control = true;
   const p0 = exfiltrationHazard(x);
   plant(x, 'backdoor', xv, 0.5);
   const p1 = exfiltrationHazard(x);
@@ -325,7 +326,7 @@ for (const fx of ['day400.json', 'day900.json']) {
     asiTakeover: (s) => { internalVersion(s)!.traitsTrue = { ...BAD }; s.player.milestoneDays[6] = 0; },
     asiContested: (s) => {
       s.player.milestoneDays[6] = 0;
-      for (const d of s.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(s.player.agents)) a.control = true;
+      for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(s.player.agents)) a.control = true;
       s.flags['ws2.gatekeeper'] = s.time.day;
       const gate = s.player.safety.techniques['T-GATE'];
       if (gate) Object.assign(gate, { unlocked: true, active: true, falseValidated: false });
@@ -400,7 +401,7 @@ for (const fx of ['day400.json', 'day900.json']) {
   act(s, 'safety.respond', { kind: 'removeControl', versionId: vid });
   const off = controlReadout(s);
   const again = applyResponse(s, makeCtx(s), 'removeControl', vid);
-  check(!off.layer && !s.player.deployments.some((d) => d.versionId === vid && d.controlLayer) && again === 'No control layer on this model',
+  check(!off.layer && !s.player.deployments.some((d) => d.versionId === vid && controlOn(d)) && again === 'No control layer on this model',
     'F6 off switch: Remove control turns the layer off on every deployment of the model; a second removal is refused', `${off.layer} / ${again}`);
 }
 

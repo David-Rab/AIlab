@@ -12,9 +12,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
+import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
+const TECH_NAME: Record<string, string> = Object.fromEntries(Object.values(TECHNIQUE_BY_ID).map((d) => [d.id, d.name]));
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import {
-  PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, STUDENT_DEFAULT, RL_BUDGET, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
+  AGAINST, METHOD_BY_ID, againstOptions, methodPolicyOn, ownedMethods, PARAM_SNAPS, POOL_SHARE_RANGE, REF_TPP, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, STUDENT_DEFAULT, RL_BUDGET, TPP_SNAPS, baseFromParams, dateOf, evalDaysFor, fmtDate, fmtMonth, internalEval, internalVersion,
   drawByDomain, flopPerToken, liveCommitments, measuredDomains, mixTargetOf, nodeStatus, optionLocked, plannedPressure, postFromParams, runCard, runEtaDays, runFlopPerShareDay, runTraitPressure, runStall, studentToHold, successorPullView, suitesView, tppLabel,
   useHourCost, versionById,
 } from '../../../engine/v2';
@@ -71,7 +73,7 @@ const TRAINING: Slot[] = [
   { field: 'rlBudget', label: 'RL budget', term: 'rlBudget', lockSlot: 'rlBudget', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'light', label: 'Light' }] },
   { field: 'cot', label: 'Reasoning', term: 'cot', lockSlot: 'cot', opts: [{ v: 'visible', label: 'Visible' }, { v: 'pressured', label: 'Pressured' }, { v: 'faithful', label: 'Faithful' }, { v: 'latent', label: 'Latent' }] },
   { field: 'pref', label: 'Rewarded for', term: 'preference', lockSlot: 'pref', opts: [{ v: 'constitution', label: 'Constitution' }, { v: 'engagement', label: 'Engagement' }, { v: 'persuasion', label: 'Persuasion' }, { v: 'minimal', label: 'Minimal' }] },
-  { field: 'safety', label: 'Alignment', term: 'safetyTraining', lockSlot: 'safety', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'minimal', label: 'Minimal' }, { v: 'inoculation', label: 'Inoculation' }] },
+  { field: 'safety', label: 'Alignment', term: 'safetyTraining', lockSlot: 'safety', opts: [{ v: 'standard', label: 'Standard' }, { v: 'heavy', label: 'Heavy' }, { v: 'minimal', label: 'Minimal' }] }, // SR-14b: inoculation is a method (Methods row)
 ];
 
 const focusOf = (p: Params) => (String(p.rlFocus) === 'broad' ? [] : String(p.rlFocus).split(',').filter(Boolean));
@@ -79,7 +81,6 @@ const focusOf = (p: Params) => (String(p.rlFocus) === 'broad' ? [] : String(p.rl
 function isOn(sl: Slot, p: Params, v: Val): boolean {
   if (sl.multi === 'focus') return v === 'broad' ? String(p.rlFocus) === 'broad' : focusOf(p).includes(String(v));
   if (sl.multi === 'toggle') return p[String(v)] === true;
-  if (sl.field === 'safety' && v === 'inoculation') return p.inoculation === true;
   return p[sl.field] === v;
 }
 /** Params with option `v` of slot `sl` clicked. */
@@ -91,24 +92,22 @@ function withOpt(sl: Slot, p: Params, v: Val): Params {
     return { ...p, rlFocus: next.length ? next.join(',') : 'broad' };
   }
   if (sl.multi === 'toggle') return { ...p, [String(v)]: !p[String(v)] };
-  if (sl.field === 'safety' && v === 'inoculation') return { ...p, inoculation: !p.inoculation };
   return { ...p, [sl.field]: v };
 }
 /** Params with slot `sl` at the reference card(s). */
 function atRef(sl: Slot, p: Params): Params {
   if (sl.multi === 'toggle') return { ...p, quality: DEFAULTS.quality, hazard: DEFAULTS.hazard, safetyPretrain: DEFAULTS.safetyPretrain };
-  if (sl.field === 'safety') return { ...p, safety: DEFAULTS.safety, inoculation: DEFAULTS.inoculation };
   return { ...p, [sl.field]: DEFAULTS[sl.field] };
 }
-const lockKey = (sl: Slot, v: Val) => (sl.field === 'safety' && v === 'inoculation' ? 'inoculation' : sl.lockSlot);
-const lockVal = (sl: Slot, v: Val): string | boolean => (sl.field === 'safety' && v === 'inoculation' ? true : sl.multi === 'toggle' ? String(v) : v);
+const lockKey = (sl: Slot, _v: Val) => sl.lockSlot;
+const lockVal = (sl: Slot, v: Val): string | boolean => (sl.multi === 'toggle' ? String(v) : v);
 
 const latestTeacher = (s: GameStateV2) => s.player.models.versions.filter((v) => v.variant === 'full' && v.status !== 'retired').slice(-1)[0]?.id ?? '';
 function toLP(s: GameStateV2, kind: Kind, p: Params): LaunchRunParams {
   const lp: LaunchRunParams = { kind, poolShare: Number(p.poolShare) };
   if (kind === 'base') lp.base = baseFromParams(p);
   if (kind === 'post') {
-    lp.post = postFromParams(p);
+    lp.post = postFromParams(p, s);
     lp.baseId = String(p.baseId);
   }
   if (kind === 'continue') lp.baseId = String(p.baseId);
@@ -213,7 +212,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
           row[String(o.v)] = effectOf(evaluate(s, kind, { ...p, [String(o.v)]: true }), evaluate(s, kind, { ...p, [String(o.v)]: false }), false);
           continue;
         }
-        const op = sl.multi === 'focus' ? { ...rp, rlFocus: String(o.v) } : sl.field === 'safety' && o.v === 'inoculation' ? { ...rp, inoculation: true } : { ...rp, [sl.field]: o.v };
+        const op = sl.multi === 'focus' ? { ...rp, rlFocus: String(o.v) } : { ...rp, [sl.field]: o.v };
         const isRef = JSON.stringify(op) === JSON.stringify(rp);
         row[String(o.v)] = effectOf(isRef ? ref : evaluate(s, kind, op), ref, isRef);
       }
@@ -306,7 +305,7 @@ export function Blueprint({ s }: { s: GameStateV2 }) {
               <BaseSummary s={s} kind={kind} p={params} onNewBase={unlocked(s, 'baseRuns') ? () => setKind('base') : undefined} />
             )}
             <Group icon={WandSparkles} layer="layerTraining" name="Training" rebuild="post-train on a base" />
-            {kind === 'post' ? <>{TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}<SuitesRow s={s} p={p} /></> : (
+            {kind === 'post' ? <>{TRAINING.map((sl) => <SlotRow key={sl.field} s={s} kind={kind} sl={sl} p={p} effs={opts[sl.field]} onPick={(np) => set(np)} />)}<SuitesRow s={s} p={p} /><MethodsRow s={s} p={p} onPick={(np) => set(np)} /></> : (
               <div className="bp-note small dim">{kind === 'base' ? <>Set on the post-train after this base. <button className="btn btn-sm btn-ghost" data-test="bp-to-post" onClick={() => setKind('post')}>Post-train ›</button></> : kind === 'distill' ? <>A <Term id="distillRun">distilled</Term> mini keeps its teacher's training and traits.</> : <>A <Term id="continueRun">continue run</Term> keeps the base's lineage, traits and failure modes.</>}</div>
             )}
             <Group icon={Wrench} layer="layerScaffold" name="Scaffold" rebuild="engineering build, no training" />
@@ -607,6 +606,43 @@ function SuitesRow({ s, p }: { s: GameStateV2; p: Params }) {
         <Tip content={tip}><span className="dch"><span className="k">fidelity</span><b>×{v.weighted.fid.toFixed(2)}</b></span></Tip>
         <Tip content={tip}><span className="dch"><span className="k">exploitable</span><b>{F.pct(v.weighted.exploit, 1)}</b></span></Tip>
         <button className="btn btn-sm btn-ghost" data-test="bp-to-suites" onClick={() => openSuites(p)}>Suites ›</button>
+      </div>
+      <span className="bp-span" />
+    </>
+  );
+}
+
+/** SR-14 (SAFETY-REDESIGN §3.4): the run's training-time safety methods, ticked in the plan. A method's effect applies
+ *  only if the run uses it; the policy "Use all known methods" (on by default) fills a new plan with every owned one.
+ *  "Train against" an instrument is flagged and never filled by the policy; its tooltip says what it does (OD-11). */
+function MethodsRow({ s, p, onPick }: { s: GameStateV2; p: Params; onPick: (p: Params) => void }) {
+  const owned = ownedMethods(s);
+  const insts = againstOptions(s);
+  const cur = postFromParams(p, s).methods;
+  const toggle = (id: string) => onPick({ ...p, methods: (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]).join(',') });
+  const policy = methodPolicyOn(s);
+  const name = (id: string) => s.player.safety.techniques[id] ? (TECH_NAME[id] ?? id) : id;
+  return (
+    <>
+      <div className="sl"><Term id="safetyMethod">Methods</Term></div>
+      <div className="sc bp-lic" data-test="bp-methods">
+        {owned.length === 0 ? <span className="dim small">No methods owned yet (safety research unlocks them).</span> : owned.map((id) => {
+          const d = METHOD_BY_ID[id];
+          return (
+            <Tip key={id} content={() => <TipCard title={name(id)} value={cur.includes(id) ? 'used' : 'not used'} rows={[{ label: 'Cost', value: d.cost ?? 'none of its own' }]}>{d.effect}. Applies to this run only if ticked.</TipCard>}>
+              <button className={`btn btn-sm ${cur.includes(id) ? '' : 'btn-ghost'}`} data-test={`bp-method-${id}`} onClick={() => toggle(id)}>{cur.includes(id) ? <Check size={11} /> : null} {name(id)}</button>
+            </Tip>
+          );
+        })}
+        {insts.map((id) => {
+          const k = AGAINST + id;
+          return (
+            <Tip key={k} content={() => <TipCard title={`Train against ${name(id)}`} value={cur.includes(k) ? 'used' : 'not used'}>What {name(id)} sees falls 70–90%; the true trait falls only 20–40%. {name(id)} gets a trained-against mark: its reliability on the new model drops (Goodhart).</TipCard>}>
+              <button className={`btn btn-sm ${cur.includes(k) ? '' : 'btn-ghost'}`} data-test={`bp-against-${id}`} onClick={() => toggle(k)}>⚑ vs {name(id)}</button>
+            </Tip>
+          );
+        })}
+        <ActBtn id="safety.methodPolicy" params={{ on: !policy }} label={policy ? 'Use all known: on' : 'Use all known: off'} testId="bp-method-policy" />
       </div>
       <span className="bp-span" />
     </>

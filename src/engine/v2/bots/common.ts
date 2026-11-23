@@ -122,6 +122,15 @@ export function staffLines(s: GameStateV2, api: EngineApi, plan: LinePlan[]) {
       need--;
     }
   }
+  keepLockdown(s, api);
+}
+
+/** SR-13b: before SR-13 owning T-LOCK was the comms lockdown; now it unlocks a safeguard item. Bots that research it
+ *  (BOT_IDEAS AG07) add it to every live internal agent package that lacks one, so their play keeps T-LOCK's effect. */
+export function keepLockdown(s: GameStateV2, api: EngineApi) {
+  if (!s.player.safety.techniques['T-LOCK']?.unlocked) return;
+  const ids = new Set(s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live' && !d.guards?.some((g) => g.kind === 'lockdown')).map((d) => d.versionId));
+  for (const versionId of ids) tryAct(s, api, 'safety.respond', { kind: 'addLockdown', versionId });
 }
 
 /** Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40). */

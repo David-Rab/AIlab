@@ -13,7 +13,8 @@
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
 //   C2  feature data (every feature acts where offered) and feature upkeep (block at the end)
-import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+import { PRODUCT_MONITOR_WATCH } from '../../src/data/v2/oversight';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
 import { enablerShare, fxOn } from '../../src/engine/v2/worldfx/serving';
@@ -101,7 +102,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const mini = cloneVersion(s, v0, 'VM', { variant: 'mini', fpt: v0.fpt * 0.25 });
   const api = prod(s, 'api');
   api.monitorId = mini.id;
-  check(Math.abs(monitorOverhead(s, api) - MONITOR_OVERHEAD * 0.25) < 1e-9, 'P4 D7: a mini monitor on its full model costs 0.25 × 0.25 = 6.25% of serving need', monitorOverhead(s, api).toFixed(4));
+  check(Math.abs(monitorOverhead(s, api) - PRODUCT_MONITOR_WATCH * 0.25) < 1e-9, 'P4 SR-12: a quarter-size mini monitor watching every pass costs 25% of serving need (watched share × cost ratio)', monitorOverhead(s, api).toFixed(4));
   // Late-game levels (M grows with level; at the start every model has M ≈ 1, so there is no gap yet).
   const hi = cloneVersion(s, v0, 'VH', {});
   hi.evals.measuredL = 11;

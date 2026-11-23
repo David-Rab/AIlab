@@ -24,7 +24,7 @@ import { playerDraw, type DataDraw } from '../production/data';
 import { tcoPerH100eYear } from '../production/production';
 import { consumeRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
-import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
+import { runExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import type {
   BaseDesign, BaseModel, Day, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RLFamily, RunKind, RunPrediction, SystemCtx,
@@ -266,7 +266,7 @@ export function baseGOf(d: BaseDesign, fz: BaseFreeze): BaseGOut {
 /** The RL recipe a post-training run launched today freezes: the RL stack's efficiency and ceiling, and (model v3 D5)
  *  the environment suites' fidelity and exploitability per family. */
 export interface RlRecipe { rlMid: number; rlCeil: number; fid?: FamilyMap; exploit?: FamilyMap }
-export const rlRecipeNow = (s: GameStateV2): RlRecipe => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s), fid: suiteFidMap(s), exploit: suiteExploitMap(s) });
+export const rlRecipeNow = (s: GameStateV2): RlRecipe => ({ rlMid: rlMidNow(s), rlCeil: rlCeilNow(s), fid: suiteFidMap(s), exploit: runExploitMap(s) });
 /** Everything a post-training run freezes at launch (RD-B02): the RL recipe, adopted ideas' domain effects, P07 (its
  *  horizon multiplier here, its persistent memory in the trait hook) and the serving stack's FLOP part. */
 export interface PostRecipe extends RlRecipe { domainG: Partial<Record<DomainId, number>>; p07: boolean; serveOom: number }
@@ -550,8 +550,7 @@ function planRl(s: GameStateV2, p: LaunchRunParams): ActPlan | string {
   // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
   let reason: string | undefined;
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
-  reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined)
-    ?? (d.inoculation ? optionLocked(s, 'inoculation', true) : undefined);
+  reason ??= optionLocked(s, 'pref', d.pref) ?? (d.cot !== 'latent' ? optionLocked(s, 'cot', d.cot) : undefined);
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) reason ??= optionLocked(s, 'rlFocus', f);
   if (d.cot === 'latent' && base.design.shape !== 'latent') reason = 'Latent CoT needs a latent base';
   if (base.design.shape === 'latent' && d.cot !== 'latent') reason = 'A latent base forces latent CoT';
@@ -623,7 +622,7 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   // its FLOP, its draw and P24; a continue run the pretraining stack on its added part; a post-train the RL stack and
   // suites, domain effects, P07 and the serving stack). Completion and the trait hook read only this.
   run.recipe = recipeAtLaunch(s, run);
-  if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', techniques: [...p.post.techniques], trainAgainst: [...p.post.trainAgainst] };
+  if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', methods: [...(p.post.methods ?? [])] };
   if (p.kind === 'distill') {
     // The student's size and tokens (teacher outputs) are fixed at launch, as the plan read them.
     const src = pretrainSourceOfParams(s, p);
@@ -647,7 +646,7 @@ const blankBeliefs = (src?: ModelVersion): Record<TraitId, TraitBelief> => {
   const out = {} as Record<TraitId, TraitBelief>;
   for (const t of TRAIT_IDS) {
     const b = src?.beliefs[t];
-    out[t] = b ? { est: b.est, sd: Math.min(0.35, b.sd + 0.05), clarity: Math.max(0, 1 - Math.min(0.35, b.sd + 0.05) / 0.35) } : { est: 0.2, sd: 0.3, clarity: 1 - 0.3 / 0.35 };
+    out[t] = b ? { est: b.est, sd: Math.min(0.35, b.sd + 0.05), clarity: Math.max(0, 1 - Math.min(0.35, b.sd + 0.05) / 0.35), evidence: [] } : { est: 0.2, sd: 0.3, clarity: 1 - 0.3 / 0.35, evidence: [] }; // placeholder: applyRunToTraits sets the beliefs
   }
   return out;
 };
@@ -675,7 +674,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const G = gOfBuild(build);
   const v: ModelVersion = {
     id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
-    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', inoculation: false, cot: 'visible', safety: 'standard', techniques: [], trainAgainst: [] }) },
+    variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', cot: 'visible', safety: 'standard', methods: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
     monitorability: 0.9, fpt: base.fpt, evals: { bench: {}, safety: {} }, beliefs: blankBeliefs(parent ?? versionById(s, s.player.agents.capRoutine.versionId)),

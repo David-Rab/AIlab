@@ -74,8 +74,8 @@ function readings(s: GameStateV2): Record<string, Reading> {
   const best = bestPlayerVersion(s);
   const running = p.models.runs.filter((r) => r.status === 'running').length;
   out.models = { text: best ? `${best.name}${running ? ` · ${running} run${running > 1 ? 's' : ''}` : ''}` : 'no model', tone: best ? (running ? 'good' : 'watch') : 'bad', tip: best ? [{ label: 'Best model', value: `${best.name} · L ${F.level(measuredLOf(s, best).L)}` }, { label: 'Runs in progress', value: String(running) }] : [] };
-  const u = engine.understanding(s);
-  out.assurance = { text: u.margin >= 0 ? 'ahead' : 'blind', tone: u.margin >= 0.3 ? 'good' : u.margin >= 0 ? 'watch' : 'bad', tip: [{ label: <Term id="gap">Understanding − capability</Term>, value: F.num(u.margin, 1, true) }] };
+  const u = engine.sightLimit(s);
+  out.assurance = { text: `sight limit L ${F.level(u.L)}`, tone: u.gap >= 0.3 ? 'good' : u.gap >= 0 ? 'watch' : 'bad', tip: [{ label: <Term id="sightLimit">Sight limit</Term>, value: `L ${F.level(u.L)} (${F.level(u.lo)}–${F.level(u.hi)}) · ${F.num(u.gap, 1, true)} vs capability` }] };
   const rd = productReadouts(s);
   const live = p.deployments.filter((d) => d.status === 'live' && rd.has(d.id));
   const capBound = live.filter((d) => rd.get(d.id)!.bound === 'capacity').length;

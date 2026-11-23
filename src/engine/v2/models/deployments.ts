@@ -88,7 +88,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   const d: Deployment = {
     id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`, kind: kindOfChannel(p.channel),
     versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price), effort: p.effort ?? 'max',
-    servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', controlLayer: p.controlLayer ?? false,
+    servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', guards: (p.guards ?? []).map((g) => ({ ...g })),
     packs: re.packs.map((x) => ({ ...x })), features: [...(p.features ?? [])],
     ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.miniVersionId ? { miniVersionId: p.miniVersionId } : {}),
     usagePolicy,
@@ -146,7 +146,7 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
     id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-    safeguards: 'standard', controlLayer: false, packs: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
+    safeguards: 'standard', guards: [{ kind: 'review', since: s.time.day }], packs: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
   });
   if (v.status === 'ready') v.status = 'deployed';
   return undefined;

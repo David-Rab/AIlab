@@ -5,6 +5,7 @@
 //   P27 aarAuto (+ P27_AAR.fitOom in workfit.ts)     the safety AI labour of research lines (lineProjects.ts)
 //   F44 aarFindingOom (model v3 E14)                 the safety model's fit on the benchmarked agendas' lines (lineProjects.ts)
 //   AG17's harness (workfit.ts ag17HarnessOom, E14)  the safety package's SAF_* fit from AG17's science teams
+import { LOCKDOWN_COLLUSION_MULT, lockdownOn } from './safeguards';
 import { COPY_COLLUSION } from '../../../data/v2/features';
 import { F44_AAR, FAITHFUL_COT, P14_STEER, P15_OVERSIGHT, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { TRAIT_ORDER } from '../../../data/v2/traits';
@@ -91,8 +92,7 @@ export function aiOversight(s: GameStateV2): AiOversight {
   const critic = agentVersion(s, 'safety');
   const policy = internalVersion(s);
   const collusion = !!critic && !!policy && sameLineage(critic, policy);
-  const lock = s.player.safety.techniques['T-LOCK'];
-  const pen = collusion ? COPY_COLLUSION * (lock?.unlocked && lock.active ? 0.5 : 1) : 0;
+  const pen = collusion ? COPY_COLLUSION * (lockdownOn(s) ? LOCKDOWN_COLLUSION_MULT : 1) : 0;
   const Aeff = A * (1 - pen);
   return { A, collusion, Aeff, cashMult: 1 - A * (1 - P15_OVERSIGHT.aiCostRatio), cutMult: 1 + P15_OVERSIGHT.criticGain * Aeff };
 }

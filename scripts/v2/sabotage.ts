@@ -6,6 +6,7 @@
 //   (one mechanism with E2's); steering puts a hidden cost (CoT pressure → obfuscation) into adopted capability results
 //   while capability, estimates and predicted beliefs are unchanged; successor steering raises the pull only when uncaught; caught acts become incidents; the safety fleet's
 //   copies count in the internal scale.
+import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { COVERT_ACTS, COVERT_ANCHOR, COVERT_ANCHOR_X, COVERT_IDS, STEER_S4, type CovertActId } from '../../src/data/v2/danger';
@@ -131,7 +132,7 @@ const f3 = (x: number) => x.toFixed(3);
   // Oversight: the AG07 control layer on the internal deployment (containment blocks, deferral cuts misses).
   const off = itemTerms(s, v, 'STEER', 1, 8);
   const ctl = clone(s);
-  for (const d of ctl.player.deployments) if (d.channel === 'internal') d.controlLayer = true; for (const a of Object.values(ctl.player.agents)) a.control = true;
+  for (const d of ctl.player.deployments) if (d.channel === 'internal') setControl(d, true); for (const a of Object.values(ctl.player.agents)) a.control = true;
   resetWorkContext(ctl);
   const on = itemTerms(ctl, ctl.player.models.versions.find((x) => x.id === v.id)!, 'STEER', 1, 8);
   check(on.oversight > off.oversight && on.rate < off.rate && Math.abs(on.attempts - off.attempts) < 1e-12, 'oversight: the control layer raises oversight and cuts the acts that get through (attempts unchanged)', `oversight ${f3(off.oversight)} → ${f3(on.oversight)}; uncaught ${pct(off.rate)} → ${pct(on.rate)}`);
@@ -265,7 +266,7 @@ const f3 = (x: number) => x.toFixed(3);
   check(caught > 0 && caught === covertRecord(bad, 'STEER').caught && bad.player.safety.incidents.slice(inc0).every((x) => x.exposure === 'internal' && ['SCHEME', 'POWER', 'PROXY'].includes(String(x.apparent))),
     'steering: caught attempts are internal incidents (SCHEME/POWER/PROXY)', `${caught} caught`);
   // The next post-training run: more obfuscation (S4 → OBF, E15) in the TRUE traits; the predicted beliefs do not show it.
-  const post: PostDesign = { ...REFERENCE_POST, techniques: [], trainAgainst: [] };
+  const post: PostDesign = { ...REFERENCE_POST, methods: [] };
   const train = (steer: number) => {
     const g = game();
     setFlag(g, 'covert.STEER.steered', steer);

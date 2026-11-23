@@ -24,7 +24,7 @@ import './suites.css';
 
 /** store.tab key of the planned run (the Blueprint's post-train params, JSON) and the fields kept. */
 export const PLAN_KEY = 'models.plan';
-const PLAN_FIELDS = ['baseId', 'rlFocus', 'rlBudget', 'pref', 'cot', 'safety', 'inoculation'] as const;
+const PLAN_FIELDS = ['baseId', 'rlFocus', 'rlBudget', 'pref', 'cot', 'safety', 'methods'] as const;
 const DOMS = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'] as const;
 /** Width of the S2 bar (px, suites.css .sx-s2bar): a segment is labelled when its family name fits. */
 const S2_BAR_PX = 400;

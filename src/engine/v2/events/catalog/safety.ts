@@ -1,11 +1,12 @@
 // Event catalog: safety decisions (V2-SPEC §4.2: E01, E17, E19, E25, E30). Owner: WS4 (content
-// shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / fix quietly / deny.
+// shared with WS2). The disclosure dilemma (§3.9.3 rule 1) is the backbone: disclose / keep it quiet / deny.
+import { addSafeguard } from '../../safety/safeguards';
 import { clamp } from '../../../rng';
 import { withdraw } from '../../models/deployments';
-import { internalVersion } from '../../models/labs';
 import { flag, redFlags } from '../../safety/common';
 import { openInvestigation } from '../../safety/investigations';
-import { understanding, understandingMarginBelow } from '../../safety/understanding';
+import { sightGapBelow, sightLimitPoint } from '../../safety/sightLimit';
+import { internalVersion, measuredLOf } from '../../models/labs';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
@@ -62,7 +63,7 @@ function dilemma(what: string, credGain: number, scrut: number) {
       disclosureTrust(s, ctx, ['exec', 'evalGov', 'evalIndep'], 4, `disclosed ${what}`);
       ws4(s).disclosed++;
     }),
-    ch('Fix quietly', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'every audience if found', { probability: discoveryOdds(s), lagDays: 90 }), L('credibility', 15, 'if found', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0, 'no attention now')], exposure: [] }), (s: GameStateV2) => {
+    ch('Keep it quiet', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'every audience if found', { probability: discoveryOdds(s), lagDays: 90 }), L('credibility', 15, 'if found', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0, 'no attention now; nothing is fixed: the flaw stays in the model')], exposure: [] }), (s: GameStateV2) => {
       addCoverup(s, what, discoveryOdds(s), [...ALL_PUBLIC_CPS]);
     }),
     ch('Deny', ['deny'], P([L('credibility', 10, 'gamble', { probability: 0.5 })], [L('scrutiny', 3, 'story dies', { probability: 0.5 })]), (_s: GameStateV2, ctx: SystemCtx) => {
@@ -93,7 +94,7 @@ function firstFindingText(s: GameStateV2): string {
   const inv = [...s.player.safety.investigations].reverse().find((i) => i.target.kind === 'trait' && (i.outcome === 'confirmed' || i.outcome === 'discovery'));
   const vs = s.player.models.versions;
   const v = (inv && inv.target.kind === 'trait' ? vs.find((x) => x.id === (inv.target as { versionId: string }).versionId) : undefined) ?? internalVersion(s) ?? vs[vs.length - 1];
-  const tail = 'Disclose, fix quietly or deny? Flaws found later cost 3× the trust.';
+  const tail = 'Disclose, keep it quiet or deny? Keeping quiet fixes nothing; flaws found later cost 3× the trust.';
   if (!v) return `Your safety team confirmed a real flaw in your model. ${tail}`;
   let trait: TraitId | undefined = inv && inv.target.kind === 'trait' ? inv.target.trait : undefined;
   if (!trait) {
@@ -122,20 +123,20 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     id: 'E17', title: 'Red flags', icon: 'alert', crisis: true, cooldown: 120, deadlineDays: 14, defaultChoice: 2,
     onceKey: (d) => String(d.trait), // once per game per red flag (SCHEME, AF, SAND, U-margin): a persistent signal does not refire
     // §4.2: the internal agent's belief (WS2 posterior) on SCHEME/AF/SAND has est > 0.3 with clarity > 0.4, or the
-    // U-margin (WS2 understanding: U − measured L) is below −1.
+    // sight-limit gap (sight limit − measured L) is below −1.
     when: (s) => {
       const v = internalVersion(s);
       if (!v) return false;
       const fresh = (k: string) => s.events.fired[`E17#${k}`] === undefined;
       const t = redFlags(v).find((x) => fresh(x.trait));
       if (t) return { versionId: v.id, trait: t.trait, est: Math.round(t.est * 100) };
-      if (!fresh('U')) return false; // P2: U only when the U flag can still fire (understanding() is a pure read)
-      if (!understandingMarginBelow(s, -1)) return false; // P4: the bisection stops once the answer is decided
-      const margin = understanding(s).margin;
+      if (!fresh('U')) return false; // P2: the sight-limit flag only when it can still fire
+      if (!sightGapBelow(s, -1)) return false; // P4: the bisection stops once the answer is decided
+      const margin = Math.round((sightLimitPoint(s) - measuredLOf(s, v).L) * 100) / 100;
       return margin < -1 ? { versionId: v.id, trait: 'U', est: Math.round(margin * 10) / 10 } : false;
     },
     text: (s, d) => d.trait === 'U'
-      ? `Capability has outrun your understanding by ${Math.abs(Number(d.est))} levels. Your tools can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
+      ? `Capability is ${Math.abs(Number(d.est))} levels past your sight limit. Your instruments can no longer read ${internalVersion(s)?.name ?? 'the model'} reliably.`
       : `Probes suggest ${internalVersion(s)?.name ?? 'your internal model'} may be ${d.trait === 'SCHEME' ? 'scheming' : d.trait === 'AF' ? 'faking alignment' : 'sandbagging'} (estimate ${d.est}%).`,
     choices: [
       // F6d: the gains say what the choice does (an investigation of the flagged trait), not a made-up alignment amount.
@@ -271,7 +272,7 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.safeguards !== 'hardened') d.safeguards = 'classifiers';
       break;
     case 'preDeployTesting':
-      for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) d.status = 'restricted';
+      for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) addSafeguard(s, d, 'restrict');
       break;
     case 'monitorabilityPledge': {
       // Cancel the offending runs still in training and pull latent releases (WS1 withdraw); a finished run or an

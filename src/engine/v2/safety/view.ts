@@ -11,13 +11,14 @@ import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, FindingType, GameStateV2, Incident, TraitBelief, TraitId, UModeId } from '../types';
 import { flagNum, versionById } from './common';
 import { levelOfOom, oomOfLevel } from './oversight';
-import { deadEndTotal, lineCapacity, lineMult, lineResultsPerYear, lineTeams, posteriorBand, promisingIdle, safetyRe, upkeepState, type LineHealth } from './agendas';
+import { deadEndTotal, lineCapacity, lineMult, lineResultsPerYear, lineTeams, posteriorBand, promisingIdle, safetyRe, type LineHealth } from './agendas';
 import { decayAt, strengthBelieved, techniqueRole } from './techniques';
 import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate } from './traits';
-import { familySeenTo, nearestDecay, understanding } from './understanding';
+import { sightLimit } from './sightLimit';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
 import { lineLabour } from './lineProjects';
+import { validationView } from './validation';
 import { monitorBudget, safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
@@ -76,10 +77,9 @@ export function lineBadges(s: GameStateV2): { promisingIdle: AgendaId[]; deadEnd
 }
 
 /** The four risk families of a version (STRUCTURE §4.5, L1): the worst believed trait in each with its band, how clearly
- *  the tools read it, whether a case is open on it, and the level up to which the tools see it. */
+ *   the tools read it and whether a case is open on it. */
 export function riskFamilies(s: GameStateV2, versionId?: string) {
   const v = versionById(s, versionId) ?? internalVersion(s);
-  const seen = v ? familySeenTo(s, v) : undefined;
   return RISK_FAMILIES.map((f) => {
     let worst: TraitId = f.traits[0];
     let clar = 0;
@@ -92,42 +92,25 @@ export function riskFamilies(s: GameStateV2, versionId?: string) {
     const sd = b?.sd ?? 0.35;
     const investigating = !!v && s.player.safety.investigations.some((i) => !i.outcome && ((i.target.kind === 'trait' && i.target.versionId === v.id && f.traits.includes(i.target.trait))
       || (i.target.kind === 'incident' && s.player.safety.incidents.some((x) => x.id === (i.target as { incidentId: string }).incidentId && x.versionId === v.id && f.traits.includes(x.apparent as TraitId)))));
-    const seenTo = seen?.[f.id] ?? 0;
     return {
       id: f.id, label: f.label, traits: f.traits, worst, est, sd, lo: Math.max(0, est - 1.64 * sd), hi: Math.min(1, est + 1.64 * sd),
-      clarity: clar / f.traits.length, seenTo, critical: f.traits.some((t) => CRITICAL_TRAITS.includes(t)),
+      clarity: clar / f.traits.length, critical: f.traits.some((t) => CRITICAL_TRAITS.includes(t)),
       // Unseen: the tools cannot read the family's beliefs (mean clarity under 0.3, as the Company risk badges).
       unseen: clar / f.traits.length < RISK_UNSEEN_CLARITY, investigating,
     };
   });
 }
 
-/** Tool upkeep (R8, L3 in the U tooltip): tools validated to (the level where the median detection tool's strength
- *  halves), how fast safety research engineers raise it vs how fast capability rises, and when tools fall behind. */
-export function upkeepView(s: GameStateV2) {
-  const u = upkeepState(s);
+/** SR-09 validation (replaces tool upkeep): the jobs queue and policy (validation.ts validationView), the safety
+ *  research engineers' split and how fast measured capability rises. */
+export function validationPanel(s: GameStateV2) {
   const re = safetyRe(s);
-  const w = s.hidden.timeline;
-  const v = internalVersion(s);
-  const L = measuredLOf(s, v).L;
-  const det = Object.values(s.player.safety.techniques).filter((t) => t.unlocked && t.active && !t.falseValidated && techniqueRole(t) !== 'fix' && t.k > 0 && t.oHalf < 1e8);
-  const halves = det.map((t) => t.oHalf).sort((a, b) => a - b);
-  const median = halves.length ? halves[Math.floor((halves.length - 1) / 2)] : undefined;
-  // Model v3 E6: half points are OOM above the start model; shown as the level a model at that capability has.
-  const validatedTo = median !== undefined ? levelOfOom(w, median) : undefined;
-  const inUpkeep = median !== undefined && u.tools.some((t) => t.oHalf === median);
-  const upkeepPerMo = validatedTo !== undefined && inUpkeep ? levelOfOom(w, (median as number) + u.oomPerDay * 30) - validatedTo : 0;
+  const L = measuredLOf(s, internalVersion(s)).L;
   const S = s.series;
   const n = S.Lmeasured.length;
   const back = Math.min(13, n - 1);
   const capPerMo = back > 0 ? Math.max(0, (S.Lmeasured[n - 1] - S.Lmeasured[n - 1 - back]) / (back * 7 / 30.4)) : 0;
-  const gap = validatedTo !== undefined ? validatedTo - L : 0;
-  const closing = capPerMo - upkeepPerMo;
-  return {
-    validatedTo, L, upkeepPerMo, capPerMo, behindInMonths: validatedTo !== undefined && gap > 0 && closing > 1e-6 && gap / closing <= 24 ? gap / closing : validatedTo !== undefined && gap <= 0 ? 0 : undefined,
-    toolsInUpkeep: u.tools.length, toolsTotal: det.length, heads: re.heads, upkeepHeads: re.upkeep, perTool: u.perTool,
-    investigations: re.investigations, patches: re.patches, experiments: re.experiments, daysPerOom: u.oomPerDay > 0 ? 1 / u.oomPerDay : undefined,
-  };
+  return { ...validationView(s), L, capPerMo, heads: re.heads, validationHeads: re.validation, investigations: re.investigations, patches: re.patches, experiments: re.experiments };
 }
 
 export function techniqueRows(s: GameStateV2): TechniqueRow[] {
@@ -196,7 +179,7 @@ export function traitGraph(s: GameStateV2) {
 /** What the safety department's people, compute and agents are doing right now (R8: science teams on research lines,
  *  research engineers on cases, patches and tool upkeep). */
 export interface SafetyUtilisation {
-  staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; upkeep: number; idleRe: number };
+  staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; validation: number; idleRe: number };
   /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
   compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number; claims: SafetyPoolClaims };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
@@ -232,7 +215,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const v = safetyAgentVersion(s);
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
-    staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, upkeep: re.upkeep, idleRe: re.idle },
+    staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, validation: re.validation, idleRe: re.idle },
     compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got), claims },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };
@@ -240,10 +223,8 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
 
 /** Everything the Safety panel needs in one call. */
 export function safetyView(s: GameStateV2) {
-  const u = understanding(s);
   return {
-    understanding: u,
-    nextDecay: nearestDecay(s),
+    sightLimit: sightLimit(s),
     lines: lineRows(s),
     lineBadges: lineBadges(s),
     techniques: techniqueRows(s),
@@ -254,7 +235,7 @@ export function safetyView(s: GameStateV2) {
     beliefs: beliefView(s),
     evalGate: s.player.safety.evalGate,
     utilisation: safetyUtilisation(s),
-    upkeep: upkeepView(s),
+    validation: validationPanel(s),
     monitorabilityCommitment: s.player.safety.monitorabilityCommitment,
   };
 }

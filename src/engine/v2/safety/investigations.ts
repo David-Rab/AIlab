@@ -16,7 +16,7 @@ import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { GameStateV2, Incident, Investigation, ModelVersion, SystemCtx, TechniqueState, ToolFamily, TraitId, UModeId } from '../types';
 import { clamp01, flag, versionById } from './common';
 import { versionOom } from './oversight';
-import { combineTools, familyPenalty, observeVersion } from './detection';
+import { combineTools, familyPenalty, observeVersion, withEvidence } from './detection';
 import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
@@ -25,6 +25,8 @@ import { patchFte } from './responses';
 import { caseOnModel } from './footholdDetection';
 import { casesServed } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
+import { labReviewOn, reviewStaff } from './safeguards';
+import { aiRdShare } from './incidents';
 
 /** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
 export function safetyReHeads(s: GameStateV2): number {
@@ -32,6 +34,14 @@ export function safetyReHeads(s: GameStateV2): number {
   for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') h += t.heads * QUALITY[t.quality].out;
   return h;
 }
+
+/** SR-13b: safety research engineers the safeguards need (the "safeguards" line of the safety needs list): human review
+ *  on the lab's internal work takes reviewStaff(human share of R&D), the people cost its safeguard line shows. */
+export function safeguardFte(s: GameStateV2): number {
+  return labReviewOn(s) ? reviewStaff(1 - aiRdShare(s)) : 0;
+}
+/** Safety research engineers committed before line experiments: investigations, patches and safeguards. */
+export const committedFte = (s: GameStateV2) => investigationFte(s) + patchFte(s) + safeguardFte(s);
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;
@@ -82,7 +92,7 @@ export function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
 export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Investigation['target'], fte: number, opts: OpenInvestigationOpts = {}): Investigation | string {
   const dept = s.player.safety;
   if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} research engineers`;
-  if (investigationFte(s) + patchFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
+  if (committedFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';
@@ -175,7 +185,7 @@ export function investigationsStep(s: GameStateV2, ctx: SystemCtx): void {
         for (const fam of ['BB', 'COT', 'WB', 'OR'] as ToolFamily[]) {
           const items = toolsOf(s, inv).filter((t) => t.family === fam).map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) }));
           const d = combineTools(items);
-          if (d > 0.05) observeVersion(s, ctx.rng('safety'), ctx.day, v, k, fam, d);
+          if (d > 0.05) observeVersion(s, ctx.rng('safety'), ctx.day, v, k, fam, d, 1, 'case');
         }
       }
     }
@@ -250,13 +260,18 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
     const est = clamp01(x + rng.normal(0, 0.1 * (1 - c) + 0.02));
     detail.severityEst = Math.round(est * 100) / 100;
     const b = v.beliefs[k];
-    v.beliefs[k] = { est, sd: Math.min(b?.sd ?? 0.35, 0.05 + 0.1 * (1 - c)), clarity: 0, lastObsDay: ctx.day };
+    const sdC = Math.min(b?.sd ?? 0.35, 0.05 + 0.1 * (1 - c));
+    v.beliefs[k] = { est, sd: sdC, clarity: 0, lastObsDay: ctx.day, evidence: withEvidence(b?.evidence, { day: ctx.day, source: 'case', reading: est, noise: sdC }) };
     v.beliefs[k].clarity = Math.max(0, 1 - v.beliefs[k].sd / 0.35);
     if (inc && inc.apparent === 'unexplained') inc.apparent = k;
   } else if (outcome === 'benign' || outcome === 'falseAlarm') {
     // The player is told it's nothing: belief pulled down (wrong if corrupted).
     const b = v.beliefs[k];
-    if (b) v.beliefs[k] = { est: Math.min(b.est, corrupted ? 0.05 : Math.max(0.02, x * 0.8)), sd: Math.max(0.06, b.sd * 0.7), clarity: 0, lastObsDay: ctx.day };
+    if (b) {
+      const est = Math.min(b.est, corrupted ? 0.05 : Math.max(0.02, x * 0.8));
+      const sd = Math.max(0.06, b.sd * 0.7);
+      v.beliefs[k] = { est, sd, clarity: 0, lastObsDay: ctx.day, evidence: withEvidence(b.evidence, { day: ctx.day, source: 'case', reading: est, noise: sd }) };
+    }
     if (v.beliefs[k]) v.beliefs[k].clarity = Math.max(0, 1 - v.beliefs[k].sd / 0.35);
     if (inc) inc.status = 'resolved';
   } else if (outcome === 'discovery' && uMode) {

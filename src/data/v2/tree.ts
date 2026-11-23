@@ -28,7 +28,7 @@ import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'inoculation' | 'effort';
+export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'effort';
 
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
@@ -197,12 +197,12 @@ export const TREE: TreeNodeDef[] = [
   S('T-SPEC', 'Constitution / spec', 'alignment', 'training', [], 'AG18', undefined, { saf: 1 }, { star: true, cap: 'Appeal 1.0', saf: 'Honesty +0.05; low approval-reward pressure; two power-seeking paths −30% (not with minimal alignment training); the training-signal line heals value traits best with it' }),
   S('T-HARDEN', 'Environment hardening', 'alignment', 'training', [], 'AG18', undefined, {}, { star: true, saf: 'No effect of its own: it leads to inoculation prompting. Suites are hardened on the Suites tab' }),
   S('T-CONFESS', 'Honesty & confession training', 'alignment', 'training', ['T-SPEC'], 'AG18', 'M', { saf: 1 }, { saf: 'Concealment removal' }),
-  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { saf: 'Hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
+  S('T-INOC', 'Inoculation prompting', 'alignment', 'training', ['T-HARDEN'], 'AG18', 'S', { saf: 1 }, { saf: 'Run method: hacking → misalignment ×0.15 (persona, learned hacking, proxy goals)' }),
   S('T-FILTER', 'Hazard data filtering', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { cap: 'Removes a third of the bio and cyber training text (dual-use virology, exploit write-ups): weaker BIO and CYBER, the rest barely changed', saf: 'Survives fine-tuning (open weights)' }),
   S('safetyPretrain', 'Safety pretraining', 'alignment', 'backbone', [], 'AG15', 'M', { cap: -1, saf: 1 }, { cap: 'Filters text about AI and adds alignment examples: −0.02 OOM effective compute', saf: 'Situational-awareness pressure −' }),
   S('T-PERSONA', 'Persona vectors', 'alignment', 'training', ['T-STEER'], 'AG03', 'M', { saf: 1 }, { saf: 'Sycophancy / persona fix' }),
   S('T-W2S', 'Weak-to-strong training', 'alignment', 'training', ['T-CONFESS'], 'AG06', 'M', { saf: 1 }, { saf: 'Sycophancy / proxy-goal fix' }),
-  S('T-UNDO', 'Unlearning', 'alignment', 'training', ['T-FILTER'], 'AG15', 'M', {}, { saf: 'No effect in play yet: nothing applies unlearning to a model' }),
+  S('T-UNDO', 'Unlearning', 'alignment', 'training', ['T-FILTER'], 'AG15', 'M', {}, { saf: 'Run method: hazardous bio / cyber capability ×0.5 for misuse, kept under open-weights fine-tuning' }),
   S('T-ANTISCHEME', 'Anti-scheming training', 'alignment', 'training', ['T-CONFESS', 'T-PROBE'], 'AG18', 'L', { saf: 2 }, { saf: 'Scheming −95% in training', cost: 'Eval awareness ×2' }),
   S('T-CAST', 'Corrigibility target', 'alignment', 'training', ['T-W2S'], 'AG12', 'XL', { saf: 2 }, { saf: 'Corrigibility +', cost: 'Long shot' }),
 
@@ -292,7 +292,7 @@ export const OPTION_NODE: Record<string, string> = {
   'pref:engagement': 'engagement', 'pref:persuasion': 'persuasion', 'pref:constitution': 'T-SPEC',
   'rlFocus:math': 'rl.math', 'rlFocus:swe': 'rl.swe', 'rlFocus:mlResearch': 'rl.mlResearch', 'rlFocus:longHorizon': 'rl.longHorizon',
   'rlFocus:cyber': 'rl.cyber', 'rlFocus:bio': 'rl.bio', 'rlFocus:computerUse': 'P06',
-  'cot:visible': 'P01', 'cot:faithful': 'P23', 'inoculation:true': 'T-INOC',
+  'cot:visible': 'P01', 'cot:faithful': 'P23',
   'effort:low': 'P03', 'effort:max': 'P03', 'effort:deep': 'P05',
 };
 /** Design options each node unlocks, derived from OPTION_NODE (table order). */

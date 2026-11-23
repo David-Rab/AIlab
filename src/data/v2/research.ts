@@ -157,7 +157,7 @@ export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'evals', 'e
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };
 /** RD-A04: the safety research engineers' default order is the pre-RD-A04 sequence (cases and patches first, then line
  *  experiments, the rest on tool re-validation), without the old SAF_EXP_SHARE cap. */
-export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: ['cases', 'patches', 'safExp', 'reval'], max: {}, share: {} };
-export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = { cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', reval: 'Tool re-validation' };
+export const DEFAULT_SAF_RE_ALLOC: Allocation<SafReNeed> = { order: ['cases', 'patches', 'safExp', 'validation'], max: {}, share: {} };
+export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = { cases: 'Open cases', patches: 'Patches & removals', safExp: 'Line experiments', validation: 'Validation jobs' };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', evals: 'Evaluations', exp: 'Project experiments' };
 export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector packs)' };

@@ -1,15 +1,17 @@
 // Technique strength vs capability, Goodhart, refresh, containment (V2-SPEC §3.5.6–3.5.7; model v3 E6). Owner: WS2.
 //
 // Model v3 E6: capability is read in OOM of effective compute above the start model (safety/oversight.ts), never in
-// the research multiplier M. A tool's strength factor is D(x) = 1/(1 + 10^(k·κ·(x − oHalf))): it holds while the
-// overseen model is near the capability the tool was validated on and halves `oHalf` OOM above V0 (tool upkeep raises
-// oHalf; data/v2/oversight.ts DECAY_KAPPA keeps v2's half points on the reference path).
+// the research multiplier M. A tool's decay factor is D(gap) = 1/(1 + 10^(k·κ·(gap − oHalf))), gap = the overseen
+// model's OOM above the model the tool was validated on (SR-08 validatedOom; V0 for start tools, so their half points
+// are v2's): it holds near that model and halves `oHalf` OOM above it (tool upkeep raises oHalf; data/v2/oversight.ts
+// DECAY_KAPPA). The full reliability definition is safety/instruments.ts reliability().
 import { AG09_LATENT, AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { AG05_OVERSIGHT, DECAY_KAPPA, OOM_PER_400_ELO } from '../../../data/v2/oversight';
 import { TECHNIQUES, TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { GameStateV2, TechniqueId, TechniqueState, ToolFamily } from '../types';
 import { believedEfficacy, flag, lambda2Delta, trueEfficacy } from './common';
-import { oomOfLevel } from './oversight';
+import { oomOfLevel, versionOom } from './oversight';
+import { internalVersion } from '../models/labs';
 
 /** Half-strength decay in OOM: 1/(1 + 10^(k·κ·(x − x½))); k ≤ 0 or x½ = ∞ never decays. */
 export function decayOom(x: number, oHalf: number, k: number): number {
@@ -17,11 +19,27 @@ export function decayOom(x: number, oHalf: number, k: number): number {
   return 1 / (1 + Math.pow(10, k * DECAY_KAPPA * (x - oHalf)));
 }
 
-/** strength_t(x) = s0 · e · D(x) · (1 − G·trainedAgainst) · (falseValidated ? 0 : 1), x = the overseen model's OOM above
- *  the start model. */
-export function techniqueStrength(t: TechniqueState, efficacy: number, x: number): number {
-  if (t.falseValidated) return 0;
-  return t.s0 * efficacy * decayOom(x, t.oHalf, t.k) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+/** SR-08: capability gap of a model at x OOM above V0 from the model the instrument was validated on (≥ 0). */
+export function validationGap(t: TechniqueState, x: number): number {
+  return Math.max(0, x - (t.validatedOom ?? 0));
+}
+
+/** Goodhart factor (1 − G·trainedAgainst) ≥ 0. */
+export function goodhartFactor(t: TechniqueState): number {
+  return Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+}
+
+/** SR-08 model-free part of an instrument's reliability: s0 · efficacy · D(gap from the validated model, by kind) ·
+ *  (1 − G·trainedAgainst). TRUE: hidden efficacy, falseValidated → 0 (engine only); BELIEVED: posterior-mean efficacy
+ *  (or `eff`), a false-validated instrument looks real. The per-model penalties are added by
+ *  safety/instruments.ts reliability(), the one reliability definition. */
+export function reliabilityBase(s: GameStateV2, t: TechniqueState, x: number, believed: boolean, eff?: number): { base: number; efficacy: number; decay: number; goodhart: number } {
+  const efficacy = eff ?? (believed ? believedEfficacy(s, t.agenda) : trueEfficacy(s, t.agenda));
+  const decay = decayAt(s, t, x, lambda2Delta(s) <= -2);
+  const goodhart = goodhartFactor(t);
+  // SR-10: the believed side carries the player's trust factor from evidence (validations, disagreements); true unchanged.
+  const base = believed ? Math.min(1, t.s0 * efficacy * decay * goodhart * (t.trust?.f ?? 1)) : t.falseValidated ? 0 : t.s0 * efficacy * decay * goodhart;
+  return { base, efficacy, decay, goodhart };
 }
 
 /** Capability decay D(x) with the AG09-under-latent override (R14: 250/1 legible → 5/2 neuralese, i.e. half strength at
@@ -33,21 +51,19 @@ export function decayAt(s: GameStateV2, t: TechniqueState, x: number, latentKnow
     const gap = Math.max(0, x - xo - (flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0));
     return Math.pow(AG05_OVERSIGHT.base, gap / OOM_PER_400_ELO);
   }
-  if (t.agenda === 'AG09' && latentKnown) return decayOom(x, Math.min(t.oHalf, AG09_LATENT.oHalf), AG09_LATENT.k);
-  return decayOom(x, t.oHalf, t.k);
+  const gap = validationGap(t, x);
+  if (t.agenda === 'AG09' && latentKnown) return decayOom(gap, Math.min(t.oHalf, AG09_LATENT.oHalf), AG09_LATENT.k);
+  return decayOom(gap, t.oHalf, t.k);
 }
 
-/** TRUE strength (hidden efficacy, falseValidated → 0). Engine only. */
+/** TRUE model-free reliability (reliabilityBase). Engine only. */
 export function strengthTrue(s: GameStateV2, t: TechniqueState, x: number): number {
-  if (t.falseValidated) return 0;
-  const latent = lambda2Delta(s) <= -2;
-  return t.s0 * trueEfficacy(s, t.agenda) * decayAt(s, t, x, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+  return reliabilityBase(s, t, x, false).base;
 }
 
-/** BELIEVED strength: posterior-mean efficacy; a false-validated technique looks real. Safe for UI and U. */
+/** BELIEVED model-free reliability (reliabilityBase). Safe for UI and U. */
 export function strengthBelieved(s: GameStateV2, t: TechniqueState, x: number): number {
-  const latent = lambda2Delta(s) <= -2;
-  return t.s0 * believedEfficacy(s, t.agenda) * decayAt(s, t, x, latent) * Math.max(0, 1 - t.goodhart * t.trainedAgainst);
+  return reliabilityBase(s, t, x, true).base;
 }
 
 /** Technique state from its data row. */
@@ -56,7 +72,7 @@ export function techniqueFromDef(id: TechniqueId, unlocked: boolean): TechniqueS
   const a = AGENDA_BY_ID[d.agenda];
   return {
     id, agenda: d.agenda, family: d.family, unlocked, active: unlocked && d.role !== 'fix',
-    s0: d.s0, oHalf: a.oHalf, k: a.k, goodhart: a.G, trainedAgainst: 0, falseValidated: false, coverage: { ...d.coverage },
+    s0: d.s0, oHalf: a.oHalf, k: a.k, goodhart: a.G, trainedAgainst: 0, trainedAgainstOn: null, validatedOn: null, validatedOom: 0, falseValidated: false, coverage: { ...d.coverage },
   };
 }
 
@@ -88,6 +104,10 @@ export function unlockTechnique(s: GameStateV2, id: TechniqueId): boolean {
   if (!t || t.unlocked) return false;
   t.unlocked = true;
   t.active = techniqueRole(t) !== 'fix';
+  // SR-08: validated on the internal model at unlock (SR-09 replaces this with validation jobs).
+  const iv = internalVersion(s);
+  t.validatedOn = iv?.id ?? null;
+  t.validatedOom = iv ? versionOom(s, iv) : 0;
   s.player.safety.techniques[id] = t;
   return true;
 }

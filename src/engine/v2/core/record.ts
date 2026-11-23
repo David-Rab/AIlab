@@ -1,9 +1,8 @@
 // record (160, weekly): series samples and cause-ledger trim (V2-SPEC §2.2, §2.5 budgets). Owner: WS1.
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { bestG, bestLg, internalVersion, measuredLOf, otherLabs } from '../models/labs';
-import { reValidationMult } from '../safety/agendas';
 import { misalignment, misalignmentEstimate } from '../safety/traits';
-import { trueUnderstanding, understanding } from '../safety/understanding';
+import { sightLimitPoint, trueSightLimit } from '../safety/sightLimit';
 import { recordCause, trimCauses } from './causes';
 import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 
@@ -33,12 +32,12 @@ export function sampleSeries(s: GameStateV2) {
   // A freshly switched internal agent has no measurement yet: hold the last measured level instead of dropping to 0
   // (M4 fix: the 0-dips made the causal replay report level swings of +40 on the 0–15 scale).
   S.Lmeasured.push(r3(v?.evals.measuredL ?? S.Lmeasured[S.Lmeasured.length - 1] ?? 0));
-  const U = r3(understanding(s).U);
+  const U = r3(sightLimitPoint(s)); // SR-11: series key U = the believed sight limit
   noteUnderstandingMove(s, U, S.U[S.U.length - 1]);
   S.U.push(U);
-  // Hidden: L − U_true drives trait drift (WS2 traits.ts understandingGapGrowth, M4).
-  const tu = trueUnderstanding(s);
-  s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.L - tu.U));
+  // Hidden: level − true sight limit, read by bot diagnostics only (SR-02 removed the trait-growth amplifier).
+  const tu = trueSightLimit(s);
+  s.flags['ws2.gapTrue'] = r3(Math.max(0, tu.level - tu.L));
   S.M.push(r3(s.player.research.last?.x?.mExp ?? 1)); // RD-R01: the engine's AI labour multiplier in experiments (was the aggregate M)
   S.cash.push(r3(s.player.finance.cash));
   S.revenue.push(r3(s.player.finance.revenueRun));
@@ -67,7 +66,7 @@ function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefi
     L: measuredLOf(s, v).L,
     tools: tools.map((t) => t.id).sort().join(','),
     ea: Math.round((v?.beliefs.EA?.est ?? 0) * 100) / 100,
-    val: Math.round(reValidationMult(s) * 100) / 100,
+    val: Object.values(s.player.safety.techniques).filter((t) => t.measured?.on === v?.id).length,
   };
   const prev = s.flags['ws2.uDrivers'];
   s.flags['ws2.uDrivers'] = JSON.stringify(now);
@@ -86,7 +85,7 @@ function noteUnderstandingMove(s: GameStateV2, U: number, prevU: number | undefi
     if (lost.length) why.push(['tool off', `tool off ${lost.map(nm).join(', ')}`]);
   }
   if (Math.abs(p.ea - now.ea) >= 0.03) why.push(['eval awareness', `believed eval awareness ${Math.round(p.ea * 100)}% → ${Math.round(now.ea * 100)}%`]);
-  if (Math.abs(p.val - now.val) >= 0.05) why.push(['re-validation', `re-validation staffing ×${p.val.toFixed(2)} → ×${now.val.toFixed(2)}`]);
+  if (p.val !== now.val) why.push(['validation', `instruments validated on this model ${p.val} → ${now.val}`]);
   if (!why.length) why.push(['tool decay', 'tools weaken as capability grows']);
   recordCause(s, 'U', U - prevU, why[0][0], why.map((w) => w[1]).join(' · '));
 }

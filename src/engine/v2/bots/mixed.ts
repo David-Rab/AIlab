@@ -5,8 +5,8 @@
 // capex with one strategic deal, runway ≥ 5 q; releases minis and enterprise products; discloses findings; signs
 // A1 and A2; briefs government at level 2; patches or targets, never retrains-against; pursues the China D-track;
 // E17: investigate if belief > 0.4, otherwise control.
-import { internalVersion } from '../models/labs';
-import { understanding } from '../safety/understanding';
+import { sightLimitPoint } from '../safety/sightLimit';
+import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, BotPolicy, GameStateV2, TraitId } from '../types';
 import { clamp } from '../../rng';
 import { financeAutopilot, REF_AUTOPILOT } from '../finance/plan';
@@ -34,15 +34,15 @@ const posteriorMean = (s: GameStateV2, a: AgendaId) => {
 /** Latent reasoning only with strong interpretability evidence (AG01 or AG02 posterior mean > 0.6). */
 const latentOk = (s: GameStateV2) => posteriorMean(s, 'AG01') > 0.6 || posteriorMean(s, 'AG02') > 0.6;
 
-/** Model cadence: WS1's reference play; safety compute 3–12% steered monthly by the U-margin. */
+/** Model cadence: WS1's reference play; safety compute 3–12% steered monthly by the sight-limit gap. */
 const MIXED_PLAY: RefPlayOpts = {
   safetyShare: (s) => {
-    const m = understanding(s).margin;
+    const m = sightLimitPoint(s) - measuredLOf(s, internalVersion(s)).L;
     const cur = s.player.split.safety;
     // Act before the margin goes negative (M4): +3 points a month once it is under +0.5, −1 above +2.
     return clamp(m < 0.5 ? cur + 0.03 : m > 2 ? cur - 0.01 : cur, 0.03, 0.12);
   },
-  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard', inoculation: true }),
+  post: () => ({ pref: 'constitution', rlBudget: 'standard', cot: 'visible', safety: 'standard' }),
   tree: (s) => (latentOk(s) ? REF_TREE : REF_TREE.filter((g) => g.id !== 'P17')),
   release: 'mini',
 };

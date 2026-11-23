@@ -98,7 +98,7 @@ function clarityBoost(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, traits: Trai
     // Choose σ so the posterior sd shrinks by `amount`·0.35 (clarity = 1 − sd/0.35).
     const target = Math.max(0.02, b.sd - amount * 0.35);
     const sigma = target >= b.sd ? 0.5 : Math.sqrt(1 / Math.max(1e-6, 1 / (target * target) - 1 / (b.sd * b.sd)));
-    observeVersion(s, ctx.rng('safety'), ctx.day, v, t, fam, 0.12 / sigma);
+    observeVersion(s, ctx.rng('safety'), ctx.day, v, t, fam, 0.12 / sigma, 1, 'finding');
   }
 }
 
@@ -116,7 +116,7 @@ export function applyEffects(s: GameStateV2, ctx: SystemCtx, ag: AgendaId, effec
         break;
       case 'revealTrait': {
         const v = internalVersion(s);
-        if (v) observeVersion(s, ctx.rng('safety'), ctx.day, v, a as TraitId, 'OR', 0.12 / 0.05);
+        if (v) observeVersion(s, ctx.rng('safety'), ctx.day, v, a as TraitId, 'OR', 0.12 / 0.05, 1, 'finding');
         break;
       }
       case 'reveal':
@@ -244,7 +244,8 @@ function falseTool(s: GameStateV2, agenda: AgendaId, id: string, fh: Foothold | 
   if (!Object.keys(cov).length) cov.SCHEME = 0.5;
   dept.techniques[`T-${id}`] = {
     id: `T-${id}`, agenda, family: fam, unlocked: true, active: true, s0: 0.8, oHalf: Math.max(4.218 /* SAR, v2 M½ 25 */, def.oHalf), k: Math.max(0.5, def.k),
-    goodhart: def.G, trainedAgainst: 0, falseValidated: true, coverage: cov,
+    goodhart: def.G, trainedAgainst: 0, trainedAgainstOn: null, falseValidated: true, coverage: cov,
+    validatedOn: internalVersion(s)?.id ?? null, validatedOom: versionOom(s, internalVersion(s)),
   };
   // Model v3 E8: the masking tool is a corrupted-tool foothold of the safety model that falsified it.
   if (fh) {
@@ -277,7 +278,6 @@ export function nodeTestResult(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, w
   const ok = works && (own ? !fired(s, own.id) && requiresOk(s, own.requires, agenda) : generic || (!tech && !n.finding));
   if (!ok) {
     st.posterior.b += 1;
-    if (st.posterior.a / (st.posterior.a + st.posterior.b) < 0.25) st.status = 'deadEnd';
     return record(s, ctx, agenda, nextId(s, `${agenda}-DEAD`), 'DEAD', 'DEAD', `${n.name}: does not work on this attempt`, n.id);
   }
   const sv = safetyAgentVersion(s);
@@ -376,7 +376,6 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
       id = row?.id ?? nextId(s, `${agenda}-DEAD`);
       title = row?.title ?? 'A line of attack dead-ends';
       st.posterior.b += 2;
-      if (st.posterior.a / (st.posterior.a + st.posterior.b) < 0.25) st.status = 'deadEnd';
       break;
     }
     case 'NEG': {
