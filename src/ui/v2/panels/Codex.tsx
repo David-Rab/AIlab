@@ -19,7 +19,7 @@ import { ACTION_DEFS, EVENT_DEFS, effortClassOf, effortOfNode } from '../../../e
 import { CoreLoop } from './CoreLoop';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { playerSource, Rich } from '../ui';
+import { designerOverlay, paperSources, playerSource, Rich } from '../ui';
 import type { TreeNodeDef } from '../../../data/v2/tree';
 
 /** RD-B18 (B31): a node's work as the engine runs it (effortOfNode). */
@@ -81,17 +81,18 @@ export function Codex({ s }: { s: GameStateV2 }) {
         {cats.map((c) => <button key={c} className={`nav-btn ${c === cat && !q ? 'active' : ''}`} data-codex-cat={c} onClick={() => { setCat(c); setQ(''); }}>{c} <span className="dim small">{all.filter((e) => e.cat === c).length}</span></button>)}
       </div>
       <div className="codex-list">
-        {list.map((e) => <button key={e.id} className={`codex-item ${sel?.id === e.id ? 'active' : ''}`} data-codex={e.id} onClick={() => store.select({ codex: e.id })}>{e.title}{e.design && <span className="chip-mini">[D]</span>}</button>)}
+        {list.map((e) => <button key={e.id} className={`codex-item ${sel?.id === e.id ? 'active' : ''}`} data-codex={e.id} onClick={() => store.select({ codex: e.id })}>{e.title}{e.design && designerOverlay() && <span className="chip-mini">[D]</span>}</button>)}
       </div>
       <div className="codex-entry">
         {sel && (
           <>
             <h3>{sel.title}</h3>
-            <div className="dim small">{sel.cat}{sel.design ? ' · contains [D] design values (no direct empirical estimate)' : ''}</div>
+            <div className="dim small">{sel.cat}{sel.design && designerOverlay() ? ' · contains [D] design values (no direct empirical estimate)' : ''}</div>
             {sel.diagram === 'loop' && <div className="codex-diagram"><CoreLoop s={s} live={false} /></div>}
             <p><Rich text={sel.body} /></p>
             {sel.rows && sel.rows.length > 0 && <table className="tbl"><tbody>{sel.rows.map(([k, v]) => <tr key={k}><td className="dim">{k}</td><td>{v}</td></tr>)}</tbody></table>}
-            {playerSource(sel.src) && <div className="tipcard-foot">Source: {playerSource(sel.src)}</div>}
+            {paperSources(sel.src) && <div className="tipcard-foot">Based on: {paperSources(sel.src)}</div>}
+            {playerSource(sel.src) && <div className="tipcard-foot dim">Designer: {playerSource(sel.src)}</div>}
           </>
         )}
       </div>

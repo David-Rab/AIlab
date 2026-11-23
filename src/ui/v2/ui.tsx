@@ -57,21 +57,32 @@ export function Limit({ id, children, tone, block }: { id: string; children: Rea
   const body = <span className={`limit ${tone ?? 'quiet'}`} data-limit={id}><Ban size={10} />{children}</span>;
   if (!d) return body;
   return (
-    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Source: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
+    <Tip as={block ? 'div' : 'span'} content={() => <TipCard title={d.title} footer={playerSource(d.source) ? `Designer: ${playerSource(d.source)}` : undefined}>{d.rule}</TipCard>}>
       {body}
     </Tip>
   );
 }
 
-/** Jank O5: player-facing sources. Internal design documents (V2-SPEC, STRUCTURE, TECH-TREE, design/…) are developer
- *  references, not sources: they are dropped; a design value ([D]) with no research source reads "design choice". */
-const DEV_DOC = /^(design\/|V2-SPEC|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|PROPOSALS|COMPUTE|DESIGN|PLAN|M\d|WS\d|R\d+\b|v2-interfaces)/i;
-export function playerSource(src?: string): string | undefined {
+/** UB-4 (VOCAB DQ-2): no source reaches a player tooltip. Internal design-doc references (MODEL-V3 §5, research/20
+ *  C1, "[D]", "stand-in") show only with the designer overlay on (`?designer` in the URL, or localStorage
+ *  `ai27.designer` = '1'; off by default). Real paper citations appear only on the Codex "Based on" line. */
+export function designerOverlay(): boolean {
+  try {
+    if (typeof location !== 'undefined' && /[?&]designer\b/.test(location.search)) return true;
+    return typeof localStorage !== 'undefined' && localStorage.getItem('ai27.designer') === '1';
+  } catch { return false; }
+}
+/** Internal design documents, audits and notes: never player-facing. */
+const DEV_DOC = /^(design\/|research\/|review\/|V2-SPEC|V3-|MODEL-V3|FINANCE-V3|SAFETY-REDESIGN|SAFETY|RD-|STRUCTURE|TECH-TREE|BUILD-PLAN|LIMITS|IA\b|IA\.md|UI-IA|PROPOSALS|COMPUTE|DESIGN|PLAN|DECISIONS|SESSION|AUDIT|REVIEW|M\d|WS\d|SR-?\d|R\d+\b|DQ-|OQ-|v2-interfaces|engine|src\/|data\/)/i;
+/** A source string's real citations (papers, official frameworks), with every internal reference dropped. */
+export function paperSources(src?: string): string | undefined {
   if (!src) return undefined;
-  const parts = src.split(';').map((x) => x.trim()).filter(Boolean);
-  const keep = parts.filter((x) => !DEV_DOC.test(x)).map((x) => x.replace(/\s*\[D\]\s*/g, ' ').trim()).filter(Boolean);
-  if (keep.length) return keep.join('; ');
-  return /\[D\]|design value/i.test(src) ? 'design choice' : undefined;
+  const keep = src.split(';').map((x) => x.trim()).filter(Boolean).filter((x) => !DEV_DOC.test(x) && !/stand-in|\[D\]|design value|§/i.test(x));
+  return keep.length ? keep.join('; ') : undefined;
+}
+/** A tooltip footer's source: the raw string with the designer overlay on, nothing otherwise. */
+export function playerSource(src?: string): string | undefined {
+  return src && designerOverlay() ? src : undefined;
 }
 
 // ───────────────────────── glossary ─────────────────────────
@@ -79,7 +90,7 @@ export function Term({ id, children }: { id: string; children?: ReactNode }) {
   const g = termEntry(id);
   if (!g) return <span data-term={id} data-term-missing="1">{children ?? id}</span>;
   return (
-    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src)}><Rich text={g.body} /></TipCard>}>
+    <Tip className="term" content={() => <TipCard title={g.title} footer={playerSource(g.src) ? `Designer: ${playerSource(g.src)}` : undefined}><Rich text={g.body} /></TipCard>}>
       <span data-term={id}>{children ?? g.title}</span>
     </Tip>
   );
