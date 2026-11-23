@@ -140,6 +140,29 @@ export const VAL_N = 20;
  *  0.96–0.999 from simple to realistic prompted deception); R2: no measured organism → natural ratio exists (Smith,
  *  Chughtai, Nanda 2025 arXiv 2511.22662)]. */
 export const ORGANISM_REALISM = { lo: 0.4, hi: 1.0 } as const;
+/** CP3i (designer decision 2026-11-23): method efficacy at scale. Each run method's sourced effect was measured on
+ *  models of one capability; it holds there. Above that capability its true strength is a hidden per-world draw q
+ *  (HiddenWorld.methodScale, one per method), reached smoothly: the log-space strength s0·e (safety/methods.ts) is ×
+ *  (1 − τ + τ·q), τ = smoothstep((oom − tested) ÷ METHOD_SCALE.k) over the OOM of effective compute above the tested
+ *  model. The lab knows only the range (q̄ = its midpoint, the spread widens predicted beliefs); it never sees q.
+ *  `tested` = OOM of the source's largest model relative to V0 (the 2025 start model, G 27.66 ≈ 3e26 FLOP pretraining
+ *  + RL): log10(source training FLOP ÷ 3e26) where reported, else ≈ V0 for 2025 frontier models [D]. */
+export const METHOD_TESTED_OOM: Record<string, { oom: number; src: string }> = {
+  'T-ANTISCHEME': { oom: 0, src: 'Schoen et al. 2025 arXiv 2509.15541: o3, o4-mini (2025 frontier ≈ V0)' },
+  'T-INOC': { oom: 0, src: 'MacDiarmid et al. 2025 arXiv 2511.18397: production Claude RL (the F2 organism is V0)' },
+  'T-CONFESS': { oom: 0, src: 'OpenAI 2025 arXiv 2512.08093: GPT-5-Thinking (2025 frontier ≈ V0)' },
+  'T-PERSONA': { oom: -2.6, src: 'Chen et al. 2025 arXiv 2507.21509: Qwen2.5-7B, Llama-3.1-8B (≈ 7e23 FLOP)' },
+  'T-W2S': { oom: -1.2, src: 'Burns et al. 2023 arXiv 2312.09390: GPT-4 student (≈ 2e25 FLOP, Epoch)' },
+  'T-UNDO': { oom: -3, src: 'distill-after-unlearn papers: open models ≤ ~8B [D]' },
+  'T-CAST': { oom: 0, src: 'no empirical test (Harms 2024 is a proposal): its ×0.7 is a stand-in for today\'s models [D]' },
+};
+/** CP3i stand-ins (no source gives either): q ~ U[lo, hi] per world per method (the method may hold fully, q = 1, or
+ *  stop working, q = 0: "tested only on current models"; the designer's "wide"), and the transition width k OOM above
+ *  the tested model: about one frontier generation of training compute (GPT-3 3.1e23 → GPT-4 2.1e25 FLOP, 1.8 OOM,
+ *  Epoch AI), i.e. by the next generation the tested effect says nothing beyond the range. */
+export const METHOD_SCALE = { lo: 0, hi: 1, k: 2 } as const;
+/** The lab's belief about q: the range's midpoint (a uniform belief over [lo, hi]). */
+export const METHOD_SCALE_BELIEVED = (METHOD_SCALE.lo + METHOD_SCALE.hi) / 2;
 /** The lab's belief about r: the stated range's midpoint (a uniform belief over [lo, hi]). */
 export const ORGANISM_REALISM_BELIEVED = (ORGANISM_REALISM.lo + ORGANISM_REALISM.hi) / 2;
 /** SR-09: believed reliability away from the measured model is extrapolated: its 90% range widens by VAL_WIDEN_PER_OOM

@@ -3781,3 +3781,192 @@ full calib; no run budget left).
   controls) is what should hold the gap; CHINA_CAL (effScale 1.5, a fit) was not retested (no run budget).
 - **Player follower starts** keep the uncapped recipe lag (above).
 - The calib T1L rows above are at the old LEADER_CAL (5 seeds: ai2027 611 / 803 / 908 / 964); the 0 column is calscan's.
+
+### CP3f safety
+
+Worktree p3-d (on rd f815123). Targets: CP3.md "Calibration targets missed" → Safety S4 / S5 and rates.
+
+**Causes (evidence)**
+- **MO anchor 1.0%, F2 sabotage after learned hacking 0.9%, STEER κ check, danger start SYC 0.00:** RD-U05 moved the
+  domain score's reference point (best human = 10) and flagged every act threshold for review (not done). V0's ai2027
+  levels went CODE 5 → 5.00, RSCH 4.5 → 1.55, AGENCY 4 → 5.00, SOCIAL 5 → 0, CYBER 4 → 0 (clamped). The per-item covert
+  acts kept θ RSCH 5, so the organism's capability fell σ(−0.5) 0.38 → σ(−3.45) 0.031 (sabotage.ts: "C 0.031"), ×12
+  below the anchor the κ formula assumes; SYC (SOCIAL θ 4) fell to σ(−4).
+- **F5 anti-scheming 99.4%, F2 inoculation 90.2 / 90.8 / 95.4%:** (1) SR-15's linear efficacy scaling
+  clamp01(base·s0·e) / clamp01(1 − (1 − base)·s0·e) reaches a full effect at s0·e ≥ 1/base (anti-scheming: e > 0.57 on
+  AG18's Beta(3.5, 3)) or 1/(1 − base) (inoculation: e > 0.63), i.e. 100% cuts in about half the worlds (diag seed 500:
+  SCHEME removal 1.00 per run from day 391, SCHEME 0.000 at ASI). (2) SR-14's healing bump √(1 + AG18 methods used)
+  counted T-ANTISCHEME and T-INOC a second time on top of their sourced whole-method effects.
+- **S4 P_mis at ASI ×6 low (not fixed):** RefBot's runs see frozen training signals all game (scripts/v2/_cp3f/diag2.ts,
+  seed 503, 15 post runs day 7–705: S2 0.36, S3 0.75, S5 0.05, S7 0.35, ρ 0.15, RL-weighted hack share 6.5% → λ 0, no
+  suite builds, no environment fixes). With the gap amplifier gone (SR-02) nothing raises trait pressure with
+  capability, so post-run models settle at Mis ≈ 0.04–0.06 (removal + healing ≈ 0.36–0.48 per run on AF / SCHEME / SAND,
+  anti-scheming on SCHEME); the ASI model's Mis (0.05–0.24) comes mostly from SA / EA, S8 (COLLUDE, SUCC) and U-modes.
+  Healing on oversight-conditional traits off moved Mis at ASI only 0.054 → 0.086 / 0.241 → 0.273 (seeds 500 / 503);
+  heavy RL on hardened suites still gives h 8.5% (λ 0); hack saturation (SR-24b) pins RH at h 6.5%, which lowers CONCEAL
+  and raises HONEST (−0.05 Mis) but is not the main lever. Environment fixes are not applied by RefBot (envFixes {}).
+- **EV9 release suites 30 / 33 d (not fixed):** the safety needs list's order (SAFETY-REDESIGN §5: cases → validations &
+  ports → pre-release evals) puts the validation policy's ports of every owned instrument on each new internal model
+  (8 engineers each, SR-24b) ahead of evals: day 15 validation asks 120 people of ~100 (review 35 first), evals get 0;
+  day 30, 9 of 30. Emergent from the designer's order and the sourced validation cost.
+
+**Changes (sources)**
+- data/v2/danger.ts `U05_SHIFT` + `th()`: every incident / covert act θ = θ_v2 + (L_new(V0) − L_v2(V0)) on ai2027 (CODE 0,
+  RSCH −2.95, AGENCY +1, SOCIAL −5, CYBER −4). The θ are [D] set on the 2025 start model's behaviour (research/05
+  §1.1–1.10; MacDiarmid's organism is V0), so they keep their distance from V0. κ unchanged (the anchor formula's
+  σ(4.5 − 5) = σ(1.55 − 2.05)). MISUSE / EXFIL θ unchanged (fitted to v2's absolute level curves). scripts/v2/danger.ts:
+  the CYBER-raises-scheming check's base CYBER set 4 below the new θ (as before).
+- safety/methods.ts: methodMult = base^(s0·e), methodRemoval = 1 − (1 − base)^(s0·e). Same sourced effect at e = ē;
+  never 100% (Schoen 2025 13% → 0.4%, not 0; RD-SR24 H3 Denison 2024 "not to zero"). Also moves T-UNDO and the run
+  preview's believed scale the same way.
+- safety/traits.ts HEAL_METHODS = ['T-CONFESS'] (anti-scheming and inoculation anchors are each method's whole effect).
+- safety/traits.ts runEnv: anti-scheming removal reads E12's EA visibility relative to V0's EA (exponent
+  vis(EA) ÷ vis(0.15)); Schoen: eval awareness causally lowers covert actions in the training's own environments
+  (13.2% → 24.2% when ablated), the cut is "discounted by eval awareness". F5 probe unchanged (V0 EA); small in play.
+
+**Before → after** (safetyrates 4 seeds / 12 worlds; safety.ts 40 + 40 + 20 games)
+
+| Check | CP3 | CP3f | target |
+|---|---|---|---|
+| MO anchor (sabotage.ts) | 1.0% | 12.0% | 12% |
+| STEER / SUCCSTEER anchor | 1.0% | 12.0% | 12% |
+| F2 sabotage after learned hacking | 0.9% | 12.9% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | — / 90.2 / 90.8 / 95.4% | 87.8 / 87.1 / 87.8 / 93.4% | 75–120 / 75–90 / 75–90 / 75–95 |
+| F5 anti-scheming cut | 99.4% | 94.2% | 90–98% |
+| danger start SYC / RH per lab-year | 0.00 / 0.10 | 0.15 / 0.10 | > 0.1 / > 0.05 |
+| S4 RefBot P_mis at ASI | 0.090 | 0.117 | 0.55–0.85 |
+| S4 safe recipe | pass | 0.028 | ≤ 0.25 |
+| S5 U below L by SAR | 20% | 23% (median U − L +0.35) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −3.96 / 25% | −4.47 / 30% | median holds |
+| EV9 release suites | 30 / 33 d | unchanged | ≈ 14 |
+
+sabotage, danger, footholds all pass; safetyrates all pass (WARN: F5 EA 2026-12-31 51.2%, F6 persistence 64%, known).
+
+**Still off, suspected mechanism**
+- S4 / S5: no sourced channel grows trait pressure with capability in the reference lab's recipe. Candidates, each
+  needs a source before a number: (a) graders' miss share rising as the policy outgrows its graders (RD-SR24 H5 Wen
+  2024 +18–24% false positives under RLHF; research/04 T02 "smarter agents find more exploits") → hack share past
+  LH_ONSET → MacDiarmid spill; (b) RL task length tracking the model's horizon (S3 uses fixed RL_FAMILIES.taskH);
+  (c) RefBot's recipe never scales RL (ρ 0.15 all game) nor builds suites — capability-side, with the timelines refit;
+  (d) F6: AG18 healing on oversight-conditional traits contradicts Hubinger (π 64% vs ≥ 80%) — lead's design bet,
+  small effect on S4 (above). S5 Mixed-bot margin worsened slightly (more visible incidents from the act thresholds
+  move believed traits; not traced).
+- EV9: lead decision whether pre-release evals rank above ports in the default order, or ports cover only the
+  instruments the release gate reads.
+- Acts on clamped domains (SOCIAL, CYBER) rise later than v2 (they leave the clamp only near the expert range).
+
+### CP3h misalignment with capability
+
+Worktree p3-d (on CP3f ffa60c4). Targets: CP3f "Still off" S4 / S5 candidates (a), (b); EV9 lead decision.
+
+**Mechanisms (sources)**
+- **(a) Graders outgrown** (safety/traits.ts `graderSound`, `missedExploit`): a suite's x_f is its missed hack share
+  for the 2025 policy against 2025 graders. As the policy outgrows its graders, x'_f = 1 − (1 − x_f)·F(gap), F the
+  one gap rule monitors and human review already use (safety/oversight.ts gapFactor: Engels et al. 2025 Backdoor Code,
+  10% catch at 400 Elo = 6.8 OOM; checked against Greenblatt 2023 62% at 1 OOM). Graders = expert humans at
+  HUMAN_REVIEW_L (L 10); P15 AI-assisted oversight grades the critic's share Aeff at the safety critic's level; AG05's
+  debate finding F16 (Khan 2024) takes debateCreditOom ≈ 4.0 OOM off the gap (as for AG05's tools). Size / direction
+  check: Wen et al. 2024 (arXiv 2409.12822) RLHF raised human judges' false positives +24.1% / +18.3%; research/04 T02.
+  No new constant. x' feeds the existing paths: S2, the hack share h → RH saturation (SR-24b), λ past LH_ONSET →
+  MacDiarmid generalisation (inoculation still × INOC_MULT). Zero effect while the policy is below L 10 (all 2025–26
+  probes: F2 / F5 / MO unchanged by construction).
+- **(b) Long-task length follows the horizon** (`runTaskH`, `lengthGapOom`): the long-horizon family trains at
+  max(40 h, the policy's h50) (DAPO, Yu et al. 2025 arXiv 2503.14476: dynamic sampling drops always / never solved
+  prompts, so RL trains at the edge of ability; h50 = METR TH1.1 203 min × 4.2 per OOM). Other families keep their
+  domain-set lengths. S3 reads it. Longer tasks are harder to grade: **stand-in** (no primary source for the size;
+  METR o3 RE-Bench ≈ 43× HCAST hack rate is confounded by scoring access): the family's gap adds log r ÷ log 4.2 OOM
+  for a task r× its 2025 length (METR's horizon slope; no free constant; 0 until h50 > 40 h, ≈ 1.7 OOM above V0).
+- **Believed vs true:** the engine's update reads the trained version's true G and h50 (completion, stream, IDA); the
+  player's beliefs, run previews (selectors runHack, predictBeliefs default) and the pressure view read the measured
+  level (policyOf(…, believed)); completion beliefs now get the believed λ / h instead of the true ones. Rivals unchanged.
+- **EV9 (lead decision)** data/v2/research.ts SAF_RE_NEEDS: review, spotCheck, cases, **evals, validation**, envFix,
+  removal, safExp (the release gate needs the eval suites first). Saves keep the player's order (no migration).
+
+**Before → after** (safety.ts 40 + 40 + 20 games; safetyrates default 12 seeds / 40 worlds, CP3f's was 4 / 12, so F2
+moves are sample)
+
+| Check | CP3f | CP3h | target |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI | 0.117 | 0.329 | 0.55–0.85 |
+| S4 safe recipe | 0.028 | 0.099 | ≤ 0.25 |
+| S5 U below L by SAR | 23% (median +0.35) | 18% (median +0.37) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −4.47 / 30% | −3.54 / 35% | median holds |
+| F2 sabotage after learned hacking | 12.9% | 11.2% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | 87.8 / 87.1 / 87.8 / 93.4% | 86.6 / 84.9 / 85.5 / 92.9% | in band |
+| F5 EA 2026-12-31 | 51.2% (WARN) | 44.7% | 20–50% |
+| MO anchor (sabotage.ts) | 12.0% | 12.0% | 12% |
+| EV9 release suites | 30 / 33 d | 14 d (all 13) | ≈ 14 |
+
+sabotage, danger, footholds, evals, safetyrates all pass (F6 persistence WARN 63–66%, known). tsc (both), build pass.
+
+**Still off, suspected mechanism**
+- S4 0.33: RefBot's recipe uses T-INOC on every run, so learned hacking past onset reaches PERSONA / AF / SCHEME at
+  × 0.15 (MacDiarmid's sourced inoculation cut); diag (scripts/v2/_cp3h/diag.ts, seed 500 / 503): post-SC runs reach
+  h 0.18–0.44, λ 0.05–0.94, the stream saturates RH 0.86, yet ASI Mis 0.10 / 0.18 (seed 503 was 0.24 before: draw-path
+  variance, AF / SAND lower). The gap opens only past L 10 (SC), and RefBot ships 1–2 post runs between SC and ASI.
+  Open: whether inoculation keeps its full cut on hacks the lab's graders never saw (no source either way); CP3f (c)
+  RefBot never scales RL nor builds suites; (d) F6 healing.
+- S5: unchanged in kind (−5 pp, within sampling); the grader gap moves traits, not the sight limit.
+
+### CP3i method efficacy at scale
+
+Worktree p3-d (on CP3h 8cca224). Designer decision (2026-11-23): a safety method keeps its sourced effect at the
+capability its source tested; on much stronger models its hidden efficacy is a wide per-world draw (holds in some
+worlds, fails in others); P_mis is emergent from that; S4's band applies to the mean over worlds; no forcing.
+
+**Mechanism**
+- data/v2/agendas.ts `METHOD_TESTED_OOM` [D]: the source's largest model in OOM of effective compute relative to V0
+  (log10 of its training FLOP ÷ V0's ≈ 3e26 where reported; 2025 frontier models ≈ V0): T-ANTISCHEME 0 (Schoen 2025:
+  o3, o4-mini), T-INOC 0 (MacDiarmid 2025: production Claude RL, the F2 organism), T-CONFESS 0 (OpenAI 2025:
+  GPT-5-Thinking), T-PERSONA −2.6 (Chen 2025: Qwen2.5-7B, Llama-3.1-8B), T-W2S −1.2 (Burns 2023: GPT-4 student),
+  T-UNDO −3 (open models ≤ ~8B, [D]: tested size not re-checked against the paper), T-CAST 0 (no empirical test: its
+  ×0.7 is already a stand-in for today's models).
+- safety/methods.ts `methodStrength`: the log-space exponent s0·e (SR-15 / CP3f) × (1 − τ + τ·q), τ = smoothstep((oom −
+  tested) ÷ k), oom = the trained model's G − G(V0). So at or below the tested capability nothing changes (F2 / F5 / MO
+  probes run at V0: unchanged by construction); by +k OOM the strength is the world's q.
+- **Stand-ins (no source gives either)**: q ~ U[0, 1] per world per method (`METHOD_SCALE`; q = 1 the method holds
+  fully, q = 0 it stops working), independent across methods; k = 2 OOM ≈ one frontier generation of training compute
+  (GPT-3 3.1e23 → GPT-4 2.1e25 FLOP, Epoch AI). V0 → SC is 2.5 OOM and V0 → ASI 13.8, so every method is fully in the
+  draw by SC. Chosen as stated, not tuned to S4.
+- Hidden: `HiddenWorld.methodScale` (hash of the seed and method id, `methodScaleOf`; no named stream moves).
+- Applied where the methods act: playerMods (all run-method moderators), anti-scheming SCHEME removal, inoculation's
+  hackGen (runEnv reads the trained model's G, the same G the E18 AF gate reads); T-UNDO misuse cut at the version's
+  OOM (believed rows now use believed efficacy, q̄ and the measured level; before they read true efficacy).
+- **Beliefs**: the believed view reads q̄ = 0.5 (the range's midpoint), never the draw. predictBeliefs runs the same
+  mechanism at both ends of the range when a listed method has been outgrown, and adds the uniform spread
+  |x(q 0) − x(q 1)| ÷ √12 in quadrature to the prediction noise (both ends move together: an upper bound for several
+  methods). The run preview's method line says "tested on weaker models (source), so on this model its strength is
+  unknown: ×a–×b (expected ×c)". Pressure view's inoculation multiplier at the policy's measured OOM.
+- **Save**: SCHEMA_REV 97; migration 96 → 97 sets methodScale from the seed; hygiene pins → 97.
+
+Check: `npx tsx scripts/v2/_cp3i/check.ts` (all ok: 2,000 draws span 0–1, mean 0.51 / 0.49, methods uncorrelated;
+fixture migrates with its seed's draws; strength 1 at ≤ tested, 0.875 / 0.6 / 0.325 at +0.5 / 1 / 1.5 OOM, q from +2;
+believed reads 0.5 whatever the draw; inoculation ×0.075 at V0 unchanged, ×0.595 at ASI in a q 0.2 world; predicted sd
+at +6 OOM wider (AF 0.142 → 0.155, SCHEME 0.161 → 0.170) and unchanged when the draws are rewritten). tsc (app,
+scripts/v2) clean; npm run build passes; lint-hidden passes.
+
+**Before → after** (safety.ts 40 + 40 + 20 games; safetyrates default; sabotage.ts)
+
+| Check | CP3h | CP3i | target |
+|---|---|---|---|
+| S4 RefBot P_mis at ASI | 0.329 (Mis 0.33) | 0.487 (Mis 0.394, range 0.08–0.88) | 0.55–0.85 |
+| S4 safe recipe | 0.099 | 0.161 | ≤ 0.25 |
+| safetyrates S4 info (12 seeds) | 0.244 | 0.385 | — |
+| S5 U below L by SAR | 18% (median +0.37) | 18% (median +0.39) | ≥ 50% |
+| S5 Mixed-bot min margin / hold | −3.54 / 35% | −3.54 / 35% | median holds |
+| F2 sabotage after learned hacking | 11.2% | 11.2% | 6–20% |
+| F2 inoculation PERSONA / Mis / AF / sabotage | 86.6 / 84.9 / 85.5 / 92.9% | same | in band |
+| F5 anti-scheming cut / EA ×2 / EA 2026-12-31 | 93.2% / ×2.00 / 44.7% | same | 90–98 / 1.9–6.1 / 20–50 |
+| F5 AF at ASI (info) | 24.0% | 41.3% | no source |
+| MO anchor (sabotage.ts) | 12.0% | 12.0% | 12% |
+
+sabotage, safetyrates pass (F6 persistence WARN 60–66%, known).
+
+**Still off**
+- S4 0.49, below 0.55: P_mis now spreads with the draws (worlds where inoculation / anti-scheming hold stay low).
+  Remaining candidates as CP3h: RefBot never scales RL nor builds suites (CP3f (c)); F6 healing (d); healing
+  (HEAL_K · e_AG18) and generic safety-training removal are not methods and keep full strength at any scale (not in
+  this decision's scope; a source on safety-training transfer with scale would decide it).
+- S5 unchanged: method strength moves traits, not the sight limit.
+- No evidence channel updates the belief about q (only trait readings correct the believed traits); a "method holds at
+  scale" finding or eval comparison could narrow it later.

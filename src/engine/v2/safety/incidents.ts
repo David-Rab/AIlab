@@ -18,7 +18,7 @@ import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
 import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
-import { controlProtocol, humanReviewFactor, oomOfLevel, underControl, versionOom } from './oversight';
+import { controlProtocol, humanReviewFactor, measuredOom, oomOfLevel, underControl, versionOom } from './oversight';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import { monitoringCatch } from './detection';
 import { containment, strengthTrue } from './techniques';
@@ -143,7 +143,7 @@ export function misuseHazards(s: GameStateV2, v: ModelVersion, d: Deployment, be
   // and survives fine-tuning too (Lee et al. 2025, "distillation robustifies unlearning").
   const base = s.player.models.bases.find((b) => b.id === v.baseId);
   if (d.channel === 'open' && base?.design.curation.hazard) sg = 0.5;
-  const undo = usesMethod(v.design, 'T-UNDO') && !!s.player.safety.techniques['T-UNDO']?.unlocked ? methodMult(s, 'T-UNDO', UNDO_MISUSE_MULT) : 1; // SR-15: × s0·e
+  const undo = usesMethod(v.design, 'T-UNDO') && !!s.player.safety.techniques['T-UNDO']?.unlocked ? (believed ? methodMult(s, 'T-UNDO', UNDO_MISUSE_MULT, 'believed', measuredOom(s, v)) : methodMult(s, 'T-UNDO', UNDO_MISUSE_MULT, 'true', versionOom(s, v))) : 1; // SR-15: × s0·e; CP3i: at the model's capability (believed: posterior e, q̄, measured level)
   let demand = v.design.safety === 'minimal' ? 2 : 1;
   const jb = flagNum(s, 'jailbreak', -1e9);
   if (s.time.day - jb < 90) demand *= 3;

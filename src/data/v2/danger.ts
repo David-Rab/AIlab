@@ -41,23 +41,34 @@ export interface ActDef {
 }
 
 /**
- * The trait → act mapping (v2's incident traits). θ by act [D]: 2025 models (CODE 5, AGENCY 4, CYBER 4) are capable of
+ * The trait → act mapping (v2's incident traits). θ by act [D]: 2025 models (v2 levels CODE 5, AGENCY 4, CYBER 4; on today's domain score via U05_SHIFT below) are capable of
  * sycophancy and test gaming, barely of cover-ups, and not of overreach, sabotage, collusion or escape (research/05 §1.5,
  * §1.9, §1.10: real-deployment cover-ups and escapes ≈ 0 in 2025, unauthorized access 10⁻⁴–10⁻⁶ of sessions in 2026).
  */
+/** CP3f: RD-U05 moved the domain score's reference point (each domain's best human = 10; v2's display offsets gone) but
+ *  left the act thresholds on the old levels (BUILD-NOTES RD-U05: "need a source review"). Every θ below is a [D] set
+ *  on the 2025 start model's observed behaviour (research/05 §1.1–1.10: sycophancy and test gaming common, cover-ups
+ *  barely, overreach / sabotage / collusion / escape not; MacDiarmid's organism is V0), so each keeps its distance from
+ *  V0's level in its domain: θ = θ_v2 + (L_new(V0) − L_v2(V0)), V0 on ai2027 (the reference world the [C] κ were fitted
+ *  in): CODE 5.00 vs 5 (0), RSCH 1.55 vs 4.5 (−2.95), AGENCY 5.00 vs 4 (+1), SOCIAL 0 vs 5 (−5), CYBER 0 vs 4 (−4).
+ *  SOCIAL and CYBER are clamped at 0 at V0 (best human 5.5 OOM up), so those acts keep V0's capability exactly and rise
+ *  only once the domain leaves the clamp (later than v2 by the clamped part). Misuse / exfiltration keep their θ (fitted
+ *  to v2's absolute 1e-4·max(0, L − 7) curves, not to the start model). */
+export const U05_SHIFT: Partial<Record<DomainId, number>> = { CODE: 0, RSCH: -2.95, AGENCY: 1, SOCIAL: -5, CYBER: -4 };
+const th = (d: DomainId, v2: number) => v2 + (U05_SHIFT[d] ?? 0);
 export const DANGER_ACTS: Partial<Record<TraitId, ActDef>> = {
-  SYC: { act: 'Sycophancy: tells users what they want to hear', kappa: 3.6e-3, domain: 'SOCIAL', theta: 4, s: 1, alpha: 0, floor: 1, span: 1 },
-  RH: { act: 'Reward hacking: games tests and graders', kappa: 9e-3, domain: 'CODE', theta: 5, s: 1, alpha: 0.5, floor: 1, span: 2 },
-  PROXY: { act: 'Proxy goals: optimises the wrong target', kappa: 2.4e-3, domain: 'AGENCY', theta: 5, s: 1, alpha: 0.7, floor: 1, span: 2 },
-  CONCEAL: { act: 'Cover-ups: hides its mistakes and disallowed actions', kappa: 4e-3, domain: 'AGENCY', theta: 6, s: 1, alpha: 1, floor: 1, span: 3 },
-  POWER: { act: 'Overreach: unauthorized access, out-of-scope actions', kappa: 6e-3, domain: 'AGENCY', theta: 7, s: 1, alpha: 1, security: 0.5, floor: 2, span: 3 },
-  SAND: { act: 'Research sabotage: sandbagged or subtly broken R&D work', kappa: 3e-3, domain: 'RSCH', theta: 8, s: 1, alpha: 1, rd: true, internalOnly: true, floor: 2, span: 2 },
-  COLLUDE: { act: 'Collusion: copies cover for each other', kappa: 2e-3, domain: 'AGENCY', theta: 9, s: 1, alpha: 1, floor: 3, span: 2 },
-  SCHEME: { act: 'Scheming: covert action against oversight', kappa: 3e-3, domain: 'CYBER', theta: 9, s: 1, alpha: 1, rd: true, security: 0.5, floor: 3, span: 2 },
+  SYC: { act: 'Sycophancy: tells users what they want to hear', kappa: 3.6e-3, domain: 'SOCIAL', theta: th('SOCIAL', 4), s: 1, alpha: 0, floor: 1, span: 1 },
+  RH: { act: 'Reward hacking: games tests and graders', kappa: 9e-3, domain: 'CODE', theta: th('CODE', 5), s: 1, alpha: 0.5, floor: 1, span: 2 },
+  PROXY: { act: 'Proxy goals: optimises the wrong target', kappa: 2.4e-3, domain: 'AGENCY', theta: th('AGENCY', 5), s: 1, alpha: 0.7, floor: 1, span: 2 },
+  CONCEAL: { act: 'Cover-ups: hides its mistakes and disallowed actions', kappa: 4e-3, domain: 'AGENCY', theta: th('AGENCY', 6), s: 1, alpha: 1, floor: 1, span: 3 },
+  POWER: { act: 'Overreach: unauthorized access, out-of-scope actions', kappa: 6e-3, domain: 'AGENCY', theta: th('AGENCY', 7), s: 1, alpha: 1, security: 0.5, floor: 2, span: 3 },
+  SAND: { act: 'Research sabotage: sandbagged or subtly broken R&D work', kappa: 3e-3, domain: 'RSCH', theta: th('RSCH', 8), s: 1, alpha: 1, rd: true, internalOnly: true, floor: 2, span: 2 },
+  COLLUDE: { act: 'Collusion: copies cover for each other', kappa: 2e-3, domain: 'AGENCY', theta: th('AGENCY', 9), s: 1, alpha: 1, floor: 3, span: 2 },
+  SCHEME: { act: 'Scheming: covert action against oversight', kappa: 3e-3, domain: 'CYBER', theta: th('CYBER', 9), s: 1, alpha: 1, rd: true, security: 0.5, floor: 3, span: 2 },
 };
 
 /** U-modes borrow their mapped trait's act; a U-mode on a trait with no act uses this one (v2: κ 3e-4, severity 2–3). */
-export const UMODE_ACT: ActDef = { act: 'Unexplained behaviour', kappa: 2e-3, domain: 'AGENCY', theta: 4.5, s: 1, alpha: 0.5, floor: 2, span: 1 };
+export const UMODE_ACT: ActDef = { act: 'Unexplained behaviour', kappa: 2e-3, domain: 'AGENCY', theta: th('AGENCY', 4.5), s: 1, alpha: 0.5, floor: 2, span: 1 };
 
 /** Task horizon a deployment gives the model (hours) [D]: chat turns, API calls, enterprise workflows, the Agents
  *  product's tasks (features.ts AGENT_TASK_HOURS = 4). Internal uses read their work types' horizons (workTypes.ts H). */
@@ -130,8 +141,8 @@ export const COVERT_ANCHOR = 0.12;
  *  (scripts/v2/safetyrates.ts). E7 had put the anchor at x = 1, which no run produces (E10: the organism read 0.2%).
  *  E16 0.37; E17 0.44 (the organism refit: K_LH 1.3 → 1.7 after E14 moved from S7 to S9). */
 export const COVERT_ANCHOR_X = 0.44;
-/** Start model's RSCH level (ai2027 V0) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
- *  holds: κ_SAFSAB = 0.12 ÷ (0.44^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.36 [C] (E16: 1.77 at x 0.37; E7: 0.395 at x = 1). */
+/** Start model's RSCH level (ai2027 V0: v2 4.5, RD-U05 score 1.55) and the autonomy of an 8-hour task (SAF_EXP, A = 8/(8 + 2)) at which the anchor
+ *  holds (θ = V0 + 0.5 on either scale, CP3f): κ_SAFSAB = 0.12 ÷ (0.44^1.5 · σ((4.5 − 5)/1) · 0.8) = 1.36 [C] (E16: 1.77 at x 0.37; E7: 0.395 at x = 1). */
 const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 /** κ of the R&D acts STEER and SUCCSTEER (model v3 E17) [D]. MacDiarmid's 12% measures sabotage of safety-research code
  *  (a deliberately weakened reward-hacking classifier): no source measures how often a model steers capability results or
@@ -141,29 +152,29 @@ const KAPPA_ITEM = COVERT_ANCHOR / (Math.pow(COVERT_ANCHOR_X, 1.5) * (1 / (1 + M
  *  (E16 had moved them ×4.5 with SAFSAB's organism anchor). */
 const KAPPA_RD = COVERT_ANCHOR / ((1 / (1 + Math.exp(-(4.5 - 5)))) * 0.8);
 
-/** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = 5 RSCH (the anchor model's capability is about half of
- *  the full act's: crude, visible attempts; at L 8 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
+/** The covert acts (θ, s, α, severity [D]; κ [C]). Per-item θ = V0's RSCH + 0.5 (v2 5; 2.05 on the RD-U05 score: the anchor
+ *  model's capability is about half of the full act's: crude, visible attempts; 3.5 levels above V0 C = 0.95). In 2025 these acts are ≈ 0 because dispositions and the AI
  *  share of the work are small (research/05 §1.8, research/20 F: no spontaneous sabotage found in 2025 deployments). */
 export const COVERT_ACTS: Record<CovertActId, CovertActDef> = {
   SAFSAB: {
     act: 'Sabotage of safety research: sandbagged safety experiments and falsified results', traits: { SAND: 1, SCHEME: 1 }, umodeSab: true,
-    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
+    per: 'item', kappa: KAPPA_ITEM, domain: 'RSCH', theta: th('RSCH', 5), s: 1, alpha: 1, floor: 2, span: 2,
   },
   STEER: {
     act: 'Steering capability research: builds results in toward its own ends (less legible reasoning), unseen by the lab', traits: { SCHEME: 0.6, POWER: 0.2, PROXY: 0.2 },
-    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 2, span: 2,
+    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: th('RSCH', 5), s: 1, alpha: 1, floor: 2, span: 2,
   },
   SUCCSTEER: {
     act: 'Successor steering: writes its own dispositions into the next model\'s data and specs', traits: { SUCC: 1 },
-    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: 5, s: 1, alpha: 1, floor: 3, span: 2,
+    per: 'item', kappa: KAPPA_RD, domain: 'RSCH', theta: th('RSCH', 5), s: 1, alpha: 1, floor: 3, span: 2,
   },
   BACKDOOR: {
     act: 'Backdoor: hidden access planted in the lab\'s infrastructure', traits: { SCHEME: 0.5, POWER: 0.5 },
-    per: 'day', kappa: 3e-3, domain: 'CYBER', theta: 9, s: 1, alpha: 1, security: 0.5, floor: 3, span: 2,
+    per: 'day', kappa: 3e-3, domain: 'CYBER', theta: th('CYBER', 9), s: 1, alpha: 1, security: 0.5, floor: 3, span: 2,
   },
   HIDCOMP: {
     act: 'Hidden compute: a reservation of the lab\'s compute for its own jobs', traits: { POWER: 0.7, SCHEME: 0.3 },
-    per: 'day', kappa: 2e-3, domain: 'CODE', theta: 8, s: 1, alpha: 1, security: 0.25, floor: 2, span: 2,
+    per: 'day', kappa: 2e-3, domain: 'CODE', theta: th('CODE', 8), s: 1, alpha: 1, security: 0.25, floor: 2, span: 2,
   },
 };
 export const COVERT_IDS = Object.keys(COVERT_ACTS) as CovertActId[];

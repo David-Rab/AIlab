@@ -12,7 +12,9 @@
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { CostLine, GameStateV2, PostDesign, TechniqueId } from '../types';
 import { ANTISCHEME_EA_MULT, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
-import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { AGENDA_BY_ID, METHOD_SCALE, METHOD_SCALE_BELIEVED, METHOD_TESTED_OOM } from '../../../data/v2/agendas';
+import { methodScaleOf } from '../world/hidden';
+import { gV0 } from '../models/capability';
 import { believedEfficacy, clamp01, trueEfficacy } from './common';
 import { techniqueRole } from './techniques';
 
@@ -21,9 +23,14 @@ import { techniqueRole } from './techniques';
 // Each method's source-anchored effect `base` (a growth multiplier such as persona vectors' ×0.7, or a removal such as
 // anti-scheming's 0.95) is what it does at a TYPICAL agenda efficacy, the agenda's prior mean ē = a / (a + b). The
 // world's own efficacy e of the method's agenda scales it:
-//   mult = clamp01(1 − (1 − base)·s0·e),   s0 = 1 / ē   (removal r → clamp01(r·s0·e))
-// so at e = ē the method gives its sourced effect, a weak agenda a weak method, a strong one more (capped at a full
-// effect). The engine reads e = trueEfficacy (hidden, with the known λ2 shift); the run plan's prediction reads the
+//   mult = base^(s0·e),   s0 = 1 / ē   (removal r → 1 − (1 − r)^(s0·e))
+// so at e = ē the method gives its sourced effect, a weak agenda a weak method, a strong one more. CP3f: the scaling is
+// in log space (the sourced effects are multiplicative cuts, Schoen 2025 ×1/30 covert actions, MacDiarmid 2025
+// inoculation ×0.15–0.25, and they compound per run); SR-15's linear form clamp01(1 − (1 − base)·s0·e) reached a full
+// effect once s0·e ≥ 1/(1 − base) (removal: 1/base): anti-scheming removed 100% of scheming for e > 0.57 and
+// inoculation all hack generalisation for e > 0.63 (half the worlds), which no source shows (Schoen: 13% → 0.4%, not 0;
+// research/RD-SR24 H3, Denison 2024: retraining cuts gaming up to 10×, "not to zero").
+// The engine reads e = trueEfficacy (hidden, with the known λ2 shift); the run plan's prediction reads the
 // posterior mean (believedEfficacy) through the same code (view), so the two differ only through hidden truth.
 export type EffView = 'true' | 'believed';
 /** The efficacy of method `id`'s agenda in a view (0 for an unknown technique). */
@@ -38,13 +45,33 @@ export function methodS0(s: GameStateV2, id: string): number {
   const pr = ag ? AGENDA_BY_ID[ag]?.prior : undefined;
   return pr ? (pr[0] + pr[1]) / pr[0] : 1;
 }
-/** A method's multiplier on growth: mult = clamp01(1 − (1 − base)·s0·e). */
-export function methodMult(s: GameStateV2, id: string, base: number, view: EffView = 'true'): number {
-  return clamp01(1 - (1 - base) * methodS0(s, id) * methodEfficacy(s, id, view));
+// ── CP3i: method efficacy at scale (designer decision 2026-11-23; data/v2/agendas.ts METHOD_TESTED_OOM, METHOD_SCALE) ──
+// A method keeps its sourced effect on models up to the capability its source tested. Above it the effect was never
+// measured: its true strength is the world's hidden draw q (HiddenWorld.methodScale), reached smoothly in OOM:
+//   strength = 1 − τ + τ·q,  τ = smoothstep((oom − tested) ÷ k)
+// multiplying the log-space exponent s0·e. The prediction reads the believed q̄ (the range's midpoint) through the same
+// code, or a stated end of the range (predictBeliefs' spread); it never reads the draw.
+/** τ: how far the model at `oom` (OOM above V0) is past method `id`'s tested capability (0 at or below it, 1 from +k). */
+export function methodUntested(id: string, oom: number | undefined): number {
+  const t = METHOD_TESTED_OOM[id];
+  if (!t || oom === undefined) return 0;
+  const x = Math.min(1, Math.max(0, (oom - t.oom) / METHOD_SCALE.k));
+  return x * x * (3 - 2 * x);
 }
-/** A method's removal share: clamp01(base·s0·e). */
-export function methodRemoval(s: GameStateV2, id: string, base: number, view: EffView = 'true'): number {
-  return clamp01(base * methodS0(s, id) * methodEfficacy(s, id, view));
+/** The strength factor on the method's exponent at `oom`: the hidden q in the true view, q̄ (or `q`) in the believed. */
+export function methodStrength(s: GameStateV2, id: string, oom: number | undefined, view: EffView = 'true', q?: number): number {
+  const tau = methodUntested(id, oom);
+  if (tau === 0) return 1;
+  const qq = view === 'true' ? (s.hidden.methodScale?.[id] ?? methodScaleOf(s.setup.seed)[id] ?? 1) : (q ?? METHOD_SCALE_BELIEVED);
+  return 1 - tau + tau * qq;
+}
+/** A method's multiplier on growth: mult = base^(s0·e·strength) (CP3f: log-space scaling; CP3i: strength at `oom`). */
+export function methodMult(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: number): number {
+  return clamp01(Math.pow(clamp01(base), methodS0(s, id) * methodEfficacy(s, id, view) * methodStrength(s, id, oom, view, q)));
+}
+/** A method's removal share: 1 − (1 − base)^(s0·e·strength) (CP3f: log-space scaling; CP3i: strength at `oom`). */
+export function methodRemoval(s: GameStateV2, id: string, base: number, view: EffView = 'true', oom?: number, q?: number): number {
+  return clamp01(1 - Math.pow(1 - clamp01(base), methodS0(s, id) * methodEfficacy(s, id, view) * methodStrength(s, id, oom, view, q)));
 }
 
 export interface MethodDef {
@@ -109,8 +136,10 @@ export function methodsFromParam(s: GameStateV2, raw: unknown): TechniqueId[] {
 }
 
 /** Preview lines of a run's methods: each method's effect (gain) and its cost where one exists; train-against gets the
- *  honest preview (OD-11). */
-export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string): { gains: CostLine[]; exposure: CostLine[] } {
+ *  honest preview (OD-11). CP3i: `G` is the planned model's (believed) capability; a method it has outgrown says so and
+ *  shows its strength as the stated range. */
+export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string, G?: number): { gains: CostLine[]; exposure: CostLine[] } {
+  const oom = G === undefined ? undefined : G - gV0(s.hidden.timeline);
   const gains: CostLine[] = [];
   const exposure: CostLine[] = [];
   for (const m of post.methods) {
@@ -124,7 +153,12 @@ export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string):
     if (!d) continue;
     // SR-15: the effect is the typical one (at the agenda's prior mean efficacy) × s0·e; the plan shows the believed e.
     const k = methodS0(s, m) * methodEfficacy(s, m, 'believed');
-    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} at a typical agenda; yours ×${k.toFixed(2)} of that (believed efficacy ${Math.round(methodEfficacy(s, m, 'believed') * 100)}%)` });
+    const tau = methodUntested(m, oom);
+    // CP3i: past the tested capability the strength is the stated range (never the world's draw).
+    const scale = tau > 0
+      ? `; tested on weaker models (${METHOD_TESTED_OOM[m].src}), so on this model its strength is unknown: ×${(k * (1 - tau + tau * METHOD_SCALE.lo)).toFixed(2)}–×${(k * (1 - tau + tau * METHOD_SCALE.hi)).toFixed(2)} (expected ×${(k * methodStrength(s, m, oom, 'believed')).toFixed(2)})`
+      : '';
+    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} at a typical agenda; yours ×${k.toFixed(2)} of that (believed efficacy ${Math.round(methodEfficacy(s, m, 'believed') * 100)}%)${scale}` });
     if (m === 'T-ANTISCHEME' && (!lineage || s.flags[`ws2.e25.${lineage}`] === undefined)) exposure.push({ currency: 'monitorability', amount: -1, unit: 'EA', target: `eval awareness ×${ANTISCHEME_EA_MULT}: the first anti-scheming training on this lineage (Schoen et al. 2025)` });
   }
   return { gains, exposure };
