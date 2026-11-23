@@ -182,12 +182,18 @@ export function overrideConsequences(s: GameStateV2): { moraleSafety: number; sc
 }
 
 /** Override a rule for one version: releases its holds on that version (deploy and training). Returns a reason or undefined. */
-export function overrideRule(s: GameStateV2, ctx: SystemCtx, ruleId: string, versionId: string): string | undefined {
-  const fw = frameworkOf(s);
-  const rule = fw.rules.find((r) => r.id === ruleId);
-  if (!rule) return 'Unknown framework rule';
+/** Why an override of this rule for this version is refused (undefined = it goes through); the preview and apply share it. */
+export function overrideRefusal(s: GameStateV2, ruleId: string, versionId: string): string | undefined {
+  if (!frameworkOf(s).rules.some((r) => r.id === ruleId)) return 'Unknown framework rule';
   if (!s.player.models.versions.some((v) => v.id === versionId)) return 'Unknown version';
   if (overridden(s, ruleId, versionId)) return 'Already overridden';
+  return undefined;
+}
+export function overrideRule(s: GameStateV2, ctx: SystemCtx, ruleId: string, versionId: string): string | undefined {
+  const why = overrideRefusal(s, ruleId, versionId);
+  if (why) return why;
+  const fw = frameworkOf(s);
+  const rule = fw.rules.find((r) => r.id === ruleId)!;
   const c = overrideConsequences(s);
   ctx.bump('morale.safety', -c.moraleSafety, 'Safety framework override', rule.label);
   ctx.bump('relations.scrutiny', c.scrutiny, 'Safety framework override', rule.label);

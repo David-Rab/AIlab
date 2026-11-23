@@ -224,7 +224,7 @@ const lineAmt = (c: CostLine) => {
   return `${a < 1 && a > 0 ? a.toFixed(2) : a.toFixed(a < 10 ? 1 : 0)} ${m?.label.toLowerCase() ?? F.words(c.currency)}`;
 };
 export function CostPills({ v }: { v: Pick<ActionView, 'costs' | 'gains' | 'exposure'> }) {
-  const meta = (c: CostLine) => [c.target, c.probability !== undefined && c.probability < 1 ? `p ${Math.round(c.probability * 100)}%` : '', c.lagDays ? `in ${Math.round(c.lagDays)} d` : ''].filter(Boolean).join(' · ');
+  const meta = (c: CostLine) => [c.condition, c.target, c.probability !== undefined && c.probability < 1 ? `p ${Math.round(c.probability * 100)}%` : '', c.lagDays ? `in ${Math.round(c.lagDays)} d` : ''].filter(Boolean).join(' · ');
   return (
     <span className="pills">
       {v.costs.filter((c) => c.amount !== 0).map((c, i) => <Pill key={`c${i}`} kind="cost" title={meta(c)}>{BAD_UP.has(c.currency) ? '+' : '−'}{lineAmt(c)}</Pill>)}

@@ -60,7 +60,7 @@ for (const e of EVENTS) {
 }
 
 // ───────── RD-B19: no preview line without an applied effect ─────────
-// The meters whose every change goes through ctx.bump / ctx.cause (actors/fx.ts): an immediate line (no lagDays, no odds
+// The meters whose every change goes through ctx.bump / ctx.cause (actors/fx.ts): an immediate line (no lagDays, no condition, no odds
 // below 1) in one of these currencies must leave a cause on that meter when the action runs on a copy.
 const METER_KEY: Partial<Record<CostLine['currency'], (k: string) => boolean>> = {
   credibility: (k) => k === 'relations.credibility',
@@ -106,7 +106,7 @@ for (const a of ACTIONS) {
     } catch {
       continue;
     }
-    const want = lines.filter((l) => l.amount !== 0 && !l.lagDays && (l.probability === undefined || l.probability >= 1) && METER_KEY[l.currency]);
+    const want = lines.filter((l) => l.amount !== 0 && !l.lagDays && !l.condition && (l.probability === undefined || l.probability >= 1) && METER_KEY[l.currency]);
     if (!want.length) continue;
     const c = clone(s);
     const keys: string[] = [];

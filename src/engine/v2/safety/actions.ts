@@ -25,7 +25,7 @@ import {
 } from './responses';
 import { methodPolicyOn } from './methods';
 import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
-import { editRule, frameworkOf, overrideConsequences, overrideRule, refreshFramework } from './framework';
+import { editRule, frameworkOf, overrideConsequences, overrideRefusal, overrideRule, refreshFramework } from './framework';
 import { SAFEGUARD_PACKAGES, SAFEGUARD_PACKAGE_IDS, applyPackage, packageBlock, previewPackage, type SafeguardPackageId } from './packages';
 import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
 import { redFlagLine } from '../events/catalog/safety';
@@ -411,15 +411,18 @@ const DISCLOSURE_POLICY: ActionDef = {
     const what = pol === 'legal' ? 'incidents the law requires (SB 53 / RAISE in force, external, severity ≥ 3) are reported on time; others are not, and their public timers run'
       : pol === 'full' ? 'every external incident and every internal one of severity ≥ 3 is reported the day it appears'
         : 'nothing is reported: a must-report incident becomes a cover-up';
+    // CP3d: setting the policy changes no meter today; each line applies per future incident it covers, and says so.
+    const per = (cond: string) => (l: CostLine): CostLine => ({ ...l, condition: cond });
     return {
-      costs: pol === 'none' ? withholdLines(s, true) : d.costs,
-      gains: [{ currency: 'trust', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains)],
-      exposure: pol === 'legal' ? withholdLines(s, false, 30) : [],
+      costs: (pol === 'none' ? withholdLines(s, true) : d.costs).map(per(pol === 'none' ? 'per must-report incident (withheld)' : 'per incident disclosed')),
+      gains: [{ currency: 'trust', amount: 0, target: `${DISCLOSURE_LABEL[pol]}: ${what} (current: ${DISCLOSURE_LABEL[disclosurePolicy(s)]}; a per-incident choice overrides it)` }, ...(pol === 'none' ? [] : d.gains.map(per('per incident disclosed')))],
+      exposure: (pol === 'legal' ? withholdLines(s, false, 30) : []).map(per('per incident not reported')),
     };
   },
   apply(s, _ctx, p) {
-    const pol = str(p, 'policy');
-    if ((DISCLOSURE_POLICIES as string[]).includes(pol ?? '')) s.player.safety.disclosure = pol as DisclosurePolicy;
+    // The preview's default ('legal') is what a request without a policy sets.
+    const pol = (DISCLOSURE_POLICIES as string[]).includes(str(p, 'policy') ?? '') ? (str(p, 'policy') as DisclosurePolicy) : 'legal';
+    s.player.safety.disclosure = pol;
   },
 };
 
@@ -629,6 +632,9 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
     const c = overrideConsequences(s);
     const ruleId = str(p, 'ruleId');
     const versionId = str(p, 'versionId');
+    // CP3d: a refused override (no such rule / version, already overridden) costs nothing: the preview says why.
+    const refused = overrideRefusal(s, ruleId ?? '', versionId ?? '');
+    if (refused) return { costs: [{ currency: 'progress', amount: 0, target: refused }], gains: [], exposure: [] };
     const released = frameworkOf(s).holds.filter((h) => h.ruleId === ruleId && h.versionId === versionId);
     const costs: CostLine[] = [
       { currency: 'morale', amount: c.moraleSafety, target: c.lines[0] },
@@ -641,8 +647,8 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
     return { costs, gains, exposure: [] };
   },
   apply(s, ctx, p) {
-    const why = overrideRule(s, ctx, str(p, 'ruleId') ?? '', str(p, 'versionId') ?? '');
-    if (why) ctx.log('alert', why);
+    // CP3d: refused, with its reason (ActionDef.apply's contract), not logged as if it went through.
+    return overrideRule(s, ctx, str(p, 'ruleId') ?? '', str(p, 'versionId') ?? '');
   },
 };
 
