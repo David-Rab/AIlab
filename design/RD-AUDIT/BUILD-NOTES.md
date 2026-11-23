@@ -4698,3 +4698,34 @@ cap 1.5 kept, decision 1).
   q = 2. Inversion uses believed efficacy, so a wrong efficacy belief shifts the range (9 of 100 misses).
 - **moves calibration: maybe** (no by default: only player / bot orders queue method jobs; then belief-only, through
   previews and predicted beliefs).
+
+### CAL-S sourcing (calibration steps 1 + 2, SAFETY; branch cal-saf)
+Primary sources for the deferred SAFETY numbers (REVIEW-FIXES "Deferred to calibration"; DECISIONS follow-up: default
+framework thresholds from the real 2025 frameworks). Quotes, mappings and confidence: research/CAL-safety-sources.md.
+
+| Number | Old → new | Source | Moves calibration |
+|---|---|---|---|
+| Bio / Cyber High (data/v2/framework.ts `FRAMEWORK_HIGH_L`) | L 10 → **6.4** | OpenAI Preparedness Framework v2 Table 1 (novice uplift, known threats; operationally relevant vulnerabilities); Anthropic RSP v2.2 CBRN-3. High = a median domain expert = λ(G_SC − Δ_bm), ai2027 6.39 (6.0–9.2 by world [D: one number]) | yes: classifier holds / auto-parts from BIO or CYBER 6.4 |
+| Bio / Cyber / AI R&D Critical (`FRAMEWORK_CRITICAL_L`) | L 12 → **10** | OAI-PF2 Critical rows (expert uplift to novel threats; zero-days in hardened systems; "superhuman research-scientist agent"); RSP CBRN-4 ("world-class, state-backed bioweapons team"), AI R&D-5. Critical = the best human (10) | yes: hardened + external evaluation from 10; AI R&D training hold (control + review + external) from RSCH 10 |
+| Misalignment-signs rule (safety/framework.ts `ruleTriggered`) | any model → **only versions measured at or above the scheming act's level (CYBER ≥ θ_SCHEME 5.0) or never measured**; line 30% kept [D] | GDM FSF v3.0 Instrumental Reasoning L1 → CoT monitoring of internal deployments; OAI-PF2 Cyber High → misalignment safeguards for large-scale internal deployment; RSP AI R&D-4 → affirmative misalignment case. The trusted rule's OD-6 clause, shared (`trusted.ts schemingReading`) | **yes**: no day-0 training hold, no control auto-applied from day 1 (RF-S1 / RF-S13 info changes); the rule returns once a version measures CYBER ≥ 5 |
+| CASE_WORK | 30 kept [proxy] | Marks 2025 Table 1; Taylor 2025 (240 person-hours) | no |
+| METHOD_SCALE q lo / hi, k | 0 sourced (Hubinger 2024: backdoors most persistent in the largest models); 2 and k = 2 kept [D stand-in] | — | no |
+| METHOD_TESTED_OOM | kept (per-paper models) | agendas.ts citations | no |
+| DISAGREE_DROP | 0.1 kept [D stand-in] | none; review §3 #8 proposes deleting the cut (designer) | no |
+| ORGANISM_REALISM | U[0.4, 1.0] kept [proxy] | AuditBench arXiv 2602.22755; Goldowsky-Dill 2025 arXiv 2502.03407 (abstracts re-checked) | no |
+| U05_SHIFT | kept (unit conversion, nothing to source) | RD-U05 | no |
+| ENGELS_400, debate credit | kept; rates verified | Engels 2025 arXiv 2504.18530 abstract; Khan 2024 arXiv 2402.06782 abstract | no |
+| HUMAN_REVIEW_L (graders) | 10 kept, **flagged**: "expert human" on RD-U05 = median expert 6.4, 10 = best human | none for the level | (would, if moved) |
+
+- **Day 0 now** (fresh game, ai2027 / authors2026, seed 2027; `npx tsx scripts/v2/_cals/fresh.ts [world]`): V0 and its
+  lineup trigger no rule; no hold; products start on classifiers (as Anthropic's ASL-3 for Opus 4 and OpenAI's
+  High-bio ChatGPT agent applied, precautionary), which the framework does not require of V0.
+- **Designer:** (1) V0 measures BIO 0 (clamped, RD-U05), so no Bio rule can fire for 2025-level models, while the real
+  labs judged their mid-2025 frontier at or near Bio High: a world-scale question (BIO's best-human offset, rf-r). (2)
+  One High level for all worlds (median expert 6.0–9.2 by world) or a per-world level. (3) Graders at 10 vs 6.4. (4)
+  DISAGREE_DROP: keep or delete (review #8). (5) q upper end 2 / k: unsourced.
+- **Checks.** tsc (app, scripts/v2) clean. _rfs1 (all ok, +2 CAL-S cases; part 1 puts the version above θ_SCHEME), _rfs2,
+  _rfs10, _rfs12, _rfs13 (part 1 places the internal model above θ_SCHEME), _rfs14 all ok. _sr19: the same 2 FAILs as
+  on the base (RF-S13b auto-parts; superseded), setup reads the lowest rule level per domain. _cp3i: pre-existing FAILs
+  (U[0, 1] superseded by RF-S10's U[0, 2]). New probes `scripts/v2/_cals/fresh.ts` (day-0 triggers), `medexp.ts`
+  (median expert level per world). Old saves keep their stored rule levels (no migration; development branch).
