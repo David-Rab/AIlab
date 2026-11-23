@@ -885,7 +885,14 @@ export interface SafetyDept {
   useAllMethods?: boolean;
   /** SR-10: disagreements between independent instruments' readings (newest last, DISAGREE_CAP kept). */
   disagreements?: Disagreement[];
+  /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
+   *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
+  envFixes?: Partial<Record<RLFamily, EnvFix>>;
 }
+
+/** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
+ *  PATCH_FLOOR), how many fixes it holds and the day of the latest; the trait and model of the latest finding. */
+export interface EnvFix { mult: number; n: number; day: number; trait?: TraitId; versionId?: string }
 
 /** SR-10: one reading in a disagreement: instrument kind (instruments.ts InstrumentKind), family, reading, its noise. */
 export interface DisagreementSide { kind: string; family: ToolFamily; reading: number; noise: number; day: number }

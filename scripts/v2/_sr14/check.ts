@@ -24,9 +24,9 @@ check(designs.length > 0 && designs.every((d) => Array.isArray(d.methods) && !('
 
 for (const id of ['T-PERSONA', 'T-ANTISCHEME', 'T-CONFESS', 'T-UNDO']) s.player.safety.techniques[id].unlocked = true;
 const post = (methods: string[]): PostDesign => ({ ...REFERENCE_POST, methods });
-const none = playerMods(s, post([]), 'L0');
-const pers = playerMods(s, post(['T-PERSONA']), 'L0');
-const as = playerMods(s, post(['T-ANTISCHEME']), 'L0');
+const none = playerMods(s, post([]));
+const pers = playerMods(s, post(['T-PERSONA']));
+const as = playerMods(s, post(['T-ANTISCHEME']));
 check((none.E05 ?? 1) === 1 && Math.abs((pers.E05 ?? 1) - 0.7) < 1e-9, 'persona vectors: E05 ×0.7 only when the run uses it', `${none.E05 ?? 1} → ${pers.E05}`);
 check((none.E28 ?? 1) === 1 && Math.abs((as.E28 ?? 1) - 0.1) < 1e-9, 'anti-scheming: E28 ×0.1 only when the run uses it', `${none.E28 ?? 1} → ${as.E28}`);
 const h0 = healRate(s, post([]));
@@ -35,10 +35,10 @@ check(h2 > h0 && h0 > 0, 'AG18 healing reads the run\'s methods', `${h0.toFixed(
 
 // Staffing switches nothing: drop every science team (no line staffed) and compare.
 const teams = s.player.teams;
-const modsStaffed = JSON.stringify(playerMods(s, post([]), 'L0'));
+const modsStaffed = JSON.stringify(playerMods(s, post([])));
 const healStaffed = healRate(s, post([]));
 s.player.teams = teams.filter((t) => t.role !== 'sci');
-check(JSON.stringify(playerMods(s, post([]), 'L0')) === modsStaffed && healRate(s, post([])) === healStaffed, 'staffing lines switches nothing (mods and healing equal without science teams)',
+check(JSON.stringify(playerMods(s, post([]))) === modsStaffed && healRate(s, post([])) === healStaffed, 'staffing lines switches nothing (mods and healing equal without science teams)',
   `${teams.filter((t) => t.role === 'sci').length} science teams`);
 s.player.teams = teams;
 

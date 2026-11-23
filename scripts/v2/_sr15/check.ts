@@ -27,7 +27,7 @@ const post: PostDesign = { ...REFERENCE_POST, safety: 'heavy', methods };
 const ag = s.player.safety.techniques['T-PERSONA'].agenda as AgendaId;
 const [a, b] = AGENDA_BY_ID[ag].prior;
 const s0 = methodS0(s, 'T-PERSONA');
-const e05 = (e: number) => { s.hidden.agendaEfficacy[ag] = e; return playerMods(s, post, 'L0').E05 ?? 1; };
+const e05 = (e: number) => { s.hidden.agendaEfficacy[ag] = e; return playerMods(s, post).E05 ?? 1; };
 const mean = a / (a + b);
 const lo = e05(mean / 2), mid = e05(mean), hi = e05(Math.min(1, mean * 1.5));
 check(Math.abs(s0 - 1 / mean) < 1e-12, 's0 = 1 / prior mean efficacy', `${ag} prior mean ${mean.toFixed(3)}, s0 ${s0.toFixed(3)}`);

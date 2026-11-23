@@ -92,6 +92,16 @@ export function suiteExploitMap(s: GameStateV2): FamilyMap {
   for (const f of suiteFamilies(s)) out[f] = suiteOf(s, f)!.exploit;
   return out;
 }
+/** SR-16: the lab's owned environment fix on a family (×1 = none): a patched grader / reward model / environment stops
+ *  rewarding the hack it was fixed for, on every later run that trains on the family. */
+export const envFixMult = (s: GameStateV2, f: RLFamily) => s.player.safety.envFixes?.[f]?.mult ?? 1;
+/** What a post-training run trains on: each suite's exploitability × the family's environment fix (SR-16). The snapshot
+ *  a run freezes at launch (rlRecipeNow) and the plan's preview / prediction read; suitesView shows the raw suites. */
+export function runExploitMap(s: GameStateV2): FamilyMap {
+  const out: FamilyMap = {};
+  for (const f of suiteFamilies(s)) out[f] = suiteOf(s, f)!.exploit * envFixMult(s, f);
+  return out;
+}
 
 /** RL family weights for the player (broad = equal over the families with a suite; a focus on a family without one is
  *  dropped here and refused by planRun). */

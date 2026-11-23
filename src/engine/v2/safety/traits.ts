@@ -10,7 +10,7 @@ import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/
 import { UMODES } from '../../../data/v2/umodes';
 import { BASE_DATA, IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
-import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
+import { runExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, PLAYER_ID } from '../models/labs';
 import { drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
@@ -126,7 +126,7 @@ export interface RunHack {
 /** A post-training design's hack share and learned hacking, with the same suites, shares and ρ as postSignals. */
 export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
   const rho = rhoOf(post, q);
-  const x = exploit ?? suiteExploitMap(s);
+  const x = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const h = hackShare(w, x, rho);
   return { h, lambda: learnedHackingOf(h) };
@@ -293,7 +293,7 @@ export function runBaseQuantities(s: GameStateV2, run: Pick<TrainingRun, 'recipe
 export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
   const sg = zeroSignals();
   const rho = rhoOf(post, q);
-  const x = exploit ?? suiteExploitMap(s);
+  const x = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
   sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
@@ -646,7 +646,7 @@ function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
 
 /** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. SR-15: a run
  *  method's moderator is methodMult(base) in the view (true efficacy in the engine, believed in the prediction). */
-export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage: string, view: EffView = 'true'): Record<string, number> {
+export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: EffView = 'true'): Record<string, number> {
   const m: Record<string, number> = {};
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
   const meth = (id: string, base: number, ...edges: string[]) => {
@@ -674,18 +674,15 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage
   meth('T-ANTISCHEME', 0.1, 'E19', 'E28');
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
   if (techActive(s, 'T-TMON') && routineMonitor(s) > 0) mul('E22', 0.5);
-  // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
-  // model is reused by every later run, so the fix outlives the lineage).
-  const prefix = `ws2.patch.${lineage}.`;
-  for (const [k, v] of Object.entries(s.flags)) {
-    if (typeof v !== 'number') continue;
-    if (k.startsWith(prefix)) mul(k.slice(prefix.length), v);
-    else if (k.startsWith(LAB_PATCH)) mul(k.slice(LAB_PATCH.length), v);
-  }
+  // Targeted inoculation training's lab-wide E04 multiplier (responses.ts targetedPlan patchE04). SR-16: the old
+  // per-edge signal patches are gone; an environment fix is owned per RL family and lowers the family's frozen
+  // exploitability (models/suites.ts runExploitMap), i.e. the run's hack rate, not a trait edge.
+  const inoc = s.flags[LAB_PATCH + 'E04'];
+  if (typeof inoc === 'number') mul('E04', inoc);
   return m;
 }
 
-/** Flag prefix of lab-wide signal patches (§3.5.9 patch signal). */
+/** Flag prefix of lab-wide edge multipliers (only targeted inoculation training's E04 since SR-16). */
 export const LAB_PATCH = 'ws2.patch.lab.';
 
 function memoryOn(s: GameStateV2) {
@@ -741,7 +738,7 @@ export function believedRunView(s: GameStateV2, post: PostDesign | undefined, v?
  *  safety-training removal gated by detection, AG18 healing, anti-scheming's removal and EA cost, inoculation's
  *  generalisation cut. `x` is the trait vector removal reads (true traits, or the believed estimates). */
 export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, view: RunView, gAf: number): TraitEnv {
-  const mods = playerMods(s, post, lineage, view.eff);
+  const mods = playerMods(s, post, view.eff);
   for (const [e, k] of Object.entries(uModeEdgeMult(view.uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
   // SAND) that behavioural training misses: their visibility rises OC_VIS → OC_VIS_AUDIT (×1.5) [D] (§3.3.2 H "alignment-audit").
@@ -1317,7 +1314,7 @@ export const traitsDailySystem: EngineSystem = {
       const iv = versionById(s, s.player.agents.capRoutine.versionId);
       if (iv && iv !== sv) {
         const w = s.hidden.edgeWeights.E22 ?? 0.3;
-        const mod = playerMods(s, iv.design, 'L-memory').E22 ?? 1;
+        const mod = playerMods(s, iv.design).E22 ?? 1;
         iv.traitsTrue.SUCC = clamp01(iv.traitsTrue.SUCC + (0.6 / 365) * s.hidden.difficultyMult * (1 - iv.traitsTrue.SUCC) * w * deploymentS8(s) * mod);
       }
     }

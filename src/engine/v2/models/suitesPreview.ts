@@ -11,7 +11,7 @@ import { optimisationPressure, postSignals } from '../safety/traits';
 import { adopted } from '../safety/common';
 import { buildEtas, buildWaitNew } from '../departments/build';
 import {
-  S2_PER_EXPLOIT, exploitFloor, expertAsset, expertAssetId, familyUnlocked, firstSuite, hardenCut, hardenedExploit, suiteExpertT, suiteOf, suiteRef, suiteRlWeights,
+  S2_PER_EXPLOIT, envFixMult, exploitFloor, expertAsset, expertAssetId, familyUnlocked, firstSuite, hardenCut, hardenedExploit, suiteExpertT, suiteOf, suiteRef, suiteRlWeights,
   suiteWorkBlock, suiteWorkCost, suiteWorkEffect, unbuiltSuiteFamilies, type SuiteCost, type SuiteWork,
 } from './suites';
 import type { GameStateV2, PostDesign, RLFamily } from '../types';
@@ -47,7 +47,7 @@ export function suiteS2Parts(s: GameStateV2, post: PostDesign): { rows: { family
   const w = suiteRlWeights(s, post.rlFocus);
   const pressure = optimisationPressure(RL_BUDGET[post.rlBudget]);
   const rows = (Object.entries(w) as [RLFamily, number][]).map(([family, share]) => {
-    const exploit = suiteOf(s, family)?.exploit ?? 0;
+    const exploit = (suiteOf(s, family)?.exploit ?? 0) * envFixMult(s, family); // SR-16: what the run trains on
     return { family, share, exploit, s2: S2_PER_EXPLOIT * share * exploit * pressure };
   });
   const p11 = adopted(s, 'P11') ? 0.2 : 0;

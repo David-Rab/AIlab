@@ -110,8 +110,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  72 (SR-10): SafetyDept.disagreements (independent instruments' conflicting readings), TechniqueState.trust (trust
  *  factor on believed reliability with its evidence), ValidationJob.human / ValidationResult.human (who ran it).
  *  Migration 71 → 72 adds an empty disagreement list and marks earlier measurements human-run (they read true recall).
+ *  73 (SR-16): SafetyDept.envFixes (owned environment fixes per RL family; the patch response makes them). The per-edge
+ *  signal-patch flags (ws2.patch.<lineage | lab>.<edge>) are gone: migration 72 → 73 drops them (keeps targeted
+ *  inoculation training's ws2.patch.lab.E04) and adds an empty fix list.
  */
-export const SCHEMA_REV = 72;
+export const SCHEMA_REV = 73;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -747,6 +750,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!dept) return;
     dept.disagreements ??= [];
     for (const t of Object.values(dept.techniques ?? {})) if (t?.measured) t.measured.human ??= true;
+  },
+  72: (raw) => {
+    // 72 → 73 (SR-16): environment fixes are owned per RL family; the old per-edge signal patches go.
+    const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixes?: object } } };
+    for (const k of Object.keys(r.flags ?? {})) if (k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04') delete r.flags![k];
+    if (r.player?.safety) r.player.safety.envFixes ??= {};
   },
 };
 

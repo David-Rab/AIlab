@@ -32,7 +32,7 @@ type SV = ReturnType<typeof safetyView>;
 const FAM_ICON: Record<string, LucideIcon> = FAMILY_ICON;
 const COL_ICON: Record<string, LucideIcon> = { alignment: ICON.colAlignment, interp: ICON.colInterp, evals: ICON.colEvals };
 const RESPONSES: { k: ResponseKind; label: string }[] = [
-  { k: 'patchSignal', label: 'Patch signal' }, { k: 'targetedTraining', label: 'Targeted training' },
+  { k: 'patchSignal', label: 'Fix environment' }, { k: 'targetedTraining', label: 'Targeted training' },
   { k: 'restrictContext', label: 'Restrict context' }, { k: 'liftRestriction', label: 'Lift restriction' }, { k: 'addControl', label: 'Add control' }, { k: 'rollback', label: 'Roll back' }, { k: 'disclose', label: 'Disclose' },
 ];
 const FTYPE: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
@@ -838,7 +838,7 @@ function IncidentsTab({ s, sv }: { s: GameStateV2; sv: SV }) {
         {i.responses.length > 0 && <div className="small dim">Done: {i.responses.map((r) => RESPONSES.find((x) => x.k === r)?.label ?? r).join(', ')}</div>}
         {isLive && (
           <div className="inc-menu">
-            <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{(() => { const tr = i.apparent !== 'unexplained' && i.apparent !== 'misuse' ? patchLevel(s, i.apparent) : undefined; return <Limit id="response.patchFloor" tone={tr?.atFloor ? 'bind' : tr && tr.lo < 1 ? 'warn' : 'quiet'}>{tr && tr.lo < 1 ? `patched to ×${tr.hi.toFixed(2)}` : 'patch ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
+            <span className="row-i"><span className="tip-cap"><Term id="response">Respond</Term></span>{(() => { const tr = patchLevel(s); return <Limit id="response.patchFloor" tone={tr.atFloor ? 'bind' : tr.mult < 1 ? 'warn' : 'quiet'}>{tr.mult < 1 ? `environments fixed to ×${tr.mult.toFixed(2)}` : 'fix ×0.3–0.6'} · floor ×{PATCH_FLOOR}</Limit>; })()}</span>
             <div className="btn-row wrap">
               {RESPONSES.map((r) => <ActBtn key={r.k} id="safety.respond" testId={`safety.respond.${r.k}`} params={{ kind: r.k, incidentId: i.id, versionId: i.versionId }} label={r.label} />)}
               <ActBtn id="safety.investigate" testId="safety.investigate.incident" params={{ incidentId: i.id, fte: 15 }} icon={ICON.investigate} label="Investigate" />

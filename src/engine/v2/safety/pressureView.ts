@@ -9,7 +9,7 @@ import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
 import { planRun, type LaunchRunParams } from '../models/runs';
-import { suiteExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
+import { runExploitMap, suiteRlWeights, S2_PER_EXPLOIT } from '../models/suites';
 import { measuredLOf, versionById } from '../models/labs';
 import { fleetMonitor } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
@@ -85,7 +85,7 @@ const famTerms = (w: FamilyMap, f: (k: RLFamily, wf: number) => { x: number; ter
 /** Post-training signals with their quantities (traits.ts `postSignals`, term by term). `exploit` = a run's frozen
  *  suites (else today's); `rho` = RL FLOP ÷ the base's FLOP; `s8` = the applied S8 when known (finished runs). */
 export function postPressure(s: GameStateV2, post: PostDesign, rho: number, exploit?: FamilyMap, s8?: number): PressureRow[] {
-  const x = exploit ?? suiteExploitMap(s);
+  const x = exploit ?? runExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const p = optimisationPressure(rho);
   const p11 = adopted(s, 'P11');

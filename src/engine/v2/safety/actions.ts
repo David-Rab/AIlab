@@ -6,7 +6,9 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, SafetyDept, TechniqueState, TraitId } from '../types';
+import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, SafetyDept, TechniqueState, TraitId } from '../types';
+import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
+import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { believedEfficacy, clamp01, flagNum, versionById } from './common';
 import { oomOfLevel } from './oversight';
 import { safetyLabour } from '../departments/workfit';
@@ -176,7 +178,13 @@ function runPenaltyLine(s: GameStateV2): CostLine {
   return { currency: 'progress', amount: -RUN_PENALTY_OOM, unit: 'OOM', target: `of G off the next post-training run${pending > 0 ? `; ${pending.toFixed(3)} OOM already pending` : ''}` };
 }
 
-function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, o: { footholdId?: string; trait?: TraitId; techniqueId?: string } = {}): Preview {
+/** SR-16: the RL family named in an action's params (environment fix), if any. */
+const familyParam = (p: Record<string, unknown> | undefined): RLFamily | undefined => {
+  const f = p?.family;
+  return typeof f === 'string' && (RL_FAMILY_IDS as string[]).includes(f) ? (f as RLFamily) : undefined;
+};
+
+function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, o: { footholdId?: string; trait?: TraitId; techniqueId?: string; family?: RLFamily } = {}): Preview {
   if (kind === 'removeFoothold') return removalPreview(s, o.footholdId);
   const v = versionById(s, versionId) ?? internalVersion(s);
   const inc = incidentId ? s.player.safety.incidents.find((i) => i.id === incidentId) : undefined;
@@ -187,21 +195,21 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
   // believed levels (beliefs, measured levels, believed strengths) only.
   switch (kind) {
     case 'patchSignal': {
-      // Each edge into the trait × 0.3–0.6 lab-wide (floor 0.2); 10 safety research engineers while a patch runs.
-      const pl = patchLevel(s, trait);
+      // SR-16: the family's owned environment fix × 0.3–0.6 (floor 0.2), reused by every later run on the family;
+      // 10 safety research engineers while a fix runs.
+      const pl = patchLevel(s, o.family);
       const busy = s.time.day < flagNum(s, 'patchUntil', -1);
-      const lo = Math.max(PATCH_FLOOR, pl.lo * PATCH_MULT[0]);
-      const hi = Math.max(PATCH_FLOOR, pl.hi * PATCH_MULT[1]);
-      const name = TRAIT_BY_ID[trait]?.name ?? trait;
-      const now = pl.lo === pl.hi ? `×${f2(pl.hi)}` : `×${f2(pl.lo)}–${f2(pl.hi)}`;
+      const lo = Math.max(PATCH_FLOOR, pl.mult * PATCH_MULT[0]);
+      const hi = Math.max(PATCH_FLOOR, pl.mult * PATCH_MULT[1]);
+      const fam = pl.family ? RL_FAMILY_LABEL[pl.family] : '';
       return {
         costs: [
           { currency: 'staffTime', amount: busy ? 0 : PATCH_FTE, target: busy ? `safety research engineers already on a patch: it runs ${PATCH_DAYS[0]}–${PATCH_DAYS[1]} d from today` : `safety research engineers for ${PATCH_DAYS[0]}–${PATCH_DAYS[1]} d` },
           runPenaltyLine(s),
         ],
-        gains: pl.n === 0 || pl.atFloor
-          ? [{ currency: 'alignment', amount: 0, target: pl.n ? `training pressure into ${name} is already at the floor ×${PATCH_FLOOR}: no further effect` : `no training pressure feeds ${name}` }]
-          : [{ currency: 'alignment', amount: pl.n, unit: pl.n === 1 ? 'training pressure' : 'training pressures', target: `into ${name}: weight ${now} → ×${f2(lo)}–${f2(hi)} on every later run, lab-wide (floor ×${PATCH_FLOOR})` }],
+        gains: !pl.family || pl.atFloor
+          ? [{ currency: 'alignment', amount: 0, target: pl.family ? `the ${fam} environments' fix is already at the floor ×${PATCH_FLOOR}: no further effect` : 'no environments of that family' }]
+          : [{ currency: 'alignment', amount: 1, unit: 'environment fix', target: `${fam}: rewarded hacks ×${f2(pl.mult)} → ×${f2(lo)}–${f2(hi)} on every later run that trains on ${fam} (floor ×${PATCH_FLOOR}); runs on other families unchanged` }],
         exposure: [],
       };
     }
@@ -345,14 +353,14 @@ const RESPOND: ActionDef = {
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     // F6e: the model apply acts on (the incident's, else the capability lane's), the chosen trait and detector.
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId;
-    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', versionId, str(p, 'incidentId'), { footholdId: str(p, 'footholdId'), trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId') });
+    return respondPreview(s, RESPONSE_KINDS.includes(kind) ? kind : 'patchSignal', versionId, str(p, 'incidentId'), { footholdId: str(p, 'footholdId'), trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), family: familyParam(p) });
   },
   apply(s, ctx, p) {
     const kind = str(p, 'kind') as ResponseKind;
     if (!RESPONSE_KINDS.includes(kind)) return void ctx.log('alert', 'Respond: pick a response.');
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
-    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId') });
+    const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId'), family: familyParam(p) });
     if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
   },
 };
