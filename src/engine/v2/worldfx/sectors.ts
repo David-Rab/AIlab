@@ -10,7 +10,8 @@
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
-//   6 α      = 0.25 + (α_max − 0.25)·σ((L_AGENCY − 8)/1.5);  D = α·A
+//   6 α      = 0.25 + (α_max − 0.25)·σ((g_AGENCY − λ⁻¹(8))/(1.5·oomPerLevel(8)));  D = α·A   (RD-P04a: the market's
+//              share-weighted AGENCY domain G, OOM; v2's L 8 / 1.5 L restated through the one λ)
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
@@ -21,7 +22,7 @@ import {
 } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
 import type {
-  ControlDomainId, ControlState, DomainId, EngineSystem, GameStateV2, LabId, MacroState, RegionId, SectorId,
+  ControlDomainId, ControlState, DomainId, EngineSystem, TimelineWorld, GameStateV2, LabId, MacroState, RegionId, SectorId,
   SectorState, SystemCtx, WorldEconomy, WorldFxState, WorldTechState,
 } from '../types';
 import { initialControl, updateControl } from './control';
@@ -34,6 +35,7 @@ import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from 
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
 import { sectorCertDay } from '../models/products';
+import { gOfLevel, levelGate, oomPerLevel } from '../models/capability';
 
 export { REGIONS };
 
@@ -54,9 +56,16 @@ const TASK_ENTRIES = Object.fromEntries(SECTORS.map((d) => [d.id, Object.entries
 /** Hourly wage of a sector's work in a region ($). */
 export const wageOf = (def: SectorDef, r: RegionId) => def.wage * REGION_SCALE[r].wage * ECON.W0;
 
-export function alphaOf(def: SectorDef, Lagency: number): number {
-  return 0.25 + (def.alphaMax - 0.25) * sigmoid((Lagency - 8) / 1.5);
+/** RD-P04a: substitution α on the market's AGENCY domain G (OOM, general λ scale: mix.ts SectorMix.g, the horizon
+ *  domain; h50 = 203 min × 4.2 per OOM). Midpoint and spread are v2's L 8 and 1.5 L converted through the one λ
+ *  (exact on the V0 → SC segment that holds L 8). */
+export const ALPHA_MID_L = 8;
+export const ALPHA_SPREAD_L = 1.5;
+export function alphaOf(w: TimelineWorld, def: SectorDef, gAgency: number): number {
+  return 0.25 + (def.alphaMax - 0.25) * levelGate(w, gAgency, ALPHA_MID_L, ALPHA_SPREAD_L);
 }
+/** The start state's α (before the first tick reads the market; as F there): the R16 Agent-0 AGENCY level. */
+const ALPHA_START_SIG = sigmoid((AGENT0_PROFILE.AGENCY - ALPHA_MID_L) / ALPHA_SPREAD_L);
 
 /** Pre-LLM (late 2022) feasibility per sector: hiring baseline for ΔF. */
 /** Consumer SOCIAL level at which the AI-friend share is half its ceiling (research/16 §2.1) [D]. M2: 7 → 6.5 on
@@ -100,7 +109,7 @@ function sectorState(def: SectorDef, r: RegionId, le: Record<DomainId, number>, 
   const F = feasibility(def, le);
   const K = K_START;
   const Astar = F * K * (1 - R);
-  const alpha = alphaOf(def, le.AGENCY);
+  const alpha = 0.25 + (def.alphaMax - 0.25) * ALPHA_START_SIG;
   const E0 = E0of(def, r);
   const E = employmentTarget(def, r, E0, alpha * A, A, PCOST_START * wageOf(def, r));
   const hireRate = clamp01(1 - ECON.hireSlope * Math.max(0, F - F_PRE_START[def.id]));
@@ -212,6 +221,7 @@ export function retrainOf(s: GameStateV2, pol: PolicyState): number {
 function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix, pol: PolicyState): number {
   const econ = econOf(s);
   const dt = 1 / 365;
+  const w = s.hidden.timeline;
   const row = s.world.sectors[r];
   const eff = worldTechEffects(s);
   const playerIdx = mix.providers.findIndex((p) => p.key === 'player');
@@ -222,13 +232,13 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
   for (const def of SECTORS) {
     const st = row[def.id];
     const m = mix.sec[r][def.id];
-    const le = m.dom;
+    const g = m.g;
     st.F = m.F;
     st.K = m.K;
     st.R = frictionOf(s, r, def, pol);
     st.Astar = st.F * st.K * (1 - st.R);
-    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
-    let q = def.q * (1 + 0.15 * Math.max(0, le.AGENCY - 8));
+    // RD-P04a: v2's +0.15 per AGENCY level above 8, per OOM of AGENCY G above λ⁻¹(8) (the slope at L 8).
+    let q = def.q * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
     if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
@@ -245,7 +255,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     if (sg < sStar) st.seat = sg + ((SEATS.q * sg) / Math.max(1e-6, sStar)) * (sStar - sg) * dt * econ.diffMult;
     else st.seat = sg - SEATS.down * (sg - sStar) * dt;
     st.seat = clamp01(st.seat);
-    const a = alphaOf(def, le.AGENCY);
+    const a = alphaOf(w, def, g.AGENCY);
     const ps = playerIdx >= 0 ? m.share[playerIdx] : 0;
     st.alpha = noDropIn ? ps * Math.min(a, 0.5) + (1 - ps) * a : a;
     const D = st.alpha * st.A;

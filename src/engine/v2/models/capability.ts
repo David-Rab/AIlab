@@ -55,6 +55,18 @@ export function gOfLevel(w: TimelineWorld, L: number): number {
   return g[g.length - 1];
 }
 
+/** RD-P04: OOM of effective compute per display level at level L (the inverse slope of λ on the knot segment holding
+ *  L). A v2 spread of s levels around a threshold L* is s × oomPerLevel(L*) OOM: exact while G stays on that segment. */
+export function oomPerLevel(w: TimelineWorld, L: number): number {
+  const g = levelKnotsG(w);
+  let i = 0;
+  while (i < g.length - 2 && L >= LEVEL_AT[i + 1]) i++;
+  return Math.max(1e-9, g[i + 1] - g[i]) / (LEVEL_AT[i + 1] - LEVEL_AT[i]);
+}
+/** RD-P04: a v2 display-level gate σ((L_d − L*)/s) on domain G (OOM): σ((x − λ⁻¹(L*)) / (s·oomPerLevel(L*))), x the
+ *  domain's scale G (domainScaleG). The threshold converts exactly through the one λ; the spread on L*'s segment. */
+export const levelGate = (w: TimelineWorld, x: number, L: number, s: number) => 1 / (1 + Math.exp(-(x - gOfLevel(w, L)) / (s * oomPerLevel(w, L))));
+
 /** Decimal year of a day (v1 convention) on the standard start date. */
 export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 
@@ -131,6 +143,10 @@ export function domainRefShift(w: TimelineWorld, d: DomainId): number {
   }
   return m[d];
 }
+
+/** RD-P04: a model's domain G on the general λ scale (OOM): G_d − (best_d − G_SC), so λ of it is the domain score. The
+ *  one capability input the world effects read (α, the PHYS gate, control, tech gates, bestPublic). */
+export const domainScaleG = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId) => versionDomainG(v, d) - domainRefShift(w, d);
 
 /** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain
  *  effective compute (versionDomainG: training, data and design specialisation, all in OOM) measured against that

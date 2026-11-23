@@ -31,13 +31,14 @@ import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, 
 import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
 import { surplusChoice, type Choice, type Tier } from './choice';
-import { sigmoid, techRamp } from './policy';
+import { techRamp } from './policy';
 import { productDomains } from '../models/products';
+import { domainScaleG, gOfLevel, levelGate, oomPerLevel } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
+  CHINA_MARKUP, RIVAL_MARKUP, effortDG, effortTokens, enablerShare, fptOfSimple, fxOn, markupOf, offerOf,
   agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
@@ -110,6 +111,10 @@ export interface SectorMix {
   agentCeiling: AgentCeiling;
   /** Share-weighted effective domain levels (the world model m*). */
   dom: Record<DomainId, number>;
+  /** RD-P04a: the market's share-weighted domain G on the general λ scale (OOM; models/capability.ts domainScaleG: each
+   *  model's domain G, the player's products with their settings ΔG as in the offer); PHYS robot-bound. What α, the
+   *  Bass q and the PHYS gate read. */
+  g: Record<DomainId, number>;
   /** Share-weighted price per hour of AI use ($) and the buyer's cost per AI work-hour saved, incl. review ($). */
   price: number;
   pCost: number;
@@ -395,13 +400,18 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // Capped domain vectors (display): non-player providers, and player candidate deployments.
   const pvec: (number[] | undefined)[] = providers.map((p) => (p.dom ? capVec(p.dom) : undefined));
-  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
+  // RD-P04a: domain G vectors (OOM, general λ scale) from the same model the offer reads; the player's products add their
+  // settings ΔG (safeguards, control layer, effort: worldfx/serving.ts settingsDG / effortDG, as in productOffer).
+  const w = s.hidden.timeline;
+  const gvecOf = (m: Pick<ModelVersion, 'G' | 'build'>, dG = 0) => DOMAIN_IDS.map((d) => domainScaleG(w, m, d) + dG);
+  const pg: (number[] | undefined)[] = providers.map((p) => (p.model ? gvecOf(p.model) : undefined));
+  const cands: { dep: Deployment; dom: Record<DomainId, number>; v: number[]; g: number[]; ch: Deployment['channel']; uses: ModelUse[]; tiers: ModelUse[][]; fx: ReturnType<typeof productFx> }[] = [];
   for (const d of paid) {
     const mv = ver.get(d.versionId);
     if (!mv) continue;
     const dom = productDomains(s, d, mv)!;
     const tiers = productTierUses(s, d);
-    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
+    cands.push({ dep: d, dom, v: capVec(dom, depOffset(d)), g: gvecOf(mv, settingsDG(d) + effortDG(effortTokens(d.effort))), ch: d.channel, uses: productUses(s, d), tiers, fx: productFx(s, d) });
   }
   // A8 multi-homing: in a sector's choice each provider is in a buyer's set with probability R (its reach: a stock in
   // fx.secReach, ≤ its access). Start (and a provider with no stock yet): access × min(1, MULTI_HOMING.providers ÷ the
@@ -538,6 +548,12 @@ function computeMix(s: GameStateV2): WorldMix {
   // Display vectors per sector (the player's is its best candidate's).
   const vecs: (number[] | undefined)[][] = [];
   for (let si = 0; si < S; si++) vecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.v : pvec[i])));
+  const gvecs: (number[] | undefined)[][] = [];
+  for (let si = 0; si < S; si++) gvecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.g : pg[i])));
+  // RD-P04a: the PHYS gate on domain G (OOM): v2's robot-bound PHYS level (floor 10·W16 ramp, +3·W19 on LOG, cap
+  // 15·robots) and σ((Le_PHYS − fMid − θ)/fSpread) restated through the one λ (thresholds exact; +3 L at its 10 L slope).
+  const pfFloorG = gOfLevel(w, pfFloor);
+  const pfLogG = pfLog * oomPerLevel(w, 10);
   const reviewK = ASSIST.review;
   const invK = 1 / ECON.kSpread;
   const sec = {} as Record<RegionId, Record<SectorId, SectorMix>>;
@@ -557,7 +573,10 @@ function computeMix(s: GameStateV2): WorldMix {
       const seatPrices = filled(n, 0);
       const level = filled(n, -Infinity);
       const physLe = filled(n, 0);
+      const physG = filled(n, 0);
       const vs = vecs[si];
+      const gs = gvecs[si];
+      const physCapG = gOfLevel(w, physCap);
       // A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts), on value-capped tier prices.
       const lines = lineOff[si];
       // (P3: one loop without per-call closures builds the tiers and their prices for the readout.)
@@ -621,6 +640,8 @@ function computeMix(s: GameStateV2): WorldMix {
           physLe[i] = Math.min(Math.max(v[PHYS], pfFloor) + (t.id === 'LOG' ? pfLog : 0), physCap);
           level[i] = cogL[si][i] + t.physW * physLe[i];
         }
+        const gv = gs[i];
+        if (gv) physG[i] = Math.min(Math.max(gv[PHYS], pfFloorG) + (t.id === 'LOG' ? pfLogG : 0), physCapG);
       }
       // RD-P03: the player's products, each its own seller: a product's part of the player's hours here (playerProdW, sum
       // 1: the choice among its products, band by band) and its buyers' hours by tier of its lineup (playerTierW, sum 1).
@@ -652,6 +673,8 @@ function computeMix(s: GameStateV2): WorldMix {
       let best = -Infinity;
       for (let i = 0; i < n; i++) if (acc[ri][i] > 0 && level[i] > best) best = level[i];
       const dv = filled(ND, 0);
+      const gw = filled(ND, 0);
+      let gsum = 0;
       let px = 0;
       let pc = 0;
       let aCog = 0;
@@ -678,7 +701,12 @@ function computeMix(s: GameStateV2): WorldMix {
         wsum += x;
         const v = vs[i];
         if (v) for (let k = 0; k < ND; k++) dv[k] += x * (k === PHYS ? physLe[i] : v[k]);
-        lePhys += x * physLe[i];
+        const gv = gs[i];
+        if (gv) {
+          for (let k = 0; k < ND; k++) gw[k] += x * (k === PHYS ? physG[i] : gv[k]);
+          gsum += x;
+        }
+        lePhys += x * physG[i];
         px += x * prices[i];
         if (seatPrices[i] > 0) {
           sw += x;
@@ -698,7 +726,8 @@ function computeMix(s: GameStateV2): WorldMix {
         K /= wsum;
         lePhys /= wsum;
       }
-      const physF = t.physW > 0 ? sigmoid((lePhys - ECON.fMid - t.theta) / ECON.fSpread) : 0;
+      if (gsum > 0) for (let k = 0; k < ND; k++) gw[k] /= gsum;
+      const physF = t.physW > 0 ? levelGate(w, lePhys, ECON.fMid + t.theta, ECON.fSpread) : 0;
       const F = (1 - t.physW) * aCog + t.physW * physF;
       const pp = playerIdx >= 0 ? prices[playerIdx] : 0;
       const price = wsum > 0 ? px : 0;
@@ -709,7 +738,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const agentCeiling = agentCeilingOf(SECTORS[si], st.E0 * ECON.hours, wage, wh.adopted, wh.adopted * price, pCost, wh.supervising * kw, wh.supervising * kp, kw > 0 ? kb / kw : wage);
       if (agentCeiling.fill < 1) for (let i = 0; i < n; i++) agentK[i] *= agentCeiling.fill;
       rowOut[t.id] = {
-        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, agentCeiling, dom: domRecord(dv),
+        share, target, level, best: best === -Infinity ? 0 : best, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice: sw > 0 ? sp / sw : SEATS.price, agentCeiling, dom: domRecord(dv), g: domRecord(gw),
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
