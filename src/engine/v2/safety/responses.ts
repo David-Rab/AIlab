@@ -81,9 +81,11 @@ export function consumeRunPenalty(s: GameStateV2): number {
   return p;
 }
 
-/** Safety FTE tied up by patch projects and foothold removals (released when they end). */
+/** SR-21: safety engineers an environment fix being built takes (the 'envFix' need; released when it ends). */
+export const envFixFte = (s: GameStateV2): number => (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0);
+/** Safety FTE tied up by environment fixes and foothold removals (released when they end). */
 export function patchFte(s: GameStateV2): number {
-  return (s.time.day < flagNum(s, 'patchUntil', -1) ? PATCH_FTE : 0) + removalFte(s);
+  return envFixFte(s) + removalFte(s);
 }
 
 // ───────────── F6e: the numbers each response applies, shared by applyResponse and the Respond preview ─────────────

@@ -17,9 +17,9 @@ import { labMisalignment, misalignment, misalignmentBand, misalignmentEstimate }
 import { sightLimit } from './sightLimit';
 import { exfiltrationHazard } from './incidents';
 import { safetyAgentVersion, safetyFleet, trustedShare } from './agents';
-import { lineLabour } from './lineProjects';
+import { lineLabour, safAllocation } from './lineProjects';
 import { validationView } from './validation';
-import { monitorBudget, safetyPoolClaims, type SafetyPoolClaims } from '../departments/agents';
+import { monitorBudget } from '../departments/agents';
 import { RISK_FAMILIES, RISK_UNSEEN_CLARITY } from '../../../data/v2/agents';
 import { CRITICAL_TRAITS } from '../../../data/v2/traits';
 import { PROJECT_BY_ID, TREE, isLineNode, lineNodeId } from '../../../data/v2/tree';
@@ -181,7 +181,7 @@ export function traitGraph(s: GameStateV2) {
 export interface SafetyUtilisation {
   staff: { sci: number; onLines: number; idleSci: number; idleTeams: number; re: number; investigations: number; patches: number; validation: number; idleRe: number };
   /** H100e. idle = safety compute nobody uses (after monitoring, investigations, agents and the lines' shares). */
-  compute: { pool: number; monitoring: number; investigations: number; agents: number; idle: number; claims: SafetyPoolClaims };
+  compute: { pool: number; monitoring: number; investigations: number; evals: number; agents: number; idle: number };
   fleet: { versionId?: string; versionName?: string; level: number; copies: number; aiFte: number; perFte: number; automated: number; idle: boolean };
 }
 
@@ -203,9 +203,10 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const sp = s.player.split;
   const line = online * sp.safety;
   const pool = online * (sp.safety + sp.monitors + sp.safetyAgents);
-  const claims = safetyPoolClaims(s);
   const monitoring = online * monitorBudget(s).used;
-  const invC = line * claims.investigations.granted;
+  const al = safAllocation(s); // SR-21: the safety line's sub-uses come from the needs list
+  const invC = al.compute.cases.got;
+  const evC = al.compute.evals.got;
   const agents = online * sp.safetyAgents;
   let got = 0;
   for (const a of AGENDAS) {
@@ -216,7 +217,7 @@ export function safetyUtilisation(s: GameStateV2): SafetyUtilisation {
   const automated = trustedShare(s) > 0 ? AGENDAS.filter((a) => lineTeams(s, a.id).length > 0).length + dept.investigations.filter((i) => !i.outcome).length : 0;
   return {
     staff: { sci, onLines, idleSci: sci - onLines, idleTeams, re: re.heads, investigations: re.investigations, patches: re.patches, validation: re.validation, idleRe: re.idle },
-    compute: { pool, monitoring, investigations: invC, agents, idle: Math.max(0, pool - monitoring - invC - agents - got), claims },
+    compute: { pool, monitoring, investigations: invC, evals: evC, agents, idle: Math.max(0, pool - monitoring - invC - evC - agents - got) },
     fleet: { versionId: v?.id, versionName: v?.name, level: v?.evals.measuredL ?? 0, copies: fl.copies, aiFte: fl.aiFte, perFte: fl.perFte, automated, idle: fl.compute > 0 && automated === 0 },
   };
 }

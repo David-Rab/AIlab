@@ -104,32 +104,8 @@ export function agentSplitShare(s: GameStateV2, use: AgentUse): number {
   return s.player.split[AGENT_LINE[use]] ?? 0;
 }
 
-/** A claim on the safety research line: what it asks for and what it gets, both shares of the line. */
-export interface PoolClaim { requested: number; granted: number }
-/** RD-A05a: the safety research line (split.safety) serves open cases first (cut pro rata when they ask for more than
- *  the line), the research lines take the rest. Monitors and safety agents have their own allocation lines. */
-export interface SafetyPoolClaims {
-  investigations: PoolClaim;
-  lines: PoolClaim;
-  /** granted ÷ requested of every investigation (1 when not cut). */
-  invScale: number;
-  /** Σ requested (may exceed 1); Σ granted (≤ 1). */
-  requested: number;
-  granted: number;
-}
-
-const openInvShare = (s: GameStateV2) => s.player.safety.investigations.filter((i) => !i.outcome).reduce((a, i) => a + i.computeShare, 0);
-
-/** The safety research line's claims (`extraInv` adds a case being previewed, Investigate). */
-export function safetyPoolClaims(s: GameStateV2, extraInv = 0): SafetyPoolClaims {
-  const I = openInvShare(s) + Math.max(0, extraInv);
-  const inv = Math.min(I, 1);
-  const lines = Math.max(0, 1 - inv);
-  return {
-    investigations: { requested: I, granted: inv }, lines: { requested: lines, granted: lines },
-    invScale: I > 0 ? inv / I : 1, requested: I + lines, granted: inv + lines,
-  };
-}
+// SR-21: the safety line's claims (cases first, lines the rest) are the needs list's compute (safety/lineProjects.ts
+// safAllocation): no separate claim pool.
 
 /** H100e running a use. */
 export const agentCompute = (s: GameStateV2, use: AgentUse) => s.player.computeOnline * agentSplitShare(s, use);

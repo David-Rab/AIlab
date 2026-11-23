@@ -787,13 +787,13 @@ export interface StackState {
   n: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
-/** Research-engineer needs (V3-BUILD V2.5): run operations, evaluations (model v3 D7), project experiments. Capacity
- *  none of them takes is idle (RD-E03 removed routine tuning). */
-export type ReNeed = 'ops' | 'evals' | 'exp';
-/** Safety research-engineer needs (RD-A04, SAFETY-REDESIGN §5): open cases (investigations), patches and foothold
- *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
- *  capacity none takes is idle. */
-export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'validation';
+/** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments. Capacity none of them takes is idle
+ *  (RD-E03 removed routine tuning; SR-21 moved evaluations to the safety engineers' needs list). */
+export type ReNeed = 'ops' | 'exp';
+/** Safety research-engineer needs (RD-A04, SR-21, SAFETY-REDESIGN §5): human review on the safeguards, open cases,
+ *  validation jobs, eval suites, environment fixes, foothold removals, line-project experiments (by project priority).
+ *  Each has a real staff (and compute) demand; capacity none takes is idle. */
+export type SafReNeed = 'review' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a

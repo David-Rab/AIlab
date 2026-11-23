@@ -1,15 +1,15 @@
 // Evaluations as work (model v3 D7; MODEL-V3 §10). Owner: WS1. Numbers and sources: src/data/v2/evals.ts.
 //
 // An eval suite is a task (EvalTask on s.player.models.evals) with three parts:
-//   research engineers  `reTW` team-weeks of effective work, on the 'evals' need of the capabilities research-engineer
-//                       allocation (after run operations by default; the player's order and caps apply). A suite advances
+//   research engineers  `reTW` team-weeks of effective work, on the 'evals' need of the SAFETY research engineers' needs
+//                       list (SR-21; the player's order and caps apply, set in LAB). A suite advances
 //                       at most at its depth's staff (effective team-equivalents: the analysis lag of a small team's 1–3
-//                       weeks, research/20 §G (c)); AI labour in experiments (m_EXP) does part of the work, so it needs
+//                       weeks, research/20 §G (c)); AI labour in safety experiments (m) does part of the work, so it needs
 //                       fewer people (÷ m, as run operations) but is not shorter. External evaluators work with their own
 //                       staff (EXT_EVAL_STAFF).
 //   inference compute   tokens on every benchmark's rollouts at the evaluated model's FLOP per token, as H100e-days at
-//                       serving utilisation (prefill 0.35, decode 0.07), drawn from the EXPERIMENTS pool (the research
-//                       cluster) ahead of the projects, in step with the research engineers' progress; a suite whose
+//                       serving utilisation (prefill 0.35, decode 0.07), a sub-use of the SAFETY compute line (SR-21:
+//                       filled in the needs list's order, safety/lineProjects.ts safAllocation), in step with the engineers' progress; a suite whose
 //                       compute is short advances only as far as the compute goes.
 //   engineers           `engTW` team-weeks on the build queue (kind 'eval', worked with run setups in the 'runs' need).
 // Duration = work ÷ capacity (no fixed days); a suite finishes when all three are done: runEvalSuite reads the version at
@@ -28,13 +28,22 @@ import { PEAK_FLOPS, U_DECODE, U_PREFILL } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { EvalDepth, EvalTask, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
 import { frameworkOf } from '../safety/framework';
-import { flopPerToken, workContext } from '../departments/workfit';
+import { flopPerToken, safetyLabour } from '../departments/workfit';
 import { buildEtas, queueBuild } from '../departments/build';
 import { agentVersion } from '../departments/agents';
 import { MEASURE_SD, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
-import { allocate, capReCapacity, expPoolH100e, reAllocation, reDemand } from './research';
+import { allocate } from './research';
+import { safAllocation } from '../safety/lineProjects';
+
+/** SR-21: AI labour multiplier on the safety engineers' eval work (m of safety experiments, as cases and validation). */
+export const evalM = (s: GameStateV2) => Math.max(1, safetyLabour(s).exp.m);
+/** SR-21: human team-equivalents the safety needs list gives the eval suites today, and their H100e (its compute sub-use). */
+export function evalStaffToday(s: GameStateV2): { re: number; h100e: number } {
+  const a = safAllocation(s);
+  return { re: a.got.evals / TEAM_SIZE.re, h100e: a.compute.evals.got };
+}
 
 /** Suite depth the Safety framework's capability assessment asks for before release (SR-19; none: no release suite). */
 export function gateDepth(depth: SafetyFramework['evalDepth']): EvalDepth | undefined {
@@ -121,6 +130,26 @@ export function evalReDemand(s: GameStateV2, m: number): number {
   return d;
 }
 
+/** SR-21: H100e the suites can use today with `reHuman` team-equivalents of safety engineers (the 'evals' need's compute
+ *  ask on the safety line): each unfinished suite's daily share of work at the staff it gets in queue order (own staff for
+ *  external suites) × its H100e-days, as evalsDay. */
+export function evalH100eAsk(s: GameStateV2, m: number, reHuman = Infinity): number {
+  let h = 0;
+  let left = reHuman;
+  for (const t of ordered(s)) {
+    if (t.progress >= 1 || t.h100eDays <= 0) continue;
+    const v = versionById(s, t.versionId);
+    let dp: number;
+    if (t.by === 'self') {
+      const x = Math.min(left, suiteWant(t, m));
+      left -= x;
+      dp = t.reTW > 0 ? (x * m) / 7 / t.reTW : 1;
+    } else dp = EXT_EVAL_STAFF / TEAM_SIZE.re / 7 / Math.max(1e-9, evalCost(s, v ?? { fpt: 0 }, t.depth).reTW);
+    h += Math.min(dp, 1 - t.progress) * t.h100eDays;
+  }
+  return h;
+}
+
 /** A finished build item of kind 'eval' (departments/build.ts). */
 export function evalEngDone(s: GameStateV2, ref: string, tw: number) {
   const t = evalsOf(s).find((x) => x.id === ref);
@@ -129,9 +158,9 @@ export function evalEngDone(s: GameStateV2, ref: string, tw: number) {
   spentOf(s).engTW += tw;
 }
 
-/** One day of eval work (research system, after the research-engineer allocation): the lab's suites share `reHuman`
- *  team-equivalents (× m), external suites use their own staff; compute comes from `poolH100e` (the experiment pool's
- *  H100e-days today). Finished suites run. Returns the H100e-days used (taken from the projects' compute). */
+/** One day of eval work (research system, after the allocation): the lab's suites share `reHuman` team-equivalents
+ *  (× m; SR-21: the safety needs list's 'evals' need), external suites use their own staff; compute comes from
+ *  `poolH100e` (the evals' sub-use of the safety compute line, H100e-days today). Finished suites run. Returns the H100e-days used (taken from the projects' compute). */
 export function evalsDay(s: GameStateV2, ctx: SystemCtx, reHuman: number, m: number, poolH100e: number): number {
   let left = reHuman;
   let pool = Math.max(0, poolH100e);
@@ -226,12 +255,13 @@ export function autoEvaluate(s: GameStateV2) {
  *  team-equivalents: at full staffing basic 7, full 14, deep ≈ 21 days). */
 export function evalDaysEstimate(s: GameStateV2, depth: EvalDepth): number {
   const D = EVAL_DEPTHS[depth];
-  const m = Math.max(1, workContext(s).slots.EXP.m);
+  const m = evalM(s);
   const max = D.staff / TEAM_SIZE.re / m;
-  const d = reDemand(s, m);
-  const cap = capReCapacity(s);
-  const a = s.player.research.re;
-  const extra = allocate(cap, a, { ...d, evals: d.evals + max }).evals - allocate(cap, a, d).evals;
+  // SR-21: what the safety needs list would give one more suite (heads × quality → team-equivalents).
+  const al = safAllocation(s);
+  const a = s.player.research.safRe;
+  const d = al.demand;
+  const extra = (allocate(al.heads, a, { ...d, evals: d.evals + max * TEAM_SIZE.re }).evals - allocate(al.heads, a, d).evals) / TEAM_SIZE.re;
   const h = Math.min(max, Math.max(0, extra));
   return h > 0 ? Math.max(1, Math.ceil((D.staffWeeks / TEAM_SIZE.re) / ((h * m) / 7) - 1e-9)) : Infinity;
 }
@@ -259,12 +289,12 @@ export interface EvalTaskView {
  *  research engineers on evals today (the allocation's 'evals' need) and the experiments pool's compute are shared in
  *  queue order, as evalsDay does. */
 export function evalQueueView(s: GameStateV2): EvalTaskView[] {
-  const m = Math.max(1, workContext(s).slots.EXP.m);
-  // Today's allocation of the evaluations need (with the suites queued now; research.last is yesterday's).
-  const got = reAllocation(s).re.evals;
+  const m = evalM(s);
+  // Today's allocation of the evaluations need (SR-21: the safety needs list's staff and compute for evals).
+  const today = evalStaffToday(s);
   const etas = buildEtas(s).etas;
-  let share = got;
-  let pool = Math.max(0, expPoolH100e(s));
+  let share = today.re;
+  let pool = Math.max(0, today.h100e);
   return ordered(s).map((t) => {
     const v = versionById(s, t.versionId);
     const want = t.by === 'self' ? suiteWant(t, m) : 0;
@@ -342,6 +372,6 @@ export function evalPolicyView(s: GameStateV2): { depth: EvalDepth; perSuite?: E
   const v = policyModels(s)[0];
   return {
     depth, ...(v ? { perSuite: evalCost(s, v, depth) } : {}), spent: { ...spentOf(s) },
-    reToday: s.player.research.last?.re.evals ?? 0, reCap: capReCapacity(s), reevalDG: REEVAL_DG, reevalDays: REEVAL_DAYS,
+    reToday: evalStaffToday(s).re, reCap: safAllocation(s).heads / TEAM_SIZE.re, reevalDG: REEVAL_DG, reevalDays: REEVAL_DAYS,
   };
 }

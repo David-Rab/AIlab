@@ -6,7 +6,7 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { P25_DEFENCE } from '../security/theft';
 import type { ActionDef, CostLine, EngNeed, GameStateV2, ReNeed, RiskPolicy, SafReNeed, StackKey, TraitId } from '../types';
-import { DEFAULT_SAF_RE_ALLOC, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
+import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS, PICK_AT, PROJECT_MAX_TEAMS, RISK_KAPPA, STACK_LABEL } from '../../../data/v2/research';
 import { atTest, capEta, effortOfNode, isCapProject, priorMean, reopenProject, teamsWanted, wantIsAuto } from './research';
 import {
   assignCapNow, assignTeam, dequeueNode, moveInQueue, nodeOdds, nodeStatus, projectEta, projectTeams,
@@ -125,9 +125,9 @@ export function safLines(n: TreeNodeDef, odds: number): { gains: CostLine[]; exp
   return g('safety effect', n.saf ?? n.name);
 }
 
-const NEEDS_RE: ReNeed[] = ['ops', 'evals', 'exp'];
+const NEEDS_RE: ReNeed[] = ['ops', 'exp'];
 const NEEDS_ENG: EngNeed[] = ['runs', 'upkeep', 'builds'];
-const NEEDS_SAF_RE: SafReNeed[] = ['cases', 'patches', 'safExp', 'validation'];
+const NEEDS_SAF_RE: SafReNeed[] = SAF_RE_NEEDS;
 /** Parse an order param ('exp,ops,evals'): a permutation of the needs, or undefined. */
 function orderParam<K extends string>(p: Params, all: K[]): K[] | undefined {
   if (typeof p.order !== 'string') return undefined;

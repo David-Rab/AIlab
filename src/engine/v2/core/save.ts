@@ -136,8 +136,12 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  minimum, an empty required-method list, and drops the two old kinds from incidents' response records.
  *  81 (SR-20): AgentPackage.monitorId 'auto' (the most capable trusted model, safety/trusted.ts; the new default).
  *  Migration 80 → 81 moves routine and frontier research packages on the old default 'same' to 'auto'.
+ *  82 (SR-21): one safety needs list. SafReNeed gains 'review' (human review, was committed before the list), 'evals'
+ *  (eval suites, was the capability engineers' ReNeed 'evals') and splits 'patches' into 'envFix' and 'removal'.
+ *  Migration 81 → 82 rewrites research.safRe (review first, patches → envFix, removal in place, evals before line
+ *  experiments; patches' caps go to envFix) and drops 'evals' from research.re.
  */
-export const SCHEMA_REV = 81;
+export const SCHEMA_REV = 82;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -877,6 +881,27 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (!agents) return;
     for (const u of ['capRoutine', 'capFrontier']) if (agents[u]?.monitorId === 'same') agents[u].monitorId = 'auto';
   },
+  81: (raw) => {
+    // 81 → 82 (SR-21): one safety needs list (see SCHEMA_REV's note).
+    type A = { order?: string[]; max?: Record<string, number>; share?: Record<string, number> };
+    const res = (raw as { player?: { research?: { re?: A; safRe?: A } } }).player?.research;
+    if (!res) return;
+    if (res.re) {
+      res.re.order = (res.re.order ?? []).filter((k) => k !== 'evals');
+      for (const cap of [res.re.max, res.re.share]) if (cap) delete cap.evals;
+    }
+    const sr = res.safRe;
+    if (!sr) return;
+    const out: string[] = ['review'];
+    for (const k of sr.order ?? []) {
+      if (k === 'patches') out.push('envFix', 'removal');
+      else if (k === 'safExp') out.push('evals', 'safExp');
+      else out.push(k);
+    }
+    for (const k of ['cases', 'validation', 'evals', 'envFix', 'removal', 'safExp']) if (!out.includes(k)) out.push(k);
+    sr.order = [...new Set(out)]; // an older migration may already have written today's default order
+    for (const cap of [sr.max, sr.share]) if (cap && cap.patches !== undefined) { cap.envFix = cap.patches; delete cap.patches; }
+  },
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */
@@ -916,7 +941,7 @@ export function migrateFlatSplit(s: GameStateV2): void {
   p.split = { ...flatOf(o, o.agents * fr, o.agents * (1 - fr)), safetyAgents: ps * A };
   for (const u of ['eng', 'capRoutine', 'capFrontier', 'safety']) delete pk[u]?.compute;
   delete pol.monitorBudget;
-  // RD-B07's claims on the old pool (shares of it), as safetyPoolClaims computed them.
+  // RD-B07's claims on the old pool (shares of it), as RD-B07's claim rule computed them.
   let needCap = 0;
   for (const u of CAP_USES) needCap += monitorNeedShare(s, u);
   const nc = ps > 0 ? needCap / ps : 0;

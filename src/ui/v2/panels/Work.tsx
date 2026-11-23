@@ -5,7 +5,7 @@
 // overflow: the player's broad allocation). Below: the work-type milestones with the distance to each criterion.
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
-import { buildSplit, capPriorityList, dateOf, engAllocView, fmtDate, milestoneViews, reAllocView, safReAllocView, workTypeViews } from '../../../engine/v2';
+import { buildSplit, capPriorityList, dateOf, engAllocView, fmtDate, milestoneViews, reAllocView, safReAllocView, safetySpend, workTypeViews } from '../../../engine/v2';
 import type { AllocView, GameStateV2, MilestoneView, NeedView, WorkTypeView } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
@@ -203,7 +203,24 @@ function SafReCard({ s }: { s: GameStateV2 }) {
     <Card className="wk-role" home="work.safRe" title={<span className="row-i"><ICON.roleRE size={15} /><Term id="safReNeeds">Safety research engineers</Term></span>}
       sub={<span className="small dim">{F.short(a.cap)} people · where they go, priority order</span>}>
       <NeedList a={a} act="research.safReAlloc" unit="people" />
+      <SafetySpendLine s={s} />
     </Card>
+  );
+}
+
+/** SR-21: the safety needs' compute and the one safety spend total (staff + compute of the filled needs). */
+function SafetySpendLine({ s }: { s: GameStateV2 }) {
+  const sp = safetySpend(s);
+  return (
+    <Tip content={() => <TipCard title="Safety spend" value={F.money(sp.total, { perYear: true })} rows={[
+      ...sp.rows.filter((r) => r.staffAsk > 0 || r.computeAsk > 0 || r.staffGot > 0 || r.computeGot > 0).map((r) => ({
+        label: <>{r.label}{r.filled ? '' : <span className="tone-warn"> · short</span>}</>,
+        value: `${F.short(r.staffGot)}/${F.short(r.staffAsk)} people · ${F.short(r.computeGot)}/${F.short(r.computeAsk)} H100e · ${F.money(r.staffCost + r.computeCost, { perYear: true })}`,
+      })),
+      { label: 'Idle (not in the total)', value: `${F.short(sp.idleStaff)} people · ${F.short(sp.idleCompute)} H100e · ${F.money(sp.idleCost, { perYear: true })}` },
+    ]}>Every safety use of people and compute is a need here, in this order (compute: cases and eval suites first, validation and line experiments share the rest; monitoring and control use their own compute line, set in Safety). The total is the people and compute the needs got: payroll share plus compute at the rental rate.</TipCard>}>
+      <div className="small dim">Safety spend {F.money(sp.total, { perYear: true })} · people {F.money(sp.staffCost, { perYear: true })} + compute {F.money(sp.computeCost, { perYear: true })}</div>
+    </Tip>
   );
 }
 

@@ -64,7 +64,7 @@ if (process.argv.includes('--rd-e03')) {
   const al = reAllocation(s);
   const last = s.player.research.last;
   // The readout is the last tick's: its needs plus idle make up the (unchanged) capacity.
-  const sum = last ? last.re.ops + last.re.evals + last.re.exp : NaN;
+  const sum = last ? last.re.ops + last.re.exp : NaN;
   act(s, 'research.reAlloc', { order: 'ops,exp,tune,evals' });
   const order = s.player.research.re.order.join(',');
   check(Object.keys(al.demand).sort().join(',') === 'evals,exp,ops' && DEFAULT_RE_ALLOC.order.join(',') === 'ops,evals,exp' && !('tune' in (last?.re ?? {}))
@@ -423,7 +423,7 @@ if (process.argv.includes('--rd-a03')) {
   const before = reAllocation(s);
   act(s, 'research.reAlloc', { need: 'exp', max: 0 });
   const after = reAllocation(s);
-  const sum = (a: typeof after) => a.re.ops + a.re.evals + a.re.exp;
+  const sum = (a: typeof after) => a.re.ops + a.re.exp;
   check(before.re.exp > 0 && after.re.exp === 0 && Math.abs(after.total - sum(after) - (before.total - sum(before) + before.re.exp)) < 1e-9,
     'research engineers: with experiments capped, their capacity is idle',
     `exp ${before.re.exp.toFixed(1)} → ${after.re.exp}, idle ${(after.total - sum(after)).toFixed(2)}`);
@@ -461,7 +461,7 @@ if (process.argv.includes('--rd-a03')) {
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
   // (a) Research engineers are idle only when every project in experiments has its full RE_MAX_PER_PROJECT (INP-V01).
-  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.evals - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
+  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
   check(bad.length === 0,
     'RD-B08: research engineers are idle only after every project in experiments has its full need',
     `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; violations ${bad.map((v) => v.k).join(',') || 'none'}`);
@@ -488,7 +488,7 @@ if (process.argv.includes('--rd-a03')) {
   // (c) With research engineers to spare, the projects take the whole pool and the rest of the engineers are idle.
   const top = vs[vs.length - 1];
   const projFlop = [...top.sh.perProject.values()].reduce((x, y) => x + y, 0);
-  const usedTop = top.a.re.ops + top.a.re.evals + top.a.re.exp;
+  const usedTop = top.a.re.ops + top.a.re.exp;
   check(Math.abs(projFlop - top.avail) < 1e-6 * top.avail && top.a.total - usedTop > 0,
     'RD-B08 / RD-E03: with research engineers to spare the projects take the whole pool; spare research engineers are idle',
     `projects ${(100 * projFlop / top.avail).toFixed(1)}% of FLOP; idle ${(top.a.total - usedTop).toFixed(2)} team-eq`);

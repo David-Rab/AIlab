@@ -15,9 +15,9 @@ import { safetyLabour } from '../departments/workfit';
 import { gradePlayer } from '../actors/index';
 import { dateOf } from '../core/time';
 import { lineResultsPerYear } from './agendas';
-import { safetyPoolClaims } from '../departments/agents';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
+import { caseComputeScale } from './lineProjects';
 import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, casePreview, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
   DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, PATCH_DAYS, PATCH_FLOOR, PATCH_FTE, PATCH_MULT, RESPONSE_INFO, RUN_PENALTY_OOM, UNDO_RESPONSES, applyResponse,
@@ -130,7 +130,7 @@ const INVESTIGATE: ActionDef = {
     const cs = clamp01(num(p, 'computeShare') ?? 0.05);
     const ids = str(p, 'tools')?.split(',').filter(Boolean);
     const tools = (ids?.length ? ids : defaultTools(s, traits)).map((id) => s.player.safety.techniques[id]).filter((x): x is TechniqueState => !!x?.unlocked);
-    const csScale = safetyPoolClaims(s, cs).invScale; // RD-B07: the cases' granted share after the monitors
+    const csScale = caseComputeScale(s, cs); // SR-21: the cases' compute need, filled in the safety needs list's order
     const gm = investigationGain(s, versionId, traits, tools, fte, cs * csScale);
     // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
     // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level) × (1 − the tools'

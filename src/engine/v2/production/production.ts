@@ -101,9 +101,9 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const mod = researchMods(s);
   const off = Number(s.flags['ws4:agentsOffUntil'] ?? -1) > day;
   const alloc = reAllocation(s);
-  // Research engineers not on run operations or evals (idle ones too): what experiments + tuning held before RD-B08
-  // gave tuning a finite demand, so this lab-level proxy and its readers do not move (M goes with RD-R01 / RD-R04).
-  const reRes = Math.max(0, alloc.total - alloc.re.ops - alloc.re.evals);
+  // Research engineers not on run operations (idle ones too; SR-21: evals are safety engineers' work now): what
+  // experiments + tuning held before RD-B08 gave tuning a finite demand (M goes with RD-R01 / RD-R04).
+  const reRes = Math.max(0, alloc.total - alloc.re.ops);
   const Cag = off ? 0 : (pools.routine + pools.frontier);
   const flopEff = Math.pow(10, trainNow(s));
   const kUnit = 1 / DAY0_REF.agents;

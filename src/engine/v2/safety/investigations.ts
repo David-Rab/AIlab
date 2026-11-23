@@ -6,7 +6,6 @@
 // close, or after 120 days. The outcome is drawn
 // from the truth (engine) but the player only sees the outcome label and a severity estimate.
 import { safetyLabour } from '../departments/workfit';
-import { safetyPoolClaims } from '../departments/agents';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
 import { SHARE_REF } from '../../../data/v2/calibration';
 import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
@@ -23,7 +22,7 @@ import { discoverUMode, isDiscovered } from './umodes';
 import { caseThreat, safetySabotage } from './covert';
 import { patchFte } from './responses';
 import { caseOnModel } from './footholdDetection';
-import { casesServed } from './lineProjects';
+import { casesServed, safAllocation } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
 import { labReviewOn, reviewStaff } from './safeguards';
 import { aiRdShare } from './incidents';
@@ -140,14 +139,14 @@ export function monthlyGain(s: GameStateV2, inv: Investigation): number {
   }
   // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
   // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
-  return caseRate(s, g, inv.fte * casesServed(s), caseH100e(s, inv.computeShare * safetyPoolClaims(s).invScale)); // RD-B07: the granted share
+  return caseRate(s, g, inv.fte * casesServed(s), caseH100e(s, inv.computeShare * safAllocation(s).caseScale)); // SR-21: the cases' compute need filled in the list's order
 }
 
 /** RD-A05b: a case's compute (H100e) that gives the reference compute term (×1): 5% of the reference lab's safety research
  *  line at the start (1.2M H100e × the start safety share × the share left after the standard monitors) [D]. */
 export const CASE_H100E_REF = 0.05 * 1.2e6 * SHARE_REF[0].share.safety * (1 - MONITOR_STD_POOL_SHARE);
 /** RD-A05b: H100e a case runs on: its granted share of the safety research line (a demand inside that use of the flat
- *  allocation; the lines take the rest, departments/agents.ts safetyPoolClaims). */
+ *  allocation; SR-21: the cases' compute need in the safety needs list, safety/lineProjects.ts safAllocation). */
 export const caseH100e = (s: GameStateV2, grantedShare: number) => s.player.computeOnline * Math.max(0, s.player.split.safety) * Math.max(0, grantedShare);
 
 /** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and its

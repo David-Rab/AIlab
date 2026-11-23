@@ -50,6 +50,7 @@ export { controlView } from '../safety/control';
 export { believedInternalOversight } from '../safety/believedOversight';
 export type { FootholdRow } from '../safety/footholdDetection';
 export { lineMult, lineResultsPerYear, posteriorBand, promisingIdle, safetyRe } from '../safety/agendas';
+export { safetySpend, type SafetySpend, type SafetyNeedRow } from '../safety/spend';
 export { basePressure, plannedPressure, postPressure, signalPushes, storedBaseRows, successorPullView, versionPressure } from '../safety/pressureView';
 export type { FamilyId, ImitationView, PressureRow, PushTarget, RunPressure, SuccessorPartView, SuccessorPullView } from '../safety/pressureView';
 export { INV_FTE, INV_MAX_DAYS } from '../safety/investigations';
