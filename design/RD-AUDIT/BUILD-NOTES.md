@@ -5470,3 +5470,83 @@ the same FAIL lines as bfa46a9 job by job (fixtures stale on bfa46a9 too). test:
 **Left.** Code identifiers only (domain-code keys, S-ids in switch cases, icon maps). Not R&D: WorldSectors (θ, OOM
 fit), EndScreen λ, finance glossary `sectorValue` κ formula. Engine OOM CostLines still carry OOM amounts (shown as ×);
 an honest "+x levels in Code" ghost needs the UB-2 readouts.
+
+### UB-2 (readouts on beliefs / measured values; new readouts for the mockups; branch ub2-readouts from rd 8c7560c)
+
+**A. Hidden-value readers fixed (readouts only).**
+- `bestPlayerVersion` (true G) stays for the engine; readouts use the new `bestMeasuredVersion` (labs.ts: highest
+  measured level, else the newest live version): CoreLoop "Best model", limitsView's UI export, lossRisk `runningModels`.
+- Measured domain fallbacks: `measuredDomains` (index.ts) returns only fitted domains (missing = "not measured yet");
+  the act table's `measuredDomainL` → `measuredDomainOf` (labs.ts: own fit, else the nearest measured ancestor's, else
+  the best measured version's, else the lineage's measured level; never the true offset); act rows carry `measured`
+  (false → "not measured yet"). paradigms.ts `measuredDomain` (no callers) skips unfitted versions.
+- `stackViews` Waiting: `gap` = Σ the believed estimates adopted after the internal model's recipe froze (base start /
+  its post-training run), with `gapSd`, `gapN`, `gapSince`; `inModel` = now − gap. `softwareRate.oomPerYear`: the
+  recipe's effective compute at the believed areas minus the same without the last 365 days' results
+  (`believedAdoptedSince`).
+- AI share / work done: `measuredLabour` (workfit.ts) reads the AI staff model's measured skills (owned-tool effects
+  kept as the slot's fit minus the model's own) and the believed production parameters. Used by `workTypeViews` (fit,
+  coverage, win, assist, L, m, wH, A; new `measured`), `aiShareByRole`, `believedRdShare` (the believed act table's
+  site, the takeover row, loss-of-control risk, the Safety control readout) and `believedRdParts` (steering rows).
+- Same pattern, found by the check: `labSpeedRel` and `responseCurves` take `believedInputs` (measured coverage and
+  assist, believed taste; the observed scale is taken at that labour, so the level is still the observed throughput).
+  `capProjectView`, `capEta` and the tree previews read `believedSciOn` (believed AI taste). Safety readouts
+  (`lineRates`, `lineLabour`, `safSciOn` with truth false) read the believed parameters and measured fits. lineRows
+  `aiLabour` leaves out hidden sandbagging (truth false).
+- **Physics unchanged:** the engine keeps every true reader (sciOn, labInputs, lineRates with truth, controlStep's
+  believedTerms, believedInternalOversight's default for RefBot). Check: day-400 fixture + RefBot for 60 and 300 days;
+  the state hash equals rd 8c7560c's (series.speed / speedAI excluded).
+
+**B. New readouts** (pure functions; function · home · unit · basis):
+- `researchSpeedReadout` (models/rdReadouts.ts) · L0 #6 tooltip · × the leading lab in July 2025, AI staff's part ×,
+  weekly history, 90-day trend · B. The part is `aiStaffSpeedPart` (production.ts): experiments = the believed CES at
+  the observed unit inputs with vs without the measured labour multiplier; ideas = believed team taste with vs without
+  AI's share. History: new optional series `speed`, `speedAI` (record.ts, weekly; empty on older saves and the fixture).
+- `knowHowAreas` · RESEARCH › Know-how L1 (growth L2) · × vs July 2025 (public; yours with 90% range; waiting) and
+  × per year (last 365 days) · Public F, the rest B.
+- `programmeRates` · Portfolio card L1, next result in the tooltip · ≈ × / yr on the area · B: results / yr = 365 ÷
+  one full result's days at today's teams and compute (capEta on a view copy with no result under way, believed
+  taste), each ≈ the next result's believed size; also `soFar` (results so far ÷ days played). Day 400: scaling ×1.12
+  now (×1.19 so far), optimizer ×1.19, serving ×1.25.
+- `programmeGets` · card drawer "Gets" L2 · H100e and % of experiment compute (yesterday's FLOP, F); the idea under
+  test as × (range, certainty word, at scale grows / holds / shrinks with a ±0.05 dead band); waiting ideas · F / B.
+- `rankMoves` + `targetRate` · LAB › Best moves L1 · **days of progress a year** = 365 × gain ÷ today's rate of the
+  target · B. Day 400: experiments ×4 (+66% research speed) → 239 days; a safety scientist team (+0.54 results / yr of
+  3.88) → 51; a safety RE team → 9. Targets at rate 0 rank last, flagged "starts it".
+- `skillGains(s, plan)` · TRAINING › Next run ghosts L1, level changes in the tooltip · levels on the job scale
+  (skillMarks median / best; position 0 → 1) · today M (measuredDomainOf), plan B·fc (runForecast). One function for
+  the next run, another start-from model or another post-training budget: pass the plan.
+- `safetyProgrammes` (safety/safetyReadouts.ts) · Portfolio Safety column L1 · stage track Ideas · Small test ·
+  Validate (SAF_STAGES: 20 / 35 / 45% of the project's work); priority = your list order, then staffed, then idle by
+  outlook mean · F / B.
+- `instrumentReliability` · SAFETY › Instruments L1 · % with 90% range (believed reliability at the measured level,
+  mean over the traits it reads; range from the efficacy posterior ±1.64 sd), certainty word, validated on, reasons ·
+  M / B.
+- `sightCurve` (sightLimit.ts) · SAFETY sight chart · mean and lowest believed reading per level 0–15 · B.
+  `sightGaps` · SAFETY header / TRAINING tick · "x levels short of / past <model>" (or "read no model") · B.
+- `actReadouts` / `chancesPerYear` · SAFETY › Risks L1 · Chances / yr = κ × chances × 365 (per item: κ × chances; new
+  act-row field `kappa`; escape row: attempts ÷ (Would try × Able to)), Unknown flag, certainty, Able to measured ·
+  B · M · F.
+- `oversightGaps` · SAFETY › Safeguards L2 · human reviewer gap (measured level − 10) and watcher gap, in levels · M.
+- `core/certainty.ts` · everywhere · one word scale: sure / fairly sure / fairly unsure / very unsure. **Display
+  thresholds:** chances by 90%-range width ≤ 5 / ≤ 15 / ≤ 30 points, > 30 = Unknown (`isUnknown`, VOCAB's rule);
+  sizes by relative half-width ≤ 0.15 / ≤ 0.4 / ≤ 1. The drawer example (+3.7%, 0.7–6.7%) reads "fairly unsure".
+
+**Check.** `scripts/v2/_ub2/check.ts`: every readout on the day-400 fixture, then on a copy with hidden values rewritten
+(versions' G, levels, domains, build, true traits; the drawn production parameter; true know-how in the three eval-only
+areas and the ideas' true effects; programme efficacy, method scale, organism realism): same output, all pass, 3 WARN
+(below). tsc app + scripts/v2 clean; lint-hidden ok; _ui0a and rdm02 pass. scripts/v2/research.ts: the same 2 FAIL as
+rd 8c7560c (dud direction drops; assignment optimum 91.5%).
+
+**Left / designer.**
+- `skillGains` (and the existing run card) read runForecast, whose planned step comes from planRun on the true recipe
+  and the true reference build (WARN): a believed run step is its own task.
+- Safety results / yr and next-result days move with the safety engineers each programme gets (safAllocation, a
+  staffing fact computed live from the true AI work), so the check WARNs there; Best moves' safety rate likewise.
+- Not changed (engine rules or bot inputs): framework.ts capability trigger's fallback for a measured version without
+  a domain fit; `believedInternalOversight`'s default share (RefBot reads it) and controlStep's believedTerms;
+  labSpeedView `mExp` / `mIdeas` (the research engine's realised multipliers).
+- Waiting and growth sum only the last 30 kept results (research.adopted): a long wait can read low.
+- Designer: the mockup's safety stage track shows "Big test"; the engine has Ideas · Small test · Validate. Programme
+  rate "now" vs "so far" differ (scaling ×1.12 vs ×1.19); the cards use "now" (accepted plan: at current staffing).
+- UB-5..10: `measuredDomains` is partial now (the MODELS radar and Blueprint chips need a "not measured yet" state).
