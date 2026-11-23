@@ -76,3 +76,14 @@ Three independent reviews of the post-compaction work (design/RD-AUDIT/review/*.
     its open questions wait for the UI phase.
 
 The reviewers' smaller lead calls (thresholds, lineup caps, etc.) stay as defaults.
+
+## Follow-ups to the review fixes (2026-11-23, designer accepted the lead's recommendations)
+
+- **Framework package applies itself.** When a framework rule requires safeguards, the computed "meet my framework"
+  package is applied automatically (player can change it); no hold-and-override loop. The default framework thresholds
+  are sourced from the real 2025 frameworks (Anthropic RSP, OpenAI Preparedness) as the first sourcing item of
+  calibration, so 2025-level models don't trigger requirements.
+- **Validating a safety method** = the same validation job as an instrument (cost, need, VAL_N): plant the trait in a test
+  copy, train it with the method, count planted cases removed (k of n). Organism realism applies to methods too (one
+  rule). The result narrows the lab's belief about the method's at-scale strength most at the tested capability, widening
+  again above it.

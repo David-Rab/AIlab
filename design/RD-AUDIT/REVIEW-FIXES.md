@@ -58,3 +58,9 @@ gap, CP3f U05_SHIFT, misuse per token vs per user, uncommitted CP3l edits on p3-
 - Rival safety physics gaps: review/rival-safety.md (options A/B/C).
 - Day-0 tools from history (RF-P1): a lab that lacked a tool at the start never catches up (Anthropic never gets Memory;
   xAI / DeepSeek never get computer use or voice & vision). Should laggards catch up after the lag rule?
+
+## Follow-ups (after merge 39bfc40)
+| ID | Task | Source |
+|---|---|---|
+| RF-S13 | Framework applies its computed package automatically when a rule requires safeguards (no day-0 hold; bots don't override) | DECISIONS follow-ups; merge report (_ui0a, evals EV6 fail from the hold) |
+| RF-S14 | Method validation job narrows the at-scale belief (proposal in BUILD-NOTES RF-S10) | DECISIONS follow-ups |
