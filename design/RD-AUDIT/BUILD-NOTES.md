@@ -4590,3 +4590,19 @@ cap 1.5 kept, decision 1).
   so it may fail: information, not chased.
 - **moves calibration: yes** (cases are much faster and cheaper; their verdicts are only as strong as the instruments;
   fewer readings per case: one per family instead of one per family per month).
+
+## Merge RF lanes (rf-r, rf-p, rf-s1, rf-s2 into rd)
+
+- **Renumber (SCHEMA_REV, one chain in merge order):** rf-r RF-R5 keeps 98 (97 → 98); rf-p RF-P2/P1 → 99 (98 → 99);
+  rf-s1 RF-S5 → 100 (99 → 100); rf-s2 RF-S8/S10/S12 → 101 (100 → 101). Each migration body unchanged; the save.ts
+  SCHEMA_REV note lists all four. The lane notes above still say "98"; read them with this map.
+- **Conflicts:** save.ts (header note + migration table, both sides kept and renumbered); hygiene.ts (two rev pins,
+  now `SCHEMA_REV === 101`); BUILD-NOTES (all lane blocks kept). REVIEW-FIXES, DECISIONS, safety/actions.ts merged
+  without conflict (rivals-session section, EV9 reverted line and decision 5 all present). Rev pins moved in lane
+  checks: `_rfs5` (fixture set to rev 99, expects 101), `_rfs8` (expects 101).
+- **Checks after the merge:** tsc app + scripts/v2 clean. Pass: `_rfs1`–`_rfs5`, `_rfs7`–`_rfs12`, `_rfp5`, `_rfp6`,
+  `_p07`, `_p08`, `_p11`, `rdm02`. Expected / pre-existing: lint-tradeoffs RD-B19 runEvals (RF-R3, old fixture);
+  research.ts "dud direction" and "assignment within 5%" (fail on rd before the merge too). Not merge-caused but new
+  from rf-s1 (fail on rf-s1 alone, pass on rf-r / base): `_ui0a` "physics still reads the hidden draw" and evals.ts
+  EV6 crash (no version reaches evaluation): the default framework now holds frontier training from day 0 (RF-S1's
+  top-of-range belief rule, noted in its block), so experiment FLOP is 0 in those fixtures. Hygiene not run.

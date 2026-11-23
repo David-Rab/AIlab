@@ -59,7 +59,7 @@ if (C) check(trustOf(t, C.id) === fB, 'a model with no entry reads the last vali
   o.player.safety.techniques[id].trust = { f: 0.7, evidence: [{ day: 1, source: 'validation', model: A.id, note: 'x', f: 0.7 }] };
   const m = deserialize(JSON.stringify(o));
   const tr = m.player.safety.techniques[id as keyof typeof m.player.safety.techniques]!.trust as unknown as Record<string, unknown>;
-  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV === 100 && JSON.stringify(tr.byModel) === JSON.stringify({ [A.id]: 0.7 }) && !('f' in tr), 'migration 99 → 100 moves the factor to the validated model', JSON.stringify(tr.byModel));
+  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV === 101 && JSON.stringify(tr.byModel) === JSON.stringify({ [A.id]: 0.7 }) && !('f' in tr), 'migration 99 → 100 (→ 101) moves the factor to the validated model', JSON.stringify(tr.byModel));
 }
 
 console.log(fails ? `${fails} FAILED` : 'all ok');
