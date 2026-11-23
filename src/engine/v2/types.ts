@@ -223,6 +223,9 @@ export interface HiddenWorld {
   /** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) (a hash of the seed, no stream draw): control is
    *  lost when exposure > doomThreshold + ε_w (safety/control.ts lossThreshold). */
   toleranceNoise: number;
+  /** SR-24b: organism realism r ~ U[0.4, 1.0] (a hash of the seed): real recall of an instrument = its recall on planted
+   *  model organisms × r (safety/validation.ts). Hidden: the lab knows only the range. */
+  organismRealism: number;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
   actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
   rivalPostures: Record<LabId, SafetyPosture>;

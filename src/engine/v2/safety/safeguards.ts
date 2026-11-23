@@ -29,7 +29,10 @@ export const CONTROL_SETTINGS: Record<ControlSetting, { label: string; safety0: 
 export const CONTROL_U0 = 0.97;
 /** Usage kept under a restriction (revenue, misuse reach, incident chances) [D, unchanged from restrictContext]. */
 export const RESTRICT = 0.3;
-/** Comms lockdown: × on the same-lineage collusion penalty [D, unchanged from T-LOCK], and its Slowdown on the
+/** Comms lockdown: × on the same-lineage collusion penalty [proxy: Greenblatt et al. 2023/24 arXiv 2312.06942 Table 6,
+ *  input and output redaction or paraphrase cut the worst-signal loss 0.41 → 0.18 (≈ ×0.45); lockdown stands in for
+ *  redaction / no shared scheme (Zolkowski et al. 2025 arXiv 2507.02737); research/RD-SR24-safety-params.md §2 K2, K6;
+ *  SR-24b], and its Slowdown on the
  *  deployment's work [D: agents lose the shared memory bank; no source quantifies it]. */
 export const LOCKDOWN_COLLUSION_MULT = 0.5;
 export const LOCKDOWN_SLOWDOWN = 0.03;

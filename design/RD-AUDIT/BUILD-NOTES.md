@@ -3375,3 +3375,32 @@ Left: the gap does not yet widen the trait beliefs themselves (only the real-use
 real-use readings (cases and monitor logs only); external evaluators add evidence twice (instrument readings + scenarios).
 Moves calibration: yes (S4/S5): eval evidence noise is now the binomial interval (often tighter than 0.12/√w), on the
 'runs' stream; other scripts pinning rev 92 drift.
+
+### SR-24b
+The research's recommendations (research/RD-SR24-safety-params.md, brought from `rd`), each constant with its source.
+- **Organism realism** (OD-7 (a), DECISIONS "only if research finds a range": a proxy range): `HiddenWorld.organismRealism`
+  r ~ U[0.4, 1.0] (`ORGANISM_REALISM`, data/v2/agendas.ts; AuditBench §4 0.43, Goldowsky-Dill 2025 0.96–1.0), a hash
+  of the seed (`organismRealismOf`, no named stream moves). Physics (safety/validation.ts): a validation samples the
+  planted recall = true real recall ÷ r (cap 1; `plantedRecall`); a false AI-run job reports believed ÷ believed r.
+  Belief: found / n × the stated range's midpoint 0.7 (`believedTransfer`; trust factor and validationRange value), range
+  = planted interval × [0.4, 1.0] (extrapolated: × the believed ratio ± VAL_WIDEN_PER_OOM · gap). Never reads the draw.
+- **Validation cost** 15 × 30 = 450 → `VAL_ENGINEERS` 8 × `VAL_DAYS` 15 = 120 engineer-days [proxy C1, C3];
+  VAL_COMPUTE_FRAC 0.25 kept (no sourced range); VAL_N 20 kept (inside 5–56).
+- **Collusion** `COPY_COLLUSION` 0.4 [S: Greenblatt 2023 Table 6, worst signal, no redaction] and
+  `LOCKDOWN_COLLUSION_MULT` 0.5 [proxy: Table 6 redaction 0.41 → 0.18] kept, re-tagged.
+- **Undetected hacking reinforced** (OD-3 (b)): player post runs, stream days and IDA cycles set `TraitEnv.hackTarget` =
+  the run's rewarded hack share h (+ P11's 0.2; `hackTargetOf`); E02 is skipped and RH closes `hackSaturation(ω)` =
+  1 − 0.01^(ω / 0.6) of the gap to it (`HACK_SAT_PER_RUN` 0.99 [S: Chen 2025 > 99% within 30 steps]): one reference
+  post-train (or 42 stream days) saturates, more training does not accumulate past h; RH above h is not pushed up
+  (removal still lowers it). Exploitability x_f is the graders' missed (rewarded) share; caught hacks are the suites'
+  hardening. Predicted beliefs use the same rule (predictBeliefs `hackH`, default the design's postHack h). Rivals and
+  base / distillation runs keep E02.
+- **Save**: SCHEMA_REV 94; migration 93 → 94 sets organismRealism from the save's seed; hygiene pins → 94.
+Check: `npx tsx scripts/v2/_sr24b/check.ts` (all ok: 2,000 draws span 0.400–1.000, mean 0.700; fixture migrates, r 0.975
+from its seed; planted recall 0.201 real → 0.504 at r 0.4; 14 of 20 planted → believed 0.49 [0.216, 0.859] unchanged
+when the draw is rewritten; RH 0.01 → 0.297 in one run toward 0.3, then 0.300; 42 stream days 0.297, +84 days 0.300;
+E02 alone at S2 0.3 gave 0.164). tsc (app, scripts/v2) clean; npm run build passes.
+Left: no training-time hack monitor (miss share = suite exploitability only); the spill to SAND / AF / SCHEME stays E16's
+λ coupling (re-check S4/S5 first); VAL_COMPUTE_FRAC unsourced; the realism range has no tooltip text yet (R2 caveat).
+Moves calibration: yes (S4/S5: RH now sits at the run's hack share, believed reliabilities × 0.7, cheaper validation);
+scripts pinning rev 93 (e.g. _sr07/check.ts) drift.

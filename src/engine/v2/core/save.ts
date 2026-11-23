@@ -1,6 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import { ensureWs3 } from '../finance/ext';
 import { ALIGN_EVAL_N, evalRecord } from '../safety/alignmentEvals';
+import { organismRealismOf } from '../world/hidden';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
 import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
@@ -173,8 +174,10 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  93 (SR-07): alignment-eval results are k of n test scenarios with a 90% interval (evals.safety[id].k / n / lo / hi;
  *  safety/alignmentEvals.ts). Migration 92 → 93 renames the instrument-suite keys (Honesty, ScheminProbe, …) to the eval
  *  ids (the later record wins) and gives each record n = 40, k = round(rate · 40) and its Wilson interval.
+ *  94 (SR-24b): HiddenWorld.organismRealism (r ~ U[0.4, 1.0], a hash of the seed; safety/validation.ts). Migration
+ *  93 → 94 sets it from the save's seed (organismRealismOf), the value a new game with that seed draws.
  */
-export const SCHEMA_REV = 93;
+export const SCHEMA_REV = 94;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1066,6 +1069,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       }
       v.evals.safety = out;
     }
+  },
+  93: (raw) => {
+    // 93 → 94 (SR-24b): the world's organism realism from its seed (see SCHEMA_REV's note).
+    const r = raw as { hidden?: { organismRealism?: number }; setup?: { seed?: number } };
+    if (r.hidden && r.hidden.organismRealism === undefined) r.hidden.organismRealism = organismRealismOf(r.setup?.seed ?? 0);
   },
 };
 
