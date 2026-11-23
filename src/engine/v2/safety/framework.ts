@@ -23,6 +23,7 @@ import { ws4, ws4r } from '../actors/state';
 import { RED_FLAG_TRAITS } from './common';
 import { beliefHi } from './detection';
 import { controlOn, reviewOn } from './safeguards';
+import { schemingReading } from './trusted';
 import { internalVersion } from '../models/labs';
 
 export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety.framework ??= defaultFramework());
@@ -47,9 +48,18 @@ export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | un
     const L = measuredDomain(v, t.domain);
     return L >= t.level ? `${v.name} measures ${t.domain} ${L.toFixed(1)} ≥ ${t.level}` : undefined;
   }
+  // CAL-S: every 2025 framework ties its misalignment safeguards to a capability (GDM-FSF v3 Instrumental Reasoning
+  // Level 1: "situational awareness ... and stealth (ability to circumvent basic oversight mechanisms)" → chain-of-thought
+  // monitoring in high-stakes internal deployments; OAI-PF2 Cybersecurity High: models "that could bypass OpenAI's
+  // technical safeguards constraining model activity, such as sandboxing or monitoring services" → misalignment
+  // safeguards for large-scale internal deployment; ANT-RSP AI R&D-4 → an affirmative misalignment case), never to a
+  // belief alone. So a version measured below the scheming-capable level does not trigger the belief rule: the trusted
+  // rule's capability clause (OD-6), one reading. Never measured = no capability reading = beliefs only (RF-S1).
+  const sch = schemingReading(v);
+  if (sch.below) return undefined;
   for (const tr of RED_FLAG_TRAITS) {
     const hi = beliefHi(v.beliefs[tr]);
-    if (hi > t.est) return `${v.name}: ${tr} could be as high as ${Math.round(hi * 100)}% (top of your 90% range)`;
+    if (hi > t.est) return `${v.name}: ${tr} could be as high as ${Math.round(hi * 100)}% (top of your 90% range)${sch.L === undefined ? ', capability not measured' : ''}`;
   }
   return undefined;
 }
