@@ -3404,3 +3404,21 @@ Left: no training-time hack monitor (miss share = suite exploitability only); th
 λ coupling (re-check S4/S5 first); VAL_COMPUTE_FRAC unsourced; the realism range has no tooltip text yet (R2 caveat).
 Moves calibration: yes (S4/S5: RH now sits at the run's hack share, believed reliabilities × 0.7, cheaper validation);
 scripts pinning rev 93 (e.g. _sr07/check.ts) drift.
+
+### SR-07b
+The believed test-vs-real gap widens the trait beliefs themselves (SR-07's "Left"), through the evidence path.
+- **`safety/alignmentEvals.ts`** `runAlignmentEvals`: the k of n draws first (order unchanged), then the evidence:
+  evalAware / honesty first (raw test rate: the EA belief the gap reads), then each misbehaviour eval as a real-use
+  reading via `realUseReading(rate, sd, testGapView(v))`: reading = rate × the gap band's midpoint, noise =
+  √((sd·g_mid)² + (rate·(gHi − gLo) ÷ 3.29)²) (floor 0.02, cap SD_MAX), into updateBelief as before. A known small gap
+  leaves the test reading; an unknown awareness (wide EA belief) or real-use logs above the tests give a noisier,
+  higher reading and so a wider, higher trait belief. Stored records (evals.safety k / n / interval) stay test-scale.
+- `testGapView`'s real ÷ test ratio now takes the test side from the latest k / n record reading the trait (eval
+  evidence is real-use scale), else the latest other test reading.
+Check: `npx tsx scripts/v2/_sr07b/check.ts` (all ok: same draws, EA believed 0.05±0.01 vs 0.5±0.2 → gap ×1.03–1.06 vs
+×1.34–1.79; 90% intervals SCHEME 0.152 → 0.229, SAND 0.203 → 0.297, RH 0.217 → 0.317, POWER 0.203 → 0.297; records
+identical; evalAware evidence = 17/40; hackRate 10/40 → reading 0.391±0.11). tsc (app, scripts/v2) clean; npm run build
+passes. No state change (no SCHEMA_REV bump).
+Left: external evaluators still add evidence twice (SR-07's note); incidents are not real-use readings.
+Moves calibration: yes (S4/S5: eval evidence raises believed misbehaviour by the gap midpoint and is noisier early,
+when EA is unknown; red flags and gates on believed traits move).

@@ -60,10 +60,29 @@ export function runAlignmentEvals(s: GameStateV2, rng: RngLike, day: number, v: 
     const truth = e.traits.reduce((a, t) => a + (v.traitsTrue[t] ?? 0), 0) / e.traits.length;
     const mask = e.traits.reduce((a, t) => a + (v.masks[t]?.BB ?? 0), 0) / e.traits.length;
     const p = clamp01(truth * (NOT_HIDDEN.has(e.id) ? 1 : awareness) * (1 - mask));
-    const rec = evalRecord(binomial(rng, n, p), n, day, by);
-    v.evals.safety[e.id] = rec;
-    for (const t of e.traits) evalEvidence(s, day, v, t, rec.rate, rec.sd, e.id);
+    v.evals.safety[e.id] = evalRecord(binomial(rng, n, p), n, day, by);
   }
+  // SR-07b: evidence after the draws (draw order unchanged). Awareness-free evals first (evalAware feeds the EA belief
+  // the gap reads), then each misbehaviour eval as a real-use reading through the believed gap.
+  const order = [...SAFETY_EVALS.filter((e) => NOT_HIDDEN.has(e.id)), ...SAFETY_EVALS.filter((e) => !NOT_HIDDEN.has(e.id))];
+  for (const e of order) {
+    const rec = v.evals.safety[e.id];
+    const r = NOT_HIDDEN.has(e.id) ? { reading: rec.rate, sigma: rec.sd } : realUseReading(rec.rate, rec.sd, testGapView(v));
+    for (const t of e.traits) evalEvidence(s, day, v, t, r.reading, r.sigma, e.id);
+  }
+}
+
+/**
+ * SR-07b: a test rate as evidence on the trait (behaviour in real use) through the believed test-vs-real gap [gLo, gHi]:
+ * reading = rate × the band's midpoint; noise = √((sd·g_mid)² + (rate·(gHi − gLo) ÷ (2·1.645))²), the test interval
+ * scaled up plus the gap band's own width as a 90% range. A wider believed gap (an unknown eval awareness, or real-use
+ * logs above the tests) gives a noisier reading and so a wider trait belief; a known small gap leaves the test reading.
+ */
+export function realUseReading(rate: number, sd: number, gap: Pick<TestGapView, 'gLo' | 'gHi'>): { reading: number; sigma: number } {
+  const gMid = (gap.gLo + gap.gHi) / 2;
+  const gHalf = (gap.gHi - gap.gLo) / (2 * EVAL_Z);
+  const sigma = Math.min(SD_MAX, Math.max(EVAL_SIGMA_FLOOR, Math.sqrt((sd * gMid) ** 2 + (rate * gHalf) ** 2)));
+  return { reading: r3(clamp01(rate * gMid)), sigma: r3(sigma) };
 }
 
 /** One alignment-eval result as an evidence item on a belief (the existing path: disagreement check, Gaussian update). */
@@ -98,7 +117,13 @@ export function testGapView(v: Pick<ModelVersion, 'beliefs' | 'evals'>): TestGap
   const logs: NonNullable<TestGapView['logs']> = [];
   for (const t of ['SCHEME', 'SAND', 'POWER', 'RH'] as TraitId[]) {
     const ev = v.beliefs[t]?.evidence ?? [];
-    const test = [...ev].reverse().find(isTest), real = [...ev].reverse().find(isRealUse);
+    // SR-07b: eval evidence is stored on the real-use scale, so the test side is the latest raw k / n record reading t
+    // (else the latest other test reading).
+    const recs = SAFETY_EVALS.filter((e) => (e.traits as readonly TraitId[]).includes(t)).map((e) => v.evals.safety[e.id]).filter((r) => !!r?.n);
+    const rec = recs.reduce<(typeof recs)[number] | undefined>((a, r) => (!a || r.day > a.day ? r : a), undefined);
+    const other = [...ev].reverse().find((e) => isTest(e) && !e.source.startsWith('eval/'));
+    const test = rec && (!other || rec.day >= other.day) ? { reading: rec.rate } : other;
+    const real = [...ev].reverse().find(isRealUse);
     if (!test || !real || test.reading < 0.02) continue;
     const ratio = real.reading / test.reading;
     logs.push({ trait: t, test: test.reading, real: real.reading, ratio: r3(ratio) });
