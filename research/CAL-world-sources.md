@@ -64,7 +64,13 @@ exponential, compute schedule as #7) give no r at all; Forethought's median is n
 At Forethought's medians slow's returns equal ai2027's (4). A low-returns slow world would need Forethought's low tail
 (r_cog 0.4–0.5 → r 1.3–1.7, its p10 0.50 → 1.66) or the ceiling mechanism, which is a designer choice, not a units fix.
 
-**Confidence:** high on the conversion (the paper states β = 0.25); the preset's identity is a designer question.
+**Caveat (AI 2027 takeoff forecast, https://ai-2027.com/research/takeoff-forecast):** its r is "for each doubling of
+cumulative labor, there are r doublings of the value of labor", median 4 ("each doubling in total effort means 4
+doublings in progress multiplier"), and it compares this with Davidson's "more recent forthcoming work his estimate is
+now 1.2" as if like for like. Forethought's own definitions (r_cog = λα/β, β = 0.25) resolve it to 4.0 in the game's
+units; the AI 2027 comparison is the only primary text that reads them as the same unit.
+
+**Confidence:** high (medium-high given the caveat) on the conversion (the paper states β = 0.25); the preset's identity is a designer question.
 
 ## 3. authors2026 sd_SC, Δ_bm, G_SC (V3_CAL `authors2026`)
 
@@ -120,3 +126,31 @@ SAR / SIAR / ASI closer to SC. The next step refits G_SC (the one stand-in) and 
 
 **Confidence:** high for sd_SC and G_SC; medium for Δ_bm (a tail value chosen for the preset's identity: the designer
 should confirm that "fast" means Daniel's p10 taste slope).
+
+## 5. CP3l: does the slow preset's source require its lab to follow the preset's compute growth?
+
+**Decision: no. The CP3l engine edits are not ported** (they stay uncommitted on AI27-p3-d).
+
+**Source:** the slow preset's sources are research/11 §5.5 (titotal's METR plain exponential, h0 38 min, T 7 mo, h_SC
+120 work-months, the AI 2027 code's slowdowns) and the AI Futures Project Dec 2025 update,
+https://blog.aifutures.org/p/ai-futures-model-dec-2025-update, Daniel: "Pure exponential trend, keeping my other
+parameters fixed, gets to AC 5 years later, in 2034." "Keeping my other parameters fixed" includes the compute inputs:
+the skeptic world differs in the horizon trend, not in compute. research/11 #18 puts `slow` in the AI 2027 compute
+family ("AI 2027 family (`ai2027`, `sampled`, `slow`): 2.25× to 2029.0, then 1.5×").
+
+**What that means:** slow's `computeGrowth` 1.8 (world.ts, from the first research commit e23f565) has no source and
+contradicts research/11 #18; in v2 it feeds only worldfx/macro.ts's world compute. Making the lab follow it (CP3l's
+labRefCapCompute) would carry an unsourced number into the research path to slow SC down. The source's premise, METR's
+7-month doubling, is a horizon trend that v3 makes emergent from effective compute (the game's slow h50 doubles every
+≈ 5.8 months, CP3g-1); no sourced number gives it. That is a mechanism / designer question, not a parameter fix.
+
+**Confidence:** medium-high (the quote and research/11 #18 agree; research/03 #13's "compute schedule as #7" is a
+[D] lite-engine choice of that file, not the source's).
+
+## Stand-ins left [D stand-in], no primary source found here
+
+- authors2026 `G_SC` 33.45 (needs AIFM's progress at AC on Eli's medians: one run of the AIFM model).
+- slow `computeGrowth` 1.8 (unsourced; research/11 #18 says 2.25 → 1.5 for slow).
+- slow `r` as a *slow* world: Forethought's median gives 4.0, the same as ai2027; a low-returns slow world needs a
+  designer choice of Forethought's tail.
+- fast `Δ_bm` 0.6: a tail value (Daniel's slope p90) justified by the preset's p10-takeoff identity, not a median.
