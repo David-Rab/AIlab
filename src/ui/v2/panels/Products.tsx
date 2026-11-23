@@ -10,7 +10,7 @@
 // One home per datum: total revenue lives in the top strip; the serving budget on Company › Split.
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Blocks, Bot, BrainCog, Briefcase, Building2, Check, Clock3, DoorOpen, Hammer, Layers, Lock, MessageCircle, Pencil, Ruler, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
+  Blocks, Bot, Briefcase, Building2, Check, Clock3, DoorOpen, Hammer, Layers, Lock, MessageCircle, Pencil, Ruler, Shield, ShieldCheck, SquareTerminal, Tag, Unlock, Users, X,
   type LucideIcon,
 } from 'lucide-react';
 import { AGENT_TASK_HOURS, CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, type FeatureDef } from '../../../data/v2/features';
@@ -222,10 +222,10 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
             <Seg testId={`prod-kyc.${d.id}`} value={n.kyc} options={[0, 1, 2, 3].map((k) => ({ v: k as Deployment['kyc'], label: String(k) }))} onChange={(k) => set({ kyc: k })} />
         </div>}
         <div className="pc-row">
-          <Tip content={() => <TipCard title={<Term id="effort">Effort</Term>} rows={(['low', 'max', 'deep'] as const).map((e) => ({ label: e === 'deep' ? 'deep think' : e, value: `tokens ×${EFFORT_TOKENS[e]} · fit ${F.num(EFFORT_OOM_PER_10X * Math.log10(EFFORT_TOKENS[e]), 2, true)} OOM` }))}>Reasoning tokens per answer. Price follows cost, so the margin stays; the hours an H100e serves change. Deep think is a feature.</TipCard>}><span className="pc-k">Effort</span></Tip>
+          <Tip content={() => <TipCard title={<Term id="effort">Effort</Term>} rows={(['low', 'max', 'deep'] as const).map((e) => ({ label: e, value: `tokens ×${EFFORT_TOKENS[e]} · fit ${F.num(EFFORT_OOM_PER_10X * Math.log10(EFFORT_TOKENS[e]), 2, true)} OOM` }))}>Reasoning tokens per answer. Price follows cost, so the margin stays; the hours an H100e serves change. Deep needs a model that can run it (its tree idea).</TipCard>}><span className="pc-k">Effort</span></Tip>
           <Seg testId={`prod-effort.${d.id}`} value={n.effort} options={(['low', 'max', 'deep'] as const).map((e) => ({
-            v: e, label: e === 'deep' ? 'deep think' : e,
-            locked: e === 'deep' ? (effortLock(s, 'deep') ?? (!s.player.features.includes('deepThink') ? 'Build the Deep think feature first' : !FEATURES.find((f) => f.id === 'deepThink')!.products.includes(d.channel) ? 'Not offered on this product' : undefined)) : undefined,
+            v: e, label: e,
+            locked: effortLock(s, e),
           }))} onChange={(e) => set({ effort: e })} />
         </div>
       </div>
@@ -568,9 +568,9 @@ function Binding({ s, d, r, set }: { s: GameStateV2; d: Deployment; r: ProductRe
 
 // ───────── features (B2): type, typed effect, cost, upkeep, on here, internal use, gate ─────────
 /** One icon per feature type: DoorOpen enabler, Ruler horizon extender (task length), Blocks scaffold, BrainCog effort. */
-const FT_ICON: Record<FeatureKind, LucideIcon> = { enabler: DoorOpen, horizon: Ruler, scaffold: Blocks, effort: BrainCog };
-const FT_TERM: Record<FeatureKind, string> = { enabler: 'featEnabler', horizon: 'featHorizon', scaffold: 'featScaffold', effort: 'featEffort' };
-const FT_LABEL: Record<FeatureKind, string> = { enabler: 'enabler', horizon: 'horizon', scaffold: 'scaffold', effort: 'effort' };
+const FT_ICON: Record<FeatureKind, LucideIcon> = { enabler: DoorOpen, horizon: Ruler, scaffold: Blocks };
+const FT_TERM: Record<FeatureKind, string> = { enabler: 'featEnabler', horizon: 'featHorizon', scaffold: 'featScaffold' };
+const FT_LABEL: Record<FeatureKind, string> = { enabler: 'enabler', horizon: 'horizon', scaffold: 'scaffold' };
 
 function Features({ s, d }: { s: GameStateV2; d: Deployment }) {
   const feats = FEATURES.filter((f) => f.products.includes(d.channel));
@@ -591,7 +591,7 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
   const tok = v.lines.reduce((a, l) => Math.max(a, l.tokens), 1);
   const gate = f.node ? TREE_BY_ID[f.node]?.name ?? f.node : undefined;
   return <TipCard title={f.name} value={v.kinds.map((k) => FT_LABEL[k]).join(' + ')} rows={[
-    ...v.lines.map((l) => ({ label: <><Term id={FT_TERM[l.kind]}>{FT_LABEL[l.kind]}</Term> <span className="dim">· {l.where}</span></>, value: `${l.effect}${l.tokens !== 1 ? ` · ${l.kind === 'effort' ? 'reasoning tokens' : 'tokens'} ×${l.tokens}` : ''}${l.here ? '' : ' (not on this product)'}` })),
+    ...v.lines.map((l) => ({ label: <><Term id={FT_TERM[l.kind]}>{FT_LABEL[l.kind]}</Term> <span className="dim">· {l.where}</span></>, value: `${l.effect}${l.tokens !== 1 ? ` · tokens ×${l.tokens}` : ''}${l.here ? '' : ' (not on this product)'}` })),
     ...(f.id === 'sectorPacks' ? [{ label: 'Build', value: 'per pack: 4 engineer team-weeks + $0.4B, then 120 d certification' }] : [{ label: 'Build', value: `${f.buildTW} engineer team-weeks · ${F.money(f.cash)}` }]),
     { label: <Term id="productUpkeep">Upkeep</Term>, value: [
       ...(v.upkeepTW > 0 ? [`${v.upkeepTW.toFixed(2)} engineer team-wk/wk${v.idleTW < v.upkeepTW ? ` (${v.idleTW.toFixed(2)} while off everywhere)` : ''}`] : []),

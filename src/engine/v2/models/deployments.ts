@@ -6,7 +6,7 @@ import { ws4r } from '../actors/state';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
-import { agentsGate, kindOfChannel, launchEffortBlock, priceIndexOf, relaunchPacks } from './products';
+import { agentsGate, kindOfChannel, priceIndexOf, relaunchPacks } from './products';
 import { tierOfIndex } from '../../../data/v2/features';
 import { distillLift } from '../production/diffusion';
 
@@ -31,7 +31,7 @@ export function externallyEvaluated(s: GameStateV2, v: ModelVersion): boolean {
   return ws4r(s).reportedVersions.includes(v.id) || Object.values(v.evals.bench).some((r) => r.by !== 'self') || Object.values(v.evals.safety).some((r) => r.by !== 'self');
 }
 
-/** Why an inference effort is locked, or undefined (B5; R4: the tree node that unlocks it, e.g. deep think needs
+/** Why an inference effort is locked, or undefined (B5; R4: the tree node that unlocks it, e.g. deep effort needs
  *  Multi-agent orchestration). */
 export function effortLock(s: GameStateV2, effort: Deployment['effort']): string | undefined {
   return optionLocked(s, 'effort', effort);
@@ -79,7 +79,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   const usagePolicy = { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: cu.noSurveillance, noAutonomousWeapons: cu.noAutonomousWeapons, minorsProtections: p.channel === 'consumer' }) };
   const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', usagePolicy });
   if (ok !== true) return ok;
-  const lock = effortLock(s, p.effort ?? 'max') ?? launchEffortBlock(s, p.channel, p.effort);
+  const lock = effortLock(s, p.effort ?? 'max');
   if (lock) return lock;
   if (p.channel === 'internal') {
     setInternalAgent(s, v.id);

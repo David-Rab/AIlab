@@ -188,7 +188,7 @@ export const TREE: TreeNodeDef[] = [
   STAR('quantization', 'Quantization', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   STAR('specDecoding', 'Speculative decoding', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   LINE('L.infer', 'Inference efficiency', 'systems', [], { stack: 'serve', mean: 0.05, rShare: 0.15 }, { cap: 'Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it' }),
-  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep-think effort; scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 for deep think' }),
+  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { options: [['effort', 'deep']], cap: 'Deep effort (a product setting); scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 at deep effort' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Long-tasks RL horizon ×1.2 on post-trains launched after adoption [D]; memory', saf: 'Memory → successor-risk pressure' }),
   // RD-E01a (DD-14): P13 (automated AI research agents) is gone, AI labour in the experiment slot already models research
   // agents; P19 (learned research taste) is gone with the RSCH taste penalty it undid. Their dependants (P15, P16, P21,

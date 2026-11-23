@@ -89,8 +89,11 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  autoTier marks); a new game starts with V0's distilled students in its products' lineups. Migration 63 → 64 sets
  *  the policy off in an existing game.
  *  65 (RD-P02): rivals' and China's lineups are lab state (RivalLab.lineup, distilling). Migration 64 → 65 gives each
- *  lab its public model's distilled students, on sale now. */
-export const SCHEMA_REV = 66;
+ *  lab its public model's distilled students, on sale now.
+ *  67 (RD-P06): reasoning effort is a plain product setting (locked only by its tree idea); the Deep think feature is
+ *  gone. Migration 66 → 67 drops 'deepThink' from the lab's built features, every product's features and the build
+ *  queue; each product keeps its effort setting. */
+export const SCHEMA_REV = 67;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -661,6 +664,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (d.lineup) d.lineup = d.lineup.filter((id, i, a) => id !== d.versionId && a.indexOf(id) === i);
       const v = byId.get(d.versionId);
       if (d.status !== 'withdrawn' && v?.status === 'ready') v.status = 'deployed';
+    }
+  },
+  /** 66 → 67 (RD-P06): the Deep think feature goes; a product that had it keeps its effort setting (deep). Idempotent. */
+  66: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const pl = s.player;
+    if (!pl) return;
+    if (pl.features) pl.features = pl.features.filter((f) => f !== 'deepThink');
+    for (const d of pl.deployments ?? []) if (d.features) d.features = d.features.filter((f) => f !== 'deepThink');
+    if (pl.build?.queue) {
+      pl.build.queue = pl.build.queue.filter((x) => !(x.kind === 'feature' && x.ref === 'deepThink'));
+      pl.build.queue.forEach((x, i) => (x.priority = i + 1));
     }
   },
 };

@@ -446,9 +446,9 @@ if (vids.length > 1) await check('Select version in lineage', 'store.sel.version
 // ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
 await nav('products');
 ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
-// B5 / R6: deep think is a locked option with its reason until its idea and feature exist.
-if (!JSON.parse(await get(`s.player.features.includes('deepThink')`))) {
-  ok('Products: deep think locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
+// B5 / R6 / RD-P06: deep effort is a locked option with its reason until its idea (the model's capability) is known.
+if (!JSON.parse(await get(`s.player.tree.P05?.status === 'known'`))) {
+  ok('Products: deep effort locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
 }
 const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
 if (apiId) {

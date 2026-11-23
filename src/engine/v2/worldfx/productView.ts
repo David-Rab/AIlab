@@ -11,10 +11,10 @@ import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
-import { SECTOR_PACK_DG, effortDG, lineupVersions, markupOf, serveDollarsPerHour } from './serving';
+import { SECTOR_PACK_DG, lineupVersions, markupOf, serveDollarsPerHour } from './serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
 import { paidDeployments, worldMix, type TierKind, type WorldMix } from './mix';
 import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
@@ -151,7 +151,7 @@ function customerOf(segs: CustomerSeg[]): CustomerView {
 const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, sector: CUSTOMER_TAU.sector * 365, gov: CUSTOMER_TAU.gov * 365 };
 
 /** B2: a feature's typed effects for the product card, with units. */
-export type FeatureKind = 'enabler' | 'horizon' | 'scaffold' | 'effort';
+export type FeatureKind = 'enabler' | 'horizon' | 'scaffold';
 export interface FeatureLine {
   kind: FeatureKind;
   /** The effect with units ("+0.30 OOM fit", "horizon ×1.3", "+15% reachable work"). */
@@ -206,10 +206,6 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
     } else if (fx.kind === 'horizon') {
       push({ kind: 'horizon', effect: `horizon ${mult(fx.mult)}`, tokens: 1, where: scopeText(fx.work) }, scoped(fx.work), `${mult(fx.mult)} longer tasks`);
       for (const x of internalOf(fx.work)) internal.add(x);
-    } else if (fx.kind === 'effort') {
-      const tok = EFFORT_TOKENS[fx.setting];
-      const dG = effortDG(tok);
-      push({ kind: 'effort', effect: `+${dG.toFixed(2)} OOM fit`, tokens: tok, where: 'every task (effort: deep think)' }, true, `+${dG.toFixed(2)} OOM ${mult(tok)} tok`);
     } else if (fx.packs) {
       push({ kind: 'enabler', effect: `sector products; +${SECTOR_PACK_DG.toFixed(2)} OOM fit per certified pack`, tokens: 1, where: 'the pack\'s sector' }, true, `+${SECTOR_PACK_DG.toFixed(2)} OOM per pack`);
     } else {

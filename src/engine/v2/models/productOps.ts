@@ -13,7 +13,7 @@ import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
 import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
 import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
@@ -55,7 +55,7 @@ export function changesFromParams(p: Params): ProductChanges {
   return c;
 }
 
-/** The product after an edit (a copy; deep think and the effort setting kept consistent). */
+/** The product after an edit (a copy). RD-P06: effort is a plain setting (locked only by the model's capability, effortLock). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   const n: Deployment = { ...d, features: [...(c.features ?? d.features)], packs: d.packs.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
@@ -77,15 +77,7 @@ export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   }
   if (c.safeguards) n.safeguards = c.safeguards;
   if (c.kyc !== undefined) n.kyc = c.kyc;
-  // Deep think is a feature: effort 'deep' ⇔ the feature on.
-  if (c.effort) {
-    n.effort = c.effort;
-    if (c.effort === 'deep' && !n.features.includes('deepThink')) n.features.push('deepThink');
-    if (c.effort !== 'deep') n.features = n.features.filter((f) => f !== 'deepThink');
-  } else if (c.features) {
-    if (n.features.includes('deepThink')) n.effort = 'deep';
-    else if (n.effort === 'deep') n.effort = 'max';
-  }
+  if (c.effort) n.effort = c.effort;
   return n;
 }
 
@@ -251,7 +243,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
           // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's packs).
-          safeguards: 'classifiers', controlLayer: false, packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch, 'max'), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          safeguards: 'classifiers', controlLayer: false, packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);
@@ -279,7 +271,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
         if (gate !== true) return fail(gate);
         const effort = typeof p.effort === 'string' ? (p.effort as Deployment['effort']) : undefined;
-        const lock = effortLock(s, effort ?? 'max') ?? launchEffortBlock(s, ch, effort);
+        const lock = effortLock(s, effort ?? 'max');
         if (lock) return fail(lock);
         const wait = launchWaitText(s);
         queueBuild(s, 'launch', ch, LAUNCH_TW, {
@@ -402,7 +394,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const gains: CostLine[] = [];
       if (f && !s.player.features.includes(f.id)) {
         // Expected return: every product that offers it, with it on.
-        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && f.products.includes(d.channel) ? { ...d, features: [...d.features, f.id], effort: f.effortDeep ? 'deep' as const : d.effort } : d));
+        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && f.products.includes(d.channel) ? { ...d, features: [...d.features, f.id] } : d));
         const anyId = deps.find((d) => isProduct(d) && f.products.includes(d.channel))?.id;
         if (anyId) {
           const pv = previewDeployments(s, deps, anyId, { features: [...s.player.features, f.id] });

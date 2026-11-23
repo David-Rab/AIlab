@@ -6,7 +6,7 @@
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
 import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FEATURES, MONITOR_OVERHEAD, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, MONITOR_OVERHEAD, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
@@ -23,22 +23,13 @@ export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channe
 export const kindOfChannel = (c: Deployment['channel']): Deployment['kind'] => (c === 'internal' ? 'internal' : c === 'open' ? 'open' : 'product');
 
 /** RD-B12 (B20): the features a new product starts with: every lab-built feature its channel offers (as the start
- *  products have theirs on). Deep think only with effort deep (the feature ⇔ the setting, editedProduct); the Sector
+ *  products have theirs on). The Sector
  *  packs feature is lab-level (packs are per product), never switched on. */
-export function launchFeatures(s: GameStateV2, channel: Deployment['channel'], effort: Deployment['effort']): string[] {
+export function launchFeatures(s: GameStateV2, channel: Deployment['channel']): string[] {
   return s.player.features.filter((id) => {
     const f = FEATURE_BY_ID[id as FeatureId];
-    if (!f || !f.products.includes(channel) || f.fx.some((x) => x.kind === 'enabler' && x.packs)) return false;
-    return f.effortDeep ? effort === 'deep' : true;
+    return !!f && f.products.includes(channel) && !f.fx.some((x) => x.kind === 'enabler' && x.packs);
   });
-}
-
-/** RD-B12 (B19): why a new product cannot run at this effort, or undefined. Deep effort is the Deep think feature, so
- *  it needs the feature built and offered on the channel (the same rule as switching it on, featureToggleBlock). */
-export function launchEffortBlock(s: GameStateV2, channel: Deployment['channel'], effort: Deployment['effort'] | undefined): string | undefined {
-  if (effort !== 'deep' || channel === 'internal') return undefined;
-  const f = FEATURES.find((x) => x.effortDeep);
-  return f ? featureToggleBlock(s, { channel } as Deployment, f.id) : undefined;
 }
 
 // ───────────────────────────── sector packs (RD-B12) ─────────────────────────────

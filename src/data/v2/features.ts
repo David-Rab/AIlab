@@ -76,7 +76,7 @@ export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', '
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
 export const AGENT_TASK_HOURS = 4;
 
-export type FeatureId = 'memory' | 'deepThink' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
+export type FeatureId = 'memory' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
 
 /** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */
 export type WorkScope = 'all' | (SectorId | WorkTypeId | 'CHAT')[];
@@ -84,8 +84,7 @@ export type WorkScope = 'all' | (SectorId | WorkTypeId | 'CHAT')[];
 export type FeatureFx =
   | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; packs?: boolean; share: number }
   | { kind: 'horizon'; mult: number; work: WorkScope }
-  | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope }
-  | { kind: 'effort'; setting: 'deep' };
+  | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope };
 
 export interface FeatureDef {
   id: FeatureId;
@@ -106,8 +105,6 @@ export interface FeatureDef {
   fx: FeatureFx[];
   /** Incident hazard × per trait on this product. */
   hazard?: Partial<Record<TraitId, number>>;
-  /** Switching it on sets the product's effort to deep (Deep think). */
-  effortDeep?: boolean;
 }
 
 export const FEATURES: FeatureDef[] = [
@@ -115,9 +112,6 @@ export const FEATURES: FeatureDef[] = [
     effect: 'Horizon extender: time horizon ×1.3 on all work in this product; opens 10% more Chat users (people who come back)',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
-  { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Effort deep: ×4 reasoning tokens, +0.24 OOM of fit on every task (test-time scaling, +0.4 OOM per ×10)', fx: [{ kind: 'effort', setting: 'deep' }], effortDeep: true,
-    risk: 'Cost per work-hour rises with the reasoning tokens (price follows cost)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
     effect: 'Task enabler: operates desktops and browsers, opening 15% more work in Admin, Finance, Legal and Government (GUI-only tasks)',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],

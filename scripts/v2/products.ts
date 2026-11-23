@@ -8,7 +8,7 @@
 //   P6  Auto serving: most $ per H100e first, cut recorded on the lowest-rate product, Σ served = pool; no cut with
 //       slack; the override (product.serving) turns Auto off and keeps hand-set shares
 //   P7  features: build through the engineers' queue (cash + team-weeks), switch on per product, effect on demand;
-//       unknown idea / not built / deep think without the feature are refused with their reason
+//       unknown idea / not built / deep effort without its idea are refused with their reason
 //   P8  Agents launch gate: measured time horizon vs the task length; eval suites no longer expire; auto-evaluate
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
@@ -200,7 +200,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const wrong = act(s, 'feature.toggle', { product: api.id, feature: 'companion', on: true });
   check(!!wrong, 'P7 a feature is offered only on its products', wrong ?? '');
   const deep = act(s, 'product.update', { id: api.id, effort: 'deep' });
-  check(!!deep, 'P7 deep think effort is refused without its idea and feature', deep ?? '');
+  check(!!deep, 'P7 deep effort is refused without its idea', deep ?? '');
 }
 
 // ───────── P8 gates and policies ─────────
@@ -307,7 +307,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
 // ───────── C2: every feature acts where it is offered; feature upkeep ─────────
 //   C2a for each feature and each product it is offered on, at least one typed effect acts there (engine functions:
-//       Chat reads fxOn / enablerShare on 'CHAT'; sector products on the sectors they sell to; effort and sector packs act
+//       Chat reads fxOn / enablerShare on 'CHAT'; sector products on the sectors they sell to; sector packs act
 //       on every product); every typed effect acts on at least one of its products; the card's "here" flags agree
 //   C2b Voice & vision on the API opens Media work (preview demand rises)
 //   C2c built features charge the engineers' upkeep: ½ buildTW a year in use, a tenth while off everywhere, always in
@@ -317,7 +317,6 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const sectorsOf = (ch: Deployment['channel']): SectorId[] => (ch === 'gov' ? GOVS : SECTORS.map((x) => x.id));
   const moves = (x: { dG: number; hMult: number; tok: number }) => x.dG !== 0 || x.hMult !== 1 || x.tok !== 1;
   const acts = (fx: FeatureFx, ch: Deployment['channel']): boolean => {
-    if (fx.kind === 'effort') return true;
     if (fx.kind === 'enabler' && fx.packs) return ch !== 'consumer';
     if (ch === 'consumer') return fx.kind === 'enabler' ? enablerShare([fx], 'CHAT') > 0 : moves(fxOn([fx], 'CHAT'));
     return sectorsOf(ch).some((sid) => (fx.kind === 'enabler' ? enablerShare([fx], sid) > 0 : moves(fxOn([fx], sid))));
@@ -408,29 +407,28 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const cause = Object.values(n.causes.byKey).flat().find((c) => c.source === 'sector product' && /refund/.test(c.detail ?? ''));
   check(!e3 && refunded && !n.player.deployments.some((d) => d.packs.length > 0) && !!cause && near(cause.delta, 0.4, 1e-6),
     'RD-B12 a pack built with no live host refunds its $0.4B and logs a player-facing message', `${e3 ?? ''} cause ${cause?.delta}`);
-  // A new launch starts with the lab's built features for its channel on (Deep think only with deep effort).
+  // A new launch starts with the lab's built features for its channel on.
   const f = game();
   run(f, 10);
-  f.player.features.push('codingAgent', 'deepThink', 'companion');
+  f.player.features.push('codingAgent', 'companion');
   const fa = prod(f, 'api');
   act(f, 'product.retire', { id: fa.id });
   const la = act(f, 'product.launch', { channel: 'api', versionId: fa.versionId });
   until(f, () => f.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
   const na = prod(f, 'api');
-  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('deepThink') && !na.features.includes('companion') && !na.features.includes('sectorPacks') && na.effort === 'max',
-    'RD-B12 a new launch has the lab\'s built features for its channel on (Deep think off at effort max; other channels\' and lab-level features not)', la ?? JSON.stringify(na?.features));
-  // Deep effort needs Deep think built (the effort selector's rule), with the idea known.
+  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion') && !na.features.includes('sectorPacks') && na.effort === 'max',
+    "RD-B12 a new launch has the lab's built features for its channel on (other channels' and lab-level features not)", la ?? JSON.stringify(na?.features));
+  // RD-P06: deep effort is a setting; its one lock is the model's capability (the tree idea), no feature to build.
   const dz = game();
   run(dz, 10);
-  dz.player.tree.P05 = { ...(dz.player.tree.P05 ?? {}), status: 'known' } as GameStateV2['player']['tree'][string];
   act(dz, 'product.retire', { id: prod(dz, 'api').id });
   const noDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
-  dz.player.features.push('deepThink');
+  dz.player.tree.P05 = { ...(dz.player.tree.P05 ?? {}), status: 'known' } as GameStateV2['player']['tree'][string];
   const yesDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
   until(dz, () => dz.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
   const dd = prod(dz, 'api');
-  check(!!noDeep && /Deep think/.test(noDeep) && !yesDeep && dd?.effort === 'deep' && dd.features.includes('deepThink'),
-    'RD-B12 launching at effort deep needs Deep think built; once built the product goes live deep with the feature on', `${noDeep ?? 'launched'} / ${yesDeep ?? 'launched'} / ${dd?.effort} ${JSON.stringify(dd?.features)}`);
+  check(!!noDeep && !yesDeep && dd?.effort === 'deep' && !dd.features.includes('deepThink'),
+    'RD-P06 launching at effort deep needs only its idea; the product goes live deep with no feature built', `${noDeep ?? 'launched'} / ${yesDeep ?? 'launched'} / ${dd?.effort} ${JSON.stringify(dd?.features)}`);
 }
 
 // ───────── RD-B20 preview truth, products: every preview line is what the action applies ─────────
