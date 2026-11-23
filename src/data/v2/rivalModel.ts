@@ -25,7 +25,9 @@ export const RIVAL_TPP = REF_TPP;
 /** Continual learning (the AI 2027 online learner, P08 for the player; RD-T03, DD-05): a lab's stream takes this share
  *  of its training pool (the player's STREAM_POOL_SHARE; the base run's 0.6 leaves 0.4 for post-training, smaller runs
  *  and the stream) and every CL_DAYS spends the FLOP it delivered on continued pretraining and an RL refresh of the
- *  internal model, from the start (no level threshold) [D: stand-in, the player's rule at aggregate level]. */
+ *  internal model, once the lab has adopted continual learning (P08, through its idea research: actors/rivalModel.ts
+ *  RIVAL_IDEA_IDS; CP3c, DD-05 (a) "rivals adopt it by the same route"; RD-T03 had it from day 0) [D: stand-in, the
+ *  player's rule at aggregate level]. */
 export const CL_POOL_SHARE = 0.15;
 export const CL_DAYS = 7;
 /** Post-training cadence (days between versions on one base): Anthropic shipped 8 frontier versions in 16 months

@@ -22,7 +22,8 @@
 //   versions   post-training every 6–10 weeks: the player's rlGains on the reference suites at today's RL recipe, the
 //              model's reference-profile build (G = gOfBuild; its work fit, horizon and domains read it, MEA-11);
 //              a stream (continual learning, the player's P08 rule at aggregate level, RD-T03) spends CL_POOL_SHARE of
-//              the training pool weekly on continued pretraining and an RL refresh of the internal model
+//              the training pool weekly on continued pretraining and an RL refresh of the internal model, once the
+//              lab has adopted P08 (its idea research, as the player; CP3c, DD-05 (a))
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research';
@@ -482,10 +483,12 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
  *  idea: + x OOM on the pretraining recipe, so bases launched after adoption carry it; scale-invariant, as the player's),
  *  P16 (training-throughput stack idea: base-run FLOP ×10^x; its serving part, also.serve × x, on the serving stack),
  *  P09 / P11 / P22 (domain ideas: + x × the node's domain OOM on versions post-trained after adoption) and P05 (the
- *  internal agents' scaffold: rivalWorkG, rivalAgentFpt). Not adoptable, no rival state to carry them: P07 (the long-tasks
+ *  internal agents' scaffold: rivalWorkG, rivalAgentFpt). CP3c: P08 (continual learning; no typed effect, adoption 1 when
+ *  it works here) switches the lab's stream on (clRefresh), the player's route to its stream (DD-05 (a): rivals adopt the
+ *  stream by the same route, not free). Not adoptable, no rival state to carry them: P07 (the long-tasks
  *  RL family's horizon; the aggregate has no RL families), P10 / P21 / P12 (synthetic-data quality, token worth, expert
  *  demos; a rival's base has fixed tokens per parameter and no data stock). */
-export const RIVAL_IDEA_IDS = ['P05', 'P09', 'P11', 'P16', 'P22', 'P24'] as const;
+export const RIVAL_IDEA_IDS = ['P05', 'P08', 'P09', 'P11', 'P16', 'P22', 'P24'] as const;
 /** Standard-team-months of idea research a lab at the leader's day-0 research speed (rs = 1) does a year: its 8 science
  *  team-equivalents (SCI_PER_HEAD × H_REF_BASE) × 12 months, shared equally among its projects, the reference lines
  *  (DEFAULT_LINES) and one idea at a time [D: equal share per project]. 13.7 TM a year. */
@@ -602,6 +605,10 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
   if (r.publicModel) {
     r.publicModel.build = r.internal.build;
     setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapOom, base);
+    // CP3c: the day-0 release was made with the lab's day-0 recipe and reveals that one (diffusion rule A reads a
+    // release's recG; unstamped, it read the lab's recipe of every later day, so its research leaked live until the
+    // lab's first new release).
+    r.publicModel.recG = recipeG(r.phys.rec, RECIPE_F);
   }
   seedRivalLineup(w, r);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
@@ -700,6 +707,12 @@ export function clApply(s: GameStateV2, r: RivalLab, poolFlop: number): number {
 }
 /** Every CL_DAYS: spend the FLOP the stream accrued since the last period (clApply). Returns true if the model moved. */
 export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
+  // CP3c (DD-05 (a)): no stream before the lab has adopted continual learning (P08, as the player); the stream's FLOP
+  // accrues from the adoption on, not from day 0.
+  if (!(rivalIdea(r, 'P08') > 0)) {
+    r.phys.clDay = undefined;
+    return false;
+  }
   if (r.phys.clDay === undefined) {
     r.phys.clDay = day;
     return false;

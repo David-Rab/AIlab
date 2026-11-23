@@ -501,7 +501,7 @@ function rlBuild(s: GameStateV2, start: RlStart, d: PostDesign, rec: PostRecipe,
     gPre: base.gPre, flopPre: base.flop, rlFlop: extra, rlW, eRL: rec.rlMid, aRL: rec.rlCeil, rlFid: { ...now }, dgRL: rl.general, dgRLd: rl.perDomain, dg: pe.dg, sD: withDomainG(rec.domainG, base.sD ?? {}),
     // RD-T05: the horizon gain is the RL done on long tasks (its in-family gain); P07 (frozen at launch, RD-E01b)
     // multiplies it. Long-horizon human demos (P12) act through the long-tasks suite's fidelity (its RL ceiling).
-    dgD: { ...pe.dgD }, h80Mult: longTasksHorizonMult(rl.perFamily.longHorizon ?? 0, rec.p07 ? P07_LONG_TASKS_HORIZON : 1),
+    dgD: { ...pe.dgD }, h80Mult: longTasksHorizonMult(rl.perFamily.longHorizon ?? 0, rec.p07 ? P07_LONG_TASKS_HORIZON : 1, { flopPre: base.flop, rlFlop: extra, eRL: rec.rlMid, aRL: rec.rlCeil }),
     signals: clampSignals(sig),
   };
 }

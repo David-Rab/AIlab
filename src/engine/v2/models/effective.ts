@@ -223,17 +223,28 @@ export function rlGainGeneral(flopPre: number, rlFlop: number, w: FamilyMap, eRL
   return a / COGNITIVE.length;
 }
 
-/** RD-T05: the long-tasks family's in-family gain of the reference run (B0, standard budget, e_RL 0, fidelity 1), broad
- *  and with a long-tasks focus: the two anchors of the horizon gain (data/v2/runDesign.ts LONG_TASKS_HORIZON). */
-const LONG_REF = (() => {
-  const g = (w: FamilyMap) => rlGains(FLOP_RL_REF, RL_BUDGET.standard * FLOP_RL_REF, w, 0).perFamily.longHorizon ?? 0;
-  return { broad: g(REF_W), focus: g(rlWeights(['longHorizon'], START_FAMILIES)) };
-})();
+/** The RL inputs the horizon anchors are read at: the run's base FLOP, RL FLOP and RL recipe (efficiency, ceiling). */
+export interface LongRefAt { flopPre: number; rlFlop: number; eRL: number; aRL?: number }
+/** RD-T05, CP3c: the long-tasks family's in-family gain of a broad run and of a long-tasks focus at the run's own base,
+ *  RL budget and RL recipe (fidelity 1): the two anchors of the horizon gain (data/v2/runDesign.ts LONG_TASKS_HORIZON).
+ *  Without `at`: the reference run (B0, standard budget, e_RL 0). */
+const LONG_FOCUS_W = rlWeights(['longHorizon'], START_FAMILIES);
+function longRef(at?: LongRefAt): { broad: number; focus: number } {
+  const F = at?.flopPre ?? FLOP_RL_REF;
+  const rl = at?.rlFlop ?? RL_BUDGET.standard * FLOP_RL_REF;
+  const g = (w: FamilyMap) => rlGains(F, rl, w, at?.eRL ?? 0, at?.aRL ?? 0).perFamily.longHorizon ?? 0;
+  return { broad: g(REF_W), focus: g(LONG_FOCUS_W) };
+}
 /** Time-horizon multiplier from the RL done on long tasks (RD-T05): (perFocus × p07)^x, x = max(0, (gLong − g_broad) ÷
- *  (g_focus − g_broad)), gLong = rlGains(…).perFamily.longHorizon. ×1 at the reference broad run, ×perFocus (× P07) at
- *  the reference long-tasks focus, rising smoothly with the long-task RL in between and beyond. */
-export function longTasksHorizonMult(gLong: number, p07 = 1): number {
-  const x = Math.max(0, (gLong - LONG_REF.broad) / (LONG_REF.focus - LONG_REF.broad));
+ *  (g_focus − g_broad)), gLong = rlGains(…).perFamily.longHorizon. ×1 for a broad run, ×perFocus (× P07) for a
+ *  long-tasks focus, rising smoothly with the long-task share in between; a long-tasks suite above fidelity 1 (P12)
+ *  raises it. CP3c: the anchors are read at the run's own base, RL budget and RL recipe (`at`), because h50Of already
+ *  gives 4.2× per OOM of the version's AGENCY effective compute, which holds the RL gain of a bigger base, budget or RL
+ *  recipe; anchored at B0's reference run, a broad post-train on a 3× base read ×2.5 on top (counted twice). */
+export function longTasksHorizonMult(gLong: number, p07 = 1, at?: LongRefAt): number {
+  const ref = longRef(at);
+  const span = ref.focus - ref.broad;
+  const x = span > 1e-9 ? Math.max(0, (gLong - ref.broad) / span) : 0;
   return Math.pow(LONG_TASKS_HORIZON.perFocus * p07, x);
 }
 
