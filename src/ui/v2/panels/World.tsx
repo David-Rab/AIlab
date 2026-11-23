@@ -10,6 +10,7 @@ import {
   remoteWorkAutomation, techBlocker, unemploymentChange12m, youthExposedEmployment,
 } from '../../../engine/v2';
 import type { DomainId, GameStateV2 } from '../../../engine/v2';
+import { gOfLevel } from '../../../engine/v2/models/capability';
 import { ActBtn, Limit, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
 import { PanelHead, Tabs, tabOf } from '../kit';
 import { WorldSectors } from './WorldSectors';
@@ -22,7 +23,8 @@ export function World({ s }: { s: GameStateV2 }) {
   const [tech, setTech] = useState('');
   const [share, setShare] = useState(0.03);
   const v = internalVersion(s);
-  const levels = (v ? measuredDomains(v) : {}) as Record<DomainId, number>;
+  // RD-P04b: the tech gates read domain G (OOM); your measured levels convert through the one λ.
+  const levels = Object.fromEntries(Object.entries(v ? measuredDomains(v) : {}).map(([d, L]) => [d, gOfLevel(s.hidden.timeline, L as number)])) as Record<DomainId, number>;
   const lev = leverageAll(s);
   const us = s.world.macro.US;
   const tab = tabOf('world', 'sectors');

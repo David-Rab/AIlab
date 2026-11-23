@@ -15,7 +15,8 @@ import {
   talent, trust, trustMany, type Preview,
 } from './fx';
 import { govPresetOf } from './gov';
-import { addPosture, archetypeOf, openAbsorbMonths, openWeightsReleased, ownProgressDays, publishLeakG } from './rivals';
+import { addPosture, archetypeOf, openAbsorbG, openWeightsReleased, ownProgressDays, publishLeakG, releaseRecG } from './rivals';
+import { RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
 import { addKnowledge, playerRecipeG } from '../models/stacks';
@@ -63,13 +64,16 @@ const publishRecipients = (s: GameStateV2): RivalLab[] => {
   return [...activeRivals(s), s.china.lab].filter((r) => r.core.status === 'active' && recipeOf(s, r) < own);
 };
 /** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best,
- *  RD-L03) and the recipe each active rival takes in (0.3 × its model gap below them). */
+ *  RD-L03). RD-X04b: the recipe each active rival takes in is RECIPE_LEAK_SHARE.openWeights of its recipe gap to the
+ *  recipe the weights reveal (releaseRecG). */
 const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
-/** C4's tacit knowledge (OOM into the pretraining stack): v2's 5 progress-days × 1.2 OOM a progress-year (RD-L03). */
-const C4_TACIT_OOM = 0.0164;
-/** E1's leak to China (OOM of recipe): v2's 1 progress-day × 1.2 OOM a progress-year (RD-L03). */
-const E1_LEAK_OOM = 0.0033;
-const openRivalLeaks = (s: GameStateV2, G: number) => activeRivals(s).map((r) => ({ r, dG: 0.3 * Math.max(0, G - bestG(s, r.core.id)) })).filter((x) => x.dG > 0);
+/** C4's poached heads (3% of the rival's capabilities staff, at least 5). */
+const poachHeads = (r: RivalLab) => Math.max(5, Math.round(r.core.staff.cap * 0.03));
+/** RD-X04b: C4's tacit knowledge (OOM into the player's pretraining stack): tacitLeakG from the rival they left. */
+const c4TacitG = (s: GameStateV2, r: RivalLab) => tacitLeakG(s, r.core.id, 'player', poachHeads(r), r.core.staff.cap);
+/** RD-X04b: E1's leak to China (OOM of recipe): RECIPE_LEAK_SHARE.track2 of China's recipe gap to the player. */
+const e1LeakG = (s: GameStateV2) => recipeLeakG(s, playerRecipeG(s), s.china.lab.core.id, RECIPE_LEAK_SHARE.track2);
+const openRivalLeaks = (s: GameStateV2, recG: number) => activeRivals(s).map((r) => ({ r, dG: recipeLeakG(s, recG, r.core.id, RECIPE_LEAK_SHARE.openWeights) })).filter((x) => x.dG > 0);
 /** The most days of its own progress any of `leaks` gives its lab (the preview's lead line). */
 const maxOwnDays = (s: GameStateV2, leaks: { r: RivalLab; dG: number }[]) => Math.round(Math.max(0, ...leaks.map((x) => ownProgressDays(s, x.r.core.id, x.dG))));
 
@@ -123,12 +127,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
   def({
     id: 'A4', verb: 'policy', system: 'relations', title: 'Publish research', cooldown: 90,
     // RD-B19 (B40): the lead line is the recipe A4 applies (publishLeakG) in days of each recipient's own progress.
-    preview: (s) => pv([L('leadDays', maxOwnDays(s, publishRecipients(s).map((r) => ({ r, dG: publishLeakG(s) }))), `days of progress into the recipes of ${publishRecipients(s).length} labs behind you (at their next model)`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
+    preview: (s) => pv([L('leadDays', maxOwnDays(s, publishRecipients(s).map((r) => ({ r, dG: publishLeakG(s, r.core.id) }))), `days of progress into the recipes of ${publishRecipients(s).length} labs behind you (at their next model)`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
     apply(s, ctx) {
       const w = ws4(s);
-      // Recipe leak (OOM; 9 days of the lead pace × 0.3): compares recipe with recipe, not with model capability.
-      const leak = publishLeakG(s);
-      for (const r of publishRecipients(s)) addRivalKnowledge(r, leak);
+      // RD-X04b: recipe leak (OOM), a share of each recipient's recipe gap to the player (recipe with recipe).
+      for (const r of publishRecipients(s)) addRivalKnowledge(r, publishLeakG(s, r.core.id));
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
@@ -335,17 +338,18 @@ export const RELATION_ACTIONS: ActionDef[] = [
     available: (s) => (activeRivals(s).length ? true : 'No active rivals'),
     preview: (s, p) => {
       const r = poachTarget(s, p);
-      return pv([L('cash', 0.5), L('trust', 20, r ? `rival:${r.core.id}` : 'rivals')], [L('talent', 4), L('leadDays', 5, r?.core.name)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
+      return pv([L('cash', 0.5), L('trust', 20, r ? `rival:${r.core.id}` : 'rivals')], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
     },
     apply(s, ctx, p) {
       const r = poachTarget(s, p);
       if (!r) return;
       cash(s, ctx, -0.5, 'C4 poaching', r.core.name);
-      const n = Math.max(5, Math.round(r.core.staff.cap * 0.03));
+      const n = poachHeads(r);
+      // RD-X04b: tacit knowledge (c4TacitG, sized before the heads move) enters the pretraining stack as public ideas.
+      const tacit = c4TacitG(s, r);
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
-      // Model v3 V2: tacit knowledge (C4_TACIT_OOM) enters the pretraining stack as public ideas.
-      addKnowledge(s, ctx, C4_TACIT_OOM, 'C4 tacit knowledge', r.core.name);
+      addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
       rivalMeter(s, ctx, r.core.id, 'cooperation', -20, 'C4 poaching');
       rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
       trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
@@ -361,14 +365,16 @@ export const RELATION_ACTIONS: ActionDef[] = [
     // open frontier for China. The China-tension line went: nothing applies it.
     preview: (s, p) => {
       const G = openReleaseG(s, num(p, 'behind', 1));
-      const cn = G > s.knowledge.openWeightsG ? Math.round((openAbsorbMonths(s, G) / 12) * 365) : 0;
-      return pv([L('leadDays', maxOwnDays(s, openRivalLeaks(s, G)), "days of progress into the best-placed rival's recipe (at its next model)"), L('leadDays', cn, "days of China's own progress: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
+      const recG = releaseRecG(s, 'player', G);
+      const cn = G > s.knowledge.openWeightsG ? Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, recG))) : 0;
+      return pv([L('leadDays', maxOwnDays(s, openRivalLeaks(s, recG)), "days of progress into the best-placed rival's recipe (at its next model)"), L('leadDays', cn, "days of China's own progress: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
     },
     apply(s, ctx, p) {
       const G = openReleaseG(s, num(p, 'behind', 1));
-      // Model-vs-model gap (G); 30% of it enters the rival's recipe (like WS1's distillation leak).
-      for (const { r, dG } of openRivalLeaks(s, G)) addRivalKnowledge(r, dG);
-      openWeightsReleased(s, ctx, 'player', G);
+      // RD-X04b: recipe gap to what the weights reveal; RECIPE_LEAK_SHARE.openWeights of it enters each rival's recipe.
+      const recG = releaseRecG(s, 'player', G);
+      for (const { r, dG } of openRivalLeaks(s, recG)) addRivalKnowledge(r, dG);
+      openWeightsReleased(s, ctx, 'player', G, recG);
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');
       bloc(s, ctx, 'hawks', -8, 5, 'C6 open weights');
@@ -403,14 +409,14 @@ export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── E. China ─────────
   def({
     id: 'E1', verb: 'deal', system: 'relations', title: 'Track-2 dialogue', cooldown: 180,
-    preview: () => pv([L('staffTime', 2), L('approval', 3, 'bloc:hawks')], [L('trust', 5, 'china'), L('chinaTension', 3)], [L('leadDays', -1, 'small leak')]),
+    preview: (s) => pv([L('staffTime', 2), L('approval', 3, 'bloc:hawks')], [L('trust', 5, 'china'), L('chinaTension', 3)], [L('leadDays', -Math.round(ownProgressDays(s, s.china.lab.core.id, e1LeakG(s))), "small leak: days of China's own progress")]),
     apply(s, ctx) {
       ctx.bump('china.meters.safetyConcern', 4, 'E1 Track-2 dialogue');
       ctx.bump('china.meters.normsDiplomacy', 5, 'E1 Track-2 dialogue');
       trust(s, ctx, 'china', 5, 'E1 Track-2 dialogue');
       grantAccess(s, 'china', 1);
       bloc(s, ctx, 'hawks', -3, 0, 'E1');
-      addRivalKnowledge(s.china.lab, E1_LEAK_OOM);
+      addRivalKnowledge(s.china.lab, e1LeakG(s));
     },
   }),
   def({

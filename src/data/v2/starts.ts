@@ -35,7 +35,7 @@ export interface StartDef {
   /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
-  /** Live products and the features built at the start (D5: the leader's set is the ×1 baseline). */
+  /** Live products and the features built at the start. */
   products: StartProduct[];
   features: FeatureId[];
   /** Cash on hand ($B), revenue run-rate ($B/yr) and the last four quarterly run-rates (oldest first). */
@@ -127,7 +127,7 @@ export const STARTS: StartDef[] = [
     specialties: { cap: [], saf: [] },
     known: [],
     products: [{ channel: 'consumer', servingShare: 0.45 }, { channel: 'api', servingShare: 0.35 }, { channel: 'enterprise', servingShare: 0.2 }],
-    features: ['sectorPacks'],
+    features: [],
     cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
     ownership: { founder: 0.3, fin: 0.17 },
     owned: 500e3, rented: 700e3,

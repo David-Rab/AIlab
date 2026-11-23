@@ -14,12 +14,13 @@
 // Rivals, China and the leader lab (model v3 F1): the same experiment CES at aggregate level with their own models' AI
 // labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
 // (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
-import { CHINA_CAL, K_DIFFUSION, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { CHINA_CAL, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { recipeDiffusionPerDay } from './diffusion';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
-import { CHINA_ID, LEADER_ID, PLAYER_ID, bestG, labCore, otherLabs, rivalLab } from '../models/labs';
-import { advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, serveRate } from '../actors/rivalModel';
+import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab } from '../models/labs';
+import { addRivalKnowledge, adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { poolsOf } from '../compute/power';
 import { withResearchAgents } from '../departments/split';
@@ -202,12 +203,13 @@ export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInpu
 export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
   const w = s.hidden.timeline;
   const core = r.core;
+  const G = rivalWorkModel(w, r); // RD-X03 model + RD-X02 P05 lift
   const fpt = rivalAgentFpt(r);
   const res = core.split.experiments + (core.split.routine + core.split.frontier);
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
   if (apply && res > 0) {
-    f = bestRivalMix(w, r.internal, fpt, core.staff.cap, C);
+    f = bestRivalMix(w, G, fpt, core.staff.cap, C);
     core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
@@ -217,6 +219,8 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     advanceRecipe(r, rates, 1 / 365);
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
+    // RD-X02 (DD-14 rival part): the same research speed works through the paradigms' typed effects.
+    if (r.phys) adoptRivalIdeas(s, r, x.rs);
   }
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
@@ -248,25 +252,26 @@ export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | unde
   return r;
 }
 
-/** Knowledge diffusion to the player (R9; data/v2/calibration.ts K_DIFFUSION): K × (the frontier leader lab's public
- *  model's G − the player's best model's G) OOM per year while positive. */
+/** RD-X04 (DD-17): rule A for the player (limitsView's diffusion line reads it): production/diffusion.ts. */
 export function diffusionPerDay(s: GameStateV2): { dG: number; from?: string } {
-  const L = s.rivals.find((r) => r.core.id === LEADER_ID);
-  const pub = L && L.core.status === 'active' ? L.publicModel?.G : undefined;
-  const own = bestG(s, PLAYER_ID);
-  if (pub === undefined || !Number.isFinite(own)) return { dG: 0 };
-  const gap = pub - own;
-  return gap > 0 ? { dG: (K_DIFFUSION * gap) / 365, from: L!.core.name } : { dG: 0 };
+  return recipeDiffusionPerDay(s, PLAYER_ID);
 }
 
-/** production (30, daily): readouts for the player, rivals and China; rivals' and China's know-how grows (§3.2). */
+/** production (30, daily): readouts for the player, rivals and China; every lab's recipe takes in public recipes above
+ *  it (RD-X04 rule A, the same function for every lab); rivals' and China's know-how grows (§3.2). */
 export const productionSystem: EngineSystem = {
   id: 'production', owner: 'WS1', cadence: 'daily', order: 30, system: 'research',
   run(s, ctx) {
+    // Rule A sizes on yesterday's public recipes for every lab before any lab's step (no order effect between labs).
+    const dif = [PLAYER_ID, ...otherLabs(s).map((x) => x.core.id)].map((id) => ({ id, d: recipeDiffusionPerDay(s, id) }));
     const r = advanceLab(s, PLAYER_ID);
+    const pd = dif[0].d;
+    if (pd.dG > 0) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
+    for (const { id, d } of dif.slice(1)) {
+      const lab = rivalLab(s, id);
+      if (lab && d.dG > 0) addRivalKnowledge(lab, d.dG);
+    }
     if (r) {
-      const dif = diffusionPerDay(s);
-      if (dif.dG > 0) addKnowledge(s, ctx, dif.dG, 'knowledge diffusion', dif.from);
       ctx.memo.set('WS1:production:player', r);
       deliverData(s, ctx);
       syntheticAccrual(s);

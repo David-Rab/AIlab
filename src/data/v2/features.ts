@@ -5,12 +5,15 @@
 // live (rule R4); edits take effect at the next tick (D7).
 //
 // Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
-// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (opens a segment
-// of the listed markets that only products with it can sell into), a horizon extender (× h50 on chosen work types), a
+// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (a tool: RD-P07,
+// offers without it cannot do the part of the listed sectors' tasks that needs it; rivals get it after a lag), a horizon extender (× h50 on chosen work types), a
 // scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
 // effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
-// agents on the internal work types they list (SWE, EXP, IDEAS), once built. Hazard multipliers stay (incidents).
-// D5: the frontier-leader start's set (sector packs) is the neutral ×1 baseline; every other feature is a gain when on.
+// agents on the internal work types they list (SWE, EXP, IDEAS), once built. RD-P11: a feature's incident exposure acts
+// through the quantities of the product's incident site (safety/incidents.ts siteOf): its task horizon (a horizon
+// extender lengthens the tasks the model runs alone: autonomy A) and its affordances (`afford`); its extra use is in
+// the product's serving share. Only Companion keeps a per-trait multiplier, a stated stand-in (`hazard`).
+// Every feature is a gain when on (no start type has one for free; sector adaptations are per product: models/adaptations.ts).
 // [D] = design value.
 import type { Channel, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
 import type { WorkTypeId } from './workTypes';
@@ -34,27 +37,25 @@ export function tierOfIndex(x: number): PriceTier {
 export interface ProductDef {
   channel: Channel;
   name: string;
-  /** The segment whose spend the product competes for (share readout). */
+  /** The segment whose spend the product competes for (share readout). RD-P03: sector products compete for the same
+   *  spend as separate sellers in the buyers' choice (each its own offer); no channel weights split it. */
   segment: string;
   blurb: string;
 }
 export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
   consumer: { channel: 'consumer', name: 'Chat', segment: 'consumer spend', blurb: 'The chat app for the public. Large demand, low price per user.' },
   api: { channel: 'api', name: 'API', segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
-  enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, with sector packs. Sticky, little leak.' },
+  enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, adapted to their sectors.' },
   agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
-  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (needs a gov variant).' },
+  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (any full or mini model; usage terms on the product).' },
   trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at ×3 the price (buyers see it); almost no leak.' },
   open: { channel: 'open', name: 'Open weights', segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
 };
 /** Products shown as cards, in order. */
 export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agents', 'gov', 'trusted'];
 
-/** Products that take a mini (`miniVersionId`): Chat's free tier and the API's cheap tier (A5). */
-export const MINI_CHANNELS: readonly Channel[] = ['consumer', 'api'];
-// RD-B11 (B15): Chat's mini is its free tier only (worldfx/serving.ts chatFreeTier): paying users run the main model,
-// so the mini does not blend into Chat's quality, paid share or reach (the 0.6 FREE_TIER_SHARE blend is gone). The
-// API's mini is a cheap tier in the sector market (A5: its share of the API's hours is derived, worldfx/choice.ts).
+// RD-P01a (DD-01): any product offers a lineup of real models (Deployment.lineup); Chat's free users run one of them
+// (freeTierId; worldfx/serving.ts chatFreeTier), its paying users the main model. MINI_CHANNELS is gone.
 /** RD-B11 (B16): a channel's price multiplier over its tier's markup. It is part of the product's offer
  *  (worldfx/serving.ts productOffer), so buyers see it in their choice: Trusted access sells to vetted partners at ×3
  *  the price (R12 §0.6) [D]. */
@@ -75,16 +76,15 @@ export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', '
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
 export const AGENT_TASK_HOURS = 4;
 
-export type FeatureId = 'memory' | 'deepThink' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion' | 'sectorPacks';
+export type FeatureId = 'memory' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion';
 
 /** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */
 export type WorkScope = 'all' | (SectorId | WorkTypeId | 'CHAT')[];
 /** Typed feature effects (V4.3). */
 export type FeatureFx =
-  | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; packs?: boolean; share: number }
+  | { kind: 'enabler'; sectors?: SectorId[]; consumer?: boolean; share: number }
   | { kind: 'horizon'; mult: number; work: WorkScope }
-  | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope }
-  | { kind: 'effort'; setting: 'deep' };
+  | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope };
 
 export interface FeatureDef {
   id: FeatureId;
@@ -96,35 +96,33 @@ export interface FeatureDef {
   /** Build: team-weeks of engineering and cash ($B). */
   buildTW: number;
   cash: number;
-  /** In the frontier-leader start set (built and on where today's game has it): the ×1 baseline (D5). */
-  leader?: boolean;
   /** Effect text and the engine terms it maps to. */
   effect: string;
   risk?: string;
   /** Typed effects (V4.3). */
   fx: FeatureFx[];
-  /** Incident hazard × per trait on this product. */
+  /** RD-P11: affordances it adds to the product's incident site (F, data/v2/danger.ts CHANNEL_AFFORD: code execution,
+   *  internet, money, weights access, each ¼ of F), capped at 1. */
+  afford?: number;
+  /** Incident hazard × per trait on this product: only where no site quantity carries the exposure, as a stated [D
+   *  stand-in] (Companion). */
   hazard?: Partial<Record<TraitId, number>>;
-  /** Switching it on sets the product's effort to deep (Deep think). */
-  effortDeep?: boolean;
 }
 
 export const FEATURES: FeatureDef[] = [
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; opens 10% more Chat users (people who come back)',
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
-    risk: 'Successor-alignment incidents ×1.2 (memory carries goals forward)', hazard: { SUCC: 1.2 } },
-  { id: 'deepThink', name: 'Deep think', node: 'P05', products: ['consumer', 'api', 'agents', 'enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Effort deep: ×4 reasoning tokens, +0.24 OOM of fit on every task (test-time scaling, +0.4 OOM per ×10)', fx: [{ kind: 'effort', setting: 'deep' }], effortDeep: true,
-    risk: 'Cost per work-hour rises with the reasoning tokens (price follows cost)' },
+    risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
-    effect: 'Task enabler: operates desktops and browsers, opening 15% more work in Admin, Finance, Legal and Government (GUI-only tasks)',
+    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
-    risk: 'Overreach incidents (power seeking) ×1.3', hazard: { POWER: 1.3 } },
+    // RD-P11 [D stand-in]: acting on any desktop or website is one of the four affordances (+¼ of F).
+    risk: 'Affordances +0.25 (acts on desktops and websites): raises the odds of incidents that need real access (overreach, cover-ups)', afford: 0.25 },
   // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
   // is where its Media segment acts; on Chat it opens the Chat users.
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images, opening 15% more Chat users (on Chat) and 15% more Media work (on the API)',
+    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.15 (on Chat); on the API it does the media tasks (13% of Media work) offers without it cannot; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it',
     fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
   // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
@@ -134,13 +132,13 @@ export const FEATURES: FeatureDef[] = [
   { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
     effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT work, at ×2 tokens',
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
-    risk: 'Reward-hacking incidents ×1.2 (agents gaming tests)', hazard: { RH: 1.2 } },
+    // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
+    risk: 'Cost per work-hour ×2 where it applies (longer agent runs; their incident exposure is in the product usage)' },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'Task enabler: a persistent persona, opening 20% more Chat users', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
-    risk: 'Sycophancy incidents ×1.5', hazard: { SYC: 1.5 } },
-  { id: 'sectorPacks', name: 'Sector packs', products: ['enterprise', 'api', 'agents'], buildTW: 0, cash: 0, leader: true,
-    effect: 'Task enabler: sector products; a certified sector pack adds +0.42 OOM of fit in that sector (each pack: $0.4B, 120 days)',
-    fx: [{ kind: 'enabler', packs: true, share: 0 }] },
+    effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; rivals that know the idea build it themselves; the others get it 120 days after the first lab ships it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
+    // RD-P11 [D stand-in]: ×1.5 stands for the longer, personal conversations a persona has with each user (time per
+    // user), which the product's serving share does not count; to replace with time per user once Chat models it.
+    risk: 'Sycophancy incidents ×1.5 [D stand-in: longer personal conversations per user]', hazard: { SYC: 1.5 } },
 ];
 /** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
  *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
@@ -174,6 +172,23 @@ export const INTERNAL_TOOLS: ToolDef[] = [
 export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t])) as Record<ToolId, ToolDef>;
 /** Internal tools equivalent to a set of built product features (starts, the RD-A06 save migration). */
 export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTERNAL_TOOLS.filter((t) => features.includes(t.from)).map((t) => t.id);
+/** RD-P07 (DD-03): a product enabler is a tool part of a sector's work needs (Computer use: GUI-only steps in Admin,
+ *  Finance, Legal and Government; Voice & vision: media work). In a sector it lists, an offer without the tool cannot do
+ *  that part of the tasks: its coverage × (1 − need) (worldfx/serving.ts offerOf, inside the buyers' choice), need =
+ *  share ÷ (1 + share), so an offer with the tool covers ×(1 + share) what the same offer without it covers (the effect
+ *  size the old after-the-choice multiplier had) [D stand-in]. On Chat (consumer: true) the tool stays a term of the
+ *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector adaptations are per product (models/adaptations.ts),
+ *  not tools. */
+export const enablerNeed = (share: number) => share / (1 + share);
+/** RD-P07 (DD-03 rival part, DD-18 stand-in): every rival and China gets a tool TOOL_LAG_DAYS after the first lab ships
+ *  it on a live product (world.fx.toolShip: the player or a rival; RD-P07b: a rival or China may ship it first, by the
+ *  feature's own gate, actors/rivalModel.ts rivalToolStep). 120 days [D]: 2024–25 launches followed each other by about
+ *  50–270 days (computer use: Anthropic Oct 2024, Google Project Mariner Dec 2024, OpenAI Operator Jan 2025; memory:
+ *  ChatGPT Feb 2024, Gemini Nov 2024). */
+export const TOOL_LAG_DAYS = 120;
+/** RD-P07b [D stand-in]: a rival that passes a tool's gate builds it in the feature's engineer team-weeks done by one team
+ *  (buildTW × 7 days: Computer use 112 d), the player's build time at one team; a rival has no build queue. */
+export const RIVAL_TOOL_DAYS_PER_TW = 7;
 export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
-/** The frontier-leader start's built features (D5 baseline). */
-export const LEADER_FEATURES: FeatureId[] = FEATURES.filter((f) => f.leader).map((f) => f.id);
+/** RD-P07: the features that are tools (enablers): the ones rivals acquire after a lag. */
+export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler')).map((f) => f.id);

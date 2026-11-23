@@ -19,18 +19,19 @@
 // coverage.
 import { controlOn } from '../safety/safeguards';
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, FREE_TIER, LINEUP, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, MINI_CHANNELS, P05_ORCHESTRATION, TOOL_BY_ID, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
-import { ASSIST, COVER, H50_PER_OOM, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
+import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
 import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '../departments/workfit';
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
-import { activeFeatures, packCertified } from '../models/products';
+import { activeFeatures } from '../models/products';
+import { ADAPT_COVER, adaptedHere } from '../models/adaptations';
 import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
@@ -178,16 +179,36 @@ export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
   if (adopted(s, 'P05')) fx.push(P05_ORCHESTRATION);
   return fxOn(fx, wt);
 }
-/** Segment a product's enablers open (share of the market's AI work only products with it can reach): per sector and for
- *  consumer chat. RD-B11 (B14), applied once: on Chat in the users' app choice (worldfx/mix.ts, × the player's appeal),
- *  not again on its users; on a sector product × its hours, agent-hours and seats (worldfx/revenue.ts), held so the
- *  player never sells more than the sector adopts (share × (1 + enabler) ≤ 1). Interim until enablers become
- *  capabilities in the offer (SYNTHESIS RD-P07). */
-export function enablerShare(fx: FeatureFx[], sid: SectorId | 'CHAT'): number {
-  let x = 0;
-  for (const f of fx) if (f.kind === 'enabler' && (sid === 'CHAT' ? f.consumer : f.sectors?.includes(sid))) x += f.share;
-  return x;
+/** RD-P07 (DD-03): per sector, the tools (enabler features) its work needs and the share of its tasks each one is
+ *  needed for (data/v2/features.ts enablerNeed). */
+const TOOL_NEED: Partial<Record<SectorId, [string, number][]>> = {};
+for (const id of ENABLER_TOOLS) for (const f of FEATURE_BY_ID[id].fx) {
+  if (f.kind !== 'enabler') continue;
+  for (const sid of f.sectors ?? []) (TOOL_NEED[sid] ??= []).push([id, enablerNeed(f.share)]);
 }
+/** RD-P07: share of a sector's tasks an offer cannot do for lack of tools: Σ need over the tools the sector needs that
+ *  `tools` lacks (0 on Chat: Chat's tools act in the app choice, chatToolAppeal). */
+export function toolGap(sid: SectorId | 'CHAT', tools?: readonly string[]): number {
+  if (sid === 'CHAT') return 0;
+  const need = TOOL_NEED[sid];
+  if (!need) return 0;
+  let g = 0;
+  for (const [id, x] of need) if (!tools?.includes(id)) g += x;
+  return Math.min(1, g);
+}
+/** RD-P07: Chat appeal from a provider's tools (consumer enablers: × (1 + share) each summed, as RD-B11 applied it once in
+ *  the users' app choice), the same rule for the player and the rivals who acquired the tools. */
+export function chatToolAppeal(tools?: readonly string[]): number {
+  let x = 0;
+  for (const id of tools ?? []) {
+    const f = FEATURE_BY_ID[id as keyof typeof FEATURE_BY_ID];
+    if (f) for (const e of f.fx) if (e.kind === 'enabler' && e.consumer) x += e.share;
+  }
+  return 1 + x;
+}
+/** RD-P07: the tools (enabler features) a product has switched on. */
+export const productTools = (s: GameStateV2, d: Deployment): string[] =>
+  activeFeatures(s, d).filter((f) => ENABLER_TOOLS.includes(f.id)).map((f) => f.id);
 
 // ───────────────────────────── offers: a model's fit, coverage, cost and price on a work type ─────────────────────────────
 
@@ -200,7 +221,9 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
  *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number }
+/** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
+/** `adapted`: the offer's lab has a live sector adaptation for this sector (RD-P08, models/adaptations.ts). */
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -274,6 +297,20 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
     hphAg += u.w * hphOf(u.fpt, tokAg.input, tokAg.output * tau, ud);
     hphAs += u.w * hphOf(u.fpt, tokAs.input, tokAs.output * tau, ud);
   }
+  // RD-P07 (DD-03): tasks needing a tool the offer lacks are not covered (coverage and agent work × (1 − gap); the agent
+  // leverage λ keeps the covered tasks' review, a stand-in).
+  const keep = 1 - toolGap(sid, o.tools);
+  if (keep < 1) {
+    a *= keep;
+    k *= keep;
+  }
+  // RD-P08 (DD-04): a sector adaptation's scaffold covers ×(1 + ADAPT_COVER) of the sector's tasks (all at most), its
+  // agent work with it (λ kept, as the tools).
+  if (o.adapted && sid !== 'CHAT' && a > 0) {
+    const up = Math.min(1, a * (1 + ADAPT_COVER)) / a;
+    a *= up;
+    k *= up;
+  }
   const cost = hph * o.rate;
   const costAg = hphAg * o.rate;
   const seatCost = chat ? 0 : seatHoursPerMonth(sid) * hphAs * o.rate;
@@ -332,92 +369,50 @@ export const markupOf = (d: Deployment) => MARKUP[d.price] ?? MARKUP.standard;
 export const channelPriceOf = (d: Deployment) => CHANNEL_PRICE[d.channel] ?? 1;
 export { RIVAL_MARKUP, CHINA_MARKUP };
 
-/** The model a product's paying customers use: its main version. RD-B11 (B15): Chat's mini serves only its free users
- *  (chatFreeTier) and a sector product's mini is a separate tier (productMiniUses); neither blends in here. */
+/** The model a product's paying customers use: its main version. RD-B11 (B15) / RD-P01a: Chat's free users run its
+ *  free-tier slot (chatFreeTier) and a sector product's other lineup models are tiers of their own (productTierUses);
+ *  neither blends in here. */
 export function productUses(s: GameStateV2, d: Deployment): ModelUse[] {
   const v = versionById(s, d.versionId);
   return v ? [{ v, fpt: flopPerToken(s, v), w: 1 }] : [];
 }
-/** A5: a sector product's cheap tier, its mini (API), as a model use of its own; undefined without one. */
-export function productMiniUses(s: GameStateV2, d: Deployment): ModelUse[] | undefined {
-  if (d.channel === 'consumer' || !d.miniVersionId || !MINI_CHANNELS.includes(d.channel)) return undefined;
-  const mini = versionById(s, d.miniVersionId);
-  return mini ? [{ v: mini, fpt: flopPerToken(s, mini), w: 1 }] : undefined;
+/** RD-P01a: the real versions of a product's lineup after its main model (Deployment.lineup order; unknown or retired
+ *  ids and the main model itself skipped). */
+export function lineupVersions(s: GameStateV2, d: Deployment): ModelVersion[] {
+  const out: ModelVersion[] = [];
+  for (const id of d.lineup ?? []) {
+    if (id === d.versionId) continue;
+    const v = versionById(s, id);
+    if (v && v.status !== 'retired' && !out.includes(v)) out.push(v);
+  }
+  return out;
 }
-
-/** Coverage of a student g OOM below a teacher of sector fit `fit` and h50 `h50` (every domain shifted down by g). */
-const studentCover = (w: TimelineWorld, sid: SectorId, fit: number, h50: number, g: number) => sectorCover(w, sid, fit - g, h50 * Math.pow(H50_PER_OOM, -g));
-function memoAt<K, V>(m: Map<K, V>, k: K, mk: () => V): V {
-  let x = m.get(k);
-  if (x === undefined) m.set(k, (x = mk()));
-  return x;
+/** RD-P01a: each lineup entry after the main model as a model use of its own (its own FLOP per token). */
+export function productTierUses(s: GameStateV2, d: Deployment): ModelUse[][] {
+  return lineupVersions(s, d).map((v) => [{ v, fpt: flopPerToken(s, v), w: 1 }]);
 }
-const newMap = () => new Map();
 
 // ───────────────────────────── lineups (TIERS) ─────────────────────────────
 
-/** TIERS: the students in a lineup under a model of `nT` active parameters (data/v2/serving.ts LINEUP): per rung its
- *  size ratio r = N_S/N_T (N_S ≥ PARAM_RANGE[0]: the 1B floor can leave a rung closer) and its distillation gap g =
- *  DISTILL.a + DISTILL.b·log₁₀(1/r) (OOM below the model in every domain, as runs.ts distillBuild). Rungs the floor
- *  merges are dropped; none under a model at the floor. */
-export interface LineupRung { r: number; g: number }
-const rungMemo = new Map<number, LineupRung[]>();
-export function lineupOf(nT: number): LineupRung[] {
-  const hit = rungMemo.get(nT);
-  if (hit) return hit;
-  const out: LineupRung[] = [];
+/** TIERS / RD-P02: the student sizes a distill step makes under a model of `nT` active parameters (data/v2/serving.ts
+ *  LINEUP): per rung its size ratio r = N_S/N_T (N_S ≥ PARAM_RANGE[0]: the 1B floor can leave a rung closer). Rungs the
+ *  floor merges are dropped; none under a model at the floor. Used when models are made (day-0 minis, rivals' distill
+ *  step), never by the market at read time. */
+export function lineupSizes(nT: number): number[] {
+  const out: number[] = [];
   for (const r0 of LINEUP.ratios) {
     const nS = Math.max(PARAM_RANGE[0], nT * r0);
-    if (!(nS < nT * (1 - 1e-9)) || (out.length && nS >= nT * out[out.length - 1].r * (1 - 1e-9))) continue;
-    out.push({ r: nS / nT, g: DISTILL.a + DISTILL.b * Math.log10(nT / nS) });
+    if (!(nS < nT * (1 - 1e-9)) || (out.length && nS >= nT * out[out.length - 1] * (1 - 1e-9))) continue;
+    out.push(nS / nT);
   }
-  if (rungMemo.size > 5000) rungMemo.clear();
-  rungMemo.set(nT, out);
   return out;
 }
-type RungMemo = Map<string, Map<number, Map<number, Map<number, { a: number; lam: number }>>>>; // sector → fit → h50 → g
-const rungFitMemo = new WeakMap<TimelineWorld, { m: RungMemo; n: number }>();
-/** TIERS: the offer of the lineup student `rung` under a model whose offer on sector `sid` is `o` (fit o.fit, h50
- *  `h50`, both after the product's settings and features): the model shifted down by the rung's gap in every domain
- *  (coverage and agent leverage at fit − g, h50·H50_PER_OOM^−g), its H100e-hours, costs and prices × r (FLOP per token
- *  ∝ active parameters; the markup is the model's, so a premium price tier applies to every tier), its seat price the
- *  model's list price at that markup (never below its own serving cost). Coverage and leverage are memoised on these
- *  inputs per world (P2-style). */
-export function rungOffer(s: GameStateV2, o: Offer, sid: SectorId, h50: number, rung: LineupRung, markup: number, rate: number): Offer {
-  const w = s.hidden.timeline;
-  let memo = rungFitMemo.get(w);
-  if (!memo || memo.n > 20000) rungFitMemo.set(w, (memo = { m: new Map(), n: 0 }));
-  const byG = memoAt(memoAt(memoAt(memo.m, sid, newMap), o.fit, newMap), h50, newMap) as Map<number, { a: number; lam: number }>;
-  let f = byG.get(rung.g);
-  if (!f) {
-    const a = studentCover(w, sid, o.fit, h50, rung.g);
-    f = { a, lam: agentLeverage(a, h50 * Math.pow(H50_PER_OOM, -rung.g)) };
-    byG.set(rung.g, f);
-    memo.n++;
-  }
-  const r = rung.r;
-  const seatCost = seatHoursPerMonth(sid) * o.hphAs * r * rate;
-  return {
-    fit: o.fit - rung.g, a: f.a, hph: o.hph * r, cost: o.cost * r, price: o.price * r, k: f.a * f.lam, lam: f.lam, hphAg: o.hphAg * r, costAg: o.costAg * r,
-    priceAg: o.priceAg * r, hphAs: o.hphAs * r, seat: Math.max(seatCost, (SEATS.price * markup) / MARKUP.standard),
-  };
-}
-/** TIERS: a product's lineup on a sector: its main model's offer `main`, then the lineup students of the main model
- *  (lineupOf on its active parameters), then its own mini when it has one (`mini`, A5). */
-export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, mini?: Offer, fx = productFx(s, d)): Offer[] {
-  const v = versionById(s, d.versionId);
+/** TIERS / RD-P01a: a product's lineup on a sector: its main model's offer `main`, then each real lineup entry
+ *  (productTierUses, Deployment.lineup order) at its own fit and serving cost, the product's settings, features and
+ *  markup (productOffer). No phantom students for the player (DD-01). */
+export function productLineup(s: GameStateV2, d: Deployment, sid: SectorId, main: Offer, fx = productFx(s, d), tiers = productTierUses(s, d), tools = productTools(s, d)): Offer[] {
   const out = [main];
-  if (v) {
-    const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-    const rungs = lineupOf(nT);
-    if (rungs.length) {
-      const h50 = sectorH50(s, v, sid, fxOn(fx, sid).hMult);
-      const markup = markupOf(d);
-      const rate = serveDollarsPerHour(s);
-      for (const g of rungs) out.push(rungOffer(s, main, sid, h50, g, markup, rate));
-    }
-  }
-  if (mini) out.push(mini);
+  for (const u of tiers) out.push(productOffer(s, d, sid, u, fx, tools));
   return out;
 }
 /** TIERS: a product's offer when its buyers take its tiers by hours shares `w` (product order, sum 1): costs and prices
@@ -440,14 +435,13 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (controlOn(d) ? CONTROL_LAYER_DG : 0);
 
-/** A product's offer on a sector (its own certified sector pack there adds SECTOR_PACK_DG, RD-B12). RD-B11 (B16):
+/** A product's offer on a sector (RD-P08: its own live adaptation there raises its coverage, offerOf). RD-B11 (B16):
  *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
- *  and the revenue read the same price. */
-export const SECTOR_PACK_DG = 0.4167; // OOM of fit in the sector (RD-U01: was 0.5 L ÷ 1.2)
-export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d)): Offer {
+ *  and the revenue read the same price. RD-P07: its tools (productTools) widen the tasks it covers where the sector
+ *  needs them. */
+export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
-  const pack = packCertified(d, sid, s.time.day) ? SECTOR_PACK_DG : 0;
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG + pack, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────
@@ -455,30 +449,36 @@ export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses 
 /** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
  *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
 export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
-/** A7: the free chat tier of a model with `nT` active parameters (data/v2/serving.ts FREE_TIER): the student that holds
- *  the model's fit less FREE_TIER.oom OOM, sized by the cheapestAt rule (studentParamsFor; the 1B floor
- *  can leave it closer). Its size ratio to the teacher and its gap below it (OOM); ratio 1 and gap 0 when no student is
- *  DISTILL.a below the teacher (the model itself is the cheapest adequate one). */
-export function freeTierOf(nT: number): { r: number; gap: number } {
-  const nS = studentParamsFor(nT, FREE_TIER.oom);
-  return nS < nT ? { r: nS / nT, gap: DISTILL.a + DISTILL.b * Math.log10(nT / nS) } : { r: 1, gap: 0 };
-}
-/** A7: what the free users of the player's Chat product get: its mini when the player set one, else the free tier of
- *  its model (freeTierOf). Consumer-chat fit at the product's settings and features (no effort setting: free users get
- *  the default), FLOP per token and reasoning-token multiplier τ (a student keeps its teacher's, tokEff). */
-export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number } | undefined {
+/** RD-P01a: the model in a Chat product's free-tier slot: Deployment.freeTierId when it is in the lineup (the main model
+ *  or a lineup entry), else the lineup's cheapest model to serve (lowest FLOP per token; the main model alone: itself). */
+export function freeTierVersion(s: GameStateV2, d: Deployment): ModelVersion | undefined {
   const main = versionById(s, d.versionId);
   if (!main) return undefined;
+  const all = [main, ...lineupVersions(s, d)];
+  const set = d.freeTierId ? all.find((v) => v.id === d.freeTierId) : undefined;
+  if (set) return set;
+  let best = main;
+  let bf = flopPerToken(s, main);
+  for (const v of all) {
+    const f = flopPerToken(s, v);
+    if (f < bf) {
+      best = v;
+      bf = f;
+    }
+  }
+  return best;
+}
+/** A7 / RD-P01a: what the free users of the player's Chat product get: the real model in its free-tier slot
+ *  (freeTierVersion; with only the main model, the main model at its real serving cost). Consumer-chat fit at the
+ *  product's settings and features (no effort setting: free users get the default), FLOP per token and reasoning-token
+ *  multiplier τ (tokEff). */
+export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number; id: string } | undefined {
+  const v = freeTierVersion(s, d);
+  if (!v) return undefined;
   const x = fxOn(productFx(s, d), 'CHAT');
   const opts: OfferOpts = { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) };
-  const mini = d.miniVersionId ? versionById(s, d.miniVersionId) : undefined;
-  if (mini) {
-    const fpt = flopPerToken(s, mini);
-    return { fit: offerOf(s, [{ v: mini, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(mini) };
-  }
-  const fpt = flopPerToken(s, main);
-  const ft = freeTierOf(main.params ?? s.player.models.bases.find((b) => b.id === main.baseId)?.params ?? REFERENCE_BASE.params);
-  return { fit: offerOf(s, [{ v: main, fpt, w: 1 }], 'CHAT', opts).fit - ft.gap, fpt: fpt * ft.r, tau: tokEff(main) };
+  const fpt = flopPerToken(s, v);
+  return { fit: offerOf(s, [{ v, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(v), id: v.id };
 }
 
 /** Consumer subscription per month ($): a paying user's serving cost on the product's model (paid usage runs on the main

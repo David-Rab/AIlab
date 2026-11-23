@@ -212,7 +212,7 @@ const REF_MONITORED: AgentUse[] = ['capRoutine', 'capFrontier'];
  *  (its models' sizes and its compute). */
 export function refMonitors(s: GameStateV2, api: EngineApi): void {
   if (s.time.day % 7 !== 5) return;
-  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && v.variant !== 'open');
+  const live = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed'));
   let watched = 0;
   for (const use of REF_MONITORED) {
     const v = agentVersion(s, use);
@@ -439,6 +439,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const iv = m.versions.find((v) => v.id === p.agents.capRoutine.versionId);
   if (!p.policies.autoEvaluate) tryAct(s, api, 'products.policy', { autoEvaluate: true });
   if (!p.policies.servingAuto) tryAct(s, api, 'products.policy', { servingAuto: true });
+  if (!p.policies.autoCheapTier) tryAct(s, api, 'products.policy', { autoCheapTier: true }); // RD-P01b: cheap tiers by the player's policy
 
   // A distilled mini about every 6 months, deployed to consumer and API (frontier stays internal), or the newest
   // full version for bots that release their frontier.
@@ -472,7 +473,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   // A5 (option `cheapTier`, off since TIERS: the product lineups carry the cheap tiers): the API's cheap tier, a student of the internal model distilled once
   // per API model alongside a public-mini distil (it is small) and set as the API's mini when ready; not a public release.
   // MKT: it holds the API model's fit less FREE_TIER.oom of the reference frontier's progress (the rule every lab's free
-  // chat tier follows, A7: worldfx/serving.ts freeTierOf; the cheapestAt rule on one teacher), not the previous public
+  // chat tier follows, A7's cheapestAt rule on one teacher), not the previous public
   // release, which in the 2027 takeoff sits only ≈ 0.3–0.9 OOM under the API model (≈ 1.2 OOM above V0's work by Feb
   // 2027). Labs sell their small tier a generation or more below the frontier: ChatGPT's free fallback GPT-4.1 mini is an
   // API model (A7's release notes); Anthropic's lineup, Nov 2026 [P, pricing page]: Haiku 5.5 at 1/40 of Opus 5.5's price.
@@ -492,7 +493,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     cheapIds.push(cheap.id);
     s.flags['ref:cheapIds'] = cheapIds.slice(-4).join(',');
   }
-  if (cheapTier && apiDep && cheap && apiDep.miniVersionId !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, miniVersionId: cheap.id });
+  if (cheapTier && apiDep && cheap && apiDep.lineup?.[0] !== cheap.id) tryAct(s, api, 'product.update', { id: apiDep.id, lineup: cheap.id }); // RD-P01a: the cheap tier is the API's lineup entry
 
   // Product channels (consumer, API, enterprise). 'compete': competeRelease. 'mini' / 'frontier': they move to the new
   // public model only if it measures better than what they serve (a fresh mini can trail the previous release).

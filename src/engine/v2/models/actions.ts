@@ -18,9 +18,10 @@ import type {
 import { evalCost, evalDaysEstimate, evalDepthView, queueEval } from './evals';
 import { EVAL_DEPTH_IDS } from '../../../data/v2/evals';
 import type { EvalDepth } from '../types';
-import { externallyEvaluated, makeVariant, retireVersion } from './deployments';
+import { externallyEvaluated, retireVersion } from './deployments';
 import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
+import { ADAPT_ACTIONS } from './adaptations';
 import { internalVersion, versionById } from './labs';
 import { TREE_ACTIONS } from './treeActions';
 import { POOL_SHARE_RANGE, launchRun, planRun, runForecast, startStream, streamPeriodGain, type LaunchRunParams } from './runs';
@@ -255,22 +256,6 @@ const RUN_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'makeVariant', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Make variant',
-    available: () => true,
-    // RD-B20 (B38): makeVariant only copies the version under a new label (models/deployments.ts); it costs nothing and
-    // changes nothing until the copy is launched (the open-weights release happens at the Open weights launch).
-    preview: (s, p) => {
-      const v = str(p, 'variant', 'gov');
-      const name = versionById(s, str(p, 'versionId', latestFull(s)?.id ?? ''))?.name ?? 'the version';
-      const use = v === 'open' ? 'can be released as open weights (the release is its own launch)' : v === 'gov' ? 'can go on the Government product' : 'can go on the Trusted product';
-      return { costs: [], gains: [{ currency: 'progress', amount: 1, unit: 'version', target: `a copy of ${name} that ${use}` }], exposure: [] };
-    },
-    apply: (s, _ctx, p) => {
-      const r = makeVariant(s, str(p, 'versionId', latestFull(s)?.id ?? ''), str(p, 'variant', 'gov') as 'gov' | 'trusted' | 'open');
-      if (typeof r === 'string') fail(r);
-    },
-  },
-  {
     id: 'retireVersion', verb: 'launch', system: 'models', sphere: 'models', owner: 'WS1', title: 'Retire',
     available: () => true,
     // F6c: what retireVersion does (models/deployments.ts): the version leaves the pickers for good (no deployment,
@@ -427,4 +412,4 @@ export const DEPARTMENT_ACTIONS: ActionDef[] = [
 ];
 
 /** Models + Departments spheres (registered in core/registry.ts). */
-export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS, ...DATA_ACTIONS];
+export const MODEL_ACTIONS: ActionDef[] = [...RUN_ACTIONS, ...PRODUCT_ACTIONS, ...ADAPT_ACTIONS, ...TREE_ACTIONS, ...DEPARTMENT_ACTIONS, ...SUITE_ACTIONS, ...DATA_ACTIONS];

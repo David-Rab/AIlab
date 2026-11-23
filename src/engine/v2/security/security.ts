@@ -4,6 +4,8 @@ import { decimalYear } from '../core/time';
 import { bestPlayerVersion, activeRivals, CHINA_ID } from '../models/labs';
 import { exfiltrationHazard } from '../safety/incidents';
 import { distillationLeak } from '../models/deployments';
+/** RD-X04 [D]: the old sustained-distillation line (0.00048 OOM a day) over an 8-week post-training interval. */
+const DISTILL_SUSTAINED_OOM = 0.00048 * 56;
 import { misalignment } from '../safety/traits';
 import { footholdFromEscape } from '../safety/footholds';
 import { escapeNoticed } from '../safety/control';
@@ -11,7 +13,7 @@ import type { EngineSystem, GameStateV2, SecurityState, StaffByRole } from '../t
 import { openWeightsReleased, postureOf } from '../actors/rivals';
 import { lagDays } from '../models/capability';
 import { request, ws4 } from '../actors/state';
-import { distillFlowDaily, executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
+import { executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
 import { addRivalKnowledge } from '../actors/rivalModel';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
@@ -83,28 +85,20 @@ export const securitySystem: EngineSystem = {
       if (rng.chance(0.5 * theftHazardOn(s, rs, lagDays(s, CHINA_ID, r.core.id)))) executeTheft(s, ctx, r.core.id);
     }
 
-    // Distillation of the player's external deployments (WS1 distillationLeak, §3.3.5) for every active lab; an
-    // open-weights deployment above the open frontier is absorbed through openWeightsReleased. China also distils
-    // rival public models and gains from secrets leaks (R11 #16c; IFP).
-    let chinaDist = 0;
-    for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
-      const leak = distillationLeak(s, lab.core.id);
-      if (leak.dGPerDay > 0) {
-        addRivalKnowledge(lab, leak.dGPerDay);
-        w.drift[`${lab.core.id}.recipe`] = (w.drift[`${lab.core.id}.recipe`] ?? 0) + leak.dGPerDay;
-      }
-      if (lab.core.id === CHINA_ID) chinaDist += leak.dGPerDay;
-      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG);
-    }
+    // RD-X04: distillation is a level at each lab's post-training (production/diffusion.ts distillLift), not a daily
+    // recipe flow; an open-weights deployment above the open frontier is absorbed through openWeightsReleased. China
+    // gains from secrets leaks (recipe gap, R11 #16c).
     const cn = s.china.lab;
+    for (const lab of [...activeRivals(s), ...(cn.core.status === 'active' ? [cn] : [])]) {
+      const leak = distillationLeak(s, lab.core.id);
+      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG, leak.openRecG);
+    }
     if (cn.core.status === 'active') {
       const leak = secretsLeakDaily(s);
-      const dist = distillFlowDaily(s);
-      addRivalKnowledge(cn, leak + dist);
-      w.drift['china.recipe'] = (w.drift['china.recipe'] ?? 0) + leak + dist;
-      chinaDist += dist;
-      // Sustained distillation: more than 0.00048 OOM a day (was 0.0004 progress-years).
-      w.distillDays = chinaDist > 0.00048 ? w.distillDays + 1 : 0;
+      addRivalKnowledge(cn, leak);
+      w.drift['china.recipe'] = (w.drift['china.recipe'] ?? 0) + leak;
+      // Sustained distillation: China's next post-training would take > DISTILL_SUSTAINED_OOM from the player's products.
+      w.distillDays = distillationLeak(s, CHINA_ID).dG > DISTILL_SUSTAINED_OOM ? w.distillDays + 1 : 0;
     }
 
     // Exfiltration of an internal agent (WS2 hazard) → E25 and the hunt. Model v3 E9: security notices it with the

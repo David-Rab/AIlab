@@ -2508,3 +2508,575 @@ MEDIA and PHYS benchmark rows, so their measured levels are fitted (RD-M01 follo
 - **Check.** `npx tsx scripts/v2/rdm01b.ts` (run alone, pass: V0 with true MEDIA 4 / PHYS 3 over 12 seeds reads honest
   4.14 / 3.02 from the fits, SAND 1 reads the same within noise). `rdm01.ts` pass, numbers unchanged (5.09 / 4.83 / RSCH 0.60).
   tsc (app, scripts/v2) clean; npm run build ok.
+### RD-X01
+
+One line-rate law for player lines and rival parts (SYNTHESIS RD-X01; CAP-07). Commit b185ad0.
+- **Law:** `research.ts lineRate(r, M, q) = r·log₁₀((M + q)/M)`: expected OOM a line of returns r at pool M = n₀ + R gains
+  from research input q (a day's input: OOM/day); `poolAfter(r, M, x) = M·10^(x/r)`. poolMean and stepFlow (RD-R08's
+  expected flow) call it; `linePoolAt(worldR, n)` is linePool at a given preset r. Player results unchanged (same
+  arithmetic).
+- **Rivals (DD-18 stand-in, stated in recipeRates):** each part's pool rate = Σ over its DEFAULT_LINES of
+  365·lineRate(r_l, n₀_l·10^(S_p/r_p), i·n₀_l/365): the lab runs its reference lines at one relative research speed
+  i = rs·i₀ (i₀ = a_pre·ln 10 ÷ r_pre, so the pretraining part still realises PRE_RATE0 at rs = 1, S = 0), so a part's
+  lines stand at one relative state and the part's pool stays one aggregate number. The old continuous a_p·rs·10^(−S/r_p)
+  is this sum's limit; the daily discrete form is slightly lower. recipeParts keeps each part's lines; lineScaleFactor
+  reads the player's S_SURVIVE and stagesOf testFrac (no own SURVIVE_FRAC / LINE_STAGES read, no own pool law;
+  S_CLAMP was already gone).
+- **Check (scripts/v2/.tmp-rdx01.ts, run alone):** poolMean = lineRate and poolAfter inverts it; rival mid / ceil part rates
+  = Σ lines lineRate exactly and −0.007% to −0.09% vs the old law (rs 1 / 5); source scan clean. INFO leader pretraining
+  pool growth on ai2027: day 100 0.2149 vs 0.2150 OOM/yr (−0.021%), day 400 0.2409 vs 0.2409 (−0.024%). tsc main and
+  scripts clean. scripts/v2/rivals.ts R5's `near(v.pre, PRE_RATE0, 1e-9)` will now miss by ~0.02% (tolerance to loosen at CP).
+- **Moves calibration: yes (rivals)** (recipe growth −0.02% to −0.1%, more at high rs).
+
+### RD-X02
+
+Rivals adopt the paradigms' typed effects through aggregate adoption steps (DD-14 rival part, DD-18; SYNTHESIS RD-X02,
+mechanism only; CAP-02, MEA-13). Commit 61494a6. Code: actors/rivalModel.ts (adoptRivalIdeas and helpers), called daily
+from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas { spent, done }` and `SimpleModel.domainDg`
+(both optional, no schema bump: absent = nothing adopted).
+- **Research input [D, stand-in]:** a lab spends rs × RIVAL_IDEA_TM_PER_YEAR standard-team-months a year on ideas, rs = the
+  same research speed the shared line-rate law (RD-X01 recipeRates) reads. RIVAL_IDEA_TM_PER_YEAR = the leader's day-0
+  science (SCI_PER_HEAD × H_REF_BASE = 8 team-eq) × 12, shared equally among its projects, the six reference lines and one
+  idea at a time: 13.7 TM a year at rs = 1.
+- **Adoption [D]:** one idea at a time, cheapest effortTM first (id breaks ties; no prerequisites at the aggregate level):
+  P05 5.5, P16 21.6, P09 28.8, P24 28.8, P11 43.2, P22 43.2 TM (the player's effortTM). An idea whose effort is spent is
+  adopted; the rest carries over.
+- **Availability and size:** the world's paradigm success draw (hidden.paradigmSuccess, the one the player's first attempt
+  reads): a direction that fails gives every lab 0 (effort still spent). Size rolled with the lab's id: mean ×
+  e^(sd·z − sd²/2), z = hash(seed, `rivalIdea:<lab>:<node>`) (the player's per-world project mean T at taste 1, one idea),
+  floored at 0; P05 (fixed scaffold) 1.
+- **Effects:** P24 + x OOM on rec.pre (public-knowledge-like, scale-invariant; bases launched after carry it via the
+  frozen run.ePre; the continual learner reads it too). P16 base-run FLOP ×10^x (baseFlopPerDay) and serving stack
+  + x·also.serve. P09 / P11 / P22: x × the node's domain OOM on versions post-trained after adoption (setModelG's new
+  `domainDg` argument at rivals.ts postVersion / new base and clRefresh; release copies keep their model's). P05: the
+  research aggregate's work G + 0.26 OOM (rivalWorkG: coverage, win rates, AI taste and horizon, wider than the player's
+  fit-only scaffold [D]) and agent FLOP per token ×3.75 (rivalAgentFpt).
+- **Not adoptable (no rival state to carry them):** P07 (long-tasks RL family horizon: no RL families in the aggregate),
+  P10 / P21 / P12 (synthetic quality, token worth, expert demos: fixed tpp, no data stock). P08 / P17 / P18 / P23 etc. are
+  options or unlocks, not typed effects.
+- **Kept, to remove at the CP3 refit if the mechanism makes them unnecessary:** LEADER_CAL (data/v2/calibration.ts,
+  per preset: ai2027 −0.15, authors2026 0.07, fast −0.01, slow 0.8, sampled −0.15), CHINA_CAL.effScale 1.5, the China
+  preset efficiencies × chinaEfficiency (effLab), PRE_RATE0 / SERVE_RATE0 start rates (data/v2/rivalModel.ts).
+- **Check (scripts/v2/.tmp-rdx02.ts, run alone, untracked):** leader on ai2027 seed 1 with P24 working: 0.5 TM short of
+  the cumulative effort to P24 it is not adopted; one more step adopts it with x 0.912 OOM, rec.pre + x exactly; a base run
+  launched after freezes ePre with it (G_pre + x at the same FLOP); a world where P24 fails gives 0. tsc main and scripts
+  clean. test:cal not run (RD rule exception names this task; left to the caller / CP3).
+- **Moves calibration: yes (rivals)** (every rival gains up to ~1 OOM pretraining recipe, P16 FLOP / serving, domain
+  levels and the P05 research lift over its first years; LEADER_CAL / CHINA_CAL were fitted without them).
+
+### RD-X04
+- **Done (commit 5e620f5):** `production/diffusion.ts`, one rule for every lab (player, rivals, China; DD-17,
+  research/RD-X04r §3). **A:** daily, `recipeDiffusionPerDay(s, lab)` = (best released recipe G above the lab − its
+  recipeG at RECIPE_F) / τ into the pretraining part (player addKnowledge, others addRivalKnowledge), all labs sized on
+  the same day's public recipes before any lab steps. τ = `DIFFUSION_TAU_DAYS` = 4 months [P] (range 2–7,
+  `DIFFUSION_TAU_RANGE_DAYS`). A released model reveals the recipe it was made with: `recG` stamped on ModelVersion
+  (newVersion) and SimpleModel (rival post / new base / clRefresh); an unstamped release (day-0 lineups) reveals the
+  lab's recipe today [D]. Player sources = live non-internal deployments. **B:** `distillLift` at each post-training
+  (player completeRl into build.dg; rival postVersion, new base, clRefresh) = S 0.5 [P] × access × fit × (best released
+  teacher G − own G); access: open 1, API LEAK_COEF[channel] × (1 − 0.25·kyc) (c = 1 − 10^−kyc [D]), China × its
+  distillationAccess/60; fit = R1 student ratio by active params (`DISTILL_FIT`). A level, not recipe: no compounding.
+- **Deleted:** K_DIFFUSION; the daily distillationLeak recipe flow for every lab and `distillFlowDaily` (security.ts);
+  `distillationLeak` now returns the next-post lift from the player's products (`dG`, products preview
+  distillDaysPerYear = days at the next post-training, not per year); `w.distillDays` counts days that lift exceeds
+  0.00048 × 56 OOM [D]. Limits diffusion line names the source lab (no leader-only gate).
+- **Not done (time budget):** leaks still pace / constant sized: A4 publishLeakG, E16 poachLeakG, C4_TACIT_OOM,
+  E1_LEAK_OOM, C6 openReleaseG / openRivalLeaks, openAbsorbMonths, executeTheft's 60-day adoptG. Next: stolen weights =
+  the model's G; recipe leaks = share × recipe gap into R_pub via rule A (research §3C). WS4_TUNING.distillK now unused.
+- **Check:** tsc main + scripts clean; `scripts/v2/.tmp-rdx04.ts` (untracked, run alone): rule A = (pub − own)/τ for
+  player, r0–r3, rL, China (6 of 7 gaining at day 30), τ = 121.8 d. **Validation (ai2027 seed 1 RefBot, internal G
+  lagDays behind the frontier lab, not tuned):** d300 leader rL: player 3.3, rivals 3.2–3.6, China 3.8 months; d600
+  leader r3: player 1.6, rivals 1.5–2.2, China 2.4 months. Open-weight-like 3–4 months (L1, L2) matched at d300; China
+  ≈7 (L6) not: shorter (compute gap / withheld share missing, per research §3A; for CP2).
+- **moves calibration: yes.** Every lab now absorbs (rivals and China from each other), distillation moved from daily
+  recipe to post-training level, China's distillation path changed; lead days, T3 China lead, golden dates → CP2.
+
+### RD-X04b
+- **Done (commit ef8a6c1):** every leak / theft / tacit-knowledge event sized by what moves (research/RD-X04r §3C), in
+  the diffusion rule's units, in `production/diffusion.ts`. Recipe leaks: `recipeLeakG(s, srcRecG, dst, share)` = share ×
+  max(0, source recipeG − receiver recipeG) at RECIPE_F; no gap, nothing. `RECIPE_LEAK_SHARE`: A4 publish 0.05 [D] (one
+  of ~20 techniques in a recipe lead), open weights 0.3 [D] (weights reveal architecture / size / tokenizer, not data
+  or code), E1 Track-2 0.01 [D] (a tenth of the AI 2027 SSL test bound, T3). C4 / E16 tacit: `tacitLeakG` =
+  `TACIT_FIRM_SHARE` 0.5 [S1] × movers' share of the source's research staff × the recipe gap to the lab they left (C4:
+  player from the rival; E16: rival from the player; sized before heads move). Theft: `stolenModelG` = own G +
+  `THEFT_GAP_CLOSED` 2/3 [P, T5: 6 → 2 months] × max(0, stolen G − own G); the third left is the integration loss; no gap,
+  China's model is unchanged (theft still recorded).
+- **Sites:** A4 `publishLeakG(s, dst)`; E16 `poachLeakG(s, dst, moved)`; C4 `c4TacitG`; E1 `e1LeakG`; C6
+  `openRivalLeaks(s, recG)` + `openWeightsReleased(…, recG)`; China's open-weights absorb `openAbsorbG(s, recG)` (replaces
+  openAbsorbMonths; rival releases pass rel.recG, player open deployments the version's recG via distillationLeak
+  `openRecG`, C6's synthetic release `releaseRecG` = lab recipe − (best G − release G) [D]); executeTheft (60-day adoptG
+  gone). Previews (A4, C4, E1, C6, E16, open launch) read the same functions, in days of the recipient's own progress.
+- **Deleted:** C4_TACIT_OOM, E1_LEAK_OOM, pace-sized publishLeakG / poachLeakG, openAbsorbMonths (and its 2-month cap),
+  C6's 0.3 × model-G gap, theft's 60-day frontier lookback.
+- **Not done:** C6's release G (`openReleaseG`, `behind` × 0.3 yr of player pace) is still pace-sized: it picks which
+  model is released, not a transfer size. Secrets espionage (`secretsLeakDaily`, WS4 leakK) untouched.
+- **Check:** tsc main + scripts clean; `scripts/v2/.tmp-rdx04b.ts` (untracked, run alone): no recipe gap → A4 / E16 / E1 /
+  open weights / C4 / theft move 0; gap 0.1 → 0.2 doubles A4, raises E16, open weights and theft. leadreaders /
+  lint-tradeoffs / products expectations updated to the new functions (not run).
+- **moves calibration: maybe.** Sizes now scale with gaps rather than the player's pace: A4 / E16 larger when far ahead,
+  zero at parity; theft lands China nearer the source than the 60-day rule when its gap is small; China's open-weights
+  absorb is uncapped. Lead days, T3 China lead → CP2.
+
+### RD-P01a
+- **Done (commit dbe699f), player side only (rivals' lineups: RD-P02).** `Deployment.miniVersionId` → `lineup?: string[]`
+  (real versions after the main model, the player's order) and Chat's `freeTierId?` (types.ts). serving.ts:
+  `lineupVersions` / `productTierUses` (each entry its own FLOP per token), `productLineup(s, d, sid, main, fx, tiers)` =
+  main + every entry through `productOffer` (own fit, own serving cost, the product's markup × channel price; no
+  `lineupOf` rungs for the player); `productMiniUses` deleted. Buyers still choose per band among all tiers (mix.ts;
+  the player's lineup entries are kind `mini`, `student` is now rivals' / China's only); `playerMiniW` gone, readouts
+  `depTau` blends τ over `playerTierW`.
+- **Chat free tier.** `freeTierVersion`: `freeTierId` if it is in the lineup, else the lineup's lowest FLOP per token;
+  with only the main model, free users run the main model at its real cost. `chatFreeTier` returns that model's fit /
+  fpt / τ (and id); the phantom `freeTierOf` student is gone for the player (still used for rivals' free tiers: RD-P02).
+- **Edits.** `product.update` takes `lineup` (comma list) and `freeTierId`; a new entry must be ready, evaluated (when
+  an eval gate is on) and of a variant the channel sells (a mini where full models sell). Any product channel can hold
+  a lineup (MINI_CHANNELS deleted). A version in a live lineup cannot be retired. Ref bot's cheap tier sets the API's
+  lineup.
+- **Migration 62 → 63 (SCHEMA_REV 63):** an existing mini becomes the second lineup entry (Chat: also its free tier);
+  idempotent. Hygiene SCHEMA_REV asserts → 63.
+- **UI.** Products card, under the Model row: the lineup's models with a remove button, a "+ add a model" picker, and
+  on Chat a free-tier picker ("cheapest (name)" default). The Lineup block's rows are the real models (no "student"
+  rows, serving cost per token ratio); glossary `lineup`, `cheapTier`, `freeTier` rewritten.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp01a.ts` (untracked, run alone) 8 / 8:
+  no lineup → every cell sells the main model alone; API + a 1/2.8 mini → both sell (hours 0.91 / 0.09, the mini on 1
+  of 8 US Software bands, its cost 1/2.8 of the main's); Chat alone → the main model's real fpt, + a mini → the mini by
+  default, slot override; migration. Not run: test:quick / full. Expected failures to update: serving TIERS E7 / A5 E7
+  (count `lineupOf` rungs for the player), data A6 usage (expects the old 0.4 / 0.6 free blend and freeTierOf), RD-B11
+  B15 free-fit delta, any fixture / glossary lint reading the old wording.
+- **Left:** lineup entries do not yet raise their own incidents / hazards (incidents read `d.versionId` only); day-0
+  real minis and the auto cheap-tier policy (RD-P01b); rivals' lineups as lab state (RD-P02).
+- **moves calibration: yes (finance/serving).** The player loses the three free students on every sector product
+  (cheap easy-band hours go to rivals or the main model at its cost) and Chat's free users now cost the main model's
+  serving unless a mini is in the lineup: serving need, revenue, margins and F-tier finance readouts move.
+
+### RD-P01b
+- **Done (commit a2a0c7b), player side.** Day 0: V0's distilled students at the lineup sizes (data/v2/serving.ts
+  LINEUP via `lineupOf`: 1/2.83, 1/5.66, 1/80 of active parameters), ids `V0-1..3`, names `<V0>-mini / -micro / -nano`,
+  variant mini, parent V0. Each is what a finished Distill a mini run makes: V0's build less `distillGap` at full
+  teacher-output tokens (0.61 / 0.88 / 1.94 OOM), fpt = V0's × size ratio, `distilledStart` traits and
+  `distilledBeliefs` (no run step: no run happened in game), V0's masks / U-modes, start evals, status deployed. Every
+  start product (not internal) has them as its lineup; Chat's free tier defaults to the cheapest (the nano, 1/80; the
+  old phantom free tier was 1/12.5).
+- **Policy "Auto-make cheap tiers"** (`policies.autoCheapTier`, models/cheapTier.ts, run in productsSystem after the
+  upgrade policy): a full model that is a live product's main model with no student of it made (within the 1/80..1/2.8
+  sizes) or training gets a real distill run at 1/5.66 (`run.autoTier`; its FLOP, pool share 0.1, ETA logged; the
+  products.policy preview lists the runs turning it on would start). The student (`ModelVersion.autoTier`) joins the
+  front of the lineup of every live product whose main is its teacher once ready (and evaluated under an eval gate);
+  the mark is then dropped, so a student the player removes is not re-added. Off: nothing automatic. Trigger is
+  "student of this model", not "any cheaper lineup entry" (day-0 minis would otherwise block it forever). Products
+  header switch; glossary `cheapTierPolicy` states the trigger. RefBot turns it on.
+- **Migration 63 → 64 (SCHEMA_REV 64):** autoCheapTier false in existing games. Hygiene asserts → 64.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp01b.ts` (untracked, run alone) 9 / 9.
+  Not run: test:quick / full.
+- **Left:** lineups only grow (old students stay until the player removes them); RefBot's competeRelease can pick a
+  lineup student as a main model (then it is main and lineup entry at once); rivals unchanged (RD-P02).
+- **moves calibration: yes (finance).** Start products sell three real cheap tiers again (similar to the old phantom
+  rungs); Chat's free users run the 1/80 nano; every new main model costs a distill run of training compute.
+
+### RD-P02
+- **Done (commit 5064104).** Rivals' and China's lineups are lab state (DD-01 as amended, DD-18): `RivalLab.lineup`
+  (real SimpleModels on sale below the public model) and `RivalLab.distilling` (students in the making, each on sale on
+  its `day`). actors/rivalModel.ts: `distillStudents` = the aggregate distill step: students of a released model at the
+  LINEUP sizes (worldfx/serving.ts `lineupSizes`, which replaces `lineupOf` and is used only when models are made),
+  G = teacher's − `distillGap` at DISTILL_TPP × N_S (as the player's day-0 minis), params and fpt × r, the teacher's
+  rlG, domain offsets, traits, U-modes, openness. `rivalLineupStep` (labDaily, every day): on a release the previous
+  public model joins the lineup and the new one's students enter distillation, on sale `RIVAL_DISTILL_LAG_DAYS` = 152
+  later [D: Haiku 4.5 matched Sonnet 4 five months after it, V3-TASKS TIERS2]; a tier leaves once another model the
+  lab sells has G ≥ and fpt ≤ (newer on a tie: replaced); past `RIVAL_LINEUP_MAX` = 6 [D: 4–6 current text models on
+  the labs' pricing pages] the oldest leave. Day 0 (initRivalPhys `seedRivalLineup`): the start public model's
+  students, made before the game. No distill compute is charged to the rival (stand-in: inside its aggregate split).
+- **Market.** worldfx/mix.ts `Provider.tiers` (lab lineup, an inactive lab's open-weight ones only) at each model's own
+  serving fpt (`rivalServeFpt`); sector tiers are `offerOf` of each real model at the lab's markup (kind `student`);
+  consumer free tier = the provider's cheapest real model to serve (lowest fpt among model + lineup). `lineupOf`,
+  `rungOffer`, `freeTierOf`, `Provider.params` and the rung-fit memo deleted; FREE_TIER now sizes RefBot's cheap tier only.
+- **Migration 64 → 65 (SCHEMA_REV 65):** each rival / China gets its public model's students on sale now. Hygiene
+  asserts → 65.
+- **Check:** tsc main + scripts clean; npm run build passes; grep: no lineupOf / rungOffer / freeTierOf in src or
+  scripts; `scripts/v2/.tmp-rdp02.ts` (untracked, run alone) 5 / 5: day-0 lineups of 3 distilled students for r0–r3 and
+  China; r2 releases day 1, its 3 students due day 153, not on sale before, on sale day 153 at G 27.23 → 26.63 / 26.35 /
+  25.29; the market's US Software row for r2 has 4 tiers (model + lineup) and its free chat fit is the nano's. Not run:
+  test:quick / full. Expected failures to update: serving A7 (rivals' free gap no longer the FREE_TIER rule), TIERS E8
+  (rival tiers not at r × price), data A6 usage, any fixture / golden reading rival tiers.
+- **Left:** rivals pay no distill FLOP; previous-generation models only stay when cheaper (a same-base post-train
+  replaces its predecessor at once); tiers carry no incidents of their own.
+- **moves calibration: yes (serving/finance).** Rival students now lag their model by five months (cheap bands are
+  served by the previous teacher's students meanwhile), rival free tiers run the 1/80 nano (was the cheapestAt 1.2 OOM
+  student), and earlier models stay on sale: shares, prices paid and the player's revenue move.
+
+### RD-P03
+- **Done (commit 8ef730e).** Each of the player's sector products is its own seller in the buyers' surplus choice
+  (DD-02 a). worldfx/choice.ts `surplusChoice(…, groups)`: a provider's tiers can be grouped into sellers; per band each
+  group's best tier is a seller in the logit, sharing the provider's brand and access (a buyer who can buy from the lab
+  can buy each of its products), so the provider's band utility is the groups' log-sum ln Σ e^u_g (the set's share = the
+  sum of separate sellers' shares) and its band share splits e^u_g ÷ Σ e^u (`Choice.sub`). worldfx/mix.ts groups the
+  player's tiers by product; the player's tier mix now comes from that split; new `SectorMix.playerProdW` (each
+  product's part of the player's hours per region and sector, sum 1; with no target share there, bands weighted alike;
+  no choice at all: the best product by offer utility). `playerTierW` stays the tier mix within a product.
+- **Revenue (worldfx/revenue.ts):** adopted task-hours, agent-hours and the A4 ceiling room use the product's
+  `playerProdW` part of the player's share. Deleted: `CH_WEIGHT`, `AGENT_WORK.channel` (data/v2/serving.ts), the Agents
+  product's AGENCY sigmoid weight and its p(AGENT_TASK_HOURS) agent weight (its launch gate stays), and the Enterprise
+  sector-focus ×3. "Focus" had no real meaning of its own (it moved hours among the player's products only); a pack's
+  real effect stays its fit term in the host product's offer (SECTOR_PACK_DG, worldfx/serving.ts), which now wins buyers
+  in the choice (RD-P08 / DD-04 rebuilds packs). `SEAT_WEIGHT` → `SEAT_CHANNELS` (Enterprise; Gov in GOV/MIL): the
+  player's seats go to its seat-selling products in proportion to their parts. Trusted's ×3 price, KYC, restricted ×0.3
+  and enabler segments unchanged. Glossary `product` says products compete by choice; types.ts packs comment; features.ts
+  ProductDef note. No state shape change: no SCHEMA_REV bump (stays 65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp03.ts` (untracked, run alone) 6 / 6:
+  parts sum to 1; API and Enterprise on the same model split 0.500 / 0.500 in US Software; Enterprise on a clone 1 OOM of
+  G lower (fit 26.62 vs 27.62) gets 0.002 (API 0.998); swap the models and it flips; revenue hours API 3.91B vs
+  Enterprise 0.01B; no CH_WEIGHT / AGENT_WORK.channel / SEAT_WEIGHT / focus ×3 in src. Not run: test:quick / full.
+  Expected failures to update: any serving / finance / products check reading the old channel split (e.g. Agents earning
+  ×1.5 the API, Enterprise ×3 in its pack sector, scripts/v2/serving.ts enabler-dilution comment near :1141).
+- **Left:** separate sellers carry the logit's duplicate-seller effect: two identical products raise the player's
+  target share (US Software, day 20: 0.384 with one product, 0.403 with two identical); a nest parameter would damp it if
+  playtests show product spam. Products of the same channel kind still differ only by offer (price, features, settings,
+  gates, seat rule); the multi-product-per-channel code is untouched (RD-P05). Consumer Chat products keep their own
+  fit split (not part of the sector choice).
+- **moves calibration: yes (finance/serving).** The revenue split between API, Enterprise and Agents now follows their
+  offers (equal on the same model, where Agents had ×1.5 and Enterprise ×3 in a pack sector), the player's sector share
+  rises a little with several products (log-sum), Agents sells adopted hours like the API once launched, and seats move
+  with the Enterprise product's part of the choice.
+
+### RD-P04a
+- **Done (commit ab55782).** The market's domain G reaches substitution α, the Bass q dose and the PHYS gate.
+  models/capability.ts: `domainScaleG(w, v, d)` = versionDomainG − domainRefShift (a domain's G on the general λ scale,
+  so λ of it is the domain score), `oomPerLevel(w, L)` (inverse slope of λ on the knot segment holding L) and
+  `levelGate(w, x, L*, s)` = σ((x − λ⁻¹(L*)) / (s·oomPerLevel(L*))): a v2 level gate restated in OOM, threshold exact
+  through the one λ, spread exact on L*'s segment.
+- **Edits.** worldfx/mix.ts: per provider a domain G vector from the same model the offer reads (the player's products
+  plus their settings ΔG: settingsDG + effortDG, as productOffer); new `SectorMix.g` (share-weighted, PHYS robot-bound:
+  floor λ⁻¹(10·W16 ramp), +3·W19 ramp × oomPerLevel(10) on LOG, cap λ⁻¹(15·robots)); the PHYS part of F =
+  levelGate(PHYS G, fMid + θ, fSpread). worldfx/sectors.ts: `alphaOf(w, def, gAgency)` on the market's AGENCY G
+  (`ALPHA_MID_L` 8, `ALPHA_SPREAD_L` 1.5: v2's L 8 / 1.5 L through the one λ); the Bass q dose is +0.15 per level
+  above 8 → per OOM above λ⁻¹(8) at that slope; the start state's α (before the first tick) is the R16 Agent-0 level
+  (as F there). No state shape change (SCHEMA_REV stays 65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04.ts` (untracked, run alone) P04a
+  3 / 3: α at λ⁻¹(L) equals v2's σ((L − 8)/1.5) for L 5.5–9.9 (|Δ| 4e-16), the PHYS gate likewise, the sector's α reads
+  SectorMix.g.AGENCY. Not run: test:quick / full.
+- **Left:** α reads AGENCY G for every sector (the sector's horizon domain is CODE for software in the offer); h80Mult /
+  product horizon multipliers do not enter α.
+- **moves calibration: yes (worldfx, small).** Mechanics equal v2's on the V0 → SC segment; the v2 horizon cap
+  (Le_d ≤ L_AGENCY + 2) is gone, share-weighting is now in OOM (not levels), the player's settings act by their offer ΔG
+  (effort deep +0.24 OOM, was +0.3 L), and above SC α's spread keeps the V0 → SC slope.
+
+### RD-P04b
+- **Done (commit 8db6fda).** One capability path from a model's domain G to the world. worldfx/mix.ts: `productGVec`
+  (a product's domain G: its model's + settings ΔG), `bestPublic` = max domain G (OOM) over the player's paid products
+  and the other providers' models (floor λ⁻¹(0)); consumer `socialGs` / `socialG` (SOCIAL G per provider, users'
+  share-weighted). Deleted: `depOffset`, `capVec`, `Provider.dom`, `SectorMix.level / best / dom`, `ConsumerMix.level /
+  best / socials / social` (the consumer display level had no reader), models/products.ts `productDomains` (no
+  `sectorLevel` function existed: the per-sector display level `level[]` is what went). The Agents display sigmoid was
+  already deleted in RD-P03.
+- **Readers, all via levelGate on domain G (v2 thresholds through the one λ):** control.ts persuasion (SOCIAL 10 /
+  1.5), `govAdviceLevel` → `govAdviceG` (GOV market REASON G, gov products, briefing λ⁻¹(λ(G) − 0.5·(3 − b))), internal
+  ops (AGENCY 10 / 1), INFRA CYBER 11 / 1, tiers (AGENCY 9.5 / 1.2, REASON 12 / 0.5), ACCEPT (11.5 / 0.8), the INFRA
+  internal-model blend in G; techtree.ts `techBlocker(s, t, g)` (gate level min → G ≥ λ⁻¹(min); message text keeps the
+  level), `gateLevels` and moonshots on the internal model's `domainScaleGs`, risk exposure (BIO 10, CYBER 8, SOCIAL
+  12), `mSci(w, gSci)` / `gSci` (was lSci; scienceRate returns gSci); sectors.ts ν gate (AGENCY 10 / 1.5) and the
+  AI-friend share (FRIEND_SOCIAL_MID 6.5 on socialG); macro.ts automation boost (+3/5 per level above 10 → per OOM above
+  λ⁻¹(10) at the SC → SAR slope); actions.ts default moonshot and its preview; World panel converts measured levels
+  to G for techBlocker. The three `level-lint-left` RD-L05 markers in these files are gone. No state change (65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04.ts --b` (run alone) 7 / 7: no
+  level / dom / best on SectorMix; bestPublic.AGENCY = max of public models' and player products' AGENCY G; gates in
+  OOM equal v2's sigmoids on each threshold's segment (|Δ| 1e-15); grep: no depOffset / capVec / sectorLevel /
+  productDomains in src. scripts/v2/products.ts P2 rewritten on productGVec; scripts/v2/worldfx.ts tech pick on
+  domainScaleGs. Not run: test:quick / full.
+- **Left:** `bestPublicLg` (hype, fx.Lpub0 in state) stays λ of the general G; the market's domain G ignores a rival's
+  `domainDg` (P09 / P11 / P22: in its displayed domains only), so those ideas no longer reach world effects; thresholds
+  on a knot (L 10, 12) take the upper segment's spread, and M_sci's doubling above SC keeps the V0 → SC slope (stand-ins).
+- **moves calibration: yes (worldfx / control / techs).** Settings now move bestPublic by their offer ΔG (not the
+  hidden ±0.3 L), no horizon cap, gates below a knot threshold (GOV adviser 12, internal ops 10) open on the upper
+  slope, M_sci and the macro boost change above SC, rival domain ideas drop out of world effects.
+
+### RD-P04c
+- **Done (commit a68da04).** A rival's (and China's) adopted-idea domain offsets (`SimpleModel.domainDg`, RD-X02: P09 /
+  P11 / P22) enter the one domain-G path: models/capability.ts `versionDomainG` returns G + domainDg[d] for a version
+  without a build (the player's versions read their build's dgD as before). So domainScaleG, the market's per-provider
+  domain G vectors (worldfx/mix.ts gvecOf: SectorMix.g, bestPublic, socialG), control / tech gates reading a rival model,
+  workfit domainG and horizonG all see it; the displayed domains (setModelG) were already G + dg and now agree with it by
+  construction. Lineup students (RD-P02, rivalModel.ts) copy their teacher's domainDg as built. No new constants, no
+  state change (65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04c.ts` (untracked, run alone) 2 / 2:
+  ai2027 seed 2027 day 20, rival r0 with domainDg CODE +1.5 vs none: market US SOFT CODE G 27.306 → 27.586 OOM,
+  bestPublic CODE 27.618 → 28.646. Not run: test:quick / full.
+- **moves calibration: yes (worldfx, rivals).** Rival domain ideas are back in world effects (α, PHYS gate, bestPublic,
+  persuasion), as before RD-P04b, now in OOM.
+
+### RD-P05
+- **Done (commit 0dd1544).** DD-02 a / PRD-05 / B38. Government and Trusted are who a product is offered to (its
+  channel, usage policy and safeguards), not kinds of model: `CHANNEL_VARIANTS` gov / trusted take full and mini
+  models; `Variant` is `full | mini | imported` (gov / trusted / open and the never-built 'internal' gone). Open weights
+  are a one-way release act on a version: deployments.ts `releaseOpen` (deployGate on 'open': charter, eval gate,
+  "already open"; then the open deployment and `ModelVersion.openDay`). Its effects are the open deployment's, as
+  before: China absorbs the recipe gap above the open frontier (security.ts → openWeightsReleased), rivals distil it
+  at full access at their next post-training, misuse safeguards drop to the hazard filter; it cannot be withdrawn or
+  replaced. `makeVariant` (function and action) deleted.
+- **Edits.** productOps.ts: new action `releaseOpen`, preview = China's absorbed days (moved from the open launch),
+  the best-placed rival's lift at its next post-training in OOM (distillationLeak with the open deployment), and the
+  one-way release line; `product.launch` refuses 'open'. bots/ref.ts, Agents.tsx, Products.tsx: the "not an open
+  variant" filters go (an open model is still the lab's to use). Glossary `variant` rewritten, new `openRelease`;
+  features.ts Gov blurb. finance.ts FIN3b and products.ts RD-B20 checks updated (no `variant = 'open'`; the open preview
+  read from `releaseOpen`).
+- **UI.** Models card: the Gov / Trusted / Open weights buttons → one "Release open weights" (blocked with the gate's
+  reason, e.g. "Its weights are already open"); an "open" chip on a released version in the lineage. Gov / Trusted
+  launch from Products with any full model (no control needed there).
+- **Migration 65 → 66 (SCHEMA_REV 66):** each gov / trusted / open copy leaves `versions`; every reference to it in
+  `player` and `ws4` (products, lineups, monitors, free tier, agents, stream, incidents, child versions, eval reports)
+  points to its source version; an open deployment marks its (source) version open at its start day; lineups
+  de-duplicated; a copy without a source becomes full. Hygiene SCHEMA_REV asserts → 66.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp05.ts` (untracked, run alone) 8 / 8:
+  no makeVariant / gov / trusted / open variant in src (save.ts migration excepted); the start full model passes the
+  Gov gate and a Gov product of it gets 0.310 of the player's US GOV hours, 0 in SOFT, revenue > 0; releaseOpen marks
+  V0 open with no copy, next tick openWeightsG 26.94 → 27.66 (= model), misuse block 0; a second release and a retire
+  are refused; product.launch 'open' refused; migration folds a gov and an open copy into V0 (openDay = release day).
+  Not run: test:quick / full. Expected failures to update: any check or fixture making gov / trusted / open copies or
+  launching 'open' through product.launch; uitest ids `makeVariant.*`.
+- **Left:** the API launch's distillLine "per year" days divide by `frontierGPerYear` (PACE_WINDOW), which is ~0 for
+  r0 / r2 / r3 early (day 20: 0.0005 / 0.00005 / 0.0002 OOM/yr), so launch previews can show 10⁵-day lines (open preview
+  now in OOM instead; a separate fix); Gov's "relaxed refusals" still has no mechanism (a real post-train run would be
+  its model side, PRD-05); Trusted / Gov terms beyond the existing usage policy and KYC are not modelled.
+- **moves calibration: no.** Same effects as the old copy path (a gov copy was the same model; the open release was
+  already the open deployment); only bots that made copies (none) or saves with copies change.
+
+### RD-P06
+- **Done (commit 3f5c7ef).** PRD-14 / PRD-V01 / B19. Reasoning effort (low ×0.3 / max ×1 / deep ×4 tokens per
+  answer) is a plain product setting with its true consequences (fit +0.4 OOM per ×10 tokens, serving cost per answer
+  with the tokens, price follows cost). Its one lock is the model's capability: `effortLock` (tree option, deep ← P05).
+  The Deep think feature, `FeatureFx` kind `'effort'`, `FeatureDef.effortDeep`, `FeatureKind` 'effort' and glossary
+  `featEffort` are deleted.
+- **Edits.** productOps.ts `editedProduct`: effort just set (no feature sync); launch lock = effortLock only;
+  feature.build preview no longer sets effort. products.ts: `launchEffortBlock` deleted, `launchFeatures(s, channel)`
+  (callers build.ts, productOps.ts). deployments.ts deploy lock = effortLock. productView.ts: the effort feature line
+  gone. Products.tsx: effort Seg locked by `effortLock(s, e)` only; label "deep"; tip says deep needs the tree idea.
+  Glossary `effort` / `feature` and tree P05 text reworded.
+- **Migration 66 → 67 (SCHEMA_REV 67):** 'deepThink' dropped from `player.features`, every product's features and
+  queued feature builds; each product's effort kept (deep stays deep). Hygiene SCHEMA_REV asserts → 67.
+- **Tests.** scripts/v2/products.ts: P7 text, RD-B12 launch checks rewritten (launch at deep refused without P05,
+  live at deep with it, no feature); `acts` drops the effort kind. uitest.mjs: deep lock keyed on P05.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p06/check.ts` (run alone) 6 / 6: deep on
+  the start API with P05 known and no feature built, SOFT fit 27.617 → 27.858 and cost per work-hour 0.280 → 0.681;
+  refused without P05; no Deep think / effort kind in src (save.ts migration excepted); a rev-66 save with Deep think
+  loads with it gone and effort deep kept. Not run: test:quick / full, products.ts suite, uitest.
+- **Left:** GLOSSARY.md not regenerated (`lint-ux --doc`); latency of deep effort is not modelled (no latency term in
+  the engine).
+
+### RD-P07
+- **Done (commit adb8eee).** PRD-08 / DD-03 (a). A product tool (feature of kind `enabler`, Sector packs excepted:
+  Computer use, Voice & vision, Memory's Chat part, Companion) acts inside the buyers' choice. Sectors: in a sector the
+  tool lists, an offer without it cannot do the tasks that need it: worldfx/serving.ts `offerOf` (OfferOpts `tools`)
+  multiplies coverage a and agent work k by 1 − `toolGap(sid, tools)`, need = share ÷ (1 + share) (features.ts
+  `enablerNeed`: Computer use 13% of OFFICE / FIN / LEGAL / GOV tasks, Voice & vision 13% of MEDIA), so the tool's
+  owner covers ×(1 + share) what it would without it and wins bands of work others cannot do in the surplus choice.
+  Chat: the tool stays a term of the users' app choice (`chatToolAppeal`, appeal × (1 + Σ share), RD-B11's single
+  application), now for rivals too (Provider.appeal).
+- **Rivals (DD-03 rival part, DD-18):** `RivalLab.tools`, `world.fx.toolShip` (first day each tool is on a live player
+  product, `recordToolShips` at the start of rivalsChina); `rivalToolStep` (labDaily, rivals and China) gives a lab each
+  tool `TOOL_LAG_DAYS` 120 after the first ship. Their offers (model and lineup tiers) pass `tools`.
+- **Deleted:** `enablerShare`, revenue.ts's `en` row field and the capped ×(1 + enabler) in `fOf` (hours, agent-hours,
+  seats), limitsView's "Feature enablers … (≤ the sector's adoption)" row (now "Tools in … (coverage in the buyers'
+  choice)", the coverage ratio, and "Tools (app choice)" on Chat).
+- **UI / text:** productView feature lines ("does the 13% of tasks that need it", "Chat appeal ×1.15"), `toolRivalsView`
+  → a "Rivals" row in the feature tooltip (none yet / k of n have it, the others from date); FEATURES effect texts,
+  glossary `featEnabler` (no more "Rivals have none yet"), limits product.demandMods.
+- **Stand-ins [D]:** need = share ÷ (1 + share) keeps the old effect size as a coverage ratio; λ (agent leverage) keeps
+  the covered tasks' review (only a and k scale); tasks needing a tool sit on the one difficulty index (the tool's
+  owner covers the top bands); only the player ships a tool first (rivals have no feature research at their aggregate
+  level), and a lab keeps a tool once it has it; lag 120 d from 2024–25 launch gaps (computer use Anthropic Oct 2024 →
+  Google Mariner Dec 2024 → OpenAI Operator Jan 2025; memory ChatGPT Feb 2024 → Gemini Nov 2024: ≈ 50–270 d);
+  the player's open release carries no tools.
+- **SCHEMA_REV 68** (no-op migration 67 → 68: both fields optional; the next tick records tools already on live
+  products as shipped that day). Hygiene asserts → 68. scripts/v2/products.ts C2a reads the enabler fields directly.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p07/check.ts` (run alone) 10 / 10: ai2027
+  seed 2027 day 0, API + Computer use: OFFICE coverage 0.1062 → 0.1221 (×1.15), fit unchanged, SOFT offer unchanged;
+  player US target share OFFICE 0.4007 → 0.4061, SOFT 0.4071 → 0.4071; first ship recorded by the tick; a rival has
+  no tool at ship + 119 d, has it (and China) at ship + 120 d; its OFFICE coverage 0.0553 → 0.0636 and the player's
+  OFFICE share 0.4024 → 0.3981. Not run: test:quick / full, products.ts suite, uitest.
+- **Left:** expected failures to update: serving S6 / RD-B11 companion and B14 checks (they read the ×(1 + share)
+  hours and the cap), products C2b (Voice & vision on the API "opens Media work" now moves coverage, not hours, so
+  the preview's demand may move only through the customer stock), any finance readout of Agents / API sector hours.
+  GLOSSARY.md not regenerated (`lint-ux --doc`). RD-P11 (feature hazard multipliers) next.
+- **moves calibration: yes (serving / finance / worldfx).** With no lab holding a tool, every offer in OFFICE, FIN,
+  LEGAL, GOV and MEDIA now covers ×(1 − 0.13) (before: full coverage; the tool was an extra ×(1 + share) on the
+  player's hours), so the coverable range a_top, adoption-linked readouts and the sector spend there drop until a tool
+  ships; a player who ships Computer use gains share in the choice (not ×1.15 hours) for 120 days, then rivals match
+  it; rivals' Chat appeal rises once they get Chat tools.
+
+### RD-P07b
+- **Done (commit 6e518bb).** Fixes RD-P07's "only the player ships a tool first" (DD-18: same law, stated stand-in). A
+  rival or China ships a product tool by the gate the player faces for that feature: its tree idea (the player's feature
+  has no capability term). actors/rivalModel.ts `rivalKnowsNode` reads the idea from the lab's aggregate state as it is:
+  a ★ node; an idea the aggregate researches (RIVAL_IDEA_IDS) once adopted and it worked there; an idea it does not
+  research (P06 Computer use, P07 Long context + memory, Native multimodal) once its prerequisites are known and, for
+  a paradigm, the world's success draw (hidden.paradigmSuccess, the one the player's attempt reads) says it works.
+  `rivalToolStep`: a lab with a public model that passes the gate starts a build (`RivalLab.toolBuild`, finish day) of
+  buildTW × `RIVAL_TOOL_DAYS_PER_TW` 7 days (Computer use 112 d: the player's build at one team) and ships it then; a
+  lab that has not shipped it gets it `TOOL_LAG_DAYS` 120 after any lab's first ship. The player never gets a tool free.
+- **State:** `world.fx.toolShip` is now `{ day, by }` per tool ('player' or the lab id), the first ship of all labs.
+  **SCHEMA_REV 69**: migration 68 → 69 turns each recorded day into `{ day, by: 'player' }`. Hygiene asserts → 69.
+- **UI / text:** feature tooltip "Rivals" row: "first shipped by <lab / you> <date>; k of n rivals have it, the others
+  from <date>" (or "no lab sells it yet; a rival that knows the idea builds it itself …"); FEATURES effect texts and
+  glossary `featEnabler` say rivals that know the idea build it themselves.
+- **Stand-ins [D]:** the unresearched tool ideas count as known from the gate alone (they were public practice at
+  frontier labs by mid-2025: computer use Oct 2024 – Jan 2025, ChatGPT memory Feb 2024); build = buildTW team-weeks at
+  one team; no per-lab difference in the build, so every lab passing the gate on day 0 ships the same day (in ai2027
+  seed 2027 day 113 for Computer use: rivals and China at once); the lag then only matters for labs that pass later
+  (no public model yet, a new lab) or never.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p07b/check.ts` (run alone) 10 / 10: ai2027
+  seed 2027, player never builds Computer use; r0 passes the gate, ships it on day 113 (112 d build), recorded
+  `{ by: 'r0' }`; the three other rivals (build pushed out in the check) have none at ship + 119 d, have it at
+  ship + 120 d; China has it; the player still has not. scripts/v2/_p07/check.ts updated to the new toolShip shape (not
+  re-run). Not run: test:quick / full, uitest.
+- **Left:** per-lab build timing (research speed or engineering size) if simultaneous ships read wrong; GLOSSARY.md not
+  regenerated (`lint-ux --doc`).
+- **moves calibration: yes (serving / finance / worldfx).** Every rival and China now has Computer use, Memory, Voice &
+  vision and Companion around day 30–115 in most worlds (when the paradigm draw works) whether or not the player builds
+  them, so OFFICE, FIN, LEGAL, GOV and MEDIA coverage of rival offers returns to ×1 then and rivals' Chat appeal rises;
+  a player without the tools loses share there.
+
+### RD-P08
+- **Done (commit 022ae14).** DD-04 (a) / PRD-10 / PRD-23 (leader part). A sector pack is now an OWNED sector adaptation
+  of one product for one sector, all in one module, engine/v2/models/adaptations.ts: a scaffold (ADAPT_TW 4 engineer
+  team-weeks on the build queue, kind `adaptation`) that makes that product's offer cover ×(1 + ADAPT_COVER 0.15) of the
+  sector's tasks (capped at all), agent work with it (worldfx/serving.ts offerOf, OfferOpts `adapted`; productOffer
+  reads only the product's own live adaptation); plus, in CERT_SECTORS (FIN, HEALTH, GOV, MIL), a certification started
+  when the scaffold is built: CERT_DAYS 120 and CERT_CASH $0.4B booked then ('sector certification'); until it is done
+  the adaptation does not act. State `Deployment.adaptations: { sector, certDone? }[]`; any number of products may
+  adapt to the same sector, one each. Relaunch takes over the retired product's adaptations (relaunchAdaptations);
+  built with no live host: the work is lost, nothing is paid, the player is told.
+- **Rivals (DD-18, RP07b rule shape):** `rivalAdaptStep` (rivals and China, labDaily after the tool step): a lab with a
+  public model passes its own gate when the sector's US task adoption A ≥ RIVAL_ADAPT_GATE_A 0.01, builds for
+  ADAPT_TW × RIVAL_TOOL_DAYS_PER_TW = 28 d (+ CERT_DAYS where certification is needed), then sells it
+  (`RivalLab.adapts`, `adaptBuild`); mix.ts passes `adapted` to their model and lineup offers.
+- **Deleted:** the `sectorPacks` feature, the enabler `packs` flag, `FeatureDef.leader`, `LEADER_FEATURES` (init uses the
+  start's own features; the leader start's list is empty), the world one-pack-per-sector rule (`sectorCertDay`) and the
+  sector-wide US friction −0.1 (rivals no longer gain from the player's pack), `SECTOR_PACK_DG` (+0.42 OOM fit),
+  `SECTOR_PACK_TW / SECTOR_CERT_DAYS / SECTOR_PACK_CASH` and the duplicate `PRODUCT.days / cash`, `wfx.sectorProduct`
+  (→ `product.adapt`, models sphere), `packRevenueGain` (→ `adaptRevenueGain`), `pendingPack`, `relaunchPacks`,
+  `packCertified`, glossary `sectorPack` + `sectorProduct` (→ one `adaptation`). The world certDay was already gone
+  (RD-B12).
+- **UI (minimal hook):** Products card, under Features on Enterprise / API / Agents: one "Sector adaptations" row
+  (live / in certification until / building) with "+ sector" (`product.adapt`, testId `prod-adapt-add.<id>`);
+  BuildLoad names the item "<sector> adaptation"; World sectors' friction tooltip no longer claims a certification cut.
+- **Stand-ins [D]:** ADAPT_COVER 0.15 = a product tool's share (Computer use); CERT_SECTORS by the US certifications
+  buyers ask for (FedRAMP / DoD IL, HIPAA / HITRUST, SOC 2 + model-risk review), one CERT_DAYS / CERT_CASH for all
+  (kept from the old pack; real FedRAMP runs longer and costs far less than $0.4B: to source); the rival gate stands in
+  for a product strategy rivals do not have; no per-lab build difference; rivals' certification cash not booked
+  (aggregate finances).
+- **Migration 69 → 70 (SCHEMA_REV 70):** each product's packs → adaptations on the same product (certDay kept as
+  certDone in a CERT_SECTORS sector, dropped elsewhere: live); queued `sectorPack` builds → `adaptation`; 'sectorPacks'
+  dropped from the lab's and products' features and feature builds. Idempotent. Hygiene SCHEMA_REV asserts → 70 and the
+  45/44 pack migration check now ends in adaptations.
+- **Tests updated:** products.ts RD-B12 pack checks → adaptation checks (stored on product, no double, another product
+  may adapt the same sector, relaunch takes them over, no-host: no certification paid); RD-B20 preview check → the
+  adaptation preview (team-weeks, cert cash, revenue = adaptRevenueGain); worldfx.ts sector-product check removed;
+  lint-ux term list; uitest feature filter.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p08/check.ts` (run alone) 13 / 13: ai2027 seed
+  2027, Enterprise adapted to Legal: Legal coverage 0.0425 → 0.0488 (×1.15), SOFT / FIN unchanged, the API's Legal
+  unchanged; Finance via the action: built day 6, certDone 126, $0.4B booked then, no effect in certification
+  (0.0698), certified 0.0698 → 0.0802; a rival builds SOFT (live day 30) and FIN 120 d later; no sectorPacks /
+  LEADER_FEATURES / certDay / SECTOR_PACK* in src (save.ts excepted); a rev-69 save's packs → adaptations. Not run:
+  test:quick / full, products.ts / hygiene suites, uitest.
+- **Left:** a save with a pack still building paid $0.4B at queue under the old rule and pays certification again in a
+  regulated sector (rare; not refunded); per-sector certification time and cost to source; GLOSSARY.md not regenerated
+  (`lint-ux --doc`); the products-panel redesign (UI later); RefBot does not adapt sectors (it never built packs).
+- **moves calibration: yes (serving / finance / worldfx).** Rivals and China now adapt every sector whose US adoption
+  is ≥ 1% from day ~30 (regulated ones ~day 150), so their coverage there rises ×1.15 and the player's share falls
+  unless it adapts too; the US friction −0.1 in a packed sector is gone for everyone; the player's pack effect changes
+  from +0.42 OOM fit to ×1.15 coverage; the leader start no longer has a Sector packs feature (no effect alone).
+
+### RD-P09
+- **Done (commit ccb60f3).** PRD-18. The leak through a served product scales with the tokens it serves to anonymous
+  buyers. `Deployment.servedTokensDay` (derived daily in applyRevenue, `servedTokensPerDay`: served H100e × PEAK_FLOPS ×
+  decode util ÷ the main model's FLOP per token × 86 400; prefill ignored). production/diffusion.ts `harvestTokens` =
+  tokens/day × `anonShare(d)` × DISTILL_HARVEST_SHARE × DISTILL_HARVEST_DAYS; `teacherAccess(s, student, open, d)` =
+  clamp(1 − 0.25·log10(DISTILL_FULL_TOKENS ÷ harvest), 0, 1) × China's meter (D2's formula on the harvested data). No
+  usage, no access, no leak; the access saturates at 1 once the harvest reaches DISTILL_FULL_TOKENS.
+- **KYC (models/deployments.ts).** `ANON_SHARE` per channel; `KYC_ANON_LEFT` [1, 0.1, 0.01, 0.001] of it is left per
+  level (−0.25 access per level below saturation); `kycDemandFactor` = 1 − asked share × KYC_REFUSE (worldfx/revenue.ts
+  fOf, limitsView's demand modifier); `kycReviewShare` nets the review cost from revenue. Products KYC tooltip and
+  glossary `kyc` / `distillLeak` state the mechanism and its cost from the same functions.
+- **Deleted:** `LEAK_COEF` (0.3 / 1 / 0.5 / 0.2 / 0.05), the flat 2% demand cut per KYC level, the (1 − 0.25·kyc)
+  access term, China's `distillTarget` × 0.75^kyc (KYC now acts per product, not on China's meter).
+- **Stand-ins:** ANON_SHARE consumer 0.3 (anonymous but rate-limited accounts) / API 0.5 / Agents 0.5 / Enterprise, Gov,
+  Trusted 0; KYC_REFUSE 0.1; KYC_REVIEW_COST 0.02; DISTILL_HARVEST_SHARE 0.01; DISTILL_HARVEST_DAYS 90.
+  [D] KYC_ANON_LEFT (D2's tenfold cut per level, kept). [P-r] DISTILL_FULL_TOKENS 1e11 (D4: MiniMax ≈ 100B tokens).
+- **State:** SCHEMA_REV 70 → 71 (optional derived field; migration 70 no-op). hygiene.ts schema asserts → 71.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp09.ts` (untracked, run alone) 5 / 5,
+  seed 2027 day 20, API only, rival distilling with a 1 OOM gap: API serves 6.9e11 tokens/day; access 0 / 0.87 / 1 at
+  0 / T / 10T tokens (lift 0 / 0.39 / 0.45); KYC 0–3 at T: lift 0.45 / 0.39 / 0.28 / 0.17; KYC 0 → 2: API hours
+  1.98B → 1.88B, revenue $1.45B → $1.37B/yr. Not run: test:quick / full.
+- **Left:** at large volumes the harvest saturates, so KYC 1 changes nothing on a big API product (KYC 2–3 needed);
+  rivals' served teachers keep access 1 (their usage is not tracked); Chat has no KYC setting (its anonymous share is
+  fixed); the review cost is netted from revenue rather than booked as its own cost line; RiskMap's "distillation access"
+  edge still shows the lab's meter (China /60, US 0.3), not the per-product access.
+- **moves calibration: yes (diffusion / serving / finance).** Distillation lift now saturates at full access for a
+  busy API at default KYC 1 (was 0.75 × channel coefficient), Chat leaks at 0.3 anonymous share via usage, Enterprise
+  and Trusted leak nothing; China's distillation meter target no longer falls with KYC (IFP gap display moves); KYC
+  costs ≈ 4.5% of API / Agents demand per level (was 2%) plus review cost. Lead days, T3 China lead → CP2.
+
+### RD-P11
+- **Done (commit aa92a09).** PRD-16 / PRD-24 (brand part). Feature incident exposure acts through the product's
+  incident-site quantities (safety/incidents.ts `siteOf`, models/products.ts `productSiteTerms`): a horizon extender on
+  all work lengthens the site's task horizon (Memory ×1.3 → autonomy A = H/(H + H_HALF)); `FeatureDef.afford` adds to
+  the site's affordances F, capped at 1 (Computer use +0.25: acting on desktops and websites, one of F's four
+  affordances [D stand-in]). Extra use from any feature is already in the product's serving share.
+- **Deleted:** Memory SUCC ×1.2 (dead on products: SUCC has no product act, only internal SUCCSTEER), Computer use
+  POWER ×1.3 (→ affordances), Coding agent RH ×1.2 (its longer runs, ×2 tokens, are in the serving share). **Kept as
+  [D stand-in]:** Companion SYC ×1.5, standing for longer personal conversations per user that usage does not count
+  (risk text says so); to replace with time per user.
+- **Brand:** the flat 1.2 incumbent factor is gone (`playerBrand` = 1 ± 0.1 with approval). Every provider's choice
+  weight in a segment is × (1 + BRAND_INSTALLED × its customer stock share there) (worldfx/mix.ts `installedBrand`;
+  sector surplus choice and Chat logit). BRAND_INSTALLED 0.5 [D stand-in] (data/v2/serving.ts): ×1.2 at a 40% stock,
+  the old effect size; to source from retention / switching-cost data. The reach logit (A8) reads the base brand only.
+- **State:** none (no SCHEMA_REV bump).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p11/check.ts` (run alone) all ok: no flat 1.2
+  in mix.ts; player brand 1.05 → 1.30 at stock 0.1 → 0.6 (a rival's falls 1.09 → 1.04); player US SOFT target
+  0.4038 → 0.4075, Chat target 0.6743 → 0.7288; only Companion has a hazard multiplier and it is marked [D]; Computer
+  use on the API F 0.5 → 0.75. Memory's autonomy check skipped (no Agents product at the ai2027 start). Not run:
+  test:quick / full, uitest.
+- **Left:** Products feature tooltip still shows the risk text only (no site-term numbers); the other PRD-24 constants
+  (character appeal, regional access table, open markup, restricted ×0.3) untouched; GLOSSARY.md not regenerated.
+- **moves calibration: yes (worldfx / finance / safety).** Brand now follows the stock: an incumbent with a large
+  share keeps more of it (positive feedback), a player with a small stock loses the flat ×1.2 edge; rivals gain a
+  brand term where they hold customers. API Computer-use products have more overreach / cover-up incidents (F ×1.5 on
+  α = 1 acts), Memory products more autonomy-linked incidents; coding-agent products fewer reward-hacking incidents.
+
+### Merge p3-c2 → rd
+Merge of p3-c2 (36 commits: Phase 5 X01, X02, X04, X04b; Phase 7 P01a … P11) into rd (Phase 6 training, RD-M01/M01b/M02,
+RD-X03, safety redesign SR-01 … SR-16). Base 729404c. Every BUILD-NOTES block of both sides kept (rd's, then p3-c2's).
+- **SCHEMA_REV renumbering.** rd's chain kept as is (ends at 78). p3-c2's own migrations since the base (its 62 → 63 …
+  70 → 71; its SCHEMA_REV was 71, not 72) follow as 78 → 79 … 86 → 87: P01a 62→78, P01b 63→79, P02 64→80, P05 65→81,
+  P06 66→82, P07 67→83 (no-op), P07b 68→84, P08 69→85, P09 70→86 (no-op). SCHEMA_REV 87; save.ts doc block renumbered;
+  hygiene.ts pins (two) 78 / 71 → 87; scripts/v2/_sr16/check.ts pin 78 → 87. Each moved migration reads fields rd's chain
+  leaves alone (miniVersionId, autoCheapTier, rival lineups, variant copies, deepThink, toolShip, packs), so it applies
+  to a rev-78 state.
+- **Rivals (actors/rivalModel.ts, rivals.ts, production.ts): X03 builds kept, p3-c2's rival rows layered on them.**
+  - RD-X03's reference-profile build path (rivalVersionBuild / newVersionBuild, clApply streaming, setModelBuild) is
+    the training; X04 rule B (distillLift) is added at every post-training, new base and stream refresh on the build's
+    own G (`own = gOfBuild(build)`, G = max(kept G, own + lift); the lift above the build enters as general ΔG via
+    setModelG). In clApply the model takes max(G + stream ΔG, own + lift), so the level lift does not compound across
+    refreshes. Versions and refreshes stamp `recG` (X04) and pass `rivalDomainDg` (X02). p3-c2's clG-based clRefresh and
+    its learnsOnline gate are dropped (X03 deleted clG and the CL level threshold; the stream runs for every lab).
+  - X02 domain offsets on top of builds: `versionDomainG` (models/capability.ts) now adds `domainDg` to the build's domain
+    G as well as to G alone (rivals all have builds after X03, so the offsets would otherwise be ignored); setModelG's
+    domain levels = domainsOf(G, build), overridden where an offset exists.
+  - X02's P05 scaffold lift in the research aggregate: new `rivalWorkModel` (an X03 AiModel with the P05 ΔG as general ΔG
+    on the build); evalRival and production.ts rivalResearch / bestRivalMix read it (rivalWorkG kept as its G).
+  - initRivalPhys: X03's setModelBuild start + P02's seedRivalLineup. Students copy the teacher's build (G less the
+    distillation gap enters as general ΔG).
+- **Deployments (types, deployments.ts, productOps.ts, init.ts, revenue.ts).** SR-13's `guards` and status
+  'live' | 'withdrawn' kept; P08's `adaptations` replace `packs`; P01a's `lineup` / `freeTierId` replace miniVersionId;
+  p3-c2's new deployments (open release preview, init start products, internal, relaunch preview) get `guards` in place
+  of `controlLayer`. revenue.ts fOf: P07's form (no enabler multiplier) with P09 kycDemandFactor and SR-13b
+  productUsageMult in place of the restricted ×0.3. mix.ts: P04 deleted depOffset (and its controlOn); the control
+  layer still reaches the offer through serving.ts settingsDG (controlOn, auto-merged).
+- **init.ts.** P01b's start minis kept; their evals use rd's startEvals (no stored measured level) and each is fitted by
+  applyFit from its start scores, as V0 (RD-M01).
+- **Smaller.** tree.ts P05: rd's OPTION_NODE (no per-node options list) with P06's text; glossary: rd's safReNeeds
+  (validation jobs) with P08's engNeeds text; types SafReNeed rd's 'validation'; selectors: P08 adaptations exports, no
+  TPP_FREE_MAX (rd T08); products.ts imports neither FEATURES (P07) nor MONITOR_OVERHEAD (SR-12); runs.ts: rd's default
+  post design (methods) with P04's recG stamp; save.ts imports union.
+- **Intent choices.** (1) rival continual learning: X03's FLOP-paced stream over p3-c2's weekly clG reset (with X04's lift
+  added); (2) X02 domain offsets made additive to builds rather than replacing the domain level.
+- **Checks.** tsc (app, scripts/v2) clean; npm run build ok. rdm01.ts pass (5.09 / 4.83 / RSCH 0.60, unchanged);
+  _x03/check.ts pass; _p07b/check.ts pass; _p08/check.ts pass; _sr16/check.ts pass (after the rev pin). Nothing else run.
+- **Moves calibration: yes** (both sides' rival changes now compound: X03 builds + X02 ideas + X04 lifts + P02 lineups).

@@ -92,14 +92,12 @@ export const SEATS = {
  *                           the human hour (the research/16 cost gate)
  *  so agent-hours, tokens and API spend grow with the horizon and coverage faster than human hours (research/22 §7:
  *  human hours ×1.1–1.3 a year, tokens ×4–5, spend per hour ×5–10). Constants [D]: c = 15 min (write and hand off a task;
- *  no primary source), m = 0.02 h (λ ≤ 50). Agent-hours are sold through the API, the Agents product (weight × the share
- *  of half-day tasks, AGENT_TASK_HOURS, its model completes: the Agents horizon gate on the METR curve) and Enterprise
- *  usage beyond the seat. An agent-hour is worth at most the wage (value cap). */
+ *  no primary source), m = 0.02 h (λ ≤ 50). Agent-hours are bought from every provider by its share of the buyers' choice
+ *  (RD-P03: each of the player's sector products is its own seller there; no channel weights). An agent-hour is worth
+ *  at most the wage (value cap). */
 export const AGENT_WORK = {
   checkInH: 0.25,
   floorH: 0.02,
-  /** Channel weights of the player's agent-hours (the agents weight × p(AGENT_TASK_HOURS | h50)) [D]. */
-  channel: { api: 1, agents: 1.5, enterprise: 0.5 } as Partial<Record<'api' | 'agents' | 'enterprise' | 'trusted' | 'gov', number>>,
 };
 
 /** Consumer chat as a work type (MODEL-V3 §6.1): SOCIAL, REASON, MEDIA; minutes-long tasks [D]. */
@@ -149,6 +147,12 @@ export const MARKET_BANDS = 8;
  *  in a year (66% upgraded within their provider), ρ ≈ 0.11/y (Menlo Ventures, "2025 Mid-Year LLM Market Update", Jul
  *  2025 [P]). Was 0.25 [D]. */
 export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as const;
+/** RD-P11 (PRD-24): brand appeal from the customer stock. Buyers prefer what they and others already use (switching
+ *  costs, integrations, word of mouth): in each segment a provider's choice weight is × (1 + BRAND_INSTALLED × its
+ *  customer stock share there), the same rule for every provider (worldfx/mix.ts installedBrand). 0.5 [D stand-in]:
+ *  at the ~40% stock the player's start holds it gives the ×1.2 the old flat incumbent brand had; to source from
+ *  retention or switching-cost data. */
+export const BRAND_INSTALLED = 0.5;
 /** A8: multi-homing (design/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
  *  its cloud), not from every lab: in a sector's surplus choice (worldfx/choice.ts) each provider is in a buyer's set
  *  with probability R, its reach (≤ its access), independently. A lab whose model alone does the hardest tasks wins
@@ -176,8 +180,8 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
 
 /** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
  *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
- *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (worldfx/serving.ts freeTierOf; δ =
- *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). The player's Chat runs its mini instead when the player sets one.
+ *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (δ =
+ *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). RD-P02: rivals' and China's free users now run their cheapest real lineup model; FREE_TIER sizes RefBot's cheap tier only.
  *  Free tiers in mid-2025 ran a generation below the paid frontier: ChatGPT's free users on GPT-4o (a May 2024 model)
  *  with a GPT-4.1 mini fallback at the limits, paid users on o3 [P/R: ChatGPT release notes, 14 May 2025 (help.openai.com,
  *  read via an extract)]; the Gemini app on 2.0 / 2.5 Flash [P: Gemini release notes 2025-01-30 (extract); Google blog
@@ -190,7 +194,7 @@ export const FREE_TIER = { oom: 1.2 } as const; // was 1 progress-year
 /** TIERS: product lineups (design/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
  *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices
  *  per token relative to the model's (serving cost ∝ active parameters at one markup [D]). Each student's fit follows
- *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupOf); buyers
+ *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupSizes; RD-P02: rivals' students are made by their distill step after RIVAL_DISTILL_LAG_DAYS, actors/rivalModel.ts); buyers
  *  choose among every tier on offer by band (worldfx/choice.ts). The rungs are the geometric means of the two four-tier
  *  lineups on the labs' pricing pages, Nov 2026 [P, fetched 2026-11-21; input / output $ per M tokens]:
  *  - Anthropic (platform.claude.com/docs/en/about-claude/pricing): Claude Fable 5.2 $8 / $40, Opus 5.5 $4 / $20,

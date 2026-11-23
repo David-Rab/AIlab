@@ -146,9 +146,9 @@ function Lane({ s, v, use, danger, draft, setDraft }: { s: GameStateV2; v: Agent
   const newest = newestInternal(s);
   const models = [
     ...(isRoutine ? [] : [{ value: '', label: `newest · ${newest?.name ?? '—'}` }]),
-    ...modelOptions(s, (x) => x.variant !== 'open'),
+    ...modelOptions(s, () => true),
   ];
-  const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, (x) => x.variant !== 'open')];
+  const monitors = [{ value: '', label: 'none' }, { value: MONITOR_SAME, label: `copy of ${l.version?.name ?? 'the model'}` }, ...modelOptions(s, () => true)];
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';
   const monVal = draft?.monitorId !== undefined ? draft.monitorId ?? '' : pkg.monitorId ?? '';
   const budget = def.budget === 'saf' ? 'SAF' : 'CAP';

@@ -32,14 +32,15 @@ export const COMPANY_EVENTS: EventDefV2[] = [
         morale(ctx, 5, 'E16 counter-offers');
         ctx.bump('relations.talentPull', 2, 'E16 counter-offers');
       }),
-      // RD-B19 (B40): the lead line is the recipe the rival takes (poachLeakG) in days of its own progress.
-      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(ownProgressDays(s, d.lab, poachLeakG(s))) : 0, "days of progress into that rival's recipe (at its next model)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
+      // RD-B19 (B40): the lead line is the recipe the rival takes (poachLeakG; RD-X04b: tacit share of its recipe gap) in days of its own progress.
+      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(ownProgressDays(s, d.lab, poachLeakG(s, d.lab, Math.round(s.player.staff.cap * 0.03)))) : 0, "days of progress into that rival's recipe (at its next model)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
         const n = Math.round(s.player.staff.cap * 0.03);
-        changeHeads(s, 'cap', -n);
         const r = activeLab(s, d.lab);
+        const tacit = r ? poachLeakG(s, r.core.id, n) : 0; // RD-X04b: sized before the heads move
+        changeHeads(s, 'cap', -n);
         if (r) {
           r.core.staff.cap += n;
-          addRivalKnowledge(r, poachLeakG(s));
+          addRivalKnowledge(r, tacit);
         }
       }),
       ch('Sue', ['fight'], P([L('scrutiny', 5), L('trust', 20, 'that rival')], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx, d) => {

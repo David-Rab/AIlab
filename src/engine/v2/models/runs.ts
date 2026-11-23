@@ -36,7 +36,8 @@ import type { DomainMap } from './effective';
 import { releaseEvals } from './evals';
 import { addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
 import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
-import { ePreAt, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
+import { distillLift } from '../production/diffusion';
+import { ePreAt, playerRecipeG, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import {
@@ -673,7 +674,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
   const w = s.hidden.timeline;
   const G = gOfBuild(build);
   const v: ModelVersion = {
-    id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day,
+    id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day, recG: playerRecipeG(s),
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', cot: 'visible', safety: 'standard', methods: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
@@ -705,6 +706,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
     const v = newVersion(s, run, base, pre.student!, t, { variant: 'mini', params: pre.params, fpt: pre.fpt, monitorability: pre.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = uniqueVersionName(s, `${t.name}-mini`);
+    if (run.autoTier) v.autoTier = true; // RD-P01b: joins its teacher's lineups when ready (models/cheapTier.ts)
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
     return;
@@ -743,6 +745,8 @@ function completeRl(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, pr: PostRe
   const start = rlStartOf(base, run.grader, teacher);
   if (!start) return;
   const build = rlBuild(s, start, run.post, pr, run.flopNeeded);
+  // RD-X04 rule B: the post-training distils the best released teacher above its own G (production/diffusion.ts).
+  build.dg += distillLift(s, 'player', gOfBuild(build), base.params).dG;
   const rlDay = rlDayOf(s, run);
   if (start.on === 'version') {
     const t = start.version;

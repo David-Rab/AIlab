@@ -5,16 +5,16 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { MINI_CHANNELS, type FeatureDef, type WorkScope } from '../../../data/v2/features';
+import { ENABLER_TOOLS, TOOL_LAG_DAYS, enablerNeed, type FeatureDef, type FeatureId, type WorkScope } from '../../../data/v2/features';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead } from '../models/products';
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
-import { SECTOR_PACK_DG, effortDG, lineupOf, markupOf, serveDollarsPerHour } from './serving';
-import { workFit } from '../departments/workfit';
+import { lineupVersions, markupOf, serveDollarsPerHour } from './serving';
+import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
-import { CONSUMER_MKT, CUSTOMER_TAU, EFFORT_TOKENS, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
+import { CONSUMER_MKT, CUSTOMER_TAU, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
 import { paidDeployments, worldMix, type TierKind, type WorldMix } from './mix';
 import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
@@ -58,11 +58,11 @@ export interface ProductRead {
   lineup?: LineupRow[];
 }
 
-/** TIERS: one tier of a sector product's lineup. `gap` OOM of fit below the main model (students: the distillation
- *  rule's δ; the mini: its work fit below the main model's); `ratio` its active parameters ÷ the main model's (its price
- *  per token ÷ the main model's at the product's markup); `price` $ per billed hour (adopted task-hours and agent-hours,
+/** TIERS / RD-P01a: one real model of a sector product's lineup (`id` its version). `gap` OOM of its work fit (SWE)
+ *  below the main model's; `ratio` its FLOP per token ÷ the main model's (its price per token ÷ the main model's at the
+ *  product's markup); `price` $ per billed hour (adopted task-hours and agent-hours,
  *  demand-weighted; for a tier that sells nothing, the main model's × ratio); `share` of the product's billed hours. */
-export interface LineupRow { kind: TierKind; name: string; params: number; ratio: number; gap: number; hours: number; share: number; price: number }
+export interface LineupRow { kind: TierKind; id: string; name: string; params: number; ratio: number; gap: number; hours: number; share: number; price: number }
 
 /** TIERS: the lineup rows of a sector product from its revenue readout. */
 function lineupRows(s: GameStateV2, d: Deployment, x: DeploymentRevenue): LineupRow[] | undefined {
@@ -70,12 +70,11 @@ function lineupRows(s: GameStateV2, d: Deployment, x: DeploymentRevenue): Lineup
   const v = versionById(s, d.versionId);
   if (!v) return undefined;
   const nT = v.params ?? s.player.models.bases.find((b) => b.id === v.baseId)?.params ?? REFERENCE_BASE.params;
-  const rows: Omit<LineupRow, 'hours' | 'share' | 'price'>[] = [{ kind: 'model', name: v.name, params: nT, ratio: 1, gap: 0 }];
-  for (const g of lineupOf(nT)) rows.push({ kind: 'student', name: `${v.name} student`, params: nT * g.r, ratio: g.r, gap: g.g });
-  const mini = d.miniVersionId && MINI_CHANNELS.includes(d.channel) ? versionById(s, d.miniVersionId) : undefined;
-  if (mini) {
-    const nM = mini.params ?? s.player.models.bases.find((b) => b.id === mini.baseId)?.params ?? REFERENCE_BASE.params;
-    rows.push({ kind: 'mini', name: mini.name, params: nM, ratio: nM / nT, gap: workFit(s, v, 'SWE').fit - workFit(s, mini, 'SWE').fit });
+  const rows: Omit<LineupRow, 'hours' | 'share' | 'price'>[] = [{ kind: 'model', id: v.id, name: v.name, params: nT, ratio: 1, gap: 0 }];
+  // RD-P01a: then the product's real lineup entries (no phantom students).
+  for (const m of lineupVersions(s, d)) {
+    const nM = m.params ?? s.player.models.bases.find((b) => b.id === m.baseId)?.params ?? REFERENCE_BASE.params;
+    rows.push({ kind: 'mini', id: m.id, name: m.name, params: nM, ratio: flopPerToken(s, m) / flopPerToken(s, v), gap: workFit(s, v, 'SWE').fit - workFit(s, m, 'SWE').fit });
   }
   const t = x.tiers ?? [];
   const H = t.reduce((a, y) => a + y.hours, 0);
@@ -152,7 +151,7 @@ function customerOf(segs: CustomerSeg[]): CustomerView {
 const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, sector: CUSTOMER_TAU.sector * 365, gov: CUSTOMER_TAU.gov * 365 };
 
 /** B2: a feature's typed effects for the product card, with units. */
-export type FeatureKind = 'enabler' | 'horizon' | 'scaffold' | 'effort';
+export type FeatureKind = 'enabler' | 'horizon' | 'scaffold';
 export interface FeatureLine {
   kind: FeatureKind;
   /** The effect with units ("+0.30 OOM fit", "horizon ×1.3", "+15% reachable work"). */
@@ -172,7 +171,7 @@ export interface FeatureView {
   /** Internal agents' work types it also applies to once built (names); empty = none. */
   internal: string[];
   /** C2: engineers' upkeep once built, team-weeks per week: in use, and built but in use nowhere (keep-alive; equal to
-   *  `upkeepTW` for a feature that helps the internal agents, which is always in use). 0 for sector packs. */
+   *  `upkeepTW` for a feature that helps the internal agents, which is always in use).  */
   upkeepTW: number;
   idleTW: number;
 }
@@ -207,16 +206,11 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
     } else if (fx.kind === 'horizon') {
       push({ kind: 'horizon', effect: `horizon ${mult(fx.mult)}`, tokens: 1, where: scopeText(fx.work) }, scoped(fx.work), `${mult(fx.mult)} longer tasks`);
       for (const x of internalOf(fx.work)) internal.add(x);
-    } else if (fx.kind === 'effort') {
-      const tok = EFFORT_TOKENS[fx.setting];
-      const dG = effortDG(tok);
-      push({ kind: 'effort', effect: `+${dG.toFixed(2)} OOM fit`, tokens: tok, where: 'every task (effort: deep think)' }, true, `+${dG.toFixed(2)} OOM ${mult(tok)} tok`);
-    } else if (fx.packs) {
-      push({ kind: 'enabler', effect: `sector products; +${SECTOR_PACK_DG.toFixed(2)} OOM fit per certified pack`, tokens: 1, where: 'the pack\'s sector' }, true, `+${SECTOR_PACK_DG.toFixed(2)} OOM per pack`);
     } else {
-      const pct = `+${Math.round(fx.share * 100)}%`;
-      if (fx.consumer) push({ kind: 'enabler', effect: `${pct} Chat users`, tokens: 1, where: 'Chat' }, !channel || chat, `${pct} users`);
-      if (fx.sectors?.length) push({ kind: 'enabler', effect: `${pct} reachable work`, tokens: 1, where: fx.sectors.map((x) => SECTOR_SHORT[x] ?? x).join(', ') }, !channel || !chat, `${pct} work`);
+      // RD-P07: a tool: Chat appeal in the users' app choice; in the sectors it lists, the tasks needing it (coverage).
+      const need = `${Math.round(enablerNeed(fx.share) * 100)}%`;
+      if (fx.consumer) push({ kind: 'enabler', effect: `Chat appeal ×${(1 + fx.share).toFixed(2)}`, tokens: 1, where: 'Chat' }, !channel || chat, `appeal ×${(1 + fx.share).toFixed(2)}`);
+      if (fx.sectors?.length) push({ kind: 'enabler', effect: `does the ${need} of tasks that need it (coverage ×${(1 + fx.share).toFixed(2)} vs without)`, tokens: 1, where: fx.sectors.map((x) => SECTOR_SHORT[x] ?? x).join(', ') }, !channel || !chat, `+${need} of tasks`);
     }
   }
   const kinds = [...new Set((lines.some((l) => l.here) ? lines.filter((l) => l.here) : lines).map((l) => l.kind))];
@@ -225,6 +219,18 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
   // RD-A06 (DD-03): a feature acts only inside its product's offer; internal agents get tools (Company › Agents).
   void internal;
   return { kinds, lines, short: short.join(' · '), internal: [], upkeepTW, idleTW };
+}
+
+/** RD-P07 (DD-03): rivals and a tool: how many of the active rival labs (and China) have it, and the day the others get
+ *  it (TOOL_LAG_DAYS after the first ship, world.fx.toolShip; undefined before anyone ships it), and who shipped it
+ *  first ('you' or the lab's name; RD-P07b). Undefined for features
+ *  that are not tools. */
+export function toolRivalsView(s: GameStateV2, id: string): { have: number; of: number; day?: number; lag: number; first?: { day: number; by: string } } | undefined {
+  if (!ENABLER_TOOLS.includes(id as FeatureId)) return undefined;
+  const labs = [...s.rivals.filter((r) => r.core.status === 'active'), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
+  const ship = s.world.fx.toolShip?.[id];
+  const by = ship && (ship.by === 'player' ? 'you' : labs.find((r) => r.core.id === ship.by)?.core.name ?? ship.by);
+  return { have: labs.filter((r) => r.tools?.includes(id)).length, of: labs.length, day: ship === undefined ? undefined : ship.day + TOOL_LAG_DAYS, lag: TOOL_LAG_DAYS, first: ship && { day: ship.day, by: by! } };
 }
 
 /** B1 (product card): revenue by source and capacity of one product. Sector products: adopted task-hours and agent-hours

@@ -15,6 +15,7 @@ import { globalCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import type { EngineSystem, GameStateV2, RegionId, SystemCtx } from '../types';
 import { bestPublicOf, worldMix } from './mix';
+import { gOfLevel, oomPerLevel } from '../models/capability';
 import { econOf, policyState, clampR } from './policy';
 import { automationShare } from './readouts';
 import { worldTechEffects } from './techtree';
@@ -51,8 +52,11 @@ export function dcPowerShare(s: GameStateV2): number {
 /** The CES automation factor X for a region (bounded). */
 export function automationFactor(s: GameStateV2, r: RegionId): { X: number; tfp: number; cog: number; phys: number } {
   const econ = econOf(s);
-  const Lag = bestPublicOf(s).AGENCY;
-  const boost = 1 + (3 * Math.max(0, Lag - 10)) / 5;
+  // RD-P04b: the best public AGENCY domain G (OOM); v2's +3/5 per level above L 10 per OOM above λ⁻¹(10) (the SC → SAR
+  // segment's slope: exact there).
+  const w = s.hidden.timeline;
+  const gAg = bestPublicOf(s).AGENCY;
+  const boost = 1 + (3 * Math.max(0, gAg - gOfLevel(w, 10))) / (5 * oomPerLevel(w, 10));
   let cog = 0;
   let phys = 0;
   let vsum = 0;

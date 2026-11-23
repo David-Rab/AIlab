@@ -446,9 +446,9 @@ if (vids.length > 1) await check('Select version in lineage', 'store.sel.version
 // ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
 await nav('products');
 ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
-// B5 / R6: deep think is a locked option with its reason until its idea and feature exist.
-if (!JSON.parse(await get(`s.player.features.includes('deepThink')`))) {
-  ok('Products: deep think locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
+// B5 / R6 / RD-P06: deep effort is a locked option with its reason until its idea (the model's capability) is known.
+if (!JSON.parse(await get(`s.player.tree.P05?.status === 'known'`))) {
+  ok('Products: deep effort locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
 }
 const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
 if (apiId) {
@@ -705,7 +705,7 @@ async function b2Check(where) {
   ok(`B2 ${where}: no clipped feature effect line`, clipped.length === 0, clipped.map((x) => `${x.card}/${x.f}: ${x.clipped}`).join(', '));
   let ftip = 0;
   const fmiss = [];
-  for (const x of feats.filter((y) => y.f !== 'sectorPacks')) {
+  for (const x of feats) {
     const tx = await hoverTip(`[data-product="${x.card}"] [data-feature="${x.f}"] .ft-fx`);
     if (/Build/.test(tx) && /Upkeep/.test(tx) && /\d\.\d\d engineer team-wk\/wk/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
     else fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);

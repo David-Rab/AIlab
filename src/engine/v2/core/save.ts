@@ -2,7 +2,8 @@
 import { ensureWs3 } from '../finance/ext';
 import { START_CREDIBILITY, typicalRound } from '../finance/promises';
 import { dMax } from '../finance/equity';
-import type { DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import type { Adaptation, Deployment, DomainId, GameStateV2, LabCore, RunRecipe, SectorId, VersionBuild } from '../types';
+import { needsCert } from '../models/adaptations';
 import { CAP_USES, DEFAULT_CAP_SHARES, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import { monitorCostRatio, monitorNeedShare } from '../departments/agents';
 import { partnerDef, PARTNER_TERMS } from '../../../data/v2/deals';
@@ -10,7 +11,7 @@ import { toolsFromFeatures } from '../../../data/v2/features';
 import { divisionOf } from '../finance/parent';
 import { privateRivals, sectorValue, seedLabRevenue } from '../finance/story';
 import { FIN } from '../actors/rivals';
-import { rivalVersionBuild, setModelG } from '../actors/rivalModel';
+import { rivalVersionBuild, seedRivalLineup, setModelG } from '../actors/rivalModel';
 import { continueDrawNow, fillRecipe } from '../models/runs';
 import { domainsOf, gOfLevel, refreshLevels } from '../models/capability';
 import { addIdea } from '../models/stacks';
@@ -129,8 +130,30 @@ import { PROJECT_BY_ID } from '../../../data/v2/tree';
  *  78 (SR-16): SafetyDept.envFixes (owned environment fixes per RL family; the patch response makes them). The per-edge
  *  signal-patch flags (ws2.patch.<lineage | lab>.<edge>) are gone: migration 77 → 78 drops them (keeps targeted
  *  inoculation training's ws2.patch.lab.E04) and adds an empty fix list.
- */
-export const SCHEMA_REV = 78;
+ *  Merge p3-c2 → rd: p3-c2's migrations (its 62→63 … 70→71) follow rd's chain as 78→79 … 86→87.
+ *  79 (RD-P01a): a product offers a lineup of real models (Deployment.lineup, Chat's freeTierId); miniVersionId is gone.
+ *  Migration 78 → 79 makes an existing mini the second lineup entry (Chat: its free tier).
+ *  80 (RD-P01b): the "Auto-make cheap tiers" product policy (policies.autoCheapTier; TrainingRun / ModelVersion
+ *  autoTier marks); a new game starts with V0's distilled students in its products' lineups. Migration 79 → 80 sets
+ *  the policy off in an existing game.
+ *  81 (RD-P02): rivals' and China's lineups are lab state (RivalLab.lineup, distilling). Migration 80 → 81 gives each
+ *  lab its public model's distilled students, on sale now.
+ *  83 (RD-P06): reasoning effort is a plain product setting (locked only by its tree idea); the Deep think feature is
+ *  gone. Migration 82 → 83 drops 'deepThink' from the lab's built features, every product's features and the build
+ *  queue; each product keeps its effort setting.
+ *  84 (RD-P07): product tools act in the offer's coverage; rivals and China acquire them after a lag (RivalLab.tools,
+ *  world.fx.toolShip: optional, so 83 → 84 changes nothing: the next daily tick records the tools on live products as
+ *  shipped that day).
+ *  85 (RD-P07b): a rival or China may ship a tool first (its own gate and build, RivalLab.toolBuild); world.fx.toolShip
+ *  records who shipped first. Migration 84 → 85 turns each recorded day into { day, by: 'player' } (only the player
+ *  shipped first before).
+ *  86 (RD-P08): sector packs become sector adaptations (Deployment.adaptations, models/adaptations.ts); the Sector packs
+ *  feature goes. Migration 85 → 86: each product's packs → adaptations on the same product (certification end kept in a
+ *  sector that needs one, none elsewhere); queued pack builds → adaptation builds; 'sectorPacks' dropped from the lab's
+ *  and the products' features and the build queue.
+ *  87 (RD-P09): the distillation leak through a product scales with its tokens served to anonymous buyers
+ *  (Deployment.servedTokensDay, derived daily; optional, so 86 → 87 changes nothing: the next daily tick fills it). */
+export const SCHEMA_REV = 87;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -358,7 +381,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const day = s.time?.day ?? 0;
     for (const d of s.player?.deployments ?? []) {
       const o = d as unknown as { sectorFocus?: string[]; packs?: unknown };
-      if (!Array.isArray(o.packs)) d.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
+      if (!Array.isArray(o.packs)) o.packs = (o.sectorFocus ?? []).map((sec) => ({ sector: sec as SectorId, certDay: cert[sec] ?? day }));
       delete o.sectorFocus;
     }
     if (fx) delete fx.certDay;
@@ -845,6 +868,112 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const k of Object.keys(r.flags ?? {})) if (k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04') delete r.flags![k];
     if (r.player?.safety) r.player.safety.envFixes ??= {};
   },
+  /** 78 → 79 (RD-P01a): a product's mini (miniVersionId) becomes the second model of its lineup (Deployment.lineup);
+   *  Chat's free tier keeps it (freeTierId). Idempotent. */
+  78: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    for (const d of s.player?.deployments ?? []) {
+      const o = d as Deployment & { miniVersionId?: string };
+      if (!o.miniVersionId) continue;
+      if (o.miniVersionId !== d.versionId && !(d.lineup ?? []).includes(o.miniVersionId)) d.lineup = [o.miniVersionId, ...(d.lineup ?? [])];
+      if (d.channel === 'consumer' && !d.freeTierId) d.freeTierId = o.miniVersionId;
+      delete o.miniVersionId;
+    }
+  },
+  /** 79 → 80 (RD-P01b): the "Auto-make cheap tiers" policy; off in an existing game (nothing automatic it did not
+   *  choose). Idempotent. */
+  79: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    if (s.player?.policies && typeof s.player.policies.autoCheapTier !== 'boolean') s.player.policies.autoCheapTier = false;
+  },
+  /** 80 → 81 (RD-P02): each rival's and China's lineup as lab state: its public model's students on sale now (as at a
+   *  new game's start). Idempotent. */
+  80: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const w = s.hidden?.timeline;
+    if (!w) return;
+    for (const r of [...(s.rivals ?? []), ...(s.china?.lab ? [s.china.lab] : [])]) if (!r.lineup) seedRivalLineup(w, r);
+  },
+  /** 81 → 82 (RD-P05, DD-02 a): Gov / Trusted / Open "variant" copies of a version go. Gov and Trusted are who a
+   *  product is offered to, so every reference to a copy (the player's products and their lineups / monitors / free
+   *  tier, agents, stream, incidents, child versions; WS4's eval reports) points to the version it was copied from; an
+   *  open copy on an open deployment marks that version open (openDay = the release day). A copy whose source is gone
+   *  becomes a full version. Idempotent. */
+  81: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const vs = s.player?.models?.versions;
+    if (!vs) return;
+    const copy = (v?: { variant: string }) => !!v && (v.variant === 'gov' || v.variant === 'trusted' || v.variant === 'open');
+    const byId = new Map(vs.map((v) => [v.id, v]));
+    const to = new Map<string, string>();
+    for (const v of vs) {
+      if (!copy(v)) continue;
+      let p = v;
+      for (let i = 0; i < 20 && copy(p) && p.parentVersionId && byId.has(p.parentVersionId); i++) p = byId.get(p.parentVersionId)!;
+      if (p === v || copy(p)) (v as { variant: string }).variant = 'full';
+      else to.set(v.id, p.id);
+    }
+    for (const d of s.player.deployments ?? []) {
+      if (d.channel !== 'open') continue;
+      const v = byId.get(to.get(d.versionId) ?? d.versionId);
+      if (v && v.openDay === undefined) v.openDay = d.startDay;
+    }
+    if (!to.size) return;
+    s.player.models.versions = vs.filter((v) => !to.has(v.id));
+    const walk = (o: unknown): unknown => {
+      if (typeof o === 'string') return to.get(o) ?? o;
+      if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) o[i] = walk(o[i]); return o; }
+      if (o && typeof o === 'object') for (const k of Object.keys(o)) (o as Record<string, unknown>)[k] = walk((o as Record<string, unknown>)[k]);
+      return o;
+    };
+    walk(s.player);
+    if (s.ws4) walk(s.ws4);
+    for (const d of s.player.deployments) {
+      if (d.lineup) d.lineup = d.lineup.filter((id, i, a) => id !== d.versionId && a.indexOf(id) === i);
+      const v = byId.get(d.versionId);
+      if (d.status !== 'withdrawn' && v?.status === 'ready') v.status = 'deployed';
+    }
+  },
+  /** 82 → 83 (RD-P06): the Deep think feature goes; a product that had it keeps its effort setting (deep). Idempotent. */
+  82: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const pl = s.player;
+    if (!pl) return;
+    if (pl.features) pl.features = pl.features.filter((f) => f !== 'deepThink');
+    for (const d of pl.deployments ?? []) if (d.features) d.features = d.features.filter((f) => f !== 'deepThink');
+    if (pl.build?.queue) {
+      pl.build.queue = pl.build.queue.filter((x) => !(x.kind === 'feature' && x.ref === 'deepThink'));
+      pl.build.queue.forEach((x, i) => (x.priority = i + 1));
+    }
+  },
+  /** 83 → 84 (RD-P07): no field to convert (RivalLab.tools and world.fx.toolShip are optional and start empty). */
+  83: () => {},
+  /** 84 → 85 (RD-P07b): world.fx.toolShip day → { day, by: 'player' }. */
+  84: (s) => {
+    const fx = (s.world as { fx?: { toolShip?: Record<string, unknown> } } | undefined)?.fx;
+    const ship = fx?.toolShip;
+    if (ship) for (const k of Object.keys(ship)) if (typeof ship[k] === 'number') ship[k] = { day: ship[k], by: 'player' };
+  },
+  /** 85 → 86 (RD-P08): sector packs → sector adaptations on the product that had them; the Sector packs feature goes.
+   *  Idempotent. */
+  85: (raw) => {
+    const s = raw as unknown as GameStateV2;
+    const pl = s.player;
+    if (!pl) return;
+    if (pl.features) pl.features = pl.features.filter((f) => f !== 'sectorPacks');
+    for (const d of pl.deployments ?? []) {
+      const o = d as unknown as { packs?: { sector: SectorId; certDay?: number }[]; adaptations?: Adaptation[] };
+      if (!Array.isArray(o.adaptations)) o.adaptations = (o.packs ?? []).map((p) => (needsCert(p.sector) && p.certDay !== undefined ? { sector: p.sector, certDone: p.certDay } : { sector: p.sector }));
+      delete o.packs;
+      if (d.features) d.features = d.features.filter((f) => f !== 'sectorPacks');
+    }
+    if (pl.build?.queue) {
+      pl.build.queue = pl.build.queue.filter((x) => !(x.kind === 'feature' && x.ref === 'sectorPacks'));
+      for (const x of pl.build.queue) if ((x.kind as string) === 'sectorPack') x.kind = 'adaptation';
+      pl.build.queue.forEach((x, i) => (x.priority = i + 1));
+    }
+  },
+  86: () => {},
 };
 
 /** TreeNodeState's fields since 62 (RD-R04). */

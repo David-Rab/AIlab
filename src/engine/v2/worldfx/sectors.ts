@@ -10,7 +10,8 @@
 //     W     += (p + q'·W/W*)(W* − W)/365·DiffMult   workers using AI at work, W* = max(A, W_b + (1 − W_b)·F) (A2a,
 //              worldfx/use.ts); hours of use U = A + h_s·(W − A)
 //     σ     += q_seat·σ/σ*·(σ* − σ)/365·DiffMult   paid seats per worker using AI (A2c), σ* = K_seat·(1 − R)
-//   6 α      = 0.25 + (α_max − 0.25)·σ((L_AGENCY − 8)/1.5);  D = α·A
+//   6 α      = 0.25 + (α_max − 0.25)·σ((g_AGENCY − λ⁻¹(8))/(1.5·oomPerLevel(8)));  D = α·A   (RD-P04a: the market's
+//              share-weighted AGENCY domain G, OOM; v2's L 8 / 1.5 L restated through the one λ)
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
@@ -21,7 +22,7 @@ import {
 } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
 import type {
-  ControlDomainId, ControlState, DomainId, EngineSystem, GameStateV2, LabId, MacroState, RegionId, SectorId,
+  ControlDomainId, ControlState, DomainId, EngineSystem, TimelineWorld, GameStateV2, LabId, MacroState, RegionId, SectorId,
   SectorState, SystemCtx, WorldEconomy, WorldFxState, WorldTechState,
 } from '../types';
 import { initialControl, updateControl } from './control';
@@ -33,7 +34,7 @@ import { costReduction, demandExpansion, workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
-import { sectorCertDay } from '../models/products';
+import { gOfLevel, levelGate, oomPerLevel } from '../models/capability';
 
 export { REGIONS };
 
@@ -54,12 +55,20 @@ const TASK_ENTRIES = Object.fromEntries(SECTORS.map((d) => [d.id, Object.entries
 /** Hourly wage of a sector's work in a region ($). */
 export const wageOf = (def: SectorDef, r: RegionId) => def.wage * REGION_SCALE[r].wage * ECON.W0;
 
-export function alphaOf(def: SectorDef, Lagency: number): number {
-  return 0.25 + (def.alphaMax - 0.25) * sigmoid((Lagency - 8) / 1.5);
+/** RD-P04a: substitution α on the market's AGENCY domain G (OOM, general λ scale: mix.ts SectorMix.g, the horizon
+ *  domain; h50 = 203 min × 4.2 per OOM). Midpoint and spread are v2's L 8 and 1.5 L converted through the one λ
+ *  (exact on the V0 → SC segment that holds L 8). */
+export const ALPHA_MID_L = 8;
+export const ALPHA_SPREAD_L = 1.5;
+export function alphaOf(w: TimelineWorld, def: SectorDef, gAgency: number): number {
+  return 0.25 + (def.alphaMax - 0.25) * levelGate(w, gAgency, ALPHA_MID_L, ALPHA_SPREAD_L);
 }
+/** The start state's α (before the first tick reads the market; as F there): the R16 Agent-0 AGENCY level. */
+const ALPHA_START_SIG = sigmoid((AGENT0_PROFILE.AGENCY - ALPHA_MID_L) / ALPHA_SPREAD_L);
 
 /** Pre-LLM (late 2022) feasibility per sector: hiring baseline for ΔF. */
-/** Consumer SOCIAL level at which the AI-friend share is half its ceiling (research/16 §2.1) [D]. M2: 7 → 6.5 on
+/** Consumer SOCIAL level at which the AI-friend share is half its ceiling (RD-P04b: read on the users' share-weighted
+ *  SOCIAL domain G, OOM, through the one λ) (research/16 §2.1) [D]. M2: 7 → 6.5 on
  *  integrated RefBot play, whose consumer channel serves distilled minis (SOCIAL ≈ 0.5 L below the WS5 probe's
  *  "internal − 0.5 L" public model). */
 const FRIEND_SOCIAL_MID = 6.5;
@@ -85,8 +94,6 @@ export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, pol: Pol
     if (pol.schoolBan && id === 'EDU') R += 0.3;
     if (pol.armsRace && id === 'MIL') R -= 0.3;
     if (pol.sez && (id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;
-    const c = sectorCertDay(s, id); // RD-B12: a live product's certified pack
-    if (c !== undefined && c <= s.time.day) R -= 0.1;
   }
   if (r === 'ROW' && pol.euCode) R += 0.03;
   R += s.world.fx.incidentR[id] ?? 0;
@@ -100,7 +107,7 @@ function sectorState(def: SectorDef, r: RegionId, le: Record<DomainId, number>, 
   const F = feasibility(def, le);
   const K = K_START;
   const Astar = F * K * (1 - R);
-  const alpha = alphaOf(def, le.AGENCY);
+  const alpha = 0.25 + (def.alphaMax - 0.25) * ALPHA_START_SIG;
   const E0 = E0of(def, r);
   const E = employmentTarget(def, r, E0, alpha * A, A, PCOST_START * wageOf(def, r));
   const hireRate = clamp01(1 - ECON.hireSlope * Math.max(0, F - F_PRE_START[def.id]));
@@ -212,6 +219,7 @@ export function retrainOf(s: GameStateV2, pol: PolicyState): number {
 function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix, pol: PolicyState): number {
   const econ = econOf(s);
   const dt = 1 / 365;
+  const w = s.hidden.timeline;
   const row = s.world.sectors[r];
   const eff = worldTechEffects(s);
   const playerIdx = mix.providers.findIndex((p) => p.key === 'player');
@@ -222,13 +230,13 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
   for (const def of SECTORS) {
     const st = row[def.id];
     const m = mix.sec[r][def.id];
-    const le = m.dom;
+    const g = m.g;
     st.F = m.F;
     st.K = m.K;
     st.R = frictionOf(s, r, def, pol);
     st.Astar = st.F * st.K * (1 - st.R);
-    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
-    let q = def.q * (1 + 0.15 * Math.max(0, le.AGENCY - 8));
+    // RD-P04a: v2's +0.15 per AGENCY level above 8, per OOM of AGENCY G above λ⁻¹(8) (the slope at L 8).
+    let q = def.q * (1 + (0.15 / oomPerLevel(w, ALPHA_MID_L)) * Math.max(0, g.AGENCY - gOfLevel(w, ALPHA_MID_L)));
     if (def.id === 'SCI') q *= 1 + eff.sciQ;
     if (st.A < st.Astar) st.A += (def.p + (q * st.A) / Math.max(1e-6, st.Astar)) * (st.Astar - st.A) * dt * econ.diffMult;
     else st.A -= 0.5 * (st.A - st.Astar) * dt;
@@ -245,7 +253,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     if (sg < sStar) st.seat = sg + ((SEATS.q * sg) / Math.max(1e-6, sStar)) * (sStar - sg) * dt * econ.diffMult;
     else st.seat = sg - SEATS.down * (sg - sStar) * dt;
     st.seat = clamp01(st.seat);
-    const a = alphaOf(def, le.AGENCY);
+    const a = alphaOf(w, def, g.AGENCY);
     const ps = playerIdx >= 0 ? m.share[playerIdx] : 0;
     st.alpha = noDropIn ? ps * Math.min(a, 0.5) + (1 - ps) * a : a;
     const D = st.alpha * st.A;
@@ -277,8 +285,8 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     physE += E * (def.tasks.PHYS ?? 0);
   }
   const mismatch = 1 - 0.5 * (physE / Math.max(1, allE));
-  const Lag = mix.bestPublic.AGENCY;
-  const nuEff = econ.nu * (1 - sigmoid((Lag - 10) / 1.5));
+  // RD-P04b: the best public AGENCY domain G (OOM); v2's L 10 / 1.5 L gate through the one λ.
+  const nuEff = econ.nu * (1 - levelGate(w, mix.bestPublic.AGENCY, 10, 1.5));
   const gAI = Math.max(0, W.macro[r].g - (r === 'US' ? 0.018 : r === 'CN' ? 0.04 : 0.028));
   const openJobs = 0.4 * (1 - 0.6 * (Dw / Math.max(1, Ew))) + 5 * nuEff * gAI;
   const retrain = r === 'US' ? retrainOf(s, pol) : 0;
@@ -310,7 +318,7 @@ export const worldDailySystem: EngineSystem = {
     for (const inc of s.player.safety.incidents) {
       if (inc.day !== ctx.day || inc.severity < 3 || inc.exposure === 'internal') continue;
       const dep = s.player.deployments.find((d) => d.id === inc.deploymentId);
-      const secs = dep?.packs.length ? dep.packs.map((p) => p.sector) : topPlayerSectors(s, 3);
+      const secs = dep?.adaptations?.length ? dep.adaptations.map((p) => p.sector) : topPlayerSectors(s, 3);
       for (const id of secs) fx.incidentR[id] = Math.min(0.5, fx.incidentR[id] + 0.05);
     }
 
@@ -350,7 +358,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * sigmoid((cons.social - FRIEND_SOCIAL_MID) / 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
+    const friendStar = 0.03 + 0.18 * levelGate(s.hidden.timeline, cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

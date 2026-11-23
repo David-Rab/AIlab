@@ -4,17 +4,19 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { FEATURE_BY_ID, MINI_CHANNELS, PRICE_TIERS, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { FEATURE_BY_ID, PRICE_TIER_IDS, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
-import { openAbsorbMonths } from '../actors/rivals';
-import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
+import { openAbsorbG, ownProgressDays, releaseRecG } from '../actors/rivals';
+import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf } from './products';
+import { relaunchAdaptations } from './adaptations';
 import { evalPolicyView } from './evals';
+import { autoCheapTiers, cheapTierPreview } from './cheapTier';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
@@ -24,10 +26,13 @@ const fail = (why: string | undefined) => {
 const usable = (v: ModelVersion | undefined) => !!v && (v.status === 'ready' || v.status === 'deployed');
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
-/** A live edit: unset fields stay; `null` removes the mini free tier or the monitor. */
+/** A live edit: unset fields stay; `null` removes the free-tier choice or the monitor. */
 export interface ProductChanges {
   versionId?: string;
-  miniVersionId?: string | null;
+  /** RD-P01a: the lineup after the main model (version ids, in order; [] empties it). */
+  lineup?: string[];
+  /** RD-P01a: Chat's free-tier slot (a lineup model; null: the lineup's cheapest). */
+  freeTierId?: string | null;
   monitorId?: string | null;
   price?: PriceTier;
   safeguards?: Deployment['safeguards'];
@@ -36,11 +41,12 @@ export interface ProductChanges {
   features?: string[];
 }
 
-/** Changes from action params ('' or 'none' removes the mini / monitor; features as a comma list). */
+/** Changes from action params ('' or 'none' removes the free-tier choice / monitor; features and lineup as comma lists). */
 export function changesFromParams(p: Params): ProductChanges {
   const c: ProductChanges = {};
   if (typeof p.versionId === 'string' && p.versionId) c.versionId = p.versionId;
-  if (typeof p.miniVersionId === 'string') c.miniVersionId = p.miniVersionId && p.miniVersionId !== 'none' ? p.miniVersionId : null;
+  if (typeof p.lineup === 'string') c.lineup = p.lineup.split(',').map((x) => x.trim()).filter((x) => x && x !== 'none');
+  if (typeof p.freeTierId === 'string') c.freeTierId = p.freeTierId && p.freeTierId !== 'none' ? p.freeTierId : null;
   if (typeof p.monitorId === 'string') c.monitorId = p.monitorId && p.monitorId !== 'none' ? p.monitorId : null;
   if (typeof p.price === 'string' && (PRICE_TIER_IDS as string[]).includes(p.price)) c.price = p.price as PriceTier;
   if (typeof p.safeguards === 'string') c.safeguards = p.safeguards as Deployment['safeguards'];
@@ -50,13 +56,17 @@ export function changesFromParams(p: Params): ProductChanges {
   return c;
 }
 
-/** The product after an edit (a copy; deep think and the effort setting kept consistent). */
+/** The product after an edit (a copy). RD-P06: effort is a plain setting (locked only by the model's capability, effortLock). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
-  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], packs: d.packs.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
+  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], adaptations: d.adaptations.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
-  if (c.miniVersionId !== undefined) {
-    if (c.miniVersionId) n.miniVersionId = c.miniVersionId;
-    else delete n.miniVersionId;
+  if (c.lineup !== undefined) {
+    if (c.lineup.length) n.lineup = [...c.lineup];
+    else delete n.lineup;
+  }
+  if (c.freeTierId !== undefined) {
+    if (c.freeTierId) n.freeTierId = c.freeTierId;
+    else delete n.freeTierId;
   }
   if (c.monitorId !== undefined) {
     if (c.monitorId) n.monitorId = c.monitorId;
@@ -68,15 +78,7 @@ export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   }
   if (c.safeguards) n.safeguards = c.safeguards;
   if (c.kyc !== undefined) n.kyc = c.kyc;
-  // Deep think is a feature: effort 'deep' ⇔ the feature on.
-  if (c.effort) {
-    n.effort = c.effort;
-    if (c.effort === 'deep' && !n.features.includes('deepThink')) n.features.push('deepThink');
-    if (c.effort !== 'deep') n.features = n.features.filter((f) => f !== 'deepThink');
-  } else if (c.features) {
-    if (n.features.includes('deepThink')) n.effort = 'deep';
-    else if (n.effort === 'deep') n.effort = 'max';
-  }
+  if (c.effort) n.effort = c.effort;
   return n;
 }
 
@@ -97,11 +99,23 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
       if (g !== true && g.startsWith('Blocked')) return g;
     }
   }
-  if (n.miniVersionId && n.miniVersionId !== d.miniVersionId) {
-    if (!MINI_CHANNELS.includes(d.channel)) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
-    const m = versionById(s, n.miniVersionId);
-    if (!m || m.variant !== 'mini') return 'The free tier runs a mini (distilled) model';
-    if (!usable(m)) return 'That mini is not ready';
+  if (c.lineup !== undefined) {
+    const allowed = CHANNEL_VARIANTS[d.channel] ?? [];
+    const seen = new Set<string>();
+    for (const id of c.lineup) {
+      if (id === n.versionId || seen.has(id)) return 'A model is in the lineup twice';
+      seen.add(id);
+      if ((d.lineup ?? []).includes(id)) continue;
+      const m = versionById(s, id);
+      if (!m) return 'Unknown version';
+      if (!usable(m)) return `${m.name} is not ready`;
+      if (s.player.safety.evalGate !== 'none' && m.evals.suiteDay === undefined) return `${m.name} is not evaluated yet`;
+      if (!allowed.includes(m.variant) && !(m.variant === 'mini' && allowed.includes('full'))) return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} cannot sell a ${m.variant} model`;
+    }
+  }
+  if (n.freeTierId && n.freeTierId !== d.freeTierId) {
+    if (d.channel !== 'consumer') return `${PRODUCT_DEFS[d.channel]?.name ?? d.channel} has no free tier`;
+    if (n.freeTierId !== n.versionId && !(n.lineup ?? []).includes(n.freeTierId)) return 'The free tier runs a model of the lineup';
   }
   if (n.monitorId && n.monitorId !== d.monitorId) {
     const m = versionById(s, n.monitorId);
@@ -125,14 +139,15 @@ export function applyEdit(s: GameStateV2, ctx: SystemCtx | undefined, d: Deploym
   const n = editedProduct(d, c);
   const swapped = n.versionId !== d.versionId;
   Object.assign(d, n);
-  if (!n.miniVersionId) delete d.miniVersionId;
+  if (!n.lineup?.length) delete d.lineup;
+  if (!n.freeTierId) delete d.freeTierId;
   if (!n.monitorId) delete d.monitorId;
   if (swapped) {
     d.versionSince = s.time.day;
     const v = versionById(s, d.versionId);
     if (v && v.status !== 'deployed') v.status = 'deployed';
   }
-  for (const id of [d.miniVersionId, d.monitorId]) {
+  for (const id of [...(d.lineup ?? []), d.monitorId]) {
     const v = versionById(s, id);
     if (v && v.status === 'ready') v.status = 'deployed';
   }
@@ -165,6 +180,7 @@ export const productsSystem: EngineSystem = {
     if (s.player.status !== 'active') return;
     autoEvaluate(s);
     upgradeProducts(s, ctx);
+    autoCheapTiers(s, ctx); // RD-P01b: after the upgrade policy, so a model it just deployed gets its cheap tier today
   },
 };
 
@@ -184,12 +200,12 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
-/** RD-B20: days of progress the strongest distiller gains in a year from the player's live products (distillationLeak,
- *  the security system's daily leak: a year's G gained ÷ the distiller's own frontier-G slope, RD-L03). */
+/** RD-B20 / RD-X04: days of progress the strongest distiller gains at its next post-training from the player's live
+ *  products (distillationLeak: rule B's lift ÷ the distiller's own frontier-G slope, RD-L03). */
 export function distillDaysPerYear(s: GameStateV2): number {
   let days = 0;
   for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
-    const dG = distillationLeak(s, lab.core.id).dGPerDay * 365;
+    const dG = distillationLeak(s, lab.core.id).dG;
     if (dG > 0) days = Math.max(days, (dG / frontierGPerYear(s, lab.core.id, PACE_WINDOW_DAYS)) * 365);
   }
   return days;
@@ -224,16 +240,11 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const costs: CostLine[] = [];
       const gains: CostLine[] = [];
       const exposure: CostLine[] = [];
-      // RD-B20: what openWeightsReleased does at release (China absorbs part of the gap above the open frontier).
-      if (ch === 'open' && v && v.G > s.knowledge.openWeightsG) {
-        const days = Math.round((openAbsorbMonths(s, v.G) / 12) * 365);
-        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
-      }
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
-          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's packs).
-          safeguards: 'classifiers', guards: [], packs: relaunchPacks(s, ch).packs, features: launchFeatures(s, ch, 'max'), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's adaptations).
+          safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         const pv = previewDeployments(s, [...s.player.deployments, tmp], tmp.id);
@@ -250,17 +261,18 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     apply: (s, ctx, p) => {
       const ch = str(p, 'channel', 'api') as Channel;
       if (ch === 'internal') return fail('Internal use is set on Company (internal agents)');
+      if (ch === 'open') return fail('Open weights are a release act on a model: Models › Release open weights');
       const v = versionById(s, str(p, 'versionId', '')) ?? launchVersion(s, ch);
       if (!v) return fail('No version for this product');
-      if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn' && ch !== 'open')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
+      if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
       if (pendingLaunch(s, ch)) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already being built`);
       const price = (PRICE_TIER_IDS as string[]).includes(str(p, 'price', '')) ? (str(p, 'price', 'standard') as PriceTier) : 'standard';
-      if (ch !== 'open') {
+      {
         // J2 P1: the engineers build a product launch first (gates checked now and again at release).
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
         if (gate !== true) return fail(gate);
         const effort = typeof p.effort === 'string' ? (p.effort as Deployment['effort']) : undefined;
-        const lock = effortLock(s, effort ?? 'max') ?? launchEffortBlock(s, ch, effort);
+        const lock = effortLock(s, effort ?? 'max');
         if (lock) return fail(lock);
         const wait = launchWaitText(s);
         queueBuild(s, 'launch', ch, LAUNCH_TW, {
@@ -272,14 +284,39 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           },
         });
         ctx.log('company', `Engineers start building the ${PRODUCT_DEFS[ch]?.name ?? ch} launch (live in ${wait}).`, 1);
-        return;
       }
-      const r = deploy(s, ctx, {
-        versionId: v.id, channel: ch, price, priceIndex: PRICE_TIERS[price],
-        ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
-        ...(typeof p.effort === 'string' ? { effort: p.effort as Deployment['effort'] } : {}),
-        ...(typeof p.monitorId === 'string' && p.monitorId ? { monitorId: p.monitorId } : {}),
-      });
+    },
+  },
+  {
+    // RD-P05 (DD-02 a): open weights are a release act on a model (deployments.ts releaseOpen), not a variant copy.
+    // The preview lists what follows from the release: China's absorbed recipe gap (security.ts → openWeightsReleased,
+    // only above the open frontier), rivals distilling it at full access (their lift at the next post-training) and the
+    // one-way release itself (misuse safeguards reduce to the hazard filter: incidents.ts).
+    id: 'releaseOpen', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Release open weights',
+    available: () => true,
+    preview: (s, p) => {
+      const v = versionById(s, str(p, 'versionId', ''));
+      const costs: CostLine[] = [];
+      if (!v) return { costs, gains: [], exposure: [] };
+      if (v.G > s.knowledge.openWeightsG) {
+        const days = Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, v.recG ?? releaseRecG(s, 'player', v.G))));
+        if (days > 0) costs.push({ currency: 'leadDays', amount: -days, target: `days of China's own progress: it absorbs the weights` });
+      }
+      const tmp: Deployment = {
+        id: '__open', kind: 'product', versionId: v.id, channel: 'open', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
+        safeguards: 'classifiers', guards: [], adaptations: [], features: [], kyc: 0, status: 'live',
+        usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
+      };
+      // Rivals' lift at their next post-training (distillationLeak with the open deployment), in OOM: the per-year days
+      // of distillLine divide by a lab's recent pace, which is ~0 early in a game.
+      const h = hypothetical(s, [...s.player.deployments, tmp]);
+      const lift = Math.max(0, ...[...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])].map((l) => distillationLeak(h, l.core.id).dG - distillationLeak(s, l.core.id).dG));
+      if (lift > 0) costs.push({ currency: 'progress', amount: -Math.round(lift * 1000) / 1000, unit: 'OOM', target: 'effective compute the best-placed rival takes at its next post-training: it distils the weights' });
+      costs.push({ currency: 'progress', amount: 1, unit: 'release', target: `${v.name}'s weights are public for good: anyone runs and fine-tunes them; misuse safeguards reduce to the hazard filter` });
+      return { costs, gains: [], exposure: [] };
+    },
+    apply: (s, ctx, p) => {
+      const r = releaseOpen(s, ctx, str(p, 'versionId', ''));
       if (typeof r === 'string') fail(r);
     },
   },
@@ -312,7 +349,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'product.retire', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Retire product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
-      // RD-B20: the market run without the product (its serving goes to the other products; its packs end).
+      // RD-B20: the market run without the product (its serving goes to the other products; its adaptations end).
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
       if (!d) return { costs: [], gains: [], exposure: [] };
       const deps = s.player.deployments.map((x) => (x.id === d.id ? { ...x, status: 'withdrawn' as const } : x));
@@ -358,7 +395,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const gains: CostLine[] = [];
       if (f && !s.player.features.includes(f.id)) {
         // Expected return: every product that offers it, with it on.
-        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && f.products.includes(d.channel) ? { ...d, features: [...d.features, f.id], effort: f.effortDeep ? 'deep' as const : d.effort } : d));
+        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && f.products.includes(d.channel) ? { ...d, features: [...d.features, f.id] } : d));
         const anyId = deps.find((d) => isProduct(d) && f.products.includes(d.channel))?.id;
         if (anyId) {
           const pv = previewDeployments(s, deps, anyId, { features: [...s.player.features, f.id] });
@@ -431,11 +468,13 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
           costs.push({ currency: 'compute', amount: Math.round(pv.perSuite.h100eDays), target: 'H100e-days per re-run, from experiments' });
         }
       }
+      // RD-P01b: the distillation runs turning "Auto-make cheap tiers" on starts today (real FLOP, pool share, time).
+      if (p.autoCheapTier === true && !s.player.policies.autoCheapTier) costs.push(...cheapTierPreview(s));
       return { costs, gains, exposure };
     },
     apply: (s, ctx, p) => {
       const pol = s.player.policies;
-      for (const k of ['servingAuto', 'upgradeToNewest', 'autoEvaluate'] as const) if (typeof p[k] === 'boolean') pol[k] = p[k] as boolean;
+      for (const k of ['servingAuto', 'upgradeToNewest', 'autoEvaluate', 'autoCheapTier'] as const) if (typeof p[k] === 'boolean') pol[k] = p[k] as boolean;
       ctx.log('company', 'Product policies updated.', 1);
     },
   },

@@ -8,7 +8,7 @@ import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import {
   POOL_SHARE_RANGE, benchName, dataSpecView, dateOf, fmtDate, idleTrainingShare, internalVersion, measuredDomains, measuredSd, poolAllocation, runBand, runEtaDays, runStall, streamShare,
-  flopPerToken, tokEff, useHourCost, usesOf, versionById, versionPressure,
+  deployGate, flopPerToken, tokEff, useHourCost, usesOf, versionById, versionPressure,
 } from '../../../engine/v2';
 import type { GameStateV2, ModelVersion } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -91,6 +91,7 @@ function VersionRow({ s, v, sel, depth }: { s: GameStateV2; v: ModelVersion; sel
     <button className={`lin-ver ${sel === v.id ? 'active' : ''}`} style={{ paddingLeft: 8 + depth * 14 }} data-version={v.id} onClick={() => store.select({ versionId: v.id })}>
       <span>{v.name}</span>
       {v.variant !== 'full' && <span className="chip-mini">{v.variant}</span>}
+      {v.openDay !== undefined && <span className="chip-mini"><Term id="openRelease">open</Term></span>}
       {best && <Tip content={() => <TipCard title="Best of its kind">{`The ${v.variant} version with the highest measured level that is ready to use.`}</TipCard>}><span className="chip-mini tone-pos" data-test="best-badge">best</span></Tip>}
       {internal && <span className="chip-mini tone-pos"><Term id="internalAgent">internal</Term></span>}
       <span className={`small ${STATUS_TONE[v.status]}`}>{v.status}</span>
@@ -121,6 +122,9 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
   const uses = usesOf(s, v.id);
   const internal = uses.model.length > 0 || uses.monitor.length > 0;
   const hMin = horizon ? horizon.score : 0;
+  // RD-P05: the open release is a one-way act on this model; the same gate as the release (deployGate on 'open').
+  const og = deployGate(s, v, 'open');
+  const openBlock = og === true ? undefined : og;
   return (
     <Card title={<span>{v.name} <span className="dim">· <Term id="variant">{v.variant}</Term> · {v.status}</span></span>} home="modelCard"
       right={<span className="row-i">{v.status === 'evaluating' && <button className="tag2 warn" data-test="card-evaluating" onClick={() => openEvalQueue(v.id)}><Term id="evaluating">evaluating</Term> <ICON.go size={11} /></button>}<Tip content={() => <LevelTip s={s} v={v} />}><span className="num big">L {v.evals.measuredL !== undefined ? F.level(v.evals.measuredL) : '—'}{v.evals.measuredL !== undefined && <span className="dim small"> ± {measuredSd(v).toFixed(2)}</span>}</span></Tip></span>}>
@@ -176,10 +180,8 @@ export function ModelCard({ s, v }: { s: GameStateV2; v: ModelVersion }) {
         <div className="act-group"><span className="tip-cap"><Term id="evals">Evaluate</Term></span>
           <button className="btn btn-sm go-btn" data-go="models.evals" data-test="card-order-evals" onClick={() => { store.select({ versionId: v.id }); store.goto('models', { tab: 'evals', anchor: 'evalOrder' }); }}><ICON.finding size={13} /> Order a suite <ICON.go size={12} /></button>
         </div>
-        <div className="act-group"><span className="tip-cap"><Term id="variant">Variants</Term></span>
-          <ActBtn id="makeVariant" params={{ versionId: v.id, variant: 'gov' }} label="Gov" />
-          <ActBtn id="makeVariant" testId="makeVariant.trusted" params={{ versionId: v.id, variant: 'trusted' }} label="Trusted" />
-          <ActBtn id="makeVariant" testId="makeVariant.open" params={{ versionId: v.id, variant: 'open' }} label="Open weights" />
+        <div className="act-group"><span className="tip-cap"><Term id="openRelease">Release</Term></span>
+          <ActBtn id="releaseOpen" testId="releaseOpen" params={{ versionId: v.id }} label="Release open weights" block={openBlock} reason />
           <ActBtn id="launchDistill" params={{ teacherVersionId: v.id }} label="Distill a mini" block={v.variant === 'imported' ? 'Post-train the imported model first (Blueprint › Post-train)' : undefined} />
         </div>
         <div className="act-group"><span className="tip-cap">Retire</span>

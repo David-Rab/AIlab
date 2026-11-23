@@ -1,10 +1,11 @@
 // Rivals, China and the simulated leader lab in effective compute (model v3 F1: design/MODEL-V3.md §12, §13;
 // design/notes/F1.md). Owner: WS1 (capability) / WS4 (behaviour). Data: src/data/v2/rivalModel.ts.
 //
-// A non-player lab is the player's model at aggregate level, without ideas or a blueprint:
+// A non-player lab is the player's model at aggregate level, without a blueprint; the paradigms' typed effects it adopts
+// through aggregate adoption steps at its research speed (RD-X02, adoptRivalIdeas):
 //   recipe     three parts in the player's stack units (model v3 F2): pretraining efficiency e_pre, RL efficiency (rlMid)
 //              and RL ceiling (rlCeil). Each part p is a research pool with its lines' returns r_p = Σ rShare × r (the
-//              player's line pools, research.ts linePool, at aggregate level): dS_p/dt = a_p · RS/RS₀ · 10^(−S_p/r_p) at
+//              player's line pools, research.ts linePool, at aggregate level): dS_p/dt = a_p · RS/RS₀ · 10^(−S_p/r_p) (RD-X01: research.ts lineRate summed over the part's lines) at
 //              test scale. Pretraining results are realised at the run's FLOP: e_pre gains κ_pre·dS_pre, κ_pre the
 //              reference lines' scale factor (F_base/F_test)^s on their survivors (recipeParts); the RL parts enter G through
 //              the reference RL run (rlGains on the reference suites), which saturates as the player's does. Start rates: the
@@ -24,26 +25,30 @@
 //              the training pool weekly on continued pretraining and an RL refresh of the internal model
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { DEFAULT_LINES, LINE_STAGES, SMALL_TO_TEST, SURVIVE_FRAC, S_RANGE } from '../../../data/v2/research';
-import { TREE_BY_ID } from '../../../data/v2/tree';
-import { E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
+import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research';
+import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
+import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
+import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
-import { domainsOf, gOfBuild, gV0, levelOfG, startLab } from '../models/capability';
-import { continueGPre, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
+import { hash32 } from '../core/rng';
+import { ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, RIVAL_TOOL_DAYS_PER_TW, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
+import { domainRefShift, domainsOf, gOfBuild, gV0, levelOfG, startLab, versionDomainG } from '../models/capability';
+import { continueGPre, distillGap, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
 import { baseGOf } from '../models/runs';
 import { Q_REF, REF_SHARE, type DataDraw } from '../production/data';
 import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { DomainMix } from '../../../data/v2/dataAssets';
+import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, serveFlopOomOf } from '../models/stacks';
 import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, workFitW } from '../departments/workfit';
-import { tokEff } from '../worldfx/serving';
+import { lineupSizes, tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { REF_AGENT_SHARES } from '../../../data/v2/agents';
-import type { BaseDesign, GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld, VersionBuild } from '../types';
+import type { BaseDesign, DomainId, GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld, VersionBuild } from '../types';
 
 /** A model the aggregate research reads: its G and (RD-X03) its reference-profile build. */
 export type AiModel = Pick<SimpleModel, 'G' | 'build'>;
@@ -72,15 +77,15 @@ const PARTS: Part[] = ['pre', 'mid', 'ceil'];
 const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
 
 /** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes): a result is measured at the scale test (F_test =
- *  LINE_STAGES.testFrac of the base) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
- *  survives the scale test iff its effect there keeps SURVIVE_FRAC of the small-scale one (1000^s ≥ SURVIVE_FRAC), and
+ *  the line's testFrac of the base, research.ts stagesOf) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
+ *  survives the scale test iff its scale exponent s ≥ s* (research.ts S_SURVIVE, the player's survival rule), and
  *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
  *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_RANGE (Scaling recipes 1.507, Data 1.175,
  *  Optimizer 2.099; s ≡ 0: 1). Not fitted. */
-export function lineScaleFactor(mu: number, sd: number): number {
-  const up = 1 / LINE_STAGES.testFrac;
+export function lineScaleFactor(mu: number, sd: number, testFrac = LINE_TEST_FRAC()): number {
+  const up = 1 / testFrac;
   if (sd <= 0) return Math.pow(up, Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu)));
-  const sStar = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
+  const sStar = S_SURVIVE;
   let num = 0;
   let den = 0;
   const N = 4001;
@@ -100,22 +105,26 @@ export function lineScaleFactor(mu: number, sd: number): number {
  *  day-0 inputs (OOM/yr): the pretraining part realises PRE_RATE0 (a_pre = PRE_RATE0 / κ_pre) and every part's start
  *  progress is its rShare of the whole (rShare = the line's share of the lab's start software progress, V3b), a_p =
  *  a_pre·w_p / w_pre. */
-export interface RecipePart { w: number; kappa: number; a: number }
+export interface RecipePart { w: number; kappa: number; a: number; lines: TreeNodeDef[] }
+/** The scale test's FLOP share of a line (the player's stagesOf; one value for every line). */
+const LINE_TEST_FRAC = () => stagesOf({ kind: 'line' } as TreeNodeDef).testFrac;
 let partsMemo: Record<Part, RecipePart> | undefined;
 export function recipeParts(): Record<Part, RecipePart> {
   if (partsMemo) return partsMemo;
-  const acc = { pre: { w: 0, k: 0 }, mid: { w: 0, k: 0 }, ceil: { w: 0, k: 0 } };
+  const acc = { pre: { w: 0, k: 0, lines: [] as TreeNodeDef[] }, mid: { w: 0, k: 0, lines: [] as TreeNodeDef[] }, ceil: { w: 0, k: 0, lines: [] as TreeNodeDef[] } };
   for (const { id } of DEFAULT_LINES) {
-    const e = TREE_BY_ID[id]?.effect;
+    const n = TREE_BY_ID[id];
+    const e = n?.effect;
     const part = PARTS.find((p) => PART_STACK[p] === e?.stack);
-    if (!e || !part) continue;
-    const sh = e.rShare ?? 0;
+    const sh = e?.rShare ?? 0;
+    if (!n || !e || !part || sh <= 0) continue;
     acc[part].w += sh;
-    acc[part].k += sh * lineScaleFactor(e.s?.[0] ?? 0, e.s?.[1] ?? 0);
+    acc[part].k += sh * lineScaleFactor(e.s?.[0] ?? 0, e.s?.[1] ?? 0, stagesOf(n).testFrac);
+    acc[part].lines.push(n);
   }
   const kPre = acc.pre.k / Math.max(1e-12, acc.pre.w);
   const aPre = PRE_RATE0 / kPre;
-  const mk = (p: Part): RecipePart => ({ w: acc[p].w, kappa: acc[p].k / Math.max(1e-12, acc[p].w), a: (aPre * acc[p].w) / acc.pre.w });
+  const mk = (p: Part): RecipePart => ({ w: acc[p].w, kappa: acc[p].k / Math.max(1e-12, acc[p].w), a: (aPre * acc[p].w) / acc.pre.w, lines: acc[p].lines });
   return (partsMemo = { pre: mk('pre'), mid: mk('mid'), ceil: mk('ceil') });
 }
 
@@ -210,7 +219,7 @@ export const fptOfSimpleModel = (m: Pick<SimpleModel, 'fpt' | 'params'>) => m.fp
 /** Set a SimpleModel's G and its readouts (level λ(G), domain levels) and its design from `base`; D10: with the
  *  base's G_pre, the RL part of G (rlG = G − G_pre − the reference RL gain on the base, ≥ 0), which sets the model's
  *  reasoning tokens (worldfx/serving.ts tokEff). A model set from G alone (a release copy) keeps its rlG. */
-export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'> & Partial<Pick<RivalBase, 'gPre'>>) {
+export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pick<RivalBase, 'flop' | 'params'> & Partial<Pick<RivalBase, 'gPre'>>, domainDg?: SimpleModel['domainDg']) {
   m.G = G;
   // RD-X03: the model's reference-profile build follows its G (a move not made by a run, e.g. a release copy dated
   // back, enters as general ΔG); a model on a base with none gets the reference build on it at recipe 0, the rest
@@ -219,6 +228,12 @@ export function setModelG(w: TimelineWorld, m: SimpleModel, G: number, base?: Pi
   if (m.build && Math.abs(gOfBuild(m.build) - G) > 1e-12) m.build = { ...m.build, dg: m.build.dg + G - gOfBuild(m.build) };
   m.Lg = levelOfG(w, G);
   m.domains = domainsOf(w, G, m.build);
+  // RD-X02: a version post-trained after domain ideas (rivalDomainDg) carries their offsets; a copy keeps its model's.
+  // Merge p3-c2 → rd: the offsets sit on top of the RD-X03 build's domain G (versionDomainG adds domainDg).
+  if (domainDg) m.domainDg = domainDg;
+  for (const [d, dg] of Object.entries(m.domainDg ?? {}) as [DomainId, number][]) {
+    if (dg) m.domains[d] = clamp(levelOfG(w, versionDomainG(m, d) - domainRefShift(w, d)), 0, 15);
+  }
   if (base) {
     m.flop = base.flop;
     m.params = base.params;
@@ -245,7 +260,22 @@ export const rivalDecodeU = (r: Pick<RivalLab, 'phys'>) => decodeUtilOf(rivalSer
 export const rivalServeFpt = (r: Pick<RivalLab, 'phys'>, m: Pick<SimpleModel, 'fpt' | 'params'>) => fptOfSimpleModel(m) * Math.pow(10, -serveFlopOomOf(rivalServe(r)));
 /** The equivalent FLOP per token of a lab's internal agents on its internal model (FLOP, reasoning tokens, utilisation:
  *  departments/workfit.ts agentFptEq), what its aggregate research reads. */
-export const rivalAgentFpt = (r: Pick<RivalLab, 'phys' | 'internal'>) => agentFptEq(rivalServeFpt(r, r.internal), tokEff(r.internal), rivalDecodeU(r));
+export const rivalAgentFpt = (r: Pick<RivalLab, 'phys' | 'internal'>) =>
+  agentFptEq(rivalServeFpt(r, r.internal), tokEff(r.internal), rivalDecodeU(r)) * (rivalIdea(r, 'P05') > 0 ? P05_FX.tokens : 1);
+/** P05's scaffold (data/v2/features.ts P05_ORCHESTRATION: ΔG 0.26 at ×3.75 tokens). */
+const P05_FX = P05_ORCHESTRATION as Extract<typeof P05_ORCHESTRATION, { kind: 'scaffold' }>;
+/** RD-X02: the G a lab's internal agents work at in the research aggregate: the internal model's, + the P05 scaffold's
+ *  ΔG once adopted (stand-in [D]: the player's scaffold lifts the fit on SWE / Experiments / Research ideas; here the
+ *  aggregate's whole work G, coverage, win rates, AI taste and horizon, moves by it). */
+export const rivalWorkG = (w: TimelineWorld, r: Pick<RivalLab, 'phys' | 'internal'>) =>
+  gOfSimple(w, r.internal) + (rivalIdea(r, 'P05') > 0 ? P05_FX.dG : 0);
+/** Merge p3-c2 → rd: the model the research aggregate reads (RD-X03 AiModel: G and its reference-profile build), with
+ *  RD-X02's P05 scaffold ΔG as general ΔG on the build once adopted (rivalWorkG is its G). */
+export function rivalWorkModel(w: TimelineWorld, r: Pick<RivalLab, 'phys' | 'internal'>): AiModel {
+  const dG = rivalWorkG(w, r) - gOfSimple(w, r.internal);
+  if (!(dG > 0)) return r.internal;
+  return { G: r.internal.G + dG, build: r.internal.build ? { ...r.internal.build, dg: r.internal.build.dg + dG } : undefined };
+}
 /** Returns of the serving stack: the Inference-efficiency line's share of the world's r (research.ts linePool). */
 const serveRShare = () => TREE_BY_ID['L.infer']?.effect?.rShare ?? 0.15;
 /** Serving-stack growth of lab `r` today (OOM per year) at research speed `rs`: the recipe law with the line's returns,
@@ -275,7 +305,7 @@ export interface RivalResearch {
  *  work. `eff` = the lab's research-efficiency multiplier, `mods` the speed modifiers. */
 export function evalRival(s: GameStateV2, r: Pick<RivalLab, 'internal' | 'core' | 'phys'>, f: number, C: number, eff: number, mods: number): RivalResearch {
   const w = s.hidden.timeline;
-  return evalAggregate(w, r.internal, rivalAgentFpt(r), r.core.staff.cap, f, C, eff, mods);
+  return evalAggregate(w, rivalWorkModel(w, r), rivalAgentFpt(r), r.core.staff.cap, f, C, eff, mods);
 }
 
 /** Raw aggregate research of a lab (before the day-0 normalisation), MODEL-V3 §5 at aggregate level:
@@ -405,15 +435,29 @@ function day0Of(w: TimelineWorld): { E: number; I: number } {
   return out;
 }
 
-/** Growth of a recipe today (per year) at research speed `rs`: each part's pool grows a_p·rs·10^(−S_p/(w_p·r)) at test
- *  scale (AIFM's software law on the part's returns, the player's line pools); the pretraining part realises ×κ_pre
+/** Growth of a recipe today (per year) at research speed `rs`. RD-X01: each part's pool grows as the sum over its
+ *  reference lines (DEFAULT_LINES) of the player's line-rate law (research.ts lineRate) on each line's own pool (returns
+ *  r_l = rShare·r, n₀ from linePoolAt). Stated stand-in (DD-18): the lab runs its reference lines at one research speed,
+ *  every line's input growing at the same rate relative to its n₀ (i = rs·i₀ per year, i₀ = a_pre·ln 10 ÷ r_pre so that
+ *  the pretraining part realises PRE_RATE0 at rs = 1, S = 0), so the lines of a part stand at the same relative state
+ *  (S_l/r_l = S_p/r_p, the part's pool one aggregate number) and the sum is a_p·rs·10^(−S_p/r_p) (the AIFM software law on
+ *  the part's returns), taken over one day's input. The pretraining part realises ×κ_pre
  *  (at most RECIPE_RATE_MAX), the RL parts as is. `g` = the G-equivalent's growth (OOM/yr; the RL parts through the
  *  reference RL run, so it saturates). */
 export interface RecipeRates { pool: RivalRecipe; rec: RivalRecipe; g: number }
 export function recipeRates(w: TimelineWorld, ph: Pick<RivalPhys, 'rec' | 'pool'>, rs: number): RecipeRates {
   const P = recipeParts();
   const r = w.v3.r;
-  const grow = (p: Part) => P[p].a * Math.max(0, rs) * Math.pow(10, -ph.pool[p] / Math.max(1e-9, P[p].w * r));
+  const i = (Math.max(0, rs) * P.pre.a * Math.LN10) / Math.max(1e-9, P.pre.w * r);
+  const grow = (p: Part) => {
+    const rel = Math.pow(10, ph.pool[p] / Math.max(1e-9, P[p].w * r));
+    let g = 0;
+    for (const n of P[p].lines) {
+      const pl = linePoolAt(r, n);
+      g += 365 * lineRate(pl.r, pl.n0 * rel, (i * pl.n0) / 365);
+    }
+    return g;
+  };
   const pre = Math.min(RECIPE_RATE_MAX, P.pre.kappa * grow('pre'));
   const pool = { pre: pre / P.pre.kappa, mid: Math.min(RECIPE_RATE_MAX, grow('mid')), ceil: Math.min(RECIPE_RATE_MAX, grow('ceil')) };
   const rec = { pre, mid: pool.mid * P.mid.kappa, ceil: pool.ceil * P.ceil.kappa };
@@ -430,6 +474,63 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
     ph.pool[p] += x.pool[p] * dt;
     ph.rec[p] += x.rec[p] * dt;
   }
+}
+
+// ───────────────────────────── paradigm ideas (RD-X02, DD-14 rival part) ─────────────────────────────
+
+/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (pretraining-stack
+ *  idea: + x OOM on the pretraining recipe, so bases launched after adoption carry it; scale-invariant, as the player's),
+ *  P16 (training-throughput stack idea: base-run FLOP ×10^x; its serving part, also.serve × x, on the serving stack),
+ *  P09 / P11 / P22 (domain ideas: + x × the node's domain OOM on versions post-trained after adoption) and P05 (the
+ *  internal agents' scaffold: rivalWorkG, rivalAgentFpt). Not adoptable, no rival state to carry them: P07 (the long-tasks
+ *  RL family's horizon; the aggregate has no RL families), P10 / P21 / P12 (synthetic-data quality, token worth, expert
+ *  demos; a rival's base has fixed tokens per parameter and no data stock). */
+export const RIVAL_IDEA_IDS = ['P05', 'P09', 'P11', 'P16', 'P22', 'P24'] as const;
+/** Standard-team-months of idea research a lab at the leader's day-0 research speed (rs = 1) does a year: its 8 science
+ *  team-equivalents (SCI_PER_HEAD × H_REF_BASE) × 12 months, shared equally among its projects, the reference lines
+ *  (DEFAULT_LINES) and one idea at a time [D: equal share per project]. 13.7 TM a year. */
+export const RIVAL_IDEA_TM_PER_YEAR = (SCI_PER_HEAD * H_REF_BASE * 12) / (DEFAULT_LINES.length + 1);
+/** The lab's research order: the adoptable ideas by effort, the cheapest first (id breaks ties) [D: no prerequisites at
+ *  the aggregate level]. */
+let orderMemo: TreeNodeDef[] | undefined;
+export const rivalIdeaOrder = (): TreeNodeDef[] =>
+  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => TREE_BY_ID[id]).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
+/** Realised effect of an adopted idea (0 if not adopted or it did not work here). */
+export const rivalIdea = (r: Partial<Pick<RivalLab, 'phys'>>, id: string) => r.phys?.ideas?.done[id] ?? 0;
+/** Hidden: the effect lab `labId` realises from idea n. Availability is the world's: the paradigm's per-world success
+ *  draw (hidden.paradigmSuccess, the one the player's first attempt reads), so a direction that fails here gives every lab
+ *  0. Size, rolled with the lab's id: the node's mean × e^(sd·z − sd²/2) (the player's per-world project mean at taste 1,
+ *  one idea: research.ts candidateTruth's T), floored at 0; an effect-less paradigm (P05's fixed scaffold) 1 = as designed. */
+export function rivalIdeaTruth(s: GameStateV2, labId: string, n: TreeNodeDef): number {
+  if ((s.hidden.paradigmSuccess as Record<string, boolean>)[n.id] !== true) return 0;
+  const e = n.effect;
+  if (!e) return 1;
+  const u = (k: string) => (hash32(s.setup.seed, `rivalIdea:${labId}:${n.id}:${k}`) + 0.5) / 4294967297;
+  const z = Math.sqrt(-2 * Math.log(u('a'))) * Math.cos(2 * Math.PI * u('b'));
+  const sd = e.sd ?? 0;
+  return Math.max(0, (e.mean ?? 1) * Math.exp(sd * z - (sd * sd) / 2));
+}
+/** One day of lab r's idea research at research speed `rs`: rs × RIVAL_IDEA_TM_PER_YEAR / 365 team-months go to the next
+ *  idea in its order; an idea whose effort (the player's effortTM) is spent is adopted (its effect lands, rivalIdeaTruth)
+ *  and the rest carries to the next. Returns the ids adopted today. */
+export function adoptRivalIdeas(s: GameStateV2, r: RivalLab, rs: number): string[] {
+  const order = rivalIdeaOrder();
+  const st = (r.phys.ideas ??= { spent: 0, done: {} });
+  if (order.every((n) => n.id in st.done)) return [];
+  st.spent += (Math.max(0, rs) * RIVAL_IDEA_TM_PER_YEAR) / 365;
+  const out: string[] = [];
+  for (const n of order) {
+    if (n.id in st.done) continue;
+    const E = n.effortTM ?? 0;
+    if (st.spent < E) break;
+    st.spent -= E;
+    const x = rivalIdeaTruth(s, r.core.id, n);
+    st.done[n.id] = x;
+    out.push(n.id);
+    if (x > 0 && n.effect?.stack === 'pre') r.phys.rec.pre += x;
+    if (x > 0 && n.effect?.stack === 'train') r.phys.serve = (r.phys.serve ?? 0) + x * (n.effect.also?.serve ?? 0);
+  }
+  return out;
 }
 
 /** A ProductionReadout for a non-player lab from its aggregate research. */
@@ -463,7 +564,8 @@ export function growLabStaff(s: GameStateV2, r: RivalLab): void {
 // ───────────────────────────── training ─────────────────────────────
 
 /** Training FLOP a day of a lab's base run: BASE_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const baseFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
+export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>) =>
+  r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
 
 /** One day of the lab's base run: launch it BASE_RUN_DAYS before the base is due (recipe frozen at launch), add a day of
  *  FLOP. */
@@ -501,6 +603,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
     r.publicModel.build = r.internal.build;
     setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapOom, base);
   }
+  seedRivalLineup(w, r);
   const start = r.nextBaseDay - BASE_RUN_DAYS;
   if (start < 0) {
     // The run in flight launched before day 0: its recipe is today's less the lab's own day-0 growth since launch.
@@ -580,14 +683,20 @@ export function clApply(s: GameStateV2, r: RivalLab, poolFlop: number): number {
   const after = rivalVersionBuild(b, mid, ceil, gPre);
   const dG = gOfBuild(after) - gOfBuild(rivalVersionBuild(b, c.mid, c.ceil, c.gPre));
   r.phys.cl = { ...c, gPre, mid, ceil, rl: c.rl + a };
-  if (dG > 0) {
-    // The model's build is the streamed state's (its G above that, e.g. a version kept over a weaker new one, as
-    // general ΔG: setModelG).
-    const G = gOfSimple(w, r.internal) + dG;
+  // Merge p3-c2 → rd: RD-X04 rule B at each refresh (distillLift is a level over the stream's own G, so it does not
+  // compound: the model takes the larger of its G moved by the stream and own + lift); RD-X02 domain offsets; recG.
+  const own = gOfBuild(after);
+  const lift = distillLift(s, r.core.id, own, b.params).dG;
+  const G0 = gOfSimple(w, r.internal);
+  const G = Math.max(G0 + Math.max(0, dG), own + lift);
+  if (G > G0 + 1e-12) {
+    // The model's build is the streamed state's (its G above that, e.g. a version kept over a weaker new one, or the
+    // distillation lift, as general ΔG: setModelG).
     r.internal.build = after;
-    setModelG(w, r.internal, G, b);
+    setModelG(w, r.internal, G, b, rivalDomainDg(r));
+    r.internal.recG = recipeOf(s, r);
   }
-  return Math.max(0, dG);
+  return Math.max(0, G - G0);
 }
 /** Every CL_DAYS: spend the FLOP the stream accrued since the last period (clApply). Returns true if the model moved. */
 export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
@@ -599,4 +708,125 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   if (dt < CL_DAYS) return false;
   r.phys.clDay = day;
   return clApply(s, r, clFlopPerDay(r) * dt) > 0;
+}
+/** RD-X02: domain offsets (OOM) a version post-trained today carries: Σ over the lab's adopted domain ideas of the
+ *  realised effect × the node's per-domain OOM (the player's research.domainG). Undefined when none. */
+export function rivalDomainDg(r: Pick<RivalLab, 'phys'>): SimpleModel['domainDg'] {
+  let out: SimpleModel['domainDg'];
+  for (const [id, x] of Object.entries(r.phys.ideas?.done ?? {})) {
+    const dom = TREE_BY_ID[id]?.effect?.domains;
+    if (!dom || !x) continue;
+    out ??= {};
+    for (const [d, v] of Object.entries(dom) as [DomainId, number][]) out[d] = (out[d] ?? 0) + x * (v ?? 0);
+  }
+  return out;
+}
+
+// ───────────────────────────── lineups (RD-P02) ─────────────────────────────
+
+/** RD-P02 [D]: days from a release to its distilled students on sale: Haiku 4.5 matched Sonnet 4 five months after it
+ *  (design/V3-TASKS.md TIERS2). One lag for every lab: a stated stand-in for the distill run's length and the release
+ *  work (DD-18). */
+export const RIVAL_DISTILL_LAG_DAYS = Math.round(5 * 30.4);
+/** RD-P02 [D]: the most models a rival lineup keeps besides its public model (the oldest on sale leave first; bounds the
+ *  market's work): the labs' pricing pages list 4–6 current text models (design/RD-AUDIT/BUILD-NOTES.md RD-P02). */
+export const RIVAL_LINEUP_MAX = 6;
+const STUDENT_SUFFIX = ['mini', 'micro', 'nano'];
+
+/** RD-P02 (DD-01, DD-18): the students a rival's aggregate distill step makes of `teacher` at the lineup sizes
+ *  (worldfx/serving.ts lineupSizes: data/v2/serving.ts LINEUP ratios of its active parameters), each a SimpleModel of its
+ *  own: G = the teacher's less the distillation gap at full teacher-output tokens (models/effective.ts distillGap at
+ *  DISTILL_TPP × N_S, as the player's day-0 minis), active parameters and FLOP per token × r, the teacher's RL part,
+ *  domain offsets, traits, U-modes and openness; on sale from `day`. */
+export function distillStudents(w: TimelineWorld, teacher: SimpleModel, day: number): SimpleModel[] {
+  const nT = teacher.params ?? B0_PARAMS;
+  const fpt = fptOfSimpleModel(teacher);
+  return lineupSizes(nT).map((r, k) => {
+    const nS = r * nT;
+    const m: SimpleModel = {
+      ...teacher, id: `${teacher.id}/s${k + 1}`, name: `${teacher.name} ${STUDENT_SUFFIX[k] ?? `s${k + 1}`}`, day, traitsTrue: { ...teacher.traitsTrue }, uModes: [...teacher.uModes],
+      params: nS, fpt: fpt * r, isPublic: true, openWeights: teacher.openWeights, ...(teacher.domainDg ? { domainDg: { ...teacher.domainDg } } : {}),
+    };
+    setModelG(w, m, teacher.G - distillGap(nT, nS, DISTILL_TPP * nS));
+    return m;
+  });
+}
+/** RD-P02: a lineup at the start (and in a migrated save): the public model's students, made before the game began. */
+export function seedRivalLineup(w: TimelineWorld, r: RivalLab) {
+  r.lineup = r.publicModel ? distillStudents(w, r.publicModel, r.publicModel.day) : [];
+  r.distilling = [];
+}
+/** RD-P02: a rival's lineup day. On a release (`prev`: the public model it replaced, `released` true) the previous public
+ *  model stays on sale as a tier and the new one's students enter distillation, on sale RIVAL_DISTILL_LAG_DAYS later.
+ *  Students due today go on sale. A tier leaves once another model the lab sells is at least as good and no dearer to
+ *  serve (G ≥ and FLOP per token ≤, the newer one on a tie: replaced, as real labs retire a model a newer one beats on
+ *  both); past RIVAL_LINEUP_MAX the oldest leave. */
+export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, released: boolean, prev?: SimpleModel) {
+  const pub = r.publicModel;
+  let changed = false;
+  if (released && pub && prev?.id !== pub.id) {
+    if (prev) (r.lineup ??= []).push(prev);
+    (r.distilling ??= []).push(...distillStudents(w, pub, day + RIVAL_DISTILL_LAG_DAYS));
+    changed = true;
+  }
+  if (r.distilling?.some((m) => m.day <= day)) {
+    (r.lineup ??= []).push(...r.distilling.filter((m) => m.day <= day));
+    r.distilling = r.distilling.filter((m) => m.day > day);
+    changed = true;
+  }
+  if (!changed || !r.lineup) return;
+  const list = r.lineup;
+  const sellers = pub ? [...list, pub] : list; // on-sale order, the public model newest
+  const fp = sellers.map((m) => fptOfSimpleModel(m));
+  const keep = list.filter((m, i) => !sellers.some((o, j) => j !== i && o.G >= m.G && fp[j] <= fp[i] && (o.G > m.G || fp[j] < fp[i] || j > i)));
+  r.lineup = keep.slice(Math.max(0, keep.length - RIVAL_LINEUP_MAX));
+}
+
+// ───────────────────────────── product tools (RD-P07, DD-03 rival part) ─────────────────────────────
+
+/** RD-P07: records the first ship of each product tool (data/v2/features.ts ENABLER_TOOLS) on a live player product
+ *  (built, switched on, offered by the channel; open releases and internal deployments carry no product tools). A
+ *  rival's own first ship is recorded by rivalToolStep (RD-P07b). */
+export function recordToolShips(s: GameStateV2, day: number) {
+  for (const d of s.player.deployments) {
+    if (d.status === 'withdrawn' || d.channel === 'internal' || d.channel === 'open') continue;
+    for (const id of d.features) {
+      if (!ENABLER_TOOLS.includes(id as FeatureId) || !s.player.features.includes(id)) continue;
+      if (!FEATURE_BY_ID[id as FeatureId].products.includes(d.channel)) continue;
+      const ship = (s.world.fx.toolShip ??= {});
+      if (ship[id] === undefined) ship[id] = { day, by: 'player' };
+    }
+  }
+}
+/** RD-P07b (DD-18 stand-in): whether lab r knows tree idea `id` as its aggregate state is now: a ★ node (every company);
+ *  an idea the aggregate researches (RIVAL_IDEA_IDS) once adopted and it worked here; an idea it does not research (the
+ *  tools' P06 Computer use, P07 Long context + memory, Native multimodal) once its prerequisites are known and, for a
+ *  paradigm, the world's success draw (hidden.paradigmSuccess, the one the player's attempt reads) says it works [D: the
+ *  aggregate has no project state for them; all were public practice at frontier labs by mid-2025]. */
+export function rivalKnowsNode(s: GameStateV2, r: RivalLab, id: string, depth = 0): boolean {
+  const n = TREE_BY_ID[id];
+  if (!n || depth > 8) return false;
+  if (n.star) return true;
+  if ((RIVAL_IDEA_IDS as readonly string[]).includes(id)) return rivalIdea(r, id) > 0;
+  if (n.paradigm && (s.hidden.paradigmSuccess as Record<string, boolean>)[id] !== true) return false;
+  return n.needs.every((x) => rivalKnowsNode(s, r, x, depth + 1));
+}
+/** RD-P07 / RD-P07b (DD-18 stand-in): lab r's product tools. A lab with a public model on sale that passes a tool's
+ *  gate (the player's: its tree idea, rivalKnowsNode; the player's feature has no capability term) builds it in
+ *  RIVAL_TOOL_DAYS_PER_TW × buildTW days and ships it, the first ship of all labs recorded in world.fx.toolShip; a lab
+ *  that has not shipped it gets it TOOL_LAG_DAYS after any lab's first ship. It keeps a tool once it has it. */
+export function rivalToolStep(s: GameStateV2, r: RivalLab, day: number) {
+  for (const id of ENABLER_TOOLS) {
+    if (r.tools?.includes(id)) continue;
+    const f = FEATURE_BY_ID[id];
+    const b = r.toolBuild?.[id];
+    if (b === undefined && r.publicModel && (!f.node || rivalKnowsNode(s, r, f.node))) (r.toolBuild ??= {})[id] = day + f.buildTW * RIVAL_TOOL_DAYS_PER_TW;
+    const own = b !== undefined && day >= b;
+    const d0 = s.world.fx.toolShip?.[id]?.day;
+    if (!own && (d0 === undefined || day < d0 + TOOL_LAG_DAYS)) continue;
+    (r.tools ??= []).push(id);
+    if (r.toolBuild) delete r.toolBuild[id];
+    const ship = (s.world.fx.toolShip ??= {});
+    if (ship[id] === undefined) ship[id] = { day, by: r.core.id };
+  }
 }

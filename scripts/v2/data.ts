@@ -19,7 +19,8 @@ import {
 import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { candidateTruth, completeAdoption, freshCap } from '../../src/engine/v2/models/research';
 import { versionById } from '../../src/engine/v2/models/labs';
-import { freeTierOf } from '../../src/engine/v2/worldfx/serving';
+import { chatFreeTier } from '../../src/engine/v2/worldfx/serving';
+import { flopPerToken } from '../../src/engine/v2/departments/workfit';
 import { BASE_DATA, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
 import { EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../src/data/v2/suites';
 import { actionView } from '../../src/engine/v2';
@@ -321,20 +322,21 @@ const usageT = owned(sU, 'usage')!.tokensT;
 check(usageT > 0 && usageTokensPerDay(sU, consumer) > 0 && usageTokensPerDay(sU, api) === 0, 'usage: live consumer products add usage tokens; API traffic is not trained on by default',
   `${usageT.toFixed(2)}T in 20 days; consumer ${(usageTokensPerDay(sU, consumer) * 1000).toFixed(1)}B/day on ${consumer.servedH100e?.toFixed(0)} H100e, API 0`);
 // A6: Chat's free users run on its free tier, so served compute beyond the paying need counts the free tier's tokens
-// (×8 per H100e for an eighth-size mini; A7: without a mini, ×1/r for the cheapest student of its model, freeTierOf),
+// (×8 per H100e for an eighth-size mini; RD-P02: ×1/r for the free-tier slot model),
 // the paying need's the main model's.
 {
   const c = { ...consumer, servedH100e: 1000, needH100e: 1000, needPaidH100e: 400 };
   const flat = usageTokensPerDay(sU, { ...c, needPaidH100e: 1000 });
   const auto = usageTokensPerDay(sU, c);
-  const rAuto = freeTierOf(versionById(sU, consumer.versionId)?.params ?? REFERENCE_BASE.params).r;
+  const vMain = versionById(sU, consumer.versionId);
+  const rAuto = vMain ? (chatFreeTier(sU, consumer)?.fpt ?? 1) / flopPerToken(sU, vMain) : 1; // RD-P02: the Chat free-tier slot's real model
   const V0 = sU.player.models.versions[0];
   const mini = { ...V0, id: 'A6mini', variant: 'mini' as const, fpt: (V0.fpt ?? 2e12) / 8 };
   sU.player.models.versions.push(mini);
-  const tiered = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini' });
-  const allPaid = usageTokensPerDay(sU, { ...c, miniVersionId: 'A6mini', needPaidH100e: 1000 });
+  const tiered = usageTokensPerDay(sU, { ...c, lineup: ['A6mini'] });
+  const allPaid = usageTokensPerDay(sU, { ...c, lineup: ['A6mini'], needPaidH100e: 1000 });
   sU.player.models.versions.pop();
-  check(near(tiered / flat, 0.4 + 0.6 * 8, 1e-3) && near(allPaid, flat, 1e-9) && near(auto / flat, 0.4 + 0.6 / rAuto, 1e-3), 'usage: the free tier (a Chat mini, else the cheapest student, A7) serves the free users\' tokens at its own FLOP per token (A6)',
+  check(near(tiered / flat, 0.4 + 0.6 * 8, 1e-3) && near(allPaid, flat, 1e-9) && near(auto / flat, 0.4 + 0.6 / rAuto, 1e-3), 'usage: the free tier (a Chat mini, else the cheapest lineup model, RD-P01a) serves the free users\' tokens at its own FLOP per token (A6)',
     `all paying ${(flat * 1e3).toFixed(2)} → mini ${(tiered * 1e3).toFixed(2)} / auto free tier ${(auto * 1e3).toFixed(2)}B/day on 1000 H100e (400 paying need)`);
 }
 const startUsage = owned(s0, 'usage')!.tokensT;

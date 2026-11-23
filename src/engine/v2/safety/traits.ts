@@ -1085,7 +1085,7 @@ export function synTeachers(s: GameStateV2, draw: Pick<BaseQuantities['draw'], '
   return Object.entries(draw.bySynTeacher ?? {}).filter(([, n]) => n > 0)
     .map(([id, n]) => ({ id, x: (id ? versionById(s, id)?.traitsTrue : undefined) ?? TRAIT_START, share: n / T }));
 }
-function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitId, TraitBelief> {
+export function distilledBeliefs(b: Record<TraitId, TraitBelief>): Record<TraitId, TraitBelief> {
   const est = distilledStart(Object.fromEntries(TRAIT_IDS.map((t) => [t, b[t]?.est ?? TRAIT_START[t]])) as TraitVector);
   return Object.fromEntries(TRAIT_IDS.map((t) => [t, { ...(b[t] ?? { sd: SD_MAX, clarity: 0 }), est: est[t] }])) as Record<TraitId, TraitBelief>;
 }

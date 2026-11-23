@@ -357,8 +357,16 @@ export interface ModelVersion {
   name: string; // e.g. "Atlas-3.2"
   baseId: string;
   parentVersionId?: string;
+  /** RD-P01b: a cheap tier the "Auto-make cheap tiers" policy distilled: it joins the lineup of every live product its
+   *  teacher (parentVersionId) is the main model of once ready and evaluated, then the mark is dropped. */
+  autoTier?: true;
   day: Day;
+  /** RD-X04: the player's recipe G (RECIPE_F) when the version was made: what releasing it reveals (diffusion.ts). */
+  recG?: number;
   variant: Variant;
+  /** RD-P05 (DD-02 a): the day its weights were released openly (the `releaseOpen` act, one-way). Gov and Trusted are
+   *  who a product is offered to (its channel and usage terms), not kinds of model. */
+  openDay?: Day;
   design: PostDesign;
   /** TRUE general effective compute G (OOM; hidden; benchmarks are noisy reads of its level λ(G)). Model v3 F3:
    *  replaces the progress coordinate pm = Φ(G). */
@@ -423,7 +431,7 @@ export interface VersionBuild {
 }
 
 /** 'imported' (D6, spinout start): an open-weight model brought in from outside; post-trainable, internal use only. */
-export type Variant = 'full' | 'mini' | 'gov' | 'trusted' | 'open' | 'imported';
+export type Variant = 'full' | 'mini' | 'imported';
 
 export type TraitVector = Record<TraitId, number>; // 0..1 propensity strength
 
@@ -492,6 +500,8 @@ export interface TrainingRun {
   kind: RunKind;
   name: string;
   startDay: Day;
+  /** RD-P01b: a distillation the "Auto-make cheap tiers" policy queued (its student gets ModelVersion.autoTier). */
+  autoTier?: true;
   /** FLOP required and done; duration = FLOP ÷ rate, no minimum length (MODEL-V3 §3.3). */
   flopNeeded: number;
   flopDone: number;
@@ -580,19 +590,24 @@ export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'tr
 export type DeploymentKind = 'product' | 'internal' | 'open';
 /** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
 export type PriceTier = 'budget' | 'standard' | 'premium';
-/** A sector pack on a product (RD-B12): the sector and the day its certification ends (built + SECTOR_CERT_DAYS). */
-export interface SectorPack { sector: SectorId; certDay: Day }
+/** RD-P08 (DD-04): a sector adaptation owned by a product (models/adaptations.ts): its scaffold for the sector is built;
+ *  `certDone` the day its certification ends where the sector requires one (CERT_SECTORS), unset where it needs none. */
+export interface Adaptation { sector: SectorId; certDone?: Day }
 
-/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ optional mini free tier) and an
+/** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ an optional lineup of other models) and an
  *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
 export interface Deployment {
   id: string;
   kind: DeploymentKind;
   versionId: string;
-  /** Smaller model on the product. Chat: its free tier, the model Chat's free users get (worldfx/serving.ts chatFreeTier),
-   *  and nothing else (RD-B11: paying users run the main model; the old FREE_TIER_SHARE blend is gone). Sector
-   *  products (API, Agents): a separate cheap tier (productMiniUses), not blended. */
-  miniVersionId?: string;
+  /** RD-P01a (DD-01): the product's lineup after its main model (versionId): other real versions the lab owns (distilled
+   *  minis, older full models, post-trains) in the player's order. Sector products sell each entry as a tier at its own
+   *  fit and serving cost and the product's markup (worldfx/serving.ts productLineup); Chat's free users get one lineup
+   *  model (freeTierId), its paying users the main model. No entry: the main model alone. */
+  lineup?: string[];
+  /** RD-P01a: Chat's free-tier slot: the lineup model (the main one or an entry) its free users get (worldfx/serving.ts
+   *  chatFreeTier); unset or not in the lineup: the lineup's cheapest model to serve. */
+  freeTierId?: string;
   /** Monitor model watching this product's outputs (R6, D7): catches incidents before customers see them, at a
    *  serving overhead. */
   monitorId?: string;
@@ -612,13 +627,12 @@ export interface Deployment {
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   /** Owned safeguard items (SR-13: control protocol, human review, restriction, comms lockdown; safety/safeguards.ts). */
   guards: SafeguardItem[];
-  /** Sector packs owned by this product (RD-B12; DD-04): +SECTOR_PACK_DG OOM of fit in the sector once certified
-   *  (worldfx/serving.ts), Enterprise ×3 channel weight there (worldfx/revenue.ts), and while live and certified US
-   *  friction R −0.1 in the sector (worldfx/sectors.ts). They move to the next launch on the channel (a relaunch) and
-   *  stop acting when the product is retired (the sector can then be packed again). */
-  packs: SectorPack[];
+  /** RD-P08 (DD-04): this product's sector adaptations (models/adaptations.ts): each raises this product's coverage of
+   *  its sector's tasks once built and, where the sector requires it, certified (worldfx/serving.ts offerOf). They move
+   *  to the next launch on the channel (a relaunch) and stop acting when the product is retired. */
+  adaptations: Adaptation[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
-  kyc: 0 | 1 | 2 | 3; // anti-distillation level (api/agents)
+  kyc: 0 | 1 | 2 | 3; // RD-P09: buyer verification (api/agents): each level verifies 10× more of the anonymous buyers
   status: 'live' | 'withdrawn';
   // derived each day
   revenueRate?: Money; // $B/yr
@@ -630,6 +644,9 @@ export interface Deployment {
   /** Chat: the part of needH100e its paying users need (served first, on the main model; the rest is free users on the
    *  mini when it has one). A6: usage data counts each tier's tokens at its own model's FLOP per token. */
   needPaidH100e?: number;
+  /** RD-P09: output tokens served per day (served H100e at the main model's decode throughput); the distillation leak
+   *  through this product reads its anonymous share (production/diffusion.ts teacherAccess). */
+  servedTokensDay?: number;
   /** Revenue run-rate at each 30-day mark, last 12 (product card chart). */
   hist?: number[];
 }
@@ -792,7 +809,7 @@ export type ReNeed = 'ops' | 'evals' | 'exp';
  *  removals, line-project experiments (by project priority), tool re-validation (upkeep). Each has a real demand;
  *  capacity none takes is idle. */
 export type SafReNeed = 'cases' | 'patches' | 'safExp' | 'validation';
-/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, packs). */
+/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: a team count (`max`, team-equivalents) and a
  *  share of the capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. */
@@ -1188,7 +1205,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'sectorPack' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'adaptation' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -1210,7 +1227,7 @@ export interface BuildItem {
   priority: number;
   /** Day it was queued. */
   day: Day;
-  /** kind 'launch': the product settings; kind 'sectorPack': the host product id (ref = the sector); kind 'adopt': ref = the
+  /** kind 'launch': the product settings; kind 'adaptation': the host product id (ref = the sector); kind 'adopt': ref = the
    *  project (tree node) whose result is built into the stack (model v3 V2). */
   launch?: PendingLaunch;
   host?: string;
@@ -1303,6 +1320,10 @@ export interface PlayerPolicies {
   /** Re-run the eval suite every 30 days on the internal model and models updated in place (R6, replaces the 30-day
    *  eval expiry that blocked launches). */
   autoEvaluate: boolean;
+  /** RD-P01b "Auto-make cheap tiers" (default on for new games): when a full model is a live product's main model and
+   *  no student of it exists or is training, distil a 1/5.7-size student of it (a real run: its compute and time); it
+   *  joins the lineup when ready and evaluated. Off: nothing automatic. */
+  autoCheapTier: boolean;
   /** Trusted to AI (R7): share of safety research and investigation work done by the safety agents (one policy; it
    *  replaces per-agenda automation). Works only above the AI-labour gate (B3). */
   trustedToAI: number;
@@ -1882,6 +1903,11 @@ export interface SimpleModel {
   /** RD-X03: the reference-profile build its training made (actors/rivalModel.ts rivalVersionBuild: baseG and rlGains
    *  on the lab's reference portfolio); its work fit, horizon and domain levels read it. Absent: a model known by G alone. */
   build?: VersionBuild;
+  /** RD-X02: domain effective-compute offsets (OOM) of a rival version post-trained after its lab adopted domain ideas
+   *  (P09 / P11 / P22): added to G in that domain's level (setModelG). */
+  domainDg?: Partial<Record<DomainId, number>>;
+  /** RD-X04: the lab's recipe G (RECIPE_F) when the version was post-trained: what releasing it reveals (diffusion.ts). */
+  recG?: number;
 }
 
 /** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active
@@ -1913,6 +1939,9 @@ export interface RivalPhys {
   rec: { pre: number; mid: number; ceil: number };
   /** Research pools of the three parts: OOM at test scale since the start (the lines' pools at aggregate level). */
   pool: { pre: number; mid: number; ceil: number };
+  /** RD-X02: aggregate adoption of the paradigms' typed effects (actors/rivalModel.ts adoptRivalIdeas): research spent on
+   *  the idea in progress (standard-team-months) and each finished idea's realised effect (0: it did not work here). */
+  ideas?: { spent: number; done: Record<string, number> };
 }
 
 /** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
@@ -1938,6 +1967,21 @@ export interface RivalLab {
   archetype: string; // LAB_ARCHETYPES id
   internal: SimpleModel;
   publicModel?: SimpleModel;
+  /** RD-P02 (DD-01, DD-18): the lab's lineup besides its public model, real models on sale as cheaper tiers: its earlier
+   *  public models and the distilled students of its releases (actors/rivalModel.ts rivalLineupStep). */
+  lineup?: SimpleModel[];
+  /** RD-P02: students its aggregate distill step is making; each goes on sale on its `day`. */
+  distilling?: SimpleModel[];
+  /** RD-P07 (DD-03 rival part): the product tools (enabler feature ids) the lab sells with, acquired TOOL_LAG_DAYS after
+   *  the first lab shipped each (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
+  tools?: string[];
+  /** RD-P07b: tools it is building itself (it passed the feature's gate): the day each build finishes and it ships. */
+  toolBuild?: Record<string, Day>;
+  /** RD-P08 (DD-04 rival part): sectors the lab sells an adaptation in (models/adaptations.ts rivalAdaptStep); its
+   *  offers there cover more of the sector's tasks. */
+  adapts?: SectorId[];
+  /** RD-P08: adaptations it is building (and certifying): the day each goes on sale. */
+  adaptBuild?: Partial<Record<SectorId, Day>>;
   nextBaseDay: Day;
   /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
   phys: RivalPhys;
@@ -2112,6 +2156,9 @@ export interface WorldFxState {
    *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
    *  even spread (data/v2/serving.ts MULTI_HOMING). */
   secReach?: Record<RegionId, Record<string, number>>;
+  /** RD-P07 / RD-P07b: the first ship of each product tool (enabler feature id) by any lab: the day and who ('player' or
+   *  the lab id; actors/rivalModel.ts recordToolShips, rivalToolStep). */
+  toolShip?: Record<string, { day: Day; by: string }>;
 }
 
 export interface SectorState {

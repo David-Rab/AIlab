@@ -55,6 +55,18 @@ export function gOfLevel(w: TimelineWorld, L: number): number {
   return g[g.length - 1];
 }
 
+/** RD-P04: OOM of effective compute per display level at level L (the inverse slope of λ on the knot segment holding
+ *  L). A v2 spread of s levels around a threshold L* is s × oomPerLevel(L*) OOM: exact while G stays on that segment. */
+export function oomPerLevel(w: TimelineWorld, L: number): number {
+  const g = levelKnotsG(w);
+  let i = 0;
+  while (i < g.length - 2 && L >= LEVEL_AT[i + 1]) i++;
+  return Math.max(1e-9, g[i + 1] - g[i]) / (LEVEL_AT[i + 1] - LEVEL_AT[i]);
+}
+/** RD-P04: a v2 display-level gate σ((L_d − L*)/s) on domain G (OOM): σ((x − λ⁻¹(L*)) / (s·oomPerLevel(L*))), x the
+ *  domain's scale G (domainScaleG). The threshold converts exactly through the one λ; the spread on L*'s segment. */
+export const levelGate = (w: TimelineWorld, x: number, L: number, s: number) => 1 / (1 + Math.exp(-(x - gOfLevel(w, L)) / (s * oomPerLevel(w, L))));
+
 /** Decimal year of a day (v1 convention) on the standard start date. */
 export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 
@@ -111,10 +123,13 @@ export function gOfDomain(b: VersionBuild, d: DomainId): number {
   const rl = b.dgRLd[d] !== undefined ? (b.dgRLd[d] ?? 0) - REF_RL_PROFILE[d] : b.dgRL;
   return b.gPre + (b.sD[d] ?? 0) + rl + b.dg + (b.dgD[d] ?? 0);
 }
-/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon and the displayed
- *  domain level read (OOM): the build's domain G (a version without a build: its general G; RD-E01a deleted P19's RSCH gain). */
-export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId): number {
-  return v.build ? gOfDomain(v.build, d) : v.G;
+/** The one domain effective compute that the work fit (departments/workfit.ts domainG), the horizon, the displayed
+ *  domain level and the world effects read (OOM): the build's domain G (a version without a build: its general G plus
+ *  its domain offset, RD-P04c: a rival / China version's adopted-idea `domainDg`, SimpleModel; RD-E01a deleted P19's
+ *  RSCH gain). */
+export function versionDomainG(v: Pick<ModelVersion, 'G' | 'build'> & { domainDg?: Partial<Record<DomainId, number>> }, d: DomainId): number {
+  // Merge p3-c2 → rd: rivals now carry an RD-X03 build too, so the adopted-idea offsets add on top of either.
+  return (v.build ? gOfDomain(v.build, d) : v.G) + (v.domainDg?.[d] ?? 0);
 }
 
 /** How far a domain's best human sits above the coding / agency best human (OOM): best_d − G_SC = δ_d·Δ_bm, δ_d =
@@ -130,6 +145,16 @@ export function domainRefShift(w: TimelineWorld, d: DomainId): number {
     shiftMemo.set(w.v3, m);
   }
   return m[d];
+}
+
+/** RD-P04: a model's domain G on the general λ scale (OOM): G_d − (best_d − G_SC), so λ of it is the domain score. The
+ *  one capability input the world effects read (α, the PHYS gate, control, tech gates, bestPublic). */
+export const domainScaleG = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId) => versionDomainG(v, d) - domainRefShift(w, d);
+/** RD-P04b: every domain's scale G of a model (domainScaleG), as a record. */
+export function domainScaleGs(w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>): Record<DomainId, number> {
+  const out = {} as Record<DomainId, number>;
+  for (const d of DOMAIN_IDS) out[d] = domainScaleG(w, v, d);
+  return out;
 }
 
 /** Domain score L_d = λ(G_d − (best_d − G_SC)), clamped to [0, 15] (RD-U05; MODEL-V3 §2.3): the version's domain

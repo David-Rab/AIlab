@@ -6,7 +6,7 @@ import { alphaUseOf, savedAt, useShareOf, workHoursOf } from './use';
 import { CONSUMER_MKT, SECTOR_WORK, TOKENS } from '../../../data/v2/serving';
 import { worldMix, type WorldMix } from './mix';
 import { consumerSpend, consumerUsers, regionSubscribers, sectorSpendParts } from './revenue';
-import { adoptedTokens, reachTarget, tokEff } from './serving';
+import { adoptedTokens, lineupVersions, reachTarget, tokEff } from './serving';
 import { versionById } from '../models/labs';
 
 /** Share of US remote-work (pure cognitive) tasks done by AI (AI 2027 Oct 2027: 25% of remote-work jobs). */
@@ -109,14 +109,18 @@ export function workBilling(s: GameStateV2, mix: WorldMix = worldMix(s)): { regi
   let playerSeats = 0;
   // MKT (D10's open readout item): the tokens a day count the reasoning tokens of the models bought, τ on the output
   // tokens (tokEff, as the offers' serving cost does), not the 2025 profiles: per provider its model's τ (the player: the
-  // product that serves the sector, blended with its mini by the hours its buyers take on it; students reason like their
+  // product that serves the sector, blended over its lineup by the hours its buyers take on it; students reason like their
   // teacher), share-weighted per cell (agent tokens by each provider's agent-hours).
   const tauRival = mix.providers.map((p) => tokEff(p.model));
-  const depTau = (id: string | undefined, miniW = 0) => {
+  const depTau = (id: string | undefined, w?: readonly number[]) => {
     const d = id ? s.player.deployments.find((x) => x.id === id) : undefined;
     const t = tokEff(d ? versionById(s, d.versionId) : undefined);
-    const tm = d?.miniVersionId ? tokEff(versionById(s, d.miniVersionId)) : t;
-    return (1 - miniW) * t + miniW * tm;
+    if (!d || !w || w.length < 2) return t;
+    // RD-P01a: blended over the product's lineup (main model, then its real entries) by its buyers' hours on each.
+    const vs = lineupVersions(s, d);
+    let tau = (w[0] ?? 0) * t;
+    for (let k = 1; k < w.length; k++) tau += (w[k] ?? 0) * tokEff(vs[k - 1]);
+    return tau;
   };
   const outW = (tk: { input: number; output: number }, tau: number) => tk.input + tk.output * tau;
   for (const r of REGIONS) {
@@ -133,7 +137,7 @@ export function workBilling(s: GameStateV2, mix: WorldMix = worldMix(s)): { regi
       for (let i = 0; i < m.share.length; i++) {
         const sh = m.share[i];
         if (!sh) continue;
-        const tau = i === pi ? depTau(m.playerDep, m.playerDep ? m.playerMiniW[m.playerDep] ?? 0 : 0) : tauRival[i];
+        const tau = i === pi ? depTau(m.playerDep, m.playerDep ? m.playerTierW[m.playerDep] : undefined) : tauRival[i];
         tS += sh * tau;
         wS += sh;
         tA += sh * m.agentK[i] * tau;

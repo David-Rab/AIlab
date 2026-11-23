@@ -787,12 +787,10 @@ for (const a of FINANCE_ACTIONS) {
     const s = fx();
     s.player.board = initialBoard('pbcTrust');
     const v = candidate(s, 'VTRUST');
-    v.variant = 'open';
     v.flags = { cyberOffense: true };
     const g = deployGate(s, v, 'open');
     const tv = transferVote(s, v, 'open')!;
     const plain = candidate(s, 'VPLAIN');
-    plain.variant = 'open';
     plain.flags = { persuasion: true };
     const gp = deployGate(s, plain, 'open');
     const cv = controlVote(s, 'Test partner', 0.6);

@@ -100,13 +100,12 @@ export function chinaGapFormulaMonths(s: GameStateV2): number {
   return 10.8 * Math.log10(Math.max(1.01, us / cn)) * (1 - (0.5 * da) / 60) + GAP_ALGO_OFFSET;
 }
 
-/** KYC-adjusted distillation target: DA × 0.75 per KYC level on the player's API/agent deployments (§3.6). */
+/** Distillation access target (§3.6): threat-intel sharing, adversary restrictions and a KYC ban lower it. RD-P09: the
+ *  player's per-product KYC acts on that product's own leak (production/diffusion.ts teacherAccess), not here. */
 export function distillTarget(s: GameStateV2): number {
-  let kyc = 0;
-  for (const d of s.player.deployments) if (d.status === 'live' && (d.channel === 'api' || d.channel === 'agents')) kyc = Math.max(kyc, d.kyc);
   const shared = s.flags['ws4:threatIntel'] ? 0.85 : 1;
   const restricted = s.flags['ws4:restrictAdversary'] ? 0.85 : 1;
-  return 60 * Math.pow(0.75, kyc) * shared * restricted * (s.flags['ws4:kycBan'] ? 0.75 : 1);
+  return 60 * shared * restricted * (s.flags['ws4:kycBan'] ? 0.75 : 1);
 }
 
 const RUNG_TEXT = [

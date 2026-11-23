@@ -1,7 +1,9 @@
 // World technology tree W01–W29 (V2-SPEC §3.11.2; research/16 §3). Owner: WS5.
 //
 //   World research rate S = 1 + (M_sci − 1)·A_SCI·ExpCap                                   (R16 §3.1)
-//   M_sci = 2^((L_sci − 8)/1.5) for L_sci > 8, else 1 + 0.1·(L_sci − 5);  L_sci = mean(REASON, AGENCY, CODE)
+//   M_sci = 2^((g_sci − λ⁻¹(8))/(1.5·o)) above λ⁻¹(8), else 1 + 0.1·(g_sci − λ⁻¹(5))/o;  g_sci = mean domain G of
+//           REASON, AGENCY, CODE (OOM; RD-P04b: v2's L 8 / 1.5 L / 0.1 per L restated through the one λ, o = OOM per level
+//           on the V0 → SC segment, exact there; above SC the doubling keeps that segment's slope, a stand-in)
 //   ExpCap = min(1, 0.4 + 0.3·[W04 autonomous labs] + 0.3·RobotAvail_SCI)
 //   prog += (S + S_player)·dt/Effort once gates (best accessible model) and prerequisites are met
 //   Impact ramps as a logistic over Lag years after discovery, compressed by fast-track/in-silico trials (health)
@@ -9,7 +11,8 @@
 // The player's moonshot adds S_player = M_sci(internal)·computeShare·10 [D] and opens the gate to the internal model.
 import { TECH_BY_ID, WORLD_TECHS, type TechEffects, type WorldTechDef } from '../../../data/v2/techs';
 import { internalVersion } from '../models/labs';
-import type { DomainId, GameStateV2, SystemCtx } from '../types';
+import { domainScaleGs, gOfLevel, levelGate, oomPerLevel } from '../models/capability';
+import type { DomainId, GameStateV2, SystemCtx, TimelineWorld } from '../types';
 import { worldMix, type WorldMix } from './mix';
 import { policyState, sigmoid, techRamp } from './policy';
 import { robotAvail } from './robots';
@@ -19,19 +22,23 @@ export { techRamp };
 /** S_player = M_sci(internal)·share·MOONSHOT_K (10% of compute at internal L_sci 12 ≈ +6 S). [D] */
 export const MOONSHOT_K = 10;
 
-export function mSci(Lsci: number): number {
-  return Lsci > 8 ? Math.pow(2, (Lsci - 8) / 1.5) : Math.max(0.5, 1 + 0.1 * (Lsci - 5));
+/** M_sci on the science domains' mean domain G (OOM; see the header). */
+export function mSci(w: TimelineWorld, gSci: number): number {
+  const o = oomPerLevel(w, 8);
+  const g8 = gOfLevel(w, 8);
+  return gSci > g8 ? Math.pow(2, (gSci - g8) / (1.5 * o)) : Math.max(0.5, 1 + (0.1 * (gSci - gOfLevel(w, 5))) / o);
 }
-export const lSci = (d: Record<DomainId, number>) => (d.REASON + d.AGENCY + d.CODE) / 3;
+/** g_sci: mean domain G (OOM, general λ scale) of REASON, AGENCY, CODE. */
+export const gSci = (d: Record<DomainId, number>) => (d.REASON + d.AGENCY + d.CODE) / 3;
 
 /** World science readout (for the World panel and the tech tooltips). */
-export function scienceRate(s: GameStateV2, mix?: WorldMix): { S: number; Msci: number; Lsci: number; expCap: number; Asci: number } {
+export function scienceRate(s: GameStateV2, mix?: WorldMix): { S: number; Msci: number; gSci: number; expCap: number; Asci: number } {
   const best = (mix ?? worldMix(s)).bestPublic;
-  const Lsci = lSci(best);
-  const Msci = mSci(Lsci);
+  const g = gSci(best);
+  const Msci = mSci(s.hidden.timeline, g);
   const expCap = Math.min(1, 0.4 + 0.3 * techRamp(s, 'W04') + 0.3 * robotAvail(s, 'US', 'SCI'));
   const Asci = s.world.sectors.US.SCI.A;
-  return { S: 1 + (Msci - 1) * Asci * expCap, Msci, Lsci, expCap, Asci };
+  return { S: 1 + (Msci - 1) * Asci * expCap, Msci, gSci: g, expCap, Asci };
 }
 
 /** Player moonshot science rate on a tech (0 if none). */
@@ -39,26 +46,29 @@ export function playerScience(s: GameStateV2, techId: string): number {
   const share = s.world.techs[techId]?.playerProject?.computeShare ?? 0;
   if (share <= 0) return 0;
   const v = internalVersion(s);
-  return v ? mSci(lSci(v.domains)) * share * MOONSHOT_K : 0;
+  return v ? mSci(s.hidden.timeline, gSci(domainScaleGs(s.hidden.timeline, v))) * share * MOONSHOT_K : 0;
 }
 
-/** Why a tech can't progress (undefined = it can). */
-export function techBlocker(s: GameStateV2, t: WorldTechDef, levels: Record<DomainId, number>): string | undefined {
+/** Why a tech can't progress (undefined = it can). RD-P04b: `g` is domain G (OOM, general λ scale: bestPublic, or
+ *  models/capability.ts domainScaleGs); a tech's gate levels (data/v2/techs.ts) convert exactly through the one λ. */
+export function techBlocker(s: GameStateV2, t: WorldTechDef, g: Record<DomainId, number>): string | undefined {
   for (const p of t.prereqs) if (s.world.techs[p]?.discoveredDay === undefined) return `needs ${TECH_BY_ID[p]?.name ?? p}`;
   if (t.needs === 'sez' && !policyState(s).sez) return 'needs Special Economic Zones';
   if (t.needs === 'findings' && s.knowledge.publishedFindings.length < 3) return 'needs 3 published safety findings';
-  for (const [d, min] of GATES[t.id]) if (levels[d] < min) return `${d} ${min}`;
+  const w = s.hidden.timeline;
+  for (const [d, min] of GATES[t.id]) if (g[d] < gOfLevel(w, min)) return `${d} ${min}`;
   return undefined;
 }
 const GATES: Record<string, [DomainId, number][]> = Object.fromEntries(WORLD_TECHS.map((t) => [t.id, Object.entries(t.gates) as [DomainId, number][]]));
 
-/** Gate levels: best public model, or the player's internal model on a moonshot. */
+/** Gate domain G (OOM): best public model, or the player's internal model on a moonshot. */
 function gateLevels(s: GameStateV2, techId: string, best: Record<DomainId, number>): Record<DomainId, number> {
   if (!s.world.techs[techId]?.playerProject) return best;
   const v = internalVersion(s);
   if (!v) return best;
   const out = { ...best };
-  for (const k of Object.keys(out) as DomainId[]) out[k] = Math.max(out[k], v.domains[k]);
+  const vg = domainScaleGs(s.hidden.timeline, v);
+  for (const k of Object.keys(out) as DomainId[]) out[k] = Math.max(out[k], vg[k]);
   return out;
 }
 
@@ -87,17 +97,16 @@ export function worldTechEffects(s: GameStateV2): Required<TechEffects> {
 const EFFECT_LIST: [string, keyof TechEffects, number][] = WORLD_TECHS.flatMap((t) =>
   (Object.entries(t.effects) as [keyof TechEffects, number][]).map(([k, x]) => [t.id, k, x] as [string, keyof TechEffects, number]));
 
-/** Risk exposure 0..1 of a risk technology given the best accessible levels (R16 §3.1 "Risks"). */
+/** Risk exposure 0..1 of a risk technology given the best accessible domain G (R16 §3.1 "Risks"; RD-P04b: v2's level
+ *  gates through the one λ). */
 function exposureOf(s: GameStateV2, t: WorldTechDef, best: Record<DomainId, number>): number {
   const st = s.world.techs[t.id];
   const p = Math.max(Math.min(1, st.prog), st.ramp);
+  const w = s.hidden.timeline;
   switch (t.risk) {
-    // level-lint-left: RD-L05 leftover, domain-level dose in display levels (world effects); restate in domain OOM above V0
-    case 'bio': return p * sigmoid((best.BIO - 10) / 1) * (1 - 0.5 * techRamp(s, 'W06'));
-    // level-lint-left: RD-L05 leftover (as above)
-    case 'cyber': return p * sigmoid((best.CYBER - 8) / 1) * (1 - 0.3 * techRamp(s, 'W24'));
-    // level-lint-left: RD-L05 leftover (as above)
-    case 'persuasion': return p * sigmoid((best.SOCIAL - 12) / 1);
+    case 'bio': return p * levelGate(w, best.BIO, 10, 1) * (1 - 0.5 * techRamp(s, 'W06'));
+    case 'cyber': return p * levelGate(w, best.CYBER, 8, 1) * (1 - 0.3 * techRamp(s, 'W24'));
+    case 'persuasion': return p * levelGate(w, best.SOCIAL, 12, 1);
     default: return st.ramp;
   }
 }

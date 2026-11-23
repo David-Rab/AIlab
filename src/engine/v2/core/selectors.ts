@@ -17,8 +17,9 @@ export { allocOf, SPLIT_LABEL } from '../departments/split';
 // WS1 model / department selectors and helpers for the UI (visible data only).
 export { adoptedDuring, idleTrainingShare, planRun, poolAllocation, POOL_SHARE_RANGE, RUN_POOL_DEFAULT, runEtaDays, runStall, serveTechMult, shareIfLaunched, streamShare, trainingFlopPerDay } from '../models/runs';
 export type { BaseLimits } from '../models/runs';
-export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, LAUNCH_TW, pendingLaunch, pendingPack, productUpkeepTW, runSetupTW, runWaiting, SECTOR_PACK_TW, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
+export { buildEtas, buildPerDay, buildRates, buildWaitNew, featureInUse, featureUpkeepTW, LAUNCH_TW, pendingLaunch, productUpkeepTW, runSetupTW, runWaiting, upkeepLines, upkeepSplit, UPKEEP } from '../departments/build';
 export type { UpkeepLine } from '../departments/build';
+export { ADAPT_COVER, ADAPT_TW, adaptationLive, adaptationsBuilding, CERT_CASH, CERT_DAYS, needsCert } from '../models/adaptations';
 export { PARAM_RANGE, PARAM_SNAPS, REF_TPP, RL_BUDGET, STREAM_POOL_SHARE, STUDENT_DEFAULT, TPP_RANGE, TPP_SNAPS } from '../../../data/v2/runDesign';
 export { fOver, flopOfDesign, paramsForFlop, servingFlop, tppLabel } from '../models/effective';
 export { goodputOf, paramsOfVersion, runFlopPerShareDay } from '../models/runs';
@@ -30,7 +31,7 @@ export type { NodeStatus } from '../models/tree';
 export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
 export type { EvalCost, EvalDepthRow, EvalMeasureRow, EvalTaskView } from '../models/evals';
-export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess } from '../models/deployments';
+export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess, kycDemandFactor, kycReviewShare } from '../models/deployments';
 export { bestMeasuredL, internalVersion, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
@@ -143,8 +144,8 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
 export { WSL_TARGET_RANGE } from '../security/security';
 
 // R6 products: readouts, live-edit previews and package helpers (visible data: measured levels, revenue).
-export { productReadouts, previewDeployments, featureView, CONVERGED } from '../worldfx/productView';
-export { studentToHold, tokEff, useHourCost } from '../worldfx/serving';
+export { productReadouts, previewDeployments, featureView, toolRivalsView, CONVERGED } from '../worldfx/productView';
+export { freeTierVersion, lineupVersions, studentToHold, tokEff, useHourCost } from '../worldfx/serving';
 export { flopPerToken } from '../departments/workfit';
 export type { ProductRead, ProductEcon, EditPreview, CustomerView, CustomerSeg, FeatureView, FeatureKind, FeatureLine, LineupRow } from '../worldfx/productView';
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';

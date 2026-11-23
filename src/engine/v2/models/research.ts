@@ -85,14 +85,23 @@ export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: 
 
 /** A line's pool in this world (V3 notes, derivation 1): returns r_l = rShare × the preset's r, and the research input
  *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). */
-export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: number; n0: number } {
-  const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * s.hidden.timeline.v3.r);
+export const linePool = (s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef) => linePoolAt(s.hidden.timeline.v3.r, n);
+/** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01). */
+export function linePoolAt(worldR: number, n: TreeNodeDef): { r: number; n0: number } {
+  const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
   const mu1 = Math.max(1e-9, (n.effect?.mean ?? 0) * LINE_FIT.mu);
   return { r, n0: 1 / (Math.pow(10, mu1 / r) - 1) };
 }
+/** RD-X01: THE line-rate law, one function for the player's lines (prior means, the expected flow) and the rivals'
+ *  recipe parts (actors/rivalModel.ts recipeRates). A line with returns r at pool state M (research input n₀ + R) gains
+ *  r·log₁₀((M + q)/M) OOM (expected, prior-mean units) from research input q; with q a day's input, its expected OOM per
+ *  day. The stack is r·log₁₀(M/n₀), so dS/dR = r/(n₀·ln 10)·10^(−S/r) (AI Futures' SE = r·log₁₀ RS). */
+export const lineRate = (r: number, M: number, q: number) => r * Math.log10((M + q) / M);
+/** The pool after a gain of x OOM on a line of returns r: M ← M·10^(x/r) (the input that gain stands for). */
+export const poolAfter = (r: number, M: number, x: number) => M * Math.pow(10, Math.max(0, x) / r);
 /** Per-idea prior mean of a batch of b ideas of taste q at pool state R (research input since the start). */
 export const poolMean = (pool: { r: number; n0: number }, R: number, q: number, b: number) =>
-  (pool.r * Math.log10((pool.n0 + R + b * q) / (pool.n0 + R))) / Math.max(1, b);
+  lineRate(pool.r, pool.n0 + R, b * q) / Math.max(1, b);
 /** Taste's lift on a one-off idea's mean: 1 + TASTE_MEAN·(1 − 1/T), ×0.9 for Solid teams, ×1.5 at most [D]. */
 export const ideaTaste = (q: number) => 1 + TASTE_MEAN * (1 - 1 / Math.max(0.2, q));
 
@@ -120,7 +129,7 @@ function works(s: GameStateV2, n: TreeNodeDef, spec: number): boolean {
 
 /** Scale exponent below which a small-scale win does not survive the scale test (its effect at test scale falls
  *  under SURVIVE_FRAC of the small-scale one). */
-const S_SURVIVE = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
+export const S_SURVIVE = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
 
 /** Hidden: a candidate's true effect at the scale test and its scale exponent. One idea: x·1000^s. A batch of b ideas
  *  (lines at high research speed) keeps its survivors: the expected survivor-weighted factor E[1000^s; s ≥ s*] of the
@@ -991,9 +1000,9 @@ function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
   const j = k / steps;
   let x = 0;
   for (let i = 0; i < steps; i++) {
-    const gain = j * f.g * pl.r * Math.log10((M + q) / M);
+    const gain = j * f.g * lineRate(pl.r, M, q);
     x += gain;
-    M *= Math.pow(10, Math.max(0, gain) / pl.r);
+    M = poolAfter(pl.r, M, gain);
   }
   st.pool = M - pl.n0;
   st.input = (st.input ?? 0) + k * q;

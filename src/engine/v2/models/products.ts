@@ -8,13 +8,13 @@
 import { LOCKDOWN_COLLUSION_MULT, labControlSetting, lockdownOn } from '../safety/safeguards';
 import { controlOn } from '../safety/safeguards';
 import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, FEATURES, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, PRICE_TIERS,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { MONITOR_ACTED_ON, MONITOR_CATCH_BASE, PRODUCT_MONITOR_WATCH } from '../../../data/v2/oversight';
 import { containment } from '../safety/techniques';
-import type { Deployment, DomainId, GameStateV2, ModelVersion, SectorPack, TraitId } from '../types';
+import type { Deployment, GameStateV2, ModelVersion, TraitId } from '../types';
 import { measuredLOf, versionById } from './labs';
 import { nodeKnown } from './tree';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
@@ -26,44 +26,12 @@ export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channe
 export const kindOfChannel = (c: Deployment['channel']): Deployment['kind'] => (c === 'internal' ? 'internal' : c === 'open' ? 'open' : 'product');
 
 /** RD-B12 (B20): the features a new product starts with: every lab-built feature its channel offers (as the start
- *  products have theirs on). Deep think only with effort deep (the feature ⇔ the setting, editedProduct); the Sector
- *  packs feature is lab-level (packs are per product), never switched on. */
-export function launchFeatures(s: GameStateV2, channel: Deployment['channel'], effort: Deployment['effort']): string[] {
+ *  products have theirs on). */
+export function launchFeatures(s: GameStateV2, channel: Deployment['channel']): string[] {
   return s.player.features.filter((id) => {
     const f = FEATURE_BY_ID[id as FeatureId];
-    if (!f || !f.products.includes(channel) || f.fx.some((x) => x.kind === 'enabler' && x.packs)) return false;
-    return f.effortDeep ? effort === 'deep' : true;
+    return !!f && f.products.includes(channel);
   });
-}
-
-/** RD-B12 (B19): why a new product cannot run at this effort, or undefined. Deep effort is the Deep think feature, so
- *  it needs the feature built and offered on the channel (the same rule as switching it on, featureToggleBlock). */
-export function launchEffortBlock(s: GameStateV2, channel: Deployment['channel'], effort: Deployment['effort'] | undefined): string | undefined {
-  if (effort !== 'deep' || channel === 'internal') return undefined;
-  const f = FEATURES.find((x) => x.effortDeep);
-  return f ? featureToggleBlock(s, { channel } as Deployment, f.id) : undefined;
-}
-
-// ───────────────────────────── sector packs (RD-B12) ─────────────────────────────
-
-/** The packs a new launch on a channel takes over (a relaunch): those of the latest retired product on the channel,
- *  minus sectors a live product already holds. Read-only (deploy moves them). */
-export function relaunchPacks(s: GameStateV2, channel: Deployment['channel']): { from?: Deployment; packs: SectorPack[] } {
-  const from = [...s.player.deployments].reverse().find((d) => d.channel === channel && d.status === 'withdrawn' && d.packs.length > 0);
-  if (!from) return { packs: [] };
-  return { from, packs: from.packs.filter((p) => sectorCertDay(s, p.sector) === undefined).map((p) => ({ ...p })) };
-}
-
-/** Whether a product's pack on a sector is certified on a day. */
-export const packCertified = (d: Pick<Deployment, 'packs'>, sector: string, day: number) => d.packs.some((p) => p.sector === sector && p.certDay <= day);
-/** The live products' earliest certification day on a sector (the world-level effect of a pack), or undefined. */
-export function sectorCertDay(s: GameStateV2, sector: string): number | undefined {
-  let c: number | undefined;
-  for (const d of s.player.deployments) {
-    if (d.status === 'withdrawn') continue;
-    for (const p of d.packs) if (p.sector === sector && (c === undefined || p.certDay < c)) c = p.certDay;
-  }
-  return c;
 }
 
 /** Features switched on for a product that the lab has built. */
@@ -77,16 +45,20 @@ export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
   return out;
 }
 
-/**
- * Display domain levels of a product: its main model's own record (feature effects are typed and act on work-type fit,
- * horizon and tokens, worldfx/serving.ts, not on these levels). RD-B11 (B15): a Chat mini serves only the free users
- * (worldfx/serving.ts chatFreeTier) and no longer blends in.
- */
-export function productDomains(s: GameStateV2, d: Deployment, v: ModelVersion | undefined = versionById(s, d.versionId)): Record<DomainId, number> | undefined {
-  return v?.domains;
+/** RD-P11: the product's incident-site terms from its features: the task-horizon multiplier of its horizon extenders on
+ *  all work (Memory ×1.3: the tasks its model runs alone; autonomy A = H/(H + H_HALF)) and the affordances they add
+ *  (FeatureDef.afford, Computer use +0.25). */
+export function productSiteTerms(s: GameStateV2, d: Deployment): { hMult: number; afford: number } {
+  let hMult = 1;
+  let afford = 0;
+  for (const f of activeFeatures(s, d)) {
+    afford += f.afford ?? 0;
+    for (const x of f.fx) if (x.kind === 'horizon' && x.work === 'all') hMult *= x.mult;
+  }
+  return { hMult, afford };
 }
 
-/** Incident-hazard multiplier of a trait on a product from its features. */
+/** Incident-hazard multiplier of a trait on a product from its features (RD-P11: only stated [D] stand-ins, Companion). */
 export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId): number {
   let m = 1;
   for (const f of activeFeatures(s, d)) m *= f.hazard?.[trait] ?? 1;

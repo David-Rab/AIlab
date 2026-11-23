@@ -27,7 +27,7 @@ const s: GameStateV2 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json')
 const f4 = (x: number) => x.toFixed(4);
 
 // 1. migration
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 78 && !!s.player.safety.envFixes && !Object.keys(s.flags).some((k) => k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04'),
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 87 && !!s.player.safety.envFixes && !Object.keys(s.flags).some((k) => k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04'),
   'save migrates to 78 (SR-16; 73 before the merge into rd): envFixes present, no per-edge signal patches', `rev ${s.schemaRev}`);
 
 // 2. runs on SWE vs not
