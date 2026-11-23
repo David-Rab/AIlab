@@ -112,20 +112,30 @@ export interface FeatureDef {
 }
 
 export const FEATURES: FeatureDef[] = [
+  // CAL-P [D stand-in]: no primary source measures what cross-session memory adds to the time horizon or to an app's
+  // appeal (research/CAL-products-sources.md T3); both numbers are assumptions, and the text says so.
   { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
+    effect: 'Horizon extender: time horizon ×1.3 on all work in this product; Chat appeal ×1.1 (people who come back; both assumed, no measurement exists); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }, { kind: 'enabler', consumer: true, share: 0.1 }],
     risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
   { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
-    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
+    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (an assumed 13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
+    // CAL-P [D stand-in]: no primary source splits tasks into GUI-only vs API-doable. The bound: in Eloundou et al. 2023
+    // the tasks LLMs speed up only with added software (zeta - alpha, all tools, not just GUIs) are 0.43 of Office/Admin,
+    // ~0.53 Business/Finance, 0.63 Legal (human ratings): 0.15 sits well inside (research/CAL-products-sources.md T1).
     fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
-    // RD-P11 [D stand-in]: acting on any desktop or website is one of the four affordances (+¼ of F).
+    // RD-P11 [D stand-in, a definition not a measurement]: acting on any desktop or website is one of the four
+    // affordances, equally weighted (+¼ of F).
     risk: 'Affordances +0.25 (acts on desktops and websites): raises the odds of incidents that need real access (overreach, cover-ups)', afford: 0.25 },
   // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
   // is where its Media segment acts; on Chat it opens the Chat users.
   { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.15 (on Chat); on the API it does the media tasks (13% of Media work) offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
-    fx: [{ kind: 'enabler', consumer: true, sectors: ['MEDIA'], share: 0.15 }] },
+    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.075 on Chat (image and media requests were 7% of ChatGPT messages in mid-2025); on the API it does the media tasks (an assumed 13% of Media work) offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
+    // CAL-P: Chat 0.075 [P]: Chatterji et al. 2025 (NBER w34255): "Multimedia grew from 2% to just over 7%" of
+    // consumer ChatGPT messages (create / analyze an image, other media); an app without it loses those 7%: 1/(1-0.07).
+    // Media 0.15 [D stand-in]: images are inside Eloundou et al.'s E2 (all added software), whose Arts/Media share is
+    // ~0.37, with no separate image number (research/CAL-products-sources.md T2).
+    fx: [{ kind: 'enabler', consumer: true, share: 0.075 }, { kind: 'enabler', sectors: ['MEDIA'], share: 0.15 }] },
   // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
   { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
     effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work, at ×3 tokens',
@@ -137,7 +147,11 @@ export const FEATURES: FeatureDef[] = [
     // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
     risk: 'Cost per work-hour ×2 where it applies (longer agent runs; their incident exposure is in the product usage)' },
   { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'Task enabler: a persistent persona, Chat appeal ×1.2; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it', fx: [{ kind: 'enabler', consumer: true, share: 0.2 }],
+    effect: 'Task enabler: a persistent persona, Chat appeal ×1.025 (relationships, reflection and role play were 2.4% of ChatGPT messages in 2025); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it', 
+    // CAL-P: 0.025 [P]: Chatterji et al. 2025 (NBER w34255): "only 2.4% of all ChatGPT messages are about Relationships
+    // and Personal Reflection (1.9%) or Games and Role Play (0.4%)"; Anthropic (Jun 2025): companionship and roleplay
+    // "less than 0.5%" of Claude.ai conversations. Upper end of the two, 1/(1-0.024) (research/CAL-products-sources.md T4).
+    fx: [{ kind: 'enabler', consumer: true, share: 0.025 }],
     // RD-P11 [D stand-in]: ×1.5 stands for the longer, personal conversations a persona has with each user (time per
     // user), which the product's serving share does not count; to replace with time per user once Chat models it.
     risk: 'Sycophancy incidents ×1.5 [D stand-in: longer personal conversations per user]', hazard: { SYC: 1.5 } },

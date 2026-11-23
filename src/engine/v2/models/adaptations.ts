@@ -19,7 +19,9 @@ import { useShareOf } from '../worldfx/use';
 export const ADAPT_TW = 4;
 /** Coverage gain of a sector scaffold: the offer covers ×(1 + ADAPT_COVER) of the sector's tasks (capped at all of
  *  them), and its agent work with it [D stand-in: the size of a product tool's share (Computer use 0.15, RD-P07); the
- *  tasks that need the sector's own systems (records, filings, ledgers) are the ones a generic offer cannot do]. */
+ *  tasks that need the sector's own systems (records, filings, ledgers) are the ones a generic offer cannot do. CAL-P: no
+ *  primary source measures this share; Eloundou et al. 2023's E2 (tasks needing software built on the LLM, which
+ *  includes access to internal data) bounds it from above at 0.3-0.6 by sector (research/CAL-products-sources.md A1)]. */
 export const ADAPT_COVER = 0.15;
 /** Sectors with a certification for AI vendors [D: US federal FedRAMP (GOV, MIL: DoD impact levels), health data
  *  HITRUST (HEALTH; HIPAA itself has none: HHS "does not endorse or otherwise recognize private organizations'
