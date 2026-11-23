@@ -232,7 +232,15 @@ smokeCheck(below(gap) >= S5_BELOW_MIN, 'S5 RefBot (AI 2027 alignment share): U f
 const mixed = Array.from({ length: N_S5 }, (_, i) => playC(MIXED, 900 + i, 'sar'));
 const mm = mixed.map((o) => o.minMarginToSar);
 const mixedOk = mm.filter((m) => m >= -0.5).length / mm.length;
-smokeCheck(median(mm) >= -0.5, 'S5 Mixed-bot funding keeps U ≥ L − 0.5 up to SAR (median world)', `median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds; U@SAR mean ${mean(mixed.map((o) => o.uAtSar ?? 0)).toFixed(2)} vs RefBot ${mean(refSar.map((r) => r.u)).toFixed(2)}`);
+// CAL2-S (designer decision 4): the Mixed-bot row tests the sight limit, what the sources support: a lab that funds
+// safety more than AI 2027's reference lab sees further at SAR (sight limit = the highest level its instruments read
+// hidden-goal traits at ≥ 50% believed reliability). The old "U ≥ L − 0.5 up to SAR" (a game-feel requirement, no
+// source) stays as INFO. Unpaired worlds (Mixed seeds 900+, RefBot 500+): means over the worlds that reach SAR.
+const mixU = mixed.flatMap((o) => (o.uAtSar !== undefined ? [o.uAtSar] : []));
+const refU = refSar.map((r) => r.u);
+smokeCheck(mixU.length > 0 && mean(mixU) > mean(refU), "S5 Mixed bot: its sight limit at SAR is above RefBot's (mean over worlds)",
+  `Mixed ${mean(mixU).toFixed(2)} (median ${median(mixU).toFixed(2)}, ${mixU.length} worlds) vs RefBot ${mean(refU).toFixed(2)} (median ${median(refU).toFixed(2)}, ${refU.length})`);
+console.log(`INFO  S5 Mixed bot U ≥ L − 0.5 up to SAR (pre-CAL2 row): median min margin ${median(mm).toFixed(2)}; holds in ${pct(mixedOk)} of worlds`);
 
 // ──────────── S6: FALSE findings rise with Trusted to AI × sabotage (R7: one policy; E2: ∝ the work AI does) ────────────
 {
