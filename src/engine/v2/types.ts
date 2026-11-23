@@ -226,8 +226,8 @@ export interface HiddenWorld {
   /** SR-24b: organism realism r ~ U[0.4, 1.0] (a hash of the seed): real recall of an instrument = its recall on planted
    *  model organisms × r (safety/validation.ts). Hidden: the lab knows only the range. */
   organismRealism: number;
-  /** CP3i: per run method, its hidden strength q ~ U[0, 1] on models well above the capability its source tested (a hash
-   *  of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
+  /** CP3i / RF-S10: per run method, its hidden strength q ~ U[0, 2] (1 = as tested) on models well above the capability
+   *  its source tested (a hash of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
   methodScale: Record<string, number>;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
   actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
@@ -831,9 +831,9 @@ export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
  *  (RD-E03 removed routine tuning; SR-21 moved evaluations to the safety engineers' needs list). */
 export type ReNeed = 'ops' | 'exp';
 /** Safety research-engineer needs (RD-A04, SR-21, SAFETY-REDESIGN §5): human review on the safeguards, open cases,
- *  validation jobs, eval suites, environment fixes, foothold removals, line-project experiments (by project priority).
+ *  validation jobs, eval suites, foothold removals, line-project experiments (by project priority).
  *  Each has a real staff (and compute) demand; capacity none takes is idle. */
-export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'envFix' | 'removal' | 'safExp';
+export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'removal' | 'safExp';
 /** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: an amount (`max`) and a share of the
@@ -972,24 +972,11 @@ export interface SafetyDept {
   useAllMethods?: boolean;
   /** SR-10: disagreements between independent instruments' readings (newest last, DISAGREE_CAP kept). */
   disagreements?: Disagreement[];
-  /** SR-16: environment fixes the lab owns, per RL environment family (absent = none): made by safety work (the patch
-   *  response), reused by every later run that trains on the family (its frozen exploitability × mult). */
-  envFixes?: Partial<Record<RLFamily, EnvFix>>;
-  /** SR-16b: environment fixes being built (ordered from a finding's response or Training › Environments): engineering
-   *  work on the 'envFix' need; envFixStep applies each one (to envFixes) when its work is done. */
-  envFixJobs?: EnvFixJob[];
   /** SR-18: the disclosure policy (default legal minimum, OD-8). */
   disclosure?: DisclosurePolicy;
   /** SR-18: methods a response added to every later default run plan (the "method for the next run" response). */
   requiredMethods?: TechniqueId[];
 }
-
-/** SR-16: an owned environment fix on one RL family: the rewarded-hack multiplier (repeated fixes multiply, floor
- *  PATCH_FLOOR), how many fixes it holds and the day of the latest; the trait and model of the latest finding. */
-export interface EnvFix { mult: number; n: number; day: number; trait?: TraitId; versionId?: string }
-/** SR-16b: an environment fix being built: work in safety-engineer-days (PATCH_FTE × a drawn PATCH_DAYS), done so far,
- *  the day ordered, the drawn fix factor (× the family's multiplier when it completes) and the finding behind it. */
-export interface EnvFixJob { family: RLFamily; work: number; done: number; day: number; factor: number; trait?: TraitId; versionId?: string }
 
 /** SR-10: one reading in a disagreement: instrument kind (instruments.ts InstrumentKind), family, reading, its noise. */
 export interface DisagreementSide { kind: string; family: ToolFamily; reading: number; noise: number; day: number }
@@ -1136,12 +1123,13 @@ export interface Investigation {
   computeShare: number;
   tools: TechniqueId[];
   startDay: Day;
-  clarity: number; // accumulated 0..1
+  /** RF-S12: share of the case's work done (0..1; CASE_WORK engineer-days). */
+  progress: number;
   outcome?: 'confirmed' | 'benign' | 'inconclusive' | 'falseAlarm' | 'discovery';
   outcomeDetail?: { severityEst?: number; uMode?: UModeId; corrupted?: boolean; changes?: CaseChange[]; evidence?: string[] };
   /** SR-17: the case's beliefs when it opened (est, sd per target trait): the verdict's "what changed" baseline. */
   before?: Partial<Record<TraitId, { est: number; sd: number }>>;
-  /** SR-17: readings the case added to beliefs (monthly observations). */
+  /** SR-17: readings the case added to beliefs (RF-S12: one per instrument family when it concludes). */
   readings?: number;
   /** SR-22: AI share, spot-check, expected (believed level of the most severe target trait at opening) vs observed
    *  (1 if the verdict found it: confirmed or a discovery; else 0). */

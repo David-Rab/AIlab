@@ -10,7 +10,7 @@ import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/
 import { UMODES } from '../../../data/v2/umodes';
 import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
-import { runExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
+import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
@@ -129,6 +129,10 @@ export const INOC_MULT = 0.15;
 // a run's RH moves toward its hack share h = Σ_f w_f·x_f·p(ρ) (+ the self-play curricula term of S2) and gets there
 // within one reference post-train, instead of E02's per-run / per-day accumulation toward 1 (the stream and IDA move
 // by their share of a reference run's ω, so 42 stream days = one post-train).
+// RF-S9: this is the one rule for every player run kind: runEnv sets hackTarget 0 (base, continued pretraining,
+// distillation reward no hacks, S2 = 0) and post / stream / IDA runs set their h. E02's accumulation remains only on the
+// rival-only path (rivalTraitStep builds its own env without a target); rival safety physics stays as is by the
+// designer's decision (2026-11-23: a dedicated rivals session later).
 
 /** Share of the gap to the run's hack share closed by one reference post-train (ω = OMEGA_KIND.post) [S: Chen et al. 2025
  *  arXiv 2505.05410 §5.2 "> 99% within 30 steps"; research/RD-SR24-safety-params.md §3 H1, H2]. */
@@ -162,7 +166,7 @@ export interface RunHack {
 // exploit hidden in a solution falls with the capability gap like a monitor's (Engels et al. 2025, arXiv 2504.18530
 // [P]: Backdoor Code, the guard spotting a flaw hidden in code, 10% at a 400-Elo gap; the one rule safety/oversight.ts
 // gapFactor already uses for monitors and human review, checked there against Greenblatt 2023's 62% at 1 OOM). So
-//   x'_f = 1 − (1 − x_f) · F(gap_f),  F = gapFactor (1 at no gap, (0.10/0.85)^(gap ÷ 6.8 OOM)),
+//   x'_f = 1 − (1 − x_f) · F(gap),  F = gapFactor (1 at no gap, (0.10/0.85)^(gap ÷ 6.8 OOM)),
 // equal to x_f while the policy is below its graders (every 2025 run). Direction and size check: Wen et al. 2024 (arXiv
 // 2409.12822 [P]): RLHF against human judges raised their false-positive rate by 24.1% (QuALITY) and 18.3% (APPS) with
 // no gain in correctness; what graders miss is what RL amplifies (research/04 T02 "smarter agents find more exploits").
@@ -170,18 +174,14 @@ export interface RunHack {
 // with AI-assisted oversight (P15) the critic's share Aeff of the grading is done at the safety critic's level (at least
 // the humans'), the two catches mixed by share; scalable oversight's debate finding (F16, Khan et al. 2024 [P]) takes
 // AG05_OVERSIGHT.debateCreditOom (≈ 4.0 OOM) off every gap, as it does for AG05's tools (techniques.ts). Hardening
-// (lower x_f) and environment fixes act on x_f as before. Missed hacks feed the existing paths unchanged: S2's hackable
+// (lower x_f; an incident's environment fix is a hardening pass, RF-S8) acts on x_f as before. Missed hacks feed the existing paths unchanged: S2's hackable
 // reward, the hack share h → RH saturation (SR-24b) and learned hacking λ past LH_ONSET → MacDiarmid's generalisation.
 // (b) Long-task RL trains on tasks the model can sometimes do: RL curricula drop prompts the policy always or never
 // solves (Yu et al. 2025 DAPO, arXiv 2503.14476 [P], dynamic sampling filters accuracy-0 and accuracy-1 prompts), so the
 // long-horizon family's task length is the longer of its 2025 length (taskH 40 h) and the trained model's 50% time
 // horizon (METR TH1.1 [P]: 203 min at V0, × H50_PER_OOM 4.2 per OOM; models/capability.ts h50Of). The other families'
 // tasks are set by their domain (an issue, an experiment), not by the horizon, and keep their length. S3 reads the run's
-// length. Longer tasks are harder to grade [stand-in, no primary source for the size: METR's o3 hack rate on 8 h
-// RE-Bench tasks is ≈ 43× HCAST's (research/05 §1.8), but scoring access confounds it]: a grader checking a task r×
-// longer than the ones it was built for faces the work of a model whose horizon is r× longer, so the family's gap adds
-// the OOM METR's horizon slope needs for that factor, log r ÷ log H50_PER_OOM (no free constant; 0 until the horizon
-// passes 40 h, ≈ 1.7 OOM above V0).
+// length. Task length adds no grading gap (RF-S7 reverted CP3h's unsourced length gap).
 
 /** What a run trains: the policy's capability in OOM above V0 and its 50% time horizon (minutes). */
 export interface Policy { oom: number; h50Min: number }
@@ -202,12 +202,6 @@ export function runTaskH(f: RLFamily, policy?: Policy): number {
   const h = RL_FAMILY_DEF[f].taskH ?? 0;
   return f === 'longHorizon' && policy ? Math.max(h, policy.h50Min / 60) : h;
 }
-/** (b) Extra grading gap of a family from task length beyond its 2025 length (OOM; stand-in above). */
-export function lengthGapOom(f: RLFamily, policy?: Policy): number {
-  const h0 = RL_FAMILY_DEF[f].taskH ?? 0;
-  const h = runTaskH(f, policy);
-  return h0 > 0 && h > h0 ? Math.log(h / h0) / Math.log(H50_PER_OOM) : 0;
-}
 /** (a) The graders' capability in OOM above V0: expert humans, and the AI critic's level and share under P15. */
 export function graderOoms(s: GameStateV2, believed = false): { human: number; critic: number; aiShare: number } {
   const human = oomOfLevel(s.hidden.timeline, HUMAN_REVIEW_L);
@@ -216,24 +210,25 @@ export function graderOoms(s: GameStateV2, believed = false): { human: number; c
   const c = cv ? (believed ? measuredOom(s, cv) : versionOom(s, cv)) : human;
   return { human, critic: Math.max(human, c), aiShare: cv ? clamp01(ai.Aeff) : 0 };
 }
-/** (a) Share of a family's sound graders that stay sound against `policy` (1 at no gap). */
-export function graderSound(s: GameStateV2, f: RLFamily, policy: Policy, believed = false): number {
+/** (a) Share of the sound graders that stay sound against `policy` (1 at no gap; the same for every family). */
+export function graderSound(s: GameStateV2, policy: Policy, believed = false): number {
   const g = graderOoms(s, believed);
   const credit = flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0;
-  const x = policy.oom + lengthGapOom(f, policy) - credit;
+  const x = policy.oom - credit;
   return (1 - g.aiShare) * gapFactor(Math.max(0, x - g.human)) + g.aiShare * gapFactor(Math.max(0, x - g.critic));
 }
-/** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound_f. */
+/** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound. */
 export function missedExploit(s: GameStateV2, exploit: FamilyMap, policy: Policy, believed = false): FamilyMap {
   const out: FamilyMap = {};
-  for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * graderSound(s, f, policy, believed);
+  const sound = graderSound(s, policy, believed);
+  for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * sound;
   return out;
 }
 
 /** A post-training design's hack share and learned hacking, with the same suites, shares, ρ and policy as postSignals. */
 export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
   const rho = rhoOf(post, q);
-  const x0 = exploit ?? runExploitMap(s);
+  const x0 = exploit ?? suiteExploitMap(s);
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   const x = missedExploit(s, x0, policyOfQ(s, q), believedQ(q));
   const h = hackShare(w, x, rho);
@@ -405,7 +400,7 @@ export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<
   const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
   // CP3h: the suites as the run's policy meets them (graders outgrown) and its task lengths (horizon-tracking long tasks).
   const policy = policyOfQ(s, q);
-  const x = missedExploit(s, exploit ?? runExploitMap(s), policy, believedQ(q));
+  const x = missedExploit(s, exploit ?? suiteExploitMap(s), policy, believedQ(q));
   sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
   sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
   let s3 = 0;
@@ -520,9 +515,9 @@ export interface TraitEnv {
   /** Model v3 E18: the capability gate on alignment-faking growth, afCapGate(G) of the model being trained (multiplies
    *  E13, E14 and E27, learned-hacking term included; default 1). */
   afGate?: number;
-  /** SR-24b: the run's rewarded (undetected) hack share h + the self-play curricula term (hackTarget): when set, RH
-   *  saturates toward it within the run (hackSaturation) in place of E02's open-ended growth. Unset: E02 as before
-   *  (rivals' and base runs). */
+  /** SR-24b / RF-S9: the run's rewarded (undetected) hack share h + the self-play curricula term (hackTargetOf): RH
+   *  saturates toward it within the run (hackSaturation) in place of E02's open-ended growth. Every player run sets it
+   *  (runEnv: 0, a run that rewards no hacks; post / stream / IDA: their h). Unset: E02 as before (rivals only). */
   hackTarget?: number;
   /** Model v3 E20: a pretraining run (a new base, continued pretraining, a rival's base): E13 and E27 do not fire
    *  (PRETRAIN_OFF). Default false (post-training, IDA, stream, distillation). */
@@ -582,7 +577,7 @@ function driver(id: string, x: TraitVector, sg: Signals, env: TraitEnv): number 
   const hg = env.hackGen ?? 1;
   switch (id) {
     case 'E01': return sg.S1;
-    case 'E02': return sg.S2;
+    case 'E02': return sg.S2; // rivals only (RF-S9: every player run sets hackTarget)
     case 'E03': return x.SYC;
     case 'E04': return lh; // E19: learned hacking only (was RH + K_LH·λ); inoculation: E04's moderator
     case 'E05': return sg.S6;
@@ -624,7 +619,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     for (const e of EDGES_TO[j] ?? []) {
       if (e.id === 'E06') continue;
       if (env.pretrain && PRETRAIN_OFF.has(e.id)) continue; // E20: no AF growth in pretraining
-      if (e.id === 'E02' && env.hackTarget !== undefined) continue; // SR-24b: the within-run saturating rule below
+      if (e.id === 'E02' && env.hackTarget !== undefined) continue; // SR-24b / RF-S9: the within-run saturating rule below
       g += (env.w[e.id] ?? e.wBar) * driver(e.id, x, env.signals, env) * (env.mods[e.id] ?? 1) * (AF_GATED.has(e.id) ? env.afGate ?? 1 : 1);
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
@@ -792,8 +787,8 @@ export function playerMods(s: GameStateV2, post: PostDesign | undefined, view: E
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
   if (techActive(s, 'T-TMON') && routineMonitor(s) > 0) mul('E22', 0.5);
   // Targeted inoculation training's lab-wide E04 multiplier (responses.ts targetedPlan patchE04). SR-16: the old
-  // per-edge signal patches are gone; an environment fix is owned per RL family and lowers the family's frozen
-  // exploitability (models/suites.ts runExploitMap), i.e. the run's hack rate, not a trait edge.
+  // per-edge signal patches are gone; an environment fix is a hardening pass on one RL family (RF-S8): it lowers the family's
+  // exploitability (models/suites.ts suiteExploitMap), i.e. the run's hack rate, not a trait edge.
   const inoc = s.flags[LAB_PATCH + 'E04'];
   if (typeof inoc === 'number') mul('E04', inoc);
   return m;
@@ -896,6 +891,7 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
     eaMult, hackGen: inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff, oom, view.methodQ) : 1,
     afGate: afCapGate(gAf),
+    hackTarget: 0, // RF-S9: the player's runs use the one saturation rule; a run that rewards hacks sets its h
   };
 }
 

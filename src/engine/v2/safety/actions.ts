@@ -17,10 +17,10 @@ import { lineResultsPerYear } from './agendas';
 import { believedCaseThreat, believedSabotage } from './covert';
 import { publishFinding } from './findings';
 import { caseComputeScale } from './lineProjects';
-import { CASE_RESOLVE, INV_FTE, INV_MAX_DAYS, caseH100e, casePreview, caseRate, closeInvestigation, corruptOdds, daysToResolve, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
+import { CASE_WORK, INV_FTE, INV_MAX_DAYS, caseDailyWork, casePreview, closeInvestigation, corruptOdds, defaultTools, committedFte, openInvestigation, safetyReHeads } from './investigations';
 import {
-  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, PATCH_FLOOR, PATCH_FTE, RESPONSE_INFO, RUN_PENALTY_OOM, UNDO_RESPONSES, applyResponse,
-  discloseScrutiny, discloseTrust, disclosurePolicy, envFixFamily, methodChoice, mustReport, pendingRunPenalty, responseOptions, responseTrait, restrictTargets,
+  DISCLOSE_CPS, DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, UNDO_RESPONSES, applyResponse,
+  discloseScrutiny, discloseTrust, disclosurePolicy, hardenFamily, methodChoice, mustReport, responseOptions, responseTrait, restrictTargets,
   setIncidentDisclosure,
 } from './responses';
 import { methodPolicyOn } from './methods';
@@ -39,7 +39,7 @@ import { canValidate, humanRun, jobEngineers, queueValidation, sampleRange, vali
 import { instrumentName, instruments } from './instruments';
 import { believedSpotCatch, spotCheckChosen, spotCheckFte } from './workPackage';
 import { safetyAgentVersion } from './agents';
-import { envFixPreview, orderEnvFix } from './envFix';
+import { SUITE_ACTIONS, suiteWorkBlock } from '../models/suites';
 
 type P = Record<string, number | string | boolean>;
 type Preview = { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] };
@@ -78,36 +78,32 @@ function defaultTarget(s: GameStateV2): { versionId: string; trait: TraitId } | 
   return { versionId: v.id, trait: responseTrait(v) };
 }
 
-/** F6e: the case's monthly clarity as monthlyGain computes it (caseRate: engineers × m of safety experiments, the
- *  case's H100e from its granted share), with the default tools (or the chosen ones) at BELIEVED strength and penalty on the measured level. */
-function investigationGain(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, computeShare: number): number {
+/** F6e / RF-S12: the case's believed reliability (caseReliability's rule at BELIEVED strength and penalty on the measured
+ *  level, the default tools or the chosen ones) and its engineer-days a day (caseDailyWork at the engineers asked and
+ *  the compute the needs list would grant). */
+function caseOutlook(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, computeServed: number): { reliability: number; perDay: number } {
   const v = versionById(s, versionId);
-  if (!v) return 0;
+  const perDay = caseDailyWork(s, fte, computeServed);
+  if (!v) return { reliability: 0, perDay };
   const L = v.evals.measuredL ?? 0;
   const x = oomOfLevel(s.hidden.timeline, L);
   let g = 0;
   for (const k of traits) g = Math.max(g, combineTools(tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthBelieved(s, t, x) * believedPenalty(s, v, k, t.family, L) }))));
-  return caseRate(s, g, fte, caseH100e(s, computeShare));
+  return { reliability: g, perDay };
 }
 
-/** F6e: when the case resolves at that monthly clarity (estimate), or the clarity it reaches when it closes at the cap. */
-function resolveText(gm: number): string {
-  const d = daysToResolve(gm);
-  if (d < INV_MAX_DAYS) return `case progress ${CASE_RESOLVE} in ~${d} d (estimate)`;
-  return `case progress ~${(1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30)).toFixed(2)} when it closes at ${INV_MAX_DAYS} d (estimate; ${CASE_RESOLVE} resolves early)`;
-}
-
-/** SR-17: the case job's preview lines (investigations.casePreview at believed reliability): which instruments, how long,
- *  what it can find, and the expected belief width after if the instruments are as reliable as believed. */
-function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, granted: number, gm: number, on: string): CostLine[] {
-  const cp = casePreview(s, versionById(s, versionId), traits, tools, fte, granted, gm);
+/** SR-17 / RF-S12: the case job's preview lines (investigations.casePreview at believed reliability): which instruments,
+ *  how long, what it can find, and each verdict's belief width after if the instruments are as reliable as believed. */
+function caseGains(s: GameStateV2, versionId: string, traits: TraitId[], tools: TechniqueState[], fte: number, granted: number, o: { reliability: number; perDay: number }, on: string): CostLine[] {
+  const cp = casePreview(s, versionById(s, versionId), traits, tools, fte, granted, o.perDay, o.reliability);
+  const when = cp.done >= 1 - 1e-9 ? `done in ~${cp.days} d` : `${Math.round(cp.done * 100)}% done when it stops at ${INV_MAX_DAYS} d`;
   const out: CostLine[] = [
-    { currency: 'alignment', amount: r2(gm), unit: 'case progress / mo', target: `on ${on}: ${resolveText(gm)}; ${Math.round(cp.h100e).toLocaleString()} H100e` },
+    { currency: 'alignment', amount: r2(cp.reliability), unit: 'reliability', target: `on ${on}: these instruments together catch about ${Math.round(cp.reliability * 100)}% (believed); ${CASE_WORK} engineer-days of work, ${when} (estimate); ${Math.round(cp.h100e).toLocaleString()} H100e` },
     { currency: 'alignment', amount: cp.instruments.length, unit: cp.instruments.length === 1 ? 'instrument' : 'instruments', target: cp.instruments.map((i) => `${i.name} (${i.family}${i.reads.length ? `: ${i.reads.join(', ')}` : ': reads none of the targets'})`).join('; ') },
   ];
   for (const r of cp.ranges) {
     if (!r.now) continue;
-    out.push({ currency: 'alignment', amount: r2(r.now.sd - r.sdAfter), unit: `${r.trait} ±`, target: `believed ${r.now.est.toFixed(2)} ± ${r.now.sd.toFixed(2)} → about ± ${r.sdAfter.toFixed(2)} if it confirms, if your instruments are as reliable as believed (estimate)` });
+    out.push({ currency: 'alignment', amount: r2(r.now.sd - r.confirmed), unit: `${r.trait} ±`, target: `believed ${r.now.est.toFixed(2)} ± ${r.now.sd.toFixed(2)} → about ± ${r.confirmed.toFixed(2)} if it confirms, ± ${r.benign.toFixed(2)} if it clears, ± ${r.inconclusive.toFixed(2)} if inconclusive (if your instruments are as reliable as believed; estimate)` });
   }
   for (const f of cp.canFind) out.push({ currency: 'alignment', amount: 0, unit: 'can find', target: f });
   return out;
@@ -133,7 +129,7 @@ const INVESTIGATE: ActionDef = {
     const ids = str(p, 'tools')?.split(',').filter(Boolean);
     const tools = (ids?.length ? ids : defaultTools(s, traits)).map((id) => s.player.safety.techniques[id]).filter((x): x is TechniqueState => !!x?.unlocked);
     const csScale = caseComputeScale(s, cs); // SR-21: the cases' compute need, filled in the safety needs list's order
-    const gm = investigationGain(s, versionId, traits, tools, fte, cs * csScale);
+    const o = caseOutlook(s, versionId, traits, tools, fte, csScale);
     // Share of the case's work AI does (safety experiments, model v3 E2): what a sabotaging model can corrupt; model v3
     // E7: its sabotage attempts on that share (covert.ts SAFSAB, from beliefs and the measured level) × (1 − the tools'
     // verifiability), the odds resolveInvestigation draws.
@@ -142,10 +138,10 @@ const INVESTIGATE: ActionDef = {
     const on = unexplained ? 'the critical traits (unexplained incident)' : TRAIT_BY_ID[trait]?.name ?? trait;
     return {
       costs: [
-        { currency: 'staffTime', amount: fte, target: `safety research engineers until it resolves (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
+        { currency: 'staffTime', amount: fte, target: `safety research engineers until its work is done (≤ ${INV_MAX_DAYS} d; before validation jobs in the default order)` },
         { currency: 'compute', amount: cs, target: csScale < 1 ? `of the safety compute pool (gets ${Math.round(cs * csScale * 1000) / 10}%: the monitors come first)` : 'of the safety compute pool' },
       ],
-      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, gm, on) : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
+      gains: tools.length ? caseGains(s, versionId, traits, tools, fte, cs * csScale, o, on) : [{ currency: 'alignment', amount: 0, target: 'no unlocked tool covers this: the case cannot open' }],
       exposure: pc > 0 ? [{ currency: 'alignment', amount: -1, unit: 'case', probability: pc, target: 'conclusion corrupted by sabotaging safety AI (reads benign or inconclusive; estimate)' }] : [],
     };
   },
@@ -173,7 +169,7 @@ const CLOSE_CASE: ActionDef = {
   preview(s, p) {
     const inv = s.player.safety.investigations.find((i) => i.id === str(p, 'id')) ?? s.player.safety.investigations.find((i) => !i.outcome);
     return {
-      costs: [{ currency: 'alignment', amount: r2(1 - (inv?.clarity ?? 0)), target: 'clarity not reached' }],
+      costs: [{ currency: 'alignment', amount: r2(1 - (inv?.progress ?? 0)), target: `of the case's work not done: its verdict at ${Math.round((inv?.progress ?? 0) * 100)}% of its strength` }],
       gains: [{ currency: 'staffTime', amount: inv?.fte ?? 0, target: 'safety research engineers freed for tool upkeep' }],
       exposure: [],
     };
@@ -190,48 +186,22 @@ const RESPONSE_KINDS = Object.keys(RESPONSE_INFO) as ResponseKind[];
 const f2 = (x: number) => x.toFixed(2);
 const fmtActs = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** F6e: the next post-training run's cost of a patch or targeted training (consumeRunPenalty in models/runs.ts). */
-function runPenaltyLine(s: GameStateV2): CostLine {
-  const pending = pendingRunPenalty(s);
-  return { currency: 'progress', amount: -RUN_PENALTY_OOM, unit: 'OOM', target: `of G off the next post-training run${pending > 0 ? `; ${pending.toFixed(3)} OOM already pending` : ''}` };
-}
-
 /** SR-16: the RL family named in an action's params (environment fix), if any. */
 const familyParam = (p: Record<string, unknown> | undefined): RLFamily | undefined => {
   const f = p?.family;
   return typeof f === 'string' && (RL_FAMILY_IDS as string[]).includes(f) ? (f as RLFamily) : undefined;
 };
 
-/** SR-16 / SR-16b: ordering an environment fix as preview lines (envFixPreview: the work, the engineers the 'envFix'
- *  need gives it at today's staffing, the days that takes, the family's fix when done). Used by the Respond menu and
- *  Training › Environments (safety.envFix). */
-function envFixLines(s: GameStateV2, family?: RLFamily): Preview {
-  const pv = envFixPreview(s, family);
-  const days = Number.isFinite(pv.days[0]) ? `${pv.days[0]}–${pv.days[1]} d at today's staffing (${pv.fte.toFixed(1)} of ${PATCH_FTE} engineers)` : 'waits: no safety engineers left for the environment-fix need';
-  return {
-    costs: [
-      { currency: 'staffTime', amount: PATCH_FTE, unit: 'safety engineers', target: `${pv.work[0]}–${pv.work[1]} engineer-days of work: ${days}${pv.pending ? `; ${pv.pending} fix already being built on ${pv.label}` : ''}` },
-      runPenaltyLine(s),
-    ],
-    gains: pv.block
-      ? [{ currency: 'alignment', amount: 0, target: pv.family ? `the ${pv.label} environments' fix is ${pv.block}: no further effect` : pv.block }]
-      : [{ currency: 'alignment', amount: 1, unit: 'environment fix', target: `${pv.label}, when the work is done: rewarded hacks ×${f2(pv.mult)} → ×${f2(pv.after[0])}–${f2(pv.after[1])} on every later run that trains on ${pv.label} (floor ×${PATCH_FLOOR}); runs on other families unchanged` }],
-    exposure: [],
-  };
+/** RF-S8: the environment-fix response is a hardening pass on the family's suite; its preview is suite.harden's own
+ *  (models/suites.ts SUITE_ACTIONS: cash, engineer team-weeks, exploitable share before → after, floor included), with
+ *  the reason when the pass cannot be queued. */
+function hardenLines(s: GameStateV2, family?: RLFamily): Preview {
+  const f = hardenFamily(s, family);
+  if (!f) return { costs: [{ currency: 'progress', amount: 0, target: 'no environments of that family' }], gains: [], exposure: [] };
+  const pv = SUITE_ACTIONS.find((x) => x.id === 'suite.harden')!.preview(s, { family: f });
+  const block = suiteWorkBlock(s, f, 'harden');
+  return block ? { ...pv, gains: [{ currency: 'alignment', amount: 0, target: block }] } : pv;
 }
-
-/** SR-16b: order an environment fix on one RL family from Training › Environments (no finding needed). */
-const ENV_FIX: ActionDef = {
-  id: 'safety.envFix', verb: 'respond', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Fix environment',
-  available: (s) => !!envFixFamily(s) || 'No RL environments',
-  preview: (s, p) => envFixLines(s, familyParam(p)),
-  apply(s, ctx, p) {
-    const pv = envFixPreview(s, familyParam(p));
-    if (!pv.family || pv.block) return void ctx.log('alert', `Fix environment: ${pv.block ?? 'pick a family'}.`, 1);
-    orderEnvFix(s, ctx.rng('safety'), pv.family, ctx.day);
-    ctx.log('company', `Environment fix ordered: ${pv.label} (${pv.work[0]}–${pv.work[1]} engineer-days).`, 1);
-  },
-};
 
 function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | undefined, incidentId: string | undefined, o: { footholdId?: string; trait?: TraitId; techniqueId?: string; family?: RLFamily } = {}): Preview {
   if (kind === 'removeFoothold') return removalPreview(s, o.footholdId);
@@ -249,7 +219,7 @@ function respondPreview(s: GameStateV2, kind: ResponseKind, versionId: string | 
   // believed levels (beliefs, measured levels, believed strengths) only.
   switch (kind) {
     case 'patchSignal':
-      return envFixLines(s, o.family);
+      return hardenLines(s, o.family);
     case 'addMethod': {
       // SR-18: a method for later runs (applyResponse adds it to SafetyDept.requiredMethods; defaultMethods lists it).
       // Its effect is the run's own (methodLines in the run preview); nothing changes in this model.
@@ -801,6 +771,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK, ENV_FIX];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
 
 

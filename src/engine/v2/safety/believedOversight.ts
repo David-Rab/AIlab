@@ -10,7 +10,7 @@
 //     controlMiss control deferral's miss multiplier while the control layer is on
 // Never reads true tool strengths, true masks, true levels or U-modes.
 import { controlOn, labControlSetting, reviewOn } from './safeguards';
-import { HUMAN_REVIEW } from '../../../data/v2/danger';
+import { reviewCatch } from './lineProjects';
 import { HUMAN_REVIEW_L } from '../../../data/v2/oversight';
 import { fleetMonitor } from '../departments/agents';
 import { measuredLOf } from '../models/labs';
@@ -35,7 +35,7 @@ export function believedOversightParts(s: GameStateV2, v: ModelVersion, layer: b
   return {
     L,
     block: containment(s, measuredOom(s, v), layer, true),
-    human: (review ? HUMAN_REVIEW : 0) * (1 - aiShare) * gapFactor(oversightGap(s.hidden.timeline, L, HUMAN_REVIEW_L).oom),
+    human: (review ? reviewCatch(s) : 0) * (1 - aiShare) * gapFactor(oversightGap(s.hidden.timeline, L, HUMAN_REVIEW_L).oom),
     controlMiss: miss ? controlProtocol(undefined, labControlSetting(s)).missMult : 1,
   };
 }

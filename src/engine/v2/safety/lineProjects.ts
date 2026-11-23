@@ -14,13 +14,14 @@
 // discoveries, negatives, spillovers, tools no node owns). No candidates, no beliefs.
 //
 // Research engineers (RD-A04, SR-21): one needs list in the player's order (research.safRe, set in LAB; models/research.ts
-// allocate, the capability engineers' allocator): human review, open cases, validation jobs, eval suites, environment fixes,
+// allocate, the capability engineers' allocator): human review, open cases, validation jobs, eval suites,
 // foothold removals, line experiments (each project in priority order asks SAF_RE_ASK labour units × its science
 // staffing); the rest is idle. safetySpend sums the filled needs' staff and compute cost.
 // Compute: the safety line after cases and eval suites (in the list's order) goes to validation and the projects in experiments by need (RD-R02a, the capability
 // rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
 // its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
 // the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
+import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { TEAM_SIZE } from '../../../data/v2/teams';
@@ -40,7 +41,6 @@ import { aiShareOf } from './agents';
 import { spotCheckFte } from './workPackage';
 import { safetySandbag } from './covert';
 import { investigationFte, safeguardFte, safetyReHeads } from './investigations';
-import { envFixFte } from './responses';
 import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
@@ -180,6 +180,9 @@ export function needServed(s: GameStateV2, k: SafReNeed): number {
   const a = safAllocation(s);
   return a.demand[k] > 1e-12 ? Math.min(1, a.got[k] / a.demand[k]) : 1;
 }
+/** RF-S11 (SR-21): human review's catch at the staffing it gets: HUMAN_REVIEW × the 'review' need's served share (an
+ *  unstaffed review stops nothing). Staffing is the player's own quantity, so the believed readouts use it too. */
+export const reviewCatch = (s: GameStateV2): number => HUMAN_REVIEW * needServed(s, 'review');
 /** SR-21: the cases' compute granted ÷ asked with `extraShare` more asked (the Investigate preview): the line minus what
  *  the needs ahead of cases in the order (eval suites) took, over the cases' ask. */
 export function caseComputeScale(s: GameStateV2, extraShare = 0): number {
@@ -227,11 +230,11 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   // are needs in it; eval staff are safety engineers (heads × quality = team-equivalents × TEAM_SIZE.re).
   const demand: Record<SafReNeed, number> = {
     review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
-    envFix: envFixFte(s), removal: removalFte(s), safExp: askSum,
+    removal: removalFte(s), safExp: askSum,
   };
   const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
   const got = allocate(heads, order, demand);
-  const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.envFix - got.removal);
+  const free = Math.max(0, heads - got.review - got.spotCheck - got.cases - got.removal);
   let left = got.safExp;
   const re = new Map<string, number>();
   for (const id of ids) {

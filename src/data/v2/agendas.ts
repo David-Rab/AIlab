@@ -156,11 +156,13 @@ export const METHOD_TESTED_OOM: Record<string, { oom: number; src: string }> = {
   'T-UNDO': { oom: -3, src: 'distill-after-unlearn papers: open models ≤ ~8B [D]' },
   'T-CAST': { oom: 0, src: 'no empirical test (Harms 2024 is a proposal): its ×0.7 is a stand-in for today\'s models [D]' },
 };
-/** CP3i stand-ins (no source gives either): q ~ U[lo, hi] per world per method (the method may hold fully, q = 1, or
- *  stop working, q = 0: "tested only on current models"; the designer's "wide"), and the transition width k OOM above
+/** CP3i stand-ins (no source gives either): q ~ U[lo, hi] per world per method, and the transition width k OOM above
  *  the tested model: about one frontier generation of training compute (GPT-3 3.1e23 → GPT-4 2.1e25 FLOP, 1.8 OOM,
- *  Epoch AI), i.e. by the next generation the tested effect says nothing beyond the range. */
-export const METHOD_SCALE = { lo: 0, hi: 1, k: 2 } as const;
+ *  Epoch AI), i.e. by the next generation the tested effect says nothing beyond the range. RF-S10 (designer decision 8,
+ *  2026-11-23): the range is two-sided around the tested effect (q = 1): a method may stop working at scale (q = 0) or
+ *  work up to twice as strongly (q = 2, the exponent doubled) [stand-in: the width mirrors CP3i's downside]; the lab's
+ *  expectation is the tested effect. */
+export const METHOD_SCALE = { lo: 0, hi: 2, k: 2 } as const;
 /** The lab's belief about q: the range's midpoint (a uniform belief over [lo, hi]). */
 export const METHOD_SCALE_BELIEVED = (METHOD_SCALE.lo + METHOD_SCALE.hi) / 2;
 /** The lab's belief about r: the stated range's midpoint (a uniform belief over [lo, hi]). */

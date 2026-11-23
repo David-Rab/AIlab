@@ -144,7 +144,6 @@ export * from './core/limitsView';
 export { suitesView, suiteWorkCost, suiteWorkEffect, familyDomain, demosAvailable, type SuiteRow } from './models/suites';
 // Model v3 D6: the suites view (Models › Suites): previews of suite work on a planned post-train (output only).
 export { suitePlanEffect, suiteS2Parts, suiteWorkPreview, suitePending, lockedSuiteFamilies, unbuiltSuites, exploitFloor, type SuitePlanEffect, type SuiteWorkPreview } from './models/suitesPreview';
-export { envFixPreview, envFixPending, type EnvFixPreview } from './safety/envFix';
 // Model v3 D4: the data view (Models › Data) and the Blueprint's drawn-mix row (output-only selectors).
 export {
   dataPortfolioView, drawByDomain, licenceForm, mixTargetOf, naturalMixView, synForm, teacherRows, usageLevels,

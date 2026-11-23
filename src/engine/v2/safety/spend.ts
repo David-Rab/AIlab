@@ -1,9 +1,11 @@
 // SR-21 (SAFETY-REDESIGN §5, theme A): the safety needs list as one readout. Every safety use of staff and compute is a
 // need of LAB's one allocator (safety/lineProjects.ts safAllocation, in the player's safety-engineer order): human
-// review, cases, validation jobs, eval suites, environment fixes, foothold removals, research-line experiments; plus the
+// review, cases, validation jobs, eval suites, foothold removals, research-line experiments; plus the
 // deployments' monitoring / control compute (the monitors' line of the flat allocation, set in SAFETY, no staff). Each
 // row has its staff and compute ask and what it got; idle staff and idle safety-line compute are shown, never moved.
-// Safety spend total = Σ of the rows' filled staff and compute cost (idle is listed beside it, not in it).
+// Safety needs spend total = Σ of the rows' filled staff and compute cost (idle is listed beside it, not in it). RF-S11:
+// named for what it covers; safety scientists' payroll, idle engineers and product monitors (billed to serving) are not
+// in it, and the readout says so.
 import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL } from '../../../data/v2/research';
 import { QUALITY } from '../../../data/v2/teams';
 import { monitorBudget } from '../departments/agents';
@@ -26,7 +28,7 @@ export interface SafetySpend {
   rows: SafetyNeedRow[];
   idleStaff: number; idleCompute: number; idleCost: number;
   staffCost: number; computeCost: number;
-  /** Safety spend $B/yr = staffCost + computeCost (filled needs only). */
+  /** Safety needs spend $B/yr = staffCost + computeCost (what the needs got; not scientists, idle or product monitors). */
   total: number;
   /** $B/yr per person (heads × quality) and per H100e. */
   perHead: number; perH100e: number;

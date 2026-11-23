@@ -19,10 +19,9 @@ import { securitySystem } from '../../src/engine/v2/security/security';
 import { ws4 } from '../../src/engine/v2/actors/state';
 import { covertOutcome, covertRecord, internalFleetCompute, dayTerms, fleetCovertTerms, itemTerms, noteCovert, rdParts, rollFleetCovert, safetySabotage, steerSuccessor } from '../../src/engine/v2/safety/covert';
 import { caseOdds, caseOnModel, footholdView, footholdsStep, removalPreview, suspicionRate } from '../../src/engine/v2/safety/footholdDetection';
-import { backdoorReach, escapeResolved, footholdsOf, hiddenComputeH, lineageOf } from '../../src/engine/v2/safety/footholds';
+import { backdoorReach, escapeResolved, footholdsOf, hiddenComputeH, lineageOf, removalFte } from '../../src/engine/v2/safety/footholds';
 import { fireFinding, revealFalse } from '../../src/engine/v2/safety/findings';
 import { resolveInvestigation, safetyReHeads } from '../../src/engine/v2/safety/investigations';
-import { patchFte } from '../../src/engine/v2/safety/responses';
 import { resetSafAllocation, lineLabour } from '../../src/engine/v2/safety/lineProjects';
 import { pulledTraits, successorPull } from '../../src/engine/v2/safety/traits';
 import type { DomainId, Foothold, GameStateV2, Investigation, ModelVersion } from '../../src/engine/v2/types';
@@ -266,10 +265,10 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   check(Math.abs(a.loc - c) < se(c) && caseOdds({ ...f, status: 'suspected' }, ['SCHEME'], c).locate === c, 'location: a case at clarity c on the foothold\'s traits locates a suspected foothold with P = c·ρ', `${pct(a.loc)} vs ${pct(c)}`);
   check(Math.abs(b.loc - c / 2) < se(c / 2) && Math.abs(b.sus - c / 2) < se(c / 2), 'location: … a hidden one with c·ρ/2, and makes it suspected with another c·ρ/2', `located ${pct(b.loc)}, suspected ${pct(b.sus)} vs ${pct(c / 2)} each`);
   check(z.loc === 0, 'location: a case on unrelated traits finds nothing (ρ = 0)');
-  // Through the investigation mechanics: a resolving case on the maker with clarity 1 on SCHEME locates it.
+  // Through the investigation mechanics: a resolving case on the maker with its work done on SCHEME locates it.
   f.status = 'suspected';
   delete f.detectedDay;
-  const inv: Investigation = { id: 'INV-T', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 15, computeShare: 0.05, tools: ['T-MO'], startDay: s.time.day - 60, clarity: 1 };
+  const inv: Investigation = { id: 'INV-T', target: { kind: 'trait', versionId: v.id, trait: 'SCHEME' }, fte: 15, computeShare: 0.05, tools: ['T-MO'], startDay: s.time.day - 60, progress: 1 };
   s.player.safety.investigations.push(inv);
   resolveInvestigation(s, makeCtx(s), inv);
   check((f.status as string) === 'detected' && /investigation INV-T/.test(f.symptom ?? ''), 'location: an investigation resolving on the maker (SCHEME, clarity 1) locates a suspected backdoor', `${inv.outcome}; ${f.symptom}`);
@@ -289,7 +288,7 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   computeOnlineSystem.run(s, ctx);
   const on0 = s.player.computeOnline;
   const pv = removalPreview(s, h.id);
-  const re0 = patchFte(s);
+  const re0 = removalFte(s);
   const free = safetyReHeads(s) - re0;
   respond.apply(s, ctx, { kind: 'removeFoothold', footholdId: h.id });
   computeOnlineSystem.run(s, ctx);
@@ -297,14 +296,14 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
   const staff = pv.costs.find((x) => x.currency === 'staffTime')?.amount;
   const down = -(pv.costs.find((x) => x.currency === 'compute')?.amount ?? 0);
   const gain = pv.gains.find((x) => x.currency === 'compute')?.amount ?? 0;
-  check(free >= cost.fte && (h.status as string) === 'removed' && Math.abs(s.player.computeOnline - on0 - gain) <= 1 && staff === cost.fte && patchFte(s) - re0 === staff && Number(s.flags['ws4:agentsOffUntil']) === s.time.day + down && h.removal?.until === s.time.day + cost.days,
+  check(free >= cost.fte && (h.status as string) === 'removed' && Math.abs(s.player.computeOnline - on0 - gain) <= 1 && staff === cost.fte && removalFte(s) - re0 === staff && Number(s.flags['ws4:agentsOffUntil']) === s.time.day + down && h.removal?.until === s.time.day + cost.days,
     'removal: hidden compute: the reservation returns to usable compute and the lab pays what the preview said (engineers, agent downtime)',
     `+${Math.round(s.player.computeOnline - on0)} H100e (preview +${gain}); ${staff} engineers for ${cost.days} d; agents off ${down} d`);
   const ctx2 = makeCtx(s);
   const d0 = s.time.day;
   s.time.day = d0 + cost.days;
   footholdsStep(s, ctx2);
-  check(patchFte(s) === re0 && !h.removal, 'removal: the engineers are free again after the removal\'s days');
+  check(removalFte(s) === re0 && !h.removal, 'removal: the engineers are free again after the removal\'s days');
   s.time.day = d0;
   // Backdoor: oversight back to full.
   const t0 = dayTerms(s, v, 'HIDCOMP', 1);

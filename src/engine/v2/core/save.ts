@@ -190,8 +190,12 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  in world.fx.toolShip only the tools new in that game, as a day (RD-P07b's { day, by } → day).
  *  100 (RF-S5): TechniqueState.trust is per model (byModel: model id → factor) instead of one factor f. Migration
  *  99 → 100 puts the old factor on the model the instrument was last validated on (else its last evidence's model).
+ *  101 (RF-S8): an environment fix is a hardening pass on the family's suite (one verb, Harden). Migration 100 → 101 drops
+ *  SafetyDept.envFixes / envFixJobs (fixes in force and being built are lost: the planned save break) and the 'envFix'
+ *  need from research.safRe (order and caps). RF-S10: it also redraws HiddenWorld.methodScale from the seed on the
+ *  two-sided range U[0, 2] (methodScaleOf). RF-S12: Investigation.clarity → progress (clarity ÷ 0.8, capped at 1).
  */
-export const SCHEMA_REV = 100;
+export const SCHEMA_REV = 101;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 33;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -1147,6 +1151,24 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       tr.byModel = model && tr.f !== undefined ? { [model]: tr.f } : {};
       delete tr.f;
     }
+  },
+  100: (raw) => {
+    // 100 → 101 (RF-S8): environment fixes fold into hardening; RF-S10: method strengths at scale on the two-sided range
+    // (see SCHEMA_REV's note).
+    const r = raw as { hidden?: { methodScale?: Record<string, number> }; setup?: { seed?: number } };
+    if (r.hidden) r.hidden.methodScale = methodScaleOf(r.setup?.seed ?? 0);
+    // RF-S12: a case's clarity becomes the share of its work done (its old clarity ÷ the 0.8 it resolved at).
+    const invs = (raw as { player?: { safety?: { investigations?: Record<string, unknown>[] } } }).player?.safety?.investigations ?? [];
+    for (const i of invs) {
+      if (i.progress === undefined) i.progress = Math.min(1, (typeof i.clarity === 'number' ? i.clarity : 0) / 0.8);
+      delete i.clarity;
+    }
+    const p = (raw as { player?: { safety?: Record<string, unknown>; research?: { safRe?: { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } } } }).player;
+    if (p?.safety) { delete p.safety.envFixes; delete p.safety.envFixJobs; }
+    const sr = p?.research?.safRe;
+    if (!sr) return;
+    sr.order = (sr.order ?? []).filter((k) => k !== 'envFix');
+    for (const cap of [sr.max, sr.share]) if (cap) delete cap.envFix;
   },
 };
 

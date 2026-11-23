@@ -1,14 +1,15 @@
 // Investigations (V2-SPEC §3.5.8). Owner: WS2.
 //
 // A case on (version, trait) or on an incident. R8: staffed by safety research engineers (5–40 people from the safety
-// research-engineering teams; the rest of them keep tools validated). Monthly clarity gain =
-// combine_t(cov·strength·penalty)·(people/15)^0.5; it feeds observations into beliefs and resolves at clarity ≥ 0.8, on
-// close, or after 120 days. The outcome is drawn
-// from the truth (engine) but the player only sees the outcome label and a severity estimate.
+// research-engineering teams). RF-S12 (SAFETY-REDESIGN §3.6, §6 #7): a case is a job of CASE_WORK engineer-days; each
+// day it gets its engineers as served by the needs list × m of safety experiments (AI labour) × its compute served.
+// When the work is done (or the case is closed, or INV_MAX_DAYS pass) it concludes: one reading per instrument family
+// into beliefs, and a verdict whose odds come from the chosen instruments' combined reliability on the target traits
+// (combineTools: coverage × strength × family penalty, the ρ = 0.5 rule between same-assumption tools) × the share of
+// the work done. The outcome is drawn from the truth (engine) but the player only sees the outcome label and a
+// severity estimate.
 import { safetyLabour } from '../departments/workfit';
 import { VERIFIABILITY } from '../../../data/v2/agendas';
-import { SHARE_REF } from '../../../data/v2/calibration';
-import { MONITOR_STD_POOL_SHARE } from '../../../data/v2/agents';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { CRITICAL_TRAITS, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
@@ -20,7 +21,7 @@ import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
 import { caseThreat, safetySabotage } from './covert';
-import { patchFte } from './responses';
+import { removalFte } from './footholds';
 import { caseOnModel } from './footholdDetection';
 import { casesServed, safAllocation } from './lineProjects';
 import { QUALITY } from '../../../data/v2/teams';
@@ -40,8 +41,8 @@ export function safetyReHeads(s: GameStateV2): number {
 export function safeguardFte(s: GameStateV2): number {
   return labReviewOn(s) ? reviewStaff(1 - aiRdShare(s)) : 0;
 }
-/** Safety research engineers committed before line experiments: investigations, patches and safeguards. */
-export const committedFte = (s: GameStateV2) => investigationFte(s) + patchFte(s) + safeguardFte(s);
+/** Safety research engineers committed before line experiments: investigations, foothold removals and safeguards. */
+export const committedFte = (s: GameStateV2) => investigationFte(s) + removalFte(s) + safeguardFte(s);
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;
@@ -105,7 +106,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   }
   const same = dept.investigations.find((i) => !i.outcome && JSON.stringify(i.target) === JSON.stringify(target));
   if (same) return 'A case is already open on this';
-  const tmp: Investigation = { id: '', target, fte, computeShare: 0, tools: [], startDay: ctx.day, clarity: 0 };
+  const tmp: Investigation = { id: '', target, fte, computeShare: 0, tools: [], startDay: ctx.day, progress: 0 };
   const traits = targetTraits(s, tmp);
   const tools = (opts.tools?.length ? opts.tools : defaultTools(s, traits)).filter((id) => s.player.safety.techniques[id]?.unlocked);
   if (!tools.length) return 'No unlocked tools cover this';
@@ -119,7 +120,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   }
   const inv: Investigation = {
     id: `INV${n}`, target, fte, computeShare: clamp01(opts.computeShare ?? 0.05), tools,
-    startDay: ctx.day, clarity: 0, before, readings: 0,
+    startDay: ctx.day, progress: 0, before, readings: 0,
     // SR-22: expected = the believed level of the most severe target trait at opening (the case's chance to find it).
     job: jobRecord(s, jobAiShare(s, 'case'), Math.max(0, ...Object.values(before).map((b) => b?.est ?? 0))),
   };
@@ -128,43 +129,40 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
   return inv;
 }
 
-/** Monthly clarity gain (§3.5.8): combine_t(cov·strength·penalty) · (FTE/15)^0.5. Engine (true strengths). */
-export function monthlyGain(s: GameStateV2, inv: Investigation): number {
+/** RF-S12: a case's work in engineer-days [stand-in, proxy: research/RD-SR24-safety-params.md C1, C3: an audit is
+ *  0.2–30 person-days (Marks et al. 2025: 1.5–70+ researcher-hours; Taylor et al. 2025: blue budget ≈ 240
+ *  person-hours)]. */
+export const CASE_WORK = 30;
+
+/** Combined reliability of the case's instruments on its traits (the best target trait): combineTools over the tools'
+ *  coverage × strength × family penalty (the ρ = 0.5 rule between tools on the same world assumption). Engine: true
+ *  strengths on the true level; the Investigate preview computes the same at believed strengths and the measured level. */
+export function caseReliability(s: GameStateV2, inv: Investigation): number {
   const v = targetVersion(s, inv);
   if (!v) return 0;
   const X = versionOom(s, v);
-  const traits = targetTraits(s, inv);
   const tools = toolsOf(s, inv);
   let g = 0;
-  for (const k of traits) {
-    const items = tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) * familyPenalty(s, v, k, t.family) }));
-    g = Math.max(g, combineTools(items));
-  }
-  // Model v3 E2: AI labour is the same input as the case's engineers: effective FTE = FTE × m of safety experiments
-  // (SAF_EXP through the Trusted-to-AI share; departments/workfit.ts safetyLabour).
-  return caseRate(s, g, inv.fte * casesServed(s), caseH100e(s, inv.computeShare * safAllocation(s).caseScale)); // SR-21: the cases' compute need filled in the list's order
+  for (const k of targetTraits(s, inv)) g = Math.max(g, combineTools(tools.map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) * familyPenalty(s, v, k, t.family) }))));
+  return g;
 }
 
-/** RD-A05b: a case's compute (H100e) that gives the reference compute term (×1): 5% of the reference lab's safety research
- *  line at the start (1.2M H100e × the start safety share × the share left after the standard monitors) [D]. */
-export const CASE_H100E_REF = 0.05 * 1.2e6 * SHARE_REF[0].share.safety * (1 - MONITOR_STD_POOL_SHARE);
 /** RD-A05b: H100e a case runs on: its granted share of the safety research line (a demand inside that use of the flat
  *  allocation; SR-21: the cases' compute need in the safety needs list, safety/lineProjects.ts safAllocation). */
 export const caseH100e = (s: GameStateV2, grantedShare: number) => s.player.computeOnline * Math.max(0, s.player.split.safety) * Math.max(0, grantedShare);
 
-/** Monthly clarity from the tools' combined detection g, the case's engineers (× m of safety experiments) and its
- *  compute in H100e (RD-A05b: real compute, so a bigger safety line speeds a case of the same share). F6e: shared with
- *  the Investigate preview (which passes g at believed strengths). */
-export function caseRate(s: GameStateV2, g: number, fte: number, h100e: number): number {
-  const m = safetyLabour(s).exp.m;
-  return clamp01(g * Math.sqrt((fte * m) / 15) * Math.min(1.5, Math.pow(Math.max(0.01 * CASE_H100E_REF, h100e) / CASE_H100E_REF, 0.2)));
+/** RF-S12: engineer-days of case work done a day by `fte` engineers (as served) with `computeServed` (0–1) of the
+ *  compute it asked: × m of safety experiments (model v3 E2: AI labour is the same input as the engineers). Shared with
+ *  the Investigate preview. */
+export function caseDailyWork(s: GameStateV2, fte: number, computeServed: number): number {
+  return Math.max(0, fte) * safetyLabour(s).exp.m * clamp01(computeServed);
 }
-
-/** Days for clarity to reach CASE_RESOLVE at a monthly gain (as investigationsStep compounds it), capped at INV_MAX_DAYS. */
-export const CASE_RESOLVE = 0.8;
-export function daysToResolve(gm: number): number {
-  const gd = 1 - Math.pow(1 - Math.min(0.999, gm), 1 / 30);
-  return gd > 0 ? Math.min(INV_MAX_DAYS, Math.ceil(Math.log(1 - CASE_RESOLVE) / Math.log(1 - gd))) : INV_MAX_DAYS;
+/** Days until `left` engineer-days of case work are done at `perDay` a day (capped at INV_MAX_DAYS), and the share of
+ *  the work done when the case concludes. */
+export function caseDays(perDay: number, left = CASE_WORK): { days: number; done: number } {
+  if (perDay <= 1e-12) return { days: INV_MAX_DAYS, done: 1 - left / CASE_WORK };
+  const days = Math.ceil(left / perDay - 1e-9);
+  return days <= INV_MAX_DAYS ? { days, done: 1 } : { days: INV_MAX_DAYS, done: Math.min(1, 1 - (left - perDay * INV_MAX_DAYS) / CASE_WORK) };
 }
 
 /** Odds a case's conclusion is corrupted (resolveInvestigation): the sabotage rate on the AI share of the work × (1 −
@@ -174,7 +172,7 @@ export function corruptOdds(rate: number, tools: readonly TechniqueState[]): num
   return clamp01(rate * (1 - verif));
 }
 
-/** Daily step: clarity, monthly observations, resolution. */
+/** Daily step: the case's work advances; it concludes when its work is done or at INV_MAX_DAYS. */
 export function investigationsStep(s: GameStateV2, ctx: SystemCtx): void {
   for (const inv of s.player.safety.investigations) {
     if (inv.outcome) continue;
@@ -183,28 +181,30 @@ export function investigationsStep(s: GameStateV2, ctx: SystemCtx): void {
       inv.outcome = 'inconclusive';
       continue;
     }
-    const gm = monthlyGain(s, inv);
-    const gd = 1 - Math.pow(1 - Math.min(0.999, gm), 1 / 30);
-    inv.clarity = 1 - (1 - inv.clarity) * (1 - gd);
-    const age = ctx.day - inv.startDay;
-    if (age > 0 && age % 30 === 0) {
-      const X = versionOom(s, v);
-      for (const k of targetTraits(s, inv)) {
-        for (const fam of ['BB', 'COT', 'WB', 'OR'] as ToolFamily[]) {
-          const items = toolsOf(s, inv).filter((t) => t.family === fam).map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) }));
-          const d = combineTools(items);
-          if (d > 0.05) {
-            observeVersion(s, ctx.rng('safety'), ctx.day, v, k, fam, d, 1, 'case');
-            inv.readings = (inv.readings ?? 0) + 1;
-          }
-        }
-      }
-    }
-    if (inv.clarity >= CASE_RESOLVE || age >= INV_MAX_DAYS) resolveInvestigation(s, ctx, inv);
+    // SR-21: the cases' engineers and compute as the needs list served them today.
+    inv.progress = Math.min(1, inv.progress + caseDailyWork(s, inv.fte * casesServed(s), safAllocation(s).caseScale) / CASE_WORK);
+    if (inv.progress >= 1 - 1e-9 || ctx.day - inv.startDay >= INV_MAX_DAYS) resolveInvestigation(s, ctx, inv);
   }
 }
 
-/** Close a case early (player). It resolves with the clarity reached so far. */
+/** RF-S12: the case's readings when it concludes: one per instrument family on each target trait, at the family's
+ *  combined strength × the share of the work done. */
+function caseReadings(s: GameStateV2, ctx: SystemCtx, inv: Investigation, v: ModelVersion): void {
+  const X = versionOom(s, v);
+  const done = clamp01(inv.progress);
+  for (const k of targetTraits(s, inv)) {
+    for (const fam of ['BB', 'COT', 'WB', 'OR'] as ToolFamily[]) {
+      const items = toolsOf(s, inv).filter((t) => t.family === fam).map((t) => ({ agenda: t.agenda, d: (t.coverage[k] ?? 0) * strengthTrue(s, t, X) }));
+      const d = combineTools(items) * done;
+      if (d > 0.05) {
+        observeVersion(s, ctx.rng('safety'), ctx.day, v, k, fam, d, 1, 'case');
+        inv.readings = (inv.readings ?? 0) + 1;
+      }
+    }
+  }
+}
+
+/** Close a case early (player). It concludes with the share of its work done so far. */
 export function closeInvestigation(s: GameStateV2, ctx: SystemCtx, id: string): string | undefined {
   const inv = s.player.safety.investigations.find((i) => i.id === id);
   if (!inv) return 'Unknown investigation';
@@ -233,7 +233,9 @@ export function resolveInvestigation(s: GameStateV2, ctx: SystemCtx, inv: Invest
   // The true level of the most severe target trait (engine).
   const k = traits.reduce((a, b) => (v.traitsTrue[b] > v.traitsTrue[a] ? b : a), traits[0]);
   const x = v.traitsTrue[k];
-  const c = inv.clarity;
+  // RF-S12: the case's readings, then the verdict at the instruments' combined reliability × the share of work done.
+  caseReadings(s, ctx, inv, v);
+  const c = caseReliability(s, inv) * clamp01(inv.progress);
   // Corruption by AI labour from a sabotaging model (E20): the safety agents' uncaught sabotage of the case (model v3 E7's
   // SAFSAB on the share of the case's work AI does, A of safety experiments = Trusted to AI × coverage, E2) × (1 −
   // verifiability of the case's tools). SAFMECH: × the case's threat to the safety model (a case on its own lineage, by
@@ -338,18 +340,19 @@ export function caseChanges(inv: Investigation, v: ModelVersion): CaseChange[] {
   return out;
 }
 
-/** SR-17: the case job's true preview from the player's chosen instruments, engineers and compute, at BELIEVED
- *  reliability (`g` from the caller's believed detection, as investigationGain computes it): time, staff, compute, what it
- *  reads and can find, and the expected belief width after if the instruments are as reliable as believed. */
+/** SR-17 / RF-S12: the case job's true preview from the player's chosen instruments, engineers and compute, at BELIEVED
+ *  reliability (`reliability` and `perDay` from the caller, as the Investigate preview computes them): time, staff,
+ *  compute, what it reads and can find, and each verdict's belief width after if the instruments are as reliable as
+ *  believed (the widths resolveInvestigation sets). */
 export interface CasePreview {
-  days: number; clarityAtEnd: number; fte: number; h100e: number; traits: TraitId[];
+  days: number; done: number; reliability: number; strength: number; fte: number; h100e: number; traits: TraitId[];
   instruments: { id: string; name: string; family: ToolFamily; reads: TraitId[] }[];
   canFind: string[];
-  ranges: { trait: TraitId; now: { est: number; sd: number } | null; sdAfter: number }[];
+  ranges: { trait: TraitId; now: { est: number; sd: number } | null; confirmed: number; benign: number; inconclusive: number }[];
 }
-export function casePreview(s: GameStateV2, v: ModelVersion | undefined, traits: TraitId[], tools: TechniqueState[], fte: number, grantedShare: number, gm: number): CasePreview {
-  const days = daysToResolve(gm);
-  const clarityAtEnd = days < INV_MAX_DAYS ? CASE_RESOLVE : 1 - Math.pow(1 - Math.min(0.999, gm), INV_MAX_DAYS / 30);
+export function casePreview(s: GameStateV2, v: ModelVersion | undefined, traits: TraitId[], tools: TechniqueState[], fte: number, grantedShare: number, perDay: number, reliability: number): CasePreview {
+  const { days, done } = caseDays(perDay);
+  const c = reliability * done;
   const fams = new Set(tools.map((t) => t.family));
   const ags = new Set(tools.map((t) => t.agenda));
   const canFind: string[] = [];
@@ -357,14 +360,15 @@ export function casePreview(s: GameStateV2, v: ModelVersion | undefined, traits:
   if (reads.length) canFind.push(`readings on ${reads.join(', ')} from ${[...fams].join(' / ')}`);
   const kinds = Object.values(UMODE_BY_ID).filter((u) => !isDiscovered(s, u.id) && u.revealedBy.some((a) => ags.has(a))).map((u) => u.name);
   if (kinds.length) canFind.push(`hidden failure modes these instruments can reveal, if the model has them: ${kinds.join(', ')}`);
-  canFind.push("footholds of this model's lineage, if any, at the case's final progress");
+  canFind.push("footholds of this model's lineage, if any, at the case's strength");
   if (fams.size >= 2) canFind.push('a false instrument among those used (independent families cross-check)');
   const ranges = traits.map((k) => {
     const b = v?.beliefs[k];
-    return { trait: k, now: b ? { est: b.est, sd: b.sd } : null, sdAfter: Math.min(b?.sd ?? 0.35, 0.05 + 0.1 * (1 - clarityAtEnd)) };
+    const sd = b?.sd ?? 0.35;
+    return { trait: k, now: b ? { est: b.est, sd: b.sd } : null, confirmed: Math.min(sd, 0.05 + 0.1 * (1 - c)), benign: Math.max(0.06, sd * 0.7), inconclusive: sd };
   });
   return {
-    days, clarityAtEnd, fte, h100e: caseH100e(s, grantedShare), traits,
+    days, done, reliability, strength: c, fte, h100e: caseH100e(s, grantedShare), traits,
     instruments: tools.map((t) => ({ id: t.id, name: TECHNIQUE_BY_ID[t.id]?.name ?? t.id, family: t.family, reads: traits.filter((k) => (t.coverage[k] ?? 0) > 0) })),
     canFind, ranges,
   };

@@ -154,11 +154,13 @@ export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string, 
     // SR-15: the effect is the typical one (at the agenda's prior mean efficacy) × s0·e; the plan shows the believed e.
     const k = methodS0(s, m) * methodEfficacy(s, m, 'believed');
     const tau = methodUntested(m, oom);
-    // CP3i: past the tested capability the strength is the stated range (never the world's draw).
+    // CP3i: past the tested capability the strength is the stated range (never the world's draw). RF-S10: player
+    // language, no citations (the sources stay in data/v2/agendas.ts METHOD_TESTED_OOM).
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
     const scale = tau > 0
-      ? `; tested on weaker models (${METHOD_TESTED_OOM[m].src}), so on this model its strength is unknown: ×${(k * (1 - tau + tau * METHOD_SCALE.lo)).toFixed(2)}–×${(k * (1 - tau + tau * METHOD_SCALE.hi)).toFixed(2)} (expected ×${(k * methodStrength(s, m, oom, 'believed')).toFixed(2)})`
+      ? `. Only tested on weaker models than this one, so how well it holds here is unknown: anywhere from ${pct(k * (1 - tau + tau * METHOD_SCALE.lo))} to ${pct(k * (1 - tau + tau * METHOD_SCALE.hi))} of the published strength (expected ${pct(k * methodStrength(s, m, oom, 'believed'))})`
       : '';
-    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} at a typical agenda; yours ×${k.toFixed(2)} of that (believed efficacy ${Math.round(methodEfficacy(s, m, 'believed') * 100)}%)${scale}` });
+    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} as published; yours about ${pct(k)} as strong (from your research on it)${scale}` });
     if (m === 'T-ANTISCHEME' && (!lineage || s.flags[`ws2.e25.${lineage}`] === undefined)) exposure.push({ currency: 'monitorability', amount: -1, unit: 'EA', target: `eval awareness ×${ANTISCHEME_EA_MULT}: the first anti-scheming training on this lineage (Schoen et al. 2025)` });
   }
   return { gains, exposure };

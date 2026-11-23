@@ -124,7 +124,7 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
   // With the evals need put last, the suite gets what the needs above leave (RD-E03: no routine tuning; the start has
   // research engineers to spare); with experiments taking every research engineer it gets nothing.
   const s = game();
-  act(s, 'research.safReAlloc', { order: 'review,spotCheck,cases,validation,envFix,removal,safExp,evals' });
+  act(s, 'research.safReAlloc', { order: 'review,spotCheck,cases,validation,removal,safExp,evals' });
   const idleLast = evalDaysEstimate(s, 'full');
   act(s, 'research.safReAlloc', { need: 'evals', max: 0 });
   const capped = evalDaysEstimate(s, 'full');

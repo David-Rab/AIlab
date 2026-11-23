@@ -4455,3 +4455,138 @@ cap 1.5 kept, decision 1).
   `_sr10/check.ts` updated (reads `trustOf(f, model)`): 16 ok. tsc (app, scripts/v2) clean.
 - Moves calibration: **maybe** (a disagreement no longer lowers believed reliability on other models; believed only, so
   only through bot / policy choices that read beliefs).
+
+## RF lane S2 (post-compaction review fixes, branch rf-s2)
+
+### RF-S6 Revert EV9
+- **Changed:** `git revert` of 8aae8b7: `SAF_RE_NEEDS` (data/v2/research.ts) back to the accepted §5 order review →
+  spot-checks → cases → validations → eval suites → environment fixes → removals → line experiments. The EV9 comment is
+  gone. DECISIONS.md's EV9 line marked reverted.
+- **Deleted:** the lead decision "pre-release evals before validation jobs". Saves keep the player's own order (unchanged).
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; `SAF_RE_NEEDS` / `DEFAULT_SAF_RE_ALLOC.order` print validation before evals.
+  evals.ts EV9 ("release suites about two weeks") is expected to fail again (30 / 33 d, as before 8aae8b7); the review's
+  cause is upstream (the validation policy ports every instrument at 120 engineer-days), not fixed here.
+- **moves calibration: yes** (release-eval timing, so first releases and what follows).
+
+### RF-S7 Revert CP3h(b) length grading gap
+- **Changed:** safety/traits.ts: `lengthGapOom` deleted; `graderSound(s, policy, believed)` loses its family argument
+  (the gap is policy vs graders only, the same for every family) and `missedExploit` computes it once. The CP3h(b)
+  stand-in comment is gone.
+- **Kept:** the rest of CP3h(b), the long-horizon family's task length following the policy's h50 (`runTaskH`, DAPO +
+  METR, sourced), which S3 reads. CP3h(a) (graders outgrown) unchanged, pending the designer's yes / no (review §4).
+- **Stand-ins:** none (one removed).
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs7/check.ts: at +0 / +3 / +6 OOM policies the long-horizon
+  family's missed share equals SWE's at the same exploitability (0.100 / 0.233 / 0.702).
+- **moves calibration: yes** (safety S4: less missed hacking on long tasks past ≈ 1.7 OOM above V0; CP3h's S4
+  0.117 → 0.329 included this gap).
+
+### RF-S8 Fix environment folds into Harden
+- **Changed:** the "Fix environment" response (`patchSignal`, offered for a training-signal cause) is now **Harden
+  environments**: it queues the family's suite hardening pass through `queueSuiteWork` (models/suites.ts, which
+  suite.build / suite.harden also use): Harden's cost (cash for red-teamers + engineer team-weeks on the build queue),
+  Harden's cut (`hardenCut`) and Harden's floor (`exploitFloor`). Its Respond preview is suite.harden's own preview (plus
+  the block reason). Default family = the most exploitable suite (`hardenFamily`, was envFixFamily). The response card's
+  limit is `response.hardenFloor` (gameable tasks now · floor). Runs freeze `suiteExploitMap` (one quantity).
+  Safety › Staff "Patches" label → "Foothold removals" (it is only removals now).
+- **Deleted:** safety/envFix.ts (jobs, step, preview), `safety.envFix` action and the Environments tab's "Environment
+  fix" column, `SafetyDept.envFixes / envFixJobs` and their types, `envFixMult`, `runExploitMap`, the 'envFix' safety
+  need (SafReNeed, SAF_RE_NEEDS, label, demand), `PATCH_FLOOR / PATCH_MULT / PATCH_DAYS / PATCH_FTE`, `RUN_PENALTY_OOM`
+  (the fix's next-run G cost; hardening has none; the runPenalty flag stays for foothold removals), `envFixFte`,
+  `patchFte` (callers use `removalFte`), `patchLevel`, limit `response.patchFloor`, the stale _sr16 / _sr16b checks.
+- **Save:** SCHEMA_REV 98; migration 97 → 98 drops envFixes / envFixJobs (fixes in force or being built are lost: the
+  planned save break) and 'envFix' from research.safRe order / caps; hygiene pins → 98. Other lanes bumping the rev
+  will conflict here: renumber at merge.
+- **Stand-ins:** none new (Harden's existing D5 numbers apply).
+- **Files touched outside safety mechanisms:** safety/actions.ts (lane S1 also edits it: only the env-fix preview /
+  action and imports changed), Suites.tsx / suites.css, Safety.tsx (label, limit), glossary safReNeeds.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs8/check.ts all ok: day 400 migrates to 98 with no envFix
+  state or need; the Respond preview equals suite.harden's ($0.05B, 1.5 team-weeks, Coding 18% → 11.5%); the response
+  pays that and queues the pass, nothing in force yet; a second is refused; completing it gives hardenedExploit (floor
+  1.8%).
+- **moves calibration: yes** (safety S4 / S5 and bots: a fix now costs $50M × size and capability engineers' team-weeks
+  instead of 10 safety engineers for 30–90 d; cut 40% to a lower floor instead of ×0.3–0.6 to ×0.2; no next-run G cost).
+
+### RF-S9 One hack-saturation rule on the player's runs (rivals as is)
+- **Revised** after the designer's decision (2026-11-23: rival safety physics stays as is; a rivals session later).
+  The first commit (c451ddd) also moved rivals onto the saturation rule (`rivalHackShare` = S2 ÷ S2_PER_EXPLOIT); that
+  part is reverted, with the E02 edge comment.
+- **Changed:** safety/traits.ts runEnv (every player env, true and believed) carries `hackTarget: 0`; post / stream /
+  IDA runs set their rewarded hack share as before. So every player run (base, continued pretraining and distillation
+  included) uses only SR-24b's within-run saturation; E02's accumulation fires only on an env without a target, i.e.
+  rivalTraitStep's. Behaviour of player runs is unchanged (their base / distillation S2 is 0, so E02 gave 0 there):
+  the change makes the one rule structural on the player side and leaves E02 as the rivals' rule.
+- **Deleted:** nothing (rival E02 stays by decision); the "two rules" gap is now player vs rivals only, for the rivals
+  session / RF-A1.
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs9/check.ts all ok: a player env has target 0; S2 0.5 with no
+  rewarded hacks leaves RH at 0.01; target 0.3 → 0.297 in one run; an env without a target (rival path) still grows RH
+  0.01 → 0.267 through E02.
+- **moves calibration: no.**
+
+### RF-S10 Method efficacy at scale: two-sided, player-language preview (partial: no validation channel yet)
+- **Changed:** data/v2/agendas.ts `METHOD_SCALE` U[0, 1] → **U[0, 2]** (decision 8: either way around the tested
+  effect, q = 1): a method may stop working at scale or work up to twice as strongly (exponent doubled). Believed q̄ =
+  1, so the lab's expectation at scale is the tested effect; predictBeliefs' range spread uses the new ends unchanged.
+  Run preview method line (safety/methods.ts methodLines) in player language: "… as published; yours about N% as
+  strong (from your research on it). Only tested on weaker models than this one, so how well it holds here is unknown:
+  anywhere from 0% to M% of the published strength (expected N%)". No arXiv cites, no "typical agenda" (sources stay in
+  METHOD_TESTED_OOM).
+- **Save:** folded into rev 98 (same lane, unreleased): migration 97 → 98 also redraws `HiddenWorld.methodScale` from
+  the seed on the new range.
+- **Stand-in:** the upper end 2 (mirrors CP3i's downside; no source gives either end). k = 2 OOM and the tested OOMs
+  unchanged.
+- **Not done: "validation narrows the belief".** Nothing in the design says what validating a method is, and it would sit
+  in safety/validation.ts, which lane S1 (RF-S5) is rewriting now. Proposal for the designer: a validation job on a
+  *method* (same job, need, cost and VAL_N as an instrument's): plant the trait in a test copy of the model, train it
+  with the method, count the planted cases it removes (k of VAL_N; true share from the method's true strength at that
+  model's capability). The lab's q range becomes the q values whose predicted removal (believed efficacy) lies in the
+  k-of-n interval; preview and predicted beliefs read that range instead of [0, 2] for that method. Open: whether
+  organism realism applies to methods too, and whether a measurement at one capability narrows q for larger models.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs10/check.ts all ok: 2,000 seeds q in [0, 2], mean 0.99, 50%
+  above 1; day-400 migrates to the seed's new draw; believed strength 1 at and far above the tested model; preview at +4
+  OOM prints "from 0% to 223% … (expected 111%)", no citations. scripts/v2/_cp3i/check.ts (pins U[0, 1]) will drift.
+  Not changed: the METHODS effect strings still carry edge ids (E04, AF): pre-existing.
+- **moves calibration: yes** (S4: methods past their tested scale now hold or strengthen in half the worlds; CP3i's
+  one-sided draw pushed P_mis up, 0.329 → 0.487).
+
+### RF-S11 Review at its staffing; safety spend named for what it covers
+- **Changed:** safety/lineProjects.ts `reviewCatch(s) = HUMAN_REVIEW × needServed(s, 'review')`, read wherever human
+  review stops acts: the engine (incidents.ts catchOf, internalOversight) and the believed readouts
+  (believedOversight.ts believedOversightParts, pressureView.ts successor-pull view). An unstaffed review stops
+  nothing; a half-staffed one half. Staffing is the player's own quantity, so readouts use the same value.
+  The Work tab's total is renamed **"Safety needs spend"** (tooltip, line, glossary safReNeeds, spend.ts docs) with a
+  footer saying what is not in it: safety scientists' pay, idle engineers (listed above it) and product monitors
+  (billed to serving). Chosen over completing it: completing needs the product-monitor share of serving cost, which no
+  helper gives as one number; tell me if you want the complete total instead.
+- **Deleted:** nothing (the need's served share had no reader).
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs11/check.ts all ok: day 400 with review on, fully served → engine
+  catch 0.093; review need capped at 0 → engine 0 and believed 0.150 → 0.
+- **moves calibration: maybe** (only when the review need is short: by default it is first in the list and served).
+
+### RF-S12 Case = a job of engineer-days; verdict odds from the instruments' combined reliability (SR-17, §6 #7)
+- **Changed:** safety/investigations.ts: a case is `CASE_WORK` engineer-days of work; each day it gets its engineers as
+  served (casesServed) × m of safety experiments × its compute served (caseScale) (`caseDailyWork`). It concludes when
+  the work is done, when closed, or at INV_MAX_DAYS (kept). At the end: one reading per instrument family (was monthly
+  readings) at the family's strength × the share done, then the verdict with c = `caseReliability` (combineTools of the
+  chosen instruments' coverage × strength × family penalty, the ρ = 0.5 rule; true in the engine) × the share of work
+  done. The verdict weights are the existing ones with c in place of clarity (numbers kept, decision 1).
+  `Investigation.clarity` → `progress` (share of the work done). Investigate preview (actions.ts `caseOutlook` +
+  `casePreview`): believed reliability ("these instruments together catch about N%"), the work and days, and each
+  verdict's width after (confirms / clears / inconclusive). Close-case preview: the share not done. Safety › Cases
+  card: a work bar (no 0.8 mark). Glossary investigation / caseStaffing updated.
+- **Deleted:** the clarity rate `caseRate` (g·√(fte·m/15)·min(1.5,(h/ref)^0.2)), `monthlyGain`, `CASE_H100E_REF`,
+  `daysToResolve`, `CASE_RESOLVE`, monthly readings, `investigationGain` / `resolveText`.
+- **Stand-in (new number):** `CASE_WORK = 30` engineer-days [proxy: research/RD-SR24-safety-params.md C1, C3, audit
+  labour 0.2–30 person-days (Marks 2025 1.5–70+ researcher-hours; Taylor 2025 ≈ 240 person-hours blue budget)]. At 10
+  engineers a case now takes ~3 days (before: tens of days to clarity 0.8). **Designer:** confirm the size (or a size
+  per model / per question).
+- **Save:** folded into rev 98: migration 97 → 98 sets progress = clarity ÷ 0.8 (cap 1) and drops clarity.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs12/check.ts all ok: migration clarity 0.4 → progress 0.5; day
+  400, 10 engineers on SCHEME: preview "72% (believed) … done in ~3 d", widths ± 0.08 confirms / ± 0.08 clears / ± 0.11
+  inconclusive; the case concludes on day 3 (10 engineer-days a day), 3 readings; true reliability 0.538.
+  scripts/v2/footholds.ts's "case at clarity 1 locates the backdoor" now runs at progress 1 (c = T-MO's reliability),
+  so it may fail: information, not chased.
+- **moves calibration: yes** (cases are much faster and cheaper; their verdicts are only as strong as the instruments;
+  fewer readings per case: one per family instead of one per family per month).

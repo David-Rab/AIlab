@@ -6,9 +6,9 @@
 // The Blueprint's post-train card shows only the run's weighted summary and links here; the RL ceiling stack lives on
 // Research › Recipe and the engineers' load on Company › Work (links only).
 import { useMemo } from 'react';
-import { Dumbbell, Hammer, Lock, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
+import { Dumbbell, Hammer, Lock, ShieldCheck, type LucideIcon } from 'lucide-react';
 import {
-  dateOf, envFixPending, envFixPreview, exploitFloor, optionLocked, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, suitePending, suitePlanEffect, suiteS2Parts, suitesView,
+  dateOf, exploitFloor, optionLocked, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, suitePending, suitePlanEffect, suiteS2Parts, suitesView,
   suiteWorkPreview, unbuiltSuites, demosAvailable,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, PostDesign, RLFamily, SuiteRow, SuiteWorkPreview } from '../../../engine/v2';
@@ -87,7 +87,6 @@ export function Suites({ s }: { s: GameStateV2 }) {
           <span className="ch r"><Term id="suiteRlShare">RL share</Term></span>
           <span className="ch"><Term id="suiteBuild">Build</Term></span>
           <span className="ch"><Term id="suiteHarden">Harden</Term></span>
-          <span className="ch">Environment fix</span>
           {d.view.rows.map((r) => <SuiteLine key={r.family} s={s} r={r} pv={d.pv[r.family]} />)}
           {d.unbuilt.map((u) => <UnbuiltLine key={u.family} s={s} family={u.family} pv={u.build} />)}
           {d.locked.map((l) => <LockedLine key={l.family} s={s} family={l.family} node={l.node} />)}
@@ -176,45 +175,7 @@ function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: Sui
       </Tip>
       <WorkCell s={s} r={r} pv={pv.build} pend={pend.find((x) => x.work === 'build')} demos={pv.demos} />
       <WorkCell s={s} r={r} pv={pv.harden} pend={pend.find((x) => x.work === 'harden')} />
-      <EnvFixCell s={s} family={r.family} />
     </div>
-  );
-}
-
-/** SR-16b: order an environment fix on this family (safety work on the 'envFix' need; in force when done), or the fix
- *  being built with its days left. The preview is safety.envFix's (envFixPreview). */
-function EnvFixCell({ s, family }: { s: GameStateV2; family: RLFamily }) {
-  const pend = envFixPending(s, family);
-  const pv = envFixPreview(s, family);
-  const label = RL_FAMILY_LABEL[family];
-  const dd = (d: number) => (Number.isFinite(d) ? F.days(d) : 'waits');
-  if (pend.length) {
-    const p = pend[0];
-    return (
-      <Tip content={() => <TipCard title={`Fixing the ${label} environments`} value={Number.isFinite(p.days) ? fmtDate(dateOf(s, s.time.day + p.days)) : 'waits'} rows={[
-        { label: 'Left', value: `${Math.round(p.left)} engineer-days` },
-        { label: 'Done in', value: Number.isFinite(p.days) ? F.days(p.days) : 'waits for safety engineers' },
-        { label: 'Then', value: `rewarded hacks ×${pv.mult.toFixed(2)} → ×${pv.after[0].toFixed(2)}–${pv.after[1].toFixed(2)}` },
-      ]} footer="Safety engineers on the environment-fix need (Company › Work); in force for runs launched after it is done.">One fix per family at a time.</TipCard>}>
-        <span className="sx-work pend" data-pending={`${family}:envFix`}><Wrench size={12} /><span>fixing</span><b className="num">{dd(p.days)}</b></span>
-      </Tip>
-    );
-  }
-  return (
-    <Tip content={() => <TipCard title={`Fix the ${label} environments`} value={pv.block ? <span className="tone-neg">{pv.block}</span> : <span className="tag2">preview</span>} rows={[
-      { label: 'Family', value: label },
-      { label: 'Work', value: `${pv.work[0]}–${pv.work[1]} engineer-days`, tone: 'neg' },
-      { label: 'Safety engineers today', value: `${pv.fte.toFixed(1)} of 10` },
-      { label: 'Done in', value: Number.isFinite(pv.days[0]) ? `${F.days(pv.days[0])}–${F.days(pv.days[1])}` : 'waits for safety engineers' },
-      { label: 'Rewarded hacks', value: `×${pv.mult.toFixed(2)} → ×${pv.after[0].toFixed(2)}–${pv.after[1].toFixed(2)}`, tone: 'pos' },
-    ]} footer="Patches the family's environments, graders or reward model so they stop rewarding hacks. Runs launched after the work is done train on the fixed environments; the next run pays a small G cost." />}>
-      <span className="sx-work">
-        <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act="safety.envFix" data-family={family} onClick={() => store.act('safety.envFix', { family })}>
-          <Wrench size={12} /><span>Fix</span>
-        </button>
-        <span className="sx-cost small dim">{Number.isFinite(pv.days[0]) ? `${pv.days[0]}–${pv.days[1]} d` : 'waits'}</span>
-      </span>
-    </Tip>
   );
 }
 
