@@ -188,18 +188,13 @@ function AddProject({ s }: { s: GameStateV2 }) {
   );
 }
 
-/** A frontier pause or a Safety framework training hold gives capability projects no experiment compute (RD-A07):
- *  say so where the projects stall, with the cause and where to act. */
+/** A frontier pause gives capability projects no experiment compute (RD-A07): say so where the projects stall. A
+ *  Safety framework training hold does not (HOLD: it stops frontier training runs only; the Training queue says so). */
 function ExpHeld({ s }: { s: GameStateV2 }) {
   if (researchMods(s).frontierExp > 0) return null;
-  const holds = (s.player.safety.framework?.holds ?? []).filter((h) => h.target === 'training');
-  const why = holds.length
-    ? holds.map((h) => `${h.versionId}: needs ${h.missing.join(', ')}`).join('; ')
-    : 'frontier work is paused';
   return (
     <div className="rp-foot small" data-test="exp-held">
-      <span className="tone-warn">Experiments held: capability projects get no experiment compute while {holds.length ? <>your <Term id="safetyFramework">Safety framework</Term> holds frontier training</> : 'frontier work is paused'} ({why}). The experiment compute in your split sits unused.</span>
-      {holds.length > 0 && <> <Ref id="safetyFramework" to={{ panel: 'safety', tab: 'overview', anchor: 'ctl-policy' }}>Safety policies</Ref></>}
+      <span className="tone-warn">Experiments held: capability projects get no experiment compute while frontier work is paused. The experiment compute in your split sits unused.</span>
     </div>
   );
 }

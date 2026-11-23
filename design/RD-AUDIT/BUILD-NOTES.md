@@ -5354,3 +5354,21 @@ worldfx full: 35 pass, 0 fail. finance full: 186 pass, 3 fail (F7 valuation, FC1
 
 Changed: scripts/v2/worldfx.ts (two rows INFO, intensity INFO row), new scripts/v2/_cal3i/. No src change. tsc (app,
 scripts/v2) clean. Moves calibration: no.
+
+### HOLD (framework hold stops new frontier training runs only; branch hold-fix from rd e0fe6d3; DECISIONS "UI-IA revised + engine follow-ups")
+
+**Cause.** departments/workfit.ts researchMods set `frontierExp = 0` when `flags.paused || trainingHeld(s)`, and
+expFlopAllowed / production.ts multiply the capability experiment pool by it: a Safety framework training hold gave every
+capability project zero experiment FLOP (UI-FIX day-900 stall: hold since day 865 on V54, needs an external evaluation).
+
+**Change.** `frontierExp` reads only `flags.paused` (the legacy frontier pause; nothing in src sets it now). The hold keeps
+its training-run effects (framework rule, SR-19: base/post runs cannot be planned, `Frontier runs are paused`; running
+ones pause, resume on release). No other hold effect existed (no ×0.1 speed term in researchMods; the ×0.1 in
+data/v2/limits.ts `speed.pause` text belongs to flags.paused; deploy holds are a separate rule). Research › Priorities
+ExpHeld note now covers only the pause (hold branch removed). framework.ts header comment updated.
+
+**Check** (.scratch/hold/check.ts on .scratch/uifix/f900-state.json, 20 days): held true throughout; before: frontierExp 0,
+flopProj 0 on every line, tree progress +0.000; after: frontierExp 1, flopUsed 2.7e25/day across six lines, tree progress
++0.156; no new base/post run, the running one stays paused. tsc (app, scripts/v2) clean. Moves calibration: maybe (only
+games that hit a training hold: RefBot overrides training holds via bots/common.ts, so reference runs likely unchanged;
+careful bots that leave holds standing now keep researching).

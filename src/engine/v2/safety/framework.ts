@@ -6,7 +6,8 @@
 //   hold       a rule whose trigger is met and whose requirements are not, and that the player has not overridden for
 //              that version. Deploy holds: an external launch or swap of the version is refused (deployGate) and a live
 //              external deployment serves nobody while held (productUsageMult 0). Training holds: frontier (base / post)
-//              runs cannot start, running ones pause, frontier experiments stop (models/runs.frontierPaused).
+//              runs cannot start and running ones pause (models/runs.frontierPaused); research experiments keep their
+//              compute (HOLD, designer decision 2026-11-23).
 //   package    RF-S13: before the holds are refreshed each day, the framework applies its "Meet my framework" package
 //              to live deployments a triggered rule asks safeguards of (safety/packages.ts autoApplyPackages, which also
 //              holds the daily frameworkSystem); a hold remains for what the package cannot meet (evidence: an eval suite,
