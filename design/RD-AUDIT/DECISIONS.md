@@ -155,3 +155,11 @@ Programme / project plus an "ongoing" / "one-off" chip.
   TRAINING › Next run → Know-how → SAFETY › Risks → MODELS.
 - A Safety framework training hold stops new frontier training runs only; research experiments keep their compute.
 - Analysis: how often the sight limit is "none" across games (before any change).
+
+## Mockups round 1 (LAB + top bar, RESEARCH › Portfolio; 2026-11-23, designer: "seems good", accepted the lead's calls)
+
+Direction approved. Fixes: workforce board one line per role at L1 (needs lists on click); "Total effort" given a plain
+meaning or moved to the tooltip; lead reads "154 d behind Meridian"; risk item without the model name; research cards show
+the effect where it lands (next model's skills / × effective compute), no ambiguous "+1.3% recipe" or "returns falling
+×0.75"; VOCAB words only (no "RL algorithms", "Applied interp"). Keep the magnified inset for small allocations; keep
+honest Best moves + "Won't help now"; drop allocation presets (auto-split policy exists).
