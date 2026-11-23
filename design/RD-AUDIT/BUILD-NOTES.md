@@ -4152,24 +4152,22 @@ hygiene.ts's calibration shift drops it).
 - **moves calibration: yes** (safety S4 / S5 and bots: a fix now costs $50M × size and capability engineers' team-weeks
   instead of 10 safety engineers for 30–90 d; cut 40% to a lower floor instead of ×0.3–0.6 to ×0.2; no next-run G cost).
 
-### RF-S9 One hack-saturation rule (E02 vs SR-24b)
-- **Changed:** safety/traits.ts stepTraits: E02's open-ended accumulation (w·S2·(1 − RH) per run) is gone for every lab
-  and run kind; RH from rewarded hacking is only SR-24b's within-run saturation toward `hackTarget` (unset = 0). Player
-  post / stream / IDA runs set it as before (no change). Base, continued pretraining and distillation runs have S2 = 0
-  and no target (no change: E02 gave 0 there too). **Rivals** (rivalTraitStep, post runs) now set
-  `hackTarget = rivalHackShare(S2) = S2 ÷ S2_PER_EXPLOIT`: the player's identity S2 = S2_PER_EXPLOIT · h read backwards
-  on the rival's posture S2 (rivals have no suites). Predicted beliefs follow (no target for non-post predictions = 0).
-- **Deleted:** E02's driver case and the "unset → E02 as before" branch.
-- **Kept:** the E02 edge in data/v2/edges.ts (S2 → RH is still the graph's edge: signal pushes, Codex, findings), with a
-  comment that its form is the saturation; its world weight is still drawn so every later edge draw keeps its value,
-  but it is not read. **Designer:** drop the E02 weight draw (and its Codex "prior weight" / findings reveal) at the
-  planned save break, or keep the edge row as is.
-- **Stand-ins / lead calls:** `rivalHackShare` (conversion, no new number; part of RF-A1's rival-physics question).
-- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs9/check.ts all ok: S2 0.5 with no target leaves RH unchanged;
-  target 0.3 → 0.297 after one reference run, 0.300 after two; a day-400 rival with S2 0.32 → h 0.058, RH 0 → 0.191 after
-  four post runs (h plus E03 / E07b on top; before, E02 alone would have kept growing toward 1).
-- **moves calibration: yes** (rivals' RH, and through it rival misalignment and endings, falls: they no longer
-  accumulate reward hacking toward 1 run after run).
+### RF-S9 One hack-saturation rule on the player's runs (rivals as is)
+- **Revised** after the designer's decision (2026-11-23: rival safety physics stays as is; a rivals session later).
+  The first commit (c451ddd) also moved rivals onto the saturation rule (`rivalHackShare` = S2 ÷ S2_PER_EXPLOIT); that
+  part is reverted, with the E02 edge comment.
+- **Changed:** safety/traits.ts runEnv (every player env, true and believed) carries `hackTarget: 0`; post / stream /
+  IDA runs set their rewarded hack share as before. So every player run (base, continued pretraining and distillation
+  included) uses only SR-24b's within-run saturation; E02's accumulation fires only on an env without a target, i.e.
+  rivalTraitStep's. Behaviour of player runs is unchanged (their base / distillation S2 is 0, so E02 gave 0 there):
+  the change makes the one rule structural on the player side and leaves E02 as the rivals' rule.
+- **Deleted:** nothing (rival E02 stays by decision); the "two rules" gap is now player vs rivals only, for the rivals
+  session / RF-A1.
+- **Stand-ins:** none.
+- **Check:** tsc (app, scripts/v2) clean; scripts/v2/_rfs9/check.ts all ok: a player env has target 0; S2 0.5 with no
+  rewarded hacks leaves RH at 0.01; target 0.3 → 0.297 in one run; an env without a target (rival path) still grows RH
+  0.01 → 0.267 through E02.
+- **moves calibration: no.**
 
 ### RF-S10 Method efficacy at scale: two-sided, player-language preview (partial: no validation channel yet)
 - **Changed:** data/v2/agendas.ts `METHOD_SCALE` U[0, 1] → **U[0, 2]** (decision 8: either way around the tested

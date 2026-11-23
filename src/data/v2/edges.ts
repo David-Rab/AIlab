@@ -23,9 +23,7 @@ export interface EdgeDef {
 
 export const EDGES: EdgeDef[] = [
   { id: 'E01', from: ['S1'], to: 'SYC', wBar: 0.6, grade: 'A', cite: 'Sharma 2023; GPT-4o rollback Apr 2025', moderator: 'sycophancy eval gate −30%' },
-  // RF-S9: E02's form is the within-run saturation of RH toward the run's rewarded hack share (safety/traits.ts
-  // hackSaturation, one rule for every lab); its weight is drawn (so later draws keep their values) but not read.
-  { id: 'E02', from: ['S2'], to: 'RH', wBar: 0.7, grade: 'A', cite: 'METR 2025: o3 hacks 1-2%, ~30% on RE-Bench; Chen 2025: a rewarded hack saturates within a run', moderator: 'hardened graders (in S2)' },
+  { id: 'E02', from: ['S2'], to: 'RH', wBar: 0.7, grade: 'A', cite: 'METR 2025: o3 hacks 1-2%, ~30% on RE-Bench', moderator: 'hardened graders (in S2)' },
   { id: 'E03', from: ['SYC'], to: 'RH', wBar: 0.1, grade: 'B', cite: 'Denison 2024: rare reward tampering' },
   // Model v3 E16: E04, E18, E27 and E28 also carry learned hacking (safety/traits.ts runHack: λ from the run's
   // RL-weighted hack rate above a 10% onset, convex; driver + K_LH·λ), MacDiarmid's jump; inoculation × 0.15 on all of it.
