@@ -2496,7 +2496,8 @@ MEDIA and PHYS benchmark rows, so their measured levels are fitted (RD-M01 follo
   kL 0.5. PHYS `embodied` "RobotHands" ↔ EmbodiedBench EB-Manipulation (Yang et al., ICML 2025: GPT-4o 28.9,
   Claude-3.7-Sonnet 28.5, Claude-3.5-Sonnet 25.4, GPT-4o-mini 4.8): floor 0, ceil 100, mL 4.9, kL 0.5. Stand-ins [D]:
   MMMU ceil = best expert; PHYS slope k_G 1.0 and ceil 100 (no human baseline); MMMU reads understanding, not generation.
-  Both rows `dangerous` [D judgement] so sandbagging (−1.5·SAND) hides them.
+  Neither row is a dangerous-capability eval, so sandbagging (dangerous evals only) does not touch them (an earlier
+  `dangerous` flag on both was set only to satisfy a wrong check spec and was removed).
 - **Edits.** `data/v2/benchmarks.ts` two rows. Readers `actors/commitments.measuredDomain`, `models/paradigms.measuredDomain`,
   `safety/actTable.measuredDomainL` (dangerView's reader): code unchanged (fit first), fallback (measured general + true
   offset) now fires only for a record with no fit for the domain (no suite yet, or a pre-RD-M01b suite), comments say so.
@@ -2505,5 +2506,5 @@ MEDIA and PHYS benchmark rows, so their measured levels are fitted (RD-M01 follo
   shift), suite size 27 → 29 benchmarks (eval cost), MEDIA now feeds fitGeneral once above the 0 clamp, MEDIA / PHYS
   thresholds read the noisier single-row fit.
 - **Check.** `npx tsx scripts/v2/rdm01b.ts` (run alone, pass: V0 with true MEDIA 4 / PHYS 3 over 12 seeds reads honest
-  4.14 / 3.02 from the fits, SAND 1 reads 2.51 / 1.52). `rdm01.ts` pass, numbers unchanged (5.09 / 4.83 / RSCH 0.60).
+  4.14 / 3.02 from the fits, SAND 1 reads the same within noise). `rdm01.ts` pass, numbers unchanged (5.09 / 4.83 / RSCH 0.60).
   tsc (app, scripts/v2) clean; npm run build ok.

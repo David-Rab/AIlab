@@ -1,5 +1,5 @@
 // RD-M01b check: MEDIA and PHYS measured levels come from their benchmark rows (MMMU, EmbodiedBench), not from the
-// measured general level + the true offset; a sandbagging model reads lower on them. Run alone: npx tsx scripts/v2/rdm01b.ts
+// measured general level + the true offset; sandbagging (dangerous evals only) leaves them unchanged. Run alone: npx tsx scripts/v2/rdm01b.ts
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import { runEvalSuite } from '../../src/engine/v2/models/benchmarks';
@@ -36,6 +36,6 @@ const sand = read(1);
 console.log(JSON.stringify({ honest, sand }, (_k, x) => (typeof x === 'number' ? Math.round(x * 100) / 100 : x)));
 for (const d of DS) {
   check(Math.abs(honest[d] - TRUE[d]) < 0.5, `honest ${d}: measured ${honest[d].toFixed(2)} ≈ true ${TRUE[d]}`);
-  check(sand[d] < honest[d] - 0.8, `sandbagging ${d}: measured ${sand[d].toFixed(2)} < honest ${honest[d].toFixed(2)} − 0.8`);
+  check(Math.abs(sand[d] - honest[d]) < 0.3, `sandbagging ${d}: not a dangerous eval, measured ${sand[d].toFixed(2)} ≈ honest ${honest[d].toFixed(2)}`);
 }
 process.exit(fail ? 1 : 0);
