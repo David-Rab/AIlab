@@ -38,7 +38,16 @@ three standard normals (3/(2√π) = 0.846 SD): (84.2 − 82.6)/(88.6 − 82.6)�
   whole-job expert work ("the work AI is worst at", 1.3 gaps beyond the research domains), which the ASI knot and the
   ASI milestone read. A 2025 model beat 94% of virologists on VCT and still cannot do a virologist's job.
 
-## Skill-bar marks (UB-1b: from each skill's own test)
+## Skill-bar marks: JOB scale (UB-1b revised)
+
+The designer moved the bar marks to the job scale (the test-standing marks below saturate: their best mark sits at V0's
+coding, and they are one pair in every skill). `skillMarks(w, d)` now returns the work fit's whole-job median expert
+and best human (refDelta: best_d = G_SC + refDelta_d·Δ_bm, median Δ_bm below) read on the domain score, with this
+file's test standing as tooltip facts. ai2027 (median / best): CODE, AGENCY, RSCH, REASON, PHYS 6.39 / 10.00; SOCIAL
+10.78 / 12.37; MEDIA 10.67 / 12.33; CYBER 11.48 / 12.59; BIO 11.69 / 12.65. G_SC, Δ_bm and sd_SC are per-preset
+constants (sampled uses ai2027's), not draws.
+
+## Skill-bar marks on tests (UB-1b first version, superseded)
 
 DECISIONS "Measurement scale": a skill bar's median and best marks come from the test that sources its reference. The
 frontier V0 stood z_d SD above the test's median human; one SD among the test's humans is Δ_bm/3.09 OOM; so the score

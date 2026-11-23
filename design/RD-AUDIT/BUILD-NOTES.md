@@ -5437,3 +5437,15 @@ careful bots that leave holds standing now keep researching).
 - **Checks:** tsc app and scripts/v2 clean; domainref.ts: new row per world (marks ordered, a test or stand-in for each
   skill, V0 between the marks of every tested skill) passes in 4 worlds; the REF_OFF grep FAIL is pre-existing. No
   engine reader changed (skillMarks had no callers), so no smoke run.
+- **Revised (designer: test marks saturate → bars on the JOB scale):** `skillMarks(w, d)` returns the work fit's
+  whole-job references on the domain score: best = λ(G_SC + refDelta_d·Δ_bm − domainRefShift), median Δ_bm below; plus
+  the test facts (test, fact, model, z, standIn) for the tooltip. G_SC / Δ_bm / sd_SC are per-preset constants (sampled =
+  ai2027's), public reference values, not draws. The engine keeps both references (tests: measured score; jobs: work
+  fit and bar marks). `SKILL_MARK_STANDINS` stays for the tooltip of skills without a test.
+- **Job marks (median / best):** ai2027 CODE, AGENCY, RSCH, REASON, PHYS 6.39 / 10; SOCIAL 10.78 / 12.37, MEDIA 10.67 /
+  12.33, CYBER 11.48 / 12.59, BIO 11.69 / 12.65. Other worlds: coding-like medians 8.32 (authors2026), 9.18 (fast), 9.24
+  (slow), best 10; expert-domain medians 9.1–11.7, best 12.33–12.65. V0 is below the median expert in every skill in all
+  4 worlds; a reference model at G_SC reads 10 in CODE / AGENCY, RSCH / REASON 7.0 (ai2027) to 9.9, the expert domains
+  6.9–9.7 (below their job medians: the work AI is worst at).
+- **Check:** domainref.ts row per world (V0 below every median, CODE best = 10 = the SC model's CODE, a test or stand-in
+  per skill) passes in 4 worlds; tsc app and scripts/v2 clean.
