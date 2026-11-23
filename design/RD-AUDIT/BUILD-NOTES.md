@@ -1973,3 +1973,54 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   offers (equal on the same model, where Agents had ×1.5 and Enterprise ×3 in a pack sector), the player's sector share
   rises a little with several products (log-sum), Agents sells adopted hours like the API once launched, and seats move
   with the Enterprise product's part of the choice.
+
+### RD-P04a
+- **Done (commit ab55782).** The market's domain G reaches substitution α, the Bass q dose and the PHYS gate.
+  models/capability.ts: `domainScaleG(w, v, d)` = versionDomainG − domainRefShift (a domain's G on the general λ scale,
+  so λ of it is the domain score), `oomPerLevel(w, L)` (inverse slope of λ on the knot segment holding L) and
+  `levelGate(w, x, L*, s)` = σ((x − λ⁻¹(L*)) / (s·oomPerLevel(L*))): a v2 level gate restated in OOM, threshold exact
+  through the one λ, spread exact on L*'s segment.
+- **Edits.** worldfx/mix.ts: per provider a domain G vector from the same model the offer reads (the player's products
+  plus their settings ΔG: settingsDG + effortDG, as productOffer); new `SectorMix.g` (share-weighted, PHYS robot-bound:
+  floor λ⁻¹(10·W16 ramp), +3·W19 ramp × oomPerLevel(10) on LOG, cap λ⁻¹(15·robots)); the PHYS part of F =
+  levelGate(PHYS G, fMid + θ, fSpread). worldfx/sectors.ts: `alphaOf(w, def, gAgency)` on the market's AGENCY G
+  (`ALPHA_MID_L` 8, `ALPHA_SPREAD_L` 1.5: v2's L 8 / 1.5 L through the one λ); the Bass q dose is +0.15 per level
+  above 8 → per OOM above λ⁻¹(8) at that slope; the start state's α (before the first tick) is the R16 Agent-0 level
+  (as F there). No state shape change (SCHEMA_REV stays 65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04.ts` (untracked, run alone) P04a
+  3 / 3: α at λ⁻¹(L) equals v2's σ((L − 8)/1.5) for L 5.5–9.9 (|Δ| 4e-16), the PHYS gate likewise, the sector's α reads
+  SectorMix.g.AGENCY. Not run: test:quick / full.
+- **Left:** α reads AGENCY G for every sector (the sector's horizon domain is CODE for software in the offer); h80Mult /
+  product horizon multipliers do not enter α.
+- **moves calibration: yes (worldfx, small).** Mechanics equal v2's on the V0 → SC segment; the v2 horizon cap
+  (Le_d ≤ L_AGENCY + 2) is gone, share-weighting is now in OOM (not levels), the player's settings act by their offer ΔG
+  (effort deep +0.24 OOM, was +0.3 L), and above SC α's spread keeps the V0 → SC slope.
+
+### RD-P04b
+- **Done (commit 8db6fda).** One capability path from a model's domain G to the world. worldfx/mix.ts: `productGVec`
+  (a product's domain G: its model's + settings ΔG), `bestPublic` = max domain G (OOM) over the player's paid products
+  and the other providers' models (floor λ⁻¹(0)); consumer `socialGs` / `socialG` (SOCIAL G per provider, users'
+  share-weighted). Deleted: `depOffset`, `capVec`, `Provider.dom`, `SectorMix.level / best / dom`, `ConsumerMix.level /
+  best / socials / social` (the consumer display level had no reader), models/products.ts `productDomains` (no
+  `sectorLevel` function existed: the per-sector display level `level[]` is what went). The Agents display sigmoid was
+  already deleted in RD-P03.
+- **Readers, all via levelGate on domain G (v2 thresholds through the one λ):** control.ts persuasion (SOCIAL 10 /
+  1.5), `govAdviceLevel` → `govAdviceG` (GOV market REASON G, gov products, briefing λ⁻¹(λ(G) − 0.5·(3 − b))), internal
+  ops (AGENCY 10 / 1), INFRA CYBER 11 / 1, tiers (AGENCY 9.5 / 1.2, REASON 12 / 0.5), ACCEPT (11.5 / 0.8), the INFRA
+  internal-model blend in G; techtree.ts `techBlocker(s, t, g)` (gate level min → G ≥ λ⁻¹(min); message text keeps the
+  level), `gateLevels` and moonshots on the internal model's `domainScaleGs`, risk exposure (BIO 10, CYBER 8, SOCIAL
+  12), `mSci(w, gSci)` / `gSci` (was lSci; scienceRate returns gSci); sectors.ts ν gate (AGENCY 10 / 1.5) and the
+  AI-friend share (FRIEND_SOCIAL_MID 6.5 on socialG); macro.ts automation boost (+3/5 per level above 10 → per OOM above
+  λ⁻¹(10) at the SC → SAR slope); actions.ts default moonshot and its preview; World panel converts measured levels
+  to G for techBlocker. The three `level-lint-left` RD-L05 markers in these files are gone. No state change (65).
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/.tmp-rdp04.ts --b` (run alone) 7 / 7: no
+  level / dom / best on SectorMix; bestPublic.AGENCY = max of public models' and player products' AGENCY G; gates in
+  OOM equal v2's sigmoids on each threshold's segment (|Δ| 1e-15); grep: no depOffset / capVec / sectorLevel /
+  productDomains in src. scripts/v2/products.ts P2 rewritten on productGVec; scripts/v2/worldfx.ts tech pick on
+  domainScaleGs. Not run: test:quick / full.
+- **Left:** `bestPublicLg` (hype, fx.Lpub0 in state) stays λ of the general G; the market's domain G ignores a rival's
+  `domainDg` (P09 / P11 / P22: in its displayed domains only), so those ideas no longer reach world effects; thresholds
+  on a knot (L 10, 12) take the upper segment's spread, and M_sci's doubling above SC keeps the V0 → SC slope (stand-ins).
+- **moves calibration: yes (worldfx / control / techs).** Settings now move bestPublic by their offer ΔG (not the
+  hidden ±0.3 L), no horizon cap, gates below a knot threshold (GOV adviser 12, internal ops 10) open on the upper
+  slope, M_sci and the macro boost change above SC, rival domain ideas drop out of world effects.
