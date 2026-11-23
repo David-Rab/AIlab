@@ -38,12 +38,28 @@ three standard normals (3/(2√π) = 0.846 SD): (84.2 − 82.6)/(88.6 − 82.6)�
   whole-job expert work ("the work AI is worst at", 1.3 gaps beyond the research domains), which the ASI knot and the
   ASI milestone read. A 2025 model beat 94% of virologists on VCT and still cannot do a virologist's job.
 
-## Median-expert and best-human marks (public)
+## Skill-bar marks: JOB scale (UB-1b revised)
 
-On the domain score the best human is 10 in every domain (the scale's definition) and the median expert is
-λ(G_SC − Δ_bm), the same number in every domain of one world (ai2027 6.39, authors2026 8.32, fast 9.18, slow 9.24).
-G_SC and Δ_bm are the world's hidden calibration, so the player-visible mark is the reference world's, 6.4
-(data/v2/framework.ts FRAMEWORK_HIGH_L), with the test and its public fact per domain (`capability.ts skillMarks`).
+The designer moved the bar marks to the job scale (the test-standing marks below saturate: their best mark sits at V0's
+coding, and they are one pair in every skill). `skillMarks(w, d)` now returns the work fit's whole-job median expert
+and best human (refDelta: best_d = G_SC + refDelta_d·Δ_bm, median Δ_bm below) read on the domain score, with this
+file's test standing as tooltip facts. ai2027 (median / best): CODE, AGENCY, RSCH, REASON, PHYS 6.39 / 10.00; SOCIAL
+10.78 / 12.37; MEDIA 10.67 / 12.33; CYBER 11.48 / 12.59; BIO 11.69 / 12.65. G_SC, Δ_bm and sd_SC are per-preset
+constants (sampled uses ai2027's), not draws.
+
+## Skill-bar marks on tests (UB-1b first version, superseded)
+
+DECISIONS "Measurement scale": a skill bar's median and best marks come from the test that sources its reference. The
+frontier V0 stood z_d SD above the test's median human; one SD among the test's humans is Δ_bm/3.09 OOM; so the score
+of a reference-profile model at the test's median is λ(G_V0 − shift_d − z_d·Δ_bm/3.09) and at its best human (99.9th
+percentile, the scale's convention: no test publishes its best as a percentile; MMMU's "best" is the best of three)
+λ(G_V0 − shift_d + (3.09 − z_d)·Δ_bm/3.09) (`capability.ts skillMarks(w, d)`). Skills without a test (AGENCY, RSCH,
+REASON, PHYS) use the standing their reference implies, z_CODE − δ_d·3.09 (stand-ins, `SKILL_MARK_STANDINS`).
+
+Because each reference was placed from the frontier's test standing against coding's, the marks are one number pair per
+world in every skill: ai2027 median 1.64 / best 5.25, authors2026 3.44 / 5.12, fast 4.23 / 5.06, slow 4.29 / 5.05.
+V0 (score 5 in coding) sits just below the test-best mark, as o3's 99.8th percentile on Codeforces says, and V0's BIO
+(3.45 on ai2027) above the median mark, as VCT's 94% says. The score's 10 stays the job-level anchor (superhuman coder).
 
 ## Result (V0, seed 2027; scale old → new)
 

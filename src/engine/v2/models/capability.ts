@@ -3,8 +3,7 @@
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
 import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_TESTS, SKILL_TEST_CODE, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
-import { FRAMEWORK_HIGH_L } from '../../../data/v2/framework';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STANDINS, SKILL_TESTS, SKILL_TEST_CODE, TOP_SD, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
@@ -53,14 +52,28 @@ export function levelOfG(w: TimelineWorld, G: number): number {
  *  graders (CP3h(a), decision 9) read the same point as effective compute, G_SC − Δ_bm. */
 export const medianExpertLevel = (w: TimelineWorld): number => levelOfG(w, w.v3.gSC - w.v3.dBM);
 
-/** UB-1: the public marks of one skill bar (MODELS / TRAINING): the median expert and the best human on the domain score,
- *  and the published test behind the domain's reference. Public facts only: the best human is 10 by the scale's
- *  definition; the median expert is the reference world's (FRAMEWORK_HIGH_L, ai2027 6.39 → 6.4), not this world's hidden
- *  λ(G_SC − Δ_bm) (medianExpertLevel), since G_SC and Δ_bm are the world's hidden calibration [stand-in, designer]. */
-export interface SkillMarks { median: number; best: number; test?: string; fact?: string; model?: string }
-export function skillMarks(d: DomainId): SkillMarks {
-  const t = d === 'CODE' ? SKILL_TEST_CODE : SKILL_TESTS[d];
-  return { median: FRAMEWORK_HIGH_L, best: 10, test: t?.test, fact: t?.fact, model: t?.model };
+/** UB-1b (DECISIONS "Measurement scale", revised): the marks of one skill bar (MODELS / TRAINING) on the JOB scale: the
+ *  domain score of the median expert and of the best human DOING THE JOB in that skill, the work fit's whole-job
+ *  references (data/v2/workTypes.ts refDelta, departments/workfit.ts refPoints: best_d = G_SC + refDelta_d·Δ_bm, median
+ *  Δ_bm below), read on the domain score λ(G_d − domainRefShift(w, d)). CODE / AGENCY / RSCH / REASON: the job and the
+ *  test references coincide, so best 10 and median λ(G_SC − Δ_bm) (medianExpertLevel); the expert domains' job references
+ *  sit beyond their test references, so their marks sit above 10. G_SC, Δ_bm, sd_SC are per-preset constants (sampled
+ *  uses ai2027's), public reference values, not draws. The tooltip facts are the test standing that sources the score's
+ *  reference: test, fact, model and the 2025 frontier's z (SKILL_TESTS; a skill without a test: the standing its
+ *  reference implies, z_CODE − δ_d·TOP_SD, SKILL_MARK_STANDINS, standIn). The engine keeps both: tests for the measured
+ *  score, jobs for the work fit and the bar marks. */
+export interface SkillMarks { median: number; best: number; z: number; test: string; fact: string; model: string; standIn: boolean }
+const jobMemo = new WeakMap<TimelineWorld['v3'], Record<DomainId, number>>();
+export function skillMarks(w: TimelineWorld, d: DomainId): SkillMarks {
+  let rd = jobMemo.get(w.v3);
+  if (!rd) jobMemo.set(w.v3, (rd = refDelta(w.v3.sdSC)));
+  const sourced = d === 'CODE' ? SKILL_TEST_CODE : SKILL_TESTS[d];
+  const t = sourced ?? SKILL_MARK_STANDINS[d]!;
+  const shift = domainRefShift(w, d);
+  const z = sourced ? sourced.z : SKILL_TEST_CODE.z - (shift / w.v3.dBM) * TOP_SD;
+  const best = w.v3.gSC + rd[d] * w.v3.dBM - shift;
+  const at = (g: number) => clamp(levelOfG(w, g), 0, 15);
+  return { median: at(best - w.v3.dBM), best: at(best), z, test: t.test, fact: t.fact, model: t.model, standIn: !sourced || d === 'SOCIAL' || d === 'MEDIA' };
 }
 /** Inverse of λ on [0, 15): the effective compute at display level L (the smallest G with λ(G) ≥ L; λ is increasing
  *  there). L ≥ 15 returns the ASI point, L ≤ 0 the G where the first slope reaches 0. */

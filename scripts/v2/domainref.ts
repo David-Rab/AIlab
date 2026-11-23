@@ -7,7 +7,7 @@ import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { skillRefDelta as refDelta } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
-import { domainRefShift, levelOfG } from '../../src/engine/v2/models/capability';
+import { domainRefShift, domainsOf, levelOfG, skillMarks } from '../../src/engine/v2/models/capability';
 import { domainG } from '../../src/engine/v2/departments/workfit';
 import { clamp } from '../../src/engine/rng';
 import type { DomainId } from '../../src/engine/v2/types';
@@ -40,6 +40,14 @@ for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
   const err = Math.max(...DOMAIN_IDS.map((d) => Math.abs(V0.domains[d] - clamp(levelOfG(w, domainG(s, V0, d) - domainRefShift(w, d)), 0, 15))));
   check(shiftOk && atBest && err < 1e-9, `${world}: domain score = λ(G_d − δ_d·Δ_bm); 10 at each domain's best human; V0 stored = formula`,
     `Δ_bm ${w.v3.dBM}, V0 ${DOMAIN_IDS.map((d: DomainId) => `${d} ${V0.domains[d].toFixed(2)}`).join(' ')}`);
+  // 2b. UB-1b (job scale): each skill bar's marks are the work fit's whole-job median expert and best human on the score;
+  // V0 sits below both in every skill; a model at G_SC with the reference profile (the SC-era frontier) reads the best
+  // human in coding and agency (10); every skill carries a test or a stand-in for the tooltip.
+  const mk = DOMAIN_IDS.map((d) => [d, skillMarks(w, d)] as const);
+  const scL = domainsOf(w, w.v3.gSC);
+  const ok = mk.every(([d, m]) => m.median < m.best && m.test.length > 0 && V0.domains[d] < m.median) && near(skillMarks(w, 'CODE').best, 10, 1e-9) && near(scL.CODE, 10, 1e-9);
+  check(ok, `${world}: skill-bar marks on the job scale (V0 below the median expert in every skill; SC model at the coding best human)`,
+    mk.map(([d, m]) => `${d} ${m.median.toFixed(2)}/${m.best.toFixed(2)} (SC ${scL[d].toFixed(1)})${m.standIn ? '*' : ''}`).join(' '));
 }
 
 // 4. UB-1: save migration 102 → 103 recomputes stored domain records (player version, a rival's public model).
