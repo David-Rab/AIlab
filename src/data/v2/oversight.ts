@@ -22,7 +22,9 @@
 export const OOM_PER_400_ELO = 6.8;
 export const ELO_PER_OOM = 400 / OOM_PER_400_ELO;
 
-/** Engels et al. 2025 [P]: nested scalable-oversight success at a 400-Elo general gap, by game. */
+/** Engels et al. 2025 [P]: nested scalable-oversight success at a 400-Elo general gap, by game. CAL-S verified against
+ *  the abstract (arXiv 2504.18530): "NSO success rates at a general Elo gap of 400 are 13.5% for Mafia, 51.7% for Debate,
+ *  10.0% for Backdoor Code, and 9.4% for Wargames". */
 export const ENGELS_400 = { debate: 0.517, mafia: 0.135, backdoorCode: 0.1, wargames: 0.094 } as const;
 
 /** Catch rate of a monitor as capable as the model it watches [D, kept from J2/D7]. */
@@ -45,13 +47,16 @@ export const PRODUCT_MONITOR_WATCH = 1;
  *  gap measured from a fixed overseer at the superhuman-coder level (L 10; v2's M_overseer = 5 = M at SC). F16
  *  (debate raises judge accuracy 48–60% → 76–88%, Khan et al. 2024 [P]) is worth logit(0.82) − logit(0.54) in Elo
  *  units: 400·(log10(0.82/0.18) − log10(0.54/0.46)) ≈ 235 Elo ≈ 4.0 OOM off the gap [D: domain Elo read 1:1 as
- *  general Elo]. */
+ *  general Elo]. CAL-S: Khan et al. 2024 arXiv 2402.06782 abstract verified ("76% and 88% accuracy respectively (naive
+ *  baselines obtain 48% and 60%)"); the Elo → OOM conversion stays [D]. */
 export const AG05_OVERSIGHT = { base: ENGELS_400.debate, overseerL: 10, debateCreditOom: (235 / 400) * OOM_PER_400_ELO };
 
 /** Human reviewers as overseers (MODEL-V3 §11.3 oversight: human review share): they review the R&D humans still do
  *  and catch HUMAN_REVIEW of the acts in it [D, E5] while the model is no more capable than expert humans; above that
  *  their catch falls with the gap like a monitor's (Engels Backdoor Code). Expert-human level = the superhuman-coder
- *  level L 10 [D: SC is "as good as the best human coders"]. */
+ *  level L 10 [D: SC is "as good as the best human coders"]. CAL-S: no source places graders at a level; on the RD-U05
+ *  scale 10 is the best human and a median expert is λ(G_SC − Δ_bm) = 6.39 on ai2027 (the framework's High level):
+ *  kept at 10, a designer call (research/CAL-safety-sources.md §6). */
 export const HUMAN_REVIEW_L = 10;
 
 /** Technique decay with capability above the level a tool was validated on (MODEL-V3 §11.5): strength factor
