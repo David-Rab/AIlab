@@ -84,6 +84,9 @@ labour rows INFO). Still off, not reopened:
    and foothold uncertainty; "Unknown" from the belief band; "< 0.1%". Moves S4 / S5 / framework hold / trusted rule.
 2. S5 option (a): instruments get harder with capability even after re-fitting (sourced).
 3. S4 re-judge (0.377 vs 0.40–0.80) after 1–2; rival safety physics (with the rivals session).
+4. Safety programmes stop after a finished project (SAF-23 / RD-R03 rule): safety teams idle for the rest of the game
+   (day-900 fixture: 0 of 18 staffed). Lead recommendation: queue the programme's next project automatically, like
+   capability programmes (BUILD-NOTES "SCI"). Moves S4 / S5.
 
 ## For the UI build (found while making mockups, 2026-11-23)
 - Readouts that read hidden values: bestPlayerVersion ranks by true values; measuredDomain and the act table fall back
