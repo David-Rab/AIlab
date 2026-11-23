@@ -5418,3 +5418,22 @@ careful bots that leave holds standing now keep researching).
   (bench-mmmu-1, bench-debate-1: SeeAndTell and Debate now leave 0). The small economy moves come through rivals reading
   domain levels (hazards / evals), not the fit. **Moves calibration: no** (fit and gates unchanged; safety rows reading
   expert-domain danger levels may move at CP: not run).
+
+### UB-1b (skill-bar marks from each skill's test; branch ub1b-marks from rd c905e37; DECISIONS "Measurement scale")
+
+- **What:** `skillMarks(w, d)` (models/capability.ts) replaces the fixed 6.4 / 10 pair: median = the score at which a
+  reference-profile model stands at the test's median human, best = at its best human (99.9th percentile, the scale's
+  convention; MMMU publishes only a best of three), from V0's test standing z_d (SKILL_TESTS) and one SD = Δ_bm/3.09 OOM.
+  Returns median, best, z, test, fact, model, standIn. Skills without a test use the standing their reference implies
+  (data/v2/workTypes.ts `SKILL_MARK_STANDINS`: AGENCY as coding, RSCH AIFM taste, REASON FrontierMath bracket, PHYS none).
+  SOCIAL and MEDIA are flagged stand-ins (lay debaters; three experts per subject). Work fit untouched.
+- **Marks (median / best):** ai2027 1.64 / 5.25, authors2026 3.44 / 5.12, fast 4.23 / 5.06, slow 4.29 / 5.05: the same
+  pair in every skill of a world, since every reference was placed from the frontier's test standing against coding's
+  (only test, fact and stand-in flag differ). V0 ai2027: CODE 5.00 (z 2.88, just under the best mark), BIO 3.45 (z 1.55,
+  above the median), CYBER 3.13, SOCIAL 2.07, MEDIA 1.90 (all above the median), PHYS 0 (below; stand-in z −3.7).
+- **Designer items:** the test-best mark sits only 0.05–0.25 above V0's coding, so on tests most bars fill within the
+  first months (day-400 CODE 7.08 is past it); the bar range is narrow (1.6 OOM on ai2027, 0.4 on slow). The score's 10
+  (job-level superhuman coder) lies far beyond the test-best mark.
+- **Checks:** tsc app and scripts/v2 clean; domainref.ts: new row per world (marks ordered, a test or stand-in for each
+  skill, V0 between the marks of every tested skill) passes in 4 worlds; the REF_OFF grep FAIL is pre-existing. No
+  engine reader changed (skillMarks had no callers), so no smoke run.

@@ -103,6 +103,14 @@ export const SKILL_TESTS: Partial<Record<DomainId, SkillTestRef>> = {
   // for the SD mapping (three experts per subject; college seniors).
   MEDIA: { z: 0.226, test: 'MMMU (college-senior subject experts)', fact: 'GPT-5 scored 84.2% vs the median expert 82.6% and best 88.6%', model: 'GPT-5, Aug 2025' },
 };
+/** UB-1b: the skills whose reference has no test of its own: what their bar marks stand on [stand-ins, stated]. Their
+ *  test standing at V0 is the one their reference implies, z_CODE − δ_d·TOP_SD (models/capability.ts skillMarks). */
+export const SKILL_MARK_STANDINS: Partial<Record<DomainId, SkillTestRef>> = {
+  AGENCY: { z: NaN, test: 'Codeforces, as coding (stand-in: no agency test publishes a human distribution)', fact: 'Same reference as coding: the METR horizon tasks are software tasks; the OSWorld human score 72% is one average', model: 'o3, Apr 2025' },
+  RSCH: { z: NaN, test: 'AI-research taste (stand-in: no test; the AI Futures model taste at the superhuman coder)', fact: 'No research test publishes a human distribution; placed from the forecast taste of AI at the superhuman coder', model: 'forecast' },
+  REASON: { z: NaN, test: 'FrontierMath human teams (stand-in: bracket only)', fact: 'o4-mini 22% beat the average team of mathematicians (19%; teams 13–26%)', model: 'o4-mini, Apr 2025' },
+  PHYS: { z: NaN, test: 'none (stand-in: no physical test with a human baseline)', fact: 'No robotics benchmark publishes a human baseline; placed at the expert-work reference', model: 'none' },
+};
 /** UB-1: the skill measurement scale's best human per domain in best-to-median gaps above the coding best human (the
  *  domain score's reference; models/capability.ts domainRefShift). The work fit keeps refDelta (AIFM's references for
  *  whole-job expert work, "the work AI is worst at", that the ASI knot and milestones read): a test standing is not the

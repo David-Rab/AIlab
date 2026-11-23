@@ -3,8 +3,7 @@
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
 import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_TESTS, SKILL_TEST_CODE, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
-import { FRAMEWORK_HIGH_L } from '../../../data/v2/framework';
+import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STANDINS, SKILL_TESTS, SKILL_TEST_CODE, TOP_SD, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
@@ -53,14 +52,26 @@ export function levelOfG(w: TimelineWorld, G: number): number {
  *  graders (CP3h(a), decision 9) read the same point as effective compute, G_SC − Δ_bm. */
 export const medianExpertLevel = (w: TimelineWorld): number => levelOfG(w, w.v3.gSC - w.v3.dBM);
 
-/** UB-1: the public marks of one skill bar (MODELS / TRAINING): the median expert and the best human on the domain score,
- *  and the published test behind the domain's reference. Public facts only: the best human is 10 by the scale's
- *  definition; the median expert is the reference world's (FRAMEWORK_HIGH_L, ai2027 6.39 → 6.4), not this world's hidden
- *  λ(G_SC − Δ_bm) (medianExpertLevel), since G_SC and Δ_bm are the world's hidden calibration [stand-in, designer]. */
-export interface SkillMarks { median: number; best: number; test?: string; fact?: string; model?: string }
-export function skillMarks(d: DomainId): SkillMarks {
-  const t = d === 'CODE' ? SKILL_TEST_CODE : SKILL_TESTS[d];
-  return { median: FRAMEWORK_HIGH_L, best: 10, test: t?.test, fact: t?.fact, model: t?.model };
+/** UB-1b (DECISIONS "Measurement scale"): the marks of one skill bar ("on tests"; MODELS / TRAINING) from the same test
+ *  that sources the skill's reference: the domain score at which a model with the reference profile stands at the
+ *  test's median human (z 0) and at its best human (z TOP_SD, the 99.9th percentile: the scale's convention, since no
+ *  test publishes its best as a percentile; MMMU's "best" is the best of three). The frontier V0 stood z_d on the test
+ *  (data/v2/workTypes.ts SKILL_TESTS; a skill without a test: the standing its reference implies, z_CODE − δ_d·TOP_SD,
+ *  SKILL_MARK_STANDINS), and one SD among the test's humans is Δ_bm / TOP_SD OOM; so median = λ(G_V0 − shift_d −
+ *  z_d·Δ_bm/TOP_SD) and best = λ(G_V0 − shift_d + (TOP_SD − z_d)·Δ_bm/TOP_SD). Because every reference is placed from
+ *  the frontier's test standing against coding's, the marks come out the same number in every skill of a world (ai2027
+ *  median 1.63, best 5.25); the test, fact and stand-in flag differ. Distinct from the work fit's whole-job references
+ *  (milestones, "doing the job"): the score's 10 stays the superhuman-coder anchor. The world's calibration is a preset
+ *  constant (sampled uses ai2027's), not a draw. */
+export interface SkillMarks { median: number; best: number; z: number; test: string; fact: string; model: string; standIn: boolean }
+export function skillMarks(w: TimelineWorld, d: DomainId): SkillMarks {
+  const sourced = d === 'CODE' ? SKILL_TEST_CODE : SKILL_TESTS[d];
+  const t = sourced ?? SKILL_MARK_STANDINS[d]!;
+  const shift = domainRefShift(w, d);
+  const z = sourced ? sourced.z : SKILL_TEST_CODE.z - (shift / w.v3.dBM) * TOP_SD;
+  const sd = w.v3.dBM / TOP_SD;
+  const at = (zz: number) => clamp(levelOfG(w, gV0(w) - shift + (zz - z) * sd), 0, 15);
+  return { median: at(0), best: at(TOP_SD), z, test: t.test, fact: t.fact, model: t.model, standIn: !sourced || d === 'SOCIAL' || d === 'MEDIA' };
 }
 /** Inverse of λ on [0, 15): the effective compute at display level L (the smallest G with λ(G) ≥ L; λ is increasing
  *  there). L ≥ 15 returns the ASI point, L ≤ 0 the G where the first slope reaches 0. */
