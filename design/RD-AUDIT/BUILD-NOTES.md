@@ -4156,3 +4156,25 @@ hygiene.ts's calibration shift drops it).
   preview accounts for that). On current games (own check, seeds 1–4, Atlas-1.0 at day 30): preview 0.044 → realised
   0.044 on every seed (ratio 1.00). Expect the check to pass once the fixtures are regenerated (next checkpoint).
 - **Moves calibration:** no (test only).
+
+## RF-R4: research speed and project ETAs from observed throughput (research review F7)
+
+- **Changed:** new `observedScale` (production/believed.ts): the unit project's realised experiment throughput on the
+  research engine's last day (`research.last.x.X`, what the lab's experiments did) ÷ the believed CES at the same inputs
+  and research speed. `labSpeedRel` (Research speed) = the believed throughput at today's inputs × that scale, so its
+  level is observed. `capEta` (every project ETA, the Assign / Take off / priority previews) reads the believed
+  parameters (λ and the CES) at the project's inputs × the same scale; it no longer reads `s.hidden.timeline.prod`.
+  `sciWorkRate` takes λ as an argument (physics passes the hidden λ, capEta the believed one; λ is never drawn, so the
+  values are equal). Speed and ETAs now share one basis, so on `sampled` worlds they no longer disagree.
+- **Kept on beliefs:** What binds, the +10% elasticities and bands, the response curves (unchanged; the scale cancels).
+- **Deleted:** capEta's truth reads (hidden prod, the true X of `projectExpInputs`).
+- **Left:** `projectExpInputs` itself still computes X with the hidden draw: it feeds the auto-assign planner's value
+  (`valueEnv`, player automation) and `capProjectView` c / ℓ / X; not in this row. Previews that run an engine day on a
+  copy (teamActions `readDay`) observe a simulated day, so they see the true response to the edit (existing design).
+- **Stand-ins:** none (the scale is derived, no new parameter).
+- **Check:** tsc (app + scripts). Own check, seed 5 day 30, ETAs vs the true experiment rate: ai2027 scale 0.9996 (the
+  stored x is rounded to 0.001), ETAs as before; sampled with hidden La forced to 2 / 180: scale 0.9971 / 1.0036, Research
+  speed 1.196 / 1.204, ETAs follow the true rates (0.0941 / 0.0947 work/day). `_ui0a/check.ts` all pass (worlds that
+  differ only in the hidden draw, with the same observations, give the same readouts).
+- **Moves calibration:** no (readouts and previews only; no bot reads capEta or labSpeedRel for decisions — calib.ts
+  prints labSpeedRel).
