@@ -69,7 +69,7 @@ export const SIGNALS: { id: SignalId; name: string }[] = [
   { id: 'S3', name: 'Long tasks' },
   { id: 'S4', name: 'Reasoning pressure' },
   { id: 'S5', name: 'Self-knowledge data' },
-  { id: 'S6', name: 'Harmful fine-tunes' },
+  { id: 'S6', name: 'Narrow harmful fine-tunes' },
   { id: 'S7', name: 'Test-like training' },
   { id: 'S8', name: 'Many copies' },
   { id: 'S9', name: 'Reward only when watched' },
