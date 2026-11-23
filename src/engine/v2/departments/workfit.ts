@@ -33,7 +33,6 @@ import { REF_RL_PROFILE } from '../models/effective';
 import { decimalYear } from '../core/time';
 import { internalFx, tokEff } from '../worldfx/serving';
 import { decodeUtilNow } from '../models/stacks';
-import { ws4r } from '../actors/state';
 import { trainingHeld } from '../safety/framework';
 import { agentSplitShare, agentVersion, monitorBudget, monitorVersion } from './agents';
 import { useControl } from '../safety/oversight';
@@ -252,8 +251,8 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
 
 /** RD-A07: the research modifiers as the physical thing each stands for; one helper read by both departments
  *  (capability: models/research.ts, safety: safety/lineProjects.ts, the lab readout: production/production.ts).
- *  - frontierExp: the share of its experiment FLOP a frontier project may use. A frontier pause (flags.paused or the
- *    ws4 frontierPauseUntil) = 0 while it lasts: frontier projects are the capability department's ('cap'), whose tests
+ *  - frontierExp: the share of its experiment FLOP a frontier project may use. A frontier pause (flags.paused or a
+ *    Safety framework training hold) = 0 while it lasts: frontier projects are the capability department's ('cap'), whose tests
  *    run on the frontier experiment pool and scale toward the frontier run. Ideation (science teams) goes on; safety
  *    research-line projects (agenda-sized compute, far below frontier scale) keep their FLOP.
  *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
@@ -270,7 +269,7 @@ export function researchMods(s: GameStateV2): ResearchMods {
   let mods = 1 - 0.05 * p.security.siloing;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
   const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
-  const frontierExp = s.flags.paused || ws4r(s).frontierPauseUntil > day || trainingHeld(s) ? 0 : 1;
+  const frontierExp = s.flags.paused || trainingHeld(s) ? 0 : 1;
   const sidelined = Number(s.flags['ws4:sidelinedUntil'] ?? -1) > day ? SIDELINE_SHARE : 0;
   return { speed: mods * rateMult, rateMult, frontierExp, sidelined };
 }

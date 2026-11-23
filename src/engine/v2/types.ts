@@ -2166,7 +2166,7 @@ export interface RelationsState {
 /** Relation commitment card (research/17 §1.2). Conditions are predicate ids evaluated by WS4. */
 export interface Commitment {
   id: string;
-  kind: 'framework' | 'testingAgreement' | 'voluntaryAccord' | 'usageRestriction' | 'monitorabilityPledge' | 'whistleblower' | 'pausePledge' | 'communityPledge';
+  kind: 'framework' | 'testingAgreement' | 'voluntaryAccord' | 'usageRestriction' | 'monitorabilityPledge' | 'whistleblower' | 'communityPledge';
   title: string;
   condition: { predicate: string; params: Record<string, number | string> };
   audience: CounterpartyId[];
@@ -2499,8 +2499,6 @@ export interface Ws4State {
   loose?: { day: Day; versionId: string; mis: number };
   /** Open internal whistleblower report (E18) and its fix-or-escalate deadline. */
   internalReport?: { day: Day; deadline: Day };
-  /** Frontier runs paused until this day (E17 Pause, pauseIfRedline). WS1 reads it (cross-WS need). */
-  frontierPauseUntil: Day;
   /** Consecutive days each competitor has led the player by ≥ 365 d after its SC (overtaken rule). */
   overtakenDays: Record<LabId, number>;
   taiwanDisrupted: boolean;

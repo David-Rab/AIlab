@@ -24,7 +24,7 @@ import { POOL_SHARE_RANGE, paramsOfVersion, runFlopPerShareDay } from '../models
 import { sectorFit, studentParamsFor } from '../worldfx/serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
-import { MONITOR_AUTO } from '../../../data/v2/agents';
+import { MONITOR_SAME } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
 import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
@@ -200,23 +200,36 @@ export function refSafetyAgents(s: GameStateV2, api: EngineApi): void {
  *  with an average inference cost around 10x lower … checking roughly half of all input/output tokens" ("divide by 20 to
  *  get our estimate for the share of compute on monitoring"), and the main text monitors with weaker, cheaper models
  *  (Apr 2027: "monitoring Agent-3's outputs using a series of weaker AI systems including Agent-2"; fn 51: "a distilled
- *  system that has 10% of the cost as Agent-4"). RefBot spends REF_MONITOR_SPEND of the watched fleets' compute; SR-20b:
- *  each monitor is the player's own trusted-watcher picker (monitorId 'auto', safety/trusted.ts autoWatcher: the most
- *  capable live model the lab trusts other than the watched one), no bot-only choice; the coverage follows
- *  (departments/agents.ts monitorBudget). */
+ *  system that has 10% of the cost as Agent-4"). RefBot spends REF_MONITOR_SPEND of the watched fleets' compute and picks
+ *  as each monitor the live model whose cost (FLOP per token) is nearest REF_MONITOR_COST of the watched model's (a copy of
+ *  it while it has nothing cheaper); the coverage follows (departments/agents.ts monitorBudget): ½ at the source's cost
+ *  ratio, less with a dearer monitor. RF-S2 (review safety #14): restored after SR-20b had replaced it with the player's
+ *  trusted-watcher picker without a source; RefBot's own choice (a bot override of monitorId 'auto'). */
 export const REF_MONITOR_SPEND = 1 / 20;
+export const REF_MONITOR_COST = 0.1;
 const REF_MONITORED: AgentUse[] = ['capRoutine', 'capFrontier'];
 
 /** SAFMECH: RefBot's monitors (weekly; the budget when it moves by more than a tenth). Reads only what the lab knows
- *  (its beliefs about its models and its compute). */
+ *  (its models' sizes and its compute). */
 export function refMonitors(s: GameStateV2, api: EngineApi): void {
   if (s.time.day % 7 !== 5) return;
+  const live = s.player.models.versions.filter((v) => v.status === 'ready' || v.status === 'deployed');
   let watched = 0;
   for (const use of REF_MONITORED) {
     const v = agentVersion(s, use);
     if (!v) continue;
     watched += agentCompute(s, use);
-    if (s.player.agents[use].monitorId !== MONITOR_AUTO) tryAct(s, api, 'agents.set', { use, monitorId: MONITOR_AUTO });
+    const fv = flopPerToken(s, v);
+    let best: ModelVersion = v;
+    let gap = Math.abs(Math.log(REF_MONITOR_COST));
+    for (const m of live) {
+      const r = flopPerToken(s, m) / Math.max(1e-9, fv);
+      if (!(r <= 1)) continue;
+      const g = Math.abs(Math.log(r / REF_MONITOR_COST));
+      if (g < gap - 1e-9) { gap = g; best = m; }
+    }
+    const want = best.id === v.id ? MONITOR_SAME : best.id;
+    if (s.player.agents[use].monitorId !== want) tryAct(s, api, 'agents.set', { use, monitorId: want });
   }
   const online = s.player.computeOnline;
   const tot = safetyTotal(s.player.split);
@@ -410,7 +423,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
 
   // Internal agents: the newest full version on routine research; engineering, frontier and safety research follow it
-  // (default packages: monitors 'auto', the most capable trusted model, on routine and frontier research), so the reference lab uses its newest model
+  // (monitors: refMonitors' cheap-monitor picker on routine and frontier research), so the reference lab uses its newest model
   // everywhere with a standard monitor (R7, calibration neutral). With continual learning (P08) the stream runs on it and moves to the
   // first version on each newer base (carrying its know-how); other versions on the stream's base are ignored.
   const nv = newestFull(s);

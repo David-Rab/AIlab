@@ -26,7 +26,7 @@ import {
 import { methodPolicyOn } from './methods';
 import type { DisclosurePolicy, FrameworkEvidence, FrameworkSafeguard, SafetyFramework } from '../types';
 import { editRule, frameworkOf, overrideConsequences, overrideRefusal, overrideRule, refreshFramework } from './framework';
-import { SAFEGUARD_PACKAGES, SAFEGUARD_PACKAGE_IDS, applyPackage, packageBlock, previewPackage, type SafeguardPackageId } from './packages';
+import { PACKAGE_LABEL, applyPackage, packageBlock, previewPackage } from './packages';
 import { DEFAULT_FRAMEWORK_RULES, FRAMEWORK_BELIEF_SLACK, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
 import { redFlagLine } from '../events/catalog/safety';
 import { strengthBelieved } from './techniques';
@@ -653,16 +653,16 @@ const FRAMEWORK_OVERRIDE: ActionDef = {
 };
 
 
-/** SR-20: apply a default safeguard package (Standard / High / Critical) to one product or the internal agent deployment
- *  in one act; the preview lists each part's true charged cost (safety/packages.ts previewPackage) and the stop rates. */
+/** SR-20 / RF-S2: apply the "Meet my framework" package (the safeguards your Safety framework asks of this deployment
+ *  that it lacks) to one product or the internal agent deployment in one act; the preview lists each part's charged cost
+ *  (safety/packages.ts previewPackage) and the stop rates. */
 const SAFEGUARD_PACKAGE: ActionDef = {
-  id: 'safety.package', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Safeguard package',
+  id: 'safety.package', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: PACKAGE_LABEL,
   available: () => true,
   preview(s, p) {
     const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
-    const id = (str(p, 'pkg') ?? 'high') as SafeguardPackageId;
-    if (!d || packageBlock(s, d) || !SAFEGUARD_PACKAGE_IDS.includes(id)) return { costs: [], gains: [], exposure: [] };
-    const pv = previewPackage(s, d, id);
+    if (!d || packageBlock(s, d)) return { costs: [], gains: [], exposure: [] };
+    const pv = previewPackage(s, d);
     const costs: CostLine[] = [];
     const gains: CostLine[] = [];
     const r1 = (x: number) => Math.round(x * 10) / 10;
@@ -679,12 +679,10 @@ const SAFEGUARD_PACKAGE: ActionDef = {
   },
   apply(s, ctx, p) {
     const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
-    const id = (str(p, 'pkg') ?? '') as SafeguardPackageId;
-    if (!SAFEGUARD_PACKAGE_IDS.includes(id)) return void ctx.log('alert', 'Pick a package: standard, high or critical');
-    const why = d ? applyPackage(s, d, id) : 'Unknown deployment';
+    const why = d ? applyPackage(s, d) : 'Unknown deployment';
     if (why) return void ctx.log('alert', why);
     refreshFramework(s, ctx);
-    ctx.log('company', `${SAFEGUARD_PACKAGES[id].label} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
+    ctx.log('company', `${PACKAGE_LABEL} safeguard package on ${d!.channel === 'internal' ? 'internal agents' : d!.id}.`, 1, d!.id);
   },
 };
 /** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model). */

@@ -27,7 +27,6 @@ const STATUTE_NAME: Record<string, string> = { sb53: 'California SB 53', raise: 
 const TREATY_WORD: Record<string, string> = { none: 'no treaty', talks: 'treaty talks', restraint: 'restraint treaty', verified: 'verified treaty' };
 /** Variants for actions with parameters. */
 const VARIANTS: Record<string, { label: string; p: Params }[]> = {
-  A3: [{ label: 'framework', p: {} }, { label: '+ pause pledge', p: { strong: true } }],
   B2: [{ label: 'with limits', p: { terms: 'limits' } }, { label: 'unrestricted', p: { terms: 'unrestricted' } }],
   B4: [{ label: 'deregulate', p: { direction: 'deregulate' } }, { label: 'regulate', p: { direction: 'regulate' } }],
   B6: [{ label: 'gov', p: { target: 'gov' } }, { label: 'critics', p: { target: 'critics' } }],

@@ -36,7 +36,7 @@ export function epilogueSurvival(s: GameStateV2): number {
 }
 
 function transparencyKept(s: GameStateV2): number {
-  const kinds = ['framework', 'testingAgreement', 'voluntaryAccord', 'whistleblower', 'monitorabilityPledge', 'pausePledge'];
+  const kinds = ['framework', 'testingAgreement', 'voluntaryAccord', 'whistleblower', 'monitorabilityPledge'];
   return s.commitments.filter((c) => kinds.includes(c.kind) && (c.status === 'live' || c.status === 'kept')).length;
 }
 

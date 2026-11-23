@@ -50,7 +50,6 @@ import { baseFlopPerDay } from '../actors/rivalModel';
 import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
 import { poolsOf } from '../compute/power';
-import { ws4r } from '../actors/state';
 
 export interface LaunchRunParams {
   kind: RunKind;
@@ -95,9 +94,9 @@ export function serveTechMult(s: GameStateV2): number {
 }
 
 
-/** Frontier (base/post) runs are paused: until a day by WS4 (the pause pledge), or while the Safety framework holds
- *  frontier training (SR-19, safety/framework.ts; refreshed daily before runs). */
-export const frontierPaused = (s: GameStateV2, day: Day = s.time.day) => ws4r(s).frontierPauseUntil > day || trainingHeld(s);
+/** Frontier (base/post) runs are paused while the Safety framework holds frontier training (SR-19, safety/framework.ts;
+ *  refreshed daily before runs). RF-S2: the pause pledge's dated pause is gone (it is the framework's misalignment rule). */
+export const frontierPaused = (s: GameStateV2) => trainingHeld(s);
 
 /** RD-B09 (DD-11): share of the run-operations need the research engineers served today (models/research.ts
  *  opsServed, written by the research system before runs advance; 1 in older saves). Running runs and the
@@ -796,8 +795,8 @@ export const runsSystem: EngineSystem = {
   id: 'runs', owner: 'WS1', cadence: 'daily', order: 40, system: 'models',
   run(s, ctx) {
     if (s.player.status !== 'active') return;
-    // WS4 and the Safety framework pause frontier runs (status 'paused'); they resume when the pause ends.
-    if (!frontierPaused(s, ctx.day)) for (const r of s.player.models.runs) if (r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')) r.status = 'running';
+    // The Safety framework pauses frontier runs (status 'paused'); they resume when its training hold ends.
+    if (!frontierPaused(s)) for (const r of s.player.models.runs) if (r.status === 'paused' && (r.kind === 'base' || r.kind === 'post')) r.status = 'running';
     const alloc = poolAllocation(s);
     const ops = runOpsServed(s);
     for (const run of s.player.models.runs) {

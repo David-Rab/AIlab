@@ -66,7 +66,7 @@ export const safeBot: BotPolicy = {
         for (const id of ['A5', 'D1', 'D2', 'cmp.community', 'C2']) tryAct(s, api, id, {});
         if (!s.player.dataPortfolio.assets.some((a) => a.kind === 'public' && a.licensed)) tryAct(s, api, 'data.license', { domain: 'web' });
       }
-      tryAct(s, api, 'A3', { strong: true });
+      tryAct(s, api, 'A3', {});
       tryAct(s, api, 'A4', {});
       tryAct(s, api, 'B4', { direction: 'regulate' });
       tryAct(s, api, 'E3', { direction: 'tighten' });

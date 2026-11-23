@@ -221,7 +221,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
           <select className="msel small" data-test={`prod-sg.${d.id}`} value={n.safeguards} onChange={(e) => set({ safeguards: e.target.value as Deployment['safeguards'] })}>
             {SAFEGUARDS.map((g) => <option key={g} value={g}>{SG_LABEL[g]}</option>)}
           </select>
-          <PackageRow depId={d.id} testId={`prod-package.${d.id}`} />
+          <PackageRow s={s} depId={d.id} testId={`prod-package.${d.id}`} />
         </div>
         {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
             <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; a tenth of those asked leave (demand ×{F.num(kycDemandFactor(n), 3)}) and review costs {F.pct(kycReviewShare(n), 1)} of revenue.</TipCard>}><span className="pc-k">KYC</span></Tip>

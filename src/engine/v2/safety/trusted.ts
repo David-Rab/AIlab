@@ -8,8 +8,8 @@
 //     where Able to = ½).
 // Reads beliefs and measured levels only, never truth.
 // The automatic watcher of an internal use (monitorId 'auto') is the most capable (measured level) live model the lab
-// trusts other than the watched model; the watched model itself (a copy) only when it is the only trusted one; none when
-// no model is trusted. The reason is returned for the UI. The player overrides by picking a model (or 'same').
+// trusts other than the watched model; none when no other model is trusted (RF-S2: never a copy of the watched model,
+// SAFETY-REDESIGN §3.3). The reason is returned for the UI. The player overrides by picking a model (or 'same').
 import { TRUST_EST_DEFAULT } from '../../../data/v2/agents';
 import { DANGER_ACTS } from '../../../data/v2/danger';
 import { measuredDomain } from '../actors/commitments';
@@ -44,8 +44,8 @@ const live = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed
 
 export interface AutoWatcher { v?: ModelVersion; reason: string }
 
-/** The automatic watcher of `watched` (OD-6): the most capable trusted live model other than it; itself if it is the
- *  only trusted one; none if no model is trusted. */
+/** The automatic watcher of `watched` (OD-6): the most capable trusted live model other than it; none when no other
+ *  model is trusted (RF-S2: never a copy of the watched model, SAFETY-REDESIGN §3.3; the player may still pick 'same'). */
 export function autoWatcher(s: GameStateV2, watched: ModelVersion | undefined): AutoWatcher {
   if (!watched) return { reason: 'Nothing to watch' };
   let best: { v: ModelVersion; L: number } | undefined;
@@ -62,7 +62,5 @@ export function autoWatcher(s: GameStateV2, watched: ModelVersion | undefined): 
   }
   const skip = skipped && (!best || skipped.L > best.L) ? `; skipped ${skipped.why}` : '';
   if (best) return { v: best.v, reason: `Auto: ${best.v.name}, the most capable model you trust (measured L ${best.L.toFixed(1)})${skip}` };
-  const self = trustOf(s, watched);
-  if (self.trusted) return { v: watched, reason: `Auto: a copy of ${watched.name}, the only model you trust${skip}` };
-  return { reason: `Auto: no model you trust (${self.why})${skip}; pick a watcher to override` };
+  return { reason: `Auto: no other model you trust${skip}; pick a watcher to override` };
 }

@@ -4123,3 +4123,36 @@ Framework hold and trusted rule read the upper end of the belief (review safety 
 - Moves calibration: **yes**. Training holds from day 0 for any player who does not run a control protocol; RefBot / race
   / capex override every new internal version (morale −5, scrutiny +3, a red flag each); safe / mixed add control from
   day 0; fewer models are trusted as auto watchers (more "no model you trust" / self-copy fallbacks until RF-S2).
+
+### RF-S2
+The Safety framework replaces the old pledges, the pause commitment and the fixed packages; no self-copy auto watcher;
+RefBot's cheap monitor back (review safety #4, #14, decision 9; SAFETY-REDESIGN §3.3, §3.8).
+- **Publishing.** A3 "Publish framework" signs one card, kind 'framework', predicate `safetyFramework` ("Published
+  Safety framework"; break cost trust 8 / credibility 15 as the old framework card). The predicate never binds: the
+  framework's holds enforce its rules and an override is the departure (credibility −5 once published, unchanged).
+  `frameworkPublished` (now in actors/commitments, re-exported by safety/framework) reads the live 'framework' kind, so
+  a card signed before RF-S2 still counts; no migration.
+- **Deleted.** `noDeployAbove` (predicate, breach helper, deploy scope, E30 honour), `pauseIfRedline` (predicate, E30
+  honour), the 'pausePledge' kind, A3's `strong` option (UI variant, SafeBot's call), `Ws4State.frontierPauseUntil`
+  (init, workfit `frontierExp`, `runs.frontierPaused` now = `trainingHeld`, LIMITS pause line keeps `flags.paused`).
+  Old cards with the deleted predicates stay in saves and never bind. Transparency (Index) for "pause": the existential
+  +0.3 and the framework 0.75 now read `frameworkPublished` (the pause is the framework's misalignment rule).
+- **One package.** `safety/packages.ts`: "Meet my framework" = the safeguards your triggered, not overridden rules ask
+  of this deployment (`framework.requiredSafeguards`: products the deploy rules over main + lineup models; internal the
+  training rules) that it lacks; it only adds (misuse level up to classifiers / hardened, human review, control at the
+  default defer 10%). Standard / High / Critical, `SAFEGUARD_PACKAGES`, `SafeguardPackageId` and the `pkg` param are
+  gone; "Already meets your Safety framework" when nothing is missing. Preview machinery unchanged. UI: one button per
+  deployment, tooltip lists what the framework asks.
+- **"Applied by default": not built.** Read as "the one package offered", not auto-applied. Whether the framework
+  should apply it itself (at launch, or on a hold) is a designer call (see report): with RF-S1 the misalignment rule
+  holds training from day 0, so auto-apply would put every player's internal work under control from day 0.
+- **Auto watcher.** `autoWatcher` no longer falls back to a copy of the watched model: none when no other model is
+  trusted (the player can still pick 'same').
+- **RefBot.** `refMonitors` picker restored as before SR-20b (cost nearest `REF_MONITOR_COST` 0.1 of the watched
+  model's, AI 2027 fn 51; a copy while nothing is cheaper); the old `variant !== 'open'` filter dropped (no such variant).
+- **Check.** `npx tsx scripts/v2/_rfs2/check.ts`: 12 ok. Updated `scripts/v2/ws4.ts` C1 (signs the new card; the
+  standing breach is a framework hold, not an E30 card). Superseded and now failing by design: `_sr20/check.ts`
+  (three packages), `_sr20b/check.ts` part 2 (RefBot on 'auto'). tsc (app, scripts/v2) clean.
+- Moves calibration: **yes**. RefBot's internal monitors change (cheap model / copy instead of the trusted picker);
+  players / bots on 'auto' lose the self-copy watcher when no other model is trusted (no monitor); SafeBot signs no pause
+  pledge (its 60-day E30 pauses are gone; framework holds remain); Index grades read the one card.

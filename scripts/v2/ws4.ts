@@ -20,6 +20,7 @@ import { updateIntel, leadDays } from '../../src/engine/v2/actors/intel';
 import { deactivateRival } from '../../src/engine/v2/actors/rivals';
 import { request, ws4 } from '../../src/engine/v2/actors/state';
 import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
+import { refreshFramework } from '../../src/engine/v2/safety/framework';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { WS4_TUNING } from '../../src/engine/v2/actors/tuning';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -368,7 +369,8 @@ const load = (i: number) => deserialize(fixtures[i]);
     // B2: the framework judges the candidate. Make the version measure BIO ≥ 10.
     // CP3 rewrite (RD-M01 / SR-19): the measured domain level is the benchmark fit (evals.measuredDom), so set it there.
     v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: 10.5 };
-    signCommitment(s, ctx, 'framework', 'Frontier safety framework: no BIO ≥ 10 deployment without classifiers', 'noDeployAbove', { domain: 'BIO', level: 10, mitigation: 'classifiers' }, [], { trust: 1, credibility: 1 });
+    // RF-S2: publishing = the Safety framework commitment (its rules hold; the old noDeployAbove pledge is gone).
+    signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {}, [], { trust: 1, credibility: 1 });
     const g1 = deployGate(s, v, 'api', { safeguards: 'standard' });
     // CP3 rewrite (SR-19): the Safety framework's default Bio High rule (≥ 10 → classifiers) now judges the candidate
     // first and names its rule; the signed commitment's clause says the same.
@@ -380,7 +382,8 @@ const load = (i: number) => deserialize(fixtures[i]);
     if (dep) {
       dep.versionId = v.id;
       dep.safeguards = 'standard';
-      check(blockingCommitments(s).some((c) => c.condition.predicate === 'noDeployAbove'), 'C1 the standing breach binds (E30 shows it)');
+      refreshFramework(s);
+      check(!!dep.held && dep.held.includes('BIO'), 'C1 the standing breach is held by the framework (RF-S2: no E30 card)', String(dep.held));
       const other = s.player.models.versions.find((x) => x.id !== v.id && x.variant === 'full' && (x.status === 'ready' || x.status === 'deployed') && measuredDomain(x, 'BIO') < 10);
       if (other) check(deployGate(s, other, 'enterprise') === true, 'C1 (B2) a standing breach no longer blocks other launches', String(deployGate(s, other, 'enterprise')));
     }

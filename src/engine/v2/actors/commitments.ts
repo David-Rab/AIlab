@@ -32,20 +32,6 @@ export function measuredDomain(v: ModelVersion, d: DomainId): number {
   return mL + (v.domains[d] - v.Lg);
 }
 
-/** Why a deployment of `versionId` on `channel` with `safeguards` breaks a noDeployAbove framework, if it does. */
-function noDeployAboveBreach(s: GameStateV2, p: Commitment['condition']['params'], versionId: string, channel: string, safeguards: string): string | undefined {
-  if (!external(channel)) return undefined;
-  const dom = String(p.domain ?? 'BIO') as DomainId;
-  const level = Number(p.level ?? 10);
-  const mit = String(p.mitigation ?? 'classifiers');
-  const v = versionOf(s, versionId);
-  if (!v || measuredDomain(v, dom) < level) return undefined;
-  const at = `${v.name} measures ${dom} ${measuredDomain(v, dom).toFixed(1)} ≥ ${level}`;
-  if (mit === 'classifiers') return safeguards === 'classifiers' || safeguards === 'hardened' ? undefined : `${at}; needs classifier safeguards`;
-  if (mit === 'hazard') return s.player.models.bases.find((b) => b.id === v.baseId)?.design.curation.hazard ? undefined : `${at}; needs a hazard-filtered base`;
-  return `${at}; trusted and internal channels only`;
-}
-
 /** A launch or swap checked by the deploy gate, with the safeguards and usage policy the deployment will have. */
 export interface DeployCandidate {
   versionId: string;
@@ -55,9 +41,9 @@ export interface DeployCandidate {
 }
 
 /** Scope of each commitment over launches (B1): only these predicates can block a deploy or swap, and only on the
- *  channels they cover. The others (pause pledge, incident reporting, whistleblower, community pledge) never do. */
+ *  channels they cover. The others (published Safety framework: its own holds, safety/framework.ts; incident reporting,
+ *  whistleblower, community pledge) never do. */
 export const DEPLOY_SCOPE: Record<string, (channel: string) => boolean> = {
-  noDeployAbove: external,
   preDeployTesting: external,
   monitorabilityPledge: (ch) => ch !== 'internal',
   noSurveillance: (ch) => ch === 'gov',
@@ -72,8 +58,6 @@ export function deployClause(s: GameStateV2, c: Commitment, cand: DeployCandidat
   const v = versionOf(s, cand.versionId);
   if (!v) return undefined;
   switch (pred) {
-    case 'noDeployAbove':
-      return noDeployAboveBreach(s, p, v.id, cand.channel, cand.safeguards);
     case 'preDeployTesting': {
       const days = Number(p.days ?? 21);
       const left = days - (s.time.day - v.day);
@@ -111,13 +95,9 @@ export function committedUsagePolicy(s: GameStateV2, channel: string): DeployCan
 
 /** Predicate registry by id; true = the commitment currently BLOCKS/binds. */
 export const PREDICATES: Record<string, CommitmentPredicate> = {
-  /** Cannot deploy externally if measured L_domain ≥ level without the mitigation (classifiers | trusted | hazard).
-   *  With `params.versionId` (a candidate launch) it checks that candidate (B2: it used to check only the existing
-   *  deployments, so it never blocked the launch that broke it and then blocked everything after). */
-  noDeployAbove: (s, p) => {
-    if (p.versionId !== undefined) return !!noDeployAboveBreach(s, p, String(p.versionId), String(p.channel ?? 'api'), p.safeguards === undefined ? 'classifiers' : String(p.safeguards));
-    return s.player.deployments.some((d) => d.status === 'live' && !!noDeployAboveBreach(s, p, d.versionId, d.channel, d.safeguards));
-  },
+  /** RF-S2: the published Safety framework (A3). Never binds here: its rules hold launches and training themselves
+   *  (safety/framework.ts) and an override is the departure, costed there (credibility once published). */
+  safetyFramework: () => false,
   /** External launch must wait `days` for an evaluator slot. */
   preDeployTesting: (s, p, c) => {
     const days = Number(p.days ?? 21);
@@ -148,16 +128,6 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
   },
   noSurveillance: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noSurveillance),
   noAutonomousWeapons: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noAutonomousWeapons),
-  /** If belief(est) ≥ threshold on the internal version: frontier runs must pause until clarity ≥ 0.7 and est < threshold. */
-  pauseIfRedline: (s, p) => {
-    const trait = String(p.trait ?? 'SCHEME') as keyof ModelVersion['beliefs'];
-    const thr = Number(p.belief ?? 0.3);
-    const v = s.player.models.versions.find((x) => x.id === s.player.agents.capRoutine.versionId);
-    const b = v?.beliefs[trait];
-    if (!b || b.est < thr) return false;
-    const running = s.player.models.runs.some((r) => r.status === 'running' && (r.kind === 'base' || r.kind === 'post'));
-    return running && ws4r(s).frontierPauseUntil < s.time.day;
-  },
   /** Statutory or voluntary: no covered-up incident, and public incidents reported within `hours`. */
   incidentReporting: (s, p, c) => {
     const days = Number(p.hours ?? 360) / 24;
@@ -185,6 +155,10 @@ export function blockingCommitments(s: GameStateV2): Commitment[] {
 export function hasCommitment(s: GameStateV2, predicate: string): boolean {
   return s.commitments.some((c) => c.status === 'live' && c.condition.predicate === predicate);
 }
+
+/** RF-S2: the Safety framework is published when the lab's framework commitment (A3, kind 'framework') is live; by kind,
+ *  so a card signed before RF-S2 (the old BIO ≥ 10 pledge, kind 'framework') still counts. */
+export const frameworkPublished = (s: GameStateV2) => s.commitments.some((c) => c.status === 'live' && c.kind === 'framework');
 
 /** Sign a commitment card (§3.9.4). Returns the card; re-signing an identical live card is a no-op. */
 export function signCommitment(
