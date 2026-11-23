@@ -76,3 +76,11 @@ labour rows INFO). Still off, not reopened:
 - Optional later (designer's choice): S5 option (a), interpretability difficulty with capability; slow-horizon mechanism;
   measurement scale (per-domain best-human references; V0 BIO 0; AGENCY −1).
 - H2 2025 token growth lags Google's (×1.56 vs ×2.3; affects 2025 revenue only).
+
+## For a dedicated safety session (designer, 2026-11-23: after the UI work)
+1. Over-confident beliefs (review/lossrisk-analysis.md): observeVersion treats penalty-depressed readings as accurate and
+   shrinks the band even at 40–49% instrument reliability (truth above the lab's 90% bound: SCHEME d400 0.11±0.06 vs 0.31;
+   AF d900 0.47±0.08 vs 0.73). Fix: de-bias readings and noise by the believed penalty; widen the risk range with stop-rate
+   and foothold uncertainty; "Unknown" from the belief band; "< 0.1%". Moves S4 / S5 / framework hold / trusted rule.
+2. S5 option (a): instruments get harder with capability even after re-fitting (sourced).
+3. S4 re-judge (0.377 vs 0.40–0.80) after 1–2; rival safety physics (with the rivals session).
