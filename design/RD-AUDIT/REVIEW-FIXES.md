@@ -27,12 +27,12 @@ one commit + a BUILD-NOTES block. No calibration runs. Reference = the review fi
 ## Lane P: products (branch rf-p)
 | ID | Task | Source |
 |---|---|---|
-| RF-P1 | Delete RD-P07b; seed every lab's (player, rivals, China) day-0 tools from what it shipped by 2025-07-01 (primary sources: vendor docs / announcements); keep P07's lag rule only for tools new in-game | products F2, decision 2 |
-| RF-P2 | Delete the rival auto sector-adaptation rule (RIVAL_ADAPT_GATE_A etc.) unless something critical depends on it | products F3, decision 3 |
-| RF-P3 | Certification per DD-04: lifts friction for that product's buyers, not a gate on the adaptation | products F4 |
-| RF-P4 | Brand counted once: delete BRAND_INSTALLED double count of the customer stock | products F6 |
-| RF-P5 | Duplicate-seller exploit: one nest per provider (or forbid same channel + same model twice) | products F7 |
-| RF-P6 | releaseOpen preview reads believed rival / China levels, not hidden state | products F8 |
+| RF-P1 | Delete RD-P07b; seed every lab's (player, rivals, China) day-0 tools from what it shipped by 2025-07-01 (primary sources: vendor docs / announcements); keep P07's lag rule only for tools new in-game | products F2, decision 2 — done 449380a |
+| RF-P2 | Delete the rival auto sector-adaptation rule (RIVAL_ADAPT_GATE_A etc.) unless something critical depends on it | products F3, decision 3 — done 9015cc8 |
+| RF-P3 | Certification per DD-04: lifts friction for that product's buyers, not a gate on the adaptation | products F4 — done 51291c2 |
+| RF-P4 | Brand counted once: delete BRAND_INSTALLED double count of the customer stock | products F6 — done 4fcd16f |
+| RF-P5 | Duplicate-seller exploit: one nest per provider (or forbid same channel + same model twice) | products F7 — done 381c700 |
+| RF-P6 | releaseOpen preview reads believed rival / China levels, not hidden state | products F8 — done 059cb39 |
 
 ## Lane R: research readouts and measurement (branch rf-r)
 | ID | Task | Source |
