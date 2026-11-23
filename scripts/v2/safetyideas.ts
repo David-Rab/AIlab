@@ -283,10 +283,10 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const hits = files.flatMap((f) => bad.filter((re) => re.test(read(f))).map((re) => `${f}: ${re}`));
   check(hits.length === 0, 'lint: the old flat effects are gone (p14Goodhart flag, P15 cash ×0.2, P27 ×(1 + 3t), "×0.6", "cheap price")', hits.join('; '));
   check(!/LATER\(V6\)/.test(read('design/TECH-TREE.md')), 'lint: no LATER(V6) markers left in design/TECH-TREE.md');
-  // Model v3 E14: no flat factor on agenda speed. lineSpeed holds only the shared research modifiers (siloing, ASIC
-  // migration) and the dead-end state: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
+  // Model v3 E14: no flat factor on agenda speed. lineRates (lineSpeed until RD-R02b) holds only the CES inputs and the shared
+  // research modifiers: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
   const lp = read('src/engine/v2/safety/lineProjects.ts');
-  const body = (lp.match(/export function lineSpeed\([\s\S]*?\n\}/) ?? [''])[0];
+  const body = (lp.match(/export function lineRates\([\s\S]*?\n\}/) ?? [''])[0];
   const flat = [/ag ===/, /AG\d\d/, /flag\(/, /trusted/i, /v \*= [2-9]/, /aar/];
   const fh = flat.filter((re) => re.test(body)).map(String);
   if (/ag17Mult|x\.AI \* lift/.test(lp)) fh.push('AG17 lift on AI team-equivalents');
@@ -294,7 +294,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   check(body.length > 0 && fh.length === 0, 'lint: no flat factor on agenda speed (F44 ×3 and AG17\'s ×(1 + √m) on AI team-equivalents are gone; E14)', fh.join('; '));
   // The ideas are read only where their mechanism lives.
   const where: Record<string, string[]> = { P14: ['src/engine/v2/safety/ideas.ts'], P15: ['src/engine/v2/safety/ideas.ts'], P27: ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts'] };
-  const engine = ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts', ...files.filter((f) => f.startsWith('src/engine')), 'src/engine/v2/safety/detection.ts', 'src/engine/v2/safety/understanding.ts'];
+  const engine = ['src/engine/v2/safety/ideas.ts', 'src/engine/v2/departments/workfit.ts', ...files.filter((f) => f.startsWith('src/engine')), 'src/engine/v2/safety/detection.ts', 'src/engine/v2/safety/sightLimit.ts'];
   const stray = Object.entries(where).flatMap(([id, ok]) => engine.filter((f) => !ok.includes(f) && new RegExp(`adopted\\(s, '${id}'\\)`).test(read(f))).map((f) => `${id} in ${f}`));
   check(stray.length === 0, 'lint: P14, P15 and P27 are read only by their mechanism (safety/ideas.ts; P27\'s fit in workfit.ts)', stray.join('; '));
   const ids = ['P14', 'P15', 'P23', 'P27'];
