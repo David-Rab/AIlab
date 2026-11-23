@@ -13,6 +13,7 @@ import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { openAbsorbMonths } from '../actors/rivals';
 import { CHANNEL_VARIANTS, deploy, deployGate, distillationLeak, effortLock, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
+import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchEffortBlock, launchFeatures, newestCleared, priceIndexOf, relaunchPacks } from './products';
 import { evalPolicyView } from './evals';
 
@@ -103,7 +104,7 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
     if (!m || m.variant !== 'mini') return 'The free tier runs a mini (distilled) model';
     if (!usable(m)) return 'That mini is not ready';
   }
-  if (n.monitorId && n.monitorId !== d.monitorId) {
+  if (n.monitorId && n.monitorId !== d.monitorId && n.monitorId !== MONITOR_AUTO) {
     const m = versionById(s, n.monitorId);
     if (!usable(m)) return 'The monitor must be a ready model';
   }
