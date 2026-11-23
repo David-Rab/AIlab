@@ -2602,3 +2602,35 @@ Safety framework replaces the eval gate and the E17 "Red flags" event (SAFETY-RE
   now pay override costs (morale, scrutiny, red flags) each time a training rule fires; mixed / safe keep frontier
   training paused while a misalignment or AI R&D rule lacks more than control; products of models measured ≥ 10 in BIO
   or CYBER on standard safeguards, and ≥ 12 without hardened safeguards and an external evaluation, stop serving.
+
+### SR-20
+Default safeguard packages and the "trusted" rule (SAFETY-REDESIGN §3.3 Defaults, OD-6 a).
+- **Packages** (`safety/packages.ts`, action `safety.package` {deploymentId, pkg}): Standard / High / Critical set exactly
+  their parts in one act. Products: misuse safeguards standard / classifiers / hardened + control defer 10% (Critical).
+  Internal deployment: human review / review + control defer 10% / review + control defer 20% (the internal control item
+  follows the packages running its model: their `control` flags are set, then `syncInternalControl`). Each meets the
+  default framework rules of its tier (High: Bio / Cyber High classifiers, Misalignment signs control; Critical: Bio /
+  Cyber Critical hardened, AI R&D Critical control + review). `previewPackage` runs each part in order on a copy and
+  reads the engine's own charges before → after (internal: `monitorBudget().control` × compute, `safeguardFte`, the
+  compute-weighted `useControl` Slowdown; products: `previewDeployments` revenue and serving need), so part lines sum to
+  the total; stop rates are the believed act table before → after. Nothing invented. UI: buttons on the Safety Control
+  card (internal) and each product's Safeguards row; parts stay editable on their own controls.
+- **Trusted rule** (`safety/trusted.ts`): a model is trusted when no red-flag trait (SCHEME / AF / SAND) is believed
+  above the trust line = the player's framework Misalignment-signs estimate (30% default, `TRUST_EST_DEFAULT`); beliefs
+  only. `monitorId 'auto'` (`MONITOR_AUTO`, the new default on routine and frontier research): the most capable
+  (measured L) live trusted model other than the watched one; a copy of the watched model only if it is the only trusted
+  one; none if nothing is trusted. Reason (incl. the more capable model skipped and why) on the Agents lane and in the
+  log; a model id or 'same' overrides. The 'same' default (self-monitor, M4) is replaced.
+- **Save.** SCHEMA_REV 81; migration 80 → 81 moves routine / frontier research packages on 'same' to 'auto'. hygiene
+  pins 81; _sr19 check pin ≥ 80.
+- **Check.** `npx tsx scripts/v2/_sr20/check.ts`: 12 ok (migration; High on internal sets review + control defer 10% and
+  the engine then charges the previewed +43 H100e control compute; stop rates rise; High on a product sets classifiers and
+  the preview revenue equals the engine's; auto picks the most capable trusted, skips a more capable model believed 50%
+  scheming with the reason, flips back when the belief drops; override kept). tsc (app, scripts/v2) clean; build passes.
+- **Left.** Products' monitor has no 'auto' option (still manual / none); RefBot keeps its own cost-ratio monitor picker
+  (a bot override); no OD-6 "below the scheming-capable level" clause (belief line only); no package for lockdown;
+  glossary has no `safeguardPackage` / `trustedModel` terms; retire block does not count a model that is only an auto
+  watcher.
+- Moves calibration: yes (S4/S5): default internal watchers are now the most capable trusted other model (cheaper or
+  weaker than a copy, no same-lineage collusion penalty when another base is chosen), changing coverage, catch and the
+  control gap for player and bots that keep the default.
