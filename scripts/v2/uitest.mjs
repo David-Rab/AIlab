@@ -889,11 +889,11 @@ async function b4Check(where) {
     await wait(60);
     await check(`B4 ${where}: Auto teams wanted turns on`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
     ok(`B4 ${where}: the drawer shows "auto" teams wanted`, /wanted auto/.test(await page.$eval('[data-test=drawer]', (e) => e.textContent ?? '')) && (await page.getAttribute(`[data-test=drawer] [data-act="want-auto.${first}"]`, 'aria-pressed')) === 'true');
-    await clearTips();
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
     await page.hover(`[data-test=drawer] [data-act="want-auto.${first}"]`);
     await wait(380);
     ok(`B4 ${where}: the Auto toggle's tooltip explains priority and fit`, /priority and fit/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-    await clearTips();
+    await page.mouse.move(1, 1); // not Escape: it would close the drawer
     await shot(`81-${where.replace(' ', '')}-research-portfolio-b4`);
     await check(`B4 ${where}: Auto teams wanted turns off (fixes the number)`, 'JSON.stringify(s.player.research.wantAuto)', () => page.click(`[data-test=drawer] [data-act="want-auto.${first}"]`));
     const labels = await page.$$eval('[data-test=drawer] [data-act^="want-"]', (els) => els.filter((e) => !e.getAttribute('aria-label')).map((e) => e.getAttribute('data-act')));

@@ -171,6 +171,7 @@ function NextResult({ v, rate }: { v: CapProjectView; rate?: ProgrammeRate }) {
 
 /** Programme: rate at current staffing (≈ × / yr on its area). Project: expected effect where it lands. */
 function Effect({ v, rate }: { v: CapProjectView; rate?: ProgrammeRate }) {
+  if (rate && v.stack && !(rate.perYear > 0)) return <span className="pf-eff dim" data-test={`rate.${v.id}`}>no results a year without a team · {AREA_LANDS[v.stack]}</span>;
   if (rate && v.stack) {
     const st = v.stack;
     return (
@@ -635,7 +636,8 @@ function SafDrawer({ c }: { c: SafCardData }) {
 function Drawer({ s }: { s: GameStateV2 }) {
   const id = ui('drawer');
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setUi('drawer', ''); };
+    // Escape closes an open tooltip first (good-ui 4), then the drawer.
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.tip')) setUi('drawer', ''); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
