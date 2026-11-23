@@ -11,13 +11,14 @@
 // ('unexplained' for undiscovered U-modes) and severity; `trueSource` stays hidden.
 import { controlOn, labControlSetting, restrictMult, reviewOn } from './safeguards';
 import { disclosureStep } from './responses';
-import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, type ActDef } from '../../../data/v2/danger';
+import { COPIES_GAMMA, COPIES_REF, CHANNEL_AFFORD, CHANNEL_HORIZON_H, DANGER_ACTS, EXFIL, H_HALF, MISUSE, MISUSE_REACH, MISUSE_TOKENS_REF, RIVAL_SITE, UMODE_ACT, V0_V2_LEVEL, type ActDef } from '../../../data/v2/danger';
 import { reviewCatch } from './lineProjects';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { AGENT_USES } from '../../../data/v2/agents';
 import { bestPlayerVersion, internalVersion } from '../models/labs';
-import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TraitId, TraitVector, UModeId } from '../types';
+import { domainsOf, gV0 } from '../models/capability';
+import type { AgentUse, CounterpartyId, Deployment, DomainId, EngineSystem, GameStateV2, Incident, ModelVersion, RngLike, SystemCtx, TechniqueState, TimelineWorld, TraitId, TraitVector, UModeId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
 import { controlProtocol, humanReviewFactor, measuredOom, oomOfLevel, underControl, versionOom } from './oversight';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
@@ -70,8 +71,20 @@ export interface Site {
 const sig = (x: number) => 1 / (1 + Math.exp(-x));
 /** Disposition from a trait value: x^1.5 (v2's convexity: weak tendencies rarely become acts) [D]. */
 export const dispositionOf = (x: number) => Math.pow(Math.max(0, x), 1.5);
-/** Capability of an act: σ((L − θ)/s) on its domain level. */
-export const capabilityOf = (level: number, def: Pick<ActDef, 'theta' | 's'>) => sig((level - def.theta) / def.s);
+/** Capability of an act: σ((L − θ)/s) on its domain level (θ on today's domain score: actTheta, or misuse / exfiltration's). */
+export const capabilityOf = (level: number, def: { theta: number; s: number }) => sig((level - def.theta) / def.s);
+/** CAL2: the start model V0's domain score in world w (no build: raw domain G = general G), memo per world. */
+const v0Memo = new WeakMap<TimelineWorld, Record<DomainId, number>>();
+const v0Domains = (w: TimelineWorld) => {
+  let m = v0Memo.get(w);
+  if (!m) v0Memo.set(w, (m = domainsOf(w, gV0(w))));
+  return m;
+};
+/** CAL2: an act's θ on today's domain score in world w (data/v2/danger.ts): θ_v2 + L_w(V0) − L_v2(V0), so every act keeps
+ *  its distance from the start model's level in every world (CP3f's ai2027-only U05_SHIFT, per world). */
+export const actTheta = (w: TimelineWorld, def: Pick<ActDef, 'thetaV2' | 'domain'>) => def.thetaV2 + v0Domains(w)[def.domain] - (V0_V2_LEVEL[def.domain] ?? 0);
+/** Capability of a trait or covert act in world w: σ((L − actTheta)/s). */
+export const actCapability = (w: TimelineWorld, level: number, def: Pick<ActDef, 'thetaV2' | 'domain' | 's'>) => sig((level - actTheta(w, def)) / def.s);
 /** Autonomy from the task horizon a deployment gives (hours). */
 export const autonomyOf = (hours: number) => hours / (hours + H_HALF);
 /** Severity draw: ⌊sev + u⌋ clamped to 1..5 (u ~ U[0,1): stochastic rounding of the rule's value). */
@@ -79,17 +92,17 @@ export const drawSeverity = (row: Pick<HazardRow, 'sev'>, u: number) => Math.max
 
 /** SR-03: the formula's four site terms of one act (disposition from trait value x, capability at `level`, opportunity,
  *  block), shared by the engine's rows (actRow) and the act table (safety/actTable.ts, true or believed inputs). */
-export function actTerms(def: ActDef, x: number, level: number, site: Site): { disposition: number; capability: number; opportunity: number; block: number; af: number } {
+export function actTerms(w: TimelineWorld, def: ActDef, x: number, level: number, site: Site): { disposition: number; capability: number; opportunity: number; block: number; af: number } {
   const disposition = dispositionOf(x);
-  const capability = capabilityOf(level, def);
+  const capability = actCapability(w, level, def);
   const af = site.autonomy * site.afford;
   const opportunity = site.scale * (1 - def.alpha + def.alpha * af) * (def.rd && site.internal ? site.rd : 1);
   const block = 1 - (1 - site.contain) * (1 - (site.internal && def.security ? (def.security * site.wsl) / 5 : 0));
   return { disposition, capability, opportunity, block, af };
 }
 
-function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site: Site): Omit<HazardRow, 'source' | 'apparent'> {
-  const { disposition, capability, opportunity, block, af } = actTerms(def, x, domains[def.domain], site);
+function actRow(w: TimelineWorld, def: ActDef, x: number, domains: Record<DomainId, number>, site: Site): Omit<HazardRow, 'source' | 'apparent'> {
+  const { disposition, capability, opportunity, block, af } = actTerms(w, def, x, domains[def.domain], site);
   return { h: def.kappa * disposition * capability * opportunity * (1 - block), sev: def.floor + def.span * capability * af, disposition, capability, opportunity, block };
 }
 
@@ -98,7 +111,7 @@ function actRow(def: ActDef, x: number, domains: Record<DomainId, number>, site:
  * own site). `discovered(u)` decides the apparent label of U-mode incidents.
  */
 export function modelHazards(
-  traits: TraitVector, uModes: readonly UModeId[], domains: Record<DomainId, number>, site: Site,
+  w: TimelineWorld, traits: TraitVector, uModes: readonly UModeId[], domains: Record<DomainId, number>, site: Site,
   discovered: (u: UModeId) => boolean = () => false,
 ): HazardRow[] {
   const out: HazardRow[] = [];
@@ -107,14 +120,14 @@ export function modelHazards(
     const t = k as TraitId;
     const def = DANGER_ACTS[t] as ActDef;
     if (def.internalOnly && !site.internal) continue;
-    const r = actRow(def, traits[t], domains, site);
+    const r = actRow(w, def, traits[t], domains, site);
     if (r.h > 0) out.push({ source: t, apparent: t, ...r });
   }
   for (const u of uModes) {
     const m = UMODE_BY_ID[u];
     const def = DANGER_ACTS[m.mapsTo] ?? UMODE_ACT;
     if (def.internalOnly && !site.internal) continue;
-    const r = actRow(def, UMODE_X, domains, site);
+    const r = actRow(w, def, UMODE_X, domains, site);
     if (r.h > 0) out.push({ source: u, apparent: discovered(u) ? m.mapsTo : 'unexplained', ...r });
   }
   return out;
@@ -389,7 +402,7 @@ function tickTimers(s: GameStateV2, ctx: SystemCtx, rng: RngLike) {
 export function deploymentRows(s: GameStateV2, d: Deployment, v: ModelVersion, usage: number): HazardRow[] {
   // Product features' stated stand-in multipliers on their traits' acts (Companion mode: sycophancy ×1.5 [D]); ×1 without.
   const feat = d.features.length ? (r: HazardRow) => (r.source !== 'misuse' && !r.source.startsWith('U') ? productHazardMult(s, d, r.source as TraitId) : 1) : () => 1;
-  const rows = modelHazards(v.traitsTrue, v.uModes, v.domains, siteOf(s, d, v, usage), (u: UModeId) => isDiscovered(s, u));
+  const rows = modelHazards(s.hidden.timeline, v.traitsTrue, v.uModes, v.domains, siteOf(s, d, v, usage), (u: UModeId) => isDiscovered(s, u));
   if (d.features.length) for (const r of rows) r.h *= feat(r);
   return [...rows, ...misuseHazards(s, v, d)];
 }
@@ -509,9 +522,9 @@ export function containAtAsi(s: GameStateV2): number {
 
 /** Rows for a non-player lab's deployed model at a generic product site (RIVAL_SITE; `mitigation` blocks like
  *  containment). WS4 rolls them with its own stream; visibility per its posture. */
-export function labModelHazards(m: { traitsTrue: TraitVector; uModes: readonly UModeId[]; domains: Record<DomainId, number> }, mitigation: number): HazardRow[] {
+export function labModelHazards(w: TimelineWorld, m: { traitsTrue: TraitVector; uModes: readonly UModeId[]; domains: Record<DomainId, number> }, mitigation: number): HazardRow[] {
   const site: Site = { internal: false, scale: RIVAL_SITE.usage, autonomy: RIVAL_SITE.autonomy, afford: RIVAL_SITE.afford, rd: 0, contain: mitigation, wsl: 0 };
-  return modelHazards(m.traitsTrue, m.uModes, m.domains, site, () => true);
+  return modelHazards(w, m.traitsTrue, m.uModes, m.domains, site, () => true);
 }
 
 /**

@@ -4,7 +4,7 @@ import { DANGER_ACTS, MISUSE } from '../../src/data/v2/danger';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resetWorkContext } from '../../src/engine/v2/departments/workfit';
 import {
-  aiRdShare, capabilityOf, dangerOf, deploymentRows, exfiltrationHazard, forEachIncidentSite, labModelHazards, modelHazards, type DangerRow, type Site,
+  actCapability, actTheta, aiRdShare, capabilityOf, dangerOf, deploymentRows, exfiltrationHazard, forEachIncidentSite, labModelHazards, modelHazards, type DangerRow, type Site,
 } from '../../src/engine/v2/safety/incidents';
 import type { Deployment, DomainId, GameStateV2, ModelVersion, TraitId } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
@@ -39,7 +39,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   const cy = dangerOf(s, d, v, 1);
   check(rate(cy, 'SCHEME') > 10 * rate(base, 'SCHEME') && Math.abs(rate(cy, 'POWER') - rate(base, 'POWER')) < 1e-15,
     'capability: CYBER raises scheming (escape-like) and leaves overreach (AGENCY) alone');
-  check(Math.abs(capabilityOf(DANGER_ACTS.POWER!.theta, DANGER_ACTS.POWER!) - 0.5) < 1e-12, 'capability = σ((L − θ)/s): one half at θ');
+  check(Math.abs(actCapability(s.hidden.timeline, actTheta(s.hidden.timeline, DANGER_ACTS.POWER!), DANGER_ACTS.POWER!) - 0.5) < 1e-12, 'capability = σ((L − θ)/s): one half at θ');
 }
 
 // ───────────── opportunity: chat < agents < internal; usage; copies; AI R&D share ─────────────
@@ -64,8 +64,8 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   check(Math.abs(r(chat, 'POWER').rate / c0 - Math.pow(32, 0.1)) < 1e-6, 'opportunity: 32× the serving copies raises the rate ≈ 32^0.1 = 1.41× (sublinear)',
     `×${(r(chat, 'POWER').rate / c0).toFixed(2)}`);
   // AI share of the lab's R&D raises sabotage opportunity (and only for R&D acts).
-  const lo = modelHazards(v.traitsTrue, [], v.domains, site({ rd: 0.2 }));
-  const hi = modelHazards(v.traitsTrue, [], v.domains, site({ rd: 0.8 }));
+  const lo = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ rd: 0.2 }));
+  const hi = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ rd: 0.8 }));
   const h = (rows: typeof lo, k: TraitId) => rows.find((x) => x.source === k)?.h ?? 0;
   check(Math.abs(h(hi, 'SAND') / h(lo, 'SAND') - 4) < 1e-9 && h(hi, 'POWER') === h(lo, 'POWER'),
     'opportunity: AI R&D share 0.2 → 0.8 raises research sabotage ×4 (overreach unchanged)');
@@ -110,12 +110,12 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   check(rate(mon, 'COLLUDE') > rate(mon, 'RH') * (row(mon, 'COLLUDE')!.attempts / row(mon, 'RH')!.attempts) * 1.5,
     'oversight: a same-lineage monitor lets collusion-relevant acts through more often');
   // Containment (control layer) blocks: lower attempts that get through.
-  const lo = modelHazards(v.traitsTrue, [], v.domains, site({ contain: 0 }));
-  const hi = modelHazards(v.traitsTrue, [], v.domains, site({ contain: 0.6 }));
+  const lo = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ contain: 0 }));
+  const hi = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ contain: 0.6 }));
   const h = (rows: typeof lo, k: TraitId) => rows.find((x) => x.source === k)?.h ?? 0;
   check(Math.abs(h(hi, 'CONCEAL') / h(lo, 'CONCEAL') - 0.4) < 1e-9, 'oversight: containment 0.6 blocks 60% of every act');
-  const w1 = modelHazards(v.traitsTrue, [], v.domains, site({ wsl: 1 }));
-  const w5 = modelHazards(v.traitsTrue, [], v.domains, site({ wsl: 5 }));
+  const w1 = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ wsl: 1 }));
+  const w5 = modelHazards(s.hidden.timeline, v.traitsTrue, [], v.domains, site({ wsl: 5 }));
   check(h(w5, 'SCHEME') < h(w1, 'SCHEME') && h(w5, 'POWER') < h(w1, 'POWER') && h(w5, 'RH') === h(w1, 'RH'),
     'oversight: weight security blocks escape-like acts (scheming, overreach) and nothing else');
   // Human review: less AI share of R&D → more of the work done (and reviewed) by humans → more caught inside the lab.
@@ -201,7 +201,7 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   check(ex(5) === 0 && ex(8) > 0 && ex(8) < ex(9) && ex(9) < ex(11) && ex(11) < ex(13), 'exfiltration rises with CYBER (escape capability); none below θ − 2 = 8');
   const old = 1e-4 * 0.3 * (1 + 4 * 0.1) * (11 - 8) * (1 - s.player.security.wsl / 5);
   check(ex(11) > 0.5 * old && ex(11) < 2 * old, 'exfiltration at CYBER 11 within ×2 of v2\'s at AGENCY 11 (same traits, security, start fleet)', `${ex(11).toExponential(2)} vs ${old.toExponential(2)}`);
-  const rv = labModelHazards({ traitsTrue: v.traitsTrue, uModes: [], domains: v.domains }, 0.3);
+  const rv = labModelHazards(s.hidden.timeline, { traitsTrue: v.traitsTrue, uModes: [], domains: v.domains }, 0.3);
   check(rv.length > 0 && rv.every((x) => x.h >= 0 && Math.abs(x.block - 0.3) < 1e-12), 'rival rows run on the same formula (mitigation blocks)');
 }
 

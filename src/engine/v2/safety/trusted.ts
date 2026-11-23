@@ -16,7 +16,8 @@ import { measuredDomain } from '../actors/commitments';
 import { measuredLOf } from '../models/labs';
 import { RED_FLAG_TRAITS } from './common';
 import { beliefHi } from './detection';
-import type { GameStateV2, ModelVersion } from '../types';
+import { actTheta } from './incidents';
+import type { GameStateV2, ModelVersion, TimelineWorld } from '../types';
 
 /** The trust line (upper end of the belief) from the player's framework. */
 export function trustLine(s: GameStateV2): number {
@@ -27,10 +28,10 @@ export function trustLine(s: GameStateV2): number {
 /** OD-6 capability clause, shared with the framework's Misalignment-signs rule (CAL-S): `v`'s measured level in the
  *  scheming act's domain (undefined = never measured: no capability reading) and whether it is below the level where
  *  covert action against oversight works (DANGER_ACTS.SCHEME θ). */
-export function schemingReading(v: ModelVersion): { L?: number; below: boolean } {
+export function schemingReading(w: TimelineWorld, v: ModelVersion): { L?: number; below: boolean } {
   const sch = DANGER_ACTS.SCHEME!;
   const L = v.evals.suiteDay !== undefined ? measuredDomain(v, sch.domain) : undefined;
-  return { L, below: L !== undefined && L < sch.theta };
+  return { L, below: L !== undefined && L < actTheta(w, sch) };
 }
 
 /** Whether the lab trusts `v`, with the reason in player language. */
@@ -44,8 +45,8 @@ export function trustOf(s: GameStateV2, v: ModelVersion): { trusted: boolean; wh
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   if (worst && worst.hi <= line) return { trusted: true, why: `${v.name} trusted: ${worst.tr} at most ${pct(worst.hi)} (top of your 90% range) ≤ ${pct(line)}` };
   const sch = DANGER_ACTS.SCHEME!;
-  const { L, below } = schemingReading(v);
-  if (below && L !== undefined) return { trusted: true, why: `${v.name} trusted: measures ${sch.domain} ${L.toFixed(1)}, below the level where covert action against oversight works (${sch.theta.toFixed(1)})` };
+  const { L, below } = schemingReading(s.hidden.timeline, v);
+  if (below && L !== undefined) return { trusted: true, why: `${v.name} trusted: measures ${sch.domain} ${L.toFixed(1)}, below the level where covert action against oversight works (${actTheta(s.hidden.timeline, sch).toFixed(1)})` };
   return { trusted: false, why: `${v.name} not trusted: ${worst?.tr ?? 'SCHEME'} could be as high as ${pct(worst?.hi ?? 1)} (top of your 90% range) > ${pct(line)}${L === undefined ? ', and its capability is not measured' : ''}` };
 }
 

@@ -396,7 +396,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const p = postureOf(s, id);
   const dep = r.publicModel ?? r.internal;
   const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);
-  const rows = labModelHazards(dep, mitigation);
+  const rows = labModelHazards(s.hidden.timeline, dep, mitigation);
   const misuseH = MISUSE_PER_OOM * Math.max(0, dep.G - gV0(s.hidden.timeline) - MISUSE_FROM_OOM) * (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor);
   if (misuseH > 0) rows.push({ source: 'misuse', apparent: 'misuse', h: misuseH, sev: 3, disposition: 1, capability: 1, opportunity: 1, block: 0 });
   const H = rows.reduce((a, x) => a + x.h, 0);

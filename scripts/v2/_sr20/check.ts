@@ -6,6 +6,7 @@
 //  3. the auto watcher picks the most capable TRUSTED model, skipping a more capable untrusted one; a belief change flips
 //     it. CAL-S2: the candidates are placed at the scheming-capable level (measured CYBER ≥ θ_SCHEME), so trust reads the
 //     belief's upper end (RF-S1, decision 4); below that level the capability clause (CAL-S) trusts every model.
+import { actTheta } from '../../../src/engine/v2/safety/incidents';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DANGER_ACTS } from '../../../src/data/v2/danger';
@@ -32,7 +33,7 @@ check(s.schemaRev === SCHEMA_REV && SCHEMA_REV >= 90 && s.player.agents.capRouti
   const byL = [...live].sort((a, b) => measuredLOf(x, b).L - measuredLOf(x, a).L);
   check(byL.length >= 2, 'fixture has two live candidate watchers', byL.map((v) => `${v.name} L${measuredLOf(x, v).L.toFixed(1)}`).join(', '));
   const sch = DANGER_ACTS.SCHEME!;
-  for (const v of live) { v.evals.suiteDay ??= x.time.day; v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), [sch.domain]: sch.theta + 1 }; }
+  for (const v of live) { v.evals.suiteDay ??= x.time.day; v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), [sch.domain]: actTheta(x.hidden.timeline, sch) + 1 }; }
   const [top, second] = byL as [ModelVersion, ModelVersion];
   const line = trustLine(x);
   // A narrow belief (sd 0.02): its 90% upper end is est + 0.033.

@@ -10,6 +10,7 @@
 //     them; only what the package cannot meet (Critical without an external evaluation) is refused.
 //  5. RF-S13c: product update (model change, lineup entry) gets the parts, priced in its preview; with no internal
 //     deployment a training rule counts as met.
+import { actTheta } from '../../../src/engine/v2/safety/incidents';
 import { readFileSync } from 'node:fs';
 import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
 import { deploy, deployGate } from '../../../src/engine/v2/models/deployments';
@@ -48,7 +49,7 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
   // place the internal model at that level to test the package mechanics.
   const iv = internalVersion(x)!;
   const md = iv.evals.measuredDom ??= {} as NonNullable<typeof iv.evals.measuredDom>;
-  md[DANGER_ACTS.SCHEME!.domain] = DANGER_ACTS.SCHEME!.theta + 1;
+  md[DANGER_ACTS.SCHEME!.domain] = actTheta(x.hidden.timeline, DANGER_ACTS.SCHEME!) + 1;
   const before = trainingHolds(x);
   check(before.some((h) => h.missing.some((m) => m.startsWith('control'))), 'fixture: the rule asks control of internal AI work', before.map((h) => `${h.ruleId}: ${h.missing.join(', ')}`).join('; '));
   const d = internal(x)[0];

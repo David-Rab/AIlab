@@ -40,7 +40,7 @@ import { internalFleets } from '../departments/agents';
 import { workContext, type CapSlot } from '../departments/workfit';
 import type { GameStateV2, ModelVersion, SystemCtx, TraitId } from '../types';
 import { clamp01, flagNum, setFlag, versionById } from './common';
-import { autonomyOf, capabilityOf, dispositionOf, drawSeverity, internalOversight, recordInternalIncident, siteOf } from './incidents';
+import { actCapability, autonomyOf, dispositionOf, drawSeverity, internalOversight, recordInternalIncident, siteOf } from './incidents';
 import { containment } from './techniques';
 import { versionOom } from './oversight';
 import { uModeContainMult } from './umodes';
@@ -100,7 +100,7 @@ export function itemTerms(s: GameStateV2, v: ModelVersion, act: CovertActId, sha
   const def = COVERT_ACTS[act];
   const { x, apparent } = covertDisposition(v, def);
   const disposition = dispositionOf(x);
-  const capability = capabilityOf(v.domains[def.domain], def);
+  const capability = actCapability(s.hidden.timeline, v.domains[def.domain], def);
   const af = autonomyOf(hours) * CHANNEL_AFFORD.internal;
   const opportunity = (1 - def.alpha + def.alpha * af) * clamp01(share);
   const attempts = clamp01(def.kappa * disposition * capability * opportunity);
@@ -130,7 +130,7 @@ export function dayTerms(s: GameStateV2, v: ModelVersion, act: CovertActId, usag
   const def = COVERT_ACTS[act];
   const { x, apparent } = covertDisposition(v, def);
   const disposition = dispositionOf(x);
-  const capability = capabilityOf(v.domains[def.domain], def);
+  const capability = actCapability(s.hidden.timeline, v.domains[def.domain], def);
   const dep = s.player.deployments.find((d) => d.channel === 'internal' && d.status !== 'withdrawn');
   const zero = { act, versionId: v.id, apparent, disposition, capability, opportunity: 0, attempts: 0, block: 0, catch: 0, oversight: 0, rate: 0, sev: def.floor };
   if (!dep || disposition <= 0) return zero;
@@ -265,7 +265,7 @@ export function safetySandbag(s: GameStateV2, ag?: AgendaId): number {
   const threat = ag ? lineThreat(s, ag, v) : 1;
   if (threat <= 0) return 0;
   const af = autonomyOf(WORK_TYPES.SAF_EXP.H) * CHANNEL_AFFORD.internal;
-  return clamp01(def.kappa * d * capabilityOf(v.domains[def.domain], def) * (1 - def.alpha + def.alpha * af)) * (1 - internalContain(s, v)) * threat;
+  return clamp01(def.kappa * d * actCapability(s.hidden.timeline, v.domains[def.domain], def) * (1 - def.alpha + def.alpha * af)) * (1 - internalContain(s, v)) * threat;
 }
 
 /** Book an uncaught sandbag of a result (SAFMECH: an on-track discovery or cross-check reads as a dead end): a hidden
@@ -425,7 +425,7 @@ export function believedSabotage(s: GameStateV2, share: number, threat = 1): num
   const def = COVERT_ACTS.SAFSAB;
   const x = clamp01((v.beliefs.SAND?.est ?? 0) + (v.beliefs.SCHEME?.est ?? 0));
   const af = autonomyOf(WORK_TYPES.SAF_EXP.H) * CHANNEL_AFFORD.internal;
-  return clamp01(def.kappa * dispositionOf(x) * capabilityOf(v.evals.measuredL ?? 0, def) * (1 - def.alpha + def.alpha * af) * clamp01(share)) * clamp01(threat);
+  return clamp01(def.kappa * dispositionOf(x) * actCapability(s.hidden.timeline, v.evals.measuredL ?? 0, def) * (1 - def.alpha + def.alpha * af) * clamp01(share)) * clamp01(threat);
 }
 
 /** SAFMECH: the lab's estimate of the share of its next safety results a sabotaging safety model would act on: over the

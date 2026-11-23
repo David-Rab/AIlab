@@ -16,7 +16,7 @@
 //   base rule  every external release needs a capability assessment: a suite at `evalDepth` (none = no release
 //              suite) and, with `externalReview`, external evaluators' reading (replaces the eval gate).
 // Holds read only what the player can see (measured levels, beliefs, owned safeguards), never truth.
-import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx } from '../types';
+import type { Deployment, FrameworkHold, FrameworkRule, GameStateV2, ModelVersion, SafetyFramework, SystemCtx, TimelineWorld } from '../types';
 import { defaultFramework, defaultFrameworkRules, frameworkHighL, EVIDENCE_NEED_LABEL, OVERRIDE_COST, SAFEGUARD_NEED_LABEL } from '../../../data/v2/framework';
 import { frameworkPublished, measuredDomain } from '../actors/commitments';
 import { ws4, ws4r } from '../actors/state';
@@ -46,7 +46,7 @@ export { frameworkPublished };
 /** Why the rule's trigger is met for `v`, or undefined. Capability: measured domain level ≥ threshold (a version never
  *  measured has no reading; the base rule holds its release). Belief: the upper end of a red-flag trait's 90% range
  *  above the line (RF-S1, decision 4: not knowing counts as risk, so a barely observed model is held; no clarity gate). */
-export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | undefined {
+export function ruleTriggered(w: TimelineWorld, rule: FrameworkRule, v: ModelVersion): string | undefined {
   const t = rule.trigger;
   if (t.kind === 'capability') {
     if (v.evals.suiteDay === undefined) return undefined;
@@ -60,7 +60,7 @@ export function ruleTriggered(rule: FrameworkRule, v: ModelVersion): string | un
   // safeguards for large-scale internal deployment; ANT-RSP AI R&D-4 → an affirmative misalignment case), never to a
   // belief alone. So a version measured below the scheming-capable level does not trigger the belief rule: the trusted
   // rule's capability clause (OD-6), one reading. Never measured = no capability reading = beliefs only (RF-S1).
-  const sch = schemingReading(v);
+  const sch = schemingReading(w, v);
   if (sch.below) return undefined;
   for (const tr of RED_FLAG_TRAITS) {
     const hi = beliefHi(v.beliefs[tr]);
@@ -99,7 +99,7 @@ export function deployHolds(s: GameStateV2, v: ModelVersion, cand: FrameworkCand
   const out: { rule: FrameworkRule; why: string; missing: string[] }[] = [];
   for (const rule of frameworkOf(s).rules) {
     if (rule.holds !== 'deploy' || overridden(s, rule.id, v.id)) continue;
-    const why = ruleTriggered(rule, v);
+    const why = ruleTriggered(s.hidden.timeline, rule, v);
     if (!why) continue;
     const missing = missingFor(s, rule, v, cand);
     if (missing.length) out.push({ rule, why, missing });
@@ -143,7 +143,7 @@ export function trainingHolds(s: GameStateV2): Omit<FrameworkHold, 'since'>[] {
   for (const rule of frameworkOf(s).rules) {
     if (rule.holds !== 'training') continue;
     for (const v of trainingSubjects(s, rule)) {
-      if (overridden(s, rule.id, v.id) || !ruleTriggered(rule, v)) continue;
+      if (overridden(s, rule.id, v.id) || !ruleTriggered(s.hidden.timeline, rule, v)) continue;
       const missing = missingFor(s, rule, v);
       if (missing.length) { out.push({ ruleId: rule.id, versionId: v.id, target: 'training', missing }); break; }
     }
@@ -161,14 +161,14 @@ export function requiredSafeguards(s: GameStateV2, d: Deployment): Set<Framework
   if (d.channel === 'internal') {
     for (const rule of fw.rules) {
       if (rule.holds !== 'training') continue;
-      if (trainingSubjects(s, rule).some((v) => !overridden(s, rule.id, v.id) && ruleTriggered(rule, v))) for (const g of rule.safeguards) out.add(g);
+      if (trainingSubjects(s, rule).some((v) => !overridden(s, rule.id, v.id) && ruleTriggered(s.hidden.timeline, rule, v))) for (const g of rule.safeguards) out.add(g);
     }
     return out;
   }
   for (const vid of [d.versionId, ...(d.lineup ?? [])]) {
     const v = s.player.models.versions.find((x) => x.id === vid);
     if (!v) continue;
-    for (const rule of fw.rules) if (rule.holds === 'deploy' && !overridden(s, rule.id, v.id) && ruleTriggered(rule, v)) for (const g of rule.safeguards) out.add(g);
+    for (const rule of fw.rules) if (rule.holds === 'deploy' && !overridden(s, rule.id, v.id) && ruleTriggered(s.hidden.timeline, rule, v)) for (const g of rule.safeguards) out.add(g);
   }
   return out;
 }

@@ -5,6 +5,7 @@
 //     trusted whatever its beliefs (OD-6 capability clause); a never-measured wide-belief model is not trusted;
 //  3. info: what the training rules ask on the day-0 / day-400 / day-900 fixtures (before the daily system: since RF-S13
 //     the framework applies its package then, so only what it cannot meet stays held; scripts/v2/_rfs13).
+import { actTheta } from '../../../src/engine/v2/safety/incidents';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deserialize } from '../../../src/engine/v2/core/save';
@@ -25,19 +26,19 @@ const v = s.player.models.versions.find((x) => x.evals.suiteDay !== undefined)!;
 // CAL-S: the belief rule only reads models measured at the scheming-capable level; put v there for part 1.
 const sch0 = DANGER_ACTS.SCHEME!;
 const md0 = v.evals.measuredDom ??= {} as NonNullable<typeof v.evals.measuredDom>;
-md0[sch0.domain] = sch0.theta + 1;
+md0[sch0.domain] = actTheta(s.hidden.timeline, sch0) + 1;
 setBel(v, 0.1, 0.15);
-check(!!ruleTriggered(rule, v), 'best guess 10% with sd 15 pts (top ≈ 35%) triggers the 30% rule', ruleTriggered(rule, v));
+check(!!ruleTriggered(s.hidden.timeline, rule, v), 'best guess 10% with sd 15 pts (top ≈ 35%) triggers the 30% rule', ruleTriggered(s.hidden.timeline, rule, v));
 setBel(v, 0.1, 0.05);
-check(!ruleTriggered(rule, v), 'best guess 10% with sd 5 pts (top ≈ 18%) does not');
+check(!ruleTriggered(s.hidden.timeline, rule, v), 'best guess 10% with sd 5 pts (top ≈ 18%) does not');
 setBel(v, 0.35, 0.02);
 for (const tr of ['SCHEME', 'AF', 'SAND'] as const) v.beliefs[tr].clarity = 0.1;
-check(!!ruleTriggered(rule, v), 'low clarity no longer exempts a model', ruleTriggered(rule, v));
-md0[sch0.domain] = sch0.theta - 1;
-check(!ruleTriggered(rule, v), 'CAL-S: measured below the scheming-capable level, the same wide belief does not trigger (2025 frameworks gate misalignment safeguards on capability)');
+check(!!ruleTriggered(s.hidden.timeline, rule, v), 'low clarity no longer exempts a model', ruleTriggered(s.hidden.timeline, rule, v));
+md0[sch0.domain] = actTheta(s.hidden.timeline, sch0) - 1;
+check(!ruleTriggered(s.hidden.timeline, rule, v), 'CAL-S: measured below the scheming-capable level, the same wide belief does not trigger (2025 frameworks gate misalignment safeguards on capability)');
 const sd0 = v.evals.suiteDay;
 v.evals.suiteDay = undefined;
-check(!!ruleTriggered(rule, v), 'CAL-S: never measured, wide belief: triggers (no capability reading)', ruleTriggered(rule, v));
+check(!!ruleTriggered(s.hidden.timeline, rule, v), 'CAL-S: never measured, wide belief: triggers (no capability reading)', ruleTriggered(s.hidden.timeline, rule, v));
 v.evals.suiteDay = sd0;
 
 // 2. trusted rule
@@ -47,9 +48,9 @@ setBel(t, 0.1, 0.05);
 check(trustOf(s, t).trusted, 'tight low belief: trusted', trustOf(s, t).why);
 setBel(t, 0.1, 0.15);
 const md = t.evals.measuredDom ??= {} as NonNullable<typeof t.evals.measuredDom>;
-md[sch.domain] = sch.theta + 1;
+md[sch.domain] = actTheta(s.hidden.timeline, sch) + 1;
 check(!trustOf(s, t).trusted, 'wide belief, measured above the scheming level: not trusted', trustOf(s, t).why);
-md[sch.domain] = sch.theta - 1;
+md[sch.domain] = actTheta(s.hidden.timeline, sch) - 1;
 check(trustOf(s, t).trusted && trustOf(s, t).why.includes('below the level'), 'wide belief, measured below the scheming level: trusted (capability clause)', trustOf(s, t).why);
 const saved = t.evals.suiteDay;
 t.evals.suiteDay = undefined;

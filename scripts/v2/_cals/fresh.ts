@@ -13,7 +13,7 @@ const show = () => {
     const dom = (['BIO', 'CYBER', 'RSCH', 'CODE', 'AGENCY'] as const).map((d) => `${d} ${v.domains[d]?.toFixed(2)}/${v.evals.suiteDay !== undefined ? measuredDomain(v, d).toFixed(2) : '-'}`).join(' ');
     console.log(`${v.id} ${v.name} [${v.status}] Lg ${v.Lg?.toFixed(2)} suite ${v.evals.suiteDay} (true/measured) ${dom}`);
     console.log('   top-90%: ' + RED_FLAG_TRAITS.map((t) => `${t} ${(v.beliefs[t]?.est ?? NaN).toFixed(2)}±${(v.beliefs[t]?.sd ?? NaN).toFixed(2)} hi ${beliefHi(v.beliefs[t]).toFixed(2)}`).join('; '));
-    for (const r of frameworkOf(s).rules) { const w = ruleTriggered(r, v); if (w) console.log(`   TRIGGERS ${r.id}: ${w}`); }
+    for (const r of frameworkOf(s).rules) { const w = ruleTriggered(s.hidden.timeline, r, v); if (w) console.log(`   TRIGGERS ${r.id}: ${w}`); }
   }
   console.log('training holds:', JSON.stringify(trainingHolds(s)), 'deploy held:', s.player.deployments.filter((d) => d.held).map((d) => d.id + ':' + d.channel));
   console.log('deployments:', s.player.deployments.map((d) => `${d.channel}/${d.safeguards}/${(d as any).guards?.join('+') ?? ''}`).join(', '));

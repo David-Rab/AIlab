@@ -5227,3 +5227,21 @@ MacDiarmid) and the q draws. The 0.018 miss is within one or two worlds flipping
 Checks: tsc (app, scripts/v2) clean; new `scripts/v2/_cal2s/check.ts` all ok (High per world, Critical 10, graders at
 G_SC − Δ_bm, sound up to their level, edit limit per world); _rfs1, _rfs13, _rfs7 all ok; _rfs2 (2), _sr19 (1), _sr10
 (fixture counts), _rfs5 (1) FAILs identical to the base.
+
+### CAL2-D (danger thresholds per world; on rd after the CAL2 merges)
+
+CP3f's `U05_SHIFT` (data/v2/danger.ts) was an ai2027-only constant: every act θ = θ_v2 + (L(V0) − L_v2(V0)) with V0's
+ai2027 domain scores. CAL2-X replaced the same pattern in the world gates (`gOfV2Level`); the act thresholds now read the
+same per-world shift (domainRefShift through V0's domain score): `actTheta(w, def)` = θ_v2 + L_w(V0, d) − L_v2(V0, d)
+(safety/incidents.ts; `ActDef.theta` → `thetaV2`, the v2 level; `V0_V2_LEVEL` CODE 5, RSCH 4.5, AGENCY 4, SOCIAL 5,
+CYBER 4 is the unit). Kept V0-anchored rather than λ(gOfV2Level(...)): the [D] θ are set relative to the start model's
+behaviour (and the per-item κ anchor sits at V0 + 0.5), and SOCIAL / CYBER are clamped at V0, which a G conversion would
+not reproduce; it also keeps AGENCY's +1 (v2's REF_OFF −1), which gOfV2Level leaves out for world gates (CAL2-X
+designer question). Misuse / exfiltration θ unchanged (absolute). Consumers take the world: `actTerms`,
+`modelHazards`, `labModelHazards`, `schemingReading`, `ruleTriggered` gained a `w` argument; `actCapability`.
+
+Per-world shift (was the constant on every world): ai2027 CODE 0 / RSCH −2.528 / AGENCY +1 / SOCIAL −5 / CYBER −4
+(unchanged up to the −2.53 rounding); authors2026 0 / +0.418 / +1 / −2.264 / −1.264; fast 0 / −0.322 / +1 / −1.890 /
+−0.890; slow 0 / −0.137 / +1 / −1.624 / −0.624. MO / STEER / SUCCSTEER anchors (sabotage's anchor setup): ai2027 11.99%
+(was 12.0%); now ≈ 12.00% in all four worlds (authors2026 / fast / slow read the anchor off V0's own RSCH score).
+Checks: tsc (app, scripts/v2) clean; scratch checks _rfs1 / _rfs13 / _sr20 / _cals/fresh updated to the new signatures.

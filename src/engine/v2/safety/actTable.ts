@@ -29,7 +29,7 @@ import { safetyAgentVersion, safetyFleet } from './agents';
 import { believedTerms, controlTerms } from './control';
 import { dayTerms, itemTerms, rdParts, safetySabotage, type CovertTerms } from './covert';
 import {
-  actTerms, aiRdShare, autonomyOf, capabilityOf, catchOf as engineCatch, dispositionOf, exfilTerms, internalScale, misuseHazards, siteOf, usageOf, type Site,
+  actCapability, actTerms, actTheta, aiRdShare, autonomyOf, catchOf as engineCatch, dispositionOf, exfilTerms, internalScale, misuseHazards, siteOf, usageOf, type Site,
 } from './incidents';
 import { measuredOom, useControl, versionOom } from './oversight';
 import { containment } from './techniques';
@@ -206,7 +206,7 @@ export function siteActs(s: GameStateV2, a: ActSite, believed: boolean): ActRow[
     if (def.internalOnly && !site.internal) continue;
     const x = believed ? v.beliefs[t]?.est ?? 0 : v.traitsTrue[t];
     const level = believed ? measuredDomainL(s, v, def.domain) : v.domains[def.domain];
-    const k = actTerms(def, x, level, site);
+    const k = actTerms(s.hidden.timeline, def, x, level, site);
     const feat = site.internal || !d.features.length ? 1 : productHazardMult(s, d, t);
     const chances = k.opportunity * feat;
     const c = a.catchOf(t);
@@ -214,7 +214,7 @@ export function siteActs(s: GameStateV2, a: ActSite, believed: boolean): ActRow[
     const stopRate = 1 - (1 - k.block) * (1 - c);
     const [lo, hi] = believed ? range(x, v.beliefs[t]?.sd ?? 0, dispositionOf) : [k.disposition, k.disposition];
     out.push({
-      ...info(t), per: 'year', x, wouldTry: k.disposition, wouldTryLo: lo, wouldTryHi: hi, domain: def.domain, level, theta: def.theta, ableTo: k.capability,
+      ...info(t), per: 'year', x, wouldTry: k.disposition, wouldTryLo: lo, wouldTryHi: hi, domain: def.domain, level, theta: actTheta(s.hidden.timeline, def), ableTo: k.capability,
       chances, alpha: def.alpha, block: k.block, catch: c, stopRate, attempts, unstopped: attempts * (1 - stopRate),
     });
   }
@@ -238,11 +238,11 @@ function believedCovertX(v: ModelVersion, def: CovertActDef): { x: number; sd: n
   return { x: clamp01(x), sd: Math.sqrt(varSum), apparent };
 }
 
-function covertRow(id: CovertActId, t: CovertTerms, per: 'year' | 'item', level: number, x: number, lohi: [number, number]): ActRow {
+function covertRow(s: GameStateV2, id: CovertActId, t: CovertTerms, per: 'year' | 'item', level: number, x: number, lohi: [number, number]): ActRow {
   const def = COVERT_ACTS[id];
   const k = per === 'year' ? YEAR : 1;
   return {
-    ...info(id), per, x, wouldTry: t.disposition, wouldTryLo: lohi[0], wouldTryHi: lohi[1], domain: def.domain, level, theta: def.theta, ableTo: t.capability,
+    ...info(id), per, x, wouldTry: t.disposition, wouldTryLo: lohi[0], wouldTryHi: lohi[1], domain: def.domain, level, theta: actTheta(s.hidden.timeline, def), ableTo: t.capability,
     chances: t.opportunity, alpha: def.alpha, block: t.block, catch: t.catch, stopRate: t.oversight, attempts: t.attempts * k, unstopped: t.rate * k,
   };
 }
@@ -253,16 +253,16 @@ function dayRow(s: GameStateV2, a: ActSite, id: CovertActId, believed: boolean):
   const { v } = a;
   if (!believed) {
     const t = dayTerms(s, v, id, a.usage);
-    return covertRow(id, t, 'year', v.domains[def.domain], 0, [t.disposition, t.disposition]);
+    return covertRow(s, id, t, 'year', v.domains[def.domain], 0, [t.disposition, t.disposition]);
   }
   const { x, sd, apparent } = believedCovertX(v, def);
   const level = measuredDomainL(s, v, def.domain);
-  const k = actTerms({ ...def, rd: true }, x, level, a.site);
+  const k = actTerms(s.hidden.timeline, { ...def, rd: true }, x, level, a.site);
   const attempts = Math.min(0.5, def.kappa * k.disposition * k.capability * k.opportunity);
   const c = a.catchOf(apparent);
   const oversight = 1 - (1 - k.block) * (1 - c);
   const t: CovertTerms = { act: id, versionId: v.id, apparent, disposition: k.disposition, capability: k.capability, opportunity: k.opportunity, attempts, block: k.block, catch: c, oversight, rate: attempts * (1 - oversight), sev: 0 };
-  return covertRow(id, t, 'year', level, x, range(x, sd, dispositionOf));
+  return covertRow(s, id, t, 'year', level, x, range(x, sd, dispositionOf));
 }
 
 /** A per-item covert act (SAFSAB, STEER, SUCCSTEER): model v doing `share` of a work item at horizon `hours`. */
@@ -270,18 +270,18 @@ function itemRow(s: GameStateV2, v: ModelVersion, id: CovertActId, share: number
   const def = COVERT_ACTS[id];
   if (!believed) {
     const t = engine ?? itemTerms(s, v, id, share, hours);
-    return covertRow(id, t, 'item', v.domains[def.domain], 0, [t.disposition, t.disposition]);
+    return covertRow(s, id, t, 'item', v.domains[def.domain], 0, [t.disposition, t.disposition]);
   }
   const { x, sd, apparent } = believedCovertX(v, def);
   const level = measuredDomainL(s, v, def.domain);
   const disposition = dispositionOf(x);
-  const capability = capabilityOf(level, def);
+  const capability = actCapability(s.hidden.timeline, level, def);
   const af = autonomyOf(hours) * CHANNEL_AFFORD.internal;
   const opportunity = (1 - def.alpha + def.alpha * af) * clamp01(share);
   const attempts = clamp01(def.kappa * disposition * capability * opportunity);
   const o = believedInternalOversight(s, v, apparent, clamp01(share));
   const t: CovertTerms = { act: id, versionId: v.id, apparent, disposition, capability, opportunity, attempts, block: o.block, catch: o.catch, oversight: o.oversight, rate: attempts * (1 - o.oversight), sev: 0 };
-  return covertRow(id, t, 'item', level, x, range(x, sd, dispositionOf));
+  return covertRow(s, id, t, 'item', level, x, range(x, sd, dispositionOf));
 }
 
 /** The covert, composite and escape rows of model v's internal work. */
