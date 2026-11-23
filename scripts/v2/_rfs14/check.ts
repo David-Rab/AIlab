@@ -22,7 +22,7 @@ const load = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day4
 const f2 = (x: number) => x.toFixed(2);
 
 const s = load();
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 102, 'day 400 migrates to 102');
+check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 103, 'day 400 migrates to 103');
 const iv = internalVersion(s)!;
 const xv = measuredOom(s, iv);
 const owned = ownedMethods(s);

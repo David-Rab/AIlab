@@ -1,13 +1,13 @@
-// RD-U05: domain difficulty in one place. The displayed domain score is λ(G_d − (best_d − G_SC)), best_d the domain's
-// best human from the work types' reference points (refDelta); no display offset table is left. Run alone:
+// RD-U05 / UB-1: domain difficulty in one place. The displayed domain score is λ(G_d − (best_d − G_SC)), best_d the domain's
+// best human on the skill measurement scale (skillRefDelta); no display offset table is left. Run alone:
 // `npx tsx scripts/v2/domainref.ts`.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
-import { refDelta } from '../../src/data/v2/workTypes';
+import { skillRefDelta as refDelta } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
-import { domainRefShift, domainsOf, levelOfG } from '../../src/engine/v2/models/capability';
+import { domainRefShift, levelOfG } from '../../src/engine/v2/models/capability';
 import { domainG } from '../../src/engine/v2/departments/workfit';
 import { clamp } from '../../src/engine/rng';
 import type { DomainId } from '../../src/engine/v2/types';
@@ -42,17 +42,17 @@ for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
     `Δ_bm ${w.v3.dBM}, V0 ${DOMAIN_IDS.map((d: DomainId) => `${d} ${V0.domains[d].toFixed(2)}`).join(' ')}`);
 }
 
-// 4. Save migration 47 → 48 recomputes stored domain records (player version, a rival's public model).
+// 4. UB-1: save migration 102 → 103 recomputes stored domain records (player version, a rival's public model).
 const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
 const raw = JSON.parse(serialize(s));
-raw.schemaRev = 47;
+raw.schemaRev = 102;
 raw.player.models.versions[0].domains.PHYS = 99;
 const r0 = raw.rivals.find((r: { publicModel?: unknown }) => r.publicModel);
 if (r0) r0.publicModel.domains.BIO = 99;
 const m = deserialize(JSON.stringify(raw));
 const v = m.player.models.versions[0];
 const rm = m.rivals.find((r) => r.publicModel)?.publicModel;
-check(near(v.domains.PHYS, s.player.models.versions[0].domains.PHYS, 1e-12) && (!rm || near(rm.domains.BIO, domainsOf(m.hidden.timeline, rm.G).BIO, 1e-12)),
-  'save 47 → 48: stored domain levels (player version, rival public model) recomputed', `PHYS ${v.domains.PHYS.toFixed(3)}${rm ? `, rival BIO ${rm.domains.BIO.toFixed(3)}` : ''}`);
+check(near(v.domains.PHYS, s.player.models.versions[0].domains.PHYS, 1e-12) && (!rm || near(rm.domains.BIO, s.rivals.find((r) => r.core.id === r0.core.id)!.publicModel!.domains.BIO, 1e-12)),
+  'save 102 → 103: stored domain levels (player version, rival public model) recomputed', `PHYS ${v.domains.PHYS.toFixed(3)}${rm ? `, rival BIO ${rm.domains.BIO.toFixed(3)}` : ''}`);
 
 finish('domainref');
