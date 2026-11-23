@@ -5372,3 +5372,49 @@ flopProj 0 on every line, tree progress +0.000; after: frontierExp 1, flopUsed 2
 +0.156; no new base/post run, the running one stays paused. tsc (app, scripts/v2) clean. Moves calibration: maybe (only
 games that hit a training hold: RefBot overrides training holds via bots/common.ts, so reference runs likely unchanged;
 careful bots that leave holds standing now keep researching).
+
+### UB-1 (skill measurement scale per domain; branch ub1-scale from rd bfa46a9; UI-BUILD UB-1, DECISIONS "After CAL2")
+
+- **What:** the domain score's best-human reference reads a new per-domain table, `skillRefDelta` (data/v2/workTypes.ts:
+  `SKILL_TEST_CODE`, `SKILL_TESTS`), instead of the work fit's `refDelta`. Form as RSCH's AIFM reference: δ_d =
+  (z_CODE − z_d)/TOP_SD, z = the 2025 frontier's standing among the domain's humans on a human-baselined test
+  (Φ⁻¹ of the share beaten). Sources and stand-ins: research/UB1-skill-references.md.
+- **References (gaps above the coding best human; was r + 1.3 = 1.97 at sd_SC 0.5 for all five):** CODE 0 (Codeforces
+  o3 99.8th pct, z 2.878, the reference), BIO 0.428 (VCT, o3 beat 94% of virologists), CYBER 0.517 (HTB CTFs, AI top 10%
+  of ≈ 8,000 teams), SOCIAL 0.812 (Salvi et al., GPT-4 won 64.4% of debates; lay opponents, 2024 model: stand-in),
+  MEDIA 0.858 (MMMU, GPT-5 84.2 vs experts 82.6 / 88.6; three experts per subject: stand-in). Unchanged: AGENCY 0, RSCH /
+  REASON r (FrontierMath's human-team baseline brackets REASON at 0.54–0.93, r inside), PHYS r + 1.3 (**no human-baselined
+  physical test: stand-in**).
+- **Work fit untouched:** refPoints, the level knots (ASI reads OTHER), milestones, coverage and win rate keep refDelta
+  (AIFM's whole-job "work AI is worst at"). So fit, milestone dates and the economy do not move; only the measurement
+  scale does. Two references now exist for the expert domains (test standing for the score, whole-job for the fit):
+  **designer item**.
+- **AGENCY −1:** not restored. No source gives agency's standing among humans (OSWorld's human 72.4% is one average; METR
+  measures in human task time). research/16's horizon map (L = 3 + 0.8·log₂(h/15), V0 6.0) is a v2 profile, not a
+  human reference. AGENCY gates still read one level above v2: designer question stays open.
+- **V0 (seed 2027), old → new:** ai2027 SOCIAL 0 → 2.07, MEDIA 0 → 1.90, CYBER 0 → 3.13, BIO 0 → 3.45, PHYS 0; authors2026
+  2.74 → 3.64 / 3.56 / 4.13 / 4.28; fast 3.11 → 4.33 / 4.30 / 4.57 / 4.65; slow 3.38 → 4.38 / 4.35 / 4.61 / 4.67. CODE /
+  AGENCY 5, RSCH / REASON unchanged. Day-400 fixture (ai2027, G 28.69): CODE 7.08, BIO 5.53, CYBER 5.22, SOCIAL 4.13,
+  MEDIA 3.96, PHYS 0. V0's BIO stays below the median-expert mark (6.39) although o3 beat 94% of virologists: the
+  references are placed relative to coding, and V0's coding also sits below the median engineer (the world's SC anchor);
+  the test standing of coding (99.8th pct) is higher still. A bar that shows test standing directly would need the CODE
+  scale itself to be a test scale: **designer item**.
+- **Public marks:** `skillMarks(d)` (models/capability.ts): best 10, median FRAMEWORK_HIGH_L (the reference world's 6.4;
+  this world's λ(G_SC − Δ_bm) is hidden calibration) [stand-in], and the domain's test / public fact / model for the
+  tooltip. medianExpertLevel(w) stays the engine's (framework High, graders).
+- **What moves:** every reader of v.domains on the expert domains (danger flags and dangerous benches' scores, misuse /
+  exfiltration θ, rival hazards, framework High checks on BIO / CYBER, eval scores of WetLab / CTF / ZeroDay / Debate /
+  SeeAndTell) now sees V0 at 2–3.5 instead of 0 on ai2027, nearer the v2 levels those thresholds were set on. Unchanged:
+  every v2 world gate (gOfV2Level / v2LevelGate: the shift cancels), the act thresholds' distance from V0 (actTheta
+  reads V0's own score), sector fits (raw domain G).
+- **Schema:** SCHEMA_REV 102 → 103, migration 102 → 103 recomputes stored domain records (with domainDg). Literal
+  `SCHEMA_REV === 102` checks bumped (hygiene, _rfs5/8/14).
+- **Checks:** tsc app and scripts/v2 clean. domainref.ts: formula / 10-at-best-human in 4 worlds and the 102 → 103
+  migration pass (its old rival check compared against domainsOf without the rival's build and passed only because both
+  clamped to 0); the REF_OFF grep FAIL is pre-existing (comments). danger.ts all pass; sabotage.ts anchors pass (12.0%,
+  12.0%, 31.8%). worldfx --smoke: see below.
+- **worldfx --smoke (seed 2027, ai2027), base bfa46a9 → UB-1:** same pass / fail set (all pass). Moved: F11 2027 $105.8B →
+  $105.7B; Accept ≥ 0.85 2028-03-10 → 03-09; A2a 0.516 → 0.515; A2c spend +$0.1–0.2B; two more benchmark headlines fire
+  (bench-mmmu-1, bench-debate-1: SeeAndTell and Debate now leave 0). The small economy moves come through rivals reading
+  domain levels (hazards / evals), not the fit. **Moves calibration: no** (fit and gates unchanged; safety rows reading
+  expert-domain danger levels may move at CP: not run).
