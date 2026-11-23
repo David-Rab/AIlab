@@ -145,3 +145,17 @@ Either the formula floors it or it is a bug. The UI-IA "Unknown" rule (range > 3
 
 - On screen, skill changes appear only as ▲ / ▼. The level deltas go in the tooltip (DQ-3).
 - The new base's name is not shown: Atlas-3 is already used by the pretrained base from Jul 22.
+
+### RESEARCH › Know-how (`knowhow.png`)
+
+| On screen | Value | From | Basis |
+|---|---|---|---|
+| Yours (range), per area | ×3.35 (3.07–3.64) · ×1.23 · ×1.16 · ×1.0 · ×1.70 | `stackViews` `now` vs `base` (adopted believed, `adoptedSd`) | B |
+| Public know-how | ×1.06 · ×0.97 · ×1.0 · ×1.0 · ×1.0 | stack bases (public) | F |
+| Waiting | ×1.5 (13 ideas since Jul 15, 2025) · ×1.02 · ×1.01 | believed sum of the estimates of ideas adopted after the internal model's recipe froze (`player.research.adopted`). Replaces `stackViews` gap, which reads the true stacks | B |
+| Growth, last 12 months | ×1.50 · ×1.10 · ×1.05 · ×1.0 · ×1.27; 13 / 6 / 6 / 0 / 5 ideas (30 in all) | believed sum over ideas adopted in the last 365 days. Replaces `softwareRate`, which reads the true stacks | B |
+| Public growth | ×1.0 | stack bases | F |
+
+- The engine's own `ideasPerYear` reads 92 (a rate). The mockup shows the 30 ideas actually adopted in the last 12 months; the two disagree.
+- "Waiting" counts against Atlas-2.10's base recipe. The pretrained Atlas-3 base (Jul 22) may already hold these ideas: **NEW**, a per-base readout.
+- No waiting value for training or serving efficiency: those apply to every run at once.

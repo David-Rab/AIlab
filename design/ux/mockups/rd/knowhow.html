@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RESEARCH › Know-how</title>
+<link rel="stylesheet" href="rd.css">
+<style>
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: 14px; flex: 1; min-height: 0; }
+.areas { padding-bottom: 16px; display: flex; flex-direction: column; }
+.ar { display: grid; grid-template-columns: 250px minmax(0,1fr) 170px; gap: 18px; align-items: center; padding: 22px 20px; border-bottom: 1px solid var(--line); }
+.ar:last-child { border-bottom: 0; }
+.ar .nm { font-size: 16px; font-weight: 650; color: #fff; display: flex; gap: 9px; align-items: center; }
+.ar .un { font-size: 12.5px; color: var(--text-3); margin-top: 3px; padding-left: 27px; }
+.track { position: relative; height: 44px; }
+.track .ax { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line-2); }
+.bar2 { position: absolute; height: 16px; border-radius: 4px; }
+.bar2.pub { top: 2px; background: #56677e; }
+.bar2.you { top: 22px; background: var(--cap); }
+.bar2.wait { top: 22px; border-radius: 0 4px 4px 0; background: repeating-linear-gradient(135deg, rgba(155,107,224,.9) 0 4px, rgba(155,107,224,.25) 4px 8px); box-shadow: inset 0 0 0 1.5px #c4a5f5; }
+.whisk { position: absolute; top: 29px; height: 2px; background: #fff; }
+.whisk::before, .whisk::after { content: ''; position: absolute; top: -4px; width: 2px; height: 10px; background: #fff; }
+.whisk::before { left: 0; } .whisk::after { right: 0; }
+.vl { position: absolute; font: 650 13px var(--mono); white-space: nowrap; }
+.vl.pub { top: 2px; color: var(--text-2); }
+.vl.you { top: 21px; color: #fff; }
+.vl.wt { top: 21px; color: #d8c3fa; font-family: var(--sans); font-weight: 600; font-size: 12.5px; }
+.gr { text-align: right; }
+.gr b { font: 650 16px var(--mono); color: #fff; }
+.gr div { font-size: 12px; color: var(--text-3); }
+.axis { position: relative; height: 22px; margin: 4px 20px 0 288px; margin-right: 158px; }
+.axis span { position: absolute; transform: translateX(-50%); font: 11.5px var(--mono); color: var(--text-3); }
+.gridl { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(51,67,90,.5); }
+.side { display: flex; flex-direction: column; gap: 14px; }
+.wcard { padding: 0 0 16px; }
+.wbig { margin: 12px 18px 0; padding: 16px; border-radius: 10px; background: rgba(155,107,224,.10); border: 1px solid rgba(155,107,224,.4); }
+.wbig .n1 { font: 700 34px var(--mono); color: #fff; }
+.wrow { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 9px 18px; border-bottom: 1px solid var(--line); font-size: 13.5px; align-items: center; }
+.wrow:last-child { border-bottom: 0; }
+.areas .ar { flex: 1; padding: 0 20px; }
+.areas .ar.axr { flex: 0 0 30px; border: 0; }
+.track { height: 52px; }
+.bar2 { height: 20px; } .bar2.pub { top: 0; } .bar2.you { top: 26px; }
+.whisk { top: 35px; } .vl.you { top: 26px; } .vl.pub { top: 1px; }
+.tkl { position: absolute; transform: translateX(-50%); font: 11.5px var(--mono); color: var(--text-3); top: 0; }
+</style></head>
+<body data-tab="research">
+<!--ICONS-->
+<div class="app"><div class="main" id="main"></div></div>
+<script src="data.js"></script>
+<script src="comp.js"></script>
+<script src="shell.js"></script>
+<script src="knowhow.js"></script>
+</body></html>
