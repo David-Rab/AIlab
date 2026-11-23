@@ -8,7 +8,7 @@ import type { DangerRead } from '../../../engine/v2';
 import { Term, Tip, TipCard } from '../ui';
 import * as F from '../fmt';
 import { ICON, TRAIT_ICON } from '../icons';
-import { C } from '../theme';
+import { riskClass, riskColor } from '../safetyRule';
 import './danger.css';
 
 /** Harmful acts per year: 2 significant digits, "< 0.01" below. */
@@ -17,7 +17,7 @@ const actName = (act: string) => act.split(':')[0];
 /** Bad-when-up factor colour (disposition, capability, opportunity); oversight is good-when-up. */
 const tone = (x: number, goodUp = false) => {
   const v = goodUp ? 1 - x : x;
-  return v >= 0.6 ? C.bad : v >= 0.3 ? C.watch : C.good;
+  return riskColor(v, 'factor');
 };
 
 function Factor({ k, v, goodUp = false }: { k: ReactNode; v: number; goodUp?: boolean }) {
@@ -65,7 +65,7 @@ export function DangerChip({ r, where, testId, compact = false }: { r?: DangerRe
   return (
     <Tip content={() => <DangerTip r={r} where={where} />}>
       <span className="dg-chip" data-test={testId} data-harm={r.harmful.toFixed(4)}>
-        <ICON.danger size={12} className={r.harmful >= 0.5 ? 'tone-neg' : r.harmful >= 0.1 ? 'tone-warn' : 'dim'} />
+        <ICON.danger size={12} className={riskClass(r.harmful, 'rate', 'dim')} />
         <b className="num">{perYr(r.harmful)}</b><span className="dim small">{compact ? '/yr' : 'acts/yr'}</span>
         {t && <span className="dg-fs">
           <Factor k="D" v={t.disposition} />

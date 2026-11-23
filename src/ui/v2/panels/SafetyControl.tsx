@@ -10,6 +10,7 @@ import { CONTROL } from '../../../data/v2/danger';
 import type { FootholdRow, GameStateV2 } from '../../../engine/v2';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
 import { store } from '../store';
+import { riskColor, riskTone, riskZones, safetyModel } from '../safetyRule';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
 import { Card, Gauge, HBar, Pill, Ref } from '../kit';
 import * as F from '../fmt';
@@ -17,9 +18,9 @@ import { FOOTHOLD_ICON, ICON } from '../icons';
 import { C } from '../theme';
 
 // SR-04: the gauge reads Loss-of-control risk on the Risk screen's scale (< 5% / 5–20% / > 20%).
-const RISK_ZONES = [{ to: 0.05, color: C.good }, { to: 0.2, color: C.watch }, { to: 1, color: C.bad }];
-const riskKind = (p: number) => (p > 0.2 ? 'bad' : p > 0.05 ? 'warn' : 'good') as 'good' | 'warn' | 'bad';
-const riskWord = (p: number) => (p > 0.2 ? 'high' : p > 0.05 ? 'elevated' : 'low');
+const RISK_ZONES = riskZones('prob');
+const riskKind = (p: number) => ({ good: 'good', watch: 'warn', bad: 'bad' } as const)[riskTone(p, 'prob')];
+const riskWord = (p: number) => ({ good: 'low', watch: 'elevated', bad: 'high' } as const)[riskTone(p, 'prob')];
 const FOOTHOLDS_TAB = { panel: 'safety', tab: 'footholds' } as const;
 const AGENTS = { panel: 'company', tab: 'people', anchor: 'agents' } as const;
 
@@ -31,7 +32,7 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
   const name = r?.name ?? c.name;
   const known = c.suspected + c.located;
   // F6b: oversight's believed parts (the same selector believed control uses), so the row says what binds.
-  const ov = useMemo(() => { const v = versionById(s, r?.versionId ?? c.versionId); return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, r?.versionId, c.versionId, c.layer]);
+  const ov = useMemo(() => { const id = r?.versionId ?? c.versionId; const v = id ? safetyModel(s, id) : undefined; return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, r?.versionId, c.versionId, c.layer]);
   const selfWatch = !!c.monitorName?.startsWith('copy of');
   const gapText = c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? 'self-watched' : `gap ${F.num(c.monitorGapOom, 1)} OOM`;
   return (
@@ -56,7 +57,7 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
         </Tip>
         <div className="sf-ctl-drv">
           <Tip content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(r?.mis ?? c.mis, 2)}>From your trait beliefs on {name ?? 'the model'}. Its band and the traits behind it: Safety › Trait graph.</TipCard>}>
-            <div className="sf-drv" data-test="control-mis"><span className="k"><Term id="misalign">Misalignment</Term></span><HBar v={r?.mis ?? c.mis} max={1} w={70} color={(r?.mis ?? c.mis) >= 0.4 ? C.bad : (r?.mis ?? c.mis) >= 0.2 ? C.watch : C.good} /><span className="num">{F.num(r?.mis ?? c.mis, 2)}</span><span className="dim small">{r ? `± ${F.num(1.64 * r.misSd, 2)}` : 'est.'}</span></div>
+            <div className="sf-drv" data-test="control-mis"><span className="k"><Term id="misalign">Misalignment</Term></span><HBar v={r?.mis ?? c.mis} max={1} w={70} color={riskColor(r?.mis ?? c.mis, 'level')} /><span className="num">{F.num(r?.mis ?? c.mis, 2)}</span><span className="dim small">{r ? `± ${F.num(1.64 * r.misSd, 2)}` : 'est.'}</span></div>
           </Tip>
           <Tip content={() => <TipCard title="Stop rate (acts against the lab)" value={F.pct(r?.stopRate ?? c.oversight)} rows={[
             ...(ov ? [
@@ -68,7 +69,7 @@ export function ControlCard({ s }: { s: GameStateV2 }) {
             { label: <Term id="humanGap">Gap above expert humans</Term>, value: c.humanGapOom > 0 ? `${F.num(c.humanGapOom, 1)} OOM` : 'none (below L 10)' },
             { label: <Term id="controlLayer">Control layer</Term>, value: c.layer ? 'on' : 'off' },
           ]}>Share of a takeover attempt blocked or caught. It falls as capability outruns the monitors and human reviewers.</TipCard>}>
-            <div className="sf-drv" data-test="control-oversight"><span className="k">Stop rate</span><HBar v={r?.stopRate ?? c.oversight} max={1} w={70} color={(r?.stopRate ?? c.oversight) >= 0.5 ? C.good : (r?.stopRate ?? c.oversight) >= 0.2 ? C.watch : C.bad} /><span className="num">{F.pct(r?.stopRate ?? c.oversight)}</span><span className="dim small">{gapText}</span></div>
+            <div className="sf-drv" data-test="control-oversight"><span className="k">Stop rate</span><HBar v={r?.stopRate ?? c.oversight} max={1} w={70} color={riskColor(r?.stopRate ?? c.oversight, 'factor', true)} /><span className="num">{F.pct(r?.stopRate ?? c.oversight)}</span><span className="dim small">{gapText}</span></div>
           </Tip>
           <Tip content={() => <TipCard title={<Term id="footholdCapacity">Foothold capacity</Term>} value={F.num(r?.F ?? c.F, 2)} rows={[
             ...(r ? [{ label: 'Known', value: F.num(r.knownF, 2) }, { label: 'Unfound (expected from the act table, a year)', value: F.num(r.unfoundF, 2) }] : []),

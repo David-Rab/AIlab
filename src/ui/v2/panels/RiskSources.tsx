@@ -8,6 +8,7 @@ import { Card, GoBtn, PanelHead, Ref, tabOf, Tabs, type GoTarget } from '../kit'
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
+import { riskColor } from '../safetyRule';
 import { RiskFlows } from './RiskMap';
 import './risk.css';
 
@@ -42,7 +43,7 @@ const KIND_WHY: Record<RiskSource['kind'], string> = {
   rogue: 'An AI acting on its own outside oversight: autonomy, monitoring and control research.',
   war: 'Conflict over AI: China\'s escalation ladder, Taiwan tension and export controls.',
 };
-const sevColor = (x: number) => (x > 0.2 ? C.bad : x > 0.05 ? C.watch : C.good);
+const sevColor = (x: number) => riskColor(x, 'prob');
 
 function Sources({ s }: { s: GameStateV2 }) {
   const rows = [...engine.riskSources(s)].sort((a, b) => b.estimate - a.estimate);

@@ -19,6 +19,7 @@ import {
 } from '../../../engine/v2';
 import type { FindingType, GameStateV2, LineRow, ResponseKind, TraitId } from '../../../engine/v2';
 import { store } from '../store';
+import { RISK_BANDS, riskClass, riskColor, safetyModel } from '../safetyRule';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card, CauseChain, GoBtn, HBar, PanelHead, Pill, Ref, tabOf, Tabs, type ChainLink } from '../kit';
 import * as F from '../fmt';
@@ -82,7 +83,7 @@ export function Safety({ s }: { s: GameStateV2 }) {
 
 // ───────── Overview ─────────
 function Overview({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const fams = riskFamilies(s);
+  const fams = riskFamilies(s, safetyModel(s)?.id);
   const cand = bestIdea(s, fams);
   return (
     <div className="sf-ov">
@@ -295,7 +296,7 @@ function UTip({ s, sv, cand, ifU }: { s: GameStateV2; sv: SV; fams: Fams; cand: 
 
 const MEANING_TERM: Record<string, string> = { behaviour: 'traitBehaviour', awareness: 'traitAwareness', disposition: 'traitDisposition', protective: 'traitProtective' };
 const FAM_MAX = 0.6;
-const famCol = (est: number) => (est >= 0.3 ? C.bad : est >= 0.15 ? C.watch : C.good);
+const famCol = (est: number) => riskColor(est, 'level');
 /** Traits outside the four families: situational awareness (an awareness) and the protective traits. */
 const OTHER_TRAITS: TraitId[] = TRAIT_IDS.filter((t) => !RISK_FAMILIES.some((f) => f.traits.includes(t)));
 
@@ -332,7 +333,7 @@ function TraitRow({ v, t }: { v?: ReturnType<typeof versionById>; t: TraitId }) 
 function Families({ s }: { s: GameStateV2 }) {
   const iv = internalVersion(s);
   const vs = s.player.models.versions.filter((v) => v.status !== 'retired' && v.status !== 'rolledBack').slice(-3).reverse();
-  const sel = versionById(s, store.sel.versionId) ?? iv;
+  const sel = safetyModel(s);
   const fams = riskFamilies(s, sel?.id);
   const [open, setOpen] = useState<string | undefined>(undefined);
   const max = FAM_MAX;
@@ -392,7 +393,7 @@ function SuccessorCard({ s }: { s: GameStateV2 }) {
   const free = sp.parts.reduce((a, x) => a + x.share * (1 - x.oversight), 0);
   const unwatched = sp.r > 1e-9 ? free / sp.r : 1;
   const kappa = free > 1e-9 ? sp.omega / free : 0;
-  const tone = sp.omega >= 0.3 ? 'tone-neg' : sp.omega >= 0.1 ? 'tone-warn' : '';
+  const tone = riskClass(sp.omega, 'pull');
   const agents = { panel: 'company', tab: 'people', anchor: 'agents' };
   return (
     <Card title={<Term id="successorPull">Successor pull</Term>} home="successorPull" id="ctl-successorPull" className="sf-succ"
@@ -671,7 +672,7 @@ function ToolsCard({ sv }: { sv: SV }) {
 
 // ───────── Investigations ─────────
 function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const v = versionById(s, store.sel.versionId) ?? internalVersion(s);
+  const v = safetyModel(s);
   const [trait, setTrait] = useState<TraitId>('SCHEME');
   const [fte, setFte] = useState(15);
   const open = sv.investigations.filter((i) => !i.outcome).reverse();
@@ -731,7 +732,7 @@ function CasesTab({ s, sv }: { s: GameStateV2; sv: SV }) {
 
 // ───────── Trait graph ─────────
 function GraphTab({ s, sv }: { s: GameStateV2; sv: SV }) {
-  const v = versionById(s, store.sel.versionId) ?? internalVersion(s);
+  const v = safetyModel(s);
   const versions = s.player.models.versions.filter((x) => x.status !== 'retired');
   const iv = internalVersion(s);
   return (
@@ -788,16 +789,16 @@ function DetectionCard({ s }: { s: GameStateV2; sv: SV }) {
   );
 }
 
-const DANGER = 0.4;
+const DANGER = RISK_BANDS.level[1];
 function MisCard({ s, versionId }: { s: GameStateV2; versionId?: string }) {
-  const bv = beliefView(s, versionId);
+  const bv = beliefView(s, safetyModel(s, versionId)?.id);
   if (!bv) return <Card title={<Term id="misalign">Estimated misalignment</Term>}><div className="dim small">No model yet</div></Card>;
   const [lo, hi] = bv.misBand;
   const max = Math.max(0.6, hi + 0.08);
   const f = (x: number) => `${(Math.max(0, Math.min(max, x)) / max) * 100}%`;
   const thin = CRITICAL_TRAITS.filter((t) => (bv.beliefs[t]?.clarity ?? 0) < 0.4).length;
   const name = s.player.models.versions.find((x) => x.id === bv.versionId)?.name;
-  const col = bv.misEst >= DANGER ? C.bad : bv.misEst >= DANGER / 2 ? C.watch : C.good;
+  const col = riskColor(bv.misEst, 'level');
   return (
     <Card title={<Term id="misalign">Estimated misalignment</Term>} sub={`${name ?? ''} · from beliefs`} home="misBand">
       <Tip as="div" content={() => <TipCard title={<Term id="misalign">Estimated misalignment</Term>} value={F.num(bv.misEst, 2)} rows={[{ label: <Term id="misBand">90% band</Term>, value: `${F.num(lo, 2)}–${F.num(hi, 2)}` }, { label: <Term id="dangerLine">Danger line</Term>, value: F.num(DANGER, 2) }, { label: 'Critical traits under-observed', value: String(thin) }]}>From your trait beliefs on {name ?? 'this model'}; the true value stays unknown.</TipCard>}>

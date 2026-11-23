@@ -3510,3 +3510,23 @@ Environment fixes take real time and have a Training › Environments entry poin
   share the need evenly (no per-job priority).
 - Moves calibration: yes (S4/S5 slightly): fixes land 30–90+ days later than before, and not at all without safety
   engineers on the need.
+
+### SR-05
+One "which model" rule and one colour scale in the safety views (src/ui/v2/safetyRule.ts). UI only; no state change.
+- **Model.** `safetyModel(s, named?)` = the model the view names (control card's model, a case's / incident's), else the
+  selected model (store.sel.versionId), else the latest frontier model in use (internalVersion). Safety.tsx Overview
+  (risk families: was always the internal model, now the selected one like the Families card), Families, Cases, Graph,
+  MisCard and SafetyControl's oversight parts read it; no local `versionById(store.sel…) ?? internalVersion` left.
+- **Colour.** `RISK_BANDS` (watch / bad per quantity: prob 5% / 20%, level 0.2 / 0.4 = half / the published danger line,
+  factor 0.3 / 0.6, rate 0.1 / 0.5 acts/yr, pull ω 0.1 / 0.3), `riskTone` / `riskColor` (C.good / watch / bad, goodUp for
+  protective quantities) / `riskClass` (tone-warn / tone-neg) / `riskZones` (gauge). Replaced: Safety.tsx famCol (was
+  0.15 / 0.3: trait families now on the level scale), MisCard colour and DANGER (= RISK_BANDS.level[1]), successor ω
+  tone; SafetyControl RISK_ZONES / riskKind / riskWord, misalignment bar, stop-rate bar (was 0.5 / 0.2 good-up; now the
+  factor scale good-up like Danger's oversight: ≥ 0.7 good, ≥ 0.4 watch); Danger factor tone and harm chip class;
+  RiskSources sevColor.
+- **Check.** grep: Safety, SafetyControl, Danger, RiskSources each import from '../safetyRule'; Safety / SafetyControl
+  call safetyModel; no ad-hoc threshold colour left in them (incident severity icons and lever deltas are not risk / belief
+  levels and stay). tsc (app, scripts/v2) clean; npm run build passes.
+- **Left.** Models › Evals and other non-safety panels keep their own version pick; the views do not yet say which model
+  they read beside the title (SR-25..30); the trait-family colour cut moved 0.15 / 0.3 → 0.2 / 0.4.
+- Moves calibration: no (UI only).
