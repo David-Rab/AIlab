@@ -1909,3 +1909,33 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   lineup student as a main model (then it is main and lineup entry at once); rivals unchanged (RD-P02).
 - **moves calibration: yes (finance).** Start products sell three real cheap tiers again (similar to the old phantom
   rungs); Chat's free users run the 1/80 nano; every new main model costs a distill run of training compute.
+
+### RD-P02
+- **Done (commit 5064104).** Rivals' and China's lineups are lab state (DD-01 as amended, DD-18): `RivalLab.lineup`
+  (real SimpleModels on sale below the public model) and `RivalLab.distilling` (students in the making, each on sale on
+  its `day`). actors/rivalModel.ts: `distillStudents` = the aggregate distill step: students of a released model at the
+  LINEUP sizes (worldfx/serving.ts `lineupSizes`, which replaces `lineupOf` and is used only when models are made),
+  G = teacher's − `distillGap` at DISTILL_TPP × N_S (as the player's day-0 minis), params and fpt × r, the teacher's
+  rlG, domain offsets, traits, U-modes, openness. `rivalLineupStep` (labDaily, every day): on a release the previous
+  public model joins the lineup and the new one's students enter distillation, on sale `RIVAL_DISTILL_LAG_DAYS` = 152
+  later [D: Haiku 4.5 matched Sonnet 4 five months after it, V3-TASKS TIERS2]; a tier leaves once another model the
+  lab sells has G ≥ and fpt ≤ (newer on a tie: replaced); past `RIVAL_LINEUP_MAX` = 6 [D: 4–6 current text models on
+  the labs' pricing pages] the oldest leave. Day 0 (initRivalPhys `seedRivalLineup`): the start public model's
+  students, made before the game. No distill compute is charged to the rival (stand-in: inside its aggregate split).
+- **Market.** worldfx/mix.ts `Provider.tiers` (lab lineup, an inactive lab's open-weight ones only) at each model's own
+  serving fpt (`rivalServeFpt`); sector tiers are `offerOf` of each real model at the lab's markup (kind `student`);
+  consumer free tier = the provider's cheapest real model to serve (lowest fpt among model + lineup). `lineupOf`,
+  `rungOffer`, `freeTierOf`, `Provider.params` and the rung-fit memo deleted; FREE_TIER now sizes RefBot's cheap tier only.
+- **Migration 64 → 65 (SCHEMA_REV 65):** each rival / China gets its public model's students on sale now. Hygiene
+  asserts → 65.
+- **Check:** tsc main + scripts clean; npm run build passes; grep: no lineupOf / rungOffer / freeTierOf in src or
+  scripts; `scripts/v2/.tmp-rdp02.ts` (untracked, run alone) 5 / 5: day-0 lineups of 3 distilled students for r0–r3 and
+  China; r2 releases day 1, its 3 students due day 153, not on sale before, on sale day 153 at G 27.23 → 26.63 / 26.35 /
+  25.29; the market's US Software row for r2 has 4 tiers (model + lineup) and its free chat fit is the nano's. Not run:
+  test:quick / full. Expected failures to update: serving A7 (rivals' free gap no longer the FREE_TIER rule), TIERS E8
+  (rival tiers not at r × price), data A6 usage, any fixture / golden reading rival tiers.
+- **Left:** rivals pay no distill FLOP; previous-generation models only stay when cheaper (a same-base post-train
+  replaces its predecessor at once); tiers carry no incidents of their own.
+- **moves calibration: yes (serving/finance).** Rival students now lag their model by five months (cheap bands are
+  served by the previous teacher's students meanwhile), rival free tiers run the 1/80 nano (was the cheapestAt 1.2 OOM
+  student), and earlier models stay on sale: shares, prices paid and the player's revenue move.
