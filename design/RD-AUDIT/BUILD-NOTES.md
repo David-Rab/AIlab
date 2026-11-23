@@ -2137,3 +2137,35 @@ from production.ts rivalResearch after the recipe step; state `RivalPhys.ideas {
   player's hours), so the coverable range a_top, adoption-linked readouts and the sector spend there drop until a tool
   ships; a player who ships Computer use gains share in the choice (not ×1.15 hours) for 120 days, then rivals match
   it; rivals' Chat appeal rises once they get Chat tools.
+
+### RD-P07b
+- **Done (commit 6e518bb).** Fixes RD-P07's "only the player ships a tool first" (DD-18: same law, stated stand-in). A
+  rival or China ships a product tool by the gate the player faces for that feature: its tree idea (the player's feature
+  has no capability term). actors/rivalModel.ts `rivalKnowsNode` reads the idea from the lab's aggregate state as it is:
+  a ★ node; an idea the aggregate researches (RIVAL_IDEA_IDS) once adopted and it worked there; an idea it does not
+  research (P06 Computer use, P07 Long context + memory, Native multimodal) once its prerequisites are known and, for
+  a paradigm, the world's success draw (hidden.paradigmSuccess, the one the player's attempt reads) says it works.
+  `rivalToolStep`: a lab with a public model that passes the gate starts a build (`RivalLab.toolBuild`, finish day) of
+  buildTW × `RIVAL_TOOL_DAYS_PER_TW` 7 days (Computer use 112 d: the player's build at one team) and ships it then; a
+  lab that has not shipped it gets it `TOOL_LAG_DAYS` 120 after any lab's first ship. The player never gets a tool free.
+- **State:** `world.fx.toolShip` is now `{ day, by }` per tool ('player' or the lab id), the first ship of all labs.
+  **SCHEMA_REV 69**: migration 68 → 69 turns each recorded day into `{ day, by: 'player' }`. Hygiene asserts → 69.
+- **UI / text:** feature tooltip "Rivals" row: "first shipped by <lab / you> <date>; k of n rivals have it, the others
+  from <date>" (or "no lab sells it yet; a rival that knows the idea builds it itself …"); FEATURES effect texts and
+  glossary `featEnabler` say rivals that know the idea build it themselves.
+- **Stand-ins [D]:** the unresearched tool ideas count as known from the gate alone (they were public practice at
+  frontier labs by mid-2025: computer use Oct 2024 – Jan 2025, ChatGPT memory Feb 2024); build = buildTW team-weeks at
+  one team; no per-lab difference in the build, so every lab passing the gate on day 0 ships the same day (in ai2027
+  seed 2027 day 113 for Computer use: rivals and China at once); the lag then only matters for labs that pass later
+  (no public model yet, a new lab) or never.
+- **Check:** tsc main + scripts clean; npm run build passes; `scripts/v2/_p07b/check.ts` (run alone) 10 / 10: ai2027
+  seed 2027, player never builds Computer use; r0 passes the gate, ships it on day 113 (112 d build), recorded
+  `{ by: 'r0' }`; the three other rivals (build pushed out in the check) have none at ship + 119 d, have it at
+  ship + 120 d; China has it; the player still has not. scripts/v2/_p07/check.ts updated to the new toolShip shape (not
+  re-run). Not run: test:quick / full, uitest.
+- **Left:** per-lab build timing (research speed or engineering size) if simultaneous ships read wrong; GLOSSARY.md not
+  regenerated (`lint-ux --doc`).
+- **moves calibration: yes (serving / finance / worldfx).** Every rival and China now has Computer use, Memory, Voice &
+  vision and Companion around day 30–115 in most worlds (when the paradigm draw works) whether or not the player builds
+  them, so OFFICE, FIN, LEGAL, GOV and MEDIA coverage of rival offers returns to ×1 then and rivals' Chat appeal rises;
+  a player without the tools loses share there.
