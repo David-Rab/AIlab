@@ -22,7 +22,7 @@ import { clamp } from '../../rng';
 import { decimalYear } from '../core/time';
 import { playerDraw, type DataDraw } from '../production/data';
 import { tcoPerH100eYear } from '../production/production';
-import { consumeRunPenalty } from '../safety/responses';
+import { consumeRunPenalty, pendingRunPenalty } from '../safety/responses';
 import { applyBaseToLineage, applyIdaCycle, applyRunToTraits, baseSignals, postSignals, runSignals } from '../safety/traits';
 import { suiteExploitMap, suiteFidMap, suiteOf, suiteRlWeights } from './suites';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
@@ -33,10 +33,12 @@ import type {
 import { adopted } from './paradigms';
 import { optionLocked } from './tree';
 import type { DomainMap } from './effective';
-import { releaseEvals } from './evals';
+import { policyDepth, releaseEvals } from './evals';
+import { EVAL_DEPTHS } from '../../../data/v2/evals';
+import { ELICITATION } from '../../../data/v2/benchmarks';
 import { trainingHeld } from '../safety/framework';
 import { addSig, baseEffect, clampSignals, monitorabilityClass, postEffect, type Off } from './design';
-import { domainsOf, gOfBuild, gOfDomain, levelOfG, refreshLevels } from './capability';
+import { domainsOf, gOfBuild, gOfDomain, gOfLevel, levelOfG, refreshLevels } from './capability';
 import { distillLift } from '../production/diffusion';
 import { ePreAt, playerRecipeG, rlCeilNow, rlMidNow, serveFlopOomOf, serveNow, trainNow } from './stacks';
 import { stackRate } from './research';
@@ -328,14 +330,42 @@ function distillBuild(t: ModelVersion, gap: number): VersionBuild {
 /** Active parameters of a version: its own (a distilled student's) or its base's. */
 export const paramsOfVersion = (s: GameStateV2, v: ModelVersion) => v.params ?? s.player.models.bases.find((x) => x.id === v.baseId)?.params ?? 1e12;
 
-/** RD-B19 (B45): what the lab can forecast of a run's level, on the measured scale. The engine's prediction is the true
- *  outcome (hidden; the traits' AF gate reads it); the lab knows only the step its recipe and FLOP make over a model it
- *  has measured. So the forecast is that reference's measured level plus the step, its band the reference's evaluation
- *  band (±1 SD, measuredSd), the domains shifted the same way, and `gain` = forecast − the reference's measured level
- *  (like with like). Reference: `ref` if measured, else the internal model, else the best measured live version.
- *  Undefined when that reference is unmeasured or the plan has no prediction. Readout only. */
-export interface RunForecast { mid: number; band: [number, number]; sd: number; gain: number; refId: string; refName: string; domains: Record<DomainId, [number, number]> }
-export function runForecast(s: GameStateV2, pred: Pick<RunPrediction, 'Lg' | 'domains'>, ref?: ModelVersion): RunForecast | undefined {
+// ─────────────────── the lab's forecast of a run (RD-B19, UB-2b) ───────────────────
+
+/** RD-B19 (B45), UB-2b: what the lab can forecast of a run's level, on the measured scale, from what it believes and
+ *  has measured (never the engine's prediction, which is the true outcome the traits' AF gate reads). The planned run is
+ *  computed by planRun on the lab's believed view (believedView): the pretraining and RL know-how areas are the believed
+ *  values (start and public knowledge + Σ the adopted results' estimates, RF-R5), and every model it starts from has a
+ *  measured build (its measured level as its effective compute; a base's pretraining part from the latest measured
+ *  version post-trained on it, minus that version's RL gain at the believed RL recipe its run took). `mid` is the
+ *  planned run's level; `sd` = √(believed ideas' sd² propagated to the level + the start model's measurement sd² + one
+ *  evaluation band for the new model's own measurement, measuredSd of the reference); `band` and the domains' ranges are
+ *  the 90% range, mid ± 1.64 sd (forecastBand). `gain` = mid − the reference's
+ *  measured level (like with like). Reference: `ref` if measured, else the internal model, else the best measured live
+ *  version. Undefined when no reference is measured or the plan has no prediction. Readout only. */
+export interface RunForecast {
+  mid: number; band: [number, number]; sd: number; gain: number; refId: string; refName: string; domains: Record<DomainId, [number, number]>;
+  /** The parts of sd (levels): believed ideas, the start model's measurement, the new model's evaluation band. */
+  sdParts: { ideas: number; start: number; eval: number };
+  /** The measured model the run starts from (its measured build), if any. */
+  startName?: string;
+}
+/** The forecast's 90% range: mid ± 1.64 sd (UB-2b; the run card, the run queue). */
+export const forecastBand = (mid: number, sd: number): [number, number] => [mid - 1.64 * sd, mid + 1.64 * sd];
+export function runForecast(s: GameStateV2, p: LaunchRunParams, ref?: ModelVersion): RunForecast | undefined {
+  const r = forecastRef(s, ref);
+  if (!r || r.evals.measuredL === undefined) return undefined;
+  const fb = believedPrediction(s, p);
+  if (!fb) return undefined;
+  const sdEval = measuredSd(r);
+  const sd = Math.hypot(fb.sdIdeas, fb.sdStart, sdEval);
+  const domains = Object.fromEntries(Object.entries(fb.domains).map(([d, m]) => [d, forecastBand(m, sd)])) as Record<DomainId, [number, number]>;
+  return {
+    mid: fb.mid, band: forecastBand(fb.mid, sd), sd, gain: fb.mid - r.evals.measuredL, refId: r.id, refName: r.name, domains,
+    sdParts: { ideas: fb.sdIdeas, start: fb.sdStart, eval: sdEval }, ...(fb.start ? { startName: fb.start.name } : {}),
+  };
+}
+function forecastRef(s: GameStateV2, ref?: ModelVersion): ModelVersion | undefined {
   const measured = (v: ModelVersion | undefined) => (v && v.evals.measuredL !== undefined ? v : undefined);
   let r = measured(ref) ?? measured(internalVersion(s));
   if (!r) {
@@ -344,15 +374,143 @@ export function runForecast(s: GameStateV2, pred: Pick<RunPrediction, 'Lg' | 'do
       if (!r || v.evals.measuredL > (r.evals.measuredL ?? -Infinity)) r = v;
     }
   }
-  if (!r || r.evals.measuredL === undefined || !(pred.Lg[1] > 0)) return undefined;
-  const shift = r.evals.measuredL - r.Lg;
-  const mid = (pred.Lg[0] + pred.Lg[1]) / 2 + shift;
-  const sd = measuredSd(r);
-  const domains = Object.fromEntries(Object.entries(pred.domains).map(([d, b]) => {
-    const m = (b[0] + b[1]) / 2 + shift;
-    return [d, [m - sd, m + sd]];
-  })) as Record<DomainId, [number, number]>;
-  return { mid, band: [mid - sd, mid + sd], sd, gain: mid - r.evals.measuredL, refId: r.id, refName: r.name, domains };
+  return r;
+}
+
+/** The know-how areas the lab sees only through evals (believed: RF-R5 est); training and serving efficiency are
+ *  measured directly as chip throughput (facts) and keep the engine's values. */
+const BELIEVED_AREAS = ['pre', 'rlMid', 'rlCeil'] as const;
+type BelievedArea = (typeof BELIEVED_AREAS)[number];
+/** UB-2b: an area's believed value (OOM) after the results adopted up to `day` (today without one): start and public
+ *  knowledge + Σ the estimates, less those adopted after `day` (UB-2 Waiting's rule; only the last 30 results are kept,
+ *  so a long-ago day can read high). Scale-free: an estimate is taken at the lab's latest base when it came in. */
+export function believedAreaAt(s: GameStateV2, k: BelievedArea, day?: Day): number {
+  const st = s.player.research.stacks[k];
+  const est = st.est ?? 0;
+  let since = 0;
+  if (day !== undefined) for (const a of s.player.research.adopted) if (a.stack === k && a.day > day) since += a.est;
+  return st.base + est - Math.max(0, Math.min(est, since));
+}
+
+/** A version's RL part at the believed RL recipe its run took (its RL quantities are facts). A student took its
+ *  teacher's. */
+function believedRl(s: GameStateV2, v: ModelVersion, b: VersionBuild): Pick<VersionBuild, 'eRL' | 'aRL' | 'dgRL' | 'dgRLd'> {
+  const src = v.variant === 'mini' ? (versionById(s, v.parentVersionId) ?? v) : v;
+  const day = src.trained?.rlDay ?? src.day;
+  const eRL = believedAreaAt(s, 'rlMid', day);
+  const aRL = b.aRL !== undefined ? believedAreaAt(s, 'rlCeil', day) : 0;
+  const rl = rlGains(b.flopPre, b.rlFlop, b.rlW, eRL, aRL, b.rlFid);
+  return { eRL, aRL, dgRL: rl.general, dgRLd: rl.perDomain };
+}
+/** A base's measured build (UB-2b): its pretraining part as each measured full version post-trained on it reads it
+ *  (that version's measured level as effective compute, minus its RL gain at its believed RL recipe and its design's
+ *  effect; not a version the stream has continued), pooled by inverse measurement variance. `sd` = the pooled
+ *  measurement sd (levels); `by` = the latest of those versions. Undefined when none is measured. */
+interface BaseAnchor { gPre: number; sd: number; n: number; by: ModelVersion }
+function baseAnchor(s: GameStateV2, b: BaseModel): BaseAnchor | undefined {
+  const w = s.hidden.timeline; // the level scale only (public reference points)
+  let sw = 0, sg = 0, n = 0;
+  let by: ModelVersion | undefined;
+  for (const v of s.player.models.versions) {
+    if (v.baseId !== b.id || v.variant !== 'full' || !v.trained?.post || v.evals.measuredL === undefined || !v.build || v.build.addTokens) continue;
+    const wt = 1 / Math.max(1e-6, measuredSd(v)) ** 2;
+    sg += wt * (gOfLevel(w, v.evals.measuredL) - believedRl(s, v, v.build).dgRL - postEffect(v.design).dg);
+    sw += wt;
+    n++;
+    if (!by || v.day >= by.day) by = v;
+  }
+  return by ? { gPre: sg / sw, sd: 1 / Math.sqrt(sw), n, by } : undefined;
+}
+
+interface BelievedView { sB: GameStateV2; anchor: Map<string, BaseAnchor | undefined> }
+/** UB-2b: the lab's believed view of its models and know-how, for planRun (readouts only; the engine's runs keep the
+ *  true recipe and builds). Areas: believed (above). A base: its measured build (baseAnchor), else its physical part
+ *  (FLOP, shape, tokens and data: facts) + the believed pretraining recipe on its start day. A version: on its base's
+ *  believed pretraining part, its RL part at its believed RL recipe, and the rest set so its effective compute is its
+ *  measured level (unmeasured: the design's effect, a student's distillation gap). */
+function believedView(s: GameStateV2): BelievedView {
+  const w = s.hidden.timeline; // the level scale only (public reference points)
+  const m = s.player.models;
+  const anchor = new Map<string, BaseAnchor | undefined>();
+  const gPreB = new Map<string, number>();
+  const bases = m.bases.map((b) => {
+    const a = baseAnchor(s, b);
+    anchor.set(b.id, a);
+    const phys = b.gPre - b.ePre; // FLOP, shape, tokens, data and design: facts (ePre is the recipe part)
+    const g = a ? a.gPre : phys + E_START + believedAreaAt(s, 'pre', b.startDay ?? b.day);
+    gPreB.set(b.id, g);
+    return { ...b, gPre: g, ePre: g - phys };
+  });
+  const versions = m.versions.map((v) => {
+    const b = v.build ?? fallbackBuild(v);
+    const rl = believedRl(s, v, b);
+    const gPre = gPreB.get(v.baseId) ?? (v.evals.measuredL !== undefined ? gOfLevel(w, v.evals.measuredL) - rl.dgRL : 0);
+    let dg: number;
+    if (v.evals.measuredL !== undefined) dg = gOfLevel(w, v.evals.measuredL) - gPre - rl.dgRL;
+    else {
+      dg = postEffect(v.design).dg;
+      const t = v.variant === 'mini' ? versionById(s, v.parentVersionId) : undefined;
+      if (t) { const nS = paramsOfVersion(s, v); dg -= distillGap(paramsOfVersion(s, t), nS, DISTILL_TPP * nS); }
+    }
+    return { ...v, build: { ...b, gPre, ...rl, dg } };
+  });
+  const st = s.player.research.stacks;
+  const stacks = { ...st };
+  for (const k of BELIEVED_AREAS) stacks[k] = { ...st[k], base: believedAreaAt(s, k), buckets: [] };
+  const sB = { ...s, player: { ...s.player, models: { ...m, bases, versions }, research: { ...s.player.research, stacks } } } as GameStateV2;
+  return { sB, anchor };
+}
+/** The same view with one area's believed value moved by `d` (OOM; the start models keep theirs). */
+function bumped(v: BelievedView, k: BelievedArea, d: number): GameStateV2 {
+  const r = v.sB.player.research;
+  const stacks = { ...r.stacks, [k]: { ...r.stacks[k], base: r.stacks[k].base + d } };
+  return { ...v.sB, player: { ...v.sB.player, research: { ...r, stacks } } } as GameStateV2;
+}
+
+/** UB-2b: the planned run's believed level and domains, the believed ideas' sd propagated to its level (each area's
+ *  √Σ estSd², by the level's response to that area), and the measured start model with its measurement sd. */
+function believedPrediction(s: GameStateV2, p: LaunchRunParams): { mid: number; domains: Record<DomainId, number>; sdIdeas: number; sdStart: number; start?: ModelVersion } | undefined {
+  const view = believedView(s);
+  const w = s.hidden.timeline; // the level scale only (public reference points)
+  // What a post-training run's completion adds that planRun does not (completeRl): the lift from distilling the best
+  // released teacher above it (RD-X04 rule B: rivals' public models, public) and, on fresh RL, the pending run penalty
+  // (a removal the player ordered). In OOM of effective compute on the planned build's G. A new or continued base is
+  // forecast through the post-training it would get, so it takes the lift too; a distilled student does not.
+  const params = p.kind === 'base' ? p.base?.params : p.kind === 'distill' ? undefined : s.player.models.bases.find((b) => b.id === p.baseId)?.params;
+  const extraOn = (G: number) => (params ? distillLift(s, 'player', G, params).dG - (p.kind === 'post' && p.grader !== 'teacher' ? pendingRunPenalty(s) : 0) : 0);
+  const levelAt = (x: GameStateV2) => {
+    const pl = planRun(x, p);
+    const L = pl.prediction.Lg;
+    if (!(L[1] > 0)) return undefined;
+    const mid = (L[0] + L[1]) / 2;
+    const dG = extraOn(pl.g.G);
+    return { pl, dG, mid: dG ? levelOfG(w, gOfLevel(w, mid) + dG) : mid };
+  };
+  const midOf = (x: GameStateV2) => levelAt(x)?.mid;
+  const at0 = levelAt(view.sB);
+  if (!at0) return undefined;
+  const { pl: plan, dG: dG0, mid: m0 } = at0;
+  const D = 0.01;
+  let v2 = 0;
+  for (const k of BELIEVED_AREAS) {
+    const sdK = Math.sqrt(s.player.research.stacks[k].estVar ?? 0);
+    if (!(sdK > 0)) continue;
+    const m1 = midOf(bumped(view, k, D));
+    if (m1 !== undefined) v2 += (((m1 - m0) / D) * sdK) ** 2;
+  }
+  const domains = Object.fromEntries(Object.entries(plan.prediction.domains).map(([d, b]) => {
+    const m = (b[0] + b[1]) / 2;
+    return [d, dG0 && m > 0 && m < 15 ? clamp(levelOfG(w, gOfLevel(w, m) + dG0), 0, 15) : m];
+  })) as Record<DomainId, number>;
+  // The measured model the run starts from: a teacher (amplify, distil), else the base's anchor (RL, continue).
+  const teacher = p.grader === 'teacher' || p.kind === 'distill' ? versionById(s, p.teacherVersionId) : undefined;
+  const ba = p.kind !== 'base' && p.baseId ? view.anchor.get(p.baseId) : undefined;
+  const start = teacher?.evals.measuredL !== undefined ? { v: teacher, sd: measuredSd(teacher) } : ba ? { v: ba.by, sd: ba.sd } : undefined;
+  // With no measured start model the forecast is on the believed scale; the new model's first suite reads it through
+  // that suite's elicitation (the standing policy's depth, self-run: known), as a measured start model's level already does.
+  const elic = start ? 0 : EVAL_DEPTHS[policyDepth(s)].elic + ELICITATION.self;
+  if (elic) for (const d of Object.keys(domains) as DomainId[]) domains[d] += elic;
+  return { mid: m0 + elic, domains, sdIdeas: Math.sqrt(v2), sdStart: start?.sd ?? 0, ...(start ? { start: start.v } : {}) };
 }
 
 // ─────────────────── the two acts (RD-T01b, DD-06, TRN-06) ───────────────────
@@ -625,6 +783,9 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   // its FLOP, its draw and P24; a continue run the pretraining stack on its added part; a post-train the RL stack and
   // suites, domain effects, P07 and the serving stack). Completion and the trait hook read only this.
   run.recipe = recipeAtLaunch(s, run);
+  // UB-2b: the lab's forecast as launched (readouts: the run queue's band; predicted vs measured once it is evaluated).
+  const fc = runForecast(s, p);
+  if (fc) run.forecast = { mid: Math.round(fc.mid * 1e3) / 1e3, sd: Math.round(fc.sd * 1e3) / 1e3 };
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', methods: [...(p.post.methods ?? [])] };
   if (p.kind === 'distill') {
     // The student's size and tokens (teacher outputs) are fixed at launch, as the plan read them.

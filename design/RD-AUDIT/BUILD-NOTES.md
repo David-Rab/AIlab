@@ -5550,3 +5550,48 @@ rd 8c7560c (dud direction drops; assignment optimum 91.5%).
 - Designer: the mockup's safety stage track shows "Big test"; the engine has Ideas · Small test · Validate. Programme
   rate "now" vs "so far" differ (scaling ×1.12 vs ×1.19); the cards use "now" (accepted plan: at current staffing).
 - UB-5..10: `measuredDomains` is partial now (the MODELS radar and Blueprint chips need a "not measured yet" state).
+
+### UB-2b (run forecast on beliefs and measured builds; branch ub2b-forecast from rd 306d4c4)
+
+- **Changed (readouts only):** `runForecast(s, plan, ref?)` (runs.ts) now takes the plan, not the engine's
+  prediction. It runs planRun on the lab's believed view (`believedView`, a shallow copy): the pretraining, RL-efficiency
+  and RL-ceiling areas at their believed values (start and public knowledge + Σ adopted estimates, RF-R5 `est`;
+  scale-free), every base at its measured build (`baseAnchor`: each measured full version post-trained on it, not
+  streamed, read as measured level → effective compute minus its RL gain at the believed RL recipe its run took
+  (`believedAreaAt` on its rlDay) minus its design's effect; pooled by inverse measurement variance), else its physical
+  part (gPre − ePre: FLOP, shape, tokens, data) + the believed pretraining recipe on its start day; every version on its
+  base's believed part with its believed RL part and the rest set so its effective compute is its measured level
+  (unmeasured: design effect, a student's distillation gap). Training and serving efficiency stay engine values (chip
+  throughput, facts). On top, what completeRl adds that planRun does not: the lift from the best released rival model
+  (distillLift, public models; also on a new / continued base, forecast through its post-training) and the pending run
+  penalty (fresh RL). With no measured start model the mid adds the policy suite's known elicitation (0 at Full).
+- **Band:** sd = √(ideas² + start² + eval²): ideas = each area's √Σ estSd² × the level's response to that area (planRun
+  on the view with the area +0.01); start = the start model's measurement sd (teacher for amplify / distil, the base's
+  pooled anchor for RL / continue, none for a new base or an unmeasured base); eval = the reference's measuredSd (the
+  new model's own first measurement). `band` and the domain ranges are now the **90% range** (mid ± 1.64 sd,
+  `forecastBand`; was ±1 SD). New fields `sdParts`, `startName`. `gain` = mid − the reference's measured level, as before.
+- **Snapshot:** `TrainingRun.forecast?: { mid, sd }` set at launch (launchRun), readouts only. `runBand` (Models run
+  queue) reads it ([0, 0] for runs launched before it); it no longer re-forecasts a running run from its true
+  prediction. No save change needed (optional field; older runs lack it).
+- **Callers:** runCard, runPreview (actions.ts), skillGains pass the plan. lint-tradeoffs' B45 check rewritten (sd
+  parts, 90% band, base measurements +0.3 move the forecast up by 0.15–0.32: less than 1:1 where the rival lift shrinks).
+- **Physics unchanged:** completion, recipes and builds untouched; launchRun only stores the readout field.
+- **Check:** `scripts/v2/_ub2b/check.ts`. (1) Six plans (new base, post on latest / previous base, heavy, amplify,
+  distil) on the day-400 fixture vs a copy with hidden recipe / build values rewritten (true buckets ×2.5, ideas' true
+  effects ×3, versions' G / Lg / domains / build gPre, dg, eRL, aRL, dgRL(d), bases' gPre and ePre together, runs'
+  launch recipes): forecasts, skillGains, runCard and the launch preview identical: pass. `_ub2` "gains" now passes (its
+  KNOWN WARN removed). (2) Coverage: those six plans launched from days 400, 445, 490 (18 launches), forecast at launch
+  vs the made model's first measured level: **9/18 inside the 90% range, 5/18 inside ±1 sd.** By start: measured start
+  model 6/9 (two misses are a rival release during the run, d445: +0.39 OOM lift at completion no launch-day forecast
+  can see); no measured start (new base, B3 with no measured version) 3/9: there the forecast sits on the true level
+  (e.g. 9.175 vs true 9.177) while the measured level reads 0.1–0.35 below the true one (−0.16 mean on all 18), so the
+  miss is the measurement's own offset, which an anchored forecast absorbs.
+- tsc app + scripts/v2 clean; lint-hidden ok; lint-tradeoffs, _ub2, _ui0a, rdm02 pass. hygiene: the same FAILs as rd
+  306d4c4 (15: registry, leader-lab newGame, old-save migrations, tick performance); newGame launches no run.
+- **Left:** (a) the measured-below-true offset for plans with no measured start model (sandbagging on dangerous
+  benches and other eval effects; the lab could learn it from its own predicted-vs-measured record, run.forecast vs the
+  made model's first fit: needs a run → version link). (b) Believed values at a past day subtract the kept results
+  (last 30), so an old start day reads high (only the unanchored-base fallback and old versions' RL recipe use it).
+  (c) The level map λ(G) is the world's (`s.hidden.timeline` knots), as before. (d) Domain effects of adopted ideas
+  (`research.domainG`) and environment-suite fidelity still enter the believed view at engine values; the stream's
+  continued pretraining on an unmeasured streamed version is not in its believed build.
