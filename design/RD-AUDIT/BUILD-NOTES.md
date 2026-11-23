@@ -3676,3 +3676,27 @@ Root cause per item (CP3.md "Left (18)" and "Unit note"; worktree p3-d on rd + c
   (EV9 left: two release suites 30 / 33 d); products 67 / 5 (P6, M2, A5, C2c ×2: unchanged, CP3 list); lint-ux
   U resolves, 1 fail left (tooltips); control 31 / 1 (E15, above). lint-tradeoffs and evals were re-run once after
   their check edits.
+
+### CP3e runner state
+
+The CP3c "rig discrepancy" (calib T1L ai2027 SC 529 vs calscan t1l −0.074 y ≈ 611 at LEADER_CAL −0.15) does not
+reproduce at HEAD f815123: the two runners agree, and no shared state between games was found. The −0.074 row was a
+stale reading (a calscan run on code before the CP3c fixes); its "PASS 0.92" no longer holds.
+
+- **Minimal experiment** (scripts/v2/_cp3e/shared.ts, ai2027, seed 2027, LEADER_CAL −0.15): leader lab alone in a fresh
+  process SC day 533 (A1 177, A2 364); after a RefBot game to its SC (day 535) in the same process, SC 533 (A1 177, A2
+  364). Identical: the RefBot run leaves nothing the leader run reads.
+- **calscan t1l ai2027 at HEAD** (20 seeds, SIMCACHE=off, 8 workers, 39 s): SC −0.303 y (median ≈ day 527) [p10 −0.461,
+  p90 −0.070], SAR −0.222, SIAR −0.034, ASI +0.056; seed 2027 SC −0.288 y = day 533; worst 3.78 tol FAIL. That matches
+  calib's 5-seed 529 (the first five seeds sit within ≈ 2 days of the 20-seed median here).
+- **Module state checked** (grep of src/engine/v2, src/data/v2): the module-level memos are either pure functions of
+  constant data (rivalModel partsMemo, refRl, orderMemo; traits refDraw), keyed by object identity of per-game state
+  (WeakMaps on GameStateV2 / TimelineWorld / v3; rivalModel constMemo checks world, G, build identity), or keyed by
+  value strings (loop scheduleCache, time startMsCache, ledger monthCache, research flowCache, believed cache). The
+  runtime writes to calibration objects (V3_CAL by calib runT1 / calscan play, LEADER_CAL by runT1L / calscan) set the
+  same committed values in both runners. No fix needed; nothing changed in the engine or the runners.
+- **What this changes in CP3c's reading:** T1L ai2027 is ≈ 0.3 y early at LEADER_CAL −0.15 on both runners, and the
+  aggregate leader is no longer near-deterministic (p10–p90 0.39 y on SC, wider later; calib's T1L comment "p10–p90 ≤
+  0.1 y" is out of date). The leader's earliness is the same frontier-pace excess CP3c lists under "Still off".
+
+tsc (app, scripts/v2) clean.
