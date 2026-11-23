@@ -17,7 +17,7 @@
 //   8 Hire   = 1 − 1.5·ΔF (ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
 //   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr (×3 with UBI); U = U_base + Pool/LF
 import {
-  AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U05_SHIFT_G, U_BASE, US_EMPLOYMENT,
+  AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,
   type SectorDef,
 } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
@@ -34,7 +34,7 @@ import { costReduction, demandExpansion, workerTarget } from './use';
 import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from './policy';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
-import { gOfLevel, levelGate, oomPerLevel } from '../models/capability';
+import { gOfLevel, levelGate, oomPerLevel, v2LevelGate } from '../models/capability';
 import { CERT_FRICTION_CUT, certifiedBuyerShare, needsCert } from '../models/adaptations';
 
 export { REGIONS };
@@ -363,7 +363,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * levelGate(s.hidden.timeline, cons.socialG + (U05_SHIFT_G.SOCIAL ?? 0), FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
+    const friendStar = 0.03 + 0.18 * v2LevelGate(s.hidden.timeline, 'SOCIAL', cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (pol.companionBan ? 0.4 : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

@@ -115,7 +115,7 @@ const moonshot: ActionDef = {
     // discovery, +0.5·benefit when it reaches patients: techtree.ts advanceTechs) comes with or without the moonshot,
     // so the preview states the days it moves discovery, not an approval or credibility gain of its own.
     const v = internalVersion(s);
-    const perShare = v ? mSci(s.hidden.timeline, gSci(domainScaleGs(s.hidden.timeline, v))) * MOONSHOT_K : 0;
+    const perShare = v ? mSci(s.hidden.timeline, gSci(s.hidden.timeline, domainScaleGs(s.hidden.timeline, v))) * MOONSHOT_K : 0;
     const { S } = scienceRate(s);
     const left = t ? Math.max(0, 1 - (s.world.techs[techId]?.prog ?? 0)) * t.effort : 0;
     const daysTo = (sh: number) => (left * 365) / Math.max(1e-9, S + perShare * sh);

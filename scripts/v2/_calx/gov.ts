@@ -7,9 +7,8 @@ import { engine } from '../../../src/engine/v2/index';
 import { newGame, defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { worldMix } from '../../../src/engine/v2/worldfx/mix';
 import { govAdviceG } from '../../../src/engine/v2/worldfx/control';
-import { levelOfG, domainScaleG } from '../../../src/engine/v2/models/capability';
+import { domainRefShift, levelOfG, domainScaleG } from '../../../src/engine/v2/models/capability';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
-import { U05_SHIFT_G } from '../../../src/data/v2/sectors';
 const s = newGame(defaultSetupV2({ seed: Number(process.argv[2] ?? 2027), world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const w = s.hidden.timeline;
 const END = dayOfDate('2025-07-01', '2028-04-01');
@@ -20,7 +19,7 @@ while (s.time.day < END) {
   if (s.time.day % 91 === 0) {
     const m = worldMix(s);
     const iv = internalVersion(s);
-    const sh = U05_SHIFT_G.REASON ?? 0;
+    const sh = domainRefShift(w, 'REASON');
     console.log(`d${s.time.day} adviser v2-L ${levelOfG(w, govAdviceG(s, m) + sh).toFixed(2)} GOV-market v2-L ${levelOfG(w, m.sec.US.GOV.g.REASON + sh).toFixed(2)} internal REASON v2-L ${iv ? levelOfG(w, domainScaleG(w, iv, 'REASON') + sh).toFixed(2) : '-'} internal Lg ${iv ? levelOfG(w, iv.G).toFixed(2) : '-'} briefing ${s.player.policies.govBriefing} gov products ${s.player.deployments.filter((d) => d.channel === 'gov').length} accept ${s.world.control.GOV.accept.toFixed(3)}`);
   }
 }

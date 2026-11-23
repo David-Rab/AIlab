@@ -33,7 +33,7 @@ import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
 import { surplusChoice, type Choice, type Tier } from './choice';
 import { techRamp } from './policy';
-import { domainScaleG, gOfLevel, levelGate, oomPerLevel } from '../models/capability';
+import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
@@ -519,8 +519,10 @@ function computeMix(s: GameStateV2): WorldMix {
   for (let si = 0; si < S; si++) gvecs.push(providers.map((_, i) => (i === playerIdx ? cands[pCand[si]]?.g : pg[i])));
   // RD-P04a: the PHYS gate on domain G (OOM): v2's robot-bound PHYS level (floor 10·W16 ramp, +3·W19 on LOG, cap
   // 15·robots) and σ((Le_PHYS − fMid − θ)/fSpread) restated through the one λ (thresholds exact; +3 L at its 10 L slope).
-  const pfFloorG = gOfLevel(w, pfFloor);
-  const pfLogG = pfLog * oomPerLevel(w, 10);
+  // CAL2-X: all v2 PHYS levels (v2 V0 PHYS 1) → gOfV2Level / v2LevelGate (the RD-U05 PHYS shift and v2's −4 L profile);
+  // a full robot cap (15) does not bind, as v2's clamp at 15.
+  const pfFloorG = gOfV2Level(w, 'PHYS', pfFloor);
+  const pfLogG = pfLog * oomPerLevel(w, 10 - (V2_DOMAIN_OFF.PHYS ?? 0));
   const reviewK = ASSIST.review;
   const invK = 1 / ECON.kSpread;
   const sec = {} as Record<RegionId, Record<SectorId, SectorMix>>;
@@ -540,7 +542,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const seatPrices = filled(n, 0);
       const physG = filled(n, 0);
       const gs = gvecs[si];
-      const physCapG = gOfLevel(w, physCap);
+      const physCapG = physCap >= 15 ? Infinity : gOfV2Level(w, 'PHYS', physCap);
       // A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts), on value-capped tier prices.
       const lines = lineOff[si];
       // (P3: one loop without per-call closures builds the tiers and their prices for the readout.)
@@ -680,7 +682,7 @@ function computeMix(s: GameStateV2): WorldMix {
         lePhys /= wsum;
       }
       if (gsum > 0) for (let k = 0; k < ND; k++) gw[k] /= gsum;
-      const physF = t.physW > 0 ? levelGate(w, lePhys, ECON.fMid + t.theta, ECON.fSpread) : 0;
+      const physF = t.physW > 0 ? v2LevelGate(w, 'PHYS', lePhys, ECON.fMid + t.theta, ECON.fSpread) : 0;
       const F = (1 - t.physW) * aCog + t.physW * physF;
       const pp = playerIdx >= 0 ? prices[playerIdx] : 0;
       const price = wsum > 0 ? px : 0;

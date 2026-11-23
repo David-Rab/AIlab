@@ -4971,3 +4971,54 @@ wall): S4 RefBot P_mis 0.344, safe-only pass; S5 RefBot below in 23% (median U �
   sight limit at SAR is higher than RefBot's", a comparison the sources support); (c) drop it. Recommendation: (b),
   and read S5 RefBot together with the true gap (10% below), since the lab-view and true numbers now differ by 1.3
   levels at SAR.
+### CAL2-X (calibration round 2, world / products; branch cal2-wfx from rd 0397bd2; DECISIONS "after CAL1" 5, 6, 8, 13, 15)
+Checks: `worldfx.ts --smoke` (seed 2027) before / after each step; probes `scripts/v2/_cal2x/` (shift.ts per-world shifts
+and V0's domain G, bass.ts the Bass fit on one RefBot run).
+
+**1. Units leftover (decision 8).** One conversion replaces CAL-X's ai2027-only `U05_SHIFT_G`: models/capability.ts
+`gOfV2Level(w, d, L)` = λ⁻¹(L − off_d) − domainRefShift(w, d) and `v2LevelGate(w, d, x, L, s)`. The shift depends on the
+world (δ_d·Δ_bm of its own references; shift.ts): REASON / SOCIAL-class ai2027 1.51 / 3.85, authors2026 1.82 / 4.64,
+fast 0.60 / 1.38, slow 1.34 / 3.42 OOM, so the constant was wrong outside ai2027 (fast read its friend / Accept gates
+2.5 OOM early). off_d = v2's level profile on the shifted domains RD-U05 deleted with REF_OFF (`V2_DOMAIN_OFF` CYBER −1,
+PHYS −4; REASON / SOCIAL / MEDIA / BIO 0): v2's level of a domain was λ(G_d) + off_d. V0's builds carry no domain
+profile (raw domain G = general G in all four worlds), so with the conversion every gate below fires where v2 put it.
+Rule applied: a threshold is "beats the best human" only if its source sets it by a human comparison independent of
+research/16's profile table; a number placed on that table (each row dated to an AI 2027 model) or fitted later is a v2
+level. **All 13 gates are v2 levels; none qualified as best-human** (R16's anchors "10 = top expert, 12 = Agent-4
+class" are themselves dated to AI 2027 models, and its profile puts e.g. CYBER 8 at Agent-2, "a little worse than the
+best human hackers", which RD-U05 puts ~4 OOM later).
+
+| Gate (file) | Threshold | Source / meaning | Decision |
+|---|---|---|---|
+| AI-friend share (sectors.ts) | SOCIAL 6.5 / 1 | M2 fit to AI 2027 Jul 2027 (Agent-3-mini) | v2 (was CAL-X constant; now per world) |
+| T1 Accept (control.ts) | REASON 11.5 / 0.8 | G1 fit, adviser between SAR and SIAR | v2 (idem) |
+| Persuasion (control.ts) | SOCIAL 10 / 1.5 | R16 §2.1; profile SOCIAL 10 = Agent-4 | v2 |
+| GOV / MIL adviser targets (control.ts) | REASON 12 / 1 | "Cabinet talks to the model", AI 2027 Dec 2027 | v2 |
+| Tier gate (control.ts) | REASON 12 / 0.5 | R16 §2.2 "superhuman advice", 12 = Agent-4 class | v2 |
+| INFRA cyber (control.ts) | CYBER 11 / 1 | R16 INFRA "Agent-4 runs OB's security" (profile CYBER 12) | v2 (+ off −1) |
+| Risk exposure bio / cyber / persuasion (techtree.ts) | BIO 10, CYBER 8, SOCIAL 12 | R16 §3.1–3.2 T25 / T24 / T23, Agent-1 / Agent-2 / Safer-3 quotes | v2 |
+| Tech gates, 29 techs (techtree.ts techBlocker) | data/v2/techs.ts gates | R16 §3.2: "calibrated so that AI 2027 Classic produces 2028–29" | v2 |
+| PHYS gate (mix.ts) | fMid + θ, W16 floor 10, W19 +3, cap 15·robots | v2 robot-bound PHYS level (V0 PHYS 1) | v2 (+ off −4; full cap does not bind) |
+| M_sci (techtree.ts) | L_sci 8 / 5 (REASON part) | R16 §3.1 [D] on the profile | v2 (REASON + shift) |
+
+Not converted, AGENCY (RD-U05 shift 0): tier AGENCY 9.5, internal ops 10, ν gate 10, α mid 8, Bass q boost 8, macro
+boost 10. RD-U05 also dropped v2's AGENCY −1 profile, so these gates read AGENCY one level higher than v2 did at the same
+G (CP3f's danger U05_SHIFT applied +1 for the same reason; sectors.ts ALPHA_START_SIG still reads v2's AGENT0 AGENCY 4
+while day 1 reads 5). Not changed here: research/16 ties AGENCY to the METR horizon (L = 3 + 0.8·log2(h/15) → V0's 203
+min reads 6.0), so neither 4 nor 5 is its own value: **designer question**. danger.ts U05_SHIFT (safety lane) is the same
+ai2027-only constant pattern for act thresholds; it could read gOfV2Level's shift per world.
+UI: the World panel's tech "Gates" row and the blocker message show the converted gate on the measured domain scale
+(`techGateLevels`), e.g. BIO 10 → BIO 2.3 on ai2027, not R16's number.
+
+**V0 measures BIO 0: a measurement-scale design matter, not this leftover.** V0's raw BIO G equals its general G
+(27.66, L 5 on ai2027). RD-U05 measures BIO against best_BIO = G_SC + (r + ASI_EXTRA 1.3)·Δ_bm: the five expert domains
+(SOCIAL, MEDIA, CYBER, BIO, PHYS) share one reference, "the work AI is worst at" (AIFM's ASI gap, data/v2/workTypes.ts
+refDelta), 3.85 OOM above the coding best human, and λ reaches 0 only 2.5 OOM below V0, so all five clamp to 0. Measured
+BIO says otherwise (VCT: o3 beat 94% of expert virologists; Anthropic ASL-3 May 2025, OpenAI "High" bio Jul 2025,
+research/16 T25). A fix needs per-domain sourced best-human references (BIO and CYBER at least) in refDelta, which moves
+the work fit, danger thresholds and display: designer decision.
+
+Before → after (worldfx --smoke, seed 2027, ai2027): AI-friend 8.2 → 8.1%; Accept ≥ 0.85 2028-03-30 → 2028-03-09
+(in window); firm adoption Jul 2026 18.9 → 19.4%; hours of use mid-2026 6.9 → 7.0%, saved 2.7 → 2.8%; W4 U +0.20 →
++0.21 pp; W2 +1.9 → +2.0%; F11 2026 $51.9B → $52.3B, 2027 $102.8B → $102.9B; three more headlines fire (H13, H16, H18:
+techs now open on the v2 schedule). Same pass / fail set.
