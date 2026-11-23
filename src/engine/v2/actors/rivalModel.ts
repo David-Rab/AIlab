@@ -30,12 +30,12 @@ import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research
 import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
 import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
 import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, RIVAL_TOOL_DAYS_PER_TW, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
-import { domainRefShift, domainsOf, gOfBuild, gV0, levelOfG, startLab, versionDomainG } from '../models/capability';
+import { domainRefShift, domainsOf, equilibriumLagRange, gOfBuild, gV0, levelOfG, startLab, startLabAt, versionDomainG } from '../models/capability';
 import { continueGPre, distillGap, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
 import { baseGOf } from '../models/runs';
 import { Q_REF, REF_SHARE, type DataDraw } from '../production/data';
@@ -594,14 +594,59 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
 export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapOom = START_PUBLIC_GAP_OOM, effRun?: number) {
   const pool = r.core.computeOnline * r.core.split.training;
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
-  const st = startLab(w, r.internal.G, { flop: flop0, tpp: REF_TPP, shape: 'moe' });
-  const k = -st.lag;
+  const inp = { flop: flop0, tpp: REF_TPP, shape: 'moe' as const };
   const P = recipeParts();
-  // A lab k behind sits k back on the same research pools (it has done less research: its next ideas come easier).
-  const poolOf = { pre: k / P.pre.kappa, mid: k / P.mid.kappa, ceil: 0 };
-  const base = makeBase(1, B0_DAY, flop0, st.ePre - E_START, REF_TPP);
-  r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolOf };
-  setModelBuild(w, r.internal, rivalVersionBuild(base, st.eRL, 0), base);
+  const place = (st: ReturnType<typeof startLab>, own: number) => {
+    const k = -st.lag;
+    // A lab k behind sits k back on the same research pools (it has done less research: its next ideas come easier).
+    const poolOf = { pre: k / P.pre.kappa, mid: k / P.mid.kappa, ceil: 0 };
+    const base = makeBase(1, B0_DAY, flop0, st.ePre - E_START, REF_TPP);
+    // CP3g: what the capped recipe does not explain is the start base's own (more / less trained, better / worse data on
+    // that base): in its G_pre, carried by every version and the stream on that base, gone with the lab's next base, and
+    // never in the recipe rule A diffuses.
+    base.gPre += own;
+    r.phys = { base, eff, serve: 0, rec: { pre: k, mid: k, ceil: 0 }, pool: poolOf };
+    setModelBuild(w, r.internal, rivalVersionBuild(base, st.eRL, 0), base);
+  };
+  const rsDay0 = () => {
+    const fpt = fptOfBase({ params: baseParams(flop0, REF_TPP) });
+    const C = r.core.computeOnline * (r.core.split.experiments + (r.core.split.routine + r.core.split.frontier));
+    const f = bestRivalMix(w, r.internal, fpt, r.core.staff.cap, C);
+    return evalAggregate(w, r.internal, fpt, r.core.staff.cap, f, C, eff * (effRun ?? 1), 1).rs;
+  };
+  let st = startLab(w, r.internal.G, inp);
+  place(st, 0);
+  // CP3g (designer decision: start in equilibrium): the day-0 recipe gap to the leader is capped at what rule A sustains
+  // (models/capability.ts equilibriumLagRange): the lab's own day-0 recipe growth against the leader's (rs = 1, the
+  // day-0 reference lab), × τ. The rest of the start model's G is its base's own (place). No day-0 jump from diffusion.
+  if (Math.abs(st.lag) > 1e-9) {
+    // The lab's own rate at a lag: its research speed today (rs: its staff, compute, model, efficiency; independent of
+    // the lag) on research pools that far back (a lab behind finds its next ideas easier, so its own rate rises with
+    // the lag). The cap is the fixed point lag = Δ*(g_own(lag)) between 0 and the solved lag (Δ* falls as the lag grows).
+    const rs = rsDay0();
+    const tau = DIFFUSION_TAU_DAYS / 365;
+    const rateAt = (lag: number) => recipeRates(w, { rec: { pre: -lag, mid: -lag, ceil: 0 }, pool: { pre: -lag / P.pre.kappa, mid: -lag / P.mid.kappa, ceil: 0 } }, rs).g;
+    const gLead = recipeRates(w, { rec: { pre: 0, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 } }, 1).g;
+    const over = (lag: number) => { const [lo, hi] = equilibriumLagRange(gLead, rateAt(lag), tau); return lag > hi ? 1 : lag < lo ? -1 : 0; };
+    let lag = st.lag;
+    if (over(lag) !== 0) {
+      let a = 0;
+      let b = st.lag;
+      for (let i = 0; i < 40; i++) {
+        const m = (a + b) / 2;
+        if (over(m) === 0) a = m;
+        else b = m;
+      }
+      lag = a;
+    }
+    if (Math.abs(lag - st.lag) > 1e-9) {
+      const st2 = startLabAt(w, lag, inp);
+      place(st2, st.G - st2.G);
+      st = st2;
+    }
+  }
+  const k = -st.lag;
+  const base = r.phys.base;
   if (r.publicModel) {
     r.publicModel.build = r.internal.build;
     setModelG(w, r.publicModel, gOfSimple(w, r.internal) - publicGapOom, base);

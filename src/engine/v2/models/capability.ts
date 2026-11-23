@@ -90,16 +90,18 @@ export interface StartLab { lag: number; ePre: number; eRL: number; gPre: number
  *  world's start recipes (START_STATE) less the lab's recipe lag; the lag is solved so the version lands at G0. A lab at
  *  the reference inputs and G0 = G(V0) has lag 0 exactly. Stand-in (DD-18): every lab's start recipes are the same
  *  dated recipes; only its lag and its base FLOP differ. */
-export function startLab(w: TimelineWorld, G0: number, inp: StartInputs): StartLab {
+/** A start lab at a given recipe lag (startLab's parts without the solve; CP3g: the equilibrium-capped lag). */
+export function startLabAt(w: TimelineWorld, lag: number, inp: StartInputs): StartLab {
   const st = startStateOf(w);
   const rlW = rlWeights('broad', rlFamiliesAvailable(() => false));
-  const at = (lag: number): StartLab => {
-    const ePre = st.b0 - lag;
-    const eRL = st.v0 - lag;
-    const gPre = gPreOf({ flop: inp.flop, tpp: inp.tpp, recipe: ePre, shape: inp.shape, fData: 1, designDg: 0 }).total;
-    const rl = rlGains(inp.flop, RL_BUDGET.standard * inp.flop, rlW, eRL);
-    return { lag, ePre, eRL, gPre, rl, G: gPre + rl.general };
-  };
+  const ePre = st.b0 - lag;
+  const eRL = st.v0 - lag;
+  const gPre = gPreOf({ flop: inp.flop, tpp: inp.tpp, recipe: ePre, shape: inp.shape, fData: 1, designDg: 0 }).total;
+  const rl = rlGains(inp.flop, RL_BUDGET.standard * inp.flop, rlW, eRL);
+  return { lag, ePre, eRL, gPre, rl, G: gPre + rl.general };
+}
+export function startLab(w: TimelineWorld, G0: number, inp: StartInputs): StartLab {
+  const at = (lag: number): StartLab => startLabAt(w, lag, inp);
   const zero = at(0);
   if (Math.abs(zero.G - G0) < 1e-12) return zero;
   let lo = -8;
@@ -110,6 +112,18 @@ export function startLab(w: TimelineWorld, G0: number, inp: StartInputs): StartL
     else hi = mid;
   }
   return at((lo + hi) / 2);
+}
+
+/** CP3g (designer decision: start in equilibrium): the recipe gap to the leader's day-0 recipe that diffusion rule A
+ *  (production/diffusion.ts: dR_i/dt = g_i + (R_pub − R_i)/τ) sustains in steady state. A follower with own recipe growth
+ *  g_i behind a source growing at g_L holds a steady gap where the inflow closes the rate difference, Δ/τ = g_L − g_i:
+ *  Δ* = (g_L − g_i)·τ [D, from the rule's own parameters; research/RD-X04r §3A: "a follower that relaxes toward a frontier
+ *  moving at a constant rate ends up exactly τ behind in time"]. Signed: a lab whose own rate is below the leader's
+ *  cannot hold a recipe lead (Δ* > 0 caps its lag to [0, Δ*]); one above it could hold a lead of up to (g_i − g_L)·τ.
+ *  Returns the allowed lag interval [lo, hi] (OOM, positive = behind). Rates in G-equivalent OOM per year; τ in years. */
+export function equilibriumLagRange(gLead: number, gOwn: number, tauYears: number): [number, number] {
+  const d = (gLead - gOwn) * tauYears;
+  return [Math.min(0, d), Math.max(0, d)];
 }
 
 // ───────────────────────────── versions (MODEL-V3 §2) ─────────────────────────────
