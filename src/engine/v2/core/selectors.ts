@@ -135,7 +135,7 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
   const runLike = { kind: p.kind, name: p.kind, ...(p.grader ? { grader: p.grader } : {}), flopNeeded: plan.flopNeeded, ...(p.baseId ? { baseId: p.baseId } : {}), ...(p.post ? { post: p.post } : {}) };
   const om = runOmega(s, runLike);
   const lh = runHack(s, runLike).lambda; // E16: learned hacking from the planned run's suites and RL budget
-  const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, om.growth, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown', om.safety, undefined, lh, plan.g.G > 0 ? plan.g.G : undefined, p.kind === 'base' || p.kind === 'continue'); // E18: the AF gate at the planned model's G; E20: no E13 / E27 in pretraining
+  const next = predictBeliefs(s, prior, plan.prediction.signals as Signals, om.growth, p.kind === 'post' ? p.post : undefined, base?.lineage ?? 'L-unknown', om.safety, undefined, lh, plan.g.G > 0 ? plan.g.G : undefined, p.kind === 'base' || p.kind === 'continue', undefined, undefined, undefined, v); // SR-15: detection-gated removal through the believed stack on the internal model // E18: the AF gate at the planned model's G; E20: no E13 / E27 in pretraining
   const out: Partial<Record<TraitId, number>> = {};
   for (const t of Object.keys(next) as TraitId[]) out[t] = next[t].est - (prior[t]?.est ?? 0);
   return out;

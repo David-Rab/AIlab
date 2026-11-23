@@ -8,7 +8,7 @@ import { SAFETY_EVALS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import type { BeliefEvidence, GameStateV2, ModelVersion, RngLike, SystemCtx, TechniqueState, ToolFamily, TraitBelief, TraitId } from '../types';
 import { clamp, clamp01, lambda2Delta, sigmoid, versionById } from './common';
-import { oomOfLevel, versionOom } from './oversight';
+import { measuredOom, oomOfLevel, versionOom } from './oversight';
 import { cotAlive } from './latents';
 import { believedMask, techniqueRole } from './techniques';
 import { reliability } from './instruments';
@@ -347,6 +347,37 @@ export function stackDetectionMap(s: GameStateV2, v: ModelVersion, traits: reado
       if (!items.length) continue;
       const d = combineTools(items);
       if (d > 0) miss *= 1 - d * familyPenalty(s, v, trait, fam) * (1 - falseMask(s, trait, fam));
+    }
+    out[trait] = 1 - miss;
+  }
+  return out;
+}
+
+/** SR-15: the BELIEVED counterpart of stackDetectionMap for the run plan's prediction (P6): each tool's believed strength
+ *  at the measured capability, combined per family as stackDetectionMap does, times the family's believed penalty
+ *  (believedPenaltyParts: believed EA, legibility, the player's own masks). Visible only. */
+export function believedStackDetectionMap(s: GameStateV2, v: ModelVersion, traits: readonly TraitId[]): Partial<Record<TraitId, number>> {
+  const X = measuredOom(s, v);
+  const tools: { t: TechniqueState; str: number }[] = [];
+  for (const t of Object.values(s.player.safety.techniques)) {
+    if (!t.unlocked || !t.active || techniqueRole(t) === 'fix') continue;
+    const str = reliability(s, t, { x: X }, true).base;
+    if (str > 0) tools.push({ t, str });
+  }
+  const out: Partial<Record<TraitId, number>> = {};
+  for (const trait of traits) {
+    let miss = 1;
+    for (const fam of STACK_FAMILIES) {
+      const items: { agenda: string; d: number }[] = [];
+      let first: TechniqueState | undefined;
+      for (const { t, str } of tools) {
+        if (t.family !== fam) continue;
+        const cov = t.coverage[trait] ?? 0;
+        if (cov > 0) { items.push({ agenda: t.agenda, d: cov * str }); first ??= t; }
+      }
+      if (!items.length || !first) continue;
+      const d = combineTools(items);
+      if (d > 0) miss *= 1 - d * reliability(s, first, { x: X, v, trait }, true).penalty;
     }
     out[trait] = 1 - miss;
   }

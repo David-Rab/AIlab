@@ -18,9 +18,9 @@ import type {
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0 } from '../models/capability';
-import { adopted, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
-import { SD_MAX, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
-import { againstOf, usesMethod } from './methods';
+import { adopted, believedEfficacy, clamp01, copyRec, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
+import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
+import { againstOf, methodMult, methodRemoval, usesMethod, type EffView } from './methods';
 import { cotResist, probeGoodhart, probeSteer, steerGrowth } from './ideas';
 import { aiRdShare, internalOversight } from './incidents';
 import { steerS4, steerSuccessor } from './covert';
@@ -644,44 +644,34 @@ function inRun(s: GameStateV2, post: PostDesign | undefined, id: string) {
   return !!post && usesMethod(post, id) && !!tech(s, id);
 }
 
-/** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. */
-export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage: string): Record<string, number> {
+/** Edge moderators the player controls (§3.5.4 table "Moderators"). Lineage patches come from flags. SR-15: a run
+ *  method's moderator is methodMult(base) in the view (true efficacy in the engine, believed in the prediction). */
+export function playerMods(s: GameStateV2, post: PostDesign | undefined, lineage: string, view: EffView = 'true'): Record<string, number> {
   const m: Record<string, number> = {};
   const mul = (e: string, x: number) => (m[e] = (m[e] ?? 1) * x);
+  const meth = (id: string, base: number, ...edges: string[]) => {
+    if (!inRun(s, post, id)) return;
+    const k = methodMult(s, id, base, view);
+    for (const e of edges) mul(e, k);
+  };
   const dept = s.player.safety;
   if (dept.evalGate !== 'none' && techActive(s, 'T-PROP')) mul('E01', 0.7);
-  if (inRun(s, post, 'T-INOC')) mul('E04', INOC_MULT); // SR-14b: inoculation is a method
-  if (inRun(s, post, 'T-PERSONA')) {
-    mul('E04', 0.7);
-    mul('E05', 0.7);
-    mul('E01', 0.7);
-  }
+  meth('T-INOC', INOC_MULT, 'E04'); // SR-14b: inoculation is a method
+  meth('T-PERSONA', 0.7, 'E04', 'E05', 'E01');
   if (post && post.pref === 'constitution' && post.safety !== 'minimal') {
     mul('E08', 0.7);
     mul('E29', 0.7);
   }
-  if (inRun(s, post, 'T-CAST')) {
-    mul('E08', 0.7);
-    mul('E27', 0.7);
-    mul('E29', 0.7);
-    mul('E13', 0.7);
-    mul('E14', 0.7);
-  }
-  if (inRun(s, post, 'T-W2S')) {
-    mul('E01', 0.8);
-    mul('E09', 0.8);
-  }
+  meth('T-CAST', 0.7, 'E08', 'E27', 'E29', 'E13', 'E14');
+  meth('T-W2S', 0.8, 'E01', 'E09');
   if (post?.rlFocus === 'broad') mul('E09', 0.7);
   if (techActive(s, 'T-HONEY')) mul('E10', 0.7);
   // SR-14 (SAF-04b): monitoring effects follow the monitor deployment, not AG07 staffing.
   if (techActive(s, 'T-TMON') && routineMonitor(s) >= 0.5) mul('E14', 0.5); // R7: monitors at ≥ half today's default strength
   if (dept.monitorabilityCommitment || s.flags['ws2.monitorabilityTax']) mul('E15', 0.5);
-  if (inRun(s, post, 'T-CONFESS')) mul('E17', 0.6); // SR-14b: no longer bundled in Heavy
+  meth('T-CONFESS', 0.6, 'E17'); // SR-14b: no longer bundled in Heavy
   if (techActive(s, 'T-NOISE')) mul('E18', 0.6);
-  if (inRun(s, post, 'T-ANTISCHEME')) {
-    mul('E19', 0.1);
-    mul('E28', 0.1);
-  }
+  meth('T-ANTISCHEME', 0.1, 'E19', 'E28');
   if (lockdownOn(s)) mul('E21', LOCKDOWN_COLLUSION_MULT);
   if (techActive(s, 'T-TMON') && routineMonitor(s) > 0) mul('E22', 0.5);
   // Signal patches: this lineage's (older saves) and the lab-wide ones (M4: a patched environment, grader or reward
@@ -720,40 +710,69 @@ const HEAL_METHODS = ['T-CONFESS', 'T-ANTISCHEME', 'T-INOC'];
 const HEAL_MAX = 2.5;
 const HEAL_PREF: Record<PostDesign['pref'], number> = { minimal: 0.5, engagement: 0.3, constitution: 1, persuasion: 0.2 };
 const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standard: 1, heavy: 1.6 };
-export function healRate(s: GameStateV2, post: PostDesign): number {
+export function healRate(s: GameStateV2, post: PostDesign, view: EffView = 'true'): number {
   const n = HEAL_METHODS.filter((id) => inRun(s, post, id)).length;
-  return HEAL_K * trueEfficacy(s, 'AG18') * Math.sqrt(Math.min(HEAL_MAX, 1 + n)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
+  const e = view === 'true' ? trueEfficacy(s, 'AG18') : believedEfficacy(s, 'AG18');
+  return HEAL_K * e * Math.sqrt(Math.min(HEAL_MAX, 1 + n)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 }
 
-/** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects). */
-export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion, gTrained?: number): TraitEnv {
-  const mods = playerMods(s, post, lineage);
-  for (const [e, k] of Object.entries(uModeEdgeMult(uModes))) mods[e] = (mods[e] ?? 1) * k;
+/** SR-15 (P6): what a run's training environment reads that only truth knows, in one place. The engine's view holds
+ *  the truth (edge weights, difficulty, U-modes, agenda efficacy, the stack's true detection); the run plan's prediction
+ *  holds the player's beliefs (public w̄ or the revealed weight, D = 1, no U-modes, posterior-mean efficacy, believed
+ *  detection). runEnv is the one mechanism both run, so prediction and effect can differ only through hidden truth. */
+export interface RunView {
+  eff: EffView;
+  w: Record<string, number>;
+  D: number;
+  uModes: readonly UModeId[];
+  /** Detection for detection-gated removal ("what you can see you can fix", M4). */
+  det?: Partial<Record<TraitId, number>>;
+}
+export const trueRunView = (s: GameStateV2, uModes: readonly UModeId[], post: PostDesign | undefined, v?: ModelVersion): RunView => ({
+  eff: 'true', w: s.hidden.edgeWeights, D: s.hidden.difficultyMult, uModes, det: post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined,
+});
+export function believedRunView(s: GameStateV2, post: PostDesign | undefined, v?: ModelVersion): RunView {
+  const w: Record<string, number> = { ...W_BAR };
+  for (const e of EDGES) if (s.player.safety.edgeRevealed[e.id]) w[e.id] = s.hidden.edgeWeights[e.id];
+  return { eff: 'believed', w, D: 1, uModes: [], det: post && v ? believedStackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined };
+}
+
+/** The training environment of one of the player's runs in a view (SR-15): moderators (methods scaled by efficacy),
+ *  safety-training removal gated by detection, AG18 healing, anti-scheming's removal and EA cost, inoculation's
+ *  generalisation cut. `x` is the trait vector removal reads (true traits, or the believed estimates). */
+export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, view: RunView, gAf: number): TraitEnv {
+  const mods = playerMods(s, post, lineage, view.eff);
+  for (const [e, k] of Object.entries(uModeEdgeMult(view.uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
   // SAND) that behavioural training misses: their visibility rises OC_VIS → OC_VIS_AUDIT (×1.5) [D] (§3.3.2 H "alignment-audit").
   const audits = post?.safety === 'heavy' && Object.values(s.player.safety.techniques).some((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
-  const det = post && v ? stackDetectionMap(s, v, REMOVABLE_TRAITS) : undefined;
-  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? OC_VIS_AUDIT : OC_VIS, det) : {};
+  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? OC_VIS_AUDIT : OC_VIS, view.det) : {};
   if (post) {
-    const h = healRate(s, post);
+    const h = healRate(s, post, view.eff);
     if (h > 0) for (const t of REMOVABLE_TRAITS) removal[t] = 1 - (1 - (removal[t] ?? 0)) * (1 - h);
   }
   let eaMult = 1;
-  // Anti-scheming training (E25; SR-14b: a method, no longer bundled in Heavy): SCHEME −0.95 × current per run; EA × 2 the first time
-  // a lineage gets it (R14: anti-scheming training doubled EA 2.3 → 4.5% once; re-applying maintains it) [D].
+  // Anti-scheming training (E25; SR-14b: a method, no longer bundled in Heavy): SCHEME −0.95 × current per run at a
+  // typical AG18 efficacy (SR-15: × s0·e); EA × 2 the first time a lineage gets it (R14: anti-scheming training doubled
+  // EA 2.3 → 4.5% once; re-applying maintains it) [D].
   if (post && inRun(s, post, 'T-ANTISCHEME')) {
-    removal.SCHEME = Math.max(removal.SCHEME ?? 0, ANTISCHEME_REMOVAL);
+    removal.SCHEME = Math.max(removal.SCHEME ?? 0, methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff));
     if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
   }
   const tier = tierOfLevel(labLevel(s));
   return {
-    signals: sg, omega, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods, amp: uModeAmp(uModes), removal,
-    removalMult: uModeRemovalMult(uModes), crystalAt: crystalThreshold(uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
+    signals: sg, omega, D: view.D, w: view.w, mods, amp: uModeAmp(view.uModes), removal,
+    removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult, hackGen: inRun(s, post, 'T-INOC') ? INOC_MULT : 1,
-    // E18: the trained model's G (the new version's, a base's pretraining G; else the lab's best model).
-    afGate: afCapGate(gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+    eaMult, hackGen: inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff) : 1,
+    afGate: afCapGate(gAf),
   };
+}
+
+/** Engine environment for one of the player's runs (true weights, true difficulty, U-mode effects): runEnv in the
+ *  true view. E18: the AF gate at the trained model's G (the new version's, a base's pretraining G; else the lab's best). */
+export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion, gTrained?: number): TraitEnv {
+  return runEnv(s, x, sg, omega, post, lineage, trueRunView(s, uModes, post, v), gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline));
 }
 
 const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id, e.wBar]));
@@ -767,20 +786,17 @@ const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id,
  *  noise = w): a new model's list starts with it ("inherit:<parent>"); `from` 'stream' keeps the version's list and
  *  folds into a trailing 'stream' entry (noise = √(old² + w²)). */
 export const PREDICT_SD_FLOOR = 0.04;
-export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s), from = 'predicted', floor = PREDICT_SD_FLOOR): Record<TraitId, TraitBelief> {
+export function predictBeliefs(s: GameStateV2, prior: Record<TraitId, TraitBelief>, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, omegaSafety = omega, growthBy?: Partial<Record<TraitId, number>>, lh = 0, gTrained?: number, pretrain = false, memory = memoryOn(s), from = 'predicted', floor = PREDICT_SD_FLOOR, v?: ModelVersion): Record<TraitId, TraitBelief> {
   const est = {} as TraitVector;
   for (const t of TRAIT_IDS) est[t] = prior[t]?.est ?? TRAIT_START[t];
-  const w: Record<string, number> = { ...W_BAR };
-  for (const e of EDGES) if (s.player.safety.edgeRevealed[e.id]) w[e.id] = s.hidden.edgeWeights[e.id];
+  // SR-15 (P6): the engine's mechanism (runEnv) on the believed estimates in the believed view: methods at believed
+  // efficacy, detection-gated removal with the believed stack (`v`: the model the stack meets), AG18 healing at believed
+  // efficacy, anti-scheming's removal and the alignment-audit visibility, as the engine applies them.
+  // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
   const env: TraitEnv = {
-    signals: sg, omega, omegaSafety, D: 1, w, mods: playerMods(s, post, lineage), amp: {}, removal: post ? safetyRemovalMap(est, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s)) : {},
-    removalMult: 1, crystalAt: 0.5, tierF: tierOfLevel(labLevel(s)) / 3, memory, growthMult: 1,
-    bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult: inRun(s, post, 'T-ANTISCHEME') && s.flags[`ws2.e25.${lineage}`] === undefined ? ANTISCHEME_EA_MULT : 1,
-    // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget).
-    lh, hackGen: inRun(s, post, 'T-INOC') ? INOC_MULT : 1,
-    // E18: the AF gate at the run card's predicted G (its level band's midpoint), else the lab's best model.
-    afGate: afCapGate(gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+    ...runEnv(s, est, sg, omega, post, lineage, believedRunView(s, post, v), gTrained ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline)),
+    omegaSafety, memory,
+    lh, // E16: the run's learned hacking is the player's own quantity (its suites' exploitability, RL shares and budget)
     pretrain, // E20: a base or continued-pretraining run grows no AF along E13 / E27 (public rule)
     ...(growthBy ? { growthBy } : {}),
   };
@@ -1148,7 +1164,7 @@ export function applyRunToTraits(s: GameStateV2, ctx: SystemCtx, run: TrainingRu
       mk.COT = clamp01(1 - (1 - (mk.COT ?? 0)) * 0.7);
     }
   }
-  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior');
+  version.beliefs = predictBeliefs(s, parent?.beliefs ?? defaultBeliefs(s), sg, om.growth, post, lineage, om.safety, steerGrowth(probeSteer(s, probe, true)), lh, predictedG(s, run), false, env.memory, parent ? `inherit:${parent.id}` : 'prior', PREDICT_SD_FLOOR, probe);
   // P14 Goodhart: steering along the probes' directions masks the steered traits from the WB family (E24's masks).
   probeGoodhart(version, steer);
   // Goodhart: detectors explicitly trained against in this run (§3.5.6). P23: a faithful-CoT run's COT masks resist.
@@ -1180,7 +1196,7 @@ export function applyStreamDay(s: GameStateV2, v: ModelVersion): void {
   if (env.eaMult !== 1) setFlag(s, `e25.${lineage}`, s.time.day);
   // SR-06: the stream's beliefs widen by its day of training (predictBeliefs on the PUBLIC rule, scaled floor).
   const omDay = 0.6 / 42;
-  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post));
+  v.beliefs = predictBeliefs(s, v.beliefs, sg, omDay, v.design, lineage, omDay, undefined, env.lh, undefined, false, env.memory, 'stream', PREDICT_SD_FLOOR * Math.sqrt(omDay / OMEGA_KIND.post), v);
 }
 
 /** IDA cycle (P18): ω = 0.4 × (ρ/ρ_ref)^¼ on its extra RL (IDA_RL_SHARE), then misalignment compounds × 1.1 (§3.5.4

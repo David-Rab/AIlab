@@ -12,7 +12,40 @@
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import type { CostLine, GameStateV2, PostDesign, TechniqueId } from '../types';
 import { ANTISCHEME_EA_MULT, RETRAIN_TRUE, RETRAIN_VISIBLE } from './traits';
+import { AGENDA_BY_ID } from '../../../data/v2/agendas';
+import { believedEfficacy, clamp01, trueEfficacy } from './common';
 import { techniqueRole } from './techniques';
+
+// ── SR-15: a method's effect scales with its research efficacy (SAFETY-REDESIGN §3.4, SAF-07, P6) ──
+//
+// Each method's source-anchored effect `base` (a growth multiplier such as persona vectors' ×0.7, or a removal such as
+// anti-scheming's 0.95) is what it does at a TYPICAL agenda efficacy, the agenda's prior mean ē = a / (a + b). The
+// world's own efficacy e of the method's agenda scales it:
+//   mult = clamp01(1 − (1 − base)·s0·e),   s0 = 1 / ē   (removal r → clamp01(r·s0·e))
+// so at e = ē the method gives its sourced effect, a weak agenda a weak method, a strong one more (capped at a full
+// effect). The engine reads e = trueEfficacy (hidden, with the known λ2 shift); the run plan's prediction reads the
+// posterior mean (believedEfficacy) through the same code (view), so the two differ only through hidden truth.
+export type EffView = 'true' | 'believed';
+/** The efficacy of method `id`'s agenda in a view (0 for an unknown technique). */
+export function methodEfficacy(s: GameStateV2, id: string, view: EffView = 'true'): number {
+  const ag = s.player.safety.techniques[id]?.agenda;
+  if (!ag || !AGENDA_BY_ID[ag]) return 0;
+  return view === 'true' ? trueEfficacy(s, ag) : believedEfficacy(s, ag);
+}
+/** s0 of method `id`: 1 / its agenda's prior mean efficacy. */
+export function methodS0(s: GameStateV2, id: string): number {
+  const ag = s.player.safety.techniques[id]?.agenda;
+  const pr = ag ? AGENDA_BY_ID[ag]?.prior : undefined;
+  return pr ? (pr[0] + pr[1]) / pr[0] : 1;
+}
+/** A method's multiplier on growth: mult = clamp01(1 − (1 − base)·s0·e). */
+export function methodMult(s: GameStateV2, id: string, base: number, view: EffView = 'true'): number {
+  return clamp01(1 - (1 - base) * methodS0(s, id) * methodEfficacy(s, id, view));
+}
+/** A method's removal share: clamp01(base·s0·e). */
+export function methodRemoval(s: GameStateV2, id: string, base: number, view: EffView = 'true'): number {
+  return clamp01(base * methodS0(s, id) * methodEfficacy(s, id, view));
+}
 
 export interface MethodDef {
   id: TechniqueId;
@@ -84,7 +117,9 @@ export function methodLines(s: GameStateV2, post: PostDesign, lineage?: string):
     }
     const d = METHOD_BY_ID[m];
     if (!d) continue;
-    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: d.effect });
+    // SR-15: the effect is the typical one (at the agenda's prior mean efficacy) × s0·e; the plan shows the believed e.
+    const k = methodS0(s, m) * methodEfficacy(s, m, 'believed');
+    gains.push({ currency: 'alignment', amount: 1, unit: 'method', target: `${d.effect} at a typical agenda; yours ×${k.toFixed(2)} of that (believed efficacy ${Math.round(methodEfficacy(s, m, 'believed') * 100)}%)` });
     if (m === 'T-ANTISCHEME' && (!lineage || s.flags[`ws2.e25.${lineage}`] === undefined)) exposure.push({ currency: 'monitorability', amount: -1, unit: 'EA', target: `eval awareness ×${ANTISCHEME_EA_MULT}: the first anti-scheming training on this lineage (Schoen et al. 2025)` });
   }
   return { gains, exposure };
