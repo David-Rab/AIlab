@@ -62,7 +62,10 @@ export function distillFit(params: number | undefined): number {
 /** RD-P09: output tokens a distiller harvesting at full access collects [P-r, research/RD-X04r D4: MiniMax's campaign
  *  ≈ 13M exchanges ≈ 100B tokens, the scale behind IFP's S ≈ 0.5]. */
 export const DISTILL_FULL_TOKENS = 1e11;
-/** RD-P09: share of a product's anonymous usage a distiller can take before it is noticed [stand-in]. */
+/** RD-P09: share of a product's anonymous usage a distiller can take before it is noticed [D stand-in, CAL-P: no lab
+ *  publishes the traffic its campaigns hid in. Bracket: MiniMax's >13M exchanges (~1e11 tokens, Anthropic Feb 2026)
+ *  over 90 days of a frontier API's anonymous half is ~3e-4 at OpenAI's 6B API tokens/min (DevDay 2025) and ~7e-3 at
+ *  this game's day-0 player API (3.4e11 tokens/day); 0.01 is the top of that range (research/CAL-products-sources.md D1)]. */
 export const DISTILL_HARVEST_SHARE = 0.01;
 /** RD-P09: days of usage a distiller harvests before the post-training it feeds [stand-in: a quarter, about a rival's
  *  post-training cadence]. */

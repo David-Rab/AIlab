@@ -43,7 +43,7 @@ import {
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
-import { kycDemandFactor, kycReviewShare } from '../models/deployments';
+import { kycDemandFactor } from '../models/deployments';
 import { PEAK_FLOPS } from '../../../data/v2/workTypes';
 
 // RD-P03 (DD-02): the player's sector hours split between its products by the buyers' choice (each product its own
@@ -509,7 +509,6 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       revenue += x.need > 0 ? (x.dem * got) / x.need : x.dem;
       left -= got;
     }
-    revenue *= 1 - kycReviewShare(d); // RD-P09: reviewing the buyers who verify
     // Capacity ($B/yr the served H100e could earn): consumers at the paying users' rate; sector products in serving order
     // (seats, then per-hour work), H100e beyond the need at the per-hour work's rate.
     let capacity: number;

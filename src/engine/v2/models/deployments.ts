@@ -27,10 +27,12 @@ export const ANON_SHARE: Record<Channel, number> = { consumer: 0.3, api: 0.5, ag
 /** RD-P09: the part of the anonymous share left at each KYC level (0–3): each level verifies ten times more of the
  *  self-serve accounts [D, the access formula's tenfold cut per level, research/RD-X04r D2]. */
 export const KYC_ANON_LEFT = [1, 0.1, 0.01, 0.001] as const;
-/** RD-P09: share of the anonymous buyers asked to verify who leave instead [stand-in]. */
-export const KYC_REFUSE = 0.1;
-/** RD-P09: review cost, as a share of the revenue of the buyers it verifies [stand-in]. */
-export const KYC_REVIEW_COST = 0.02;
+/** RD-P09, CAL-P: share of the anonymous buyers asked to verify who leave instead. 0.25 [P-analogue, low confidence]:
+ *  Ofcom, Online Nation 2025: after UK age checks began (25 Jul 2025), unique visitors fell 24-31% in a month on the
+ *  largest sites that added them ("may be due to visitors' unwillingness or inability to complete the age assurance
+ *  check"), with unverified substitutes a click away. An upper-end analogue: anonymity matters more there than to most
+ *  API buyers (research/CAL-products-sources.md K1). */
+export const KYC_REFUSE = 0.25;
 /** RD-P09: the share of this product's usage still bought anonymously after its KYC level. */
 export function anonShare(d: Pick<Deployment, 'channel' | 'kyc'>): number {
   return ANON_SHARE[d.channel] * (d.channel === 'open' ? 1 : KYC_ANON_LEFT[d.kyc ?? 0]);
@@ -39,11 +41,9 @@ export function anonShare(d: Pick<Deployment, 'channel' | 'kyc'>): number {
 const kycAsked = (d: Pick<Deployment, 'channel' | 'kyc'>) => (d.channel === 'open' ? 0 : ANON_SHARE[d.channel] * (1 - KYC_ANON_LEFT[d.kyc ?? 0]));
 /** RD-P09: the product's demand left after KYC: the asked buyers who refuse to verify are lost. */
 export const kycDemandFactor = (d: Pick<Deployment, 'channel' | 'kyc'>) => 1 - kycAsked(d) * KYC_REFUSE;
-/** RD-P09: share of the product's revenue spent reviewing the buyers who verify. */
-export const kycReviewShare = (d: Pick<Deployment, 'channel' | 'kyc'>) => {
-  const f = kycDemandFactor(d);
-  return f > 0 ? (KYC_REVIEW_COST * kycAsked(d) * (1 - KYC_REFUSE)) / f : 0;
-};
+// CAL-P: the review cost (2% of the verified buyers' revenue) is deleted (review/products.md F5). A check costs about
+// $0.06-1.50 once (Ofcom 2026: median per-check cost about GBP 0.06; Stripe Identity: $1.50 per ID check), under 1% of
+// a year of a $20/month account, so it rounds to nothing (research/CAL-products-sources.md K2).
 /** Default serving-pool reservation per channel [D]. */
 export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, agents: 0.2, enterprise: 0.15, gov: 0.05, trusted: 0.03, internal: 0, open: 0 };
 

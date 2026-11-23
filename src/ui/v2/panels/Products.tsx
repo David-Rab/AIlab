@@ -23,7 +23,7 @@ import { autoWatcher } from '../../../engine/v2/safety/trusted';
 import {
   CHANNEL_VARIANTS, agentsGate, dangerView, buildEtas, catchRate, dateOf, deployGate, editBlock, editedProduct, effortLock, fmtDate, isProduct, measuredHorizonH,
   demandModifiers, featureView, toolRivalsView, measuredLOf, nodeKnown, PENALTY_MAX, previewEdit, productReadouts, servingPool, versionById, CONVERGED,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified, needsCert, kycDemandFactor, kycReviewShare,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_COVER, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified, needsCert, kycDemandFactor, KYC_REFUSE,
 } from '../../../engine/v2';
 import type { Channel, CustomerView, DangerRead, Deployment, FeatureKind, GameStateV2, LineupRow, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store } from '../store';
@@ -224,7 +224,7 @@ function ProductCard({ s, d, r, danger, draft, setDraft }: { s: GameStateV2; d: 
           <PackageRow s={s} depId={d.id} testId={`prod-package.${d.id}`} />
         </div>
         {(d.channel === 'api' || d.channel === 'agents') && <div className="pc-row">
-            <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; a tenth of those asked leave (demand ×{F.num(kycDemandFactor(n), 3)}) and review costs {F.pct(kycReviewShare(n), 1)} of revenue.</TipCard>}><span className="pc-k">KYC</span></Tip>
+            <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; {F.pct(KYC_REFUSE, 0)} of those asked leave rather than verify (demand ×{F.num(kycDemandFactor(n), 3)}; an estimate from the visitors UK sites lost to age checks).</TipCard>}><span className="pc-k">KYC</span></Tip>
             <Seg testId={`prod-kyc.${d.id}`} value={n.kyc} options={[0, 1, 2, 3].map((k) => ({ v: k as Deployment['kyc'], label: String(k) }))} onChange={(k) => set({ kyc: k })} />
         </div>}
         <div className="pc-row">
