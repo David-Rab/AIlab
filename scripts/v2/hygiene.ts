@@ -7,7 +7,6 @@ import { TRAIT_IDS } from '../../src/data/v2/traits';
 import { causeStrip } from '../../src/engine/v2/core/causes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
-import { launchRun } from '../../src/engine/v2/models/runs';
 import { EVENT_BY_ID, SYSTEMS } from '../../src/engine/v2/core/registry';
 import { STREAMS, StreamRng } from '../../src/engine/v2/core/rng';
 import { MIN_SCHEMA_REV, OLD_SAVE_MESSAGE, SAVE_BUDGET_BYTES, SCHEMA_REV, deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
@@ -17,7 +16,7 @@ import { postureOf } from '../../src/engine/v2/actors/rivals';
 import { gV0 } from '../../src/engine/v2/models/capability';
 import { postG, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { stacksGEquiv } from '../../src/engine/v2/models/stacks';
-import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST } from '../../src/data/v2/runDesign';
+import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { ownedOnline, rentedOnline } from '../../src/engine/v2/compute/power';
 import { nodeKnown } from '../../src/engine/v2/models/tree';
@@ -362,11 +361,11 @@ try {
   threw = true;
 }
 check(threw, 'save: v1 save is rejected (no migration)');
-// RD-C03 (DD-20): the save floor is MIN_SCHEMA_REV (33). Every older save (v2 and model v3 V1–F2, revs 0–32, and a
-// save with no schemaRev) is refused with the player-facing message; the oldest loading rev is 33 (tested below).
+// UB-3 (DD-20): the save break. MIN_SCHEMA_REV = SCHEMA_REV: every older save (any rev below, and a save with no
+// schemaRev) is refused with the player-facing message, a newer one with its own message, and the current rev loads.
 {
   const bad: string[] = [];
-  const revs: (number | undefined)[] = [undefined, 0, 1, 11, 14, 15, 20, 27, MIN_SCHEMA_REV - 1];
+  const revs: (number | undefined)[] = [undefined, 0, 33, 102, MIN_SCHEMA_REV - 1];
   const base = serialize(run(detSetup, 30));
   for (const rev of revs) {
     const old = JSON.parse(base) as Record<string, unknown>;
@@ -380,162 +379,14 @@ check(threw, 'save: v1 save is rejected (no migration)');
     }
     if (msg !== OLD_SAVE_MESSAGE) bad.push(`${rev ?? 'none'}: ${msg || 'loaded'}`);
   }
-  check(MIN_SCHEMA_REV === 33 && bad.length === 0, `save: a save below schemaRev ${MIN_SCHEMA_REV} is refused ("${OLD_SAVE_MESSAGE}")`, bad.slice(0, 3).join('; '));
-}
-// Merge FINM: finance v3's migrations 33 → 42 (built on finance-v3 as 11 → 20, renumbered after model v3's 33). A
-// model-v3 save (rev 33) carries the old finance block: an SPV leaseback, an SPV deal, the JV and the one-quarter
-// operating cash become a financing lease at 12%, nothing, nothing and a four-quarter history; the story fields and the
-// rivals' marks are filled. The chain is idempotent (a current state labelled 33 loads unchanged), and every model-v3
-// rev from MIN_SCHEMA_REV (33, the oldest save that loads) to 42 loads a current state up to SCHEMA_REV.
-{
-  const cur = run(detSetup, 60);
-  const old = JSON.parse(serialize(cur)) as GameStateV2 & Record<string, unknown>;
-  old.schemaRev = 33;
-  const f = old.player.finance as unknown as Record<string, unknown> & { ledger: Record<string, unknown>[]; deals: Record<string, unknown>[]; ws3: Record<string, unknown>; promises?: unknown; credibility?: unknown };
-  f.ledger.push({ id: 'L-spv-S9', payee: 'Keystone Capital', kind: 'spvRVG', perQuarter: 0.2, endDay: 900, cancellableNoticeQ: null, penalty: 0 });
-  f.deals.push({ id: 'D-old-spv', template: 'spv', partner: 'Keystone Capital', day: 10, strings: {} });
-  f.ws3.jv = { partner: 'Meridian Group' };
-  f.ws3.opCashQ = 1.5;
-  delete f.ws3.opCash4q;
-  delete f.promises;
-  delete f.credibility;
-  delete (f.ws3 as { mark?: unknown }).mark;
-  for (const r of old.rivals) { const rf = r.finance as unknown as Record<string, unknown>; delete rf.mark; delete rf.poolQ; delete rf.raised; }
-  let msg = '';
-  let g: GameStateV2 | undefined;
+  check(MIN_SCHEMA_REV === SCHEMA_REV && bad.length === 0, `save: a save below schemaRev ${MIN_SCHEMA_REV} is refused ("${OLD_SAVE_MESSAGE}")`, bad.slice(0, 3).join('; '));
+  let newer = '';
   try {
-    g = deserialize(JSON.stringify(old));
+    deserialize(JSON.stringify({ ...(JSON.parse(base) as Record<string, unknown>), schemaRev: SCHEMA_REV + 1 }));
   } catch (e) {
-    msg = (e as Error).message;
+    newer = (e as Error).message;
   }
-  const lease = g?.player.finance.ledger.find((c) => c.id === 'L-fin-S9');
-  const okFin = !!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 103 && lease?.kind === 'finLease' && lease.rate === 0.12 && !g.player.finance.deals.some((d) => d.id === 'D-old-spv')
-    && !('jv' in g.player.finance.ws3) && JSON.stringify(g.player.finance.ws3.opCash4q) === '[1.5]' && Array.isArray(g.player.finance.promises) && typeof g.player.finance.credibility === 'number'
-    && (g.player.finance.valuation <= 0 || !!g.player.finance.ws3.mark) && g.rivals.every((r) => r.finance.poolQ !== undefined && r.finance.raised !== undefined);
-  check(okFin, 'save: a schemaRev-33 save (model v3, old finance) migrates to 42 (SPV leaseback → financing lease, SPV deal and JV gone, operating cash history, promises, credibility, story marks)', msg || JSON.stringify({ lease: lease?.kind, rate: lease?.rate, opCash4q: g?.player.finance.ws3.opCash4q }));
-  let same = false;
-  try {
-    const again = JSON.parse(serialize(cur)) as Record<string, unknown>;
-    again.schemaRev = 33;
-    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(same, 'save: the finance migrations 33 → 42 leave an already-migrated state unchanged (idempotent)', msg);
-  const bad: string[] = [];
-  for (let rev = MIN_SCHEMA_REV; rev < SCHEMA_REV; rev++) {
-    try {
-      const o = JSON.parse(serialize(cur)) as Record<string, unknown>;
-      o.schemaRev = rev;
-      const m = deserialize(JSON.stringify(o));
-      if (m.schemaRev !== SCHEMA_REV) bad.push(`${rev}: lands at ${m.schemaRev}`);
-    } catch (e) {
-      bad.push(`${rev}: ${(e as Error).message}`);
-    }
-  }
-  check(bad.length === 0, `save: every save rev ${MIN_SCHEMA_REV}–${SCHEMA_REV - 1} migrates to ${SCHEMA_REV} (a current state under each label)`, bad.slice(0, 3).join('; '));
-}
-// SAFMECH (schemaRev 43): a rev-42 save has no monitoring budget; it gets the old standard package's 20% of the safety
-// pool, and an already-migrated state labelled 42 loads unchanged (idempotent).
-{
-  const cur = run(detSetup, 30);
-  const old = JSON.parse(serialize(cur)) as GameStateV2;
-  old.schemaRev = 42;
-  delete (old.player.policies as unknown as Record<string, unknown>).monitorBudget;
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  let same = false;
-  try {
-    g = deserialize(JSON.stringify(old));
-    const again = JSON.parse(serialize(cur)) as GameStateV2;
-    again.schemaRev = 42;
-    same = stateHash(deserialize(JSON.stringify(again))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(!!g && g.schemaRev === SCHEMA_REV && SCHEMA_REV === 103 && same,
-    'save: a schemaRev-42 save migrates to 43 (monitoring budget = the old standard 20% of the safety pool; idempotent)', msg || `${g?.player.split.monitors}`);
-}
-// RD-C01 (schemaRev 44): a rev-43 save carries v2's knot table and the dead readout fields; the migration drops them, and
-// the loaded state equals the current one.
-{
-  const cur = run(detSetup, 30);
-  const old = JSON.parse(serialize(cur)) as GameStateV2;
-  old.schemaRev = 43;
-  (old.hidden.timeline.prod as unknown as Record<string, unknown>).knots = [{ p: 0, Mref: 1.25, A: 0.5, R: 2.6, Tref: 1, sdAI: -2 }];
-  // RD-R01 removed ProductionReadout.parts and .elast (the readout is rebuilt from research.last): the dead fields are
-  // planted only in the objects the current readout still has.
-  const pc = old.player.prodCache as unknown as { Ddata?: number; parts?: Record<string, number>; elast?: Record<string, number>; ratios: Record<string, number> } | undefined;
-  if (pc) {
-    pc.Ddata = 1;
-    if (pc.parts) pc.parts.base = 1;
-    if (pc.elast) {
-      pc.elast.train = 0;
-      pc.elast.data = 0;
-    }
-    pc.ratios.d = 1;
-  }
-  let msg = '';
-  let same = false;
-  try {
-    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(!!pc && same, 'save: a schemaRev-43 save migrates to 44 (knot table and dead readout fields dropped; then equal to the current state)', msg);
-}
-// RD-B02 (schemaRev 45): a rev-44 save's runs in flight lack the new snapshot fields (a base's draw and P24 bonus, a
-// post-train's domainG, P07 horizon and serving FLOP part); the migration fills them from the save's day, which equals a
-// launch on that day, so the loaded state equals the current one. A finished run is left alone.
-{
-  const cur = run(detSetup, 30);
-  cur.player.finance.cash += 1e3;
-  const ctx = makeCtx(cur);
-  const rb = launchRun(cur, ctx, { kind: 'base', base: { ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.5 });
-  const rp = launchRun(cur, ctx, { kind: 'post', baseId: cur.player.models.bases[0].id, post: { ...REFERENCE_POST, methods: [] }, poolShare: 0.2 });
-  const old = JSON.parse(serialize(cur)) as GameStateV2;
-  old.schemaRev = 44;
-  const strip = (id: string, keys: string[]) => {
-    const rec = old.player.models.runs.find((r) => r.id === id)?.recipe as Record<string, unknown> | undefined;
-    for (const k of keys) delete rec?.[k];
-    return !!rec;
-  };
-  const okStrip = typeof rb !== 'string' && typeof rp !== 'string' && strip(rb.id, ['draw', 'p24']) && strip(rp.id, ['domainG', 'p07', 'serveOom']);
-  let msg = typeof rb === 'string' ? rb : typeof rp === 'string' ? rp : '';
-  let same = false;
-  try {
-    same = stateHash(deserialize(JSON.stringify(old))) === stateHash(cur);
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  check(okStrip && same, 'save: a schemaRev-44 save migrates to 47 (44 → 45: runs in flight get the launch snapshot from the save\'s day; 45 → 46 keeps the packs; then equal to the current state)', msg);
-}
-
-// RD-B12 (schemaRev 46): a rev-45 save keeps sector packs as the product's sectorFocus plus the world's certDay; the
-// migration puts each pack (with its certification day) on its product, drops a certified sector no product carries
-// (the lost pack of B18) and removes world.fx.certDay. A rev-44 save runs 44 → 45 first, then the same move.
-for (const rev of [45, 44]) {
-  const cur = run(detSetup, 30);
-  const old = JSON.parse(serialize(cur)) as GameStateV2;
-  old.schemaRev = rev;
-  const ent = old.player.deployments.find((d) => d.channel === 'enterprise')!;
-  for (const d of old.player.deployments) {
-    delete (d as Partial<GameStateV2['player']['deployments'][number]>).adaptations;
-    (d as unknown as { sectorFocus: string[] }).sectorFocus = d === ent ? ['LEGAL'] : [];
-  }
-  (old.world.fx as unknown as { certDay: Record<string, number> }).certDay = { LEGAL: 77, FIN: 12 };
-  let msg = '';
-  let g: GameStateV2 | undefined;
-  try {
-    g = deserialize(JSON.stringify(old));
-  } catch (e) {
-    msg = (e as Error).message;
-  }
-  const ge = g?.player.deployments.find((d) => d.id === ent.id);
-  // RD-P08 (70): the pack then becomes an adaptation on the same product (Legal needs no certification).
-  const ok = !!g && JSON.stringify(ge?.adaptations) === JSON.stringify([{ sector: 'LEGAL' }])
-    && g.player.deployments.every((d) => Array.isArray(d.adaptations) && !('packs' in d) && !('sectorFocus' in d) && (d.id === ent.id || d.adaptations.length === 0)) && !('certDay' in g.world.fx);
-  check(ok, `save: a schemaRev-${rev} save migrates to 47 (sector packs on their product with the certification day; an unhosted certified sector dropped; world certDay gone)`, msg || JSON.stringify(ge?.adaptations));
+  check(newer.includes('newer'), 'save: a save from a newer build is refused', newer || 'loaded');
 }
 
 // ---------- 6. Cadences ----------

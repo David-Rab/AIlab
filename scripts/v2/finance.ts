@@ -11,7 +11,7 @@ import { BASELINES, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
-import { deserialize, SCHEMA_REV, serialize } from '../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { cadencesDue, dayOfDate, dayOfQuarter, decimalYear, quarterIndex } from '../../src/engine/v2/core/time';
 import { clearMarket, cloudPricePerYear, demandShock, expectedCloudPrice, expectedListPrice, impliedMargin, orderWeight, rentalBase, repriceCancellableCloud, spotRental } from '../../src/engine/v2/compute/market';
 import { addCloud, addSpotRental, chipQuote, rentQuote } from '../../src/engine/v2/compute/orders';
@@ -24,7 +24,6 @@ import { boardVote, CRITICS, CRITICS_INVESTOR, criticsAvailable, debtVote, syncF
 import { MOOD_SOURCE_OF, MOOD_WEIGHTS, moodWeight } from '../../src/engine/v2/finance/mood';
 import { acceptRepriced, bookRound, closePendingRound, dMax, LARGE_ROUND, lastPostMoney, roundSplit, partnerEquityIn, raiseCeiling, REPRICED_DECIDE_DAYS } from '../../src/engine/v2/finance/equity';
 import { bustTarget, exitBuyer, markRivals, parentFunded, capMultiple, RIVAL, RIVAL_GOV, rivalCred, rivalGov, rivalMoneyQ, rivalSpend, valueCap } from '../../src/engine/v2/finance/rivalFinance';
-import { FIN as RIVAL_START_FIN } from '../../src/engine/v2/actors/rivals';
 import { addRivalKnowledge, recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { ws4 as ws4Of } from '../../src/engine/v2/actors/state';
 import { DUAL_CLASS_GOV, growthOf, openWeightFloor, playerGov, poolAnnualOf, sectorValue, STORY, storyNow, storyShares, SUPPLIER, supplierTerms } from '../../src/engine/v2/finance/story';
@@ -601,18 +600,6 @@ for (const a of FINANCE_ACTIONS) {
     check(o2.behind.some((p) => p.p.id === 'PRb') && o2.near.some((c) => c.id === 'creditLine'), 'FIN2 a promise behind its needed-by-now path and a covenant near its limit are flagged', `behind ${o2.behind.length}, near ${o2.near.map((c) => `${c.id} ${c.state}`).join(', ')}`);
   }
   {
-    // Save migration 34 → 35: credibility by start type, an empty promise list, the revenue plan gone.
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 34;
-    delete raw.player.finance.credibility;
-    delete raw.player.finance.promises;
-    raw.player.finance.raisedLast4q = 12;
-    raw.player.finance.ws3.revenuePlan = 40;
-    const m = deserialize(JSON.stringify(raw));
-    check(m.player.finance.credibility === 60 && Array.isArray(m.player.finance.promises) && !('revenuePlan' in m.player.finance.ws3) && !('raisedLast4q' in m.player.finance), 'FIN2 save migration 34 → 35');
-  }
-  {
     // The reference bot (FIN2 autopilot): raises when its cash projection runs short, at the ceiling, on the milestone it
     // is surest of. Rounds per year and promise results across the 12 RefBot seeds.
     const per = (y: number) => median(ref.map((r) => r.s.player.finance.rounds.filter((x) => Math.floor(decimalYear(r.s, x.day) + 1e-9) === y).length));
@@ -726,18 +713,6 @@ for (const a of FINANCE_ACTIONS) {
     const bcLine = `median ${f1(bc)} (${ref.map((r) => r.s.player.board.confidence.toFixed(0)).join(' ')}); design target ≥ 55`;
     if (bc >= 40) console.log(`INFO  FIN3a RefBot end-2027 board confidence  — ${bcLine}`);
     else smokeCheck(false, 'FIN3a RefBot end-2027 board confidence median ≥ 40 (collapse guard)', bcLine);
-  }
-  {
-    // Save migration 35 → 36: the pending-approvals list and old vote blocks go; E37's capex freeze stays.
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 35;
-    raw.player.board.pendingApprovals = [];
-    raw.player.finance.ws3.blockedUntil = { 'fin.raise': 9999, 'deal:sovereign': 9999, 'cmp.newSite': 9999 };
-    // FIN3b: migration 36 → 37 then drops the block list (E37's capex freeze was its last user) and the reinstatement day.
-    raw.player.finance.ws3.reinstatedDay = 5;
-    const m = deserialize(JSON.stringify(raw));
-    check(!('pendingApprovals' in m.player.board) && !('blockedUntil' in m.player.finance.ws3) && !('reinstatedDay' in m.player.finance.ws3), 'FIN3a/FIN3b save migrations 35 → 36 → 37 (approvals list, board blocks and reinstatement gone)');
   }
 }
 
@@ -1172,27 +1147,6 @@ for (const a of FINANCE_ACTIONS) {
     check(!err && !!d && d.strings.boardVotes === 2 && !!d.strings.exclusivity && Object.keys(d.strings).sort().join(',') === 'boardVotes,exclusivity' && near(s.player.finance.ownership.strat[d.partner], Math.max(PARTNER_TERMS.rescue.stake, after), 1e-6) && after >= PARTNER_TERMS.rescue.stake - 1e-9 && s.player.board.seats.length === seats0 + 1 && s.player.board.seats.some((x) => x.holder === d.partner && x.weight === 2), 'FIN4a rescue: a 30% stake, a board seat with two votes and exclusivity (no inert IP flag)', `${err ?? ''} ${d?.partner} ${F1pct(s.player.finance.ownership.strat[d?.partner ?? ''] ?? 0)}`);
   }
   {
-    // Save migration 37 → 38: old template records become partner records; inert strings, offers, vendor notes and
-    // observer seats go.
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 37;
-    raw.player.finance.deals = [
-      { id: 'DL-northwind0', template: 'hyperscalerEquity', partner: 'Northwind Cloud', day: -2000, strings: { observer: true, ipRights: true } },
-      { id: 'DL9', template: 'hyperscalerEquity', partner: 'Azimuth', day: 100, strings: { observer: true, exclusivity: true, revenueShare: 0.08 } },
-      { id: 'DL10', template: 'chipVendorEquity', partner: 'Silica Systems', day: 200, strings: {} },
-      { id: 'DL11', template: 'sovereign', partner: 'Gulf Sovereign Fund', day: 300, strings: { inCountrySite: true } },
-      { id: 'DL12', template: 'vendorFinance', partner: 'Corvid Micro', day: 300, strings: {} },
-    ];
-    raw.player.finance.ws3.offers = [{ id: 'OF1', template: 'sovereign', partner: 'Gulf Sovereign Fund' }];
-    raw.player.finance.debts.push({ id: 'D-vn', kind: 'vendorNote', principal: 5, drawn: 5, spreadBp: 300, maturityDay: 2000, covenant: 'convertsAtIPO' });
-    raw.player.board.seats.push({ kind: 'strategic', holder: 'Northwind Cloud (observer)', stance: [0, 0, 0, 0], weight: 0 });
-    const m = deserialize(JSON.stringify(raw));
-    const ds = m.player.finance.deals;
-    const strs = JSON.stringify(ds.map((d) => d.strings));
-    check(ds.length === 4 && ds[0].legacy === true && ds.map((d) => d.kind).join(',') === 'hyperscaler,hyperscaler,chipVendor,sovereign' && !/observer|ipRights|inCountrySite/.test(strs) && ds[1].strings.exclusivity === true && ds[1].strings.revenueShare === 0.08 && ds[2].supply?.kind === 'chips' && !('offers' in m.player.finance.ws3) && m.player.finance.debts.some((d) => d.id === 'D-vn' && d.kind === 'bond') && !m.player.board.seats.some((x) => /observer/.test(x.holder)), 'FIN4a save migration 37 → 38: template deals become partner records (legacy holder, kinds, exclusivity and revenue share kept; observer / IP / in-country strings, offers, vendor notes and observer seats gone)', strs);
-  }
-  {
     // The reference bot's partner deal: a hyperscaler on cloud (Azimuth on the leader start), priced on the path.
     const deals = ref.map((r) => r.s.player.finance.deals.find((d) => d.kind === 'hyperscaler' && !d.legacy && !d.rescue)).filter((d): d is NonNullable<typeof d> => !!d);
     const by = deals.reduce((a, d) => ({ ...a, [d.partner]: (a[d.partner] ?? 0) + 1 }), {} as Record<string, number>);
@@ -1390,19 +1344,6 @@ for (const a of FINANCE_ACTIONS) {
     check(!!rv && rv.year === 0 && rv.over >= 10 && rv.over < 10.6 && over.length === 1 && near(over[0].delta, -DIVISION.overConf * (rv.over / budget0) * moodWeight(s, 'setbacks')) && near(d.carryIn, -rv.over) && near(s.player.finance.cash, d.carryIn + d.budget / 4, 0.01), 'FIN5c review: the overspend the parent is still covering costs −30 × overspend ÷ budget; it is not written off (the new year starts with the advance, repaid from its payments); cash −$10B on the eve plus that day\'s payroll', `over ${f1(rv?.over ?? 0)} · ${f1(over[0]?.delta ?? 0)} confidence · cash after the first payment ${f1(s.player.finance.cash)}`);
     check(d.year === 1 && near(d.plan, parentBudgetYear(1)) && near(d.budget, d.plan * budgetFactor(d.confidence)) && d.confidence < 70 && newGoals.length >= 2 && newGoals.every((g) => g.closeDay === review && g.deadline === dayOfDate(START, '2027-07-01')), 'FIN5c review: this year\'s budget = the plan × the factor at the confidence after the review (missed goals and overspend cut it); new goals due at the next review', `budget ${f1(d.budget)} = ${f1(d.plan)} × ${F1pct(d.factor)} at ${f1(d.confidence)} · goals ${newGoals.map((g) => g.type).join(', ')}`);
     check(!causes(s, 'behind a rival').length && s.player.finance.state === 'healthy', 'FIN5c the parent judges capability through its goals: no quarterly "behind a rival" source for a division; never in distress');
-  }
-  {
-    // Save migration 38 → 39: a big-tech save gets its budget year (this year at the plan); distress is lifted.
-    const s = bigtech();
-    runTo(s, 200);
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 38;
-    delete raw.player.finance.ws3.division;
-    raw.player.finance.state = 'distress';
-    raw.player.finance.promises = [];
-    const m = deserialize(JSON.stringify(raw));
-    const d = m.player.finance.ws3.division;
-    check(!!d && d.year === 0 && d.budget === parentBudgetYear(0) && near(d.paid, 12) && m.player.finance.state === 'healthy', 'FIN5c save migration 38 → 39: a division gets this year\'s budget at the plan (paid so far from the schedule), no distress; goals start at the next review', JSON.stringify(d && { year: d.year, budget: d.budget, paid: d.paid, carryIn: f1(d.carryIn) }));
   }
   {
     // The mixed bot as a division head (one seed, a year and a half): it keeps to the budget room, the state is never
@@ -1700,21 +1641,6 @@ for (const a of FINANCE_ACTIONS) {
     const d = s.player.finance.deals.find((x) => x.partner === 'Azimuth' && !x.legacy);
     check(near(other, none) && mine > none && !!d?.supply && !('ref' in d.supply) && s.player.finance.ws3.reserved.some((r) => r.order), 'FIN4r L9/L11 reserved custom-chip supply serves only its own order; the deal stores no inert order id', `another order's pool ${f1(other / 1e3)}k = no pool ${f1(none / 1e3)}k < own pool ${f1(mine / 1e3)}k`);
   }
-  {
-    // L12 and the 17 → 18 migration: old SPV/JV leases keyed like any lease (the site is named), the JV's rate 10%; a
-    // live promise gets its typical round from its round; deal supplies lose the inert order id.
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 39;
-    raw.player.finance.ledger.push({ id: 'L-spv-S2', payee: 'Meridian Group', kind: 'finLease', perQuarter: 0.1, endDay: s.time.day + 600, cancellableNoticeQ: null, penalty: 0, rate: 0.12 });
-    raw.player.finance.rounds.push({ day: s.time.day - 100, amount: 30, postMoney: 830, dilution: 30 / 830, down: false });
-    raw.player.finance.promises.push({ id: 'PRm', type: 'scale', pitch: 'base', start: 1, target: 2, amount: 30, closeDay: s.time.day - 100, deadline: s.time.day + 265 });
-    const m = deserialize(JSON.stringify(raw));
-    const l = m.player.finance.ledger.find((c) => c.id === 'L-fin-S2');
-    const name = contingentLiabilities(m).items.map((i) => i.name);
-    const pr = m.player.finance.promises.find((p) => p.id === 'PRm');
-    check(m.schemaRev >= 40 && !!l && l.rate === 0.1 && name.includes('Abilene South') && near(pr?.typical ?? 0, typicalRound(800, 0.08)), 'FIN4r L12 save migration 39 → 40: old SPV/JV leases are keyed by their site (named in What we owe), the JV at 10%; live promises get their typical round', `${name.join(', ')} · rate ${l?.rate} · typical $${f1(pr?.typical ?? 0)}B`);
-  }
 }
 // ───────────────────────────── FIN5a: the story (sector value × share), the pool, supplier terms ─────────────────────────────
 {
@@ -1809,20 +1735,6 @@ for (const a of FINANCE_ACTIONS) {
     const first = s.player.finance.ledger.find((c) => c.id === `L-${o.id}-0`);
     const prepaidLine = pv.costs.find((c) => /prepaid now/.test(String(c.target)));
     check(strong.batch === SUPPLIER.base && strong.firstDelivery === 0 && weak.batch > 0.8 && near(qb.prepay, weak.batch, 1e-12) && near(qt.now, weak.firstDelivery * qt.prices![0] * 0.1, 1e-9) && !err && near(cash0 - s.player.finance.cash, qt.now, 1e-6) && !!first && near(first.perQuarter + qt.now, (0.1e6 * qt.prices![0]) / 1e6, 1e-9) && !!prepaidLine && near(-prepaidLine.amount, qt.now, 1e-9), 'FIN5a supplier terms = f(share, runway): 30% deposit for a lab investors fund easily, up to 100% for a small, short-runway lab; supply contracts prepay that premium on their first delivery (preview = booked)', `strong ${F1pct(strong.batch)} / ${F1pct(strong.firstDelivery)} · weak ${F1pct(weak.batch)} / ${F1pct(weak.firstDelivery)} · prepaid ${f1(qt.now)}B`);
-  }
-  {
-    // Migration 40 → 41: the narrative premium dropped, rival revenue histories seeded, the last mark read off the
-    // saved valuation (so the first mark moves half-way from it).
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 40;
-    raw.player.finance.narrative = 1.5;
-    delete raw.capital.ws3.labRev;
-    delete raw.player.finance.ws3.mark;
-    const m = deserialize(JSON.stringify(raw));
-    const S = sectorValue(m).S;
-    const priv = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
-    check(m.schemaRev >= 41 && !('narrative' in m.player.finance) && priv.every((r) => (m.capital.ws3.labRev?.[r.core.id]?.length ?? 0) === 4) && near(m.player.finance.ws3.mark!.share, Math.min(1, m.player.finance.valuation / S), 1e-9), 'FIN5a save migration 40 → 41: no narrative premium; rivals\' revenue histories seeded; the last mark read off the saved valuation', `share ${F1pct(m.player.finance.ws3.mark!.share)}`);
   }
   {
     // The reference bot's equity a year stays in the 2025–26 range (OpenAI raised $40B in 2025, $122B in 2026).
@@ -1983,18 +1895,6 @@ for (const a of FINANCE_ACTIONS) {
     t2.finance.cash = rivalSpend(t2); // its investors are back: a year of spend in the bank
     rivalMoneyQ(s2, makeCtx(s2), t2);
     check(pushed && offered && target.finance.distress && target.finance.valuation === V0 && !t2.finance.distress && t2.core.status === 'active', 'FIN5b a bust pushes the most over-committed private rival into distress: it raises nothing that quarter and is offered to you (E32); it recovers next quarter if it has the cash', target.core.name);
-  }
-  {
-    // Migration 41 → 42: each private rival's last mark read off its saved valuation, an empty pool part, its kind's
-    // start equity as what its investors put in.
-    const s = fx();
-    const raw = JSON.parse(serialize(s));
-    raw.schemaRev = 41;
-    for (const r of raw.rivals) { delete r.finance.mark; delete r.finance.poolQ; delete r.finance.raised; }
-    const m = deserialize(JSON.stringify(raw));
-    const S = sectorValue(m).S;
-    const p = m.rivals.filter((r) => r.core.status === 'active' && r.finance.valuation > 0);
-    check(m.schemaRev === SCHEMA_REV && p.length > 0 && p.every((r) => near(r.finance.mark!, Math.min(1, r.finance.valuation / S), 1e-9) && r.finance.poolQ === 0 && r.finance.raised === RIVAL_START_FIN[r.archetype].raised), 'FIN5b save migration 41 → 42: rivals\' last marks read off their saved valuations, empty pool parts, start equity as raised', p.map((r) => `${r.archetype} ${F1pct(r.finance.mark!)}`).join(' · '));
   }
   {
     // FC6 on the reference path: private rivals stay funded through 2026; the end-2026 picture by kind (analogues:

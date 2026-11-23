@@ -5550,3 +5550,37 @@ rd 8c7560c (dud direction drops; assignment optimum 91.5%).
 - Designer: the mockup's safety stage track shows "Big test"; the engine has Ideas · Small test · Validate. Programme
   rate "now" vs "so far" differ (scaling ×1.12 vs ×1.19); the cards use "now" (accepted plan: at current staffing).
 - UB-5..10: `measuredDomains` is partial now (the MODELS radar and Blueprint chips need a "not measured yet" state).
+
+### UB-3 (save break at rev 103; branch ub3-savebreak from rd 306d4c4; DECISIONS DD-20)
+
+**Change.** `MIN_SCHEMA_REV = SCHEMA_REV = 103` (core/save.ts). A save below it (or without a schemaRev) is refused with
+`OLD_SAVE_MESSAGE` ("This save is from an older version of the game and can no longer be loaded."), shown by the store
+as "Load failed: …"; a newer save keeps its own message. `migrations` is an empty table and the deserialize loop stays,
+so a later bump adds its migration as before. On a merge after branches that bump SCHEMA_REV: set both constants to the
+merged rev, drop any migrations below it, regenerate fixtures.
+
+**Deleted (~1,635 lines; save.ts 1,309 → 58).** Every migration 33 → 34 … 102 → 103 and the rev history comment (in git
+before UB-3, and V3-BUILD / this file); helpers only they used: `migrateFlatSplit`, `TREE_NODE_FIELDS`, suites.ts
+`keepUnlockedSuite` / `creditSuiteExpertData` / `restateSuiteTasks`, features.ts `toolsFromFeatures`. Old-save
+fallbacks: finance/parent.ts `divisionOf`'s pre-FIN5c budget rebuild (newGame's startDivision always creates it);
+build.ts `engAlloc`'s `?? DEFAULT_ENG_ALLOC`; alignment-eval records' k / n / lo / hi are required (alignmentEvals.ts
+no longer recomputes k or the Wilson interval); StackState.est / estVar are required (stacks.ts, researchView.ts `?? 0`
+gone). Tests of migrations: hygiene.ts (rev 33 → 46 chain, 158 lines; its refusal check now covers revs none / 0 / 33 /
+102 and a newer save), finance.ts (7 migration blocks), currency.ts §5, domainref.ts §4, research.ts (47 → 48),
+suites.ts (44 → 45); lint-structure.ts no longer exempts save.ts / hygiene.ts from the pm / pa lint. Stale "older
+save" / "migration" comments fixed where the code was touched.
+
+**Fixtures.** Regenerated with `fixtures.ts --write` at rev 103 (all five); a compare run after the last code edit
+equals them (the edits do not change play). The same run's seed-2027 golden canary FAILs SAR (879 vs 791 ± 44 d) and
+SIAR (not reached); the sim does not call the save code, so this is rd's play (UB-1 onward), not UB-3.
+
+**Check.** `scripts/v2/_ub3/check.ts`: floor = current rev; a new game round-trips and continues identically 20 days;
+the day-400 fixture as committed at 306d4c4 (rev 102) is refused with the message. tsc app + scripts/v2 clean; `npm run
+build` ok; hygiene's save section passes.
+
+**Left.** Per-task one-off checks (`scripts/v2/_a05a`, `_a05b`, `_a06`, `_p06`, `_p08`, `_r04`, `_rfs5`, `_sr01`, `_sr06`,
+`_t01a`, `_t06`, `_t07`, `_t11`, `_x03`) test their own migration on an old rev and now fail at that step (history, not
+run by any tier); `_rfs5` / `_rfs8` / `_rfs14` pin `SCHEMA_REV === 103`. Optional fields documented as "absent in older
+saves" in types.ts (research.last parts, gLastF, TrainingRun recipe parts, capexChipsFinanced, …) stay optional: they
+are also absent on a new game before their first write, so making them required is a per-field review. `ensureWs3`
+(33 lazy call sites) stays.

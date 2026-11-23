@@ -841,7 +841,7 @@ export function distillStudents(w: TimelineWorld, teacher: SimpleModel, day: num
     return m;
   });
 }
-/** RD-P02: a lineup at the start (and in a migrated save): the public model's students, made before the game began. */
+/** RD-P02: a lineup at the start: the public model's students, made before the game began. */
 export function seedRivalLineup(w: TimelineWorld, r: RivalLab) {
   r.lineup = r.publicModel ? distillStudents(w, r.publicModel, r.publicModel.day) : [];
   r.distilling = [];

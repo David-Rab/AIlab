@@ -1,7 +1,7 @@
 // WS3 state extensions. Owner: WS3.
 //
 // The WS3 state blocks (FinanceWS3, MarketWS3, PowerWS3, CapitalWS3, SiteWS3, …) live in types.ts (folded at M2,
-// SCHEMA_REV 2). `ensureWs3()` fills missing blocks lazily (the finance code calls it; save migration 40 → 41 too).
+// SCHEMA_REV 2). `ensureWs3()` fills missing blocks lazily (the finance code calls it).
 import { dateOfDay } from '../core/time';
 import type { CapitalWS3, Day, FinanceWS3, GameStateV2, MarketWS3, Money, PowerWS3, Site, SiteWS3, YearStats } from '../types';
 

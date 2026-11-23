@@ -197,12 +197,6 @@ export function materialiseSuite(s: GameStateV2, f: RLFamily): EnvSuite | undefi
   if (!findExpert(s, f)) s.player.dataPortfolio.assets.push(expertAsset(f, EXPERT_START_T));
   return suites[f];
 }
-/** Migration 44 → 45 (RD-B03): a save from before the fix read an unlocked family's missing suite as a free start
- *  suite (fidelity 1); store it so the save keeps what it had. */
-export function keepUnlockedSuite(s: GameStateV2, f: RLFamily): void {
-  (s.player.suites ??= {})[f] ??= startSuite(f, startMult(s));
-  if (!findExpert(s, f)) s.player.dataPortfolio.assets.push(expertAsset(f, EXPERT_START_T));
-}
 /** A family's first suite (RD-B03): stored with an empty expert asset, which the finishing build fills. */
 function createSuite(s: GameStateV2, f: RLFamily): EnvSuite {
   const x = ((s.player.suites ??= {})[f] = firstSuite(s, f));
@@ -235,21 +229,6 @@ export function completeSuiteWork(s: GameStateV2, ctx: SystemCtx, ref: string) {
     x.exploit = hardenedExploit(r.family, x.exploit, hardenCut(s));
     x.hardenings++;
     ctx.log('research', `Engineers finished hardening the ${RL_FAMILY_LABEL[r.family]} environments: exploitable ${(before * 100).toFixed(1)}% → ${(x.exploit * 100).toFixed(1)}% of tasks.`, 1, r.family);
-  }
-}
-
-/** Migration 64 → 65 (RD-T06): expert data bought by domain (the removed data.expert) joins a family's suite. */
-export function creditSuiteExpertData(s: GameStateV2, f: RLFamily, tokensT: number): void {
-  const x = tokensT > 0 ? materialiseSuite(s, f) : undefined;
-  if (!x) return;
-  findExpert(s, f)!.tokensT += tokensT;
-  x.tasks = (x.tasks ?? START_TASKS) + tasksOf(tokensT);
-}
-/** Migration 65 → 66 (RD-T07): a stored suite's live tasks = its expert data ÷ TASK_TOKENS_T (nothing stale yet). */
-export function restateSuiteTasks(s: GameStateV2): void {
-  for (const f of RL_FAMILY_IDS) {
-    const x = s.player?.suites?.[f];
-    if (x) x.tasks = tasksOf(findExpert(s, f)?.tokensT ?? EXPERT_START_T);
   }
 }
 

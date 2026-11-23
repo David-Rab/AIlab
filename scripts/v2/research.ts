@@ -70,17 +70,6 @@ if (process.argv.includes('--rd-e03')) {
   check(Object.keys(al.demand).sort().join(',') === 'evals,exp,ops' && DEFAULT_RE_ALLOC.order.join(',') === 'ops,evals,exp' && !('tune' in (last?.re ?? {}))
     && last?.idle !== undefined && last.idle > 0 && Math.abs(last.idle + sum - al.total) < 0.01 && order === 'ops,evals,exp',
     'RD-E03 no routine-tuning need; spare research engineers are idle (readout); an order naming tune is ignored', `needs ${Object.keys(al.demand).join(',')}; idle ${last?.idle} + needs ${sum.toFixed(3)} of ${al.total.toFixed(3)}; order after a tune order ${order}`);
-  // Migration 47 → 48: a bucket's remaining headroom is delivered (effect = a) and 'tune' leaves the allocation.
-  const raw = JSON.parse(serialize(s));
-  raw.schemaRev = 47;
-  raw.player.research.stacks.rlMid.buckets[0].h = 0.01;
-  raw.player.research.re.order = ['ops', 'evals', 'exp', 'tune'];
-  raw.player.research.re.max = { tune: 2 };
-  raw.player.research.last.re.tune = 1;
-  const g = deserialize(JSON.stringify(raw));
-  check(!('h' in g.player.research.stacks.rlMid.buckets[0]) && Math.abs(stackAt(g.player.research.stacks.rlMid, latestBaseFlop(g)) - stackAt(s.player.research.stacks.rlMid, latestBaseFlop(s))) < 1e-12
-    && g.player.research.re.order.join(',') === 'ops,evals,exp' && !('tune' in g.player.research.re.max) && !('tune' in (g.player.research.last?.re ?? {})),
-    'RD-E03 a rev-47 save loads with its headroom delivered and no tune need', JSON.stringify(g.player.research.re));
   finish('research');
 }
 
@@ -581,7 +570,7 @@ if (process.argv.includes('--rd-a03')) {
   const eq = clone(s);
   const cn = eq.china.lab.phys.rec;
   const st = eq.player.research.stacks;
-  for (const [k, v] of [['pre', cn.pre], ['rlMid', cn.mid], ['rlCeil', cn.ceil], ['train', 0.3]] as const) st[k] = { base: v, buckets: [], n: 0 };
+  for (const [k, v] of [['pre', cn.pre], ['rlMid', cn.mid], ['rlCeil', cn.ceil], ['train', 0.3]] as const) st[k] = { base: v, buckets: [], n: 0, est: 0, estVar: 0 };
   const eqLast = eq.player.models.bases[eq.player.models.bases.length - 1];
   eq.player.models.bases.push({ ...eqLast, id: `${eqLast.id}-rdb16`, flop: eqLast.flop * 30 });
   const gapEq = playerRecipeG(eq) - recipeOf(eq, eq.china.lab);

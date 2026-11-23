@@ -1,7 +1,7 @@
 // E6: oversight measured in capability gaps (OOM of effective compute between the overseen model and its overseer), not
 // in the research multiplier M (MODEL-V3 §11.5–11.6, research/20 F4). Monitor catch vs the Engels et al. 2025 anchor,
 // same-lineage collusion, tool decay above the validated capability, the control tax (Greenblatt et al. 2023), human
-// review, the save migration's equivalence, and a lint: no safety module reads M.
+// review, and a lint: no safety module reads M.
 import { addSafeguard, setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

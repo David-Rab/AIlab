@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { skillRefDelta as refDelta } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { domainRefShift, domainsOf, levelOfG, skillMarks } from '../../src/engine/v2/models/capability';
 import { domainG } from '../../src/engine/v2/departments/workfit';
 import { clamp } from '../../src/engine/rng';
@@ -49,18 +48,5 @@ for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
   check(ok, `${world}: skill-bar marks on the job scale (V0 below the median expert in every skill; SC model at the coding best human)`,
     mk.map(([d, m]) => `${d} ${m.median.toFixed(2)}/${m.best.toFixed(2)} (SC ${scL[d].toFixed(1)})${m.standIn ? '*' : ''}`).join(' '));
 }
-
-// 4. UB-1: save migration 102 → 103 recomputes stored domain records (player version, a rival's public model).
-const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
-const raw = JSON.parse(serialize(s));
-raw.schemaRev = 102;
-raw.player.models.versions[0].domains.PHYS = 99;
-const r0 = raw.rivals.find((r: { publicModel?: unknown }) => r.publicModel);
-if (r0) r0.publicModel.domains.BIO = 99;
-const m = deserialize(JSON.stringify(raw));
-const v = m.player.models.versions[0];
-const rm = m.rivals.find((r) => r.publicModel)?.publicModel;
-check(near(v.domains.PHYS, s.player.models.versions[0].domains.PHYS, 1e-12) && (!rm || near(rm.domains.BIO, s.rivals.find((r) => r.core.id === r0.core.id)!.publicModel!.domains.BIO, 1e-12)),
-  'save 102 → 103: stored domain levels (player version, rival public model) recomputed', `PHYS ${v.domains.PHYS.toFixed(3)}${rm ? `, rival BIO ${rm.domains.BIO.toFixed(3)}` : ''}`);
 
 finish('domainref');

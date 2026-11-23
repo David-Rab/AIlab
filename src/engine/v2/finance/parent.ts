@@ -61,19 +61,9 @@ function setGoals(s: GameStateV2, budget: Money, ctx?: SystemCtx): FinancePromis
   return goals;
 }
 
-/** A division's budget state; created on first read for a division (new games create it in newGame). */
+/** A division's budget state (newGame creates it, startDivision). */
 export function divisionOf(s: GameStateV2): DivisionBudget | undefined {
-  if (!isDivision(s)) return undefined;
-  const fx = s.player.finance.ws3;
-  if (!fx.division) {
-    // A save from before FIN5c (the migration creates it too): this year's budget at the plan, savings estimated.
-    const q = qOf(s);
-    const y = budgetYearOf(q);
-    const paid = (parentBudgetYear(y) / 4) * (q - 4 * y + 1);
-    fx.division = { ...newYear(y, 100, 0, paid, []), confidence: s.player.board.confidence };
-    fx.division.carryIn = s.player.finance.cash - paid;
-  }
-  return fx.division;
+  return isDivision(s) ? s.player.finance.ws3.division : undefined;
 }
 
 /** newGame: budget year 0 at the plan (the Q3 2025 payment is in the starting cash) and its goals. */

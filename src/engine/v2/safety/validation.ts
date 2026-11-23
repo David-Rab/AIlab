@@ -115,7 +115,7 @@ export function trueRecall(s: GameStateV2, t: TechniqueState, v: ModelVersion): 
   return clamp01(sum / reads.length);
 }
 
-/** SR-24b: the world's organism realism r (engine only; saves before rev 94 derive it from the seed). */
+/** SR-24b: the world's organism realism r (engine only). */
 export const organismRealism = (s: GameStateV2) => s.hidden.organismRealism ?? organismRealismOf(s.setup.seed);
 
 /** SR-24b: TRUE recall on the planted organisms: the real recall ÷ r, capped at 1 (engine only). */

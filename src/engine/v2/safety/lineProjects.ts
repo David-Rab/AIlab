@@ -56,7 +56,7 @@ const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
 /** A fresh test of a safety project: the agenda's T₁ months of work at reference inputs. */
 export const freshSaf = (n: TreeNodeDef): SafProjectState => ({ work: 0, workNeed: AGENDA_BY_ID[agendaOf(n)].T1, flop: 0 });
 
-/** The project's test state (created on first use; a pre-RD-R02b shape is restated by the 60 → 61 migration). */
+/** The project's test state (created on first use). */
 export function safState(_s: GameStateV2, ts: TreeNodeState, n: TreeNodeDef): SafProjectState {
   ts.saf ??= freshSaf(n);
   return ts.saf;

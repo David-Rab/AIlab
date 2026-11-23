@@ -316,7 +316,7 @@ export const trialWork = (n: TreeNodeDef) => {
 /** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × taste × speed / 30). */
 const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
   sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * sci.q * speed) / 30 : 0;
-/** An unlock project's test state, started (or restated from an older save's idea pipeline at its progress) on first use. */
+/** An unlock project's test state, started on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
   if (!st.trial) {
     const W = trialWork(n);

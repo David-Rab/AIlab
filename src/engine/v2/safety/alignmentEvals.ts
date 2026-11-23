@@ -132,7 +132,7 @@ export function testGapView(v: Pick<ModelVersion, 'beliefs' | 'evals'>): TestGap
   const m = v.evals.safety.evalAware;
   return {
     eaLo: r3(eaLo), eaHi: r3(eaHi), gLo: r3(gLo), gHi: r3(gHi),
-    measured: m?.n ? { k: m.k ?? Math.round(m.rate * m.n), n: m.n, lo: m.lo ?? 0, hi: m.hi ?? 1 } : undefined,
+    measured: m?.n ? { k: m.k, n: m.n, lo: m.lo, hi: m.hi } : undefined,
     logs: logs.length ? logs : undefined,
   };
 }
@@ -150,8 +150,7 @@ export function alignmentEvalView(v: Pick<ModelVersion, 'beliefs' | 'evals'>): {
   for (const e of SAFETY_EVALS) {
     const r = v.evals.safety[e.id];
     if (!r?.n) continue;
-    const k = r.k ?? Math.round(r.rate * r.n);
-    const { lo, hi } = r.lo !== undefined && r.hi !== undefined ? { lo: r.lo, hi: r.hi } : wilson(k, r.n);
+    const { k, lo, hi } = r;
     const hidden = !NOT_HIDDEN.has(e.id);
     rows.push({ id: e.id, name: e.name, k, n: r.n, lo, hi, day: r.day, by: r.by, hidden,
       realLo: r3(hidden ? clamp01(lo * gap.gLo) : lo), realHi: r3(hidden ? clamp01(hi * gap.gHi) : hi) });

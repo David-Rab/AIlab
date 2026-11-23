@@ -185,12 +185,6 @@ check(act(s0, 'suite.build', { family: 'computerUse' }) !== undefined, 'no suite
   refPlay(sr, engine);
   check(sr.player.build.queue.filter((it) => it.kind === 'suite' && it.ref === 'computerUse:build').length === 1,
     'RD-B03: RefBot queues the first computer-use suite build when P06 is known (once)');
-  // Migration 44 → 45: a save from before the fix (P06 known, no stored suite: it read as a free start suite) keeps it.
-  const old = JSON.parse(serialize(known(game()))) as GameStateV2;
-  old.schemaRev = 44;
-  const ld = deserialize(JSON.stringify(old));
-  check(!!ld.player.suites.computerUse && near(suiteFidelity(ld, 'computerUse'), 1, 1e-12) && wCU(ld) > 0,
-    'RD-B03: a rev-44 save that knows P06 keeps its computer-use suite (stored at fidelity 1)');
 }
 
 // ---------- a run freezes its suites at launch ----------
@@ -232,7 +226,7 @@ check(!!run.recipe?.fid && !!run.recipe?.exploit && near(postSignals(sr, run.pos
   check(!/P12_HORIZON|adopted\(s, 'P12'\)|paradigmOff/.test(runsSrc), 'P12: the old "time horizon ×2, RSCH +0.4" flags are gone (no P12_HORIZON, no paradigm level offsets)');
 }
 
-// ---------- saves (RD-C03: saves below schemaRev 33 no longer load, so the 22 → 23 graders migration is gone) ----------
+// ---------- saves (UB-3: no save migrations since the break) ----------
 const day400 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 check(suiteFamilies(day400).length >= START_FAMS.length && START_FAMS.every((f) => !!expert(day400, f)) && near(suiteExploitMap(day400).swe ?? 0, EXPLOIT_START.swe, 1e-12),
   'save: the day-400 fixture has its start suites and their expert data (start exploitability)', suiteFamilies(day400).join(', '));

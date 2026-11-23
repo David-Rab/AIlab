@@ -46,7 +46,7 @@ function newFoothold(s: GameStateV2, kind: FootholdKind, v: ModelVersion, day: n
   return f;
 }
 
-/** Internal agent pool (H100e) from the split alone (the save migration; covert.ts passes the fleet's full compute,
+/** Internal agent pool (H100e) from the split alone (covert.ts passes the fleet's full compute,
  *  spare serving lent to research included). */
 const agentPool = (s: GameStateV2) => Math.max(0, s.player.computeOnline * ((s.player.split.routine + s.player.split.frontier)));
 

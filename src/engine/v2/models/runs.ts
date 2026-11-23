@@ -275,7 +275,7 @@ export interface PostRecipe extends RlRecipe { domainG: Partial<Record<DomainId,
 export const postRecipeNow = (s: GameStateV2): PostRecipe => ({
   ...rlRecipeNow(s), domainG: { ...s.player.research.domainG }, p07: adopted(s, 'P07'), serveOom: serveFlopOomOf(serveNow(s)),
 });
-/** A run's launch snapshot (TrainingRun.recipe, RD-B02): launchRun and the rev-45 save migration build it. */
+/** A run's launch snapshot (TrainingRun.recipe, RD-B02): launchRun builds it. */
 export function recipeAtLaunch(s: GameStateV2, run: Pick<TrainingRun, 'kind' | 'base' | 'baseId' | 'flopNeeded'>): RunRecipe {
   if (run.kind === 'base') return run.base ? baseFreezeNow(s, run.base) : {};
   if (run.kind === 'continue') {
@@ -293,7 +293,7 @@ export function continueDrawNow(s: GameStateV2, parent: BaseModel, addFlop: numb
   return { draw: playerDraw(s, parent.design, parent.tokens + add), prevDEff: playerDraw(s, parent.design, parent.tokens).dEff };
 }
 /** Fill the fields a run's snapshot lacks with today's values, keeping those it has (and their key order): the start
- *  run R0 at newGame (its RL recipe is its launch day's) and runs in flight in a rev-44 save (migration 44 → 45). */
+ *  run R0 at newGame (its RL recipe is its launch day's). */
 export function fillRecipe(s: GameStateV2, run: TrainingRun): void {
   const rec = (run.recipe ??= {}) as Record<string, unknown>;
   for (const [k, v] of Object.entries(recipeAtLaunch(s, run))) if (rec[k] === undefined) rec[k] = v;
@@ -690,10 +690,10 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
 /** Complete a run: its act makes the base or version, calls the WS2 trait hook and starts the eval suite. */
 function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   run.status = 'done';
-  // Launch and the rev-45 save migration always set the snapshot; only a hand-built run (a script) lacks one.
+  // Launch always sets the snapshot; only a hand-built run (a script) lacks one.
   const rec = (run.recipe ??= recipeAtLaunch(s, run));
   if (runAct(run.kind) === 'pretrain') completePretrain(s, ctx, run, rec);
-  else completeRl(s, ctx, run, rec as PostRecipe); // the snapshot is a PostRecipe (recipeAtLaunch, migration 44 → 45)
+  else completeRl(s, ctx, run, rec as PostRecipe); // the snapshot is a PostRecipe (recipeAtLaunch)
 }
 
 /** Pretraining finished: a new base (new lineage, or the parent's lineage continued), or the student as a mini

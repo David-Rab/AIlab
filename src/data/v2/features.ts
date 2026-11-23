@@ -25,7 +25,7 @@ export type { PriceTier };
  *  (PRICE_ELASTICITY). */
 export const PRICE_TIERS: Record<PriceTier, number> = { budget: MARKUP.budget / MARKUP.standard, standard: 1, premium: MARKUP.premium / MARKUP.standard };
 export const PRICE_TIER_IDS: PriceTier[] = ['budget', 'standard', 'premium'];
-/** Nearest tier to a price index (old saves, bots that set an index). */
+/** Nearest tier to a price index (bots that set an index). */
 export function tierOfIndex(x: number): PriceTier {
   let best: PriceTier = 'standard';
   for (const t of PRICE_TIER_IDS) if (Math.abs(PRICE_TIERS[t] - x) < Math.abs(PRICE_TIERS[best] - x)) best = t;
@@ -187,8 +187,6 @@ export const INTERNAL_TOOLS: ToolDef[] = [
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }] },
 ];
 export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t])) as Record<ToolId, ToolDef>;
-/** Internal tools equivalent to a set of built product features (starts, the RD-A06 save migration). */
-export const toolsFromFeatures = (features: readonly string[]): ToolId[] => INTERNAL_TOOLS.filter((t) => features.includes(t.from)).map((t) => t.id);
 /** RD-P07 (DD-03): a product enabler is a tool part of a sector's work needs (Computer use: GUI-only steps in Admin,
  *  Finance, Legal and Government; Voice & vision: media work). In a sector it lists, an offer without the tool cannot do
  *  that part of the tasks: its coverage × (1 − need) (worldfx/serving.ts offerOf, inside the buyers' choice), need =

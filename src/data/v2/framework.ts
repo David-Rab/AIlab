@@ -34,7 +34,7 @@ import type { EvalDepth, FrameworkRule, SafetyFramework } from '../../engine/v2/
 /** CAL-S: High = a median domain expert's score, λ(G_SC − Δ_bm); Critical = the domain's best human (RD-U05).
  *  research/CAL-safety-sources.md §1. CAL2-S (decision 11): the game's High level is the world's own median expert
  *  (defaultFrameworkRules(highL), set at game start from capability.ts medianExpertLevel); FRAMEWORK_HIGH_L is the
- *  reference world's (ai2027 6.39 → 6.4), the default only where no world is at hand (the SR-19 save migration). */
+ *  reference world's (ai2027 6.39 → 6.4), the default only where no world is at hand. */
 export const FRAMEWORK_HIGH_L = 6.4;
 /** The High level of a world's median-expert score, to 0.1 L (as shown in the framework panel). */
 export const frameworkHighL = (medianExpertL: number) => Math.round(medianExpertL * 10) / 10;

@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
 import { WORK_TYPES } from '../../src/data/v2/workTypes';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { domainRefShift, domainsOf, levelOfG } from '../../src/engine/v2/models/capability';
 import { postEffect } from '../../src/engine/v2/models/design';
 import { domainG, fitOf } from '../../src/engine/v2/departments/workfit';
@@ -56,19 +55,5 @@ const gR = domainG(s, V0, 'RSCH');
 const domR = domainsOf(w, V0.G, V0.build);
 check(near(domR.RSCH, clamp(levelOfG(w, gR - domainRefShift(w, 'RSCH')), 0, 15), 1e-9),
   'RSCH: the display is λ of the fit G (no P19 gain since RD-E01a)', `G_RSCH ${gR.toFixed(4)}, L_RSCH ${domR.RSCH.toFixed(3)}`);
-
-// 5. Migration 46 → 47: a stored offL becomes dgD at 1.2 L per OOM; offL / off gone; domains recomputed.
-const raw = JSON.parse(serialize(s));
-raw.schemaRev = 46;
-const rb = raw.player.models.versions[0].build;
-delete rb.dgD;
-rb.offL = { SOCIAL: 0.8 };
-rb.off = { SOCIAL: 0.8 };
-raw.player.models.versions[0].domains.SOCIAL = 99;
-const m = deserialize(JSON.stringify(raw));
-const mb = m.player.models.versions[0].build! as unknown as Record<string, unknown> & { dgD: Record<string, number> };
-check(near(mb.dgD.SOCIAL, 0.8 / 1.2, 1e-12) && !('offL' in mb) && !('off' in mb)
-  && near(m.player.models.versions[0].domains.SOCIAL, lam(m.player.models.versions[0], 'SOCIAL'), 1e-9),
-  'save: a schemaRev-46 build\'s offL migrates to dgD (÷ 1.2), offL / off dropped, domain levels recomputed as λ(G_d)', `dgD ${JSON.stringify(mb.dgD)}`);
 
 finish('currency');

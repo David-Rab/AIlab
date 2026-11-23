@@ -36,8 +36,8 @@ const lg = (F: number) => Math.log10(Math.max(1, F));
 
 /** RF-R5: add an adopted result's believed estimate ± sd to a stack's believed total (readouts; never the true effect). */
 export function addBelief(st: StackState, est: number, sd: number) {
-  st.est = Math.round(((st.est ?? 0) + est) * 1e4) / 1e4;
-  st.estVar = Math.round(((st.estVar ?? 0) + sd * sd) * 1e8) / 1e8;
+  st.est = Math.round((st.est + est) * 1e4) / 1e4;
+  st.estVar = Math.round((st.estVar + sd * sd) * 1e8) / 1e8;
 }
 
 /** Value of a stack at run FLOP F (OOM): base + Σ adopted · 10^(s·log₁₀F). */

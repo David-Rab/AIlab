@@ -308,7 +308,7 @@ export function stackViews(s: GameStateV2): StackView[] {
   }
   return STACK_KEYS.map((k) => {
     const st = res.stacks[k];
-    const est = st.est ?? 0;
+    const est = st.est;
     const since = frozen[k];
     let w: { gap: number; gapSd: number; gapN: number; gapSince: number; inModel: number } | undefined;
     if (since !== undefined) {
@@ -318,7 +318,7 @@ export function stackViews(s: GameStateV2): StackView[] {
       w = { gap, gapSd: Math.sqrt(vv), gapN: n, gapSince: since, inModel: st.base + est - gap };
     }
     return {
-      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: st.base + est, adopted: est, adoptedSd: Math.sqrt(st.estVar ?? 0), base: st.base,
+      key: k, name: STACK_LABEL[k], unit: STACK_UNIT[k], now: st.base + est, adopted: est, adoptedSd: Math.sqrt(st.estVar), base: st.base,
       ...(w ?? {}), n: st.n,
       ideas: res.adopted.filter((a) => a.stack === k).slice().reverse().map((a) => adoptedView(s, a, EMBODIED_BY[k])),
     };
@@ -370,7 +370,7 @@ export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear
   const h = s.player.research.hist;
   const ideas = h.length >= 2 ? ((h[h.length - 1].n - h[0].n) / Math.max(1, h[h.length - 1].day - h[0].day)) * 365 : 0;
   const st = s.player.research.stacks;
-  const now = (k: StackKey) => st[k].base + (st[k].est ?? 0);
+  const now = (k: StackKey) => st[k].base + st[k].est;
   const y = believedAdoptedSince(s, s.time.day - 365);
   const F = latestBaseFlop(s);
   const g1 = gEquivOf(F, now('pre'), now('rlMid'), now('rlCeil'), now('train'));

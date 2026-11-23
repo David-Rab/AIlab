@@ -152,8 +152,8 @@ export function engDemand(s: GameStateV2, u = upkeepSplit(s)): Record<EngNeed, n
   for (const it of s.player.build.queue) if (isStackWork(it)) setups += remaining(it); else other += remaining(it);
   return { runs: 7 * setups, upkeep: u.products, builds: 7 * other };
 }
-/** The engineers' allocation (order and caps; old saves without one get the default). */
-export const engAlloc = (s: GameStateV2) => s.player.build.alloc ?? DEFAULT_ENG_ALLOC;
+/** The engineers' allocation (order and caps). */
+export const engAlloc = (s: GameStateV2) => s.player.build.alloc;
 
 /** Free capacity per day for run setups (and adoptions, eval harnesses) and for other builds (after upkeep), team-weeks, under
  *  the engineers' allocation (each need's share estimated with the others at today's demand). */

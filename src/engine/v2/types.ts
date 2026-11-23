@@ -458,8 +458,8 @@ export interface EvalRecord {
    *  day / by = the latest suite's. Special rows (horizon, speedrun): the latest reading. */
   bench: Record<BenchmarkId, { score: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep' }>;
   /** Alignment evals (SR-07): k of n test scenarios with misbehaviour, rate = k/n, 90% Wilson interval lo–hi, sd = the
-   *  interval's sd (safety/alignmentEvals.ts). k / n / lo / hi absent only on records from before rev 93. */
-  safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep'; k?: number; n?: number; lo?: number; hi?: number }>;
+   *  interval's sd (safety/alignmentEvals.ts). */
+  safety: Record<string, { rate: number; sd: number; day: Day; by: 'self' | 'evalGov' | 'evalIndep'; k: number; n: number; lo: number; hi: number }>;
   /** Measured general level (RD-M01, DD-08): fitted from the pooled benchmark readings (models/benchmarks.ts fitDomains, fitGeneral). */
   measuredL?: number;
   /** RD-M01: fitted level per domain with a benchmark reading (MEDIA, PHYS have none). */
@@ -825,9 +825,9 @@ export interface StackState {
   /** Ideas adopted. */
   n: number;
   /** RF-R5: the BELIEVED adopted total (Σ the results' estimates when adopted, this stack's OOM at the then-latest base)
-   *  and its variance (Σ estSd²), readouts only; the buckets hold the true effects. Absent on saves before rev 98. */
-  est?: number;
-  estVar?: number;
+   *  and its variance (Σ estSd²), readouts only; the buckets hold the true effects. */
+  est: number;
+  estVar: number;
 }
 export type RiskPolicy = 'safe' | 'balanced' | 'speculative';
 /** Research-engineer needs (V3-BUILD V2.5): run operations, project experiments. Capacity none of them takes is idle

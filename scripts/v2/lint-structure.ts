@@ -5,8 +5,8 @@
 //    every R2 verb is used by at least one action (no dead verb).
 // 3. Action ids are unique and every action has a title of at most four words (one verb set, terse labels).
 // 4. Model v3 F3: no reader of the retired progress coordinate pm = Φ(G) or the know-how readout pa (every lab's
-//    capability is G, its display level λ(G) from models/capability.ts levelOfG) anywhere in src/ or scripts/v2/ outside
-//    the save migration (core/save.ts) and its tests (hygiene.ts asRev32). Code only: comments, strings and regex
+//    capability is G, its display level λ(G) from models/capability.ts levelOfG) anywhere in src/ or scripts/v2/ (UB-3: no
+//    exemptions since the save break deleted the migrations). Code only: comments, strings and regex
 //    literals are stripped first.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -47,7 +47,7 @@ ok('Action titles ≤ 4 words', long.length === 0, long.join(', '));
 // 4. No pm / Φ / pa readers (model v3 F3).
 {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-  const ALLOW = new Set(['src/engine/v2/core/save.ts', 'scripts/v2/hygiene.ts', 'scripts/v2/lint-structure.ts']);
+  const ALLOW = new Set(['scripts/v2/lint-structure.ts']);
   const FORBIDDEN = [
     /\.pm\b/, /(^|[{,]\s*)pm\s*:/, // a model's pm (field read or written)
     /\.(pa|paSync|paIn|paAtStart|paTrack|openWeightsFrontier)\b/, // the know-how readout and its copies
@@ -73,7 +73,7 @@ ok('Action titles ≤ 4 words', long.length === 0, long.join(', '));
       if (FORBIDDEN.some((re) => re.test(line))) bad.push(`${rel}:${i + 1}: ${line.trim().slice(0, 90)}`);
     });
   }
-  ok(`No pm / Φ / pa readers outside the save migration (${files.length} files)`, bad.length === 0, bad.slice(0, 8).join(' | '));
+  ok(`No pm / Φ / pa readers (${files.length} files)`, bad.length === 0, bad.slice(0, 8).join(' | '));
 }
 
 // Summary table (verbs × systems), for the PROGRESS log.
