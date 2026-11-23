@@ -121,7 +121,7 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  trainedAgainstOn null.
  *  74 (SR-09): tool upkeep is replaced by validation jobs: SafetyDept.validation (jobs queue, policy "validate on each
  *  new internal model", on), TechniqueState.measured, and the safety engineers' need 'reval' is 'validation'.
- *  Migration 73 → 74 adds an empty queue with the policy on, measured null, and renames the need in research.safRe.
+ *  Migration 73 → 74 adds an empty queue with the policy on and renames the need in research.safRe.
  *  75 (SR-14): training-time safety methods are run-plan options: PostDesign.techniques and .trainAgainst become one
  *  list PostDesign.methods (method ids and `against:<instrument>` entries); SafetyDept.useAllMethods (the policy "Use
  *  all known methods", on by default). Migration 74 → 75 rewrites every post design in the save and turns the policy on.
@@ -179,7 +179,7 @@ import { defaultFramework } from '../../../data/v2/framework';
  *  95 (SR-24b): HiddenWorld.organismRealism (r ~ U[0.4, 1.0], a hash of the seed; safety/validation.ts). Migration
  *  94 → 95 sets it from the save's seed (organismRealismOf), the value a new game with that seed draws.
  *  96 (SR-16b): SafetyDept.envFixJobs (environment fixes being built: work on the 'envFix' need, in force when done;
- *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force) and adds [].
+ *  safety/envFix.ts). Migration 95 → 96 drops the ws2.patchUntil flag (fixes ordered before stay in force).
  */
 export const SCHEMA_REV = 96;
 /** The oldest save that loads (DD-20): a save below it is refused with OLD_SAVE_MESSAGE. */
@@ -351,9 +351,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   /** 42 → 43 (SAFMECH): the monitoring budget becomes the player's setting (policies.monitorBudget, a share of the safety
    *  pool). A save gets the old standard package's share (MONITOR_STD_POOL_SHARE); its coverage now follows from that
-   *  budget, the monitors' cost ratios and the watched compute. Only where missing (idempotent). */
+   *  budget, the monitors' cost ratios and the watched compute. Only where missing, and only on the nested split a rev-42
+   *  save has (51 → 52 turns the budget into the monitors' flat line and deletes it; a flat split has none to add). */
   42: (raw) => {
     const p = (raw as unknown as Record<string, any>).player; // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (typeof p?.split?.agents !== 'number') return;
     if (p?.policies && typeof p.policies.monitorBudget !== 'number') p.policies.monitorBudget = MONITOR_STD_POOL_SHARE;
   },
   /** 43 → 44 (RD-C01): drop the v2 knot table and the dead production-readout fields (idempotent). */
@@ -785,11 +787,12 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   71: (raw) => {
     // 71 → 72 (SR-13): the control-layer flag, the 'restricted' status, always-on internal human review and an owned T-LOCK
-    // become safeguard items on each deployment.
+    // become safeguard items on each deployment. A deployment that has guards is already migrated (left as it is).
     const p = (raw as { player?: { deployments?: Record<string, unknown>[]; safety?: { techniques?: Record<string, { unlocked?: boolean }> } } }).player;
     const lock = !!p?.safety?.techniques?.['T-LOCK']?.unlocked;
     for (const d of p?.deployments ?? []) {
-      const g: { kind: string; setting?: string; since: number }[] = Array.isArray(d.guards) ? (d.guards as never) : [];
+      if (Array.isArray(d.guards)) continue;
+      const g: { kind: string; setting?: string; since: number }[] = [];
       if (d.controlLayer) g.push({ kind: 'control', setting: 'defer10', since: 0 });
       if (d.status === 'restricted') { g.push({ kind: 'restrict', since: 0 }); d.status = 'live'; }
       if (d.channel === 'internal') { g.push({ kind: 'review', since: 0 }); if (lock) g.push({ kind: 'lockdown', since: 0 }); }
@@ -843,7 +846,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const dept = s.player?.safety;
     if (dept) {
       dept.validation ??= { jobs: [], autoNew: true, lastModel: null };
-      for (const t of Object.values(dept.techniques ?? {})) t.measured ??= null;
+      // Technique.measured is optional (absent = not validated): nothing to add.
     }
     const al = s.player?.research?.safRe as unknown as { order?: string[]; max?: Record<string, number>; share?: Record<string, number> } | undefined;
     if (al) {
@@ -892,9 +895,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   77: (raw) => {
     // 77 → 78 (SR-16): environment fixes are owned per RL family; the old per-edge signal patches go.
-    const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixes?: object } } };
+    // SafetyDept.envFixes is optional (absent = no fix in force): nothing to add.
+    const r = raw as { flags?: Record<string, unknown> };
     for (const k of Object.keys(r.flags ?? {})) if (k.startsWith('ws2.patch.') && k !== 'ws2.patch.lab.E04') delete r.flags![k];
-    if (r.player?.safety) r.player.safety.envFixes ??= {};
   },
   /** 78 → 79 (RD-P01a): a product's mini (miniVersionId) becomes the second model of its lineup (Deployment.lineup);
    *  Chat's free tier keeps it (freeTierId). Idempotent. */
@@ -1084,10 +1087,9 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   },
   95: (raw) => {
     // 95 → 96 (SR-16b): environment fixes are jobs on the 'envFix' need. A fix ordered before is already in force
-    // (envFixes); its busy-until flag goes, so its engineers are released (no job is made for it).
-    const r = raw as { flags?: Record<string, unknown>; player?: { safety?: { envFixJobs?: unknown[] } } };
+    // (envFixes); its busy-until flag goes, so its engineers are released (no job is made for it). envFixJobs is optional (absent = none), so none is added: a state of rev 95 loads unchanged.
+    const r = raw as { flags?: Record<string, unknown> };
     if (r.flags) delete r.flags['ws2.patchUntil'];
-    if (r.player?.safety) r.player.safety.envFixJobs ??= [];
   },
 };
 
