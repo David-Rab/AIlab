@@ -1,0 +1,2440 @@
+{
+ "fixture": "day900.json",
+ "A": {
+  "date": "Dec 18, 2027",
+  "day": 900,
+  "act": 4,
+  "cash": 128.438,
+  "runwayQ": 8,
+  "runwayState": "healthy",
+  "officialState": "healthy",
+  "liquidity": 132.438,
+  "minCash": 1.24,
+  "burnPerQ": -11.933,
+  "burnPerYear": -47.733,
+  "runwayParts_perQ": {
+   "revenue": -18.226,
+   "operating": 1.356,
+   "commitments": 1.312,
+   "chips": 0,
+   "sites": 3.625,
+   "funding": 0,
+   "debt": 0
+  },
+  "revenueRun30d_perYear": 72.903,
+  "lead": {
+   "nearest": {
+    "id": "r2",
+    "name": "xLab",
+    "est": 41,
+    "sd": 62
+   },
+   "all": [
+    {
+     "id": "r2",
+     "name": "xLab",
+     "est": 41,
+     "sd": 62
+    },
+    {
+     "id": "china",
+     "name": "DeepCent",
+     "est": 79,
+     "sd": 63
+    },
+    {
+     "id": "r0",
+     "name": "Anthropos",
+     "est": 115,
+     "sd": 60
+    }
+   ]
+  },
+  "researchSpeed": {
+   "rel_vsLeaderDay0": 190.048,
+   "aiLabourExp_mExp": 2218.789,
+   "aiLabourIdeas_mIdeas": 338.489,
+   "mods": 1,
+   "boundLabel": "compute-bound",
+   "unitProject_c": 117.351,
+   "researchH100e": 8271380.953,
+   "expShare": 0.879,
+   "trend_mExp": {
+    "now": {
+     "day": 896,
+     "v": 2204.459
+    },
+    "d30": {
+     "day": 868,
+     "v": 326.984
+    },
+    "d90": {
+     "day": 812,
+     "v": 108.176
+    }
+   },
+   "limits": [
+    {
+     "id": "speed.diffusion",
+     "mult": 1,
+     "binding": false,
+     "text": "none (no released recipe above yours)"
+    }
+   ]
+  },
+  "lossOfControlRisk": {
+   "p": 0.008,
+   "lo": 0.005,
+   "hi": 0.012,
+   "model": "Atlas-4.0",
+   "mis": 0.346,
+   "misSd90": 0.076,
+   "stopRate": 0.686,
+   "knownF": 0,
+   "unfoundF": 0.014,
+   "exposure": 0.11
+  },
+  "lossOfControlExtra": {
+   "harmPerYear": 6.119,
+   "harmActs": 2.276,
+   "believedControl": 0.896,
+   "suspectedFootholds": 0,
+   "locatedFootholds": 0,
+   "monitor": "Atlas-3.5",
+   "monitorGapOom": 1.967
+  },
+  "catastropheRisk": {
+   "est": 0.458,
+   "lo": 0.139,
+   "hi": 0.657,
+   "top": [
+    {
+     "label": "xLab",
+     "est": 0.249,
+     "band": [
+      0.064,
+      0.268
+     ]
+    },
+    {
+     "label": "DeepCent",
+     "est": 0.113,
+     "band": [
+      0.004,
+      0.214
+     ]
+    },
+    {
+     "label": "War",
+     "est": 0.085,
+     "band": [
+      0.043,
+      0.17
+     ]
+    }
+   ]
+  },
+  "alerts": {
+   "last30dSev2plus": 15,
+   "byKind": {
+    "alert": 1,
+    "incident": 8,
+    "research": 3,
+    "milestone": 1,
+    "gov": 1,
+    "world": 1
+   },
+   "pendingDecisions": []
+  }
+ },
+ "B": {
+  "computeOnline": 20377982.992,
+  "owned": 1500000,
+  "rented": 700000,
+  "idleChipsNoRacks": 0,
+  "split": {
+   "training": {
+    "label": "Training",
+    "share": 0.204,
+    "h100e": 4156472.841
+   },
+   "synthetic": {
+    "label": "Data generation",
+    "share": 0.229,
+    "h100e": 4676031.946
+   },
+   "experiments": {
+    "label": "Research experiments",
+    "share": 0.357,
+    "h100e": 7273827.472
+   },
+   "routine": {
+    "label": "AI staff: experiments",
+    "share": 0.04,
+    "h100e": 810512.204
+   },
+   "frontier": {
+    "label": "AI staff: ideas",
+    "share": 0.009,
+    "h100e": 187041.278
+   },
+   "engineering": {
+    "label": "AI staff: engineering",
+    "share": 0.012,
+    "h100e": 249388.37
+   },
+   "safetyAgents": {
+    "label": "AI staff: safety",
+    "share": 0,
+    "h100e": 0
+   },
+   "monitors": {
+    "label": "Safeguards",
+    "share": 0.003,
+    "h100e": 64600.307
+   },
+   "safety": {
+    "label": "Safety work",
+    "share": 0.013,
+    "h100e": 258401.228
+   },
+   "serving": {
+    "label": "Products",
+    "share": 0.133,
+    "h100e": 2701707.347
+   },
+   "idle": {
+    "label": "Idle",
+    "share": 0,
+    "h100e": 0
+   }
+  },
+  "presets": [
+   "reference",
+   "race",
+   "balanced",
+   "safety"
+  ],
+  "autoSplit": {
+   "on": false,
+   "to": [
+    "experiments"
+   ]
+  },
+  "idlePerUse_h100e": {
+   "training": 3533001.915,
+   "serving": 0,
+   "monitors": 0,
+   "unallocated": 0
+  },
+  "idleShares": {
+   "unallocated": 0,
+   "training": 0.173,
+   "serving": 0,
+   "monitors": 0,
+   "total": 0.173
+  },
+  "idleTotal_h100e": 3533001.915,
+  "idleStocks": [
+   {
+    "id": "scienceTeams",
+    "amount": 2,
+    "unit": "teams",
+    "share": 0.133
+   }
+  ],
+  "roles": {
+   "eng": {
+    "teams": 7,
+    "people": 1050,
+    "seats": 1050,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.735,
+    "sciAssigned": []
+   },
+   "re.cap": {
+    "teams": 19,
+    "people": 1900,
+    "seats": 1900,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 1.52,
+    "sciAssigned": []
+   },
+   "sci.cap": {
+    "teams": 13,
+    "people": 520,
+    "seats": 520,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.52,
+    "sciAssigned": [
+     {
+      "id": "T16",
+      "specialty": "pretraining",
+      "projectId": "L.scale"
+     },
+     {
+      "id": "T17",
+      "specialty": "posttraining",
+      "projectId": "L.rlalg"
+     },
+     {
+      "id": "T18",
+      "specialty": "systems",
+      "projectId": "L.env"
+     },
+     {
+      "id": "T19",
+      "specialty": "pretraining",
+      "projectId": "L.scale"
+     },
+     {
+      "id": "T20",
+      "specialty": "posttraining",
+      "projectId": "L.env"
+     },
+     {
+      "id": "T21",
+      "specialty": "systems",
+      "projectId": "L.env"
+     },
+     {
+      "id": "T22",
+      "specialty": "posttraining",
+      "projectId": "L.env"
+     },
+     {
+      "id": "T23",
+      "specialty": "pretraining",
+      "projectId": "L.data"
+     },
+     {
+      "id": "T52",
+      "specialty": "systems",
+      "projectId": "L.infer"
+     },
+     {
+      "id": "T75",
+      "specialty": "pretraining",
+      "projectId": "L.data"
+     },
+     {
+      "id": "T105",
+      "specialty": "posttraining",
+      "projectId": "L.rlalg"
+     },
+     {
+      "id": "T128",
+      "specialty": "systems",
+      "projectId": "L.scale"
+     },
+     {
+      "id": "T153",
+      "specialty": "pretraining",
+      "projectId": "L.opt"
+     }
+    ]
+   },
+   "re.saf": {
+    "teams": 1,
+    "people": 100,
+    "seats": 100,
+    "seatsOpen": 0,
+    "quality": [
+     "strong"
+    ],
+    "payroll_perYear": 0.065,
+    "sciAssigned": []
+   },
+   "sci.saf": {
+    "teams": 2,
+    "people": 80,
+    "seats": 80,
+    "seatsOpen": 0,
+    "quality": [
+     "strong",
+     "strong"
+    ],
+    "payroll_perYear": 0.064,
+    "sciAssigned": [
+     {
+      "id": "T25",
+      "specialty": "alignment",
+      "projectId": null
+     },
+     {
+      "id": "T26",
+      "specialty": "interp",
+      "projectId": null
+     }
+    ]
+   }
+  },
+  "hiringTargets": {
+   "eng": 7,
+   "re.cap": 19,
+   "sci.cap": 13,
+   "re.saf": 1,
+   "sci.saf": 2
+  },
+  "hireCapPerWeek": {
+   "cap": 21.526,
+   "saf": 10.734
+  },
+  "payroll_perYear": 2.904,
+  "openCandidates": 4,
+  "staff": {
+   "cap": 3470,
+   "saf": 180
+  },
+  "agents": {
+   "lanes": {
+    "eng": {
+     "model": "Atlas-4.0",
+     "newest": true,
+     "measuredL": 12.21,
+     "copies": 84062.376,
+     "h100e": 249388.37,
+     "shareOfBudget": 1,
+     "monitor": null
+    },
+    "capRoutine": {
+     "model": "Atlas-4.0",
+     "newest": false,
+     "measuredL": 12.21,
+     "copies": 273202.723,
+     "h100e": 810512.204,
+     "shareOfBudget": 0.813,
+     "monitor": "Atlas-3.5"
+    },
+    "capFrontier": {
+     "model": "Atlas-4.0",
+     "newest": true,
+     "measuredL": 12.21,
+     "copies": 63046.782,
+     "h100e": 187041.278,
+     "shareOfBudget": 0.188,
+     "monitor": "Atlas-3.5"
+    },
+    "safety": {
+     "model": "Atlas-4.0",
+     "newest": true,
+     "measuredL": 12.21,
+     "copies": 0,
+     "h100e": 0,
+     "shareOfBudget": 0,
+     "monitor": null
+    }
+   },
+   "mExp": 2882.739,
+   "mIdeas": 722.696,
+   "build": 13281.855,
+   "safetyAiFte": 0,
+   "totalH100e": 1299072.741,
+   "totalCost": 6.74,
+   "trusted": {
+    "policy": 0,
+    "effective": 0,
+    "aiShare": 0
+   },
+   "monitors": {
+    "need": 0.037,
+    "budget": 0.003,
+    "used": 0.003,
+    "coverage": 0.069,
+    "control": 0.001,
+    "controlShort": 0
+   }
+  },
+  "workTypes": [
+   {
+    "wt": "SWE",
+    "name": "Software engineering",
+    "model": "Atlas-4.0",
+    "copies": 84062.376,
+    "h100e": 249388.37,
+    "aiFte": 1989605.133,
+    "humansTeamEq": 7,
+    "aiTeamEq": 13264.034,
+    "effectiveTeamEq": 13090.345,
+    "multiplier_xPeopleAlone": 1870.049,
+    "humanShare": 0.039,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.996,
+    "coverage": 0.996,
+    "costAIperHour": 0.325,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "EXP",
+    "name": "Experiments & runs",
+    "model": "Atlas-4.0",
+    "copies": 273202.723,
+    "h100e": 810512.204,
+    "aiFte": 6013581.514,
+    "humansTeamEq": 19,
+    "aiTeamEq": 60135.815,
+    "effectiveTeamEq": 9478.833,
+    "multiplier_xPeopleAlone": 498.886,
+    "humanShare": 0.977,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.972,
+    "coverage": 0.972,
+    "costAIperHour": 0.325,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "IDEAS",
+    "name": "Research ideas & taste",
+    "model": "Atlas-4.0",
+    "copies": 63046.782,
+    "h100e": 187041.278,
+    "aiFte": 1492203.85,
+    "humansTeamEq": 13,
+    "aiTeamEq": 37305.096,
+    "effectiveTeamEq": 666.818,
+    "multiplier_xPeopleAlone": 51.294,
+    "humanShare": 1,
+    "handedToAI_t": 1,
+    "aiDoesShare_A": 0.888,
+    "coverage": 0.888,
+    "costAIperHour": 0.325,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "SAF_EXP",
+    "name": "Safety experiments",
+    "model": "Atlas-4.0",
+    "copies": 0,
+    "h100e": 0,
+    "aiFte": 0,
+    "humansTeamEq": 1,
+    "aiTeamEq": 0,
+    "effectiveTeamEq": 1,
+    "multiplier_xPeopleAlone": 1,
+    "humanShare": 1,
+    "handedToAI_t": 0,
+    "aiDoesShare_A": 0,
+    "coverage": 0.971,
+    "costAIperHour": 0.325,
+    "costHumanPerHour": 560
+   },
+   {
+    "wt": "SAF_IDEAS",
+    "name": "Safety research ideas",
+    "model": "Atlas-4.0",
+    "copies": 0,
+    "h100e": 0,
+    "aiFte": 0,
+    "humansTeamEq": 0,
+    "aiTeamEq": 0,
+    "effectiveTeamEq": 0,
+    "multiplier_xPeopleAlone": 1,
+    "humanShare": 1,
+    "handedToAI_t": 0,
+    "aiDoesShare_A": 0,
+    "coverage": 0.841,
+    "costAIperHour": 0.325,
+    "costHumanPerHour": 560
+   }
+  ],
+  "needs": {
+   "engineers": {
+    "cap": 13281.855,
+    "order": [
+     "runs",
+     "upkeep",
+     "builds"
+    ],
+    "needs": [
+     {
+      "k": "runs",
+      "label": "Run setups, research adoptions, eval harness",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "upkeep",
+      "label": "Product upkeep",
+      "demand": 8.429,
+      "got": 8.429,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "builds",
+      "label": "Builds (features, launches, sector adaptations)",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     }
+    ],
+    "idle": 13273.427,
+    "unit": "team-weeks a week"
+   },
+   "buildSplit": {
+    "capacity": 13281.855,
+    "human": 7,
+    "ai": 13274.855,
+    "coverage": 0.998,
+    "m": 1897.408
+   },
+   "buildCapacity": {
+    "capacity": 13281.855,
+    "human": 7,
+    "aEng": 0.998
+   },
+   "upkeep": [
+    {
+     "kind": "product",
+     "ref": "D1",
+     "tw": 0.326
+    },
+    {
+     "kind": "product",
+     "ref": "D2",
+     "tw": 3.061
+    },
+    {
+     "kind": "product",
+     "ref": "D3",
+     "tw": 3.487
+    },
+    {
+     "kind": "monitor",
+     "ref": "capRoutine",
+     "tw": 0.4
+    },
+    {
+     "kind": "monitor",
+     "ref": "capFrontier",
+     "tw": 0.4
+    },
+    {
+     "kind": "feature",
+     "ref": "memory",
+     "tw": 0.115
+    },
+    {
+     "kind": "feature",
+     "ref": "computerUse",
+     "tw": 0.154
+    },
+    {
+     "kind": "feature",
+     "ref": "voiceVision",
+     "tw": 0.115
+    },
+    {
+     "kind": "feature",
+     "ref": "deepResearch",
+     "tw": 0.077
+    },
+    {
+     "kind": "feature",
+     "ref": "codingAgent",
+     "tw": 0.115
+    },
+    {
+     "kind": "suite",
+     "ref": "math",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "swe",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "mlResearch",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "longHorizon",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "cyber",
+     "tw": 0.03
+    },
+    {
+     "kind": "suite",
+     "ref": "bio",
+     "tw": 0.03
+    }
+   ],
+   "researchEngineersCap": {
+    "cap": 19,
+    "order": [
+     "ops",
+     "exp"
+    ],
+    "needs": [
+     {
+      "k": "ops",
+      "label": "Run operations",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "exp",
+      "label": "Project experiments",
+      "demand": 12,
+      "got": 12,
+      "capped": false,
+      "short": 0
+     }
+    ],
+    "idle": 7,
+    "unit": "teams",
+    "m": 2882.739,
+    "perProject": {
+     "L.scale": 2,
+     "L.env": 2,
+     "L.data": 2,
+     "L.opt": 2,
+     "L.rlalg": 2,
+     "L.infer": 2
+    }
+   },
+   "researchEngineersSaf": {
+    "cap": 100,
+    "order": [
+     "review",
+     "spotCheck",
+     "cases",
+     "validation",
+     "evals",
+     "removal",
+     "safExp"
+    ],
+    "needs": [
+     {
+      "k": "review",
+      "label": "Human review (safeguards)",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "spotCheck",
+      "label": "Spot-checks of AI safety work",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "cases",
+      "label": "Open cases",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "validation",
+      "label": "Validation jobs",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "evals",
+      "label": "Eval suites",
+      "demand": 10,
+      "got": 10,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "removal",
+      "label": "Foothold removals",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     },
+     {
+      "k": "safExp",
+      "label": "Line experiments",
+      "demand": 0,
+      "got": 0,
+      "capped": false,
+      "short": 0
+     }
+    ],
+    "idle": 90,
+    "unit": "people"
+   }
+  },
+  "whatBinds": {
+   "label": "compute-bound",
+   "unitProject_believed": {
+    "eC": 0.396,
+    "eL": 0.205,
+    "eCBand": [
+     0.392,
+     0.413
+    ],
+    "eLBand": [
+     0.057,
+     0.22
+    ],
+    "plus10pctComputeToExperiments_speedPct": 3.843,
+    "plus10pctResearchEngineers_speedPct": 1.977
+   },
+   "responseCurves_believed": {
+    "scales": [
+     0.25,
+     0.35,
+     0.5,
+     0.7,
+     1,
+     1.4,
+     2,
+     2.8,
+     4
+    ],
+    "humans": [
+     0.423,
+     0.523,
+     0.653,
+     0.804,
+     1,
+     1.225,
+     1.514,
+     1.84,
+     2.243
+    ],
+    "research": [
+     0.561,
+     0.651,
+     0.757,
+     0.868,
+     1,
+     1.14,
+     1.306,
+     1.482,
+     1.692
+    ],
+    "experiments": [
+     0.577,
+     0.661,
+     0.762,
+     0.87,
+     1,
+     1.138,
+     1.303,
+     1.479,
+     1.688
+    ],
+    "agents": [
+     0.969,
+     0.984,
+     0.993,
+     0.998,
+     1,
+     1.001,
+     1.002,
+     1.002,
+     1.002
+    ]
+   },
+   "nextHireBuys_strongTeam": {
+    "eng": {
+     "currency": "staffTime",
+     "amount": 0.01,
+     "unit": "team-weeks / week",
+     "target": "build capacity"
+    },
+    "re.cap": {
+     "currency": "progress",
+     "amount": 1,
+     "unit": "team-equivalents",
+     "target": "research engineers idle (no project ETA moves today)"
+    },
+    "sci.cap": {
+     "currency": "progress",
+     "amount": 0,
+     "unit": "days",
+     "target": "no capability project moves today (no project is finding ideas: science teams speed ideation)"
+    },
+    "re.saf": {
+     "currency": "alignment",
+     "amount": 0,
+     "unit": "results / yr",
+     "target": "safety research results"
+    },
+    "sci.saf": {
+     "currency": "alignment",
+     "amount": 0,
+     "unit": "results / yr",
+     "target": "safety research results (a new science team joins the safety projects on the priority list; with none it waits idle)"
+    }
+   }
+  }
+ },
+ "C": {
+  "researchWideBinds": "compute-bound",
+  "softwareRate": {
+   "oomPerYear": 0.189,
+   "ideasPerYear": 928.755,
+   "publicPerYear": 0
+  },
+  "capability": {
+   "list": [
+    {
+     "id": "L.scale",
+     "name": "Scaling recipes",
+     "kind": "line",
+     "unlock": false,
+     "area": "Pretraining",
+     "column": "pretraining",
+     "stack": "pre",
+     "unit": "oom",
+     "rank": 1,
+     "state": "running",
+     "stage": "scale",
+     "stageFrac": 0.777,
+     "eta": 0.147,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.147
+     },
+     "teams": [
+      {
+       "specialty": "pretraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      },
+      {
+       "specialty": "pretraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      },
+      {
+       "specialty": "systems",
+       "quality": "strong",
+       "heads": 40,
+       "match": false
+      }
+     ],
+     "teamsWanted": 3,
+     "wantAuto": false,
+     "sciCap": 4,
+     "taste": 3.581,
+     "cands": 4,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.011,
+      "sd": 0.001,
+      "sMu": 0.05,
+      "sSd": 0.04,
+      "nov": 0.747,
+      "b": 1,
+      "tested": true
+     },
+     "effect": {
+      "raw": 0.011,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 2.635,
+      "range90": [
+       0.01,
+       0.012
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 8.572,
+      "realisedOom": 1.344,
+      "realisedPct": 2106.234,
+      "nextPriorOom": 0.003,
+      "nextPriorPct": 0.75,
+      "ideasSoFar": 120,
+      "pendingBuild": 0,
+      "r": 1.44
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    },
+    {
+     "id": "L.env",
+     "name": "Environments & rewards",
+     "kind": "line",
+     "unlock": false,
+     "area": "Post-training",
+     "column": "posttraining",
+     "stack": "rlCeil",
+     "unit": "oom",
+     "rank": 2,
+     "state": "running",
+     "stage": "small",
+     "stageFrac": 0.597,
+     "eta": 0.87,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.87
+     },
+     "teams": [
+      {
+       "specialty": "systems",
+       "quality": "strong",
+       "heads": 40,
+       "match": false
+      },
+      {
+       "specialty": "posttraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      },
+      {
+       "specialty": "systems",
+       "quality": "strong",
+       "heads": 40,
+       "match": false
+      },
+      {
+       "specialty": "posttraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      }
+     ],
+     "teamsWanted": 4,
+     "wantAuto": false,
+     "sciCap": 5,
+     "taste": 3.581,
+     "cands": 3,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.006,
+      "sd": 0,
+      "sMu": 0,
+      "sSd": 0,
+      "nov": 0.234,
+      "b": 1,
+      "tested": false
+     },
+     "effect": {
+      "raw": 0.006,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 1.398,
+      "range90": [
+       0.006,
+       0.006
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 8.207,
+      "realisedOom": 0.439,
+      "realisedPct": 174.675,
+      "nextPriorOom": 0.002,
+      "nextPriorPct": 0.392,
+      "ideasSoFar": 121,
+      "pendingBuild": 0,
+      "r": 0.48
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    },
+    {
+     "id": "L.data",
+     "name": "Data filtering & mixing",
+     "kind": "line",
+     "unlock": false,
+     "area": "Pretraining",
+     "column": "pretraining",
+     "stack": "pre",
+     "unit": "oom",
+     "rank": 3,
+     "state": "running",
+     "stage": "scale",
+     "stageFrac": 0.765,
+     "eta": 0.154,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.154
+     },
+     "teams": [
+      {
+       "specialty": "pretraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      },
+      {
+       "specialty": "pretraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      }
+     ],
+     "teamsWanted": 2,
+     "wantAuto": false,
+     "sciCap": 3,
+     "taste": 3.581,
+     "cands": 4,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.011,
+      "sd": 0,
+      "sMu": 0,
+      "sSd": 0.05,
+      "nov": 0.613,
+      "b": 1,
+      "tested": true
+     },
+     "effect": {
+      "raw": 0.011,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 2.476,
+      "range90": [
+       0.01,
+       0.011
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 8.703,
+      "realisedOom": 0.827,
+      "realisedPct": 571.314,
+      "nextPriorOom": 0.003,
+      "nextPriorPct": 0.74,
+      "ideasSoFar": 109,
+      "pendingBuild": 0,
+      "r": 0.88
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    },
+    {
+     "id": "L.opt",
+     "name": "Optimizer & architecture tweaks",
+     "kind": "line",
+     "unlock": false,
+     "area": "Pretraining",
+     "column": "pretraining",
+     "stack": "pre",
+     "unit": "oom",
+     "rank": 4,
+     "state": "running",
+     "stage": "scale",
+     "stageFrac": 0.144,
+     "eta": 0.563,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.563
+     },
+     "teams": [
+      {
+       "specialty": "pretraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      }
+     ],
+     "teamsWanted": 1,
+     "wantAuto": false,
+     "sciCap": 1.5,
+     "taste": 3.581,
+     "cands": 3,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.032,
+      "sd": 0.001,
+      "sMu": -0.25,
+      "sSd": 0.2,
+      "nov": 0.873,
+      "b": 1,
+      "tested": true
+     },
+     "effect": {
+      "raw": 0.032,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 7.74,
+      "range90": [
+       0.03,
+       0.035
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 5.766,
+      "realisedOom": 0.67,
+      "realisedPct": 367.307,
+      "nextPriorOom": 0.008,
+      "nextPriorPct": 1.873,
+      "ideasSoFar": 55,
+      "pendingBuild": 0,
+      "r": 0.88
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    },
+    {
+     "id": "L.rlalg",
+     "name": "RL algorithms",
+     "kind": "line",
+     "unlock": false,
+     "area": "Post-training",
+     "column": "posttraining",
+     "stack": "rlMid",
+     "unit": "oom",
+     "rank": 5,
+     "state": "running",
+     "stage": "scale",
+     "stageFrac": 0.004,
+     "eta": 0.655,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.655
+     },
+     "teams": [
+      {
+       "specialty": "posttraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      },
+      {
+       "specialty": "posttraining",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      }
+     ],
+     "teamsWanted": 2,
+     "wantAuto": false,
+     "sciCap": 3,
+     "taste": 3.581,
+     "cands": 3,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.004,
+      "sd": 0,
+      "sMu": 0,
+      "sSd": 0,
+      "nov": 0.877,
+      "b": 1,
+      "tested": true
+     },
+     "effect": {
+      "raw": 0.004,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 0.972,
+      "range90": [
+       0.004,
+       0.005
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 25.454,
+      "realisedOom": 0.45,
+      "realisedPct": 181.736,
+      "nextPriorOom": 0.001,
+      "nextPriorPct": 0.323,
+      "ideasSoFar": 116,
+      "pendingBuild": 0,
+      "r": 0.32
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    },
+    {
+     "id": "L.infer",
+     "name": "Inference efficiency",
+     "kind": "line",
+     "unlock": false,
+     "area": "Systems",
+     "column": "systems",
+     "stack": "serve",
+     "unit": "oom",
+     "rank": 6,
+     "state": "running",
+     "stage": "scale",
+     "stageFrac": 0.6,
+     "eta": 0.263,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0.263
+     },
+     "teams": [
+      {
+       "specialty": "systems",
+       "quality": "strong",
+       "heads": 40,
+       "match": true
+      }
+     ],
+     "teamsWanted": 1,
+     "wantAuto": false,
+     "sciCap": 1.5,
+     "taste": 3.581,
+     "cands": 3,
+     "pickAt": 2,
+     "spec": 0,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 1,
+     "belief": {
+      "mu": 0.014,
+      "sd": 0.001,
+      "sMu": 0,
+      "sSd": 0,
+      "nov": 0.934,
+      "b": 1,
+      "tested": true
+     },
+     "effect": {
+      "raw": 0.014,
+      "unit": "oom",
+      "source": "belief.mu (small-scale)",
+      "pctEffCompute": 3.349,
+      "range90": [
+       0.013,
+       0.015
+      ]
+     },
+     "line": {
+      "returnsHarder_R_over_n0": 37.508,
+      "realisedOom": 0.944,
+      "realisedPct": 779.98,
+      "nextPriorOom": 0.003,
+      "nextPriorPct": 0.753,
+      "ideasSoFar": 95,
+      "pendingBuild": 0,
+      "r": 0.6
+     },
+     "researchEngineers": 2,
+     "flopDay": 4.194573841923277e+25,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    }
+   ],
+   "failed": [
+    {
+     "id": "P05",
+     "name": "Multi-agent orchestration",
+     "kind": "axis",
+     "unlock": true,
+     "area": "Systems",
+     "column": "systems",
+     "unit": "unlock",
+     "rank": 0,
+     "state": "failed",
+     "stage": "test",
+     "stageFrac": 1,
+     "wait": "Failed: reopen it as a speculative project",
+     "eta": 0,
+     "etaParts": {
+      "ideation": 0,
+      "experiments": 0
+     },
+     "teams": [],
+     "teamsWanted": 3,
+     "wantAuto": false,
+     "sciCap": 0,
+     "taste": 1,
+     "cands": 0,
+     "pickAt": 2,
+     "spec": 4,
+     "drops": 0,
+     "maxDrops": 0,
+     "odds": 0.03,
+     "researchEngineers": 0,
+     "flopDay": 0,
+     "c": 117.351,
+     "binds": "compute",
+     "eC": 0.396,
+     "eL": 0.205,
+     "eCBand": [
+      0.392,
+      0.413
+     ],
+     "eLBand": [
+      0.057,
+      0.22
+     ]
+    }
+   ],
+   "idleScienceTeams": []
+  },
+  "safetyLines": [
+   {
+    "id": "AG01",
+    "name": "Ambitious mech interp",
+    "column": "interp",
+    "status": "idle",
+    "health": {
+     "mean": 0.273,
+     "lo": 0,
+     "hi": 0.559,
+     "label": "Struggling"
+    },
+    "T1mo": 9,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 3,
+    "next": "T-SAE"
+   },
+   {
+    "id": "AG02",
+    "name": "Applied interp",
+    "column": "interp",
+    "status": "idle",
+    "health": {
+     "mean": 0.4,
+     "lo": 0.158,
+     "hi": 0.642,
+     "label": "Mixed"
+    },
+    "T1mo": 4,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {
+     "DEAD": 3,
+     "EVAL": 1
+    },
+    "findings": 4,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 16.53,
+    "projects": [],
+    "ideasKnown": 3,
+    "ideasTotal": 4,
+    "next": "T-NLA"
+   },
+   {
+    "id": "AG03",
+    "name": "RepE / steering",
+    "column": "interp",
+    "status": "idle",
+    "health": {
+     "mean": 0.455,
+     "lo": 0.134,
+     "hi": 0.775,
+     "label": "Mixed"
+    },
+    "T1mo": 4,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 3,
+    "next": "T-STEER"
+   },
+   {
+    "id": "AG04",
+    "name": "Heuristic args / ELK",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.143,
+     "lo": 0,
+     "hi": 0.346,
+     "label": "Struggling"
+    },
+    "T1mo": 24,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG04"
+   },
+   {
+    "id": "AG05",
+    "name": "Scalable oversight",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.333,
+     "lo": 0.041,
+     "hi": 0.626,
+     "label": "Mixed"
+    },
+    "T1mo": 9,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "T-DEBATE"
+   },
+   {
+    "id": "AG06",
+    "name": "Weak-to-strong",
+    "column": "alignment",
+    "status": "idle",
+    "health": {
+     "mean": 0.333,
+     "lo": 0.041,
+     "hi": 0.626,
+     "label": "Mixed"
+    },
+    "T1mo": 6,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "T-W2S"
+   },
+   {
+    "id": "AG07",
+    "name": "AI control",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.615,
+     "lo": 0.324,
+     "hi": 0.907,
+     "label": "Promising"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 1,
+    "ideasTotal": 4,
+    "next": "T-LOCK"
+   },
+   {
+    "id": "AG08",
+    "name": "Model organisms & evals",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.667,
+     "lo": 0.374,
+     "hi": 0.959,
+     "label": "Promising"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 2,
+    "ideasTotal": 4,
+    "next": "T-AUDIT"
+   },
+   {
+    "id": "AG09",
+    "name": "CoT monitorability",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.583,
+     "lo": 0.278,
+     "hi": 0.889,
+     "label": "Promising"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 1,
+    "ideasTotal": 2,
+    "next": "T-MONSUITE"
+   },
+   {
+    "id": "AG10",
+    "name": "Guaranteed-safe AI",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.167,
+     "lo": 0,
+     "hi": 0.398,
+     "label": "Struggling"
+    },
+    "T1mo": 18,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG10"
+   },
+   {
+    "id": "AG11",
+    "name": "Scientist AI guardrail",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.231,
+     "lo": 0,
+     "hi": 0.483,
+     "label": "Struggling"
+    },
+    "T1mo": 18,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG11"
+   },
+   {
+    "id": "AG12",
+    "name": "Agent foundations",
+    "column": "alignment",
+    "status": "idle",
+    "health": {
+     "mean": 0.111,
+     "lo": 0,
+     "hi": 0.274,
+     "label": "Struggling"
+    },
+    "T1mo": 36,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG12"
+   },
+   {
+    "id": "AG13",
+    "name": "Dev interp / SLT",
+    "column": "interp",
+    "status": "idle",
+    "health": {
+     "mean": 0.231,
+     "lo": 0,
+     "hi": 0.483,
+     "label": "Struggling"
+    },
+    "T1mo": 12,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG13"
+   },
+   {
+    "id": "AG14",
+    "name": "Cooperative AI",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.333,
+     "lo": 0.041,
+     "hi": 0.626,
+     "label": "Mixed"
+    },
+    "T1mo": 9,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 1,
+    "next": "line:AG14"
+   },
+   {
+    "id": "AG15",
+    "name": "Unlearning & curation",
+    "column": "alignment",
+    "status": "idle",
+    "health": {
+     "mean": 0.5,
+     "lo": 0.19,
+     "hi": 0.81,
+     "label": "Mixed"
+    },
+    "T1mo": 6,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 3,
+    "next": "T-FILTER"
+   },
+   {
+    "id": "AG16",
+    "name": "Adversarial robustness",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.5,
+     "lo": 0.19,
+     "hi": 0.81,
+     "label": "Mixed"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 1,
+    "ideasTotal": 1,
+    "next": "line:AG16"
+   },
+   {
+    "id": "AG17",
+    "name": "Automated alignment research",
+    "column": "evals",
+    "status": "idle",
+    "health": {
+     "mean": 0.5,
+     "lo": 0.19,
+     "hi": 0.81,
+     "label": "Mixed"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {},
+    "findings": 0,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 0,
+    "projects": [],
+    "ideasKnown": 0,
+    "ideasTotal": 2,
+    "next": "aar"
+   },
+   {
+    "id": "AG18",
+    "name": "Training-signal design",
+    "column": "alignment",
+    "status": "idle",
+    "health": {
+     "mean": 0.529,
+     "lo": 0.264,
+     "hi": 0.795,
+     "label": "Mixed"
+    },
+    "T1mo": 3,
+    "teams": [],
+    "heads": 0,
+    "staffingOfSerious": 0,
+    "computeShare": 0,
+    "aiLabourShare": 0,
+    "results": {
+     "DEAD": 1,
+     "TECH": 1
+    },
+    "findings": 2,
+    "resultsPerYear": 0,
+    "expectedVsObserved": {
+     "n": 0,
+     "expected": 0,
+     "observed": 0,
+     "aiShare": 0
+    },
+    "deadEndTM": 3.87,
+    "projects": [],
+    "ideasKnown": 3,
+    "ideasTotal": 5,
+    "next": "T-INOC"
+   }
+  ],
+  "lineBadges": {
+   "promisingIdle": [
+    "AG07",
+    "AG08",
+    "AG09"
+   ],
+   "deadEndTM": 20.4
+  },
+  "safIdleFlag": "2 safety teams idle — add projects to the priority list",
+  "techniques": [
+   {
+    "id": "T-PROBE",
+    "name": "Linear probes",
+    "agenda": "AG02",
+    "family": "WB",
+    "role": "detect",
+    "active": true,
+    "decay": 0.97,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-NOISE",
+    "name": "Noise-injection elicitation",
+    "agenda": "AG02",
+    "family": "WB",
+    "role": "detect",
+    "active": true,
+    "decay": 0.97,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-DECEPT",
+    "name": "Deception probe",
+    "agenda": "AG02",
+    "family": "WB",
+    "role": "detect",
+    "active": true,
+    "decay": 0.97,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-TMON",
+    "name": "Trusted monitoring",
+    "agenda": "AG07",
+    "family": "COT",
+    "role": "contain",
+    "active": true,
+    "decay": 0.55,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-PROP",
+    "name": "Propensity evals",
+    "agenda": "AG08",
+    "family": "BB",
+    "role": "detect",
+    "active": true,
+    "decay": 0.83,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-MO",
+    "name": "Model organisms",
+    "agenda": "AG08",
+    "family": "BB",
+    "role": "detect",
+    "active": true,
+    "decay": 0.83,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-COTMON",
+    "name": "CoT monitor",
+    "agenda": "AG09",
+    "family": "COT",
+    "role": "detect",
+    "active": true,
+    "decay": 0.99,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-CCLASS",
+    "name": "Constitutional classifiers",
+    "agenda": "AG16",
+    "family": "BB",
+    "role": "fix",
+    "active": false,
+    "decay": 0.97,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-SPEC",
+    "name": "Constitution / spec",
+    "agenda": "AG18",
+    "family": "BB",
+    "role": "fix",
+    "active": false,
+    "decay": 0.46,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-HARDEN",
+    "name": "Environment hardening",
+    "agenda": "AG18",
+    "family": "BB",
+    "role": "fix",
+    "active": false,
+    "decay": 0.46,
+    "trainedAgainst": 0
+   },
+   {
+    "id": "T-CONFESS",
+    "name": "Honesty & confession training",
+    "agenda": "AG18",
+    "family": "BB",
+    "role": "fix",
+    "active": false,
+    "decay": 0.6,
+    "trainedAgainst": 0
+   }
+  ],
+  "validation": {
+   "heads": 100,
+   "validationHeads": 0,
+   "experiments": 0,
+   "investigations": 0,
+   "patches": 0,
+   "jobs": 0,
+   "notOnCurrent": 0,
+   "instruments": 6,
+   "model": "Atlas-4.0"
+  },
+  "counts": {
+   "sciCapTeams": 13,
+   "sciCapIdle": 0,
+   "sciSafTeams": 2,
+   "sciSafIdle": 2,
+   "reCapTeams": 19,
+   "reCapPeople": 1900,
+   "reSafTeams": 1,
+   "reSafPeople": 100
+  }
+ },
+ "D": {
+  "versions": [
+   {
+    "id": "V0",
+    "name": "Atlas-1.0",
+    "status": "retired"
+   },
+   {
+    "id": "V0-1",
+    "name": "Atlas-1.0-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V0-2",
+    "name": "Atlas-1.0-micro",
+    "status": "deployed"
+   },
+   {
+    "id": "V0-3",
+    "name": "Atlas-1.0-nano",
+    "status": "deployed"
+   },
+   {
+    "id": "V2",
+    "name": "Atlas-1.4",
+    "status": "retired"
+   },
+   {
+    "id": "V3",
+    "name": "Atlas-1.5",
+    "status": "retired"
+   },
+   {
+    "id": "V6",
+    "name": "Atlas-1.6",
+    "status": "retired"
+   },
+   {
+    "id": "V8",
+    "name": "Atlas-1.7",
+    "status": "retired"
+   },
+   {
+    "id": "V10",
+    "name": "Atlas-2.0",
+    "status": "retired"
+   },
+   {
+    "id": "V12",
+    "name": "Atlas-2.0-mini",
+    "status": "retired"
+   },
+   {
+    "id": "V14",
+    "name": "Atlas-2.2",
+    "status": "retired"
+   },
+   {
+    "id": "V16",
+    "name": "Atlas-2.2-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V18",
+    "name": "Atlas-2.4",
+    "status": "retired"
+   },
+   {
+    "id": "V20",
+    "name": "Atlas-2.5",
+    "status": "retired"
+   },
+   {
+    "id": "V23",
+    "name": "Atlas-2.6",
+    "status": "retired"
+   },
+   {
+    "id": "V25",
+    "name": "Atlas-2.6-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V27",
+    "name": "Atlas-2.8",
+    "status": "retired"
+   },
+   {
+    "id": "V29",
+    "name": "Atlas-2.8-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V31",
+    "name": "Atlas-2.10",
+    "status": "retired"
+   },
+   {
+    "id": "V33",
+    "name": "Atlas-2.10-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V35",
+    "name": "Atlas-3.0",
+    "status": "retired"
+   },
+   {
+    "id": "V38",
+    "name": "Atlas-3.0-mini",
+    "status": "retired"
+   },
+   {
+    "id": "V40",
+    "name": "Atlas-3.0-mini-2",
+    "status": "deployed"
+   },
+   {
+    "id": "V41",
+    "name": "Atlas-3.3",
+    "status": "deployed"
+   },
+   {
+    "id": "V44",
+    "name": "Atlas-3.3-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V45",
+    "name": "Atlas-3.5",
+    "status": "deployed"
+   },
+   {
+    "id": "V47",
+    "name": "Atlas-3.5-mini",
+    "status": "deployed"
+   },
+   {
+    "id": "V50",
+    "name": "Atlas-3.7",
+    "status": "ready"
+   },
+   {
+    "id": "V52",
+    "name": "Atlas-4.0",
+    "status": "ready"
+   },
+   {
+    "id": "V54",
+    "name": "Atlas-4.0-mini",
+    "status": "retired"
+   },
+   {
+    "id": "V57",
+    "name": "Atlas-4.0-mini-2",
+    "status": "ready"
+   },
+   {
+    "id": "V59",
+    "name": "Atlas-4.0-mini-3",
+    "status": "ready"
+   }
+  ],
+  "best": "Atlas-4.0",
+  "newestInternal": "Atlas-4.0",
+  "internalEval": {
+   "L": 12.21,
+   "evaluating": false,
+   "name": "Atlas-4.0"
+  },
+  "deployments": [
+   {
+    "channel": "consumer",
+    "status": "live",
+    "model": "Atlas-3.5"
+   },
+   {
+    "channel": "api",
+    "status": "live",
+    "model": "Atlas-3.5"
+   },
+   {
+    "channel": "enterprise",
+    "status": "live",
+    "model": "Atlas-3.5"
+   },
+   {
+    "channel": "internal",
+    "status": "live",
+    "model": "Atlas-4.0"
+   }
+  ]
+ },
+ "_flags": {
+  "B.workTypes.effectiveTeamEq / multiplier_xPeopleAlone / humanShare, A.researchSpeed.aiLabour*, B.agents.mExp/mIdeas": "departments/workfit.ts useLabour/effLabour read s.hidden.timeline.prod (rc) and the version G: the engine's realised labour, shown by the UI as \"as your projects ran yesterday\"; kept, but derived from hidden parameters",
+  "B.workTypes.coverage / aiDoesShare_A": "workfit.ts workFit on version G (true effective compute) and preset calibration; kept (UI shows it), flagged",
+  "C.capability[].l, X (dropped)": "models/research.ts projectExpInputs reads s.hidden.timeline.prod.lam; dropped. bound/eC/eL use believedElasticities (ok) at c and the hidden-λ l",
+  "B.computeOnline": "compute/power.ts: online less hidden-foothold reservations (by design the \"unexplained compute use\" symptom)",
+  "C.techniques.decay": "not verified whether decay reads true or measured capability"
+ },
+ "errors": {}
+}
