@@ -73,7 +73,7 @@ const REQUIRED = [
   'blueprint', 'effCompute', 'baseRun', 'postTrain', 'distillRun', 'continueRun', 'flop', 'wallTime', 'behindAtFinish', 'staleness', 'dataWall', 'goodput', 'activeParams', 'tokensPerParam', 'servingFlop', 'gGain', 'distillGap', 'graders',
   'faultTolerant', 'buildQueue', 'teamWeek', 'poolShare', 'idleCompute', 'moe', 'neuralese', 'nativeMultimodal', 'hazardFilter', 'safetyPretrain',
   'rlFocus', 'hardenedGraders', 'cot', 'constitution', 'inoculation', 'honestyTraining', 'antiScheming', 'riskFamily', 'dataSpec', 'evals', 'autoEvaluate',
-  'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'adaptation',
+  'product', 'segmentShare', 'bestRivalProduct', 'bindingCause', 'qualityBound', 'priceBound', 'priceTier', 'safeguards', 'certification',
   'feature', 'releaseClearance', 'freeTier', 'autoServing', 'servingCut', 'upgradePolicy', 'timeHorizon', 'agentTasks', 'runCost', 'revPerH100e',
   'agentPackage', 'agentMonitor', 'monitor', 'catchRate', 'agentCopies', 'agentBudget', 'autoSplit', 'aiShareWork', 'researchTaste', 'trustedToAI', 'unseen',
   // model v3 V2b: research projects, recipe, work types, allocations.

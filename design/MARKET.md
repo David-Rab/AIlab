@@ -140,7 +140,7 @@ General tools:
 | Agent mode | API, Enterprise, Vetted | sells autonomous agent-hours; gate: the model's time horizon ≥ the task length (today's Agents gate) |
 | Computer use | API, Enterprise, Vetted | GUI-only tasks (today's enabler); OSWorld +8–12 pp |
 | Memory | all four | horizon × 1.3 (today's) |
-| Voice & vision | all four | voice and image input; Chat appeal |
+| Voice & vision | Chat | voice and image input; Chat appeal (designer, MK-11: Chat only) |
 | Companion | Chat | Chat appeal, sycophancy risk (today's) |
 
 Rivals have a tool if their lab had shipped it by July 2025, otherwise a lag after the player ships it (today's rule).

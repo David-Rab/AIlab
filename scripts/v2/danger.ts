@@ -49,7 +49,9 @@ const misaligned = (v: ModelVersion, x: number) => { for (const t of Object.keys
   misaligned(v, 0.3);
   atLevel(v, 9);
   const chat = dep(s, 'consumer');
-  const agents: Deployment = { ...chat, id: 'DX', channel: 'api' } // MK-11: was the Agents product;
+  // MK-11: an API product with Agent mode (the old Agents product's 4 h tasks and +0.3 affordances).
+  const agents: Deployment = { ...chat, id: 'DX', channel: 'api', features: ['agentMode'] };
+  if (!s.player.features.includes('agentMode')) s.player.features.push('agentMode');
   s.player.deployments.push(agents);
   const r = (d: Deployment, k: TraitId, u = 0.3) => row(dangerOf(s, d, v, u), k)!;
   const o = (k: TraitId) => [r(chat, k).opportunity, r(agents, k).opportunity, r(dep(s, 'internal'), k, 0.3).opportunity];

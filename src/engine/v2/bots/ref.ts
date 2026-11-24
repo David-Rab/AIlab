@@ -26,6 +26,8 @@ import { flopPerToken, workFit } from '../departments/workfit';
 import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
 import { MONITOR_SAME } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
+import { PRODUCT_TOOL_BY_ID } from '../../../data/v2/tools';
+import { agentsGate } from '../models/products';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -272,6 +274,19 @@ export const REFBOT_DATA_SHARES: Readonly<Partial<Record<DomainId, number>>> = {
 const flag = (s: GameStateV2, k: string, d = -1e9) => Number(s.flags[`ref:${k}`] ?? d);
 /** Design options a bot asks for that the tree has not unlocked yet fall back to off (R8: safety ideas such as
  *  inoculation, hazard filtering and safety pretraining are research projects now). */
+/** MK-11 (design/MARKET.md M9): agent-hours sell only on a product carrying Agent mode (a tool). The reference lab
+ *  builds it once a live business product's model passes its gate (OpenAI shipped ChatGPT agent on 2025-07-17) and
+ *  switches it on for every live product that offers it. */
+function refAgentMode(s: GameStateV2, api: EngineApi) {
+  const p = s.player;
+  const biz = p.deployments.filter((d) => d.kind === 'product' && d.status === 'live' && (PRODUCT_TOOL_BY_ID.agentMode.products as string[]).includes(d.channel));
+  if (!biz.some((d) => agentsGate(versionById(s, d.versionId)) === true)) return;
+  if (!p.features.includes('agentMode')) {
+    if (!p.build.queue.some((it) => it.kind === 'feature' && it.ref === 'agentMode')) tryAct(s, api, 'feature.build', { id: 'agentMode' });
+    return;
+  }
+  for (const d of biz) if (!d.features.includes('agentMode')) tryAct(s, api, 'feature.toggle', { product: d.id, feature: 'agentMode', on: true });
+}
 function known(s: GameStateV2, p: Params): Params {
   const out = { ...p };
   if (out.hazard === true && optionLocked(s, 'curation', 'hazard')) out.hazard = false;
@@ -519,6 +534,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (follower && day % 30 === 0) {
     for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
   }
+  if (day % 30 === 0) refAgentMode(s, api);
 
   syncPoolShares(s, api);
 

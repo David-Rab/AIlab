@@ -6,12 +6,13 @@
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
 import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey, TeamQuality } from '../../engine/v2/types';
-import type { FeatureId, ToolId } from './features';
+import type { ToolId } from './features';
+import type { ProductToolId } from './tools';
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Impossible';
 
-/** A live product at the start: channel, share of the serving pool, the features switched on for it. */
-export interface StartProduct { channel: Exclude<Channel, 'internal' | 'open'>; servingShare: number; features?: FeatureId[] }
+/** A live product at the start: channel, share of the serving pool, the product tools switched on for it. */
+export interface StartProduct { channel: Exclude<Channel, 'internal' | 'open'>; servingShare: number; features?: ProductToolId[] }
 
 export interface StartDef {
   id: StartType;
@@ -35,11 +36,12 @@ export interface StartDef {
   /** Extra tree nodes known at the start, beyond the ★ nodes (research/18 §5). Paradigm nodes are never granted (the
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
-  /** Live products and the features built at the start. RF-P1: the features are the tools the analogue lab had shipped
-   *  by 2025-07-01 (leader OpenAI, challenger Anthropic, big tech Google; sources: design/RD-AUDIT/BUILD-NOTES.md RF-P1),
-   *  each switched on for every start product whose channel offers it. */
+  /** Live products and the product tools built at the start. RF-P1: the tools the analogue lab had shipped by 2025-07-01
+   *  (leader OpenAI, challenger Anthropic, big tech Google; sources: design/RD-AUDIT/BUILD-NOTES.md RF-P1). MK-11: the old
+   *  features mapped to tools (data/v2/tools.ts TOOL_FROM_FEATURE); Voice & vision is Chat-only, so its media work on
+   *  the API moved to Creative studio where the analogue had shipped image generation (OpenAI, Google; not Anthropic). */
   products: StartProduct[];
-  features: FeatureId[];
+  features: ProductToolId[];
   /** RD-A06 internal tools at the start (the start's internal agents; RF-P1 keeps them as they were when they followed
    *  the start's features). */
   tooling: ToolId[];
@@ -93,10 +95,10 @@ export const STARTS: StartDef[] = [
     known: ['rl.swe', 'multimodal', 'T-PROBE', 'T-SAE'],
     products: [
       { channel: 'consumer', servingShare: 0.3, features: ['voiceVision'] },
-      { channel: 'api', servingShare: 0.45, features: ['computerUse', 'voiceVision', 'codingAgent'] },
-      { channel: 'enterprise', servingShare: 0.25, features: ['deepResearch'] },
+      { channel: 'api', servingShare: 0.45, features: ['computerUse', 'coding'] },
+      { channel: 'enterprise', servingShare: 0.25, features: ['research'] },
     ],
-    features: ['computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    features: ['computerUse', 'voiceVision', 'research', 'coding'],
     tooling: ['codingHarness'],
     cash: 8, revenueRun: 3, revenueHistory: [1, 1.5, 2, 2.5],
     ownership: { founder: 0.4, fin: 0.45, strat: { Azimuth: 0.15 } },
@@ -112,11 +114,11 @@ export const STARTS: StartDef[] = [
     specialties: { cap: ['pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems', 'posttraining', 'pretraining', 'systems'], saf: ['interp', 'alignment', 'evals'] },
     known: ['multimodal', 'rl.math'],
     products: [
-      { channel: 'consumer', servingShare: 0.55, features: ['memory', 'voiceVision'] },
-      { channel: 'api', servingShare: 0.2, features: ['computerUse', 'voiceVision', 'codingAgent'] },
-      { channel: 'enterprise', servingShare: 0.25, features: ['memory', 'deepResearch'] },
+      { channel: 'consumer', servingShare: 0.55, features: ['memory', 'voiceVision', 'creative'] },
+      { channel: 'api', servingShare: 0.2, features: ['computerUse', 'coding', 'creative'] },
+      { channel: 'enterprise', servingShare: 0.25, features: ['memory', 'research'] },
     ],
-    features: ['memory', 'computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    features: ['memory', 'computerUse', 'voiceVision', 'research', 'coding', 'creative'],
     tooling: [],
     // $4B on hand; the parent's budget is paid quarterly (finance/parent.ts). Revenue (~$4B attributed) goes to the parent.
     cash: 4, revenueRun: 4, revenueHistory: [2.5, 3, 3.5, 3.8],
@@ -134,11 +136,11 @@ export const STARTS: StartDef[] = [
     specialties: { cap: [], saf: [] },
     known: [],
     products: [
-      { channel: 'consumer', servingShare: 0.45, features: ['memory', 'voiceVision'] },
-      { channel: 'api', servingShare: 0.35, features: ['computerUse', 'voiceVision', 'codingAgent'] },
-      { channel: 'enterprise', servingShare: 0.2, features: ['memory', 'deepResearch'] },
+      { channel: 'consumer', servingShare: 0.45, features: ['memory', 'voiceVision', 'creative'] },
+      { channel: 'api', servingShare: 0.35, features: ['computerUse', 'coding', 'creative'] },
+      { channel: 'enterprise', servingShare: 0.2, features: ['memory', 'research'] },
     ],
-    features: ['memory', 'computerUse', 'voiceVision', 'deepResearch', 'codingAgent'],
+    features: ['memory', 'computerUse', 'voiceVision', 'research', 'coding', 'creative'],
     tooling: [],
     cash: 40, revenueRun: 12, revenueHistory: [4.5, 6, 8, 10],
     ownership: { founder: 0.3, fin: 0.17 },

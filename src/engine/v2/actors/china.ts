@@ -15,7 +15,7 @@ import { initRivalPhys } from './rivalModel';
 import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { B0_DAY } from '../../../data/v2/calibration';
-import { DAY0_TOOLS } from '../../../data/v2/features';
+import { toolsAtStart } from '../../../data/v2/tools';
 import { request, ws4 } from './state';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
 import { copyrightExposure } from '../finance/observe';
@@ -52,7 +52,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
         milestoneDays: {},
       },
       archetype: 'deepcent',
-      tools: [...(DAY0_TOOLS.deepcent ?? [])],
+      tools: toolsAtStart('deepcent'),
       internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, G, uModes, false),
       publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - START_PUBLIC_GAP_OOM, uModes, true, true),
       // CP3k: the start base is dated B0_DAY, so the next is due one DeepCent base cadence after it (rivals.ts labDaily's

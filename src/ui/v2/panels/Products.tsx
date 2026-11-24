@@ -8,11 +8,12 @@
 // One home per datum: serving compute lives on LAB (the header link); misuse risk on SAFETY › Risks.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Blocks, Bot, Brain, BrainCircuit, Building2, Check, ChevronRight, Code, DoorOpen, Eye, Gauge, Hammer, Lock, MessageCircle,
-  Minus, MousePointer2, Pencil, Plus, Rocket, Ruler, Server, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Telescope, Users, X,
+  Blocks, Bot, Brain, BrainCircuit, Briefcase, Building2, CalendarClock, Check, ChevronRight, Code, DoorOpen, Eye, Gauge, Hammer, Lock, MessageCircle,
+  Minus, MousePointer2, Palette, Pencil, Plus, Rocket, Ruler, Server, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Stethoscope, Telescope, Users, X,
   type LucideIcon,
 } from 'lucide-react';
-import { FEATURES, PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed, type FeatureDef } from '../../../data/v2/features';
+import { PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed } from '../../../data/v2/features';
+import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { CONSUMER_PLAN_FACTOR, WIN_SHARE_FRACTION, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
@@ -21,7 +22,7 @@ import { productMonitorVersion } from '../../../engine/v2/models/products';
 import {
   CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, fmtDate, fmtMonth, isProduct,
   featureView, toolRivalsView, measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
-  pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
+  pendingLaunch, idleServing, charterHolds, freeTierVersion, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, CERT_SECTORS, AGENT_TASK_HOURS, agentsGate, certifiedHere, harnessesCertifying,
   demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
 } from '../../../engine/v2';
 import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceStance, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -40,12 +41,13 @@ const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal',
 const STANCE_LABEL: Record<PriceStance, string> = { profit: 'Best profit', share: 'Win share' };
 const STANCE_IDS: PriceStance[] = ['profit', 'share'];
 const BOUND_WORD: Record<string, string> = { capacity: 'serving compute', quality: 'quality', price: 'price', demand: 'demand' };
-/** VOCAB §PRODUCTS: player names of the tools whose engine names differ. */
-const TOOL_NAME: Record<string, string> = { deepResearch: 'Research mode', codingAgent: 'Coding harness' };
-const TOOL_ICON: Record<string, LucideIcon> = { memory: BrainCircuit, deepResearch: Telescope, codingAgent: Code, computerUse: MousePointer2, voiceVision: Eye, companion: MessageCircle };
-const toolName = (f: FeatureDef) => TOOL_NAME[f.id] ?? f.name;
+const TOOL_ICON: Record<ProductToolId, LucideIcon> = {
+  coding: Code, research: Telescope, backOffice: Briefcase, clinical: Stethoscope, operations: CalendarClock, defence: Shield, creative: Palette,
+  agentMode: Bot, computerUse: MousePointer2, memory: BrainCircuit, voiceVision: Eye, companion: MessageCircle,
+};
+const toolName = (f: ProductToolDef) => f.name;
 const SECTOR_NAME = Object.fromEntries(SECTORS.map((x) => [x.id, x.name])) as Record<string, string>;
-const CERT_SECTOR_IDS = ['FIN', 'HEALTH', 'GOV', 'MIL'];
+const CERT_SECTOR_IDS: readonly string[] = CERT_SECTORS;
 const usable = (v: ModelVersion) => v.status === 'ready' || v.status === 'deployed';
 const nameOf = (s: GameStateV2, id?: string) => (id === MONITOR_AUTO ? 'auto (most capable trusted)' : id ? versionById(s, id)?.name ?? id : '—');
 const mL = (s: GameStateV2, v?: ModelVersion) => measuredLOf(s, v).L;
@@ -85,8 +87,8 @@ function changeLines(s: GameStateV2, d: Deployment, c: ProductChanges): { k: str
   if (n.kyc !== d.kyc) out.push({ k: 'KYC', from: String(d.kyc), to: String(n.kyc) });
   const fOn = n.features.filter((f) => !d.features.includes(f));
   const fOff = d.features.filter((f) => !n.features.includes(f));
-  for (const f of fOn) out.push({ k: 'Tool', from: 'off', to: `${FEATURES.find((x) => x.id === f)?.name ?? f} on` });
-  for (const f of fOff) out.push({ k: 'Tool', from: `${FEATURES.find((x) => x.id === f)?.name ?? f} on`, to: 'off' });
+  for (const f of fOn) out.push({ k: 'Tool', from: 'off', to: `${PRODUCT_TOOL_BY_ID[f as ProductToolId]?.name ?? f} on` });
+  for (const f of fOff) out.push({ k: 'Tool', from: `${PRODUCT_TOOL_BY_ID[f as ProductToolId]?.name ?? f} on`, to: 'off' });
   return out;
 }
 
@@ -279,7 +281,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <ToolsSec s={s} d={d} />
       {r && <CustomersSec d={d} r={r} />}
       {chat ? (
-        <div className="sec2"><div className="sh"><span className="cap"><Term id="adaptation">Sector certification</Term></span></div><div className="cert dim"><Minus size={14} /> Not for consumer products</div></div>
+        <div className="sec2"><div className="sh"><span className="cap"><Term id="certification">Sector certification</Term></span></div><div className="cert dim"><Minus size={14} /> Not for consumer products</div></div>
       ) : <CertSec s={s} d={d} />}
       <div className="sec2 set">
         <div className="setrow">
@@ -368,7 +370,7 @@ function LineupSec({ s, d, n, r, set }: { s: GameStateV2; d: Deployment; n: Depl
 }
 
 /** One tool's effect on this product in player units: where it helps, what it gives, its cost per task. */
-function toolLine(f: FeatureDef, ch: Channel): { where: string; eff: string; cost?: string } {
+function toolLine(f: ProductToolDef, ch: Channel): { where: string; eff: string; cost?: string } {
   const v = featureView(f, ch);
   const here = v.lines.filter((l) => l.here);
   const chat = ch === 'consumer';
@@ -380,18 +382,20 @@ function toolLine(f: FeatureDef, ch: Channel): { where: string; eff: string; cos
     else if (fx.consumer && chat) effs.push(`appeal ×${(1 + fx.share).toFixed(2)}`);
     else if (fx.sectors?.length && !chat) effs.push(`+${Math.round(enablerNeed(fx.share) * 100)}% of tasks`);
   }
-  return { where: here.map((l) => l.where).join(', ') || '—', eff: effs.join(' · '), cost };
+  if (f.agentGateH !== undefined) effs.push('sells agent-hours');
+  return { where: here.map((l) => l.where).join(', ') || (f.agentGateH !== undefined ? 'whole tasks' : '—'), eff: effs.join(' · '), cost };
 }
 
 function ToolsSec({ s, d }: { s: GameStateV2; d: Deployment }) {
   const [add, setAdd] = useState(false);
-  const on = FEATURES.filter((f) => f.products.includes(d.channel) && d.features.includes(f.id) && s.player.features.includes(f.id));
-  const feats = FEATURES.filter((f) => f.products.includes(d.channel));
+  const offers = (f: ProductToolDef) => (f.products as Channel[]).includes(d.channel);
+  const on = PRODUCT_TOOLS.filter((f) => offers(f) && d.features.includes(f.id) && s.player.features.includes(f.id));
+  const feats = PRODUCT_TOOLS.filter(offers);
   const etas = buildEtas(s).etas;
   return (
     <div className="sec2" data-test={`prod-feats.${d.id}`}>
       <div className="sh">
-        <Tip content={() => <TipCard title={<Term id="feature">Tools</Term>}>Engineers build a tool once for the whole lab; switch it on for each product that offers it. A tool lets a model do work it otherwise can't, at a stated cost per task.</TipCard>}>
+        <Tip content={() => <TipCard title={<Term id="feature">Tools</Term>}>Engineers build a tool once for the whole lab; switch it on for each product that offers it. A harness fits a model to a few sectors (and certifies the product where the sector has a certification); Agent mode sells whole tasks done alone; the others let a model do work it otherwise can't, at a stated cost per task.</TipCard>}>
           <span className="cap"><Term id="feature">Tools</Term></span>
         </Tip>
         <span className="dim small">where it helps</span>
@@ -462,27 +466,26 @@ function CustomersSec({ d, r }: { d: Deployment; r: ProductRead }) {
   );
 }
 
-/** Sector certification: this product's adaptations and the sectors it can still be certified for. */
+/** Sector certification (M14): this product's certifications, and for each sector it has none in, the harness that
+ *  would certify it (built and switched on in Tools). */
 function CertSec({ s, d }: { s: GameStateV2; d: Deployment }) {
-  const [pick, setPick] = useState(false);
-  const own = d.adaptations;
-  const building = adaptationsBuilding(s, d.id);
-  const etas = buildEtas(s).etas;
-  const taken = new Set([...own.map((a) => a.sector as string), ...building.map((it) => it.ref)]);
-  const open = CERT_SECTOR_IDS.filter((x) => !taken.has(x));
-  const tip = `Each certification adapts this product to one sector: engineers build a scaffold for its workflows (${ADAPT_TW} engineer team-weeks), then certification takes ${CERT_DAYS} days and ${F.money(CERT_CASH)}. Once certified, this product's buyers there adopt more easily (friction −${CERT_FRICTION_CUT}).`;
+  const own = d.certs ?? [];
+  const open = CERT_SECTOR_IDS.filter((x) => !own.some((c) => c.sector === x) && harnessesCertifying(x as never, d.channel).length > 0);
+  const tip = `A harness that covers finance, healthcare, government or defence certifies this product there: certification starts the day the product carries it and takes ${CERT_DAYS} days and ${F.money(CERT_CASH)}. Once certified, this product's buyers there adopt more easily (friction −${CERT_FRICTION_CUT}) while the harness stays on.`;
   return (
-    <div className="sec2" data-test={`prod-adapt.${d.id}`}>
-      <div className="sh"><Tip content={() => <TipCard title={<Term id="adaptation">Sector certification</Term>}>{tip}</TipCard>}><span className="cap"><Term id="adaptation">Sector certification</Term></span></Tip></div>
-      {own.length === 0 && building.length === 0 && <div className="cert"><ShieldCheck size={14} /><span>None yet</span><span className="dim">· {CERT_SECTOR_IDS.map((x) => SECTOR_NAME[x]?.split(/[ ,]/)[0] ?? x).join(', ')} can be certified</span></div>}
-      {(own.length > 0 || building.length > 0) && (
+    <div className="sec2" data-test={`prod-cert.${d.id}`}>
+      <div className="sh"><Tip content={() => <TipCard title={<Term id="certification">Sector certification</Term>}>{tip}</TipCard>}><span className="cap"><Term id="certification">Sector certification</Term></span></Tip></div>
+      {own.length === 0 && <div className="cert"><ShieldCheck size={14} /><span>None yet</span></div>}
+      {own.length > 0 && (
         <div className="certs">
-          {own.map((a) => <span key={a.sector} className="chip2"><ShieldCheck size={12} />{SECTOR_NAME[a.sector] ?? a.sector} <span className="dim">{a.certDone === undefined ? 'adapted' : certified(a, s.time.day) ? 'certified' : `certified ${fmtMonth(dateOf(s, a.certDone))}`}</span></span>)}
-          {building.map((it) => { const eta = etas.get(it.id); return <Tip key={it.id} content={() => <TipCard title="Being built">Engineers build the sector scaffold first; certification starts when it is built.</TipCard>}><span className="chip2"><Hammer size={12} />{SECTOR_NAME[it.ref] ?? it.ref} <span className="dim">{eta !== undefined && Number.isFinite(eta) ? `built in ${F.days(eta)}` : 'waits for engineers'}</span></span></Tip>; })}
+          {own.map((c) => {
+            const live = certifiedHere(s, d, c.sector);
+            const word = live ? 'certified' : c.certDone > s.time.day ? `certified ${fmtMonth(dateOf(s, c.certDone))}` : 'harness off';
+            return <span key={c.sector} className="chip2"><ShieldCheck size={12} />{SECTOR_NAME[c.sector] ?? c.sector} <span className="dim">{word}</span></span>;
+          })}
         </div>
       )}
-      {open.length > 0 && <div><button className="btn btn-sm" data-test={`prod-adapt-add.${d.id}`} onClick={() => setPick(!pick)}>{pick ? <X size={14} /> : <Plus size={14} />} {pick ? 'Close' : 'Certify a sector'}</button></div>}
-      {pick && <div className="prd-edit row-i wrap">{open.map((x) => <ActBtn key={x} id="product.adapt" testId={`prod-adapt.${d.id}.${x}`} params={{ deploymentId: d.id, sector: x }} label={SECTOR_NAME[x] ?? x} onDone={() => setPick(false)} />)}</div>}
+      {open.length > 0 && <div className="dim small">{open.map((x) => `${SECTOR_NAME[x]?.split(/[ ,]/)[0] ?? x}: ${harnessesCertifying(x as never, d.channel).map((t) => t.name).join(' or ')}`).join(' · ')}</div>}
     </div>
   );
 }
@@ -512,7 +515,6 @@ function LaunchCard({ s, missing }: { s: GameStateV2; missing: Channel[] }) {
           : <span className="chip2">not launched</span>}
       </div>
       <div className="dim">{PRODUCT_DEFS[ch]?.blurb}</div>
-      {/* MK-11: the Agents launch checklist (time horizon, engineers) went with the Agents product; Agent mode becomes a tool. */}
       <div className="lfoot">
         {pend
           ? <ActBtn id="build.cancel" testId={`product.launch.cancel.${ch}`} params={{ id: pend.id }} label="Cancel launch" />
@@ -630,8 +632,10 @@ function WinBackSec({ s, d, close, setDraft }: { s: GameStateV2; d: Deployment; 
         return (
           <div className="opt" key="c" data-opt="cert">
             <span className="oi"><ShieldCheck size={18} /></span>
-            <div><div className="ot">Certify {pname(d.channel)} for {o.name.split(/[ ,]/)[0]}</div><Tip as="div" className="os" content={() => <TipCard title="Certification" rows={[{ label: 'Engineering', value: `${ADAPT_TW} team-weeks` }, { label: 'Then', value: `${CERT_DAYS} days · ${F.money(CERT_CASH)}` }, { label: 'Buyers there', value: `adoption friction −${CERT_FRICTION_CUT}` }]} />}>{weeks(o.weeks)} of engineering, then {CERT_DAYS} days and {F.money(CERT_CASH)} · your {o.name.split(/[ ,]/)[0]} buyers adopt more easily</Tip></div>
-            <ActBtn id="product.adapt" testId={`prod-winback-cert.${d.id}`} params={{ deploymentId: d.id, sector: o.sector }} label="Start" />
+            <div><div className="ot">Certify {pname(d.channel)} for {o.name.split(/[ ,]/)[0]} with {o.toolName}</div><Tip as="div" className="os" content={() => <TipCard title="Certification" rows={[{ label: 'Harness', value: o.built ? `${o.toolName} (built)` : `build ${o.toolName}` }, { label: 'Then', value: `${CERT_DAYS} days · ${F.money(CERT_CASH)}` }, { label: 'Buyers there', value: `adoption friction −${CERT_FRICTION_CUT}` }]} />}>{o.built ? 'Switch it on' : `${weeks(o.weeks)} of engineering`}, then {CERT_DAYS} days and {F.money(CERT_CASH)} · your {o.name.split(/[ ,]/)[0]} buyers adopt more easily</Tip></div>
+            {o.built
+              ? <ActBtn id="feature.toggle" testId={`prod-winback-cert.${d.id}`} params={{ product: d.id, feature: o.tool, on: true }} label="Switch on" />
+              : <ActBtn id="feature.build" testId={`prod-winback-cert.${d.id}`} params={{ id: o.tool }} label="Build" />}
           </div>
         );
       })}
@@ -678,7 +682,7 @@ const FT_TERM: Record<FeatureKind, string> = { enabler: 'featEnabler', horizon: 
 const FT_LABEL: Record<FeatureKind, string> = { enabler: 'enabler', horizon: 'horizon', scaffold: 'scaffold' };
 
 /** The feature's tooltip: typed effects with units, tokens, build cost, upkeep, on here, internal use, gate, risk. */
-function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef }) {
+function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: ProductToolDef }) {
   const v = featureView(f, d.channel);
   const built = s.player.features.includes(f.id);
   const on = d.features.includes(f.id);
@@ -696,18 +700,19 @@ function FeatureTip({ s, d, f }: { s: GameStateV2; d: Deployment; f: FeatureDef 
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },
     ...(rv ? [{ label: 'Rivals', value: rv.have >= rv.of ? 'every rival has it' : !rv.isNew ? `${rv.have} of ${rv.of} rivals have it (the labs that had it by July 2025)` : rv.day === undefined ? `no lab sells it yet; rivals get it ${rv.lag} d after you ship it` : `${rv.have} of ${rv.of} have it; the others from ${fmtDate(dateOf(s, rv.day))}` }] : []),
+    ...(f.agentGateH !== undefined ? [agentGateRow(s, d)] : []),
     ...(f.risk ? [{ label: 'Cost / risk', value: f.risk }] : []),
   ]}>{f.effect}</TipCard>;
 }
 
 /** The feature's type chips (icon + word). */
-function FeatureKinds({ f, ch }: { f: FeatureDef; ch: Channel }) {
+function FeatureKinds({ f, ch }: { f: ProductToolDef; ch: Channel }) {
   const ks = featureView(f, ch).kinds;
   return <>{ks.map((k) => { const I = FT_ICON[k]; return <span key={k} className="ft-k" data-kind={k}><I size={10} />{ks.length === 1 && FT_LABEL[k]}</span>; })}</>;
 }
 
 /** Type chips and the short typed effect (second line of a feature row). */
-function FeatureFxLine({ f, ch, right }: { f: FeatureDef; ch: Channel; right?: ReactNode }) {
+function FeatureFxLine({ f, ch, right }: { f: ProductToolDef; ch: Channel; right?: ReactNode }) {
   const v = featureView(f, ch);
   return (
     <div className="ft-fx" data-test={`feature-fx.${f.id}`}>
@@ -719,7 +724,13 @@ function FeatureFxLine({ f, ch, right }: { f: FeatureDef; ch: Channel; right?: R
   );
 }
 
-function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: FeatureDef; eta?: number }) {
+/** Agent mode's gate on this product's model (the tooltip row): its measured time horizon against the tasks it sells. */
+function agentGateRow(s: GameStateV2, d: Deployment) {
+  const g = agentsGate(versionById(s, d.versionId));
+  return { label: 'Needs', value: g === true ? `a time horizon of ${AGENT_TASK_HOURS} h: this product's model has it` : g, tone: (g === true ? 'pos' : 'neg') as 'pos' | 'neg' };
+}
+
+function FeatureRow({ s, d, f, eta }: { s: GameStateV2; d: Deployment; f: ProductToolDef; eta?: number }) {
   const tip = () => <FeatureTip s={s} d={d} f={f} />;
   const built = s.player.features.includes(f.id);
   const on = d.features.includes(f.id);

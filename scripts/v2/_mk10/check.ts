@@ -1,8 +1,18 @@
 // MK-10 check: the tool table (src/data/v2/tools.ts) against design/MARKET.md "Tools (M9)" and M14.
 import { SECTOR_BY_ID, SECTOR_IDS } from '../../../src/data/v2/sectors';
 import { COVER } from '../../../src/data/v2/workTypes';
-import { ADAPT_COVER, CERT_SECTORS } from '../../../src/engine/v2/models/adaptations';
-import { AGENT_TASK_HOURS, FEATURE_BY_ID, type FeatureFx } from '../../../src/data/v2/features';
+import type { FeatureFx } from '../../../src/data/v2/features';
+import { AGENT_TASK_HOURS, CERT_SECTORS } from '../../../src/data/v2/tools';
+// MK-11 deleted FEATURES and models/adaptations.ts: the values the tools carried over, as they were (git f34ef1a).
+const ADAPT_COVER = 0.15;
+const FEATURE_BY_ID = {
+  memory: { buildTW: 12, cash: 0.1, node: 'P07', fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }] },
+  computerUse: { buildTW: 16, cash: 0.15, node: 'P06', afford: 0.25, fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }] },
+  voiceVision: { buildTW: 12, cash: 0.1, node: 'multimodal', fx: [{ kind: 'enabler', consumer: true, share: 0.075 }, { kind: 'enabler', sectors: ['MEDIA'], share: 0.15 }] },
+  deepResearch: { buildTW: 8, cash: 0.05, node: 'P05', fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL'] }] },
+  codingAgent: { buildTW: 12, cash: 0.1, node: undefined, fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }] },
+  companion: { buildTW: 4, cash: 0.05, node: 'engagement', hazard: { SYC: 1.5 }, fx: [{ kind: 'enabler', consumer: true, share: 0.025 }] },
+} as const;
 import {
   ADAPT_EQUIV_DG, LAB_NAME, PRODUCT_TOOL_BY_ID, PRODUCT_TOOLS, TOOL_PRODUCTS, TOOL_FROM_FEATURE, harnessForAdaptation,
   shippedBy, toolCertSectors, toolCertTerms, toolUpkeepTW, type LabArchetype, type ProductToolId,
@@ -48,7 +58,7 @@ const MD: Record<ProductToolId, [string, SectorId[]]> = {
   operations: ['enterprise,vetted', ['MFG', 'LOG', 'ENGY', 'SERV']], defence: ['vetted', ['MIL', 'GOV']],
   creative: ['consumer,api,enterprise', ['MEDIA']], agentMode: ['api,enterprise,vetted', []],
   computerUse: ['api,enterprise,vetted', ['OFFICE', 'FIN', 'LEGAL', 'GOV']], memory: ['consumer,api,enterprise,vetted', []],
-  voiceVision: ['consumer,api,enterprise,vetted', []], companion: ['consumer', []],
+  voiceVision: ['consumer', []], companion: ['consumer', []],
 };
 for (const t of PRODUCT_TOOLS) {
   ok(t.products.join() === MD[t.id][0], `${t.name} products ${t.products} vs MARKET.md ${MD[t.id][0]}`);

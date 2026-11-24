@@ -1,19 +1,14 @@
-// Products and product features (STRUCTURE §4.4, §4.9; BUILD-PLAN R6, decisions D5 and D7). Owner: WS1.
+// Products (STRUCTURE §4.4, §4.9; BUILD-PLAN R6, decisions D5 and D7). Owner: WS1.
 //
-// Channels become products the player owns. A product is a package: a model (optionally with a mini serving its free
-// tier), an optional monitor model, a price stance (MK-6), safeguards, KYC and features. Everything is editable while
-// live (rule R4); edits take effect at the next tick (D7).
+// Channels become products the player owns. A product is a package: a model lineup, an optional monitor model, a price
+// stance (MK-6), safeguards, KYC and product tools. Everything is editable while live (rule R4); edits take effect at
+// the next tick (D7).
 //
-// Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
-// then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (a tool: RD-P07,
-// offers without it cannot do the part of the listed sectors' tasks that needs it; rivals get it after a lag), a horizon extender (× h50 on chosen work types), a
-// scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3).
-// Horizon extenders and scaffolds also apply to the lab's internal agents on the internal work types they list (SWE, EXP, IDEAS), once built. RD-P11: a feature's incident exposure acts
-// through the quantities of the product's incident site (safety/incidents.ts siteOf): its task horizon (a horizon
-// extender lengthens the tasks the model runs alone: autonomy A) and its affordances (`afford`); its extra use is in
-// the product's serving share. Only Companion keeps a per-trait multiplier, a stated stand-in (`hazard`).
-// Every feature is a gain when on (no start type has one for free; sector adaptations are per product: models/adaptations.ts).
-// [D] = design value.
+// MK-11: the product features are gone; the 12 product tools of data/v2/tools.ts replace them and the sector
+// adaptations (built once lab-wide on the build queue, switched on per product). This file keeps the typed effect form
+// they share (FeatureFx, model v3 V4.3: a task enabler, a horizon extender, a scaffold), the internal tools of the
+// lab's own agents (RD-A06) and the rival lag rule's TOOL_LAG_DAYS. FeatureId stays as the old saves' feature ids
+// (save migration, tools.ts TOOL_FROM_FEATURE). [D] = design value.
 import type { Channel, SectorId, TraitId } from '../../engine/v2/types';
 import type { WorkTypeId } from './workTypes';
 
@@ -52,11 +47,7 @@ export { MONITOR_CATCH_BASE } from './oversight';
 export const COPY_COLLUSION = 0.4;
 export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
 
-// MK-11: the old Agents product's horizon gate; no product reads it since MK-1 (Agent mode, a tool, will gate agent-hours).
-/** The Agents product needs a measured 50% time horizon at least this long: the tasks it sells are half-day work
- *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
-export const AGENT_TASK_HOURS = 4;
-
+/** The product feature ids of saves before MK-11 (core/save.ts 105 → 106 maps them to tools; INTERNAL_TOOLS.from). */
 export type FeatureId = 'memory' | 'computerUse' | 'voiceVision' | 'deepResearch' | 'codingAgent' | 'companion';
 
 /** Where a scaffold or horizon extender applies: 'all' work, or sectors, internal work types and consumer chat ('CHAT'). */
@@ -67,81 +58,9 @@ export type FeatureFx =
   | { kind: 'horizon'; mult: number; work: WorkScope }
   | { kind: 'scaffold'; dG: number; tokens: number; work: WorkScope };
 
-export interface FeatureDef {
-  id: FeatureId;
-  name: string;
-  /** Tree node that unlocks it (model v3 V2: the axis that makes it possible; absent = buildable from the start). */
-  node?: string;
-  /** Products it can be switched on for. */
-  products: Channel[];
-  /** Build: team-weeks of engineering and cash ($B). */
-  buildTW: number;
-  cash: number;
-  /** Effect text and the engine terms it maps to. */
-  effect: string;
-  risk?: string;
-  /** Typed effects (V4.3). */
-  fx: FeatureFx[];
-  /** RD-P11: affordances it adds to the product's incident site (F, data/v2/danger.ts CHANNEL_AFFORD: code execution,
-   *  internet, money, weights access, each ¼ of F), capped at 1. */
-  afford?: number;
-  /** Incident hazard × per trait on this product: only where no site quantity carries the exposure, as a stated [D
-   *  stand-in] (Companion). */
-  hazard?: Partial<Record<TraitId, number>>;
-}
-
-export const FEATURES: FeatureDef[] = [
-  // CAL-P [D stand-in]: no primary source measures what cross-session memory adds to the time horizon (research/
-  // CAL-products-sources.md T3); the number is an assumption, and the text says so. CAL2-X (decision 13): the Chat appeal
-  // term (×1.1, share 0.1) deleted: it had neither a mechanism nor a source.
-  { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'api', 'enterprise'], buildTW: 12, // MK-11: was on Agents (Agents → API)
-    cash: 0.1,
-    effect: 'Horizon extender: time horizon ×1.3 on all work in this product (assumed, no measurement exists); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
-    fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }],
-    risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
-  { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['api'], buildTW: 16, // MK-11: was Agents + API
-    cash: 0.15,
-    effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (an assumed 13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
-    // CAL-P [D stand-in]: no primary source splits tasks into GUI-only vs API-doable. The bound: in Eloundou et al. 2023
-    // the tasks LLMs speed up only with added software (zeta - alpha, all tools, not just GUIs) are 0.43 of Office/Admin,
-    // ~0.53 Business/Finance, 0.63 Legal (human ratings): 0.15 sits well inside (research/CAL-products-sources.md T1).
-    fx: [{ kind: 'enabler', sectors: ['OFFICE', 'FIN', 'LEGAL', 'GOV'], share: 0.15 }],
-    // RD-P11 [D stand-in, a definition not a measurement]: acting on any desktop or website is one of the four
-    // affordances, equally weighted (+¼ of F).
-    risk: 'Affordances +0.25 (acts on desktops and websites): raises the odds of incidents that need real access (overreach, cover-ups)', afford: 0.25 },
-  // C2: also on the API (image, voice and video generation sold to media firms): Chat sells no sector work, so the API
-  // is where its Media segment acts; on Chat it opens the Chat users.
-  { id: 'voiceVision', name: 'Voice & vision', node: 'multimodal', products: ['consumer', 'api'], buildTW: 12, cash: 0.1,
-    effect: 'Task enabler: talks, sees and makes images: Chat appeal ×1.075 on Chat (image and media requests were 7% of ChatGPT messages in mid-2025); on the API it does the media tasks (an assumed 13% of Media work) offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
-    // CAL-P: Chat 0.075 [P]: Chatterji et al. 2025 (NBER w34255): "Multimedia grew from 2% to just over 7%" of
-    // consumer ChatGPT messages (create / analyze an image, other media); an app without it loses those 7%: 1/(1-0.07).
-    // Media 0.15 [D stand-in]: images are inside Eloundou et al.'s E2 (all added software), whose Arts/Media share is
-    // ~0.37, with no separate image number (research/CAL-products-sources.md T2).
-    fx: [{ kind: 'enabler', consumer: true, share: 0.075 }, { kind: 'enabler', sectors: ['MEDIA'], share: 0.15 }] },
-  // C2: not on Chat: its scaffold lists Science, Finance, Legal and internal research, none of which Chat sells.
-  { id: 'deepResearch', name: 'Deep research', node: 'P05', products: ['enterprise'], buildTW: 8, cash: 0.05,
-    effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work, at ×3 tokens',
-    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL'] }],
-    risk: 'Cost per work-hour ×3 where it applies (long agent runs)' },
-  { id: 'codingAgent', name: 'Coding agent', products: ['api'], buildTW: 12, // MK-11: was Agents + API
-    cash: 0.1,
-    effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT work, at ×2 tokens',
-    fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
-    // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
-    risk: 'Cost per work-hour ×2 where it applies (longer agent runs; their incident exposure is in the product usage)' },
-  { id: 'companion', name: 'Companion mode', node: 'engagement', products: ['consumer'], buildTW: 4, cash: 0.05,
-    effect: 'Task enabler: a persistent persona, Chat appeal ×1.025 (relationships, reflection and role play were 2.4% of ChatGPT messages in 2025); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it', 
-    // CAL-P: 0.025 [P]: Chatterji et al. 2025 (NBER w34255): "only 2.4% of all ChatGPT messages are about Relationships
-    // and Personal Reflection (1.9%) or Games and Role Play (0.4%)"; Anthropic (Jun 2025): companionship and roleplay
-    // "less than 0.5%" of Claude.ai conversations. Upper end of the two, 1/(1-0.024) (research/CAL-products-sources.md T4).
-    fx: [{ kind: 'enabler', consumer: true, share: 0.025 }],
-    // RD-P11 [D stand-in]: ×1.5 stands for the longer, personal conversations a persona has with each user (time per
-    // user), which the product's serving share does not count; to replace with time per user once Chat models it.
-    risk: 'Sycophancy incidents ×1.5 [D stand-in: longer personal conversations per user]', hazard: { SYC: 1.5 } },
-];
 /** RD-E01b (DD-14): Multi-agent orchestration (P05), once adopted, is a scaffold on the lab's internal agents in
  *  capabilities engineering and research (SWE, EXP, IDEAS; not the safety package) — a lead agent planning and checking
- *  parallel subagents — through the same typed effect as a feature's (worldfx/serving.ts internalFx). Tokens ×3.75: a
+ *  parallel subagents — through the same typed effect as a product tool's (worldfx/serving.ts internalFx). Tokens ×3.75: a
  *  multi-agent system uses ~15× the tokens of a chat, a single agent ~4× [P Anthropic, research/12 §3], so ~3.75× the
  *  single-agent profile per work-hour. ΔG +0.26 OOM [D], set so that at the reference fit (coverage 0.5, the fit at
  *  θ_w) with AI labour not the bottleneck (the regime the game runs in: AI team-equivalents ≫ humans) the slot's
@@ -150,12 +69,11 @@ export const FEATURES: FeatureDef[] = [
  *  on an easier, parallel task (breadth-first search). M8: the
  *  node's only effect. */
 export const P05_ORCHESTRATION: FeatureFx = { kind: 'scaffold', dG: 0.26, tokens: 3.75, work: ['SWE', 'EXP', 'IDEAS'] };
-/** RD-A06 (DD-03): internal tooling, owned on the research side and separate from product features (a product feature
- *  acts only inside its product's offer: Memory's horizon still lists 'all', which internalFx no longer reads). Each tool
- *  is the internal equivalent of one product feature's typed effect on the lab's own agents (the effects those features
- *  gave internal work before RD-A06): built by engineers on the build queue (the feature's team-weeks, cash, upkeep and
- *  idea gate), and the lab has it only once built. Starts own the tools whose feature they had built (`from`), so no
- *  start changes. Rivals acquire tools later (DD-03, rival part). */
+/** RD-A06 (DD-03): internal tooling, owned on the research side and separate from the product tools (a product tool
+ *  acts only inside its product's offer: Memory's horizon still lists 'all', which internalFx does not read). Each tool
+ *  is the internal equivalent of one old product feature's typed effect on the lab's own agents (`from`, the old
+ *  feature id): built by engineers on the build queue (team-weeks, cash, upkeep and idea gate), and the lab has it only
+ *  once built. */
 export type ToolId = 'codingHarness' | 'researchHarness' | 'agentMemory';
 export interface ToolDef { id: ToolId; name: string; node?: string; buildTW: number; cash: number; from: FeatureId; effect: string; fx: FeatureFx[] }
 export const INTERNAL_TOOLS: ToolDef[] = [
@@ -175,30 +93,12 @@ export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t]
  *  that part of the tasks: its coverage × (1 − need) (worldfx/serving.ts offerOf, inside the buyers' choice), need =
  *  share ÷ (1 + share), so an offer with the tool covers ×(1 + share) what the same offer without it covers (the effect
  *  size the old after-the-choice multiplier had) [D stand-in]. On Chat (consumer: true) the tool stays a term of the
- *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). Sector adaptations are per product (models/adaptations.ts),
- *  not tools. */
+ *  users' app choice: appeal × (1 + share) (worldfx/mix.ts). */
 export const enablerNeed = (share: number) => share / (1 + share);
-/** RD-P07 (DD-03 rival part, DD-18 stand-in), RF-P1: for a tool NEW in this game (no lab of the world had it at the
- *  start, DAY0_TOOLS and the player's start), every rival and China gets it TOOL_LAG_DAYS after the player first ships
+/** RD-P07 (DD-03 rival part, DD-18 stand-in), RF-P1: for a product tool NEW in this game (no lab of the world had it at
+ *  the start: data/v2/tools.ts toolsAtStart and the player's start), every rival and China gets it TOOL_LAG_DAYS after the player first ships
  *  it on a live product (world.fx.toolShip; actors/rivalModel.ts rivalToolStep). Tools some lab had at the start: each
  *  lab keeps what it had. 120 days [D]: 2024–25 launches followed each other by about 50–270 days (computer use:
  *  Anthropic Oct 2024, OpenAI Operator Jan 2025, Google Mariner May 2025; memory: ChatGPT Feb 2024, Meta AI Jan 2025,
  *  Gemini Feb 2025). */
 export const TOOL_LAG_DAYS = 120;
-/** RF-P1 (designer decision 2, 2026-11-23): the product tools (enablers) each rival and China starts with: what its real
- *  counterpart had shipped by the 2025-07-01 start (research/07 §2.3 archetypes: leader OpenAI, safety Anthropic,
- *  bigtech Google, maverick xAI, openweights Meta, upstart SSI / Thinking Machines; deepcent DeepSeek). Vendor sources
- *  per cell: design/RD-AUDIT/BUILD-NOTES.md RF-P1. A cell with no primary source is left off (xAI's memory, voice and
- *  companions). The player's starts list theirs in data/v2/starts.ts by the same table. */
-export const DAY0_TOOLS: Record<string, FeatureId[]> = {
-  leader: ['memory', 'computerUse', 'voiceVision'],
-  safety: ['computerUse', 'voiceVision'],
-  bigtech: ['memory', 'computerUse', 'voiceVision'],
-  maverick: [],
-  openweights: ['memory', 'voiceVision', 'companion'],
-  upstart: [],
-  deepcent: [],
-};
-export const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
-/** RD-P07: the features that are tools (enablers): the ones rivals and China sell with (RivalLab.tools). */
-export const ENABLER_TOOLS: FeatureId[] = FEATURES.filter((f) => f.fx.some((x) => x.kind === 'enabler')).map((f) => f.id);

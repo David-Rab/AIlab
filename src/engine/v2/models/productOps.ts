@@ -4,7 +4,8 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { FEATURE_BY_ID, PRODUCT_DEFS, type FeatureId } from '../../../data/v2/features';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
+import { PRODUCT_TOOL_BY_ID, type ProductToolId } from '../../../data/v2/tools';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceStance, SystemCtx } from '../types';
@@ -16,7 +17,7 @@ import { CHANNEL_VARIANTS, deployGate, distillationLeak, releaseOpen, setServing
 import { activeRivals, versionById } from './labs';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, productMonitorVersion } from './products';
-import { relaunchAdaptations } from './adaptations';
+import { relaunchCerts } from './certs';
 import { evalPolicyView } from './evals';
 import { frameworkDeployBlock } from '../safety/framework';
 import { PACKAGE_LABEL, applyFrameworkParts, frameworkCandidate, withFrameworkParts } from '../safety/packages';
@@ -61,7 +62,7 @@ export function changesFromParams(p: Params): ProductChanges {
 
 /** The product after an edit (a copy). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
-  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], adaptations: d.adaptations.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
+  const n: Deployment = { ...d, features: [...(c.features ?? d.features)], certs: (d.certs ?? []).map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
   if (c.lineup !== undefined) {
     if (c.lineup.length) n.lineup = [...c.lineup];
@@ -249,8 +250,8 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, stance: 'profit', servingShare: 0,
-          // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's adaptations).
-          safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' ? 1 : 0, status: 'live',
+          // RD-B12: the launch as it goes live (built tools on for the channel, a relaunch's certifications).
+          safeguards: 'classifiers', guards: [], certs: relaunchCerts(s, ch).certs, features: launchFeatures(s, ch), kyc: ch === 'api' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         // RF-S13b: the parts the Safety framework adds as it goes live (deploy → applyFrameworkParts) are in the numbers.
@@ -357,7 +358,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'product.retire', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Retire product',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
-      // RD-B20: the market run without the product (its serving goes to the other products; its adaptations end).
+      // RD-B20: the market run without the product (its serving goes to the other products; its certifications end).
       const d = productOf(s, str(p, 'id', '')) ?? firstProduct(s);
       if (!d) return { costs: [], gains: [], exposure: [] };
       const deps = s.player.deployments.map((x) => (x.id === d.id ? { ...x, status: 'withdrawn' as const } : x));
@@ -395,16 +396,18 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     },
   },
   {
-    id: 'feature.build', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Build feature',
+    // MK-11: builds a product tool (data/v2/tools.ts) lab-wide; the action id is kept.
+    id: 'feature.build', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Build tool',
     available: () => true,
     preview: (s, p) => {
-      const f = FEATURE_BY_ID[str(p, 'id', 'memory') as FeatureId];
+      const f = PRODUCT_TOOL_BY_ID[str(p, 'id', 'memory') as ProductToolId];
       const costs: CostLine[] = [{ currency: 'cash', amount: -(f?.cash ?? 0) }, { currency: 'staffTime', amount: -(f?.buildTW ?? 0), target: 'engineer team-weeks' }];
       const gains: CostLine[] = [];
       if (f && !s.player.features.includes(f.id)) {
         // Expected return: every product that offers it, with it on.
-        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && f.products.includes(d.channel) ? { ...d, features: [...d.features, f.id] } : d));
-        const anyId = deps.find((d) => isProduct(d) && f.products.includes(d.channel))?.id;
+        const offers = (ch: Channel) => (f.products as Channel[]).includes(ch);
+        const deps = s.player.deployments.map((d) => (isProduct(d) && d.status !== 'withdrawn' && offers(d.channel) ? { ...d, features: [...d.features, f.id] } : d));
+        const anyId = deps.find((d) => isProduct(d) && offers(d.channel))?.id;
         if (anyId) {
           const pv = previewDeployments(s, deps, anyId, { features: [...s.player.features, f.id] });
           const dRev = round2(pv.totalAfter - pv.totalBefore);
@@ -417,14 +420,14 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     apply: (s, ctx, p) => {
       const id = str(p, 'id', '');
       fail(featureBuildBlock(s, id));
-      const f = FEATURE_BY_ID[id as FeatureId];
+      const f = PRODUCT_TOOL_BY_ID[id as ProductToolId];
       queueBuild(s, 'feature', id, f.buildTW);
-      if (f.cash > 0) bookCash(s, ctx, -f.cash, 'opex', 'feature build', f.name);
+      if (f.cash > 0) bookCash(s, ctx, -f.cash, 'opex', 'tool build', f.name);
       ctx.log('company', `Engineers start building ${f.name}.`, 1, id);
     },
   },
   {
-    id: 'feature.toggle', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Feature on/off',
+    id: 'feature.toggle', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Tool on/off',
     available: (s) => (firstProduct(s) ? true : 'No live product'),
     preview: (s, p) => {
       const d = productOf(s, str(p, 'product', '')) ?? firstProduct(s);

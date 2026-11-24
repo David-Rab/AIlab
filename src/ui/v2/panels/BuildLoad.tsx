@@ -1,11 +1,11 @@
-// Engineers' load (jank J2 P1): one bar of build capacity split into product upkeep (incl. monitors, features), builds
+// Engineers' load (jank J2 P1): one bar of build capacity split into product upkeep (incl. monitors, tools), builds
 // (run setups and adoptions first) and idle (RD-B09: research engineers operate running runs, Lab › AI staff & needs); the numbers and every line live in its tooltip. Home of utilisation (Lab › AI staff & needs, engineers card;
 // model v3 V2b: build capacity's number lives in that card's hero, so this bar is `compact` there). Products and Models
 // show only their own waits (links here).
 import type { GameStateV2, RLFamily } from '../../../engine/v2';
 import { buildCapacity, buildEtas, buildRates, featureInUse, upkeepLines, upkeepSplit } from '../../../engine/v2';
-import { FEATURE_BY_ID, PRODUCT_DEFS, TOOL_BY_ID, type FeatureId, type ToolId } from '../../../data/v2/features';
-import { SECTOR_BY_ID } from '../../../data/v2/sectors';
+import { PRODUCT_DEFS, TOOL_BY_ID, type ToolId } from '../../../data/v2/features';
+import { PRODUCT_TOOL_BY_ID, type ProductToolId } from '../../../data/v2/tools';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { Term, Tip, TipCard } from '../ui';
@@ -18,10 +18,10 @@ const SEG = { products: '#b08e1a', builds: '#3a8ae0', idle: '#33435a' } as const
 /** Label of a build-queue item. */
 export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build']['queue'][number]): string {
   if (it.kind === 'runSetup') return `Setup ${s.player.models.runs.find((r) => r.id === it.ref)?.name ?? it.ref}`;
-  if (it.kind === 'feature') return FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref;
+  if (it.kind === 'feature') return PRODUCT_TOOL_BY_ID[it.ref as ProductToolId]?.name ?? it.ref;
   if (it.kind === 'tooling') return TOOL_BY_ID[it.ref as ToolId]?.name ?? it.ref;
   if (it.kind === 'launch') return `Launch ${PRODUCT_DEFS[it.launch?.channel ?? 'api']?.name ?? it.ref}`;
-  if (it.kind === 'adaptation') return `${SECTOR_BY_ID[it.ref as keyof typeof SECTOR_BY_ID]?.name ?? it.ref} certification`;
+
   if (it.kind === 'suite') { const [fam, work] = it.ref.split(':'); return `${work === 'harden' ? 'Harden' : 'Expand'} ${RL_FAMILY_LABEL[fam as RLFamily] ?? fam} environments`; }
   if (it.kind === 'eval') { const t = s.player.models.evals?.find((x) => x.id === it.ref); return `Evals setup ${s.player.models.versions.find((v) => v.id === t?.versionId)?.name ?? ''}`.trim(); }
   return it.ref;
@@ -30,7 +30,7 @@ export function buildItemLabel(s: GameStateV2, it: GameStateV2['player']['build'
 /** Label of an upkeep line. */
 function upkeepLabel(s: GameStateV2, l: ReturnType<typeof upkeepLines>[number]): string {
   if (l.kind === 'feature') {
-    const f = FEATURE_BY_ID[l.ref as FeatureId];
+    const f = PRODUCT_TOOL_BY_ID[l.ref as ProductToolId];
     return `Tool ${f?.name ?? l.ref}${f && !featureInUse(s, f) ? ' (off: upkeep only)' : ''}`;
   }
   if (l.kind === 'tooling') return `Tool ${TOOL_BY_ID[l.ref as ToolId]?.name ?? l.ref}`;
