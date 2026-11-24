@@ -119,7 +119,7 @@ condition of one margin over all its groups g and bands b, M*_i = Σ q / Σ q·(
 (one segment: μ ÷ (1 − s)), capped at the value. μ_b = p̄_b ÷ ε, p̄_b the band's hours-weighted price over all sellers:
 the buyers' choice reads yesterday's p̄_b; the target reads p̄_b with every seller at its target (today's shares, solved
 by iteration), the same μ at the fixed point, so margins follow costs at PRICE_TAU rather than ≈ 7× slower through the
-μ → price → μ loop. Agent-hour price = c_ag × p/c of the tier (≤ wage); seat price = seat serving cost × p/c. ε =
+μ → price → μ loop. Agent-hour price = c_ag × p/c of the tier (≤ wage); seat price = seat serving cost × p/c (MK-9 replaced it: Chat (M3) As built). ε =
 PRICE_ELASTICITY = 1.4 puts the start leader's margin at ≈ 0.86–0.87. A new game starts at the fixed point; a save
 from before MK-6 starts at today's cost-plus prices (M = 1.5 × the seller's main-model cost) and moves from there.
 
@@ -176,6 +176,28 @@ ProductRead for MK-13; limit `product.rationed` replaces `product.erosion`.
 Unchanged structure: users choose by quality × brand × access, the paid share is a stock, free users are served last.
 Its plan price follows M5 on the paid users (share among paid plans), capped at willingness to pay ($22/month, today's
 data), instead of the fixed WTP price.
+
+As built (MK-9, worldfx/mix.ts planTargets, seatTargets): **Chat plans.** One plan margin M per closed Chat seller
+(fx.planM, PRICE_TAU), its products at min(wtp, c + f·M) ≥ c (c a paying user's serving cost a month, f the stance
+factor: Win share 0.5). Target M* = min(μ_plan ÷ (1 − s_paid), wtp − c) ≥ 0, s_paid the seller's share of all paying
+subscribers (user-share × paid-share stocks, all regions). μ_plan from the paid-share response P* ∝ (p̄ ÷ p)^ε (ε =
+CONSUMER_MKT.paid.elasticity = 1): read as a logit in log price, own-price elasticity ε·(1 − s), so the first-order
+condition gives p = c + (p ÷ ε)/(1 − s), μ_plan = p̄ ÷ ε at the users-weighted going price p̄ (as MK-6's μ_b), solved
+with every seller at its target. With ε = 1 the uncapped margin exceeds p̄ for every s, so every Best-profit plan sits at
+$22 (real plans held at $20 as costs fell); Win share takes half the capped margin (≈ $12). Open-weight hosts keep the
+flat 0.48 × wtp (OPEN_PLAN_SHARE). **Seats.** Per sector × region one seat margin per closed seller (fx.seatM), its
+tiers' seats at min(SEATS.cap, c_k + f·M) ≥ c_k (c_k = seat hours a month × H100e-hours per assisted hour × $/H100e-h);
+target M* = μ_seat ÷ (1 − s) with μ_seat = p ÷ ε_seat (the seller's own price: the first-order condition of a logit
+in log price, own-price elasticity ε·(1 − s)), i.e. M* = c̄ ÷ (ε·(1 − s) − 1) where ε·(1 − s) > 1, else cap − c̄; ≤ cap
+− c̄, ≥ 0. s the seller's share of the seats there (its customer stock: seats split by it), c̄ its customers' seat cost.
+ε_seat = SEATS.elasticity = 1.63 (§3, 3f′: firm margin m ≥ 0.90 at the leader's S = 0.32, m = 1/(ε(1 − S))). SEATS.cap
+= $27.5, the median 2025 list price (research/MARKET-sources.md §3p). After MK-6c: cost-anchored like μ_b (no going
+price, no fixed point), but not μ_b's c_min ÷ PRICE_ELASTICITY (ε 0.3, a cost-scale constant): on seats that form gives
+the start leader $5–25 (Healthcare, Government ≈ $5–7), below every list price, while real seats sold at $19–39 on ≈
+$1–5 of serving. At the start every leader (s ≥ 0.3, 28 of 28 cells) sells at $26.4–27.4; small sellers (s < 0.1)
+at ≈ 2.8 × cost ($2.6–15). Absent stocks (older saves) start at the cap prices and move at PRICE_TAU; no schema change.
+Finding: the seat market has no seller-level seat-price response in the engine (seats are split by the work choice), so
+ε_seat is the M5 analogue, not a fitted response; the margin jumps to the cap once ε(1 − s) ≤ 1 (s ≥ 0.39).
 
 ## Tools (M9)
 

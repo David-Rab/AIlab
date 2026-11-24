@@ -56,7 +56,7 @@ import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
 import {
-  agentDemandOf, agentMixOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, offerOf, planFactorOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, agentMixOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, offerOf, productFx, stanceFactor, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -599,7 +599,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         // (RD-P01a: the real model in its free-tier slot, chatFreeTier); paying users the main model.
         const tMain = tokEff(main);
         const ft = chatFreeTier(s, d);
-        const sp = subPrice(s, fMain, planFactorOf(d), tMain, ud);
+        // MK-9: the lab's plan margin (mix.plan) × the product's stance, ≤ the willingness to pay, ≥ cost.
+        const sp = subPrice(s, fMain, stanceFactor(d) * (mix.plan.margin[playerIdx] ?? 0), tMain, ud);
         return { d, o, sp, fMain, freeId: ft?.id ?? d.versionId, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, tMain, tFree: ft?.tau ?? tMain, ud };
       });
       const best = Math.max(...offs.map((x) => x.freeFit));
