@@ -1,0 +1,141 @@
+// MK-5 targeted check (design/MARKET.md M2, MK-5 row): buyer groups in the sector choice, on the designer's day-369
+// save (read-only).
+//  (a) regression: with every group reaching every product (BUYER_LADDER_TEST.allReach) the market's outputs equal the
+//      pre-MK-5 single choice (ref-day369.json, made by dump.ts on the pre-MK-5 market code), also with one choice per
+//      group merged (split);
+//  (b) the ladder: per sector the player's split between API / Enterprise / Vetted by buyer group; small buyers never
+//      buy Enterprise or Vetted, large never Vetted; the merged split is the groups' weighted by their player hours;
+//  (c) the time per tick and per world mix, single choice vs the ladder.
+// Run alone: npx tsx scripts/v2/_mk5/check.ts
+import { readFileSync } from 'node:fs';
+import { deserialize } from '../../../src/engine/v2/core/save';
+import { tick } from '../../../src/engine/v2/core/loop';
+import { BUYER_GROUP_IDS, BUYER_LADDER_TEST, worldMix } from '../../../src/engine/v2/worldfx/mix';
+import { dumpMix, SAVE } from './dump';
+
+let fails = 0;
+const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
+const json = readFileSync(SAVE, 'utf8');
+const load = () => deserialize(json);
+const s0 = load();
+const ch = Object.fromEntries(s0.player.deployments.map((d) => [d.id, d.channel]));
+console.log(`day ${s0.time.day}; products: ${s0.player.deployments.filter((d) => d.status !== 'withdrawn').map((d) => `${d.id} ${d.channel}${d.held ? ' (held)' : ''}`).join(', ')}`);
+
+// (a) regression.
+const ref = JSON.parse(readFileSync(new URL('./ref-day369.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+/** Largest absolute difference between two JSON values (numbers, arrays, records; a missing key counts as 0). */
+function maxDiff(a: unknown, b: unknown): number {
+  if (typeof a === 'number' || typeof b === 'number') {
+    const x = typeof a === 'number' ? a : 0;
+    const y = typeof b === 'number' ? b : 0;
+    return x === y ? 0 : Number.isFinite(x - y) ? Math.abs(x - y) : Infinity;
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    let m = 0;
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) m = Math.max(m, maxDiff((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+    return m;
+  }
+  return a === b ? 0 : Infinity;
+}
+const FIELDS = ['target', 'playerProdW', 'playerTierW', 'F', 'K', 'price', 'pCost', 'agentK', 'prices', 'seatPrice', 'g'];
+const worst = (d: Record<string, unknown>) => {
+  let m = 0;
+  let at = '';
+  for (const k of Object.keys(ref)) {
+    if (k === 'providers') continue;
+    for (const f of FIELDS) {
+      const x = maxDiff((ref[k] as Record<string, unknown>)[f], (d[k] as Record<string, unknown>)[f]);
+      if (x > m) { m = x; at = `${k} ${f}`; }
+    }
+  }
+  return { m, at };
+};
+check(JSON.stringify((ref as { providers: string[] }).providers) === JSON.stringify(worldMix(s0).providers.map((p) => p.key)), 'same providers as the reference');
+for (const split of [false, true]) {
+  BUYER_LADDER_TEST.allReach = true;
+  BUYER_LADDER_TEST.split = split;
+  const w = worst(dumpMix(worldMix(load())));
+  check(w.m < (split ? 1e-9 : 1e-12), `(a) every group reaches every product${split ? ', one choice per group merged' : ''}: outputs equal the single choice`, `max |Δ| ${w.m.toExponential(2)}${w.at ? ` at ${w.at}` : ''}`);
+}
+BUYER_LADDER_TEST.allReach = false;
+BUYER_LADDER_TEST.split = false;
+{
+  const w = worst(dumpMix(worldMix(load())));
+  console.log(`     with the ladder the outputs move from the single choice by up to ${w.m.toExponential(2)} (${w.at})`);
+}
+
+// (b) the ladder.
+const mix = worldMix(load());
+const pi = mix.providers.findIndex((p) => p.key === 'player');
+const byCh = (w: Record<string, number>) => {
+  const o: Record<string, number> = { api: 0, enterprise: 0, vetted: 0 };
+  for (const [id, x] of Object.entries(w)) o[ch[id]] = (o[ch[id]] ?? 0) + x;
+  return o;
+};
+const pct = (x: number) => `${(100 * x).toFixed(0).padStart(3)}%`;
+let smallBad = 0;
+let largeBad = 0;
+let mergeBad = 0;
+let sumBad = 0;
+for (const r of ['US', 'ROW', 'CN'] as const) {
+  console.log(`\n${r}: per buyer group: its share of the buyers, the player's target share of it ("pl"), the player's split API/Enterprise/Vetted; then the sector (merged)`);
+  for (const [sid, m] of Object.entries(mix.sec[r])) {
+    const cells: string[] = [];
+    let wt = 0;
+    const agg: Record<string, number> = {};
+    for (const g of BUYER_GROUP_IDS) {
+      const x = m.byGroup[g];
+      if (!x) { cells.push(`${g.padEnd(6)}  -`.padEnd(35)); continue; }
+      const c = byCh(x.playerProdW);
+      const T = pi >= 0 ? x.target[pi] : 0;
+      cells.push(`${g.padEnd(6)} ${pct(x.w)} pl ${pct(T)} ${pct(c.api)}/${pct(c.enterprise)}/${pct(c.vetted)}`);
+      if (T > 1e-9) {
+        if (g === 'small' && c.enterprise + c.vetted > 1e-12) smallBad++;
+        if (g === 'large' && c.vetted > 1e-12) largeBad++;
+      }
+      for (const [id, y] of Object.entries(x.playerProdW)) agg[id] = (agg[id] ?? 0) + x.w * T * y;
+      wt += x.w * T;
+      const sum = x.target.reduce((a, y) => a + y, 0);
+      if (sum > 0 && Math.abs(sum - 1) > 1e-9) sumBad++;
+    }
+    if (wt > 0) for (const id of Object.keys(m.playerProdW)) if (Math.abs((agg[id] ?? 0) / wt - m.playerProdW[id]) > 1e-9) mergeBad++;
+    const c = byCh(m.playerProdW);
+    console.log(`  ${sid.padEnd(6)} ${cells.join(' | ')} || pl ${pct(pi >= 0 ? m.target[pi] : 0)} ${pct(c.api)}/${pct(c.enterprise)}/${pct(c.vetted)}`);
+  }
+}
+check(smallBad === 0, '(b) small buyers never buy Enterprise or Vetted', `${smallBad} sector-regions`);
+check(largeBad === 0, '(b) large buyers never buy Vetted', `${largeBad} sector-regions`);
+check(mergeBad === 0, "(b) the sector's player split = the groups' splits weighted by their player hours", `${mergeBad} mismatches`);
+check(sumBad === 0, "(b) every group's provider targets sum to 1", `${sumBad}`);
+check(Object.values(mix.sec).every((row) => Object.values(row).every((m) => Math.abs(m.target.reduce((a, y) => a + y, 0) - 1) < 1e-9)), '(b) sector targets sum to 1');
+check(Object.keys(mix.sec.US.SOFT.playerProdW).length > 0, 'the player sells in US Software');
+
+// (c) time: the world mix alone and whole ticks, single choice (allReach: one choice per sector-region) vs the ladder.
+const timeMix = (allReach: boolean) => {
+  BUYER_LADDER_TEST.allReach = allReach;
+  const s = load();
+  worldMix(s);
+  const t0 = performance.now();
+  for (let i = 0; i < 30; i++) worldMix(s);
+  return (performance.now() - t0) / 30;
+};
+const timeTick = (allReach: boolean) => {
+  BUYER_LADDER_TEST.allReach = allReach;
+  const s = load();
+  for (let i = 0; i < 3; i++) tick(s);
+  const t0 = performance.now();
+  for (let i = 0; i < 20; i++) tick(s);
+  return (performance.now() - t0) / 20;
+};
+let err = '';
+try {
+  const m1 = [timeMix(true), timeMix(false), timeMix(true), timeMix(false)];
+  const t1 = [timeTick(true), timeTick(false), timeTick(true), timeTick(false)];
+  console.log(`\n(c) world mix: single choice ${m1[0].toFixed(1)} / ${m1[2].toFixed(1)} ms, ladder ${m1[1].toFixed(1)} / ${m1[3].toFixed(1)} ms`);
+  console.log(`(c) tick (20 after 3 warm-up): single choice ${t1[0].toFixed(1)} / ${t1[2].toFixed(1)} ms, ladder ${t1[1].toFixed(1)} / ${t1[3].toFixed(1)} ms`);
+} catch (e) { err = String((e as Error)?.stack ?? e); }
+BUYER_LADDER_TEST.allReach = false;
+check(!err, '(c) the save ticks with the ladder', err.split('\n').slice(0, 4).join(' | '));
+
+console.log(fails ? `\n${fails} FAILED` : '\nall ok');
+process.exit(fails ? 1 : 0);

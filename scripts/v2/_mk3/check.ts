@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { deserialize } from '../../../src/engine/v2/core/save';
 import { revenueReadout } from '../../../src/engine/v2/worldfx/revenue';
+import { BUYER_LADDER_TEST } from '../../../src/engine/v2/worldfx/mix';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
@@ -12,6 +13,8 @@ const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; co
 const BEFORE: Record<string, number> = { D1: 25.56596080441142, D2: 1.4170495772596334, D3: 52.46882395740444, D6: 7.689815278557071 };
 const BEFORE_TOTAL = 87.14164961763257;
 
+// MK-5: the numbers are from the single buyer choice (before the buyer-group ladder): every group reaches every product.
+BUYER_LADDER_TEST.allReach = true;
 const path = 'C:/Users/david/Downloads/ai27-v2-day369.json';
 if (!existsSync(path)) { check(false, 'day-369 save present'); }
 else {

@@ -1,5 +1,5 @@
-// Buyers by group (market redesign M2: design/MARKET.md "Buyers (M2)"). Owner: market. Engine: none yet (MK-5 wires it
-// into the sector market's buyer choice). Tags: [P] primary source, [P-analogue] primary source for a nearby quantity,
+// Buyers by group (market redesign M2: design/MARKET.md "Buyers (M2)"). Owner: market. Engine: worldfx/mix.ts (MK-5: each group runs the sector choice
+// over the products it reaches). Tags: [P] primary source, [P-analogue] primary source for a nearby quantity,
 // [D] design value. Sources: research/MARKET-sources.md §1 (firm-size split) and §2 (vetted buyers).
 //
 // Per sector × region the business buyers' hours split by employment into three groups:
