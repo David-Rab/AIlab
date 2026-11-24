@@ -30,7 +30,7 @@ for (const st of stages) {
   if (st === 'd0') {
     await page.evaluate(() => { const s = window.ai27v2; s.draftSetup = { ...s.draftSetup, start: 'leader', tutorial: false, seed: 4242, companyName: 'OpenBrain' }; s.start(s.draftSetup); });
   } else {
-    const json = readFileSync(path.join(ROOT, `scripts/v2/fixtures/day${st.slice(1)}.json`), 'utf8');
+    const json = readFileSync(path.join(ROOT, `scripts/v2/fixtures/day${st.slice(1).replace('run', '')}.json`), 'utf8');
     const err = await page.evaluate((j) => window.ai27v2.importJson(j), json);
     if (err) errors.push('import: ' + err);
     await page.evaluate(() => { const s = window.ai27v2.state; s.setup.tutorial = false; window.ai27v2.notify(); });
@@ -38,6 +38,19 @@ for (const st of stages) {
   await wait(200);
   await page.evaluate(() => window.ai27v2.setSpeed(0));
   await closeModals();
+  if (st === 'd400run') {
+    // As the mockup data did (DATA-b Runs): launch Next run's post-training, a distil and a new base, then play ~125 days.
+    await page.evaluate(() => { window.ai27v2.setPanel('blueprint'); window.ai27v2.setTab('blueprint', 'next'); });
+    for (const k of ['post', 'distill', 'base']) {
+      await wait(250);
+      await page.click(`[data-panel=blueprint] [data-bp-kind=${k}]`).catch(() => errors.push(`no ${k} start`));
+      await wait(250);
+      const a = { post: 'launchPost', distill: 'launchDistill', base: 'launchBase' }[k];
+      await page.click(`[data-panel=blueprint] [data-act=${a}]:not([disabled])`).catch(() => errors.push(`could not launch ${k}`));
+      await closeModals();
+    }
+    for (let d = 0; d < 125; d += 5) { await page.evaluate(() => window.ai27v2.step(5)); await closeModals(); }
+  }
   const shot = async (name) => { await page.mouse.move(1, 1); await wait(250); await page.screenshot({ path: path.join(OUT, `train-${name}-${st}.png`) }); };
   const text = async (name, sel = 'main.center') => writeFileSync(path.join(OUT, `train-${name}-${st}.txt`), await page.evaluate((q) => document.querySelector(q)?.innerText ?? '', sel));
   await page.evaluate(() => window.ai27v2.setPanel('blueprint'));
@@ -46,7 +59,7 @@ for (const st of stages) {
     await wait(400);
     await shot(tab); await text(tab);
     if (tab === 'data') { const b = await page.$('[data-test=data-buy-licence]'); if (b) { await b.click(); await shot('data-drawer'); await text('data-drawer', '[data-test=licence-drawer]'); await page.keyboard.press('Escape'); } }
-    if (tab === 'runs') { const b = await page.$('[data-fc] .rn-fcname') ?? await page.$('.rn-bar[data-run]'); if (b) { await b.click(); await shot('runs-drawer'); await text('runs-drawer', '[data-test=run-drawer]'); await page.keyboard.press('Escape'); } }
+    if (tab === 'runs') { const fc = await page.$('[data-fc] .rn-fcname'); const b = fc[fc.length - 1] ?? await page.$('.rn-bar[data-run]'); if (b) { await b.click(); await shot('runs-drawer'); await text('runs-drawer', '[data-test=run-drawer]'); await page.keyboard.press('Escape'); } }
   }
   console.log(st, 'done');
 }

@@ -2,7 +2,7 @@
 // HOME of: the runs timeline (what ran, what came out, what is running, evals), training compute now, forecast vs
 // result per run, the running run's card (progress, due, share, holdups, controls) and the run drawer (L2: forecast vs
 // result, time, launch snapshot). Reads facts, the lab's frozen launch forecasts and measured evals only.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronRight, ClipboardCheck, Cpu, Crosshair, Layers, Loader, Minimize2, SlidersHorizontal, X, type LucideIcon } from 'lucide-react';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import {
@@ -286,7 +286,7 @@ function RunDrawer({ s, r, alloc, close }: { s: GameStateV2; r: RunHistoryRow; a
     kv.push(['Size', `${fmtParams(b.params)} parameters`]);
     kv.push([<Term id="shape">Model design</Term>, WORD[b.shape] ?? b.shape]);
     kv.push([<Term id="dataMix">Data mix</Term>, WORD[b.data] ?? b.data]);
-    kv.push([<Term id="hazardFilter">Data filter</Term>, Object.entries(b.curation).filter(([, on]) => on).map(([k]) => (k === 'safetyPretrain' ? 'safety pretraining' : k)).join(', ') || 'none']);
+    kv.push([<Term id="hazardFilter">Data filter</Term>, Object.entries(b.curation).filter(([, on]) => on).map(([k]) => (k === 'safetyPretrain' ? 'Safety pretraining' : k === 'hazard' ? 'Hazard' : 'Quality')).join(', ') || 'None']);
   } else if (run.kind === 'distill') {
     kv.push(['Teacher', r.from ?? '—']);
     if (run.studentParams) kv.push(['Student size', `${fmtParams(run.studentParams)} parameters`]);
@@ -313,7 +313,7 @@ function RunDrawer({ s, r, alloc, close }: { s: GameStateV2; r: RunHistoryRow; a
           </div>
         </div>
         {kv.length > 0 && <div className="pf-sec"><div className="cap">Launch snapshot</div>
-          <div className="pf-kv">{kv.map(([k, val], i) => <><span key={`k${i}`} className="k">{k}</span><span key={`v${i}`}>{val}</span></>)}</div>
+          <div className="pf-kv">{kv.map(([k, val], i) => <Fragment key={i}><span className="k">{k}</span><span>{val}</span></Fragment>)}</div>
         </div>}
         <span className="sp" />
         <div className="row-i rn-foot">
