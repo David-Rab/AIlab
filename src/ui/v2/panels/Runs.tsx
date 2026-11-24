@@ -120,7 +120,7 @@ function Timeline({ s, rows, alloc, evals, onOpen }: { s: GameStateV2; rows: Run
             </div>
           </div>
         ))}
-        <div className="rn-lane rn-axis"><span /><div className="rn-track">{months.map((m) => <span key={m.d} className="rn-tick" style={{ left: pc(m.d) }}>{m.label}</span>)}<b className="rn-today" style={{ left: pc(day) }}><span>today</span></b></div></div>
+        <div className="rn-lane rn-axis"><span /><div className="rn-track">{months.map((m) => <Tip key={m.d} content={() => <TipCard title={fmtDate(dateOf(s, m.d))}>Month start.</TipCard>}><span className="rn-tick" style={{ left: pc(m.d) }}>{m.label}</span></Tip>)}<b className="rn-today" style={{ left: pc(day) }}><span>today</span></b></div></div>
         <div className="rn-now-line" style={{ left: `calc(170px + (100% - 170px) * ${x(day) / 100})` }} />
       </div>
       <div className="rn-compute" data-test="runs-compute">
@@ -228,7 +228,7 @@ function RunningNow({ s, rows, alloc, onOpen }: { s: GameStateV2; rows: RunHisto
   return (
     <Card className="rn-now" home="runningNow" title={<span className="row-i"><Loader size={15} />Running now</span>}
       right={<span className={`rn-chip ${stall ? 'warn' : 'ok'}`}>{run.status === 'paused' ? 'paused' : stall ? 'held up' : '✓ on plan'}</span>}>
-      <div className="rn-nowhd" data-run={run.id}><b>{r.title}</b><span className="small dim">{plan}</span><span className="sp" /><Tip content={() => <TipCard title="Done" value={F.pct(done)}>Share of the run's training compute already spent.</TipCard>}><b className="num rn-pct">{F.pct(done)}</b></Tip></div>
+      <div className="rn-nowhd" data-run={run.id}><Tip content={() => <TipCard title={r.title} rows={[{ label: 'Launched', value: fmtDate(dateOf(s, run.startDay)) }, ...(plan ? [{ label: 'Plan', value: plan }] : [])]}>Click Launch snapshot for its design.</TipCard>}><span className="row-i rn-nowt"><b>{r.title}</b><span className="small dim">{plan}</span></span></Tip><span className="sp" /><Tip content={() => <TipCard title="Done" value={F.pct(done)}>Share of the run's training compute already spent.</TipCard>}><b className="num rn-pct">{F.pct(done)}</b></Tip></div>
       <div className="rn-prog"><i style={{ width: `${done * 100}%` }} /></div>
       <div className="pf-kv rn-kv">
         <span className="k">Due</span>

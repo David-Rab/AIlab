@@ -58,8 +58,17 @@ for (const st of stages) {
     await page.evaluate((t) => window.ai27v2.setTab('blueprint', t), tab);
     await wait(400);
     await shot(tab); await text(tab);
+    // The uitest J1 O1 coverage rule on this tab: numbers on screen outside any tooltip.
+    const miss = await page.evaluate(() => [...document.querySelector('main.center').querySelectorAll('*')].filter((e) => {
+      if (e.children.length) return false;
+      const tx = (e.textContent ?? '').trim();
+      if (!/\d/.test(tx) || tx.length > 40) return false;
+      const b = e.getBoundingClientRect();
+      return b.width > 4 && b.height > 4 && e.closest('svg') === null && !e.closest('button') && !e.closest('[data-tabs]') && !e.closest('select') && !e.closest('[data-tip]');
+    }).map((e) => `${e.className} | ${(e.textContent ?? '').trim().slice(0, 30)}`));
+    writeFileSync(path.join(OUT, `train-${tab}-${st}-untipped.txt`), miss.join('\n'));
     if (tab === 'data') { const b = await page.$('[data-test=data-buy-licence]'); if (b) { await b.click(); await shot('data-drawer'); await text('data-drawer', '[data-test=licence-drawer]'); await page.keyboard.press('Escape'); } }
-    if (tab === 'runs') { const fc = await page.$('[data-fc] .rn-fcname'); const b = fc[fc.length - 1] ?? await page.$('.rn-bar[data-run]'); if (b) { await b.click(); await shot('runs-drawer'); await text('runs-drawer', '[data-test=run-drawer]'); await page.keyboard.press('Escape'); } }
+    if (tab === 'runs') { const fc = await page.$$('[data-fc] .rn-fcname'); const b = fc[fc.length - 1] ?? await page.$('.rn-bar[data-run]'); if (b) { await b.click(); await shot('runs-drawer'); await text('runs-drawer', '[data-test=run-drawer]'); await page.keyboard.press('Escape'); } }
   }
   console.log(st, 'done');
 }

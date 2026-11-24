@@ -183,7 +183,7 @@ function DomainChart({ dom, card }: { dom: Record<DomainId, Record<Src, number>>
             </Tip>
           );
         })}
-        <div className="dv-axis"><span /><span className="dv-ticks">{ticks.map((x) => <span key={x} style={{ left: w(x) }}>{x === 0 ? 0 : `${x.toLocaleString('en-US')}T`}</span>)}</span><span /></div>
+        <div className="dv-axis"><span /><Tip content={() => <TipCard title="Tokens">Trillions of tokens you own in each domain.</TipCard>}><span className="dv-ticks">{ticks.map((x) => <span key={x} style={{ left: w(x) }}>{x === 0 ? 0 : `${x.toLocaleString('en-US')}T`}</span>)}</span></Tip><span /></div>
       </div>
     </Card>
   );
@@ -213,7 +213,7 @@ function TeacherChart({ s, v }: { s: GameStateV2; v: DataPortfolioView }) {
   const range = (xs: number[]) => { const lo = Math.min(...xs); const hi = Math.max(...xs); return Math.abs(hi - lo) < 0.005 ? F.num(lo, 2) : `${F.num(lo, 2)}–${F.num(hi, 2)}`; };
   return (
     <Card className="dv-teach" home="dataByTeacher" title={<span className="row-i"><Sparkles size={15} /><Term id="syntheticData">Generated data</Term>&nbsp;by teacher</span>} sub="tokens each model wrote · hatched: writing now"
-      right={<span className="small dim" data-test="teacher-quality">{[...byBase.entries()].map(([b, q], i) => <span key={b}>{i ? ' · ' : ''}{b} teachers <b className="num">{range(q)}</b> <Term id="dataQuality">quality</Term></span>)}</span>}>
+      right={<Tip content={() => <TipCard title={<Term id="dataQuality">Quality by teacher</Term>} rows={[...byBase.entries()].map(([b, q]) => ({ label: `${b} teachers`, value: range(q) }))}>Each model's data is as good as its skill; newer bases write better data.</TipCard>}><span className="small dim" data-test="teacher-quality">{[...byBase.entries()].map(([b, q], i) => <span key={b}>{i ? ' · ' : ''}{b} teachers <b className="num">{range(q)}</b> <Term id="dataQuality">quality</Term></span>)}</span></Tip>}>
       {bars.length === 0 ? <div className="dim small">No generated data yet.</div> : (
         <div className="dv-tbars" data-test="teacher-bars">
           {bars.map((b) => {
@@ -254,18 +254,18 @@ function Sources({ s, v, openLicence }: { s: GameStateV2; v: DataPortfolioView; 
   return (
     <Card className="dv-srcs" home="dataSources" title={<span className="row-i"><Layers size={15} /><Term id="dataPortfolio">Sources</Term></span>} sub="what you own and what each adds">
       <SrcLine k="public" r={row('public')} sub={<><Tip content={() => <TipCard title={<Term id="publicWeb">Public web crawled</Term>} value={F.pct(v.crawl.coverage)} rows={[{ label: 'Web stock', value: tokT(v.crawl.stockT) }]}>Every lab reads the same finite web.</TipCard>}><span>{F.pct(v.crawl.coverage)}</span></Tip> of the public web crawled{q('public')}{v.crawl.licensed ? <> · <span className="tone-pos">licensed</span></> : null}</>}
-        extra={<div className="small dim">{tokT(Math.max(0, v.crawl.stockT * (1 - v.crawl.coverage)))} of the web not crawled</div>} />
+        extra={<Tip as="div" content={() => <TipCard title={<Term id="publicWeb">Not crawled</Term>} value={tokT(Math.max(0, v.crawl.stockT * (1 - v.crawl.coverage)))}>Public web your crawl has not reached.</TipCard>}><div className="small dim">{tokT(Math.max(0, v.crawl.stockT * (1 - v.crawl.coverage)))} of the web not crawled</div></Tip>} />
       <SrcLine k="licensed" r={row('licensed')} sub={<>{licWord}{q('licensed')}</>}
         extra={<div className="row-i dv-sact"><button className="btn btn-sm" data-test="data-buy-licence" onClick={openLicence}><ShoppingCart size={13} />Buy a licence</button>
           <Tip content={() => <TipCard title="On the way" rows={lic.map((p) => ({ label: `${dn(p.domain)} ${p.label.toLowerCase()} ${tokT(p.tokensT)}`, value: fmtDate(dateOf(s, p.due)) }))}>Licensed data arrives on its due day.</TipCard>}><span className="small dim" data-test="data-pending">{lic.length ? `${lic.length} on the way` : 'none on the way'}</span></Tip></div>} />
-      <SrcLine k="usage" r={row('usage')} sub={<>from your products&apos; conversations{q('usage')} · <b className="num">+{tokT(v.usagePerDayT)}</b> a day</>}
+      <SrcLine k="usage" r={row('usage')} sub={<>from your products&apos; conversations{q('usage')} · <Tip content={() => <TipCard title={<Term id="usageData">Usage data a day</Term>} value={`+${tokT(v.usagePerDayT)}`}>At today's traffic and your usage policy.</TipCard>}><b className="num">+{tokT(v.usagePerDayT)}</b></Tip> a day</>}
         extra={<div className="row-i dv-sact" data-test="usage-levels"><span className="small dim"><Term id="usageData">Usage policy</Term></span>
           <span className="seg">{lv.map((l) => l.current
             ? <Tip key={l.level} content={() => <TipCard title={l.label} rows={[{ label: 'Kept', value: F.pct(l.share) }, { label: 'A day', value: `+${tokT(l.perDayT)}` }]}>Your current policy.</TipCard>}><button className="seg-btn active" data-level={l.level}>{l.label}</button></Tip>
             : <span key={l.level} className="dv-useg" data-level={l.level}><ActBtn id="data.usagePolicy" testId={`data.usagePolicy.${l.level}`} params={{ level: l.level as UsageLevel }} label={l.label} /></span>)}</span>
           {lv.filter((l) => !l.current && cur && l.perDayT > cur.perDayT).map((l) => <span key={l.level} className="small dim">{l.label}: +{tokT(l.perDayT - (cur?.perDayT ?? 0))} a day · <span className={l.civlib < 0 ? 'tone-neg' : ''}><Term id="approval">civil liberties</Term> {l.civlib > 0 ? '+' : ''}{l.civlib}</span></span>)}
         </div>} />
-      <SrcLine k="synthetic" r={row('synthetic')} sub={<>written by your models{q('synthetic')} · <b className="num">+{tokT(v.synPerDayT)}</b> a day</>}
+      <SrcLine k="synthetic" r={row('synthetic')} sub={<>written by your models{q('synthetic')} · <Tip content={() => <TipCard title={<Term id="syntheticData">Generated data a day</Term>} value={`+${tokT(v.synPerDayT)}`}>What data-generation compute writes a day with today's teacher.</TipCard>}><b className="num">+{tokT(v.synPerDayT)}</b></Tip> a day</>}
         extra={<div className="row-i dv-sact">
           <span className="small dim"><Term id="synJob">Teacher</Term></span>
           <Tip content={() => <TipCard title={<Term id="synJob">Teacher</Term>} value={writer?.name ?? v.defaultTeacher ?? '—'} rows={job ? [{ label: 'Until', value: fmtDate(dateOf(s, job.until)) }, { label: 'Share of data generation', value: F.pct(job.share) }] : []} footer="A model you pick writes for a year; your internal research model writes otherwise.">The model that writes your generated data. Stronger models write better data; bigger ones write fewer tokens per H100e-day.</TipCard>}>
