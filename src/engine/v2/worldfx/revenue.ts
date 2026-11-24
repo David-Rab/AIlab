@@ -29,10 +29,11 @@
 // group's choice without it (worldfx/mix.ts rerunChoice): their hours go to their next-best offer among those their group
 // reaches, or to no AI (choice sets with nothing else they reach). One pass over the capped products in serving order
 // (most revenue per H100e first): a receiving player product takes hours only into its spare serving compute, the
-// excess goes to the cell's other destinations with room, else no AI (not re-run). Rivals take every hour (no capacity
-// yet: MK-8 supplies sellerRoom). Spilled hours are billed at the receiver's price per adopted hour (agent and seated
-// hours at that price too [D]). Chat: free users are rate-limited (no spillover, no share loss); turned-away
-// subscribers go to the other apps by their user shares (the logit's IIA). Customers stay with the lab (M4): its stock
+// excess goes to the cell's other destinations with room, else no AI (not re-run). MK-8: a closed rival (and DeepCent)
+// takes hours into its room only, its serving capacity less its own buyers' serving (sellerCaps); one with no room is
+// left out of the re-run; open weights take every hour (many hosts). Spilled hours are billed at the receiver's price per
+// adopted hour (agent and seated hours at that price too [D]). Chat: free users are rate-limited (no spillover, no share
+// loss); turned-away subscribers go to the other apps with room by their user shares (the logit's IIA), up to that room. Customers stay with the lab (M4): its stock
 // moves toward the target on served hours, min(choice target, stock × (served + spare) ÷ asked), the released share
 // to the sellers that took its buyers (no AI is not a stock: normalisation spreads it).
 // Serving split (R6): with the Auto policy (default) each product needs its H100e; the pool serves the products earning
@@ -47,7 +48,9 @@ import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, Regi
 import { BUYER_GROUP_IDS, SECTOR_CHANNELS, advanceCustomers, paidDeployments, rerunChoice, worldMix, type BuyerGroupId, type ServedTargets, type WorldMix } from './mix';
 import type { Choice } from './choice';
 import { monitorOverhead } from '../models/products';
-import { versionById } from '../models/labs';
+import { CHINA_ID, versionById } from '../models/labs';
+import { shareRefAt } from '../departments/split';
+import { decimalYear } from '../core/time';
 import { savedAt, useShareOf, workHoursOf } from './use';
 import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
@@ -156,10 +159,89 @@ export interface RevenueReadout {
   served: ServedTargets;
 }
 
-/** MK-7 / MK-8 hook: serving compute (H100e) a non-player seller can still put on buyers turned away by others. Rivals
- *  have no serving capacity yet (MK-8 supplies it): unlimited. */
-export function sellerRoom(_s: GameStateV2, _key: string): number {
-  return Infinity;
+/** MK-8 (design/MARKET.md M11): a non-player seller's serving capacity, the serving its own buyers take, and the room
+ *  left for buyers turned away by others (H100e). A closed lab (rival or DeepCent):
+ *    capacity = its online compute × the reference serving share (departments/split.ts shareRefAt: it serves as the
+ *               reference lab does [D]);
+ *    own      = Σ over sectors × regions of its share × (adopted hours × hph + agent-hours × hphAg + seated hours ×
+ *               hphAs where it sells seats) ÷ SERVE_HOURS_PER_YEAR, hph its tier mix there (the mix's tier weights and
+ *               offers: its served model's FLOP per token and decode utilisation, as its offers price cost), plus its
+ *               chat users (users × its user share: subscribers on its model, free users on its cheapest tier, the
+ *               player's usage per user-day);
+ *    room     = max(0, capacity − own).
+ *  `hours`: the capacity in work-hours a year at its own sector H100e-hours per hour. Open weights (and the player's
+ *  open release): many hosts, no limit (Infinity). Its own demand above capacity is not rationed yet (`over`). */
+export interface SellerCap { cap: number; own: number; ownSec: number; ownChat: number; secHours: number; hours: number; room: number; over: number }
+export function sellerCaps(s: GameStateV2, mix: WorldMix): Map<string, SellerCap> {
+  const out = new Map<string, SellerCap>();
+  const serveShare = shareRefAt(decimalYear(s)).serving;
+  mix.providers.forEach((q, j) => {
+    if (q.key === 'player') return;
+    const lab = q.key === CHINA_ID ? s.china.lab : s.rivals.find((r) => r.core.id === q.key);
+    if (q.open || !lab) {
+      out.set(q.key, { cap: Infinity, own: 0, ownSec: 0, ownChat: 0, secHours: 0, hours: Infinity, room: Infinity, over: 0 });
+      return;
+    }
+    let sec = 0;
+    let secH = 0;
+    for (const r of REGIONS) {
+      for (const def of SECTORS) {
+        const m = mix.sec[r][def.id];
+        const x = m.share[j];
+        if (!x) continue;
+        const wh = workHoursOf(s.world.sectors[r][def.id], def.id);
+        const tw = m.tiers.weight[j] ?? [];
+        const to = m.tiers.offers[j] ?? [];
+        let hph = 0;
+        let hAg = 0;
+        let hAs = 0;
+        let ws = 0;
+        for (let k = 0; k < tw.length; k++) {
+          const o = to[k];
+          if (!o || !(tw[k] > 0)) continue;
+          hph += tw[k] * o.hph;
+          hAg += tw[k] * o.hphAg;
+          hAs += tw[k] * o.hphAs;
+          ws += tw[k];
+        }
+        if (!(ws > 0) && to[0]) {
+          hph = to[0].hph;
+          hAg = to[0].hphAg;
+          hAs = to[0].hphAs;
+        } else if (ws > 0 && Math.abs(ws - 1) > 1e-9) {
+          hph /= ws;
+          hAg /= ws;
+          hAs /= ws;
+        }
+        const ad = x * wh.adopted;
+        const ag = x * wh.supervising * m.agentK[j];
+        const se = m.seatPrices[j] > 0 ? x * wh.seated : 0;
+        secH += ad + ag + se;
+        sec += (ad * hph + ag * hAg + se * hAs) / SERVE_HOURS_PER_YEAR;
+      }
+    }
+    let chat = 0;
+    if (q.model) {
+      const fMain = q.fpt ?? 2e12;
+      let free: { model: typeof q.model; fpt: number } = { model: q.model, fpt: fMain };
+      for (const x of q.tiers ?? []) if (x.fpt < free.fpt) free = x;
+      for (const r of REGIONS) {
+        const cm = mix.consumer[r];
+        const u = consumerUsers(s, r) * (cm.share[j] ?? 0);
+        if (!(u > 0)) continue;
+        const subs = u * (cm.paid[j] ?? 0);
+        chat += (subs * chatHoursPerDay(fMain, CONSUMER_MKT.perDay.paid, tokEff(q.model), q.ud) + (u - subs) * chatHoursPerDay(free.fpt, CONSUMER_MKT.perDay.free, tokEff(free.model), q.ud)) / 24;
+      }
+    }
+    const cap = Math.max(0, lab.core.computeOnline * serveShare);
+    const own = sec + chat;
+    out.set(q.key, { cap, own, ownSec: sec, ownChat: chat, secHours: secH, hours: sec > 0 ? (cap * secH) / sec : 0, room: Math.max(0, cap - own), over: Math.max(0, own - cap) });
+  });
+  return out;
+}
+/** MK-7 / MK-8: serving compute (H100e) a non-player seller can still put on buyers turned away by others (sellerCaps). */
+export function sellerRoom(s: GameStateV2, key: string, mix: WorldMix = worldMix(s)): number {
+  return sellerCaps(s, mix).get(key)?.room ?? Infinity;
 }
 
 /** Hours of AI use a year in one sector and region: U·E0·2000 (adopted task-hours plus workers' assisted use, A2a). */
@@ -690,10 +772,11 @@ function ration(s: GameStateV2, mix: WorldMix, p: number, out: DeploymentRevenue
   };
   const cellAt = new Map<string, Cell>();
   for (const [id, cs] of cells) for (const c of cs) cellAt.set(`${id}|${c.r}|${c.sid}`, c);
-  // Room (H100e): a player product's spare serving compute; other sellers' (MK-8 hook; unlimited today).
+  // Room (H100e): a player product's spare serving compute; other sellers' (MK-8 sellerCaps; open weights unlimited).
   const room = new Map<string, number>();
   for (const x of out) room.set(x.id, Math.max(0, x.servingH100e - x.needH100e));
-  const provRoom = mix.providers.map((q, i) => (i === p ? 0 : sellerRoom(s, q.key)));
+  const caps = sellerCaps(s, mix);
+  const provRoom = mix.providers.map((q, i) => (i === p ? 0 : (caps.get(q.key)?.room ?? Infinity)));
   const rsRival = new Map<string, number[]>();
   const rsAbs = new Map<string, number>();
   const chMemo = new Map<string, Choice | undefined>();
@@ -886,21 +969,35 @@ function ration(s: GameStateV2, mix: WorldMix, p: number, out: DeploymentRevenue
       const subs = c.subs * u;
       if (!(subs > 0)) continue;
       const cm = mix.consumer[c.r];
+      // MK-8: only to apps with serving room left; a subscriber takes its plan's serving (H100e) from that room, the
+      // subscribers beyond it go to no AI.
+      const ok = (j: number) => j !== p && cm.fit[j] > -Infinity && provRoom[j] > 1e-9;
       let z = 0;
-      for (let j = 0; j < n; j++) if (j !== p && cm.fit[j] > -Infinity) z += cm.target[j];
+      for (let j = 0; j < n; j++) if (ok(j)) z += cm.target[j];
       x.turnedAway.subs += subs;
       x.turnedAway.dollars += c.dem * u;
       if (!(z > 0)) {
         addAway(x.turnedAway, 'none', 0, subs, 0);
         continue;
       }
-      for (let j = 0; j < n; j++) if (j !== p && cm.fit[j] > -Infinity && cm.target[j] > 0) {
-        const sj = (subs * cm.target[j]) / z;
+      let lost = 0;
+      for (let j = 0; j < n; j++) if (ok(j) && cm.target[j] > 0) {
+        let sj = (subs * cm.target[j]) / z;
+        if (Number.isFinite(provRoom[j])) {
+          const q = mix.providers[j];
+          const per = q.model ? chatHoursPerDay(q.fpt ?? 2e12, CONSUMER_MKT.perDay.paid, tokEff(q.model), q.ud) / 24 : 0;
+          if (per > 0 && sj * per > provRoom[j]) {
+            lost += sj - provRoom[j] / per;
+            sj = provRoom[j] / per;
+          }
+          provRoom[j] = Math.max(0, provRoom[j] - sj * per);
+        }
         const dol = (sj * cm.prices[j] * 12) / 1e9;
         const key = mix.providers[j].key;
         spillRev[key] = (spillRev[key] ?? 0) + dol;
         addAway(x.turnedAway, key, 0, sj, dol);
       }
+      if (lost > 0) addAway(x.turnedAway, 'none', 0, lost, 0);
     }
   }
   for (const r of REGIONS) {
