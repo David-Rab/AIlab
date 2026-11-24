@@ -41,26 +41,40 @@ Playtests of the day-296 and day-369 saves found five faults, all in the market 
 
 ### Buyers (M2)
 
-Per sector × region, the business buyers' hours split into three groups by employment:
+Per sector × region, the business buyers' hours split into three groups by employment (src/data/v2/market.ts):
 
-- **vetted** v_s (§2, table below; [D] stand-ins on primary anchors),
-- **large** L_s − v_s (L_s the large-firm employment share, §1: US Census SUSB 2022, firms ≥ 500, private
-  employment; rest of world ≈ 0.69 × US, China ≈ 0.38 × US [D]); vetted is taken out of large first, the remainder of v_s
-  above L_s comes out of small,
-- **small** the rest.
+- L_s the large-firm employment share (§1: US Census SUSB 2022, firms ≥ 500, private employment; rest of world ≈ 0.69 ×
+  US, China ≈ 0.38 × US [D]); p_s the public (government-run) share, the same in every region (§2: GOV and MIL 1,
+  Healthcare 0.219 = government's share of hospital jobs as a proxy for the sector, others 0); r_s the share of the
+  sector's large firms that count as vetted (regulated, critical infrastructure, defence-adjacent) [D, designer
+  estimate 2026-11-24].
+- largeAll = L_s × regionScale × (1 − p_s), the private large firms,
+- **vetted** = p_s + r_s × largeAll,
+- **large** = (1 − r_s) × largeAll,
+- **small** = 1 − vetted − large.
 
-| Sector | L_s (US) | v_s | Sector | L_s (US) | v_s |
-|---|---|---|---|---|---|
-| Software & IT | 0.595 | 0.15 | Healthcare | 0.563 | 0.55 |
-| Admin, clerical, customer service | 0.54 | 0.20 | Education | 0.871 | 0 |
-| Finance | 0.687 | 0.70 | Government admin | — | 1.0 |
-| Legal | 0.192 | 0.25 | Military & defence | ~0.89 | 1.0 |
-| Creative, media, marketing | 0.429 | 0.05 | Manufacturing | 0.591 | 0.20 |
-| Science & engineering R&D | 0.545 | 0.35 | Transport, logistics | 0.668 | 0.40 |
-| Energy, utilities, construction | 0.26 | 0.15 | Retail, hospitality, services | 0.467 | 0.03 |
+Vetted so scales with the region's large firms and never exceeds the public plus large-firm share.
+
+| Sector | L_s (US) | p_s | r_s | small | large | vetted (US) |
+|---|---|---|---|---|---|---|
+| Software & IT | 0.595 | 0 | 0.15 | 0.405 | 0.506 | 0.089 |
+| Admin, clerical, customer service | 0.54 | 0 | 0.15 | 0.460 | 0.459 | 0.081 |
+| Finance | 0.687 | 0 | 0.5 | 0.313 | 0.344 | 0.344 |
+| Legal | 0.192 | 0 | 0.25 | 0.808 | 0.144 | 0.048 |
+| Creative, media, marketing | 0.429 | 0 | 0.05 | 0.571 | 0.408 | 0.021 |
+| Science & engineering R&D | 0.545 | 0 | 0.35 | 0.455 | 0.354 | 0.191 |
+| Healthcare | 0.563 | 0.219 | 0.5 | 0.341 | 0.220 | 0.439 |
+| Education | 0.871 | 0 | 0 | 0.129 | 0.871 | 0 |
+| Government admin | — | 1 | — | 0 | 0 | 1 |
+| Military & defence | ~0.89 | 1 | — | 0 | 0 | 1 |
+| Manufacturing | 0.591 | 0 | 0.2 | 0.409 | 0.473 | 0.118 |
+| Transport, logistics | 0.668 | 0 | 0.25 | 0.332 | 0.501 | 0.167 |
+| Energy, utilities, construction | 0.26 | 0 | 0.5 | 0.740 | 0.130 | 0.130 |
+| Retail, hospitality, services | 0.467 | 0 | 0.03 | 0.533 | 0.453 | 0.014 |
 
 Education (designer, 2026-11-24): public schools buy like large firms, not as vetted buyers. L_EDU = public share
-0.727 + 0.273 × private large share 0.527 = 0.871 (§1–§2); v_EDU = 0.
+0.727 + 0.273 × private large share 0.527 = 0.871 (§1–§2); p_EDU = r_EDU = 0, and L_EDU is not reduced by a public
+share (largeAll = 0.871 × regionScale).
 
 Each group runs today's buyer choice (worldfx/choice.ts: bands of task difficulty, surplus V·x − p, quality term,
 brand × reach) over the offers it can reach: every rival's offer (rivals sell to every group: M11) and the player's
