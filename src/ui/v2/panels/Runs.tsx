@@ -11,7 +11,7 @@ import {
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
-import { ActBtn, Term, Tip, TipCard } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
 import { Card } from '../kit';
 import * as F from '../fmt';
 import { fmtParams } from './Models';
@@ -133,6 +133,7 @@ function Timeline({ s, rows, alloc, evals, onOpen }: { s: GameStateV2; rows: Run
           <span className="rn-cbar">{alloc0.map(([id, v]) => <i key={id} className="use" style={{ width: `${v * 100}%` }} />)}{stream > 0 && <i className="stream" style={{ width: `${stream * 100}%` }} />}<i className="idle" style={{ width: `${idle * 100}%` }} /></span>
         </Tip>
         <Tip content={() => <TipCard title={<Term id="trainingPool">Training compute now</Term>} rows={[...alloc0.map(([id, v]) => ({ label: rows.find((r) => r.run.id === id)?.title ?? id, value: F.pct(v) })), ...(stream > 0 ? [{ label: 'Continual learning', value: F.pct(stream) }] : []), { label: 'Idle', value: F.pct(idle) }]}>Shares of today&apos;s training compute.</TipCard>}><span className="small" data-test="spare-share">{alloc0.map(([id, v]) => <span key={id}><b className="num">{F.pct(v)}</b> {rows.find((r) => r.run.id === id)?.title ?? ''} · </span>)}{stream > 0 && <span><b className="num">{F.pct(stream)}</b> continual learning · </span>}<b className={`num ${idle > 0.005 ? 'tone-warn' : ''}`}>{F.pct(idle)}</b> idle</span></Tip>
+        <Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'continual learning first' : 'continual learning: off'}</Limit>
         <button className="dv-chip" onClick={() => store.goto('lab')}>LAB <ChevronRight size={11} /></button>
       </div>
     </Card>

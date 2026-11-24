@@ -14,7 +14,7 @@ import { COLUMN_LABEL, QUALITY, STAR_HIRE, TEAM_SIZE } from '../../../data/v2/te
 import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamQuality, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
 import { NeedsBoard } from './Work';
-import { ActBtn, Term, Tip, TipCard, Why } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard, Why } from '../ui';
 import { Card, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
@@ -282,7 +282,7 @@ function WeightSecurity({ s }: { s: GameStateV2 }) {
         {v.floor2027 > v.floorNow + 0.05 && <span className="ls-mk base later" style={{ left: sx(v.floor2027) }}><span className="lbl">baseline {lvl(v.floor2027)} from Jan 2027</span></span>}
         <div className="ls-ticks">{[2, 3, 4, 5].map((x) => <span key={x} style={{ left: sx(x) }} className="num">{x}</span>)}</div>
       </div>
-      {below && <Tip as="div" content={() => <TipCard title="Baseline sets your level" rows={[{ label: 'Your target', value: lvl(sec.target) }, { label: 'Industry baseline', value: lvl(v.floorNow) }, { label: 'Your budget', value: F.money(sec.spendRate, { perYear: true }) }]}>To go higher, Set a level in What a higher level costs.</TipCard>}><div className="ls-note small" data-test="wsl-below"><ICON.alert size={13} /> Your target is below the baseline, so the baseline sets your level.{holds ? '' : ` Your ${F.money(sec.spendRate)} a year holds nothing higher.`}</div></Tip>}
+      {below && <Tip as="div" content={() => <TipCard title="Baseline sets your level" rows={[{ label: 'Your target', value: lvl(sec.target) }, { label: 'Industry baseline', value: lvl(v.floorNow) }, { label: 'Your budget', value: F.money(sec.spendRate, { perYear: true }) }]}>To go higher, Set a level in What a higher level costs.</TipCard>}><div className="ls-note small" data-test="wsl-below"><ICON.alert size={13} /> Your target is below the baseline, so <Limit id="security.floor" tone="bind">the baseline sets your level</Limit>.{holds ? '' : ` Your ${F.money(sec.spendRate)} a year holds nothing higher.`}</div></Tip>}
     </Card>
   );
 }
