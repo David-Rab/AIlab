@@ -144,4 +144,5 @@ body.v2 .term { color: #bcd8ff; border-bottom: 1px dotted #5aa9ff; cursor: help;
 .end-banner b { color: #fff; }
 .end-banner-back { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
 .speedctl2.is-frozen { opacity: .7; }
+.game-v2.is-ended .nav2-badge { display: none; } /* to-dos the player can no longer act on */
 .spd-frozen { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); padding: 4px 8px; border: 1px dashed var(--line-2); border-radius: 6px; }
