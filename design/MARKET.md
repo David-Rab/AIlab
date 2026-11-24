@@ -212,3 +212,11 @@ dependency order; tasks on one line of the same number can run in parallel.
 | MK-12 | **Readouts and previews**: product view leads with profit (M12); edit previews true (same function as the tick), incl. buyers taken from own products and rationing; glossary terms | preview = next tick on the day-369 4.0-mini case |
 | MK-13 | **Products screen** to the approved mockup: four products, stance switch, profit lead, tools; lineup click-to-swap / remove / add row (M13) | UI test + screenshot checked |
 | MK-CP | **Checkpoint**: calibrate ε (margins 0.6–0.9 at mid-2025 shares) and the win-share fraction; start revenue back to the sourced $12–15B (MK-6 gave $20.9B at ε 1.4: ε ≈ 1.6 or the demand side); replay the day-296 / day-369 cases; full tests | margins and shares in range; the five faults gone |
+
+## For the rivals session (found during the market build)
+
+- MK-8: rivals use only ≈ 10–25 % of their serving capacity (start and day 369), so their capacity rarely binds; their
+  own over-demand is reported (`sellerCaps.over`) but not rationed.
+- MK-8: rival Chat demand is tiny (4–7K H100e at the start, ≈ 0 on day 369): rival chat user shares look low.
+- MK-8: rivals serve at the reference serving share (`shareRefAt().serving`), not their own split.
+- MK-11: rivals now carry their tools' effects (harness fit, tokens, horizon), which changes their strength.
