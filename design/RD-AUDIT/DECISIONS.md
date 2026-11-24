@@ -178,3 +178,9 @@ experiments and returned automatically when a run launches. LAB's "idle Training
 Mock up (then build) PRODUCTS, the Overview hub (lead lanes; resolves the duplicate loss-of-control readout on
 Company & world › Risk) and the other sub-tabs: RESEARCH › Discoveries; TRAINING › Data, Environments, Runs; SAFETY ›
 Model, Instruments, Safeguards, Incidents & cases; LAB › Hiring & teams, AI staff & needs, Security.
+
+## Remaining mockups approved (2026-11-24, designer)
+13 mockups (products, overview, discoveries, train-data/env/runs, lab-hiring/aistaff/security, saf-model/instruments/
+safeguards/incidents) approved with: LAB main board keeps one-line AI share per role, AI staff tab holds per-job detail;
+needs lists live only on LAB › AI staff & needs (main-board rows link there); Security's SL1–SL5 labels only if the
+mapping is sourced (else drop the labels); customers stay on product cards; world risk lives on World.
