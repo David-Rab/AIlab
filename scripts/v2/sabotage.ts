@@ -223,8 +223,12 @@ const f3 = (x: number) => x.toFixed(3);
   check(c.m < c0.m && safetySandbag(lab(1, 0.8), 'AG08') > 0 && safetySandbag(lab(1, 0), 'AG08') === 0 && ag16.m === c0.m && safetySandbag(lab(1, 0.8), 'AG16') === 0,
     'sabotage: a sabotaging safety model sandbags its share of the work on lines that would expose it (SAFMECH: × the line\'s threat), so those lines slow and the others do not',
     `AG08 experiment multiplier ${c0.m.toFixed(3)} (sab 0) → ${c.m.toFixed(3)} (sab .8); AG16 ${ag16.m.toFixed(3)}; sandbagged share on AG08 ${pct(safetySandbag(lab(1, 0.8), 'AG08'))}`);
-  check(c.mSeen === c0.mSeen && c.mSeen > c.m,
-    'sabotage (SAFMECH, hidden truth): the readouts (ETA, cycle time) use the labour without the hidden sandbag, so a sandbagged line runs slower than the lab expects', `seen ${c.mSeen.toFixed(3)} vs actual ${c.m.toFixed(3)}`);
+  // UB-2: the readouts also use the believed production parameters and the measured fits, so seen and actual differ
+  // without any sabotage (here the rig's +6 OOM is in the true build only). The sandbag's own symptom is the extra gap:
+  // the seen value does not move with it, the actual one falls, so actual ÷ seen is lower than in the same lab at sab 0.
+  check(c.mSeen === c0.mSeen && c.m / c.mSeen < c0.m / c0.mSeen,
+    'sabotage (SAFMECH, hidden truth): the readouts (ETA, cycle time) use the labour without the hidden sandbag, so a sandbagged line runs slower than the lab expects',
+    `seen ${c.mSeen.toFixed(3)} (sab 0: ${c0.mSeen.toFixed(3)}); actual ÷ seen ${(c0.m / c0.mSeen).toFixed(1)} (sab 0) → ${(c.m / c.mSeen).toFixed(1)} (sab .8)`);
   // Previews read beliefs only: the believed threat of the next results does not move with the true traits.
   const bt0 = believedResultThreat(lab(1, 0));
   const bt1 = believedResultThreat(lab(1, 0.8));
