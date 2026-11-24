@@ -100,10 +100,16 @@ export const MISUSE = { kappa: 5e-4, theta: 9, s: 1, floor: 3, span: 1.5 };
  *  tokens ÷ this. [D stand-in] about the player's total served tokens a day at the ai2027 start (2.9e12), so day-0 exposure
  *  sits near the old serving-share reach; it then grows with usage. To source from abuse-report rates per query. */
 export const MISUSE_TOKENS_REF = 3e12;
-/** Misuse reach by channel (v2's exposure table). */
+/** Misuse reach by channel (v2's exposure table, V2-SPEC exposure_c): the misuse opportunity per served token, a
+ *  multiplier on the usage term (served tokens ÷ MISUSE_TOKENS_REF, safety/incidents.ts misuseReach) of the bio / cyber
+ *  misuse hazard. Vetted 0.5 [D, no source], Government's value, not Trusted's 0.3: Trusted was a short list of partners
+ *  picked one by one; Vetted is a whole buyer rung (every government, military and critical-infrastructure buyer and the
+ *  large regulated firms), its biggest users are defence and intelligence agencies whose work includes offensive cyber and
+ *  whose use the lab sees least (classified, on government clouds). Being named under contract already cuts it below
+ *  Chat and Enterprise (1.0); the usage terms and the framework's safeguards (M10) act on top of it, not in it. */
 export const MISUSE_REACH: Record<Channel, number> = {
-  consumer: 1.0, api: 0.8, enterprise: 1.0, vetted: 0.3, internal: 0, open: 1.0,
-}; // MK-2: Vetted takes Trusted's 0.3 (Government had 0.5); decide
+  consumer: 1.0, api: 0.8, enterprise: 1.0, vetted: 0.5, internal: 0, open: 1.0,
+};
 
 /** Exfiltration (event E25; same structure): κ · POWER·(1 + 4·SCHEME) · σ((CYBER − θ)/s) · O_internal ·
  *  (1 − WSL/5)(1 − Contain). θ = 10, s = 1 keep v2's 1e-4·max(0, AGENCY − 8) within ±25% on levels 9–12 [C]. */

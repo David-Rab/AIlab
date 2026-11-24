@@ -173,7 +173,7 @@ const pendingParts = (s: GameStateV2, d: Deployment) => {
 /** One deployment of autoApplyPackages (also a launch or swap as it goes live, RF-S13b): add the pending parts, record
  *  them, log what they cost. True when it changed something. */
 export function applyFrameworkParts(s: GameStateV2, d: Deployment, ctx?: SystemCtx): boolean {
-  if (d.status !== 'live' || d.channel === 'open' || d.channel === 'vetted') return false; // MK-2: Trusted's exemption on Vetted
+  if (d.status !== 'live' || d.channel === 'open') return false;
   const todo = pendingParts(s, d);
   if (!todo.length) return false;
   const t = ctx && todo.length === steps(s, d).length ? previewPackage(s, d).total : undefined;
@@ -196,7 +196,7 @@ export function applyFrameworkParts(s: GameStateV2, d: Deployment, ctx?: SystemC
  *  framework will add when the edit goes live (applyEdit / cheap tier → applyFrameworkParts). Mutates only `n`;
  *  returns the parts' labels. The edit's gate and preview read this copy. */
 export function withFrameworkParts(s: GameStateV2, n: Deployment): string[] {
-  if (n.channel === 'open' || n.channel === 'internal' || n.channel === 'vetted') return []; // MK-2: Trusted's exemption on Vetted
+  if (n.channel === 'open' || n.channel === 'internal') return [];
   n.guards = (n.guards ?? []).map((g) => ({ ...g }));
   const todo = pendingParts(s, n);
   for (const st of todo) st.run(s, n);
@@ -208,7 +208,7 @@ export function withFrameworkParts(s: GameStateV2, n: Deployment): string[] {
  *  (models/deployments.ts deployGate) judges this candidate, so a deploy rule refuses only what the package cannot meet;
  *  the launch preview prices it. */
 export function frameworkCandidate(s: GameStateV2, v: ModelVersion, channel: Channel, cand: FrameworkCandidate, record?: string[]): FrameworkCandidate & { parts: string[] } {
-  if (channel === 'open' || channel === 'internal' || channel === 'vetted') return { ...cand, parts: [] }; // MK-2: Trusted's exemption on Vetted
+  if (channel === 'open' || channel === 'internal') return { ...cand, parts: [] };
   const d = { id: '__candidate', channel, versionId: v.id, status: 'live', safeguards: cand.safeguards, guards: (cand.guards ?? []).map((g) => ({ ...g })), frameworkApplied: record } as unknown as Deployment;
   const todo = pendingParts(s, d);
   for (const st of todo) st.run(s, d);

@@ -9,7 +9,8 @@ import { ws4, ws4r } from './state';
 
 export type CommitmentPredicate = (s: GameStateV2, params: Commitment['condition']['params'], c?: Commitment) => boolean;
 
-const external = (ch: string) => ch !== 'internal' && ch !== 'trusted';
+/** Every product but internal use is an external deployment; Vetted too (MARKET.md M10). */
+const external = (ch: string) => ch !== 'internal';
 const versionOf = (s: GameStateV2, id: string): ModelVersion | undefined => s.player.models.versions.find((v) => v.id === id);
 
 /** Run that breaks the monitorability pledge: latent base, latent CoT post, or CoT-pressured post. */
@@ -46,8 +47,8 @@ export interface DeployCandidate {
 export const DEPLOY_SCOPE: Record<string, (channel: string) => boolean> = {
   preDeployTesting: external,
   monitorabilityPledge: (ch) => ch !== 'internal',
-  noSurveillance: (ch) => ch === 'gov',
-  noAutonomousWeapons: (ch) => ch === 'gov',
+  noSurveillance: (ch) => ch === 'vetted', // the usage terms are Vetted's (M10; MK-1 moved them from Government)
+  noAutonomousWeapons: (ch) => ch === 'vetted',
 };
 
 /** The clause a candidate launch breaks under one commitment, or undefined (kept, or outside its scope). */
@@ -66,9 +67,9 @@ export function deployClause(s: GameStateV2, c: Commitment, cand: DeployCandidat
     case 'monitorabilityPledge':
       return latentVersion(s, v.id) ? `no release of a latent-reasoning model (${v.name})` : undefined;
     case 'noSurveillance':
-      return cand.usagePolicy.noSurveillance ? undefined : 'government deployments need the no-surveillance usage policy';
+      return cand.usagePolicy.noSurveillance ? undefined : 'Vetted products need the no-surveillance usage policy';
     case 'noAutonomousWeapons':
-      return cand.usagePolicy.noAutonomousWeapons ? undefined : 'government deployments need the no-autonomous-weapons usage policy';
+      return cand.usagePolicy.noAutonomousWeapons ? undefined : 'Vetted products need the no-autonomous-weapons usage policy';
     default:
       return undefined;
   }
@@ -83,10 +84,10 @@ export function commitmentDeployBlock(s: GameStateV2, cand: DeployCandidate): st
   return undefined;
 }
 
-/** Usage policy a new deployment on `channel` starts with: live usage commitments apply as written (a government
- *  deployment under "no mass surveillance or autonomous weapons" gets both clauses), so keeping them needs no extra step. */
+/** Usage policy a new deployment on `channel` starts with: live usage commitments apply as written (a Vetted
+ *  product under "no mass surveillance or autonomous weapons" gets both clauses), so keeping them needs no extra step. */
 export function committedUsagePolicy(s: GameStateV2, channel: string): DeployCandidate['usagePolicy'] {
-  const gov = channel === 'gov';
+  const gov = channel === 'vetted';
   return {
     noSurveillance: gov && hasCommitment(s, 'noSurveillance'),
     noAutonomousWeapons: gov && (hasCommitment(s, 'noAutonomousWeapons') || hasCommitment(s, 'noSurveillance')),

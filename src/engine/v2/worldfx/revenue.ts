@@ -284,7 +284,7 @@ function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefi
   }
 }
 /** Seat channels (A2c): seats are sold by Enterprise, and by Vetted in GOV/MIL (MK-1: Government's seats) [D]. */
-// MK-2: Vetted sells seats in GOV/MIL as Government did and hours elsewhere as Trusted did; MK-6 prices both by one rule.
+// MK-6: Vetted sells seats in GOV/MIL as Government did and hours elsewhere as Trusted did, until one rule prices both.
 const seatOf = (c: Channel, sector: string) => c === 'enterprise' || (c === 'vetted' && GOV_SECTORS.has(sector));
 
 /** A product's need segments with their demand $ (B/yr), in serving order. */
