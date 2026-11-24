@@ -28,3 +28,12 @@ not the mockup's four; programme rate = at current staffing (as planned); Best m
 - Leftover temp worktree AI27-ub2base (node_modules link → delete the link first).
 - UB-2b forecast coverage 9/18 in the 90% band: with no measured start model the measured level reads ~0.16 below true on
   average (measurement bias? check RD-M01's fit for a systematic offset at CP4); only the last 30 results are kept.
+
+## Follow-ups after the remaining-screen builds
+- SAFETY › Safeguards as the one home for every safeguard control: product monitors / safeguard level / KYC (still in the
+  Products drawer) and the control-protocol changes (built as "Compare": wire the existing setting so they Apply).
+- uitest R10 limits: three SAFETY › Cases limits missing (UB-C).
+- Skipped readouts needing engine work: revenue history per product, separate API / Enterprise customers, rival price per
+  sector, win-back previews, lead history, rivals on your evals; case verdict after-range.
+- Overview race shows "YOU · Atlas-2.10" (lead measured vs the AI-staff model): check which model the lead should use.
+- Evals tab still shows raw levels (OQ-6).
