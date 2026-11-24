@@ -42,7 +42,8 @@ import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
 import { evalDaysFor } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { adaptRevenueGain } from '../../src/engine/v2/models/adaptations';
+import { adaptRevenueGain, CERT_CASH } from '../../src/engine/v2/models/adaptations';
+import { START_BY_ID } from '../../src/data/v2/starts';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
 
@@ -65,8 +66,13 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const ext = s.player.deployments.filter((d) => d.channel !== 'internal');
   // CP3 rewrite (RD-P01a / TIERS): a product may start with a lineup of the lab's own versions (no single mini).
   const own = new Set(s.player.models.versions.map((v) => v.id));
-  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && !d.features.length && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
-    'P1 leader start: Chat, API, Enterprise are products at the standard tier with no features or monitor; any lineup is of the lab\'s own versions');
+  // CP4b (RF-P1): the leader starts with the tools OpenAI had shipped by 2025-07-01 (data/v2/starts.ts), each product
+  // carrying the start's list for its channel, all of them built.
+  const startTools = (ch: Deployment['channel']) => START_BY_ID.leader.products.find((x) => x.channel === ch)?.features ?? [];
+  const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && sameSet(d.features, startTools(d.channel)) && d.features.every((f) => s.player.features.includes(f)) && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
+    'P1 leader start: Chat, API, Enterprise are products at the standard tier with the start\'s built tools for their channel (RF-P1) and no monitor; any lineup is of the lab\'s own versions',
+    ext.map((d) => `${d.channel}: ${d.features.join('+') || '-'}`).join('; '));
   const pol = s.player.policies;
   check(pol.servingAuto && pol.autoEvaluate && !pol.upgradeToNewest && !pol.autoSplit.on, 'P1 policies: Auto serving on, auto-evaluate on, upgrade off; Auto-split idle compute off');
   // CP3: "P1 D5 the leader start has sector packs built" deleted (RD-P08 deleted the sectorPacks feature).
@@ -184,8 +190,13 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const s = game();
   run(s, 3);
   const cash0 = s.player.finance.cash;
-  const no = act(s, 'feature.build', { id: 'voiceVision' });
-  check(!!no && /Needs the idea/.test(no), 'P7 a feature whose idea is unknown cannot be built', no ?? '');
+  // CP4b (RF-P1): at the leader start every feature is built or its idea known (Companion), so the unknown-idea gate is
+  // checked on the spinout start (no tools; Long context + memory unknown).
+  const sp = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, start: 'spinout' }));
+  run(sp, 3);
+  const no = act(sp, 'feature.build', { id: 'memory' });
+  check(!!no && /Needs the idea/.test(no) && !sp.player.features.includes('memory') && !sp.player.build.queue.some((it) => it.kind === 'feature' && it.ref === 'memory'),
+    'P7 a feature whose idea is unknown cannot be built', no ?? '');
   const chat = prod(s, 'consumer');
   const early = act(s, 'feature.toggle', { product: chat.id, feature: 'companion', on: true });
   check(!!early && /not built/.test(early), 'P7 a feature cannot be switched on before it is built', early ?? '');
@@ -350,14 +361,20 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
   const s = game();
   run(s, 3);
-  s.player.features.push('voiceVision');
+  // CP4b (RF-P1): the leader's API already sells Voice & vision; the preview adds it to the API without it (its other
+  // tools kept), so only Voice & vision moves.
   const api = prod(s, 'api');
-  const pv = previewEdit(s, api, { features: ['voiceVision'] });
-  check(pv.after!.demand > pv.before!.demand, 'C2b Voice & vision on the API opens Media work (demand rises)', `${pv.before!.demand.toFixed(3)} → ${pv.after!.demand.toFixed(3)}`);
-  s.player.features.pop();
+  const apiTools = [...api.features];
+  api.features = apiTools.filter((f) => f !== 'voiceVision');
+  const pv = previewEdit(s, api, { features: [...api.features, 'voiceVision'] });
+  api.features = apiTools;
+  check(s.player.features.includes('voiceVision') && pv.after!.demand > pv.before!.demand, 'C2b Voice & vision on the API opens Media work (demand rises)', `${pv.before!.demand.toFixed(3)} → ${pv.after!.demand.toFixed(3)}`);
 
   const fl = (g: GameStateV2) => upkeepLines(g).filter((l) => l.kind === 'feature');
-  check(fl(s).length === 0, 'C2c the leader start (sector packs only) carries no feature upkeep', JSON.stringify(fl(s)));
+  // CP4b (RF-P1): every tool the leader starts with is on a product, so each carries the in-use upkeep and nothing else does.
+  const f0 = fl(s);
+  check(f0.length === s.player.features.length && s.player.features.every((id) => near(f0.find((l) => l.ref === id)?.tw ?? NaN, featureUpkeepTW(FEATURE_BY_ID[id as keyof typeof FEATURE_BY_ID]), 1e-9)),
+    'C2c the leader start carries the in-use upkeep (½ buildTW a year) of each tool it starts with, and no other feature upkeep', JSON.stringify(f0));
   const comp = FEATURE_BY_ID.companion;
   const mem = FEATURE_BY_ID.memory;
   const u0 = engDemand(s).upkeep;
@@ -368,12 +385,17 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const e = act(s, 'feature.toggle', { product: prod(s, 'consumer').id, feature: 'companion', on: true });
   const full = fl(s).find((l) => l.ref === 'companion')?.tw ?? NaN;
   check(!e && near(full, (0.5 * comp.buildTW) / 52, 1e-9) && near(engDemand(s).upkeep - u0, full, 1e-6), 'C2c switched on for a live product it costs ½ its build team-weeks a year', `${full.toFixed(4)} t-wk/wk ${e ?? ''}`);
-  s.player.features.push('memory');
+  // CP4b: Memory is built at the leader start (RF-P1) and on Chat / Enterprise. Since RD-A06 features no longer act on
+  // the internal agents (their memory is the Agent memory tool, INTERNAL_TOOLS), so off on every product Memory is
+  // idle like any feature: the keep-alive, not the in-use upkeep.
+  const mem0 = fl(s).find((l) => l.ref === 'memory')?.tw ?? NaN;
+  for (const d of s.player.deployments) d.features = d.features.filter((f) => f !== 'memory');
   const m = fl(s).find((l) => l.ref === 'memory')?.tw ?? NaN;
-  check(near(m, featureUpkeepTW(mem), 1e-9) && featureInUse(s, mem), 'C2c Memory (horizon on all work, internal agents too) is in use once built even when off on every product', `${m.toFixed(3)} t-wk/wk`);
+  check(near(mem0, featureUpkeepTW(mem), 1e-9) && near(m, featureUpkeepTW(mem, false), 1e-9) && !featureInUse(s, mem),
+    'C2c Memory (RD-A06: no longer acts on the internal agents) is in use while on a product and idle at the keep-alive when off on every product', `${mem0.toFixed(3)} → ${m.toFixed(3)} t-wk/wk`);
   const vc = featureView(comp, 'consumer');
   const vm = featureView(mem, 'consumer');
-  check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && vm.idleTW === vm.upkeepTW,
+  check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && near(vm.upkeepTW, mem0, 1e-9) && near(vm.idleTW, m, 1e-9),
     'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
 }
 // ───────── RD-B12 product lifecycle: packs on the product, launch features, deep effort ─────────
@@ -457,7 +479,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const item = c.player.build.queue.find((it) => it.kind === 'adaptation' && it.ref === 'FIN');
   const tw = pk.costs.find((l) => l.currency === 'staffTime');
   const cc = pk.costs.find((l) => l.currency === 'cash');
-  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6) && !!cc && near(-cc.amount, 0.4, 1e-9),
+  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6) && !!cc && near(-cc.amount, CERT_CASH, 1e-9),
     'RD-B20 sector adaptation preview: engineer team-weeks as queued, the certification\'s cash, revenue (no product-team time, no approval risk)', `${e ?? ''} ${JSON.stringify(pk)}`);
   const host = prod(c, 'enterprise');
   const certified = until(c, () => host.adaptations.some((x) => x.sector === 'FIN' && x.certDone !== undefined && x.certDone <= c.time.day));
