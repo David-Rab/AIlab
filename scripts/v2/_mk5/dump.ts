@@ -1,8 +1,11 @@
-// MK-5: the sector market's outputs on the day-369 save (no tick), as JSON on stdout: the reference for check.ts (a)
-// was made with this script on the pre-MK-5 code (market @ 6698ce7). Run: npx tsx scripts/v2/_mk5/dump.ts > ref.json
+// MK-5: the sector market's outputs on the day-369 save (no tick), as JSON on stdout: the reference for check.ts (a).
+// First made on the pre-MK-5 code (market @ 6698ce7); MK-5b regenerated it on market @ 326b3b7 (after MK-6 pricing,
+// before MK-5b) with every group reaching every product (BUYER_LADDER_TEST.allReach: the single choice of before the
+// ladder), so (a) stays a regression of MK-5's group machinery. check.ts (a) runs with BUYER_LADDER_TEST.bestOnly (the
+// player's fit / coverage / G its best product's, as before MK-5b). Run: npx tsx scripts/v2/_mk5/dump.ts > ref-day369.json
 import { readFileSync } from 'node:fs';
 import { deserialize } from '../../../src/engine/v2/core/save';
-import { worldMix } from '../../../src/engine/v2/worldfx/mix';
+import { BUYER_LADDER_TEST, worldMix } from '../../../src/engine/v2/worldfx/mix';
 export const SAVE = 'C:/Users/david/Downloads/ai27-v2-day369.json';
 export function dumpMix(mix: ReturnType<typeof worldMix>) {
   const out: Record<string, unknown> = { providers: mix.providers.map((p) => p.key) };
@@ -12,6 +15,7 @@ export function dumpMix(mix: ReturnType<typeof worldMix>) {
   return out;
 }
 if (/dump[.]ts$/.test(process.argv[1] ?? '')) {
+  BUYER_LADDER_TEST.allReach = true;
   const s = deserialize(readFileSync(SAVE, 'utf8'));
   console.log(JSON.stringify(dumpMix(worldMix(s))));
 }
