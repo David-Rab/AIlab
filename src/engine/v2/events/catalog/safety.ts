@@ -192,7 +192,7 @@ export const SAFETY_EVENTS: EventDefV2[] = [
 
 /** Honour a binding commitment as written (E30). */
 function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
-  const ext = (ch: string) => ch !== 'internal' && ch !== 'trusted';
+  const ext = (ch: string) => ch !== 'internal' && ch !== 'vetted'; // MK-2: Trusted was not external; kept on Vetted until M10
   switch (c.condition.predicate) {
     case 'preDeployTesting':
       for (const d of s.player.deployments) if (d.status === 'live' && ext(d.channel) && d.startDay >= ctx.day - 30) addSafeguard(s, d, 'restrict');
@@ -207,7 +207,7 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
     }
     case 'noSurveillance':
     case 'noAutonomousWeapons':
-      for (const d of s.player.deployments) if (d.channel === 'gov') {
+      for (const d of s.player.deployments) if (d.channel === 'vetted') {
         d.usagePolicy.noSurveillance = true;
         d.usagePolicy.noAutonomousWeapons = true;
       }

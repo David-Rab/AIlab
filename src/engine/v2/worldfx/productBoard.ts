@@ -63,7 +63,7 @@ export interface AgentsReady {
   spare: number; weeks: number;
 }
 export function agentsReady(s: GameStateV2): AgentsReady {
-  const ok = CHANNEL_VARIANTS.agents;
+  const ok = CHANNEL_VARIANTS.api; // MK-11: the Agents product's readiness, read on the API until Agent mode (a tool)
   const vs = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && ok.includes(v.variant))
     .sort((a, b) => measuredLOf(s, b).L - measuredLOf(s, a).L);
   const e = engAllocView(s);
@@ -92,7 +92,7 @@ export function winBack(s: GameStateV2, d: Deployment): WinBack[] {
   if (cand) out.push({ kind: 'model', version: cand, testing: cand.status === 'evaluating' });
   const pre = knowHowAreas(s).filter((a) => a.waiting && a.waiting.x >= 1.05).sort((a, b) => b.waiting!.x - a.waiting!.x)[0];
   if (pre) out.push({ kind: 'knowhow', x: pre.waiting!.x, area: pre.name });
-  if (d.channel === 'enterprise' || d.channel === 'api' || d.channel === 'agents') {
+  if (d.channel === 'enterprise' || d.channel === 'api') {
     const building = new Set(adaptationsBuilding(s, d.id).map((it) => it.ref));
     const open = CERT_SECTORS.filter((x) => needsCert(x) && !d.adaptations.some((a) => a.sector === x) && !building.has(x));
     const best = open.sort((a, b) => sectorWeight(s, b) - sectorWeight(s, a))[0];

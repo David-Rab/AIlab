@@ -250,7 +250,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
     id: 'product.launch', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Launch product',
     available: (s) => (s.player.models.versions.some(usable) ? true : 'No evaluated version'),
     preview: (s, p) => {
-      const ch = str(p, 'channel', 'agents') as Channel;
+      const ch = str(p, 'channel', 'api') as Channel;
       const v = versionById(s, str(p, 'versionId', '')) ?? launchVersion(s, ch);
       const costs: CostLine[] = [];
       const gains: CostLine[] = [];
@@ -259,7 +259,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const tmp: Deployment = {
           id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
           // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's adaptations).
-          safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' || ch === 'agents' ? 1 : 0, status: 'live',
+          safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
         };
         // RF-S13b: the parts the Safety framework adds as it goes live (deploy → applyFrameworkParts) are in the numbers.

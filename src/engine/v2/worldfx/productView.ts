@@ -336,7 +336,6 @@ function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['chann
       continue;
     }
     for (const def of SECTORS) {
-      if (channel === 'gov' && !GOV_SECTORS.has(def.id)) continue;
       const m = mix.sec[r][def.id];
       const sp = sectorSpend(s, r, def.id, mix);
       tot += sp;
@@ -369,7 +368,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
   for (const d of paidDeployments(s)) {
     const x = rd.deps.find((r) => r.id === d.id);
     if (!x) continue;
-    const segKey = d.channel === 'consumer' ? 'c' : d.channel === 'gov' ? 'g' : 's';
+    const segKey = d.channel === 'consumer' ? 'c' : 's';
     let seg = shareCache.get(segKey);
     if (!seg) {
       seg = segmentShares(s, mix, d.channel, pi);

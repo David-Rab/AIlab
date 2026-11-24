@@ -235,7 +235,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(typeof g === 'string' && g.includes(`${AGENT_TASK_HOURS} h`), 'P8 Agents needs a measured time horizon ≥ the task length', String(g));
   h.evals.bench.horizon.score = (AGENT_TASK_HOURS + 1) * 60;
   check(agentsGate(h) === true, 'P8 a long enough horizon passes the Agents gate');
-  const launch = act(s, 'product.launch', { channel: 'agents', versionId: v0.id });
+  const launch = act(s, 'product.launch', { channel: 'api', versionId: v0.id }); // MK-11: was the Agents launch (its gate is gone; P8 fails until Agent mode)
   const hNow = (v0.evals.bench.horizon?.score ?? 0) / 60;
   check(hNow < AGENT_TASK_HOURS ? !!launch && /time horizon/.test(launch) : !launch, 'P8 launching Agents at the start follows the gate', `${hNow.toFixed(1)} h: ${launch ?? 'launched'}`);
   run(s, 45);
@@ -334,8 +334,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 //   C2c built features charge the engineers' upkeep: ½ buildTW a year in use, a tenth while off everywhere, always in
 //       use when they help the internal agents; sector packs nothing; featureView shows the same numbers
 {
-  const GOVS: SectorId[] = ['GOV', 'MIL'];
-  const sectorsOf = (ch: Deployment['channel']): SectorId[] => (ch === 'gov' ? GOVS : SECTORS.map((x) => x.id));
+  const sectorsOf = (_ch: Deployment['channel']): SectorId[] => SECTORS.map((x) => x.id); // MK-1: Vetted sells into every sector
   const moves = (x: { dG: number; hMult: number; tok: number }) => x.dG !== 0 || x.hMult !== 1 || x.tok !== 1;
   // RD-P07: a tool acts on Chat through the app choice (consumer share), on a sector through its coverage there.
   const enOn = (fx: FeatureFx, sid: SectorId | 'CHAT') => fx.kind === 'enabler' && fx.share > 0 && (sid === 'CHAT' ? !!fx.consumer : !!fx.sectors?.includes(sid));
@@ -429,7 +428,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const n = game();
   run(n, 10);
   const e3 = act(n, 'product.adapt', { sector: 'FIN', deploymentId: prod(n, 'enterprise').id });
-  for (const d of n.player.deployments) if (d.status !== 'withdrawn' && ['enterprise', 'api', 'agents'].includes(d.channel)) act(n, 'product.retire', { id: d.id });
+  for (const d of n.player.deployments) if (d.status !== 'withdrawn' && ['enterprise', 'api', 'vetted'].includes(d.channel)) act(n, 'product.retire', { id: d.id });
   const told = until(n, () => n.log.some((x) => /work is lost/.test(x.text)));
   const paid = Object.values(n.causes.byKey).flat().some((c) => c.source === 'sector certification');
   check(!e3 && told && !n.player.deployments.some((d) => d.adaptations.length > 0) && !paid,

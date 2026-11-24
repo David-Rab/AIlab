@@ -7,7 +7,7 @@ import type { GameStateV2 } from '../types';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 103;
+export const SCHEMA_REV = 104;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -18,8 +18,24 @@ export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as 
 export const V1_SAVE_KEY = 'ai27.save.v1';
 export const SAVE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
-/** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up; none since the UB-3 break). */
-export const migrations: Record<number, (s: Record<string, unknown>) => void> = {};
+/** MK-1 (design/MARKET.md M1): the old channels' successors: Government and Trusted access → Vetted, Agents → API. */
+const CHANNEL_MK1: Record<string, string> = { gov: 'vetted', trusted: 'vetted', agents: 'api' };
+
+/** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up). */
+export const migrations: Record<number, (s: Record<string, unknown>) => void> = {
+  /** 103 → 104 (MK-1): four products. A deployment on 'gov' or 'trusted' moves to 'vetted', on 'agents' to 'api'; a
+   *  second product of the same channel is kept as it is (not merged). Launches waiting on the build queue (ref and
+   *  launch.channel) move the same way. Nothing else in the state is keyed by channel. */
+  103: (s) => {
+    const p = s.player as { deployments?: { channel?: string }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
+    for (const d of p?.deployments ?? []) if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
+    for (const it of p?.build?.queue ?? []) {
+      if (it.kind !== 'launch') continue;
+      if (it.ref && CHANNEL_MK1[it.ref]) it.ref = CHANNEL_MK1[it.ref];
+      if (it.launch?.channel && CHANNEL_MK1[it.launch.channel]) it.launch.channel = CHANNEL_MK1[it.launch.channel];
+    }
+  },
+};
 
 export function serialize(s: GameStateV2): string {
   return JSON.stringify(s);

@@ -47,8 +47,9 @@ export { PRICE_ELASTICITY };
 /** Open weights are served by hosts near cost (×1.2) [D]. */
 export const OPEN_MARKUP = 1.2;
 
-/** Channels that sell into sectors (gov only into GOV/MIL). Consumer is its own market; internal earns nothing. */
-export const SECTOR_CHANNELS: Deployment['channel'][] = ['api', 'agents', 'enterprise', 'trusted', 'gov'];
+/** Channels that sell into sectors (MK-1: Vetted into every sector until the buyer groups, MK-5). Consumer is its own
+ *  market; internal earns nothing. */
+export const SECTOR_CHANNELS: Deployment['channel'][] = ['api', 'enterprise', 'vetted'];
 
 const ND = DOMAIN_IDS.length;
 const I = Object.fromEntries(DOMAIN_IDS.map((d, i) => [d, i])) as Record<DomainId, number>;
@@ -447,7 +448,7 @@ function computeMix(s: GameStateV2): WorldMix {
     if (playerIdx >= 0) {
       for (let c = 0; c < cands.length; c++) {
         const cd = cands[c];
-        if (cd.ch === 'consumer' || (cd.ch === 'gov' && !t.gov)) continue;
+        if (cd.ch === 'consumer') continue;
         const o = productOffer(s, cd.dep, t.id, cd.uses, cd.fx, cd.tools);
         offerBy.set(`${cd.dep.id}|${t.id}`, o);
         // TIERS / RD-P01a: the product's lineup (main model, then its real lineup entries; no phantom students).

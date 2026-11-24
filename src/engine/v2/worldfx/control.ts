@@ -139,13 +139,13 @@ function tierMix(a: number, cap: number): [number, number, number, number] {
   return t;
 }
 
-/** Best REASON domain G (OOM, general λ scale) available to government advisers: the GOV market's models, gov-channel
+/** Best REASON domain G (OOM, general λ scale) available to government advisers: the GOV market's models, Vetted (MK-1: was gov-channel)
  *  products, and briefings on the internal frontier (each briefing level below 3 costs 0.5 levels of access [D], applied
  *  through the one λ: λ⁻¹(λ(G) − 0.5·(3 − b))). RD-P04b: was the same in display levels. */
 export function govAdviceG(s: GameStateV2, mix: WorldMix): number {
   const w = s.hidden.timeline;
   let g = mix.sec.US.GOV.g.REASON;
-  for (const d of paidDeployments(s)) if (d.channel === 'gov') {
+  for (const d of paidDeployments(s)) if (d.channel === 'vetted') {
     const v = s.player.models.versions.find((x) => x.id === d.versionId);
     if (v) g = Math.max(g, productGVec(s, d, v)[REASON_IX]);
   }
@@ -163,8 +163,8 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix, po
   const dt = 1 / 365;
   const eff = worldTechEffects(s);
   const deps = paidDeployments(s);
-  const govDep = deps.some((d) => d.channel === 'gov');
-  const milOk = govDep && !deps.every((d) => d.channel !== 'gov' || d.usagePolicy.noAutonomousWeapons);
+  const govDep = deps.some((d) => d.channel === 'vetted');
+  const milOk = govDep && !deps.every((d) => d.channel !== 'vetted' || d.usagePolicy.noAutonomousWeapons);
   const iv = internalVersion(s);
   const w = s.hidden.timeline;
   const hasInternal = s.player.deployments.some((d) => d.channel === 'internal' && d.status !== 'withdrawn');

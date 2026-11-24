@@ -8,7 +8,7 @@
 // One home per datum: serving compute lives on LAB (the header link); misuse risk on SAFETY › Risks.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Blocks, Bot, Brain, BrainCircuit, Building2, Check, ChevronRight, CircleCheck, CircleX, Code, DoorOpen, Eye, Gauge, Hammer, Lock, MessageCircle,
+  Blocks, Bot, Brain, BrainCircuit, Building2, Check, ChevronRight, Code, DoorOpen, Eye, Gauge, Hammer, Lock, MessageCircle,
   Minus, MousePointer2, Pencil, Plus, Rocket, Ruler, Server, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Telescope, Users, X,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,7 +21,7 @@ import { productMonitorVersion } from '../../../engine/v2/models/products';
 import {
   CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, effortLock, fmtDate, fmtMonth, isProduct,
   featureView, toolRivalsView, measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
+  pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
   demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
 } from '../../../engine/v2';
 import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -33,9 +33,9 @@ import { ICON } from '../icons';
 import './products.css';
 import { PkgChip } from './chips';
 
-const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Building2, trusted: ShieldCheck };
+const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, vetted: ShieldCheck };
 /** Who buys, and how (the card's header line). */
-const P_WHO: Partial<Record<Channel, string>> = { consumer: 'people, by subscription', api: 'developers, by task', enterprise: 'companies, by seat and by task', agents: 'companies, by the hour of work', gov: 'government and defence, by contract', trusted: 'vetted partners, by task' };
+const P_WHO: Partial<Record<Channel, string>> = { consumer: 'people, by subscription', api: 'developers, by task', enterprise: 'companies, by seat and by task', vetted: 'government, defence and regulated firms, by contract' };
 const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal', standard: 'Standard', classifiers: 'Classifiers', hardened: 'Hardened' };
 const TIER_LABEL: Record<PriceTier, string> = { budget: 'Low', standard: 'Standard', premium: 'Premium' };
 const EFFORT_LABEL: Record<Deployment['effort'], string> = { low: 'Low', max: 'Max', deep: 'Deep' };
@@ -109,7 +109,7 @@ export function Products({ s }: { s: GameStateV2 }) {
           <ServingLink s={s} live={live} reads={reads} />
           <Policies s={s} live={live} />
         </span>} />
-      <RevenueStrip s={s} live={live} reads={reads} agentsOff={missing.includes('agents')} />
+      <RevenueStrip s={s} live={live} reads={reads} />
       <div className="prd-cards" style={{ gridTemplateColumns: `repeat(${Math.max(1, live.length)}, minmax(0, 1fr))${missing.length ? ' minmax(280px, 330px)' : ''}` }}>
         {live.map((d) => <ProductCard key={d.id} s={s} d={d} r={reads.get(d.id)} draft={edit?.id === d.id ? edit.c : undefined} setDraft={setDraft(d.id)} />)}
         {missing.length > 0 && <LaunchCard s={s} missing={missing} />}
@@ -213,7 +213,7 @@ function LimitChip({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRead 
   );
 }
 
-function RevenueStrip({ s, live, reads, agentsOff }: { s: GameStateV2; live: Deployment[]; reads: Map<string, ProductRead>; agentsOff: boolean }) {
+function RevenueStrip({ s, live, reads }: { s: GameStateV2; live: Deployment[]; reads: Map<string, ProductRead> }) {
   const tr = useMemo(() => revenueTrend(s), [s, s.time.day]);
   const rows = live.map((d) => ({ d, r: reads.get(d.id) })).filter((x): x is { d: Deployment; r: ProductRead } => !!x.r);
   const total = rows.reduce((a, x) => a + x.r.revenue, 0);
@@ -254,13 +254,6 @@ function RevenueStrip({ s, live, reads, agentsOff }: { s: GameStateV2; live: Dep
             </div>
           );
         })}
-        {agentsOff && (
-          <div className="rr off" data-rev="agents">
-            <span className="nm"><Bot size={17} />Agents</span>
-            <div className="bar dash" />
-            <span className="val off">not launched</span><span /><span />
-          </div>
-        )}
       </div>
     </section>
   );
@@ -505,7 +498,7 @@ function CertSec({ s, d }: { s: GameStateV2; d: Deployment }) {
 
 // ───────── Agents (and any other product not launched) ─────────
 function LaunchCard({ s, missing }: { s: GameStateV2; missing: Channel[] }) {
-  const [pick, setPick] = useState<Channel>(missing.find((c) => pendingLaunch(s, c)) ?? (missing.includes('agents') ? 'agents' : missing[0]));
+  const [pick, setPick] = useState<Channel>(missing.find((c) => pendingLaunch(s, c)) ?? missing[0]);
   const ch = missing.includes(pick) ? pick : missing[0];
   const ready = useMemo(() => agentsReady(s), [s, s.time.day]);
   const vs = s.player.models.versions.filter((v) => usable(v) && CHANNEL_VARIANTS[ch].includes(v.variant)).sort((a, b) => mL(s, b) - mL(s, a));
@@ -515,8 +508,6 @@ function LaunchCard({ s, missing }: { s: GameStateV2; missing: Channel[] }) {
   const Icon = P_ICON[ch] ?? ICON.product;
   const pend = pendingLaunch(s, ch);
   const eta = pend ? buildEtas(s).etas.get(pend.id) : undefined;
-  const hOk = ready.hours !== undefined && ready.hours >= ready.need;
-  const engOk = Number.isFinite(ready.weeks);
   return (
     <section className="card2 pcard agents" data-test="prod-launch">
       <div className="ph2">
@@ -529,20 +520,8 @@ function LaunchCard({ s, missing }: { s: GameStateV2; missing: Channel[] }) {
           ? <Tip content={() => <TipCard title="Being built" rows={[{ label: 'Work left', value: `${(pend.needTW - pend.doneTW).toFixed(1)} of ${pend.needTW.toFixed(0)} team-weeks` }]}>Engineers build the launch; it goes live when built.</TipCard>}><span className="chip2" data-test="prod-launch-building"><Hammer size={11} /> {eta !== undefined && Number.isFinite(eta) ? `live in ${F.days(eta)}` : 'waits for engineers'}</span></Tip>
           : <span className="chip2">not launched</span>}
       </div>
-      <div className="dim">{ch === 'agents' ? 'AI that works alone on multi-hour jobs, sold by the hour of work.' : PRODUCT_DEFS[ch]?.blurb}</div>
-      {ch === 'agents' && (
-        <div className="sec2" data-test="agents-gate">
-          <div className="cap">Ready to launch?</div>
-          <Tip content={() => <TipCard title={<Term id="timeHorizon">Works alone</Term>} value={ready.hours !== undefined ? F.minutes(ready.hours * 60) : 'not measured'} rows={[{ label: 'Needed', value: `${ready.need} h (half-day tasks)` }, { label: 'Model', value: ready.model?.name ?? '—' }]}>The longest task your best model finishes alone half the time, as measured on your tests.</TipCard>}>
-            <div className="chk">{hOk ? <CircleCheck size={14} className="ok" /> : <CircleX size={14} className="no" />}{ready.hours !== undefined ? <span>{ready.model?.name} works <b className="num">~{ready.hours >= 1000 ? F.count(ready.hours) : ready.hours >= 10 ? Math.round(ready.hours) : ready.hours.toFixed(1)} h</b> alone</span> : <span>{ready.model?.name ?? 'No model'}: time alone not measured yet</span>}<span className="dim">needs {ready.need} h</span></div>
-          </Tip>
-          <Tip content={() => <TipCard title="Engineers" value={`${F.pct(ready.spare)} spare`}>Engineering capacity no need takes this week (LAB). The launch takes {LAUNCH_TW} team-weeks.</TipCard>}>
-            <div className="chk">{engOk ? <CircleCheck size={14} className="ok" /> : <CircleX size={14} className="no" />}<span>Engineers have time</span><span className="dim">{F.pct(ready.spare)} spare</span></div>
-          </Tip>
-          <div className="cap" style={{ marginTop: 6 }}>It would sell</div>
-          <div className="dim">to the same buyers as API and Enterprise, whole jobs instead of single tasks</div>
-        </div>
-      )}
+      <div className="dim">{PRODUCT_DEFS[ch]?.blurb}</div>
+      {/* MK-11: the Agents launch checklist (time horizon, engineers) went with the Agents product; Agent mode becomes a tool. */}
       <div className="lfoot">
         {pend
           ? <ActBtn id="build.cancel" testId={`product.launch.cancel.${ch}`} params={{ id: pend.id }} label="Cancel launch" />
@@ -594,7 +573,7 @@ function SectorShares({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRe
   const top = Math.max(...rows.map((x) => Math.max(x.stock, x.target)), 0) > 0.46 ? 1 : 0.5;
   const X = (v: number) => `${(v / top) * 100}%`;
   const ticks = (top > 0.5 ? [0, 0.2, 0.4, 0.6, 0.8, 1] : [0, 0.1, 0.2, 0.3, 0.4, 0.5]);
-  const sib = s.player.deployments.find((x) => x.id !== d.id && x.status !== 'withdrawn' && !chat && (x.channel === 'api' || x.channel === 'enterprise' || x.channel === 'agents') && (d.channel === 'api' || d.channel === 'enterprise' || d.channel === 'agents'));
+  const sib = s.player.deployments.find((x) => x.id !== d.id && x.status !== 'withdrawn' && !chat && (x.channel === 'api' || x.channel === 'enterprise' || x.channel === 'vetted') && (d.channel === 'api' || d.channel === 'enterprise' || d.channel === 'vetted'));
   const tau = c.taus[0]?.days;
   return (
     <div className="sec" data-test="prod-sectors">

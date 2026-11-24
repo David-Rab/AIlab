@@ -46,20 +46,19 @@ export const PRODUCT_DEFS: Partial<Record<Channel, ProductDef>> = {
   consumer: { channel: 'consumer', name: 'Chat', segment: 'consumer spend', blurb: 'The chat app for the public. Large demand, low price per user.' },
   api: { channel: 'api', name: 'API', segment: 'sector spend', blurb: 'Developers pay per token. The most exposed to distillation.' },
   enterprise: { channel: 'enterprise', name: 'Enterprise', segment: 'sector spend', blurb: 'Contracts with firms, adapted to their sectors.' },
-  agents: { channel: 'agents', name: 'Agents', segment: 'sector spend', blurb: 'Autonomous agents sold as workers on multi-hour tasks.' },
-  gov: { channel: 'gov', name: 'Government', segment: 'government spend', blurb: 'Government and defence contracts (any full or mini model; usage terms on the product).' },
-  trusted: { channel: 'trusted', name: 'Trusted access', segment: 'sector spend', blurb: 'Vetted partners only, at ×3 the price (buyers see it); almost no leak.' },
+  vetted: { channel: 'vetted', name: 'Vetted', segment: 'sector spend', blurb: 'For vetted buyers: government, military, critical infrastructure and large regulated firms. Usage terms on the product.' },
   open: { channel: 'open', name: 'Open weights', segment: '—', blurb: 'A release, not a product: no revenue, full leak, cannot be undone.' },
 };
 /** Products shown as cards, in order. */
-export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'agents', 'gov', 'trusted'];
+export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'vetted'];
 
 // RD-P01a (DD-01): any product offers a lineup of real models (Deployment.lineup); Chat's free users run one of them
 // (freeTierId; worldfx/serving.ts chatFreeTier), its paying users the main model. MINI_CHANNELS is gone.
 /** RD-B11 (B16): a channel's price multiplier over its tier's markup. It is part of the product's offer
  *  (worldfx/serving.ts productOffer), so buyers see it in their choice: Trusted access sells to vetted partners at ×3
  *  the price (R12 §0.6) [D]. */
-export const CHANNEL_PRICE: Partial<Record<Channel, number>> = { trusted: 3 };
+// MK-2: Vetted keeps Trusted's ×3 for now (MK-6 deletes CHANNEL_PRICE with the pricing rule, M5).
+export const CHANNEL_PRICE: Partial<Record<Channel, number>> = { vetted: 3 };
 
 /** Catch rate of a monitor as capable as the model it watches (model v3 E6: it falls with the capability gap in OOM,
  *  data/v2/oversight.ts, and rises with AI-control containment tools, AG07). */
@@ -74,6 +73,7 @@ export { MONITOR_CATCH_BASE } from './oversight';
 export const COPY_COLLUSION = 0.4;
 export const COLLUSION_TRAITS: readonly TraitId[] = ['CONCEAL', 'POWER', 'AF', 'SAND', 'SCHEME', 'COLLUDE', 'SUCC'];
 
+// MK-11: the old Agents product's horizon gate; no product reads it since MK-1 (Agent mode, a tool, will gate agent-hours).
 /** The Agents product needs a measured 50% time horizon at least this long: the tasks it sells are half-day work
  *  units (METR time horizons; AI 2027's 2026 agents) [D]. */
 export const AGENT_TASK_HOURS = 4;
@@ -115,11 +115,13 @@ export const FEATURES: FeatureDef[] = [
   // CAL-P [D stand-in]: no primary source measures what cross-session memory adds to the time horizon (research/
   // CAL-products-sources.md T3); the number is an assumption, and the text says so. CAL2-X (decision 13): the Chat appeal
   // term (×1.1, share 0.1) deleted: it had neither a mechanism nor a source.
-  { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'agents', 'enterprise'], buildTW: 12, cash: 0.1,
+  { id: 'memory', name: 'Memory', node: 'P07', products: ['consumer', 'api', 'enterprise'], buildTW: 12, // MK-11: was on Agents (Agents → API)
+    cash: 0.1,
     effect: 'Horizon extender: time horizon ×1.3 on all work in this product (assumed, no measurement exists); each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     fx: [{ kind: 'horizon', mult: 1.3, work: 'all' }],
     risk: 'Longer tasks alone: the time horizon ×1.3 also lengthens the tasks the model runs without a person (autonomy in its incident odds)' },
-  { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['agents', 'api'], buildTW: 16, cash: 0.15,
+  { id: 'computerUse', name: 'Computer use', node: 'P06', products: ['api'], buildTW: 16, // MK-11: was Agents + API
+    cash: 0.15,
     effect: 'Task enabler: operates desktops and browsers, so it does the GUI-only tasks (an assumed 13% of the work) in Admin, Finance, Legal and Government that offers without it cannot; each rival has it if its lab had shipped it by July 2025; if no lab had, the others get it 120 days after you ship it',
     // CAL-P [D stand-in]: no primary source splits tasks into GUI-only vs API-doable. The bound: in Eloundou et al. 2023
     // the tasks LLMs speed up only with added software (zeta - alpha, all tools, not just GUIs) are 0.43 of Office/Admin,
@@ -142,7 +144,8 @@ export const FEATURES: FeatureDef[] = [
     effect: 'Scaffold: long research reports, +0.3 OOM of fit in Science, Finance and Legal work, at ×3 tokens',
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 3, work: ['SCI', 'FIN', 'LEGAL'] }],
     risk: 'Cost per work-hour ×3 where it applies (long agent runs)' },
-  { id: 'codingAgent', name: 'Coding agent', products: ['agents', 'api'], buildTW: 12, cash: 0.1,
+  { id: 'codingAgent', name: 'Coding agent', products: ['api'], buildTW: 12, // MK-11: was Agents + API
+    cash: 0.1,
     effect: 'Scaffold: a coding harness, +0.3 OOM of fit in Software & IT work, at ×2 tokens',
     fx: [{ kind: 'scaffold', dG: 0.3, tokens: 2, work: ['SOFT'] }],
     // RD-P11: the flat reward-hacking ×1.2 is gone: its longer runs (×2 tokens) are in the product's serving share.
