@@ -293,6 +293,10 @@ export interface ModelsState {
     flop?: number;
   };
   nextName: number; // naming counter
+  /** Model naming (design/MODEL-NAMING.md): the chosen rung theme and tier words (absent: Agent-n, generic) and the last
+   *  major number used per rung (index 0 = rung 1; reserved at a base run's launch, gaps kept). */
+  naming?: { theme: string; tiers: string };
+  majors?: number[];
   /** Model v3 D7: eval suites queued or running (work: research engineers, engineers, inference compute). */
   evals: EvalTask[];
   /** Model v3 D7: eval work done so far (readout): suites finished, research-engineer and engineer team-weeks, H100e-days. */
@@ -320,6 +324,12 @@ export interface EvalTask {
   /** The engineers' build item while it is not built. */
   engId?: string;
 }
+
+/** Name parts of a base: rung 1-7 (0 = an imported family, no rung), major within the rung, continued-pretraining count. */
+export interface BaseNameParts { rung: number; major: number; cont: number }
+/** Name parts of a version (MODEL-NAMING §5-7): a full version's minor and stream patch; a student's tier band (0-3), its
+ *  number within the band, its full-size ancestor and that ancestor's patch when it was made. */
+export interface VersionNameParts { minor?: number; patch?: number; tier?: number; tierN?: number; anc?: string; ancPatch?: number }
 
 export interface BaseModel {
   id: string;
@@ -354,6 +364,8 @@ export interface BaseModel {
   /** Continue-train parent. */
   parentBaseId?: string;
   lineage: string; // traits + U-mode family; distill/continue keep parent lineage
+  /** Name parts (MODEL-NAMING §2-4); `name` is rendered from them (models/naming.ts). */
+  nm?: BaseNameParts;
   traitsTrue: TraitVector; // hidden
   uModes: UModeId[]; // hidden: present in this lineage
 }
@@ -366,6 +378,8 @@ export interface ModelVersion {
   /** RD-P01b: a cheap tier the "Auto-make cheap tiers" policy distilled: it joins the lineup of every live product its
    *  teacher (parentVersionId) is the main model of once ready and evaluated, then the mark is dropped. */
   autoTier?: true;
+  /** Name parts (MODEL-NAMING §5-7); `name` is rendered from them (models/naming.ts). */
+  nm?: VersionNameParts;
   day: Day;
   /** RD-X04: the player's recipe G (RECIPE_F) when the version was made: what releasing it reveals (diffusion.ts). */
   recG?: number;
@@ -533,6 +547,8 @@ export interface TrainingRun {
   /** UB-2b: the lab's forecast at launch (runs.ts runForecast: believed recipe, measured start model; level and sd),
    *  readouts only (the run queue's band, predicted vs measured). Absent on runs launched before it or with nothing measured. */
   forecast?: { mid: number; sd: number };
+  /** A pretraining or continued-pretraining run: the name parts of the base it will make, reserved at launch (MODEL-NAMING §3). */
+  nm?: BaseNameParts;
   /** UB-B: the day the run finished and what it made (a base id or a version id); readouts only (TRAINING › Runs).
    *  Absent on runs finished before UB-B: runResult pairs those by kind, order and dates. */
   endDay?: Day;

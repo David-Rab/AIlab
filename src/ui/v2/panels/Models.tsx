@@ -6,12 +6,13 @@
 // shared SkillBars component), the milestone ladder, Works as, and L2 drawers: Benchmarks, Trained with, Actions; cost
 // per hour of work in its tooltip. Links: beliefs / risks (SAFETY). Reads measured values and facts only.
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, CircleDashed, GitFork, Hourglass, Layers, ListChecks } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleDashed, GitFork, Hourglass, Layers, ListChecks, Tag } from 'lucide-react';
+import { RUNG_THEMES, TIER_SETS } from '../../../data/v2/naming';
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
 import { AGENT_USE_DEF } from '../../../data/v2/agents';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import {
-  benchName, dataSpecView, dateOf, deployGate, flopPerToken, fmtDate, internalVersion, measuredDomains, measuredSd, milestoneMarks, skillMarksOf, tokEff,
+  MILESTONE_NAMES, baseLabel, benchName, dataSpecView, dateOf, deployGate, namingChoice, flopPerToken, fmtDate, internalVersion, measuredDomains, measuredSd, milestoneMarks, skillMarksOf, tokEff,
   useHourCost, usesOf, versionById, versionPressure,
 } from '../../../engine/v2';
 import type { DomainId, GameStateV2, ModelVersion } from '../../../engine/v2';
@@ -38,7 +39,7 @@ export const fmtParams = (n: number) => (n >= 1e12 ? `${+(n / 1e12).toFixed(n >=
 export function runTitle(s: GameStateV2, r: GameStateV2['player']['models']['runs'][number]): string {
   const base = s.player.models.bases.find((b) => b.id === r.baseId);
   const teacher = r.teacherVersionId ? versionById(s, r.teacherVersionId) : undefined;
-  if (r.kind === 'base') return `New base model${r.base ? ` · ${fmtParams(r.base.params)}` : ''}`;
+  if (r.kind === 'base') return `New base model${r.nm ? ` ${baseLabel(s, r.nm)}` : ''}${r.base ? ` · ${fmtParams(r.base.params)}` : ''}`;
   if (r.kind === 'distill') return `Distil from ${teacher?.name ?? base?.name ?? 'a teacher'}`;
   return `${base?.name ?? 'Base model'} · ${RUN_KIND[r.kind] ?? r.kind}`;
 }
@@ -111,9 +112,11 @@ const CAP_HI = 13;
 function FamilyTree({ s, sel }: { s: GameStateV2; sel?: string }) {
   const m = s.player.models;
   const tick = milestoneMarks(s)[1];
+  const [names, setNames] = useState(false);
   return (
     <Card className="md-tree" home="lineage" title={<span className="row-i"><GitFork size={16} />Family tree</span>}
-      sub={<>by base model · bar = measured <Term id="L">capability</Term>, tick = {tick.name}</>}>
+      sub={<>by base model · bar = measured <Term id="L">capability</Term>, tick = {tick.name}</>} right={<NamesButton s={s} open={names} toggle={() => setNames(!names)} />}>
+      {names && <NamesRow s={s} />}
       {[...m.bases].reverse().map((b) => {
         const vs = m.versions.filter((v) => v.baseId === b.id);
         const gone = vs.filter((v) => v.status === 'retired');
@@ -126,6 +129,7 @@ function FamilyTree({ s, sel }: { s: GameStateV2; sel?: string }) {
             <Tip as="div" content={() => <TipCard title={b.name} rows={[
               { label: 'Pretrained', value: fmtDate(dateOf(s, b.day)) }, { label: <Term id="baseSize">Size</Term>, value: `${fmtParams(b.params)} parameters · ${b.design.tpp} tokens each` },
               { label: <Term id="shape">Design</Term>, value: SHAPE_WORD[b.design.shape] ?? b.design.shape }, { label: <Term id="dataMix">Data mix</Term>, value: DATA_MIX_WORD[b.design.data] ?? b.design.data },
+              ...(b.nm ? [{ label: <Term id="modelNames">Named for</Term>, value: b.nm.rung === 0 ? 'imported family' : `${MILESTONE_NAMES[b.nm.rung - 1]}${b.day > 0 ? ' (forecast at launch)' : ''}` }] : []),
             ]}>A <Term id="base">base model</Term>: every model below was post-trained or distilled from it.</TipCard>}>
               <div className="md-bh"><Layers size={14} /><b>{b.name}</b><span>base · {fmtParams(b.params)} · {fmtDate(dateOf(s, b.day))}</span><span className="sp" />
                 {live.length === 0 && <button className="tr-link" data-test="base-needs-post" onClick={() => { store.setTab('blueprint.start', b.id); store.goto('blueprint', { tab: 'next' }); }}>{training ? 'post-training now' : 'post-train it'} <ChevronRight size={11} /></button>}
@@ -139,6 +143,32 @@ function FamilyTree({ s, sel }: { s: GameStateV2; sel?: string }) {
         );
       })}
     </Card>
+  );
+}
+// ───────── names (MODEL-NAMING §11): the rung theme and size words, a quiet control on the tree ─────────
+function NamesButton({ s, open, toggle }: { s: GameStateV2; open: boolean; toggle: () => void }) {
+  const c = namingChoice(s);
+  return (
+    <Tip content={() => <TipCard title={<Term id="modelNames">Model names</Term>} rows={[{ label: 'Rung words', value: c.theme.label }, { label: 'Size words', value: c.tiers.label }]}>Change the words your models are named with. Every name updates; nothing else changes.</TipCard>}>
+      <button className="md-chip" data-test="models-names" aria-expanded={open} onClick={toggle}><Tag size={12} /> Names</button>
+    </Tip>
+  );
+}
+function NamesRow({ s }: { s: GameStateV2 }) {
+  const c = namingChoice(s);
+  return (
+    <div className="md-names" data-test="models-names-row">
+      <label className="small dim">Rung words
+        <select className="text-input" data-test="names-theme" value={c.theme.id} onChange={(e) => store.act('models.naming', { theme: e.target.value })}>
+          {RUNG_THEMES.map((t) => <option key={t.id} value={t.id}>{t.words ? `${t.label}: ${t.words[0]} … ${t.words[6]}` : t.label}</option>)}
+        </select>
+      </label>
+      <label className="small dim">Size words
+        <select className="text-input" data-test="names-tiers" value={c.tiers.id} onChange={(e) => store.act('models.naming', { tiers: e.target.value })}>
+          {TIER_SETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </label>
+    </div>
   );
 }
 function Fold({ s, gone, sel }: { s: GameStateV2; gone: ModelVersion[]; sel?: string }) {

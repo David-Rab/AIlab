@@ -20,6 +20,7 @@ import { expectedFitSd } from './benchmarks';
 import { EVAL_DEPTH_IDS } from '../../../data/v2/evals';
 import type { EvalDepth } from '../types';
 import { externallyEvaluated, retireVersion } from './deployments';
+import { setNaming } from './naming';
 import { AGENT_ACTIONS } from '../departments/agentActions';
 import { PRODUCT_ACTIONS } from './productOps';
 import { ADAPT_ACTIONS } from './adaptations';
@@ -265,6 +266,13 @@ const RUN_ACTIONS: ActionDef[] = [
     // agents or evals again; auto evals skip it). It frees nothing: it cannot be retired while it serves or monitors.
     preview: (s, p) => ({ costs: [{ currency: 'progress', amount: 1, unit: 'version', target: `${versionById(s, str(p, 'versionId', ''))?.name ?? 'the version'} cannot be deployed, run as agents or evaluated again` }], gains: [], exposure: [] }),
     apply: (s, _ctx, p) => fail(retireVersion(s, str(p, 'versionId', ''))),
+  },
+  {
+    // MODEL-NAMING §11: the rung theme and tier words of the player's model names; every name re-renders. Nothing else changes.
+    id: 'models.naming', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Model names',
+    available: () => true,
+    preview: () => ({ costs: [], gains: [], exposure: [] }),
+    apply: (s, _ctx, p) => fail(setNaming(s, typeof p.theme === 'string' ? p.theme : undefined, typeof p.tiers === 'string' ? p.tiers : undefined)),
   },
   {
     id: 'runEvals', verb: 'policy', system: 'models', sphere: 'models', owner: 'WS1', title: 'Run evals',

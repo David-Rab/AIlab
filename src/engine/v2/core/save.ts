@@ -1,5 +1,6 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import type { GameStateV2 } from '../types';
+import { deriveNames } from '../models/naming';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev to `migrations`.
  *  Saves below MIN_SCHEMA_REV do not load: deserialize refuses them with OLD_SAVE_MESSAGE. UB-3 (DD-20, the clean save
@@ -7,7 +8,7 @@ import type { GameStateV2 } from '../types';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 103;
+export const SCHEMA_REV = 104;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -19,7 +20,10 @@ export const V1_SAVE_KEY = 'ai27.save.v1';
 export const SAVE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
 /** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up; none since the UB-3 break). */
-export const migrations: Record<number, (s: Record<string, unknown>) => void> = {};
+export const migrations: Record<number, (s: Record<string, unknown>) => void> = {
+  // 103 → 104: model naming (design/MODEL-NAMING.md): name parts derived from the save's models, names re-rendered.
+  103: (s) => deriveNames(s as unknown as GameStateV2),
+};
 
 export function serialize(s: GameStateV2): string {
   return JSON.stringify(s);
