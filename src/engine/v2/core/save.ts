@@ -9,7 +9,7 @@ import type { FeatureId } from '../../../data/v2/features';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 108;
+export const SCHEMA_REV = 109;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -144,6 +144,13 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       for (const id of models.get(key) ?? []) out[id] = M;
       row[key] = out;
     }
+  },
+  /** 108 → 109 (MK-6c, design/MARKET.md M5): μ_b is the cheapest adequate tier's cost ÷ ε, read from today's tiers, so
+   *  yesterday's band prices (world.fx.bandP) are no longer kept. The margins (fx.priceM) stay and move to their new
+   *  targets at PRICE_TAU. */
+  108: (s) => {
+    const fx = (s.world as { fx?: { bandP?: unknown } } | undefined)?.fx;
+    if (fx) delete fx.bandP;
   },
 };
 
