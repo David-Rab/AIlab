@@ -743,9 +743,11 @@ if (process.argv.includes('--rd-a03')) {
   check(gs.every((g) => g.ideas.every((a) => a.stack === g.key)) && !gs.some((g) => g.ideas.some((a) => a.id === 'P09' || a.id === 'P10')) && !!p09 && p09.rows.every((r) => r.unit === 'OOM for new versions') && !!p10 && p10.rows[0]?.unit === 'web text = 1',
     'RD-B17 P09 is not under pretraining: domain and data effects are listed apart, in their own units', `P09 rows ${p09?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}; P10 ${p10?.rows.map((r) => `${r.label} ${r.unit}`).join(', ')}`);
   const keys = gs.map((g) => g.key);
-  const src = readFileSync(join(HERE, '../../src/ui/v2/panels/Recipe.tsx'), 'utf8');
-  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (s.player.research.stacks[g.key].base + (s.player.research.stacks[g.key].est ?? 0))) < 1e-12) && !/\.reduce\(/.test(src),
-    'RD-B17 no Recipe card sums mixed units: one card per stack, no sums in the panel', keys.join(', '));
+  // CP4: the Recipe panel is gone (UB-8): RESEARCH › Know-how (KnowHow.tsx) is its home; it may count ideas, but no card
+  // sums a stack's level or OOM values.
+  const src = readFileSync(join(HERE, '../../src/ui/v2/panels/KnowHow.tsx'), 'utf8');
+  check(keys.length === STACK_KEYS.length && new Set(keys).size === keys.length && gs.every((g) => Math.abs(g.now - (s.player.research.stacks[g.key].base + (s.player.research.stacks[g.key].est ?? 0))) < 1e-12) && !/\.reduce\([^\n]*\b(now|oom|dG|base|est)\b/.test(src),
+    'RD-B17 no know-how card sums mixed units: one card per stack, no level / OOM sums in the panel', keys.join(', '));
   // B30: which model first embodies an RL idea (RF-R5: the idea names it; its measured gain is the model's).
   const day = s.time.day;
   const vs = s.player.models.versions;

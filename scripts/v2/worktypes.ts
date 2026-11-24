@@ -295,7 +295,8 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
     s.player.stars = n;
     same &&= Math.abs(starTaste(s) - tauH(s.player)) < 1e-12;
   }
-  const company = readFileSync(join(HERE, '../../src/ui/v2/panels/Company.tsx'), 'utf8');
+  // CP4: the Company panel is gone (UB-5): the Star hire chip lives on LAB (Lab.tsx / LabTabs.tsx).
+  const company = ['Lab.tsx', 'LabTabs.tsx'].map((f) => readFileSync(join(HERE, '../../src/ui/v2/panels', f), 'utf8')).join('\n');
   const wt = readFileSync(join(HERE, '../../src/data/v2/workTypes.ts'), 'utf8');
   check(same && !/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 one star-taste factor (research = the Star hire bench, 0–14 stars); the taste chip no longer claims quality enters it', '');
 }
