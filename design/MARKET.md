@@ -238,3 +238,14 @@ dependency order; tasks on one line of the same number can run in parallel.
 - MK-8: rival Chat demand is tiny (4–7K H100e at the start, ≈ 0 on day 369): rival chat user shares look low.
 - MK-8: rivals serve at the reference serving share (`shareRefAt().serving`), not their own split.
 - MK-11: rivals now carry their tools' effects (harness fit, tokens, horizon), which changes their strength.
+
+## Decisions after MK-6c (designer, 2026-11-24)
+
+- "Adding a cheaper model must keep profit" is **not** a requirement. A cheaper model of yours that does the same tasks
+  cannibalises your own buyers, as in real markets; the old fault was cost-plus pricing losing money with no
+  competition. Day-369 Atlas-4.0-mini case under MK-6c: −$16.8B/yr profit and ≈ 970K H100e of serving freed (worth about
+  the same at the rental rate) — a real trade-off the preview shows truthfully. `_mk6` (c) and `_mk6b` (c) expectations
+  that the mini keeps profit are to be restated at MK-CP as "preview = outcome", not "profit rises".
+- MK-6d (excluding own models from the price-sensitivity anchor) and a separate review sweep: withdrawn.
+- Remaining: MK-9 (re-merge), MK-5c, MK-13 (incl. how Win share's later buyer gain is shown), MK-CP. Judge later
+  findings against the sourced targets and whether trade-offs are shown honestly, not against "a number went down".
