@@ -76,14 +76,14 @@ export const UMODE_ACT: ActDef = { act: 'Unexplained behaviour', kappa: 2e-3, do
 /** Task horizon a deployment gives the model (hours) [D]: chat turns, API calls, enterprise workflows, the Agents
  *  product's tasks (features.ts AGENT_TASK_HOURS = 4). Internal uses read their work types' horizons (workTypes.ts H). */
 export const CHANNEL_HORIZON_H: Record<Exclude<Channel, 'internal'>, number> = {
-  consumer: 0.1, api: 0.5, enterprise: 1, agents: 4, gov: 1, trusted: 1, open: 2,
-};
+  consumer: 0.1, api: 0.5, enterprise: 1, vetted: 1, open: 2,
+}; // MK-11: Agents' 4 h tasks are gone with the product (Agent mode, a tool, brings them back)
 /** Horizon at which autonomy A = H/(H + H_HALF) is one half [D]. */
 export const H_HALF = 2;
 /** Affordances by channel (code execution, internet, money, weights access; 1 = everything) [D]. */
 export const CHANNEL_AFFORD: Record<Channel, number> = {
-  consumer: 0.3, api: 0.5, enterprise: 0.5, agents: 0.8, gov: 0.5, trusted: 0.5, open: 1, internal: 1,
-};
+  consumer: 0.3, api: 0.5, enterprise: 0.5, vetted: 0.5, open: 1, internal: 1,
+}; // MK-11: Agents' 0.8 is gone with the product
 /** Scale exponent γ on copies: an act repeated across many copies is mostly one incident, so incident counts grow
  *  much slower than usage [D]; product traffic slower still (customers report a failure once, whatever the traffic) [D]. */
 export const COPIES_GAMMA = { internal: 0.2, serving: 0.1 };
@@ -102,8 +102,8 @@ export const MISUSE = { kappa: 5e-4, theta: 9, s: 1, floor: 3, span: 1.5 };
 export const MISUSE_TOKENS_REF = 3e12;
 /** Misuse reach by channel (v2's exposure table). */
 export const MISUSE_REACH: Record<Channel, number> = {
-  consumer: 1.0, api: 0.8, agents: 1.5, enterprise: 1.0, gov: 0.5, trusted: 0.3, internal: 0, open: 1.0,
-};
+  consumer: 1.0, api: 0.8, enterprise: 1.0, vetted: 0.3, internal: 0, open: 1.0,
+}; // MK-2: Vetted takes Trusted's 0.3 (Government had 0.5); decide
 
 /** Exfiltration (event E25; same structure): κ · POWER·(1 + 4·SCHEME) · σ((CYBER − θ)/s) · O_internal ·
  *  (1 − WSL/5)(1 − Contain). θ = 10, s = 1 keep v2's 1e-4·max(0, AGENCY − 8) within ±25% on levels 9–12 [C]. */

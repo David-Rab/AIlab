@@ -42,7 +42,7 @@ export const CERT_CASH = 0.004;
 export const CERT_FRICTION_CUT = 0.1;
 export const needsCert = (sector: SectorId) => CERT_SECTORS.includes(sector);
 /** Channels whose products can carry an adaptation (the sector products). */
-const HOST_CHANNELS: readonly Deployment['channel'][] = ['enterprise', 'api', 'agents'];
+const HOST_CHANNELS: readonly Deployment['channel'][] = ['enterprise', 'api'] /* MK-11: Agents was a host; Agents → API */;
 export const canHost = (d: Deployment) => d.status !== 'withdrawn' && HOST_CHANNELS.includes(d.channel);
 
 /** Whether an adaptation's certification is done on a day (false where the sector has none). */
@@ -145,7 +145,7 @@ const adapt: ActionDef = {
   id: 'product.adapt', verb: 'launch', system: 'products', sphere: 'models', owner: 'WS1', title: 'Adapt to sector',
   available(s) {
     const h = hostOf(s);
-    if (!h) return 'Needs a live Enterprise, API or Agents product';
+    if (!h) return 'Needs a live Enterprise or API product';
     if (!defaultSector(s, h)) return 'This product is adapted to every sector';
     return true;
   },

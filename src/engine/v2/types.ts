@@ -605,7 +605,7 @@ export interface RunPrediction {
 
 // ───────────────────────────── Deployments & products (§3.3.6) ─────────────────────────────
 
-export type Channel = 'consumer' | 'api' | 'agents' | 'enterprise' | 'gov' | 'trusted' | 'internal' | 'open';
+export type Channel = 'consumer' | 'api' | 'enterprise' | 'vetted' | 'internal' | 'open';
 
 /** What a deployment is (R6): a product customers buy, the internal research fleet, or an open-weights release. */
 export type DeploymentKind = 'product' | 'internal' | 'open';

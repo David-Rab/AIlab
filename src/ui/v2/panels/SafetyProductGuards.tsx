@@ -39,7 +39,7 @@ function ProductGuards({ s, d }: { s: GameStateV2; d: Deployment }) {
   const autoWhy = d.monitorId === MONITOR_AUTO ? autoWatcher(s, v).reason : undefined;
   const set = (x: ProductChanges) => setC((o) => ({ ...o, ...x }));
   const n = editedProduct(d, c);
-  const kyc = d.channel === 'api' || d.channel === 'agents';
+  const kyc = d.channel === 'api';
   const name = PRODUCT_DEFS[d.channel]?.name ?? d.channel;
   return (
     <div className="card2 sfs-dsec" data-test={`pg.${d.id}`}>

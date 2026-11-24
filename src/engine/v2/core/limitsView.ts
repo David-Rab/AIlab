@@ -109,7 +109,6 @@ export function demandModifiers(s: GameStateV2, d: Deployment): { label: string;
   } else if (SECTOR_CHANNELS.includes(d.channel)) {
     const by = new Map<number, string[]>();
     for (const def of SECTORS) {
-      if (d.channel === 'gov' && def.id !== 'GOV' && def.id !== 'MIL') continue;
       const e = (1 - toolGap(def.id, tools)) / Math.max(1e-9, 1 - toolGap(def.id, []));
       if (e > 1 + 1e-9) by.set(e, [...(by.get(e) ?? []), def.name.split(/[ ,]/)[0]]);
     }

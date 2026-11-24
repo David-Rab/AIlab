@@ -7,7 +7,7 @@ import { applyFrameworkParts, frameworkCandidate } from '../safety/packages';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { optionLocked } from './tree';
-import { agentsGate, kindOfChannel, priceIndexOf } from './products';
+import { kindOfChannel, priceIndexOf } from './products';
 import { relaunchAdaptations } from './adaptations';
 import { tierOfIndex } from '../../../data/v2/features';
 import { distillLift } from '../production/diffusion';
@@ -16,14 +16,15 @@ import { distillLift } from '../production/diffusion';
  *  offered to (its channel, usage policy and safeguards), so any full or mini version can go on them; open weights are
  *  a release act on a version (releaseOpen), not a copy. */
 export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
-  consumer: ['full', 'mini'], api: ['full', 'mini'], agents: ['full'], enterprise: ['full'],
-  gov: ['full', 'mini'], trusted: ['full', 'mini'], internal: ['full', 'mini', 'imported'], open: ['full', 'mini'],
+  consumer: ['full', 'mini'], api: ['full', 'mini'], enterprise: ['full'],
+  vetted: ['full', 'mini'], internal: ['full', 'mini', 'imported'], open: ['full', 'mini'],
 };
 /** RD-P09 (PRD-18): share of a channel's usage bought by unverified buyers (self-serve accounts with no identity check),
  *  the only usage a distiller can hide in [stand-in]: Chat's free and paid accounts are anonymous but rate-limited per
  *  account; API / Agents keys are mostly self-serve; Enterprise, Government and Trusted buyers are named under contract.
  *  Open weights: anyone (diffusion.ts gives them access 1). */
-export const ANON_SHARE: Record<Channel, number> = { consumer: 0.3, api: 0.5, agents: 0.5, enterprise: 0, gov: 0, trusted: 0, internal: 0, open: 1 };
+// MK-2: Vetted takes the old Government / Trusted value (named buyers under contract, 0); decide for four channels.
+export const ANON_SHARE: Record<Channel, number> = { consumer: 0.3, api: 0.5, enterprise: 0, vetted: 0, internal: 0, open: 1 };
 /** RD-P09: the part of the anonymous share left at each KYC level (0–3): each level verifies ten times more of the
  *  self-serve accounts [D, the access formula's tenfold cut per level, research/RD-X04r D2]. */
 export const KYC_ANON_LEFT = [1, 0.1, 0.01, 0.001] as const;
@@ -45,7 +46,8 @@ export const kycDemandFactor = (d: Pick<Deployment, 'channel' | 'kyc'>) => 1 - k
 // $0.06-1.50 once (Ofcom 2026: median per-check cost about GBP 0.06; Stripe Identity: $1.50 per ID check), under 1% of
 // a year of a $20/month account, so it rounds to nothing (research/CAL-products-sources.md K2).
 /** Default serving-pool reservation per channel [D]. */
-export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, agents: 0.2, enterprise: 0.15, gov: 0.05, trusted: 0.03, internal: 0, open: 0 };
+// MK-2: Vetted takes the old Government reservation (0.05); Agents' 0.2 is gone with the product.
+export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, enterprise: 0.15, vetted: 0.05, internal: 0, open: 0 };
 
 const external = (c: Channel) => c !== 'internal';
 
@@ -83,10 +85,8 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   const cand = frameworkCandidate(s, v, channel, { safeguards: opts.safeguards ?? 'classifiers', guards: opts.guards ?? [] }, opts.frameworkApplied);
   const held = frameworkDeployBlock(s, v, channel, cand);
   if (held) return held;
-  if (channel === 'agents') {
-    const g = agentsGate(v);
-    if (g !== true) return g;
-  }
+  // MK-11: the Agents product's time-horizon gate (agentsGate) is not carried to the API (it would block API launches);
+  // Agent mode, a tool, gates agent-hours instead.
   const block = commitmentDeployBlock(s, {
     versionId: v.id, channel, safeguards: cand.safeguards, usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
   });
@@ -120,7 +120,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
     adaptations: re.adaptations.map((x) => ({ ...x })), features: [...(p.features ?? [])],
     ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.lineup?.length ? { lineup: [...p.lineup] } : {}), ...(p.freeTierId ? { freeTierId: p.freeTierId } : {}),
     usagePolicy,
-    kyc: p.kyc ?? (p.channel === 'api' || p.channel === 'agents' ? 1 : 0), status: 'live',
+    kyc: p.kyc ?? (p.channel === 'api' ? 1 : 0), status: 'live',
   };
   s.player.deployments.push(d);
   if ('from' in re && re.from && d.adaptations.length) re.from.adaptations = [];

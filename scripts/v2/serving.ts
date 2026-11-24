@@ -1172,7 +1172,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
   run(s, 1);
   const api = prod(s, 'api');
   const plain = { ...api, channel: 'enterprise' as const, kyc: 0 as const, features: [] };
-  const trusted = { ...plain, channel: 'trusted' as const };
+  const trusted = { ...plain, channel: 'vetted' as const }; // MK-2: Vetted carries Trusted's ×3 until MK-6
   const o0 = productOffer(s, plain, 'FIN');
   const o1 = productOffer(s, trusted, 'FIN');
   check(near(o1.price, 3 * o0.price, 1e-9) && near(o1.cost, o0.cost, 1e-9) && near(o1.fit, o0.fit, 1e-12),

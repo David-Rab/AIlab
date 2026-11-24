@@ -361,7 +361,7 @@ try {
   threw = true;
 }
 check(threw, 'save: v1 save is rejected (no migration)');
-// UB-3 (DD-20): the save break. MIN_SCHEMA_REV = SCHEMA_REV: every older save (any rev below, and a save with no
+// UB-3 (DD-20): the save break. MIN_SCHEMA_REV ≤ SCHEMA_REV (MK-1 added 103 → 104 on top of the break): every older save (any rev below, and a save with no
 // schemaRev) is refused with the player-facing message, a newer one with its own message, and the current rev loads.
 {
   const bad: string[] = [];
@@ -379,7 +379,7 @@ check(threw, 'save: v1 save is rejected (no migration)');
     }
     if (msg !== OLD_SAVE_MESSAGE) bad.push(`${rev ?? 'none'}: ${msg || 'loaded'}`);
   }
-  check(MIN_SCHEMA_REV === SCHEMA_REV && bad.length === 0, `save: a save below schemaRev ${MIN_SCHEMA_REV} is refused ("${OLD_SAVE_MESSAGE}")`, bad.slice(0, 3).join('; '));
+  check(MIN_SCHEMA_REV <= SCHEMA_REV && bad.length === 0, `save: a save below schemaRev ${MIN_SCHEMA_REV} is refused ("${OLD_SAVE_MESSAGE}")`, bad.slice(0, 3).join('; '));
   let newer = '';
   try {
     deserialize(JSON.stringify({ ...(JSON.parse(base) as Record<string, unknown>), schemaRev: SCHEMA_REV + 1 }));

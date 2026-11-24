@@ -283,8 +283,9 @@ function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefi
     a.tD[k] = (a.tD[k] ?? 0) + (x * w * priceOf(line[k])) / 1e9;
   }
 }
-/** Seat channels (A2c): seats are sold by Enterprise, and by Gov in GOV/MIL [D]. */
-const SEAT_CHANNELS = new Set<Channel>(['enterprise', 'gov']);
+/** Seat channels (A2c): seats are sold by Enterprise, and by Vetted in GOV/MIL (MK-1: Government's seats) [D]. */
+// MK-2: Vetted sells seats in GOV/MIL as Government did and hours elsewhere as Trusted did; MK-6 prices both by one rule.
+const seatOf = (c: Channel, sector: string) => c === 'enterprise' || (c === 'vetted' && GOV_SECTORS.has(sector));
 
 /** A product's need segments with their demand $ (B/yr), in serving order. */
 interface Seg { need: number; dem: Money }
@@ -307,7 +308,6 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const secW = SECTORS.map((def) => {
     const ws: Row[] = [];
     for (const d of sectorDeps) {
-      if (d.channel === 'gov' && !GOV_SECTORS.has(def.id)) continue;
       // P2: `offers` = the mix's own player offers when the state has not changed since (same inputs, same values).
       const o = offers?.get(`${d.id}|${def.id}`) ?? productOffer(s, d, def.id, usesOf.get(d.id), fxs.get(d.id));
       // TIERS: the product's lineup (main model, then its real lineup entries), blended per region by the hours its buyers
@@ -316,7 +316,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       if (!line) {
         line = productLineup(s, d, def.id, o, fxs.get(d.id));
       }
-      ws.push({ d, seat: SEAT_CHANNELS.has(d.channel), o, line });
+      ws.push({ d, seat: seatOf(d.channel, def.id), o, line });
     }
     return ws;
   });

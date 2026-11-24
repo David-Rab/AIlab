@@ -104,7 +104,7 @@ export interface ProductGuardRow {
 export function productGuardRows(s: GameStateV2): ProductGuardRow[] {
   const out: (ProductGuardRow & { key: string })[] = [];
   for (const d of s.player.deployments) {
-    if (d.channel === 'internal' || d.channel === 'trusted' || d.status === 'withdrawn') continue;
+    if (d.channel === 'internal' || d.channel === 'vetted' || d.status === 'withdrawn') continue; // MK-2: Trusted's exemption on Vetted
     const v = versionById(s, d.versionId);
     if (!v) continue;
     const lineup = ((d as { lineup?: unknown[] }).lineup ?? []).length;

@@ -126,8 +126,8 @@ export const PREDICATES: Record<string, CommitmentPredicate> = {
     if (s.player.models.runs.some((r) => r.startDay >= since && r.status !== 'cancelled' && r.status !== 'failed' && pledgeBreachRun(r))) return true;
     return s.player.deployments.some((d) => d.status !== 'withdrawn' && d.channel !== 'internal' && d.startDay >= since && latentVersion(s, d.versionId));
   },
-  noSurveillance: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noSurveillance),
-  noAutonomousWeapons: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'gov' && !d.usagePolicy.noAutonomousWeapons),
+  noSurveillance: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'vetted' && !d.usagePolicy.noSurveillance),
+  noAutonomousWeapons: (s) => s.player.deployments.some((d) => d.status === 'live' && d.channel === 'vetted' && !d.usagePolicy.noAutonomousWeapons),
   /** Statutory or voluntary: no covered-up incident, and public incidents reported within `hours`. */
   incidentReporting: (s, p, c) => {
     const days = Number(p.hours ?? 360) / 24;

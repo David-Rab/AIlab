@@ -53,7 +53,7 @@ const site = (d: Deployment, feats: string[]) => {
   for (const id of feats) if (!g.player.features.includes(id)) g.player.features.push(id);
   return siteOf(g, dd, versionById(g, dd.versionId)!, 0.5);
 };
-const api = dep('api'), ag = dep('agents');
+const api = dep('api'), ag = dep('api'); // MK-11: was the Agents product
 if (api) { const a0 = site(api, []).afford, a1 = site(api, ['computerUse']).afford; check(Math.abs(a1 - a0 - 0.25) < 1e-9, 'Computer use: API affordances +0.25', `${a0} → ${a1}`); }
 else check(false, 'no API product at start');
 if (ag) { const a0 = site(ag, []).autonomy, a1 = site(ag, ['memory']).autonomy; check(a1 > a0, 'Memory: Agents autonomy rises (horizon ×1.3)', `${a0.toFixed(3)} → ${a1.toFixed(3)}`); }
