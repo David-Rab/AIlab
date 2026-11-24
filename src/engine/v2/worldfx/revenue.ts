@@ -39,7 +39,7 @@ import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
 import {
-  agentDemandOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, effortTokens, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, markupOf, offerOf, productFx, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -434,17 +434,16 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         const uses = usesOf.get(d.id) ?? [];
         const fx = productFx(s, d);
         const x = fxOn(fx, 'CHAT');
-        const e = effortTokens(d.effort);
         const ud = decodeUtilNow(s);
-        const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, effort: e, markup: markupOf(d), rate, ud });
+        const o = offerOf(s, uses, 'CHAT', { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: markupOf(d), rate, ud });
         const main = versionById(s, d.versionId);
         const fMain = main ? flopPerToken(s, main) : 2e12;
-        // D10: reasoning tokens × effort × the model's τ (tokEff). A7: free users run the product's free tier
+        // D10: reasoning tokens × the model's τ (tokEff). A7: free users run the product's free tier
         // (RD-P01a: the real model in its free-tier slot, chatFreeTier); paying users the main model.
         const tMain = tokEff(main);
         const ft = chatFreeTier(s, d);
-        const sp = subPrice(s, fMain, markupOf(d), e * tMain, ud);
-        return { d, o, sp, fMain, freeId: ft?.id ?? d.versionId, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, e, tMain, tFree: ft?.tau ?? tMain, ud };
+        const sp = subPrice(s, fMain, markupOf(d), tMain, ud);
+        return { d, o, sp, fMain, freeId: ft?.id ?? d.versionId, fFree: ft?.fpt ?? fMain, freeFit: ft?.fit ?? o.fit, tMain, tFree: ft?.tau ?? tMain, ud };
       });
       const best = Math.max(...offs.map((x) => x.freeFit));
       // A5: users pick by quality alone (most pay nothing), as the market's user-share logit; A7: on the free tier's.
@@ -466,7 +465,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         // A6b: plans sell at the market's flat price; only a tier that asks more than the willingness to pay (Premium) is
         // held at it.
         if (markupOf(x.d) > MARKUP.standard + 1e-9 && x.sp.price >= CONSUMER_MKT.wtpMonth - 1e-9) a.capped += (subs * x.sp.price * 12) / 1e9;
-        const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.e * x.tMain, x.ud)) / 24;
+        const paid = (subs * chatHoursPerDay(x.fMain, CONSUMER_MKT.perDay.paid, x.tMain, x.ud)) / 24;
         const free = ((u - subs) * chatHoursPerDay(x.fFree, CONSUMER_MKT.perDay.free, x.tFree, x.ud)) / 24;
         a.needPaid += paid;
         a.freeId = x.freeId;

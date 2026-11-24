@@ -468,7 +468,7 @@ await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in the family tree', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
-// ── Products (R6 / UB-A): revenue strip, cards (lineup, tools, customers, certification, price, effort), live edit with
+// ── Products (R6 / UB-A): revenue strip, cards (lineup, tools, customers, certification, price), live edit with
 // before → after preview, the drawer (customers by sector, Limited by, win back, sold in a year, safeguards, retire),
 // policies (Auto serving, manual split), the Agents card. ──
 await nav('products');
@@ -477,10 +477,6 @@ ok('Products: one card per live product', (await page.$$('[data-panel=products] 
   const rv = await page.evaluate(() => ({ rows: document.querySelectorAll('[data-test=prod-revenue] [data-rev]').length, total: document.querySelector('[data-test=prod-rev-total]')?.textContent ?? '', bind: document.querySelectorAll('[data-test=prod-revenue] [data-test^="prod-bind."]').length }));
   ok('Products (UB-A): revenue strip with a row and a Limited-by chip per live product', rv.rows >= 3 && /\$[\d.]+[BMT]/.test(rv.total) && rv.bind >= 3, JSON.stringify(rv));
   ok('Products (UB-A): no serving split on Products (its home is LAB); a serving link instead', !(await page.$('[data-home=servingSplit]')) && !!(await page.$('[data-test=prod-serving-link]')));
-}
-// B5 / R6 / RD-P06: deep effort is a locked option with its reason until its idea (the model's capability) is known.
-if (!JSON.parse(await get(`s.player.tree.P05?.status === 'known'`))) {
-  ok('Products: deep effort locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
 }
 const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
 if (apiId) {

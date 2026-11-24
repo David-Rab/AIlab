@@ -6,7 +6,6 @@ import { frameworkDeployBlock } from '../safety/framework';
 import { applyFrameworkParts, frameworkCandidate } from '../safety/packages';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
-import { optionLocked } from './tree';
 import { kindOfChannel, priceIndexOf } from './products';
 import { relaunchAdaptations } from './adaptations';
 import { tierOfIndex } from '../../../data/v2/features';
@@ -56,12 +55,6 @@ const external = (c: Channel) => c !== 'internal';
  *  never pass and a fullPlusExternal gate blocked every launch). */
 export { externallyEvaluated } from '../safety/framework';
 
-/** Why an inference effort is locked, or undefined (B5; R4: the tree node that unlocks it, e.g. deep effort needs
- *  Multi-agent orchestration). */
-export function effortLock(s: GameStateV2, effort: Deployment['effort']): string | undefined {
-  return optionLocked(s, 'effort', effort);
-}
-
 /** Settings of the deployment being gated (a swap passes the live deployment's; a launch what deploy() will set). */
 export interface GateOpts { safeguards?: Deployment['safeguards']; guards?: Deployment['guards']; usagePolicy?: Deployment['usagePolicy']; frameworkApplied?: string[] }
 
@@ -103,8 +96,6 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   const usagePolicy = { ...(p.usagePolicy ?? { noDropInReplacement: false, noSurveillance: cu.noSurveillance, noAutonomousWeapons: cu.noAutonomousWeapons, minorsProtections: p.channel === 'consumer' }) };
   const ok = deployGate(s, v, p.channel, { safeguards: p.safeguards ?? 'classifiers', guards: p.guards ?? [], usagePolicy });
   if (ok !== true) return ok;
-  const lock = effortLock(s, p.effort ?? 'max');
-  if (lock) return lock;
   if (p.channel === 'internal') {
     setInternalAgent(s, v.id);
     return s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live') as Deployment;
@@ -115,7 +106,7 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   const re = p.adaptations ? { adaptations: p.adaptations } : relaunchAdaptations(s, p.channel);
   const d: Deployment = {
     id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`, kind: kindOfChannel(p.channel),
-    versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price), effort: p.effort ?? 'max',
+    versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price),
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', guards: (p.guards ?? []).map((g) => ({ ...g })),
     adaptations: re.adaptations.map((x) => ({ ...x })), features: [...(p.features ?? [])],
     ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.lineup?.length ? { lineup: [...p.lineup] } : {}), ...(p.freeTierId ? { freeTierId: p.freeTierId } : {}),
@@ -175,7 +166,7 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status === 'live');
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
-    id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
+    id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, servingShare: 0,
     safeguards: 'standard', guards: [{ kind: 'review', since: s.time.day }], adaptations: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
   });
   if (v.status === 'ready') v.status = 'deployed';

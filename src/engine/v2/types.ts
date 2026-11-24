@@ -644,7 +644,6 @@ export interface Deployment {
   /** Price tier (R6); priceIndex is kept equal to its index. */
   price: PriceTier;
   priceIndex: number; // 1 = market reference price (derived from the tier)
-  effort: 'low' | 'max' | 'deep'; // §3.3.2 effort setting (deep needs P05)
   /** Share of the serving pool: set by hand when the Auto serving policy is off; with Auto on it is written daily
    *  from the split (what this product actually gets). Internal uses the agents pool. */
   servingShare: number;
@@ -1312,7 +1311,6 @@ export interface PendingLaunch {
   versionId: string;
   price: PriceTier;
   kyc?: 0 | 1 | 2 | 3;
-  effort?: Deployment['effort'];
   monitorId?: string;
 }
 /** One item on the engineers' build queue. Work is in team-weeks (one Strong engineering team of 150 for a week). */

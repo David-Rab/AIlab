@@ -8,7 +8,7 @@
 //   P6  Auto serving: most $ per H100e first, cut recorded on the lowest-rate product, Σ served = pool; no cut with
 //       slack; the override (product.serving) turns Auto off and keeps hand-set shares
 //   P7  features: build through the engineers' queue (cash + team-weeks), switch on per product, effect on demand;
-//       unknown idea / not built / deep effort without its idea are refused with their reason
+//       unknown idea / not built are refused with their reason
 //   P8  Agents launch gate: measured time horizon vs the task length; eval suites no longer expire; auto-evaluate
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
@@ -17,7 +17,7 @@ import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, PRICE_TIERS, type FeatureFx 
 import { PRODUCT_MONITOR_WATCH } from '../../src/data/v2/oversight';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
-import { effortDG, effortTokens, fxOn, settingsDG } from '../../src/engine/v2/worldfx/serving';
+import { fxOn, settingsDG } from '../../src/engine/v2/worldfx/serving';
 import { productGVec } from '../../src/engine/v2/worldfx/mix';
 import { domainScaleGs } from '../../src/engine/v2/models/capability';
 import { DOMAIN_IDS } from '../../src/data/v2/calibration';
@@ -78,7 +78,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // CP3: "P1 D5 the leader start has sector packs built" deleted (RD-P08 deleted the sectorPacks feature).
   const v0 = s.player.models.versions[0];
   const g0 = domainScaleGs(s.hidden.timeline, v0);
-  check(ext.every((d) => productGVec(s, d, v0).every((x, i) => Math.abs(x - g0[DOMAIN_IDS[i]] - settingsDG(d) - effortDG(effortTokens(d.effort))) < 1e-12)), 'P2 a plain product\'s domain G is its model\'s plus its settings ΔG (neutral)');
+  check(ext.every((d) => productGVec(s, d, v0).every((x, i) => Math.abs(x - g0[DOMAIN_IDS[i]] - settingsDG(d)) < 1e-12)), 'P2 a plain product\'s domain G is its model\'s plus its settings ΔG (neutral)');
   check(ext.every((d) => monitorOverhead(s, d) === 0), 'P2 no monitor, no overhead');
 }
 
@@ -220,8 +220,6 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const api = prod(s, 'api');
   const wrong = act(s, 'feature.toggle', { product: api.id, feature: 'companion', on: true });
   check(!!wrong, 'P7 a feature is offered only on its products', wrong ?? '');
-  const deep = act(s, 'product.update', { id: api.id, effort: 'deep' });
-  check(!!deep, 'P7 deep effort is refused without its idea', deep ?? '');
 }
 
 // ───────── P8 gates and policies ─────────
@@ -397,7 +395,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(near(vc.upkeepTW, full, 1e-9) && near(vc.idleTW, idle, 1e-9) && near(vm.upkeepTW, mem0, 1e-9) && near(vm.idleTW, m, 1e-9),
     'C2c the feature tooltip\'s upkeep is the engine\'s (in use / off everywhere)', `companion ${vc.upkeepTW.toFixed(3)}/${vc.idleTW.toFixed(3)}, memory ${vm.upkeepTW.toFixed(3)}/${vm.idleTW.toFixed(3)}`);
 }
-// ───────── RD-B12 product lifecycle: packs on the product, launch features, deep effort ─────────
+// ───────── RD-B12 product lifecycle: packs on the product, launch features ─────────
 {
   const s = game();
   run(s, 10);
@@ -442,19 +440,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const la = act(f, 'product.launch', { channel: 'api', versionId: fa.versionId });
   until(f, () => f.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
   const na = prod(f, 'api');
-  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion') && na.effort === 'max',
+  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion'),
     "RD-B12 a new launch has the lab's built features for its channel on (other channels' and lab-level features not)", la ?? JSON.stringify(na?.features));
-  // RD-P06: deep effort is a setting; its one lock is the model's capability (the tree idea), no feature to build.
-  const dz = game();
-  run(dz, 10);
-  act(dz, 'product.retire', { id: prod(dz, 'api').id });
-  const noDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
-  dz.player.tree.P05 = { ...(dz.player.tree.P05 ?? {}), status: 'known' } as GameStateV2['player']['tree'][string];
-  const yesDeep = act(dz, 'product.launch', { channel: 'api', effort: 'deep' });
-  until(dz, () => dz.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
-  const dd = prod(dz, 'api');
-  check(!!noDeep && !yesDeep && dd?.effort === 'deep' && !dd.features.includes('deepThink'),
-    'RD-P06 launching at effort deep needs only its idea; the product goes live deep with no feature built', `${noDeep ?? 'launched'} / ${yesDeep ?? 'launched'} / ${dd?.effort} ${JSON.stringify(dd?.features)}`);
 }
 
 // ───────── RD-B20 preview truth, products: every preview line is what the action applies ─────────

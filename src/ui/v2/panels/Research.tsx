@@ -200,7 +200,7 @@ function NodeDrawer({ s, v, id }: { s: GameStateV2; v?: DiscoveryNodeView; id: s
   const stack = (n.effect as { stack?: keyof typeof AREA_NAME } | undefined)?.stack ?? (ROADS[id] ? 'pre' : undefined);
   if (stack) touches.push(<Ref key="kh" id={`touch.knowhow.${stack}`} to={{ panel: 'research', tab: 'knowhow' }}>{AREA_NAME[stack]} · know-how</Ref>);
   const opt = optionsOf(id)[0];
-  if (opt) touches.push(<Ref key="opt" id={`touch.option.${id}`} to={{ panel: opt[0] === 'effort' ? 'products' : 'blueprint' }}>{opt[0] === 'effort' ? 'Thinking effort · Products' : 'Run plan option · Next run'}</Ref>);
+  if (opt) touches.push(<Ref key="opt" id={`touch.option.${id}`} to={{ panel: 'blueprint' }}>Run plan option · Next run</Ref>);
   return (
     <>
       <div className="pf-scrim" onClick={() => setUi('sel', '')} />

@@ -28,7 +28,7 @@ import { P10_SYN_Q_RAISE, P21_WORTH_OOM } from './dataAssets';
 export type Layer = 'backbone' | 'training' | 'scaffold' | 'lab';
 export type EffortClass = 'S' | 'M' | 'L' | 'XL';
 /** Design-option slots a node can unlock (run designer, deployments). */
-export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot' | 'effort';
+export type OptionSlot = 'shape' | 'data' | 'curation' | 'pref' | 'rlFocus' | 'cot';
 
 /** Capability project kinds (MODEL-V3 §5.1, V3-BUILD V2.2). */
 export type ProjectKind = 'line' | 'idea' | 'axis';
@@ -178,12 +178,12 @@ export const TREE: TreeNodeDef[] = [
   P('P21', 'Brain-like sample efficiency', 'posttraining', 'training', ['P08', 'rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { mean: 1, sd: 0.6, data: { worthOom: P21_WORTH_OOM } }, cap: 'Learns more from each token: every drawn token is worth ×2 in the loss law (wide uncertainty), most valuable where data is short', saf: 'Evals lag' }),
 
   // ── Systems (Scaffold unless noted) ──
-  STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Effort low / max', cost: 'Tokens' }),
+  STAR('P03', 'Test-time compute', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Models think before they answer', cost: 'Tokens' }),
   STAR('P04', 'Distillation', 'systems', 'scaffold', {}, { paradigm: true, cap: 'Mini variants: a smaller student below its teacher (the distillation gap), serving ∝ its parameters', saf: 'Minis inherit traits' }),
   STAR('quantization', 'Quantization', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   STAR('specDecoding', 'Speculative decoding', 'systems', 'scaffold', {}, { cap: 'Part of the reference serving cost every lab has (2025 practice)' }),
   LINE('L.infer', 'Inference efficiency', 'systems', [], { stack: 'serve', mean: 0.05, rShare: 0.15 }, { cap: 'Serving efficiency (OOM): first decode utilisation 0.07 → 0.15 for every model served (speculative decoding, batching, kernels), then less FLOP per token for versions trained after it' }),
-  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { cap: 'Deep effort (a product setting); scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×4 at deep effort' }),
+  P('P05', 'Multi-agent orchestration', 'systems', 'scaffold', ['P03'], 'M', { cap: 1, saf: -1 }, { cap: 'Scaffold for internal engineering and research agents: +0.26 OOM of fit at ×3.75 tokens', saf: 'Many-copies pressure +', cost: 'Tokens ×3.75 on internal agents' }),
   P('P07', 'Long context + memory', 'systems', 'scaffold', [], 'M', { cap: 1, saf: -1 }, { cap: 'Long-tasks RL horizon ×1.2 on post-trains launched after adoption [D]; memory', saf: 'Memory → successor-risk pressure' }),
   // RD-E01a (DD-14): P13 (automated AI research agents) is gone, AI labour in the experiment slot already models research
   // agents; P19 (learned research taste) is gone with the RSCH taste penalty it undid. Their dependants (P15, P16, P21,
@@ -293,7 +293,6 @@ export const OPTION_NODE: Record<string, string> = {
   'rlFocus:math': 'rl.math', 'rlFocus:swe': 'rl.swe', 'rlFocus:mlResearch': 'rl.mlResearch', 'rlFocus:longHorizon': 'rl.longHorizon',
   'rlFocus:cyber': 'rl.cyber', 'rlFocus:bio': 'rl.bio', 'rlFocus:computerUse': 'P06',
   'cot:visible': 'P01', 'cot:faithful': 'P23',
-  'effort:low': 'P03', 'effort:max': 'P03', 'effort:deep': 'P05',
 };
 /** Design options each node unlocks, derived from OPTION_NODE (table order). */
 export const OPTIONS_OF: Record<string, [OptionSlot, string][]> = (() => {

@@ -237,7 +237,7 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
     // RD-B12 (B20): the product starts with the lab's built features for its channel on.
     const d = deploy(s, ctx, {
       versionId: l.versionId, channel: l.channel, price: l.price, priceIndex: PRICE_TIERS[l.price],
-      ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.effort ? { effort: l.effort } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
+      ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
       features: launchFeatures(s, l.channel),
     });
     if (typeof d === 'string') ctx.log('company', `The ${l.channel} launch is built but cannot go live: ${d}.`, 2);
