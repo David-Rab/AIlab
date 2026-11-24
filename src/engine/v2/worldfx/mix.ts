@@ -7,7 +7,11 @@
 //   offer_X   = fit (OOM), coverage a, cost and price per work-hour of X's model (price = markup × own cost ≤ value)
 //   target_X  = A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts) among every provider's
 //               lineup (TIERS: its model and the LINEUP students of it, every provider by the same rule; each player
-//               product with its own lineup, playerProdW its part of the player's hours); X's prices and costs are its customers' tier mix. A8: buyers multi-home: X is in a
+//               product with its own lineup, playerProdW its part of the player's hours); MK-5 (design/MARKET.md M2): one
+//               choice per business buyer group (small / large / vetted, data/v2/market.ts buyerGroups), each over the
+//               offers it reaches (the player's products on its rungs of the ladder, BUYER_RUNG; every other provider),
+//               target and the player's split the groups' weighted sum (one customer stock per provider, M4);
+//               X's prices and costs are its customers' tier mix. A8: buyers multi-home: X is in a
 //               buyer's choice set with probability R_X, its reach (a stock toward the labs firms add, MULTI_HOMING:
 //               each firm contracts with the providers it ranks best, reachTargets; open weights: their access). Consumers: exp(SHARE_SLOPE_G·Δfit) ·
 //               access · brand (V4.2's logit without the price term: users choose by quality, most pay nothing)
@@ -31,7 +35,8 @@ import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, RivalLab, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { agentCeilingOf, workHoursOf, type AgentCeiling } from './use';
-import { surplusChoice, type Choice, type Tier } from './choice';
+import { mergeChoices, surplusChoice, type Choice, type Tier } from './choice';
+import { buyerGroups } from '../../../data/v2/market';
 import { techRamp } from './policy';
 import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
 import { flopPerToken } from '../departments/workfit';
@@ -47,9 +52,21 @@ export { PRICE_ELASTICITY };
 /** Open weights are served by hosts near cost (×1.2) [D]. */
 export const OPEN_MARKUP = 1.2;
 
-/** Channels that sell into sectors (MK-1: Vetted into every sector until the buyer groups, MK-5). Consumer is its own
- *  market; internal earns nothing. */
+/** Channels that sell into sectors (MK-5: each to the buyer groups on and above its rung of the ladder, BUYER_RUNG).
+ *  Consumer is its own market; internal earns nothing. */
 export const SECTOR_CHANNELS: Deployment['channel'][] = ['api', 'enterprise', 'vetted'];
+
+/** MK-5 (design/MARKET.md M2): a sector's business buyer groups, lowest rung first (shares: data/v2/market.ts
+ *  buyerGroups). */
+export const BUYER_GROUP_IDS = ['small', 'large', 'vetted'] as const;
+export type BuyerGroupId = (typeof BUYER_GROUP_IDS)[number];
+/** MK-5: the ladder: a sector product's rung; buyer group g (BUYER_GROUP_IDS index) reaches the products of rung ≤ g
+ *  (small → API; large → Enterprise, API; vetted → Vetted, Enterprise, API). Other providers reach every group. */
+export const BUYER_RUNG: Partial<Record<Deployment['channel'], number>> = { api: 0, enterprise: 1, vetted: 2 };
+/** MK-5 test switch (scripts/v2/_mk5/check.ts): every buyer group reaches every player product (the single choice of
+ *  before the ladder); split: one choice per group even where groups reach the same products (tests the merge).
+ *  Never set by the game. */
+export const BUYER_LADDER_TEST = { allReach: false, split: false };
 
 const ND = DOMAIN_IDS.length;
 const I = Object.fromEntries(DOMAIN_IDS.map((d, i) => [d, i])) as Record<DomainId, number>;
@@ -131,6 +148,10 @@ export interface SectorMix {
   /** RD-P03 (DD-02): per player product, its part of the player's hours here (sum 1 over its sector products): the
    *  buyers' choice among the player's products, each its own seller in the surplus choice. */
   playerProdW: Record<string, number>;
+  /** MK-5 (M2): per business buyer group present here (share w > 0; market.ts buyerGroups), its choice's provider
+   *  targets and its split of the player's hours between the player's products (the ladder: small buyers buy only API,
+   *  large Enterprise or API). target and playerProdW above are these weighted by w and by the player's hours. */
+  byGroup: Partial<Record<BuyerGroupId, { w: number; target: number[]; playerProdW: Record<string, number> }>>;
 }
 /** A5: a tier is a provider's own model (the player's: a product's main model), another real model of a player product's
  *  lineup (RD-P01a: `mini` = any lineup entry after the main model), or a distilled student of a rival's or China's model
@@ -194,6 +215,50 @@ function filled(n: number, x: number): number[] {
   const a: number[] = [];
   for (let i = 0; i < n; i++) a.push(x);
   return a;
+}
+
+/** A provider's customers' tier mix in a choice (sum 1): its band shares; with no target share (its stock may still
+ *  hold customers) its tier split with every band weighted alike; else its own model alone. */
+function tierMix(ch: Choice, i: number, len: number, B: number): number[] {
+  const tw = filled(len, 0);
+  const sb = ch.sub[i];
+  const ti = ch.target[i];
+  if (ti > 1e-12) {
+    for (let b = 0; b < B; b++) {
+      const x = ch.share[i][b] / (B * ti);
+      if (sb?.[b]) for (let k = 0; k < len; k++) tw[k] += x * sb[b][k];
+      else tw[ch.pick[i][b]] += x;
+    }
+  } else if (sb?.length === B) {
+    for (let b = 0; b < B; b++) for (let k = 0; k < len; k++) tw[k] += sb[b][k] / B;
+  } else if (len) tw[0] = 1;
+  return tw;
+}
+
+/** RD-P03: the player's tier mix (tw, its lineups in pTiers order) → per product its part of the player's hours
+ *  (prodW, sum 1) and its buyers' hours by tier of its lineup (tierW, sum 1). No choice at all (tw all 0): the best
+ *  product by offer utility (`best`, a cands index) holds the player's customers. */
+function prodSplit(tw: readonly number[], pt: readonly { c: number; k: number }[], best: number, cands: readonly { dep: Deployment }[]): { tierW: Record<string, number[]>; prodW: Record<string, number> } {
+  const tierW: Record<string, number[]> = {};
+  const prodW: Record<string, number> = {};
+  let any = 0;
+  for (const x of tw) any += x;
+  for (let j = 0; j < pt.length; ) {
+    const c = pt[j].c;
+    let e = j;
+    while (e < pt.length && pt[e].c === c) e++;
+    let sum = 0;
+    for (let k = j; k < e; k++) sum += tw[k] ?? 0;
+    if (!(any > 0)) sum = c === best ? 1 : 0;
+    const w = filled(e - j, 0);
+    if (sum > 0 && any > 0) for (let k = j; k < e; k++) w[k - j] = (tw[k] ?? 0) / sum;
+    else w[0] = 1;
+    const dep = cands[c].dep;
+    tierW[dep.id] = w;
+    prodW[dep.id] = sum;
+    j = e;
+  }
+  return { tierW, prodW };
 }
 
 /** Domain vector (DOMAIN_IDS order) → record, as a fixed-shape literal (fast property access). */
@@ -491,6 +556,26 @@ function computeMix(s: GameStateV2): WorldMix {
 
   // RD-P03: seller groups per sector: the player's tiers grouped by product (cands index).
   const groups = pTiers.map((pt) => providers.map((_, i) => (i === playerIdx ? pt.map((x) => x.c) : undefined)));
+  // MK-5 (M2): per sector and buyer group, which of the player's tiers the group reaches (its products' rungs ≤ the
+  // group's; undefined: every tier) and a key of the rungs it reaches among those the player sells (equal keys: the
+  // same choice).
+  const gReach = pTiers.map((pt) => {
+    const mask: (boolean[] | undefined)[][] = [];
+    const key: number[] = [];
+    for (let g = 0; g < BUYER_GROUP_IDS.length; g++) {
+      if (BUYER_LADDER_TEST.allReach || playerIdx < 0) {
+        mask.push(providers.map(() => undefined));
+        key.push(-1);
+        continue;
+      }
+      const ok = pt.map((x) => (BUYER_RUNG[cands[x.c].ch] ?? 0) <= g);
+      let k = 0;
+      for (let j = 0; j < pt.length; j++) if (ok[j]) k |= 1 << (BUYER_RUNG[cands[pt[j].c].ch] ?? 0);
+      mask.push(providers.map((_, i) => (i === playerIdx ? ok : undefined)));
+      key.push(k);
+    }
+    return { mask, key };
+  });
   // A8 / REACH: each provider's reach target: each firm contracts with the MULTI_HOMING.providers labs it ranks best by
   // the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·(fit − best))) among the closed
   // labs it can buy from (access), without replacement: R* = P(the lab is among the firm's picks) (reachTargets).
@@ -563,26 +648,29 @@ function computeMix(s: GameStateV2): WorldMix {
         tierPrice.push(tp);
       }
       // RD-P03 (DD-02): each player product is its own seller (its lineup's tiers a group), sharing the player's brand and
-      // reach.
-      const ch = surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si]);
+      // reach. MK-5 (M2): the sector's business buyers are three groups (small / large / vetted, market.ts buyerGroups),
+      // each choosing among the offers it reaches (every other provider's; the player's products on its rungs of the
+      // ladder); groups that reach the same products make one choice. The market's choice is the groups' weighted sum.
+      const bg = buyerGroups(t.id, r);
+      const gr = gReach[si];
+      const parts: { w: number; ch: Choice; gs: BuyerGroupId[] }[] = [];
+      for (let g = 0; g < 3; g++) {
+        const wg = bg[BUYER_GROUP_IDS[g]];
+        if (!(wg > 0)) continue;
+        const same = BUYER_LADDER_TEST.split ? undefined : parts.find((p) => gr.key[BUYER_GROUP_IDS.indexOf(p.gs[0])] === gr.key[g]);
+        if (same) {
+          same.w += wg;
+          same.gs.push(BUYER_GROUP_IDS[g]);
+        } else parts.push({ w: wg, ch: surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si], gr.mask[g]), gs: [BUYER_GROUP_IDS[g]] });
+      }
+      const ch = parts.length ? mergeChoices(parts) : surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si]);
       const target = ch.target;
       const tierW: number[][] = [];
       for (let i = 0; i < n; i++) {
         const o = offers[si][i];
         const L = lines[i];
         // The provider's customers' tier mix: its band shares (its own model alone when it has no share anywhere).
-        const tw = filled(L.length, 0);
-        const sb = ch.sub[i];
-        if (target[i] > 1e-12) {
-          for (let b = 0; b < B; b++) {
-            const x = ch.share[i][b] / (B * target[i]);
-            if (sb?.[b]) for (let k = 0; k < L.length; k++) tw[k] += x * sb[b][k];
-            else tw[ch.pick[i][b]] += x;
-          }
-        } else if (sb?.length === B) {
-          // No target share here (its stock may still hold customers): the products' split with every band weighted alike.
-          for (let b = 0; b < B; b++) for (let k = 0; k < L.length; k++) tw[k] += sb[b][k] / B;
-        } else if (L.length) tw[0] = 1;
+        const tw = tierMix(ch, i, L.length, B);
         tierW.push(tw);
         if (!o) continue;
         fit[i] = o.fit;
@@ -607,30 +695,15 @@ function computeMix(s: GameStateV2): WorldMix {
       }
       // RD-P03: the player's products, each its own seller: a product's part of the player's hours here (playerProdW, sum
       // 1: the choice among its products, band by band) and its buyers' hours by tier of its lineup (playerTierW, sum 1).
-      const tierWOut: Record<string, number[]> = {};
-      const prodWOut: Record<string, number> = {};
-      if (playerIdx >= 0) {
-        const pt = pTiers[si];
-        const tw = tierW[playerIdx];
-        let any = 0;
-        for (const x of tw) any += x;
-        for (let j = 0; j < pt.length; ) {
-          const c = pt[j].c;
-          let e = j;
-          while (e < pt.length && pt[e].c === c) e++;
-          let sum = 0;
-          for (let k = j; k < e; k++) sum += tw[k] ?? 0;
-          // (No choice at all here: the best product by offer utility holds the player's customers.)
-          if (!(any > 0)) sum = c === pCand[si] ? 1 : 0;
-          const w = filled(e - j, 0);
-          if (sum > 0 && any > 0) for (let k = j; k < e; k++) w[k - j] = (tw[k] ?? 0) / sum;
-          else w[0] = 1;
-          const dep = cands[c].dep;
-          tierWOut[dep.id] = w;
-          prodWOut[dep.id] = sum;
-          j = e;
-        }
+      // MK-5: over the groups (the merged choice weights each group's split by its hours with the player); per group too.
+      const split = playerIdx >= 0 ? prodSplit(tierW[playerIdx], pTiers[si], pCand[si], cands) : { tierW: {}, prodW: {} };
+      const byGroup: SectorMix['byGroup'] = {};
+      for (const p of parts) {
+        const prodW = playerIdx >= 0 ? (parts.length === 1 ? split.prodW : prodSplit(tierMix(p.ch, playerIdx, lines[playerIdx].length, B), pTiers[si], pCand[si], cands).prodW) : {};
+        for (const g of p.gs) byGroup[g] = { w: bg[g], target: p.ch.target, playerProdW: prodW };
       }
+      const tierWOut = split.tierW;
+      const prodWOut = split.prodW;
       const share = stockShares(s, providers, r, t.id, target);
       const gw = filled(ND, 0);
       let gsum = 0;
@@ -698,7 +771,7 @@ function computeMix(s: GameStateV2): WorldMix {
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
-        tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerTierW: tierWOut, playerProdW: prodWOut,
+        tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerTierW: tierWOut, playerProdW: prodWOut, byGroup,
       };
     }
     sec[r] = rowOut;
