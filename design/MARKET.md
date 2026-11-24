@@ -107,6 +107,18 @@ by iteration), the same μ at the fixed point, so margins follow costs at PRICE_
 PRICE_ELASTICITY = 1.4 puts the start leader's margin at ≈ 0.86–0.87. A new game starts at the fixed point; a save
 from before MK-6 starts at today's cost-plus prices (M = 1.5 × the seller's main-model cost) and moves from there.
 
+As built (MK-6b): the margin is per seller × model (a version id; the same model on several of the player's products
+shares one) per sector × region, fx.priceM[r][sector][seller][model]. Target M*_k = Σ q_k / Σ q_k·(1 − s)/μ_b over the
+groups and bands model k wins hours in (q_k its hours there; s the seller's total share, so it internalises
+cannibalisation between its own models in a band). A model with no hours: the seller's hours-weighted margin per $ of
+cost (Σ q_k·M*_k ÷ Σ q_k·c_k) × its own cost; with no stock yet, the same from the seller's stocked margins (Σ M ÷ Σ c),
+else 1.5 × its own cost. Tier price = min(value, c_k + f·M_k), ≥ cost. Saves at schema 107 copy the seller's one M to
+each of its models. Finding: in US Software at the start the cheap tiers still win no band (serving.ts TIERS E7 fails):
+with μ_b = p̄_b ÷ ε, a seller's cheap tier beats its own frontier model in a band only if SHARE_SLOPE_G·Δfit < (p_0 −
+p_k)/μ_b, and with the frontier at its own FOC margin that is at most ≈ 1/(1 − s) + (c_0 − c_k)/μ_b ≈ 1.9 there, below
+4 × 0.61 OOM = 2.4 for the mini even at cost. Cheap tiers win only where every seller's cheap tiers are adequate in the
+easy band (then p̄_b and μ_b are low: US Services, rivals' minis 12–13% of their hours at M ≈ 0.24 vs 2.1–2.3).
+
 ### Capacity (M7)
 
 The Auto serving split stays (most revenue per H100e first). A product whose need exceeds its served compute serves the

@@ -94,12 +94,19 @@ for (const seed of (process.env.MK6_SEEDS ?? "2027,7,42").split(",").map(Number)
   for (const r of REGIONS) for (const def of SECTORS) {
     const m = mix.sec[r][def.id];
     const h = workHoursOf(s.world.sectors[r][def.id], def.id).adopted;
-    m.markupTarget.forEach((x, i) => {
-      if (!Number.isFinite(x) || !(m.share[i] > 0)) return;
-      const g = Math.abs(x - m.markup[i]) / x;
-      gap += h * m.share[i] * g;
-      gw += h * m.share[i];
-      if (g > gmax && m.share[i] > 0.01) { gmax = g; at = `${r} ${def.id} ${keys[i]}`; }
+    // MK-6b: per seller and model, weighted by the model's hours (its tiers' part of the seller's).
+    m.markupTarget.forEach((tg, i) => {
+      if (!(m.share[i] > 0)) return;
+      tg.forEach((x, j) => {
+        if (!Number.isFinite(x)) return;
+        let wk = 0;
+        m.tierModel[i].forEach((mj, k) => { if (mj === j) wk += m.tiers.weight[i][k] ?? 0; });
+        if (!(wk > 0)) return;
+        const g = Math.abs(x - m.markup[i][j]) / x;
+        gap += h * m.share[i] * wk * g;
+        gw += h * m.share[i] * wk;
+        if (g > gmax && m.share[i] * wk > 0.01) { gmax = g; at = `${r} ${def.id} ${keys[i]} ${m.markupModels[i][j]}`; }
+      });
     });
   }
   check(gap / gw < 0.02, '(a) the start prices are at the fixed point (hours-weighted |M* − M| ÷ M* < 2%)', `${(100 * gap / gw).toFixed(2)}%; largest ${(100 * gmax).toFixed(1)}% at ${at}`);
