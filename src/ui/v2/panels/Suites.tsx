@@ -82,7 +82,7 @@ export function Suites({ s }: { s: GameStateV2 }) {
           <span className="ch"><Term id="suiteFidelity">Realism</Term> <span className="lc">· tick = standard</span></span>
           <span className="ch"><Term id="suiteExploit">Loopholes</Term></span>
           <span className="ch"><Term id="rewardHackPressure">Share of pressure</Term></span>
-          <span className="ch"><Term id="buildCapacity">Work</Term> <span className="lc">· engineers {F.pct(d.spare)} spare</span></span>
+          <span className="ch"><Term id="buildCapacity">Work</Term> <Tip content={() => <TipCard title={<Term id="buildCapacity">Engineers spare</Term>} value={F.pct(d.spare)}>Build capacity no need takes today: Harden and Expand start at once while some is spare.</TipCard>}><span className="lc">· engineers {F.pct(d.spare)} spare</span></Tip></span>
           {[...d.view.rows].sort((a, b) => partOf(b.family) - partOf(a.family) || b.share - a.share).map((r) => <SuiteLine key={r.family} s={s} r={r} pv={d.pv[r.family]} part={partOf(r.family)} n={n} />)}
           {d.unbuilt.map((u) => <UnbuiltLine key={u.family} s={s} family={u.family} pv={u.build} />)}
           {d.locked.map((l) => <LockedLine key={l.family} s={s} family={l.family} node={l.node} />)}
@@ -130,12 +130,11 @@ function WorkCell({ s, r, pv, pend, demos }: { s: GameStateV2; r: SuiteRow; pv: 
   const build = pv.work === 'build';
   const id = build ? 'suite.build' : 'suite.harden';
   const Ic = build ? Maximize2 : ShieldCheck;
-  const what = build ? <><Term id="suiteFidelity">Realism</Term> → <b className="num">{F.pct(pv.effect.fid[1])}</b></> : <><Term id="suiteExploit">Loopholes</Term> → <b className="num">{pc1(pv.effect.exploit[1])}</b></>;
   if (pend) {
     const eta = Number.isFinite(pend.etaDays) ? pend.etaDays : undefined;
     return (
       <Tip content={() => <TipCard title={`${build ? 'Expanding' : 'Hardening'} ${r.label} environments`} value={eta !== undefined ? fmtDate(dateOf(s, s.time.day + eta)) : 'waits'} rows={[{ label: 'Left', value: `${pend.leftTW.toFixed(1)} team-weeks` }]} footer="On the engineers' build queue; paid when queued.">One {build ? 'expansion' : 'hardening'} per family at a time.</TipCard>}>
-        <span className="sx-work pend" data-pending={`${r.family}:${pv.work}`}><span className="btn btn-sm is-off"><Ic size={12} />{build ? 'Expanding' : 'Hardening'}</span><span className="small">{what} · {eta !== undefined ? `done in ${F.days(eta)}` : 'waits for engineers'}</span></span>
+        <span className="sx-work pend" data-pending={`${r.family}:${pv.work}`}><span className="btn btn-sm is-off"><Ic size={12} />{build ? 'Expanding' : 'Hardening'}</span><span className="small">{build ? <><Term id="suiteFidelity">Realism</Term> → <b className="num">{F.pct(pv.effect.fid[1])}</b></> : <><Term id="suiteExploit">Loopholes</Term> → <b className="num">{pc1(pv.effect.exploit[1])}</b></>} · {eta !== undefined ? `done in ${F.days(eta)}` : 'waits for engineers'}</span></span>
       </Tip>
     );
   }
@@ -154,7 +153,7 @@ function WorkCell({ s, r, pv, pend, demos }: { s: GameStateV2; r: SuiteRow; pv: 
       <Tip content={tip}>
         <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act={id} data-family={r.family} onClick={() => store.act(id, { family: r.family })}><Ic size={12} /><span>{build ? 'Expand' : 'Harden'}</span></button>
       </Tip>
-      <span className="small sx-after" data-test={`suite-after.${pv.work}`}>{what} <span className="dim">· {F.days(pv.waitDays)} · {F.money(pv.cost.cashB)}</span></span>
+      <Tip content={tip}><span className="small sx-after" data-test={`suite-after.${pv.work}`}>{build ? <><Term id="suiteFidelity">Realism</Term> → <b className="num">{F.pct(pv.effect.fid[1])}</b></> : <><Term id="suiteExploit">Loopholes</Term> → <b className="num">{pc1(pv.effect.exploit[1])}</b></>} <span className="dim">· {F.days(pv.waitDays)} · {F.money(pv.cost.cashB)}</span></span></Tip>
       {demos && <DemosBtn r={r} pv={demos} />}
     </span>
   );
@@ -243,14 +242,14 @@ function PressureCard({ s, plan, s2, planned, light, rows, pv }: { s: GameStateV
         <div className="sx-pgl small dim"><span>Low</span><span>Medium</span><span>High</span></div>
       </Tip>
       <div className="sx-sec"><div className="cap">What makes it</div>
-        {big.map((r) => <div key={r.family} className="sx-part" data-part={r.family}><span>{RL_FAMILY_LABEL[r.family]}</span><span className="sx-ptrack"><i style={{ width: `${(r.s2 / maxPart) * 100}%` }} /></span><span className="num small">{F.pct(r.s2 / Math.max(1e-9, sum))}</span></div>)}
-        {rest.length > 0 && <div className="sx-part"><span>{rest.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</span><span className="sx-ptrack"><i style={{ width: `${(restSum / maxPart) * 100}%` }} /></span><span className="num small">{F.pct(restSum / Math.max(1e-9, sum))}</span></div>}
-        <div className="small dim">The graders&apos; loopholes, by each family&apos;s share of the run. The <b>{BUDGET_LABEL[plan.post.rlBudget]}</b> post-training budget multiplies it by {(k * s2.pressure).toFixed(1)}.</div>
+        {big.map((r) => <div key={r.family} className="sx-part" data-part={r.family}><span>{RL_FAMILY_LABEL[r.family]}</span><span className="sx-ptrack"><i style={{ width: `${(r.s2 / maxPart) * 100}%` }} /></span><Tip content={() => <TipCard title={RL_FAMILY_LABEL[r.family]} value={F.pct(r.s2 / Math.max(1e-9, sum))} rows={[{ label: 'Share of the run', value: F.pct(r.share) }, { label: <Term id="suiteExploit">Loopholes</Term>, value: pc1(r.exploit) }]}>Its part of the hacking pressure: loopholes times its share of the run.</TipCard>}><span className="num small">{F.pct(r.s2 / Math.max(1e-9, sum))}</span></Tip></div>)}
+        {rest.length > 0 && <div className="sx-part"><span>{rest.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</span><span className="sx-ptrack"><i style={{ width: `${(restSum / maxPart) * 100}%` }} /></span><Tip content={() => <TipCard title="The rest" value={F.pct(restSum / Math.max(1e-9, sum))}>The other families' part of the hacking pressure.</TipCard>}><span className="num small">{F.pct(restSum / Math.max(1e-9, sum))}</span></Tip></div>}
+        <div className="small dim">The graders&apos; loopholes, by each family&apos;s share of the run. The <b>{BUDGET_LABEL[plan.post.rlBudget]}</b> post-training budget multiplies it by <Tip content={() => <TipCard title={<Term id="rlBudget">Post-training budget</Term>} value={`×${(k * s2.pressure).toFixed(1)}`}>More post-training compute on the same base optimises harder against the graders.</TipCard>}><b className="num">{(k * s2.pressure).toFixed(1)}</b></Tip>.</div>
       </div>
       <div className="sx-sec"><div className="cap">Ways to lower it</div>
-        {top && <Way test="way-top" label={<>Harden {RL_FAMILY_LABEL[top.family]}</>} sub={<>{F.days(pv[top.family].harden.waitDays)} · {F.money(pv[top.family].harden.cost.cashB)} · engineers</>} to={total - drop(top.family)}
+        {top && <Way test="way-top" label={<>Harden {RL_FAMILY_LABEL[top.family]}</>} sub={<Tip content={() => <TipCard title={<Term id="suiteHarden">Harden {RL_FAMILY_LABEL[top.family]}</Term>} rows={[{ label: 'Done in', value: F.days(pv[top.family].harden.waitDays) }, { label: 'Cash', value: F.money(pv[top.family].harden.cost.cashB) }]}>Expert red-teamers and engineers close loopholes in its graders.</TipCard>}><span>{F.days(pv[top.family].harden.waitDays)} · {F.money(pv[top.family].harden.cost.cashB)} · engineers</span></Tip>} to={total - drop(top.family)}
           act={<button className="btn btn-sm" data-act="suite.harden" data-family={top.family} onClick={() => store.act('suite.harden', { family: top.family })}>Do</button>} />}
-        {three.length > 1 && <Way test="way-three" label={<>Harden {three.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</>} sub={<>{F.days(days3)} · {F.money(cost3)} · engineers</>} to={after3}
+        {three.length > 1 && <Way test="way-three" label={<>Harden {three.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</>} sub={<Tip content={() => <TipCard title={<Term id="suiteHarden">Harden all three</Term>} rows={[{ label: 'Done in', value: F.days(days3) }, { label: 'Cash', value: F.money(cost3) }]}>The three hardenings queue together; the pressure after adds up their single drops.</TipCard>}><span>{F.days(days3)} · {F.money(cost3)} · engineers</span></Tip>} to={after3}
           act={<button className="btn btn-sm" data-test="harden-three" onClick={() => three.forEach((r) => store.act('suite.harden', { family: r.family }))}>Do</button>} />}
         {plan.post.rlBudget !== 'light' && <Way test="way-light" label="Light post-training budget" sub="the run gives less skill" to={light} act={<button className="dv-chip" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run <ChevronRight size={11} /></button>} />}
         {three.length > 0 && <div className="small dim row-i"><b className="sx-afterkey" />after hardening {three.length === 1 ? 'it' : `all ${three.length === 3 ? 'three' : 'two'}`}</div>}

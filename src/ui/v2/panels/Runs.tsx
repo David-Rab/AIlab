@@ -132,7 +132,7 @@ function Timeline({ s, rows, alloc, evals, onOpen }: { s: GameStateV2; rows: Run
         ]} footer="The training compute itself is set on LAB.">How today&apos;s training compute splits between runs.</TipCard>}>
           <span className="rn-cbar">{alloc0.map(([id, v]) => <i key={id} className="use" style={{ width: `${v * 100}%` }} />)}{stream > 0 && <i className="stream" style={{ width: `${stream * 100}%` }} />}<i className="idle" style={{ width: `${idle * 100}%` }} /></span>
         </Tip>
-        <span className="small" data-test="spare-share">{alloc0.map(([id, v]) => <span key={id}><b className="num">{F.pct(v)}</b> {rows.find((r) => r.run.id === id)?.title ?? ''} · </span>)}{stream > 0 && <span><b className="num">{F.pct(stream)}</b> continual learning · </span>}<b className={`num ${idle > 0.005 ? 'tone-warn' : ''}`}>{F.pct(idle)}</b> idle</span>
+        <Tip content={() => <TipCard title={<Term id="trainingPool">Training compute now</Term>} rows={[...alloc0.map(([id, v]) => ({ label: rows.find((r) => r.run.id === id)?.title ?? id, value: F.pct(v) })), ...(stream > 0 ? [{ label: 'Continual learning', value: F.pct(stream) }] : []), { label: 'Idle', value: F.pct(idle) }]}>Shares of today&apos;s training compute.</TipCard>}><span className="small" data-test="spare-share">{alloc0.map(([id, v]) => <span key={id}><b className="num">{F.pct(v)}</b> {rows.find((r) => r.run.id === id)?.title ?? ''} · </span>)}{stream > 0 && <span><b className="num">{F.pct(stream)}</b> continual learning · </span>}<b className={`num ${idle > 0.005 ? 'tone-warn' : ''}`}>{F.pct(idle)}</b> idle</span></Tip>
         <button className="dv-chip" onClick={() => store.goto('lab')}>LAB <ChevronRight size={11} /></button>
       </div>
     </Card>
@@ -228,7 +228,7 @@ function RunningNow({ s, rows, alloc, onOpen }: { s: GameStateV2; rows: RunHisto
   return (
     <Card className="rn-now" home="runningNow" title={<span className="row-i"><Loader size={15} />Running now</span>}
       right={<span className={`rn-chip ${stall ? 'warn' : 'ok'}`}>{run.status === 'paused' ? 'paused' : stall ? 'held up' : '✓ on plan'}</span>}>
-      <div className="rn-nowhd" data-run={run.id}><b>{r.title}</b><span className="small dim">{plan}</span><span className="sp" /><b className="num rn-pct">{F.pct(done)}</b></div>
+      <div className="rn-nowhd" data-run={run.id}><b>{r.title}</b><span className="small dim">{plan}</span><span className="sp" /><Tip content={() => <TipCard title="Done" value={F.pct(done)}>Share of the run's training compute already spent.</TipCard>}><b className="num rn-pct">{F.pct(done)}</b></Tip></div>
       <div className="rn-prog"><i style={{ width: `${done * 100}%` }} /></div>
       <div className="pf-kv rn-kv">
         <span className="k">Due</span>
@@ -247,7 +247,7 @@ function RunningNow({ s, rows, alloc, onOpen }: { s: GameStateV2; rows: RunHisto
         <Tip content={() => <TipCard title="Forecast at launch" value={r.forecast ? `${F.level(r.forecast.band[0])}–${F.level(r.forecast.band[1])}` : 'none'}>The level your forecast gave this run at launch (90% range; 10 = best human). Evals of the result measure the real one.</TipCard>}>
           <span>{r.forecast ? (ms ? <>would meet <b>{ms}</b></> : <>{F.level(r.forecast.band[0])}–{F.level(r.forecast.band[1])}</>) : <span className="dim">none at launch</span>}</span>
         </Tip>
-        {others.length > 0 && <><span className="k">Also running</span><span>{others.map((o) => <button key={o.run.id} className="dv-chip" onClick={() => onOpen(o.run.id)}>{o.title} · {F.pct(o.run.flopDone / Math.max(1, o.run.flopNeeded))}</button>)}</span></>}
+        {others.length > 0 && <><span className="k">Also running</span><span>{others.map((o) => <Tip key={o.run.id} content={() => <TipCard title={o.title} value={F.pct(o.run.flopDone / Math.max(1, o.run.flopNeeded))}>Done so far; click for its forecast, time and launch snapshot.</TipCard>}><button className="dv-chip" onClick={() => onOpen(o.run.id)}>{o.title} · {F.pct(o.run.flopDone / Math.max(1, o.run.flopNeeded))}</button></Tip>)}</span></>}
       </div>
       <span className="sp" />
       <div className="row-i rn-foot">
@@ -298,9 +298,9 @@ function RunDrawer({ s, r, alloc, close }: { s: GameStateV2; r: RunHistoryRow; a
         <div className="pf-dh"><SlidersHorizontal size={18} className="dim" /><h2>{r.title}</h2>{r.result && <span className="dim">→ {r.result.name}</span>}<span className="sp" /><button className="btn btn-sm btn-ghost" aria-label="Close" data-test="drawer-close" onClick={close}><X size={16} /></button></div>
         <div className="pf-sec"><div className="row-i"><span className="cap">Forecast vs result</span><span className="sp" /><span className={`small ${v.cls}`}><v.icon size={12} /> {v.word}</span></div>
           <div className="pf-kv">
-            <span className="k">Forecast at launch</span><span>{f ? <><b className="num">{F.level(f.mid)}</b> <span className="dim">(range {F.level(f.band[0])} to {F.level(f.band[1])})</span></> : <span className="dim">none: nothing was measured at launch</span>}</span>
-            {m && <><span className="k">Measured{m.day !== undefined ? ` ${fmtDate(dateOf(s, m.day)).replace(/, \d{4}$/, '')}` : ''}</span><span><b className="num">{F.level(m.L)}</b> <span className="dim">(± {F.num(m.sd, 2)}, {m.versionName})</span></span></>}
-            {r.check && <><span className="k">Miss</span><span>{r.check.verdict === 'inside' ? 'inside the range' : <>{r.check.verdict} the range by {F.num(Math.abs(r.check.z), 1)} sd; the forecast was <b>too sure</b></>}</span></>}
+            <span className="k">Forecast at launch</span>{f ? <Tip content={() => <TipCard title={<Term id="runForecast">Forecast at launch</Term>} value={F.level(f.mid)} rows={[{ label: '90% range', value: `${F.level(f.band[0])}–${F.level(f.band[1])}` }]}>Levels: 10 is the best human.</TipCard>}><span><b className="num">{F.level(f.mid)}</b> <span className="dim">(range {F.level(f.band[0])} to {F.level(f.band[1])})</span></span></Tip> : <span className="dim">none: nothing was measured at launch</span>}
+            {m && <><span className="k">Measured{m.day !== undefined ? ` ${fmtDate(dateOf(s, m.day)).replace(/, \d{4}$/, '')}` : ''}</span><Tip content={() => <TipCard title={<Term id="evals">Measured</Term>} value={F.level(m.L)} rows={[{ label: 'Measurement sd', value: F.num(m.sd, 2) }, { label: 'Model', value: m.versionName }]}>What evals measured for the model this run made.</TipCard>}><span><b className="num">{F.level(m.L)}</b> <span className="dim">(± {F.num(m.sd, 2)}, {m.versionName})</span></span></Tip></>}
+            {r.check && <><span className="k">Miss</span><span>{r.check.verdict === 'inside' ? 'inside the range' : <Tip content={() => <TipCard title="Miss" value={`${F.num(Math.abs(r.check!.z), 1)} sd`}>How far the measurement fell from the forecast, in the forecast's own spread. Beyond 1.6 the forecast's range was too narrow.</TipCard>}><span>{r.check.verdict} the range by {F.num(Math.abs(r.check.z), 1)} sd; the forecast was <b>too sure</b></span></Tip>}</span></>}
           </div>
         </div>
         <div className="pf-sec"><div className="cap">Time</div>
@@ -309,7 +309,7 @@ function RunDrawer({ s, r, alloc, close }: { s: GameStateV2; r: RunHistoryRow; a
             {run.status === 'done'
               ? <><span className="k">Finished</span><span>{r.end !== undefined ? <><b className="num">{fmtDate(dateOf(s, r.end))}</b> <span className="dim">{r.end - run.startDay} d</span></> : '—'}</span></>
               : <><span className="k">Due</span><span>{Number.isFinite(eta) ? <><b className="num">{fmtDate(dateOf(s, s.time.day + eta))}</b> <span className="dim">{Math.round(eta)} d</span></> : 'waits'}</span></>}
-            <span className="k"><Term id="poolShare">Training share</Term></span><span><b className="num">{F.pct(run.poolShare)}</b> <span className="dim">asked</span></span>
+            <span className="k"><Term id="poolShare">Training share</Term></span><Tip content={() => <TipCard title={<Term id="poolShare">Training share</Term>} value={F.pct(run.poolShare)}>Share of training compute the run asked for.</TipCard>}><span><b className="num">{F.pct(run.poolShare)}</b> <span className="dim">asked</span></span></Tip>
           </div>
         </div>
         {kv.length > 0 && <div className="pf-sec"><div className="cap">Launch snapshot</div>

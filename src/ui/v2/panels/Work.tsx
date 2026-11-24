@@ -139,7 +139,7 @@ export function NeedsBoard({ s }: { s: GameStateV2 }) {
           title={<><ICON.roleEng size={15} /><Term id="engNeeds">Engineers</Term></>}
           sub={<BuildLoad s={s} compact inUse={1 - engSpare} />}
           chip={engShort.length ? { text: `short on ${NEED_SHORT[engShort[0].k].toLowerCase()}`, tone: 'short', tip: `${engShort.map((n) => NEED_SHORT[n.k]).join(', ')} get less than they need.` } : engSpare > 0.02 ? { text: `${F.pct(engSpare)} spare`, tone: 'spare', tip: 'Build capacity no need takes this week.' } : undefined}
-          foot={upParts.length ? <>Upkeep: {upParts.map(([k, x]) => `${k} ${F.pct(x, x < 0.01 ? 1 : 0)}`).join(' · ')}</> : 'No upkeep'} />
+          foot={upParts.length ? <Tip content={() => <TipCard title={<Term id="productUpkeep">Upkeep</Term>} rows={upParts.map(([k, x]) => ({ label: k, value: F.pct(x, 1) }))}>Share of the engineers' build capacity that keeps what you built running.</TipCard>}><span>Upkeep: {upParts.map(([k, x]) => `${k} ${F.pct(x, x < 0.01 ? 1 : 0)}`).join(' · ')}</span></Tip> : 'No upkeep'} />
         <NeedsCard id="needs.re.cap" act="research.reAlloc" a={re} fmt={(x) => `${t1(x)} teams`}
           title={<><ICON.roleRE size={15} /><Term id="reNeeds">Research engineers</Term> <span className="dim small lc">capability</span></>}
           sub={<span>{t1(re.cap)} teams · 2 per programme at most</span>}
