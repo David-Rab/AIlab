@@ -168,6 +168,7 @@ function DomainChart({ dom, card }: { dom: Record<DomainId, Record<Src, number>>
             <TipCard title={<Term id="domains">{dn(d)}</Term>} value={tokT(t)} rows={[
               ...STACK.filter((k) => dom[d][k] > 1e-6).map((k) => ({ label: SRC[k].label, value: tokT(dom[d][k]) })),
               ...(L ? [{ label: 'Next new base reads', value: tokT(drawT(d)) }] : []),
+              ...(L && t > 1e-9 ? [{ label: <Term id="dataTokens">Reads per token here</Term>, value: F.num(drawT(d) / t, 2) }] : []),
             ]}>Tokens you own in {dn(d)}, by source. The bracket is what the next new base reads.</TipCard>
           );
           return (

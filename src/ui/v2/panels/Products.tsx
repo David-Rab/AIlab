@@ -627,6 +627,13 @@ function SectorShares({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRe
 
 function WinBackSec({ s, d, close, setDraft }: { s: GameStateV2; d: Deployment; close: () => void; setDraft: (id: string, c: ProductChanges) => void }) {
   const opts = useMemo(() => winBack(s, d), [s, s.time.day, d]);
+  // UB-F: the model fix's share preview (the edit preview on a copy: where buyers would head with it in the lineup).
+  const modelPv = useMemo(() => {
+    const o = opts.find((x) => x.kind === 'model');
+    if (!o || o.kind !== 'model' || o.testing || editBlock(s, d, { versionId: o.version.id })) return undefined;
+    const pv = previewEdit(s, d, { versionId: o.version.id });
+    return pv.before && pv.after ? { a: pv.before.cust.target, b: pv.after.cust.target } : undefined;
+  }, [s, s.time.day, d, opts]);
 
   if (!opts.length) return null;
   return (
@@ -636,7 +643,8 @@ function WinBackSec({ s, d, close, setDraft }: { s: GameStateV2; d: Deployment; 
         if (o.kind === 'model') return (
           <div className="opt" key="m" data-opt="model">
             <span className="oi"><Brain size={18} /></span>
-            <div><div className="ot">Add {o.version.name} to the lineup</div><Tip as="div" className="os" content={() => <TipCard title={o.version.name}>{o.testing ? 'Its tests run now (MODELS).' : 'Measured skill on tests; the edit preview shows what it would do to revenue.'}</TipCard>}>{o.testing ? 'In testing now; its skill is known when the tests finish' : `Measures ${F.level(mL(s, o.version))} on tests, above the model this product sells`}</Tip></div>
+            <div><div className="ot">Add {o.version.name} to the lineup</div><Tip as="div" className="os" content={() => <TipCard title={o.version.name}>{o.testing ? 'Its tests run now (MODELS).' : 'Measured skill on tests; the edit preview shows what it would do to revenue.'}</TipCard>}>{o.testing ? 'In testing now; its skill is known when the tests finish' : `Measures ${F.level(mL(s, o.version))} on tests, above the model this product sells`}</Tip>
+              {modelPv && <Tip as="div" className="os" content={() => <TipCard title={<Term id="targetShare">Where buyers are heading</Term>} value={`${F.pct(modelPv.a, 1)} → ${F.pct(modelPv.b, 1)}`}>Your target share with {o.version.name} as this product&apos;s model, from the edit preview at today&apos;s demand. Customers move toward it at the sector&apos;s switching speed.</TipCard>}><span data-test="prod-winback-share">buyers head to <b className="num">{F.pct(modelPv.a, 1)} → {F.pct(modelPv.b, 1)}</b></span></Tip>}</div>
             {o.testing
               ? <Ref id="modelsTesting" to={{ panel: 'models' }}>Models</Ref>
               : <button className="btn btn-sm" data-test="prod-winback-model" onClick={() => { setDraft(d.id, { versionId: o.version.id }); close(); }}>Preview</button>}
