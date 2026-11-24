@@ -113,6 +113,19 @@ The Auto serving split stays (most revenue per H100e first). A product whose nee
 hours it can; its unserved buyers re-run the choice without it (the next-best offer among those they reach, or no AI).
 One pass, in serving order. The capacity-penalty stock (`capPenalty`, `PENALTY_MAX`) is deleted.
 
+As built (MK-7, worldfx/revenue.ts `ration`, mix.ts `rerunChoice`): every buyer of a short product is served the same
+fraction (proportional rationing [D]) of its seats and of its per-hour work. Per sector × region and buyer group (its
+hours there by w_g × the group's player share × the product's part) the group's choice is re-run without the product
+and without every seller with no room left (the player's products without spare serving compute; MK-8: rivals via
+`sellerRoom`, unlimited today); the turned-away hours go to the offers that gain, band by band (shares × Choice.tot, the
+share of buyers with any offer they reach), the rest to no AI. A player product with spare compute takes hours into it
+only (excess to the cell's other destinations, else no AI). Spilled hours are billed at the receiver's price per adopted
+hour; rivals' part is kept in fx.spillRev and added to their market revenue. Chat: free users rate-limited (no share
+loss); turned-away subscribers go to the other apps by user share. Customer stock: the player's target becomes
+min(choice target, stock × (served + spare hours) ÷ asked hours), the released share to the sellers that took its
+buyers. Readout: `turnedAway` (hours, subscribers, $ at list price, by destination) per product and in total, on
+ProductRead for MK-13; limit `product.rationed` replaces `product.erosion`.
+
 ### Chat (M3)
 
 Unchanged structure: users choose by quality × brand × access, the paid share is a stock, free users are served last.

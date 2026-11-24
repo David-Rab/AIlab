@@ -120,7 +120,6 @@ export function demandModifiers(s: GameStateV2, d: Deployment): { label: string;
   return out;
 }
 
-export { PENALTY_MAX } from '../worldfx/revenue';
 export { DISCLOSURE_LABEL, DISCLOSURE_POLICIES, RESPONSE_INFO, disclosurePolicy, hardenLevel, mustReport, responseOptions, willDisclose } from '../safety/responses';
 export { bestMeasuredVersion } from '../models/labs';
 

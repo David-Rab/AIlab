@@ -2336,8 +2336,10 @@ await page.evaluate(() => {
   const dep = s.player.deployments.find((d) => d.status !== 'withdrawn' && d.channel !== 'internal');
   if (!inc && dep) { inc = { id: 'I-ui-1', day: s.time.day - 5, labId: 'player', versionId: dep.versionId, deploymentId: dep.id, trueSource: 'RH', apparent: 'RH', severity: 3, exposure: 'internal', status: 'open', responses: [] }; s.player.safety.incidents.push(inc); }
   if (inc) { inc.exposure = 'customer'; inc.publicTimerDays = 9; }
-  // A capacity-bound product (model v3 V3: the day-900 fixture's serving is no longer short).
-  for (const k of ['consumer', 'sector']) if (s.world.fx.capPenalty[k] < 0.01) s.world.fx.capPenalty[k] = 0.2;
+  // A capacity-bound product (model v3 V3: the day-900 fixture's serving is no longer short). MK-7: one sector product
+  // on a sliver of the serving pool (manual split) turns buyers away, so the product.rationed limit shows.
+  const sp = s.player.deployments.find((d) => d.status !== 'withdrawn' && ['api', 'enterprise', 'vetted'].includes(d.channel));
+  if (sp) { s.player.policies.servingAuto = false; for (const d of s.player.deployments) d.servingShare = d === sp ? 0.001 : d.servingShare; }
   st.notify();
 });
 await closeModals();

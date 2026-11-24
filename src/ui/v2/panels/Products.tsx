@@ -23,7 +23,7 @@ import {
   CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, fmtDate, fmtMonth, isProduct,
   featureView, toolRivalsView, measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
   pendingLaunch, idleServing, charterHolds, freeTierVersion, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, CERT_SECTORS, AGENT_TASK_HOURS, agentsGate, certifiedHere, harnessesCertifying,
-  demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
+  demandModifiers, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
 } from '../../../engine/v2';
 import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceStance, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store, useV2 } from '../store';
@@ -201,12 +201,11 @@ function RevSpark({ s, data }: { s: GameStateV2; data: { series: number[]; days:
 }
 
 function LimitChip({ s, d, r }: { s: GameStateV2; d: Deployment; r: ProductRead }) {
-  const erosion = s.world.fx.capPenalty[r.channel === 'consumer' ? 'consumer' : 'sector'];
   return (
     <Tip content={() => <TipCard title={<><Term id="bindingCause">Limited by</Term> {BOUND_WORD[r.bound]}</>} rows={[
       { label: 'Sold at what the work is worth', value: <Limit id="price.valueCap" tone={r.valueCapped > 0.05 ? 'warn' : 'quiet'}>{F.pct(r.valueCapped)} of sales</Limit> },
       { label: 'Demand modifiers', value: (() => { const m = demandModifiers(s, d); return <Limit id="product.demandMods" tone="quiet">{m.length ? m.map((x) => Number.isNaN(x.mult) ? x.label : `${x.label} ×${x.mult.toFixed(2)}`).join(' · ') : 'none'}</Limit>; })() },
-      ...(erosion > 0.005 ? [{ label: 'Share lost while short of serving', value: <Limit id="product.erosion" tone={erosion >= PENALTY_MAX - 1e-6 ? 'bind' : 'warn'}>−{F.pct(erosion)} (max {F.pct(PENALTY_MAX)})</Limit> }] : []),
+      ...(r.turnedAway.dollars > 0.005 ? [{ label: 'Buyers turned away (short of serving)', value: <Limit id="product.rationed" tone="warn">{F.money(r.turnedAway.dollars)}/yr{r.channel === 'consumer' ? ` · ${F.count(r.turnedAway.subs)} subscribers` : ` · ${F.count(r.turnedAway.hours)} hours/yr`}</Limit> }] : []),
     ]}>{limitReason(r)}</TipCard>}>
       <span className={`chip2 ${r.bound === 'demand' ? '' : 'warn'}`} data-test={`prod-bind.${r.id}`}><Gauge size={12} /> Limited by <b>{BOUND_WORD[r.bound]}</b></span>
     </Tip>

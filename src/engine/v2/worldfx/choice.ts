@@ -40,6 +40,9 @@ export interface Choice {
   /** RD-P03: for a provider with seller groups (`groups[i]`), sub[i][b][k] = tier k's part of its band-b share (each
    *  group's best tier for the band, split by the logit among the groups); undefined for the others. */
   sub: (number[][] | undefined)[];
+  /** MK-7: per band the share of the buyers whose choice set holds at least one offer they reach (the shares above are of
+   *  these buyers); the rest buy no AI here. Absent: 1. */
+  tot?: number[];
 }
 
 /** Share of band [lo, hi] of the tasks a tier with coverage a does adequately. */
@@ -328,9 +331,10 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     pick.push(packed(B, -1));
   }
   const mu = zeros(B);
+  const tots = zeros(B);
   const sub: (number[][] | undefined)[] = [];
   for (let i = 0; i < n; i++) sub.push(groups?.[i] ? [] : undefined);
-  if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu, sub };
+  if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu, sub, tot: tots };
   const cs = choiceSets(acc, lineups, brand);
   if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt), S.tr = new Uint8Array(2 * nt);
   if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
@@ -409,13 +413,14 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     for (let i = 0; i < n; i++) e[i] = u[i] === -Infinity ? 0 : brand[i] * Math.exp(u[i] - uMax);
     let tot = bandSharesFast(cs, e, u, brand, sh, n);
     if (Number.isNaN(tot)) tot = bandSharesPlain(cs, e, u, brand, sh, n);
+    tots[b] = tot;
     if (tot > 0) for (let i = 0; i < n; i++) {
       const x = sh[i] / tot;
       share[i][b] = x;
       target[i] += x / B;
     }
   }
-  return { aTop: top, target, share, pick, mu, sub };
+  return { aTop: top, target, share, pick, mu, sub, tot: tots };
 }
 
 /**
@@ -434,6 +439,8 @@ export function mergeChoices(parts: readonly { w: number; ch: Choice }[]): Choic
   const share: number[][] = [];
   const pick: number[][] = [];
   const sub: (number[][] | undefined)[] = [];
+  const tot = zeros(B);
+  for (const { w, ch } of parts) for (let b = 0; b < B; b++) tot[b] += w * (ch.tot?.[b] ?? 1);
   for (let i = 0; i < n; i++) {
     for (const { w, ch } of parts) target[i] += w * ch.target[i];
     const sh = zeros(B);
@@ -479,5 +486,5 @@ export function mergeChoices(parts: readonly { w: number; ch: Choice }[]): Choic
     pick.push(pk);
     sub.push(hasSub ? sb : c0.sub[i] ? [] : undefined);
   }
-  return { aTop: c0.aTop, target, share, pick, mu: c0.mu, sub };
+  return { aTop: c0.aTop, target, share, pick, mu: c0.mu, sub, tot };
 }

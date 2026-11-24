@@ -163,7 +163,10 @@ export interface SectorMix {
   /** MK-5 (M2): per business buyer group present here (share w > 0; market.ts buyerGroups), its choice's provider
    *  targets and its split of the player's hours between the player's products (the ladder: small buyers buy only API,
    *  large Enterprise or API). target and playerProdW above are these weighted by w and by the player's hours. */
-  byGroup: Partial<Record<BuyerGroupId, { w: number; target: number[]; playerProdW: Record<string, number> }>>;
+  byGroup: Partial<Record<BuyerGroupId, { w: number; target: number[]; playerProdW: Record<string, number>; ch: Choice; mask: readonly (readonly boolean[] | undefined)[] }>>;
+  /** MK-7 (M7): the choice's inputs, to re-run it for buyers turned away (rerunChoice); tierDep: the player product of
+   *  each of its tiers (its lineup in the choice's order). */
+  rerun: { lineups: Tier[][]; brand: number[]; acc: number[]; value: number; aTop: number; B: number; groups: (number[] | undefined)[]; muIn?: number[]; tierDep: string[] };
   /** MK-6 (M5): per provider the margin M it prices at here ($ per adopted task-hour over each tier's cost; 0 for open
    *  weights) and its Nash–Bertrand target (NaN: open weights or not selling here); the bands' hours-weighted average
    *  price today (tomorrow's μ_b × ε). */
@@ -566,11 +569,11 @@ function computeMix(s: GameStateV2): WorldMix {
 
   const pfFloor = 10 * techRamp(s, 'W16');
   const pfLog = 3 * techRamp(s, 'W19');
-  const pen = s.world.fx.capPenalty;
   const n = providers.length;
   const playerIdx = providers.findIndex((p) => p.key === 'player');
   const acc = REGIONS.map((r) => providers.map((p) => access(p, r)));
-  const brandPow = providers.map((p, i) => p.brand * (i === playerIdx ? 1 - pen.sector : 1));
+  // MK-7: no capacity penalty on the brand (deleted): a lab that turns buyers away loses them through its customer stock.
+  const brandPow = providers.map((p) => p.brand);
   const rate = serveDollarsPerHour(s);
 
   // RD-P04: domain G vectors (OOM, general λ scale) from the same model the offer reads: other providers', and the
@@ -866,7 +869,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const byGroup: SectorMix['byGroup'] = {};
       for (const p of parts) {
         const prodW = playerIdx >= 0 ? (parts.length === 1 ? split.prodW : prodSplit(tierMix(p.ch, playerIdx, lines[playerIdx].length, B), pTiers[si], pCand[si], cands).prodW) : {};
-        for (const g of p.gs) byGroup[g] = { w: bg[g], target: p.ch.target, playerProdW: prodW };
+        for (const g of p.gs) byGroup[g] = { w: bg[g], target: p.ch.target, playerProdW: prodW, ch: p.ch, mask: gr.mask[BUYER_GROUP_IDS.indexOf(g)] };
       }
       const playerLines: Record<string, Offer[]> = {};
       if (playerIdx >= 0) {
@@ -944,6 +947,7 @@ function computeMix(s: GameStateV2): WorldMix {
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
         tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerTierW: tierWOut, playerProdW: prodWOut, byGroup,
         markup: Mi, markupTarget, bandPrice, playerLines,
+        rerun: { lineups, brand: brandPow, acc: accSec[ri], value, aTop: aTops[si], B, groups: groups[si], ...(muIn ? { muIn } : {}), tierDep: pTiers[si].map((x) => cands[x.c].dep.id) },
       };
     }
     sec[r] = rowOut;
@@ -997,7 +1001,7 @@ function computeMix(s: GameStateV2): WorldMix {
   const consumer = {} as Record<RegionId, ConsumerMix>;
   const cOnes = filled(n, 1);
   REGIONS.forEach((r, ri) => {
-    const cBrand = providers.map((p, i) => p.brand * cApp[i] * (i === playerIdx ? 1 - pen.consumer : 1));
+    const cBrand = providers.map((p, i) => p.brand * cApp[i]);
     // A5: users choose an app by quality alone: most pay nothing (free users ≈ 95%), so the subscription price is not in
     // their choice (the old logit at equal prices); subscribers' price response is the paid-share stock. A7: the quality
     // they choose on is the free tier's, the offer they get (each lab's cheapest real model; RD-P02).
@@ -1033,9 +1037,32 @@ function computeMix(s: GameStateV2): WorldMix {
   return { providers, sec, consumer, reach, bestPublic, bestPublicLg, playerOffers, offerBy, lineupBy };
 }
 
+/** MK-7 (M7): customer-stock targets on served hours (revenue.ts), per region and sector and for consumers; absent: the
+ *  choice's target. */
+export interface ServedTargets { sec: Record<RegionId, Partial<Record<SectorId, number[]>>>; consumer: Partial<Record<RegionId, number[]>> }
+
+/**
+ * MK-7 (M7): the choice of buyer group `g` here re-run without some offers: the player's products in `dropDeps` (their
+ * tiers left out of the group's reach) and the providers in `dropProv` (every tier left out: MK-8's capacity-bound
+ * rivals). Same bands, μ, a_top and choice sets as the market's choice (a provider with no reachable tier stays in the
+ * sets with e = 0), so shares compare band by band; Choice.tot is the share of the buyers left with any offer.
+ */
+export function rerunChoice(m: SectorMix, g: BuyerGroupId, playerIdx: number, dropDeps: ReadonlySet<string>, dropProv?: ReadonlySet<number>): Choice | undefined {
+  const bg = m.byGroup[g];
+  if (!bg) return undefined;
+  const x = m.rerun;
+  const reach = x.lineups.map((L, i) => {
+    if (dropProv?.has(i)) return L.map(() => false);
+    if (i !== playerIdx) return bg.mask[i];
+    const base = bg.mask[i];
+    return x.tierDep.map((id, k) => (base ? base[k] : true) && !dropDeps.has(id));
+  });
+  return surplusChoice(x.lineups, x.brand, x.acc, x.value, x.aTop, x.B, x.groups, reach, x.muIn);
+}
+
 /** Move every segment's customer stock toward its logit target (daily; V4.2). Segments with no stock start at the target
  *  (no jump on day 0); providers that left drop out; a new provider starts at 0 and grows. */
-export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
+export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365, served?: ServedTargets) {
   const fx = s.world.fx;
   fx.cust ??= { US: {}, CN: {}, ROW: {} };
   const ps = mix.providers;
@@ -1080,8 +1107,9 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365) {
   stepPrices(s, mix, Math.min(1, dt / PRICE_TAU));
   const kPaid = Math.min(1, dt / CONSUMER_MKT.paid.tau);
   for (const r of REGIONS) {
-    for (const t of SECTOR_TASKS) step(r, t.id, mix.sec[r][t.id].target, t.gov ? CUSTOMER_TAU.gov : CUSTOMER_TAU.sector);
-    step(r, 'consumer', mix.consumer[r].target, CUSTOMER_TAU.consumer);
+    // MK-7: toward the targets on served hours where the revenue system rationed (revenue.ts servedTargets).
+    for (const t of SECTOR_TASKS) step(r, t.id, served?.sec[r]?.[t.id] ?? mix.sec[r][t.id].target, t.gov ? CUSTOMER_TAU.gov : CUSTOMER_TAU.sector);
+    step(r, 'consumer', served?.consumer[r] ?? mix.consumer[r].target, CUSTOMER_TAU.consumer);
     const cm = mix.consumer[r];
     const old = fx.paid[r] ?? {};
     const out: Record<string, number> = {};

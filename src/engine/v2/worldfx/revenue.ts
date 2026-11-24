@@ -23,16 +23,29 @@
 //                 default the lineup's cheapest; worldfx/serving.ts chatFreeTier), pay nothing and are
 //                 served last; need from usage per user-day (paid 30k/8k, free 7.5k/1.5k tokens)
 //   revenue     = demand $ × min(1, served ÷ need)   (consumer: paying users are served first)
+// MK-7 rationing (design/MARKET.md M7, research/MARKET-sources.md §4): a product short of serving compute keeps its list
+// price and serves the hours its compute allows (segments in order: seats before per-hour work, paying users before free
+// ones); every buyer of it is served the same fraction (proportional rationing [D]). The turned-away buyers re-run their
+// group's choice without it (worldfx/mix.ts rerunChoice): their hours go to their next-best offer among those their group
+// reaches, or to no AI (choice sets with nothing else they reach). One pass over the capped products in serving order
+// (most revenue per H100e first): a receiving player product takes hours only into its spare serving compute, the
+// excess goes to the cell's other destinations with room, else no AI (not re-run). Rivals take every hour (no capacity
+// yet: MK-8 supplies sellerRoom). Spilled hours are billed at the receiver's price per adopted hour (agent and seated
+// hours at that price too [D]). Chat: free users are rate-limited (no spillover, no share loss); turned-away
+// subscribers go to the other apps by their user shares (the logit's IIA). Customers stay with the lab (M4): its stock
+// moves toward the target on served hours, min(choice target, stock × (served + spare) ÷ asked), the released share
+// to the sellers that took its buyers (no AI is not a stock: normalisation spreads it).
 // Serving split (R6): with the Auto policy (default) each product needs its H100e; the pool serves the products earning
 // most per H100e first and records what it cuts; spare pool is spread over the products in proportion to need. With Auto
-// off the products keep the shares set by hand (scaled if > 100%). Capacity-bound products lose share (0.5%/day of the
-// excess, through the brand term of the logit); demand-bound ones report quality or price.
+// off the products keep the shares set by hand (scaled if > 100%). Capacity-bound products ration (MK-7, above);
+// demand-bound ones report quality or price.
 // Gov and trusted contract lump sums arrive through events/actions (WS4), not here.
 import { productSafeguardOverhead, productUsageMult } from '../safety/safeguards';
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
 import { CONSUMER_MKT, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SectorId, SystemCtx } from '../types';
-import { SECTOR_CHANNELS, advanceCustomers, paidDeployments, worldMix, type WorldMix } from './mix';
+import { BUYER_GROUP_IDS, SECTOR_CHANNELS, advanceCustomers, paidDeployments, rerunChoice, worldMix, type BuyerGroupId, type ServedTargets, type WorldMix } from './mix';
+import type { Choice } from './choice';
 import { monitorOverhead } from '../models/products';
 import { versionById } from '../models/labs';
 import { savedAt, useShareOf, workHoursOf } from './use';
@@ -50,8 +63,6 @@ import { PEAK_FLOPS } from '../../../data/v2/workTypes';
 // RD-P03 (DD-02): the player's sector hours split between its products by the buyers' choice (each product its own
 // seller, worldfx/mix.ts playerProdW), not by channel weights. Trusted access's ×3 price is in its offer (RD-B11 B16).
 const GOV_SECTORS = new Set(['GOV', 'MIL']);
-/** Ceiling on share erosion from serving shortfall (a capacity-bound leader keeps a core of customers) [D]. */
-export const PENALTY_MAX = 0.75;
 
 export interface DeploymentRevenue {
   id: string;
@@ -104,6 +115,28 @@ export interface DeploymentRevenue {
   tiers?: { hours: number; dem: Money }[];
   /** RD-P10: output tokens a day each of its models serves (Deployment.servedBy). */
   servedBy: Record<string, number>;
+  /** MK-7 (M7): the buyers it turned away (short of serving compute) and where they went; the buyers it took from the
+   *  player's capacity-short products into its spare compute (in revenue). */
+  turnedAway: TurnedAway;
+  spillIn: { hours: number; dollars: Money };
+}
+
+/** MK-7: buyers turned away: billed AI work-hours a year (sector products: adopted, agent and seated hours) and Chat
+ *  subscribers, their revenue at the product's list price ($B/yr); `to` by destination (a player product id, a rival's
+ *  provider key, 'none' = no AI): the hours or subscribers and what the receiving seller earns on them ($B/yr at its
+ *  own price; 0 for no AI). */
+export interface TurnedAway {
+  hours: number;
+  subs: number;
+  dollars: Money;
+  to: Record<string, { hours: number; subs: number; dollars: Money }>;
+}
+const noneAway = (): TurnedAway => ({ hours: 0, subs: 0, dollars: 0, to: {} });
+function addAway(t: TurnedAway, key: string, hours: number, subs: number, dollars: Money) {
+  const x = (t.to[key] ??= { hours: 0, subs: 0, dollars: 0 });
+  x.hours += hours;
+  x.subs += subs;
+  x.dollars += dollars;
 }
 
 export interface RevenueReadout {
@@ -116,6 +149,17 @@ export interface RevenueReadout {
   consumerSpend: Record<RegionId, Money>;
   /** A4: the player's agent-hours a year per region and sector (all its products, after the demand ceiling). */
   playerAgent: Record<RegionId, Partial<Record<SectorId, number>>>;
+  /** MK-7: buyers turned away by all the player's products; what other sellers earn on them (provider key → $B/yr);
+   *  the customer-stock targets on served hours where they differ from the choice's. */
+  turnedAway: TurnedAway;
+  spillRev: Record<string, Money>;
+  served: ServedTargets;
+}
+
+/** MK-7 / MK-8 hook: serving compute (H100e) a non-player seller can still put on buyers turned away by others. Rivals
+ *  have no serving capacity yet (MK-8 supplies it): unlimited. */
+export function sellerRoom(_s: GameStateV2, _key: string): number {
+  return Infinity;
 }
 
 /** Hours of AI use a year in one sector and region: U·E0·2000 (adopted task-hours plus workers' assisted use, A2a). */
@@ -300,6 +344,8 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const consumerSpendR = { US: 0, CN: 0, ROW: 0 } as Record<RegionId, Money>;
   const playerAgent: RevenueReadout['playerAgent'] = { US: {}, CN: {}, ROW: {} };
   const rate = serveDollarsPerHour(s);
+  const cells = new Map<string, Cell[]>();
+  const ccells = new Map<string, CCell[]>();
 
   // Sector demand: offers per (product, sector) are region-independent: compute once.
   const sectorDeps = deps.filter((d) => SECTOR_CHANNELS.includes(d.channel));
@@ -381,6 +427,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       for (const { d, w, seat, o, line, tw } of ws as (Row & { w: number; tw?: number[] })[]) {
         const f = fOf(d);
         const a = acc.get(d.id)!;
+        const c0 = { adopted: a.adopted, agent: a.agent, dem: a.dem, need: a.need, seats: a.seats, seatHours: a.seatHours, seatDem: a.seatDem, seatNeed: a.seatNeed };
         // Adopted task-hours, billed per hour.
         if (w > 0) {
           let x = ps * wh.adopted * w * f;
@@ -427,6 +474,12 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
           a.seatCost += (hs * o.hphAs * rate) / 1e9;
           a.seatPrice = o.seat;
         }
+        // MK-7: this sector-region's part of the product's demand (rationing and spillover read it).
+        const cell: Cell = {
+          r, sid: def.id, adopted: a.adopted - c0.adopted, agent: a.agent - c0.agent, dem: a.dem - c0.dem, need: a.need - c0.need,
+          seats: a.seats - c0.seats, seatHours: a.seatHours - c0.seatHours, seatDem: a.seatDem - c0.seatDem, seatNeed: a.seatNeed - c0.seatNeed,
+        };
+        if (cell.adopted + cell.agent + cell.seatHours > 0) (cells.get(d.id) ?? cells.set(d.id, []).get(d.id)!).push(cell);
       }
     });
     // Consumer demand: users of the player's chat products (customer stock × reach), paying subscribers × price.
@@ -474,6 +527,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         a.subCost = x.sp.cost;
         a.subPrice = x.sp.price;
         a.paidTarget = cm.paidTarget[playerIdx];
+        (ccells.get(x.d.id) ?? ccells.set(x.d.id, []).get(x.d.id)!).push({ r, subs, dem: (subs * x.sp.price * 12) / 1e9 });
       });
     }
   }
@@ -490,6 +544,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
   const segs = new Map(deps.map((d) => [d.id, segsOf(d)]));
   const split = servingSplit(s, deps, (d) => segs.get(d.id)!.map((x) => ({ need: x.need, rpH: x.need > 0 ? (x.dem * 1e9) / x.need : 0 })));
   const out: DeploymentRevenue[] = [];
+  const served = new Map<string, { seat: number; work: number }>();
   let total = 0;
   let D = 0;
   let C = 0;
@@ -504,11 +559,15 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
     // Segments are served in order (paying consumers before free users; seats before per-hour work).
     let left = h;
     let revenue = 0;
+    const fr: number[] = [];
     for (const x of sg) {
       const got = Math.min(left, x.need);
       revenue += x.need > 0 ? (x.dem * got) / x.need : x.dem;
+      fr.push(x.need > 0 ? got / x.need : 1);
       left -= got;
     }
+    // MK-7: the served fraction of its seats and of its per-hour work (Chat: of its paying users).
+    served.set(d.id, d.channel === 'consumer' ? { seat: 1, work: fr[0] } : sg.length > 1 ? { seat: fr[0], work: fr[1] } : { seat: 1, work: fr[0] });
     // Capacity ($B/yr the served H100e could earn): consumers at the paying users' rate; sector products in serving order
     // (seats, then per-hour work), H100e beyond the need at the per-hour work's rate.
     let capacity: number;
@@ -527,7 +586,7 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       id: d.id, channel: d.channel, demand, capacity, revenue, bound, servingH100e: h, rpH: sp.rpH, needH100e: need, cutH100e: sp.cut,
       hours: a.hours, capHours: allHours > 0 && need > 0 ? (allHours * h) / need : 0,
       costPerHour: a.hours > 0 ? (a.cost * 1e9) / a.hours : 0, pricePerHour: a.hours > 0 ? (a.dem * 1e9) / a.hours : 0,
-      valueCapped: demand > 0 ? a.capped / demand : 0, servedBy,
+      valueCapped: demand > 0 ? a.capped / demand : 0, servedBy, turnedAway: noneAway(), spillIn: { hours: 0, dollars: 0 },
       ...(d.channel === 'consumer' ? {
         users: a.users, subs: a.subs, subCost: a.subCost, subPrice: a.subPrice, paidTarget: a.paidTarget,
         needPaid: a.needPaid * mon, needFree: (a.need - a.needPaid) * mon, cutFree: Math.max(0, Math.min((a.need - a.needPaid) * mon, sp.cut)),
@@ -537,11 +596,347 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         tiers: Array.from({ length: Math.max(a.tH.length, a.tD.length) }, (_, k) => ({ hours: a.tH[k] ?? 0, dem: a.tD[k] ?? 0 })),
       }),
     });
-    total += revenue;
     D += demand;
     C += capacity;
   }
-  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent };
+  const ra = ration(s, mix, playerIdx, out, cells, ccells, served);
+  for (const x of out) total += x.revenue;
+  return { deps: out, total, demand: D, capacity: C, marketSpend, consumerSpend: consumerSpendR, playerAgent, ...ra };
+}
+
+/** MK-7: one product's demand in one sector × region (hours a year; $B/yr; serving need in H100e before the monitor). */
+interface Cell { r: RegionId; sid: SectorId; adopted: number; agent: number; dem: Money; need: number; seats: number; seatHours: number; seatDem: Money; seatNeed: number }
+/** MK-7: a Chat product's paying subscribers in one region and their revenue ($B/yr). */
+interface CCell { r: RegionId; subs: number; dem: Money }
+/** MK-7: where a buyer group's turned-away buyers of one product go: per provider index (not the player's) and per other
+ *  player product the share of their hours; the rest buy no AI. */
+interface Divert { to: number[]; prod: Record<string, number>; none: number }
+
+/** MK-7: the diversion of product `dep`'s buyers from choice `base` (with it) to `alt` (the same without it), band by
+ *  band: each other seller's gain (shares of all buyers: share × Choice.tot) over `dep`'s share there; the rest (sets
+ *  with nothing else) no AI. A product the choice gives no share (its buyers come from the stock): the alternative's
+ *  shares. */
+function divertOf(base: Choice, alt: Choice, p: number, tierDep: readonly string[], dep: string): Divert {
+  const n = base.target.length;
+  const B = base.mu.length;
+  const to: number[] = [];
+  for (let i = 0; i < n; i++) to.push(0);
+  const prod: Record<string, number> = {};
+  const others = [...new Set(tierDep)].filter((id) => id !== dep);
+  const partOf = (ch: Choice, b: number, id: string) => {
+    const sb = ch.sub[p]?.[b];
+    let x = 0;
+    if (sb && sb.length) {
+      for (let k = 0; k < tierDep.length; k++) if (tierDep[k] === id) x += sb[k] ?? 0;
+    } else {
+      const k = ch.pick[p]?.[b] ?? -1;
+      x = k >= 0 && tierDep[k] === id ? 1 : 0;
+    }
+    return (ch.share[p]?.[b] ?? 0) * x;
+  };
+  let dm = 0;
+  for (let b = 0; b < B; b++) {
+    const t0 = base.tot?.[b] ?? 1;
+    const rb = t0 > 0 ? (alt.tot?.[b] ?? 1) / t0 : 0;
+    const x = partOf(base, b, dep);
+    if (!(x > 0)) continue;
+    dm += x;
+    for (let j = 0; j < n; j++) if (j !== p) to[j] += Math.max(0, alt.share[j][b] * rb - base.share[j][b]);
+    for (const id of others) prod[id] = (prod[id] ?? 0) + Math.max(0, partOf(alt, b, id) * rb - partOf(base, b, id));
+  }
+  if (!(dm > 0)) {
+    for (let b = 0; b < B; b++) {
+      const t0 = base.tot?.[b] ?? 1;
+      const rb = t0 > 0 ? (alt.tot?.[b] ?? 1) / t0 : 0;
+      for (let j = 0; j < n; j++) if (j !== p) to[j] += (alt.share[j][b] * rb) / B;
+      for (const id of others) prod[id] = (prod[id] ?? 0) + (partOf(alt, b, id) * rb) / B;
+    }
+    dm = 1;
+  }
+  let sum = 0;
+  for (let j = 0; j < n; j++) sum += (to[j] /= dm);
+  for (const id of others) sum += (prod[id] = (prod[id] ?? 0) / dm);
+  if (sum > 1) {
+    for (let j = 0; j < n; j++) to[j] /= sum;
+    for (const id of others) prod[id] /= sum;
+    sum = 1;
+  }
+  return { to, prod, none: Math.max(0, 1 - sum) };
+}
+
+/**
+ * MK-7 (design/MARKET.md M7): rationing at the list price and spillover. Each capacity-short product (in serving order:
+ * most revenue per H100e first) turns away (1 − served fraction) of its per-hour work and of its seated hours in every
+ * sector × region; per buyer group (its hours there by w_g × the group's player share × its part) the group's choice is
+ * re-run without it and without every seller that has no room left at that point (the player's products without spare
+ * serving compute; MK-8: rivals with none), and the buyers go to the offers that gain (divertOf), else to no AI. A
+ * player product takes them into its spare compute only (the excess: to the cell's other destinations that took theirs
+ * in full, else no AI). Chat: turned-away subscribers go to the other apps by user share; free users are rate-limited.
+ * Revenue of the receiving products is added to `out`; rivals' in spillRev. Customer-stock targets on served hours:
+ * the player's min(choice target, stock × (served + spare) ÷ asked), the released share to the sellers that took its
+ * buyers there (else by their targets).
+ */
+function ration(s: GameStateV2, mix: WorldMix, p: number, out: DeploymentRevenue[], cells: Map<string, Cell[]>, ccells: Map<string, CCell[]>, served: Map<string, { seat: number; work: number }>): Pick<RevenueReadout, 'turnedAway' | 'spillRev' | 'served'> {
+  const total = noneAway();
+  const spillRev: Record<string, Money> = {};
+  const servedT: ServedTargets = { sec: { US: {}, CN: {}, ROW: {} }, consumer: {} };
+  if (p < 0) return { turnedAway: total, spillRev, served: servedT };
+  const n = mix.providers.length;
+  const byId = new Map(out.map((x) => [x.id, x]));
+  const depById = new Map(paidDeployments(s).map((d) => [d.id, d]));
+  const monOf = (id: string) => {
+    const d = depById.get(id);
+    return d ? 1 + monitorOverhead(s, d) + productSafeguardOverhead(d) : 1;
+  };
+  const cellAt = new Map<string, Cell>();
+  for (const [id, cs] of cells) for (const c of cs) cellAt.set(`${id}|${c.r}|${c.sid}`, c);
+  // Room (H100e): a player product's spare serving compute; other sellers' (MK-8 hook; unlimited today).
+  const room = new Map<string, number>();
+  for (const x of out) room.set(x.id, Math.max(0, x.servingH100e - x.needH100e));
+  const provRoom = mix.providers.map((q, i) => (i === p ? 0 : sellerRoom(s, q.key)));
+  const rsRival = new Map<string, number[]>();
+  const rsAbs = new Map<string, number>();
+  const chMemo = new Map<string, Choice | undefined>();
+  const memoCh = (k: string, f: () => Choice | undefined) => {
+    if (!chMemo.has(k)) chMemo.set(k, f());
+    return chMemo.get(k);
+  };
+  const zeros = () => mix.providers.map(() => 0);
+  const order = out.filter((x) => x.channel !== 'consumer').sort((a, b) => b.rpH - a.rpH || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const x of order) {
+    const fr = served.get(x.id);
+    if (!fr) continue;
+    const uW = Math.max(0, 1 - fr.work);
+    const uS = Math.max(0, 1 - fr.seat);
+    if (!(uW > 1e-9 || uS > 1e-9)) continue;
+    const dropDeps = new Set<string>([x.id]);
+    for (const y of order) if (!((room.get(y.id) ?? 0) > 1e-9)) dropDeps.add(y.id);
+    const dropProv = new Set<number>();
+    provRoom.forEach((v, i) => {
+      if (i !== p && !(v > 1e-9)) dropProv.add(i);
+    });
+    const without = new Set([...dropDeps].filter((id) => id !== x.id));
+    const kProv = [...dropProv].join(',');
+    const kBase = `${[...without].sort().join(',')}|${kProv}`;
+    const kAlt = `${[...dropDeps].sort().join(',')}|${kProv}`;
+    interface Dest { c: Cell; th: number; td: number; to: number[]; prod: Record<string, number>; none: number }
+    const dests: Dest[] = [];
+    for (const c of cells.get(x.id) ?? []) {
+      const th = (c.adopted + c.agent) * uW + c.seatHours * uS;
+      if (!(th > 0)) continue;
+      const td = c.dem * uW + c.seatDem * uS;
+      const m = mix.sec[c.r][c.sid];
+      const tierDep = m.rerun.tierDep;
+      const to = zeros();
+      const prod: Record<string, number> = {};
+      let none = 0;
+      const gs: [BuyerGroupId, number][] = [];
+      let W = 0;
+      for (const g of BUYER_GROUP_IDS) {
+        const bg = m.byGroup[g];
+        const wg = bg ? bg.w * bg.target[p] * (bg.playerProdW[x.id] ?? 0) : 0;
+        if (wg > 0) {
+          gs.push([g, wg]);
+          W += wg;
+        }
+      }
+      if (!(W > 0)) for (const g of BUYER_GROUP_IDS) {
+        const bg = m.byGroup[g];
+        if (bg && tierDep.some((id, k) => id === x.id && (bg.mask[p]?.[k] ?? true))) {
+          gs.push([g, bg.w]);
+          W += bg.w;
+        }
+      }
+      if (!(W > 0)) none = 1;
+      for (const [g, wg] of gs) {
+        const base = memoCh(`${c.r}|${c.sid}|${g}|${kBase}`, () => (without.size || dropProv.size ? rerunChoice(m, g, p, without, dropProv) : m.byGroup[g]?.ch));
+        const alt = memoCh(`${c.r}|${c.sid}|${g}|${kAlt}`, () => rerunChoice(m, g, p, dropDeps, dropProv));
+        const f = wg / W;
+        if (!base || !alt) {
+          none += f;
+          continue;
+        }
+        const dv = divertOf(base, alt, p, tierDep, x.id);
+        for (let j = 0; j < n; j++) to[j] += f * dv.to[j];
+        for (const id in dv.prod) prod[id] = (prod[id] ?? 0) + f * dv.prod[id];
+        none += f * dv.none;
+      }
+      dests.push({ c, th, td, to, prod, none });
+    }
+    // Per hour: a receiving player product's serving need (H100e incl. its monitor) and price ($) in the cell (else its
+    // average); a rival's need from its tier mix there (only where its room is finite: MK-8).
+    const prodHph = (id: string, c: Cell) => {
+      const cc = cellAt.get(`${id}|${c.r}|${c.sid}`);
+      const hh = cc ? cc.adopted + cc.agent : 0;
+      if (cc && hh > 0) return (cc.need / hh) * monOf(id);
+      const e = byId.get(id)!;
+      return e.hours > 0 ? (e.needH100e - (e.needSeat ?? 0)) / e.hours : 0;
+    };
+    const prodPrice = (id: string, c: Cell) => {
+      const cc = cellAt.get(`${id}|${c.r}|${c.sid}`);
+      const hh = cc ? cc.adopted + cc.agent : 0;
+      return cc && hh > 0 ? (cc.dem * 1e9) / hh : byId.get(id)!.pricePerHour;
+    };
+    const rivalHph = (j: number, c: Cell) => {
+      const t = mix.sec[c.r][c.sid].tiers;
+      let h = 0;
+      t.weight[j]?.forEach((w, k) => (h += w * (t.offers[j][k]?.hph ?? 0)));
+      return h / SERVE_HOURS_PER_YEAR;
+    };
+    // Room: the share of what each finite-room destination is asked for that it can take.
+    const wantP = new Map<string, number>();
+    const wantR = zeros();
+    for (const z of dests) {
+      for (const id in z.prod) wantP.set(id, (wantP.get(id) ?? 0) + z.th * z.prod[id] * prodHph(id, z.c));
+      for (let j = 0; j < n; j++) if (z.to[j] > 0 && Number.isFinite(provRoom[j])) wantR[j] += z.th * z.to[j] * rivalHph(j, z.c);
+    }
+    const okP = new Map<string, number>();
+    for (const [id, w] of wantP) okP.set(id, w > 0 ? Math.min(1, (room.get(id) ?? 0) / w) : 1);
+    const okR = wantR.map((w, j) => (Number.isFinite(provRoom[j]) && w > 0 ? Math.min(1, provRoom[j] / w) : 1));
+    const ta = x.turnedAway;
+    for (const z of dests) {
+      const c = z.c;
+      const m = mix.sec[c.r][c.sid];
+      const k = `${c.r}|${c.sid}`;
+      ta.hours += z.th;
+      ta.dollars += z.td;
+      // The hours each destination takes, and the excess over its room (to the destinations that took theirs in full).
+      let over = 0;
+      let full = 0;
+      const takeP: Record<string, number> = {};
+      const takeR = zeros();
+      for (const id in z.prod) {
+        const h = z.th * z.prod[id];
+        const a = okP.get(id) ?? 1;
+        takeP[id] = h * a;
+        over += h * (1 - a);
+        if (a >= 1) full += h;
+      }
+      for (let j = 0; j < n; j++) if (z.to[j] > 0) {
+        const h = z.th * z.to[j];
+        takeR[j] = h * okR[j];
+        over += h * (1 - okR[j]);
+        if (okR[j] >= 1) full += h;
+      }
+      let noneH = z.th * z.none;
+      if (over > 0) {
+        if (full > 0) {
+          const g = 1 + over / full;
+          for (const id in takeP) if ((okP.get(id) ?? 1) >= 1) takeP[id] *= g;
+          for (let j = 0; j < n; j++) if (okR[j] >= 1) takeR[j] *= g;
+        } else noneH += over;
+      }
+      for (const id in takeP) {
+        const h = takeP[id];
+        if (!(h > 0)) continue;
+        const e = byId.get(id)!;
+        const dol = (h * prodPrice(id, c)) / 1e9;
+        const need = h * prodHph(id, c);
+        e.revenue += dol;
+        e.needH100e += need; // served from its spare compute
+        e.spillIn.hours += h;
+        e.spillIn.dollars += dol;
+        room.set(id, Math.max(0, (room.get(id) ?? 0) - need));
+        rsAbs.set(k, (rsAbs.get(k) ?? 0) + h);
+        addAway(ta, id, h, 0, dol);
+      }
+      const rv = rsRival.get(k) ?? rsRival.set(k, zeros()).get(k)!;
+      for (let j = 0; j < n; j++) {
+        const h = takeR[j];
+        if (!(h > 0)) continue;
+        const key = mix.providers[j].key;
+        const dol = (h * m.prices[j]) / 1e9;
+        spillRev[key] = (spillRev[key] ?? 0) + dol;
+        if (Number.isFinite(provRoom[j])) provRoom[j] = Math.max(0, provRoom[j] - h * rivalHph(j, c));
+        rv[j] += h;
+        addAway(ta, key, h, 0, dol);
+      }
+      if (noneH > 0) addAway(ta, 'none', noneH, 0, 0);
+    }
+  }
+  // Customer-stock targets on served hours per sector × region (sector products).
+  const asked = new Map<string, number>();
+  const capH = new Map<string, number>();
+  for (const x of order) {
+    const need = x.needH100e; // incl. the turned-away buyers it took
+    const f = need > 0 ? x.servingH100e / need : 1;
+    for (const c of cells.get(x.id) ?? []) {
+      const k = `${c.r}|${c.sid}`;
+      const h = c.adopted + c.agent + c.seatHours;
+      asked.set(k, (asked.get(k) ?? 0) + h);
+      capH.set(k, (capH.get(k) ?? 0) + h * f);
+    }
+  }
+  for (const [k, a] of asked) {
+    if (!(a > 0)) continue;
+    const [r, sid] = k.split('|') as [RegionId, SectorId];
+    const m = mix.sec[r][sid];
+    const kap = ((capH.get(k) ?? 0) + (rsAbs.get(k) ?? 0)) / a;
+    const t = m.target;
+    const tp = Math.min(t[p], m.share[p] * kap);
+    if (!(tp < t[p] - 1e-9)) continue;
+    servedT.sec[r][sid] = shiftTarget(t, p, tp, rsRival.get(k));
+  }
+  // Chat: turned-away subscribers to the other apps by user share; free users rate-limited.
+  for (const x of out) {
+    if (x.channel !== 'consumer') continue;
+    const u = Math.max(0, 1 - (served.get(x.id)?.work ?? 1));
+    if (!(u > 1e-9)) continue;
+    for (const c of ccells.get(x.id) ?? []) {
+      const subs = c.subs * u;
+      if (!(subs > 0)) continue;
+      const cm = mix.consumer[c.r];
+      let z = 0;
+      for (let j = 0; j < n; j++) if (j !== p && cm.fit[j] > -Infinity) z += cm.target[j];
+      x.turnedAway.subs += subs;
+      x.turnedAway.dollars += c.dem * u;
+      if (!(z > 0)) {
+        addAway(x.turnedAway, 'none', 0, subs, 0);
+        continue;
+      }
+      for (let j = 0; j < n; j++) if (j !== p && cm.fit[j] > -Infinity && cm.target[j] > 0) {
+        const sj = (subs * cm.target[j]) / z;
+        const dol = (sj * cm.prices[j] * 12) / 1e9;
+        const key = mix.providers[j].key;
+        spillRev[key] = (spillRev[key] ?? 0) + dol;
+        addAway(x.turnedAway, key, 0, sj, dol);
+      }
+    }
+  }
+  for (const r of REGIONS) {
+    let sub = 0;
+    let got = 0;
+    for (const x of out) if (x.channel === 'consumer') for (const c of ccells.get(x.id) ?? []) if (c.r === r) {
+      sub += c.subs;
+      got += c.subs * (served.get(x.id)?.work ?? 1);
+    }
+    if (!(sub > 0) || got >= sub * (1 - 1e-9)) continue;
+    const cm = mix.consumer[r];
+    const tp = Math.min(cm.target[p], cm.share[p] * (got / sub));
+    if (tp < cm.target[p] - 1e-9) servedT.consumer[r] = shiftTarget(cm.target, p, tp, undefined);
+  }
+  for (const x of out) {
+    const t = x.turnedAway;
+    total.hours += t.hours;
+    total.subs += t.subs;
+    total.dollars += t.dollars;
+    for (const k in t.to) addAway(total, k, t.to[k].hours, t.to[k].subs, t.to[k].dollars);
+  }
+  return { turnedAway: total, spillRev, served: servedT };
+}
+
+/** MK-7: a target with provider p's share lowered to `tp`, the released share to the others by `w` (the hours they took
+ *  from p), else by their own targets. */
+function shiftTarget(t: readonly number[], p: number, tp: number, w: readonly number[] | undefined): number[] {
+  const out = t.slice();
+  const rel = t[p] - tp;
+  out[p] = tp;
+  let z = 0;
+  if (w) for (let j = 0; j < t.length; j++) if (j !== p) z += w[j];
+  const by = z > 0 ? w! : t;
+  if (!(z > 0)) for (let j = 0; j < t.length; j++) if (j !== p) z += t[j];
+  if (z > 0) for (let j = 0; j < t.length; j++) if (j !== p) out[j] += (rel * by[j]) / z;
+  return out;
 }
 
 /** RD-P10: tokens a day per model of product `d` from its demand as served: Chat in serving order (paying users on the
@@ -593,7 +988,8 @@ export function labMarketRevenue(s: GameStateV2, lab: LabId, mix: WorldMix = wor
     const cm = mix.consumer[r];
     x += (cm.share[i] * consumerUsers(s, r) * cm.paid[i] * cm.prices[i] * 12) / 1e9;
   }
-  return x;
+  // MK-7: plus what it earns on the buyers the player's capacity-short products turned away (the last revenue tick).
+  return x + (s.world.fx.spillRev?.[lab] ?? 0);
 }
 
 /** revenue (60, daily): demand vs capacity per deployment → revenueRate (Auto serving split, R6); books revenue/365 ONCE
@@ -642,25 +1038,10 @@ export function applyRevenue(s: GameStateV2, ctx: SystemCtx): RevenueReadout {
   }
   if (rd.total > 0) bookCash(s, ctx, rd.total / 365, 'revenue', 'revenue', top ? `${top.channel} ${top.bound}-bound` : undefined);
   revenueToParent(s, ctx, rd.total / 365); // a division's revenue goes to the parent (R9)
-  advanceCustomers(s, mix);
-
-  // Share erosion when capacity-bound (0.5%/day of the unserved share of the need), slow recovery when there is slack.
-  const pen = s.world.fx.capPenalty;
-  const upd = (key: 'consumer' | 'sector', sel: (x: DeploymentRevenue) => boolean) => {
-    let need = 0;
-    let got = 0;
-    for (const x of rd.deps) if (sel(x)) {
-      need += x.needH100e;
-      got += x.servingH100e;
-    }
-    if (need <= 0) {
-      pen[key] = Math.max(0, pen[key] - 0.01);
-      return;
-    }
-    if (need > got) pen[key] = Math.min(PENALTY_MAX, pen[key] + 0.005 * ((need - got) / need));
-    else pen[key] = Math.max(0, pen[key] - 0.03 * ((got - need) / Math.max(got, 1e-9)));
-  };
-  upd('consumer', (x) => x.channel === 'consumer');
-  upd('sector', (x) => x.channel !== 'consumer');
+  // MK-7: customer stocks toward the targets on served hours; other sellers' revenue on the turned-away buyers.
+  advanceCustomers(s, mix, undefined, rd.served);
+  const sr: Record<string, number> = {};
+  for (const k in rd.spillRev) if (rd.spillRev[k] > 1e-6) sr[k] = Number(rd.spillRev[k].toPrecision(6));
+  s.world.fx.spillRev = sr;
   return rd;
 }

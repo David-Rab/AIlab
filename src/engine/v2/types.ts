@@ -2207,8 +2207,9 @@ export interface WorldFxState {
   /** Paid share of each provider's weekly chat users (A2b): by region, provider key (as in `cust`) → share who
    *  subscribe. A stock toward (p0 + p1·coverage)·(wtp ÷ price)^ε; empty entries start at their target. */
   paid: Record<RegionId, Record<string, number>>;
-  /** Share erosion from serving shortfall (V2-SPEC §3.11.3), by market. 0..0.9 */
-  capPenalty: { consumer: number; sector: number };
+  /** MK-7 (design/MARKET.md M7): revenue ($B/yr) other sellers (provider key) earned yesterday from the buyers the
+   *  player's capacity-short products turned away (worldfx/revenue.ts); rival finance adds it to their market revenue. */
+  spillRev?: Record<string, number>;
   /** US employment of 22–25-year-olds vs counterfactual, by sector (Canaries, research/16 §1A.2 step 8). */
   youthRel: Record<SectorId, number>;
   /** Friction added by major incidents (+0.05 each) and court rulings; decays over a year. Per sector. */
