@@ -191,3 +191,8 @@ export function actionVote(s: GameStateV2, id: string, params: Record<string, nu
     return undefined;
   }
 }
+
+// ───────────── End screen (the one hidden-reading selector; src/ui/v2/end only) ─────────────
+export { endingView, lagText } from './endings/view';
+export type { EndingView, EndStep, FutureHolder, EndTone, PowerDomain, ScoreView, RaceLab, WhyView, HiddenLab, HiddenFact, AgendaTruth, CompanyStatus, AsiOutcome, LabKind, LabStatusView, LabShare } from './endings/view';
+export type { ScoreKey, ScoreTerm } from './endings/scoring';
