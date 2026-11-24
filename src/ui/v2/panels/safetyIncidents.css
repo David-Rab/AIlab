@@ -60,7 +60,8 @@
 .sfc-odds { display: inline-flex; gap: 10px; flex-wrap: wrap; color: var(--text-2); }
 .sfc-note { font-size: 11.5px; }
 .sfc .sans { font-family: var(--sans); }
-.sfc-case-ft { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.sfc-case-ft { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.sfc-case-ft > :has(> .limit), .sfc-case-ft > .limit { order: 10; flex-basis: 100%; }
 .sfc .sfc-sel { font-size: 12.5px; padding: 3px 6px; height: auto; line-height: 1.3; width: auto; max-width: 180px; }
 .sfc-pbar { height: 6px; background: var(--line, #243041); border-radius: 3px; overflow: hidden; }
 .sfc-pbar i { display: block; height: 100%; background: var(--und, #22a394); }

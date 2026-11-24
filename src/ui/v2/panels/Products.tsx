@@ -691,12 +691,12 @@ function SoldSec({ d, r, chat }: { d: Deployment; r: ProductRead; chat: boolean 
   );
 }
 
-/** UB-F: the product's safeguards (monitor, level, KYC) live on SAFETY › Safeguards (their one home): a link and Retire. */
+/** UB-F: the product's safeguards (monitor, level, KYC) live on SAFETY › Safeguards (their one home; the card's
+ *  "Safeguards ›" chip links there): the drawer keeps Retire only. */
 function GuardsSec({ d }: { d: Deployment }) {
   return (
-    <div className="sec row-i" data-test={`prod-guards.${d.id}`}>
-      <Ref id="productSafeguards" to={{ panel: 'safety', tab: 'safeguards' }}><Shield size={12} /> Safeguards</Ref>
-      <span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label={`Retire ${pname(d.channel)}`} />
+    <div className="sec" data-test={`prod-guards.${d.id}`}>
+      <div className="row-i"><span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label={`Retire ${pname(d.channel)}`} /></div>
     </div>
   );
 }

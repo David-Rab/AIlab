@@ -488,7 +488,7 @@ if (apiId) {
   await page.click(`[data-test="prod-open.${apiId}"]`);
   await wait(120);
   ok('Products (UB-A): the drawer shows customers by sector, Limited by in words and sold in a year', !!(await page.$('[data-test=prod-drawer] [data-test=prod-sectors] [data-sector]')) && /Limited by/.test(await page.$eval('[data-test=prod-limit]', (e) => e.textContent ?? '').catch(() => '')) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-econ.${apiId}"]`)));
-  ok('Products (UB-F): the drawer has no safeguard controls, a Safeguards link instead (SAFETY › Safeguards is home)', !(await page.$(`[data-test=prod-drawer] [data-test="prod-monitor.${apiId}"]`)) && !(await page.$(`[data-test=prod-drawer] [data-test="prod-sg.${apiId}"]`)) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-guards.${apiId}"] [data-ref=productSafeguards]`)));
+  ok('Products (UB-F): the drawer has no safeguard controls; the card links to SAFETY › Safeguards (their home)', !(await page.$(`[data-test=prod-drawer] [data-test="prod-monitor.${apiId}"]`)) && !(await page.$(`[data-test=prod-drawer] [data-test="prod-sg.${apiId}"]`)) && !!(await page.$(`[data-panel=products] [data-product="${apiId}"] [data-ref=productSafeguards]`)));
   await page.click('[data-test=prod-drawer-close]');
   await wait(80);
   await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
@@ -593,13 +593,14 @@ if (await page.$('[data-test=control-edit]')) {
   await page.hover(`[data-act="control-switch.${to}"]`, { timeout: 2000 }).catch(() => {});
   await wait(350);
   ok('SAFETY › Safeguards (UB-F): switching the control setting previews its slowdown and unstopped acts', /slowdown/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
-  await clearTips();
+  await page.mouse.move(1, 1); // not clearTips: Escape would close the drawer
+  await wait(150);
   await check('SAFETY › Safeguards (UB-F): Switch applies the control setting', `(s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')?.guards ?? []).find((g) => g.kind === 'control')?.setting ?? ''`, () => page.click(`[data-act="control-switch.${to}"]`));
-  await page.click(`[data-test="ctl-opt.${cur}"]`).catch(() => {});
+  await page.click(`[data-test="ctl-opt.${cur}"]`, { timeout: 3000 }).catch(() => {});
   await wait(80);
-  await page.click(`[data-act="control-switch.${cur}"]`).catch(() => {});
+  await page.click(`[data-act="control-switch.${cur}"]`, { timeout: 3000 }).catch(() => {});
   await wait(80);
-  await page.click('[data-test=sf-drawer-close]');
+  await page.click('[data-test=sf-drawer-close]', { timeout: 3000 }).catch(() => {});
   await wait(100);
 } else ok('SAFETY › Safeguards (UB-F): control setting switch (no control protocol on this fixture)', true);
 if (await page.$('[data-test=product-guards-edit]')) {
@@ -613,11 +614,11 @@ if (await page.$('[data-test=product-guards-edit]')) {
   const pv = await page.$eval(`[data-test="pg-preview.${pid}"]`, (e) => e.innerText).catch(() => '');
   ok('SAFETY › Safeguards (UB-F): a product safeguard edit shows its stop rate and revenue before → after', /Stop rate, misuse/.test(pv) && /→/.test(pv) && /Revenue now/.test(pv), pv.replace(/\n/g, ' ').slice(0, 140));
   await check('SAFETY › Safeguards (UB-F): Apply sets the product safeguard level', `s.player.deployments.find((d) => d.id === "${pid}")?.safeguards ?? ''`, () => page.click(`[data-act="pg-apply.${pid}"]`));
-  await page.click(`[data-test="pg-level.${pid}"] [data-opt=${lvl}]`).catch(() => {});
+  await page.click(`[data-test="pg-level.${pid}"] [data-opt=${lvl}]`, { timeout: 3000 }).catch(() => {});
   await wait(100);
-  await page.click(`[data-act="pg-apply.${pid}"]`).catch(() => {});
+  await page.click(`[data-act="pg-apply.${pid}"]`, { timeout: 3000 }).catch(() => {});
   await wait(100);
-  await page.click('[data-test=sf-drawer-close]');
+  await page.click('[data-test=sf-drawer-close]', { timeout: 3000 }).catch(() => {});
   await wait(100);
 } else ok('SAFETY › Safeguards (UB-F): product safeguards editor (no live product on this fixture)', true);
 await tabTo('instruments');

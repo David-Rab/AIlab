@@ -58,3 +58,5 @@
 .ev-algrid > :not(.ch) { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
 .ev-alline { display: contents; }
 .ev-algrid .r { text-align: right; }
+.ev-band, .ev-axis { --skb-cap: #9b6be0; }
+.ev-axis .skb-tl { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11px; }

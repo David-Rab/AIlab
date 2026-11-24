@@ -679,7 +679,7 @@ const CONTROL_SETTING: ActionDef = {
     if (dS) (dS > 0 ? costs : gains).push({ currency: 'progress', amount: -dS, unit: '%', target: `of AI staff work (slowdown ${Math.round(o.slowdown.before * 100)}% → ${Math.round(o.slowdown.after * 100)}%)` });
     const dH = Math.round(o.computeH100e.after - o.computeH100e.before);
     if (dH) (dH > 0 ? costs : gains).push({ currency: 'compute', amount: -dH, unit: 'H100e', target: "trusted-model compute (monitors' line)" });
-    const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
+    const fmt = (x: number) => (x < 0.0005 ? '~0' : x < 0.1 ? x.toFixed(3) : x < 1 ? x.toFixed(2) : x < 10 ? x.toFixed(1) : x.toFixed(0)); // as SAFETY's header
     const dHarm = o.harm.after - o.harm.before;
     if (Math.abs(dHarm) > 1e-6) (dHarm < 0 ? gains : costs).push({ currency: 'alignment', amount: r2(-dHarm), unit: 'acts/yr', target: `believed unstopped harmful acts ${fmt(o.harm.before)} → ${fmt(o.harm.after)} / yr on AI staff work` });
     return { costs, gains, exposure: [] };

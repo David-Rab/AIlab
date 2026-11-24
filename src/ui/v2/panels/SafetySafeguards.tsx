@@ -356,7 +356,7 @@ function ControlDrawer({ s, id, sg }: { s: GameStateV2; id?: string; sg: StaffGu
       <div className="sfs-dfoot row-i">
         <span className="t3">Runs at: {sg.control ? sg.control.label : 'off'}. Applies at once; Risks and the header update with it.</span><span className="sp" />
         {sg.control && view.setting !== 'off' && !view.current && !view.locked && <ActBtn id="safety.controlSetting" testId={`control-switch.${view.setting}`} params={{ setting: view.setting }} label={`Switch to ${view.label.toLowerCase()}`} primary />}
-        {sg.control && cr.layerVersionId && (view.setting === 'off' || view.current) && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: cr.layerVersionId }} label="Remove control protocol" primary={view.setting === 'off'} />}
+        {sg.control && cr.layerVersionId && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: cr.layerVersionId }} label="Remove control protocol" primary={view.setting === 'off'} />}
         {!sg.control && cr.versionId && <ActBtn id="safety.respond" testId="control-add-drawer" params={{ kind: 'addControl', versionId: sg.depVersionId ?? cr.versionId }} label="Add control protocol" primary />}
       </div>
     </>
