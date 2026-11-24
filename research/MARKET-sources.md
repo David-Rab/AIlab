@@ -199,6 +199,27 @@ In logit, μ = 1/α (α the price coefficient) and the firm-level elasticity is 
   are the best mid-2025 basis. OpenRouter shares (3n) over-weight developers and open models.
 - Fit μ in units of price per work-hour, not per token.
 
+### 3p. Business AI seat list prices, 2025 (MK-9 seat cap)
+
+List prices per user per month, USD, read 2026-11-24 from the vendors' own pages and announcements. Wayback snapshots of
+the 2025 pricing pages could not be fetched, so each row gives a dated official statement valid during 2025.
+
+| Seat | List price | Billing | Source | Tag |
+|---|---|---|---|---|
+| ChatGPT Team (renamed Business, Aug 2025) | $25 / $30 | annual / monthly | "ChatGPT Team costs $25/month per user when billed annually, or $30/month per user when billed monthly" (10 Jan 2024; 29 Aug 2025 update: renamed, "pricing did not change"), https://openai.com/index/introducing-chatgpt-team/ | [P] |
+| ChatGPT Enterprise | not listed | annual | "contact sales", https://chatgpt.com/pricing | [P] (no price) |
+| Claude Team | $30 | monthly | "available for $30 per user per month" (1 May 2024), https://claude.com/blog/team-plan-and-ios. Today's page (Nov 2026): standard seat $20 annual / $25 monthly, https://claude.com/pricing | [P] |
+| Claude Enterprise | $20 + usage at API rates | annual | "US$20/seat/month, billed annually … Seat price + usage at API rates" (today's page; 2025 terms not read), https://claude.com/pricing | [P] (current, not 2025) |
+| Microsoft 365 Copilot | $30 | annual | "$30 per user per month" (18 Jul 2023), https://blogs.microsoft.com/blog/2023/07/18/furthering-our-ai-ambitions-announcing-bing-chat-enterprise-and-microsoft-365-copilot-pricing/; enterprise page $30.00 user/month paid yearly, https://www.microsoft.com/en-us/copilot/pricing/enterprise. Copilot Business $21 from Dec 2025 (SMB, ≤ 300 users), https://techcommunity.microsoft.com/blog/microsoft-copilot-blog/introducing-microsoft-365-copilot-business-empowering-small-and-medium-businesse/4469700 | [P] |
+| Gemini Business add-on (Workspace) | $20 | annual | Business Standard + Gemini Business "previously paid $32 per user, per month" vs $12 without Gemini (16 Jan 2025; Gemini then bundled at +$2), https://workspace.google.com/blog/product-announcements/empowering-businesses-with-AI | [P] (difference of two stated prices) |
+| GitHub Copilot Business / Enterprise | $19 / $39 | monthly | "$19 USD per granted seat per month", "$39 USD per granted seat per month", https://docs.github.com/en/copilot/get-started/plans | [P] |
+
+**Seat cap for the game [D].** The median of the six priced seats (ChatGPT Team $25 annual, Claude Team $30, M365
+Copilot $30, Gemini Business $20, GitHub Copilot Business $19 and Enterprise $39) is **$27.5** per seat-month
+(data/v2/serving.ts SEATS.cap). Enterprise contracts are negotiated (no list price) and usage-based add-ons (Claude
+Enterprise) are left out. The cap is what firms pay for a seat today, not a value: seat adoption still reads the going
+seat price through its cost gate (serving.ts seatTarget).
+
 ---
 
 ## 4. Capacity pricing

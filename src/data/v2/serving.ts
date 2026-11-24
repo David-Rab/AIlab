@@ -69,12 +69,15 @@ export const SECTOR_WORK: Record<SectorId, SectorWork> = {
  *  > 7M, Gemini Enterprise > 8M, Claude undisclosed), back-cast at the simulated ×1.6–1.9 per half-year to ≈ 18M in
  *  Jul 2025 on ≈ 300M workers using AI (US 61M, ROW 238M): US 0.12 (≈ 7M), ROW 0.045 (≈ 11M); CN 0.02 (no data; served
  *  at home, mostly by open weights: in-house, unbilled).
- *  List price $25 per seat-month [R22 §4: Claude Enterprise $20 + usage, Team $25, ChatGPT Business $25–30, M365 Copilot
- *  $30], × the provider's markup relative to the standard tier (budget ×0.67, premium ×1.6; DeepCent ×0.67), never below
- *  the seat's serving cost. Open-weights providers sell no seats (their users are in-house: unbilled). */
+ *  MK-9 (design/MARKET.md M5): the seat price per seat-month is set by competition, as the hours are (worldfx/mix.ts
+ *  seat margins): seat serving cost + f·M_seat, M_seat a stock toward μ_seat ÷ (1 − s), s the seller's share of the
+ *  seats in the sector × region, capped at `cap`, never below the seat's serving cost. `cap` = what firms pay for
+ *  business AI seats today: the median of the 2025 list prices in research/MARKET-sources.md §3 (ChatGPT Team $25,
+ *  Claude Team $30, Microsoft 365 Copilot $30, Gemini Business add-on $20, GitHub Copilot Business $19 and Enterprise
+ *  $39 per user-month: median $27.5) [P]. Open-weights providers sell no seats (their users are in-house: unbilled). */
 export const SEATS = {
   start: { US: 0.12, CN: 0.02, ROW: 0.045 } as Record<RegionId, number>,
-  price: 25,
+  cap: 27.5,
   q: 1.5,
   /** Decay toward a lower ceiling (per year), as A and W. */
   down: 0.5,
@@ -122,10 +125,10 @@ export const WIN_SHARE_FRACTION = 0.5;
  *  of cost instead), at the old standard markup (margin 0.6) and DeepCent's old budget one
  *  (margin 0.4); it then moves to its target at PRICE_TAU. A new game starts at the fixed point (mix.ts initPrices). */
 export const SEED_MARKUP = { closed: 1 / 0.4, china: 1 / 0.6 };
-/** MK-6 interim until MK-9 (Chat's plan price by M5): a consumer plan's price as a share of the willingness to pay, the
- *  old tiers' ratios to Standard: Win share and DeepCent at the old Budget's ×0.67, open-weight hosts at their ×1.2 over
- *  cost against the old standard ×2.5 (×0.48). */
-export const CONSUMER_PLAN_FACTOR = { profit: 1, share: 0.4 / 0.6, china: 0.4 / 0.6, open: 1.2 * 0.4 };
+/** MK-9: an open-weight host's consumer plan as a share of the willingness to pay (the old ×1.2-over-cost host against
+ *  the old standard ×2.5: ×0.48; unchanged by MK-9, open hosts are not Nash sellers). Closed sellers price their plans by
+ *  competition (worldfx/mix.ts plan margins, CONSUMER_MKT.wtpMonth the cap). */
+export const OPEN_PLAN_SHARE = 1.2 * 0.4;
 
 /** Safeguards and the AI-control layer cost fit, in OOM [D] (RD-U01: v2's level offsets restated in OOM): hardened
  *  −0.1667 (was −0.2 L), classifiers −0.0417 (was −0.05 L), control layer −0.0833 (was −0.1 L). The UI shows these. */
@@ -213,8 +216,9 @@ export const LINEUP = { ratios: [1 / Math.SQRT2 / 2, 1 / Math.SQRT2 / 4, 1 / 80]
  *                   P* = min(max, (p0 + p1 · a) · (p̄ ÷ price)^ε), a its model's coverage of consumer chat, p̄ the going
  *                   price (users' share-weighted subscription price in the region)
  *  subscribers = adults × R × user share × P; consumer revenue = subscribers × price × 12 (independent of work hours).
- *  Price (A6b): a flat monthly plan at the market's price, not cost-plus (consumerPlanPrice): the willingness to pay
- *  (wtp, the going list price of 2025 plans), never below a paying user's serving cost; margin = price − serving cost.
+ *  Price (MK-9, consumerPlanPrice): a flat monthly plan priced by competition on the paid-plan market, serving cost +
+ *  μ_plan ÷ (1 − s_paid), capped at the willingness to pay (wtp, the going list price of 2025 plans), never below a
+ *  paying user's serving cost; margin = price − serving cost.
  *  Most consumer use is not work (non-work share 0.7), so its value is what people pay for it, not wage × hours
  *  saved, and real plans held at $20 while their serving cost fell far below it. Free users (users − subscribers) pay nothing, run on the product's mini (else its model) and are served last;
  *  they are the pool subscribers convert from, so serving them is what buys subscribers (unserved need erodes the
@@ -257,12 +261,11 @@ export const CONSUMER_MKT = {
   messagesPerDay: 3.75,
 };
 
-/** A consumer plan's price per month (A6b, design/notes/A6.md P4): consumer chat is sold as flat-price subscriptions
- *  at the market's price, not at a markup over serving cost (ChatGPT Plus, Claude Pro, Gemini Advanced all held at
- *  $20 while serving got far cheaper; R22 §2). Standard and Premium sell at the willingness to pay (no plan sells above
- *  it); a tier below Standard sells below it by its markup's ratio to Standard's (Budget ×0.67 ≈ $14.7) [D]. The engine
- *  never sells below a paying user's serving cost (worldfx/serving.ts subPrice). */
-export const consumerPlanPrice = (factor = 1) => CONSUMER_MKT.wtpMonth * Math.min(1, factor);
+/** MK-9 (design/MARKET.md M3, M5): a consumer plan's price per month on a paying user's serving cost c ($/month) and the
+ *  plan margin M (the seller's plan margin × its stance factor; worldfx/mix.ts): c + M, at most the willingness to pay
+ *  (no plan sells above it), never below c (a plan that must cost more than the willingness to pay finds no
+ *  subscribers, worldfx/serving.ts paidShareTarget). */
+export const consumerPlanPrice = (cost: number, margin: number) => Math.max(cost, Math.min(CONSUMER_MKT.wtpMonth, cost + Math.max(0, margin)));
 
 /** Hours a served H100e runs per year (24/7). */
 export const SERVE_HOURS_PER_YEAR = 8766;

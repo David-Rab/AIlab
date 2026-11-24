@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed } from '../../../data/v2/features';
 import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
-import { CONSUMER_PLAN_FACTOR, WIN_SHARE_FRACTION, consumerPlanPrice } from '../../../data/v2/serving';
+import { CONSUMER_MKT, WIN_SHARE_FRACTION } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
@@ -285,7 +285,7 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <div className="sec2 set">
         <div className="setrow">
           <Tip content={() => chat
-            ? <TipCard title={<Term id="priceTier">Price</Term>} rows={STANCE_IDS.map((t) => ({ label: STANCE_LABEL[t], value: `${usd(consumerPlanPrice(CONSUMER_PLAN_FACTOR[t]))} a month` }))}>Chat sells flat monthly plans: Best profit at what users will pay, Win share below it (more users subscribe). A plan never sells below a paying user's serving cost.</TipCard>
+            ? <TipCard title={<Term id="priceTier">Price</Term>} rows={[{ label: STANCE_LABEL.profit, value: 'the margin that earns most against rivals' }, { label: STANCE_LABEL.share, value: `${F.pct(WIN_SHARE_FRACTION)} of that margin` }]}>Chat sells flat monthly plans at a paying user's serving cost plus a margin set by competition: the more of the paying users your lab holds, the higher the margin they accept. Never above what users pay for a plan ({usd(CONSUMER_MKT.wtpMonth)} a month), never below a paying user's serving cost.</TipCard>
             : <TipCard title={<Term id="priceTier">Price</Term>} rows={[{ label: STANCE_LABEL.profit, value: 'the margin that earns most against rivals' }, { label: STANCE_LABEL.share, value: `${F.pct(WIN_SHARE_FRACTION)} of that margin` }]}>Every model in the lineup sells at its own serving cost plus one margin per hour, set by competition: the more of its buyers your lab holds, the higher the margin they accept. A cheaper model passes on its lower cost and keeps the margin. Never above what the work is worth to the buyer.</TipCard>}>
             <span className="k"><Term id="priceTier">Price</Term></span>
           </Tip>
