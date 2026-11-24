@@ -45,7 +45,7 @@ const miss = await page.evaluate(() => [...document.querySelector('main.center')
   return b.width > 4 && b.height > 4 && e.closest('svg') === null && !e.closest('button') && !e.closest('[data-tabs]') && !e.closest('select') && !e.closest('[data-tip]');
 }).map((e) => `${e.className} | ${(e.textContent ?? '').trim().slice(0, 30)}`));
 console.log(`untipped numbers on screen: ${miss.length}${miss.length ? `\n  ${miss.join('\n  ')}` : ''}`);
-// The popover: Enterprise's second lineup row (the mockup's Atlas-3.0-mini).
+// The popover: Enterprise's second lineup row (the mockup's Agent-2-2.0-micro).
 const ent = await page.$('[data-panel=products] [data-channel=enterprise] [data-test$=".1"][data-lu]');
 if (ent) {
   await ent.click();

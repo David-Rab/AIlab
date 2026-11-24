@@ -5,7 +5,7 @@
 //  (b) scripts/v2/serving.ts TIERS E7 reproduced (day 20 of the default game, the API's US Software hours by tier): the
 //      students take bands, and the lineup's cost and price per hour are below the main model's;
 //  (c) the designer's day-369 save: the same model on Enterprise and Vetted has one price (one margin over cost where a
-//      tool changes its cost); Atlas-4.0-mini into Enterprise's lineup, 30 days with and without: revenue and profit
+//      tool changes its cost); Agent-3-1.0-micro into Enterprise's lineup, 30 days with and without: revenue and profit
 //      (MK-6, one margin per seller: 97.1 / 75.8 without, 146.9 / 135.5 with);
 //  (d) the start leader's hours-weighted margin (p − c)/p ≈ 0.8–0.9.
 // Run alone: npx tsx scripts/v2/_mk6b/check.ts
@@ -154,8 +154,8 @@ function econ(s: GameStateV2) {
   const pi = mix.providers.findIndex((p) => p.key === 'player');
   console.log(`    US SOFT player margins: ${m.markupModels[pi].map((id, j) => `${nameOf(s, id)} ${f3(m.markup[pi][j])}`).join(', ')}`);
 
-  const mini = s.player.models.versions.find((v) => /Atlas-4\.0-mini/i.test(v.name));
-  if (!mini) check(false, '(c) the save has Atlas-4.0-mini');
+  const mini = s.player.models.versions.find((v) => /Agent-3-1.0-micro/i.test(v.name));
+  if (!mini) check(false, '(c) the save has Agent-3-1.0-micro');
   else {
     const runs: Record<string, ReturnType<typeof econ>> = {};
     for (const withMini of [false, true]) {
@@ -176,7 +176,7 @@ function econ(s: GameStateV2) {
         console.log(`        US SOFT player margins at day+30: ${mm.markupModels[pj].map((id, j) => `${nameOf(x, id)} ${f3(mm.markup[pj][j])}`).join(', ')}`);
       }
     }
-    check(runs.with.profit >= 0.9 * runs.without.profit, '(c) adding Atlas-4.0-mini to Enterprise keeps profit (≥ 0.9 × without)', `profit ${f1(runs.without.profit)} → ${f1(runs.with.profit)}, revenue ${f1(runs.without.rev)} → ${f1(runs.with.rev)} (MK-6: 75.8 → 135.5, 97.1 → 146.9)`);
+    check(runs.with.profit >= 0.9 * runs.without.profit, '(c) adding Agent-3-1.0-micro to Enterprise keeps profit (≥ 0.9 × without)', `profit ${f1(runs.without.profit)} → ${f1(runs.with.profit)}, revenue ${f1(runs.without.rev)} → ${f1(runs.with.rev)} (MK-6: 75.8 → 135.5, 97.1 → 146.9)`);
   }
 }
 console.log(fails ? `${fails} FAILED` : 'all ok');

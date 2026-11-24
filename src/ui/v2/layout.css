@@ -192,14 +192,3 @@
 .tone-pos-border { border-left-color: var(--pos); }
 .tone-neg-border { border-left-color: var(--neg); }
 .tone-neutral-border { border-left-color: var(--accent); }
-.modal.ending { width: 1000px; max-height: 92vh; overflow-y: auto; }
-.ending-title { font-size: 34px; margin: 4px 0 6px; color: #fff; }
-.ending-text { font-size: 15px; color: var(--text); max-width: 760px; }
-.ending-scores { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 18px 0; }
-.score { display: flex; flex-direction: column; gap: 5px; }
-.score-val { font-size: 26px; font-weight: 600; }
-.score-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
-.ending-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
-.ending-traits { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
-.ending-trait { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; }
-.ending .row-value { white-space: nowrap; }

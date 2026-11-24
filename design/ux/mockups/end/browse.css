@@ -1,0 +1,16 @@
+/* Browse mode: slim game-over banner above the shell; time frozen. */
+body.browse-frozen #root { height: calc(100% - 34px) !important; margin-top: 34px; }
+.go-banner { position: fixed; top: 0; left: 0; right: 0; height: 34px; z-index: 9999; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: linear-gradient(90deg, #1a2a40, #142033); border-bottom: 1px solid #36507a; font: 600 12.5px 'Segoe UI Variable Text','Segoe UI',sans-serif; color: #e3e9f1; }
+.go-banner .cap { font: 700 11px 'Cascadia Mono', Consolas, monospace; letter-spacing: .1em; color: #9fc7f5; }
+.go-banner .dot { color: #46597a; }
+.go-banner .ttl { color: #fff; }
+.go-banner .sub { color: #9fb0c3; font-weight: 400; }
+.go-banner .sp { flex: 1; }
+.go-banner .back { display: inline-flex; align-items: center; gap: 6px; background: #2f7fd6; border: 1px solid #5aa9ff; color: #fff; border-radius: 6px; padding: 3px 12px; font-size: 12px; }
+.go-banner .back kbd { font: 600 10px Consolas, monospace; border: 1px solid rgba(255,255,255,.45); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: #dbe9ff; }
+.go-banner svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+body.browse-frozen .speedctl2 { opacity: .3; filter: grayscale(1); pointer-events: none; position: relative; }
+body.browse-frozen .speedctl2::after { content: "Time frozen"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 700 10.5px 'Cascadia Mono', monospace; color: #fff; background: #0b0f15; padding: 1px 6px; border-radius: 4px; border: 1px solid #46597a; white-space: nowrap; }
+/* nothing to act on in a finished game: action badges and the alert queue are hidden */
+body.browse-frozen .nav2-badge, body.browse-frozen .alert-wrap { display: none !important; }

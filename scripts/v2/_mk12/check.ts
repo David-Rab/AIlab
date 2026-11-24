@@ -2,8 +2,8 @@
 // day-369 save (read-only).
 //  (a) every product card's numbers and the totals strip (compare with design/ux/mockups/market/DATA.md);
 //  (b) the popover rows: Enterprise's swap options for its second lineup slot, the add-a-model row and remove;
-//  (c) preview = next tick: for (i) adding Atlas-4.0-mini to Enterprise's lineup, (ii) removing Atlas-3.0-mini from it,
-//      (iii) Enterprise's stance switched to Win share, and (iv) the DATA.md swap Atlas-3.0-mini → Atlas-4.0-mini, the
+//  (c) preview = next tick: for (i) adding Agent-3-1.0-micro to Enterprise's lineup, (ii) removing Agent-2-2.0-micro from it,
+//      (iii) Enterprise's stance switched to Win share, and (iv) the DATA.md swap Agent-2-2.0-micro → Agent-3-1.0-micro, the
 //      preview's change a year (profit, revenue, work sold, serving need, turned away; the product and all products) vs
 //      the revenue system's own readout on the next tick with the edit (product.update) minus the next tick without it.
 // Run alone: npx tsx scripts/v2/_mk12/check.ts [save.json]
@@ -116,14 +116,14 @@ const close = (a: number, b: number, floor: number) => Math.abs(a - b) <= 0.015 
 
 const noEdit = load();
 const rdNo = nextTickReadout(noEdit);
-const v40mini = idOf(s0, 'Atlas-4.0-mini');
-const v30mini = idOf(s0, 'Atlas-3.0-mini');
+const v40mini = idOf(s0, 'Agent-3-1.0-micro');
+const v30mini = idOf(s0, 'Agent-2-2.0-micro');
 const chat = s0.player.deployments.find((d) => d.channel === 'consumer' && d.status !== 'withdrawn')!;
 const cases: [string, string, ProductChanges][] = [
-  ['(i) add Atlas-4.0-mini to Enterprise', ent.id, { lineup: [...(ent.lineup ?? []), v40mini] }],
-  ['(ii) remove Atlas-3.0-mini from Enterprise', ent.id, { lineup: (ent.lineup ?? []).filter((x) => x !== v30mini) }],
+  ['(i) add Agent-3-1.0-micro to Enterprise', ent.id, { lineup: [...(ent.lineup ?? []), v40mini] }],
+  ['(ii) remove Agent-2-2.0-micro from Enterprise', ent.id, { lineup: (ent.lineup ?? []).filter((x) => x !== v30mini) }],
   ['(iii) Enterprise stance → Win share', ent.id, { stance: ent.stance === 'profit' ? 'share' : 'profit' }],
-  ['(iv) Enterprise: Atlas-3.0-mini → Atlas-4.0-mini (DATA.md popover)', ent.id, { lineup: (ent.lineup ?? []).map((x) => (x === v30mini ? v40mini : x)) }],
+  ['(iv) Enterprise: Agent-2-2.0-micro → Agent-3-1.0-micro (DATA.md popover)', ent.id, { lineup: (ent.lineup ?? []).map((x) => (x === v30mini ? v40mini : x)) }],
   ['(v) Chat stance → Win share', chat.id, { stance: chat.stance === 'profit' ? 'share' : 'profit' }],
 ];
 for (const [what, pid, c] of cases) {

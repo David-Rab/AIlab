@@ -4,6 +4,7 @@
 import { useEffect, type ReactNode } from 'react';
 import type { GameStateV2 } from '../../engine/v2';
 import { TooltipProvider } from './Tooltip';
+import { EndBanner } from './end/EndBanner';
 import { EndScreen } from './end/EndScreen';
 import { Codex } from './panels/Codex';
 import { Lab } from './panels/Lab';
@@ -40,11 +41,14 @@ const PANELS: Record<string, (p: { s: GameStateV2 }) => ReactNode> = {
 
 function Game({ s }: { s: GameStateV2 }) {
   const st = useV2();
-  if (s.ending) return <EndScreen s={s} />;
+  // After the ending: the end screen, or the game panels read-only with time frozen (browse mode).
+  if (s.ending && st.endView === 'ending') return <EndScreen s={s} />;
+  const ended = !!s.ending;
   const id = PANELS[st.panel] && unlocked(s, st.panel) ? st.panel : 'overview';
   const Panel = PANELS[id];
   return (
-    <div className="game-v2">
+    <div className={`game-v2 ${ended ? 'is-ended' : ''}`}>
+      {ended && <EndBanner s={s} />}
       <TopStrip s={s} />
       <div className="body-v2">
         <Nav s={s} />
@@ -53,11 +57,11 @@ function Game({ s }: { s: GameStateV2 }) {
           <Panel s={s} />
         </main>
       </div>
-      <AlertQueue s={s} />
-      <DecisionModal s={s} />
-      <QuarterRecap s={s} />
+      {!ended && <AlertQueue s={s} />}
+      {!ended && <DecisionModal s={s} />}
+      {!ended && <QuarterRecap s={s} />}
       <HelpOverlay s={s} />
-      <Coach s={s} />
+      {!ended && <Coach s={s} />}
     </div>
   );
 }

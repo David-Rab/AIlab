@@ -15,8 +15,9 @@ import { PanelHead, Tabs, tabOf } from '../kit';
 import { WorldSectors } from './WorldSectors';
 import { WorldRisk } from './WorldRisk';
 import { ICON } from '../icons';
+import { labColor } from '../theme';
 
-const LAB_COLOR = (id: string) => (id === 'player' ? '#3a8ae0' : id.startsWith('player') ? '#2f6fb8' : id === 'china' ? '#c43c8c' : ['#d4732a', '#b5622a', '#e08a4c', '#a8581e'][id.charCodeAt(id.length - 1) % 4]);
+const LAB_COLOR = labColor;
 
 export function World({ s }: { s: GameStateV2 }) {
   const [fund, setFund] = useState(s.player.policies.transitionFund + 5);

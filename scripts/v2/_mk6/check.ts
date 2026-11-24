@@ -3,7 +3,7 @@
 //      buyers' adopted hours, per sector and overall; the leader's overall margin is in 0.8–0.9 (research/MARKET-sources.md
 //      §3: margins 0.6–0.85 [P], the MK-R1 elasticity bound ≥ ≈ 0.9; overlap 0.8–0.9);
 //  (b) the designer's day-369 save (read-only): a model sold on two products (Enterprise and Vetted) has one price;
-//  (c) the designer's case: Atlas-4.0-mini added to Enterprise's lineup, 30 days with and without: revenue and profit
+//  (c) the designer's case: Agent-3-1.0-micro added to Enterprise's lineup, 30 days with and without: revenue and profit
 //      (revenue − serving cost at the market rate) per product and total, and the compute the mini frees;
 //  (d) 90 days on the day-369 save without throwing: total revenue / profit path.
 // Run alone: npx tsx scripts/v2/_mk6/check.ts
@@ -165,7 +165,7 @@ const nameOf = (s: GameStateV2, id: string) => s.player.models.versions.find((v)
 }
 
 if (process.env.MK6_ONLY === 'ab') process.exit(fails ? 1 : 0);
-// (c) Atlas-4.0-mini in Enterprise's lineup.
+// (c) Agent-3-1.0-micro in Enterprise's lineup.
 function econ(s: GameStateV2) {
   const rd = revenueReadout(s);
   const rate = serveDollarsPerHour(s);
@@ -177,9 +177,9 @@ function econ(s: GameStateV2) {
 }
 {
   const s0 = load();
-  const mini = s0.player.models.versions.find((v) => /Atlas-4\.0-mini/i.test(v.name));
+  const mini = s0.player.models.versions.find((v) => /Agent-3-1.0-micro/i.test(v.name));
   const ent = s0.player.deployments.find((d) => d.channel === 'enterprise' && d.status !== 'withdrawn');
-  console.log(`(c) ${mini ? mini.name : 'no Atlas-4.0-mini'} into ${ent ? `Enterprise (${ent.id})` : 'no Enterprise'}`);
+  console.log(`(c) ${mini ? mini.name : 'no Agent-3-1.0-micro'} into ${ent ? `Enterprise (${ent.id})` : 'no Enterprise'}`);
   if (mini && ent) {
     const runs: Record<string, ReturnType<typeof econ>> = {};
     for (const withMini of [false, true]) {

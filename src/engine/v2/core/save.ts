@@ -2,6 +2,7 @@
 import type { GameStateV2 } from '../types';
 import { PRODUCT_TOOL_BY_ID, TOOL_FROM_FEATURE, harnessForAdaptation, needsCert, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
 import type { FeatureId } from '../../../data/v2/features';
+import { deriveNames } from '../models/naming';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev to `migrations`.
  *  Saves below MIN_SCHEMA_REV do not load: deserialize refuses them with OLD_SAVE_MESSAGE. UB-3 (DD-20, the clean save
@@ -9,7 +10,7 @@ import type { FeatureId } from '../../../data/v2/features';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 109;
+export const SCHEMA_REV = 110;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -25,13 +26,15 @@ const CHANNEL_MK1: Record<string, string> = { gov: 'vetted', trusted: 'vetted', 
 
 /** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up). */
 export const migrations: Record<number, (s: Record<string, unknown>) => void> = {
-  /** 103 → 104 (MK-1): four products. A deployment on 'gov' or 'trusted' moves to 'vetted', on 'agents' to 'api'; a
+  // 103 → 104: model naming (design/MODEL-NAMING.md, from master): name parts derived from the save's models, names re-rendered.
+  103: (s) => deriveNames(s as unknown as GameStateV2),
+  /** 104 → 105 (MK-1): four products. A deployment on 'gov' or 'trusted' moves to 'vetted', on 'agents' to 'api'; a
    *  second product of the same channel is kept as it is (not merged). Launches waiting on the build queue (ref and
    *  launch.channel) move the same way. Nothing else in the state is keyed by channel. */
-  103: (s) => {
+  104: (s) => {
     const p = s.player as { deployments?: { channel?: string; wasAgents?: boolean }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
     for (const d of p?.deployments ?? []) {
-      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 106 → 107 (MK-11: Agent mode)
+      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 107 → 108 (MK-11: Agent mode)
       if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
     }
     for (const it of p?.build?.queue ?? []) {
@@ -40,18 +43,18 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (it.launch?.channel && CHANNEL_MK1[it.launch.channel]) it.launch.channel = CHANNEL_MK1[it.launch.channel];
     }
   },
-  /** 104 → 105 (MK-3, design/MARKET.md M8): thinking effort removed. Every product serves as the old default 'max'
+  /** 105 → 106 (MK-3, design/MARKET.md M8): thinking effort removed. Every product serves as the old default 'max'
    *  (×1 reasoning tokens, +0 OOM), so the field is dropped from deployments and waiting launches; a product that was
    *  on 'low' or 'deep' now serves at max. */
-  104: (s) => {
+  105: (s) => {
     const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
     for (const d of p?.deployments ?? []) delete d.effort;
     for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
   },
-  /** 105 → 106 (MK-6, design/MARKET.md M5, M6): price tiers removed. Every product and waiting launch takes the 'profit'
+  /** 106 → 107 (MK-6, design/MARKET.md M5, M6): price tiers removed. Every product and waiting launch takes the 'profit'
    *  stance (price and priceIndex dropped); the sellers' margins (world.fx.priceM) start at today's cost-plus prices
    *  when first read (SEED_MARKUP) and move to their Nash–Bertrand targets. */
-  105: (s) => {
+  106: (s) => {
     const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
     for (const d of p?.deployments ?? []) {
       delete d.price;
@@ -63,7 +66,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       it.launch.stance = 'profit';
     }
   },
-  /** 106 → 107 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
+  /** 107 → 108 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
    *  data/v2/tools.ts.
    *  - Built features → built tools (TOOL_FROM_FEATURE: codingAgent → Coding harness, deepResearch → Research agent,
    *    memory / computerUse / voiceVision / companion the same id); a queued feature build's ref the same way.
@@ -81,7 +84,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *    new in the game, the rival lag rule counts from the earliest such product's launch.
    *  - Rivals and China: their tools mapped the same way, plus the tools their lab had shipped by the start
    *    (toolsAtStart); world.fx.toolShip keys mapped. */
-  106: (s) => {
+  107: (s) => {
     type Dep = { channel?: string; status?: string; startDay?: number; features?: string[]; adaptations?: { sector: string; certDone?: number }[]; certs?: { sector: string; certDone: number }[]; wasAgents?: boolean };
     const p = s.player as { features?: string[]; deployments?: Dep[]; build?: { queue?: { kind?: string; ref?: string }[] } } | undefined;
     const map = (id: string): string => TOOL_FROM_FEATURE[id as FeatureId] ?? id;
@@ -124,10 +127,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       (fx.toolShip ??= {}).agentMode ??= agentsShip;
     }
   },
-  /** 107 → 108 (MK-6b, design/MARKET.md M5 revised): the margin is per model. Each seller's one margin per sector ×
+  /** 108 → 109 (MK-6b, design/MARKET.md M5 revised): the margin is per model. Each seller's one margin per sector ×
    *  region (world.fx.priceM[r][sector][seller]) is copied to each of its models (the player's: every product's main
    *  model and lineup entries; a rival's and DeepCent's: its public model and lineup); each then moves to its own target. */
-  107: (s) => {
+  108: (s) => {
     const fx = (s.world as { fx?: { priceM?: Record<string, Record<string, Record<string, unknown>>> } } | undefined)?.fx;
     if (!fx?.priceM) return;
     type Lab = { core?: { id?: string }; publicModel?: { id?: string }; lineup?: { id?: string }[] };
@@ -145,10 +148,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       row[key] = out;
     }
   },
-  /** 108 → 109 (MK-6c, design/MARKET.md M5): μ_b is the cheapest adequate tier's cost ÷ ε, read from today's tiers, so
+  /** 109 → 110 (MK-6c, design/MARKET.md M5): μ_b is the cheapest adequate tier's cost ÷ ε, read from today's tiers, so
    *  yesterday's band prices (world.fx.bandP) are no longer kept. The margins (fx.priceM) stay and move to their new
    *  targets at PRICE_TAU. */
-  108: (s) => {
+  109: (s) => {
     const fx = (s.world as { fx?: { bandP?: unknown } } | undefined)?.fx;
     if (fx) delete fx.bandP;
   },

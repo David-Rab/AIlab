@@ -1,7 +1,7 @@
 // MK-7 targeted check (design/MARKET.md M7, MK-7 row): rationing at the list price, unserved buyers to their next choice.
 //  (a) both designer saves (read-only): per product its serving need and served compute, the buyers it turns away
 //      ($/yr, hours / subscribers) and where they went (own products / each rival / no AI);
-//  (b) the designer's day-296 case: Enterprise moved to Atlas-3.0 (product.update versionId = the internal model's
+//  (b) the designer's day-296 case: Enterprise moved to Agent-2-2.0 (product.update versionId = the internal model's
 //      version), 30 days with and without: no unserved demand vanishes on any day (turned away = to other sellers + to
 //      no AI), revenue and profit per product and total;
 //  (c) 90 days on the day-369 save without throwing: the player's sector customer share (hours-weighted) and the
@@ -98,7 +98,7 @@ for (const [k, f] of Object.entries(SAVES)) {
   check(a.spillIn.hours > 0 && rd.deps.every((x) => gap(x.turnedAway) < 1e-6), '(a2) a product with spare compute takes turned-away buyers of another; hours conserved', `API took ${bh(a.spillIn.hours)} ($${f2(a.spillIn.dollars)}B), spare left ${((a.servingH100e - a.needH100e) / 1e3).toFixed(0)}K H100e`);
 }
 
-// (b) day 296: Enterprise → Atlas-3.0 (the internal model's version).
+// (b) day 296: Enterprise → Agent-2-2.0 (the internal model's version).
 {
   const s0 = load(SAVES.d296);
   const ent = s0.player.deployments.find((d) => d.channel === 'enterprise' && d.status !== 'withdrawn');
@@ -126,7 +126,7 @@ for (const [k, f] of Object.entries(SAVES)) {
     const rd = revenueReadout(s);
     const e = econ(s, rd);
     runs[move ? 'with' : 'without'] = e;
-    console.log(`  ${move ? 'Enterprise on Atlas-3.0' : 'as saved'}: day+30 revenue $${f1(e.rev)}B, profit $${f1(e.profit)}B/yr; mean turned away ${bh(away)}/yr (to no AI ${bh(none)}), rivals' revenue on them $${f2(rival)}B/yr; player share ${(100 * playerShare(s)).toFixed(1)}%`);
+    console.log(`  ${move ? 'Enterprise on Agent-2-2.0' : 'as saved'}: day+30 revenue $${f1(e.rev)}B, profit $${f1(e.profit)}B/yr; mean turned away ${bh(away)}/yr (to no AI ${bh(none)}), rivals' revenue on them $${f2(rival)}B/yr; player share ${(100 * playerShare(s)).toFixed(1)}%`);
     show(s, rd, '      ');
     for (const x of e.per) console.log(`      ${x.id} ${x.ch.padEnd(10)} rev $${f1(x.rev)}B  profit $${f1(x.profit)}B`);
     check(worst < 1e-6, `(b) ${move ? 'with' : 'without'} the move: no turned-away demand vanishes on any of 30 days (turned away = elsewhere + no AI)`, `worst relative gap ${worst.toExponential(1)}`);

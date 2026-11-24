@@ -2,7 +2,7 @@
 // hour among the tiers that do band b's tasks adequately (choice.ts bandMu).
 //  (a) the game start (default setup), US Software and US Services: per band c_min,b, μ_b and the band's hours by
 //      seller and tier (sellers above 1% of the band); μ_b = c_min,b ÷ ε recomputed from the tiers here;
-//  (b) the designer's day-369 save: Atlas-4.0-mini added to Enterprise's lineup, 30 days with and without: revenue and
+//  (b) the designer's day-369 save: Agent-3-1.0-micro added to Enterprise's lineup, 30 days with and without: revenue and
 //      profit (revenue − serving cost at the market rate; MK-6b: 112.7 / 91.4 without, 194.2 / 182.0 with), and US
 //      Software's c_min,b with and without at day +0 (what the mini does to the market's price scale).
 // Run alone: npx tsx scripts/v2/_mk6c/check.ts
@@ -95,8 +95,8 @@ function econ(s: GameStateV2) {
   const json = readFileSync(SAVE, 'utf8');
   const s0 = deserialize(json);
   const ent = s0.player.deployments.find((d) => d.channel === 'enterprise' && d.status !== 'withdrawn')!;
-  const mini = s0.player.models.versions.find((v) => /Atlas-4\.0-mini/i.test(v.name));
-  if (!mini) check(false, '(b) the save has Atlas-4.0-mini');
+  const mini = s0.player.models.versions.find((v) => /Agent-3-1.0-micro/i.test(v.name));
+  if (!mini) check(false, '(b) the save has Agent-3-1.0-micro');
   else {
     const runs: Record<string, ReturnType<typeof econ>> = {};
     for (const withMini of [false, true]) {
@@ -106,7 +106,7 @@ function econ(s: GameStateV2) {
         if (err) console.log(`    product.update: ${err}`);
       }
       const m0 = worldMix(x).sec.US.SOFT;
-      console.log(`(b) day ${x.time.day} ${withMini ? 'with   ' : 'without'} Atlas-4.0-mini: US SOFT c_min by band $${cMin(m0).map(f3).join(' / ')}`);
+      console.log(`(b) day ${x.time.day} ${withMini ? 'with   ' : 'without'} Agent-3-1.0-micro: US SOFT c_min by band $${cMin(m0).map(f3).join(' / ')}`);
       const e0 = econ(x);
       for (let i = 0; i < 30; i++) tick(x, { skip: ['endings'] });
       const e = (runs[withMini ? 'with' : 'without'] = econ(x));

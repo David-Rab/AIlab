@@ -34,6 +34,15 @@ export function SpeedControl({ s }: { s: GameStateV2 }) {
     store.fastForward(t);
     setOpen(false);
   };
+  if (s.ending) {
+    return (
+      <div className="speedctl2 is-frozen" data-test="time-frozen">
+        <Tip content={() => <TipCard title="Time frozen">The game has ended. You can look around, but nothing moves.</TipCard>}>
+          <span className="spd-frozen"><ICON.pause size={14} /> Time frozen</span>
+        </Tip>
+      </div>
+    );
+  }
   return (
     <div className="speedctl2">
       <Tip content={() => <TipCard title={st.speed === 0 ? 'Resume' : 'Pause'} value="Space">{LABELS[st.speed]}</TipCard>}>

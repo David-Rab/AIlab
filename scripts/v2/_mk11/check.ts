@@ -92,8 +92,13 @@ for (const d of live) console.log(`  ${d.id} ${d.channel}: Agent mode ${d.featur
   const h = clone(g);
   const d0 = pass[0];
   if (d0) {
+    // Every model the product sells (main and lineup) below the gate: since MK-5c each tier sells its own agent-hours.
+    const dep = h.player.deployments.find((x) => x.id === d0.id) as { versionId: string; lineup?: string[] };
+    for (const id of [dep.versionId, ...(dep.lineup ?? [])]) {
+      const m = h.player.models.versions.find((x) => x.id === id);
+      if (m) m.evals.bench.horizon = { score: 60, sd: 0, day: 0, by: 'self' };
+    }
     const v = h.player.models.versions.find((x) => x.id === d0.versionId)!;
-    v.evals.bench.horizon = { score: 60, sd: 0, day: 0, by: 'self' };
     check(agH(h, d0.id) === 0, 'the same product with a model short of the gate sells 0 agent-hours', `${d0.id}: ${agentsGate(v)}`);
   }
   const r0 = revenueReadout(s).total, r1 = revenueReadout(g).total;
