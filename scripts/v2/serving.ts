@@ -931,7 +931,7 @@ for (const d of [400, 900]) {
       if (m.agentCeiling.bound !== 'none' || m.agentCeiling.fill !== 1) bound++;
       mix.providers.forEach((p, i) => {
         if (!p.model) return;
-        const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate });
+        const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], def.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }); // as mix.ts builds it (RF-P1 tools, ud)
         // A5: the agent price and cost are the customers' tier mix; k and λ its model's.
         const T = m.tiers;
         let priceAg = 0;
