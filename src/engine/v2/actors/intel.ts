@@ -1,8 +1,8 @@
 // Intel: rival and China lead estimates and misalignment bands; risk-source view (V2-SPEC §3.10.3, §6.6). Owner: WS4.
 // leadDays/riskSources are EngineApi selectors: built from intel and BELIEFS, never from truth. The weekly intel
-// system is engine code: it turns truth into noisy evidence, always against the player's best INTERNAL version.
+// system is engine code: it turns truth into noisy evidence, always against the player's best MEASURED version.
 import { clamp, sigmoid } from '../../rng';
-import { activeRivals, internalVersion } from '../models/labs';
+import { activeRivals, bestG, bestMeasuredVersion, internalVersion } from '../models/labs';
 import { lossOfControlRisk } from '../safety/lossRisk';
 import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource, SystemCtx } from '../types';
 import { rivalMis, RELEASE_LAG } from './rivals';
@@ -10,8 +10,8 @@ import { lagDays } from '../models/capability';
 import { ws4, ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
 
-/** EngineApi.leadDays: player's estimate of its lead over `other` (positive = player ahead), vs its best INTERNAL
- *  model (v1 bug fix). Inactive labs return {0, 0}. */
+/** EngineApi.leadDays: player's estimate of its lead over `other` (positive = player ahead), vs its best MEASURED
+ *  model (v1 bug fix: not the public one; CP4: not one still in testing). Inactive labs return {0, 0}. */
 export function leadDays(s: GameStateV2, other: LabId): { est: number; sd: number } {
   const r = other === 'china' ? s.china.lab : s.rivals.find((x) => x.core.id === other);
   if (!r || r.core.status !== 'active') return { est: 0, sd: 0 };
@@ -33,9 +33,16 @@ export function updateIntel(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const id = r.core.id;
   const pub = r.publicModel ?? r.internal;
   // One lead clock (RD-L01): the true lead is lagDays(lab, player) on the recorded frontier-G histories (vs the player's
-  // best INTERNAL version); the lab's internal model leads its own public one by lagDays(public G, lab). The lead over
+  // best MEASURED version, below); the lab's internal model leads its own public one by lagDays(public G, lab). The lead over
   // their public model is the sum, so the raw read below is the true lag plus the error of the assumed release lag.
-  const truthLead = lagDays(s, id, 'player');
+  // CP4: the player's side is its best MEASURED version (bestMeasuredVersion), not the best by true G, which includes a
+  // version still in testing: the lab estimates its lead with the model it knows. Same clock: on the player's own line
+  // while that model is at or above the lab's G (days since the player reached the lab's G, minus days since it reached
+  // the measured model's), else the days since the lab's line reached the measured model's G, negated.
+  const gLab = bestG(s, id);
+  const gMeas = bestMeasuredVersion(s)?.G;
+  const truthLead = gMeas === undefined || !Number.isFinite(gLab) ? lagDays(s, id, 'player')
+    : gMeas >= gLab ? lagDays(s, id, 'player') - lagDays(s, gMeas, 'player') : -lagDays(s, gMeas, id);
   const pubLag = lagDays(s, pub.G, id);
   const vsPublic = truthLead + pubLag;
   const access = r.core.kind === 'china' ? 0.05 : s.hidden.rivalPostures[id]?.externalAccess ?? 0.3;
