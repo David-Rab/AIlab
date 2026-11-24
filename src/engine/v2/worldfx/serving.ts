@@ -439,6 +439,44 @@ export function blendTiers(tiers: readonly Offer[], w: readonly number[] | undef
   }
   return { ...main, hph, cost, price, hphAg, costAg, priceAg, hphAs, seat };
 }
+/** MK-5c (design/MARKET.md M2): the agent-hours a supervising hour buys when buyers take the tiers `line` by hours
+ *  shares `tw` (any sum; none, or all 0: the first tier alone): Σ_k tw_k · k_k ÷ Σ tw, each tier at its own leverage k, λ
+ *  and agent price after the buyer's gate (agentDemandOf; a tier without Agent mode or failing its gate, k = 0, adds 0
+ *  agent-hours, MK-11); the price per agent-hour, the buyer's cost per agent-hour (price + wage ÷ λ) and the serving
+ *  H100e-hours and cost per agent-hour weighted by the tiers' agent-hours (ag: those weights, sum 1; undefined when no
+ *  tier sells any). The sector mix (the player's whole lineup by its tier mix) and the revenue (each product by its
+ *  playerTierW) both read it, so the products' agent-hours sum to the mix's agentK. */
+export function agentMixOf(line: readonly Offer[], tw: readonly number[] | undefined, wageH: number): { k: number; price: number; bc: number; hphAg: number; costAg: number; ag?: number[] } {
+  let z = 0;
+  if (tw) for (let j = 0; j < line.length; j++) if ((tw[j] ?? 0) > 0) z += tw[j];
+  let k = 0;
+  let sp = 0;
+  let bc = 0;
+  let h = 0;
+  let c = 0;
+  const ag: number[] = new Array(line.length).fill(0);
+  for (let j = 0; j < line.length; j++) {
+    const x = z > 0 ? (tw![j] ?? 0) / z : j === 0 ? 1 : 0;
+    if (!(x > 0)) continue;
+    const o = line[j];
+    const d = agentDemandOf(o, wageH);
+    const kk = x * d.k;
+    if (!(kk > 0)) continue;
+    ag[j] = kk;
+    k += kk;
+    sp += kk * d.price;
+    bc += kk * (d.price + wageH / Math.max(1e-9, o.lam));
+    h += kk * o.hphAg;
+    c += kk * o.costAg;
+  }
+  if (!(k > 0)) {
+    const o = line[0];
+    const price = o ? agentDemandOf(o, wageH).price : 0;
+    return { k: 0, price, bc: price + wageH / Math.max(1e-9, o?.lam ?? 1), hphAg: o?.hphAg ?? 0, costAg: o?.costAg ?? 0 };
+  }
+  for (let j = 0; j < ag.length; j++) ag[j] /= k;
+  return { k, price: sp / k, bc: bc / k, hphAg: h / k, costAg: c / k, ag };
+}
 
 /** h50 (minutes) of a model on a sector's work (its horizon domain), as the offers read it. */
 export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMult = 1) => h50Of(s.hidden.timeline, v, horizonDomain(sid)) * hMult;

@@ -57,7 +57,7 @@ import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
   chatToolAppeal, fptOfSimple, fxOn, labToolOpts, offerOf, stanceFactor,
-  agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
+  agentDemandOf, agentMixOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
 
@@ -133,7 +133,8 @@ export interface SectorMix {
   prices: number[];
   /** A2c per provider: agent-hours a supervising hour buys (k after the buyer's gate), price per agent-hour ($, capped at
    *  the wage), seat price per seat-month ($; 0 for open weights: in-house use is unbilled). seatPrice: the going seat
-   *  price (share-weighted over the providers that sell seats) the seat target reads. */
+   *  price (share-weighted over the providers that sell seats) the seat target reads. MK-5c: the player's agentK and
+   *  agent price are the mix of the tiers its buyers buy (each tier its own k, λ; serving.ts agentMixOf). */
   agentK: number[];
   agentPrices: number[];
   seatPrices: number[];
@@ -601,6 +602,8 @@ function computeMix(s: GameStateV2): WorldMix {
     return providers.map((p, i) => (!sells[i] ? 0 : p.open ? row[i] : Math.min(row[i], st?.[p.key] ?? row[i] * q)));
   });
 
+  // MK-5c decision: bestPublic stays the max over every public offer (the best capability on the market: the PHYS gate,
+  // tech tree, misuse and macro read it), not a buyer-weighted mix.
   const bestPublic = bestPublicFrom(s, cands, pg);
   let bestPublicLg = 0;
   for (const c of cands) bestPublicLg = Math.max(bestPublicLg, ver.get(c.dep.versionId)!.Lg);
@@ -730,6 +733,9 @@ function computeMix(s: GameStateV2): WorldMix {
   // A8 / REACH: each provider's reach target: each firm contracts with the MULTI_HOMING.providers labs it ranks best by
   // the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·(fit − best))) among the closed
   // labs it can buy from (access), without replacement: R* = P(the lab is among the firm's picks) (reachTargets).
+  // MK-5c decision (design/MARKET.md Buyers, As built): fBar stays the lab's best offer overall (the player: per sector
+  // its best product's main model), not per buyer group: a firm picks labs on their best offer, the ladder then decides
+  // what each group buys; reach is one stock per lab × region for all groups (a per-group target needs per-group stocks).
   const fBar = filled(n, -Infinity);
   for (let i = 0; i < n; i++) {
     let f = 0;
@@ -778,6 +784,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const prices = filled(n, 0);
       const agentK = filled(n, 0);
       const agentPrices = filled(n, 0);
+      const agentBc = filled(n, 0);
       const seatPrices = filled(n, 0);
       const seatCost = filled(n, 0);
       const physG = filled(n, 0);
@@ -903,9 +910,22 @@ function computeMix(s: GameStateV2): WorldMix {
         if (!(tws > 0)) seatCost[i] = L[0] ? shm * L[0].hphAs * rate : 0;
         else if (Math.abs(tws - 1) > 1e-9) seatCost[i] /= tws;
         prices[i] = price;
-        const ag = agentDemandOf({ k: o.k, lam: o.lam, priceAg, costAg }, wage);
-        agentK[i] = ag.k;
-        agentPrices[i] = ag.price;
+        // MK-5c (M2): the player's agent-hours per supervising hour, their price and the buyer's cost per agent-hour are
+        // the mix of the tiers its buyers buy (its tier mix tierW, as MK-5b's coverage): each tier at its own k, λ and
+        // agent price (serving.ts agentMixOf; a tier without Agent mode or failing its gate sells none, MK-11). No target
+        // share (and BUYER_LADDER_TEST.bestOnly): its best product's main model's k and λ at the tier-mixed agent price
+        // (before MK-5c). Other providers: their own model's k, λ (rivals wait for their redesign).
+        if (i === playerIdx && !BUYER_LADDER_TEST.bestOnly && target[i] > 1e-12) {
+          const am = agentMixOf(P, tw, wage);
+          agentK[i] = am.k;
+          agentPrices[i] = am.price;
+          agentBc[i] = am.bc;
+        } else {
+          const ag = agentDemandOf({ k: o.k, lam: o.lam, priceAg, costAg }, wage);
+          agentK[i] = ag.k;
+          agentPrices[i] = ag.price;
+          agentBc[i] = ag.price + wage / Math.max(1e-9, o.lam);
+        }
         seatPrices[i] = providers[i].open ? 0 : seat;
         const gv = gs[i];
         if (gv) physG[i] = Math.min(Math.max(gv[PHYS], pfFloorG) + (t.id === 'LOG' ? pfLogG : 0), physCapG);
@@ -984,7 +1004,7 @@ function computeMix(s: GameStateV2): WorldMix {
         if (kk > 0) {
           kw += kk;
           kp += kk * agentPrices[i];
-          kb += kk * (agentPrices[i] + wage / Math.max(1e-9, oi.lam));
+          kb += kk * agentBc[i];
         }
         wsum += x;
         const gv = i === playerIdx && pGv ? pGv : gs[i];

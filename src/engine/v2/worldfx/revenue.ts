@@ -45,7 +45,7 @@ import { productSafeguardOverhead, productUsageMult } from '../safety/safeguards
 import { REGIONS, ECON, SECTORS } from '../../../data/v2/sectors';
 import { CONSUMER_MKT, SERVE_HOURS_PER_YEAR, SHARE_SLOPE_G } from '../../../data/v2/serving';
 import type { Channel, Deployment, EngineSystem, GameStateV2, LabId, Money, RegionId, SectorId, SystemCtx } from '../types';
-import { BUYER_GROUP_IDS, SECTOR_CHANNELS, advanceCustomers, paidDeployments, rerunChoice, worldMix, type BuyerGroupId, type ServedTargets, type WorldMix } from './mix';
+import { BUYER_GROUP_IDS, BUYER_LADDER_TEST, SECTOR_CHANNELS, advanceCustomers, paidDeployments, rerunChoice, worldMix, type BuyerGroupId, type ServedTargets, type WorldMix } from './mix';
 import type { Choice } from './choice';
 import { monitorOverhead } from '../models/products';
 import { CHINA_ID, versionById } from '../models/labs';
@@ -56,7 +56,7 @@ import { bookCash } from '../finance/ledger';
 import { revenueToParent } from '../finance/parent';
 import { flopPerToken } from '../departments/workfit';
 import {
-  agentDemandOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, offerOf, productFx, stanceFactor, productLineup, productOffer, productUses, serveDollarsPerHour,
+  agentDemandOf, agentMixOf, blendTiers, chatFreeTier, lineupVersions, chatHoursPerDay, fxOn, offerOf, productFx, stanceFactor, productLineup, productOffer, productUses, serveDollarsPerHour,
   settingsDG, subPrice, tokEff, valuePerHour, wagePerHour, type Offer,
 } from './serving';
 import { decodeUtilNow } from '../models/stacks';
@@ -410,6 +410,22 @@ function addTiers(a: Acc, line: readonly Offer[], tw: readonly number[] | undefi
     a.tD[k] = (a.tD[k] ?? 0) + (x * w * priceOf(line[k])) / 1e9;
   }
 }
+/** MK-5c (design/MARKET.md M2): a player product's agent demand per supervising hour when its buyers take its tiers by
+ *  `tw` (serving.ts agentMixOf: each tier at its own k, λ and agent price; the same function the mix's agentK reads, so
+ *  the products' agent-hours, Σ playerProdW × k, sum to it), the tier weights of its agent-hours, their serving
+ *  H100e-hours and cost per agent-hour, and whether the wage cap binds (some tier's asked price above what it bills).
+ *  BUYER_LADDER_TEST.bestOnly: before MK-5c (the blended offer, its main model's k and λ). */
+function agentOf(o: Offer, line: readonly Offer[], tw: readonly number[] | undefined, wage: number): { k: number; price: number; hphAg: number; costAg: number; tw: readonly number[] | undefined; capped: boolean } {
+  if (BUYER_LADDER_TEST.bestOnly) {
+    const ag = agentDemandOf(o, wage);
+    return { k: ag.k, price: ag.price, hphAg: o.hphAg, costAg: o.costAg, tw, capped: o.priceAg > ag.price };
+  }
+  const am = agentMixOf(line, tw, wage);
+  const w = am.ag ?? tw;
+  let capped = false;
+  for (let k = 0; k < line.length; k++) if ((w ? (w[k] ?? 0) : k === 0 ? 1 : 0) > 0 && line[k].priceAg > Math.max(line[k].costAg, wage)) capped = true;
+  return { k: am.k, price: am.price, hphAg: am.hphAg, costAg: am.costAg, tw: w, capped };
+}
 /** Seat channels (A2c): seats are sold by Enterprise, and by Vetted in GOV/MIL (MK-1: Government's seats) [D]. */
 // MK-6: Vetted sells seats in GOV/MIL as Government did and hours elsewhere as Trusted did, until one rule prices both.
 const seatOf = (c: Channel, sector: string) => c === 'enterprise' || (c === 'vetted' && GOV_SECTORS.has(sector));
@@ -486,9 +502,9 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
       {
         let rawH = 0;
         let rawS = 0;
-        for (const { d, w, o } of ws) {
+        for (const { d, w, o, line, tw } of ws as (Row & { w: number; tw?: number[] })[]) {
           if (!(w > 0)) continue;
-          const ag = agentDemandOf(o, wage);
+          const ag = agentOf(o, line, tw, wage);
           const x = ps * wh.supervising * w * fOf(d) * ag.k * ac.fill;
           rawH += x;
           rawS += x * ag.price;
@@ -529,19 +545,21 @@ export function revenueReadout(s: GameStateV2, mix: WorldMix = worldMix(s), offe
         }
         // Agent-hours (A2c): k after the buyer's gate × the supervising hours, billed per hour (≤ the wage); A4: × the
         // share the sector's demand ceiling lets be bought (1 below it).
+        // MK-5c: by the tiers its buyers take (agentOf): each tier's own k, λ and agent price; the tiers' agent-hours,
+        // need and cost by each tier's part of the agent-hours (a tier without Agent mode sells none).
         if (w > 0) {
-          const ag = agentDemandOf(o, wage);
+          const ag = agentOf(o, line, tw, wage);
           const x = ps * wh.supervising * w * f * ag.k * ac.fill * pScale;
           playerAgent[r][def.id] = (playerAgent[r][def.id] ?? 0) + x;
           a.dem += (x * ag.price) / 1e9;
           a.hours += x;
           a.agent += x;
           a.agentDem += (x * ag.price) / 1e9;
-          addTiers(a, line, tw, x, (t) => Math.max(t.costAg, Math.min(t.priceAg, wage)));
-          a.need += (x * o.hphAg) / SERVE_HOURS_PER_YEAR;
-          addTierNeed(a, line, tw, x, (t) => t.hphAg);
-          a.cost += (x * o.costAg) / 1e9;
-          if (o.priceAg > ag.price) a.capped += (x * ag.price) / 1e9;
+          addTiers(a, line, ag.tw, x, (t) => Math.max(t.costAg, Math.min(t.priceAg, wage)));
+          a.need += (x * ag.hphAg) / SERVE_HOURS_PER_YEAR;
+          addTierNeed(a, line, ag.tw, x, (t) => t.hphAg);
+          a.cost += (x * ag.costAg) / 1e9;
+          if (ag.capped) a.capped += (x * ag.price) / 1e9;
         }
         // Paid seats (A2c): seats × seat price × 12; their assisted hours need serving, served first.
         if (seat && seatSum > 0 && w > 0) {

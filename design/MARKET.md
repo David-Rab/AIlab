@@ -81,6 +81,22 @@ brand × reach) over the offers it can reach: every rival's offer (rivals sell t
 products on its rungs. The sector's totals (adoption, F, control shares) are the groups' sums, so automation and control
 read the same quantities as today.
 
+As built (MK-5b/5c, worldfx/mix.ts): per sector × region the player's fit, coverage, domain G (MK-5b) and agent-hours
+per supervising hour, agent price and buyer's cost per agent-hour (agentK, MK-5c) are the hours-weighted mix of the
+tiers its buyers buy (its tier mix in the merged choice: per group its hours across the products on the group's rungs
+and their tiers), each tier at its own values; for agent-hours each tier at its own k, λ and agent price after the
+buyer's gate, a tier without Agent mode or failing its gate adding none (MK-11; serving.ts agentMixOf, which revenue.ts
+also reads per product, so the products' agent-hours sum to agentK). No target share: its best product's main model.
+Two readers stay on the best offer:
+- **bestPublic** (and bestPublicLg) stays the **max** over every public offer: it is the best capability on the market
+  (the PHYS gate, the tech tree, misuse capability, macro read it), not what a buyer group uses.
+- **The reach target (fBar)** stays the lab's **best offer overall** (per sector its best product's main model, mean
+  over sectors): a firm decides which labs to contract with on the lab's best offer; what each group then buys within
+  the contract is the ladder's choice. A per-group version is not a small change: reach is one stock per lab × region
+  shared by every group (A8), a per-group target needs per-group reach stocks (save shape), and a group that can buy no
+  product of the player (no API product: small firms) has no fit to average. Left for a follow-up if playtests show
+  small firms over-contracting with a lab they can only buy from through Enterprise.
+
 ### Prices (M5, M6)
 
 Per seller and product: p = c + M, M = μ ÷ (1 − S), capped at the value per hour and floored at cost; S = the seller's
@@ -260,3 +276,14 @@ dependency order; tasks on one line of the same number can run in parallel.
 - MK-8: rival Chat demand is tiny (4–7K H100e at the start, ≈ 0 on day 369): rival chat user shares look low.
 - MK-8: rivals serve at the reference serving share (`shareRefAt().serving`), not their own split.
 - MK-11: rivals now carry their tools' effects (harness fit, tokens, horizon), which changes their strength.
+
+## Decisions after MK-6c (designer, 2026-11-24)
+
+- "Adding a cheaper model must keep profit" is **not** a requirement. A cheaper model of yours that does the same tasks
+  cannibalises your own buyers, as in real markets; the old fault was cost-plus pricing losing money with no
+  competition. Day-369 Atlas-4.0-mini case under MK-6c: −$16.8B/yr profit and ≈ 970K H100e of serving freed (worth about
+  the same at the rental rate) — a real trade-off the preview shows truthfully. `_mk6` (c) and `_mk6b` (c) expectations
+  that the mini keeps profit are to be restated at MK-CP as "preview = outcome", not "profit rises".
+- MK-6d (excluding own models from the price-sensitivity anchor) and a separate review sweep: withdrawn.
+- Remaining: MK-9 (re-merge), MK-5c, MK-13 (incl. how Win share's later buyer gain is shown), MK-CP. Judge later
+  findings against the sourced targets and whether trade-offs are shown honestly, not against "a number went down".
