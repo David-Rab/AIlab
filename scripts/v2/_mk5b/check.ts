@@ -7,12 +7,19 @@
 //      coverage, fit, F and g equal the old best-product values where the player's buyers all buy the best product's
 //      main model (or the player has no target share: the fallback), and differ from them wherever some of its hours
 //      are on a tier whose coverage differs from the best product's main model;
+//  (d) MK-5c: the player's agentK the same way (see (d) below);
 //  (c) 30 ticks without throwing.
 // Run alone: npx tsx scripts/v2/_mk5b/check.ts
 import { readFileSync } from 'node:fs';
 import { deserialize } from '../../../src/engine/v2/core/save';
 import { tick } from '../../../src/engine/v2/core/loop';
 import { BUYER_GROUP_IDS, BUYER_LADDER_TEST, worldMix, type SectorMix } from '../../../src/engine/v2/worldfx/mix';
+import { revenueReadout } from '../../../src/engine/v2/worldfx/revenue';
+import { agentMixOf, wagePerHour } from '../../../src/engine/v2/worldfx/serving';
+import { workHoursOf } from '../../../src/engine/v2/worldfx/use';
+import { kycDemandFactor } from '../../../src/engine/v2/models/deployments';
+import { productUsageMult } from '../../../src/engine/v2/safety/safeguards';
+import type { SectorId } from '../../../src/engine/v2/types';
 import { SAVE } from '../_mk5/dump';
 
 let fails = 0;
@@ -134,6 +141,91 @@ for (const r of ['US', 'ROW', 'CN'] as const) for (const [sid, m] of Object.entr
 }
 check(eqBad === 0, '(b) all groups reach all products: equal to the best-product values where all the player\'s buyers buy its main model (or it has none)', `${eqN} such sector-regions, ${eqBad} differ`);
 check(neBad === 0, '(b) … and the coverage differs wherever some of its hours are on a tier of other coverage', `${neN} such sector-regions, ${neBad} equal; ${same} others (bought tiers of the same coverage)`);
+
+// (d) MK-5c: agentK (agent-hours per supervising hour) by what the player's buyers buy.
+//  (d1) every group reaching every product: equal to the old value where all the player's buyers buy the best product's
+//       main model (or it has no target share);
+//  (d2) the product path: Σ_d playerProdW_d × agentMixOf(its lineup, its playerTierW).k × the ceiling's fill = agentK;
+//  (d3) revenue: the player's agent-hours (revenueReadout playerAgent) = its stock share × supervising hours × agentK
+//       (below it only where a product factor, KYC or restriction, or the ceiling's room scales them);
+//  (d4) the save: US agentK before → after per sector, total agent-hour demand before → after.
+{
+  let eqN = 0;
+  let eqBad = 0;
+  let diff = 0;
+  for (const mk of [load, oneProduct]) {
+    const oldA = mixWith(true, true, mk);
+    const newA = mixWith(false, true, mk);
+    for (const r of ['US', 'ROW', 'CN'] as const) for (const [sid, m] of Object.entries(newA.sec[r])) {
+      const o = oldA.sec[r][sid as SectorId];
+      const k0 = m.rerun.tierDep.indexOf(m.playerDep ?? '');
+      const all = !(m.target[pi] > 1e-12) || (k0 >= 0 && m.tiers.weight[pi][k0] >= 1 - 1e-9);
+      const d = Math.abs(m.agentK[pi] - o.agentK[pi]) + Math.abs(m.agentPrices[pi] - o.agentPrices[pi]);
+      if (all) {
+        eqN++;
+        if (d > 1e-9 * (1 + o.agentK[pi] + o.agentPrices[pi])) eqBad++;
+      } else if (d > 1e-12) diff++;
+    }
+  }
+  check(eqBad === 0, "(d1) agentK equal to the old value where all the player's buyers buy the best product's main model", `${eqN} such sector-regions, ${eqBad} differ; ${diff} others move`);
+
+  let bad = 0;
+  let n = 0;
+  for (const mk of [load, oneProduct]) {
+    const mm = mixWith(false, false, mk);
+    for (const r of ['US', 'ROW', 'CN'] as const) for (const [sid, m] of Object.entries(mm.sec[r])) {
+      if (!(m.target[pi] > 1e-12)) continue;
+      const wage = wagePerHour(sid as SectorId, r);
+      let k = 0;
+      for (const [id, w] of Object.entries(m.playerProdW)) if (w > 0 && m.playerLines[id]) k += w * agentMixOf(m.playerLines[id], m.playerTierW[id], wage).k;
+      k *= m.agentCeiling.fill;
+      n++;
+      if (Math.abs(k - m.agentK[pi]) > 1e-9 * (1 + m.agentK[pi])) bad++;
+    }
+  }
+  check(bad === 0, "(d2) the products' agent-hours per supervising hour sum to the sector's agentK", `${bad} of ${n} sector-regions differ`);
+
+  const s = load();
+  const mm = worldMix(s);
+  const rv = revenueReadout(s, mm);
+  const scaled = s.player.deployments.some((d) => d.status !== 'withdrawn' && (kycDemandFactor(d) !== 1 || productUsageMult(d) !== 1));
+  let rb = 0;
+  let rn = 0;
+  let req = 0;
+  for (const r of ['US', 'ROW', 'CN'] as const) for (const [sid, m] of Object.entries(mm.sec[r])) {
+    const x = m.share[pi];
+    if (!(x > 0)) continue;
+    const want = x * workHoursOf(s.world.sectors[r][sid as SectorId], sid as SectorId).supervising * m.agentK[pi];
+    const got = rv.playerAgent[r][sid as SectorId] ?? 0;
+    rn++;
+    const e = Math.abs(got - want) / Math.max(1, want);
+    if (e <= 1e-9) req++;
+    else if (got > want) rb++; // the ceiling's room or a product factor can only lower them
+  }
+  check(rb === 0, "(d3) revenue's agent-hours = share × supervising hours × agentK (≤ where a product factor or the room binds)", `${rn} sector-regions, ${req} equal, ${rb} above${scaled ? '; some product factor ≠ 1' : ''}`);
+
+  const rev = (bestOnly: boolean) => {
+    BUYER_LADDER_TEST.bestOnly = bestOnly;
+    const st = load();
+    const m = worldMix(st);
+    const out = revenueReadout(st, m);
+    BUYER_LADDER_TEST.bestOnly = false;
+    return { m, out };
+  };
+  const b = rev(true);
+  const a = rev(false);
+  console.log(`\n(d4) US: the player's agentK (agent-hours per supervising hour, after the ceiling) before (best product) → after (MK-5c), its price per agent-hour, its agent-hours a year`);
+  for (const [sid, m] of Object.entries(a.m.sec.US)) {
+    const o = b.m.sec.US[sid as SectorId];
+    const hb = b.out.playerAgent.US[sid as SectorId] ?? 0;
+    const ha = a.out.playerAgent.US[sid as SectorId] ?? 0;
+    console.log(`  ${sid.padEnd(6)} agentK ${o.agentK[pi].toFixed(4)} → ${m.agentK[pi].toFixed(4)}   $/agent-h ${o.agentPrices[pi].toFixed(2)} → ${m.agentPrices[pi].toFixed(2)}   agent-h ${(hb / 1e6).toFixed(1)}M → ${(ha / 1e6).toFixed(1)}M`);
+  }
+  const tot = (x: ReturnType<typeof rev>) => x.out.deps.reduce((p, d) => ({ dem: p.dem + (d.agentDemand ?? 0), h: p.h + (d.agentHours ?? 0) }), { dem: 0, h: 0 });
+  const tb = tot(b);
+  const ta = tot(a);
+  console.log(`  total agent-hour demand (all regions) $${tb.dem.toFixed(3)}B/yr → $${ta.dem.toFixed(3)}B/yr; agent-hours ${(tb.h / 1e6).toFixed(1)}M → ${(ta.h / 1e6).toFixed(1)}M; revenue total $${b.out.total.toFixed(3)}B → $${a.out.total.toFixed(3)}B`);
+}
 
 // (c) 30 ticks.
 let err = '';
