@@ -1,15 +1,14 @@
 // Products and product features (STRUCTURE §4.4, §4.9; BUILD-PLAN R6, decisions D5 and D7). Owner: WS1.
 //
 // Channels become products the player owns. A product is a package: a model (optionally with a mini serving its free
-// tier), an optional monitor model, a price tier, safeguards, KYC, effort and features. Everything is editable while
+// tier), an optional monitor model, a price tier, safeguards, KYC and features. Everything is editable while
 // live (rule R4); edits take effect at the next tick (D7).
 //
 // Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
 // then switched on per product. Model v3 V4.3 (MODEL-V3 §7.2): every effect is typed — a task enabler (a tool: RD-P07,
 // offers without it cannot do the part of the listed sectors' tasks that needs it; rivals get it after a lag), a horizon extender (× h50 on chosen work types), a
-// scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3) or
-// effort (deep: ×4 reasoning tokens, +0.24 OOM, R20 C3). Horizon extenders and scaffolds also apply to the lab's internal
-// agents on the internal work types they list (SWE, EXP, IDEAS), once built. RD-P11: a feature's incident exposure acts
+// scaffold (+ΔG compute-equivalent fit on chosen work types, × tokens per work-hour; Davidson et al. 2023 via R20 B3).
+// Horizon extenders and scaffolds also apply to the lab's internal agents on the internal work types they list (SWE, EXP, IDEAS), once built. RD-P11: a feature's incident exposure acts
 // through the quantities of the product's incident site (safety/incidents.ts siteOf): its task horizon (a horizon
 // extender lengthens the tasks the model runs alone: autonomy A) and its affordances (`afford`); its extra use is in
 // the product's serving share. Only Companion keeps a per-trait multiplier, a stated stand-in (`hazard`).
@@ -167,7 +166,8 @@ export const FEATURES: FeatureDef[] = [
  *  θ_w) with AI labour not the bottleneck (the regime the game runs in: AI team-equivalents ≫ humans) the slot's
  *  effective labour is ×1.3, today's "agent research throughput ×1.3": with ρc = −2, L ∝ (1 − a)^−1.5, so ×1.3 needs
  *  a: 0.5 → 0.580, logit +0.324 × COVER.s 0.8 = 0.26. Anthropic's +90% on internal research evals [P] is a larger gain
- *  on an easier, parallel task (breadth-first search). The deep-think effort stays the node's option unlock. */
+ *  on an easier, parallel task (breadth-first search). M8: the
+ *  node's only effect. */
 export const P05_ORCHESTRATION: FeatureFx = { kind: 'scaffold', dG: 0.26, tokens: 3.75, work: ['SWE', 'EXP', 'IDEAS'] };
 /** RD-A06 (DD-03): internal tooling, owned on the research side and separate from product features (a product feature
  *  acts only inside its product's offer: Memory's horizon still lists 'all', which internalFx no longer reads). Each tool

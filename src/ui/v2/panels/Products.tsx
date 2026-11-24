@@ -2,7 +2,7 @@
 // L1 #1: revenue from products (total, its trend since the peak, one row per product: served vs wanted-not-served,
 // Limited by and where buyers are heading). L1 #2: one card per live product: lineup (real models, skill on tests,
 // hours sold, price), tools (where each helps, cost per task), customers (share now → where buyers are heading, best
-// rival), sector certification, price and thinking effort (live edits with a before → after preview); the Agents card
+// rival), sector certification, price (live edits with a before → after preview); the Agents card
 // while not launched (ready to launch?). L2: the product drawer (customers by sector, Limited by in words, what could
 // win buyers back, sold in a year, safeguards on the product, retire); Policies; lineup and tool editors. L3: tooltips.
 // One home per datum: serving compute lives on LAB (the header link); misuse risk on SAFETY › Risks.
@@ -13,13 +13,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed, type FeatureDef } from '../../../data/v2/features';
-import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
+import { MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { productMonitorVersion } from '../../../engine/v2/models/products';
 import {
-  CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, effortLock, fmtDate, fmtMonth, isProduct,
+  CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, fmtDate, fmtMonth, isProduct,
   featureView, toolRivalsView, measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
   pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
   demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
@@ -38,7 +38,6 @@ const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, 
 const P_WHO: Partial<Record<Channel, string>> = { consumer: 'people, by subscription', api: 'developers, by task', enterprise: 'companies, by seat and by task', vetted: 'government, defence and regulated firms, by contract' };
 const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal', standard: 'Standard', classifiers: 'Classifiers', hardened: 'Hardened' };
 const TIER_LABEL: Record<PriceTier, string> = { budget: 'Low', standard: 'Standard', premium: 'Premium' };
-const EFFORT_LABEL: Record<Deployment['effort'], string> = { low: 'Low', max: 'Max', deep: 'Deep' };
 const BOUND_WORD: Record<string, string> = { capacity: 'serving compute', quality: 'quality', price: 'price', demand: 'demand' };
 /** VOCAB §PRODUCTS: player names of the tools whose engine names differ. */
 const TOOL_NAME: Record<string, string> = { deepResearch: 'Research mode', codingAgent: 'Coding harness' };
@@ -67,7 +66,6 @@ function editParams(id: string, c: ProductChanges): Params {
   if (c.price) p.price = c.price;
   if (c.safeguards) p.safeguards = c.safeguards;
   if (c.kyc !== undefined) p.kyc = c.kyc;
-  if (c.effort) p.effort = c.effort;
   if (c.features) p.features = c.features.join(',');
   return p;
 }
@@ -84,7 +82,6 @@ function changeLines(s: GameStateV2, d: Deployment, c: ProductChanges): { k: str
   if (n.price !== d.price) out.push({ k: 'Price', from: TIER_LABEL[d.price], to: TIER_LABEL[n.price] });
   if (n.safeguards !== d.safeguards) out.push({ k: 'Safeguards', from: SG_LABEL[d.safeguards], to: SG_LABEL[n.safeguards] });
   if (n.kyc !== d.kyc) out.push({ k: 'KYC', from: String(d.kyc), to: String(n.kyc) });
-  if (n.effort !== d.effort) out.push({ k: 'Thinking effort', from: EFFORT_LABEL[d.effort], to: EFFORT_LABEL[n.effort] });
   const fOn = n.features.filter((f) => !d.features.includes(f));
   const fOff = d.features.filter((f) => !n.features.includes(f));
   for (const f of fOn) out.push({ k: 'Tool', from: 'off', to: `${FEATURES.find((x) => x.id === f)?.name ?? f} on` });
@@ -292,13 +289,6 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
           </Tip>
           <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
           <Tip content={() => <TipCard title={chat ? 'Plan price' : 'Price over serving cost'} rows={r ? [{ label: 'Margin', value: F.pct(r.margin) }] : []}>{chat ? 'What a paying user pays a month.' : 'Every model in the lineup sells at this multiple of its own serving cost.'}</TipCard>}><span className="dim small">{chat ? (r ? `${usd(r.price)} a month` : '') : `${(MARKUP[n.price] * (CHANNEL_PRICE[d.channel] ?? 1)).toFixed(1)}× serving cost`}</span></Tip>
-        </div>
-        <div className="setrow">
-          <Tip content={() => <TipCard title={<Term id="effort">Thinking effort</Term>} rows={(['low', 'max', 'deep'] as const).map((e) => ({ label: EFFORT_LABEL[e], value: `tokens ×${EFFORT_TOKENS[e]} · skill ×${(10 ** (EFFORT_OOM_PER_10X * Math.log10(EFFORT_TOKENS[e]))).toFixed(2)} effective compute` }))}>Reasoning tokens per answer. Price follows cost, so the margin stays; the hours a chip serves change.</TipCard>}>
-            <span className="k"><Term id="effort">Thinking effort</Term></span>
-          </Tip>
-          <Seg testId={`prod-effort.${d.id}`} value={n.effort} options={(['low', 'max', 'deep'] as const).map((e) => ({ v: e, label: EFFORT_LABEL[e], locked: effortLock(s, e) }))} onChange={(e) => set({ effort: e })} />
-          <span />
         </div>
       </div>
       <div className="pfoot">
@@ -681,7 +671,7 @@ function GuardsSec({ d }: { d: Deployment }) {
 }
 
 // ───────── tools editor (built once lab-wide, on here), lineup editor, edit preview ─────────
-/** One icon per feature type: DoorOpen enabler, Ruler horizon extender (task length), Blocks scaffold, BrainCog effort. */
+/** One icon per feature type: DoorOpen enabler, Ruler horizon extender (task length), Blocks scaffold. */
 const FT_ICON: Record<FeatureKind, LucideIcon> = { enabler: DoorOpen, horizon: Ruler, scaffold: Blocks };
 const FT_TERM: Record<FeatureKind, string> = { enabler: 'featEnabler', horizon: 'featHorizon', scaffold: 'featScaffold' };
 const FT_LABEL: Record<FeatureKind, string> = { enabler: 'enabler', horizon: 'horizon', scaffold: 'scaffold' };

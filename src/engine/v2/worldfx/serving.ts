@@ -3,7 +3,7 @@
 //
 //   cost per work-hour  c = H100e-hours per work-hour × $ per H100e-hour (market rental: the opportunity cost of a chip)
 //   H100e-h per w-hour  = FLOP per token (2·N_active of the served version) × (input ÷ U_prefill + output ÷ U_decode)
-//                         ÷ peak FLOP/s ÷ 3600, tokens per work-hour by work type × effort × scaffolds
+//                         ÷ peak FLOP/s ÷ 3600, tokens per work-hour by work type × scaffolds
 //   capacity            = serving H100e × 8766 h ÷ (H100e-hours per work-hour)   (work-hours per year)
 //   price               = min(markup × c, value) per adopted task-hour (never below c); an adopted hour saves (α + (1 − α)·g_aug)
 //                         hours of the sector's work (substituted vs augmented), so value = wage × that; rivals price at
@@ -12,14 +12,14 @@
 //                         agent-hour = min(markup × cost on the autonomous profile, wage); seat price = list × markup ÷
 //                         standard, ≥ the seat's serving cost (data/v2/serving.ts SEATS, AGENT_WORK)
 //   sector coverage     a = σ((fit − θ_s)/s) × p(H_s | h50): the work-type function of V3 (departments/workfit.ts) with
-//                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(effort,
-//                         safeguards, scaffolds), h50 × horizon extenders
+//                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(safeguards,
+//                         scaffolds), h50 × horizon extenders
 // Rivals and China serve their own designs (model v3 F1, actors/rivalModel.ts): FLOP per token 2·N_active of their base,
 // fit their G. Nothing here reads a relative serve cost, the research-speed multiplier M or the level bridge for prices, costs or
 // coverage.
 import { controlOn } from '../safety/safeguards';
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, EFFORT_CAP_OOM, EFFORT_OOM_PER_10X, EFFORT_TOKENS, LINEUP, MARKUP, RIVAL_MARKUP,
+  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
 import { CHANNEL_PRICE, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
@@ -52,7 +52,7 @@ const hphOf = (fpt: number, tin: number, tout: number, ud: number) => (fpt * (ti
  *  2025 profiles, 10^(−TOK_PER_RL_OOM × its RL recipe's G-equivalent), ≥ TOK_MIN. Player versions read their build (the
  *  RL efficiency and ceiling they were post-trained with; a distilled student inherits its teacher's, as it learns from
  *  its traces), rivals' and China's models the RL part of their G (SimpleModel.rlG). A recipe at or below the day-0
- *  recipe keeps the profiles (τ = 1). Effort multiplies the result, so effort's fit gain stays relative (R20 C3). */
+ *  recipe keeps the profiles (τ = 1). */
 export function tokEff(v: { build?: { eRL: number; aRL?: number; flopPre: number }; rlG?: number } | undefined): number {
   if (!v) return 1;
   const g = v.build ? rlGOfBuild(v.build) : v.rlG ?? 0;
@@ -69,10 +69,6 @@ export function useHourCost(s: GameStateV2, fpt: number, tau = 1, ud = decodeUti
   const g = TOKENS.autonomous;
   return { hour: hphOf(fpt, a.input, a.output * tau, ud) * usd, agentHour: hphOf(fpt, g.input, g.output * tau, ud) * usd, perH100eHour: usd };
 }
-
-/** Effort's reasoning-token multiplier and its compute-equivalent fit gain (R20 C3: +0.4 OOM per ×10, capped). */
-export const effortTokens = (e: Deployment['effort']) => EFFORT_TOKENS[e] ?? 1;
-export const effortDG = (mult: number) => Math.max(-EFFORT_CAP_OOM, Math.min(EFFORT_CAP_OOM, EFFORT_OOM_PER_10X * Math.log10(Math.max(1e-6, mult))));
 
 /** Active parameters of the smallest student of a teacher with `nT` active parameters that lands at most `gap` OOM below
  *  it (the distillation rule: δ = DISTILL.a + DISTILL.b·log₁₀(N_T/N_S) at DISTILL_TPP, N_S ≥ PARAM_RANGE[0]); the
@@ -223,7 +219,7 @@ export interface Offer { fit: number; a: number; hph: number; cost: number; pric
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
 /** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
 /** `adapted`: the offer's lab has a live sector adaptation for this sector (RD-P08, models/adaptations.ts). */
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; effort?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -261,21 +257,20 @@ function useFit(s: GameStateV2, w: TimelineWorld, v: Fitted, sid: SectorId | 'CH
   }
   return x;
 }
-/** A token profile scaled by the feature token multiplier tk and effort (output only). Module level: no per-call closure. */
-const scaleTok = (b: TokenProfile, tk: number, eff: number): TokenProfile => ({ input: b.input * tk, output: b.output * tk * eff });
+/** A token profile scaled by the feature token multiplier tk. Module level: no per-call closure. */
+const scaleTok = (b: TokenProfile, tk: number): TokenProfile => ({ input: b.input * tk, output: b.output * tk });
 const CHAT_OFFER_TOKENS: TokenProfile = { input: 3e3, output: 8e2 };
 /** The offer of a set of model uses on one sector's work (or consumer chat: fit and coverage; cost per work-hour of chat
  *  is not used). */
 export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT', o: OfferOpts): Offer {
   const w = s.hidden.timeline;
-  const eff = o.effort ?? 1;
-  const dG = (o.dG ?? 0) + effortDG(eff);
+  const dG = o.dG ?? 0;
   const hm = o.hMult ?? 1;
   const tk = o.tok ?? 1;
   const chat = sid === 'CHAT';
-  const tok = scaleTok(chat ? CHAT_OFFER_TOKENS : adoptedTokens(s, sid), tk, eff);
-  const tokAg = scaleTok(TOKENS.autonomous, tk, eff);
-  const tokAs = scaleTok(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens, tk, eff);
+  const tok = scaleTok(chat ? CHAT_OFFER_TOKENS : adoptedTokens(s, sid), tk);
+  const tokAg = scaleTok(TOKENS.autonomous, tk);
+  const tokAs = scaleTok(chat ? TOKENS.assisted : SECTOR_WORK[sid].tokens, tk);
   const hd = horizonDomain(sid);
   const ud = o.ud ?? U_DECODE;
   let fit = 0;
@@ -291,7 +286,7 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
     a += u.w * au;
     k += u.w * au * l;
     lam += u.w * l;
-    // D10: the model's reasoning tokens for the same answer (τ, on output tokens, like effort).
+    // D10: the model's reasoning tokens for the same answer (τ, on output tokens).
     const tau = tokEff(u.v);
     hph += u.w * hphOf(u.fpt, tok.input, tok.output * tau, ud);
     hphAg += u.w * hphOf(u.fpt, tokAg.input, tokAg.output * tau, ud);
@@ -441,14 +436,14 @@ export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) +
  *  needs them. */
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, effort: effortTokens(d.effort), markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────
 
-/** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `effort` multiplies the
- *  output (reasoning) tokens: the effort setting × the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
-export const chatHoursPerDay = (fpt: number, tok: TokenProfile, effort = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * effort, ud);
+/** H100e-hours per user-day of consumer chat on a model (paying users' or free users' usage); `tau` multiplies the
+ *  output (reasoning) tokens: the model's τ (tokEff); `ud` the serving lab's decode utilisation. */
+export const chatHoursPerDay = (fpt: number, tok: TokenProfile, tau = 1, ud = U_DECODE) => hphOf(fpt, tok.input, tok.output * tau, ud);
 /** RD-P01a: the model in a Chat product's free-tier slot: Deployment.freeTierId when it is in the lineup (the main model
  *  or a lineup entry), else the lineup's cheapest model to serve (lowest FLOP per token; the main model alone: itself). */
 export function freeTierVersion(s: GameStateV2, d: Deployment): ModelVersion | undefined {
@@ -470,7 +465,7 @@ export function freeTierVersion(s: GameStateV2, d: Deployment): ModelVersion | u
 }
 /** A7 / RD-P01a: what the free users of the player's Chat product get: the real model in its free-tier slot
  *  (freeTierVersion; with only the main model, the main model at its real serving cost). Consumer-chat fit at the
- *  product's settings and features (no effort setting: free users get the default), FLOP per token and reasoning-token
+ *  product's settings and features, FLOP per token and reasoning-token
  *  multiplier τ (tokEff). */
 export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt: number; tau: number; id: string } | undefined {
   const v = freeTierVersion(s, d);
@@ -485,8 +480,8 @@ export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt:
  *  model) and the plan's price. A6b: the price is the market's flat plan price for the tier (consumerPlanPrice: the
  *  willingness to pay on Standard), not cost-plus; margin = price − cost. Never below cost (a plan that must cost more
  *  than the willingness to pay finds no subscribers, paidShareTarget). */
-export function subPrice(s: GameStateV2, fpt: number, markup: number, effort = 1, ud = U_DECODE): { cost: number; price: number } {
-  const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, effort, ud) * serveDollarsPerHour(s) * 30.4;
+export function subPrice(s: GameStateV2, fpt: number, markup: number, tau = 1, ud = U_DECODE): { cost: number; price: number } {
+  const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, tau, ud) * serveDollarsPerHour(s) * 30.4;
   return { cost, price: Math.max(cost, consumerPlanPrice(markup)) };
 }
 /** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its

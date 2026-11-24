@@ -5,7 +5,7 @@
 // One cost chain for every model in the market (the player's products, rivals, China, internal agents):
 //   cost per work-hour = H100e-hours per work-hour × $ per H100e-hour
 //   H100e-hours per work-hour = FLOP per token (2·N_active) × (uncached input ÷ U_prefill + output ÷ U_decode) ÷ peak ÷ 3600
-// with tokens per work-hour by work type (× effort, × scaffolds), utilisation and peak from data/v2/workTypes.ts.
+// with tokens per work-hour by work type (× scaffolds), utilisation and peak from data/v2/workTypes.ts.
 import type { DomainId, PriceTier, RegionId, SectorId } from '../../engine/v2/types';
 
 /** FLOP-bearing tokens per human work-hour of AI work (uncached input, output) [R20 D2]: agentic coding ≈ 2M input per
@@ -117,12 +117,6 @@ export const MARKUP: Record<PriceTier, number> = { budget: 1 / 0.6, standard: 1 
  *  (DeepSeek-style pricing below Western labs, R20 D3) [D]. */
 export const RIVAL_MARKUP = MARKUP.standard;
 export const CHINA_MARKUP = MARKUP.budget;
-
-/** Effort (V4.3, R20 C3 test-time scaling): reasoning (output) tokens × the setting; each ×10 adds 0.4 OOM of
- *  compute-equivalent fit (0.3–0.5), capped at ±1.5 OOM. low ×0.3 → −0.21 OOM, max (the default) ×1, deep ×4 → +0.24. */
-export const EFFORT_TOKENS = { low: 0.3, max: 1, deep: 4 } as const;
-export const EFFORT_OOM_PER_10X = 0.4;
-export const EFFORT_CAP_OOM = 1.5;
 
 /** Safeguards and the AI-control layer cost fit, in OOM [D] (RD-U01: v2's level offsets restated in OOM): hardened
  *  −0.1667 (was −0.2 L), classifiers −0.0417 (was −0.05 L), control layer −0.0833 (was −0.1 L). The UI shows these. */

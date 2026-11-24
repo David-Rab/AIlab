@@ -8,7 +8,7 @@
 //       not on release day
 //   S5  sector feasibility is the shared work-type coverage function (monotone in fit and horizon); the cost gate reads
 //       the physical price
-//   S6  features are typed (enabler / horizon / scaffold / effort) and apply to products and to internal agents
+//   S6  features are typed (enabler / horizon / scaffold) and apply to products and to internal agents
 //   S7  lint: no revenue, price, cost or sector reader uses serveCost, multiplierRef or the M bridge
 //   C1–C6 consumer demand (A2b, research/22 §2–3): reach and paid share are stocks moving toward their targets;
 //       subscribers × price × 12 is the consumer line, independent of work hours; free users' need uses ≈ 9k tokens a
@@ -25,7 +25,7 @@
 //   V1–V4 serving-efficiency ideas and tokens per task (task D10, research/20 D1–D3): the reference lab's serving stack
 //       grows by its Inference-efficiency line (and rivals' by their aggregate research); decode utilisation and new
 //       versions' FLOP per token follow it at the stated sizes (0.07 → 0.15, then 10^−rest); a model's reasoning tokens
-//       fall with its RL recipe's G-equivalent (1 OOM per OOM, ≥ 0.1), not with the calendar; effort multiplies them
+//       fall with its RL recipe's G-equivalent (1 OOM per OOM, ≥ 0.1), not with the calendar
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
@@ -46,7 +46,7 @@ import { agentCeilingOf, workHoursOf } from '../../src/engine/v2/worldfx/use';
 import { ECON, REGION_SCALE, SECTORS } from '../../src/data/v2/sectors';
 import { LINEUP, MARKET_BANDS, SHARE_SLOPE_G } from '../../src/data/v2/serving';
 import {
-  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, effortDG, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
+  adoptedTokens, agentDemandOf, agentLeverage, blendTiers, studentParamsFor, lineupSizes, studentToHold, fxOn, h100eHoursPer, internalFx, offerOf, paidShareTarget, productOffer, reachTarget, sectorCover, sectorTheta, serveDollarsPerHour,
   subPrice, tokEff, valuePerHour, wagePerHour, chatFreeTier,
 } from '../../src/engine/v2/worldfx/serving';
 import { CUSTOMER_TAU, MULTI_HOMING } from '../../src/data/v2/serving';
@@ -134,8 +134,6 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // parameters and FLOP per token (N = √(FLOP/(6·tpp))), whatever its recipe.
   const rb = (flop: number, e: number) => fptOfBase(makeBase(2, 0, flop, e));
   check(near(rb(3e27, 0) / rb(3e26, 0), Math.sqrt(10)) && rb(3e26, 0) === rb(3e26, 2), 'S1 rivals: FLOP per token from their own base (×√10 per 10× training FLOP, not from G)', `${(rb(3e27, 0) / rb(3e26, 0)).toFixed(3)}×`);
-  const eff = effortDG(4);
-  check(eff > 0.2 && eff < 0.3 && effortDG(1e6) === 1.5, 'S1 effort deep: ×4 reasoning tokens, +0.24 OOM; the test-time gain is capped at +1.5 OOM (R20 C3)', eff.toFixed(3));
 }
 
 // ───────── S2 capacity ∝ H100e; revenue = min(demand, capacity) × price ─────────
@@ -249,7 +247,7 @@ for (const d of [400, 900]) {
 
 // ───────── S6 typed features in products and internal use ─────────
 {
-  check(FEATURES.every((f) => f.fx.length > 0 && f.fx.every((x) => ['enabler', 'horizon', 'scaffold', 'effort'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold / effort)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
+  check(FEATURES.every((f) => f.fx.length > 0 && f.fx.every((x) => ['enabler', 'horizon', 'scaffold'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
   const s = game();
   run(s, 2);
   const api = prod(s, 'api');
@@ -282,10 +280,6 @@ for (const d of [400, 900]) {
   run(s, 30);
   const rd2 = revenueReadout(s).deps.find((x) => x.id === ent.id)!;
   check((rd2.users ?? 0) > (rd1.users ?? 0), 'S6 the companion enabler\'s users arrive through the customer stock', `${((rd1.users ?? 0) / 1e6).toFixed(0)}M → ${((rd2.users ?? 0) / 1e6).toFixed(0)}M users after 30 days`);
-  const d0 = productOffer(s, api, 'FIN');
-  api.effort = 'deep';
-  const d1 = productOffer(s, api, 'FIN');
-  check(near(d1.fit - d0.fit, effortDG(4), 1e-9) && d1.cost > d0.cost, 'S6 effort deep: +0.24 OOM fit and more reasoning tokens per work-hour', `+${(d1.fit - d0.fit).toFixed(3)} OOM, cost ×${(d1.cost / d0.cost).toFixed(2)}`);
 }
 
 // ───────── C consumer demand from measured anchors (A2b; research/22 §2–3) ─────────
@@ -807,18 +801,13 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   const tau = tokEff(better);
   const fit0 = workFit(s, v0, 'SWE').fit;
   const fit1 = workFit(s, better, 'SWE').fit;
-  const o = (v: ModelVersion, effort = 1) => offerOf(s, [{ v, fpt: flopPerToken(s, v), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate, effort });
+  const o = (v: ModelVersion) => offerOf(s, [{ v, fpt: flopPerToken(s, v), w: 1 }], 'SOFT', { markup: MARKUP.standard, rate });
   const tk = adoptedTokens(s, 'SOFT');
   const exp = (tk.input / U_PREFILL + (tk.output * tau) / U_DECODE) / (tk.input / U_PREFILL + tk.output / U_DECODE);
   check(g > 0 && near(tau, Math.max(TOK_MIN, Math.pow(10, -TOK_PER_RL_OOM * g))) && tokEff(v0) === 1 && near(fit1, fit0, 1e-12) && near(o(better).hph / o(v0).hph, exp, 1e-9)
     && near(o(better).hphAg / o(v0).hphAg, (TOKENS.autonomous.input / U_PREFILL + (TOKENS.autonomous.output * tau) / U_DECODE) / (TOKENS.autonomous.input / U_PREFILL + TOKENS.autonomous.output / U_DECODE), 1e-9),
     'V3 at the same fit a version with a better RL recipe needs fewer reasoning tokens for the same work: τ = 10^(−1·its RL G-equivalent) on output tokens (adopted, agent and seat profiles)',
     `RL G-equivalent +${g.toFixed(3)} OOM → τ ${tau.toFixed(3)}, cost per adopted hour ×${(o(better).hph / o(v0).hph).toFixed(3)}, fit ${fit0.toFixed(3)} = ${fit1.toFixed(3)}`);
-  // effort multiplies the τ-scaled reasoning tokens; its fit gain is unchanged
-  const deep = o(better, 4);
-  const expDeep = (tk.input / U_PREFILL + (tk.output * tau * 4) / U_DECODE) / (tk.input / U_PREFILL + (tk.output * 4) / U_DECODE);
-  check(near(deep.hph / o(v0, 4).hph, expDeep, 1e-9) && near(deep.fit - o(better).fit, effortDG(4), 1e-9),
-    'V3 effort levels stay consistent: effort multiplies the model\'s τ-scaled reasoning tokens and keeps its fit gain (R20 C3)', `deep ×4: cost ×${(deep.hph / o(v0, 4).hph).toFixed(3)} vs V0 deep, +${(deep.fit - o(better).fit).toFixed(3)} OOM`);
   // the calendar alone: the same versions 200 days later (passive) keep their τ
   const tBefore = [tokEff(v0), tokEff(better)];
   run(s, 200);

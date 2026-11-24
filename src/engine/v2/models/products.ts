@@ -1,7 +1,7 @@
 // Products as packages (STRUCTURE §4.4, §4.9; BUILD-PLAN R6). Owner: WS1.
 //
 // A product is a Deployment of kind 'product': a model (optionally a mini serving its free tier), an optional monitor
-// model, a price tier, safeguards, KYC, effort and features. This module holds the package effects every engine
+// model, a price tier, safeguards, KYC and features. This module holds the package effects every engine
 // reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead and catch rate), the
 // Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
 // effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.

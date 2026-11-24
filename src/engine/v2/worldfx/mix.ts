@@ -38,7 +38,7 @@ import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
-  CHINA_MARKUP, RIVAL_MARKUP, chatToolAppeal, effortDG, effortTokens, fptOfSimple, fxOn, markupOf, offerOf,
+  CHINA_MARKUP, RIVAL_MARKUP, chatToolAppeal, fptOfSimple, fxOn, markupOf, offerOf,
   agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
@@ -346,9 +346,9 @@ const versionMap = (s: GameStateV2) => {
 
 /** RD-P04: a model's domain G vector (DOMAIN_IDS order; OOM on the general λ scale) plus a ΔG (a product's settings). */
 const gvecOf = (s: GameStateV2, m: Pick<ModelVersion, 'G' | 'build'>, dG = 0) => DOMAIN_IDS.map((d) => domainScaleG(s.hidden.timeline, m, d) + dG);
-/** RD-P04: a player product's domain G vector: its model's, plus the settings ΔG its offer has (safeguards, control layer,
- *  effort; worldfx/serving.ts settingsDG / effortDG, as in productOffer). */
-export const productGVec = (s: GameStateV2, d: Deployment, mv: Pick<ModelVersion, 'G' | 'build'>) => gvecOf(s, mv, settingsDG(d) + effortDG(effortTokens(d.effort)));
+/** RD-P04: a player product's domain G vector: its model's, plus the settings ΔG its offer has (safeguards, control layer;
+ *  worldfx/serving.ts settingsDG, as in productOffer). */
+export const productGVec = (s: GameStateV2, d: Deployment, mv: Pick<ModelVersion, 'G' | 'build'>) => gvecOf(s, mv, settingsDG(d));
 
 /** Best public domain G (max over the player's paid products and the other providers' models; floor λ⁻¹(0), v2's L 0). */
 function bestPublicFrom(s: GameStateV2, cands: readonly { g: number[] }[], pg: readonly (number[] | undefined)[]): Record<DomainId, number> {
@@ -733,8 +733,8 @@ function computeMix(s: GameStateV2): WorldMix {
       if (c.ch !== 'consumer') continue;
       const x = fxOn(c.fx, 'CHAT');
       const ud = decodeUtilNow(s);
-      const o = offerOf(s, c.uses, 'CHAT', { dG: settingsDG(c.dep) + x.dG, hMult: x.hMult, effort: effortTokens(c.dep.effort), markup: markupOf(c.dep), rate, ud });
-      const price = subPrice(s, c.uses[0]?.fpt ?? 2e12, markupOf(c.dep), effortTokens(c.dep.effort) * tokEff(c.uses[0]?.v), ud).price;
+      const o = offerOf(s, c.uses, 'CHAT', { dG: settingsDG(c.dep) + x.dG, hMult: x.hMult, markup: markupOf(c.dep), rate, ud });
+      const price = subPrice(s, c.uses[0]?.fpt ?? 2e12, markupOf(c.dep), tokEff(c.uses[0]?.v), ud).price;
       const free = chatFreeTier(s, c.dep)?.fit ?? o.fit;
       const u = SHARE_SLOPE_G * free - PRICE_ELASTICITY * Math.log(Math.max(1e-9, price));
       if (u > bu) {

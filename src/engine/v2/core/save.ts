@@ -7,7 +7,7 @@ import type { GameStateV2 } from '../types';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 104;
+export const SCHEMA_REV = 105;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -34,6 +34,14 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
       if (it.ref && CHANNEL_MK1[it.ref]) it.ref = CHANNEL_MK1[it.ref];
       if (it.launch?.channel && CHANNEL_MK1[it.launch.channel]) it.launch.channel = CHANNEL_MK1[it.launch.channel];
     }
+  },
+  /** 104 → 105 (MK-3, design/MARKET.md M8): thinking effort removed. Every product serves as the old default 'max'
+   *  (×1 reasoning tokens, +0 OOM), so the field is dropped from deployments and waiting launches; a product that was
+   *  on 'low' or 'deep' now serves at max. */
+  104: (s) => {
+    const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
+    for (const d of p?.deployments ?? []) delete d.effort;
+    for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
   },
 };
 

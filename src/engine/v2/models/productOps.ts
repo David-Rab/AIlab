@@ -1,6 +1,6 @@
 // Product verbs (STRUCTURE §1 R2 "Launch / update a product", R4 live edit; BUILD-PLAN R6). Owner: WS1.
 //
-// product.launch, product.update (model, mini free tier, monitor, price tier, safeguards, KYC, effort, features — the
+// product.launch, product.update (model, mini free tier, monitor, price tier, safeguards, KYC, features — the
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
@@ -12,7 +12,7 @@ import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/p
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { RECIPE_LEAK_SHARE } from '../production/diffusion';
 import { DISTILL_S } from '../../../data/v2/calibration';
-import { CHANNEL_VARIANTS, deployGate, distillationLeak, effortLock, releaseOpen, setServing, withdraw } from './deployments';
+import { CHANNEL_VARIANTS, deployGate, distillationLeak, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf, productMonitorVersion } from './products';
@@ -41,7 +41,6 @@ export interface ProductChanges {
   price?: PriceTier;
   safeguards?: Deployment['safeguards'];
   kyc?: Deployment['kyc'];
-  effort?: Deployment['effort'];
   features?: string[];
 }
 
@@ -55,12 +54,11 @@ export function changesFromParams(p: Params): ProductChanges {
   if (typeof p.price === 'string' && (PRICE_TIER_IDS as string[]).includes(p.price)) c.price = p.price as PriceTier;
   if (typeof p.safeguards === 'string') c.safeguards = p.safeguards as Deployment['safeguards'];
   if (typeof p.kyc === 'number') c.kyc = Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'];
-  if (typeof p.effort === 'string') c.effort = p.effort as Deployment['effort'];
   if (typeof p.features === 'string') c.features = p.features.split(',').map((x) => x.trim()).filter(Boolean);
   return c;
 }
 
-/** The product after an edit (a copy). RD-P06: effort is a plain setting (locked only by the model's capability, effortLock). */
+/** The product after an edit (a copy). */
 export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   const n: Deployment = { ...d, features: [...(c.features ?? d.features)], adaptations: d.adaptations.map((x) => ({ ...x })), usagePolicy: { ...d.usagePolicy } };
   if (c.versionId) n.versionId = c.versionId;
@@ -82,7 +80,6 @@ export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
   }
   if (c.safeguards) n.safeguards = c.safeguards;
   if (c.kyc !== undefined) n.kyc = c.kyc;
-  if (c.effort) n.effort = c.effort;
   return n;
 }
 
@@ -128,10 +125,6 @@ export function editBlock(s: GameStateV2, d: Deployment, c: ProductChanges): str
   if (n.monitorId && n.monitorId !== d.monitorId && n.monitorId !== MONITOR_AUTO) {
     const m = versionById(s, n.monitorId);
     if (!usable(m)) return 'The monitor must be a ready model';
-  }
-  if (n.effort !== d.effort) {
-    const lock = effortLock(s, n.effort);
-    if (lock) return lock;
   }
   for (const f of n.features) if (!d.features.includes(f)) {
     const why = featureToggleBlock(s, d, f);
@@ -257,7 +250,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const exposure: CostLine[] = [];
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
-          id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, effort: 'max', servingShare: 0,
+          id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, servingShare: 0,
           // RD-B12: the launch as it goes live (built features on for the channel, a relaunch's adaptations).
           safeguards: 'classifiers', guards: [], adaptations: relaunchAdaptations(s, ch).adaptations, features: launchFeatures(s, ch), kyc: ch === 'api' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
@@ -291,15 +284,11 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         // J2 P1: the engineers build a product launch first (gates checked now and again at release).
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
         if (gate !== true) return fail(gate);
-        const effort = typeof p.effort === 'string' ? (p.effort as Deployment['effort']) : undefined;
-        const lock = effortLock(s, effort ?? 'max');
-        if (lock) return fail(lock);
         const wait = launchWaitText(s);
         queueBuild(s, 'launch', ch, LAUNCH_TW, {
           launch: {
             channel: ch, versionId: v.id, price,
             ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
-            ...(effort ? { effort } : {}),
             ...(typeof p.monitorId === 'string' && p.monitorId ? { monitorId: p.monitorId } : {}),
           },
         });

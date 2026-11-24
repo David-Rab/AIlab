@@ -166,7 +166,7 @@ export interface FeatureLine {
   kind: FeatureKind;
   /** The effect with units ("skill ×2.00 effective compute", "horizon ×1.3", "+15% reachable work"). */
   effect: string;
-  /** Token multiplier (scaffolds: every token; effort: reasoning tokens); 1 = none. */
+  /** Token multiplier (scaffolds: every token); 1 = none. */
   tokens: number;
   /** Where it applies on the product side. */
   where: string;
