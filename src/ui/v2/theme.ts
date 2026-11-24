@@ -41,3 +41,24 @@ export function runwayState(q: number): 'healthy' | 'tight' | 'distress' {
   return q < 3 ? 'distress' : q < 6 ? 'tight' : 'healthy';
 }
 export const STATE_COLOR: Record<string, string> = { healthy: C.good, tight: C.watch, distress: C.bad, insolvent: C.crit };
+
+/** One colour per lab, everywhere (end screen, World control, Overview race). You blue and China magenta are the actor
+ *  hues; each US rival gets its own hue by slot (r0…r4), checked pairwise with the CVD validator (protan/deutan/tritan
+ *  simulation, CIELAB ΔE ≥ 13 for every pair, incl. you and China). Your open weights take a darker blue. */
+export const LAB_HUE: Record<string, string> = {
+  player: '#3a8ae0', 'player:open': '#2f6fb8', china: '#c43c8c',
+  r0: '#d4732a', r1: '#d8c447', r2: '#3fb59a', r3: '#a77b4f', r4: '#e6a3c8',
+};
+const RIVAL_FALLBACK = ['#d4732a', '#d8c447', '#3fb59a', '#a77b4f', '#e6a3c8'];
+export function labColor(id: string): string {
+  if (LAB_HUE[id]) return LAB_HUE[id];
+  if (id.startsWith('player')) return LAB_HUE['player:open'];
+  const n = Number(id.replace(/\D/g, ''));
+  return RIVAL_FALLBACK[(Number.isFinite(n) ? n : id.charCodeAt(id.length - 1)) % RIVAL_FALLBACK.length];
+}
+/** Two-letter lab monogram ("OB", "GL", "XL"). */
+export function monogram(name: string): string {
+  const w = name.split(/[\s-]+/).filter(Boolean);
+  const caps = name.replace(/[^A-Z]/g, '');
+  return (w.length > 1 ? w[0][0] + w[1][0] : caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2)).toUpperCase();
+}

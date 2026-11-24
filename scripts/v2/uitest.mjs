@@ -2425,6 +2425,24 @@ await shot('40-endscreen');
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.locator('[data-test=endscreen]').evaluate((el) => el.scrollTo(0, 2000));
 await shot('41-endscreen-lower');
+// Browse mode: View the world shows the game read-only under the end banner, time frozen, actions refused; back again.
+await page.click('[data-test=view-world]');
+await wait(300);
+ok('End: View the world shows the end banner', !!(await page.$('[data-test=end-banner]')) && !(await page.$('[data-test=endscreen]')));
+ok('End: browse mode says time is frozen', /time frozen/i.test((await page.textContent('[data-test=end-banner]')) ?? ''));
+await nav('finance');
+const actBtn = await page.$('button[data-act]');
+ok('End: an action button is disabled in browse mode', !!actBtn && (await actBtn.isDisabled()));
+if (actBtn) {
+  await actBtn.hover({ force: true });
+  await wait(900);
+  ok('End: the disabled action says "The game has ended"', /The game has ended/.test(JSON.parse(await get(`document.querySelector('.tip')?.innerText ?? ''`))));
+  await clearTips();
+}
+await shot('42-endscreen-browse');
+await page.click('[data-test=back-to-ending]');
+await wait(200);
+ok('End: Back to ending shows the end screen again', !!(await page.$('[data-test=endscreen]')));
 await check('End: new game', 'store.screen', () => page.click('[data-test=end-new]'));
 
 console.log(`\n${pass} passed, ${fail} failed${fails.length ? `\nFAILED: ${fails.join(' | ')}` : ''}${errors.length ? `\nPAGE ERRORS (${errors.length}):\n${[...new Set(errors)].slice(0, 20).join('\n')}` : ''}`);

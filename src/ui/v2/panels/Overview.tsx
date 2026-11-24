@@ -11,7 +11,7 @@ import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
 import { Card } from '../kit';
 import { ICON } from '../icons';
-import { C } from '../theme';
+import { C, labColor as labHue, monogram } from '../theme';
 import { Goals, goalsActive } from '../shell/Onboarding';
 import './overview.css';
 
@@ -97,11 +97,6 @@ function Hub({ s }: { s: GameStateV2 }) {
 
 // ───────────────────────────── The race (lead lanes) ─────────────────────────────
 
-function monogram(name: string) {
-  const w = name.split(/[\s-]+/).filter(Boolean);
-  const caps = name.replace(/[^A-Z]/g, '');
-  return (w.length > 1 ? w[0][0] + w[1][0] : caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2)).toUpperCase();
-}
 const days = (d: number) => `${Math.abs(Math.round(d))} d`;
 const side = (d: number) => (Math.round(d) > 0 ? 'ahead' : Math.round(d) < 0 ? 'behind' : 'level');
 function rangeWords(lo: number, hi: number) {
@@ -109,7 +104,7 @@ function rangeWords(lo: number, hi: number) {
   const f = (x: number) => (x > 0 ? `${x} ahead` : x < 0 ? `${-x} behind` : 'level');
   return `${f(lo)} – ${f(hi)}`;
 }
-const labColor = (l: LeadLane) => (l.china ? '#e05a9c' : C.rival);
+const labColor = (l: LeadLane) => labHue(l.id);
 
 /** The lane's range strip for its tooltip: you at 0, their best guess and likely range. */
 function RangeStrip({ l, D }: { l: LeadLane; D: number }) {

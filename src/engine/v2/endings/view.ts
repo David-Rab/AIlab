@@ -167,6 +167,8 @@ const RUNG_NAMES = ['Coexistence', 'Retaliation', 'Acquisition', 'Centralization
 const DOMAIN_NAME: Record<ControlDomainId, string> = { ECON: 'Economy', GOV: 'Government', MIL: 'Military', INFRA: 'Infrastructure' };
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const word = (n: number) => WORDS[n] ?? String(n);
+/** "A", "A and B", "A, B and C". */
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const fin = (x: number, d = 0) => (Number.isFinite(x) ? x : d);
 const r3 = (x: number) => Math.round(fin(x) * 1000) / 1000;
 const pct = (x: number) => `${Math.round(fin(x) * 100)}%`;
@@ -376,7 +378,7 @@ export function endingView(s: GameStateV2): EndingView | null {
     if (why?.outcome === 'held') {
       steps.push(step(day, false, 'Control held', 'pos', 'check', 'It stayed within what the world could absorb'));
       const third: Record<Exclude<PowerOutcome, 'none'>, [string, string, string]> = {
-        multipolar: [`${near.map((n) => n.ref.name).join(' and ')} close in`, `${slots.systems[0].toUpperCase()}${slots.systems.slice(1)}`, 'waypoints'],
+        multipolar: [`${andList(near.map((n) => n.ref.name))} close in`, `${slots.systems[0].toUpperCase()}${slots.systems.slice(1)}`, 'waypoints'],
         treaty: ['The treaty holds', 'Every frontier run inspected', 'scroll-text'],
         committee: ['The committee takes charge', 'It decides what the AI is for', 'users-round'],
         government: ['Washington takes the controls', 'The lab works to federal priorities', 'landmark'],
