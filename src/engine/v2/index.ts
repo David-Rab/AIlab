@@ -23,7 +23,7 @@ export const engine: EngineApi = {
 };
 
 export { defaultSetupV2, newGame } from './core/init';
-export { act, resolve, tick } from './core/loop';
+export { act, resolve, tick, GAME_OVER } from './core/loop';
 export * from './core/selectors';
 export { serialize, deserialize, stateHash, AUTOSAVE_KEY, SLOT_KEYS, V1_SAVE_KEY, SCHEMA_REV } from './core/save';
 export type * from './types';
@@ -34,6 +34,7 @@ import type { ActionDef, BoardVote, CostLine, EventDefV2, GameStateV2, ModelVers
 import { ACTIONS as REG_ACTIONS, ACTION_BY_ID as REG_ACTION_BY_ID, EVENTS as REG_EVENTS, EVENT_BY_ID as REG_EVENT_BY_ID } from './core/registry';
 import { forecastBand, planRun as planRunUI, runForecast, type LaunchRunParams as LaunchRunParamsUI } from './models/runs';
 import { DOMAIN_IDS } from '../../data/v2/calibration';
+import { GAME_OVER } from './core/loop';
 
 export const ACTION_DEFS: readonly ActionDef[] = REG_ACTIONS;
 export const EVENT_DEFS: readonly EventDefV2[] = REG_EVENTS;
@@ -46,7 +47,8 @@ export function actionView(s: GameStateV2, id: string, params: Record<string, nu
   const a = REG_ACTION_BY_ID.get(id);
   if (!a) return { id, title: id, ok: 'unknown action', costs: [], gains: [], exposure: [] };
   let ok: true | string;
-  try {
+  if (s.ending) ok = GAME_OVER;
+  else try {
     const r = a.available(s);
     ok = r === true ? true : typeof r === 'string' ? r : 'Unavailable';
   } catch (e) {
@@ -64,7 +66,8 @@ export function choiceView(s: GameStateV2, eventId: string, choice: number, data
   const c = REG_EVENT_BY_ID.get(eventId)?.choices[choice];
   if (!c) return { title: '?', ok: 'unknown', costs: [], gains: [], exposure: [] };
   let ok: true | string = true;
-  try {
+  if (s.ending) ok = GAME_OVER;
+  else try {
     const r = c.available?.(s, data) ?? true;
     ok = r === true ? true : typeof r === 'string' ? r : 'Unavailable';
   } catch {

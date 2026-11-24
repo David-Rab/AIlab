@@ -16,6 +16,14 @@ const SURVIVAL_BASE: Partial<Record<EndingV2['id'], number>> = {
 const FREEDOM_BASE: Record<PowerOutcome, number> = { democratic: 85, treaty: 75, multipolar: 65, committee: 60, government: 40, corporate: 35, beijing: 15, none: 10 };
 const FREEDOM_NONE: Partial<Record<EndingV2['id'], number>> = { asiTakeover: 5, rivalTakeover: 5, chinaTakeover: 5, rogue: 10, war: 30, catastropheBio: 40, catastropheCyber: 45, asiContested: 35 };
 
+/** Prosperity of the world each ending leads to (rough), before power and the economy at the end. */
+const PROSPERITY_BASE: Partial<Record<EndingV2['id'], number>> = {
+  asiAligned: 80, rivalAligned: 70, chinaAligned: 55, asiContested: 40, catastropheCyber: 30, war: 20, catastropheBio: 20, rogue: 15,
+  asiTakeover: 5, rivalTakeover: 5, chinaTakeover: 5,
+};
+/** Who holds an aligned superintelligence: how widely its abundance is shared. */
+const PROSPERITY_POWER: Record<PowerOutcome, number> = { democratic: 10, treaty: 5, multipolar: 5, committee: 0, government: -5, corporate: -10, beijing: -10, none: 0 };
+
 /** Epilogue survival: 100·(1 − Σ_X w_X·P_mis(X)) over active labs, w_X ∝ exp(−leadBehindLeader/180 d); the lead behind
  *  the leader is the one lead clock lagDays (RD-L02, DD-10: no progress-year pace, no (1 − share) term). */
 export function epilogueSurvival(s: GameStateV2): number {
@@ -52,11 +60,16 @@ export function scoreEnding(s: GameStateV2, id: EndingV2['id'], power: PowerOutc
   if ((s.world.control.MIL?.tiers[3] ?? 0) > 0.1) freedom -= 10;
   freedom += Math.min(15, 5 * transparencyKept(s));
   if (s.world.intelligenceCurse) freedom -= 15;
-  // Prosperity
+  // Prosperity: the world the ending leads to (a rough judgement table, as Survival's), moved by who holds power and
+  // by the economy at the end. By ASI the simulated economy has barely moved, so the economy terms alone cannot
+  // spread the score (2026-11-24 end-screen audit: 50 in every ending).
   const m = s.world.macro.US;
   const gdp0 = w.gdp0 || m.gdp;
   const ubi = s.player.policies.transitionFund >= 20 || !!s.flags['ws4:ubi'];
-  const prosperity = 50 + (25 * Math.log2(Math.max(1e-6, m.gdp / gdp0))) / Math.log2(3) - 3 * (s.world.unemployment.US - 4.3) - 100 * (m.gini - 0.48) + (ubi ? 10 : 0);
+  const economy = (25 * Math.log2(Math.max(1e-6, m.gdp / gdp0))) / Math.log2(3) - 3 * (s.world.unemployment.US - 4.3) - 100 * (m.gini - 0.48) + (ubi ? 10 : 0);
+  // Leaving the race: an aligned projected winner (power set) shares its abundance; otherwise scale with survival.
+  const base = PROSPERITY_BASE[id] ?? (lossLike ? (power !== 'none' ? 65 : 10 + 0.4 * survival) : 50);
+  const prosperity = base + PROSPERITY_POWER[power] + economy;
   // Company
   let company: number;
   if (COMPANY_LOSS.includes(id)) company = 10;

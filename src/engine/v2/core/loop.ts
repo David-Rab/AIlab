@@ -93,8 +93,12 @@ export function tick(s: GameStateV2, opts?: TickOptions): void {
 
 registerPreviewTick((c) => tick(c, { skip: ['endings'] }));
 
+/** Why every action and decision is refused once the game has ended (the ended state is read-only). */
+export const GAME_OVER = 'The game has ended';
+
 /** Player/bot action by id (ActionDef registry). Returns an error string if unavailable. */
 export function act(s: GameStateV2, actionId: string, params: Record<string, number | string | boolean> = {}): string | undefined {
+  if (s.ending) return GAME_OVER;
   const a = ACTION_BY_ID.get(actionId);
   if (!a) return `unknown action ${actionId}`;
   const ok = a.available(s);
@@ -112,7 +116,8 @@ export function act(s: GameStateV2, actionId: string, params: Record<string, num
 
 /** Resolve a pending decision instance with choice index. Returns an error string on failure. */
 export function resolve(s: GameStateV2, instance: string, choice: number): string | undefined {
-  const i = s.events.pending.findIndex((p) => p.instance === instance);
+  if (s.ending) return GAME_OVER;
+  const i =s.events.pending.findIndex((p) => p.instance === instance);
   if (i < 0) return `no pending decision ${instance}`;
   const p = s.events.pending[i];
   const def = EVENT_BY_ID.get(p.id);
