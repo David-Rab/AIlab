@@ -37,3 +37,8 @@ not the mockup's four; programme rate = at current staffing (as planned); Best m
   sector, win-back previews, lead history, rivals on your evals; case verdict after-range.
 - Overview race shows "YOU · Atlas-2.10" (lead measured vs the AI-staff model): check which model the lead should use.
 - Evals tab still shows raw levels (OQ-6).
+- TRAINING › Runs "Running now" has a training-share −/+ control: allocation's one home is LAB → make it a link.
+- uitest J2 AG1 / E6: the control-protocol readout lost its home with the removed agent lanes → SAFETY › Safeguards.
+- Skipped readouts from UB-B (BUILD-NOTES "UB-B"): licence sellers, per-domain reads, believed teacher quality, loopholes
+  as a belief, Expand's skill gain, overrun reason, per-team morale, spy estimate, yearly theft risk, leak record,
+  measured AI share. SL1–SL5 labels dropped (mapping not sourced).
