@@ -42,3 +42,5 @@ not the mockup's four; programme rate = at current staffing (as planned); Best m
 - Skipped readouts from UB-B (BUILD-NOTES "UB-B"): licence sellers, per-domain reads, believed teacher quality, loopholes
   as a belief, Expand's skill gain, overrun reason, per-team morale, spy estimate, yearly theft risk, leak record,
   measured AI share. SL1–SL5 labels dropped (mapping not sourced).
+- Lead estimate (actors/intel.ts) measures the player against the best model by TRUE G, including a model still in
+  testing: should be the best measured model (truth leak in an engine readout). UB-F fixed only the label.
