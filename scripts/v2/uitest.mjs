@@ -484,18 +484,15 @@ if (apiId) {
   await page.click(`[data-test="prod-open.${apiId}"]`);
   await wait(120);
   ok('Products (UB-A): the drawer shows customers by sector, Limited by in words and sold in a year', !!(await page.$('[data-test=prod-drawer] [data-test=prod-sectors] [data-sector]')) && /Limited by/.test(await page.$eval('[data-test=prod-limit]', (e) => e.textContent ?? '').catch(() => '')) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-econ.${apiId}"]`)));
-  await page.selectOption(`[data-test=prod-drawer] select[data-test="prod-monitor.${apiId}"]`, { index: 2 });
+  ok('Products (UB-F): the drawer has no safeguard controls, a Safeguards link instead (SAFETY › Safeguards is home)', !(await page.$(`[data-test=prod-drawer] [data-test="prod-monitor.${apiId}"]`)) && !(await page.$(`[data-test=prod-drawer] [data-test="prod-sg.${apiId}"]`)) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-guards.${apiId}"] [data-ref=productSafeguards]`)));
+  await page.click('[data-test=prod-drawer-close]');
   await wait(80);
   await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
   await wait(120);
   const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
   ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
-  await check('Products: Apply updates the live product (monitor + premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.monitorId, d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
-  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium' && !!d.monitorId; })()`)));
-  await page.click(`[data-test="prod-open.${apiId}"]`);
-  await wait(100);
-  ok('Products: the drawer shows the monitor catch rate', !!(await page.$(`[data-test=prod-drawer] [data-test="prod-catch.${apiId}"]`)));
-  await page.click('[data-test=prod-drawer-close]');
+  await check('Products: Apply updates the live product (premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
+  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium'; })()`)));
   await page.click(`${card} [data-test^=prod-price] [data-opt=standard]`);
   await wait(80);
   await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
@@ -580,6 +577,46 @@ await wait(150);
 ok('SAFETY › Safeguards: the framework drawer holds release evals and rule lines', !!(await page.$('[data-home=safetyPolicy] [data-act^="fw-depth."]')) && !!(await page.$('[data-home=safetyPolicy] [data-act^="fw-rule."]')));
 await page.click('[data-test=sf-drawer-close]');
 await wait(100);
+// UB-F: Safeguards is the one home of every safeguard control: the control protocol's setting switches here (with its
+// preview), and each product's monitor, misuse level and KYC are edited here with a before → after preview.
+if (await page.$('[data-test=control-edit]')) {
+  await page.click('[data-test=control-edit]');
+  await wait(150);
+  const cur = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')?.guards ?? []).find((g) => g.kind === 'control')?.setting ?? ''`));
+  const to = cur === 'defer20' ? 'defer10' : 'defer20';
+  await page.click(`[data-test="ctl-opt.${to}"]`);
+  await wait(100);
+  await page.hover(`[data-act="control-switch.${to}"]`, { timeout: 2000 }).catch(() => {});
+  await wait(350);
+  ok('SAFETY › Safeguards (UB-F): switching the control setting previews its slowdown and unstopped acts', /slowdown/.test(await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '')));
+  await clearTips();
+  await check('SAFETY › Safeguards (UB-F): Switch applies the control setting', `(s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live')?.guards ?? []).find((g) => g.kind === 'control')?.setting ?? ''`, () => page.click(`[data-act="control-switch.${to}"]`));
+  await page.click(`[data-test="ctl-opt.${cur}"]`).catch(() => {});
+  await wait(80);
+  await page.click(`[data-act="control-switch.${cur}"]`).catch(() => {});
+  await wait(80);
+  await page.click('[data-test=sf-drawer-close]');
+  await wait(100);
+} else ok('SAFETY › Safeguards (UB-F): control setting switch (no control protocol on this fixture)', true);
+if (await page.$('[data-test=product-guards-edit]')) {
+  await page.click('[data-test=product-guards-edit]');
+  await wait(150);
+  const pid = await page.$eval('[data-test=product-guards-drawer] [data-test^="pg."]', (e) => e.getAttribute('data-test').slice(3)).catch(() => '');
+  const lvl = JSON.parse(await get(`s.player.deployments.find((d) => d.id === "${pid}")?.safeguards ?? ''`));
+  const to = lvl === 'hardened' ? 'classifiers' : 'hardened';
+  await page.click(`[data-test="pg-level.${pid}"] [data-opt=${to}]`);
+  await wait(150);
+  const pv = await page.$eval(`[data-test="pg-preview.${pid}"]`, (e) => e.innerText).catch(() => '');
+  ok('SAFETY › Safeguards (UB-F): a product safeguard edit shows its stop rate and revenue before → after', /Stop rate, misuse/.test(pv) && /→/.test(pv) && /Revenue now/.test(pv), pv.replace(/
+/g, ' ').slice(0, 140));
+  await check('SAFETY › Safeguards (UB-F): Apply sets the product safeguard level', `s.player.deployments.find((d) => d.id === "${pid}")?.safeguards ?? ''`, () => page.click(`[data-act="pg-apply.${pid}"]`));
+  await page.click(`[data-test="pg-level.${pid}"] [data-opt=${lvl}]`).catch(() => {});
+  await wait(100);
+  await page.click(`[data-act="pg-apply.${pid}"]`).catch(() => {});
+  await wait(100);
+  await page.click('[data-test=sf-drawer-close]');
+  await wait(100);
+} else ok('SAFETY › Safeguards (UB-F): product safeguards editor (no live product on this fixture)', true);
 await tabTo('instruments');
 ok('SAFETY › Instruments: reliability grid, hidden goals you can read, validation, disagreements', !!(await page.$('[data-home=reliabilityGrid] [data-instrument]')) && !!(await page.$('[data-home=hiddenGoalReads]')) && !!(await page.$('[data-home=validation]')) && !!(await page.$('[data-home=disagreements]')));
 await page.click('[data-test=detection-open]');
@@ -2047,19 +2084,31 @@ await wait(300);
 ok('J2 P1: the build tooltip splits upkeep and the build queue', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Upkeep/.test(t) && /Build queue/.test(t); })()`)));
 await shot('50-j2-build-load');
 await clearTips();
-ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
-// Model v3 E6: the control tax is visible on each agent lane when the control layer runs.
-await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = true; window.ai27v2.notify(); });
+// UB-F: the monitor and the control protocol readouts live on SAFETY › Safeguards (OQ-7): a same-family monitor shows
+// its chip and its lower stop on scheming-type acts; under the control protocol the cell shows its slowdown and its
+// tooltip names the deferral and what slips past.
+await nav('safety');
+await tabTo('safeguards');
+await wait(120);
+{
+  const sameUse = JSON.parse(await get(`(() => { return [...document.querySelectorAll('[data-home=staffSafeguards] [data-test^="same-monitor."]')].map((e) => e.getAttribute('data-test').slice(13))[0] ?? ''; })()`));
+  if (sameUse) {
+    await page.hover(`[data-test="same-monitor.${sameUse}"]`);
+    await wait(350);
+    ok('J2 AG1: a same-family monitor shows its lower stop on scheming-type acts (SAFETY › Safeguards)', !!(await page.$(`.tip [data-test="agent-catch.${sameUse}.coll"]`)));
+    await clearTips();
+  } else ok('J2 AG1: a same-family monitor shows its lower stop on scheming-type acts (no same-family monitor on this fixture)', true);
+}
+const ctlWasOn = !!(await page.$('[data-test=control-edit]'));
+await page.evaluate(() => { const s = window.ai27v2.state; for (const d of s.player.deployments) if (d.channel === 'internal' && d.status === 'live' && !(d.guards ?? []).some((g) => g.kind === 'control')) d.guards = [...(d.guards ?? []), { kind: 'control', setting: 'defer10', since: s.time.day }]; window.ai27v2.notify(); });
 await wait(200);
-ok('E6: under the control layer each agent lane shows its control tax', !!(await page.$('[data-test="control-tax.capRoutine"]')) && !!(await page.$('[data-test="control-tax.eng"]')));
-// UB-B: the control layer left LAB's AI staff cards (its home moves to SAFETY › Safeguards): hover only when it shows, so
-// the run goes on and the two E6 checks fail until it has a home again.
-await page.hover('[data-test="control-tax.capRoutine"]', { timeout: 2000 }).catch(() => {});
-await wait(300);
-ok('E6: the control-tax tooltip names the deferral and the catch it buys', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /deferred/.test(t) && /slipping/.test(t) && /AI labour/.test(t); })()`)));
+ok('E6: under the control protocol the Safeguards grid shows its cell and the AI staff slowdown', !!(await page.$('[data-test=control-edit]')) && /[1-9]/.test(await page.$eval('[data-test=staff-slowdown]', (e) => e.textContent ?? '').catch(() => '')));
+await page.hover('[data-test=control-edit]', { timeout: 2000 }).catch(() => {});
+await wait(350);
+ok('E6: the control-protocol tooltip names the deferral, what slips past and the AI labour lost', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /deferred/.test(t) && /slip/.test(t) && /AI labour/.test(t); })()`)));
 await shot('51-e6-control-tax');
 await clearTips();
-await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = false; window.ai27v2.notify(); });
+if (!ctlWasOn) await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.guards = (d.guards ?? []).filter((g) => g.kind !== 'control'); window.ai27v2.notify(); });
 await wait(100);
 await nav('lab');
 await tabTo('board');

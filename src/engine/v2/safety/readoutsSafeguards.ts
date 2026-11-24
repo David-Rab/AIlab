@@ -38,6 +38,8 @@ export interface StaffJobRow {
   use: AgentUse; job: string; running: boolean; model?: string; modelId?: string;
   watcher?: string; watcherAuto: boolean; selfWatch: boolean; sameFamily: boolean; watcherTrusted?: boolean; watcherWhy?: string;
   watched: number; flag: number; monitorStop: number;
+  /** The monitor's stop on scheming-type acts (lower when it is of the watched model's family: copies cover for each other). */
+  monitorStopColl: number;
 }
 export function staffJobRows(s: GameStateV2): StaffJobRow[] {
   return AGENT_USES.map((u) => {
@@ -51,7 +53,7 @@ export function staffJobRows(s: GameStateV2): StaffJobRow[] {
       use: u, job: USE_JOB[u], running, ...(running ? { model: v!.name, modelId: v!.id } : {}),
       ...(mon ? { watcher: mon.name, watcherTrusted: tr!.trusted, watcherWhy: tr!.why } : {}),
       watcherAuto: id === MONITOR_AUTO, selfWatch: id === MONITOR_SAME || (!!mon && mon.id === v?.id), sameFamily: !!m?.c.copy,
-      watched: m?.watched ?? 0, flag: m?.flag ?? 0, monitorStop: m?.stop ?? 0,
+      watched: m?.watched ?? 0, flag: m?.flag ?? 0, monitorStop: m?.stop ?? 0, monitorStopColl: m?.stopColl ?? 0,
     };
   });
 }

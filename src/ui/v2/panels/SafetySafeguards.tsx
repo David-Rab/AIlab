@@ -14,6 +14,7 @@ import {
 import type { FrameworkRuleRow, GameStateV2, ProductGuardRow, SafeguardPreview, StaffGuards, StaffJobRow, StopSpread } from '../../../engine/v2';
 import { frameworkPublished, requiredSafeguards } from '../../../engine/v2/safety/framework';
 import { packageBlock } from '../../../engine/v2/safety/packages';
+import { CONTROL_SETTINGS } from '../../../engine/v2/safety/safeguards';
 import { SAFEGUARD_NEED_LABEL, EVIDENCE_NEED_LABEL, FRAMEWORK_LEVEL_SLACK } from '../../../data/v2/framework';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
 import { store } from '../store';
@@ -23,6 +24,7 @@ import { ICON } from '../icons';
 import { useSafetyPick, chance } from './SafetyRisks';
 import { FootholdsTab, PackageRow } from './SafetyControl';
 import { SfDrawer } from './safetyKit';
+import { ProductGuardsDrawer } from './SafetyProductGuards';
 import './safetySafeguards.css';
 
 const LAB_AI_STAFF = { panel: 'lab', tab: 'work', anchor: 'agents' } as const;
@@ -54,19 +56,25 @@ export function SafeguardsTab({ s }: { s: GameStateV2 }) {
   const fv = footholdView(s);
   const [ctlOpen, setCtlOpen] = useState(false);
   const [fwOpen, setFwOpen] = useState(false);
+  const [prodIds, setProdIds] = useState<string[] | null>(null);
+  const closeProd = useCallback(() => setProdIds(null), []);
+  const prodRow = prods.find((p) => prodIds && p.ids.join() === prodIds.join());
   const closeCtl = useCallback(() => setCtlOpen(false), []);
   const closeFw = useCallback(() => setFwOpen(false), []);
   const name = pick?.name ?? versionById(s, id)?.name ?? '';
   return (
     <div className="sfs">
       <div className="sfs-left">
-        <GridCard s={s} jobs={jobs} sg={sg} prods={prods} onControl={() => setCtlOpen(true)} />
+        <GridCard s={s} jobs={jobs} sg={sg} prods={prods} onControl={() => setCtlOpen(true)} onProduct={setProdIds} />
         <StepsCard s={s} id={id} sg={sg} name={name} onControl={() => setCtlOpen(true)} />
       </div>
       <FrameworkCard s={s} id={id} name={name || 'the model'} onEdit={() => setFwOpen(true)} />
       {fv.suspected + fv.located + fv.removed > 0 && <div className="sfs-fh"><FootholdsTab s={s} /></div>}
       <SfDrawer open={ctlOpen} onClose={closeCtl} title={<><Shield size={18} /> Control protocol</>} sub="· AI staff work · all jobs" home="controlProtocol" test="control-drawer">
         <ControlDrawer s={s} id={id} sg={sg} />
+      </SfDrawer>
+      <SfDrawer open={!!prodIds} onClose={closeProd} title={<><Boxes size={18} /> Product safeguards</>} sub={prodRow ? `· ${prodRow.names.join(' · ')}` : ''} home="productSafeguards" test="product-guards-drawer">
+        {prodIds && <ProductGuardsDrawer s={s} ids={prodIds} />}
       </SfDrawer>
       <SfDrawer open={fwOpen} onClose={closeFw} title={<><ScrollText size={18} /> <Term id="safetyFramework">Safety framework</Term></>} sub="· rules and policies" home="safetyPolicy" test="framework-drawer">
         <FrameworkDrawer s={s} id={id} />
@@ -94,14 +102,15 @@ function MonitorCell({ j }: { j: StaffJobRow }) {
       { label: <Term id="monitorCoverage">Watched share</Term>, value: w },
       { label: 'Flags of what it watches', value: F.pct(j.flag) },
       { label: 'Trusted', value: j.watcherTrusted ? 'yes' : 'no' },
-      ...(j.sameFamily ? [{ label: <Term id="collusion">Same family</Term>, value: 'misses more where copies cover for each other' }] : []),
+      { label: 'Stop of what it watches', value: F.pct(j.monitorStop, 1) },
+      ...(j.sameFamily ? [{ label: <Term id="collusion">Same family</Term>, value: <span data-test={`agent-catch.${j.use}.coll`}>{F.pct(j.monitorStopColl, 1)} on scheming-type acts</span> }] : []),
     ]} footer={`${j.watcherAuto ? 'Auto: the most capable model you trust. ' : ''}Pick the monitor and fund it on Lab › AI staff & needs.`}>{j.watcherWhy}</TipCard>}>
-      <Cell on sub={<>{j.selfWatch ? <span className="warn">watching itself</span> : j.sameFamily ? <span className="warn">same family</span> : j.watcherTrusted ? 'trusted' : <span className="warn">not trusted</span>} · watched {w}</>}>{j.watcher}</Cell>
+      <Cell on sub={<>{j.selfWatch ? <span className="warn" data-test={`same-monitor.${j.use}`}>watching itself</span> : j.sameFamily ? <span className="warn" data-test={`same-monitor.${j.use}`}>same family</span> : j.watcherTrusted ? 'trusted' : <span className="warn">not trusted</span>} · watched {w}</>}>{j.watcher}</Cell>
     </Tip>
   );
 }
 
-function GridCard({ s, jobs, sg, prods, onControl }: { s: GameStateV2; jobs: StaffJobRow[]; sg: StaffGuards; prods: ProductGuardRow[]; onControl: () => void }) {
+function GridCard({ s, jobs, sg, prods, onControl, onProduct }: { s: GameStateV2; jobs: StaffJobRow[]; sg: StaffGuards; prods: ProductGuardRow[]; onControl: () => void; onProduct: (ids: string[]) => void }) {
   const run = jobs.filter((j) => j.running);
   const idle = jobs.filter((j) => !j.running);
   const d = s.player.deployments.find((x) => x.id === sg.depId);
@@ -129,10 +138,11 @@ function GridCard({ s, jobs, sg, prods, onControl }: { s: GameStateV2; jobs: Sta
             {sg.control ? (
               <Tip as="div" className="sfs-cw" content={() => <TipCard title={<Term id="controlLayer">Control protocol</Term>} value={sg.control!.label} rows={[
                 { label: 'Blocks of risky actions', value: F.pct(sg.control!.block) },
+                { label: 'Suspicious actions deferred to the trusted model', value: F.pct(CONTROL_SETTINGS[sg.control!.setting].deferShare) },
                 { label: 'What slips past monitors', value: `×${F.num(sg.control!.missMult, 2)}` },
                 { label: <Term id="controlTax">Slowdown</Term>, value: F.pct(sg.control!.slowdown) },
                 { label: 'Trusted-model compute', value: `${F.h100e(sg.control!.computeH100e)} H100e` },
-              ]} footer="Click to compare settings.">Containment blocks risky actions; the suspicious rest is handled by the setting.</TipCard>}>
+              ]} footer="Click to compare and switch settings.">Containment blocks risky actions; the suspicious rest is deferred or resampled by the setting, so fewer acts slip past the monitors. Its slowdown is AI labour lost on every job.</TipCard>}>
                 <Cell on onClick={onControl} test="control-edit" className="tall" sub={<>blocks {F.pct(sg.control.block)} of risky actions · lets ×{F.num(sg.control.missMult, 2)} of the rest slip by</>}>{sg.control.label}{need.has('control') && <ReqMark what="a control protocol" />}</Cell>
               </Tip>
             ) : (
@@ -162,17 +172,17 @@ function GridCard({ s, jobs, sg, prods, onControl }: { s: GameStateV2; jobs: Sta
             <Tip content={stopTip}><span className="sfs-stop" data-test="staff-stop"><b>{sg.stop ? spread(sg.stop) : '—'}</b><br /><span>by act</span></span></Tip>
           </div>
           <div style={{ gridColumn: 8, ...span, alignSelf: 'center' }}>
-            <Tip content={() => <TipCard title={<Term id="controlTax">Slowdown</Term>} value={F.pct(sg.slowdown)}>Share of AI staff work lost to these safeguards (control protocol, comms lockdown).</TipCard>}><b className="sfs-num">{F.pct(sg.slowdown)}</b></Tip>
+            <Tip content={() => <TipCard title={<Term id="controlTax">Slowdown</Term>} value={F.pct(sg.slowdown)}>Share of AI staff work lost to these safeguards (control protocol, comms lockdown).</TipCard>}><b className="sfs-num" data-test="staff-slowdown">{F.pct(sg.slowdown)}</b></Tip>
           </div>
         </div>
       )}
       <div className="sfs-cap sep"><Boxes size={14} /> Products <span className="lc">{prods.length ? `· each serves ${prods[0].model}${prods[0].lineup ? ` and a lineup of ${prods[0].lineup} smaller models` : ''}` : '· none live'}</span></div>
-      {prods.map((p) => <ProductRow key={p.ids.join()} s={s} p={p} />)}
+      {prods.map((p) => <ProductRow key={p.ids.join()} s={s} p={p} onEdit={() => onProduct(p.ids)} />)}
     </div>
   );
 }
 
-function ProductRow({ s, p }: { s: GameStateV2; p: ProductGuardRow }) {
+function ProductRow({ s, p, onEdit }: { s: GameStateV2; p: ProductGuardRow; onEdit: () => void }) {
   const d = s.player.deployments.find((x) => x.id === p.ids[0]);
   const need: Set<string> = d ? requiredSafeguards(s, d) : new Set<string>();
   const req = need.has('hardened') || need.has('classifiers');
@@ -180,15 +190,15 @@ function ProductRow({ s, p }: { s: GameStateV2; p: ProductGuardRow }) {
     <div className="sfs-row sfs-prod" data-dep={p.ids.join(',')}>
       <div className="sfs-job"><b>{p.names.join(' · ')}</b><span><ICON.models size={12} /> {p.model}{p.lineup ? ` + ${p.lineup}` : ''}{p.ids.length > 1 ? ` · same on all ${p.ids.length}` : ''}{p.held ? ' · held' : ''}</span></div>
       {p.monitor
-        ? <Tip as="div" className="sfs-cw" content={() => <TipCard title={<Term id="monitor">Monitor</Term>} value={p.monitor} rows={[{ label: <Term id="monitorCoverage">Watched share</Term>, value: F.pct(p.watched) }]} footer="Set on the product card (Products).">Reads the product&apos;s outputs and reasoning; stops harmful acts before customers see them.</TipCard>}><Cell on sub={`watched ${F.pct(p.watched)}`}>{p.monitor}</Cell></Tip>
-        : <Cell sub={<span className="row-i">no monitor <Ref id="product-monitor" to={{ panel: 'products' }}>Products</Ref></span>} />}
+        ? <Tip as="div" className="sfs-cw" content={() => <TipCard title={<Term id="monitor">Monitor</Term>} value={p.monitor} rows={[{ label: <Term id="monitorCoverage">Watched share</Term>, value: F.pct(p.watched) }]} footer="Click to change it.">Reads the product&apos;s outputs and reasoning; stops harmful acts before customers see them.</TipCard>}><Cell on onClick={onEdit} test="product-monitor-edit" sub={`watched ${F.pct(p.watched)}`}>{p.monitor}</Cell></Tip>
+        : <Cell sub={<span className="row-i">no monitor <button className="btn btn-sm" data-test="product-monitor-add" onClick={onEdit}>Add</button></span>} />}
       {p.control ? <Cell on sub="on these products">{p.control}</Cell> : <Cell />}
       <Cell />
       {p.restricted
         ? <Cell on sub={<span className="row-i">usage ×0.3 <ActBtn id="safety.respond" testId="restrict-lift" params={{ kind: 'liftRestriction', versionId: p.modelId }} label="Lift" /></span>}>Restricted context</Cell>
         : <Cell sub={<ActBtn id="safety.respond" testId="restrict-add" params={{ kind: 'restrictContext', versionId: p.modelId }} label="Restrict" />} />}
-      <Tip as="div" className="sfs-cw" content={() => <TipCard title={<Term id="safeguards">Product safeguards</Term>} value={MISUSE_WORD[p.safeguards]} footer="Change on the product card (Products).">Misuse protection on these products: higher levels block more bio and cyber misuse.</TipCard>}>
-        <Cell on={p.safeguards !== 'minimal'} sub={<span className="row-i">{MISUSE_SUB[p.safeguards]}{d && !packageBlock(s, d) && <PackageRow s={s} depId={d.id} testId={`package.${d.id}`} />}</span>}>{MISUSE_WORD[p.safeguards]}{req && <ReqMark what="misuse safeguards" />}</Cell>
+      <Tip as="div" className="sfs-cw" content={() => <TipCard title={<Term id="safeguards">Product safeguards</Term>} value={MISUSE_WORD[p.safeguards]} footer="Click to change the level, the monitor or buyer checks (KYC).">Misuse protection on these products: higher levels block more bio and cyber misuse.</TipCard>}>
+        <Cell on={p.safeguards !== 'minimal'} onClick={onEdit} test="product-guards-edit" sub={<span className="row-i">{MISUSE_SUB[p.safeguards]}{d && !packageBlock(s, d) && <PackageRow s={s} depId={d.id} testId={`package.${d.id}`} />}</span>}>{MISUSE_WORD[p.safeguards]}{req && <ReqMark what="misuse safeguards" />}</Cell>
       </Tip>
       <Tip content={() => <TipCard title={<Term id="actOversight">Stop rate</Term>} rows={[{ label: 'Misbehaviour', value: spread(p.misbehaviour) }, { label: 'Misuse by people', value: spread(p.misuse) }]} footer="The product's act table (Risks, with this model picked).">Share of attempts these safeguards stop, by kind of act.</TipCard>}>
         <span className="sfs-pstop" data-test="product-stop"><span><b>{spread(p.misbehaviour)}</b> misbehaviour</span><span><b>{spread(p.misuse)}</b> misuse</span></span>
@@ -212,10 +222,11 @@ function StepsCard({ s, id, sg, name, onControl }: { s: GameStateV2; id?: string
     if (!t) return [];
     const out: { key: string; label: ReactNode; p: SafeguardPreview; cost: string; btn: ReactNode }[] = [];
     const cs = controlSettingPreviews(s, id, act);
-    // The other control protocol settings: compared in the control protocol drawer (switching a running protocol's
-    // setting has no action of its own).
+    // The other control protocol settings (UB-F: safety.controlSetting switches the running protocol; a locked setting
+    // opens the drawer, which says what it needs).
     if (sg.control) for (const p of cs.filter((x) => !x.current && x.setting !== 'off' && (x.act?.after ?? 0) > (x.act?.before ?? 0)).sort((a, b) => (b.act?.after ?? 0) - (a.act?.after ?? 0))) {
-      out.push({ key: `control.${p.setting}`, label: <><Term id="controlLayer">Control protocol</Term>: {p.label.toLowerCase()}{p.locked ? <span className="t3"> · {p.locked.replace(/^Needs/, 'needs')}</span> : ''}</>, p, cost: `slowdown ${F.pct(p.slowdown.before)} → ${F.pct(p.slowdown.after)}`, btn: <button className="btn btn-sm" data-test={`lever-compare.${p.setting}`} onClick={onControl}>Compare</button> });
+      out.push({ key: `control.${p.setting}`, label: <><Term id="controlLayer">Control protocol</Term>: {p.label.toLowerCase()}{p.locked ? <span className="t3"> · {p.locked.replace(/^Needs/, 'needs')}</span> : ''}</>, p, cost: `slowdown ${F.pct(p.slowdown.before)} → ${F.pct(p.slowdown.after)}`,
+        btn: p.locked ? <button className="btn btn-sm" data-test={`lever-compare.${p.setting}`} onClick={onControl}>Compare</button> : <ActBtn id="safety.controlSetting" testId={`lever-control.${p.setting}`} params={{ setting: p.setting }} label="Apply" /> });
     }
     if (!sg.control) {
       const p = cs.find((x) => x.setting === 'defer10');
@@ -343,8 +354,9 @@ function ControlDrawer({ s, id, sg }: { s: GameStateV2; id?: string; sg: StaffGu
         <div><span className="sfs-dcap"><Term id="controlTax">Slowdown</Term> of AI staff work</span><Arrow a={view.slowdown.before} b={view.slowdown.after} good="down" /></div>
       </div>
       <div className="sfs-dfoot row-i">
-        <span className="t3">Runs at: {sg.control ? sg.control.label : 'off'}.</span><span className="sp" />
-        {sg.control && cr.layerVersionId && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: cr.layerVersionId }} label="Remove control protocol" />}
+        <span className="t3">Runs at: {sg.control ? sg.control.label : 'off'}. Applies at once; Risks and the header update with it.</span><span className="sp" />
+        {sg.control && view.setting !== 'off' && !view.current && !view.locked && <ActBtn id="safety.controlSetting" testId={`control-switch.${view.setting}`} params={{ setting: view.setting }} label={`Switch to ${view.label.toLowerCase()}`} primary />}
+        {sg.control && cr.layerVersionId && (view.setting === 'off' || view.current) && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: cr.layerVersionId }} label="Remove control protocol" primary={view.setting === 'off'} />}
         {!sg.control && cr.versionId && <ActBtn id="safety.respond" testId="control-add-drawer" params={{ kind: 'addControl', versionId: sg.depVersionId ?? cr.versionId }} label="Add control protocol" primary />}
       </div>
     </>

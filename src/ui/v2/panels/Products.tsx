@@ -13,16 +13,15 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed, type FeatureDef } from '../../../data/v2/features';
-import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, SAFEGUARD_DG, consumerPlanPrice } from '../../../data/v2/serving';
+import { EFFORT_OOM_PER_10X, EFFORT_TOKENS, MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
 import { productMonitorVersion } from '../../../engine/v2/models/products';
-import { autoWatcher } from '../../../engine/v2/safety/trusted';
 import {
   CHANNEL_VARIANTS, buildEtas, deployGate, catchRate, dateOf, editBlock, editedProduct, effortLock, fmtDate, fmtMonth, isProduct,
   featureView, toolRivalsView, measuredLOf, nodeKnown, previewEdit, productReadouts, servingPool, versionById,
-  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified, kycDemandFactor, KYC_REFUSE,
+  LAUNCH_TW, pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
   demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
 } from '../../../engine/v2';
 import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
@@ -32,13 +31,11 @@ import { PanelHead, Ref } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import './products.css';
-import { CatchX, PkgChip } from './chips';
-import { PackageRow } from './SafetyControl';
+import { PkgChip } from './chips';
 
 const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, api: SquareTerminal, enterprise: Building2, agents: Bot, gov: Building2, trusted: ShieldCheck };
 /** Who buys, and how (the card's header line). */
 const P_WHO: Partial<Record<Channel, string>> = { consumer: 'people, by subscription', api: 'developers, by task', enterprise: 'companies, by seat and by task', agents: 'companies, by the hour of work', gov: 'government and defence, by contract', trusted: 'vetted partners, by task' };
-const SAFEGUARDS: Deployment['safeguards'][] = ['minimal', 'standard', 'classifiers', 'hardened'];
 const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal', standard: 'Standard', classifiers: 'Classifiers', hardened: 'Hardened' };
 const TIER_LABEL: Record<PriceTier, string> = { budget: 'Low', standard: 'Standard', premium: 'Premium' };
 const EFFORT_LABEL: Record<Deployment['effort'], string> = { low: 'Low', max: 'Max', deep: 'Deep' };
@@ -582,7 +579,7 @@ function ProductDrawer({ s, reads, setDraft }: { s: GameStateV2; reads: Map<stri
         </div>
         <WinBackSec s={s} d={d} close={close} setDraft={setDraft} />
         <SoldSec d={d} r={r} chat={chat} />
-        <GuardsSec s={s} d={d} setDraft={setDraft} />
+        <GuardsSec d={d} />
       </aside>
     </>
   );
@@ -686,35 +683,12 @@ function SoldSec({ d, r, chat }: { d: Deployment; r: ProductRead; chat: boolean 
   );
 }
 
-/** Safeguards on this product (monitor, safeguard level, buyer checks): live edits with the card's preview. */
-function GuardsSec({ s, d, setDraft }: { s: GameStateV2; d: Deployment; setDraft: (id: string, c: ProductChanges) => void }) {
-  const v = versionById(s, d.versionId);
-  const mon = productMonitorVersion(s, d);
-  const autoWhy = d.monitorId === MONITOR_AUTO ? autoWatcher(s, v).reason : undefined;
-  const monitors = s.player.models.versions.filter((x) => usable(x));
+/** UB-F: the product's safeguards (monitor, level, KYC) live on SAFETY › Safeguards (their one home): a link and Retire. */
+function GuardsSec({ d }: { d: Deployment }) {
   return (
-    <div className="sec" data-test={`prod-guards.${d.id}`}>
-      <div className="row-i"><span className="cap" style={{ flex: 1 }}>Safeguards on this product</span><Ref id="productSafeguards" to={{ panel: 'safety', tab: 'safeguards' }}>SAFETY › Safeguards</Ref></div>
-      <PkgChip kind="monitor" testId={`prod-monitor.${d.id}`} value={d.monitorId ?? ''}
-        options={[{ value: MONITOR_AUTO, label: `auto · ${d.monitorId === MONITOR_AUTO && mon ? mon.name : 'most capable trusted'}` }, { value: '', label: 'no monitor' }, ...monitors.map((x) => ({ value: x.id, label: `monitor ${x.name}` }))]}
-        onPick={(x) => { setDraft(d.id, { monitorId: x || null }); store.setTab(DRAWER, ''); }}
-        extra={<>{autoWhy && <div className="small dim">{mon ? 'auto: most capable trusted' : 'auto: no trusted model'}</div>}{mon && <CatchX {...catchRate(s, v, mon, false, true)} testId={`prod-catch.${d.id}`} note="Incidents it catches stay internal: customers never see them." />}</>} />
-      <div className="setrow">
-        <Tip content={() => <TipCard title={<Term id="safeguards">Safeguards</Term>} rows={[
-          { label: 'Misuse hazard', value: 'minimal ×1 · standard ×0.7 · classifiers ×0.4 · hardened ×0.15' },
-          { label: 'Skill', value: `classifiers ×${(10 ** SAFEGUARD_DG.classifiers).toFixed(2)} · hardened ×${(10 ** SAFEGUARD_DG.hardened).toFixed(2)} effective compute` },
-        ]} />}><span className="k"><Term id="safeguards">Level</Term></span></Tip>
-        <select className="msel small" data-test={`prod-sg.${d.id}`} value={d.safeguards} onChange={(e) => { setDraft(d.id, { safeguards: e.target.value as Deployment['safeguards'] }); store.setTab(DRAWER, ''); }}>
-          {SAFEGUARDS.map((g) => <option key={g} value={g}>{SG_LABEL[g]}</option>)}
-        </select>
-        <PackageRow s={s} depId={d.id} testId={`prod-package.${d.id}`} />
-      </div>
-      {(d.channel === 'api' || d.channel === 'agents') && <div className="setrow">
-        <Tip content={() => <TipCard title={<Term id="kyc">KYC</Term>}>Each level verifies ten times more of the anonymous buyers distillers hide among: the leak through this product falls by about a quarter; {F.pct(KYC_REFUSE, 0)} of those asked leave rather than verify (demand ×{F.num(kycDemandFactor(d), 3)}).</TipCard>}><span className="k"><Term id="kyc">KYC</Term></span></Tip>
-        <Seg testId={`prod-kyc.${d.id}`} value={d.kyc} options={[0, 1, 2, 3].map((k) => ({ v: k as Deployment['kyc'], label: String(k) }))} onChange={(k) => { setDraft(d.id, { kyc: k }); store.setTab(DRAWER, ''); }} />
-        <span />
-      </div>}
-      <div className="row-i"><span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label={`Retire ${pname(d.channel)}`} /></div>
+    <div className="sec row-i" data-test={`prod-guards.${d.id}`}>
+      <Ref id="productSafeguards" to={{ panel: 'safety', tab: 'safeguards' }}><Shield size={12} /> Safeguards</Ref>
+      <span className="sp" /><ActBtn id="product.retire" testId={`product.retire.${d.id}`} params={{ id: d.id }} label={`Retire ${pname(d.channel)}`} />
     </div>
   );
 }

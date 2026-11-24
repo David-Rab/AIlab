@@ -123,3 +123,9 @@
 .sfs-seg2 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .sfs-seg2 .on .act-btn { border-color: #3a8ae0; background: rgba(58,138,224,.18); color: #fff; }
 .sfs-hold, .sfs-rline { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 4px 0; }
+/* UB-F: product safeguards editor (drawer) */
+.sfs-pgrid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; align-items: center; font-size: 12.5px; }
+.sfs-pgrid .k { color: var(--text-2); }
+.sfs-pgrid .sfs-sel { justify-self: start; }
+.sfs-pv { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.sfs-pv .sfs-dfoot { margin-top: 0; }

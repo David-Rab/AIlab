@@ -1,13 +1,14 @@
 // Player actions in the Safety sphere (ActionDef catalog, V2-SPEC §3.4.3 Safety row, §3.5). Owner: WS2.
 // Every preview shows costs, gains and exposure computed from VISIBLE inputs (posteriors, beliefs, FTE, compute);
 // none reads truth; each shows what apply() does (§2.7, lint-tradeoffs).
-import { LOCKDOWN_COLLUSION_MULT, LOCKDOWN_SLOWDOWN, cannotAdd, controlComputeShare, controlOn, isRestricted, lockdownOnDep } from './safeguards';
+import { CONTROL_SETTINGS, LOCKDOWN_COLLUSION_MULT, LOCKDOWN_SLOWDOWN, addSafeguard, cannotAdd, controlComputeShare, controlOn, isRestricted, labControlSetting, lockdownOnDep } from './safeguards';
+import { controlSettingPreviews } from './readoutsSafeguards';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { CRITICAL_TRAITS, TRAIT_BY_ID, TRAIT_IDS } from '../../../data/v2/traits';
 import { evalDaysFor } from '../models/evals';
 import { internalVersion, measuredLOf } from '../models/labs';
-import type { ActionDef, AgendaId, CostLine, GameStateV2, ResponseKind, RLFamily, TechniqueState, TraitId } from '../types';
+import type { ActionDef, AgendaId, ControlSetting, CostLine, GameStateV2, ResponseKind, RLFamily, TechniqueState, TraitId } from '../types';
 import { RL_FAMILY_IDS } from '../../../data/v2/runDesign';
 import { clamp01, versionById } from './common';
 import { oomOfLevel } from './oversight';
@@ -657,6 +658,45 @@ const SAFEGUARD_PACKAGE: ActionDef = {
     ctx.log('company', `${PACKAGE_LABEL} added to ${d!.channel === 'internal' ? 'AI staff' : PRODUCT_DEFS[d!.channel]?.name ?? 'a product'}.`, 1, d!.id);
   },
 };
+/** UB-F: switch the running control protocol's setting (defer 10% / defer 20% / resample suspicious actions) on every
+ *  deployment that has one (SR-13 safeguard item `setting`; the lab's setting is labControlSetting). The preview is the
+ *  believed act table recomputed with the setting (readoutsSafeguards controlSettingPreviews: the same numbers SAFETY ›
+ *  Safeguards compares). No physics change: the item's setting already drives controlTerms. */
+const CONTROL_SETTING_IDS: ControlSetting[] = ['defer10', 'defer20', 'resample'];
+const controlDeps = (s: GameStateV2) => s.player.deployments.filter((d) => d.status !== 'withdrawn' && controlOn(d));
+const CONTROL_SETTING: ActionDef = {
+  id: 'safety.controlSetting', verb: 'policy', system: 'safety', sphere: 'safety', owner: 'WS2', title: 'Control setting',
+  available: (s) => controlDeps(s).length > 0 || 'No control protocol runs: add one first',
+  preview(s, p) {
+    const k = str(p, 'setting') as ControlSetting | undefined;
+    if (!k || !CONTROL_SETTING_IDS.includes(k)) return { costs: [], gains: [], exposure: [] };
+    const internal = s.player.deployments.find((d) => d.channel === 'internal' && d.status === 'live');
+    const o = controlSettingPreviews(s, internal?.versionId).find((x) => x.setting === k);
+    if (!o || o.current) return { costs: [{ currency: 'progress', amount: 0, target: `${CONTROL_SETTINGS[k].label} already runs: no change` }], gains: [], exposure: [] };
+    const costs: CostLine[] = [];
+    const gains: CostLine[] = [];
+    const dS = Math.round((o.slowdown.after - o.slowdown.before) * 1000) / 10;
+    if (dS) (dS > 0 ? costs : gains).push({ currency: 'progress', amount: -dS, unit: '%', target: `of AI staff work (slowdown ${Math.round(o.slowdown.before * 100)}% → ${Math.round(o.slowdown.after * 100)}%)` });
+    const dH = Math.round(o.computeH100e.after - o.computeH100e.before);
+    if (dH) (dH > 0 ? costs : gains).push({ currency: 'compute', amount: -dH, unit: 'H100e', target: "trusted-model compute (monitors' line)" });
+    const fmt = (x: number) => (x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
+    const dHarm = o.harm.after - o.harm.before;
+    if (Math.abs(dHarm) > 1e-6) (dHarm < 0 ? gains : costs).push({ currency: 'alignment', amount: r2(-dHarm), unit: 'acts/yr', target: `believed unstopped harmful acts ${fmt(o.harm.before)} → ${fmt(o.harm.after)} / yr on AI staff work` });
+    return { costs, gains, exposure: [] };
+  },
+  apply(s, ctx, p) {
+    const k = str(p, 'setting') as ControlSetting | undefined;
+    if (!k || !CONTROL_SETTING_IDS.includes(k)) return void ctx.log('alert', 'Control setting: defer10, defer20 or resample.');
+    const deps = controlDeps(s);
+    if (!deps.length) return void ctx.log('alert', 'No control protocol runs: add one first.');
+    for (const d of deps) {
+      const why = addSafeguard(s, d, 'control', k);
+      if (why) return void ctx.log('alert', why);
+    }
+    refreshFramework(s, ctx);
+    ctx.log('company', `Control protocol: ${CONTROL_SETTINGS[labControlSetting(s)].label.toLowerCase()}.`, 1);
+  },
+};
 /** SR-09: the instruments a validate action queues (tool id, or 'all' = every owned instrument not measured on the model).
  *  RF-S14: 'methods' = every owned method the model has outgrown and not validated there (a method id: that one). */
 function validateTargets(s: GameStateV2, p: P): { model: string; tools: TechniqueState[] } {
@@ -796,6 +836,6 @@ const METHOD_POLICY: ActionDef = {
   },
 };
 
-export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
+export const SAFETY_ACTIONS: ActionDef[] = [INVESTIGATE, CLOSE_CASE, RESPOND, DISCLOSE, DISCLOSURE_POLICY, PUBLISH, POLICY, PLEDGE, FRAMEWORK_EVALS, FRAMEWORK_RULE, FRAMEWORK_OVERRIDE, SAFEGUARD_PACKAGE, CONTROL_SETTING, VALIDATE, VALIDATION_POLICY, METHOD_POLICY, SPOT_CHECK];
 
 
