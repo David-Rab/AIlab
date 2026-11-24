@@ -144,6 +144,10 @@ export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
 export * from './models/rdReadouts';
 export * from './safety/safetyReadouts';
+export * from './safety/readoutsModel';
+export * from './safety/readoutsInstruments';
+export * from './safety/readoutsSafeguards';
+export * from './safety/readoutsIncidents';
 export * from './core/certainty';
 export { sightCurve } from './safety/sightLimit';
 // Model v3 D5: RL environment suites (readout and costs).

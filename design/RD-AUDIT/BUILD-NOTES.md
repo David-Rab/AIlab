@@ -5951,3 +5951,95 @@ the shots. Unstopped harm reads 0.020 (3 decimals below 0.1). The picker is a na
 Loss-of-control readout: a second display of the datum (its driver link now points to SAFETY › Risks). The Unknown state
 of the risk tile needs a belief state wide enough to move the risk itself (a fresh model with no evidence). Able to "?"
 on unmeasured rows reads a relative's skill; a separate "not measured" look may read better.
+
+### UB-C (SAFETY › Model, Instruments, Safeguards, Incidents & cases; branch build-c from rd 0074952; mockups rd/saf-model*.png, saf-instruments.png, saf-safeguards*.png, saf-incidents.png, DATA-c.md)
+
+**Layout.** Safety.tsx is now the header + tab switch only; each tab has its own file (SafetyModel / SafetyInstruments /
+SafetySafeguards / SafetyIncidents.tsx, one css each) and its readouts file (safety/readoutsModel / readoutsInstruments /
+readoutsSafeguards / readoutsIncidents.ts, exported from the engine index). safetyKit.tsx: the L2 side drawer (`SfDrawer`,
+Esc / scrim close) and the belief cell (`RangeVal`: "14% 8–21%" or an **Unknown** chip with its range, VOCAB's 30-point rule).
+
+**Model.** "What you believe <model> would do": four families (highest trait + range) and every trait (best guess, 90%
+range bar, Unknown chip; Dishonesty = 1 − Honesty, Resists correction = 1 − Corrigibility); hidden-goal crosshair; the
+Misalignment-signs rule's line on the traits that rule reads (read from the framework, flag when the top of the range passes
+it); evidence chips (tests n · reasoning n · internals · in use · case, or "no instrument reads it"). In tests vs in real
+use (alignment evals k of 40 with range → believed real-use range; notices tests %; real-use factor; real-use logs line).
+Where these beliefs come from (started from, evaluated, trained with, trusted watcher) + Learn more links. Evidence drawer
+per trait: readings with ranges and "counts for" (1/noise², normalised), your belief + certainty word, how often each
+instrument would show it, Open a case with its cost.
+
+**Instruments.** Reliability grid per instrument on the picked model (kind, reads n / k hidden-goal, ONE reliability range,
+solid = validated / dashed = extrapolated, next model in testing extrapolated, validated k of 20 by people / AI with history
+bars, main-limit chips in player words, real-use logs row with watched share). Hidden goals you can read (per hidden-goal
+trait, 50% line). Validation (batch on the model in testing, method row with its at-scale range, auto policies, validate
+all / methods). Disagreements (none / last one with Open case). L2 drawers: Detection grid (the old detection-by-level grid
++ capability vs sight-limit history) and Results (findings with Publish, publish policy).
+
+**Safeguards.** "What stops harmful acts, where": AI staff work (one row per job + model; monitor with watcher and watched
+%, control protocol, human review, restriction / comms lockdown) and products (monitor, restriction, product safeguards);
+stop rate and slowdown per deployment; framework-required marks. **Stop rates are the act-table numbers** (riskTableOf /
+actReadouts), so Safeguards and Risks agree (day 400: 80–89% by act). Stop rate, step by step (per 100 attempts at an act,
+picker; parts add up to 1 − the row's stop rate), What binds, levers with before → after on this act and Unstopped / yr and
+the cost. Safety framework card (rules, model skill vs median expert / best human / rule line, holds / met chips, publish)
+with its drawer (release evals depth + external, holds + override, rule lines, monitorability pledge, publish framework)
+and a control-protocol drawer (settings compared, add / remove). Footholds card only once one is known.
+
+**Incidents & cases.** Timeline by apparent act (dots by date, severity colour / size, filled = the picked model, ring =
+earlier models, dashed = went public; training-held mark; counts). Group cards per model × apparent cause (span, open
+count by severity, act row link, apparent cause, responses from `responseOptions` with one-line previews and the real
+actions; per-incident dates, disclosure and public timers one click down; earlier models collapsed). Cases card (staff
+chip → LAB, open / closed cases with progress, AI share, verdict; a draft case: question, instruments, can find, shows a
+present goal %, belief now, verdict odds, takes d · engineers · H100e · AI share; trait / engineers selects, Open case).
+Disclosure card (Legal minimum / Full / None, must report, went public). Day 400 empty state: "No incident so far".
+
+**New readouts (pure, beliefs / measured / facts).** Model: `ALIGN_EVAL_NAME` (player names of the alignment evals),
+`testsVsUse`, `evidenceKind` / `traitEvidence` (evidence per kind, weights), `instrumentHasReading`, `frameworkLine`,
+`beliefSources`, `traitCase`. Instruments: `instrumentRange` (the ONE reliability range: `instrumentReliability`'s best
+guess, the programme-efficacy 90% range widened per OOM off the validated model; `validationRange` not used: its sample
+range would count the k of 20 twice and it reads true G via `versionOom`), `reliabilityReasonsWords` (notices tests ×,
+approach works? %, reasoning hidden ×, fades with skill ×, trained against, not validated on …), `instrumentsGrid`,
+`validationHistory`, `realUseLogs`, `hiddenGoalReads`, `validationBatches`, `disagreementsView`. Safeguards:
+`staffJobRows`, `staffGuards`, `productGuardRows`, `stopSpread`, `stopSteps`, `controlSettingPreviews`,
+`monitorFundPreview`, `lockdownPreview` (the act table recomputed on a copy: stop rate, Unstopped, Loss-of-control risk,
+slowdown, H100e), `frameworkRuleRows`. Incidents: `incidentView` (dots, lanes, groups, hold marks), `apparentAct`,
+`caseQuestion`, `rollbackTarget`, `caseAiShare`, `caseStaff`, `caseDaysLeft`, `caseDraft` (verdict odds read from the case
+rule at the believed trait level and believed instrument reliability, with ranges), `draftTrait`.
+
+**Deleted (one home per datum).** Old Model cards (risk families card, trait graph card, successor steering card, new
+failure modes card; TraitGraph.tsx removed), old Instruments cards (instruments list, validation card, results card; the
+detection grid and history chart moved into the drawer), old Safeguards cards (AI staff safeguards ControlCard, Policies
+card: its controls moved to the framework drawer and the results drawer), old Incidents and Cases cards; ~180 dead CSS
+rules in safety.css. Links: Research's "Publish policy" → Instruments › Results; Training's successor-steering link →
+SAFETY › Risks (successor steering is an act row there); store anchor `safety#successorPull` removed.
+
+**Fixes on the way.** The SAFETY memos (header, Risks, the new tabs) are keyed on the store version, not the day: an
+action taken while paused (add control protocol, validate, rule edit) now redraws at once (it did not before). The
+sight-limit history chart's axis starts at level 0.
+
+**Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux: 1 fail, pre-existing (Work.tsx:216
+untipped F.short); lint-structure: 1 fail, pre-existing (action title length). `RangeVal` is on lint-tips' allow list
+(every caller sits it in its row tooltip). uitest: 639 passed / 46 failed; every SAFETY step passes (R8 block rewritten:
+Safeguards grid / steps / levers / framework drawer, Safeguards stop rate = the Risks act-table range, Instruments grid /
+drawers, Model table / evidence drawer, cases and disclosure; E12 trait table; F6 Remove in the control drawer; F6b the
+Training successor link opens Risks) except two outside the new tabs: E11 product danger tooltip (pre-existing) and
+E11 "Remove's preview matches its effect" (the foothold remove preview text has no "compute days with agents off" line;
+footholds code unchanged). The other failures (Agents, Products, B2, D6, D8, F6c, F6e) are outside SAFETY. Screenshots:
+scripts/v2/shots/build-c/ (d400 / d900 / d400w = sd tripled; every tab and drawer), script shots.mjs (ignored).
+
+**Differences from the mockups.** Model: the framework line sits on the traits the Misalignment-signs rule reads
+(Alignment faking, Sandbagging, Scheming), not every hidden-goal trait; ranges read "9–23%". Case cost uses the action's
+default 5% compute share (~655 H100e at day 400, 13K at day 900, vs 260 / 5.2k). Instruments: watched share is averaged
+over the model's jobs (0.5%, Engineering has no monitor); a "Validate methods on each new model" toggle and a Results
+button added. Safeguards: the mockup's "AI staff work: always" rule does not exist (the real "Every release" evals rule
+shows); the step-by-step act defaults to the act against the lab with the most Unstopped (picker); Defer 20% / Resample
+levers say "Compare" (open the drawer), since no action switches the control setting; monitor funding is capped by the
+safety research line. Incidents: no Roll back row at day 900 (Atlas-4.0's checkpoint is retired); the case reads its
+believed reliability (52%, the mockup's 39% was the true value); one trait per case; no method row button when no owned
+method acts on the trait; the trait / engineers selects replace the Edit button.
+
+**Left / engine.** No action sets the control protocol setting (defer 10 / 20 / resample). One monitor number (DATA-c: the
+act table's monitor part vs `useMonitor.stop`) not unified: the act-table number shows. A case's belief range after the
+verdict (`casePreview.ranges` returns the current sd or wider). A response from a group card goes without an incident id
+(the engine resolves one incident per response). `validation.ts validationRange` reads true G (`versionOom`); no UI uses
+it now. Two case previews (`traitCase`, a copy of actions.ts `caseOutlook`, and `caseDraft`) should share one function.
+Work.tsx's "AI share allowed" link still opens SAFETY › Safeguards (the datum lives on LAB; LAB's file, another build).

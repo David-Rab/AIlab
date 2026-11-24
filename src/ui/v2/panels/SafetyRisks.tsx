@@ -28,7 +28,7 @@ const TAB = (tab: string, anchor?: string) => ({ panel: 'safety', tab, ...(ancho
 
 /** The model SAFETY reads: the picked one if it is still around, else the riskiest model you run. */
 export function useSafetyPick(s: GameStateV2): { models: SafetyModelOption[]; pick?: SafetyModelOption; id?: string } {
-  const models = useMemo(() => safetyModels(s), [s, s.time.day]);
+  const models = useMemo(() => safetyModels(s), [s, store.version]);
   const sel = store.sel.versionId;
   const pick = models.find((m) => m.id === sel) ?? models[0];
   const id = pick?.id ?? (versionById(s, sel) ? sel : undefined);
@@ -41,7 +41,7 @@ const what = (m: SafetyModelOption) => [m.jobs.length ? `AI staff: ${m.jobs.join
 
 export function SafetyHeader({ s }: { s: GameStateV2 }) {
   const { models, pick, id } = useSafetyPick(s);
-  const rt = useMemo(() => riskTableOf(s, id), [s, s.time.day, id]);
+  const rt = useMemo(() => riskTableOf(s, id), [s, store.version, id]);
   const testing = models.find((m) => m.evaluating);
   return (
     <div className="sfh" data-home="safetyHeader">
@@ -131,7 +131,7 @@ const readAt = (pts: { level: number; mean: number }[], L: number) => {
 };
 
 function SightTile({ s, id }: { s: GameStateV2; id?: string }) {
-  const sc = useMemo(() => sightCurve(s), [s, s.time.day]);
+  const sc = useMemo(() => sightCurve(s), [s, store.version]);
   const v = versionById(s, id);
   const L = v ? measuredLOf(s, v).L : sc.L;
   const run = s.player.models.runs.find((r) => r.status === 'running' || r.status === 'paused');
@@ -292,7 +292,7 @@ function ActRowView({ r, maxU, maxC }: { r: ActReadout; maxU: number; maxC: numb
 
 export function RisksTab({ s }: { s: GameStateV2 }) {
   const { pick, id } = useSafetyPick(s);
-  const rt = useMemo(() => riskTableOf(s, id), [s, s.time.day, id]);
+  const rt = useMemo(() => riskTableOf(s, id), [s, store.version, id]);
   const rows = rt ? actReadouts(rt.table) : [];
   const fv = footholdView(s);
   const known = fv.suspected + fv.located;
