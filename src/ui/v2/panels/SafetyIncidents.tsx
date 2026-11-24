@@ -6,7 +6,7 @@
 import { useState, type ReactNode } from 'react';
 import { Ban, ChevronDown, ChevronUp, CircleDot, FlaskConical, Hammer, History, Loader, Lock, Megaphone, Search, Shield, Siren, TriangleAlert, Undo2 } from 'lucide-react';
 import {
-  DISCLOSURE_LABEL, DISCLOSURE_POLICIES, INV_FTE, caseDaysLeft, caseDraft, caseQuestion, caseStaff, dateOf, disclosurePolicy,
+  DISCLOSURE_LABEL, DISCLOSURE_POLICIES, INV_FTE, INV_MAX_DAYS, caseDaysLeft, caseDraft, caseQuestion, caseStaff, dateOf, disclosurePolicy,
   draftTrait, fmtDate, incidentView, mustReport, publicTimerRules, responseOptions, rollbackTarget, versionById, willDisclose,
 } from '../../../engine/v2';
 import { CONTROL_SETTINGS, LOCKDOWN_SLOWDOWN, controlOn, labControlSetting, lockdownOnDep } from '../../../engine/v2/safety/safeguards';
@@ -259,7 +259,7 @@ function GroupCard({ s, g }: { s: GameStateV2; g: IncidentGroup }) {
           {on ? <OnChip /> : P(k, 'Add')}
         </RespRow>);
       } else if (k === 'patchSignal') {
-        resp.push(<RespRow key={k} icon={Hammer} test={k} what={<Term id="suiteHarden">Harden environments</Term>} pre="cuts the loopholes in that environment family for every later run · Training › Environments">
+        resp.push(<RespRow key={k} icon={Hammer} test={k} what={<Term id="suiteHarden">Harden environments</Term>} pre={<>cuts the loopholes in that environment family for every later run · Training › Environments <Limit id="response.hardenFloor">each pass cuts less; some loopholes stay</Limit></>}>
           {P(k, 'Harden')}
         </RespRow>);
       } else if (k === 'removeFoothold') {
@@ -428,6 +428,7 @@ function DraftCase({ s, versionId }: { s: GameStateV2; versionId: string }) {
           {[...RISK_FAMILIES.map((f) => ({ label: f.label, traits: f.traits })), { label: 'Outside the families', traits: OTHER_TRAITS }].map((gp) => <optgroup key={gp.label} label={gp.label}>{gp.traits.map((k) => <option key={k} value={k}>{TRAIT_BY_ID[k].name}</option>)}</optgroup>)}
         </select>
         <select className="text-input sfc-sel" data-test="inv-fte" value={fte} onChange={(e) => setFte(Number(e.target.value))}>{CASE_FTE.map((n) => <option key={n} value={n}>{n} engineers</option>)}</select>
+        <Limit id="case.staffing">{INV_FTE[0]}–{INV_FTE[1]} engineers · {INV_MAX_DAYS} d at most</Limit>
         <span className="sp" />
         <ActBtn id="safety.investigate" params={{ versionId, trait: t, fte }} icon={Search} label="Open case" primary reason />
       </div>
