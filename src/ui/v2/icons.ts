@@ -3,7 +3,7 @@ import {
   Armchair, Atom, Award, BadgeCheck, Banknote, Binary, Biohazard, BookOpen, Bot, Boxes, Brain, Bug, Building2, Cctv, Check, ChevronRight,
   ChevronsRight, CircleHelp, ClipboardCheck, ClipboardX, ClockAlert, Cloud, CodeXml, Copy, CopyX, Cpu, Crown, Database, Dna, Drama, Eye, EyeOff,
   Factory, FastForward, FileSearch, Flame, FlaskConical, Flag, Fuel, Funnel, Gamepad2, Gauge, Gem, Ghost, GitFork, Glasses, Globe, GraduationCap, Hand, HardHat,
-  HandCoins, Handshake, HeartHandshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
+  ChevronLeft, HandCoins, Handshake, HeartHandshake, Hexagon, Hourglass, Image, Joystick, KeyRound, Landmark, Lightbulb, Lock, Map as MapIcon, Megaphone, Menu,
   MessageSquareOff, Microscope, Milestone, Network, Newspaper, PackageX, Pause, Play, PlugZap, Radar, RefreshCw, Rocket, Scale, ScanEye, ScrollText,
   Search, SearchCheck, Server, Settings2, Shield, ShieldAlert, Siren, Skull, SkipForward, SlidersHorizontal, Smile, Sparkles, Split, Star, Swords,
   Target, ThumbsUp, Timer, TrendingUp, TriangleAlert, Truck, Turtle, UserPlus, Users, UsersRound, UtilityPole, VenetianMask, Vote, Wallet, Warehouse, Workflow, Zap, ZapOff,
@@ -33,7 +33,7 @@ export const ICON = {
   relations: Handshake, world: Globe, codex: BookOpen,
   // time and actions
   pause: Pause, play: Play, speed2: ChevronsRight, speed3: FastForward, ff: SkipForward, go: ChevronRight, revalidate: RefreshCw,
-  investigate: Search, split: SlidersHorizontal, help: CircleHelp, menu: Menu, check: Check, locked: Lock,
+  investigate: Search, split: SlidersHorizontal, help: CircleHelp, menu: Menu, check: Check, locked: Lock, back: ChevronLeft,
   // people (R3): roles, tree-column specialties, team verbs
   roleEng: Wrench, roleRE: TestTubeDiagonal, roleSci: Telescope, build: Cog, move: ArrowLeftRight, release: UserMinus, minus: Minus, plus: Plus,
   colPretraining: Layers, colPosttraining: WandSparkles, colSystems: CircuitBoard, colAlignment: Compass, colInterp: ScanSearch, colEvals: ListChecks,

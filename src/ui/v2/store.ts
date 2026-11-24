@@ -81,6 +81,8 @@ class StoreV2 {
   ff: FfTarget | undefined;
   version = 0;
   panel = 'overview';
+  /** After the ending: the end screen ('ending') or the game panels, read-only with time frozen ('world'). */
+  endView: 'ending' | 'world' = 'ending';
   /** Active tab per panel (UI only). */
   tab: Record<string, string> = {};
   /** Help overlay open. */
@@ -139,6 +141,7 @@ class StoreV2 {
   private enter() {
     this.screen = 'game';
     this.panel = 'overview';
+    this.endView = 'ending';
     this.tab = {};
     this.speed = 0;
     this.ff = undefined;
@@ -215,8 +218,21 @@ class StoreV2 {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  /** Switch between the end screen and the read-only game panels (only once the game has ended). */
+  setEndView(v: 'ending' | 'world') {
+    if (!this.state?.ending) return;
+    this.endView = v;
+    this.modal = undefined;
+    this.notify();
+  }
+
   // ───── time ─────
+  /** Time is frozen once the game has ended. */
+  get frozen() {
+    return !!this.state?.ending;
+  }
   setSpeed(n: number) {
+    if (n > 0 && this.frozen) return;
     if (n > 0 && n < 5) this.lastSpeed = n;
     if (n !== 5) this.ff = undefined;
     this.speed = n;
@@ -229,6 +245,7 @@ class StoreV2 {
     this.setSpeed(this.speed === 0 ? this.lastSpeed : 0);
   }
   fastForward(t: FfTarget) {
+    if (this.frozen) return;
     this.ff = t;
     if (this.state) {
       const f: NonNullable<GameStateV2['time']['ffUntil']> = { kind: t.kind === 'event' ? 'event' : t.kind };
