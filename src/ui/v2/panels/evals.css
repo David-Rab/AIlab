@@ -44,9 +44,14 @@
 .ev-mname { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12.5px; }
 .ev-chip { cursor: pointer; }
 .ev-r { text-align: right; display: block; }
-.ev-axis { padding-bottom: 0 !important; }
-.ev-tick { font-size: 9.5px; fill: var(--text-3); }
-.ev-band { display: block; }
+.ev-axis { padding-bottom: 0 !important; width: 300px; }
+.ev-axis .skb-track.bare { height: 15px; }
+.ev-band { display: block; width: 300px; padding: 6px 0; }
+.ev-band .skb-track { height: 14px; }
+.ev-band .skb-bar { top: 3px; bottom: 3px; }
+.ev-band .skb-wh { top: 5px; }
+.ev-band .skb-tk { top: -3px; bottom: -3px; }
+.ev-band .skb-none { font-size: 11px; }
 
 /* alignment evals (SR-07) */
 .ev-algrid { display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, max-content); column-gap: 14px; row-gap: 4px; font-size: 12px; }

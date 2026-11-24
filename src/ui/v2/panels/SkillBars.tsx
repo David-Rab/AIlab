@@ -109,6 +109,33 @@ export function SkillBars({ rows, axis, head, hi: hiIn, notMeasured = 'not measu
   );
 }
 
+/** UB-F: one skill's track alone (Evals' measurement rows): the median-expert / best-human ticks, the measured bar and
+ *  its range whisker, on a ruler 0..hi. */
+export function SkillTrack({ marks, hi, now, nowRange, notMeasured = 'not measured yet' }: { marks: { median: number; best: number }; hi: number; now?: number; nowRange?: [number, number]; notMeasured?: string }) {
+  const x = (L: number) => `${(Math.max(0, Math.min(1, L / hi)) * 100).toFixed(2)}%`;
+  const w = (a: number, b: number) => `calc(${x(Math.max(a, b))} - ${x(Math.min(a, b))})`;
+  return (
+    <div className="skb-track">
+      <i className="skb-tk med" style={{ left: x(marks.median) }} />
+      <i className="skb-tk best" style={{ left: x(marks.best) }} />
+      {now === undefined ? <span className="skb-none">{notMeasured}</span> : <>
+        <i className="skb-bar" style={{ width: x(now) }} />
+        {nowRange && <i className="skb-wh" style={{ left: x(nowRange[0]), width: w(nowRange[0], nowRange[1]) }} />}
+      </>}
+    </div>
+  );
+}
+/** The median-expert / best-human labels over a column of SkillTracks. */
+export function SkillHead({ marks, hi }: { marks: { median: number; best: number }; hi: number }) {
+  const x = (L: number) => `${(Math.max(0, Math.min(1, L / hi)) * 100).toFixed(2)}%`;
+  return (
+    <div className="skb-track bare">
+      <span className="skb-tl" style={{ left: x(marks.median) }}><Term id="medianExpert">median expert</Term></span>
+      <span className="skb-tl" style={{ left: x(marks.best) }}><Term id="bestHuman">best human</Term></span>
+    </div>
+  );
+}
+
 /** Legend for the bars (measured, predicted, ranges, marks). */
 export function SkillLegend({ now, next }: { now: string; next?: string }) {
   return (

@@ -8,7 +8,7 @@
 import { ListChecks } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { alignmentEvalView, dateOf, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, fmtDate, versionById } from '../../../engine/v2';
+import { skillMarksOf, alignmentEvalView, dateOf, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, fmtDate, versionById } from '../../../engine/v2';
 import type { EvalDepthRow, EvalMeasureRow, EvalTaskView, GameStateV2, ModelVersion } from '../../../engine/v2';
 import { EVAL_DEPTHS } from '../../../data/v2/evals';
 import { store } from '../store';
@@ -16,7 +16,7 @@ import { ActBtn, Meter, Seg, Term, Tip, TipCard } from '../ui';
 import { Card, effX, Ref, VARIANT_WORD } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
-import { C } from '../theme';
+import { SkillHead, SkillTrack, rulerHi, standing } from './SkillBars';
 import './evals.css';
 
 type Depth = EvalTaskView['depth'];
@@ -254,37 +254,35 @@ function OrderCard({ s, v }: { s: GameStateV2; v?: ModelVersion }) {
 }
 
 // ───────── measurement ─────────
+// UB-F (OQ-6): each model's capability as a skill bar on the job scale (the shared SkillBars track: the median-expert
+// and best-human ticks of skillMarksOf, the measured bar and its 90% range), not a raw level axis.
 function MeasureCard({ s, rows, sel }: { s: GameStateV2; rows: EvalMeasureRow[]; sel?: string }) {
   const shown = rows.filter((r) => r.measuredL !== undefined || r.open.length > 0 || r.status === 'evaluating');
-  const ls = shown.filter((r) => r.measuredL !== undefined).flatMap((r) => [r.measuredL! - 2 * r.sd, r.measuredL! + 2 * r.sd]);
-  const lo = ls.length ? Math.floor(Math.min(...ls) * 2) / 2 : 4;
-  const hi = ls.length ? Math.max(lo + 1, Math.ceil(Math.max(...ls) * 2) / 2) : 8;
-  const W = 300;
-  const x = (l: number) => 12 + ((l - lo) / (hi - lo)) * (W - 24);
-  const ticks: number[] = [];
-  for (let t = Math.ceil(lo); t <= hi; t += hi - lo > 4 ? 2 : 1) ticks.push(t);
+  const mk = skillMarksOf(s, 'CODE');
+  const hi = rulerHi(shown.filter((r) => r.measuredL !== undefined).map((r) => ({ key: r.versionId, label: '', marks: mk, nowRange: [r.measuredL! - 1.64 * r.sd, r.measuredL! + 1.64 * r.sd] as [number, number], tip: () => null })));
   return (
-    <Card title={<span>Capability <span className="dim">· <Term id="measureBand">range</Term></span></span>} home="evalMeasure" className="ev-m"
+    <Card title={<span><Term id="L">Capability</Term> <span className="dim">· on the job scale, with <Term id="measureBand">range</Term></span></span>} home="evalMeasure" className="ev-m"
       sub={<span className="small dim">click a model to order evals on it</span>}>
       <div className="ev-mgrid" data-test="eval-measure">
         <span className="ch">Model</span>
-        <span className="ch ev-axis"><svg width={W} height={14}>{ticks.map((t) => <text key={t} x={x(t)} y={11} textAnchor="middle" className="ev-tick">{t}</text>)}</svg></span>
+        <span className="ch ev-axis"><SkillHead marks={mk} hi={hi} /></span>
         <span className="ch r"><Term id="measureBand">±</Term></span><span className="ch r">Rounds · full eq.</span><span className="ch">Last evals</span><span className="ch">Next</span>
-        {shown.map((r) => <MeasureRow key={r.versionId} s={s} r={r} on={r.versionId === sel} x={x} W={W} ticks={ticks} />)}
+        {shown.map((r) => <MeasureRow key={r.versionId} s={s} r={r} on={r.versionId === sel} mk={mk} hi={hi} />)}
       </div>
       {!shown.length && <div className="dim small ev-empty">No model measured yet.</div>}
     </Card>
   );
 }
-function MeasureRow({ s, r, on, x, W, ticks }: { s: GameStateV2; r: EvalMeasureRow; on: boolean; x: (l: number) => number; W: number; ticks: number[] }) {
+function MeasureRow({ s, r, on, mk, hi }: { s: GameStateV2; r: EvalMeasureRow; on: boolean; mk: ReturnType<typeof skillMarksOf>; hi: number }) {
   const v = versionById(s, r.versionId);
   const evaluating = r.status === 'evaluating';
   const L = r.measuredL;
+  const sd90 = 1.64 * r.sd;
   const levelTip = () => (
-    <TipCard title={<Term id="L">Capability</Term>} value={L !== undefined ? `level ${F.level(L)} ${band(r.sd)} (10 = best human)` : 'not yet measured'} rows={[
-      { label: 'Likely range', value: L !== undefined ? `${F.level(L - r.sd)} – ${F.level(L + r.sd)}` : '—' },
-      { label: 'Wider range (faint)', value: L !== undefined ? `${F.level(L - 2 * r.sd)} – ${F.level(L + 2 * r.sd)}` : '—' },
-    ]} footer="Your evals' reading, not the truth: from the last evals' benchmark scores, so weak elicitation or a sandbagging model reads low.">Range = how noisy the last evals' scores were.</TipCard>
+    <TipCard title={<Term id="L">Capability</Term>} value={L !== undefined ? standing(L, mk) : 'not yet measured'} rows={[
+      { label: 'Range (90%)', value: L !== undefined ? `± ${F.num(sd90, 2)} levels` : '—' },
+      { label: 'Measured on', value: `${mk.test}${mk.standIn ? ' (stand-in)' : ''}` },
+    ]} footer="Your evals' reading, not the truth: from the last evals' benchmark scores, so weak elicitation or a sandbagging model reads low. Bars sit on the job scale: the median expert and the best human doing the job.">Range = how noisy the last evals&apos; scores were.</TipCard>
   );
   return (
     <div className={`ev-mline ${on ? 'on' : ''}`} data-measure={r.versionId} onClick={() => store.select({ versionId: r.versionId })}>
@@ -295,16 +293,9 @@ function MeasureRow({ s, r, on, x, W, ticks }: { s: GameStateV2; r: EvalMeasureR
         {r.policy && <Tip content={() => <TipCard title={<Term id="autoEvaluate">Kept measured</Term>}>Re-tested under Re-test when.</TipCard>}><span className="chip-mini tone-pos">re-tested</span></Tip>}
       </span>
       <Tip content={levelTip}>
-        <svg width={W} height={16} className="ev-band" data-test="eval-band">
-          {ticks.map((t) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={16} stroke={C.line} />)}
-          {L !== undefined && <>
-            <rect x={x(L - 2 * r.sd)} y={5} width={Math.max(1, x(L + 2 * r.sd) - x(L - 2 * r.sd))} height={6} rx={3} fill={C.cap} opacity={0.22} />
-            <rect x={x(L - r.sd)} y={3} width={Math.max(2, x(L + r.sd) - x(L - r.sd))} height={10} rx={3} fill={C.cap} opacity={0.6} />
-            <line x1={x(L)} x2={x(L)} y1={1} y2={15} stroke={C.text} strokeWidth={2} />
-          </>}
-        </svg>
+        <span className="ev-band" data-test="eval-band"><SkillTrack marks={mk} hi={hi} now={L} nowRange={L !== undefined ? [L - sd90, L + sd90] : undefined} notMeasured={evaluating ? 'in testing' : 'not measured yet'} /></span>
       </Tip>
-      <Tip content={levelTip}><span className="num small ev-r" data-test="eval-sd">{L !== undefined ? band(r.sd) : '—'}</span></Tip>
+      <Tip content={levelTip}><span className="num small ev-r" data-test="eval-sd">{L !== undefined ? band(sd90) : '—'}</span></Tip>
       <Tip content={() => <TipCard title="Evals behind the reading" rows={[{ label: 'Rounds run', value: String(r.nSuites) }, { label: 'Worth in full rounds', value: F.num(r.nEff, 1) }]}>A basic round counts 0.2, full 1, deep 4.</TipCard>}>
         <span className="num small ev-r">{r.nSuites}<span className="dim"> · {F.num(r.nEff, 1)}</span></span>
       </Tip>

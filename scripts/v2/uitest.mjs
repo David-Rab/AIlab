@@ -1461,8 +1461,10 @@ async function d8Check(where, complete, depth) {
   // Measurement rows equal evalMeasureView (band).
   const ms = await V('evalMeasureView');
   const msUi = await page.$$eval('[data-test=eval-measure] [data-measure]', (els) => els.map((e) => ({ id: e.getAttribute('data-measure'), sd: e.querySelector('[data-test=eval-sd]')?.textContent ?? '' })));
-  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${m.sd.toFixed(2)} L`); });
-  ok(`D8 ${where}: measurement bands equal evalMeasureView (± 0.2/√n)`, mOk, `${msUi.length} rows · ${JSON.stringify(msUi[0])}`);
+  const mOk = msUi.length > 0 && msUi.every((r) => { const m = ms.find((x) => x.versionId === r.id); return m && (m.measuredL === undefined ? r.sd === '—' : r.sd === `± ${(1.64 * m.sd).toFixed(2)} levels`); });
+  ok(`D8 ${where}: measurement ranges (90%) equal evalMeasureView (± 1.64 × 0.2/√n)`, mOk, `${msUi.length} rows · ${JSON.stringify(msUi[0])}`);
+  // UB-F (OQ-6): capability is drawn as a skill bar on the job scale (median-expert and best-human ticks), no raw level axis.
+  ok(`D8 ${where} (UB-F): measurement rows are job-scale skill bars with median-expert / best-human marks`, JSON.parse(await get(`(() => { const m = document.querySelector('[data-test=eval-measure]'); return !!m && !!m.querySelector('[data-test=eval-band] .skb-tk.med') && !!m.querySelector('[data-test=eval-band] .skb-tk.best') && !m.querySelector('svg .ev-tick') && /median expert/.test(m.innerText); })()`)));
   // Pick the least-measured version with no open suite and order a suite at `depth`.
   const cand = ms.filter((r) => r.measuredL !== undefined && r.open.length === 0 && (r.status === 'ready' || r.status === 'deployed')).sort((a, b) => a.nEff - b.nEff)[0];
   if (cand) {
@@ -1507,7 +1509,7 @@ async function d8Check(where, complete, depth) {
       await toEvals();
       const after = (await V('evalMeasureView')).find((r) => r.versionId === cand.versionId);
       const sdUi = await page.$eval(`[data-measure="${cand.versionId}"] [data-test=eval-sd]`, (e) => e.textContent ?? '').catch(() => '');
-      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${after.sd.toFixed(2)} L`, `${sdUi} · done ${done}`);
+      ok(`D8 ${where}: the band shrinks after the suite (${cand.sd.toFixed(3)} → ${after?.sd.toFixed(3)}), last suite ${depth}`, done && !!after && after.sd < cand.sd - 1e-9 && after.depth === depth && sdUi === `± ${(1.64 * after.sd).toFixed(2)} levels`, `${sdUi} · done ${done}`);
       await shot(`d8-${tag}-evals-after`);
     }
   } else ok(`D8 ${where}: a measured version to order on`, false);
