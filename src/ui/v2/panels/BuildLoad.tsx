@@ -39,7 +39,9 @@ function upkeepLabel(s: GameStateV2, l: ReturnType<typeof upkeepLines>[number]):
   return `Monitor on ${d ? PRODUCT_DEFS[d.channel]?.name ?? d.channel : AGENT_USE_DEF[l.ref as keyof typeof AGENT_USE_DEF]?.name.toLowerCase() ?? l.ref}`;
 }
 
-export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: boolean }) {
+/** Build capacity and the share in use today (inUse: the engineers' needs list, so the card and its spare chip agree;
+ *  else the 30-day average); the tooltip breaks it down. */
+export function BuildLoad({ s, compact = false, inUse }: { s: GameStateV2; compact?: boolean; inUse?: number }) {
   const bc = buildCapacity(s);
   const u = upkeepSplit(s);
   const lines = upkeepLines(s);
@@ -57,6 +59,7 @@ export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: bo
   const idle = Math.max(0, cap - prods - builds);
   const short = Math.max(0, u.total - bc.capacity);
   const util = s.player.build.util ?? (u.total / cap);
+  const now = inUse ?? util;
   const seg = (x: number, c: string, key: string) => x > 1e-6 && <i key={key} style={{ flex: x, background: c }} />;
   const tip = () => (
     <TipCard title={<Term id="buildCapacity">Build capacity</Term>} value={`${bc.capacity.toFixed(1)} team-weeks/week`} rows={[
@@ -75,8 +78,8 @@ export function BuildLoad({ s, compact = false }: { s: GameStateV2; compact?: bo
   return (
     <Tip content={tip}>
       <span className="build-load" data-test="build-queue">
-        <span className="row-i"><ICON.build size={12} /> {!compact && <><Term id="buildCapacity">build capacity</Term> <b className="num">{bc.capacity.toFixed(1)}</b> teams · </>}<b className="num" style={{ color: short > 0 ? C.bad : util > 0.9 ? C.watch : undefined }}>{F.pct(Math.min(1, util))}</b> in use{short > 0 && <span className="tone-neg" data-test="upkeep-short"> · upkeep behind</span>}</span>
-        <span className="stack2" style={{ width: 140, height: 6, margin: '2px 0 0' }}>{[seg(prods, SEG.products, 'p'), seg(builds, SEG.builds, 'b'), seg(idle, SEG.idle, 'i')]}</span>
+        <span className="row-i"><ICON.build size={12} /> <Term id="buildCapacity">Build capacity</Term> <b className="num">{bc.capacity >= 100 ? F.short(bc.capacity) : bc.capacity.toFixed(1)}</b> teams · in use <b className="num" style={{ color: short > 0 ? C.bad : now > 0.9 ? C.watch : undefined }}>{F.pct(Math.min(1, now))}</b>{short > 0 && <span className="tone-neg" data-test="upkeep-short"> · upkeep behind</span>}</span>
+        {!compact && <span className="stack2" style={{ width: 140, height: 6, margin: '2px 0 0' }}>{[seg(prods, SEG.products, 'p'), seg(builds, SEG.builds, 'b'), seg(idle, SEG.idle, 'i')]}</span>}
       </span>
     </Tip>
   );

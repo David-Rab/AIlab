@@ -144,6 +144,7 @@ export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
 export * from './models/rdReadouts';
 export * from './models/runReadouts';
+export * from './models/labReadouts';
 export * from './safety/safetyReadouts';
 export * from './core/certainty';
 export { sightCurve } from './safety/sightLimit';

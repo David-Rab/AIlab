@@ -1,10 +1,11 @@
 // LAB (UB-5; UI-IA §1 LAB, approved mockups design/ux/mockups/rd/lab*.png): who and what works on what.
 // HOME of the compute allocation (set only here: the bar opens the editor), idle compute (inside each use plus one
-// total), Auto-split idle compute, people per role, AI share per job, work done (× the people alone), needs (on click),
+// total), Auto-split idle compute, people per role, AI share per job, work done (× the people alone; a row opens its needs on AI staff & needs),
 // the scientists' capability / safety split and Best moves (ranked by days of progress a year, UB-2 rankMoves) with
 // "Won't help now". L2 tabs: Hiring & teams · AI staff & needs · Security. Reads beliefs, measurements and facts only.
 import { useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { ChevronRight, GripVertical } from 'lucide-react';
+import { store } from '../store';
 import {
   AUTO_SPLIT_USES, autoSplitPlan, engAllocView, lentTrainingH100e, fillWeeks, fullTeamPayroll, idleShares, idleTeams, queuedOfKey, rankMoves, reAllocView,
   responseCurves, RESPONSE_SCALES, safReAllocView, SPLIT_KEYS, SPLIT_LABEL, teamGain, teamsOfKey, workTypeViews,
@@ -267,18 +268,19 @@ function AutoSplitRow({ s, focus }: { s: GameStateV2; focus: boolean }) {
   );
 }
 
-// ───────── Workforce board: one line per role; the needs list opens on click ─────────
+// ───────── Workforce board: one line per role; a row opens its needs on LAB › AI staff & needs (their one home) ─────────
 type RowKey = TeamKey;
 const ROW_WT: Record<RowKey, WorkTypeView['wt']> = { eng: 'SWE', 're.cap': 'EXP', 'sci.cap': 'IDEAS', 're.saf': 'SAF_EXP', 'sci.saf': 'SAF_IDEAS' };
 const ROW_NAME: Record<RowKey, string> = { eng: 'Engineers', 're.cap': 'Research engineers', 'sci.cap': 'Scientists', 're.saf': 'Research engineers', 'sci.saf': 'Scientists' };
 const ROW_TERM: Record<RowKey, string> = { eng: 'roleEng', 're.cap': 'roleRE', 'sci.cap': 'roleSci', 're.saf': 'roleRE', 'sci.saf': 'roleSci' };
 const ROW_ICON: Record<RowKey, typeof ICON.L> = { eng: ICON.roleEng, 're.cap': ICON.roleRE, 'sci.cap': ICON.roleSci, 're.saf': ICON.roleRE, 'sci.saf': ICON.roleSci };
 const Q_N: Record<TeamQuality, number> = { solid: 1, strong: 2, elite: 3 };
+/** Where a row's needs live on LAB › AI staff & needs (scientists: their AI staff job card). */
+const ROW_ANCHOR: Record<RowKey, string> = { eng: 'needs.eng', 're.cap': 'needs.re.cap', 're.saf': 'needs.re.saf', 'sci.cap': 'job.capFrontier', 'sci.saf': 'job.safety' };
 const Q_WORD: Record<TeamQuality, string> = { solid: 'Solid', strong: 'Strong', elite: 'Elite' };
 
-interface Need { name: ReactNode; fill: number; st: string; tip: string; short?: boolean; spare?: boolean }
 interface RowStatus { kind: 'short' | 'spare' | 'ok'; text: string; tip: string }
-interface RowData { k: RowKey; people: number; teams: number; q: TeamQuality; w?: WorkTypeView; needs: Need[]; quiet?: string; status: RowStatus; aiNote?: string }
+interface RowData { k: RowKey; people: number; teams: number; q: TeamQuality; w?: WorkTypeView; status: RowStatus; aiNote?: string }
 
 /** VOCAB names of the needs (the engine's labels are longer). */
 const NEED_WORD: Record<string, string> = {
@@ -306,27 +308,9 @@ function boardRows(s: GameStateV2): RowData[] {
     const q = (Object.keys(Q_N) as TeamQuality[]).find((x) => Q_N[x] === qn) ?? 'strong';
     return { k, people: ts.reduce((a, t) => a + t.heads, 0), teams: ts.length, q, w: wts.find((w) => w.wt === ROW_WT[k]) };
   };
-  const needRows = (v: { cap: number; needs: { k: string; label: string; demand: number; got: number; short: number }[]; idle: number }, unit: (x: number) => string): Need[] => [
-    ...v.needs.map((n) => {
-      const d = Number.isFinite(n.demand) ? n.demand : n.got;
-      const short = n.short > 1e-6 && Number.isFinite(n.demand);
-      return { name: needWord(n), fill: d > 0 ? Math.min(1, n.got / d) : 0, st: d <= 1e-9 ? 'none' : short ? `${t1(n.got)} of ${t1(d)}` : unit(n.got), short, tip: d <= 1e-9 ? 'Nothing to do here today.' : short ? `Gets ${unit(n.got)} of the ${unit(d)} it needs: short ${unit(n.short)}.` : `Gets all it needs: ${unit(n.got)}.` };
-    }),
-    { name: 'Spare', fill: v.cap > 0 ? v.idle / v.cap : 0, st: unit(v.idle), spare: true, tip: 'Capacity no need takes.' },
-  ] as Need[];
-  const engNeeds = needRows(eng, (x) => `${F.pct(x / Math.max(1e-9, eng.cap))}`);
-  const reNeeds = needRows(re, (x) => `${t1(x)} teams`);
-  const safNeeds = needRows(saf, (x) => `${t1(x)} people`).filter((n) => n.spare || n.st !== 'none');
-  const safNone = saf.needs.filter((n) => n.demand <= 1e-9).map(needWord);
-  const sciRow = (k: 'sci.cap' | 'sci.saf'): Pick<RowData, 'needs' | 'status'> => {
-    const ts = teamsOfKey(p, k);
+  const sciRow = (k: 'sci.cap' | 'sci.saf'): Pick<RowData, 'status'> => {
     const idle = idleSci.filter((t) => t.dept === (k === 'sci.cap' ? 'cap' : 'saf')).length;
-    const progs = new Set(ts.filter((t) => t.projectId).map((t) => t.projectId)).size;
     return {
-      needs: [
-        { name: `${progs} programme${progs === 1 ? '' : 's'}`, fill: ts.length ? (ts.length - idle) / ts.length : 0, st: `${ts.length - idle} teams`, tip: 'Teams working on a programme or project in your priority order (Research).' },
-        { name: 'Idle', fill: ts.length ? idle / ts.length : 0, st: String(idle), spare: true, tip: 'Teams with no programme to work on.' },
-      ],
       status: idle > 0 ? { kind: 'spare', text: `${idle} team${idle > 1 ? 's' : ''} idle`, tip: 'Science teams with no programme: give them one on Research, or hire fewer.' }
         : { kind: 'ok', text: 'All on programmes', tip: 'Every science team works on a programme.' },
     };
@@ -338,14 +322,14 @@ function boardRows(s: GameStateV2): RowData[] {
   const safTotalShort = safShort.reduce((a, n) => a + n.short, 0);
   const allowed = p.policies.trustedToAI ?? 0;
   return [
-    { ...base('eng'), needs: engNeeds,
+    { ...base('eng'),
       status: engShort.length ? { kind: 'short', text: `Short on ${needWord(engShort[0]).toLowerCase()}`, tip: `${engShort.map(needWord).join(', ')} get less than they need.` }
         : eng.idle / Math.max(1e-9, eng.cap) > 0.02 ? { kind: 'spare', text: `${F.pct(eng.idle / Math.max(1e-9, eng.cap))} spare`, tip: 'Engineering capacity no need takes this week.' } : { kind: 'ok', text: 'All in use', tip: 'Every need gets its share; nothing spare.' } },
-    { ...base('re.cap'), needs: reNeeds,
+    { ...base('re.cap'),
       status: reShort.length ? { kind: 'short', text: `Short ${t1(reShort.reduce((a, n) => a + n.short, 0))} teams`, tip: `${reShort.map(needWord).join(', ')} get less than they need.` }
         : re.idle >= 0.05 ? { kind: 'spare', text: `${t1(re.idle)} teams spare`, tip: 'Research-engineer capacity no need takes (at most two teams per programme).' } : { kind: 'ok', text: 'All in use', tip: 'Every need gets what it asks; nothing spare.' } },
     { ...base('sci.cap'), ...sciRow('sci.cap') },
-    { ...base('re.saf'), needs: safNeeds, ...(safNone.length ? { quiet: `${safNone.join(', ')}: none open` } : {}), aiNote: `AI share allowed ${F.pct(allowed)}`,
+    { ...base('re.saf'), aiNote: `AI share allowed ${F.pct(allowed)}`,
       status: safTotalShort > 0.05 ? { kind: 'short', text: `Short ${t1(safTotalShort)} people`, tip: `${safShort.map((n) => `${needWord(n)} short ${t1(n.short)} people`).join('; ')}.` }
         : saf.idle >= 0.5 ? { kind: 'spare', text: `${t1(saf.idle)} people spare`, tip: 'Safety research-engineer capacity no need takes.' } : { kind: 'ok', text: 'All needs met', tip: 'Every safety need gets its people.' } },
     { ...base('sci.saf'), ...sciRow('sci.saf'), aiNote: `AI share allowed ${F.pct(allowed)}` },
@@ -356,7 +340,7 @@ function QDots({ q }: { q: TeamQuality }) {
   return <span className={`lab-qp q-${q}`} data-q={q}>{[1, 2, 3].map((i) => <i key={i} className={i <= Q_N[q] ? 'on' : ''} />)}</span>;
 }
 
-function WorkRow({ s, r, open, toggle, maxM }: { s: GameStateV2; r: RowData; open: boolean; toggle: () => void; maxM: number }) {
+function WorkRow({ s, r, maxM }: { s: GameStateV2; r: RowData; maxM: number }) {
   const Ic = ROW_ICON[r.k];
   const w = r.w;
   const hasAI = !!w?.version && w.copies > 0 && w.A > 0.0005;
@@ -364,7 +348,7 @@ function WorkRow({ s, r, open, toggle, maxM }: { s: GameStateV2; r: RowData; ope
   const pay = teamsOfKey(s.player, r.k);
   return (
     <>
-      <div className={`lab-wr ${open ? 'open' : ''}`} data-row={r.k} onClick={toggle} role="button" aria-expanded={open}>
+      <div className="lab-wr" data-row={r.k} onClick={() => store.goto('lab', { tab: 'work', anchor: ROW_ANCHOR[r.k] })} role="link">
         <span className="rn"><Ic size={18} /><Term id={ROW_TERM[r.k]}>{ROW_NAME[r.k]}</Term></span>
         <Tip content={() => <TipCard title={ROW_NAME[r.k]} value={`${F.count(r.people)} people`} rows={[
           { label: 'Teams', value: String(r.teams) }, { label: <Term id="teamQuality">Quality</Term>, value: Q_WORD[r.q] },
@@ -385,33 +369,11 @@ function WorkRow({ s, r, open, toggle, maxM }: { s: GameStateV2; r: RowData; ope
         <Tip content={() => <TipCard title={<Term id="workDone">Work done</Term>} value={xm(m)} rows={w ? [{ label: 'People alone', value: '×1' }, { label: 'Added by AI staff', value: m - 1 >= 10 ? xm(m - 1) : `×${(m - 1).toFixed(2)}` }] : []}>This job's work, people and AI staff together, as × what the people alone would do.{maxM > 10 ? ' Bars on a log scale (each step ×10).' : ''}</TipCard>}>
           <span className="wd"><span className="lab-ebar"><span className="hp" style={{ flex: '100 0 0' }} />{m > 1.01 && <span className="ap" style={{ flex: `${(wu(m, maxM) - 1) * 100} 0 0` }} />}<span style={{ flex: `${Math.max(0, wu(maxM, maxM) - wu(m, maxM)) * 100} 0 0` }} /></span><b className="num">{xm(m)}</b></span>
         </Tip>
-        <Tip content={() => <TipCard title={r.status.kind === 'short' ? 'Short' : r.status.kind === 'spare' ? <Term id="overflow">Spare</Term> : 'Staffing'} value={r.status.text}>{r.status.tip} Click the row for the needs.</TipCard>}>
+        <Tip content={() => <TipCard title={r.status.kind === 'short' ? 'Short' : r.status.kind === 'spare' ? <Term id="overflow">Spare</Term> : 'Staffing'} value={r.status.text}>{r.status.tip} Click the row for its needs on AI staff &amp; needs.</TipCard>}>
           <span className={`lab-stc ${r.status.kind}`} data-test={`status.${r.k}`}>{r.status.kind === 'short' ? <ICON.alert size={14} /> : r.status.kind === 'spare' ? <i className="sparesw" /> : <ICON.check size={14} />} {r.status.text}</span>
         </Tip>
-        <span className="dim">{open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
+        <span className="dim"><ChevronRight size={16} /></span>
       </div>
-      {open && (
-        <div className="lab-wopen" data-needs={r.k}>
-          <div className="row-i" style={{ marginBottom: 8 }}>
-            <span className="cap"><Term id={r.k === 'eng' ? 'engNeeds' : r.k === 're.cap' ? 'reNeeds' : r.k === 're.saf' ? 'safReNeeds' : 'roleSci'}>Needs</Term>, in priority order</span>
-            <span className="dim small">staff go to the top first</span><span className="sp" />
-            {r.k.startsWith('sci') ? <Ref id="portfolio" to={{ panel: 'research' }}>Portfolio</Ref> : <Ref id="needsOrder" to={{ panel: 'lab', tab: 'work' }}>Change order</Ref>}
-          </div>
-          <div className="lab-needs">
-            {r.needs.map((n, i) => (
-              <Tip key={i} as="div" content={() => <TipCard title={n.name} value={n.st}>{n.tip}</TipCard>}>
-                <div className={`nd ${n.short ? 'short' : ''} ${n.spare ? 'spare' : ''} ${!n.fill && !n.spare ? 'nil' : ''}`}><span className="nm">{n.short ? <ICON.alert size={12} /> : null} {n.name}</span><span className="gb"><i style={{ width: `${Math.min(100, n.fill * 100)}%` }} /></span><span className="st num">{n.st}</span></div>
-              </Tip>
-            ))}
-            {r.quiet && <div className="dim small">{r.quiet}</div>}
-          </div>
-          <div className="row-i small" style={{ marginTop: 10 }}>
-            {r.aiNote && <Tip content={() => <TipCard title={<Term id="trustedToAI">AI share allowed</Term>} value={r.aiNote!.replace('AI share allowed ', '')}>The most safety work you let AI staff do. Set with the AI staff.</TipCard>}><span className="dim">{r.aiNote}</span></Tip>}
-            <Ref id="agentPackage" to={{ panel: 'lab', tab: 'work', anchor: 'agents' }}>AI staff</Ref>
-            <Ref id="keepHiring" to={{ panel: 'lab', tab: 'people' }}>Hiring</Ref>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -445,9 +407,8 @@ function SciSplit({ s }: { s: GameStateV2 }) {
 
 function Workforce({ s }: { s: GameStateV2 }) {
   const rows = useMemo(() => boardRows(s), [s, s.time.day, s.player.teams.length, JSON.stringify(s.player.split), s.player.hiring.filling.length]);
-  const [open, setOpen] = useState<RowKey | null>(null);
   const maxM = Math.max(1.5, ...rows.map((r) => r.w?.m ?? 1));
-  const row = (k: RowKey) => { const r = rows.find((x) => x.k === k)!; return <WorkRow key={k} s={s} r={r} open={open === k} toggle={() => setOpen(open === k ? null : k)} maxM={maxM} />; };
+  const row = (k: RowKey) => { const r = rows.find((x) => x.k === k)!; return <WorkRow key={k} s={s} r={r} maxM={maxM} />; };
   return (
     <Card className="lab-board" home="workforce" title={<span className="row-i"><ICON.staff size={16} /><Term id="team">Workforce</Term></span>}>
       <div className="lab-wgrid">
@@ -623,7 +584,7 @@ export function Lab({ s }: { s: GameStateV2 }) {
   const tab = tabOf('lab', 'board');
   return (
     <div className="panel-v2 lab" data-panel="lab">
-      <PanelHead icon={ICON.company} title="Lab" tabs={<Tabs panel="lab" def="board" tabs={[{ id: 'board', label: 'Lab', icon: ICON.company }, { id: 'people', label: 'Hiring & teams', icon: ICON.hiring }, { id: 'work', label: 'AI staff & needs', icon: ICON.agents }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
+      <PanelHead icon={ICON.company} title="Lab" tabs={<Tabs panel="lab" def="board" tabs={[{ id: 'board', label: 'Allocation', icon: ICON.company }, { id: 'people', label: 'Hiring & teams', icon: ICON.hiring }, { id: 'work', label: 'AI staff & needs', icon: ICON.agents }, { id: 'security', label: 'Security', icon: ICON.security }]} />} />
       {tab === 'board' && <LabBoard s={s} />}
       {tab === 'people' && <LabPeople s={s} />}
       {tab === 'work' && <LabWork s={s} />}

@@ -451,6 +451,13 @@ const V2: Record<string, Term> = {
   deesc: { title: 'De-escalation track', body: 'D1 joint statement, D2 incident hotline, D3 scientific exchange, D4 informal restraint, D5 verification talks. Climbs with diplomacy, calm and shared concern; leads toward a [[treaty]].', src: 'research/10 §1.4' },
   hawkDove: { title: 'Hawk–dove', body: 'China\'s hawkishness (0–100). Rises with each ladder rung and with US labs\' defense work.', src: 'research/10 §1.1' },
   theftIntent: { title: 'Theft intent', body: 'China\'s drive to steal weights (0–100). Scales the daily [[theft]] hazard and attacker strength.', src: 'V2-SPEC §3.6' },
+  // UB-B (LAB › Security, AI staff & needs).
+  theftOdds: { title: 'Theft risk', body: 'Your security team\'s estimate of how likely a determined attempt on your weights gets through: lower with [[wsl|weight security]], higher with China\'s [[theftIntent|theft intent]]. Odds per attempt, not per year.' },
+  securityFloor: { title: 'Industry baseline', body: 'The [[wsl|weight security]] frontier labs now keep. It rises each year to 2027; your level never falls below it.' },
+  securityBudget: { title: 'Security budget', body: 'What you spend a year on security. Reaching and holding a [[wsl|weight security]] level costs more the higher the level and the more compute you run.' },
+  ssl: { title: 'Secrets security', body: 'How hard your know-how is to leak, on the same 1–5 scale as [[wsl|weight security]] and 0.6 behind it: secrets are small and can be passed on by word of mouth.' },
+  clearances: { title: 'Security clearances', body: 'Government vetting for frontier work: fewer spies get in, but some staff are sidelined while they are vetted.' },
+  costPerHour: { title: 'Cost per hour of work', body: 'An hour of a job\'s work done by AI staff, at the rental price of the compute they run on, against an hour of your best people\'s pay.' },
   taiwanTension: { title: 'Taiwan tension', body: 'Cross-strait tension (0–100). Raises the odds of a quarantine that cuts chip supply ([[taiwanRisk]]).', src: 'research/15 §1.2; research/10' },
   researchBodies: { title: 'Research bodies', body: 'Outside testers and scientists: [[evalGov|government evaluators]], [[evalIndep|independent evaluators]] and [[academia]].', src: 'V2-SPEC §3.9.5' },
   evalGov: { title: 'Government evaluators', body: 'State AI-security testers: 2 models per quarter, misuse focus, publish selectively. Pre-deployment testing with them builds government trust.', src: 'V2-SPEC §3.9.5' },

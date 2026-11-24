@@ -25,6 +25,7 @@ export const ALLOW: [string, string, string][] = [
   ['panels/Agents.tsx', 'la.L', 'edit preview warning: the preview itself is the before → after breakdown'],
   ['panels/Agents.tsx', 'lb.L', 'edit preview warning: the preview itself is the before → after breakdown'],
   ['panels/Agents.tsx', 'v.sdAI', 'rendered inside the AI-share tooltip trigger of its lane'],
+  ['panels/LabTabs.tsx', 'g.amount', 'Next team buys text (UB-B): built by nextTeamBuys, rendered inside the row cell\'s Tip'],
   ['panels/Products.tsx', 'row(', 'edit preview: the before → after rows are the breakdown'],
   ['panels/Products.tsx', 'r.cutH100e', 'lever label inside the binding chip, which opens the binding breakdown'],
   ['panels/Training.tsx', 'card.effShare', 'limit tile sub-line: the whole tile opens its breakdown (UB-7)'],

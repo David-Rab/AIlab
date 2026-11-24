@@ -1,38 +1,27 @@
-/* Lab › AI staff & needs (model v3 V2b; mockups-v3/v3-v2b-work). */
-.wk-wrap { display: flex; flex-direction: column; gap: 12px; }
-.wk-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
-.wk-hero { display: flex; align-items: baseline; gap: 8px; }
-.wk-hero b { font-size: 26px; color: #fff; }
-.wk-m { color: var(--good); font-weight: 600; font-size: 13px; }
-.wk-split { display: flex; height: 12px; border-radius: 3px; overflow: hidden; margin: 6px 0 3px; background: var(--line); }
-.wk-split i { display: block; }
-.wk-split-l { display: flex; gap: 14px; }
-.wk-split-l .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
-.wk-fit { position: relative; height: 40px; margin: 2px 24px; }
-.wk-fit i { position: absolute; display: block; }
-.wk-fit .ax { left: 0; right: 0; top: 14px; height: 2px; background: var(--line-2); }
-.wk-fit .tick { top: 7px; width: 2px; height: 16px; margin-left: -1px; background: var(--text-2); }
-.wk-fit .tick.best { background: #fff; }
-.wk-fit .tl { position: absolute; top: 24px; font-size: 10.5px; color: var(--text-3); transform: translateX(-50%); white-space: nowrap; }
-.wk-fit .dot { top: 8px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #4fd1bd; border: 2px solid #0b1017; }
-.wk-cov { display: grid; grid-template-columns: 62px minmax(0, 1fr) 40px; gap: 8px; align-items: center; }
-.wk-cov .hb { height: 10px; }
-.wk-cov .hb i { background: #4fd1bd; }
-.wk-cov .hb i.mk { width: 2px; top: -3px; bottom: -3px; background: #fff; }
-.wk-cov b { color: #fff; text-align: right; }
-.wk-needs { display: flex; flex-direction: column; }
-.wk-needs-h { display: grid; grid-template-columns: 14px 20px minmax(0, 1fr) 80px 62px 74px 40px; gap: 6px; padding-bottom: 2px; }
-.wk-needs-h > span { grid-column: 5 / span 3; white-space: nowrap; }
-.wk-need { display: grid; grid-template-columns: 14px 20px minmax(0, 1fr) 80px 62px 74px 40px; gap: 6px; align-items: center; font-size: 12px; min-height: 30px; border-bottom: 1px solid #1c2531; }
-.wk-nbar { position: relative; display: block; height: 8px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.wk-nbar i { position: absolute; left: 0; top: 0; bottom: 0; display: block; }
-.wk-nbar i.short { background: repeating-linear-gradient(135deg, rgba(239,107,107,.8) 0 3px, transparent 3px 6px); }
-.wk-cap { height: 22px; font-size: 11px; padding: 1px 4px; width: 74px; }
-.wk-idle { padding-top: 4px; }
-.wk-mls { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; align-items: start; }
-.wk-ml { border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.wk-ml b { font-size: 12px; color: #fff; }
-.wk-ml.done { border-color: rgba(76,195,138,.45); }
-.wk-ml.next { border-color: #5aa9ff; box-shadow: 0 0 0 1px #5aa9ff; }
-.wk-crit { display: grid; grid-template-columns: minmax(0, 1fr) 62px; gap: 6px; align-items: center; }
-.wk-saf { margin-top: 8px; }
+/* LAB › AI staff & needs, the needs lists (UB-B; mockup design/ux/mockups/rd/lab-aistaff.png). */
+.la-ncards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.la-ncard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; min-height: 360px; }
+.la-nh { display: flex; align-items: center; gap: 8px; padding: 12px 16px 2px; }
+.la-nh b { color: #fff; font-size: 15px; gap: 7px; }
+.la-nh .lc { font-weight: 400; }
+.la-nh .sp { flex: 1; }
+.la-nchip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); color: var(--text-2); background: var(--panel-2); white-space: nowrap; }
+.la-nchip.short { color: var(--warn); border-color: rgba(233,180,76,.5); background: rgba(233,180,76,.1); }
+.la-nsub { padding: 2px 16px 10px; color: var(--text-2); border-bottom: 1px solid var(--line); }
+.la-needs { display: flex; flex-direction: column; }
+.la-need { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px 90px; gap: 10px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.la-needs.editing .la-need { grid-template-columns: 14px 22px minmax(0, 1fr) 70px 70px 74px 44px; gap: 6px; padding: 7px 10px; cursor: grab; }
+.la-need .rk { color: var(--text-3); font-size: 12px; }
+.la-need .nm { color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 5px; }
+.la-need .gb { position: relative; display: block; height: 8px; border-radius: 4px; background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.la-need .gb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: #6f8fb5; }
+.la-need .st { font: 600 12.5px var(--mono); text-align: right; color: var(--text-2); white-space: nowrap; }
+.la-need.short .nm, .la-need.short .st { color: var(--warn); }
+.la-need.short .gb i { background: var(--warn); }
+.la-need.nil .nm, .la-need.nil .st { color: var(--text-3); }
+.la-need.spare { background: rgba(255,255,255,.02); }
+.la-need.spare .gb i { background: repeating-linear-gradient(135deg, #8295ad 0 3px, transparent 3px 6px); }
+.la-nfoot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
+.la-nfoot .sp { flex: 1; }
+.la-nfoot .btn.on { border-color: var(--you, #3a8ae0); }
+.wk-cap { height: 22px; font-size: 11px; padding: 1px 4px; width: 70px; }
