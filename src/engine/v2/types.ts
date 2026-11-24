@@ -2257,9 +2257,6 @@ export interface WorldFxState {
    *  Nash–Bertrand target (PRICE_TAU); an absent model starts at the seller's stocked margin per $ of cost × its own
    *  cost, an absent seller at today's cost-plus price (SEED_MARKUP). */
   priceM?: Record<RegionId, Record<string, Record<string, Record<string, number>>>>;
-  /** MK-6: per region and sector, yesterday's hours-weighted average price of each band of the buyers' choice ($ per
-   *  adopted task-hour, all sellers): μ_b = this ÷ PRICE_ELASTICITY (worldfx/choice.ts). Absent: today's p_min rule. */
-  bandP?: Record<RegionId, Record<string, number[]>>;
   /** RD-P07, RF-P1: the day the player first shipped each product tool new in this game (no lab had it at the start;
    *  actors/rivalModel.ts recordToolShips). */
   toolShip?: Record<string, Day>;

@@ -119,6 +119,23 @@ p_k)/μ_b, and with the frontier at its own FOC margin that is at most ≈ 1/(1 
 4 × 0.61 OOM = 2.4 for the mini even at cost. Cheap tiers win only where every seller's cheap tiers are adequate in the
 easy band (then p̄_b and μ_b are low: US Services, rivals' minis 12–13% of their hours at M ≈ 0.24 vs 2.1–2.3).
 
+As built (MK-6c, choice.ts `bandMu`): μ_b = c_min,b ÷ ε, c_min,b the lowest serving cost per adopted hour among every
+serving provider's tiers in the region (all tiers, whatever a buyer group reaches: the market's μ) that do band b's
+tasks adequately (coverage ≥ the band's upper edge, x_b = 1); where none does, the most adequate tier's cost (the
+cheapest of those). The same μ in every buyer group's choice, in the MK-7 re-run and in the targets (nashTargets reads
+the choice's μ). μ no longer depends on prices, so the band-price fixed point (the iteration, the Aitken step), the
+SectorMix `bandPrice` readout and the stored yesterday's band prices `fx.bandP` are gone (save 108 → 109 drops it);
+margins still move to their targets at PRICE_TAU, and a new game's initPrices is 8 rounds at 0.6 (≈ 0.1–0.2% off the
+fixed point; newGame ≈ 0.2–0.3 s from ≈ 0.5–0.7 s). Since μ is now a cost scale, ε means the price response at the
+cheapest adequate cost (own-price elasticity at the Nash margin = 1 ÷ margin): ε = 0.3 (from 1.4) puts the start
+leader's hours-weighted margin at 0.81–0.83 (seeds 2027, 7, 42; rivals 0.62–0.69; DeepCent's open weights 0.17) and
+start player revenue at $14–16B (MK-6b: $20–26B). Cheap tiers win the easy bands again: at day 20 the API's US Software
+hours by tier are 0.81 / 0.09 / 0.09 / 0 (TIERS E7 passes). Finding: a cheap model that does every band collapses the
+price scale for all sellers. On the day-369 save Atlas-4.0-mini (cost $0.11/h, adequate on all of US Software) lowers
+c_min in bands 3–8 from $0.51–0.72 to $0.11, so margins there fall ≈ 5–7×: adding it to Enterprise now cuts profit
+(30 days: revenue 112.3 → 80.5, profit 91.1 → 68.4; MK-6b 119.0 → 195.6, 97.8 → 183.4) though it frees ≈ 1.1M H100e
+of need. Open for the designer (MK-CP): whether a seller's own model should set the scale its other models face.
+
 ### Capacity (M7)
 
 The Auto serving split stays (most revenue per H100e first). A product whose need exceeds its served compute serves the
