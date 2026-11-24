@@ -51,8 +51,8 @@ export function limitReason(r: ProductRead): string {
     case 'quality': return r.channel === 'consumer'
       ? `Users pick the chat app whose model does more of what they ask, for the price. ${customerDrift(r).dir === 'lose' ? 'Rivals\' newest models now do more, so users drift to them.' : 'Your model holds its users for now.'}${tail}`
       : `Buyers pick a model task by task, for value for money. ${customerDrift(r).dir === 'lose' ? 'Rivals\' newest models now do more of these tasks at the price, so buyers drift to them.' : 'Your models win these tasks for now; a stronger rival release would move buyers.'}${tail}`;
-    case 'capacity': return 'Buyers want more than your serving compute serves: the unserved part leaves for rivals. More serving compute (LAB) or a cheaper model in the lineup serves more of it.';
-    case 'price': return 'Your price turns buyers away on work cheaper offers also do. A lower price tier sells more hours at a thinner margin.';
+    case 'capacity': return 'Buyers want more than your serving compute serves: the product keeps its price and turns the rest away to their next choice (your other products with spare compute, rivals, or no AI). More serving compute (LAB) or a cheaper model in the lineup serves more of them.';
+    case 'price': return 'Your price turns buyers away on work cheaper offers also do. Win share sells more hours at a thinner margin.';
     default: return 'Few buyers in this segment use AI yet: demand grows as adoption grows.';
   }
 }
