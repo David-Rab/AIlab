@@ -20,7 +20,8 @@ import { updateIntel, leadDays } from '../../src/engine/v2/actors/intel';
 import { deactivateRival } from '../../src/engine/v2/actors/rivals';
 import { request, ws4 } from '../../src/engine/v2/actors/state';
 import { blockingCommitments, measuredDomain, signCommitment } from '../../src/engine/v2/actors/commitments';
-import { refreshFramework } from '../../src/engine/v2/safety/framework';
+import { refreshFramework, worldHighL } from '../../src/engine/v2/safety/framework';
+import { FRAMEWORK_CRITICAL_L } from '../../src/data/v2/framework';
 import { deployGate } from '../../src/engine/v2/models/deployments';
 import { WS4_TUNING } from '../../src/engine/v2/actors/tuning';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
@@ -366,16 +367,19 @@ const load = (i: number) => deserialize(fixtures[i]);
     ws4(s).internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
     check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
     check(deployGate(s, v, 'api') === true, 'C1 (B1) an out-of-scope binding commitment does not block a launch', String(deployGate(s, v, 'api')));
-    // B2: the framework judges the candidate. Make the version measure BIO ≥ 10.
+    // B2: the framework judges the candidate.
     // CP3 rewrite (RD-M01 / SR-19): the measured domain level is the benchmark fit (evals.measuredDom), so set it there.
-    v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: 10.5 };
+    // CP4 (CAL2 (c)): since CAL-S, Bio High is the world's median expert (6.4 on ai2027; classifiers) and Bio Critical the
+    // best human (10; hardened + an external evaluation), and since RF-S13b the gate judges the candidate with the parts
+    // the framework adds itself as it goes live. So: at Critical the launch is held, naming the rule and the external
+    // evaluation it needs; midway between High and Critical the framework's own classifiers let it pass.
+    v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: FRAMEWORK_CRITICAL_L + 0.5 };
     // RF-S2: publishing = the Safety framework commitment (its rules hold; the old noDeployAbove pledge is gone).
     signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {}, [], { trust: 1, credibility: 1 });
     const g1 = deployGate(s, v, 'api', { safeguards: 'standard' });
-    // CP3 rewrite (SR-19): the Safety framework's default Bio High rule (≥ 10 → classifiers) now judges the candidate
-    // first and names its rule; the signed commitment's clause says the same.
-    check(typeof g1 === 'string' && (g1.includes('Frontier safety framework') || /Safety framework \(".+"\)/.test(g1)) && g1.includes('BIO') && g1.includes('classifier'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the rule (or commitment) and clause', String(g1));
-    check(deployGate(s, v, 'api', { safeguards: 'classifiers' }) === true, 'C1 the same launch with classifiers passes');
+    check(typeof g1 === 'string' && /Safety framework \(".+"\)/.test(g1) && g1.includes('BIO') && g1.includes('external evaluation'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the rule and clause (Bio Critical: an external evaluation)', String(g1));
+    v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: (worldHighL(s) + FRAMEWORK_CRITICAL_L) / 2 };
+    check(deployGate(s, v, 'api', { safeguards: 'standard' }) === true, 'C1 at Bio High the launch passes with the classifiers the framework adds itself (RF-S13b)', String(deployGate(s, v, 'api', { safeguards: 'standard' })));
     check(deployGate(s, v, 'internal') === true, 'C1 internal use is outside the framework scope');
     // An existing violating deployment does not block an unrelated, compliant launch.
     const dep = s.player.deployments.find((d) => d.status === 'live' && d.channel === 'api');
