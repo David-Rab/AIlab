@@ -147,14 +147,17 @@ export function runTraitPressure(s: GameStateV2, p: LaunchRunParams): Partial<Re
 export { WSL_TARGET_RANGE } from '../security/security';
 
 // R6 products: readouts, live-edit previews and package helpers (visible data: measured levels, revenue).
-export { productReadouts, previewDeployments, featureView, toolRivalsView, CONVERGED } from '../worldfx/productView';
+export { productReadouts, previewDeployments, featureView, toolRivalsView, CONVERGED, marketBase } from '../worldfx/productView';
+// MK-12: the Products screen's cards, totals strip and edit previews (market redesign).
+export { productCardView, productCards, productsStrip, editDelta, lineupSwapOptions, lineupAddOptions, lineupRemovePreview, stancePreview, addableModels, toolsOn, moneyOf, workSoldOf, BUYER_GROUPS, SELLS_NOTHING } from '../worldfx/marketView';
+export type { ProductCard, ProductsStrip, EditDelta, LineupOption, LineupCardRow, MarketNumbers, MoneyLine, TurnedAwayView, TurnedAwayTo, ToolsView, ToolOnProduct, CertView, BuyerGroupsView } from '../worldfx/marketView';
 export { revenueTrend, customerDrift, limitReason, agentsReady, winBack } from '../worldfx/productBoard';
 export type { RevenueTrend, DriftDir, AgentsReady, WinBack } from '../worldfx/productBoard';
 export { hubVerdicts, leadLanes, LIKELY_Z } from './hubView';
 export type { HubBox, HubId, HubTone, LeadLane } from './hubView';
 export { freeTierVersion, lineupVersions, studentToHold, tokEff, useHourCost } from '../worldfx/serving';
 export { flopPerToken, researchMods } from '../departments/workfit';
-export type { ProductRead, ProductEcon, EditPreview, CustomerView, CustomerSeg, FeatureView, FeatureKind, FeatureLine, LineupRow } from '../worldfx/productView';
+export type { ProductRead, ProductEcon, EditPreview, MarketBase, CustomerView, CustomerSeg, FeatureView, FeatureKind, FeatureLine, LineupRow } from '../worldfx/productView';
 export { editBlock, editedProduct, previewEdit } from '../models/productOps';
 export type { ProductChanges } from '../models/productOps';
 export { activeFeatures, agentsGate, catchRate, collusionTrait, sameLineage, featureBuildBlock, featureToggleBlock, isProduct, measuredHorizonH, monitorOverhead } from '../models/products';
