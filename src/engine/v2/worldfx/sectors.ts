@@ -36,7 +36,8 @@ import { econOf, policyState, sigmoid, clamp01, clampR, type PolicyState } from 
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
 import { gOfLevel, levelGate, oomPerLevel, v2LevelGate } from '../models/capability';
-import { CERT_FRICTION_CUT, certifiedBuyerShare, needsCert } from '../models/adaptations';
+import { CERT_FRICTION_CUT, needsCert } from '../../../data/v2/tools';
+import { certifiedBuyerShare } from '../models/certs';
 
 export { REGIONS };
 
@@ -339,7 +340,7 @@ export const worldDailySystem: EngineSystem = {
     for (const inc of s.player.safety.incidents) {
       if (inc.day !== ctx.day || inc.severity < 3 || inc.exposure === 'internal') continue;
       const dep = s.player.deployments.find((d) => d.id === inc.deploymentId);
-      const secs = dep?.adaptations?.length ? dep.adaptations.map((p) => p.sector) : topPlayerSectors(s, 3);
+      const secs = dep?.certs?.length ? dep.certs.map((p) => p.sector) : topPlayerSectors(s, 3); // MK-11: a certified product's sectors
       for (const id of secs) fx.incidentR[id] = Math.min(0.5, fx.incidentR[id] + 0.05);
     }
 

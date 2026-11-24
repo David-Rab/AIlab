@@ -7,7 +7,7 @@ import { applyFrameworkParts, frameworkCandidate } from '../safety/packages';
 import type { Channel, Deployment, GameStateV2, LabId, ModelVersion, SystemCtx, Variant } from '../types';
 import { CHINA_ID, bestG, rivalLab, versionById } from './labs';
 import { kindOfChannel, priceIndexOf } from './products';
-import { relaunchAdaptations } from './adaptations';
+import { relaunchCerts } from './certs';
 import { tierOfIndex } from '../../../data/v2/features';
 import { distillLift } from '../production/diffusion';
 
@@ -79,8 +79,8 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   const cand = frameworkCandidate(s, v, channel, { safeguards: opts.safeguards ?? 'classifiers', guards: opts.guards ?? [] }, opts.frameworkApplied);
   const held = frameworkDeployBlock(s, v, channel, cand);
   if (held) return held;
-  // MK-11: the Agents product's time-horizon gate (agentsGate) is not carried to the API (it would block API launches);
-  // Agent mode, a tool, gates agent-hours instead.
+  // MK-11: no time-horizon gate on a launch: Agent mode, a product tool, gates the agent-hours only (agentsGate in
+  // worldfx/serving.ts productOffer).
   const block = commitmentDeployBlock(s, {
     versionId: v.id, channel, safeguards: cand.safeguards, usagePolicy: opts.usagePolicy ?? committedUsagePolicy(s, channel),
   });
@@ -103,19 +103,19 @@ export function deploy(s: GameStateV2, ctx: SystemCtx, p: DeployParams): Deploym
   }
   const n = s.player.deployments.length + 1;
   const price = p.price ?? tierOfIndex(p.priceIndex ?? 1);
-  // RD-B12 (B18) / RD-P08: a relaunch takes over the retired product's sector adaptations (certification kept).
-  const re = p.adaptations ? { adaptations: p.adaptations } : relaunchAdaptations(s, p.channel);
+  // RD-B12 (B18) / MK-11: a relaunch takes over the retired product's sector certifications.
+  const re = p.certs ? { certs: p.certs } : relaunchCerts(s, p.channel);
   const d: Deployment = {
     id: `D${n}${s.player.deployments.some((x) => x.id === `D${n}`) ? `-${s.time.day}` : ''}`, kind: kindOfChannel(p.channel),
     versionId: v.id, channel: p.channel, startDay: s.time.day, price, priceIndex: priceIndexOf(price),
     servingShare: p.servingShare ?? DEFAULT_SERVING[p.channel], safeguards: p.safeguards ?? 'classifiers', guards: (p.guards ?? []).map((g) => ({ ...g })),
-    adaptations: re.adaptations.map((x) => ({ ...x })), features: [...(p.features ?? [])],
+    certs: re.certs.map((x) => ({ ...x })), features: [...(p.features ?? [])],
     ...(p.monitorId ? { monitorId: p.monitorId } : {}), ...(p.lineup?.length ? { lineup: [...p.lineup] } : {}), ...(p.freeTierId ? { freeTierId: p.freeTierId } : {}),
     usagePolicy,
     kyc: p.kyc ?? (p.channel === 'api' ? 1 : 0), status: 'live',
   };
   s.player.deployments.push(d);
-  if ('from' in re && re.from && d.adaptations.length) re.from.adaptations = [];
+  if ('from' in re && re.from && d.certs.length) re.from.certs = [];
   if (v.status !== 'deployed') v.status = 'deployed';
   ctx.log('company', `${v.name} launched on ${p.channel}.`, p.channel === 'open' ? 3 : 1, d.id);
   applyFrameworkParts(s, d, ctx); // RF-S13b: the parts the gate counted on (frameworkCandidate)
@@ -168,7 +168,7 @@ export function setInternalAgent(s: GameStateV2, versionId: string): string | un
   if (d) d.versionId = v.id;
   else s.player.deployments.push({
     id: `D${s.player.deployments.length + 1}-int`, kind: 'internal', versionId: v.id, channel: 'internal', startDay: s.time.day, price: 'standard', priceIndex: 1, servingShare: 0,
-    safeguards: 'standard', guards: [{ kind: 'review', since: s.time.day }], adaptations: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
+    safeguards: 'standard', guards: [{ kind: 'review', since: s.time.day }], certs: [], features: [], usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false }, kyc: 0, status: 'live',
   });
   if (v.status === 'ready') v.status = 'deployed';
   return undefined;

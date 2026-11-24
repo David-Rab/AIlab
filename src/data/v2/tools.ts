@@ -1,13 +1,16 @@
-// MK-10 (design/MARKET.md M9, M14, "Tools"): the 12 product tools that replace FEATURES (data/v2/features.ts) and the
-// sector adaptations (engine/v2/models/adaptations.ts). DATA ONLY: nothing imports this file yet; MK-11 switches the
-// engine over (Agent mode's gate and agent-hours, harness fit and certification per product, migration of built
-// features and adaptations). FEATURES, INTERNAL_TOOLS (the lab's own agents' tools, RD-A06) and adaptations stay.
+// MK-10 (design/MARKET.md M9, M14, "Tools"): the 12 product tools that replaced the product features and the sector
+// adaptations. MK-11 switched the engine over: products carry these tools (Deployment.features holds their ids, the
+// lab's built ones are player.features), Agent mode gates and sells agent-hours (worldfx/serving.ts productOffer), a
+// harness certifies its product in the sectors it covers that have a certification (models/certs.ts), rivals hold the
+// tools their lab had shipped by the start (toolsAtStart) plus the lag rule (actors/rivalModel.ts rivalToolStep), and
+// the save migration maps built features and adaptations onto them (core/save.ts 105 → 106). INTERNAL_TOOLS (the lab's
+// own agents' tools, RD-A06, data/v2/features.ts) are separate.
 //
 // A tool is built once lab-wide on the build queue (team-weeks + cash, as a feature) and switched on per product.
 //  - Harness: fit on a few sectors (a scaffold: +ΔG compute-equivalent OOM on the sector's cognitive work, × tokens per
 //    work-hour, the typed form of data/v2/features.ts FeatureFx; §5 "a multiplicative effect on the effective skill gap
 //    fits better than a flat bonus"), and certification in the sectors it covers that have one (M14: CERT_SECTORS,
-//    CERT_DAYS, CERT_CASH, CERT_FRICTION_CUT of models/adaptations.ts).
+//    CERT_DAYS, CERT_CASH, CERT_FRICTION_CUT below).
 //  - General: one of today's feature forms (horizon ×, task enabler share, Chat appeal) or Agent mode (sells autonomous
 //    agent-hours, gated on the model's measured time horizon ≥ AGENT_TASK_HOURS).
 //
@@ -23,9 +26,29 @@
 // [D] design value. Sources: research/MARKET-sources.md §5 (cited "§5"), design/RD-AUDIT/BUILD-NOTES.md RF-P1 (vendor
 // pages, checked), research/CAL-products-sources.md (today's feature values).
 import type { Channel, SectorId, TraitId } from '../../engine/v2/types';
-import { CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, CERT_SECTORS } from '../../engine/v2/models/adaptations';
-import { featureUpkeepTW } from '../../engine/v2/departments/build';
-import { AGENT_TASK_HOURS, type FeatureFx, type FeatureId } from './features';
+import type { FeatureFx, FeatureId } from './features';
+
+/** Agent mode needs a measured 50% time horizon at least this long: the tasks it sells are half-day work units (METR
+ *  time horizons; AI 2027's 2026 agents) [D] (the gate of the Agents product MK-1 deleted). */
+export const AGENT_TASK_HOURS = 4;
+/** Sectors with a certification for AI vendors [D: US federal FedRAMP (GOV, MIL: DoD impact levels), health data
+ *  HITRUST (HEALTH; HIPAA itself has none: HHS "does not endorse or otherwise recognize private organizations'
+ *  'certifications'"), SOC 2 and model-risk review (FIN)]. */
+export const CERT_SECTORS: readonly SectorId[] = ['FIN', 'HEALTH', 'GOV', 'MIL'];
+/** Certification time (days) from the day a product first carries a harness covering the sector, one constant for all
+ *  four sectors. 240 [P, CAL-P]: OpenAI's ChatGPT Enterprise / API got FedRAMP 20x Moderate on 27 Apr 2026, about 8
+ *  months after the AI prioritisation opened (Aug 2025; fedramp.gov/ai, openai.com). Range 3-24 months: FedRAMP Rev5
+ *  "exceeding one year and at times approaching up to two years" (fedramp.gov, Sep 2025), 20x pilot about 3.5 months, a
+ *  first SOC 2 Type II about 6-12 months (research/CAL-products-sources.md C1). */
+export const CERT_DAYS = 240;
+/** Certification cost ($B), booked when certification starts. $4M [P, CAL-P]: GAO-24-106591: providers' FedRAMP
+ *  costs "ranged from $300,000 to $3.7 million", plus the sponsoring agency's $69,000-400,000 (the top of both). The
+ *  engineering is the harness's build, not this (research/CAL-products-sources.md C2). */
+export const CERT_CASH = 0.004;
+/** Friction cut a certification gives its product's buyers in the sector (US): R_s - 0.1 [D] (research/16 §1A.3
+ *  "lab-side certification that reduces R_s by 0.1"; for the certified product's buyers only). */
+export const CERT_FRICTION_CUT = 0.1;
+export const needsCert = (sector: SectorId) => CERT_SECTORS.includes(sector);
 
 export type ProductToolId =
   | 'coding' | 'research' | 'backOffice' | 'clinical' | 'operations' | 'defence' | 'creative'
@@ -234,7 +257,9 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
   },
   {
     id: 'voiceVision', name: 'Voice & vision', kind: 'general', analogue: 'Advanced Voice, Gemini Live', from: 'voiceVision', node: 'multimodal',
-    products: ['consumer', 'api', 'enterprise', 'vetted'], sectors: [], buildTW: 12, cash: 0.1,
+    // Chat only (designer, MK-11): no sector effect on the business products (no source), so API, Enterprise and Vetted
+    // do not offer it; the save migration drops it there.
+    products: ['consumer'], sectors: [], buildTW: 12, cash: 0.1,
     // Chat appeal 0.02 [P base, D attribution]: the pre-image-generation multimedia share, 2% of consumer ChatGPT
     // messages in Jul 2024 (NBER w34255; image analysis and other media), 1/(1 − 0.02) − 1. Voice has no message
     // share (a mode, not a topic). The Media work moved to Creative studio. No sector effect on the business products
@@ -263,13 +288,14 @@ export const PRODUCT_TOOLS: ProductToolDef[] = [
 export const PRODUCT_TOOL_BY_ID = Object.fromEntries(PRODUCT_TOOLS.map((t) => [t.id, t])) as Record<ProductToolId, ProductToolDef>;
 
 /** M14: the sectors where a product carrying harness t is certified (after CERT_DAYS, at CERT_CASH each, cutting its
- *  buyers' friction there by CERT_FRICTION_CUT): the harness's sectors that have a certification (CERT_SECTORS). A
- *  function (read lazily) so that an engine module importing this file does not need adaptations.ts evaluated first. */
+ *  buyers' friction there by CERT_FRICTION_CUT): the harness's sectors that have a certification (CERT_SECTORS). */
 export const toolCertSectors = (t: ProductToolDef): SectorId[] => (t.kind === 'harness' ? t.sectors.filter((x) => CERT_SECTORS.includes(x)) : []);
 export const toolCertTerms = () => ({ days: CERT_DAYS, cash: CERT_CASH, frictionCut: CERT_FRICTION_CUT });
-/** Upkeep in team-weeks per week, as a feature's (departments/build.ts featureUpkeepTW: half the build a year in use, a
- *  tenth of that idle). */
-export const toolUpkeepTW = (t: ProductToolDef, inUse = true) => featureUpkeepTW(t, inUse);
+/** Model v3 C2 [D]: upkeep of a built tool in team-weeks per week: half its build team-weeks a year while in use, a
+ *  tenth of that while built but off everywhere (departments/build.ts featureUpkeepTW reads these; also the internal
+ *  tools'). Here, not in build.ts, so that this data file imports no engine module. */
+export const TOOL_UPKEEP = { yr: 0.5, idle: 0.1 } as const;
+export const toolUpkeepTW = (t: { buildTW: number }, inUse = true) => ((TOOL_UPKEEP.yr * t.buildTW) / 52) * (inUse ? 1 : TOOL_UPKEEP.idle);
 
 /** The rival rule's cut-off: a lab starts with a tool if its real counterpart had shipped it by the game's start
  *  (RF-P1, "by 2025-07-01": public, a paid tier or a public beta). A tool no lab had follows TOOL_LAG_DAYS. */
@@ -279,7 +305,7 @@ export function shippedBy(t: ProductToolDef, a: LabArchetype, cutoff = TOOL_STAR
   const l = t.shipped[a];
   return !!l && l.counts !== false && l.date <= cutoff;
 }
-/** The tools each lab starts with (DAY0_TOOLS' successor; MK-11 wires it to rivals and China). */
+/** The tools each lab starts with (rivals and China at creation: actors/rivals.ts, actors/china.ts). */
 export const toolsAtStart = (a: LabArchetype, cutoff = TOOL_START_CUTOFF): ProductToolId[] =>
   PRODUCT_TOOLS.filter((t) => shippedBy(t, a, cutoff)).map((t) => t.id);
 

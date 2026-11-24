@@ -12,8 +12,11 @@
 //   P8  Agents launch gate: measured time horizon vs the task length; eval suites no longer expire; auto-evaluate
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
-//   C2  feature data (every feature acts where offered) and feature upkeep (block at the end)
-import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+//   C2  tool data (every product tool acts where offered) and tool upkeep (block at the end)
+//   MK-11: features and sector adaptations are the product tools of data/v2/tools.ts (FEATURES / FEATURE_BY_ID below
+//   are PRODUCT_TOOLS / PRODUCT_TOOL_BY_ID); certification follows a harness (models/certs.ts).
+import { PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+import { AGENT_TASK_HOURS, CERT_CASH, CERT_DAYS, PRODUCT_TOOLS as FEATURES, PRODUCT_TOOL_BY_ID as FEATURE_BY_ID } from '../../src/data/v2/tools';
 import { PRODUCT_MONITOR_WATCH } from '../../src/data/v2/oversight';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
@@ -42,7 +45,7 @@ import { internalVersion } from '../../src/engine/v2/models/labs';
 import { REEVAL_DAYS } from '../../src/data/v2/evals';
 import { evalDaysFor } from '../../src/engine/v2/models/evals';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
-import { adaptRevenueGain, CERT_CASH } from '../../src/engine/v2/models/adaptations';
+
 import { START_BY_ID } from '../../src/data/v2/starts';
 import { distillDaysPerYear } from '../../src/engine/v2/models/productOps';
 import { RECIPE_LEAK_SHARE } from '../../src/engine/v2/production/diffusion';
@@ -230,12 +233,26 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(deployGate(s, v0, 'api') === true, 'P8 an old eval suite no longer blocks a launch (no expiry)', String(deployGate(s, v0, 'api')));
   const h = { ...v0, evals: { ...v0.evals, bench: { ...v0.evals.bench, horizon: { score: (AGENT_TASK_HOURS - 1) * 60, sd: 0, day: 0, by: 'self' as const } } } };
   const g = agentsGate(h);
-  check(typeof g === 'string' && g.includes(`${AGENT_TASK_HOURS} h`), 'P8 Agents needs a measured time horizon ≥ the task length', String(g));
+  check(typeof g === 'string' && g.includes(`${AGENT_TASK_HOURS} h`), 'P8 Agent mode needs a measured time horizon ≥ the task length', String(g));
   h.evals.bench.horizon.score = (AGENT_TASK_HOURS + 1) * 60;
-  check(agentsGate(h) === true, 'P8 a long enough horizon passes the Agents gate');
-  const launch = act(s, 'product.launch', { channel: 'api', versionId: v0.id }); // MK-11: was the Agents launch (its gate is gone; P8 fails until Agent mode)
-  const hNow = (v0.evals.bench.horizon?.score ?? 0) / 60;
-  check(hNow < AGENT_TASK_HOURS ? !!launch && /time horizon/.test(launch) : !launch, 'P8 launching Agents at the start follows the gate', `${hNow.toFixed(1)} h: ${launch ?? 'launched'}`);
+  check(agentsGate(h) === true, 'P8 a long enough horizon passes the Agent mode gate');
+  // MK-11: agent-hours only on a product with Agent mode, and only with a model that passes the gate.
+  {
+    const a = clone(s);
+    const ap = prod(a, 'api');
+    const agH = (g2: GameStateV2) => revenueReadout(g2).deps.find((x) => x.id === ap.id)?.agentHours ?? 0;
+    const off = agH(a);
+    a.player.features.push('agentMode');
+    ap.features.push('agentMode');
+    const mv = a.player.models.versions.find((v) => v.id === ap.versionId)!;
+    const hv = mv.evals.bench.horizon;
+    mv.evals.bench.horizon = { score: (AGENT_TASK_HOURS + 1) * 60, sd: 0, day: 0, by: 'self' };
+    const onPass = agH(a);
+    mv.evals.bench.horizon = { score: (AGENT_TASK_HOURS - 1) * 60, sd: 0, day: 0, by: 'self' };
+    const onFail = agH(a);
+    mv.evals.bench.horizon = hv;
+    check(off === 0 && onPass > 0 && onFail === 0, 'P8 (MK-11) agent-hours only with Agent mode on and a model past its gate', `off ${off}, on+pass ${onPass.toExponential(2)}, on+fail ${onFail}`);
+  }
   run(s, 45);
   // Model v3 D7: a re-run is a suite as work (models/evals.ts): the internal model's suite stays within the cadence plus
   // one suite's duration.
@@ -344,6 +361,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const deadFx: string[] = [];
   const viewOff: string[] = [];
   for (const f of FEATURES) {
+    if (f.agentGateH !== undefined) continue; // MK-11: Agent mode's effect is the agent-hours (P8), not a typed effect
     for (const ch of f.products) {
       if (!f.fx.some((fx) => acts(fx, ch))) deadPairs.push(`${f.id}@${ch}`);
       if (!featureView(f, ch).lines.some((l) => l.here)) viewOff.push(`${f.id}@${ch}`);
@@ -358,14 +376,14 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
 
   const s = game();
   run(s, 3);
-  // CP4b (RF-P1): the leader's API already sells Voice & vision; the preview adds it to the API without it (its other
-  // tools kept), so only Voice & vision moves.
+  // CP4b (RF-P1), MK-11: the leader's API sells Creative studio (Media work moved there from Voice & vision, now
+  // Chat-only); the preview adds it to the API without it (its other tools kept), so only Creative studio moves.
   const api = prod(s, 'api');
   const apiTools = [...api.features];
-  api.features = apiTools.filter((f) => f !== 'voiceVision');
-  const pv = previewEdit(s, api, { features: [...api.features, 'voiceVision'] });
+  api.features = apiTools.filter((f) => f !== 'creative');
+  const pv = previewEdit(s, api, { features: [...api.features, 'creative'] });
   api.features = apiTools;
-  check(s.player.features.includes('voiceVision') && pv.after!.demand > pv.before!.demand, 'C2b Voice & vision on the API opens Media work (demand rises)', `${pv.before!.demand.toFixed(3)} → ${pv.after!.demand.toFixed(3)}`);
+  check(s.player.features.includes('creative') && pv.after!.demand > pv.before!.demand, 'C2b Creative studio on the API opens Media work (demand rises)', `${pv.before!.demand.toFixed(3)} → ${pv.after!.demand.toFixed(3)}`);
 
   const fl = (g: GameStateV2) => upkeepLines(g).filter((l) => l.kind === 'feature');
   // CP4b (RF-P1): every tool the leader starts with is on a product, so each carries the in-use upkeep and nothing else does.
@@ -403,44 +421,39 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
     for (let i = 0; i < max && !ok(); i++) run(g, 1);
     return ok();
   };
+  // MK-11 (M14): the leader's Enterprise carries the Research agent (covers Finance): its Finance certification started
+  // on the first day, CERT_DAYS long. Back-office agent switched on starts Government's the next day, at CERT_CASH.
   const ent = prod(s, 'enterprise');
-  const api = prod(s, 'api');
-  const e1 = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: ent.id });
-  const built = until(s, () => ent.adaptations.some((p) => p.sector === 'LEGAL'));
-  const pk = ent.adaptations.find((p) => p.sector === 'LEGAL');
-  check(!e1 && built && !!pk && pk.certDone === undefined,
-    'RD-P08 a built sector adaptation is stored on its product (Legal needs no certification)', e1 ?? JSON.stringify(ent.adaptations));
-  const again = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: ent.id });
-  const other = act(s, 'product.adapt', { sector: 'LEGAL', deploymentId: api.id });
-  check(!!again && !other, 'RD-P08 a product cannot adapt to a sector twice; another product can adapt to the same sector', `${again ?? 'queued'} / ${other ?? 'queued'}`);
-  // Relaunch (retire, then launch on the same channel): the new product takes the adaptation over.
+  const fin = (ent.certs ?? []).find((c) => c.sector === 'FIN');
+  check(!!fin && fin.certDone - CERT_DAYS <= 1 && !(ent.certs ?? []).some((c) => c.sector === 'GOV'),
+    'MK-11 a product carrying a harness that covers a certification sector starts that certification (Research agent → Finance)', JSON.stringify(ent.certs));
+  s.player.features.push('backOffice');
+  const tg = act(s, 'feature.toggle', { product: ent.id, feature: 'backOffice', on: true });
+  const cash1 = s.player.finance.cash;
+  run(s, 1);
+  const gov = (ent.certs ?? []).find((c) => c.sector === 'GOV');
+  check(!tg && !!gov && Math.abs(gov.certDone - (s.time.day + CERT_DAYS)) <= 1,
+    'MK-11 switching on a harness starts its sectors\' certifications (Back-office agent → Government)', `${tg ?? ''} ${JSON.stringify(ent.certs)} cash ${cash1.toFixed(3)} → ${s.player.finance.cash.toFixed(3)}`);
+  const pk = [...(ent.certs ?? [])];
+  // Relaunch (retire, then launch on the same channel): the new product takes the certifications over.
   const re = deserialize(serialize(s));
   const reEnt = prod(re, 'enterprise');
   act(re, 'product.retire', { id: reEnt.id });
   const l = act(re, 'product.launch', { channel: 'enterprise', versionId: reEnt.versionId });
   until(re, () => re.player.deployments.some((d) => d.channel === 'enterprise' && d.status !== 'withdrawn'));
   const ne = prod(re, 'enterprise');
-  check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.adaptations) === JSON.stringify([pk]) && reEnt.adaptations.length === 0,
-    'RD-B12 a relaunch on the channel takes over the retired product\'s adaptations', l ?? JSON.stringify(ne?.adaptations));
-  // An adaptation that finishes with no live product: no certification is started or paid, the player is told.
-  const n = game();
-  run(n, 10);
-  const e3 = act(n, 'product.adapt', { sector: 'FIN', deploymentId: prod(n, 'enterprise').id });
-  for (const d of n.player.deployments) if (d.status !== 'withdrawn' && ['enterprise', 'api', 'vetted'].includes(d.channel)) act(n, 'product.retire', { id: d.id });
-  const told = until(n, () => n.log.some((x) => /work is lost/.test(x.text)));
-  const paid = Object.values(n.causes.byKey).flat().some((c) => c.source === 'sector certification');
-  check(!e3 && told && !n.player.deployments.some((d) => d.adaptations.length > 0) && !paid,
-    'RD-P08 an adaptation built with no live product starts no certification and logs a player-facing message', `${e3 ?? ''} paid ${paid}`);
-  // A new launch starts with the lab's built features for its channel on.
+  check(!l && !!ne && ne.id !== reEnt.id && JSON.stringify(ne.certs) === JSON.stringify(pk) && reEnt.certs.length === 0,
+    'RD-B12 a relaunch on the channel takes over the retired product\'s certifications', l ?? JSON.stringify(ne?.certs));
+  // A new launch starts with the lab's built tools for its channel on.
   const f = game();
   run(f, 10);
-  f.player.features.push('codingAgent', 'companion');
+  f.player.features.push('agentMode', 'companion');
   const fa = prod(f, 'api');
   act(f, 'product.retire', { id: fa.id });
   const la = act(f, 'product.launch', { channel: 'api', versionId: fa.versionId });
   until(f, () => f.player.deployments.some((d) => d.channel === 'api' && d.status !== 'withdrawn'));
   const na = prod(f, 'api');
-  check(!la && !!na && na.features.includes('codingAgent') && !na.features.includes('companion'),
+  check(!la && !!na && na.features.includes('agentMode') && !na.features.includes('companion'),
     "RD-B12 a new launch has the lab's built features for its channel on (other channels' and lab-level features not)", la ?? JSON.stringify(na?.features));
 }
 
@@ -452,39 +465,18 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const only = (pv: ReturnType<typeof pvOf>, ok: string[]) => lines(pv).every((l) => ok.includes(l.currency) && l.probability === undefined) && !pv.exposure.length;
   const s = game();
   run(s, 10);
-  const until = (g: GameStateV2, ok: () => boolean, max = 600) => {
-    for (let i = 0; i < max && !ok(); i++) run(g, 1);
-    return ok();
-  };
-  const ent = prod(s, 'enterprise');
-  // Sector adaptation: engineer team-weeks as applied, the certification's cash and the revenue line; the revenue line is
-  // the market run with the adaptation live.
-  const pk = pvOf(s, 'product.adapt', { sector: 'FIN', deploymentId: ent.id });
+  // MK-11: the sector adaptation and its preview are gone; a harness is a tool (build / toggle previews below). Its
+  // certification's cash is booked the day it starts (models/certs.ts certStep).
   const c = clone(s);
-  const e = act(c, 'product.adapt', { sector: 'FIN', deploymentId: ent.id });
-  const item = c.player.build.queue.find((it) => it.kind === 'adaptation' && it.ref === 'FIN');
-  const tw = pk.costs.find((l) => l.currency === 'staffTime');
-  const cc = pk.costs.find((l) => l.currency === 'cash');
-  check(!e && only(pk, ['cash', 'staffTime', 'revenue']) && !!item && !!tw && near(-tw.amount, item.needTW, 1e-6) && !!cc && near(-cc.amount, CERT_CASH, 1e-9),
-    'RD-B20 sector adaptation preview: engineer team-weeks as queued, the certification\'s cash, revenue (no product-team time, no approval risk)', `${e ?? ''} ${JSON.stringify(pk)}`);
-  const host = prod(c, 'enterprise');
-  const certified = until(c, () => host.adaptations.some((x) => x.sector === 'FIN' && x.certDone !== undefined && x.certDone <= c.time.day));
-  const strip = (st: GameStateV2) => {
-    const x = clone(st);
-    for (const r of Object.keys(x.world.fx.cust ?? {}) as (keyof NonNullable<GameStateV2['world']['fx']['cust']>)[]) delete x.world.fx.cust![r][('FIN')];
-    return x;
-  };
-  const withP = strip(c);
-  const noP = strip(c);
-  const hn = prod(noP, 'enterprise');
-  hn.adaptations = hn.adaptations.filter((x) => x.sector !== 'FIN');
-  const real = revenueReadout(withP).total - revenueReadout(noP).total;
-  const raw = clone(c);
-  const hr = prod(raw, 'enterprise');
-  hr.adaptations = hr.adaptations.filter((x) => x.sector !== 'FIN');
-  const prev = adaptRevenueGain(raw, hr, 'FIN');
-  check(certified && real > 0 && near(prev, real, 1e-6) && signed(pk, 'revenue') > 0,
-    'RD-B20 sector adaptation revenue line = the market with the engine\'s live adaptation minus without (customers switched)', `real ${real} preview-fn ${prev} day-10 line ${signed(pk, 'revenue')}`);
+  const ce = prod(c, 'enterprise');
+  c.player.features.push('clinical');
+  act(c, 'feature.toggle', { product: ce.id, feature: 'clinical', on: true });
+  const certCauses = () => Object.values(c.causes.byKey).flat().filter((x) => x.source === 'sector certification');
+  const n0 = certCauses().length;
+  run(c, 1);
+  const paid = certCauses().slice(n0).reduce((a, x) => a + x.delta, 0);
+  check((ce.certs ?? []).some((x) => x.sector === 'HEALTH') && near(paid, -CERT_CASH, 1e-9),
+    'MK-11 a harness switched on books its certification\'s cash (Clinical assistant → Healthcare)', `${JSON.stringify(ce.certs)} paid ${paid}`);
   // Retire: revenue, serving compute and rivals' distillation exactly as the withdrawal leaves them (same day).
   const api = prod(s, 'api');
   const rt = pvOf(s, 'product.retire', { id: api.id });
@@ -500,7 +492,8 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // Update (model swap), serving share, feature toggle, product policy: no product-team time, no invented lead / approval risks.
   const up = pvOf(s, 'product.update', { id: api.id, price: 'premium' });
   const sv = pvOf(s, 'product.serving', { id: api.id, share: 0.1 });
-  const ft = pvOf(s, 'feature.toggle', { product: api.id, feature: 'codingAgent', on: true });
+  s.player.features.push('agentMode');
+  const ft = pvOf(s, 'feature.toggle', { product: api.id, feature: 'agentMode', on: true });
   const po = pvOf(s, 'products.policy', { upgradeToNewest: true, autoEvaluate: false });
   check(only(up, ['revenue', 'compute', 'leadDays']) && only(sv, ['revenue', 'compute']) && only(ft, ['revenue', 'compute', 'leadDays']) && lines(po).length === 0,
     'RD-B20 update / serving / feature / policy previews carry only market and distillation lines', JSON.stringify({ up, sv, ft, po }));

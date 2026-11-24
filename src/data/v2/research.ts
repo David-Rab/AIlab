@@ -164,4 +164,4 @@ export const SAF_RE_NEED_LABEL: Record<SafReNeed, string> = {
   removal: 'Foothold removals', safExp: 'Line experiments',
 };
 export const RE_NEED_LABEL: Record<ReNeed, string> = { ops: 'Run operations', exp: 'Project experiments' };
-export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (features, launches, sector adaptations)' };
+export const ENG_NEED_LABEL: Record<EngNeed, string> = { runs: 'Run setups, research adoptions, eval harness', upkeep: 'Product upkeep', builds: 'Builds (tools, launches)' };

@@ -202,7 +202,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
     id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, servingShare,
     ...(channel === 'internal' || channel === 'open' || !minis.length ? {} : { lineup: minis.map((x) => x.id) }),
-    safeguards: channel === 'internal' ? 'standard' : 'classifiers', guards: channel === 'internal' ? [{ kind: 'review', since: -20 }] : [], adaptations: [], features: [],
+    safeguards: channel === 'internal' ? 'standard' : 'classifiers', guards: channel === 'internal' ? [{ kind: 'review', since: -20 }] : [], certs: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
     kyc, status: 'live',
   });

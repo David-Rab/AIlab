@@ -28,7 +28,7 @@
 //       fall with its RL recipe's G-equivalent (1 OOM per OOM, ≥ 0.1), not with the calendar
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FEATURES, FEATURE_BY_ID } from '../../src/data/v2/features';
+import { PRODUCT_TOOLS as FEATURES, PRODUCT_TOOL_BY_ID as FEATURE_BY_ID } from '../../src/data/v2/tools';
 import { AGENT_WORK, MARKUP, SEATS, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
@@ -247,15 +247,15 @@ for (const d of [400, 900]) {
 
 // ───────── S6 typed features in products and internal use ─────────
 {
-  check(FEATURES.every((f) => f.fx.length > 0 && f.fx.every((x) => ['enabler', 'horizon', 'scaffold'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
+  check(FEATURES.every((f) => (f.fx.length > 0 || f.agentGateH !== undefined) && f.fx.every((x) => ['enabler', 'horizon', 'scaffold'].includes(x.kind))), 'S6 every feature has typed effects (enabler / horizon / scaffold)', FEATURES.map((f) => `${f.id}:${f.fx.map((x) => x.kind).join('+')}`).join(' '));
   const s = game();
   run(s, 2);
   const api = prod(s, 'api');
   const base = productOffer(s, api, 'SOFT');
-  s.player.features.push('codingAgent');
-  api.features.push('codingAgent');
+  s.player.features.push('coding');
+  api.features.push('coding');
   const withF = productOffer(s, api, 'SOFT');
-  const sc = FEATURE_BY_ID.codingAgent.fx[0] as { dG: number; tokens: number };
+  const sc = FEATURE_BY_ID.coding.fx[0] as { dG: number; tokens: number };
   check(near(withF.fit, base.fit + sc.dG, 1e-9) && near(withF.cost, base.cost * sc.tokens, 1e-9), 'S6 scaffold (coding agent) on a product: +ΔG fit in Software & IT and × tokens per work-hour', `fit ${base.fit.toFixed(3)} → ${withF.fit.toFixed(3)}, cost $${base.cost.toFixed(2)} → $${withF.cost.toFixed(2)}`);
   const l0 = labourOf(game(), 'SWE');
   const l1 = labourOf(s, 'SWE');
@@ -557,8 +557,8 @@ for (const d of [400, 900]) {
   s.player.features.push('memory');
   api.features.push('memory'); // horizon ×1.3: longer autonomous stretches → more agents per supervising hour
   const x1 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
-  s.player.features.push('deepResearch');
-  api.features.push('deepResearch'); // scaffold: × 3 tokens per hour on Science, Finance, Legal
+  s.player.features.push('research');
+  api.features.push('research'); // scaffold: × 3 tokens per hour on Science, Finance, Legal
   const x2 = revenueReadout(s).deps.find((x) => x.id === api.id)!;
   // CP3 rewrite (RD-P07 / P11): a horizon feature also widens the product's coverage in the buyers' choice, so its adopted
   // hours may rise; the human hours of use still do not.

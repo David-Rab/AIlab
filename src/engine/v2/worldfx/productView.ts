@@ -5,7 +5,8 @@
 // per work-hour (Chat: per subscriber-month) and margin, monitor overhead and catch rate (model v3 V4.2). A live edit is
 // previewed by recomputing the market mix and revenue on a copy of the state with the edited product (pure; the edit
 // itself applies at the next tick, D7), so the preview shows what the next tick will compute.
-import { ENABLER_TOOLS, TOOL_LAG_DAYS, enablerNeed, type FeatureDef, type FeatureId, type WorkScope } from '../../../data/v2/features';
+import { TOOL_LAG_DAYS, enablerNeed, type WorkScope } from '../../../data/v2/features';
+import { PRODUCT_TOOL_BY_ID, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { REGIONS, SECTORS } from '../../../data/v2/sectors';
 import { WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { catchRate, monitorOverhead, productMonitorVersion } from '../models/products';
@@ -197,9 +198,9 @@ function scopeText(w: WorkScope): string {
 const internalOf = (w: WorkScope): WorkTypeId[] => (w === 'all' ? INTERNAL_WT : INTERNAL_WT.filter((x) => w.includes(x)));
 const mult = (x: number) => `×${Number.isInteger(x) ? x : x.toFixed(1)}`;
 
-/** Typed effects of a feature on a product channel, with units (output only: the effects themselves are applied in
+/** Typed effects of a product tool on a product channel, with units (output only: the effects themselves are applied in
  *  serving.ts). Chat sells only to consumers, the other products only to sectors. */
-export function featureView(f: FeatureDef, channel?: Deployment['channel']): FeatureView {
+export function featureView(f: ProductToolDef, channel?: Deployment['channel']): FeatureView {
   const lines: FeatureLine[] = [];
   const short: string[] = [];
   const internal = new Set<WorkTypeId>();
@@ -233,9 +234,9 @@ export function featureView(f: FeatureDef, channel?: Deployment['channel']): Fea
 
 /** RD-P07 (DD-03), RF-P1: rivals and a tool: how many of the active rival labs (and China) have it; whether it is new in
  *  this game (no lab had it at the start); for a new one, the day the others get it (TOOL_LAG_DAYS after your first
- *  ship, world.fx.toolShip; undefined before you ship it). Undefined for features that are not tools. */
+ *  ship, world.fx.toolShip; undefined before you ship it). Undefined for an id that is not a product tool. */
 export function toolRivalsView(s: GameStateV2, id: string): { have: number; of: number; isNew: boolean; day?: number; lag: number } | undefined {
-  if (!ENABLER_TOOLS.includes(id as FeatureId)) return undefined;
+  if (!PRODUCT_TOOL_BY_ID[id as ProductToolId]) return undefined;
   const labs = [...s.rivals.filter((r) => r.core.status === 'active'), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
   const ship = s.world.fx.toolShip?.[id];
   return { have: labs.filter((r) => r.tools?.includes(id)).length, of: labs.length, isNew: toolNewInGame(s, id), day: ship === undefined ? undefined : ship + TOOL_LAG_DAYS, lag: TOOL_LAG_DAYS };

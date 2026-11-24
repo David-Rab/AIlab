@@ -1,4 +1,4 @@
-// Player actions in the World sphere (transition fund, moonshots; sector adaptations: models/adaptations.ts). Owner: WS5.
+// Player actions in the World sphere (transition fund, moonshots). Owner: WS5.
 // Every preview shows what apply() does (V2-SPEC §2.7 preview truth).
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, GameStateV2, SystemCtx } from '../types';

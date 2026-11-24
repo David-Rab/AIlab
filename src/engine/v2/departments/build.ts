@@ -13,16 +13,17 @@
 //   upkeep    every live product (reliability, on-call, integrations; grows with revenue), every RL environment suite
 //             (model v3 D5; short of upkeep its tasks go stale, RD-T07 models/suites.ts decaySuites) and every monitor in
 //             production (a product's or an internal use's: serving harness, alert triage), and every built product
-//             feature (model v3 C2: featureUpkeepTW)
-//   builds    the rest of the queue in priority order: product launches, product features, sector adaptations, suite builds
+//             tool (model v3 C2: featureUpkeepTW)
+//   builds    the rest of the queue in priority order: product launches, product tools (MK-11), suite builds
 //             and hardening passes (model v3 D5)
-// Too few engineers: upkeep falls behind (shown) and nothing new ships (launches, features and adaptations wait; the wait
+// Too few engineers: upkeep falls behind (shown) and nothing new ships (launches and tools wait; the wait
 // shows on Products and Company). Run setups come first so the run cadence holds (the reference lab's runs never wait
 // on upkeep). Engineering agents raise capacity through the coding CES (their model's SWE coverage and their compute;
 // departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
-import { FEATURE_BY_ID, PRICE_TIERS, TOOL_BY_ID, type FeatureDef, type FeatureId, type ToolId } from '../../../data/v2/features';
+import { PRICE_TIERS, TOOL_BY_ID, type ToolId } from '../../../data/v2/features';
+import { PRODUCT_TOOL_BY_ID, TOOL_UPKEEP, toolUpkeepTW, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SystemCtx, TrainingRun } from '../types';
 import { agentSplitShare, monitorVersion } from './agents';
@@ -33,7 +34,7 @@ import { DEFAULT_ENG_ALLOC } from '../../../data/v2/research';
 import { allocate, completeAdoption } from '../models/research';
 import { completeSuiteWork, decaySuites, suiteFamilies, suiteUpkeepTW } from '../models/suites';
 import { evalEngDone } from '../models/evals';
-import { completeAdaptation } from '../models/adaptations';
+import { certStep } from '../models/certs';
 import type { EngNeed } from '../types';
 
 type Params = Record<string, number | string | boolean>;
@@ -68,8 +69,8 @@ export function runSetupTW(kind: RunKind, scale = 1, ida = false): number {
  *  and monitor upkeep × 0.4 (were 0.5 + 4√… and 1): J2 tuned it to v2's build capacity, whose AI speed-up came from AI 2027's automation
  *  knots (×4.7 at the start); the physical SWE coverage of a 2025 model (≈ 0.2) gives ×1.35, and at the old upkeep the
  *  start lab's products alone needed twice its capacity. */
-export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, monitor: 0.4, featureYr: 0.5, featureIdle: 0.1 } as const;
-/** One-off builds [D]: launching a product 4 team-weeks (a sector adaptation: models/adaptations.ts ADAPT_TW). */
+export const UPKEEP = { product: 0.2, productRev: 1.6, revUnit: 10, monitor: 0.4, featureYr: TOOL_UPKEEP.yr, featureIdle: TOOL_UPKEEP.idle } as const;
+/** One-off builds [D]: launching a product 4 team-weeks. */
 export const LAUNCH_TW = 4;
 
 export type UpkeepKind = 'product' | 'monitor' | 'feature' | 'tooling' | 'suite';
@@ -77,22 +78,22 @@ export interface UpkeepLine { kind: UpkeepKind; ref: string; tw: number }
 
 const isLiveProduct = (d: Deployment) => d.kind === 'product' && d.status !== 'withdrawn';
 
-/** Model v3 C2 (MODEL-V3 §7.2 "features have upkeep") [D]: a built feature in use keeps half its build team-weeks busy
- *  each year (UPKEEP.featureYr × buildTW ÷ 52 team-weeks per week; Memory, 12 team-weeks to build, ≈0.12 a week); one
- *  built but in use nowhere costs a keep-alive of UPKEEP.featureIdle × that. In use = switched on for a live product
- *  that offers it (RD-A06: features no longer act on the internal agents; an internal tool is always in use, at the
+/** Model v3 C2 (MODEL-V3 §7.2 "features have upkeep") [D]: a built product tool in use keeps half its build team-weeks
+ *  busy each year (UPKEEP.featureYr × buildTW ÷ 52 team-weeks per week; Memory, 12 team-weeks to build, ≈0.12 a week);
+ *  one built but in use nowhere costs a keep-alive of UPKEEP.featureIdle × that. In use = switched on for a live product
+ *  that offers it (RD-A06: product tools do not act on the internal agents; an internal tool is always in use, at the
  *  same rate, data/v2/features.ts INTERNAL_TOOLS).
  *  Charged on the 'upkeep' need, with products and monitors. */
-export const featureUpkeepTW = (f: Pick<FeatureDef, 'buildTW'>, inUse = true) => ((UPKEEP.featureYr * f.buildTW) / 52) * (inUse ? 1 : UPKEEP.featureIdle);
-/** Whether a built feature is in use: on for a live product that offers it. */
-export function featureInUse(s: GameStateV2, f: FeatureDef): boolean {
-  return s.player.deployments.some((d) => isLiveProduct(d) && f.products.includes(d.channel) && d.features.includes(f.id));
+export const featureUpkeepTW = toolUpkeepTW;
+/** Whether a built product tool is in use: on for a live product that offers it. */
+export function featureInUse(s: GameStateV2, f: ProductToolDef): boolean {
+  return s.player.deployments.some((d) => isLiveProduct(d) && (f.products as string[]).includes(d.channel) && d.features.includes(f.id));
 }
 
 /** Upkeep of one live product per week (revenue in $B/yr). */
 export const productUpkeepTW = (revenue: number) => UPKEEP.product + UPKEEP.productRev * Math.sqrt(Math.max(0, revenue) / UPKEEP.revUnit);
 
-/** Standing load lines (team-weeks per week): products, monitors in production, built features, RL environment suites
+/** Standing load lines (team-weeks per week): products, monitors in production, built product tools, RL environment suites
  *  (no run lines: research engineers operate runs, RD-B09). */
 export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   const p = s.player;
@@ -104,7 +105,7 @@ export function upkeepLines(s: GameStateV2): UpkeepLine[] {
   }
   for (const u of AGENT_USES) if (monitorVersion(s, u) && agentSplitShare(s, u) > 0) out.push({ kind: 'monitor', ref: u, tw: UPKEEP.monitor });
   for (const id of p.features) {
-    const f = FEATURE_BY_ID[id as FeatureId];
+    const f = PRODUCT_TOOL_BY_ID[id as ProductToolId];
     if (f && f.buildTW > 0) out.push({ kind: 'feature', ref: id, tw: featureUpkeepTW(f, featureInUse(s, f)) });
   }
   // RD-A06: internal tools, always in use by the agents.
@@ -132,7 +133,7 @@ export function initialBuild(): GameStateV2['player']['build'] {
 
 /** Queue an item; returns its id. Run setups go ahead of every other kind (they are worked before product upkeep);
  *  other items go to the back. Priorities are renumbered 1…n in queue order. */
-export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW: number, extra: Pick<BuildItem, 'launch' | 'host'> = {}): string {
+export function queueBuild(s: GameStateV2, kind: BuildKind, ref: string, needTW: number, extra: Pick<BuildItem, 'launch'> = {}): string {
   const b = s.player.build;
   const id = `B${b.nextId++}`;
   const it: BuildItem = { id, kind, ref, needTW, doneTW: 0, priority: 0, day: s.time.day, ...extra };
@@ -230,11 +231,11 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
   }
   if (it.kind === 'feature' && !s.player.features.includes(it.ref)) {
     s.player.features.push(it.ref);
-    ctx.log('company', `Engineers finished building ${FEATURE_BY_ID[it.ref as FeatureId]?.name ?? it.ref}: switch it on for your products.`, 1, it.ref);
+    ctx.log('company', `Engineers finished building ${PRODUCT_TOOL_BY_ID[it.ref as ProductToolId]?.name ?? it.ref}: switch it on for your products.`, 1, it.ref);
   }
   if (it.kind === 'launch' && it.launch) {
     const l = it.launch;
-    // RD-B12 (B20): the product starts with the lab's built features for its channel on.
+    // RD-B12 (B20): the product starts with the lab's built tools for its channel on.
     const d = deploy(s, ctx, {
       versionId: l.versionId, channel: l.channel, price: l.price, priceIndex: PRICE_TIERS[l.price],
       ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
@@ -242,7 +243,6 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
     });
     if (typeof d === 'string') ctx.log('company', `The ${l.channel} launch is built but cannot go live: ${d}.`, 2);
   }
-  if (it.kind === 'adaptation') completeAdaptation(s, ctx, it); // RD-P08: models/adaptations.ts
 }
 
 /** Work queue items of one class in queue order with `left` team-weeks; returns what is left and the work done. */
@@ -278,6 +278,7 @@ export const buildSystem: EngineSystem = {
       });
     }
     if (s.player.status !== 'active') return;
+    certStep(s, ctx); // MK-11 (M14): certifications start where a product carries a harness covering the sector
     const cap = buildCapacity(s).capacity;
     const u = upkeepSplit(s);
     const al = allocate(cap, engAlloc(s), engDemand(s, u));
@@ -305,7 +306,7 @@ export function prioritizeBuild(s: GameStateV2, id: string): string | undefined 
   return undefined;
 }
 
-/** Cancel a queued product launch or sector adaptation (work done is lost). */
+/** Cancel a queued product launch or tool build (work done is lost). */
 export function cancelBuild(s: GameStateV2, id: string): string | undefined {
   const b = s.player.build;
   const i = b.queue.findIndex((x) => x.id === id);

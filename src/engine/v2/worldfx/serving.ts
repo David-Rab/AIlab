@@ -22,7 +22,8 @@ import {
   AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, LINEUP, MARKUP, RIVAL_MARKUP,
   SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { CHANNEL_PRICE, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { AGENT_TASK_HOURS, PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID, type ProductToolId } from '../../../data/v2/tools';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -30,8 +31,7 @@ import { dollarsPerH100eHour, domainG, flopPerToken, pSuccess, workFit } from '.
 import { gV0, h50Of } from '../models/capability';
 import { fptOfSimpleModel } from '../actors/rivalModel';
 import { versionById } from '../models/labs';
-import { activeFeatures } from '../models/products';
-import { ADAPT_COVER, adaptedHere } from '../models/adaptations';
+import { activeFeatures, agentModeOn, agentsGate } from '../models/products';
 import { adopted } from '../models/paradigms';
 import { decodeUtilNow, rlGOfBuild } from '../models/stacks';
 import { savedAt, seatHoursPerMonth } from './use';
@@ -143,7 +143,7 @@ export function preLlmCover(w: TimelineWorld): Record<SectorId, number> {
  *  of the run that trained it). Replaces the V4 bridge that sized rival models from their G. */
 export const fptOfSimple = (_s: GameStateV2, m: SimpleModel) => fptOfSimpleModel(m);
 
-// ───────────────────────────── typed feature effects (V4.3) ─────────────────────────────
+// ───────────────────────────── typed tool effects (V4.3) ─────────────────────────────
 
 const inScope = (w: WorkScope, wt: SectorId | WorkTypeId | 'CHAT') => w === 'all' || w.includes(wt);
 /** Aggregated typed effects of a set of features on one work type: ΔG (scaffolds), × h50 (horizon extenders), × tokens
@@ -161,8 +161,26 @@ export function fxOn(fx: FeatureFx[], wt: SectorId | WorkTypeId | 'CHAT'): WorkF
   }
   return { dG, hMult, tok };
 }
-/** Typed effects of the features a product has switched on. */
+/** Typed effects of the product tools a product has switched on (MK-11: data/v2/tools.ts; a harness's fit on its
+ *  sectors is its scaffold here). */
 export const productFx = (s: GameStateV2, d: Deployment): FeatureFx[] => activeFeatures(s, d).flatMap((f) => f.fx);
+/** MK-11 (M11): a rival's or China's offer opts from its lab's product tools (RivalLab.tools): the same typed effects
+ *  as the player's (scaffold ΔG and tokens, horizon ×) on one work type, and whether it sells agent-hours: Agent mode
+ *  among its tools and its model's horizon on the sector's work ≥ AGENT_TASK_HOURS (its simplest form: the true h50,
+ *  a rival measures its own). */
+export function labToolOpts(s: GameStateV2, tools: readonly string[] | undefined, sid: SectorId | 'CHAT', v?: Fitted): Pick<OfferOpts, 'dG' | 'hMult' | 'tok' | 'agents'> {
+  const fx: FeatureFx[] = [];
+  let agent = false;
+  for (const id of tools ?? []) {
+    const t = PRODUCT_TOOL_BY_ID[id as ProductToolId];
+    if (!t) continue;
+    fx.push(...t.fx);
+    if (t.agentGateH !== undefined) agent = true;
+  }
+  const x = fxOn(fx, sid);
+  const agents = agent && sid !== 'CHAT' && !!v && sectorH50(s, v, sid, x.hMult) >= AGENT_TASK_HOURS * 60;
+  return { dG: x.dG, hMult: x.hMult, tok: x.tok, agents };
+}
 /** Typed effects on the lab's internal agents on an internal work type: the internal tools it owns (RD-A06, DD-03:
  *  data/v2/features.ts INTERNAL_TOOLS, built by engineers; product features act only inside their product's offer) and
  *  adopted Multi-agent orchestration's scaffold (P05, RD-E01b: data/v2/features.ts P05_ORCHESTRATION). */
@@ -175,12 +193,12 @@ export function internalFx(s: GameStateV2, wt: WorkTypeId): WorkFx {
   if (adopted(s, 'P05')) fx.push(P05_ORCHESTRATION);
   return fxOn(fx, wt);
 }
-/** RD-P07 (DD-03): per sector, the tools (enabler features) its work needs and the share of its tasks each one is
- *  needed for (data/v2/features.ts enablerNeed). */
+/** RD-P07 (DD-03): per sector, the product tools with an enabler its work needs (Computer use, Creative studio) and the
+ *  share of its tasks each one is needed for (data/v2/features.ts enablerNeed). */
 const TOOL_NEED: Partial<Record<SectorId, [string, number][]>> = {};
-for (const id of ENABLER_TOOLS) for (const f of FEATURE_BY_ID[id].fx) {
+for (const t of PRODUCT_TOOLS) for (const f of t.fx) {
   if (f.kind !== 'enabler') continue;
-  for (const sid of f.sectors ?? []) (TOOL_NEED[sid] ??= []).push([id, enablerNeed(f.share)]);
+  for (const sid of f.sectors ?? []) (TOOL_NEED[sid] ??= []).push([t.id, enablerNeed(f.share)]);
 }
 /** RD-P07: share of a sector's tasks an offer cannot do for lack of tools: Σ need over the tools the sector needs that
  *  `tools` lacks (0 on Chat: Chat's tools act in the app choice, chatToolAppeal). */
@@ -197,14 +215,14 @@ export function toolGap(sid: SectorId | 'CHAT', tools?: readonly string[]): numb
 export function chatToolAppeal(tools?: readonly string[]): number {
   let x = 0;
   for (const id of tools ?? []) {
-    const f = FEATURE_BY_ID[id as keyof typeof FEATURE_BY_ID];
+    const f = PRODUCT_TOOL_BY_ID[id as ProductToolId];
     if (f) for (const e of f.fx) if (e.kind === 'enabler' && e.consumer) x += e.share;
   }
   return 1 + x;
 }
-/** RD-P07: the tools (enabler features) a product has switched on. */
-export const productTools = (s: GameStateV2, d: Deployment): string[] =>
-  activeFeatures(s, d).filter((f) => ENABLER_TOOLS.includes(f.id)).map((f) => f.id);
+/** RD-P07, MK-11: the product tools a product has switched on (built; ids). Enablers among them widen its tasks
+ *  (toolGap), Chat ones its appeal (chatToolAppeal). */
+export const productTools = (s: GameStateV2, d: Deployment): string[] => activeFeatures(s, d).map((f) => f.id);
 
 // ───────────────────────────── offers: a model's fit, coverage, cost and price on a work type ─────────────────────────────
 
@@ -217,9 +235,10 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
  *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
-/** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
-/** `adapted`: the offer's lab has a live sector adaptation for this sector (RD-P08, models/adaptations.ts). */
-export interface OfferOpts { dG?: number; hMult?: number; tok?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
+/** tools (RD-P07): the product tools the provider has; in a sector that needs an enabler it lacks, coverage × (1 − toolGap). */
+/** `agents` (MK-11): whether the offer sells autonomous agent-hours (Agent mode on and its gate passed: productOffer,
+ *  labToolOpts); false: k = 0. Unset: computed as before (readouts of a model's own agent leverage). */
+export interface OfferOpts { dG?: number; hMult?: number; tok?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; agents?: boolean }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
  *  m) (AGENT_WORK). */
@@ -299,13 +318,8 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
     a *= keep;
     k *= keep;
   }
-  // RD-P08 (DD-04): a sector adaptation's scaffold covers ×(1 + ADAPT_COVER) of the sector's tasks (all at most), its
-  // agent work with it (λ kept, as the tools).
-  if (o.adapted && sid !== 'CHAT' && a > 0) {
-    const up = Math.min(1, a * (1 + ADAPT_COVER)) / a;
-    a *= up;
-    k *= up;
-  }
+  // MK-11: agent-hours only where Agent mode sells them (the leverage λ stays: readouts of supervision).
+  if (o.agents === false) k = 0;
   const cost = hph * o.rate;
   const costAg = hphAg * o.rate;
   const seatCost = chat ? 0 : seatHoursPerMonth(sid) * hphAs * o.rate;
@@ -430,13 +444,15 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 /** ΔG of a product's settings (safeguards, control layer). */
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (controlOn(d) ? CONTROL_LAYER_DG : 0);
 
-/** A product's offer on a sector (RD-P08: its own live adaptation there raises its coverage, offerOf). RD-B11 (B16):
- *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
- *  and the revenue read the same price. RD-P07: its tools (productTools) widen the tasks it covers where the sector
- *  needs them. */
+/** A product's offer on a sector. RD-B11 (B16): priced at the tier's markup × the channel's price multiplier
+ *  (channelPriceOf), so the market's choice and the revenue read the same price. RD-P07: its tools (productTools) widen
+ *  the tasks it covers where the sector needs them; MK-11: its harnesses' fit is in its typed effects (fx), and it sells
+ *  agent-hours only with Agent mode on and a model (the use's version: each lineup model on its own) whose measured time
+ *  horizon passes the gate (models/products.ts agentsGate). */
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
+  const agents = tools.includes('agentMode') && agentModeOn(s, d) && uses.length > 0 && uses.every((u) => agentsGate(u.v as ModelVersion) === true);
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, agents });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────

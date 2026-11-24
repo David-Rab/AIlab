@@ -19,14 +19,14 @@ const clone = (s: GameStateV2) => deserialize(serialize(s));
 const fit = (s: GameStateV2, slot: 'SWE' | 'IDEAS') => labourOf(s, slot).fit.fit;
 
 const base = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
-base.player.features = base.player.features.filter((f) => f !== 'codingAgent' && f !== 'deepResearch' && f !== 'memory');
+base.player.features = base.player.features.filter((f) => f !== 'coding' && f !== 'research' && f !== 'memory');
 base.player.tooling = [];
 const f0 = { swe: fit(base, 'SWE'), ideas: fit(base, 'IDEAS') };
 
 // 1. Product features built (and on for every product that offers them): internal fit unchanged.
 const feat = clone(base);
-feat.player.features.push('codingAgent', 'deepResearch', 'memory');
-for (const d of feat.player.deployments) if (d.channel === 'api' || d.channel === 'enterprise') d.features.push('codingAgent', 'deepResearch');
+feat.player.features.push('coding', 'research', 'memory');
+for (const d of feat.player.deployments) if (d.channel === 'api' || d.channel === 'enterprise') d.features.push('coding', 'research');
 check(Math.abs(fit(feat, 'SWE') - f0.swe) < 1e-12 && Math.abs(fit(feat, 'IDEAS') - f0.ideas) < 1e-12, 'built product features do not change internal agent fit',
   `SWE ${f0.swe.toFixed(3)} → ${fit(feat, 'SWE').toFixed(3)}, IDEAS ${f0.ideas.toFixed(3)} → ${fit(feat, 'IDEAS').toFixed(3)}`);
 check(agentsView(feat).build === agentsView(base).build, 'built product features do not change build capacity');

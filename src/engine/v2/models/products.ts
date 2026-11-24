@@ -1,16 +1,15 @@
 // Products as packages (STRUCTURE §4.4, §4.9; BUILD-PLAN R6). Owner: WS1.
 //
 // A product is a Deployment of kind 'product': a model (optionally a mini serving its free tier), an optional monitor
-// model, a price tier, safeguards, KYC and features. This module holds the package effects every engine
-// reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead and catch rate), the
-// Agents time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3 V4: the typed feature
-// effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in worldfx/revenue.ts.
+// model, a price tier, safeguards, KYC and product tools (MK-11, data/v2/tools.ts). This module holds the package
+// effects every engine reader uses (the product's display domain levels, incident-hazard multipliers, monitor overhead
+// and catch rate), Agent mode's time-horizon gate, and the product policies (upgrade to newest, auto-evaluate). Model v3
+// V4: the typed tool effects, cost, price and capacity live in worldfx/serving.ts; revenue and the Auto serving split in
+// worldfx/revenue.ts.
 import { LOCKDOWN_COLLUSION_MULT, labControlSetting, lockdownOn } from '../safety/safeguards';
 import { controlOn } from '../safety/safeguards';
-import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, PRICE_TIERS,
-  type FeatureDef, type FeatureId,
-} from '../../../data/v2/features';
+import { COLLUSION_TRAITS, COPY_COLLUSION, PRICE_TIERS } from '../../../data/v2/features';
+import { AGENT_TASK_HOURS, PRODUCT_TOOL_BY_ID, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { MONITOR_ACTED_ON, MONITOR_CATCH_BASE, PRODUCT_MONITOR_WATCH } from '../../../data/v2/oversight';
 import { containment } from '../safety/techniques';
@@ -27,40 +26,50 @@ import { autoWatcher } from '../safety/trusted';
 export const isProduct = (d: Deployment) => d.channel !== 'internal' && d.channel !== 'open';
 export const kindOfChannel = (c: Deployment['channel']): Deployment['kind'] => (c === 'internal' ? 'internal' : c === 'open' ? 'open' : 'product');
 
-/** RD-B12 (B20): the features a new product starts with: every lab-built feature its channel offers (as the start
- *  products have theirs on). */
+/** The product tool of an id (undefined for an unknown id). */
+export const toolDef = (id: string): ProductToolDef | undefined => PRODUCT_TOOL_BY_ID[id as ProductToolId];
+/** Whether product tool t can be switched on for a channel. */
+export const toolOffered = (t: ProductToolDef, ch: Deployment['channel']) => (t.products as string[]).includes(ch);
+
+/** RD-B12 (B20): the tools a new product starts with: every lab-built tool its channel offers (as the start products
+ *  have theirs on). */
 export function launchFeatures(s: GameStateV2, channel: Deployment['channel']): string[] {
   return s.player.features.filter((id) => {
-    const f = FEATURE_BY_ID[id as FeatureId];
-    return !!f && f.products.includes(channel);
+    const f = toolDef(id);
+    return !!f && toolOffered(f, channel);
   });
 }
 
-/** Features switched on for a product that the lab has built. */
-export function activeFeatures(s: GameStateV2, d: Deployment): FeatureDef[] {
+/** Product tools switched on for a product that the lab has built. */
+export function activeFeatures(s: GameStateV2, d: Deployment): ProductToolDef[] {
   if (!d.features.length) return [];
-  const out: FeatureDef[] = [];
+  const out: ProductToolDef[] = [];
   for (const id of d.features) {
-    const f = FEATURE_BY_ID[id as FeatureId];
-    if (f && s.player.features.includes(id) && f.products.includes(d.channel)) out.push(f);
+    const f = toolDef(id);
+    if (f && s.player.features.includes(id) && toolOffered(f, d.channel)) out.push(f);
   }
   return out;
 }
+/** MK-11: whether a product carries Agent mode (built and switched on). */
+export const agentModeOn = (s: GameStateV2, d: Deployment) => activeFeatures(s, d).some((t) => t.agentGateH !== undefined);
 
-/** RD-P11: the product's incident-site terms from its features: the task-horizon multiplier of its horizon extenders on
- *  all work (Memory ×1.3: the tasks its model runs alone; autonomy A = H/(H + H_HALF)) and the affordances they add
- *  (FeatureDef.afford, Computer use +0.25). */
-export function productSiteTerms(s: GameStateV2, d: Deployment): { hMult: number; afford: number } {
+/** RD-P11: the product's incident-site terms from its tools: the task-horizon multiplier of its horizon extenders on
+ *  all work (Memory ×1.3: the tasks its model runs alone; autonomy A = H/(H + H_HALF)), the affordances they add
+ *  (ProductToolDef.afford: Computer use +0.25, Agent mode +0.3) and, MK-11, the task length Agent mode sells (its gate,
+ *  AGENT_TASK_HOURS: the product's task horizon is at least that, as the deleted Agents product's 4 h). */
+export function productSiteTerms(s: GameStateV2, d: Deployment): { hMult: number; afford: number; minH: number } {
   let hMult = 1;
   let afford = 0;
+  let minH = 0;
   for (const f of activeFeatures(s, d)) {
     afford += f.afford ?? 0;
+    if (f.agentGateH !== undefined) minH = Math.max(minH, f.agentGateH);
     for (const x of f.fx) if (x.kind === 'horizon' && x.work === 'all') hMult *= x.mult;
   }
-  return { hMult, afford };
+  return { hMult, afford, minH };
 }
 
-/** Incident-hazard multiplier of a trait on a product from its features (RD-P11: only stated [D] stand-ins, Companion). */
+/** Incident-hazard multiplier of a trait on a product from its tools (RD-P11: only stated [D] stand-ins, Companion). */
 export function productHazardMult(s: GameStateV2, d: Deployment, trait: TraitId): number {
   let m = 1;
   for (const f of activeFeatures(s, d)) m *= f.hazard?.[trait] ?? 1;
@@ -206,18 +215,19 @@ export function measuredHorizonH(v: ModelVersion | undefined): number | undefine
   return x === undefined ? undefined : x / 60;
 }
 
-/** Agents product: the model's measured time horizon must cover the tasks it sells (AGENT_TASK_HOURS). */
+/** MK-11: Agent mode sells agent-hours only with a model whose measured time horizon covers the tasks it sells
+ *  (AGENT_TASK_HOURS); a lineup model that fails sells none (worldfx/serving.ts productOffer). */
 export function agentsGate(v: ModelVersion | undefined): true | string {
   const h = measuredHorizonH(v);
-  if (h === undefined) return 'Agents needs a measured time horizon (run the eval suite)';
-  if (h < AGENT_TASK_HOURS) return `Agents needs a time horizon of ${AGENT_TASK_HOURS} h (measured ${h.toFixed(1)} h)`;
+  if (h === undefined) return 'Agent mode needs a measured time horizon (run the eval suite)';
+  if (h < AGENT_TASK_HOURS) return `Agent mode needs a time horizon of ${AGENT_TASK_HOURS} h (measured ${h.toFixed(1)} h)`;
   return true;
 }
 
-/** Why a feature cannot be built, or undefined. */
+/** Why a product tool cannot be built, or undefined. */
 export function featureBuildBlock(s: GameStateV2, id: string): string | undefined {
-  const f = FEATURE_BY_ID[id as FeatureId];
-  if (!f) return 'Unknown feature';
+  const f = toolDef(id);
+  if (!f) return 'Unknown tool';
   if (s.player.features.includes(id)) return `${f.name} is built`;
   if (s.player.build.queue.some((it) => it.kind === 'feature' && it.ref === id)) return `${f.name} is being built`;
   if (f.node && !nodeKnown(s, f.node)) return `Needs the idea ${PROJECT_BY_ID[f.node]?.name ?? f.node} (Research)`;
@@ -225,11 +235,11 @@ export function featureBuildBlock(s: GameStateV2, id: string): string | undefine
   return undefined;
 }
 
-/** Why a feature cannot be switched on for a product, or undefined. */
+/** Why a product tool cannot be switched on for a product, or undefined. */
 export function featureToggleBlock(s: GameStateV2, d: Deployment, id: string): string | undefined {
-  const f = FEATURE_BY_ID[id as FeatureId];
-  if (!f) return 'Unknown feature';
-  if (!f.products.includes(d.channel)) return `${f.name} is not offered on this product`;
+  const f = toolDef(id);
+  if (!f) return 'Unknown tool';
+  if (!toolOffered(f, d.channel)) return `${f.name} is not offered on this product`;
   if (!s.player.features.includes(id)) return `${f.name} is not built yet`;
   return undefined;
 }

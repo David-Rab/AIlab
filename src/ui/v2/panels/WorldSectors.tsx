@@ -288,7 +288,7 @@ function LimitTip({ x, k, names }: { x: SectorRead; k: 'capability' | 'cost' | '
   );
   return (
     <TipCard title={<Term id="friction">Friction R</Term>} value={F.pct(x.R)} rows={[{ label: '1 − R', value: F.pct(1 - x.R) }]}>
-      {'Licensing, bans, unions and incidents in this sector and region. (Certifying a sector adaptation lets only that product in; it does not change friction.)'}
+      {'Licensing, bans, unions and incidents in this sector and region. (A product certified here, through a harness, lowers friction for its own buyers only.)'}
     </TipCard>
   );
 }

@@ -258,8 +258,8 @@ export function siteOf(s: GameStateV2, d: Deployment, v: ModelVersion, usage: nu
   }
   const size = d.channel === 'open' ? 1 : scaleOf(copiesOf(s.player.computeOnline * s.player.split.serving, flopPerToken(s, v)), COPIES_REF.serving, COPIES_GAMMA.serving);
   // RD-P11: features act on the site's own quantities (task horizon, affordances), not as flat hazard multipliers.
-  const ft = d.features.length ? productSiteTerms(s, d) : { hMult: 1, afford: 0 };
-  return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(CHANNEL_HORIZON_H[d.channel] * ft.hMult), afford: Math.min(1, CHANNEL_AFFORD[d.channel] + ft.afford), rd: 0, contain, wsl: 0 };
+  const ft = d.features.length ? productSiteTerms(s, d) : { hMult: 1, afford: 0, minH: 0 };
+  return { internal: false, scale: usage * size * restricted, autonomy: autonomyOf(Math.max(CHANNEL_HORIZON_H[d.channel], ft.minH) * ft.hMult), afford: Math.min(1, CHANNEL_AFFORD[d.channel] + ft.afford), rd: 0, contain, wsl: 0 };
 }
 
 /** Catch probability of an act that got through the block (oversight's second factor): internally the fleet's monitors

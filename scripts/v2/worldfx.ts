@@ -332,9 +332,9 @@ if (!SMOKE) {
   for (let i = 0; i < 30; i++) tick(s2, { skip: ['endings'] });
   const ctx = makeCtx(s2);
   const wa = ACTIONS.filter((a) => a.owner === 'WS5');
-  // CP3 rewrite (RD-P08): wfx.sectorProduct became product.adapt (models sphere); the World actions are the other two.
-  check(wa.length === 2 && ['wfx.transitionFund', 'wfx.moonshot'].every((id) => wa.some((a) => a.id === id)) && ACTIONS.some((a) => a.id === 'product.adapt'),
-    'the World actions registered (transition fund, moonshot); sector adaptation is product.adapt', wa.map((a) => a.id).join(', '));
+  // CP3 rewrite (RD-P08); MK-11: sector adaptations are harnesses (product tools, feature.build / feature.toggle).
+  check(wa.length === 2 && ['wfx.transitionFund', 'wfx.moonshot'].every((id) => wa.some((a) => a.id === id)) && !ACTIONS.some((a) => a.id === 'product.adapt'),
+    'the World actions registered (transition fund, moonshot); no product.adapt (MK-11)', wa.map((a) => a.id).join(', '));
   const cash0 = s2.player.finance.cash;
   const tf = wa.find((a) => a.id === 'wfx.transitionFund')!;
   tf.apply(s2, ctx, { amount: 10 });

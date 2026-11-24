@@ -1,5 +1,7 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import type { GameStateV2 } from '../types';
+import { PRODUCT_TOOL_BY_ID, TOOL_FROM_FEATURE, harnessForAdaptation, needsCert, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
+import type { FeatureId } from '../../../data/v2/features';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev to `migrations`.
  *  Saves below MIN_SCHEMA_REV do not load: deserialize refuses them with OLD_SAVE_MESSAGE. UB-3 (DD-20, the clean save
@@ -7,7 +9,7 @@ import type { GameStateV2 } from '../types';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 105;
+export const SCHEMA_REV = 106;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -27,8 +29,11 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *  second product of the same channel is kept as it is (not merged). Launches waiting on the build queue (ref and
    *  launch.channel) move the same way. Nothing else in the state is keyed by channel. */
   103: (s) => {
-    const p = s.player as { deployments?: { channel?: string }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
-    for (const d of p?.deployments ?? []) if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
+    const p = s.player as { deployments?: { channel?: string; wasAgents?: boolean }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
+    for (const d of p?.deployments ?? []) {
+      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 105 → 106 (MK-11: Agent mode)
+      if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
+    }
     for (const it of p?.build?.queue ?? []) {
       if (it.kind !== 'launch') continue;
       if (it.ref && CHANNEL_MK1[it.ref]) it.ref = CHANNEL_MK1[it.ref];
@@ -42,6 +47,64 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
     for (const d of p?.deployments ?? []) delete d.effort;
     for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
+  },
+  /** 105 → 106 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
+   *  data/v2/tools.ts.
+   *  - Built features → built tools (TOOL_FROM_FEATURE: codingAgent → Coding harness, deepResearch → Research agent,
+   *    memory / computerUse / voiceVision / companion the same id); a queued feature build's ref the same way.
+   *  - A product's feature list → its tools; a tool its channel does not offer is dropped: Voice & vision on API,
+   *    Enterprise or Vetted (designer: Chat only; its media work is Creative studio's, which is not granted).
+   *  - Each sector adaptation → the harness covering its sector on that product's channel (harnessForAdaptation),
+   *    switched on and built; a certification record (certDone) moves to Deployment.certs for that sector. Dropped where
+   *    no harness the channel can carry covers the sector: on the API every sector but Software, Science,
+   *    Finance, Legal and Media (Back-office, Clinical, Operations and Defence harnesses are not offered there), Military
+   *    on Enterprise (the Defence suite is Vetted-only), Media on Vetted (Creative studio is not offered there). Its progress is lost with it (a later harness starts a new certification). A queued
+   *    adaptation build is dropped (its host's harness is the build now).
+   *  - A product that was an Agents product (MK-1 moved it to the API; marked `wasAgents` by 103 → 104) gets Agent mode
+   *    switched on and built; if Agent mode is new in the game, the rival lag rule counts from that product's launch.
+   *  - Rivals and China: their tools mapped the same way, plus the tools their lab had shipped by the start
+   *    (toolsAtStart); world.fx.toolShip keys mapped. */
+  105: (s) => {
+    type Dep = { channel?: string; status?: string; startDay?: number; features?: string[]; adaptations?: { sector: string; certDone?: number }[]; certs?: { sector: string; certDone: number }[]; wasAgents?: boolean };
+    const p = s.player as { features?: string[]; deployments?: Dep[]; build?: { queue?: { kind?: string; ref?: string }[] } } | undefined;
+    const map = (id: string): string => TOOL_FROM_FEATURE[id as FeatureId] ?? id;
+    const known = (id: string) => !!PRODUCT_TOOL_BY_ID[id as ProductToolId];
+    const offered = (id: string, ch?: string) => !!ch && (PRODUCT_TOOL_BY_ID[id as ProductToolId]?.products as string[] | undefined)?.includes(ch);
+    if (!p) return;
+    const built = new Set((p.features ?? []).map(map).filter(known));
+    let agentsShip: number | undefined;
+    for (const d of p.deployments ?? []) {
+      const feats = new Set((d.features ?? []).map(map).filter((id) => known(id) && offered(id, d.channel)));
+      const certs: { sector: string; certDone: number }[] = [];
+      for (const a of d.adaptations ?? []) {
+        const h = harnessForAdaptation(a.sector as never, d.channel as never);
+        if (!h) continue;
+        feats.add(h);
+        built.add(h);
+        if (needsCert(a.sector as never) && a.certDone !== undefined && !certs.some((c) => c.sector === a.sector)) certs.push({ sector: a.sector, certDone: a.certDone });
+      }
+      if (d.wasAgents) {
+        feats.add('agentMode');
+        built.add('agentMode');
+        if (d.startDay !== undefined) agentsShip = Math.min(agentsShip ?? Infinity, d.startDay);
+      }
+      delete d.wasAgents;
+      delete d.adaptations;
+      d.certs = certs;
+      d.features = [...feats];
+    }
+    p.features = [...built];
+    if (p.build?.queue) {
+      p.build.queue = p.build.queue.filter((it) => it.kind !== 'adaptation');
+      for (const it of p.build.queue) if (it.kind === 'feature' && it.ref) it.ref = map(it.ref);
+    }
+    const labs = [...((s.rivals as { archetype?: string; tools?: string[] }[] | undefined) ?? []), (s.china as { lab?: { archetype?: string; tools?: string[] } } | undefined)?.lab].filter((x) => !!x) as { archetype?: string; tools?: string[] }[];
+    for (const r of labs) r.tools = [...new Set([...toolsAtStart((r.archetype ?? 'upstart') as LabArchetype), ...(r.tools ?? []).map(map).filter(known)])];
+    const fx = (s.world as { fx?: { toolShip?: Record<string, number> } } | undefined)?.fx;
+    if (fx?.toolShip) fx.toolShip = Object.fromEntries(Object.entries(fx.toolShip).map(([k, v]) => [map(k), v]));
+    if (fx && agentsShip !== undefined && Number.isFinite(agentsShip) && !labs.some((r) => toolsAtStart((r.archetype ?? 'upstart') as LabArchetype).includes('agentMode'))) {
+      (fx.toolShip ??= {}).agentMode ??= agentsShip;
+    }
   },
 };
 
