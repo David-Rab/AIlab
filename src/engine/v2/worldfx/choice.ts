@@ -12,7 +12,8 @@
 //              (≤ V). A model with x 0.97 at a tenth of the price beats one with x 1 whenever V·0.03 < Δp.
 //   choice     each provider offers on band b its best tier; shares on b ∝ brand·exp(u) among the providers a buyer can
 //              reach (access = the share of buyers who can, independently per provider [D]), u = SHARE_SLOPE_G·fit +
-//              S_b ÷ μ_b, μ_b = p_min,b ÷ ε (p_min,b the cheapest offer that does the whole band). μ is the old logit's
+//              S_b ÷ μ_b, μ_b = p_min,b ÷ ε (p_min,b the cheapest offer that does the whole band; MK-6: the caller's μ_b, the
+//              band's average price yesterday ÷ ε, when given). μ is the old logit's
 //              price scale: at the cheapest offer the price response is the old elasticity ε, and for prices near each
 //              other −ε(p ÷ p_min − 1) ≈ −ε·ln(p ÷ p_min), the old price term. SHARE_SLOPE_G·fit is V4's quality term,
 //              kept: beyond adequacy a better model still does the task better. With equal prices and every offer
@@ -57,7 +58,7 @@ const zeros = (n: number) => packed(n, 0);
 
 /** surplusChoice's scratch buffers (reused across calls; every entry it reads is written first in the same call). */
 const S = {
-  tq: new Float64Array(64), ta: new Float64Array(64), tp: new Float64Array(64),
+  tq: new Float64Array(64), ta: new Float64Array(64), tp: new Float64Array(64), tr: new Uint8Array(64),
   u: new Float64Array(16), e: new Float64Array(16), sh: new Float64Array(16), off: new Int32Array(17),
   sums: new Float64Array(256), f: new Float64Array(256), gU: new Float64Array(256), gS: new Float64Array(256),
 };
@@ -288,8 +289,15 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
  * buy each of its products). RF-P5: the provider is one nest: its band utility is its best group's (as with one
  * product), so a second product with the same offer adds no share (the log-sum ln Σ_g e^u_g did: a duplicate-seller
  * artefact); its band share splits e^u_g ÷ Σ e^u among its products (Choice.sub).
+ * MK-5 (design/MARKET.md M2): `reach[i][k]` (optional; absent = every tier) false leaves provider i's tier k out of this
+ * buyer group's choice (the ladder: a small firm cannot buy the player's Enterprise). A provider with no reachable tier
+ * gets e = 0 but stays in the choice sets, so the sets (memoised on `acc`) are the same for every group and its share is
+ * exactly as if it were absent. μ_b, a_top and the quality reference stay the market's (every tier's), so the groups'
+ * bands and price scales are the same and their shares add band by band [D].
+ * MK-6 (design/MARKET.md M5): `muIn[b]` (optional, > 0) sets μ_b: the market's price scale, yesterday's hours-weighted
+ * average price of band b over all sellers ÷ ε (mix.ts), the same μ the sellers' Nash markups read.
  */
-export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[]): Choice {
+export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[], reach?: readonly (readonly boolean[] | undefined)[], muIn?: readonly number[]): Choice {
   const n = lineups.length;
   // P3: the serving providers' tiers flattened once (offsets per provider), the band-independent parts hoisted (the
   // quality term, the cheapest price), shares accumulated in a flat buffer per band; the same operations in the same
@@ -324,16 +332,18 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
   for (let i = 0; i < n; i++) sub.push(groups?.[i] ? [] : undefined);
   if (!(top > 0) || fitMax === -Infinity) return { aTop: top, target, share, pick, mu, sub };
   const cs = choiceSets(acc, lineups, brand);
-  if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt);
+  if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt), S.tr = new Uint8Array(2 * nt);
   if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
-  const { tq, ta, tp, u, e, sh, off } = S;
+  const { tq, ta, tp, tr, u, e, sh, off } = S;
   let pAll = Infinity;
   for (let i = 0, j = 0; i < n; i++) {
     off[i] = j;
     if (!on[i]) continue;
     const L = lineups[i];
+    const ri = reach?.[i];
     for (let k = 0; k < L.length; k++, j++) {
       const t = L[k];
+      tr[j] = ri && !ri[k] ? 0 : 1;
       tq[j] = SHARE_SLOPE_G * (t.fit - fitMax);
       ta[j] = t.a;
       tp[j] = t.price;
@@ -345,10 +355,15 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     const lo = (top * b) / B;
     const hi = (top * (b + 1)) / B;
     const w = hi - lo;
-    // μ_b: the cheapest offer in the region that does the whole band (else the cheapest offer), over the old elasticity.
-    let pAd = Infinity;
-    for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
-    const m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
+    // μ_b: MK-6 the caller's (yesterday's average price of the band ÷ ε, mix.ts); else the cheapest offer in the region
+    // that does the whole band (else the cheapest offer), over ε.
+    let m: number;
+    if (muIn && muIn[b] > 0) m = muIn[b];
+    else {
+      let pAd = Infinity;
+      for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
+      m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
+    }
     mu[b] = m;
     let uMax = -Infinity;
     for (let i = 0; i < n; i++) {
@@ -361,6 +376,7 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       const gu: number[] = [];
       const gk: number[] = [];
       for (let j = j0; j < j1; j++) {
+        if (!tr[j]) continue; // MK-5: not on this buyer group's rungs
         const a = ta[j];
         // tierUtility, adequacy (P4: a ≥ hi gives (a − lo)/w ≥ 1 and a ≤ lo gives ≤ 0 under rounding, so the clamp's
         // value is taken without the division there)
@@ -400,4 +416,68 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     }
   }
   return { aTop: top, target, share, pick, mu, sub };
+}
+
+/**
+ * MK-5 (design/MARKET.md M2): one market's choice from its buyer groups' choices (`w` the group's share of the buyers;
+ * weights sum 1; every part on the same bands and μ, as surplusChoice gives with `reach`): target and band shares are the
+ * weighted sums; a provider's tier split per band (sub) is the groups' splits weighted by their hours there (by the
+ * group weights where no group buys from it); pick is the tier of the group with the most of its hours on the band. A
+ * single part is returned as is.
+ */
+export function mergeChoices(parts: readonly { w: number; ch: Choice }[]): Choice {
+  if (parts.length === 1) return parts[0].ch;
+  const c0 = parts[0].ch;
+  const n = c0.target.length;
+  const B = c0.mu.length;
+  const target = zeros(n);
+  const share: number[][] = [];
+  const pick: number[][] = [];
+  const sub: (number[][] | undefined)[] = [];
+  for (let i = 0; i < n; i++) {
+    for (const { w, ch } of parts) target[i] += w * ch.target[i];
+    const sh = zeros(B);
+    const pk = packed(B, -1);
+    const hasSub = (c0.sub[i]?.length ?? 0) > 0;
+    const sb: number[][] = [];
+    for (let b = 0; b < B; b++) {
+      let best = -1;
+      let tw: number[] | undefined;
+      let fb: number[] | undefined;
+      for (const { w, ch } of parts) {
+        const x = w * (ch.share[i]?.[b] ?? 0);
+        sh[b] += x;
+        if (ch.pick[i][b] >= 0 && (pk[b] < 0 || x > best)) {
+          best = x;
+          pk[b] = ch.pick[i][b];
+        }
+        const g = ch.sub[i]?.[b];
+        if (hasSub && g) {
+          tw ??= packed(g.length, 0);
+          fb ??= packed(g.length, 0);
+          for (let k = 0; k < g.length; k++) {
+            tw[k] += x * g[k];
+            fb[k] += w * g[k];
+          }
+        }
+      }
+      if (hasSub) {
+        let row = tw ?? [];
+        if (tw && fb) {
+          if (sh[b] > 0) for (let k = 0; k < tw.length; k++) tw[k] /= sh[b];
+          else {
+            let z = 0;
+            for (const x of fb) z += x;
+            for (let k = 0; k < fb.length; k++) fb[k] = z > 0 ? fb[k] / z : 0;
+            row = fb;
+          }
+        }
+        sb.push(row);
+      }
+    }
+    share.push(sh);
+    pick.push(pk);
+    sub.push(hasSub ? sb : c0.sub[i] ? [] : undefined);
+  }
+  return { aTop: c0.aTop, target, share, pick, mu: c0.mu, sub };
 }

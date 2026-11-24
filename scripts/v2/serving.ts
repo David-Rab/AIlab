@@ -29,7 +29,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PRODUCT_TOOLS as FEATURES, PRODUCT_TOOL_BY_ID as FEATURE_BY_ID } from '../../src/data/v2/tools';
-import { AGENT_WORK, MARKUP, SEATS, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
+import { AGENT_WORK, SEATS, TOKENS, CONSUMER_MKT } from '../../src/data/v2/serving';
+/** MK-6: the old standard tier's markup (margin 0.6), kept here only as offer arithmetic for these checks (offerOf's
+ *  markup); the game prices by competition (worldfx/mix.ts). */
+const MARKUP = { standard: 1 / 0.4 };
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { deserialize } from '../../src/engine/v2/core/save';
@@ -161,7 +164,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(rd2.deps.every((x) => x.revenue <= Math.min(x.demand, x.capacity) + 1e-9), 'S2 revenue never exceeds demand or capacity');
   const rate = serveDollarsPerHour(s);
   const api = rd2.deps.find((x) => x.channel === 'api')!;
-  check(api.hours > 0 && near(api.pricePerHour, MARKUP.standard * api.costPerHour, 0.02), 'S2 a standard-tier product prices at its cost × the standard markup (margin 0.6)', `cost $${api.costPerHour.toFixed(2)}, price $${api.pricePerHour.toFixed(2)} per work-hour at $${rate.toFixed(2)}/H100e-h`);
+  check(api.hours > 0 && api.pricePerHour > api.costPerHour, 'S2 MK-6: a product prices above its cost (cost + the lab\'s competitive margin)', `cost $${api.costPerHour.toFixed(2)}, price $${api.pricePerHour.toFixed(2)} per work-hour at $${rate.toFixed(2)}/H100e-h`);
 }
 
 // ───────── S3 price never below cost, never above value (unless the work is worth less than serving it) ─────────
@@ -487,7 +490,7 @@ for (const d of [400, 900]) {
   const chat = s.player.deployments.find((x) => x.channel === 'consumer' && x.status !== 'withdrawn');
   let prem = 'no Chat';
   if (chat) {
-    chat.price = 'premium';
+    chat.stance = 'profit';
     const x = revenueReadout(s).deps.find((z) => z.id === chat.id)!;
     prem = `premium $${(x.subCost ?? 0).toFixed(2)} → $${(x.subPrice ?? 0).toFixed(2)}`;
     if ((x.subPrice ?? 0) > Math.max(CONSUMER_MKT.wtpMonth, x.subCost ?? 0) + 1e-9) bad++;

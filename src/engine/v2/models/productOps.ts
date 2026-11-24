@@ -4,11 +4,11 @@
 // product stays live; the change applies at the next tick, D7, with a before → after preview), product.retire,
 // product.serving (a hand-set share: turns the Auto serving policy off), feature.build (engineers' build queue + cash),
 // feature.toggle, and the product policies (Auto serving, upgrade to newest, auto-evaluate).
-import { PRICE_TIER_IDS, PRODUCT_DEFS } from '../../../data/v2/features';
+import { PRODUCT_DEFS } from '../../../data/v2/features';
 import { PRODUCT_TOOL_BY_ID, type ProductToolId } from '../../../data/v2/tools';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
-import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceTier, SystemCtx } from '../types';
+import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceStance, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { RECIPE_LEAK_SHARE } from '../production/diffusion';
@@ -16,7 +16,7 @@ import { DISTILL_S } from '../../../data/v2/calibration';
 import { CHANNEL_VARIANTS, deployGate, distillationLeak, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
-import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, priceIndexOf, productMonitorVersion } from './products';
+import { autoEvaluate, featureBuildBlock, featureToggleBlock, isProduct, launchFeatures, newestCleared, productMonitorVersion } from './products';
 import { relaunchCerts } from './certs';
 import { evalPolicyView } from './evals';
 import { frameworkDeployBlock } from '../safety/framework';
@@ -39,7 +39,8 @@ export interface ProductChanges {
   /** RD-P01a: Chat's free-tier slot (a lineup model; null: the lineup's cheapest). */
   freeTierId?: string | null;
   monitorId?: string | null;
-  price?: PriceTier;
+  /** MK-6 (M6): the price stance. */
+  stance?: PriceStance;
   safeguards?: Deployment['safeguards'];
   kyc?: Deployment['kyc'];
   features?: string[];
@@ -52,7 +53,7 @@ export function changesFromParams(p: Params): ProductChanges {
   if (typeof p.lineup === 'string') c.lineup = p.lineup.split(',').map((x) => x.trim()).filter((x) => x && x !== 'none');
   if (typeof p.freeTierId === 'string') c.freeTierId = p.freeTierId && p.freeTierId !== 'none' ? p.freeTierId : null;
   if (typeof p.monitorId === 'string') c.monitorId = p.monitorId && p.monitorId !== 'none' ? p.monitorId : null;
-  if (typeof p.price === 'string' && (PRICE_TIER_IDS as string[]).includes(p.price)) c.price = p.price as PriceTier;
+  if (p.stance === 'profit' || p.stance === 'share') c.stance = p.stance;
   if (typeof p.safeguards === 'string') c.safeguards = p.safeguards as Deployment['safeguards'];
   if (typeof p.kyc === 'number') c.kyc = Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'];
   if (typeof p.features === 'string') c.features = p.features.split(',').map((x) => x.trim()).filter(Boolean);
@@ -75,10 +76,7 @@ export function editedProduct(d: Deployment, c: ProductChanges): Deployment {
     if (c.monitorId) n.monitorId = c.monitorId;
     else delete n.monitorId;
   }
-  if (c.price) {
-    n.price = c.price;
-    n.priceIndex = priceIndexOf(c.price);
-  }
+  if (c.stance) n.stance = c.stance;
   if (c.safeguards) n.safeguards = c.safeguards;
   if (c.kyc !== undefined) n.kyc = c.kyc;
   return n;
@@ -251,7 +249,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       const exposure: CostLine[] = [];
       if (v && ch !== 'open' && ch !== 'internal') {
         const tmp: Deployment = {
-          id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, price: 'standard', priceIndex: 1, servingShare: 0,
+          id: '__new', kind: 'product', versionId: v.id, channel: ch, startDay: s.time.day, stance: 'profit', servingShare: 0,
           // RD-B12: the launch as it goes live (built tools on for the channel, a relaunch's certifications).
           safeguards: 'classifiers', guards: [], certs: relaunchCerts(s, ch).certs, features: launchFeatures(s, ch), kyc: ch === 'api' ? 1 : 0, status: 'live',
           usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: false },
@@ -280,7 +278,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
       if (!v) return fail('No version for this product');
       if (s.player.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already live: update it instead`);
       if (pendingLaunch(s, ch)) return fail(`${PRODUCT_DEFS[ch]?.name ?? ch} is already being built`);
-      const price = (PRICE_TIER_IDS as string[]).includes(str(p, 'price', '')) ? (str(p, 'price', 'standard') as PriceTier) : 'standard';
+      const stance: PriceStance = str(p, 'stance', 'profit') === 'share' ? 'share' : 'profit';
       {
         // J2 P1: the engineers build a product launch first (gates checked now and again at release).
         const gate = deployGate(s, v, ch, { safeguards: 'classifiers', usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: ch === 'consumer' } });
@@ -288,7 +286,7 @@ export const PRODUCT_ACTIONS: ActionDef[] = [
         const wait = launchWaitText(s);
         queueBuild(s, 'launch', ch, LAUNCH_TW, {
           launch: {
-            channel: ch, versionId: v.id, price,
+            channel: ch, versionId: v.id, stance,
             ...(typeof p.kyc === 'number' ? { kyc: Math.max(0, Math.min(3, Math.round(p.kyc))) as Deployment['kyc'] } : {}),
             ...(typeof p.monitorId === 'string' && p.monitorId ? { monitorId: p.monitorId } : {}),
           },

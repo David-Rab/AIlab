@@ -8,7 +8,7 @@
 // worldfx/revenue.ts.
 import { LOCKDOWN_COLLUSION_MULT, labControlSetting, lockdownOn } from '../safety/safeguards';
 import { controlOn } from '../safety/safeguards';
-import { COLLUSION_TRAITS, COPY_COLLUSION, PRICE_TIERS } from '../../../data/v2/features';
+import { COLLUSION_TRAITS, COPY_COLLUSION } from '../../../data/v2/features';
 import { AGENT_TASK_HOURS, PRODUCT_TOOL_BY_ID, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
 import { MONITOR_ACTED_ON, MONITOR_CATCH_BASE, PRODUCT_MONITOR_WATCH } from '../../../data/v2/oversight';
@@ -244,7 +244,6 @@ export function featureToggleBlock(s: GameStateV2, d: Deployment, id: string): s
   return undefined;
 }
 
-export const priceIndexOf = (tier: Deployment['price']) => PRICE_TIERS[tier] ?? 1;
 
 // ───────────────────────────── policies ─────────────────────────────
 

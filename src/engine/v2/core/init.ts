@@ -47,7 +47,7 @@ import { frameworkHighL } from '../../../data/v2/framework';
 import { initialSecurity } from '../security/security';
 import { drawLineageUModes, sampleHidden } from '../world/hidden';
 import { initialWorld } from '../worldfx/sectors';
-import { initCustomerStocks } from '../worldfx/mix';
+import { initCustomerStocks, initPrices } from '../worldfx/mix';
 import type {
   Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
@@ -200,7 +200,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   });
   for (const m of minis) applyFit(hidden.timeline, m, () => 0, false); // RD-M01: measured like V0, from its start scores
   const dep = (id: string, channel: Deployment['channel'], servingShare: number, kyc: Deployment['kyc']): Deployment => ({
-    id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, price: 'standard', priceIndex: 1, servingShare,
+    id, kind: channel === 'internal' ? 'internal' : 'product', versionId: 'V0', channel, startDay: -20, stance: 'profit', servingShare,
     ...(channel === 'internal' || channel === 'open' || !minis.length ? {} : { lineup: minis.map((x) => x.id) }),
     safeguards: channel === 'internal' ? 'standard' : 'classifiers', guards: channel === 'internal' ? [{ kind: 'review', since: -20 }] : [], certs: [], features: [],
     usagePolicy: { noDropInReplacement: false, noSurveillance: false, noAutonomousWeapons: false, minorsProtections: channel === 'consumer' },
@@ -341,6 +341,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // serving stack are day 0's, the first day the lab can adopt anything).
   for (const r of s.player.models.runs) fillRecipe(s, r);
   // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
+  initPrices(s); // MK-6: the start's prices at the market's fixed point (Nash–Bertrand margins)
   initCustomerStocks(s);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)

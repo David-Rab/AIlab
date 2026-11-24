@@ -9,7 +9,7 @@ import type { FeatureId } from '../../../data/v2/features';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 106;
+export const SCHEMA_REV = 107;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -31,7 +31,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   103: (s) => {
     const p = s.player as { deployments?: { channel?: string; wasAgents?: boolean }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
     for (const d of p?.deployments ?? []) {
-      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 105 → 106 (MK-11: Agent mode)
+      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 106 → 107 (MK-11: Agent mode)
       if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
     }
     for (const it of p?.build?.queue ?? []) {
@@ -48,7 +48,22 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     for (const d of p?.deployments ?? []) delete d.effort;
     for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
   },
-  /** 105 → 106 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
+  /** 105 → 106 (MK-6, design/MARKET.md M5, M6): price tiers removed. Every product and waiting launch takes the 'profit'
+   *  stance (price and priceIndex dropped); the sellers' margins (world.fx.priceM) start at today's cost-plus prices
+   *  when first read (SEED_MARKUP) and move to their Nash–Bertrand targets. */
+  105: (s) => {
+    const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
+    for (const d of p?.deployments ?? []) {
+      delete d.price;
+      delete d.priceIndex;
+      d.stance = 'profit';
+    }
+    for (const it of p?.build?.queue ?? []) if (it.launch) {
+      delete it.launch.price;
+      it.launch.stance = 'profit';
+    }
+  },
+  /** 106 → 107 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
    *  data/v2/tools.ts.
    *  - Built features → built tools (TOOL_FROM_FEATURE: codingAgent → Coding harness, deepResearch → Research agent,
    *    memory / computerUse / voiceVision / companion the same id); a queued feature build's ref the same way.
@@ -64,7 +79,7 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *    switched on and built; if Agent mode is new in the game, the rival lag rule counts from that product's launch.
    *  - Rivals and China: their tools mapped the same way, plus the tools their lab had shipped by the start
    *    (toolsAtStart); world.fx.toolShip keys mapped. */
-  105: (s) => {
+  106: (s) => {
     type Dep = { channel?: string; status?: string; startDay?: number; features?: string[]; adaptations?: { sector: string; certDone?: number }[]; certs?: { sector: string; certDone: number }[]; wasAgents?: boolean };
     const p = s.player as { features?: string[]; deployments?: Dep[]; build?: { queue?: { kind?: string; ref?: string }[] } } | undefined;
     const map = (id: string): string => TOOL_FROM_FEATURE[id as FeatureId] ?? id;

@@ -22,7 +22,7 @@
 // departments/workfit.ts), so the work an engineer
 // carries grows as AI takes over engineering. Calibration: the reference lab (RefBot) on the ai2027 path uses about
 // three quarters of its capacity; its run setups finish within a few days in every world (calib.ts).
-import { PRICE_TIERS, TOOL_BY_ID, type ToolId } from '../../../data/v2/features';
+import { TOOL_BY_ID, type ToolId } from '../../../data/v2/features';
 import { PRODUCT_TOOL_BY_ID, TOOL_UPKEEP, toolUpkeepTW, type ProductToolDef, type ProductToolId } from '../../../data/v2/tools';
 import { AGENT_USES } from '../../../data/v2/agents';
 import type { ActionDef, BuildItem, BuildKind, Deployment, EngineSystem, GameStateV2, RunKind, SystemCtx, TrainingRun } from '../types';
@@ -237,7 +237,7 @@ function complete(s: GameStateV2, ctx: SystemCtx, it: BuildItem) {
     const l = it.launch;
     // RD-B12 (B20): the product starts with the lab's built tools for its channel on.
     const d = deploy(s, ctx, {
-      versionId: l.versionId, channel: l.channel, price: l.price, priceIndex: PRICE_TIERS[l.price],
+      versionId: l.versionId, channel: l.channel, stance: l.stance ?? 'profit',
       ...(l.kyc !== undefined ? { kyc: l.kyc } : {}), ...(l.monitorId ? { monitorId: l.monitorId } : {}),
       features: launchFeatures(s, l.channel),
     });
