@@ -37,7 +37,8 @@ export const worldHighL = (s: GameStateV2) => frameworkHighL(medianExpertLevel(s
 export const worldFrameworkRules = (s: GameStateV2) => defaultFrameworkRules(worldHighL(s));
 export const frameworkOf = (s: GameStateV2): SafetyFramework => (s.player.safety.framework ??= defaultFramework('full', false, worldHighL(s)));
 
-const isExternal = (ch: string) => ch !== 'internal' && ch !== 'vetted'; // MK-2: Trusted was not external; kept on Vetted until M10
+/** Every product but internal use is an external deployment; Vetted too (MARKET.md M10: no built-in exemption). */
+const isExternal = (ch: string) => ch !== 'internal';
 const liveInternal = (s: GameStateV2) => s.player.deployments.filter((d) => d.channel === 'internal' && d.status === 'live');
 
 /** External evaluators have read this version (an evaluator report, or a suite run by them). */
@@ -160,7 +161,7 @@ export function trainingHolds(s: GameStateV2): Omit<FrameworkHold, 'since'>[] {
  *  internal deployment). The "meet my framework" package (safety/packages.ts) adds what of this is missing. */
 export function requiredSafeguards(s: GameStateV2, d: Deployment): Set<FrameworkRule['safeguards'][number]> {
   const out = new Set<FrameworkRule['safeguards'][number]>();
-  if (d.channel === 'open' || d.channel === 'vetted') return out; // MK-2: Trusted's exemption, kept on Vetted until M10 removes it
+  if (d.channel === 'open') return out;
   const fw = frameworkOf(s);
   if (d.channel === 'internal') {
     for (const rule of fw.rules) {

@@ -103,7 +103,7 @@ const internal = (x: GameStateV2) => x.player.deployments.filter((d) => d.channe
 // 5. RF-S13c: product update (model change, lineup entry) gets the parts instead of a refusal; no internal deployment
 {
   const x = load('day400.json');
-  const d = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open' && y.channel !== 'vetted')!;
+  const d = x.player.deployments.find((y) => y.status === 'live' && y.channel !== 'internal' && y.channel !== 'open')!; // Vetted gets the parts too (MARKET.md M10)
   const cand = x.player.models.versions.find((y) => y.id !== d.versionId && !(d.lineup ?? []).includes(y.id) && y.evals.suiteDay !== undefined && (y.status === 'ready' || y.status === 'deployed') && deployGate(x, y, d.channel, {}) === true)!;
   cand.evals.measuredDom = { ...(cand.evals.measuredDom ?? {}), BIO: FRAMEWORK_HIGH_L + 0.5 } as typeof cand.evals.measuredDom;
   d.safeguards = 'standard';

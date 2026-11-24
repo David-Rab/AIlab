@@ -21,9 +21,10 @@ export const CHANNEL_VARIANTS: Record<Channel, Variant[]> = {
 };
 /** RD-P09 (PRD-18): share of a channel's usage bought by unverified buyers (self-serve accounts with no identity check),
  *  the only usage a distiller can hide in [stand-in]: Chat's free and paid accounts are anonymous but rate-limited per
- *  account; API / Agents keys are mostly self-serve; Enterprise, Government and Trusted buyers are named under contract.
- *  Open weights: anyone (diffusion.ts gives them access 1). */
-// MK-2: Vetted takes the old Government / Trusted value (named buyers under contract, 0); decide for four channels.
+ *  account; API keys are mostly self-serve; Enterprise and Vetted buyers are named under contract (Vetted's are vetted
+ *  before they buy: government, military, critical infrastructure, large regulated firms), so neither has anonymous
+ *  usage and KYC has nothing to verify there (deploy's default KYC is 0 on them). Open weights: anyone (diffusion.ts
+ *  gives them access 1). */
 export const ANON_SHARE: Record<Channel, number> = { consumer: 0.3, api: 0.5, enterprise: 0, vetted: 0, internal: 0, open: 1 };
 /** RD-P09: the part of the anonymous share left at each KYC level (0–3): each level verifies ten times more of the
  *  self-serve accounts [D, the access formula's tenfold cut per level, research/RD-X04r D2]. */
@@ -45,8 +46,8 @@ export const kycDemandFactor = (d: Pick<Deployment, 'channel' | 'kyc'>) => 1 - k
 // CAL-P: the review cost (2% of the verified buyers' revenue) is deleted (review/products.md F5). A check costs about
 // $0.06-1.50 once (Ofcom 2026: median per-check cost about GBP 0.06; Stripe Identity: $1.50 per ID check), under 1% of
 // a year of a $20/month account, so it rounds to nothing (research/CAL-products-sources.md K2).
-/** Default serving-pool reservation per channel [D]. */
-// MK-2: Vetted takes the old Government reservation (0.05); Agents' 0.2 is gone with the product.
+/** Default serving-pool reservation per channel [D]. Vetted keeps Government's 0.05 (the smallest buyer group, MARKET.md
+ *  §2); Agents' 0.2 went with the product (MK-1). */
 export const DEFAULT_SERVING: Record<Channel, number> = { consumer: 0.4, api: 0.3, enterprise: 0.15, vetted: 0.05, internal: 0, open: 0 };
 
 const external = (c: Channel) => c !== 'internal';

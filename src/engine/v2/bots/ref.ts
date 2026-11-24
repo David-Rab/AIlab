@@ -114,6 +114,7 @@ const POST_EVERY = 42;
 const MINI_EVERY = 182;
 /** …or sooner (≥ 45 d apart) once the internal model measures this many levels above what the products serve. */
 const MINI_GAP_L = 0.7;
+/** The bots sell Chat, API and Enterprise; none sells Vetted (none sold Government or Trusted access before MK-1). */
 const PRODUCT_CHANNELS: string[] = ['consumer', 'api', 'enterprise'];
 /** The public release (where the minis go). Staleness is measured against it, not against Enterprise: Enterprise can
  *  sit on the continual-learning stream (updated in place), which hid how far the public release trailed (R6 fix). */

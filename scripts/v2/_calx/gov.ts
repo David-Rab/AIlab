@@ -20,6 +20,6 @@ while (s.time.day < END) {
     const m = worldMix(s);
     const iv = internalVersion(s);
     const sh = domainRefShift(w, 'REASON');
-    console.log(`d${s.time.day} adviser v2-L ${levelOfG(w, govAdviceG(s, m) + sh).toFixed(2)} GOV-market v2-L ${levelOfG(w, m.sec.US.GOV.g.REASON + sh).toFixed(2)} internal REASON v2-L ${iv ? levelOfG(w, domainScaleG(w, iv, 'REASON') + sh).toFixed(2) : '-'} internal Lg ${iv ? levelOfG(w, iv.G).toFixed(2) : '-'} briefing ${s.player.policies.govBriefing} gov products ${s.player.deployments.filter((d) => d.channel === 'gov').length} accept ${s.world.control.GOV.accept.toFixed(3)}`);
+    console.log(`d${s.time.day} adviser v2-L ${levelOfG(w, govAdviceG(s, m) + sh).toFixed(2)} GOV-market v2-L ${levelOfG(w, m.sec.US.GOV.g.REASON + sh).toFixed(2)} internal REASON v2-L ${iv ? levelOfG(w, domainScaleG(w, iv, 'REASON') + sh).toFixed(2) : '-'} internal Lg ${iv ? levelOfG(w, iv.G).toFixed(2) : '-'} briefing ${s.player.policies.govBriefing} gov products ${s.player.deployments.filter((d) => d.channel === 'vetted').length} accept ${s.world.control.GOV.accept.toFixed(3)}`);
   }
 }
