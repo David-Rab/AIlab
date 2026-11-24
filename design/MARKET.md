@@ -287,3 +287,14 @@ dependency order; tasks on one line of the same number can run in parallel.
 - MK-6d (excluding own models from the price-sensitivity anchor) and a separate review sweep: withdrawn.
 - Remaining: MK-9 (re-merge), MK-5c, MK-13 (incl. how Win share's later buyer gain is shown), MK-CP. Judge later
   findings against the sourced targets and whether trade-offs are shown honestly, not against "a number went down".
+
+## As built: the Products screen (MK-13)
+
+`src/ui/v2/panels/Products.tsx` lays out the MK-12 readouts (worldfx/marketView.ts) to the approved mockup; screenshots on
+the day-369 save in `design/ux/mockups/market/built/` (`node scripts/v2/shots/mk13.mjs [save]` after `npm run build`).
+Win share's later buyer gain: the stance switch's tooltip shows only the change a year from tomorrow (profit, all your
+products) and says in words that buyers move over the following weeks (customer share; Chat: share of users and paid
+share), with no number, since MK-12 has no settled forecast of the move. Lineup popover cells show the change to all
+your products (the row tooltip splits it: this product vs all). Not on the screen: Vetted's "Usage terms" link (no UI
+home for per-product usage terms yet) and an explicit Chat free-tier picker (the free tier follows a swapped slot,
+else the cheapest model).

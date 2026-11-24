@@ -468,37 +468,72 @@ await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in the family tree', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
-// ── Products (R6 / UB-A): revenue strip, cards (lineup, tools, customers, certification, price), live edit with
-// before → after preview, the drawer (customers by sector, Limited by, win back, sold in a year, safeguards, retire),
-// policies (Auto serving, manual split), the Agents card. ──
+// ── Products (MK-13; design/MARKET.md M12, M13): totals strip (profit, serving compute, business share), four cards in
+// ladder order (live or the launch card in its place), the price-stance switch (tooltip: next-day cost and the gradual
+// move of buyers), the lineup popover (swap / remove / add through product.update), tools, the drawer (customers by
+// sector, Limited by, win back, retire), policies (Auto serving, manual split). ──
 await nav('products');
 ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
 {
-  const rv = await page.evaluate(() => ({ rows: document.querySelectorAll('[data-test=prod-revenue] [data-rev]').length, total: document.querySelector('[data-test=prod-rev-total]')?.textContent ?? '', bind: document.querySelectorAll('[data-test=prod-revenue] [data-test^="prod-bind."]').length }));
-  ok('Products (UB-A): revenue strip with a row and a Limited-by chip per live product', rv.rows >= 3 && /\$[\d.]+[BMT]/.test(rv.total) && rv.bind >= 3, JSON.stringify(rv));
-  ok('Products (UB-A): no serving split on Products (its home is LAB); a serving link instead', !(await page.$('[data-home=servingSplit]')) && !!(await page.$('[data-test=prod-serving-link]')));
+  const lay = await page.evaluate(() => ({
+    order: [...document.querySelectorAll('[data-panel=products] .prd-cards > section')].map((e) => e.getAttribute('data-channel') ?? `launch:${e.getAttribute('data-launch')}`),
+    total: document.querySelector('[data-test=prod-profit-total]')?.textContent ?? '',
+    share: document.querySelector('[data-test=prod-share]')?.parentElement?.textContent ?? '',
+  }));
+  ok('Products (MK-13): four places in ladder order (Chat, API, Enterprise, Vetted; a launch card where not live)', lay.order.length === 4 && ['consumer', 'api', 'enterprise', 'vetted'].every((c, i) => lay.order[i] === c || lay.order[i] === `launch:${c}`), lay.order.join(','));
+  ok('Products (MK-13): the strip leads with profit from products and your share of business buyers', /\$[\d.]+[BMT]/.test(lay.total) && /\d%/.test(lay.share), `${lay.total} | ${lay.share.slice(0, 60)}`);
+  ok('Products (MK-13): no business-share number on the cards (one home: the strip)', !(await page.$('[data-panel=products] [data-product] [data-test^="prod-cust-stock."]')));
+  ok('Products: no serving split on Products (its home is LAB); a serving link instead', !(await page.$('[data-home=servingSplit]')) && !!(await page.$('[data-test=prod-serving-link]')));
+  ok('Products (MK-13): no price tiers, effort or old revenue strip left', !(await page.$('[data-test=prod-revenue]')) && !(await page.$('[data-panel=products] [data-opt=premium], [data-panel=products] [data-opt=budget]')) && !/effort/i.test(await page.$eval('[data-panel=products] .prd-cards', (e) => e.innerText)));
 }
 const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
 if (apiId) {
-  const card = `[data-panel=products] [data-product="${apiId}"]`;
   await page.click(`[data-test="prod-open.${apiId}"]`);
   await wait(120);
-  ok('Products (UB-A): the drawer shows customers by sector, Limited by in words and sold in a year', !!(await page.$('[data-test=prod-drawer] [data-test=prod-sectors] [data-sector]')) && /Limited by/.test(await page.$eval('[data-test=prod-limit]', (e) => e.textContent ?? '').catch(() => '')) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-econ.${apiId}"]`)));
+  ok('Products: the drawer shows customers by sector and Limited by in words', !!(await page.$('[data-test=prod-drawer] [data-test=prod-sectors] [data-sector]')) && /Limited by/.test(await page.$eval('[data-test=prod-limit]', (e) => e.textContent ?? '').catch(() => '')));
   ok('Products (UB-F): the drawer has no safeguard controls; the card links to SAFETY › Safeguards (their home)', !(await page.$(`[data-test=prod-drawer] [data-test="prod-monitor.${apiId}"]`)) && !(await page.$(`[data-test=prod-drawer] [data-test="prod-sg.${apiId}"]`)) && !!(await page.$(`[data-panel=products] [data-product="${apiId}"] [data-ref=productSafeguards]`)));
   await page.click('[data-test=prod-drawer-close]');
   await wait(80);
-  await page.click(`${card} [data-test^=prod-price] [data-opt=share]`);
-  await wait(120);
-  const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
-  ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
-  await check('Products: Apply updates the live product (Win share)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.stance, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
+  // Price stance: the Win share tooltip shows only its cost from tomorrow and says buyers move over the following weeks.
+  await clearTips();
+  await page.hover(`[data-test="prod-stance-opt.${apiId}.share"]`);
+  await wait(450);
+  const tip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+  ok('Products (MK-13): Win share previews its next-day cost and says buyers move over the following weeks', /\$[\d.]+[BMT]/.test(tip) && /following weeks/.test(tip) && !/Target share/.test(tip), tip.replace(/\n/g, ' ').slice(0, 160));
+  await clearTips();
+  await check('Products (MK-13): the stance switch sets Win share (product.update)', `s.player.deployments.find(x => x.id === "${apiId}").stance`, () => page.click(`[data-test="prod-stance-opt.${apiId}.share"]`));
   ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.stance === 'share'; })()`)));
-  await page.click(`${card} [data-test^=prod-price] [data-opt=profit]`);
-  await wait(80);
-  await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
-  await page.click(`[data-test="prod-lineup-more.${apiId}"]`);
-  ok('Products: the lineup editor holds the main-model chip', !!(await page.$(`${card} [data-chip=model]`)));
-  await page.click(`[data-test="prod-lineup-more.${apiId}"]`);
+  await check('Products (MK-13): the stance switch sets Best profit back', `s.player.deployments.find(x => x.id === "${apiId}").stance`, () => page.click(`[data-test="prod-stance-opt.${apiId}.profit"]`));
+  // Lineup popover (M13): add a model, swap one, remove one; each applies through product.update.
+  const lineupOf = `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.versionId, ...(d.lineup || [])].join(','); })()`;
+  const addBtn = await page.$(`[data-test="prod-lineup-add.${apiId}"]:not([disabled])`);
+  if (addBtn) {
+    await addBtn.click();
+    await wait(400);
+    const pop = await page.evaluate(() => { const p = document.querySelector('[data-test=lu-pop]'); return p ? { mode: p.getAttribute('data-mode'), text: p.innerText, rows: p.querySelectorAll('button.po[data-opt]:not([disabled])').length } : null; });
+    ok('Products (MK-13): "+ Add a model" opens the popover in add mode with previews (profit, hours, compute need)', !!pop && pop.mode === 'add' && pop.rows > 0 && /profit/i.test(pop.text) && /compute need/i.test(pop.text), pop ? pop.text.replace(/\n/g, ' ').slice(0, 140) : 'no popover');
+    if (pop?.rows) await check('Products (MK-13): picking a model in add mode adds it to the lineup', lineupOf, () => page.click('[data-test=lu-pop] button.po[data-opt]:not([disabled])'), 200);
+    ok('Products (MK-13): the popover closes after applying', !(await page.$('[data-test=lu-pop]')));
+  }
+  const slots = JSON.parse(await get(lineupOf)).split(',');
+  if (slots.length >= 2) {
+    await page.click(`[data-lu="${apiId}:${slots[slots.length - 1]}"]`);
+    await wait(400);
+    const sw = await page.evaluate(() => { const p = document.querySelector('[data-test=lu-pop]'); return p ? { mode: p.getAttribute('data-mode'), head: p.querySelector('.phd')?.textContent ?? '', rm: !!p.querySelector('[data-test=lu-pop-remove]'), rows: p.querySelectorAll('button.po[data-opt]:not([data-opt=remove]):not([disabled])').length } : null; });
+    ok('Products (MK-13): clicking a lineup model opens the swap popover (Replace …, Remove from lineup)', !!sw && sw.mode === 'swap' && /Replace/.test(sw.head) && sw.rm, JSON.stringify(sw));
+    await page.keyboard.press('Escape');
+    await wait(80);
+    ok('Products (MK-13): Esc closes the popover', !(await page.$('[data-test=lu-pop]')));
+    if (sw?.rows) {
+      await page.click(`[data-lu="${apiId}:${slots[slots.length - 1]}"]`);
+      await wait(400);
+      await check('Products (MK-13): picking a model in swap mode replaces the slot', lineupOf, () => page.click('[data-test=lu-pop] button.po[data-opt]:not([data-opt=remove]):not([disabled])'), 200);
+    }
+    const now = JSON.parse(await get(lineupOf)).split(',');
+    await page.click(`[data-lu="${apiId}:${now[now.length - 1]}"]`);
+    await wait(400);
+    await check('Products (MK-13): Remove from lineup removes the model', lineupOf, () => page.click('[data-test=lu-pop-remove]'), 200);
+  }
   await page.click(`[data-test="prod-tool-add.${apiId}"]`);
 }
 const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."]:not([disabled])');
@@ -518,13 +553,13 @@ await check('Products: Auto serving back on', 's.player.policies.servingAuto', (
 await check('Products: upgrade-to-newest policy', 's.player.policies.upgradeToNewest', () => page.click('[data-act="products.policy.upgradeToNewest"]'));
 await page.click('[data-act="products.policy.upgradeToNewest"]');
 await page.click('[data-test=prod-policies]');
-if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows ready-to-launch (time alone, engineers)', /Engineers/.test(await page.$eval('[data-test=agents-gate]', (e) => e.textContent ?? '')));
 {
   const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
   if (ent) {
     await page.click(`[data-test="prod-open.${ent}"]`);
     await wait(100);
     await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
+    ok('Products (MK-13): a retired product leaves a launch card in its place', !!(await page.$('[data-panel=products] [data-launch=enterprise]')));
   }
 }
 // UB-9 SAFETY: the header (model picker, Loss-of-control risk, Unstopped harm, sight curve, framework) on every tab and
@@ -769,71 +804,71 @@ ok('Overview: no Watch card (the bottom bar is the alert channel)', !(await page
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
 await check('Loss-of-control risk click opens Safety', 'store.panel', () => page.click('[data-test=risk]'));
 
-// ───────────────────────── B1: product economics (UB-A: revenue strip + drawer; day 1 here; day 400 and day 900 below) ─────────────────────────
-// Every product has a revenue row (served vs not, Limited by) with a tooltip; its drawer's "Sold in a year" shows hours or
-// users, serving cost and margin; every term there has a glossary tooltip.
-const B1_TERMS = ['paidSeat', 'weeklyReach', 'paidShare', 'freeTier', 'adoptedHour', 'runCost', 'priceTier', 'bindingCause'];
+// ───────────────────────── B1: product economics (MK-13 cards; day 1 here; day 400 and day 900 below) ─────────────────────────
+// Every live card leads with profit and margin, a revenue bar (profit / serving cost) with a tooltip, the Users or Work
+// sold and Price tiles; a card short of serving compute says what rationing does (buyers turned away, or Chat's free
+// users rate-limited); every term there has a glossary tooltip.
+const B1_TERMS = ['profit', 'profitMargin', 'runCost', 'workSold', 'hourPrice', 'servingCompute', 'turnedAway', 'priceTier', 'lineup', 'paidShare', 'weeklyReach', 'buyerGroups', 'bindingCause'];
 const b1Seen = new Set();
-async function b1Check(where) {
-  await nav('products');
-  const rows = await page.$$eval('[data-panel=products] [data-test=prod-revenue] [data-rev]', (els) => els.filter((e) => !e.classList.contains('off')).map((e) => ({ id: e.getAttribute('data-rev'), t: e.textContent ?? '' })));
-  const bad = rows.filter((r) => !/\$[\d.]+[BMT]?/.test(r.t) || !/Limited by/.test(r.t) || !/served/.test(r.t));
-  ok(`B1 ${where}: every product has a revenue row with served and Limited by`, rows.length >= 3 && bad.length === 0, bad.map((r) => r.t.slice(0, 80)).join(' ; '));
-  let tipped = 0;
-  for (const r of rows) {
-    await clearTips();
-    await page.hover(`[data-rev="${r.id}"] .bar`);
-    await wait(380);
-    const t = await page.evaluate(() => ({ text: document.querySelector('.tip')?.innerText ?? '', terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
-    if (/Wanted/.test(t.text)) tipped++;
-    for (const x of t.terms) b1Seen.add(x);
-  }
-  await clearTips();
-  ok(`B1 ${where}: every revenue bar opens its tooltip (wanted, not served) (${rows.length})`, tipped === rows.length, `${tipped}/${rows.length}`);
-  const sold = [];
-  for (const r of rows) {
-    await page.click(`[data-test="prod-open.${r.id}"]`);
-    await wait(100);
-    const e = await page.$eval(`[data-test=prod-drawer] [data-test="prod-econ.${r.id}"]`, (x) => x.innerText).catch(() => '');
-    for (const x of await page.$$eval('[data-test=prod-drawer] [data-term], [data-panel=products] [data-product] [data-term]', (els) => els.map((y) => y.getAttribute('data-term')))) b1Seen.add(x);
-    sold.push({ id: r.id, ok: /Serving cost/.test(e) && /Margin/.test(e) && /(Hours of work sold|Weekly users)/.test(e) && /\d/.test(e), e: e.replace(/\n/g, ' ').slice(0, 80) });
-    await page.click('[data-test=prod-drawer-close]');
-  }
-  ok(`B1 ${where}: every drawer shows sold in a year (hours or users, serving cost, margin)`, sold.every((x) => x.ok), sold.filter((x) => !x.ok).map((x) => x.e).join(' ; '));
-}
-// ───────────────────────── B2: customers on the card, tools (day 1, 400, 900) ─────────────────────────
-// Every card shows its share now → where buyers are heading (or holding), with the time in words and the best rival;
-// the customers tooltip carries the target; every tool on a card shows where it helps and its effect; the tools editor
-// rows keep their type, typed effect and tooltips (cost, upkeep, on here, gate).
-const B2_TERMS = ['customerStock', 'targetShare', 'featEnabler', 'featHorizon', 'featScaffold'];
-const b2Seen = new Set();
-const hoverTip = async (sel) => {
+const tipTerms = async (sel, seen) => {
   await clearTips();
   await page.hover(sel);
   await wait(380);
   const t = await page.evaluate(() => ({ text: document.querySelector('.tip')?.innerText ?? '', terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
-  for (const x of t.terms) b2Seen.add(x);
+  for (const x of t.terms) seen.add(x);
   return t.text;
 };
-async function b2Check(where) {
+async function b1Check(where) {
   await nav('products');
   const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({
     id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel'),
-    stock: e.querySelector('[data-test^="prod-cust-stock."]')?.textContent ?? '',
-    users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
+    profit: e.querySelector('[data-test^="prod-profit."]')?.textContent ?? '', margin: e.querySelector('[data-test^="prod-margin."]')?.textContent ?? '',
+    tile: (e.querySelector('[data-test^="prod-users."]') ?? e.querySelector('[data-test^="prod-hours."]'))?.textContent ?? '', price: e.querySelector('[data-test^="prod-price."]')?.textContent ?? '',
+    bar: !!e.querySelector('.rbar i.pr'), short: (() => { const b = e.querySelector('[data-test^="prod-serving."] .cbar i'); return b ? parseFloat(b.style.width) < 99.5 : false; })(),
+    away: e.querySelector('[data-test^="prod-away."]')?.textContent ?? '',
   })));
-  const bad = cards.filter((c) => !/\d%\s*(→\s*[\d.]+%|holding)/.test(c.stock) || (c.ch === 'consumer' && !/weekly users/.test(c.users)));
-  for (const x of await page.$$eval('[data-panel=products] [data-test^="prod-cust."] [data-term], [data-panel=products] [data-tool] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b2Seen.add(x);
-  ok(`B2 ${where}: every card shows its share now → where buyers are heading`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.stock} | ${c.users}`).join(' ; ') || cards.map((c) => `${c.ch}: ${c.stock}`).join(' ; '));
+  for (const x of await page.$$eval('[data-panel=products] [data-term]', (els) => els.map((y) => y.getAttribute('data-term')))) b1Seen.add(x);
+  const bad = cards.filter((c) => !/\$[\d.]+[BMT]?/.test(c.profit) || !/\d%/.test(c.margin) || !/\d/.test(c.tile) || !/\$[\d.]+/.test(c.price) || !c.bar);
+  ok(`B1 ${where}: every card leads with profit and margin, a revenue bar and the Users / Work sold and Price tiles`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.profit} ${c.margin} ${c.tile} ${c.price}`).join(' ; '));
+  const shortBad = cards.filter((c) => c.short && !/(turned away|rate-limited|short by)/.test(c.away));
+  ok(`B1 ${where}: a card short of serving compute says what rationing does (${cards.filter((c) => c.short).length} short)`, shortBad.length === 0, cards.filter((c) => c.short).map((c) => `${c.ch}: ${c.away}`).join(' ; '));
   let tipped = 0;
-  for (const c of cards) if (/heading/i.test(await hoverTip(`[data-test="prod-cust-stock.${c.id}"]`))) tipped++;
-  ok(`B2 ${where}: customer tracks open tooltips with where buyers are heading (${cards.length})`, tipped === cards.length, `${tipped}/${cards.length}`);
-  const tools = await page.$$eval('[data-panel=products] [data-product] [data-tool]', (els) => els.map((e) => ({ f: e.getAttribute('data-tool'), t: e.textContent ?? '' })));
-  const tbad = tools.filter((x) => !/(×[\d.]+|\+\d+%)/.test(x.t));
-  ok(`B2 ${where}: every tool on a card shows where it helps and its effect (${tools.length})`, tbad.length === 0, tbad.map((x) => `${x.f}: ${x.t}`).join(' ; '));
-  // UB-A: the card's tool rows carry the tool-type term in their tooltip (task tool / long-task tool / harness).
-  for (const x of [...new Set(tools.map((t) => t.f))]) await hoverTip(`[data-panel=products] [data-product] [data-tool="${x}"]`).catch(() => '');
+  for (const c of cards) {
+    const t = await tipTerms(`[data-product="${c.id}"] .rbar`, b1Seen);
+    if (/Revenue/.test(t) && /Serving cost/.test(t)) tipped++;
+    await tipTerms(`[data-test="prod-price.${c.id}"]`, b1Seen);
+    await tipTerms(`[data-product="${c.id}"] .who`, b1Seen);
+    await tipTerms(`[data-test="${c.ch === 'consumer' ? 'prod-users' : 'prod-hours'}.${c.id}"]`, b1Seen);
+    if (c.away) await tipTerms(`[data-test="prod-away.${c.id}"]`, b1Seen);
+  }
   await clearTips();
+  ok(`B1 ${where}: every revenue bar opens its tooltip (revenue, serving cost) (${cards.length})`, tipped === cards.length, `${tipped}/${cards.length}`);
+  const c0 = cards[0];
+  if (c0) {
+    await page.click(`[data-test="prod-open.${c0.id}"]`);
+    await wait(100);
+    for (const x of await page.$$eval('[data-test=prod-drawer] [data-term]', (els) => els.map((y) => y.getAttribute('data-term')))) b1Seen.add(x);
+    await page.click('[data-test=prod-drawer-close]');
+  }
+}
+// ───────────────────────── B2: business share on the strip, tools (day 1, 400, 900) ─────────────────────────
+// The strip shows your share of business buyers' spend now → where buyers are heading (or holding) with the top rival;
+// its tooltip carries the target; every tool chip opens its tooltip (build, upkeep, on here); the tools editor rows keep
+// their type, typed effect and tooltips (cost, upkeep, on here, gate).
+const B2_TERMS = ['customerStock', 'targetShare', 'featEnabler', 'featHorizon', 'featScaffold'];
+const b2Seen = new Set();
+const hoverTip = (sel) => tipTerms(sel, b2Seen);
+async function b2Check(where) {
+  await nav('products');
+  const share = await page.$eval('[data-test=prod-share]', (e) => e.parentElement?.textContent ?? '').catch(() => '');
+  ok(`B2 ${where}: the strip shows your business share now → where buyers are heading`, /\d%\s*(→\s*[\d.]+%|holding)/.test(share), share.slice(0, 80));
+  ok(`B2 ${where}: the share track opens its tooltip with where buyers are heading`, /heading/i.test(await hoverTip('[data-test=prod-share]')));
+  const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({ id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel') })));
+  const tools = await page.$$eval('[data-panel=products] [data-product] [data-tool]', (els) => els.map((e) => e.getAttribute('data-tool')));
+  const tmiss = [];
+  for (const x of [...new Set(tools)]) { const t = await hoverTip(`[data-panel=products] [data-product] [data-tool="${x}"]`).catch(() => ''); if (!/On this product/.test(t)) tmiss.push(x); }
+  await clearTips();
+  ok(`B2 ${where}: every tool chip opens its tooltip (${new Set(tools).size})`, tmiss.length === 0, tmiss.join(', '));
   // Tools editor (Add a tool): type chip and typed effect on every row; gated rows name the idea; tooltips.
   const first = cards.find((c) => c.ch !== 'consumer') ?? cards[0];
   if (!first) return;
@@ -971,14 +1006,14 @@ async function b4Check(where) {
   await wait(100);
   const trained = await page.$eval('[data-test=card-trained-list]', (e) => e.innerText).catch(() => '');
   ok(`D3 ${where}: model card › Trained with shows the data specialisation (no "Research boost")`, /Data/.test(trained) && !/Research boost/i.test(mText + trained), trained.replace(/\n/g, ' ').slice(0, 160));
-  // Products (UB-A): the live cards and the Agents card share one row; the revenue strip sits above them.
+  // Products (MK-13): the four cards (live or launch) share one row; the totals strip sits above them.
   await nav('products');
   const pr = await page.evaluate(() => {
     const cs = [...document.querySelectorAll('[data-panel=products] [data-product], [data-test=prod-launch]')].map((e) => Math.round(e.getBoundingClientRect().top));
-    const rv = document.querySelector('[data-test=prod-revenue]')?.getBoundingClientRect();
+    const rv = document.querySelector('[data-test=prod-strip]')?.getBoundingClientRect();
     return { n: cs.length, rows: new Set(cs).size, revTop: rv ? Math.round(rv.top) : -1, cardTop: cs[0] ?? -1 };
   });
-  ok(`B4 ${where}: Products: cards and the launch card in one row under the revenue strip`, pr.n <= 4 ? pr.rows === 1 && pr.revTop >= 0 && pr.revTop < pr.cardTop : true, JSON.stringify(pr));
+  ok(`B4 ${where}: Products: cards and launch cards in one row under the totals strip`, pr.n <= 4 ? pr.rows === 1 && pr.revTop >= 0 && pr.revTop < pr.cardTop : true, JSON.stringify(pr));
   await shot(`80-${where.replace(' ', '')}-products-b4`);
   // Research › Portfolio (UB-6): the board's two columns, no clipped card names; auto teams wanted and the keyboard
   // reorder from the card drawer / a focused card.
@@ -1552,27 +1587,30 @@ await e12Check('day 1');
 await d4Check('day 1', true);
 await nav('products');
 {
-  // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
+  // MK-13: the stance switch previews Win share by its next-day cost only (buyers move later: said in words, no number).
   const api = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
   if (api) {
-    await page.click(`[data-test="prod-price.${api}"] [data-opt="share"]`).catch(() => {});
-    await wait(120);
-    const pv = await page.evaluate((id) => document.querySelector(`[data-test="prod-edit.${id}"]`)?.innerText ?? '', api);
-    ok('B2: the edit preview shows the target share before → after', /Target share/.test(pv) && /\d%\s*→\s*\d/.test(pv), pv.replace(/\n/g, ' ').slice(0, 120));
-    await page.click(`[data-test="prod-cancel.${api}"]`).catch(() => {});
+    await clearTips();
+    await page.hover(`[data-test="prod-stance-opt.${api}.share"]`).catch(() => {});
+    await wait(450);
+    const pv = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
+    ok('B2: the Win share preview shows its cost from tomorrow, not a target share', /Profit a year, from tomorrow/.test(pv) && !/Target share/.test(pv), pv.replace(/\n/g, ' ').slice(0, 120));
+    await clearTips();
   }
 }
 await shot('25-day1-products');
 {
-  // A Premium Chat plan asks more than consumers pay: the price stops at the willingness to pay and the card flags it.
+  // MK-9: Chat's plan is priced by competition, never above what people pay ($22 a month); the Price tile shows it.
   const chat = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'consumer' && d.status === 'live') || {}).id || ''`));
   if (chat) {
     await page.evaluate((id) => window.ai27v2.act('product.update', { id, stance: 'share' }), chat);
     await page.evaluate(() => window.ai27v2.step(1));
     await closeModals();
     await nav('products');
-    const row = await page.evaluate((id) => document.querySelector(`[data-product="${id}"] .sec2.set`)?.innerText ?? '', chat);
-    ok('B1: a Premium Chat plan is priced at the $22 users will pay', /\$22 a month/.test(row), row.replace(/\n/g, ' ').slice(0, 90));
+    const row = await page.evaluate((id) => document.querySelector(`[data-test="prod-price.${id}"]`)?.parentElement?.innerText ?? '', chat);
+    const usd = Number((row.match(/\$([\d.]+)/) ?? [])[1]);
+    ok('B1: the Chat Price tile shows a monthly plan price at most the $22 people pay', usd > 0 && usd <= 22.0001 && /per month/.test(row), row.replace(/\n/g, ' ').slice(0, 90));
+    await page.evaluate((id) => window.ai27v2.act('product.update', { id, stance: 'profit' }), chat);
     await shot('26-day1-chat-capped');
   }
 }
@@ -1615,6 +1653,47 @@ for (const p of PANELS) {
 }
 await b1Check('day 400');
 await b2Check('day 400');
+// MK-13 (M13): the lineup popover on the day-400 fixture (more ready models than the young game B): add a model, swap
+// one, remove one, each through product.update; the popover rows carry the change a year and close after applying.
+{
+  await nav('products');
+  const lineupOf = (id) => `(() => { const d = s.player.deployments.find(x => x.id === "${id}"); return [d.versionId, ...(d.lineup || [])].join(','); })()`;
+  const addId = await page.$eval('[data-panel=products] [data-test^="prod-lineup-add."]:not([disabled])', (e) => e.getAttribute('data-test').slice('prod-lineup-add.'.length)).catch(() => '');
+  ok('MK-13 day 400: some product has a model you could add', !!addId);
+  if (addId) {
+    await page.click(`[data-test="prod-lineup-add.${addId}"]`);
+    await wait(600);
+    const pop = await page.evaluate(() => { const p = document.querySelector('[data-test=lu-pop]'); return p ? { mode: p.getAttribute('data-mode'), text: p.innerText, rows: p.querySelectorAll('button.po[data-opt]:not([disabled])').length } : null; });
+    ok('MK-13 day 400: "+ Add a model" opens the popover in add mode with the change a year (profit, hours or users, compute need)', !!pop && pop.mode === 'add' && pop.rows > 0 && /profit/i.test(pop.text) && /compute need/i.test(pop.text), pop ? pop.text.replace(/\n/g, ' ').slice(0, 160) : 'no popover');
+    await shot('82-day400-products-add');
+    if (pop?.rows) await check('MK-13 day 400: picking a model in add mode adds it to the lineup', lineupOf(addId), () => page.click('[data-test=lu-pop] button.po[data-opt]:not([disabled])'), 300);
+    ok('MK-13 day 400: the popover closes after applying', !(await page.$('[data-test=lu-pop]')));
+  }
+  // Swap: the first lineup slot (after the main model) that has a model to put in its place.
+  const slots = await page.$$eval('[data-panel=products] [data-product] [data-lu]', (els) => els.map((e) => e.getAttribute('data-lu')).filter((x) => !x.endsWith(':add')));
+  let swapped = false;
+  for (const lu of slots) {
+    const [pid, vid] = lu.split(':');
+    if (JSON.parse(await get(`s.player.deployments.find(x => x.id === "${pid}").versionId`)) === vid) continue;
+    await page.click(`[data-lu="${lu}"]`);
+    await wait(600);
+    const sw = await page.evaluate(() => { const p = document.querySelector('[data-test=lu-pop]'); return p ? { head: p.querySelector('.phd')?.textContent ?? '', rm: !!p.querySelector('[data-test=lu-pop-remove]'), rows: p.querySelectorAll('button.po[data-opt]:not([data-opt=remove]):not([disabled])').length } : null; });
+    if (!sw?.rows) { await page.keyboard.press('Escape'); await wait(60); continue; }
+    ok('MK-13 day 400: clicking a lineup model opens the swap popover (Replace …, options, Remove from lineup)', /Replace/.test(sw.head) && sw.rm, JSON.stringify(sw));
+    await page.mouse.move(1, 1);
+    await shot('83-day400-products-swap');
+    await check('MK-13 day 400: picking a model in swap mode replaces the slot', lineupOf(pid), () => page.click('[data-test=lu-pop] button.po[data-opt]:not([data-opt=remove]):not([disabled])'), 300);
+    const now = JSON.parse(await get(lineupOf(pid))).split(',');
+    if (now.length >= 2) {
+      await page.click(`[data-lu="${pid}:${now[now.length - 1]}"]`);
+      await wait(600);
+      await check('MK-13 day 400: Remove from lineup removes the model', lineupOf(pid), () => page.click('[data-test=lu-pop-remove]'), 300);
+    }
+    swapped = true;
+    break;
+  }
+  ok('MK-13 day 400: some lineup slot has a model to swap in', swapped);
+}
 await b3Check('day 400', '29-day400-world-sectors');
 await b4Check('day 400');
 await d6Check('day 400', true);
@@ -2119,7 +2198,7 @@ await shot('51-j2-lab-idle');
 await nav('products');
 {
   const spare = JSON.parse(await get(`(() => { const p = s.player; let used = 0; for (const d of p.deployments) if (d.kind === 'product' && d.status !== 'withdrawn' && d.needH100e !== undefined) used += Math.min(d.servedH100e ?? 0, d.needH100e); return p.computeOnline * p.split.serving - used; })()`));
-  ok('J2 PR1 (UB-A): Products says serving compute is spare and links to LAB (the segment lives there)', spare < 1000 || /spare/.test(await page.$eval('[data-test=prod-serving-link]', (e) => e.textContent ?? '').catch(() => '')), `spare ${Math.round(spare)}`);
+  ok('J2 PR1 (UB-A): Products says serving compute is spare and links to LAB (the segment lives there)', spare < 1000 || (/spare/.test(await page.$eval('[data-home=productServing]', (e) => e.textContent ?? '').catch(() => '')) && !!(await page.$('[data-test=prod-serving-link]'))), `spare ${Math.round(spare)}`);
   const launch = await page.$('[data-act^="product.launch."]:not([disabled]):not([data-act*=cancel])');
   if (launch) {
     await launch.click();
@@ -2361,7 +2440,7 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   }
   await wait(80);
   await collectLimits();
-  if (l.panel === 'products') { await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
+  if (l.panel === 'products') { const b = await page.$('[data-panel=products] [data-test^="prod-open."]'); if (b) { await b.click(); await wait(120); await collectLimits(); await page.click('[data-test=prod-drawer-close]').catch(() => {}); } }
 }
 await page.hover('.topstrip2 [data-test=speed]');
 await wait(450);
