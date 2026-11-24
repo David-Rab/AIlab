@@ -10,7 +10,7 @@ import { POST_DAYS, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
 import { LEADER_LAB_NAME, LEADER_MODEL_FAMILY, RIVAL_MODEL_FAMILIES, RIVAL_NAMES_V2 } from '../../../data/v2/names';
 import { TRAIT_START } from '../../../data/v2/traits';
-import { DAY0_TOOLS } from '../../../data/v2/features';
+import { toolsAtStart, type LabArchetype } from '../../../data/v2/tools';
 import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
@@ -103,7 +103,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
     archetype: arch.id,
     internal,
     publicModel,
-    tools: [...(DAY0_TOOLS[arch.id] ?? [])],
+    tools: toolsAtStart(arch.id as LabArchetype),
     nextBaseDay: Math.round(rng.range(30, 270)),
     phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },
@@ -151,7 +151,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     archetype: arch.id,
     internal,
     publicModel,
-    tools: [...(DAY0_TOOLS[arch.id] ?? [])],
+    tools: toolsAtStart(arch.id as LabArchetype),
     nextBaseDay: Math.round(rng.range(120, 270)),
     phys: PHYS_PLACEHOLDER(),
     finance: { ...f, commitments: f.cash * 2, distress: false },

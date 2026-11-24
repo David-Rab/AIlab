@@ -112,7 +112,7 @@ shares one) per sector × region, fx.priceM[r][sector][seller][model]. Target M*
 groups and bands model k wins hours in (q_k its hours there; s the seller's total share, so it internalises
 cannibalisation between its own models in a band). A model with no hours: the seller's hours-weighted margin per $ of
 cost (Σ q_k·M*_k ÷ Σ q_k·c_k) × its own cost; with no stock yet, the same from the seller's stocked margins (Σ M ÷ Σ c),
-else 1.5 × its own cost. Tier price = min(value, c_k + f·M_k), ≥ cost. Saves at schema 107 copy the seller's one M to
+else 1.5 × its own cost. Tier price = min(value, c_k + f·M_k), ≥ cost. Saves at schema 107 (107 → 108) copy the seller's one M to
 each of its models. Finding: in US Software at the start the cheap tiers still win no band (serving.ts TIERS E7 fails):
 with μ_b = p̄_b ÷ ε, a seller's cheap tier beats its own frontier model in a band only if SHARE_SLOPE_G·Δfit < (p_0 −
 p_k)/μ_b, and with the frontier at its own FOC margin that is at most ≈ 1/(1 − s) + (c_0 − c_k)/μ_b ≈ 1.9 there, below
@@ -152,7 +152,7 @@ General tools:
 | Agent mode | API, Enterprise, Vetted | sells autonomous agent-hours; gate: the model's time horizon ≥ the task length (today's Agents gate) |
 | Computer use | API, Enterprise, Vetted | GUI-only tasks (today's enabler); OSWorld +8–12 pp |
 | Memory | all four | horizon × 1.3 (today's) |
-| Voice & vision | all four | voice and image input; Chat appeal |
+| Voice & vision | Chat | voice and image input; Chat appeal (designer, MK-11: Chat only) |
 | Companion | Chat | Chat appeal, sycophancy risk (today's) |
 
 Rivals have a tool if their lab had shipped it by July 2025, otherwise a lag after the player ships it (today's rule).

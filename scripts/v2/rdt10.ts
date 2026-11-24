@@ -1,7 +1,7 @@
 // RD-T10 check: every option unlock comes from one table (option → node), no node lists its unlocks, no node books cash.
 // Run alone: npx tsx scripts/v2/rdt10.ts
 import { OPTION_NODE, OPTIONS_OF, TREE, TREE_BY_ID } from '../../src/data/v2/tree';
-import { FEATURES } from '../../src/data/v2/features';
+import { PRODUCT_TOOLS as FEATURES } from '../../src/data/v2/tools';
 import { DEMO_BUILD } from '../../src/data/v2/suites';
 
 let fail = 0;
@@ -14,7 +14,7 @@ check(bad.length === 0, `no node carries an unlock list or a cash cost (${bad.ma
 check(Object.values(OPTION_NODE).every((id) => !!TREE_BY_ID[id]), 'every option names a tree node');
 const back = Object.entries(OPTIONS_OF).flatMap(([id, l]) => l.map(([s, v]) => `${s}:${v}=${id}`)).sort().join();
 check(back === Object.entries(OPTION_NODE).map(([k, id]) => `${k}=${id}`).sort().join(), 'node option lists are exactly the table');
-check(FEATURES.every((f) => !f.node || !!TREE_BY_ID[f.node]), 'every gated product feature names a tree node (FeatureDef.node)');
+check(FEATURES.every((f) => !f.node || !!TREE_BY_ID[f.node]), 'every gated product tool names a tree node (ProductToolDef.node)');
 const demo = TREE_BY_ID[DEMO_BUILD.needs];
 check(!!demo && !demo.effect, 'the demos build names P12; P12 has no effect (a plain unlock, nothing bought)');
 // The pre-T10 derived table (from the nodes' own lists), pinned: behaviour identical.

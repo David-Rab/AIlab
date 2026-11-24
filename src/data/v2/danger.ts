@@ -73,17 +73,19 @@ export const DANGER_ACTS: Partial<Record<TraitId, ActDef>> = {
 /** U-modes borrow their mapped trait's act; a U-mode on a trait with no act uses this one (v2: κ 3e-4, severity 2–3). */
 export const UMODE_ACT: ActDef = { act: 'Unexplained behaviour', kappa: 2e-3, domain: 'AGENCY', thetaV2: 4.5, s: 1, alpha: 0.5, floor: 2, span: 1 };
 
-/** Task horizon a deployment gives the model (hours) [D]: chat turns, API calls, enterprise workflows, the Agents
- *  product's tasks (features.ts AGENT_TASK_HOURS = 4). Internal uses read their work types' horizons (workTypes.ts H). */
+/** Task horizon a deployment gives the model (hours) [D]: chat turns, API calls, enterprise workflows. MK-11: a product
+ *  with Agent mode runs its tasks (data/v2/tools.ts AGENT_TASK_HOURS = 4, the old Agents product's) at least that long
+ *  (models/products.ts productSiteTerms). Internal uses read their work types' horizons (workTypes.ts H). */
 export const CHANNEL_HORIZON_H: Record<Exclude<Channel, 'internal'>, number> = {
   consumer: 0.1, api: 0.5, enterprise: 1, vetted: 1, open: 2,
-}; // MK-11: Agents' 4 h tasks are gone with the product (Agent mode, a tool, brings them back)
+};
 /** Horizon at which autonomy A = H/(H + H_HALF) is one half [D]. */
 export const H_HALF = 2;
-/** Affordances by channel (code execution, internet, money, weights access; 1 = everything) [D]. */
+/** Affordances by channel (code execution, internet, money, weights access; 1 = everything) [D]. MK-11: Agent mode adds
+ *  +0.3 on its product (the old Agents channel's 0.8 over the API's 0.5; data/v2/tools.ts). */
 export const CHANNEL_AFFORD: Record<Channel, number> = {
   consumer: 0.3, api: 0.5, enterprise: 0.5, vetted: 0.5, open: 1, internal: 1,
-}; // MK-11: Agents' 0.8 is gone with the product
+};
 /** Scale exponent γ on copies: an act repeated across many copies is mostly one incident, so incident counts grow
  *  much slower than usage [D]; product traffic slower still (customers report a failure once, whatever the traffic) [D]. */
 export const COPIES_GAMMA = { internal: 0.2, serving: 0.1 };

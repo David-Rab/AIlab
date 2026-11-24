@@ -612,9 +612,10 @@ export type DeploymentKind = 'product' | 'internal' | 'open';
 /** MK-6 (design/MARKET.md M6): a product's price stance. 'profit': the seller's Nash–Bertrand margin M over each tier's
  *  serving cost; 'share': WIN_SHARE_FRACTION × M (data/v2/serving.ts). */
 export type PriceStance = 'profit' | 'share';
-/** RD-P08 (DD-04): a sector adaptation owned by a product (models/adaptations.ts): its scaffold for the sector is built;
- *  `certDone` the day its certification ends where the sector requires one (CERT_SECTORS), unset where it needs none. */
-export interface Adaptation { sector: SectorId; certDone?: Day }
+/** MK-11 (design/MARKET.md M14): a product's certification in a sector that has one (data/v2/tools.ts CERT_SECTORS),
+ *  started the first day the product carries a harness covering the sector (models/certs.ts certStep); `certDone` the
+ *  day it ends. It acts only while the product carries such a harness (certs.ts certifiedHere). */
+export interface Certification { sector: SectorId; certDone: Day }
 
 /** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ an optional lineup of other models) and an
  *  optional monitor, a price stance, safeguards, KYC, effort and features, all editable while live (R4, R6). */
@@ -648,15 +649,14 @@ export interface Deployment {
   /** Share of the serving pool: set by hand when the Auto serving policy is off; with Auto on it is written daily
    *  from the split (what this product actually gets). Internal uses the agents pool. */
   servingShare: number;
-  /** Features switched on for this product (built lab-wide first, R6). */
+  /** MK-11: the product tools switched on for this product (data/v2/tools.ts ProductToolId; built lab-wide first, R6). */
   features: string[];
   safeguards: 'minimal' | 'standard' | 'classifiers' | 'hardened';
   /** Owned safeguard items (SR-13: control protocol, human review, restriction, comms lockdown; safety/safeguards.ts). */
   guards: SafeguardItem[];
-  /** RD-P08 (DD-04): this product's sector adaptations (models/adaptations.ts): each raises this product's coverage of
-   *  its sector's tasks once built and, where the sector requires it, certified (worldfx/serving.ts offerOf). They move
-   *  to the next launch on the channel (a relaunch) and stop acting when the product is retired. */
-  adaptations: Adaptation[];
+  /** MK-11 (M14): this product's sector certifications (started or done; models/certs.ts). They move to the next launch
+   *  on the channel (a relaunch) and stop acting when the product is retired. */
+  certs: Certification[];
   usagePolicy: { noDropInReplacement: boolean; noSurveillance: boolean; noAutonomousWeapons: boolean; minorsProtections: boolean };
   kyc: 0 | 1 | 2 | 3; // RD-P09: buyer verification (api/agents): each level verifies 10× more of the anonymous buyers
   status: 'live' | 'withdrawn';
@@ -844,7 +844,7 @@ export type ReNeed = 'ops' | 'exp';
  *  validation jobs, eval suites, foothold removals, line-project experiments (by project priority).
  *  Each has a real staff (and compute) demand; capacity none takes is idle. */
 export type SafReNeed = 'review' | 'spotCheck' | 'cases' | 'validation' | 'evals' | 'removal' | 'safExp';
-/** Engineer needs: run operations and setups, product upkeep, builds (features, adoptions, launches, adaptations). */
+/** Engineer needs: run operations and setups, product upkeep, builds (product tools, adoptions, launches). */
 export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: an amount (`max`) and a share of the
  *  capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. CP3d: `max` is in the list's own unit,
@@ -1211,8 +1211,8 @@ export interface PlayerLab extends LabCore {
   research: ResearchState;
   /** Engineers' build queue (BUILD-PLAN R5): run setups now; product features, eval harnesses and safeguards from R6. */
   build: BuildState;
-  /** Product features built lab-wide (R6; ids of data/v2/features.ts). Switched on per product (Deployment.features);
-   *  RD-A06: they act only inside a product's offer. */
+  /** MK-11: the product tools built lab-wide (R6; data/v2/tools.ts ProductToolId). Switched on per product
+   *  (Deployment.features); RD-A06: they act only inside a product's offer. */
   features: string[];
   /** RD-A06 (DD-03): internal tooling the lab owns (ids of data/v2/features.ts INTERNAL_TOOLS): built by engineers, acts
    *  on the internal agents (worldfx/serving.ts internalFx). */
@@ -1305,7 +1305,7 @@ export interface AgentPackage {
 
 // ───────────────────────────── Build queue (STRUCTURE §4.1, R5) ─────────────────────────────
 
-export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'adaptation' | 'adopt' | 'suite' | 'eval';
+export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safeguard' | 'launch' | 'adopt' | 'suite' | 'eval';
 /** A product launch waiting for its build (J2 P1): the product goes live with these settings once built. */
 export interface PendingLaunch {
   channel: Channel;
@@ -1326,10 +1326,9 @@ export interface BuildItem {
   priority: number;
   /** Day it was queued. */
   day: Day;
-  /** kind 'launch': the product settings; kind 'adaptation': the host product id (ref = the sector); kind 'adopt': ref = the
-   *  project (tree node) whose result is built into the stack (model v3 V2). */
+  /** kind 'launch': the product settings; kind 'feature': ref = the product tool (data/v2/tools.ts); kind 'adopt': ref =
+   *  the project (tree node) whose result is built into the stack (model v3 V2). */
   launch?: PendingLaunch;
-  host?: string;
 }
 export interface BuildState {
   queue: BuildItem[];
@@ -2074,8 +2073,8 @@ export interface RivalLab {
   lineup?: SimpleModel[];
   /** RD-P02: students its aggregate distill step is making; each goes on sale on its `day`. */
   distilling?: SimpleModel[];
-  /** RD-P07 (DD-03 rival part), RF-P1: the product tools (enabler feature ids) the lab sells with: what it had at the
-   *  start (data/v2/features.ts DAY0_TOOLS), plus a tool new in the game TOOL_LAG_DAYS after the player first shipped it
+  /** RD-P07 (DD-03 rival part), RF-P1, MK-11: the product tools (data/v2/tools.ts ProductToolId) the lab sells with:
+   *  what its lab had shipped by the start (tools.ts toolsAtStart), plus a tool new in the game TOOL_LAG_DAYS after the player first shipped it
    *  (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
   tools?: string[];
   nextBaseDay: Day;

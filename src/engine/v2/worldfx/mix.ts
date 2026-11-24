@@ -54,7 +54,7 @@ import { flopPerToken } from '../departments/workfit';
 import { decodeUtilNow } from '../models/stacks';
 import { rivalDecodeU, rivalServeFpt } from '../actors/rivalModel';
 import {
-  chatToolAppeal, fptOfSimple, fxOn, offerOf, planFactorOf, stanceFactor,
+  chatToolAppeal, fptOfSimple, fxOn, labToolOpts, offerOf, planFactorOf, stanceFactor,
   agentDemandOf, chatFreeTier, paidShareTarget, productFx, productLineup, productTierUses, productOffer, productTools, productUses, savedPerAdoptedHour, serveDollarsPerHour, settingsDG, subPrice,
   tokEff, valuePerHour, wagePerHour, type ModelUse, type Offer,
 } from './serving';
@@ -115,7 +115,7 @@ export interface Provider {
   brand: number;
   /** Chat appeal; a rival's includes its acquired Chat tools (RD-P07 chatToolAppeal). */
   appeal: number;
-  /** RD-P07: the tools (enabler features) a non-player lab has acquired (RivalLab.tools); none for the player's open
+  /** RD-P07, MK-11: the product tools a non-player lab has (RivalLab.tools); none for the player's open
    *  release (a release carries no product tools). The player's products read their own (productTools). */
   tools?: readonly string[];
 }
@@ -663,7 +663,7 @@ function computeMix(s: GameStateV2): WorldMix {
     const kind: TierKind[][] = [];
     for (let i = 0; i < n; i++) {
       const p = providers[i];
-      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools });
+      if (p.model) row[i] = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, ...labToolOpts(s, p.tools, t.id, p.model) });
       lines.push(row[i] ? [row[i]!] : []);
       kind.push(row[i] ? ['model'] : []);
     }
@@ -700,7 +700,7 @@ function computeMix(s: GameStateV2): WorldMix {
       const p = providers[i];
       if (!row[i] || !p.tiers?.length) continue;
       for (const x of p.tiers) {
-        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools }));
+        lines[i].push(offerOf(s, [{ v: x.model, fpt: x.fpt, w: 1 }], t.id, { markup: p.markup, rate, ud: p.ud, tools: p.tools, ...labToolOpts(s, p.tools, t.id, x.model) }));
         kind[i].push('student');
       }
     }
@@ -1046,11 +1046,11 @@ function computeMix(s: GameStateV2): WorldMix {
     const g = pg[i];
     if (g) cSocial[i] = g[I.SOCIAL];
     if (!p.model) continue;
-    const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud });
+    const o = offerOf(s, [{ v: p.model, fpt: p.fpt ?? 2e12, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud, ...labToolOpts(s, p.tools, 'CHAT') });
     cFit[i] = o.fit;
     let free = { model: p.model as SimpleModel | ModelVersion, fpt: p.fpt ?? 2e12 };
     for (const x of p.tiers ?? []) if (x.fpt < free.fpt) free = x;
-    cFree[i] = free.model === p.model ? o.fit : offerOf(s, [{ v: free.model, fpt: free.fpt, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud }).fit;
+    cFree[i] = free.model === p.model ? o.fit : offerOf(s, [{ v: free.model, fpt: free.fpt, w: 1 }], 'CHAT', { markup: p.markup, rate, ud: p.ud, ...labToolOpts(s, p.tools, 'CHAT') }).fit;
     cCover[i] = o.a;
     cPrice[i] = subPrice(s, p.fpt ?? 2e12, p.plan, tokEff(p.model), p.ud).price;
   }

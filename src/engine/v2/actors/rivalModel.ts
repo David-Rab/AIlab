@@ -34,7 +34,8 @@ import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
-import { DAY0_TOOLS, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_LAG_DAYS, type FeatureId } from '../../../data/v2/features';
+import { P05_ORCHESTRATION, TOOL_LAG_DAYS } from '../../../data/v2/features';
+import { PRODUCT_TOOLS, PRODUCT_TOOL_BY_ID, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
 import { START_BY_ID } from '../../../data/v2/starts';
 import { domainRefShift, domainsOf, equilibriumLagRange, gOfBuild, gV0, levelOfG, startLab, startLabAt, versionDomainG } from '../models/capability';
 import { continueGPre, distillGap, flopOfDesign, paramsForFlop, rlFamiliesAvailable, rlGains, rlWeights, type FamilyMap } from '../models/effective';
@@ -874,32 +875,34 @@ export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, rele
 
 // ───────────────────────────── product tools (RD-P07, DD-03 rival part) ─────────────────────────────
 
-/** RF-P1: whether product tool `id` is new in this game: no lab of the world had it at the start (the rivals' and
- *  China's DAY0_TOOLS by archetype, the player's start features). Only such a tool follows the TOOL_LAG_DAYS rule. */
+/** RF-P1, MK-11: whether product tool `id` is new in this game: no lab of the world had it at the start (the rivals'
+ *  and China's tools at the start by archetype, data/v2/tools.ts toolsAtStart; the player's start tools). Only such a
+ *  tool follows the TOOL_LAG_DAYS rule. */
 export function toolNewInGame(s: GameStateV2, id: string): boolean {
-  if (START_BY_ID[s.setup.start ?? 'leader']?.features.includes(id as FeatureId)) return false;
-  return ![...s.rivals, s.china.lab].some((r) => DAY0_TOOLS[r.archetype]?.includes(id as FeatureId));
+  if (START_BY_ID[s.setup.start ?? 'leader']?.features.includes(id as ProductToolId)) return false;
+  return ![...s.rivals, s.china.lab].some((r) => toolsAtStart(r.archetype as LabArchetype).includes(id as ProductToolId));
 }
-/** RD-P07: records the day the player first ships each product tool new in this game (data/v2/features.ts ENABLER_TOOLS;
- *  built, switched on, offered by the channel; open releases and internal deployments carry no product tools). */
+/** RD-P07, MK-11: records the day the player first ships each product tool new in this game (data/v2/tools.ts; built,
+ *  switched on, offered by the channel; open releases and internal deployments carry no product tools). */
 export function recordToolShips(s: GameStateV2, day: number) {
   for (const d of s.player.deployments) {
     if (d.status === 'withdrawn' || d.channel === 'internal' || d.channel === 'open') continue;
     for (const id of d.features) {
-      if (!ENABLER_TOOLS.includes(id as FeatureId) || !s.player.features.includes(id)) continue;
-      if (!FEATURE_BY_ID[id as FeatureId].products.includes(d.channel)) continue;
+      const t = PRODUCT_TOOL_BY_ID[id as ProductToolId];
+      if (!t || !s.player.features.includes(id)) continue;
+      if (!(t.products as string[]).includes(d.channel)) continue;
       if (s.world.fx.toolShip?.[id] !== undefined || !toolNewInGame(s, id)) continue;
       (s.world.fx.toolShip ??= {})[id] = day;
     }
   }
 }
-/** RD-P07 (DD-18 stand-in), RF-P1: lab r's product tools: what it had at the start (DAY0_TOOLS, set at creation), plus a
- *  tool new in this game TOOL_LAG_DAYS after the player first shipped it (world.fx.toolShip). It keeps a tool once it
- *  has it. */
+/** RD-P07 (DD-18 stand-in), RF-P1, MK-11: lab r's product tools: what its lab had shipped by the start (data/v2/tools.ts
+ *  toolsAtStart, set at creation), plus a tool new in this game TOOL_LAG_DAYS after the player first shipped it
+ *  (world.fx.toolShip). It keeps a tool once it has it. */
 export function rivalToolStep(s: GameStateV2, r: RivalLab, day: number) {
   const ship = s.world.fx.toolShip;
   if (!ship) return;
-  for (const id of ENABLER_TOOLS) {
+  for (const { id } of PRODUCT_TOOLS) {
     const d0 = ship[id];
     if (d0 === undefined || day < d0 + TOOL_LAG_DAYS || r.tools?.includes(id)) continue;
     (r.tools ??= []).push(id);

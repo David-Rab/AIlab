@@ -3,13 +3,14 @@
 //   revenueTrend   all revenue, weekly (s.series.revenue), its peak and the change since (F)
 //   customerDrift  where a product's buyers are heading: share now vs the target share, in words (B·fc)
 //   limitReason    "Limited by" as a sentence: what binds and why, from the bound word and served demand (B)
-//   agentsReady    the Agents launch checklist: measured horizon vs the tasks it sells, engineers' spare capacity (M / F)
+//   agentsReady    a launch's engineering (spare capacity, weeks) and Agent mode's gate: the best model's measured
+//                  horizon vs the tasks Agent mode sells (M / F)
 //   winBack        what could win buyers back on a quality-bound product: a newer model of yours, know-how waiting for
-//                  a new base model, a sector certification (F / B)
-import { AGENT_TASK_HOURS } from '../../../data/v2/features';
+//                  a new base model, a harness that certifies the product in a sector (F / B)
+import { AGENT_TASK_HOURS, CERT_SECTORS } from '../../../data/v2/tools';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { LAUNCH_TW } from '../departments/build';
-import { ADAPT_TW, CERT_SECTORS, adaptationsBuilding, needsCert } from '../models/adaptations';
+import { harnessesCertifying } from '../models/certs';
 import { CHANNEL_VARIANTS } from '../models/deployments';
 import { useShareOf } from './use';
 import { measuredHorizonH } from '../models/products';
@@ -57,13 +58,14 @@ export function limitReason(r: ProductRead): string {
 }
 
 export interface AgentsReady {
-  /** Your best model for Agents by measured skill, its measured time horizon (h) and the hours the tasks take. */
+  /** Your best model an API product can sell by measured skill, its measured time horizon (h) and the hours Agent
+   *  mode's tasks take (its gate). */
   model?: ModelVersion; hours?: number; need: number;
-  /** Engineers' spare capacity (share of capacity) and the weeks the launch takes at it (Infinity: none spare). */
+  /** Engineers' spare capacity (share of capacity) and the weeks a launch takes at it (Infinity: none spare). */
   spare: number; weeks: number;
 }
 export function agentsReady(s: GameStateV2): AgentsReady {
-  const ok = CHANNEL_VARIANTS.api; // MK-11: the Agents product's readiness, read on the API until Agent mode (a tool)
+  const ok = CHANNEL_VARIANTS.api;
   const vs = s.player.models.versions.filter((v) => (v.status === 'ready' || v.status === 'deployed') && ok.includes(v.variant))
     .sort((a, b) => measuredLOf(s, b).L - measuredLOf(s, a).L);
   const e = engAllocView(s);
@@ -76,11 +78,12 @@ export function agentsReady(s: GameStateV2): AgentsReady {
 export type WinBack =
   | { kind: 'model'; version: ModelVersion; testing: boolean }
   | { kind: 'knowhow'; x: number; area: string }
-  | { kind: 'cert'; sector: SectorId; name: string; weeks: number };
+  | { kind: 'cert'; sector: SectorId; name: string; weeks: number; tool: string; toolName: string; built: boolean };
 
 /** What could win buyers back on a product (the drawer's list, best first): a stronger model of yours not in the
  *  product (testing or ready), know-how waiting for a new base model (pretraining recipe), a certification the product
- *  can still start (largest US spend first, as product.adapt picks). */
+ *  can still start: the sector with the largest US spend it has no certification for, through a harness it can carry
+ *  (MK-11, M14: built ones first; weeks = the harness's build at the spare capacity, 0 when built). */
 export function winBack(s: GameStateV2, d: Deployment): WinBack[] {
   const out: WinBack[] = [];
   const cur = s.player.models.versions.find((v) => v.id === d.versionId);
@@ -92,12 +95,16 @@ export function winBack(s: GameStateV2, d: Deployment): WinBack[] {
   if (cand) out.push({ kind: 'model', version: cand, testing: cand.status === 'evaluating' });
   const pre = knowHowAreas(s).filter((a) => a.waiting && a.waiting.x >= 1.05).sort((a, b) => b.waiting!.x - a.waiting!.x)[0];
   if (pre) out.push({ kind: 'knowhow', x: pre.waiting!.x, area: pre.name });
-  if (d.channel === 'enterprise' || d.channel === 'api') {
-    const building = new Set(adaptationsBuilding(s, d.id).map((it) => it.ref));
-    const open = CERT_SECTORS.filter((x) => needsCert(x) && !d.adaptations.some((a) => a.sector === x) && !building.has(x));
-    const best = open.sort((a, b) => sectorWeight(s, b) - sectorWeight(s, a))[0];
-    const e = engAllocView(s);
-    if (best) out.push({ kind: 'cert', sector: best, name: SECTOR_BY_ID[best].name, weeks: e.idle > 0.01 ? ADAPT_TW / e.idle : Infinity });
+  if (d.channel !== 'consumer') {
+    const open = CERT_SECTORS.filter((x) => !(d.certs ?? []).some((c) => c.sector === x) && harnessesCertifying(x, d.channel).length > 0);
+    const best = [...open].sort((a, b) => sectorWeight(s, b) - sectorWeight(s, a))[0];
+    if (best) {
+      const hs = harnessesCertifying(best, d.channel);
+      const t = hs.find((h) => s.player.features.includes(h.id)) ?? hs[0];
+      const built = s.player.features.includes(t.id);
+      const e = engAllocView(s);
+      out.push({ kind: 'cert', sector: best, name: SECTOR_BY_ID[best].name, tool: t.id, toolName: t.name, built, weeks: built ? 0 : e.idle > 0.01 ? t.buildTW / e.idle : Infinity });
+    }
   }
   return out;
 }
