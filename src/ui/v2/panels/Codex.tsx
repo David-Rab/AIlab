@@ -93,7 +93,7 @@ export function Codex({ s }: { s: GameStateV2 }) {
           <>
             <h3>{sel.title}</h3>
             <div className="dim small">{sel.cat}{sel.design && designerOverlay() ? ' · contains [D] design values (no direct empirical estimate)' : ''}</div>
-            {sel.diagram === 'loop' && <div className="codex-diagram"><CoreLoop s={s} live={false} /></div>}
+            {sel.diagram === 'loop' && <div className="codex-diagram"><CoreLoop s={s} /></div>}
             <p><Rich text={sel.body} /></p>
             {sel.rows && sel.rows.length > 0 && <table className="tbl"><tbody>{sel.rows.map(([k, v]) => <tr key={k}><td className="dim">{k}</td><td>{v}</td></tr>)}</tbody></table>}
             {paperSources(sel.src) && <div className="tipcard-foot">Based on: {paperSources(sel.src)}</div>}

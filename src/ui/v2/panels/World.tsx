@@ -13,6 +13,7 @@ import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Limit, fmtB, fmtNum, Gate, Meter, pct, Row, Section, Slider, Spark, Term, Tip, TipCard, Why } from '../ui';
 import { PanelHead, Tabs, tabOf } from '../kit';
 import { WorldSectors } from './WorldSectors';
+import { WorldRisk } from './WorldRisk';
 import { ICON } from '../icons';
 
 const LAB_COLOR = (id: string) => (id === 'player' ? '#3a8ae0' : id.startsWith('player') ? '#2f6fb8' : id === 'china' ? '#c43c8c' : ['#d4732a', '#b5622a', '#e08a4c', '#a8581e'][id.charCodeAt(id.length - 1) % 4]);
@@ -30,7 +31,7 @@ export function World({ s }: { s: GameStateV2 }) {
   const names = (id: string) => (id === 'player' ? s.player.name : id === 'china' ? 'China' : id === 'player:open' ? 'Your open weights' : s.rivals.find((r) => r.core.id === id)?.core.name ?? id);
   return (
     <div className="panel-v2" data-panel="world">
-      <PanelHead icon={ICON.world} title="World" sub="AI at work and jobs, who controls what" tabs={<Tabs panel="world" def="sectors" tabs={[{ id: 'sectors', label: 'Sectors', icon: ICON.world }, { id: 'society', label: 'Control & tech', icon: ICON.staff }]} />} />
+      <PanelHead icon={ICON.world} title="World" sub="world risk, AI at work and jobs, who controls what" tabs={<Tabs panel="world" def="sectors" tabs={[{ id: 'sectors', label: 'Sectors', icon: ICON.world }, { id: 'risk', label: 'Risk', icon: ICON.risks }, { id: 'society', label: 'Control & tech', icon: ICON.staff }]} />} />
       <div className="macro-strip" data-test="macro">
         <Tip content={() => <TipCard title="US GDP growth" value={pct(us.g, 1)} />}><span><Term id="gdpG">GDP growth</Term> <b className="num">{pct(us.g, 1)}</b></span></Tip>
         <Tip content={() => <TipCard title={<Term id="dow">Dow</Term>} value={fmtNum(s.world.dow)} rows={[{ label: 'Year to date', value: pct(dowYtd(s), 1) }]} />}><span><Term id="dow">Dow</Term> <b className="num">{fmtNum(s.world.dow)}</b> <span className={dowYtd(s) >= 0 ? 'tone-pos' : 'tone-neg'}>{pct(dowYtd(s), 1)} ytd</span></span></Tip>
@@ -50,6 +51,7 @@ export function World({ s }: { s: GameStateV2 }) {
           <Row label={<Tip content={() => <TipCard title={<Term id="transitionFund">Transition fund</Term>} value={`${fmtB(fund)}/yr`}>Drag, then Set: paid every year from your cash.</TipCard>}><span><Term id="transitionFund">Transition fund</Term> {fmtB(fund)}/yr</span></Tip>}><Slider value={fund} min={0} max={100} step={1} onChange={setFund} /><ActBtn id="wfx.transitionFund" params={{ amount: fund }} label="Set" /></Row>
         </Section>
       )} />}
+      {tab === 'risk' && <WorldRisk s={s} />}
       {tab === 'society' && <>
       <div>
         <div>

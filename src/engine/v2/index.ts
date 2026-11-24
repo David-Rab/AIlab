@@ -145,6 +145,7 @@ export * from './core/limitsView';
 export * from './models/rdReadouts';
 export * from './safety/safetyReadouts';
 export * from './core/certainty';
+export * from './models/discoveryView';
 export { sightCurve } from './safety/sightLimit';
 // Model v3 D5: RL environment suites (readout and costs).
 export { suitesView, suiteWorkCost, suiteWorkEffect, familyDomain, demosAvailable, type SuiteRow } from './models/suites';

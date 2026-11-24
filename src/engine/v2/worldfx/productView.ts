@@ -114,6 +114,8 @@ export interface CustomerView {
   days: number;
   /** Segments with the largest weighted gap (up to 4). */
   movers: CustomerSeg[];
+  /** UB-A (PRODUCTS drawer): per segment (sector, or consumer) over the regions, spend-weighted, largest spend first. */
+  bySeg: { seg: SectorId | 'consumer'; w: number; stock: number; target: number }[];
 }
 /** The stock counts as at its target within half a percentage point (spend-weighted gap) [D]. */
 export const CONVERGED = 0.005;
@@ -146,7 +148,14 @@ function customerOf(segs: CustomerSeg[]): CustomerView {
   const taus = [...tm].map(([days, w]) => ({ days, w })).sort((a, b) => b.w - a.w);
   const movers = n.filter((x) => Math.abs(x.target - x.stock) > 1e-4)
     .sort((a, b) => b.w * Math.abs(b.target - b.stock) - a.w * Math.abs(a.target - a.stock)).slice(0, 4);
-  return { stock, target, taus, days: convergeDays(n), movers };
+  const bm = new Map<string, { seg: SectorId | 'consumer'; w: number; a: number; b: number }>();
+  for (const x of n) {
+    const e = bm.get(x.seg) ?? { seg: x.seg, w: 0, a: 0, b: 0 };
+    e.w += x.w; e.a += x.w * x.stock; e.b += x.w * x.target;
+    bm.set(x.seg, e);
+  }
+  const bySeg = [...bm.values()].map((e) => ({ seg: e.seg, w: e.w / Wn, stock: e.w > 0 ? e.a / e.w : 0, target: e.w > 0 ? e.b / e.w : 0 })).sort((a, b) => b.w - a.w);
+  return { stock, target, taus, days: convergeDays(n), movers, bySeg };
 }
 
 const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, sector: CUSTOMER_TAU.sector * 365, gov: CUSTOMER_TAU.gov * 365 };

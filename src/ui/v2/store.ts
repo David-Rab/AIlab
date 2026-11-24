@@ -261,8 +261,10 @@ class StoreV2 {
   }
   setPanel(id: string) {
     // UB-5: the Company panel became LAB (its Flow tab is the LAB board); old links land there.
-    this.panel = id === 'map' ? 'overview' : id === 'departments' || id === 'company' ? 'lab' : id;
+    // UB-A: the Risk panel became World › Risk (world risk lives on World; your models' risk on SAFETY).
+    this.panel = id === 'map' ? 'overview' : id === 'departments' || id === 'company' ? 'lab' : id === 'risk' ? 'world' : id;
     if (id === 'departments') this.tab.lab = 'people';
+    if (id === 'risk') this.tab = { ...this.tab, world: 'risk' };
     const s = this.state;
     if (s && !s.tutorial.seen.includes(`panel:${this.panel}`)) s.tutorial.seen.push(`panel:${this.panel}`);
     this.notify();

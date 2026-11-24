@@ -109,21 +109,15 @@
 
 /* Core loop (CoreLoop.tsx): Overview (live) and codex (static). */
 .coreloop { width: 100%; height: auto; display: block; }
-.coreloop .cl-node.live { cursor: pointer; }
-.coreloop .cl-node.live:hover rect { fill: #223042; }
 .coreloop .cl-in { font: 12px var(--sans); color: var(--text); line-height: 1.25; }
 .coreloop .cl-t { display: flex; align-items: center; gap: 5px; font-size: 13px; white-space: nowrap; }
 .coreloop .cl-n { font: 600 10px var(--mono); color: var(--text-3); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 3px; }
 .coreloop .cl-r { margin-top: 5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coreloop .cl-r.tone-good { color: var(--text); }
-.coreloop .cl-r.tone-watch { color: var(--warn); }
-.coreloop .cl-r.tone-bad { color: var(--neg); }
 .coreloop .cl-edge { font: 11px var(--sans); fill: var(--text-3); }
 .coreloop .cl-edge.takeoff { fill: #b28cf0; }
 /* J1 (jank RL1): relations action groups and the separated exit */
 .rel-groups { margin-bottom: 8px; }
 .rel-exit { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
-.rh-start { padding: 6px 0; }
 .sf-cases2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 /* J1 (jank O2): the bottom chip opens the alert channel */
 .alert-wrap { position: relative; }

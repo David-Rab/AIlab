@@ -1,10 +1,11 @@
-// Risk (IA.md L2): Sources · Flows. Sources is the HOME of risk per source, its band, drivers and levers (estimates
-// from beliefs, intel and exposure; never truth). The combined catastrophe-risk headline lives in the top strip and is
-// not repeated here. Flows is the node map of theft, distillation, talent, chips and open weights.
+// World › Risk (UB-A; DECISIONS 'Remaining mockups approved': world risk lives on World, UI-IA §0). HOME of world
+// risk per source (rival labs, China, misuse, theft, rogue copies, war), its range, drivers and levers: estimates from
+// intel, beliefs and exposure, never truth. Your own models' loss-of-control risk is not here: its one home is SAFETY
+// (gauge) with the L0 item. Below: the flows of theft, distillation, talent, chips and open weights.
 import { engine, riskLevers } from '../../../engine/v2';
 import type { GameStateV2, RiskSource } from '../../../engine/v2';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
-import { Card, GoBtn, PanelHead, Ref, tabOf, Tabs, type GoTarget } from '../kit';
+import { Card, GoBtn, Ref, type GoTarget } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -12,9 +13,9 @@ import { riskColor } from '../safetyRule';
 import { RiskFlows } from './RiskMap';
 import './risk.css';
 
+type WorldKind = Exclude<RiskSource['kind'], 'ownModel'>;
 type Lever = { label: string; act?: { id: string; params?: Record<string, string | number | boolean> }; go?: GoTarget };
-const LEVERS: Record<RiskSource['kind'], Lever[]> = {
-  ownModel: [{ label: 'Safety programmes', go: { panel: 'research', tab: 'projects' } }, { label: 'Full evals', act: { id: 'safety.frameworkEvals', params: { depth: 'full' } } }, { label: 'Open a case on scheming', act: { id: 'safety.investigate', params: { trait: 'SCHEME' } } }],
+const LEVERS: Record<WorldKind, Lever[]> = {
   rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
   // Jank RL2: security controls have one home (Lab › Security); Risk links there.
   china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'lab', tab: 'security' } }],
@@ -23,19 +24,17 @@ const LEVERS: Record<RiskSource['kind'], Lever[]> = {
   rogue: [{ label: 'Safeguard research', go: { panel: 'research', tab: 'projects' } }, { label: 'Monitors', go: { panel: 'lab', tab: 'work', anchor: 'agents' } }],
   war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
 };
-const KIND_ICON: Record<RiskSource['kind'], typeof ICON.risk> = { ownModel: ICON.ownModel, rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
-const KIND_LABEL: Record<RiskSource['kind'], string> = { ownModel: 'your models', rival: 'rival lab', china: 'China', misuse: 'misuse', theft: 'theft', rogue: 'rogue AI', war: 'conflict' };
+const KIND_ICON: Record<WorldKind, typeof ICON.risk> = { rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
+const KIND_LABEL: Record<WorldKind, string> = { rival: 'rival lab', china: 'China', misuse: 'misuse', theft: 'theft', rogue: 'rogue AI', war: 'conflict' };
 /** Where each kind's main driver has its home (a reference, never the value). */
-const DRIVER_REF: Partial<Record<RiskSource['kind'], { id: string; label: string; to: GoTarget }>> = {
-  ownModel: { id: 'actTable', label: 'Acts against the lab', to: { panel: 'safety', tab: 'risks' } },
+const DRIVER_REF: Partial<Record<WorldKind, { id: string; label: string; to: GoTarget }>> = {
   theft: { id: 'wsl', label: 'Weight security', to: { panel: 'lab', tab: 'security' } },
   rival: { id: 'leadTrack', label: 'Lead track', to: { panel: 'overview' } },
   misuse: { id: 'servingSplit', label: 'Products', to: { panel: 'products' } },
 };
 const DRV_COLORS = ['#c9d4e2', '#8a9bb0', '#5b6b80', '#3d4b5e'];
 /** Why a source carries risk, in one line (the drivers give the split). */
-const KIND_WHY: Record<RiskSource['kind'], string> = {
-  ownModel: 'Loss-of-control risk, if it could act now: your believed chance that the riskiest model you run could act against you with nothing able to stop it (how sure you are of what it would try, the stop rate on acts against the lab, known and unfound footholds, the published range of what the world survives).',
+const KIND_WHY: Record<WorldKind, string> = {
   rival: 'A rival lab adds risk from its own models (its safety culture and capability) even when it is behind you: being behind does not make its models safe.',
   china: 'China\'s lab: its capability, safety culture and the race pressure on it.',
   misuse: 'Misuse of your products: capability in dangerous domains, safeguards and how many users can reach it.',
@@ -46,7 +45,7 @@ const KIND_WHY: Record<RiskSource['kind'], string> = {
 const sevColor = (x: number) => riskColor(x, 'prob');
 
 function Sources({ s }: { s: GameStateV2 }) {
-  const rows = [...engine.riskSources(s)].sort((a, b) => b.estimate - a.estimate);
+  const rows = engine.riskSources(s).filter((r): r is RiskSource & { kind: WorldKind } => r.kind !== 'ownModel').sort((a, b) => b.estimate - a.estimate);
   // J2 RK1: engine what-ifs, how far one step of each lever moves each source.
   const levers = riskLevers(s);
   const pts = (d: number) => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(Math.abs(d) < 0.001 ? 2 : 1)} pts`;
@@ -55,7 +54,7 @@ function Sources({ s }: { s: GameStateV2 }) {
   const X = (x: number) => `${(Math.max(0, Math.min(max, x)) / max) * 100}%`;
   const ticks = [0, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1].filter((t) => t <= max);
   return (
-    <Card title={<Term id="riskSource">Where risk comes from</Term>} sub="best guess per source with its range · hover a row for its drivers" home="riskSources"
+    <Card title={<Term id="riskSource">World risk</Term>} sub="where risk comes from outside your lab · best guess per source with its range · hover a row for its drivers" home="riskSources"
       right={<span className="legend2"><span><i style={{ background: C.good }} />&lt; 5%</span><span><i style={{ background: C.watch }} />5–20%</span><span><i style={{ background: C.bad }} />&gt; 20%</span><span><i className="band" />range</span></span>}>
       <div className="rs2-axis">
         <span /><span className="rs2-track">{ticks.map((t) => <span key={t} className="rs2-tick" style={{ left: X(t) }}>{F.pct(t)}</span>)}</span><span /><span />
@@ -96,20 +95,17 @@ function Sources({ s }: { s: GameStateV2 }) {
           </div>
         );
       })}
-      <div className="dim small" style={{ marginTop: 8 }}>Built from your trait beliefs, intel estimates and exposure. The world's true thresholds are unknown. The combined estimate is in the top strip.</div>
+      <div className="dim small" style={{ marginTop: 8 }}>Built from intel estimates, your beliefs and exposure. The world's true thresholds are unknown. Your own models' risk: <Ref id="lossRisk" to={{ panel: 'safety', tab: 'risks' }}>SAFETY › Risks</Ref></div>
     </Card>
   );
 }
 
-export function RiskSources({ s }: { s: GameStateV2 }) {
-  const tab = tabOf('risk', 'sources');
+/** World › Risk tab: the world risk sources, then the flows. */
+export function WorldRisk({ s }: { s: GameStateV2 }) {
   return (
-    <div className={`panel-v2 risk2 ${s.tutorial.act >= 4 ? 'emph-panel' : ''}`} data-panel="risk">
-      <PanelHead icon={ICON.risks} title="Risk" sub="what could end in catastrophe, and what you can do about it"
-        tabs={<Tabs panel="risk" def="sources" tabs={[{ id: 'sources', label: 'Sources', icon: ICON.risk }, { id: 'flows', label: 'Flows', icon: ICON.company }]} />} />
-      {tab === 'flows'
-        ? <Card title="Flows" sub="theft, distillation, talent, chips and open weights · hover a node, click for its panel" home="riskFlows"><RiskFlows s={s} /></Card>
-        : <Sources s={s} />}
+    <div className="risk2" data-test="world-risk">
+      <Sources s={s} />
+      <Card title="Flows" sub="theft, distillation, talent, chips and open weights · hover a node, click for its panel" home="riskFlows"><RiskFlows s={s} /></Card>
     </div>
   );
 }

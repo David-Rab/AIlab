@@ -1,163 +1,195 @@
-// Overview (IA.md L1, the main screen): your company as the core loop (STRUCTURE §2, a verdict per system linking to
-// its home) · lead track · race history · Watch, plus Goals while the tutorial runs. Nothing else: every other datum
-// lives one level down.
-import { useState } from 'react';
-import { activeRivals, dateOf, engine, fmtDate, fmtMonth, internalEval, leadDays } from '../../../engine/v2';
-import type { GameStateV2 } from '../../../engine/v2';
+// Overview (UI-IA §5 Q4; mockups rd/overview.png, overview-tip.png): a HUB. "Your lab": the lab's loop, one box per
+// screen with one verdict and a short reading (hubVerdicts, beliefs and facts); each box opens its screen, its numbers
+// live there (tooltip = the breakdown). "The race": the lead lanes, the HOME of the lead detail (leadLanes: best guess
+// and likely range per lab, B·intel). No risk number here: your models' risk lives on SAFETY, world risk on World.
+// Goals show only while the tutorial runs.
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { dateOf, fmtDate, hubVerdicts, internalVersion, leadLanes } from '../../../engine/v2';
+import type { GameStateV2, HubBox, HubId, LeadLane } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
-import { Card, CauseChain, GoBtn, Ref } from '../kit';
-import * as F from '../fmt';
+import { Card } from '../kit';
 import { ICON } from '../icons';
 import { C } from '../theme';
-import { watchItems } from '../shell/watch';
 import { Goals, goalsActive } from '../shell/Onboarding';
-import { CoreLoop } from './CoreLoop';
+import './overview.css';
+
+// ───────────────────────────── Your lab (hub) ─────────────────────────────
+
+const BOX: Record<HubId, { name: string; icon: typeof ICON.L; panel: string; tab?: string; desc: string }> = {
+  compute: { name: 'Compute', icon: ICON.computePanel, panel: 'compute', desc: 'Chips online, on order and waiting for power.' },
+  lab: { name: 'Lab', icon: ICON.company, panel: 'lab', desc: 'Where your compute and people go, and what sits idle.' },
+  research: { name: 'Research', icon: ICON.research, panel: 'research', desc: 'Your research programmes and what limits them.' },
+  training: { name: 'Training', icon: ICON.runs, panel: 'blueprint', desc: 'Runs in progress and the next run.' },
+  models: { name: 'Models', icon: ICON.models, panel: 'models', desc: 'Your models: in use and in testing.' },
+  products: { name: 'Products', icon: ICON.deploy, panel: 'products', desc: 'What customers buy and what limits revenue.' },
+  finance: { name: 'Finance', icon: ICON.finance, panel: 'finance', desc: 'Cash, runway and raising.' },
+  safety: { name: 'Safety', icon: ICON.safety, panel: 'safety', desc: 'Safety staff and what they cover.' },
+  world: { name: 'World', icon: ICON.world, panel: 'world', tab: 'risk', desc: 'Risk from rival labs, China, misuse and war; the public and government.' },
+};
+const ROW: HubId[] = ['compute', 'lab', 'research', 'training', 'models', 'products', 'finance'];
+const EDGE = ['chips', 'people', 'know-how', 'models', 'models', 'revenue'];
+const TONE: Record<HubBox['tone'], string> = { good: C.good, warn: C.watch, info: '#8fb8ea', bad: C.bad };
+
+function HubNode({ b, x, y, w, h, side }: { b: HubBox; x: number; y: number; w: number; h: number; side?: boolean }) {
+  const d = BOX[b.id];
+  const Icon = d.icon;
+  return (
+    <Tip as="div" className="hub-tipw" style={{ left: x, top: y, width: w, height: h }} content={() => (
+      <TipCard title={d.name} value={<span style={{ color: TONE[b.tone] }}>{b.verdict}</span>} rows={b.rows.map((r) => ({ label: r.label, value: r.value }))}>
+        {`${d.desc} Click to open ${d.name}.`}
+      </TipCard>
+    )}>
+      <button className={`hn ${b.tone} ${side ? 'side' : ''}`} data-hub={b.id} onClick={() => store.goto(d.panel, d.tab ? { tab: d.tab } : {})}>
+        <span className="h"><Icon size={14} />{d.name}<ChevronRight size={14} className="go" /></span>
+        <span className="vd" data-test={`hub-verdict.${b.id}`}><i className="dot" />{b.verdict}</span>
+        <span className="sb">{b.sub}</span>
+      </button>
+    </Tip>
+  );
+}
+
+function Hub({ s }: { s: GameStateV2 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(1500);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const v = hubVerdicts(s);
+  const NW = Math.min(190, (W - 32 - 6 * 50) / 7);
+  const NH = 92;
+  const Y = 124;
+  const gap = (W - 32 - 7 * NW) / 6;
+  const X = (i: number) => 16 + i * (NW + gap);
+  const cx = (i: number) => X(i) + NW / 2;
+  const mid = Y + NH / 2;
+  const sy = Y + NH + 58;
+  const sx = (cx(4) + cx(5)) / 2 - NW / 2;
+  const H = sy + NH + 8;
+  const line = '#4a5b72';
+  const arrow = (x1: number, x2: number, y: number) => <g key={`a${x1}`}><line x1={x1} y1={y} x2={x2 - 7} y2={y} stroke={line} strokeWidth={2} /><path d={`M${x2 - 8},${y - 5} L${x2},${y} L${x2 - 8},${y + 5}`} fill={line} /></g>;
+  const down = (x: number, y: number, col: string) => <path d={`M${x - 5},${y - 10} L${x},${y - 2} L${x + 5},${y - 10}`} fill={col} />;
+  return (
+    <div className="hub" ref={ref} style={{ height: H }} data-test="hub">
+      <svg className="edges" width={W} height={H}>
+        <path d={`M${cx(6)},${Y - 2} L${cx(6)},36 L${cx(0)},36 L${cx(0)},${Y - 9}`} fill="none" stroke={line} strokeWidth={2} />{down(cx(0), Y, line)}
+        <path d={`M${cx(4)},${Y - 2} L${cx(4)},80 L${cx(1)},80 L${cx(1)},${Y - 9}`} fill="none" stroke="#7fe0cf" strokeWidth={2} strokeDasharray="6 5" />{down(cx(1), Y, '#7fe0cf')}
+        {ROW.slice(0, -1).map((_, i) => arrow(X(i) + NW + 4, X(i + 1) - 4, mid))}
+        <path d={`M${sx + NW / 2},${sy} L${sx + NW / 2},${sy - 22} M${cx(4)},${Y + NH} L${cx(4)},${sy - 22} L${cx(5)},${sy - 22} L${cx(5)},${Y + NH}`} fill="none" stroke="#22a394" strokeWidth={2} strokeDasharray="3 4" />
+        <path d={`M${cx(6)},${sy} L${cx(6)},${Y + NH + 2}`} fill="none" stroke={line} strokeWidth={2} strokeDasharray="3 4" />
+      </svg>
+      <span className="el" style={{ left: (cx(0) + cx(6)) / 2, top: 27 }}>revenue and investors pay for chips and people</span>
+      <span className="el ai" style={{ left: (cx(1) + cx(4)) / 2, top: 71 }}><ICON.agents size={12} /> your models join the lab as <Term id="agentPackage">AI staff</Term>: the <Term id="takeoffLoop">takeoff loop</Term></span>
+      <span className="el saf" style={{ left: (cx(4) + cx(5)) / 2, top: sy - 32 }}>watches models at work</span>
+      {EDGE.map((t, i) => <span key={i} className="el bare" style={{ left: X(i) + NW + gap / 2, top: mid + 8 }}>{t}</span>)}
+      {ROW.map((id, i) => <HubNode key={id} b={v[id]} x={X(i)} y={Y} w={NW} h={NH} />)}
+      <HubNode b={v.safety} x={sx} y={sy} w={NW} h={NH} side />
+      <HubNode b={v.world} x={X(6)} y={sy} w={NW} h={NH} side />
+    </div>
+  );
+}
+
+// ───────────────────────────── The race (lead lanes) ─────────────────────────────
 
 function monogram(name: string) {
   const w = name.split(/[\s-]+/).filter(Boolean);
-  return (w.length > 1 ? w[0][0] + w[1][0] : name.slice(0, 2)).toUpperCase();
+  const caps = name.replace(/[^A-Z]/g, '');
+  return (w.length > 1 ? w[0][0] + w[1][0] : caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2)).toUpperCase();
 }
+const days = (d: number) => `${Math.abs(Math.round(d))} d`;
+const side = (d: number) => (Math.round(d) > 0 ? 'ahead' : Math.round(d) < 0 ? 'behind' : 'level');
+function rangeWords(lo: number, hi: number) {
+  if (lo > 0 || hi < 0) return `${Math.min(Math.abs(lo), Math.abs(hi))}–${Math.max(Math.abs(lo), Math.abs(hi))} d ${lo > 0 ? 'ahead' : 'behind'}`;
+  const f = (x: number) => (x > 0 ? `${x} ahead` : x < 0 ? `${-x} behind` : 'level');
+  return `${f(lo)} – ${f(hi)}`;
+}
+const labColor = (l: LeadLane) => (l.china ? '#e05a9c' : C.rival);
 
-/** Each rival's best internal model relative to yours: x = −lead (days); the centre line is you. */
-function LeadTrack({ s }: { s: GameStateV2 }) {
-  const labs = [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])];
-  const rows = labs.map((r) => ({ r, l: leadDays(s, r.core.id) })).sort((a, b) => a.l.est - b.l.est);
-  const W = 1500;
-  const x0 = 170;
-  const x1 = 1460;
-  const laneH = 46;
-  const top = 34;
-  const bot = top + rows.length * laneH;
-  const H = bot + 40;
-  const D0 = Math.min(-150, ...rows.map((x) => -x.l.est - x.l.sd)) - 30;
-  const D1 = Math.max(90, ...rows.map((x) => -x.l.est + x.l.sd)) + 30;
-  const X = (d: number) => x0 + ((d - D0) / (D1 - D0)) * (x1 - x0);
-  const step = D1 - D0 > 900 ? 180 : D1 - D0 > 450 ? 90 : 30;
-  const ticks: number[] = [];
-  for (let d = Math.ceil(D0 / step) * step; d <= D1; d += step) ticks.push(d);
+/** The lane's range strip for its tooltip: you at 0, their best guess and likely range. */
+function RangeStrip({ l, D }: { l: LeadLane; D: number }) {
+  const w = 410;
+  const x = (d: number) => ((Math.max(-D, Math.min(D, d)) + D) / (2 * D)) * w;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="leadtrack" data-home="leadTrack" data-test="leadtrack">
-      {ticks.map((d) => <g key={d}><line x1={X(d)} x2={X(d)} y1={top - 6} y2={bot} stroke={d === 0 ? 'none' : '#1f2a38'} />{d !== 0 && <text x={X(d)} y={bot + 16} textAnchor="middle" className="lt-tick">{d > 0 ? '+' : d < 0 ? '−' : ''}{Math.abs(d)} d</text>}</g>)}
-      <rect x={X(0)} y={top - 10} width={Math.max(0, x1 + 10 - X(0))} height={bot - top + 10} fill="rgba(239,107,107,.06)" />
-      <text x={X(0) + 10} y={top - 14} className="lt-ahead">ahead of you →</text>
-      <text x={X(0) - 10} y={top - 14} textAnchor="end" className="lt-behind">← behind you</text>
-      {rows.map(({ r, l }, i) => {
-        const y = top + i * laneH + laneH / 2;
-        const cn = r.core.kind === 'china';
-        const col = cn ? C.china : C.rival;
-        const grade = s.researchBodies.index.grades[r.core.id]?.letter;
-        return (
-          <Tip as="g" key={r.core.id} content={() => (
-            <TipCard title={r.core.name} value={grade ? <span><Term id="index">Index</Term> {grade}</span> : undefined} rows={[
-              { label: <Term id="lead">Your lead</Term>, value: `${F.lead(l.est)} ± ${l.sd} d`, tone: l.est >= 0 ? 'pos' : 'neg' },
-              { label: <Term id="misalign">Would try (range)</Term>, value: `${F.num(r.intel.misalignBand[0], 2)}–${F.num(r.intel.misalignBand[1], 2)}` },
-              { label: 'Public model', value: r.publicModel?.name ?? '—' },
-              { label: 'Known incidents', value: r.intel.knownIncidents.length },
-            ]}>{cn ? 'China\'s national lab.' : r.archetype === 'leader' ? 'The frontier leader: a US lab on the reference pace.' : 'US rival.'} Estimates from releases, evaluators and intel. Click for Relations.</TipCard>
-          )}>
-            <g className="lt-lane" data-lane={r.core.id} onClick={() => store.setPanel('relations')}>
-              <line x1={x0 - 6} x2={x1 + 8} y1={y} y2={y} stroke="#1f2a38" strokeWidth={12} strokeLinecap="round" />
-              <text x={8} y={y + 4} className="lt-name">{r.core.name}</text>
-              <rect x={X(-l.est - l.sd)} y={y - 3} width={Math.max(2, X(-l.est + l.sd) - X(-l.est - l.sd))} height={6} rx={3} fill={col} opacity={0.35} />
-              <circle cx={X(-l.est)} cy={y} r={12} fill={col} stroke="#0b0f15" strokeWidth={2} />
-              <text x={X(-l.est)} y={y + 3.5} textAnchor="middle" className="lt-mono">{monogram(r.core.name)}</text>
-            </g>
-          </Tip>
-        );
-      })}
-      <line x1={X(0)} x2={X(0)} y1={top - 10} y2={bot + 4} stroke={C.you} strokeWidth={3} />
-      <rect x={X(0) - 28} y={bot + 20} width={56} height={18} rx={9} fill="#13263d" stroke={C.you} />
-      <text x={X(0)} y={bot + 33} textAnchor="middle" className="lt-you">YOU</text>
+    <svg width={w} height={46} className="ov-strip">
+      <line x1={0} y1={18} x2={w} y2={18} stroke="#33435a" strokeWidth={2} />
+      <rect x={x(0)} y={4} width={w - x(0)} height={28} fill="rgba(239,107,107,.07)" />
+      <line x1={x(0)} y1={2} x2={x(0)} y2={34} stroke={C.you} strokeWidth={2} />
+      <rect x={x(l.lo)} y={13} width={Math.max(2, x(l.hi) - x(l.lo))} height={10} rx={5} fill={labColor(l)} opacity={0.45} />
+      <circle cx={x(l.ahead)} cy={18} r={8} fill={labColor(l)} />
+      <text x={x(0)} y={44} className="ov-st you" textAnchor="middle">you</text>
+      {Math.abs(x(l.lo) - x(0)) > 24 && <text x={x(l.lo)} y={44} className="ov-st" textAnchor="middle">{l.lo < 0 ? '−' : ''}{days(l.lo)}</text>}
+      {Math.abs(x(l.hi) - x(0)) > 24 && <text x={x(l.hi)} y={44} className="ov-st" textAnchor="middle">{l.hi < 0 ? '−' : ''}{days(l.hi)}</text>}
     </svg>
   );
 }
 
-/** Capability vs understanding over the whole game, the blind gap shaded; hover reads a week. */
-function RaceHistory({ s }: { s: GameStateV2 }) {
-  const [hi, setHi] = useState<number>();
-  const S = s.series;
-  const n = Math.min(S.Lmeasured.length, S.U.length, S.day.length);
-  const W = 1000;
-  const H = 380;
-  const pl = 30;
-  const pr = 10;
-  const pt = 14;
-  const pb = 26;
-  // Jank O4: day 0 shows the start point, not a large empty card.
-  if (n < 2) {
-    const ev = internalEval(s);
-    const u = engine.sightLimit(s);
-    return <Tip as="div" content={() => <TipCard title="The race at the start" rows={[{ label: <Term id="L">Capability</Term>, value: F.level(ev.L) }, { label: <Term id="sightLimit">Sight limit</Term>, value: F.sight(u) }]}>The chart draws one point a week from here.</TipCard>}><div className="small rh-start" data-test="race-start"><span className="dim">Start:</span> <b style={{ color: C.cap }}>capability {F.level(ev.L)}</b> · <b style={{ color: C.und }}>sight limit {u.none ? 'none' : F.level(u.L)}</b> <span className="dim">· the history fills in week by week</span></div></Tip>;
-  }
-  const L = S.Lmeasured.slice(0, n);
-  const U = S.U.slice(0, n);
-  const lo = Math.max(0, Math.floor(Math.min(...L.filter((x) => x > 0), ...U) - 0.5));
-  const top = Math.ceil(Math.max(...L, ...U) + 0.5);
-  const X = (i: number) => pl + (i / (n - 1)) * (W - pl - pr);
-  const Y = (v: number) => pt + (1 - (v - lo) / Math.max(1, top - lo)) * (H - pt - pb);
-  const polys: string[] = [];
-  let seg: number[] = [];
-  const flush = () => { if (seg.length > 1) polys.push(`M${seg.map((i) => `${X(i)},${Y(L[i])}`).join(' L')} L${[...seg].reverse().map((i) => `${X(i)},${Y(U[i])}`).join(' L')}Z`); seg = []; };
-  for (let i = 0; i < n; i++) { if (L[i] > U[i]) seg.push(i); else flush(); }
-  flush();
-  const levels = [5, 6.5, 8.5, 10, 12, 15].filter((v) => v > lo && v < top);
-  const years: number[] = [];
-  for (let i = 1; i < n; i++) if (dateOf(s, S.day[i]).getUTCMonth() !== dateOf(s, S.day[i - 1]).getUTCMonth() && dateOf(s, S.day[i]).getUTCMonth() % 6 === 0) years.push(i);
-  const releases0 = s.player.models.versions.filter((v) => v.variant === 'full' && v.day > 0 && v.evals.measuredL !== undefined)
-    .map((v) => ({ v, i: S.day.findIndex((d) => d >= v.day) })).filter((x) => x.i > 0).slice(-6);
-  // Jank O4: thin release labels so they never overlap (keep the later one when two are closer than a label).
-  const releases: typeof releases0 = [];
-  for (let k = releases0.length - 1; k >= 0; k--) if (!releases.length || X(releases[releases.length - 1].i) - X(releases0[k].i) >= 74) releases.push(releases0[k]);
-  // Jank M2: why understanding moved in the hovered week (the engine's weekly U drivers).
-  const uWhy = (i: number) => (s.causes.byKey.U ?? []).filter((e) => e.day <= S.day[i] && e.day > S.day[i] - 7).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
+function LaneTip({ s, l, D }: { s: GameStateV2; l: LeadLane; D: number }) {
+  const you = internalVersion(s)?.name;
+  const sd = side(l.ahead);
+  const intro: ReactNode = sd === 'behind'
+    ? <>How far {l.name}'s <Term id="bestInternal">best internal model</Term> trails your best model, by your estimate.</>
+    : <>How long until your best model matches {l.name}'s <Term id="bestInternal">best internal model</Term>, by your estimate.</>;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="racehist" data-home="raceHistory" onMouseLeave={() => setHi(undefined)}
-      onMouseMove={(e) => { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); const fx = ((e.clientX - r.left) / r.width) * W; setHi(Math.max(0, Math.min(n - 1, Math.round(((fx - pl) / (W - pl - pr)) * (n - 1))))); }}>
-      {levels.map((v) => <g key={v}><line x1={pl} x2={W - pr} y1={Y(v)} y2={Y(v)} stroke="#1f2a38" strokeDasharray="3 4" /><text x={pl - 5} y={Y(v) + 3} textAnchor="end" className="rh-ax">{v}</text></g>)}
-      {years.map((i) => <text key={i} x={X(i)} y={H - 8} textAnchor="middle" className="rh-ax">{fmtMonth(dateOf(s, S.day[i]))}</text>)}
-      {polys.map((d, i) => <path key={i} d={d} fill="rgba(239,107,107,.3)" />)}
-      {releases.map(({ v, i }) => <g key={v.id}><line x1={X(i)} x2={X(i)} y1={pt} y2={H - pb} stroke="#33435a" strokeDasharray="2 3" /><text x={X(i) + 3} y={pt + 9} className="rh-rel">{v.name}</text></g>)}
-      <polyline points={U.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} fill="none" stroke={C.und} strokeWidth={2.2} />
-      <polyline points={L.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} fill="none" stroke={C.cap} strokeWidth={2.2} />
-      {hi !== undefined && (
-        <g>
-          <line x1={X(hi)} x2={X(hi)} y1={pt} y2={H - pb} stroke="#fff" opacity={0.4} />
-          <circle cx={X(hi)} cy={Y(L[hi])} r={3.5} fill={C.cap} /><circle cx={X(hi)} cy={Y(U[hi])} r={3.5} fill={C.und} />
-          {(() => {
-            const why = uWhy(hi);
-            const txt = why ? `Sight limit ${F.num(why.delta, 1, true)} levels: ${(why.detail ?? why.source).split(' · ')[0]}` : '';
-            const w = Math.max(180, Math.min(330, txt.length * 6.4 + 20));
-            return (
-              <g transform={`translate(${Math.min(W - w - 10, X(hi) + 8)}, ${pt + 18})`}>
-                <rect width={w} height={why ? 68 : 52} rx={6} fill="#0e141c" stroke="#46597a" />
-                <text x={10} y={17} className="rh-tt">{fmtDate(dateOf(s, S.day[hi]))}</text>
-                <text x={10} y={33} className="rh-tt" fill={C.cap}>Capability {L[hi].toFixed(1)}</text>
-                <text x={10} y={47} className="rh-tt" fill={C.und}>Sight limit {U[hi].toFixed(1)} ({F.num(U[hi] - L[hi], 1, true)})</text>
-                {why && <text x={10} y={62} className="rh-tt" fill="#c9d4e2" data-test="u-why">{txt}</text>}
-              </g>
-            );
-          })()}
-        </g>
-      )}
-    </svg>
-  );
-}
-
-function WatchCard({ s }: { s: GameStateV2 }) {
-  const items = watchItems(s).slice(0, 4);
-  return (
-    <Card title={<Term id="watch">Watch</Term>} sub="what needs you · cause → fix" right={items.length ? <span className="tag2 warn">{items.length}</span> : undefined} home="watch" id="watch">
-      <div className="watch2" data-test="watch">
-        {items.map((w) => (
-          <div className="wi2" key={w.id} data-watch={w.id}>
-            <CauseChain links={w.chain.map((c) => ({ label: c.label, icon: c.icon, kind: c.kind, tip: c.detail ? () => <TipCard title={c.label}>{c.detail}</TipCard> : undefined }))} />
-            <div className="wi2-row"><span className="dim small">{w.why}</span><span className="sp" /><GoBtn to={w.go} label={w.goLabel} testId={`watch.${w.id}`} /></div>
-          </div>
-        ))}
-        {!items.length && <div className="wi2-empty"><ICON.check size={18} /> Nothing needs you right now.</div>}
+    <TipCard title={<span>{l.name} <span className="dim small">{l.china ? 'China' : 'US lab'}</span></span>}
+      value={<span className={sd === 'ahead' ? 'tone-neg' : 'tone-pos'}>{days(l.ahead)} {sd}</span>}>
+      <div className="ov-tip">
+        <div>{intro}</div>
+        <div className="tip-cap"><Term id="likelyRange">Likely range</Term></div>
+        <RangeStrip l={l} D={D} />
+        <div className="tip-cap">How you know</div>
+        <div className="ov-brk">
+          <span><Term id="intelError">Intel report</Term></span><span className="num">{l.reportDay !== undefined ? fmtDate(dateOf(s, l.reportDay)) : 'none yet'}</span>
+          <span className="dim">{l.publicModel ? `Their newest public model (${l.publicModel}), plus the gap their safety framework allows before release` : 'No public model yet: evaluator reports and intel only'}</span><span />
+          <span>Your best model</span><span className="num">{you ?? '—'}</span>
+        </div>
+        <div className="ov-links"><button className="ref-chip" data-ref={`lane-risk.${l.id}`} onClick={() => store.goto('world', { tab: 'risk' })}><ICON.world size={12} /> Risk from their models <ICON.go size={11} /></button></div>
       </div>
-    </Card>
+    </TipCard>
+  );
+}
+
+function Race({ s }: { s: GameStateV2 }) {
+  const lanes = leadLanes(s);
+  const far = Math.max(365, ...lanes.map((l) => Math.max(Math.abs(l.lo), Math.abs(l.hi))));
+  const D = far <= 365 ? 365 : Math.ceil(far / 180) * 180;
+  const P = (d: number) => ((Math.max(-D, Math.min(D, d)) + D) / (2 * D)) * 100;
+  const ticks = [-730, -540, -365, -180, -90, 90, 180, 365, 540, 730].filter((t) => Math.abs(t) <= D && (D <= 365 || Math.abs(t) !== 90));
+  const tl = (t: number) => `${t > 0 ? '+' : '−'}${Math.abs(t) === 365 ? '1 yr' : Math.abs(t) === 730 ? '2 yr' : `${Math.abs(t)} d`}`;
+  const you = internalVersion(s)?.name;
+  return (
+    <div className="lanes" data-home="leadTrack" data-test="leadtrack">
+      <div className="lane-ax">
+        <div className="zone" style={{ left: `${P(0)}%` }} />
+        {ticks.map((t) => <span key={t}><i className="axg" style={{ left: `${P(t)}%` }} /><span className="axl" style={{ left: `${P(t)}%` }}>{tl(t)}</span></span>)}
+        <span className="zl behind" style={{ right: `${100 - P(0) + 1}%` }}>← behind you</span>
+        <span className="zl ahead" style={{ left: `${P(0) + 1}%` }}>ahead of you →</span>
+        <i className="youline" style={{ left: `calc(${P(0)}% - 1px)` }} />
+        <span className="youtag" style={{ left: `${P(0)}%` }}>YOU{you ? ` · ${you}` : ''}</span>
+      </div>
+      {lanes.map((l) => (
+        <Tip as="div" key={l.id} className="lane-w" content={() => <LaneTip s={s} l={l} D={D} />}>
+          <div className="lane" data-lane={l.id}>
+            <span className="ln">{l.name}<span className={`fl ${l.china ? 'cn' : ''}`}>{l.china ? 'China' : 'US'}</span></span>
+            <div className="tr">
+              <i className="base" />
+              <i className="rg" style={{ left: `${P(l.lo)}%`, width: `${Math.max(0.4, P(l.hi) - P(l.lo))}%`, background: labColor(l) }} />
+              <span className="dt" style={{ left: `${P(l.ahead)}%`, background: labColor(l) }}>{monogram(l.name)}</span>
+            </div>
+            <div className="lval">
+              <b className={`num ${side(l.ahead)}`}>{days(l.ahead)}</b><span className="w2">{side(l.ahead) === 'level' ? 'level with you' : `${side(l.ahead)} ${side(l.ahead) === 'ahead' ? 'of ' : ''}you`}</span>
+              <div className="rg2">likely {rangeWords(l.lo, l.hi)}</div>
+            </div>
+          </div>
+        </Tip>
+      ))}
+      {!lanes.length && <div className="dim small">No rival lab is active.</div>}
+    </div>
   );
 }
 
@@ -165,20 +197,14 @@ export function Overview({ s }: { s: GameStateV2 }) {
   const goals = goalsActive(s);
   return (
     <div className="panel-v2 overview" data-panel="overview">
-      <Card title="Your company" sub="the core loop · a verdict per system · hover for numbers, click for its screen" id="ctl-coreloop" right={<Ref id="codex.loop" to={{ panel: 'codex' }}>How it works</Ref>}>
-        <CoreLoop s={s} live />
+      <Card title={<span className="ov-ttl"><ICON.company size={18} /> Your lab</span>} sub="how the parts feed each other · each box opens its screen" id="ctl-coreloop">
+        <Hub s={s} />
       </Card>
-      <Card title="Who is close" sub="each lab's best internal model, relative to yours · estimates ± intel error · hover a lane, click for the lab" id="ctl-leadtrack"
-        right={<span className="legend2"><span><i style={{ background: C.rival }} />US rival</span><span><i style={{ background: C.china }} />China</span></span>}>
-        <LeadTrack s={s} />
+      <Card className="ov-race" title={<span className="ov-ttl"><ICON.lead size={18} /> The race</span>} sub="how far each lab's best model is from yours, in days of progress · your estimate" id="ctl-leadtrack"
+        right={<span className="legend2"><span><i className="ov-dot" style={{ background: C.rival }} />US lab</span><span><i className="ov-dot" style={{ background: '#e05a9c' }} />China</span><span><i style={{ background: C.rival, opacity: 0.4, width: 22, height: 8, borderRadius: 4 }} /><Term id="likelyRange">likely range</Term></span></span>}>
+        <Race s={s} />
       </Card>
-      <div className={`ov-lower ${goals ? 'with-goals' : ''}`}>
-        <Card title="How the race got here" sub="hover to read a week" right={<span className="legend2"><span><i style={{ background: C.cap }} /><Term id="L">Capability</Term></span><span><i style={{ background: C.und }} /><Term id="sightLimit">Sight limit</Term></span><span><i style={{ background: 'rgba(239,107,107,.5)', height: 8 }} />past it</span></span>}>
-          <RaceHistory s={s} />
-        </Card>
-        <WatchCard s={s} />
-        {goals && <Goals s={s} />}
-      </div>
+      {goals && <Goals s={s} />}
     </div>
   );
 }

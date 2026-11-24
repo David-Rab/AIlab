@@ -254,7 +254,7 @@ await closeModals();
 await e11Check('day 1');
 await page.evaluate(() => window.ai27v2.step(19));
 await closeModals();
-const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'risk', 'codex'];
+const PANELS = ['finance', 'overview', 'lab', 'compute', 'research', 'models', 'blueprint', 'products', 'safety', 'relations', 'world', 'codex'];
 for (const p of PANELS) await check(`Tab ${p}`, 'store.panel', () => nav(p), 60);
 
 // Click every enabled action button in every panel; skip the game-ending RETIRE (tested last).
@@ -457,9 +457,16 @@ await closeModals();
 await nav('models');
 const vids = JSON.parse(await get('s.player.models.versions.map(v => v.id)'));
 if (vids.length > 1) await check('Select version in the family tree', 'store.sel.versionId', () => page.click(`[data-version="${vids[0]}"]`));
-// ── Products (R6): cards, live edit with before → after preview, features, settings, Auto serving, Agents gate. ──
+// ── Products (R6 / UB-A): revenue strip, cards (lineup, tools, customers, certification, price, effort), live edit with
+// before → after preview, the drawer (customers by sector, Limited by, win back, sold in a year, safeguards, retire),
+// policies (Auto serving, manual split), the Agents card. ──
 await nav('products');
 ok('Products: one card per live product', (await page.$$('[data-panel=products] [data-product]')).length >= 3);
+{
+  const rv = await page.evaluate(() => ({ rows: document.querySelectorAll('[data-test=prod-revenue] [data-rev]').length, total: document.querySelector('[data-test=prod-rev-total]')?.textContent ?? '', bind: document.querySelectorAll('[data-test=prod-revenue] [data-test^="prod-bind."]').length }));
+  ok('Products (UB-A): revenue strip with a row and a Limited-by chip per live product', rv.rows >= 3 && /\$[\d.]+[BMT]/.test(rv.total) && rv.bind >= 3, JSON.stringify(rv));
+  ok('Products (UB-A): no serving split on Products (its home is LAB); a serving link instead', !(await page.$('[data-home=servingSplit]')) && !!(await page.$('[data-test=prod-serving-link]')));
+}
 // B5 / R6 / RD-P06: deep effort is a locked option with its reason until its idea (the model's capability) is known.
 if (!JSON.parse(await get(`s.player.tree.P05?.status === 'known'`))) {
   ok('Products: deep effort locked with its reason', await page.$eval('[data-panel=products] [data-test^=prod-effort] [data-opt=deep]', (b) => b.disabled && (b.getAttribute('data-locked') ?? '').length > 5).catch(() => false));
@@ -467,39 +474,54 @@ if (!JSON.parse(await get(`s.player.tree.P05?.status === 'known'`))) {
 const apiId = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
 if (apiId) {
   const card = `[data-panel=products] [data-product="${apiId}"]`;
-  await page.selectOption(`${card} select[data-test^=prod-monitor]`, { index: 1 });
+  await page.click(`[data-test="prod-open.${apiId}"]`);
+  await wait(120);
+  ok('Products (UB-A): the drawer shows customers by sector, Limited by in words and sold in a year', !!(await page.$('[data-test=prod-drawer] [data-test=prod-sectors] [data-sector]')) && /Limited by/.test(await page.$eval('[data-test=prod-limit]', (e) => e.textContent ?? '').catch(() => '')) && !!(await page.$(`[data-test=prod-drawer] [data-test="prod-econ.${apiId}"]`)));
+  await page.selectOption(`[data-test=prod-drawer] select[data-test="prod-monitor.${apiId}"]`, { index: 2 });
+  await wait(80);
   await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
   await wait(120);
   const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
   ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
   await check('Products: Apply updates the live product (monitor + premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.monitorId, d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
   ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium' && !!d.monitorId; })()`)));
-  ok('Products: the card shows the monitor catch rate', !!(await page.$(`${card} [data-test="prod-catch.${apiId}"]`)));
+  await page.click(`[data-test="prod-open.${apiId}"]`);
+  await wait(100);
+  ok('Products: the drawer shows the monitor catch rate', !!(await page.$(`[data-test=prod-drawer] [data-test="prod-catch.${apiId}"]`)));
+  await page.click('[data-test=prod-drawer-close]');
   await page.click(`${card} [data-test^=prod-price] [data-opt=standard]`);
   await wait(80);
   await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
+  await page.click(`[data-test="prod-lineup-more.${apiId}"]`);
+  ok('Products: the lineup editor holds the main-model chip', !!(await page.$(`${card} [data-chip=model]`)));
+  await page.click(`[data-test="prod-lineup-more.${apiId}"]`);
+  await page.click(`[data-test="prod-tool-add.${apiId}"]`);
 }
 const buildBtn = await page.$('[data-panel=products] [data-act^="feature.build."]:not([disabled])');
-if (buildBtn) await check('Products: Build a feature (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
-ok('Products: locked features name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
-ok('Products: the same package chips as Agents at work (model + monitor)', !!(await page.$('[data-panel=products] [data-product] [data-chip=model]')) && !!(await page.$('[data-panel=products] [data-product] [data-chip=monitor]')));
-ok('Products (TIERS): sector products show their lineup, one row per tier (model + 3 students)', (await page.$$('[data-panel=products] [data-test^=prod-lineup] [data-test^=prod-tier]')).length >= 8);
-ok('Products: serving split bar by product',(await page.$$('[data-panel=products] [data-test=serving-bar] [data-serve]')).length >= 3);
+if (buildBtn) await check('Products: Build a tool (engineers\' queue)', `s.player.build.queue.filter(i => i.kind === 'feature').length`, () => buildBtn.click());
+ok('Products: locked tools name their idea', !!(await page.$('[data-panel=products] .ft.locked[data-node]')));
+ok('Products (TIERS): every product card shows its lineup rows', JSON.parse(await get(`[...document.querySelectorAll('[data-panel=products] [data-product]')].every((c) => c.querySelectorAll('[data-test^=prod-lineup] [data-test^=prod-tier]').length >= 1)`)));
+await page.click('[data-test=prod-policies]');
 await check('Products: Override turns Auto serving off', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
 const prodA = JSON.parse(await get(`(s.player.deployments.find(d => d.status === 'live' && d.channel !== 'internal' && d.channel !== 'open') || {}).id || ''`));
 if (prodA && await page.$('[data-test=serving-manual]')) {
   await check('Products: hand-set serving share', `s.player.deployments.find(d => d.id === "${prodA}").servingShare`, async () => {
-    await setSlider(page.locator(`[data-test=serving-manual] input[type=range]`).first(), 0.35);
+    await setSlider(page.locator(`[data-test=serving-manual] [data-serving="${prodA}"] input[type=range]`), 0.35);
     await page.click(`[data-act="product.serving.${prodA}"]`);
   });
 }
 await check('Products: Auto serving back on', 's.player.policies.servingAuto', () => page.click('[data-act="products.policy.servingAuto"]'));
 await check('Products: upgrade-to-newest policy', 's.player.policies.upgradeToNewest', () => page.click('[data-act="products.policy.upgradeToNewest"]'));
 await page.click('[data-act="products.policy.upgradeToNewest"]');
-if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows its time-horizon gate', /h/.test(await page.$eval('[data-test=agents-gate]', (e) => e.textContent ?? '')));
+await page.click('[data-test=prod-policies]');
+if (await page.$('[data-test=agents-gate]')) ok('Products: Agents card shows ready-to-launch (time alone, engineers)', /Engineers/.test(await page.$eval('[data-test=agents-gate]', (e) => e.textContent ?? '')));
 {
   const ent = JSON.parse(await get(`(s.player.deployments.find(d => d.channel === 'enterprise' && d.status === 'live') || {}).id || ''`));
-  if (ent) await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
+  if (ent) {
+    await page.click(`[data-test="prod-open.${ent}"]`);
+    await wait(100);
+    await check('Products: Retire withdraws a product', `s.player.deployments.find(d => d.id === "${ent}").status`, () => page.click(`[data-act="product.retire.${ent}"]`));
+  }
 }
 // UB-9 SAFETY: the header (model picker, Loss-of-control risk, Unstopped harm, sight curve, framework) on every tab and
 // Risks (the harmful-acts table) first; then Model, Instruments, Safeguards, Incidents & cases, Programmes.
@@ -554,8 +576,11 @@ await tabTo('risks');
 await nav('codex');
 await check('Codex category', `document.querySelector('.codex-entry').innerText`, () => page.click('[data-codex-cat="Traits"]'));
 await check('Codex search', `document.querySelector('.codex-list').innerText`, () => page.fill('[data-test=codex-search]', 'scheming'));
-await nav('risk');
-await tabTo('flows');
+// UB-A: the Risk panel became World › Risk (sources and flows on one tab).
+await nav('world');
+await tabTo('risk');
+ok('World › Risk: no loss-of-control row for your own models (SAFETY is its home)', !(await page.$('[data-panel=world] [data-risk=own]')));
+ok('World › Risk: no Risk item in the navigation', !(await page.$('[data-nav=risk]')));
 await check('Flows node opens panel', 'store.panel', () => page.click('[data-node=player]'));
 
 // UB-6 / UB-8 RESEARCH: tabs Portfolio / Discoveries / Know-how. Discoveries: node card adds to the list; Portfolio:
@@ -565,28 +590,43 @@ await check('Flows node opens panel', 'store.panel', () => page.click('[data-nod
 await nav('research');
 await tabTo('tree');
 await wait(80);
+// UB-A Discoveries: field lanes × Known · Can start now · One step away · Later; node chips; drawer (L2) with gives /
+// costs, chance, size at 1 and 2 teams, needs, the other road, Add to Priority list; a researching node links to Portfolio.
 {
-  const nn = (await page.$$('[data-panel=research] .rs-node')).length;
+  const nn = (await page.$$('[data-panel=research] .dc-nd')).length;
   ok('Research: tree renders', nn >= 10, `nodes ${nn}`);
   ok('Research: no team picker', !(await page.$('[data-test=assign-open]')));
+  ok('Discoveries: six field lanes and four columns with counts', JSON.parse(await get(`document.querySelectorAll('[data-panel=research] .dc-lane').length === 6 && ['n-known', 'n-now', 'n-next', 'n-later'].every((k) => /[0-9]/.test(document.querySelector('[data-test=' + k + ']')?.innerText ?? ''))`)));
+  ok('Discoveries: no ongoing capability programme in the tree (Portfolio is home)', !(await page.$('[data-panel=research] [data-node="L.scale"]')));
+  ok('Discoveries: every open node shows an effect line', JSON.parse(await get(`[...document.querySelectorAll('[data-panel=research] .dc-nd[data-status=open] .l2 .ef')].every((e) => e.innerText.trim().length > 0)`)));
 }
-await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .rs-node[data-node=P05]'));
-ok('Research: node card shows the chance and the stage work', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Chance it works|Outlook/i.test(c.innerText) && /team-weeks/.test(c.innerText); })()`)));
-await check('Research: Top priority puts the project at the top', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.start.P05"]'));
+await check('Research: click an idea opens its node card', 'store.tab["research.sel"] || ""', () => page.click('[data-panel=research] .dc-nd[data-node=P05]'));
+ok('Research: node card shows the chance and the size at 1 and 2 teams', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card]'); return !!c && /Chance it works/i.test(c.innerText) && /with 1 team/.test(c.innerText) && /with 2/.test(c.innerText); })()`)));
+await check('Research: Add to Priority list from the card', 'JSON.stringify(s.player.research.queue)', () => page.click('[data-act="research.queue.P05"]'));
 await page.evaluate(() => window.ai27v2.step(1));
 await wait(60);
-ok('Research: the assignment puts science teams on it, with a why', JSON.parse(await get('s.player.teams.some((t) => t.projectId === "P05" && !!t.why)')));
-await check('Research: Add a second idea to the priorities from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .rs-node[data-node=elastic]'); await page.click('[data-act="research.queue.elastic"]'); });
+ok('Research: the queued idea shows on the tree as queued or researching', JSON.parse(await get(`['queued', 'active'].includes(document.querySelector('[data-panel=research] [data-node=P05]')?.getAttribute('data-status'))`)));
 await page.click('[data-test=node-close]').catch(() => {});
-await check('Research: Safety filter hides capability lanes', 'document.querySelectorAll("[data-panel=research] .rs-lane-l").length', () => page.click('[data-test=tree-filter] [data-opt=saf]'));
+await check('Research: Add a second idea to the priorities from its card', 'JSON.stringify(s.player.research.queue)', async () => { await page.click('[data-panel=research] .dc-nd[data-node=elastic]'); await page.click('[data-act="research.queue.elastic"]'); });
+await page.click('[data-test=node-close]').catch(() => {});
+await check('Research: Safety filter dims capability discoveries', 'document.querySelectorAll("[data-panel=research] .dc-nd.dimx").length', () => page.click('[data-test=tree-filter] [data-opt=saf]'));
 await page.click('[data-test=tree-filter] [data-opt=all]');
-await check('Research: minimap toggles the whole tree', 'store.tab["research.view"] || ""', () => page.click('[data-test=minimap]'));
 await shot('40-research-all');
-await page.click('[data-test=minimap]');
-await page.click('[data-panel=research] .rs-node[data-node=P17]').catch(() => {});
+await page.click('[data-panel=research] .dc-nd[data-node=P17]').catch(() => {});
 await wait(60);
+ok('Discoveries: Neuralese card shows what it gives, what it costs and the other road', JSON.parse(await get(`(() => { const c = document.querySelector('[data-test=node-card][data-card=P17]'); return !!c && !!c.querySelector('[data-test=gives]') && !!c.querySelector('[data-test=costs]') && !!c.querySelector('[data-road=P23]'); })()`)));
+await check('Discoveries: the other road opens Faithful reasoning', 'store.tab["research.sel"] || ""', () => page.click('[data-test=node-card] [data-road=P23]'));
 await shot('41-research-node');
-await page.click('[data-test=node-close]').catch(() => {});
+await check('Discoveries: Escape closes the card', 'store.tab["research.sel"] || ""', () => page.keyboard.press('Escape'));
+{
+  const res = await page.$('[data-panel=research] .dc-nd[data-status=active]');
+  if (res) {
+    await res.click();
+    await check('Discoveries: a researching node links to its Portfolio card', 'store.tab["research"] + ":" + (store.tab["research.drawer"] || "")', () => page.click('[data-test=node-card] [data-test=open-project]'));
+    await page.keyboard.press('Escape');
+    await tabTo('tree');
+  }
+}
 await tabTo('projects');
 await wait(80);
 ok('Portfolio: Limited-by strip with four segments, one lit (or a red zero)', JSON.parse(await get(`document.querySelectorAll('[data-home=limitedBy] [data-lim]').length === 4 && document.querySelectorAll('[data-home=limitedBy] [data-state=on], [data-home=limitedBy] [data-state=bad]').length >= 1`)));
@@ -654,52 +694,48 @@ ok('Flow: no v2 frontier-methods or serving-cost lines', !(await page.$('[data-l
 // Overview (L1) and bottom bar
 await nav('overview');
 ok('Lead track lanes', (await page.$$('[data-lane]')).length >= 3);
-ok('Watch card renders', !!(await page.$('[data-test=watch]')));
-await check('Lead lane opens Relations', 'store.panel', () => page.click('[data-lane]'));
-await nav('overview');
-const go = await page.$('[data-test=watch] [data-go]');
-if (go) await check('Watch Go jumps to the control', 'store.panel', () => go.click());
+// UB-A: Watch lives in the bottom bar (the one alert channel); the Overview has no Watch card.
+ok('Overview: no Watch card (the bottom bar is the alert channel)', !(await page.$('[data-test=watch]')));
 ok('Headline renders', !!(await page.$('[data-test=ticker]')));
 await check('Loss-of-control risk click opens Safety', 'store.panel', () => page.click('[data-test=risk]'));
 
-// ───────────────────────── B1: product card serving economics (day 1 here; day 400 and day 900 below) ─────────────────────────
-// Every live product card shows price vs cost and margin, its revenue sources (Chat: paid share → target) and what its
-// serving covers; every new term has a glossary tooltip, on the card or nested in the rows' tooltips.
-const B1_TERMS = ['paidSeat', 'unseatedUse', 'supervisingHour', 'agentHour', 'agentLeverage', 'weeklyReach', 'paidShare', 'goingPrice', 'wtp', 'freeTier', 'valueCap', 'markup', 'serveOrder', 'adoptedHour'];
+// ───────────────────────── B1: product economics (UB-A: revenue strip + drawer; day 1 here; day 400 and day 900 below) ─────────────────────────
+// Every product has a revenue row (served vs not, Limited by) with a tooltip; its drawer's "Sold in a year" shows hours or
+// users, serving cost and margin; every term there has a glossary tooltip.
+const B1_TERMS = ['paidSeat', 'weeklyReach', 'paidShare', 'freeTier', 'adoptedHour', 'runCost', 'priceTier', 'bindingCause'];
 const b1Seen = new Set();
 async function b1Check(where) {
   await nav('products');
-  const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({
-    id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel'),
-    econ: !!e.querySelector('[data-test^="prod-econ."]'),
-    price: e.querySelector('[data-test^="prod-price-row."]')?.textContent ?? '',
-    paid: e.querySelector('[data-test^="prod-paid."]')?.textContent ?? '',
-    src: !!e.querySelector('[data-test^="prod-sources."]'),
-    cap: !!e.querySelector('[data-test^="prod-capacity."]'),
-    users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
-  })));
-  const bad = cards.filter((c) => !c.econ || !/\$\d/.test(c.price) || !/\d%/.test(c.price) || !c.cap
-    || (c.ch === 'consumer' ? !/→\s*\d/.test(c.paid) || !/weekly users/.test(c.users) || !/\/mo/.test(c.price) : !c.src || !/\/h/.test(c.price)));
-  ok(`B1 ${where}: every product card shows price, margin, sources and capacity`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.price} | ${c.paid}`).join(' ; '));
-  for (const t of await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-term], [data-panel=products] [data-test^="prod-users."] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b1Seen.add(t);
-  const rows = await page.$$eval('[data-panel=products] [data-test^="prod-econ."] [data-test], [data-panel=products] [data-test^="prod-users."]', (els) => els.map((e) => e.getAttribute('data-test')).filter((x) => /^prod-(price-row|paid|sources|capacity|users)\./.test(x)));
+  const rows = await page.$$eval('[data-panel=products] [data-test=prod-revenue] [data-rev]', (els) => els.filter((e) => !e.classList.contains('off')).map((e) => ({ id: e.getAttribute('data-rev'), t: e.textContent ?? '' })));
+  const bad = rows.filter((r) => !/\$[\d.]+[BMT]?/.test(r.t) || !/Limited by/.test(r.t) || !/served/.test(r.t));
+  ok(`B1 ${where}: every product has a revenue row with served and Limited by`, rows.length >= 3 && bad.length === 0, bad.map((r) => r.t.slice(0, 80)).join(' ; '));
   let tipped = 0;
   for (const r of rows) {
     await clearTips();
-    await page.hover(`[data-test="${r}"]`);
+    await page.hover(`[data-rev="${r.id}"] .bar`);
     await wait(380);
     const t = await page.evaluate(() => ({ text: document.querySelector('.tip')?.innerText ?? '', terms: [...document.querySelectorAll('.tip [data-term]')].map((e) => e.getAttribute('data-term')) }));
-    if (t.text.length > 20) tipped++;
+    if (/Wanted/.test(t.text)) tipped++;
     for (const x of t.terms) b1Seen.add(x);
   }
   await clearTips();
-  ok(`B1 ${where}: every economics row opens a tooltip (${rows.length})`, rows.length >= 3 * cards.length && tipped === rows.length, `${tipped}/${rows.length}`);
+  ok(`B1 ${where}: every revenue bar opens its tooltip (wanted, not served) (${rows.length})`, tipped === rows.length, `${tipped}/${rows.length}`);
+  const sold = [];
+  for (const r of rows) {
+    await page.click(`[data-test="prod-open.${r.id}"]`);
+    await wait(100);
+    const e = await page.$eval(`[data-test=prod-drawer] [data-test="prod-econ.${r.id}"]`, (x) => x.innerText).catch(() => '');
+    for (const x of await page.$$eval('[data-test=prod-drawer] [data-term], [data-panel=products] [data-product] [data-term]', (els) => els.map((y) => y.getAttribute('data-term')))) b1Seen.add(x);
+    sold.push({ id: r.id, ok: /Serving cost/.test(e) && /Margin/.test(e) && /(Hours of work sold|Weekly users)/.test(e) && /\d/.test(e), e: e.replace(/\n/g, ' ').slice(0, 80) });
+    await page.click('[data-test=prod-drawer-close]');
+  }
+  ok(`B1 ${where}: every drawer shows sold in a year (hours or users, serving cost, margin)`, sold.every((x) => x.ok), sold.filter((x) => !x.ok).map((x) => x.e).join(' ; '));
 }
-// ───────────────────────── B2: customers as a stock, typed features (day 1, 400, 900) ─────────────────────────
-// Every card shows its customer stock vs the target share, the speed and days to target (Chat also users → target);
-// every feature row shows its type and typed effect with units (locked rows: the idea that unlocks them); the rows'
-// tooltips carry build cost, upkeep, on here, internal agents and the gate; every new term is reached.
-const B2_TERMS = ['customerStock', 'targetShare', 'customerSpeed', 'featEnabler', 'featHorizon', 'featScaffold', 'featEffort'];
+// ───────────────────────── B2: customers on the card, tools (day 1, 400, 900) ─────────────────────────
+// Every card shows its share now → where buyers are heading (or holding), with the time in words and the best rival;
+// the customers tooltip carries the target; every tool on a card shows where it helps and its effect; the tools editor
+// rows keep their type, typed effect and tooltips (cost, upkeep, on here, gate).
+const B2_TERMS = ['customerStock', 'targetShare', 'featEnabler', 'featHorizon', 'featScaffold'];
 const b2Seen = new Set();
 const hoverTip = async (sel) => {
   await clearTips();
@@ -714,49 +750,39 @@ async function b2Check(where) {
   const cards = await page.$$eval('[data-panel=products] [data-product]', (els) => els.map((e) => ({
     id: e.getAttribute('data-product'), ch: e.getAttribute('data-channel'),
     stock: e.querySelector('[data-test^="prod-cust-stock."]')?.textContent ?? '',
-    conv: e.querySelector('[data-test^="prod-cust-conv."]')?.textContent ?? '',
     users: e.querySelector('[data-test^="prod-users."]')?.textContent ?? '',
-    arpu: /\b(developers|organisations|contracts|partners)\b/.test(e.textContent ?? ''),
   })));
-  const bad = cards.filter((c) => !/\d%\s*→\s*[\d.]+%/.test(c.stock) || !/moves in (weeks|months|quarters)/.test(c.conv) || !/(at target|to target)/.test(c.conv) || c.arpu
-    || (c.ch === 'consumer' && !/weekly users\s*→\s*[\d.]+/.test(c.users))
-    || (c.ch === 'consumer' ? !/weeks/.test(c.conv) : !/(months|quarters)/.test(c.conv)));
-  for (const x of await page.$$eval('[data-panel=products] [data-test^="prod-cust."] [data-term], [data-panel=products] [data-feature] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b2Seen.add(x);
-  ok(`B2 ${where}: every card shows the customer stock → target, speed and days to target`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.stock} | ${c.conv} | ${c.users}`).join(' ; ') || cards.map((c) => `${c.ch}: ${c.stock} · ${c.conv}`).join(' ; '));
+  const bad = cards.filter((c) => !/\d%\s*(→\s*[\d.]+%|holding)/.test(c.stock) || (c.ch === 'consumer' && !/weekly users/.test(c.users)));
+  for (const x of await page.$$eval('[data-panel=products] [data-test^="prod-cust."] [data-term], [data-panel=products] [data-tool] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) b2Seen.add(x);
+  ok(`B2 ${where}: every card shows its share now → where buyers are heading`, cards.length >= 3 && bad.length === 0, bad.map((c) => `${c.ch}: ${c.stock} | ${c.users}`).join(' ; ') || cards.map((c) => `${c.ch}: ${c.stock}`).join(' ; '));
   let tipped = 0;
-  let n = 0;
-  for (const c of cards) {
-    for (const sel of [`[data-test="prod-cust-stock.${c.id}"]`, `[data-test="prod-cust-conv.${c.id}"]`]) {
-      n++;
-      const tx = await hoverTip(sel);
-      if (tx.length > 20 && (/target/i.test(tx))) tipped++;
-    }
-  }
-  ok(`B2 ${where}: customer rows open tooltips with the target (${n})`, tipped === n, `${tipped}/${n}`);
-  // Features: type chip and typed effect on every row; gated rows name the idea.
-  const feats = await page.$$eval('[data-panel=products] [data-product] [data-feature]', (els) => els.map((e) => ({
-    card: e.closest('[data-product]').getAttribute('data-product'), f: e.getAttribute('data-feature'),
-    kinds: [...e.querySelectorAll('.ft-k')].map((k) => k.getAttribute('data-kind')),
-    fx: e.querySelector('[data-test^="feature-fx."]')?.textContent ?? '',
-    gate: e.querySelector('[data-test^="feature-gate."]')?.textContent ?? '',
-    clipped: [...e.querySelectorAll('.ft-fx, .ft-e, .ft-n')].filter((x) => { const g = document.createRange(); g.selectNodeContents(x); return x.scrollWidth > x.clientWidth + 1 || g.getBoundingClientRect().width > x.getBoundingClientRect().width + 1; }).map((x) => x.textContent).join('|'),
+  for (const c of cards) if (/heading/i.test(await hoverTip(`[data-test="prod-cust-stock.${c.id}"]`))) tipped++;
+  ok(`B2 ${where}: customer tracks open tooltips with where buyers are heading (${cards.length})`, tipped === cards.length, `${tipped}/${cards.length}`);
+  const tools = await page.$$eval('[data-panel=products] [data-product] [data-tool]', (els) => els.map((e) => ({ f: e.getAttribute('data-tool'), t: e.textContent ?? '' })));
+  const tbad = tools.filter((x) => !/(×[\d.]+|\+\d+%)/.test(x.t));
+  ok(`B2 ${where}: every tool on a card shows where it helps and its effect (${tools.length})`, tbad.length === 0, tbad.map((x) => `${x.f}: ${x.t}`).join(' ; '));
+  // UB-A: the card's tool rows carry the tool-type term in their tooltip (task tool / long-task tool / harness).
+  for (const x of [...new Set(tools.map((t) => t.f))]) await hoverTip(`[data-panel=products] [data-product] [data-tool="${x}"]`).catch(() => '');
+  await clearTips();
+  // Tools editor (Add a tool): type chip and typed effect on every row; gated rows name the idea; tooltips.
+  const first = cards.find((c) => c.ch !== 'consumer') ?? cards[0];
+  if (!first) return;
+  await page.click(`[data-test="prod-tool-add.${first.id}"]`);
+  const feats = await page.$$eval(`[data-product="${first.id}"] [data-feature]`, (els) => els.map((e) => ({
+    f: e.getAttribute('data-feature'), kinds: [...e.querySelectorAll('.ft-k')].map((k) => k.getAttribute('data-kind')),
+    fx: e.querySelector('[data-test^="feature-fx."]')?.textContent ?? '', gate: e.querySelector('[data-test^="feature-gate."]')?.textContent ?? '',
   })));
   const UNIT = { scaffold: /skill ×[\d.]+ ×\d+ tok/, horizon: /×[\d.]+ longer tasks/, enabler: /\+[\d.]+(%| OOM)/, effort: /\+[\d.]+ OOM ×\d+ tok/ };
   const fbad = feats.filter((x) => !x.kinds.length || (x.gate ? !/needs \S/.test(x.gate) : !x.kinds.every((k) => UNIT[k]?.test(x.fx))));
-  ok(`B2 ${where}: every feature row shows its type and typed effect with units (locked: the idea) (${feats.length})`, feats.length >= 5 && fbad.length === 0, fbad.map((x) => `${x.f}: ${x.kinds} | ${x.fx} | ${x.gate}`).join(' ; '));
-  const kinds = new Set(feats.flatMap((x) => x.kinds));
-  ok(`B2 ${where}: feature types on the cards`, kinds.size >= 3, [...kinds].join(', '));
-  const clipped = feats.filter((x) => x.clipped);
-  ok(`B2 ${where}: no clipped feature effect line`, clipped.length === 0, clipped.map((x) => `${x.card}/${x.f}: ${x.clipped}`).join(', '));
-  let ftip = 0;
+  ok(`B2 ${where}: every tools-editor row shows its type and typed effect (locked: the idea) (${feats.length})`, feats.length >= 2 && fbad.length === 0, fbad.map((x) => `${x.f}: ${x.kinds} | ${x.fx} | ${x.gate}`).join(' ; '));
   const fmiss = [];
   for (const x of feats) {
-    const tx = await hoverTip(`[data-product="${x.card}"] [data-feature="${x.f}"] .ft-fx`);
-    if (/Build/.test(tx) && /Upkeep/.test(tx) && /\d\.\d\d engineer team-wk\/wk/.test(tx) && /Internal agents/.test(tx) && /Unlocked by/.test(tx) && /On this product/.test(tx)) ftip++;
-    else fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);
+    const tx = await hoverTip(`[data-product="${first.id}"] [data-feature="${x.f}"] .ft-fx`);
+    if (!(/Build/.test(tx) && /Upkeep/.test(tx) && /On this product/.test(tx) && /Unlocked by/.test(tx))) fmiss.push(`${x.f}: ${tx.replace(/\n/g, ' ').slice(0, 60)}`);
   }
   await clearTips();
-  ok(`B2 ${where}: feature tooltips show cost, upkeep (engineer team-wk/wk, C2), on here, internal agents and the gate`, fmiss.length === 0, fmiss.slice(0, 3).join(' ; '));
+  await page.click(`[data-test="prod-tool-add.${first.id}"]`);
+  ok(`B2 ${where}: tools-editor tooltips show cost, upkeep, on here and the gate`, fmiss.length === 0, fmiss.slice(0, 3).join(' ; '));
 }
 // ───────────────────────── B3: World › Sectors (day 1, 400, 900) ─────────────────────────
 // The region strip shows workers using AI, hours of use, hours saved per hour, paid seats and agent-hours; the sector card
@@ -858,13 +884,7 @@ async function b4Check(where) {
   const chatLive = JSON.parse(await get(`s.player.deployments.some((d) => d.channel === 'consumer' && d.status === 'live')`));
   ok(`B4 ${where}: the cash tooltip carries revenue (30-day average)`, /Revenue · 30-day average/.test(rev), rev.replace(/\n/g, ' ').slice(0, 220));
   await clearTips();
-  // Core loop customers node.
-  await nav('overview');
-  await page.hover('[data-test=coreloop] [data-loop=customers]');
-  await wait(450);
-  const cl = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
-  ok(`B4 ${where}: Core loop customers tooltip shows the customer stock → target and real counts`, /share [\d.]+% → [\d.]+%/.test(cl) && !FAKE_NOUNS.test(cl) && (!chatLive || /weekly users/.test(cl)), cl.replace(/\n/g, ' ').slice(0, 200));
-  await clearTips();
+  // UB-A: customers live on the product cards only; the Overview hub's Products box gives a verdict, no customer numbers.
   // UB-10: cost per hour of work is on the MODELS card (tooltip: per agent-hour, $ per H100e-hour); no "serve cost".
   await nav('blueprint');
   await tabTo('next');
@@ -881,17 +901,14 @@ async function b4Check(where) {
   await wait(100);
   const trained = await page.$eval('[data-test=card-trained-list]', (e) => e.innerText).catch(() => '');
   ok(`D3 ${where}: model card › Trained with shows the data specialisation (no "Research boost")`, /Data/.test(trained) && !/Research boost/i.test(mText + trained), trained.replace(/\n/g, ' ').slice(0, 160));
-  // Products: launch card and serving split in the side column when there are ≤ 3 products.
+  // Products (UB-A): the live cards and the Agents card share one row; the revenue strip sits above them.
   await nav('products');
   const pr = await page.evaluate(() => {
-    const n = document.querySelectorAll('[data-panel=products] [data-product]').length;
-    const side = document.querySelector('[data-panel=products] .prod-side');
-    const sv = document.querySelector('[data-home=servingSplit]');
-    const ln = document.querySelector('[data-test=prod-launch]');
-    const card = document.querySelector('[data-panel=products] [data-product]');
-    return { n, side: !!side && !!side.querySelector('[data-home=servingSplit]'), svTop: sv?.getBoundingClientRect().top ?? 9999, launchH: ln?.getBoundingClientRect().height ?? 0, cardH: card?.getBoundingClientRect().height ?? 0 };
+    const cs = [...document.querySelectorAll('[data-panel=products] [data-product], [data-test=prod-launch]')].map((e) => Math.round(e.getBoundingClientRect().top));
+    const rv = document.querySelector('[data-test=prod-revenue]')?.getBoundingClientRect();
+    return { n: cs.length, rows: new Set(cs).size, revTop: rv ? Math.round(rv.top) : -1, cardTop: cs[0] ?? -1 };
   });
-  ok(`B4 ${where}: Products: with ≤ 3 products the launch card and serving split sit beside the cards, above the fold`, pr.n > 3 || (pr.side && pr.svTop < 1000 && (pr.launchH === 0 || pr.launchH < pr.cardH * 0.6)), JSON.stringify(pr));
+  ok(`B4 ${where}: Products: cards and the launch card in one row under the revenue strip`, pr.n <= 4 ? pr.rows === 1 && pr.revTop >= 0 && pr.revTop < pr.cardTop : true, JSON.stringify(pr));
   await shot(`80-${where.replace(' ', '')}-products-b4`);
   // Research › Portfolio (UB-6): the board's two columns, no clipped card names; auto teams wanted and the keyboard
   // reorder from the card drawer / a focused card.
@@ -1009,20 +1026,10 @@ async function e11Check(where, plant = false) {
     s.player.safety.footholds.push({ id: 'FH-E11-SUS', kind: 'backdoor', versionId: v, lineage: 'L-x', day: s.time.day - 40, acts: 1, severity: 2, size: 0.16, status: 'suspected', symptom: 'monitors flagged unexplained access', suspectedDay: s.time.day - 3 });
     window.ai27v2.notify();
   });
-  // Products: each card's danger equals dangerView's.
+  // Products (UB-A): misuse risk lives on SAFETY › Risks (misuse rows); Products carries no danger readout.
   await nav('products');
   await wait(120);
-  const prod = await page.$$eval('[data-test^="prod-danger."]', (els) => els.map((e) => [e.getAttribute('data-test').slice(12), Number(e.getAttribute('data-harm'))]));
-  const pv = await sel('Object.fromEntries(Object.entries(r.dangerView(s).products).map(([k, x]) => [k, x.harmful]))');
-  ok(`E11 ${where}: a danger readout on every product, equal to the belief selector`, prod.length === Object.keys(pv).length && prod.every(([id, h]) => Math.abs(h - pv[id]) < 1e-4), JSON.stringify(prod).slice(0, 120));
-  if (prod.length) {
-    await page.hover(`[data-test="prod-danger.${prod[0][0]}"]`);
-    await wait(350);
-    const tip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? '');
-    ok(`E11 ${where}: the product danger tooltip shows the four factors`, /Disposition/.test(tip) && /Capability/.test(tip) && /Opportunity/.test(tip) && /Oversight/.test(tip), tip.slice(0, 160));
-    await shot(`e11-${tag}-product-danger`);
-    await clearTips();
-  }
+  ok(`E11 ${where}: no product danger readout on Products (its home is SAFETY › Risks)`, !(await page.$('[data-test^="prod-danger."]')));
   // Agents at work: each running lane's danger equals dangerView's.
   await nav('lab');
   await tabTo('work');
@@ -1532,8 +1539,8 @@ await shot('25-day1-products');
     await page.evaluate(() => window.ai27v2.step(1));
     await closeModals();
     await nav('products');
-    const row = await page.evaluate((id) => document.querySelector(`[data-test="prod-econ.${id}"]`)?.innerText ?? '', chat);
-    ok('B1: a Premium Chat plan is capped at the $22 willingness to pay and flagged', /\$22\/mo/.test(row) && !!(await page.$(`[data-test="prod-econ.${chat}"] [data-limit="price.valueCap"]`)), row.replace(/\n/g, ' ').slice(0, 90));
+    const row = await page.evaluate((id) => document.querySelector(`[data-product="${id}"] .sec2.set`)?.innerText ?? '', chat);
+    ok('B1: a Premium Chat plan is priced at the $22 users will pay', /\$22 a month/.test(row), row.replace(/\n/g, ' ').slice(0, 90));
     await shot('26-day1-chat-capped');
   }
 }
@@ -2066,7 +2073,7 @@ await shot('51-j2-lab-idle');
 await nav('products');
 {
   const spare = JSON.parse(await get(`(() => { const p = s.player; let used = 0; for (const d of p.deployments) if (d.kind === 'product' && d.status !== 'withdrawn' && d.needH100e !== undefined) used += Math.min(d.servedH100e ?? 0, d.needH100e); return p.computeOnline * p.split.serving - used; })()`));
-  ok('J2 PR1: Products › Serving shows spare serving as its own segment', spare < 1000 || !!(await page.$('[data-test=serving-spare]')), `spare ${Math.round(spare)}`);
+  ok('J2 PR1 (UB-A): Products says serving compute is spare and links to LAB (the segment lives there)', spare < 1000 || /spare/.test(await page.$eval('[data-test=prod-serving-link]', (e) => e.textContent ?? '').catch(() => '')), `spare ${Math.round(spare)}`);
   const launch = await page.$('[data-act^="product.launch."]:not([disabled]):not([data-act*=cancel])');
   if (launch) {
     await launch.click();
@@ -2078,9 +2085,9 @@ await nav('products');
   } else ok('J2 P1: a launch goes on the build queue (no launchable product on this fixture)', true);
 }
 await shot('53-j2-products');
-await nav('risk');
-await tabTo('sources');
-await page.hover('[data-test="risk-v.own"]').catch(() => {});
+await nav('world');
+await tabTo('risk');
+await page.hover('[data-panel=world] [data-test^="risk-v."]').catch(() => {});
 await wait(300);
 ok('J2 RK1: a risk figure lists how far one step of each lever moves it', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /What one step moves/.test(t) && /pts/.test(t); })()`)));
 await shot('54-j2-risk-levers');
@@ -2296,16 +2303,16 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   if (l.tab) await tabTo(l.tab);
   if (l.panel === 'research' && l.tab === 'projects') { await page.click('[data-home=priorities] [data-card] .nm').catch(() => {}); await wait(80); } // UB-6: per-programme limits sit in the card drawer
   if (l.panel === 'research' && l.tab !== 'projects') {
-    const ids = await page.$$eval('[data-panel=research] .rs-node:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
+    const ids = await page.$$eval('[data-panel=research] .dc-nd:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
     for (const id of ids) {
-      await page.click(`[data-panel=research] .rs-node[data-node="${id}"]`).catch(() => {});
+      await page.click(`[data-panel=research] .dc-nd[data-node="${id}"]`).catch(() => {});
       await wait(60);
       if (await page.$('[data-limit="tree.retry"]')) break;
     }
   }
   await wait(80);
   await collectLimits();
-  if (l.panel === 'products') { await hoverCollect('[data-panel=products] [data-test^="prod-price-row."]'); await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
+  if (l.panel === 'products') { await hoverCollect('[data-panel=products] [data-test^="prod-bind."]'); }
 }
 await page.hover('.topstrip2 [data-test=speed]');
 await wait(450);
@@ -2336,10 +2343,20 @@ await page.hover('[data-test=speed]');
 await wait(450);
 await shot('73-hover-speed');
 await clearTips();
-// Overview: the core loop, a verdict per system, nodes link to their homes.
+// UB-A Overview: the hub (one box per screen with a verdict; each box opens its screen) and the lead lanes (best guess,
+// likely range, the locked tooltip's intel date and the World › Risk link). No race chart, no Watch card, no risk number.
 await nav('overview');
-ok('R10 Overview: core loop with nine systems', (await page.$$('[data-test=coreloop] [data-loop]')).length === 9);
-await check('R10 Overview: a loop node opens its home', 'store.panel', () => page.click('[data-test=coreloop] [data-loop=research]'));
+ok('UB-A Overview: hub with nine boxes, each with a verdict', (await page.$$('[data-test=hub] [data-hub]')).length === 9 && JSON.parse(await get(`[...document.querySelectorAll('[data-test=hub] [data-hub] .vd')].every((e) => e.innerText.trim().length > 1)`)));
+ok('UB-A Overview: no race chart, Watch card or old loop', !(await page.$('.racehist')) && !(await page.$('[data-test=watch]')) && !(await page.$('[data-test=coreloop]')));
+ok('UB-A Overview: a lane per active lab with a likely range', JSON.parse(await get(`(() => { const n = document.querySelectorAll('[data-test=leadtrack] [data-lane]').length; return n >= 1 && [...document.querySelectorAll('[data-test=leadtrack] [data-lane] .rg2')].every((e) => /likely/.test(e.innerText)); })()`)));
+await page.mouse.move(1, 1);
+await page.hover('[data-test=leadtrack] [data-lane] .ln');
+await wait(900);
+ok('UB-A Overview: lane tooltip shows the intel report and the World risk link', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Intel report/i.test(t) && /Likely range/i.test(t) && /Risk from their models/.test(t); })()`)));
+await clearTips();
+await check('UB-A Overview: a hub box opens its screen', 'store.panel', () => page.click('[data-test=hub] [data-hub=research]'));
+await nav('overview');
+await check('UB-A Overview: the World box opens World › Risk', 'store.panel + ":" + (store.tab.world || "")', () => page.click('[data-test=hub] [data-hub=world]'));
 await nav('overview');
 await iaScan('overview:r10');
 await shot('74-overview-loop');

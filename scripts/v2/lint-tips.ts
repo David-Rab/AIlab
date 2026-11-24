@@ -36,7 +36,7 @@ export const ALLOW: [string, string, string][] = [
   ['panels/Compute.tsx', 'last.empty', 'status tile sub-line: the tile opens the tab with the breakdown'],
   ['panels/Research.tsx', 'rp?.progress', 'needs list inside the node card (L2), each row clicks to its idea'],
   ['panels/Research.tsx', 'paused at', 'queue row status text; the row clicks to the idea card'],
-  ['panels/RiskSources.tsx', 'F.pct(t)', 'axis ticks'],
+  ['panels/WorldRisk.tsx', 'F.pct(t)', 'axis ticks'],
   ['panels/Safety.tsx', 'lb.deadEndTM', 'tab badge'],
   ['panels/Safety.tsx', 't.strength', 'tools grid: the tool name in the same row opens its breakdown (strength, faded, M½)'],
   ['panels/Safety.tsx', '1 - t.decay', 'tools grid: the tool name in the same row opens its breakdown (strength, faded, M½)'],
