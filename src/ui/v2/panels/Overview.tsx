@@ -5,7 +5,7 @@
 // Goals show only while the tutorial runs.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { dateOf, fmtDate, hubVerdicts, internalVersion, leadLanes } from '../../../engine/v2';
+import { bestMeasuredVersion, dateOf, fmtDate, hubVerdicts, leadLanes } from '../../../engine/v2';
 import type { GameStateV2, HubBox, HubId, LeadLane } from '../../../engine/v2';
 import { store } from '../store';
 import { Term, Tip, TipCard } from '../ui';
@@ -130,7 +130,7 @@ function RangeStrip({ l, D }: { l: LeadLane; D: number }) {
 }
 
 function LaneTip({ s, l, D }: { s: GameStateV2; l: LeadLane; D: number }) {
-  const you = internalVersion(s)?.name;
+  const you = bestMeasuredVersion(s)?.name; // UB-F: "you" = your best measured model (not one still in testing, not the AI-staff model)
   const sd = side(l.ahead);
   const intro: ReactNode = sd === 'behind'
     ? <>How far {l.name}'s <Term id="bestInternal">best internal model</Term> trails your best model, by your estimate.</>
@@ -146,7 +146,7 @@ function LaneTip({ s, l, D }: { s: GameStateV2; l: LeadLane; D: number }) {
         <div className="ov-brk">
           <span><Term id="intelError">Intel report</Term></span><span className="num">{l.reportDay !== undefined ? fmtDate(dateOf(s, l.reportDay)) : 'none yet'}</span>
           <span className="dim">{l.publicModel ? `Their newest public model (${l.publicModel}), plus the gap their safety framework allows before release` : 'No public model yet: evaluator reports and intel only'}</span><span />
-          <span>Your best model</span><span className="num">{you ?? '—'}</span>
+          <span>Your best measured model</span><span className="num">{you ?? '—'}</span>
         </div>
         <div className="ov-links"><button className="ref-chip" data-ref={`lane-risk.${l.id}`} onClick={() => store.goto('world', { tab: 'risk' })}><ICON.world size={12} /> Risk from their models <ICON.go size={11} /></button></div>
       </div>
@@ -161,7 +161,7 @@ function Race({ s }: { s: GameStateV2 }) {
   const P = (d: number) => ((Math.max(-D, Math.min(D, d)) + D) / (2 * D)) * 100;
   const ticks = [-730, -540, -365, -180, -90, 90, 180, 365, 540, 730].filter((t) => Math.abs(t) <= D && (D <= 365 || Math.abs(t) !== 90));
   const tl = (t: number) => `${t > 0 ? '+' : '−'}${Math.abs(t) === 365 ? '1 yr' : Math.abs(t) === 730 ? '2 yr' : `${Math.abs(t)} d`}`;
-  const you = internalVersion(s)?.name;
+  const you = bestMeasuredVersion(s)?.name; // UB-F: "you" = your best measured model (not one still in testing, not the AI-staff model)
   return (
     <div className="lanes" data-home="leadTrack" data-test="leadtrack">
       <div className="lane-ax">

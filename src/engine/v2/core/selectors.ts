@@ -33,7 +33,7 @@ export { benchName, benchGen, measuredSd } from '../models/benchmarks';
 export { evalDaysFor, evalDaysEstimate, evalCost, evalDepthView, evalMeasureView, evalPolicyView, evalQueueView, gateDepth, policyDepth } from '../models/evals';
 export type { EvalCost, EvalDepthRow, EvalMeasureRow, EvalTaskView } from '../models/evals';
 export { deployGate, effortLock, CHANNEL_VARIANTS, distillationAccess, kycDemandFactor, KYC_REFUSE } from '../models/deployments';
-export { bestMeasuredL, internalVersion, measuredDomainOf, measuredLOf, versionById } from '../models/labs';
+export { bestMeasuredL, bestMeasuredVersion, internalVersion, measuredDomainOf, measuredLOf, versionById } from '../models/labs';
 export { MILESTONE_NAMES } from '../models/capability';
 export { presetSplit, shareRefAt, SPLIT_KEYS, SPLIT_PRESETS } from '../departments/split';
 export { AUTO_SPLIT_USES, autoSplitPlan, idleShares } from '../departments/autoSplit';
