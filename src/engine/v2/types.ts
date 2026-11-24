@@ -2252,10 +2252,11 @@ export interface WorldFxState {
    *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
    *  even spread (data/v2/serving.ts MULTI_HOMING). */
   secReach?: Record<RegionId, Record<string, number>>;
-  /** MK-6 (design/MARKET.md M5): per region and sector, each closed seller's margin M ($ per adopted task-hour over each
-   *  tier's serving cost; provider keys as in `cust`), a stock toward its Nash–Bertrand target (PRICE_TAU); absent
-   *  entries start at today's cost-plus price (SEED_MARKUP). */
-  priceM?: Record<RegionId, Record<string, Record<string, number>>>;
+  /** MK-6 (design/MARKET.md M5), MK-6b: per region, sector, closed seller (provider keys as in `cust`) and model (version
+   *  id), the margin M ($ per adopted task-hour over each of that model's tiers' serving cost), a stock toward its
+   *  Nash–Bertrand target (PRICE_TAU); an absent model starts at the seller's stocked margin per $ of cost × its own
+   *  cost, an absent seller at today's cost-plus price (SEED_MARKUP). */
+  priceM?: Record<RegionId, Record<string, Record<string, Record<string, number>>>>;
   /** MK-6: per region and sector, yesterday's hours-weighted average price of each band of the buyers' choice ($ per
    *  adopted task-hour, all sellers): μ_b = this ÷ PRICE_ELASTICITY (worldfx/choice.ts). Absent: today's p_min rule. */
   bandP?: Record<RegionId, Record<string, number[]>>;

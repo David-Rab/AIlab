@@ -9,7 +9,7 @@ import type { FeatureId } from '../../../data/v2/features';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 107;
+export const SCHEMA_REV = 108;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -122,6 +122,27 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     if (fx?.toolShip) fx.toolShip = Object.fromEntries(Object.entries(fx.toolShip).map(([k, v]) => [map(k), v]));
     if (fx && agentsShip !== undefined && Number.isFinite(agentsShip) && !labs.some((r) => toolsAtStart((r.archetype ?? 'upstart') as LabArchetype).includes('agentMode'))) {
       (fx.toolShip ??= {}).agentMode ??= agentsShip;
+    }
+  },
+  /** 107 → 108 (MK-6b, design/MARKET.md M5 revised): the margin is per model. Each seller's one margin per sector ×
+   *  region (world.fx.priceM[r][sector][seller]) is copied to each of its models (the player's: every product's main
+   *  model and lineup entries; a rival's and DeepCent's: its public model and lineup); each then moves to its own target. */
+  107: (s) => {
+    const fx = (s.world as { fx?: { priceM?: Record<string, Record<string, Record<string, unknown>>> } } | undefined)?.fx;
+    if (!fx?.priceM) return;
+    type Lab = { core?: { id?: string }; publicModel?: { id?: string }; lineup?: { id?: string }[] };
+    const models = new Map<string, string[]>();
+    const put = (key: string, ids: (string | undefined)[]) => models.set(key, [...new Set(ids.filter((x): x is string => !!x))]);
+    const p = s.player as { deployments?: { versionId?: string; lineup?: string[] }[] } | undefined;
+    put('player', (p?.deployments ?? []).flatMap((d) => [d.versionId, ...(d.lineup ?? [])]));
+    for (const r of (s.rivals as Lab[] | undefined) ?? []) if (r.core?.id) put(r.core.id, [r.publicModel?.id, ...(r.lineup ?? []).map((m) => m.id)]);
+    const cn = (s.china as { lab?: Lab } | undefined)?.lab;
+    if (cn) put('china', [cn.publicModel?.id, ...(cn.lineup ?? []).map((m) => m.id)]);
+    for (const reg of Object.values(fx.priceM)) for (const row of Object.values(reg)) for (const [key, M] of Object.entries(row)) {
+      if (typeof M !== 'number') continue;
+      const out: Record<string, number> = {};
+      for (const id of models.get(key) ?? []) out[id] = M;
+      row[key] = out;
     }
   },
 };

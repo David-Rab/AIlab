@@ -111,14 +111,15 @@ export const CHAT_WORK = { w: { SOCIAL: 0.4, REASON: 0.4, MEDIA: 0.2 } as Partia
 export const SECTOR_REF = { mid: 0.47, perTheta: 0.2 };
 
 /** MK-6 (design/MARKET.md M5, M6): prices set by competition. Every closed seller (the player, each rival, DeepCent) has
- *  one margin per adopted task-hour M ($) per sector × region, the multi-product logit Nash–Bertrand markup of its whole
- *  lineup (worldfx/mix.ts, SectorMix.markupTarget); each of its tiers sells at its own serving cost + M (≤ the value per
- *  hour, ≥ cost). M moves toward its target with PRICE_TAU (years) [D: list prices change about monthly]. A product on
+ *  a margin per adopted task-hour M ($) per sector × region and (MK-6b) per model of its lineup, the multi-product logit
+ *  Nash–Bertrand markup over the bands that model wins (worldfx/mix.ts, SectorMix.markupTarget); each of its tiers sells
+ *  at its own serving cost + its model's M (≤ the value per hour, ≥ cost). M moves toward its target with PRICE_TAU (years) [D: list prices change about monthly]. A product on
  *  the 'share' stance prices at cost + WIN_SHARE_FRACTION × M [D]. */
 export const PRICE_TAU = 30 / 365;
 export const WIN_SHARE_FRACTION = 0.5;
 /** MK-6: a seller's M where it has none yet (a save from before MK-6, a new entrant in a sector): today's cost-plus price,
- *  M = (markup − 1) × its main model's cost, at the old standard markup (margin 0.6) and DeepCent's old budget one
+ *  M = (markup − 1) × the model's own cost (MK-6b; a seller with margins on other models seeds a new one at their M per $
+ *  of cost instead), at the old standard markup (margin 0.6) and DeepCent's old budget one
  *  (margin 0.4); it then moves to its target at PRICE_TAU. A new game starts at the fixed point (mix.ts initPrices). */
 export const SEED_MARKUP = { closed: 1 / 0.4, china: 1 / 0.6 };
 /** MK-6 interim until MK-9 (Chat's plan price by M5): a consumer plan's price as a share of the willingness to pay, the
