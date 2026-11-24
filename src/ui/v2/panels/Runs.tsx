@@ -6,13 +6,13 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronRight, ClipboardCheck, Cpu, Crosshair, Layers, Loader, Minimize2, SlidersHorizontal, X, type LucideIcon } from 'lucide-react';
 import { LEVEL_KNOTS } from '../../../data/v2/calibration';
 import {
-  dateOf, evalQueueView, fmtDate, idleTrainingShare, MILESTONE_NAMES, poolAllocation, POOL_SHARE_RANGE, runEtaDays, runHistory, runStall, streamShare,
+  dateOf, evalQueueView, fmtDate, idleTrainingShare, MILESTONE_NAMES, poolAllocation, runEtaDays, runHistory, runStall, streamShare,
   type RunHistoryRow, type RunLane,
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { store } from '../store';
 import { ActBtn, Limit, Term, Tip, TipCard } from '../ui';
-import { Card } from '../kit';
+import { Card, Ref } from '../kit';
 import * as F from '../fmt';
 import { fmtParams } from './Models';
 
@@ -222,7 +222,6 @@ function RunningNow({ s, rows, alloc, onOpen }: { s: GameStateV2; rows: RunHisto
   const eta = runEtaDays(s, run, alloc);
   const got = alloc.get(run.id) ?? 0;
   const stall = runStall(s, run) ?? (run.status === 'paused' ? 'Paused: your safety framework holds frontier training' : undefined);
-  const step = (dd: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], run.poolShare + dd)) * 100) / 100;
   const ms = r.forecast ? milestoneAt(r.forecast.mid) : undefined;
   const plan = run.base ? `new base · ${fmtParams(run.base.params)} parameters` : r.from ? `${r.lane === 'distil' ? 'from' : 'on'} ${r.from}` : '';
   const others = rows.filter((x) => x.run.id !== run.id);
@@ -237,10 +236,7 @@ function RunningNow({ s, rows, alloc, onOpen }: { s: GameStateV2; rows: RunHisto
         <span className="k"><Term id="poolShare">Training share</Term></span>
         <span className="row-i">
           <Tip content={() => <TipCard title={<Term id="poolShare">Training share</Term>} value={F.pct(got)} rows={[{ label: 'Asks', value: F.pct(run.poolShare) }, { label: 'Gets today', value: F.pct(got) }]} footer="Runs that ask for more than the training compute are scaled down together.">Share of training compute this run gets.</TipCard>}><span data-test="run-share"><b className="num">{F.pct(got)}</b> <span className="dim">of training compute</span></span></Tip>
-          {run.status === 'running' && <span className="run-step">
-            <ActBtn id="runs.setShare" params={{ runId: run.id, share: step(-0.1) }} label="−" testId={`run-share-dn.${run.id}`} block={run.poolShare <= POOL_SHARE_RANGE[0] + 1e-9 ? 'At the minimum share' : undefined} />
-            <ActBtn id="runs.setShare" params={{ runId: run.id, share: step(0.1) }} label="+" testId={`run-share-up.${run.id}`} block={run.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At all of training compute' : undefined} />
-          </span>}
+          <Ref id="trainingAlloc" to={{ panel: 'lab', tab: 'board', anchor: 'split' }}>Allocation</Ref>
         </span>
         <span className="k">Holdups</span>
         <span className={stall ? 'tone-warn' : ''} data-test={stall ? 'run-stall' : 'run-ok'}>{stall ?? 'none'}</span>

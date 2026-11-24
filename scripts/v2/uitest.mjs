@@ -423,7 +423,11 @@ await tabTo('runs');
   const rq = JSON.parse(await get(`(() => { const tl = document.querySelector('[data-test=runs-timeline]'); const now = document.querySelector('[data-home=runningNow]'); const n = s.player.models.runs.filter((r) => ['running', 'paused', 'done'].includes(r.status)).length; const live = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').length; return [!!tl && tl.querySelectorAll('.rn-bar[data-run]').length === n && live >= 1 && !!now?.querySelector('[data-test=run-share]') && !!now?.querySelector('[data-test=run-eta]'), (now?.innerText ?? store.panel).slice(0, 160)]; })()`));
   ok('Runs (UB-B): the timeline shows every run; Running now has its share and due date', rq[0], rq[1]);
 }
-await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
+// UB-F: compute allocation's one home is LAB: Running now shows the run's share read-only with a link chip.
+ok('Runs (UB-F): Running now has no share −/+; its Allocation chip links to LAB', !(await page.$('[data-home=runningNow] [data-act^="run-share-"]')) && !!(await page.$('[data-home=runningNow] [data-ref=trainingAlloc]')));
+await check('Runs (UB-F): the Allocation chip opens LAB', 'store.panel', () => page.click('[data-home=runningNow] [data-ref=trainingAlloc]'));
+await nav('blueprint');
+await tabTo('runs');
 ok('Runs (UB-B): training compute now (runs, idle) links to LAB', !!(await page.$('[data-test=runs-compute] .dv-chip')) && /idle/.test(await page.locator('[data-test=runs-compute]').innerText()));
 await nav('lab');
 await tabTo('board');
