@@ -1,9 +1,10 @@
-// SR-01 targeted check: the validation lead, dead-end latch and tool toggle are gone; a rev-54 save migrates (latched
-// line unlatched, owned tools in use); the eval gate / publish policy / pledge previews show only what apply does.
+// SR-01 targeted check: the validation lead, dead-end latch and tool toggle are gone; the publish policy / pledge previews
+// show only what apply does. (CP4: the rev-54 migration part is gone with the UB-3 save break, and the eval gate part with
+// the eval gate, SR-19.)
 // Run alone: npx tsx scripts/v2/_sr01/check.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCHEMA_REV, deserialize, serialize } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { ACTION_BY_ID } from '../../../src/engine/v2/core/registry';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
 import { techniqueRole } from '../../../src/engine/v2/safety/techniques';
@@ -17,18 +18,6 @@ const lines = (p: { costs: CostLine[]; gains: CostLine[]; exposure: CostLine[] }
 
 check(!ACTION_BY_ID.has('safety.technique'), 'the tool On/Off action is gone');
 
-// Migration 54 → 55.
-const s0 = load();
-const old = JSON.parse(serialize(s0)) as GameStateV2;
-old.schemaRev = 54;
-const ag = Object.keys(old.player.safety.agendas)[0];
-(old.player.safety.agendas[ag] as { status: string }).status = 'deadEnd';
-const tool = Object.values(old.player.safety.techniques).find((t) => t.unlocked && techniqueRole(t) !== 'fix');
-if (tool) tool.active = false;
-const m = deserialize(JSON.stringify(old));
-check(m.schemaRev === SCHEMA_REV && SCHEMA_REV >= 55, 'a rev-54 save loads at the current rev');
-check(m.player.safety.agendas[ag].status === 'idle', 'a latched dead-end line is unlatched');
-check(!tool || m.player.safety.techniques[tool.id].active, 'an owned tool switched off is in use after migration', tool?.id);
 
 // Previews: no invented lines; immediate meter lines are applied.
 const run = (id: string, p: Record<string, string>) => {
@@ -38,9 +27,6 @@ const run = (id: string, p: Record<string, string>) => {
   ACTION_BY_ID.get(id)!.apply(s, makeCtx(s), p);
   return { pv, s, before };
 };
-const g = run('safety.evalGate', { level: 'fullPlusExternal' });
-check(!lines(g.pv).some((l) => l.currency === 'credibility' || (l.currency === 'alignment' && /clarity/.test(String(l.target)))), 'eval gate preview: no credibility or "clarity" line', JSON.stringify(lines(g.pv).map((l) => l.currency)));
-check(lines(g.pv).some((l) => l.currency === 'leadDays' && /external/.test(String(l.target))), 'eval gate preview: says it holds external launches only');
 const pol = run('safety.publishPolicy', { policy: 'none' });
 check(!lines(pol.pv).some((l) => l.currency === 'leadDays' || (l.amount !== 0 && !l.lagDays && (l.currency === 'credibility' || l.currency === 'talent'))), 'publish policy "none": no lead-day or immediate credibility / talent line');
 const pl = run('safety.pledge', {});

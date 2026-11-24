@@ -1,8 +1,8 @@
 // RD-P08 targeted check: a sector adaptation raises only its own product's coverage in its own sector; it acts once built;
 // in a sector with certification, once certified (a timed process, its cash booked when it starts) its buyers face
 // CERT_FRICTION_CUT less friction (RF-P3); rivals have no
-// adaptations (RF-P2); no sectorPacks / LEADER_FEATURES / world certDay left in src; a rev-69 save's packs
-// become adaptations on the product that had them.
+// adaptations (RF-P2); no sectorPacks / LEADER_FEATURES / world certDay left in src. (CP4: the rev-69 migration check
+// is gone with the UB-3 save break.)
 // Run alone: npx tsx scripts/v2/_p08/check.ts
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -70,20 +70,6 @@ const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d
 walk('src');
 const hits = files.filter((f) => !f.endsWith(join('core', 'save.ts'))).filter((f) => /sectorPacks|LEADER_FEATURES|certDay|SECTOR_PACK|SECTOR_CERT_DAYS|wfx\.sectorProduct|rivalAdaptStep|RIVAL_ADAPT_GATE_A|adaptBuild|\.adapts\b/.test(readFileSync(f, 'utf8')));
 check(hits.length === 0, 'no sectorPacks / LEADER_FEATURES / certDay / SECTOR_PACK* / rival adaptations in src (save.ts migrations excepted)', hits.join(', '));
-
-// 5. Migration 69 → 70: packs → adaptations on the product that had them.
-const g = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
-const old = JSON.parse(serialize(g));
-old.schemaRev = 69;
-old.player.features.push('sectorPacks');
-for (const d of old.player.deployments) {
-  delete d.adaptations;
-  d.packs = d.channel === 'enterprise' ? [{ sector: 'FIN', certDay: 50 }, { sector: 'LEGAL', certDay: 40 }] : [];
-}
-const m = deserialize(JSON.stringify(old));
-const me = prod(m, 'enterprise');
-check(JSON.stringify(me.adaptations) === JSON.stringify([{ sector: 'FIN', certDone: 50 }, { sector: 'LEGAL' }]) && m.player.deployments.every((d) => !('packs' in d) && (d === me || d.adaptations.length === 0)) && !m.player.features.includes('sectorPacks'),
-  'a rev-69 save: packs become adaptations on their product (certification kept where needed), the feature is gone', JSON.stringify(me.adaptations));
 
 console.log(fails ? `${fails} FAIL` : 'all ok');
 process.exit(fails ? 1 : 0);

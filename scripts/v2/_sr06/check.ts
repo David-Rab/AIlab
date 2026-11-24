@@ -1,15 +1,16 @@
 // SR-06 targeted check: beliefs carry an evidence list, never drift with time, and a new model starts from its parent's
 // belief moved by the run's predicted change with a wider range. Run alone: npx tsx scripts/v2/_sr06/check.ts
-//  1. a rev-55 save (no evidence lists) migrates: every belief gets a list;
+//  1. (CP4: the rev-55 migration check is gone with the UB-3 save break)
 //  2. over 30 ticked days a belief's (est, sd) changes only on a day an evidence entry lands (no drift);
 //  3. each observation appends one entry {day, source, reading, noise}; the list is capped at 20;
 //  4. a post-train's new version starts at the parent's belief moved by the predicted change, sd² = sd_parent² + w²
-//     (w = 0.3·|Δ| + 0.04, capped at SD_MAX), evidence = one "inherit:<parent>" entry; identical with true traits
+//     (w ≥ 0.3·|Δ| + 0.04: since RF-S14 an untested method's range adds; capped at SD_MAX), evidence = one
+//     "inherit:<parent>" entry with noise w; identical with true traits
 //     rewritten (never reads truth);
 //  5. "Unknown" = 90% range > 30 points.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCHEMA_REV, deserialize, serialize } from '../../../src/engine/v2/core/save';
+import { deserialize, serialize } from '../../../src/engine/v2/core/save';
 import { makeCtx, tick } from '../../../src/engine/v2/core/loop';
 import { BELIEF_EVIDENCE_CAP, SD_MAX, beliefUnknown, observeVersion } from '../../../src/engine/v2/safety/detection';
 import { PREDICT_SD_FLOOR, applyRunToTraits } from '../../../src/engine/v2/safety/traits';
@@ -21,15 +22,6 @@ let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
 const load = (fx: string) => deserialize(readFileSync(join(FIXTURE_DIR, fx), 'utf8'));
 
-// 1. Migration 55 → 56.
-{
-  const old = JSON.parse(serialize(load('day400.json'))) as GameStateV2;
-  old.schemaRev = 55;
-  for (const v of old.player.models.versions) for (const b of Object.values(v.beliefs)) delete (b as { evidence?: unknown }).evidence;
-  const m = deserialize(JSON.stringify(old));
-  const all = m.player.models.versions.flatMap((v) => Object.values(v.beliefs));
-  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV >= 56 && all.length > 0 && all.every((b) => Array.isArray(b.evidence) && b.evidence.length === 0), `a rev-55 save loads at 56 with empty evidence lists (${all.length} beliefs)`);
-}
 
 for (const fx of ['day400.json', 'day900.json']) {
   // 2. No drift: over 30 days, (est, sd) moves only with a new evidence entry dated that day.
@@ -97,14 +89,17 @@ for (const fx of ['day400.json', 'day900.json']) {
     let wider = 0;
     for (const t of TRAIT_IDS) {
       const a = p.beliefs[t], b = v.beliefs[t];
-      const w = 0.3 * Math.abs(b.est - a.est) + PREDICT_SD_FLOOR;
+      // CP4: since RF-S14 / CP3i the widening also carries an untested method's at-scale range (its uniform spread,
+      // predictBeliefs `wm`), so w is the inherit entry's noise: at least 0.3·|Δ| + floor, and sd² = sd_parent² + w².
+      const wMin = 0.3 * Math.abs(b.est - a.est) + PREDICT_SD_FLOOR;
+      const w = b.evidence[0]?.noise ?? NaN;
       const sdWant = Math.min(SD_MAX, Math.sqrt(a.sd * a.sd + w * w));
-      if (Math.abs(b.sd - sdWant) > 1e-12) bad4.push(`${t} sd ${b.sd} ≠ ${sdWant}`);
+      if (!(Math.abs(b.sd - sdWant) <= 1e-3)) bad4.push(`${t} sd ${b.sd} ≠ ${sdWant}`);
       if (b.sd > a.sd || a.sd >= SD_MAX) wider++;
-      if (b.evidence.length !== 1 || b.evidence[0].source !== `inherit:${p.id}` || Math.abs(b.evidence[0].reading - b.est) > 5e-4 || Math.abs(b.evidence[0].noise - w) > 5e-4) bad4.push(`${t} evidence ${JSON.stringify(b.evidence)}`);
+      if (b.evidence.length !== 1 || b.evidence[0].source !== `inherit:${p.id}` || Math.abs(b.evidence[0].reading - b.est) > 5e-4 || !(w >= wMin - 5e-4)) bad4.push(`${t} evidence ${JSON.stringify(b.evidence)} (w ≥ ${wMin.toFixed(4)})`);
     }
     const moves = TRAIT_IDS.filter((t) => Math.abs(v.beliefs[t].est - p.beliefs[t].est) > 1e-9).length;
-    check(bad4.length === 0 && wider === TRAIT_IDS.length, `${fx}: new version from ${p.id}: est = parent moved by the prediction (${moves}/${TRAIT_IDS.length} traits move), sd² = sd_parent² + (0.3·|Δ| + 0.04)², one inherit entry`, bad4.slice(0, 3).join('; '));
+    check(bad4.length === 0 && wider === TRAIT_IDS.length, `${fx}: new version from ${p.id}: est = parent moved by the prediction (${moves}/${TRAIT_IDS.length} traits move), sd² = sd_parent² + w², w ≥ 0.3·|Δ| + 0.04, one inherit entry`, bad4.slice(0, 3).join('; '));
     const s4b = load(fx);
     for (const x of s4b.player.models.versions) for (const t of TRAIT_IDS) x.traitsTrue[t] = 1 - x.traitsTrue[t];
     const { v: vb } = make(s4b);

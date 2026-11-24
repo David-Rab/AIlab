@@ -1,6 +1,6 @@
 // RD-X03 targeted check (DD-18, TRN-22, MEA-11): a rival's versions get G through the player's baseG (runs.ts baseGOf)
 // and rlGains on its stated reference portfolio; its model carries that reference-profile build (work fit, domains read
-// it); no clG / refRlGain special path left in the rivals' training; a rev-68 save gets the builds.
+// it); no clG / refRlGain special path left in the rivals' training. (CP4: the rev-68 migration check is gone with the UB-3 save break.)
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { RL_BUDGET } from '../../../src/data/v2/runDesign';
@@ -63,15 +63,5 @@ for (let d = 0; d < 200 && checked < labs().length; d++) {
   }
 }
 check(checked > 0, `at least one rival release recomputed (${checked} labs; worst |ΔG| ${worst.toExponential(1)})`);
-
-// 3. Migration 68 → 69: a save without builds gets them, G unchanged.
-const raw = JSON.parse(serialize(s));
-raw.schemaRev = 68;
-const gs: number[] = [];
-for (const r of [...raw.rivals, raw.china.lab]) for (const m of [r.internal, r.publicModel]) if (m) { delete m.build; gs.push(m.G); }
-const back = deserialize(JSON.stringify(raw));
-const ms = [...back.rivals, back.china.lab].flatMap((r) => [r.internal, r.publicModel]).filter(Boolean);
-check(ms.every((m) => !!m!.build) && ms.every((m, i) => near(m!.G, gs[i], 1e-12) && near(gOfBuild(m!.build!), m!.G, 1e-9)),
-  'migration 68 → 69 gives every rival / China model a build, G unchanged');
 
 finish();

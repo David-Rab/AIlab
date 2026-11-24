@@ -1,9 +1,9 @@
 // RD-R04 targeted check: the rolled tree path and the paradigm mirror are gone; kyc is not a node; P27 is a safety
-// project of line AG17 (known = adopted); a rev-57 save migrates. Run: npx tsx scripts/v2/_r04/check.ts
+// project of line AG17 (known = adopted). (CP4: the rev-57 migration check is gone with the UB-3 save break.) Run: npx tsx scripts/v2/_r04/check.ts
 import { readFileSync } from 'node:fs';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
-import { SCHEMA_REV, deserialize } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { adopted } from '../../../src/engine/v2/models/paradigms';
 import { nodeTestResult } from '../../../src/engine/v2/safety/findings';
 import { AGENDA_BY_ID } from '../../../src/data/v2/agendas';
@@ -31,23 +31,5 @@ const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'ai2027', alignment
   const b0 = s2.player.safety.agendas.AG17.posterior.b;
   nodeTestResult(s2, makeCtx(s2), p27, false);
   check(!adopted(s2, 'P27') && s2.player.safety.agendas.AG17.posterior.b === b0 + 1, 'P27 does not work → AG17 dead end (b + 1), not adopted');
-}
-{
-  // A rev-57 save: the mirror, a kyc record, a rolled P27 attempt halfway and the rolled fields.
-  const s = fresh() as unknown as Record<string, any>;
-  s.schemaRev = 57;
-  s.player.paradigms = { P01: { status: 'adopted', progress: 1 }, P27: { status: 'researching', progress: 0.5 } };
-  s.player.tree.kyc = { status: 'known', progress: 1, day: 0 };
-  s.player.tree.P27 = { status: 'researching', progress: 0.5, attempts: 1, priorMult: 0.5 };
-  s.player.tree.T_X = { status: 'failed', progress: 1, retryDay: 400 };
-  s.player.research.queue.push('kyc');
-  s.hidden.paradigmSuccess.P27 = true;
-  const g = deserialize(JSON.stringify(s));
-  const T1 = AGENDA_BY_ID.AG17.T1;
-  const t = g.player.tree as unknown as Record<string, Record<string, unknown>>;
-  check(g.schemaRev === SCHEMA_REV && SCHEMA_REV >= 58 && !('paradigms' in g.player) && !t.kyc && !g.player.research.queue.includes('kyc')
-    && !('P27' in g.hidden.paradigmSuccess) && !('priorMult' in t.P27) && !('retryDay' in t.T_X)
-    && Math.abs((g.player.tree.P27.saf?.work ?? -1) - 0.5 * T1) < 1e-12 && g.player.tree.P27.saf?.workNeed === T1,
-  'rev 57 → 58: mirror, kyc, P27 draw and rolled fields dropped; P27 restated as its AG17 test at its progress', JSON.stringify(g.player.tree.P27));
 }
 finish();

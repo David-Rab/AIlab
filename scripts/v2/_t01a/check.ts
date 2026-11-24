@@ -1,6 +1,6 @@
 // RD-T01a targeted check: an IDA cycle is a post run with grader 'teacher' (no name check); a regular post run has no
-// grader; a schemaRev-57 save gets the field from the run's name; the run's play (hash with the new field stripped) is
-// printed so the same script on the previous commit shows identical behaviour.
+// grader. The run's play (hash with the new field stripped) is printed so the same script on the previous commit shows
+// identical behaviour. (CP4: the rev-57 migration check is gone with the UB-3 save break.)
 // Run alone: npx tsx scripts/v2/_t01a/check.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,24 +14,16 @@ const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; co
 
 const s = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 s.player.finance.cash = Math.max(s.player.finance.cash, 50);
-const p18 = s.player.paradigms.P18;
-if (p18) p18.status = 'adopted';
-else (s.player.paradigms as Record<string, unknown>).P18 = { status: 'adopted' };
+// CP4: discoveries are tree nodes since RD-R04 (known = adopted; no paradigms mirror).
+s.player.tree.P18 = { ...(s.player.tree.P18 ?? { progress: 1 }), status: 'known' } as typeof s.player.tree.P18;
 const n0 = s.player.models.runs.length;
 const e1 = act(s, 'idaCycle', {});
 const e2 = act(s, 'launchPost', {});
 check(!e1 && !e2, 'IDA and post runs launch', `${e1 ?? ''} ${e2 ?? ''}`);
 const [ida, post] = s.player.models.runs.slice(n0);
-check(ida?.kind === 'post' && ida.grader === 'teacher' && !!ida.teacherVersionId && ida.name.startsWith('IDA'), 'IDA run: post, grader teacher, teacher id, name IDA n', ida?.name);
+check(ida?.kind === 'post' && ida.grader === 'teacher' && !!ida.teacherVersionId && ida.name.startsWith('Amplify'), 'IDA run: post, grader teacher, teacher id, name Amplify run n (UB-4 vocabulary)', ida?.name);
 check(!!post && post.kind === 'post' && post.grader === undefined, 'regular post run: no grader');
 
-// Migration 57 → 58: the field comes back from the name.
-const old = JSON.parse(serialize(s)) as GameStateV2;
-old.schemaRev = 57;
-for (const r of old.player.models.runs) delete r.grader;
-const mig = deserialize(JSON.stringify(old));
-const graders = (g: GameStateV2) => g.player.models.runs.map((r) => r.grader ?? '-').join(',');
-check(graders(mig) === graders(s), 'schemaRev-57 save migrates: grader from the name', graders(mig));
 
 for (let d = 0; d < 150; d++) tick(s);
 const done = s.player.models.runs.find((r) => r.id === ida?.id);

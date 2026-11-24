@@ -1,6 +1,6 @@
 // RD-P06 targeted check: reasoning effort is a plain product setting (fit and serving cost per answer up at deep, no
-// feature built); no Deep think feature or `effort` feature kind left in src; a rev-66 save with Deep think built
-// keeps the product's effort. Run alone: npx tsx scripts/v2/_p06/check.ts
+// feature built); no Deep think feature or `effort` feature kind left in src. (CP4: the rev-66 migration check is gone
+// with the UB-3 save break.) Run alone: npx tsx scripts/v2/_p06/check.ts
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
@@ -29,7 +29,8 @@ check(JSON.stringify(s.player.features) === JSON.stringify(featsBefore), 'the la
 const locked = game();
 check(!!act(locked, 'product.update', { id: prod(locked, 'api').id, effort: 'deep' }), 'without the idea, deep effort is refused (one lock: the model\'s capability)');
 
-// 2. No Deep think feature or `effort` feature kind left in src (the save migration names the old id).
+// 2. No Deep think feature or `effort` feature kind left in src (CP4: "Deep think" as a word, so the live effort
+// discovery's "Deep thinking effort" line is not a hit).
 const hits: string[] = [];
 const walk = (dir: string) => {
   for (const f of readdirSync(dir)) {
@@ -37,23 +38,12 @@ const walk = (dir: string) => {
     if (statSync(p).isDirectory()) walk(p);
     else if (/\.(ts|tsx)$/.test(f) && !p.split(String.fromCharCode(92)).join('/').endsWith('core/save.ts')) {
       const t = readFileSync(p, 'utf8');
-      if (/deepThink|Deep think|deep think|kind: 'effort'|kind === 'effort'|effortDeep|featEffort/.test(t)) hits.push(p);
+      if (/deepThink|[Dd]eep think\b|kind: 'effort'|kind === 'effort'|effortDeep|featEffort/.test(t)) hits.push(p);
     }
   }
 };
 walk('src');
 check(hits.length === 0, 'no Deep think / effort feature kind in src', hits.join(', '));
-
-// 3. Migration 66 → 67: Deep think dropped from built and product features; the effort setting kept.
-const old = JSON.parse(serialize(game())) as GameStateV2 & { schemaRev: number };
-old.schemaRev = 66;
-old.player.features.push('deepThink');
-const od = old.player.deployments.find((d) => d.channel === 'api')!;
-od.features.push('deepThink');
-od.effort = 'deep';
-const m = deserialize(JSON.stringify(old));
-const md = m.player.deployments.find((d) => d.id === od.id)!;
-check(!m.player.features.includes('deepThink') && !md.features.includes('deepThink') && md.effort === 'deep', 'a rev-66 save with Deep think built loads with the effort setting kept and the feature gone');
 
 console.log(fails ? `${fails} FAIL` : 'all ok');
 process.exit(fails ? 1 : 0);

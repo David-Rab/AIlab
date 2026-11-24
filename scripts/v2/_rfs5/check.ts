@@ -2,10 +2,10 @@
 //  1. a disagreement on model A records one item and leaves trust as it was (CAL2-S, decision 10: no automatic cut);
 //  2. a validation on B sets B's factor; A keeps its own factor; a model with no entry reads the last
 //     validated model's (extrapolated);
-//  3. migration 99 → 100: an old single factor goes to the model the instrument was validated on.
+//  (CP4: the rev-99 migration check is gone with the UB-3 save break.)
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { Rng } from '../../../src/engine/rng';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
 import { observeVersion } from '../../../src/engine/v2/safety/detection';
@@ -34,10 +34,11 @@ const reads = (fam: string, k: TraitId) => own.filter((t) => t.family === fam &&
 const trait = (Object.keys(A.traitsTrue) as TraitId[]).find((k) => reads('BB', k).length && reads('WB', k).length)!;
 const sides = [...reads('BB', trait), ...reads('WB', trait)];
 const bel = (t: TechniqueState, v: ModelVersion) => reliability(s, t, { x: versionOom(s, v), v, trait }, true).value;
+const d0 = (s.player.safety.disagreements ?? []).length; // CP4: the fixture may already hold earlier disagreements
 const fA0 = sides.map((t) => trustOf(t, A.id)), fB0 = sides.map((t) => trustOf(t, B.id)), rB0 = sides.map((t) => bel(t, B));
 observeVersion(s, noise([0.3]), s.time.day, A, trait, 'BB', 1, 1, 'suite');
 observeVersion(s, noise([-0.3]), s.time.day, A, trait, 'WB', 1, 1, 'audit');
-check((s.player.safety.disagreements ?? []).length === 1, 'one disagreement on A');
+check((s.player.safety.disagreements ?? []).length === d0 + 1 && s.player.safety.disagreements!.at(-1)!.model === A.id, 'one more disagreement, on A', `${d0} before`);
 check(sides.every((t, i) => trustOf(t, A.id) === fA0[i]), 'CAL2-S: A: trust unchanged by the disagreement', sides.map((t) => `${t.id} ${trustOf(t, A.id)}`).join(', '));
 check(sides.every((t, i) => trustOf(t, B.id) === fB0[i] && Math.abs(bel(t, B) - rB0[i]) < 1e-12), 'B: trust and believed reliability unchanged', sides.map((t) => `${t.id} ${trustOf(t, B.id)}`).join(', '));
 
@@ -52,17 +53,6 @@ check(trustOf(t, A.id) === 0.9 && fB !== 0.9, 'A keeps its own factor', `${trust
 const C = s.player.models.versions.find((v) => v.id !== A.id && v.id !== B.id && !t.trust!.byModel[v.id]);
 if (C) check(trustOf(t, C.id) === fB, 'a model with no entry reads the last validated model\'s (extrapolated)', `${C.name} ${trustOf(t, C.id)}`);
 
-// 3. migration
-{
-  const o = JSON.parse(raw) as { schemaRev: number; player: { safety: { techniques: Record<string, { validatedOn: string | null; trust?: unknown }> } } };
-  const id = Object.keys(o.player.safety.techniques)[0];
-  o.schemaRev = 99;
-  o.player.safety.techniques[id].validatedOn = A.id;
-  o.player.safety.techniques[id].trust = { f: 0.7, evidence: [{ day: 1, source: 'validation', model: A.id, note: 'x', f: 0.7 }] };
-  const m = deserialize(JSON.stringify(o));
-  const tr = m.player.safety.techniques[id as keyof typeof m.player.safety.techniques]!.trust as unknown as Record<string, unknown>;
-  check(m.schemaRev === SCHEMA_REV && SCHEMA_REV === 103 && JSON.stringify(tr.byModel) === JSON.stringify({ [A.id]: 0.7 }) && !('f' in tr), 'migration 99 → 100 (→ 102) moves the factor to the validated model', JSON.stringify(tr.byModel));
-}
 
 console.log(fails ? `${fails} FAILED` : 'all ok');
 process.exit(fails ? 1 : 0);

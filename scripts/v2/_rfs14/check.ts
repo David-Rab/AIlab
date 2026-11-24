@@ -3,7 +3,7 @@
 // read the narrowed range; organism realism applies; hidden truth (q, r) is not read by the readouts.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { Rng } from '../../../src/engine/rng';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
 import { METHOD_SCALE, VAL_N } from '../../../src/data/v2/agendas';
@@ -18,11 +18,12 @@ import { FIXTURE_DIR } from '../lib';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const load = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
+// CP4: the day-900 fixture. On the day-400 fixture regenerated at CP4 the only owned method (T-CONFESS) is outgrown by
+// τ 0.46, where no k of 20 maps inside the stated q range (the narrowing needs a well-outgrown method: τ 1.00 at day 900).
+const load = (): GameStateV2 => deserialize(readFileSync(join(FIXTURE_DIR, 'day900.json'), 'utf8'));
 const f2 = (x: number) => x.toFixed(2);
 
 const s = load();
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 103, 'day 400 migrates to 103');
 const iv = internalVersion(s)!;
 const xv = measuredOom(s, iv);
 const owned = ownedMethods(s);

@@ -1,6 +1,6 @@
 // RD-T07 targeted check (DD-07): fidelity = f(live tasks × grader quality); start suites at fidelity 1 and the old
 // exploitability; tasks go stale without upkeep (half-life SUITE_DECAY) and met upkeep holds them; S2 follows
-// exploitability through the one stated formula; a rev-65 save gets its suites' tasks from their expert data.
+// exploitability through the one stated formula. (CP4: the rev-65 migration check is gone with the UB-3 save break.)
 import { EXPLOIT_START, S2_PER_EXPLOIT, START_TASKS, SUITE_DECAY } from '../../../src/data/v2/suites';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
@@ -67,15 +67,5 @@ s2s.player.suites.swe = { ...suiteOf(s2s, 'swe')!, exploit: 0.36 };
 const s21 = suiteS2(w, suiteExploitMap(s2s));
 check(S2_PER_EXPLOIT === 5.5 && near(s20, 5.5 * sum0) && near(s21 - s20, 5.5 * (w.swe ?? 0) * (0.36 - 0.18), 1e-12) && near(suitesView(s2s).s2, s21),
   'S2 = 5.5 × Σ RL share × exploitability, following exploitability', `${s20.toFixed(4)} → ${s21.toFixed(4)}`);
-
-// Migration 65 → 66: tasks from the suite's expert data.
-const mg = game();
-completeSuiteWork(mg, makeCtx(mg), 'math:build');
-const raw = JSON.parse(JSON.stringify(mg));
-raw.schemaRev = 65;
-for (const x of Object.values(raw.player.suites) as { tasks?: number }[]) delete x.tasks;
-const g = deserialize(JSON.stringify(raw));
-check(near(suiteOf(g, 'math')!.tasks, 2 * START_TASKS, 1e-6) && near(suiteFidelity(g, 'math'), suiteFidelity(mg, 'math'), 1e-12) && near(suiteExpertT(g, 'math'), suiteExpertT(mg, 'math')),
-  'migration 65 → 66: a suite\'s live tasks come from its expert data', `${suiteOf(g, 'math')!.tasks}`);
 
 finish('rdt07');

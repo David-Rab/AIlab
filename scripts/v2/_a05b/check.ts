@@ -1,8 +1,8 @@
 // RD-A05b targeted check: idle serving / training compute stays idle unless Auto-split is on; with it on the idle share
-// moves to the listed use and is logged; a rev-55 save loses the spare policies. Run alone: npx tsx scripts/v2/_a05b/check.ts
+// moves to the listed use and is logged. (CP4: the rev-55 migration part is gone with the UB-3 save break.) Run alone: npx tsx scripts/v2/_a05b/check.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deserialize, serialize } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { act, tick } from '../../../src/engine/v2/core/loop';
 import { poolsOf } from '../../../src/engine/v2/compute/power';
 import { idleServing } from '../../../src/engine/v2/worldfx/revenue';
@@ -18,7 +18,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
 
 const raw = readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8');
 const s = deserialize(raw);
-check(!s.player.policies.autoSplit.on && !('spareTraining' in s.player.policies) && !('spareServing' in s.player.policies), 'migrated policies: no spare policies, Auto-split off');
+check(!s.player.policies.autoSplit.on && !('spareTraining' in s.player.policies) && !('spareServing' in s.player.policies), 'fixture policies: no spare policies, Auto-split off');
 // Give serving far more than the products need: idle serving compute.
 const sp = { ...s.player.split };
 const dx = Math.min(sp.training, 0.1);
@@ -50,13 +50,6 @@ act(s, 'compute.autoSplit', { on: false });
 for (let d = 0; d < 3; d++) tick(s, { skip: ['endings'] });
 check(s.player.split.serving === serv1, 'Auto-split off again: nothing moves');
 
-// A rev-55 save with the old policies loads without them.
-const old = JSON.parse(serialize(s));
-old.schemaRev = 55;
-delete old.player.policies.autoSplit;
-Object.assign(old.player.policies, { spareTraining: 'data', spareServing: 'research' });
-const m = deserialize(JSON.stringify(old));
-check(!('spareTraining' in m.player.policies) && !('spareServing' in m.player.policies) && m.player.policies.autoSplit?.on === false, 'migration 55 → 56');
 
 console.log(fails ? `\n${fails} failed` : '\nall passed');
 process.exit(fails ? 1 : 0);

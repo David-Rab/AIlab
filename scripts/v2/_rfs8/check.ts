@@ -3,7 +3,7 @@
 // suite.harden's, and saves lose the old envFix state and need.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deserialize, SCHEMA_REV } from '../../../src/engine/v2/core/save';
+import { deserialize } from '../../../src/engine/v2/core/save';
 import { makeCtx } from '../../../src/engine/v2/core/loop';
 import { applyResponse } from '../../../src/engine/v2/safety/responses';
 import { SAFETY_ACTIONS } from '../../../src/engine/v2/safety/actions';
@@ -18,8 +18,8 @@ const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; co
 const s: GameStateV2 = deserialize(readFileSync(join(FIXTURE_DIR, 'day400.json'), 'utf8'));
 const saf = s.player.safety as unknown as Record<string, unknown>;
 const order = (s.player.research.safRe?.order ?? []) as string[];
-check(s.schemaRev === SCHEMA_REV && SCHEMA_REV === 103 && saf.envFixes === undefined && saf.envFixJobs === undefined && !order.includes('envFix') && !(SAF_RE_NEEDS as string[]).includes('envFix'),
-  'migrates to 102: no envFixes / envFixJobs, no envFix need', `order ${order.join(',')}`);
+check(saf.envFixes === undefined && saf.envFixJobs === undefined && !order.includes('envFix') && !(SAF_RE_NEEDS as string[]).includes('envFix'),
+  'no envFixes / envFixJobs, no envFix need (CP4: no rev pin)', `order ${order.join(',')}`);
 
 const v = internalVersion(s)!;
 const respond = SAFETY_ACTIONS.find((a) => a.id === 'safety.respond')!;

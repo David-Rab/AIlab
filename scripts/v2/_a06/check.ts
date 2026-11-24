@@ -1,5 +1,5 @@
 // RD-A06 targeted check: a built product feature no longer changes the internal agents' fit; building the internal
-// tool (engineers, build queue) does; starts and old saves keep their internal tooling; control is per package.
+// tool (engineers, build queue) does; starts keep their internal tooling; control is per package.
 // Run alone: npx tsx scripts/v2/_a06/check.ts
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,24 +46,23 @@ const sweRef = (() => { const x = clone(tool); x.player.tooling = []; return lab
 check(Math.abs(sweAfter - sweRef - 0.3) < 1e-9, 'built Coding harness: SWE fit +0.3 OOM', `${sweRef.toFixed(3)} → ${sweAfter.toFixed(3)}`);
 check(act(tool, 'tooling.build', { id: 'codingHarness' }) !== undefined, 'a built tool cannot be queued again');
 
-// 3. Starts own the tools equivalent to their built features; an old save gets them too (migration 56 → 57).
+// 3. Starts own the tools equivalent to their built features (CP4: the rev-56 migration check is gone with the UB-3 save break).
 const ch = newGame({ ...JSON.parse(serialize(base)).setup, start: 'challenger' } as never);
 check(JSON.stringify(ch.player.tooling) === '["codingHarness"]', 'challenger start (Coding agent built) owns the Coding harness', JSON.stringify(ch.player.tooling));
 const ld = newGame({ ...JSON.parse(serialize(base)).setup, start: 'leader' } as never);
 check(ld.player.tooling.length === 0, 'leader start: no internal tools (sector packs only), as before');
-const old = JSON.parse(serialize(feat)) as Record<string, unknown> & { schemaRev: number; player: Record<string, unknown> };
-old.schemaRev = 56;
-delete old.player.tooling;
-const mig = deserialize(JSON.stringify(old));
-check(['codingHarness', 'researchHarness', 'agentMemory'].every((t) => mig.player.tooling.includes(t)), 'rev-56 save: built features become the equivalent tools', JSON.stringify(mig.player.tooling));
 
 // 4. Explicit model and per-package control.
 const pk = clone(base);
 delete pk.player.agents.eng.versionId;
 check(agentVersion(pk, 'eng')?.id === newestInternal(pk)?.id && agentsView(pk).lanes.eng.newest, 'no pick = the newest internal model, flagged as such', newestInternal(pk)?.name ?? '');
+// CP4: the day-400 fixture already has control on the research-agent package, so the
+// check is that turning it on for engineering agents changes that package only.
+pk.player.agents.eng.control = undefined;
+const other0 = agentsView(pk).lanes.capRoutine.control.on;
 act(pk, 'agents.set', { use: 'eng', control: true });
 const lanes = agentsView(pk).lanes;
-check(underControl(pk) && lanes.eng.control.on && !lanes.capRoutine.control.on, 'control layer on one package only', `eng ${lanes.eng.control.tax.toFixed(3)}`);
+check(underControl(pk) && lanes.eng.control.on && lanes.capRoutine.control.on === other0, 'control layer per package: engineering on, research agents unchanged', `eng ${lanes.eng.control.tax.toFixed(3)}, research agents ${other0 ? 'on' : 'off'} before and after`);
 
 console.log(fails ? `${fails} FAIL` : 'all ok');
 process.exit(fails ? 1 : 0);

@@ -1,5 +1,5 @@
 // RD-T06 targeted check (DD-07): no expert-data purchase by domain; a suite build buys its expert data; P12 unlocks the
-// long-tasks demonstrations build, which raises that suite's fidelity at its cost; old domain stock migrates to suites.
+// long-tasks demonstrations build, which raises that suite's fidelity at its cost. (CP4: the rev-64 migration check is gone with the UB-3 save break.)
 import { DEMO_BUILD, EXPERT_PRICE_B_PER_T, SUITE_BUILD } from '../../../src/data/v2/suites';
 import { TREE_BY_ID } from '../../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
@@ -42,16 +42,5 @@ const p = game();
 completeSuiteWork(p, makeCtx(p), 'longHorizon:build');
 check(near(suiteExpertT(d, 'longHorizon'), E0 + SUITE_BUILD.tokensT + DEMO_BUILD.tokensT, 1e-15) && suiteFidelity(d, 'longHorizon') > suiteFidelity(p, 'longHorizon') && suiteFidelity(p, 'longHorizon') > fid0,
   'P12 option raises long-tasks fidelity beyond a plain build', `${fid0.toFixed(3)} → plain ${suiteFidelity(p, 'longHorizon').toFixed(3)} / demos ${suiteFidelity(d, 'longHorizon').toFixed(3)}`);
-
-// Migration 64 → 65: AGENCY stock splits over computer use (no suite) and long tasks; PHYS (no family) is dropped.
-const m = game();
-const old = (dom: 'AGENCY' | 'PHYS', t: number): OwnedDataAsset => ({ id: `expert:dom:${dom}`, kind: 'expert', tokensT: t, mix: { [dom]: 1 }, quality: 3, domain: dom, day: 0 });
-m.player.dataPortfolio.assets.push(old('AGENCY', 0.004), old('PHYS', 0.003));
-const lh0 = suiteExpertT(m, 'longHorizon');
-const raw = JSON.parse(JSON.stringify(m));
-raw.schemaRev = 64;
-const g = deserialize(JSON.stringify(raw));
-check(!g.player.dataPortfolio.assets.some((a) => a.id.startsWith('expert:dom:')) && near(suiteExpertT(g, 'longHorizon'), lh0 + 0.004, 1e-15),
-  'migration credits domain stock to its family suite, drops the rest', `${suiteExpertT(g, 'longHorizon')}`);
 
 finish('rdt06');
