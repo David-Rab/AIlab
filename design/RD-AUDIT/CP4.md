@@ -151,3 +151,27 @@ left as UB-2b's (a) (learn the offset from the predicted-vs-measured record).
    / FC2; EV9; the 13 UB-F UI failures.
 5. Scratch left untracked in AI27-rf-s1 (could not be deleted from this session): scripts/v2/_cp4/p_rfs14.ts,
    scripts/v2/_rfs14/check900.tmp.ts.
+
+## CP4b (follow-up on the 5 (d) and 6 (c), 2026-11-24)
+
+Two probes at most per item; only the affected scripts re-run (control, serving, sabotage, products), tsc scripts/v2
+clean. None of the five (d) is an engine bug: all are rigs that drifted from the engine, so they move to (c), fixed.
+
+| Item | Cause | Outcome | sha |
+|---|---|---|---|
+| control process crossing θ_w, ASI weak oversight ((d) ×2) and recovery ((c) ×1) | the regenerated day-400 fixture has the control layer on D4 / capRoutine (O_eff 0.85 at L15), so `lab()` started under oversight: traits scaled to the cap reach only E 0.111 < θ_w 0.245, and strong oversight adds +0.11. Without the layer E is 0.281 | (c), fixed: `lab()` clears the control layer. The ASI determinism check then compares the ending with `resolveAsi` on the ticked state (the framework's package adds the control layer within the tick, packages.ts; E 0.054 after it) | ab34211 |
+| serving D3 day 1 / day 400 ((d) ×2) | the rig built each provider's offer without `ud` / `tools`; since RF-P1 every lab has day-0 tools, which `offerOf` counts as coverage (mix.ts passes them): 45 of 210 differed | (c), fixed: offer built as mix.ts builds it; 0 differ | af02184 |
+| sabotage SAFMECH readout ((d) ×1) | UB-2: readouts use believed production parameters and measured fits, and the rig's +6 OOM is in the true build only, so seen 1.147 vs actual 11357.7 with or without sabotage | (c), restated: the seen value ignores the sandbag (1.147 at sab 0 and .8) and actual ÷ seen falls with it (10789.7 → 9905.0) | b239c5c |
+| products P1, P7 unknown idea, C2b, C2c leader start ((c) ×4) | RF-P1: the leader starts with Memory, Computer use, Voice & vision, Deep research, Coding agent built and on its products; Companion's idea is known, so no leader feature has an unknown idea | restated: P1 each product carries the start's tools for its channel, all built; P7 gate on the spinout start (Memory: "Needs the idea Long context + memory"); C2b Voice & vision added to the API without it (1.465 → 1.491); C2c the start's tools carry the in-use upkeep and nothing else | a80cb10 |
+| products RD-B20 sector adaptation preview ((c) ×1) | not RF-P3: the rig hard-coded the old $0.4B certification; CAL-P (b83ce96) set CERT_CASH $4M | restated on CERT_CASH | a80cb10 |
+| products C2c Memory in use when off everywhere, C2c tooltip upkeep (CP3 (a) rows, same block) | RD-A06: features no longer act on the internal agents (Agent memory is an internal tool), so Memory off everywhere is idle | restated with the block: in use on a product, keep-alive when off; tooltip = engine (0.115 / 0.012). One CP3 (a) row cleared | a80cb10 |
+
+Re-runs: control all pass (was 3 fails); serving 4 fails (S5, B7 (b); S6, A7 (a)), D3 ×2 pass; sabotage all pass;
+products 4 fails (P7 companion users, A6 (b); M2, A5 (a)), was 10.
+
+Note: the sabotage rig's seen vs actual gap (×10⁴) is the rig's true-only +6 OOM, not play; a rig whose measured
+level follows the build would test the symptom without the ratio, not needed for the claim.
+
+After CP4b: (c) and (d) are empty. Still before the master merge: "Left before merging" items 3 (SCHEMA_REV onto
+master's chain, fixtures, test:full) and 4 (designer / parked). Scratch untracked in AI27-rf-s1: scripts/v2/_cp4b/
+(three probes; could not be deleted from this session) plus item 5's two files.
