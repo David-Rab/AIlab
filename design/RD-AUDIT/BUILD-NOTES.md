@@ -5951,3 +5951,68 @@ the shots. Unstopped harm reads 0.020 (3 decimals below 0.1). The picker is a na
 Loss-of-control readout: a second display of the datum (its driver link now points to SAFETY › Risks). The Unknown state
 of the risk tile needs a belief state wide enough to move the risk itself (a fresh model with no evidence). Able to "?"
 on unmeasured rows reads a relative's skill; a separate "not measured" look may read better.
+
+### UB-A (PRODUCTS, Overview hub, RESEARCH › Discoveries; branch build-a from rd; mockups rd/products.png, products-drawer.png, overview.png, overview-tip.png, discoveries.png, discoveries-drawer.png; DATA-a.md; DECISIONS "Remaining mockups approved")
+
+**PRODUCTS (panels/Products.tsx, products.css).** Header: Serving compute link (LAB is the home of the numbers) and a
+Policies popover (Auto serving, auto-make smaller sizes, upgrade to newest; manual split when Auto is off). Revenue strip:
+total with change since the peak and sparkline, one row per product (served / wanted-not-served bar, revenue, "all demand
+served", Limited-by chip, where buyers are heading); Agents "not launched". Cards by revenue: lineup (skill on tests,
+hours sold, price per hour; fold to the lineup editor), tools with where they help and "Add a tool", customers (share now
+→ where heading, time, best rival; customers stay on the cards per DECISIONS), seats / hours / users, sector
+certification, price and thinking effort as live edits with before → after preview, footer links (Customers by sector,
+Safeguards ›). Agents card: ready-to-launch checks, what it would sell, Launch. Drawer (customers by sector): sector
+shares now → target, switch time, Limited-by as a sentence, what could win buyers back (newer model, know-how waiting,
+certification with its cost), sold in a year, safeguards on this product and Retire.
+**Readouts (worldfx/productBoard.ts, pure):** `revenueTrend`, `customerDrift`, `limitReason`, `agentsReady`, `winBack`;
+productView `CustomerView.bySeg` (share now and target per sector, spend-weighted).
+**Deleted:** the serving card (LAB home), per-card revenue hero, econ rows, Binding button, danger chip (SAFETY › Risks).
+**Skipped (engine):** revenue history per product (only the total has a series); separate API vs Enterprise customers
+(one shared segment); rival price per sector; a share preview for each win-back fix.
+
+**Overview (panels/Overview.tsx, overview.css).** "Your lab" hub: Compute → Lab → Research → Training → Models →
+Products → Finance with the revenue back-edge, the AI-staff takeoff loop, Safety ("watches models at work") and World
+below; each box a verdict + short reading, tooltip with its numbers, click opens its screen (World opens World › Risk).
+"The race": one lane per active lab, best guess and likely range (± 1.64 sd), "N d ahead / behind of you · likely …";
+lane tooltip (lockable): definition with the nested "best internal model" term, range strip, intel report date, their
+public model, your best model, "Risk from their models ›".
+**Readouts (core/hubView.ts, pure):** `hubVerdicts` (compute series + orders + idle chips; idleShares; production label
++ idle science teams; runs + know-how waiting; versions in testing / best measured in products; productReadouts bound +
+customerDrift; runway or division budget; safReAllocView shortages; riskSources without your own row) and `leadLanes`.
+Glossary: `bestInternal`, `likelyRange`.
+**Deleted:** the live core loop (CoreLoop.tsx is now the static Codex diagram only), the old lead track, the race history
+chart (SAFETY › Instruments is its home), the Watch card (the bottom bar is the alert channel), their CSS.
+**Skipped (engine):** lead history per lab (trend arrows: only today's estimate is kept); "Their models on your evals"
+link (rivals' released models measured by your evals do not exist yet: no link shown).
+
+**World risk.** Company & world › Risk is gone from the navigation; its Sources and Flows are World › Risk
+(panels/WorldRisk.tsx, moved from RiskSources.tsx). The "Loss of control (your model)" row is removed: SAFETY is its one
+home (footer link). Old `risk` links open World › Risk (store.setPanel). World now unlocks in Act 2 (Risk did).
+
+**RESEARCH › Discoveries (panels/Research.tsx, research.css, discoveryWords.ts, researchWords.ts).** Six field lanes ×
+Known · Can start now · One step away · Later with counts; node chips (state icon, display name, opens-N, capability /
+see / stop / fix / meta tag, one effect line, downside mark, tooltip); filter All / Capability / Safety; legend in the
+header. Drawer: what it gives / what it costs, chance it works, size with time at 1 and 2 teams, needs, takes effect, the
+other road (Neuralese / Faithful reasoning), also-touches links, Add to Priority list / Retry, Portfolio link for a node
+being researched. Display names per DATA-a.md.
+**Readouts (models/discoveryView.ts, pure):** `discoveryViews` (zone, tag, opens, odds, progress, ETA, queue position),
+`discoveryEtas` (projectEta at 1 and 2 teams). Glossary `discDownside`; `outputTag` covers meta.
+**Deleted:** depth columns, frontier / all views, minimap, edge lines, the old node card and "Top priority".
+
+**Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux 1 fail, pre-existing (Work.tsx:216);
+lint-structure 1 fail, pre-existing (action title length). lint-tips allow-list moved to WorldRisk.tsx. uitest: Overview,
+Products, Discoveries and Risk steps rewritten (R10 Overview → UB-A hub / lanes / tooltip; L1 Watch card → none; B4 core
+loop customers step removed; Risk steps → World › Risk; panel loop without `risk`). Full run (now reaches the end: 662 passed, 36 failed): every Overview, World › Risk, Products and Discoveries step passes except "Products: locked tools name their idea" (no locked tool on these fixtures); the other failures are outside these screens (Agents, D6 / D8 Training and Evals, E6, E11 Remove, FIN4a, J2 LAB engineering pool, IA SAFETY homes, F6c / F6e). Agents launch keeps its gate (deployGate: safety committee holds) with its reason.
+Screenshots: scripts/v2/shots/build-a/ (d0, d400, d900: overview, lane tooltip, hub tooltip, world-risk, products,
+drawer and edits, discoveries, drawers), scripts overview.mjs / products.mjs / discoveries.mjs (ignored).
+
+**Differences from the mockups.** Overview: "YOU · Atlas-2.10" and "Your best model Atlas-2.10" at day 400 (the lead is
+measured against the AI-staff model, which is the one in testing); Models box "in products: Atlas-2.8"; Compute sub "no
+chips on order" (true at day 400); Safety "Staff short · safety research slowed"; World sub "rival labs, China, misuse,
+war". Products: Agents has a picker for other unlaunched products; monitor / safeguard level / KYC controls sit in the
+drawer (their only home until SAFETY › Safeguards takes per-product safeguards: then delete them here); small cards scroll
+at d0 / d900 with three-row lineups. Discoveries: times 90–540 d in months; instrument lines use SAFETY trait names
+("sycophancy"); the Neuralese drawer has one more also-touches link (Run plan option); names truncate below ~1800 px.
+
+**Left.** LabTabs' "Risk › theft" link label (LAB sub-tabs belong to another build; the link itself opens World › Risk).
+The L0 lead tooltip still lists every lab's estimate and range (UB-5): the lanes are the home.
