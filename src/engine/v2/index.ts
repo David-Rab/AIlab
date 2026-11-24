@@ -143,6 +143,8 @@ export { quarterIndex, dayOfQuarter, dayOfDate } from './core/time';
 export { topDecisions } from './endings/replay';
 export * from './core/limitsView';
 export * from './models/rdReadouts';
+export * from './models/runReadouts';
+export * from './models/labReadouts';
 export * from './safety/safetyReadouts';
 export * from './safety/readoutsModel';
 export * from './safety/readoutsInstruments';

@@ -303,7 +303,10 @@ ok('LAB: allocation bar with idle chip, workforce rows and Best moves', !!(await
 await check('LAB: a bar segment opens the allocation editor', '!!document.querySelector("[data-test=alloc-editor]")', () => page.click('[data-test=alloc-bar] [data-seg=training]'));
 await check('LAB editor: slider moves the draft', `document.querySelector('[data-test=alloc-editor]').innerText`, () => setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0.6));
 await check('LAB editor: Apply sets the allocation', 'JSON.stringify(s.player.split)', () => page.click('[data-panel=lab] [data-act=setSplit]'));
-await check('LAB: a workforce row opens its needs', '!!document.querySelector("[data-needs]")', () => page.click('[data-row="re.saf"]'));
+// UB-B: needs live only on LAB › AI staff & needs; a board row opens that tab.
+await check('LAB: a workforce row opens its needs on AI staff & needs', 'store.tab.lab', () => page.click('[data-row="re.saf"]'));
+ok('LAB: the board has no needs copy', !(await page.$('[data-needs]')) && !!(await page.$('[data-home="needs.re.saf"]')));
+await tabTo('board');
 await check('LAB: scientists split + raises the capability scientists target', 's.player.hiring.targets["sci.cap"]', () => page.click('[data-act="sciSplit.sci.cap.up"]'));
 {
   const mv = await page.$('[data-home=bestMoves] [data-act^="move."]:not([disabled])');
@@ -313,47 +316,50 @@ await check('LAB: scientists split + raises the capability scientists target', '
   else ok('LAB: Best moves lists moves or says none helps', !!(await page.$('[data-home=bestMoves]')));
   await page.evaluate((sp) => window.ai27v2.act('setSplit', sp), split0);
 }
-// R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
+// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; offers; payroll.
 await nav('lab');
 await tabTo('people');
-ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=lab] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
-ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=lab] [data-pile="' + k + '"]'))`)));
+ok('Hiring: five role rows with one tile per team', JSON.parse(await get(`['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'].every((k) => !!document.querySelector('[data-panel=lab] .lh-row[data-key="' + k + '"]')) && document.querySelectorAll('[data-panel=lab] .lh-tile:not(.filling)').length === s.player.teams.length`)));
+ok('Hiring: next team buys on every row', (await page.$$('[data-panel=lab] [data-test^="buys."]')).length === 5);
 await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
-await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .offer [data-act="teams.hire"]'));
+await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .lh-offer [data-act="teams.hire"]'));
 await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
-await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-pile="re.saf"] [data-act="teams.move"]'));
+if (await page.$('[data-act="teams.move.re.saf"]:not([disabled])')) await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-act="teams.move.re.saf"]'));
+else ok('Move: safety research-engineering team to capabilities', true, 'no movable safety research-engineering team in this game');
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
-await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=lab] .sci-card [data-act="teams.release"]'));
+await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-act="teams.release.sci.cap"]'));
 await shot('20-lab-people');
 await tabTo('work');
-// R7 Agents at work: four lanes (home of the internal packages), model/monitor chips with a before → after preview,
-// compute steppers, AI share per role, risk badges; Trusted to AI (B3 gate); the same chips on Products; Safety links.
-ok('Agents at work: four lanes with model and monitor chips', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]') && !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
-ok('Agents at work: AI share of each capabilities role and four risk badges per lane', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]')) && document.querySelectorAll('[data-home=agents] [data-risk]').length === 16`)));
+// R7 / UB-B AI staff & needs: four job cards (model chip, AI share, work done; watcher chip on the three capability
+// jobs; AI share allowed and spot-checks on Safety), then the three needs lists.
+ok('AI staff: four job cards with a model chip, watcher chips on the capability jobs', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]')) && ['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
+ok('AI staff: AI share on every job', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]'))`)));
+ok('AI staff: three needs lists', (await page.$$('[data-panel=lab] .la-ncard')).length === 3);
 await page.selectOption('[data-test="agent-monitor.eng"]', 'same');
 await wait(80);
-ok('Agents: a monitor pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
+ok('Agents: a watcher pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
 await page.click('[data-test="agent-cancel.eng"]');
 await wait(60);
 ok('Agents: Cancel closes the preview and keeps the package', JSON.parse(await get('s.player.agents.eng.monitorId === undefined && !document.querySelector(\'[data-test="agent-edit.eng"]\')')));
 await page.selectOption('[data-test="agent-monitor.capFrontier"]', '');
 await wait(80);
 await check('Agents: Apply removes the frontier monitor', 'JSON.stringify(s.player.agents.capFrontier.monitorId || null)', () => page.click('[data-act="agents.set.capFrontier"]'));
-await check('Agents: compute + moves agent pool to engineering', 'JSON.stringify(s.player.agents.eng.compute)', () => page.click('[data-act="agents.compute.up.eng"]'));
-ok('Agents: capabilities shares still sum to 1', JSON.parse(await get('Math.abs(s.player.agents.eng.compute + s.player.agents.capRoutine.compute + s.player.agents.capFrontier.compute - 1) < 1e-9')));
-{
-  const gate = JSON.parse(await get('!!document.querySelector("[data-test=trusted-gate]")'));
-  ok('Trusted to AI: home on the safety lane; locked below the AI-labour gate', !!(await page.$('[data-home=trustedToAI]')) && (!gate || !!(await page.$('[data-act="agents.trusted.up"][disabled]'))), gate ? 'locked' : 'open');
-}
+await check('AI share allowed: + raises it', 's.player.policies.trustedToAI', () => page.click('[data-act="agents.trusted.up"]'));
+ok('AI share allowed: home on the Safety job card', !!(await page.$('[data-lane=safety] [data-home=trustedToAI]')));
+await check('Needs: Change order opens the editor', '!!document.querySelector(".la-needs.editing")', () => page.click('[data-test="order.research.reAlloc"]'));
 await shot('21-lab-agents');
-// B4: one WSL target range for the slider and the engine.
+// UB-B Security: a Set per level in What a higher level costs (range 2–5 as in the engine).
 await tabTo('security');
-ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=lab] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
-await check('Security target: slider at the floor + Set', 's.player.security.target', async () => {
-  await setSlider(page.locator('[data-panel=lab] [data-home=wsl] input[type=range]'), 2);
-  await page.click('[data-panel=lab] [data-act=SEC_TARGET]');
-});
-ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
+ok('Security: level rows up to 5', JSON.parse(await get(`!!document.querySelector('[data-panel=lab] [data-home=wslCosts] [data-level="5"]')`)));
+{
+  const setBtn = await page.$('[data-panel=lab] [data-home=wslCosts] [data-act^="SEC_TARGET."]:not([disabled])');
+  const lvl = setBtn ? Number((await setBtn.getAttribute('data-act')).slice(11)) : NaN;
+  if (setBtn) {
+    await check('Security target: Set on a level row', 's.player.security.target', () => setBtn.click());
+    ok('Security target set to the row level', JSON.parse(await get(`s.player.security.target === ${lvl}`)));
+  } else ok('Security target: every Set says why it is blocked', (await page.$$('[data-panel=lab] [data-home=wslCosts] [data-act^="SEC_TARGET."][disabled]')).length > 0);
+}
+await check('Security: need-to-know Partial', 's.player.security.siloing', () => page.click('[data-panel=lab] [data-act="SEC_SILO.1"]'));
 await nav('finance');
 await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80); // J1 F3: Finance has tabs
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
@@ -413,11 +419,12 @@ await check('Launch base run', `s.player.models.runs.filter(r => r.kind === 'bas
 await nav('blueprint');
 await tabTo('runs');
 {
-  const rq = JSON.parse(await get(`(() => { const q = document.querySelector('[data-home=runQueue]'); const live = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').length; return [!!q && q.querySelectorAll('[data-run]:not([data-run=stream]):not([data-run=spare])').length === live && live >= 1 && q.querySelectorAll('[data-test=run-share]').length === live, (q?.innerText ?? store.panel).slice(0, 160)]; })()`));
-  ok('Runs: every running run with its share and ETA (no finished ones)', rq[0], rq[1]);
+  // UB-B: the timeline draws every running and finished run; Running now shows the run with the largest share, with its share and due date.
+  const rq = JSON.parse(await get(`(() => { const tl = document.querySelector('[data-test=runs-timeline]'); const now = document.querySelector('[data-home=runningNow]'); const n = s.player.models.runs.filter((r) => ['running', 'paused', 'done'].includes(r.status)).length; const live = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused').length; return [!!tl && tl.querySelectorAll('.rn-bar[data-run]').length === n && live >= 1 && !!now?.querySelector('[data-test=run-share]') && !!now?.querySelector('[data-test=run-eta]'), (now?.innerText ?? store.panel).slice(0, 160)]; })()`));
+  ok('Runs (UB-B): the timeline shows every run; Running now has its share and due date', rq[0], rq[1]);
 }
 await check('Run queue: − lowers a pool share', 'JSON.stringify(s.player.models.runs.map((r) => r.poolShare))', () => page.locator('[data-act^="run-share-dn."]:not([disabled])').first().click());
-ok('Run queue: idle row links to Lab', !!(await page.$('[data-home=runQueue] [data-run=spare] [data-ref=idleCompute]')));
+ok('Runs (UB-B): training compute now (runs, idle) links to LAB', !!(await page.$('[data-test=runs-compute] .dv-chip')) && /idle/.test(await page.locator('[data-test=runs-compute]').innerText()));
 await nav('lab');
 await tabTo('board');
 ok('LAB: idle training compute shows inside the training segment (RD-A05b)', !!(await page.$('[data-test=alloc-bar] [data-seg=training] .idle')));
@@ -697,13 +704,13 @@ await shot('43-research-knowhow');
 await tabTo('projects');
 if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a failed project as speculative', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-act^="reopen."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
-// Model v3 V2b Company › Work: three role cards (effective labour, fit vs people, coverage, needs with caps and order),
-// milestones with criteria; research speed card on Flow.
+// UB-B LAB › AI staff & needs: the needs lists' editor (Change order: caps and order); build capacity on the engineers
+// card. Skill at each job and milestones moved to MODELS.
 await nav('lab');
 await tabTo('work');
 await wait(80);
-ok('Work: three role cards with labour, fit axis and coverage', JSON.parse(await get(`['SWE', 'EXP', 'IDEAS'].every((w) => !!document.querySelector('[data-test="labour.' + w + '"]') && !!document.querySelector('[data-test="fit.' + w + '"]') && !!document.querySelector('[data-test="coverage.' + w + '"]'))`)));
-ok('Work: build capacity has its home in the engineers card', !!(await page.$('[data-home=buildCapacity] [data-test="labour.SWE"]')) || !!(await page.$('[data-home=buildCapacity][data-wt=SWE]')));
+ok('Work: build capacity on the engineers needs card', !!(await page.$('[data-home="needs.eng"] [data-test=build-queue]')));
+await page.click('[data-test="order.research.reAlloc"]'); await page.click('[data-test="order.build.engAlloc"]'); await wait(60);
 await check('Work: research-engineer cap (share)', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', 'share:0.5'));
 await check('Work: research-engineer cap cleared', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', ''));
 await check('Work: research-engineer order', 'JSON.stringify(s.player.research.re.order)', () => page.click('[data-test="needs.research.reAlloc"] [data-test="need-down.ops"]'));
@@ -712,7 +719,6 @@ await check('Work: engineers cap (count)', 'JSON.stringify(s.player.build.alloc)
 await check('Work: engineers cap cleared', 'JSON.stringify(s.player.build.alloc)', () => page.selectOption('[data-test="needs.build.engAlloc"] [data-test="cap.upkeep"]', ''));
 await check('Work: engineers order', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-down.runs"]'));
 await check('Work: engineers order back', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-up.runs"]'));
-ok('Work: seven milestones with criteria', JSON.parse(await get(`document.querySelectorAll('[data-home=milestoneCriteria] [data-ms]').length === 7`)));
 await shot('44-lab-work');
 await tabTo('board');
 ok('L0 research speed: × with its tooltip home (UB-5)', !!(await page.$('.topstrip2 [data-home=labSpeed]')));
@@ -1009,7 +1015,7 @@ async function b4Check(where) {
   await closeModals();
 }
 // ───────────────────────── D6: Models › Suites (day 1, 400, 900) ─────────────────────────
-const D6_TERMS = ['envSuite', 'suiteFidelity', 'suiteExploit', 'expertData', 'suiteBuild', 'suiteHarden', 'suiteRlShare', 'rewardHackPressure', 'plannedRun'];
+const D6_TERMS = ['envSuite', 'suiteFidelity', 'suiteExploit', 'rewardHackPressure', 'buildCapacity', 'riskFamily']; // UB-B: the terms on the Environments screen (Expand / Harden terms sit in their tooltips)
 const d6Seen = new Set();
 const tipText = async (sel) => {
   await clearTips();
@@ -1135,87 +1141,72 @@ const toSuites = async () => { await nav('blueprint'); await tabTo('suites'); aw
 async function d6Check(where, complete) {
   await toSuites();
   const tag = where.replace(' ', '');
-  // Values present per family; the locked family names its idea.
-  const rows = await page.$$eval('[data-test=suites] [data-suite]:not([data-locked])', (els) => els.map((e) => ({
+  // UB-B: values per family (realism %, loopholes %, share of the next run, share of pressure, Harden and Expand).
+  const rows = await page.$$eval('[data-test=suites] [data-suite]:not([data-locked]):not([data-unbuilt])', (els) => els.map((e) => ({
     f: e.getAttribute('data-suite'),
     fid: e.querySelector('[data-test=suite-fid]')?.textContent ?? '', x: e.querySelector('[data-test=suite-exploit]')?.textContent ?? '',
-    ex: e.querySelector('[data-test=suite-expert]')?.textContent ?? '', sh: e.querySelector('[data-test=suite-share]')?.textContent ?? '',
+    part: e.querySelector('[data-test=suite-part]')?.textContent ?? '', sh: e.querySelector('[data-test=suite-share]')?.textContent ?? '',
     b: !!e.querySelector('[data-act="suite.build"], [data-pending$=":build"]'), h: !!e.querySelector('[data-act="suite.harden"], [data-pending$=":harden"]'),
   })));
   const fams = JSON.parse(await get(`Object.keys(s.player.suites ?? {}).length`));
-  const good = rows.filter((r) => /×\d\.\d\d/.test(r.fid) && /\d+\.\d%/.test(r.x) && /\d+(\.\d)?[BT] tok/.test(r.ex) && /\d+%/.test(r.sh) && r.b && r.h);
-  ok(`D6 ${where}: Training › Environments shows every suite with fidelity, exploitable %, expert data, RL share, build and harden`, rows.length >= Math.max(6, fams) && good.length === rows.length,
-    rows.map((r) => `${r.f} ${r.fid} ${r.x} ${r.ex} ${r.sh}`).join(' | ').slice(0, 200));
+  const good = rows.filter((r) => /\d+%/.test(r.fid) && /\d+(\.\d)?%/.test(r.x) && /\d+%/.test(r.part) && /next run/.test(r.sh) && r.b && r.h);
+  ok(`D6 ${where}: Training › Environments shows every family with realism, loopholes, share of pressure, Harden and Expand`, rows.length >= Math.max(6, fams) && good.length === rows.length,
+    rows.map((r) => `${r.f} ${r.fid} ${r.x} ${r.part} ${r.sh}`).join(' | ').slice(0, 200));
   const cuKnown = JSON.parse(await get(`!!(s.player.tree.P06 && s.player.tree.P06.status === 'known')`));
   const lockTxt = await page.$eval('[data-test=suites] [data-locked=P06]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`D6 ${where}: computer use reads "needs P06" until the idea is known`, cuKnown ? !lockTxt && rows.some((r) => r.f === 'computerUse') : /needs .*P06/.test(lockTxt), lockTxt || 'unlocked');
-  const s2 = await page.$eval('[data-test=suites-s2] b', (e) => e.textContent ?? '').catch(() => '');
-  ok(`D6 ${where}: the planned run's S2 is shown`, /^\d\.\d\d$/.test(s2), s2);
-  // Tooltips: every value, and the new terms are Term links.
-  for (const t of await page.$$eval('[data-test=suites] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d6Seen.add(t);
+  ok(`D6 ${where}: computer use reads "needs the discovery" until it is known`, cuKnown ? !lockTxt : /needs the discovery/.test(lockTxt), lockTxt || 'unlocked');
+  const lvl = await attr('[data-test=suites-s2]', 'data-level');
+  ok(`D6 ${where}: the next run's hacking pressure reads Low, Medium or High`, /^(Low|Medium|High)$/.test(lvl ?? ''), lvl ?? '');
+  for (const x of await page.$$eval('[data-test=suites] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d6Seen.add(x);
   const f0 = rows[0]?.f;
   const tips = {
     fid: await tipText(`[data-suite="${f0}"] [data-test=suite-fid]`), x: await tipText(`[data-suite="${f0}"] [data-test=suite-exploit]`),
-    ex: await tipText(`[data-suite="${f0}"] [data-test=suite-expert]`), sh: await tipText(`[data-suite="${f0}"] [data-test=suite-share]`),
+    part: await tipText(`[data-suite="${f0}"] [data-test=suite-part]`), sh: await tipText(`[data-suite="${f0}"] [data-test=suite-share]`),
     s2: await tipText('[data-test=suites-s2]'),
   };
-  ok(`D6 ${where}: tooltips on fidelity, exploitable, expert data, RL share and S2`, /Fidelity/.test(tips.fid) && /Next build/.test(tips.fid) && /Floor/.test(tips.x) && /Next hardening/.test(tips.x)
-    && /tokens/.test(tips.ex) && /RL share/.test(tips.sh) && /Reward-hacking pressure/.test(tips.s2) && /RL budget/.test(tips.s2), Object.values(tips).map((x) => x.split('\n')[0]).join(' | '));
+  ok(`D6 ${where}: tooltips on realism, loopholes, share of pressure, share of the run and hacking pressure`, /Realism/.test(tips.fid) && /Live tasks/.test(tips.fid) && /Floor/.test(tips.x)
+    && /hacking pressure/i.test(tips.part) && /Share of the next run/.test(tips.sh) && /Hacking pressure/.test(tips.s2) && /budget/i.test(tips.s2), Object.values(tips).map((x) => x.split('\n')[0]).join(' | '));
   await clearTips();
   await shot(`d6-${tag}-suites`);
-  // Build: the preview's after value; cash and queue change; when `complete`, the finished build matches the preview.
+  // Expand: the preview's after value; cash and queue change; when `complete`, the finished build matches the preview.
   const free = await page.$$eval('[data-test=suites] [data-act="suite.build"]:not([disabled])', (els) => els.map((e) => e.getAttribute('data-family')));
   const fam = free.includes('swe') ? 'swe' : free[0];
   if (fam) {
     const bTip = await tipText(`[data-act="suite.build"][data-family="${fam}"]`);
-    ok(`D6 ${where}: build preview shows cash, team-weeks, fidelity before → after and the planned run's ΔG and S2`, /\$\d+M/.test(bTip) && /team-wk/.test(bTip) && /×\d\.\d\d → ×\d\.\d\d/.test(bTip) && /RL ΔG/.test(bTip) && /S2/.test(bTip), bTip.replace(/\n/g, ' ').slice(0, 200));
-    await shot(`d6-${tag}-build-preview`);
+    ok(`D6 ${where}: Expand preview shows cash, team-weeks and realism before → after`, /\$\d+M/.test(bTip) && /team-weeks/.test(bTip) && /\d+% → \d+%/.test(bTip), bTip.replace(/\n/g, ' ').slice(0, 200));
     await clearTips();
-    const after = (await page.$eval(`[data-suite="${fam}"] [data-test="suite-after.build"]`, (e) => e.textContent ?? '')).match(/×\d\.\d\d/)?.[0];
+    const after = (await page.$eval(`[data-suite="${fam}"] [data-test="suite-after.build"]`, (e) => e.textContent ?? '')).match(/→ (\d+%)/)?.[1];
     const cash0 = Number(await get('s.player.finance.cash'));
     await page.click(`[data-act="suite.build"][data-family="${fam}"]`);
     await wait(120);
     const cash1 = Number(await get('s.player.finance.cash'));
     const pill = await page.$eval(`[data-suite="${fam}"] [data-pending="${fam}:build"]`, (e) => e.textContent ?? '').catch(() => '');
-    ok(`D6 ${where}: Build queues the work, pays the expert data and shows it pending with an ETA`, JSON.parse(await get(suiteQueue)).split(',').includes(`${fam}:build`) && cash0 - cash1 > 0.09 && /building.*(\d+ d|waits)/.test(pill),
+    ok(`D6 ${where}: Expand queues the work, pays the expert data and shows it pending with an ETA`, JSON.parse(await get(suiteQueue)).split(',').includes(`${fam}:build`) && cash0 - cash1 > 0.09 && /Expanding.*(done in|waits)/.test(pill),
       `cash ${cash0.toFixed(2)} → ${cash1.toFixed(2)} · ${pill}`);
     if (complete) {
       const done = await stepUntilDone(`${fam}:build`);
       await toSuites();
-      const fid = (await page.$eval(`[data-suite="${fam}"] [data-test=suite-fid]`, (e) => e.textContent ?? '')).match(/×\d\.\d\d/)?.[0];
-      ok(`D6 ${where}: the finished build matches its preview (fidelity ${after})`, done && !!after && fid === after, `${fid} vs ${after}`);
+      const fid = (await page.$eval(`[data-suite="${fam}"] [data-test=suite-fid]`, (e) => e.textContent ?? '')).match(/\d+%/)?.[0];
+      ok(`D6 ${where}: the finished expansion matches its preview (realism ${after})`, done && !!after && fid === after, `${fid} vs ${after}`);
     }
   }
-  // Harden: the preview's exploitable % and the planned run's S2 after match the result.
+  // Harden: the preview's loopholes after match the result.
   const freeH = await page.$$eval('[data-test=suites] [data-act="suite.harden"]:not([disabled])', (els) => els.map((e) => e.getAttribute('data-family')));
   const famH = freeH.includes('swe') ? 'swe' : freeH[0];
   if (famH) {
-    const hTip = await tipText(`[data-act="suite.harden"][data-family="${famH}"]`);
-    const s2After = [...hTip.matchAll(/(\d\.\d{3}) → (\d\.\d{3})/g)].pop()?.[2];
-    ok(`D6 ${where}: harden preview shows cash, team-weeks, exploitable before → after and S2 before → after`, /\$\d+M/.test(hTip) && /team-wk/.test(hTip) && /\d+\.\d% → \d+\.\d%/.test(hTip) && !!s2After, hTip.replace(/\n/g, ' ').slice(0, 200));
+    const hTip = await tipText(`[data-suite="${famH}"] [data-act="suite.harden"][data-family="${famH}"]`);
+    ok(`D6 ${where}: Harden preview shows cash, team-weeks, loopholes before → after and the fall in hacking pressure`, /\$\d+M/.test(hTip) && /team-weeks/.test(hTip) && /\d+(\.\d)?% → \d+(\.\d)?%/.test(hTip) && /−\d+%/.test(hTip), hTip.replace(/\n/g, ' ').slice(0, 200));
     await clearTips();
-    const after = (await page.$eval(`[data-suite="${famH}"] [data-test="suite-after.harden"]`, (e) => e.textContent ?? '')).match(/\d+\.\d%/)?.[0];
-    await check(`D6 ${where}: Harden queues the work`, suiteQueue, () => page.click(`[data-act="suite.harden"][data-family="${famH}"]`));
+    const after = (await page.$eval(`[data-suite="${famH}"] [data-test="suite-after.harden"]`, (e) => e.textContent ?? '')).match(/→ (\d+(\.\d)?%)/)?.[1];
+    await check(`D6 ${where}: Harden queues the work`, suiteQueue, () => page.click(`[data-suite="${famH}"] [data-act="suite.harden"][data-family="${famH}"]`));
     if (complete) {
       const done = await stepUntilDone(`${famH}:harden`);
       await toSuites();
-      const x = (await page.$eval(`[data-suite="${famH}"] [data-test=suite-exploit]`, (e) => e.textContent ?? '')).match(/\d+\.\d%/)?.[0];
-      const s2Now = await page.$eval('[data-test=suites-s2] b', (e) => e.textContent ?? '');
-      ok(`D6 ${where}: the finished hardening matches its preview (exploitable ${after}, S2 ${s2After})`, done && !!after && x === after && s2Now === Number(s2After).toFixed(2), `${x} vs ${after} · S2 ${s2Now} vs ${s2After}`);
+      const x = (await page.$eval(`[data-suite="${famH}"] [data-test=suite-exploit]`, (e) => e.textContent ?? '')).match(/\d+(\.\d)?%/)?.[0];
+      ok(`D6 ${where}: the finished hardening matches its preview (loopholes ${after})`, done && !!after && x === after, `${x} vs ${after}`);
     }
   }
-  // A focus pill changes the planned run (the RL shares move).
-  const pills = await page.$$eval('[data-test=suites-focus] [data-focus]', (els) => els.map((e) => e.getAttribute('data-focus')).filter((x) => x !== 'broad'));
-  if (pills.length) {
-    const sh = () => page.$$eval('[data-test=suites] [data-test=suite-share]', (els) => els.map((e) => e.textContent).join(','));
-    const sh0 = await sh();
-    await page.click(`[data-test=suites-focus] [data-focus="${pills[0]}"]`);
-    await wait(100);
-    const sh1 = await sh();
-    ok(`D6 ${where}: a focus pill changes the planned run's RL shares`, sh0 !== sh1, `${sh0} → ${sh1} (focus ${pills[0]})`);
-    await page.click('[data-test=suites-focus] [data-focus=broad]');
-    await wait(80);
-  }
+  ok(`D6 ${where}: ways to lower the hacking pressure are listed`, !!(await page.$('[data-test=way-top], [data-test=way-light]')));
   await shot(`d6-${tag}-suites-after`);
   await page.evaluate(() => window.ai27v2.setTab('models', 'versions'));
 }
@@ -1223,7 +1214,7 @@ async function d6Check(where, complete) {
 // Portfolio by kind with values and tooltips, the natural mix vs reference, the four data forms with cost and before →
 // after in token units (no "L" on data previews); each action changes the state as previewed; the Blueprint's mix
 // control changes the drawn shares and the specialisation.
-const D4_TERMS = ['dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'licenceTier', 'syntheticData', 'teacherYield', 'naturalMix', 'refShare', 'drawnMix', 'domainEpochs', 'pendingData', 'usageData', 'expertData', 'synJob', 'dataLicence', 'dataSpec'];
+const D4_TERMS = ['dataPortfolio', 'uniqueTokens', 'dataQuality', 'publicWeb', 'licensedData', 'syntheticData', 'usageData', 'expertData', 'synJob', 'dataTokens', 'poolSynthetic', 'drawnMix', 'domainEpochs', 'dataSpec']; // UB-B: the terms of the rebuilt Data screen and Next run's drawn mix
 const d4Seen = new Set();
 const d4Tip = async (sel) => {
   await clearTips();
@@ -1251,68 +1242,56 @@ async function d4Check(where, act, stepOk = true) {
   await clearTips();
   ok(`D4 ${where}: Training › Data opens the data view`, !!(await page.$('[data-panel=blueprint] [data-test=data-view]')));
   for (const x of await page.$$eval('[data-panel=blueprint] [data-test=data-view] [data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) d4Seen.add(x);
-  const kinds = await page.$$eval(dv('[data-kind]'), (els) => els.map((e) => ({ k: e.getAttribute('data-kind'), t: e.innerText.replace(/\n/g, ' ') })));
-  ok(`D4 ${where}: portfolio rows for the five kinds with tokens, quality and today's flow`, kinds.length === 5 && kinds.every((r) => /\d/.test(r.t)) && /crawled/.test(kinds[0].t) && /\/day/.test(kinds.find((r) => r.k === 'synthetic')?.t ?? ''), kinds.map((r) => r.t.slice(0, 60)).join(' ; '));
-  const uState = JSON.parse(await get(U_STATE));
-  const uShown = await page.$eval(dv('[data-test=data-u] b'), (e) => e.textContent ?? '').catch(() => '');
-  ok(`D4 ${where}: U shown matches the portfolio (${uState.toFixed(1)}T)`, Math.abs(Number(uShown.replace('T', '')) - uState) <= Math.max(0.6, 0.006 * uState), uShown);
-  ok(`D4 ${where}: natural mix vs reference for nine domains`, (await page.$$(dv('[data-test=data-natural] [data-dom]'))).length === 9);
+  // UB-B: five sources with tokens, quality and today's flow; data by domain (nine rows); the verdict tile.
+  const srcs = await page.$$eval(dv('[data-src]'), (els) => els.map((e) => ({ k: e.getAttribute('data-src'), t: e.innerText.replace(/\n/g, ' ') })));
+  ok(`D4 ${where}: five sources with tokens, quality and today's flow`, srcs.length === 5 && srcs.every((r) => /\d/.test(r.t)) && /crawled/.test(srcs[0].t) && /a day/.test(srcs.find((r) => r.k === 'synthetic')?.t ?? ''), srcs.map((r) => r.t.slice(0, 60)).join(' ; '));
+  ok(`D4 ${where}: data by domain for nine domains`, (await page.$$(dv('[data-test=data-domains] [data-dom]'))).length === 9);
+  const reads = await page.$eval(dv('[data-test=data-reads] b'), (e) => e.textContent ?? '').catch(() => '');
+  if (reads) ok(`D4 ${where}: the next new base's reads per token and its verdict`, /^\d+\.\d\d$/.test(reads) && /Enough|Short/.test(await page.$eval(dv('[data-test=data-verdict]'), (e) => e.textContent ?? '').catch(() => '')), reads);
   const tips = {
-    U: await d4Tip(dv('[data-test=data-u]')),
-    natural: await d4Tip(dv('[data-test=data-natural] [data-dom=CODE] .dv-div')),
-    kindU: await d4Tip(dv('[data-kind=synthetic] .dv-u')),
-    cell: await d4Tip(dv('[data-kind=public] .dv-cell')),
-    today: await d4Tip(dv('[data-kind=synthetic] > :last-child')),
-    teacher: await d4Tip(dv('[data-test=syn-teachers] [data-teacher]')),
-    usage: await d4Tip(dv('[data-level=broad] .num.small')),
-    delta: await d4Tip(dv('[data-test=delta-licence] [data-k=s] .num')),
+    ...(reads ? { reads: await d4Tip(dv('[data-test=data-reads] b')) } : {}),
+    domain: await d4Tip(dv('[data-test=data-domains] [data-dom=CODE]')),
+    source: await d4Tip(dv('[data-test="src-tokens.public"]')),
+    perDay: await d4Tip(dv('[data-test=data-perday]')),
   };
-  const want = { U: /Unique tokens/, natural: /Reference share/, kindU: /Quality × tokens/, cell: /Share of this kind/, today: /Tokens kept per day/, teacher: /Kept tokens per H100e-day/, usage: /Unique tokens a year/, delta: /Natural-mix base/ };
-  const miss = Object.entries(want).filter(([k, re]) => !re.test(tips[k])).map(([k]) => k);
-  ok(`D4 ${where}: tooltips on U, the natural mix, kind rows, domain cells, teachers, usage levels and the before → after`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
-  const lic = await d4Tip(dv('[data-act="data.license"]'));
-  const syn = await d4Tip(dv('[data-act="data.synthesize"]'));
-  ok(`D4 ${where}: data previews read in token units, not levels`, /T unique tokens/.test(lic) && /M H100e-days/.test(syn) && ![lic, syn].some((t) => /\d L\b/.test(t)), `${lic.slice(0, 90)}`);
+  const want = { reads: /Reads per token/, domain: /by source/, source: /Tokens you hold/, perDay: /New data a day/ };
+  const miss = Object.entries(want).filter(([k, re]) => k in tips && !re.test(tips[k])).map(([k]) => k);
+  ok(`D4 ${where}: tooltips on the verdict, data by domain, sources and new data`, miss.length === 0, miss.map((k) => `${k}: ${tips[k].slice(0, 60)}`).join(' ; '));
   ok(`D4 ${where}: no expert-data purchase on Data (RD-T06: suite builds buy it)`, !(await page.$(dv('[data-act="data.expert"]'))));
   await clearTips();
   if (act) {
     // A day first, so the fixture's cached readouts (compute online, prodCache) are today's before the previews are read.
     if (stepOk) { await page.evaluate(() => window.ai27v2.step(1)); await closeModals(); await pause(); await nav('blueprint'); await tabTo('data'); }
-    // Licence (PHYS bulk 5T): a deal of the previewed U, at the previewed cash.
+    // Licence drawer (Physical, bulk archives, 10T): a deal at the previewed cash.
+    await page.click(dv('[data-test=data-buy-licence]')); await wait(80);
+    ok(`D4 ${where}: Buy a licence opens the licence drawer with before → after`, !!(await page.$(dv('[data-test=licence-drawer] [data-test=delta-licence] [data-k=tokens]'))));
     await page.click(dv('[data-test=lic-domain] [data-opt=PHYS]')); await wait(60);
-    const du = await deltaOf('licence', 'u');
-    const cash = Number(await attr(dv('[data-test=lic-sum]'), 'data-cash'));
     const c0 = JSON.parse(await get('s.player.finance.cash'));
-    await check(`D4 ${where}: Sign licence queues a deal`, 's.player.dataPortfolio.pending.length', () => page.click(dv('[data-act="data.license"]')));
-    const last = JSON.parse(await get('(() => { const p = s.player.dataPortfolio.pending; const a = p[p.length - 1].asset; return { u: a.tokensT * a.quality, d: a.domain }; })()'));
+    await check(`D4 ${where}: Buy queues a licence deal`, 's.player.dataPortfolio.pending.length', () => page.click(dv('[data-test=licence-drawer] [data-act="data.license"]')));
+    const last = JSON.parse(await get('(() => { const p = s.player.dataPortfolio.pending; const a = p[p.length - 1].asset; return { t: a.tokensT, q: a.quality, d: a.domain }; })()'));
     const c1 = JSON.parse(await get('s.player.finance.cash'));
-    ok(`D4 ${where}: the deal adds the previewed U (${du ? (du[1] - du[0]).toFixed(2) : '?'}T) and costs the previewed cash`, !!du && Math.abs(last.u - (du[1] - du[0])) < 1e-6 && last.d === 'PHYS' && Math.abs(c0 - c1 - cash) < 1e-6, `asset U ${last.u} · cash ${(c0 - c1).toFixed(3)} vs ${cash}`);
-    ok(`D4 ${where}: the deal shows as pending`, !!(await page.$(dv('[data-test=data-pending] [data-pending=licensed]'))));
-    // Generation job with the best-yield teacher; a day of it adds ≈ tokens ÷ days.
-    const best = await page.$eval(dv('[data-test=syn-teachers]'), (e) => [...e.querySelectorAll('[data-teacher]')].find((b) => /best yield/.test(b.textContent ?? ''))?.getAttribute('data-teacher') ?? '').catch(() => '');
-    if (best) { await page.click(dv(`[data-test=syn-teachers] [data-teacher="${best}"]`)); await wait(80); }
-    const sTok = Number(await attr(dv('[data-test=syn-sum]'), 'data-tokens'));
-    const sDays = Number(await attr(dv('[data-test=syn-sum]'), 'data-days'));
-    const sTeach = await attr(dv('[data-test=syn-sum]'), 'data-teacher');
-    await check(`D4 ${where}: Start job sets the generation job`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.click(dv('[data-act="data.synthesize"]')));
-    ok(`D4 ${where}: the job uses the picked teacher (${best || 'strongest'}) for the picked days`, JSON.parse(await get(`(() => { const j = s.player.dataPortfolio.synJob; return !!j && j.teacherId === ${JSON.stringify(sTeach)} && j.until - s.time.day === ${sDays}; })()`)));
-    const synT = `(s.player.dataPortfolio.assets.find((a) => a.id === 'syn:' + ${JSON.stringify(sTeach)}) || { tokensT: 0 }).tokensT`;
-    const t0 = JSON.parse(await get(synT));
-    // The day-900 fixture can end within days (another lab's ASI): no step there.
-    if (stepOk) await page.evaluate(() => window.ai27v2.step(1));
-    await closeModals(); await pause();
-    const t1 = JSON.parse(await get(synT));
-    const perDay = sTok / Math.max(1, sDays);
-    if (stepOk) ok(`D4 ${where}: a day of the job adds the previewed tokens per day (${perDay.toFixed(2)}T)`, perDay > 0 && Math.abs((t1 - t0) / perDay - 1) < 0.15, `${(t1 - t0).toFixed(3)}T`);
+    ok(`D4 ${where}: the deal is 10T of Physical bulk archives at $0.1B per T`, last.d === 'PHYS' && Math.abs(last.t - 10) < 1e-9 && Math.abs(c0 - c1 - 1) < 1e-6, `${last.t}T ${last.d} · cash ${(c0 - c1).toFixed(3)}`);
     await nav('blueprint'); await tabTo('data');
-    await check(`D4 ${where}: Stop job ends it`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.click(dv('[data-act="data.synthesize.stop"]')));
-    // Usage policy → broad: 50% kept, Civil Liberties approval moves by the previewed difference.
-    const civ = Number((await attr(dv('[data-level=broad]'), 'data-civlib')) ?? '0');
-    const cur = Number((await attr(dv('.dv-ulevel.on'), 'data-civlib')) ?? '0');
+    ok(`D4 ${where}: the deal shows as on the way`, /1 on the way|\d+ on the way/.test(await page.$eval(dv('[data-test=data-pending]'), (e) => e.textContent ?? '').catch(() => '')));
+    // Teacher: picking a model starts a year's job with it; a day of it adds its tokens; the default ends it.
+    const pick = await page.$eval(dv('[data-test=data-teacher]'), (e) => [...e.options].map((o) => o.value).filter(Boolean).pop() ?? '').catch(() => '');
+    if (pick) {
+      await check(`D4 ${where}: picking a teacher starts a generation job`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.selectOption(dv('[data-test=data-teacher]'), pick));
+      ok(`D4 ${where}: the job uses the picked teacher for a year`, JSON.parse(await get(`(() => { const j = s.player.dataPortfolio.synJob; return !!j && j.teacherId === ${JSON.stringify(pick)} && j.until - s.time.day === 365; })()`)));
+      const synT = `(s.player.dataPortfolio.assets.find((a) => a.id === 'syn:' + ${JSON.stringify(pick)}) || { tokensT: 0 }).tokensT`;
+      const t0 = JSON.parse(await get(synT));
+      // The day-900 fixture can end within days (another lab's ASI): no step there.
+      if (stepOk) await page.evaluate(() => window.ai27v2.step(1));
+      await closeModals(); await pause();
+      if (stepOk) ok(`D4 ${where}: a day of the job adds tokens from that teacher`, JSON.parse(await get(synT)) > t0);
+      await nav('blueprint'); await tabTo('data');
+      await check(`D4 ${where}: the default teacher ends the job`, 'JSON.stringify(s.player.dataPortfolio.synJob || null)', () => page.selectOption(dv('[data-test=data-teacher]'), ''));
+    }
+    // Usage policy → broad: 50% kept, Civil Liberties approval moves.
     const a0 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
     await check(`D4 ${where}: usage policy → broad`, 's.player.dataPortfolio.usageShare', () => page.click(dv('[data-act="data.usagePolicy.broad"]')));
     const a1 = JSON.parse(await get('s.pub.blocs.civlib.approval'));
-    ok(`D4 ${where}: broad usage keeps 50% and moves Civil Liberties approval as previewed (${civ - cur})`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5 && (Math.abs(a1 - a0 - (civ - cur)) < 1e-6 || Math.abs(a1) === 100), `${a0} → ${a1}`);
+    ok(`D4 ${where}: broad usage keeps 50% and moves Civil Liberties approval`, JSON.parse(await get('s.player.dataPortfolio.usageShare')) === 0.5 && (a1 !== a0 || Math.abs(a1) === 100), `${a0} → ${a1}`);
     await shot(`d4-${tag}-data-after`);
   }
   // Training › Next run: the Data mix row's drawn mix (L2); the mix control changes the drawn shares and the specialisation.
@@ -1528,7 +1507,7 @@ await e12Check('day 1');
   await page.click('[data-panel=blueprint] [data-test=bp-suites]');
   await wait(150);
   const sub = await page.$eval('[data-home=suitePlan]', (e) => e.innerText).catch(() => '');
-  ok('D6: the Environments row opens Training › Environments with the plan as the planned run', JSON.parse(await get(`store.panel === 'blueprint' && store.tab.blueprint === 'suites'`)) && /from Next run/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
+  ok('D6: the Environments row opens Training › Environments with the plan as the planned run', JSON.parse(await get(`store.panel === 'blueprint' && store.tab.blueprint === 'suites'`)) && /budget/.test(sub) && !/standard plan/.test(sub), sub.replace(/\s+/g, ' ').slice(0, 100));
   await page.evaluate(() => window.ai27v2.setTab('blueprint', 'next'));
 }
 await d4Check('day 1', true);
@@ -2062,10 +2041,10 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('lab');
 await tabTo('work');
-ok('J2 P1: engineering pool shows build capacity and how busy it is', /busy/.test(await page.locator('[data-test=build-queue]').innerText()));
+ok('J2 P1: engineering pool shows build capacity and how much is in use', /Build capacity/.test(await page.locator('[data-test=build-queue]').innerText()) && /in use/.test(await page.locator('[data-test=build-queue]').innerText()));
 await page.hover('[data-test=build-queue]');
 await wait(300);
-ok('J2 P1: the build tooltip splits runs, product upkeep and builds', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Runs/.test(t) && /Product upkeep/.test(t) && /Builds/.test(t); })()`)));
+ok('J2 P1: the build tooltip splits upkeep and the build queue', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Upkeep/.test(t) && /Build queue/.test(t); })()`)));
 await shot('50-j2-build-load');
 await clearTips();
 ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
@@ -2073,7 +2052,9 @@ ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incide
 await page.evaluate(() => { for (const d of window.ai27v2.state.player.deployments) if (d.channel === 'internal') d.controlLayer = true; window.ai27v2.notify(); });
 await wait(200);
 ok('E6: under the control layer each agent lane shows its control tax', !!(await page.$('[data-test="control-tax.capRoutine"]')) && !!(await page.$('[data-test="control-tax.eng"]')));
-await page.hover('[data-test="control-tax.capRoutine"]');
+// UB-B: the control layer left LAB's AI staff cards (its home moves to SAFETY › Safeguards): hover only when it shows, so
+// the run goes on and the two E6 checks fail until it has a home again.
+await page.hover('[data-test="control-tax.capRoutine"]', { timeout: 2000 }).catch(() => {});
 await wait(300);
 ok('E6: the control-tax tooltip names the deferral and the catch it buys', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /deferred/.test(t) && /slipping/.test(t) && /AI labour/.test(t); })()`)));
 await shot('51-e6-control-tax');
@@ -2124,7 +2105,7 @@ await tabTo('work');
   if (old) {
     await page.selectOption('[data-test="agent-model.capFrontier"]', old);
     await wait(150);
-    ok('Agents: an older frontier model previews lower research speed', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Research speed/.test(t) && /▼/.test(t); })()`)));
+    ok('Agents: an older frontier model previews less work done on ideas', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Work done, ideas/.test(t) && /▼/.test(t); })()`)));
     await shot('34-day900-agents-preview');
     await page.click('[data-test="agent-cancel.capFrontier"]');
   }

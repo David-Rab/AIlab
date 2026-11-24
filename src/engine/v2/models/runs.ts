@@ -858,6 +858,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
 /** Complete a run: its act makes the base or version, calls the WS2 trait hook and starts the eval suite. */
 function completeRun(s: GameStateV2, ctx: SystemCtx, run: TrainingRun) {
   run.status = 'done';
+  run.endDay = s.time.day;
   // Launch always sets the snapshot; only a hand-built run (a script) lacks one.
   const rec = (run.recipe ??= recipeAtLaunch(s, run));
   if (runAct(run.kind) === 'pretrain') completePretrain(s, ctx, run, rec);
@@ -876,6 +877,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
     const v = newVersion(s, run, base, pre.student!, t, { variant: 'mini', params: pre.params, fpt: pre.fpt, monitorability: pre.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
     v.name = uniqueVersionName(s, `${t.name}-mini`);
+    run.resultId = v.id;
     if (run.autoTier) v.autoTier = true; // RD-P01b: joins its teacher's lineups when ready (models/cheapTier.ts)
     m.versions.push(v);
     afterVersion(s, ctx, run, v);
@@ -900,6 +902,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     };
   }
   m.bases.push(b);
+  run.resultId = b.id;
   applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5); continued: step the lineage (ω 0.5)
   if (src.from === 'design') ctx.log('research', `Base model ${b.name} finished pretraining.`, 2, b.id);
   else ctx.log('research', `Continued pretraining: ${b.name}.`, 1, b.id);
@@ -922,6 +925,7 @@ function completeRl(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, pr: PostRe
     const t = start.version;
     const v = newVersion(s, run, base, build, t, { fpt: t.fpt, monitorability: t.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1, trained: { rlDay, post: false } });
     m.versions.push(v);
+    run.resultId = v.id;
     afterVersion(s, ctx, run, v, t);
     return;
   }
@@ -932,6 +936,7 @@ function completeRl(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, pr: PostRe
     monitorability: Math.min(base.monitorability ?? 1, pe.monitorability), appeal: pe.appeal, trained: { rlDay, post: true },
   });
   m.versions.push(v);
+  run.resultId = v.id;
   afterVersion(s, ctx, run, v);
 }
 

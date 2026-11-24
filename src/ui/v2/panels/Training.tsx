@@ -16,15 +16,15 @@ import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { OPTION_NODE, TREE_BY_ID } from '../../../data/v2/tree';
 import { SPEC_CAP } from '../../../data/v2/dataAssets';
 import {
-  AGAINST, METHOD_BY_ID, PARAM_SNAPS, POOL_SHARE_RANGE, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, REF_TPP, STUDENT_DEFAULT, TPP_SNAPS,
-  againstOptions, baseFromParams, drawByDomain, mixTargetOf, dateOf, evalDaysFor, fmtDate, idleTrainingShare, internalVersion, knowHowAreas, liveCommitments,
-  measuredSd, methodPolicyOn, milestoneMarks, nodeStatus, optionLocked, ownedMethods, planMilestone, plannedPressure, poolAllocation, postDaysAfterBase,
-  postFromParams, reAllocView, runBand, runCard, runEtaDays, runStall, runTraitPressure, sightCurve, skillGains, skillMarksOf, streamShare,
+  AGAINST, METHOD_BY_ID, PARAM_SNAPS, RUN_PARAM_DEFAULTS, RUN_POOL_DEFAULT, REF_TPP, STUDENT_DEFAULT, TPP_SNAPS,
+  againstOptions, baseFromParams, drawByDomain, mixTargetOf, dateOf, evalDaysFor, fmtDate, internalVersion, knowHowAreas, liveCommitments,
+  measuredSd, methodPolicyOn, milestoneMarks, nodeStatus, optionLocked, ownedMethods, planMilestone, plannedPressure, postDaysAfterBase,
+  postFromParams, reAllocView, runCard, runTraitPressure, sightCurve, skillGains, skillMarksOf,
   studentToHold, successorPullView, suitesView, tppLabel, versionById,
 } from '../../../engine/v2';
 import type { DomainId, GameStateV2, LaunchRunParams, RunPressure, TraitId } from '../../../engine/v2';
 import { store, useV2 } from '../store';
-import { ActBtn, Limit, Meter, Term, Tip, TipCard, unlocked, type Params } from '../ui';
+import { ActBtn, Limit, Term, Tip, TipCard, unlocked, type Params } from '../ui';
 import { Card, DOMAIN_WORD, domainWord, effX, PanelHead, Ref, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { DOMAIN_ICON, ICON } from '../icons';
@@ -33,7 +33,8 @@ import { OmegaChip, PressureRows } from './Pressure';
 import { SkillBars, SkillLegend, standing, type SkillRow } from './SkillBars';
 import { openSuites, Suites } from './Suites';
 import { DataView } from './Data';
-import { fmtParams, runTitle } from './Models';
+import { RunsView } from './Runs';
+import { fmtParams } from './Models';
 import './training.css';
 
 type Kind = 'base' | 'post' | 'distill' | 'continue';
@@ -42,7 +43,6 @@ type Val = string | boolean;
 const DEFAULTS: Params = { ...RUN_PARAM_DEFAULTS };
 const ACTION: Record<Kind, string> = { base: 'launchBase', post: 'launchPost', distill: 'launchDistill', continue: 'launchContinue' };
 const KIND_WORD: Record<Kind, string> = { base: 'new base model', post: 'post-training', distill: 'distil', continue: 'continued pretraining' };
-const RUN_KIND: Record<string, string> = { base: 'new pretraining', post: 'post-training', distill: 'distil', continue: 'continued pretraining' };
 const DOMS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 const SHAPE_WORD: Record<string, string> = { moe: 'Mixture of experts', dense: 'Dense', latent: 'Latent reasoning' };
 const MIX_WORD: Record<string, string> = { balanced: 'Balanced', codeMath: 'Code & math', science: 'Science', synthetic: 'Synthetic-heavy', multimodal: 'Multimodal', natural: 'Natural' };
@@ -160,11 +160,17 @@ export function Training({ s }: { s: GameStateV2 }) {
     <div className={`panel-v2 tr ${tab === 'next' ? 'tr-next' : ''}`} data-panel="blueprint">
       <PanelHead icon={ICON.runs} title="Training" tabs={tabs} />
       {tab === 'next' && <NextRun s={s} />}
-      {tab === 'data' && <DataView s={s} />}
+      {tab === 'data' && <DataView s={s} nextBase={() => nextBaseCard(s)} />}
       {tab === 'suites' && <Suites s={s} />}
-      {tab === 'runs' && <RunQueue s={s} />}
+      {tab === 'runs' && <RunsView s={s} />}
     </div>
   );
+}
+
+/** The default new base of Next run (the size that trains in about six months), for TRAINING › Data's verdict. */
+function nextBaseCard(s: GameStateV2) {
+  if (!unlocked(s, 'baseRuns')) return undefined;
+  return evaluate(s, 'base', { ...DEFAULTS, params: feasibleSize(s).params, poolShare: RUN_POOL_DEFAULT.base }).card;
 }
 
 function NextRun({ s }: { s: GameStateV2 }) {
@@ -748,79 +754,3 @@ function LimitsStrip({ s, kind, card, p, setShare, children }: { s: GameStateV2;
   );
 }
 
-// ───────── Runs tab (running, queued, continual learning, idle) ─────────
-type Run_ = GameStateV2['player']['models']['runs'][number];
-/** Runs timeline (UI-IA TRAINING › Runs L1): each running run from its start to its expected finish at today's share,
- *  the done part filled, today marked, stalls in amber. */
-function RunTimeline({ s, runs, alloc }: { s: GameStateV2; runs: Run_[]; alloc: ReturnType<typeof poolAllocation> }) {
-  const day = s.time.day;
-  const rows = runs.map((r) => ({ r, end: day + Math.min(730, Number.isFinite(runEtaDays(s, r, alloc)) ? runEtaDays(s, r, alloc) : 730), stall: runStall(s, r) }));
-  const lo = Math.min(...rows.map((x) => x.r.startDay));
-  const hi = Math.max(day + 30, ...rows.map((x) => x.end));
-  const x = (d: number) => `${(((d - lo) / Math.max(1, hi - lo)) * 100).toFixed(2)}%`;
-  return (
-    <div className="tr-gantt" data-test="runs-timeline">
-      {rows.map(({ r, end, stall }) => (
-        <div key={r.id} className="tr-glane">
-          <span className="ellip small">{runTitle(s, r)}</span>
-          <Tip as="div" content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'Expected finish', value: fmtDate(dateOf(s, end)) }, { label: 'Done', value: F.pct(Math.min(1, r.flopDone / Math.max(1, r.flopNeeded))) }]} footer={stall}>From launch to its expected finish at today&apos;s training share.</TipCard>}>
-            <div className="tr-gtrack">
-              <i className={`tr-gbar ${stall ? 'stall' : ''}`} style={{ left: x(r.startDay), width: `calc(${x(end)} - ${x(r.startDay)})` }} />
-              <i className="tr-gdone" style={{ left: x(r.startDay), width: `calc(${x(day)} - ${x(r.startDay)})` }} />
-              <b className="tr-gnow" style={{ left: x(day) }} />
-            </div>
-          </Tip>
-          <span className="small dim">{fmtDate(dateOf(s, end))}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-export function RunQueue({ s }: { s: GameStateV2 }) {
-  const runs = s.player.models.runs.filter((r) => r.status === 'running' || r.status === 'paused');
-  const alloc = poolAllocation(s);
-  const stream = streamShare(s);
-  const spare = idleTrainingShare(s);
-  const auto = s.player.policies.autoSplit;
-  const last = s.player.models.runs.filter((r) => r.status === 'done').slice(-1)[0];
-  const lastV = last ? s.player.models.versions.filter((v) => v.day >= last.startDay && (v.baseId === last.baseId || last.kind === 'distill' || last.kind === 'base')).sort((a, b) => a.day - b.day)[0] : undefined;
-  return (
-    <Card title="Runs in progress" home="runQueue" className="tr-runs" right={<button className="btn btn-sm" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run ›</button>}>
-      {runs.length === 0 && <div className="dim small" data-test="runs-empty">No run in progress.</div>}
-      {runs.length > 0 && <RunTimeline s={s} runs={runs} alloc={alloc} />}
-      {runs.map((r) => {
-        const done = Math.min(1, r.flopDone / Math.max(1, r.flopNeeded));
-        const band = runBand(s, r);
-        const stall = runStall(s, r);
-        const got = alloc.get(r.id) ?? 0;
-        const eta = runEtaDays(s, r, alloc);
-        const step = (d: number) => Math.round(Math.min(POOL_SHARE_RANGE[1], Math.max(POOL_SHARE_RANGE[0], r.poolShare + d)) * 100) / 100;
-        return (
-          <div className="run-row" key={r.id} data-run={r.id}>
-            <span className="row-i ellip"><Tip content={() => <TipCard title={runTitle(s, r)} rows={[{ label: 'Kind', value: RUN_KIND[r.kind] ?? r.kind }, { label: 'Started', value: fmtDate(dateOf(s, r.startDay)) }, { label: 'Done', value: F.pct(done) }]} />}><b>{runTitle(s, r)}</b></Tip>{r.autoTier ? <Tip content={() => <TipCard title={<Term id="cheapTierPolicy">auto</Term>}>Queued by the Auto-make smaller sizes policy (Products).</TipCard>}><span className="chip-mini" data-test="run-auto">auto</span></Tip> : null}</span>
-            <Meter value={done} max={1} width={120} color={r.status === 'running' ? 'var(--accent)' : 'var(--text-3)'} />
-            <Tip content={() => <TipCard title="Forecast at launch" value={band[1] > 0 ? `${F.level(band[0])}–${F.level(band[1])}` : 'none'}>The capability your forecast gave this run when you launched it (90% range, levels; 10 = best human). Evals of the result read the real one.</TipCard>}><span className="num small dim">{band[1] > 0 ? `${F.level(band[0])}–${F.level(band[1])}` : '—'}</span></Tip>
-            <Tip content={() => <TipCard title={<Term id="poolShare">Training share</Term>} value={F.pct(got)} rows={[{ label: 'Asks', value: F.pct(r.poolShare) }, { label: 'Gets today', value: F.pct(got) }]} footer="Runs that ask for more than the training compute are scaled down together.">Share of training compute this run gets.</TipCard>}>
-              <span className="num small run-share" data-test="run-share">{F.pct(got)}{got < r.poolShare - 1e-6 && done < 1 ? <span className="dim">/{F.pct(r.poolShare)}</span> : null}</span>
-            </Tip>
-            {r.status === 'running' ? (
-              <span className="run-step">
-                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(-0.1) }} label="−" testId={`run-share-dn.${r.id}`} block={r.poolShare <= POOL_SHARE_RANGE[0] + 1e-9 ? 'At the minimum share' : undefined} />
-                <ActBtn id="runs.setShare" params={{ runId: r.id, share: step(0.1) }} label="+" testId={`run-share-up.${r.id}`} block={r.poolShare >= POOL_SHARE_RANGE[1] - 1e-9 ? 'At all of training compute' : undefined} />
-              </span>
-            ) : <span />}
-            <Tip content={() => <TipCard title={stall ?? (r.status === 'paused' ? 'Paused' : 'Running')} value={Number.isFinite(eta) ? fmtDate(dateOf(s, s.time.day + eta)) : undefined}>Expected finish at today&apos;s training share; evals follow.</TipCard>}><span className={`small ${stall ? 'tone-warn' : ''}`} data-test={stall ? 'run-stall' : 'run-eta'}>{stall ?? (r.status === 'paused' ? 'Paused' : 'Running')}{Number.isFinite(eta) ? <span className="dim"> · {fmtDate(dateOf(s, s.time.day + eta))}</span> : ''}</span></Tip>
-            {r.status === 'running' ? <ActBtn id="cancelRun" params={{ runId: r.id }} label="Cancel" inline={false} /> : <span />}
-          </div>
-        );
-      })}
-      <div className="tr-pool" data-run="stream"><span className="ellip"><b><Term id="stream">Continual learning</Term></b> <span className="dim">{stream > 0 ? 'on' : 'off'}</span></span><Tip content={() => <TipCard title={<Term id="stream">Continual learning</Term>} value={F.pct(stream)}>Share of training compute continual learning takes before any run.</TipCard>}><span className="num">{F.pct(stream)}</span></Tip><Limit id="run.stream" tone={stream > 0 ? 'warn' : 'quiet'}>{stream > 0 ? 'taken first' : 'takes 15% first when on'}</Limit></div>
-      <div className="tr-pool" data-run="spare">
-        <span className="ellip"><b><Term id="idleCompute">Idle</Term></b> <span className="dim">training compute no run uses</span></span>
-        <Tip content={() => <TipCard title={<Term id="idleCompute">Idle</Term>} value={F.pct(spare)}>Share of training compute no run uses now. It stays idle{auto.on && !auto.to.includes('training') ? ', unless Auto-split idle compute moves it (on)' : ''}; set it on Lab.</TipCard>}><span className="num" data-test="spare-share">{F.pct(spare)}</span></Tip>
-        <span className="dim">{auto.on && !auto.to.includes('training') ? '→ Auto-split' : ''}</span><Ref id="idleCompute" to={{ panel: 'lab' }}>Lab</Ref>
-      </div>
-      {last && <div className="small dim tr-lastrun" data-test="runs-last">Last finished: {runTitle(s, last)}{lastV ? <> → <button className="tr-link" onClick={() => { store.select({ versionId: lastV.id }); store.goto('models'); }}>{lastV.name} <ChevronRight size={11} /></button></> : null}</div>}
-    </Card>
-  );
-}

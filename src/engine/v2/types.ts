@@ -533,6 +533,10 @@ export interface TrainingRun {
   /** UB-2b: the lab's forecast at launch (runs.ts runForecast: believed recipe, measured start model; level and sd),
    *  readouts only (the run queue's band, predicted vs measured). Absent on runs launched before it or with nothing measured. */
   forecast?: { mid: number; sd: number };
+  /** UB-B: the day the run finished and what it made (a base id or a version id); readouts only (TRAINING › Runs).
+   *  Absent on runs finished before UB-B: runResult pairs those by kind, order and dates. */
+  endDay?: Day;
+  resultId?: string;
   status: 'running' | 'paused' | 'done' | 'failed' | 'cancelled';
   /** Build item that sets the run up (R5): no FLOP accrues until the engineers finish it ("waiting for engineers"). */
   setupId?: string;
