@@ -303,7 +303,10 @@ ok('LAB: allocation bar with idle chip, workforce rows and Best moves', !!(await
 await check('LAB: a bar segment opens the allocation editor', '!!document.querySelector("[data-test=alloc-editor]")', () => page.click('[data-test=alloc-bar] [data-seg=training]'));
 await check('LAB editor: slider moves the draft', `document.querySelector('[data-test=alloc-editor]').innerText`, () => setSlider(page.locator('#ctl-split-training input[type=range]').first(), 0.6));
 await check('LAB editor: Apply sets the allocation', 'JSON.stringify(s.player.split)', () => page.click('[data-panel=lab] [data-act=setSplit]'));
-await check('LAB: a workforce row opens its needs', '!!document.querySelector("[data-needs]")', () => page.click('[data-row="re.saf"]'));
+// UB-B: needs live only on LAB › AI staff & needs; a board row opens that tab.
+await check('LAB: a workforce row opens its needs on AI staff & needs', 'store.tab.lab', () => page.click('[data-row="re.saf"]'));
+ok('LAB: the board has no needs copy', !(await page.$('[data-needs]')) && !!(await page.$('[data-home="needs.re.saf"]')));
+await tabTo('board');
 await check('LAB: scientists split + raises the capability scientists target', 's.player.hiring.targets["sci.cap"]', () => page.click('[data-act="sciSplit.sci.cap.up"]'));
 {
   const mv = await page.$('[data-home=bestMoves] [data-act^="move."]:not([disabled])');
@@ -313,47 +316,50 @@ await check('LAB: scientists split + raises the capability scientists target', '
   else ok('LAB: Best moves lists moves or says none helps', !!(await page.$('[data-home=bestMoves]')));
   await page.evaluate((sp) => window.ai27v2.act('setSplit', sp), split0);
 }
-// R3 People: teams by role, keep-hiring targets, offers, filling queue, move and let go.
+// R3 / UB-B Hiring & teams: a row per role with team tiles, hiring target, payroll, next team buys; offers; payroll.
 await nav('lab');
 await tabTo('people');
-ok('Teams card: one science card per science team', JSON.parse(await get(`document.querySelectorAll('[data-panel=lab] .sci-card').length === s.player.teams.filter((t) => t.role === 'sci').length`)));
-ok('Teams card: piles for engineers and both research-engineering departments', JSON.parse(await get(`['eng', 're.cap', 're.saf'].every((k) => !!document.querySelector('[data-panel=lab] [data-pile="' + k + '"]'))`)));
+ok('Hiring: five role rows with one tile per team', JSON.parse(await get(`['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'].every((k) => !!document.querySelector('[data-panel=lab] .lh-row[data-key="' + k + '"]')) && document.querySelectorAll('[data-panel=lab] .lh-tile:not(.filling)').length === s.player.teams.length`)));
+ok('Hiring: next team buys on every row', (await page.$$('[data-panel=lab] [data-test^="buys."]')).length === 5);
 await check('Keep hiring: + raises the research-engineering target', 's.player.hiring.targets["re.cap"]', () => page.click('[data-act="teams.target.up.re.cap"]'));
-await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .offer [data-act="teams.hire"]'));
+await check('Offer: Hire queues the team', 'JSON.stringify([s.player.hiring.candidates.length, s.player.hiring.filling.length])', () => page.click('[data-panel=lab] .lh-offer [data-act="teams.hire"]'));
 await check('Filling: cancel removes a queued team', 's.player.hiring.filling.length', () => page.click('[data-panel=lab] [data-act="teams.cancel"]'));
-await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-pile="re.saf"] [data-act="teams.move"]'));
+if (await page.$('[data-act="teams.move.re.saf"]:not([disabled])')) await check('Move: safety research-engineering team to capabilities', 'JSON.stringify([s.player.teams.filter((t) => t.role === "re" && t.dept === "saf").length, Math.round(s.player.morale.safety)])', () => page.click('[data-act="teams.move.re.saf"]'));
+else ok('Move: safety research-engineering team to capabilities', true, 'no movable safety research-engineering team in this game');
 ok('Move: safety morale paid', JSON.parse(await get('s.causes.byKey["morale.safety"] ? s.causes.byKey["morale.safety"].some((c) => /moved/.test(c.source)) : false')));
-await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-panel=lab] .sci-card [data-act="teams.release"]'));
+await check('Let go: a science team', 's.player.teams.length', () => page.click('[data-act="teams.release.sci.cap"]'));
 await shot('20-lab-people');
 await tabTo('work');
-// R7 Agents at work: four lanes (home of the internal packages), model/monitor chips with a before → after preview,
-// compute steppers, AI share per role, risk badges; Trusted to AI (B3 gate); the same chips on Products; Safety links.
-ok('Agents at work: four lanes with model and monitor chips', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]') && !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
-ok('Agents at work: AI share of each capabilities role and four risk badges per lane', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]')) && document.querySelectorAll('[data-home=agents] [data-risk]').length === 16`)));
+// R7 / UB-B AI staff & needs: four job cards (model chip, AI share, work done; watcher chip on the three capability
+// jobs; AI share allowed and spot-checks on Safety), then the three needs lists.
+ok('AI staff: four job cards with a model chip, watcher chips on the capability jobs', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=model]')) && ['eng', 'capRoutine', 'capFrontier'].every((u) => !!document.querySelector('[data-home=agents] [data-lane=' + u + '] [data-chip=monitor]'))`)));
+ok('AI staff: AI share on every job', JSON.parse(await get(`['eng', 'capRoutine', 'capFrontier', 'safety'].every((u) => !!document.querySelector('[data-test="ai-share.' + u + '"]'))`)));
+ok('AI staff: three needs lists', (await page.$$('[data-panel=lab] .la-ncard')).length === 3);
 await page.selectOption('[data-test="agent-monitor.eng"]', 'same');
 await wait(80);
-ok('Agents: a monitor pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
+ok('Agents: a watcher pick opens the before → after preview', !!(await page.$('[data-test="agent-edit.eng"] .pv')));
 await page.click('[data-test="agent-cancel.eng"]');
 await wait(60);
 ok('Agents: Cancel closes the preview and keeps the package', JSON.parse(await get('s.player.agents.eng.monitorId === undefined && !document.querySelector(\'[data-test="agent-edit.eng"]\')')));
 await page.selectOption('[data-test="agent-monitor.capFrontier"]', '');
 await wait(80);
 await check('Agents: Apply removes the frontier monitor', 'JSON.stringify(s.player.agents.capFrontier.monitorId || null)', () => page.click('[data-act="agents.set.capFrontier"]'));
-await check('Agents: compute + moves agent pool to engineering', 'JSON.stringify(s.player.agents.eng.compute)', () => page.click('[data-act="agents.compute.up.eng"]'));
-ok('Agents: capabilities shares still sum to 1', JSON.parse(await get('Math.abs(s.player.agents.eng.compute + s.player.agents.capRoutine.compute + s.player.agents.capFrontier.compute - 1) < 1e-9')));
-{
-  const gate = JSON.parse(await get('!!document.querySelector("[data-test=trusted-gate]")'));
-  ok('Trusted to AI: home on the safety lane; locked below the AI-labour gate', !!(await page.$('[data-home=trustedToAI]')) && (!gate || !!(await page.$('[data-act="agents.trusted.up"][disabled]'))), gate ? 'locked' : 'open');
-}
+await check('AI share allowed: + raises it', 's.player.policies.trustedToAI', () => page.click('[data-act="agents.trusted.up"]'));
+ok('AI share allowed: home on the Safety job card', !!(await page.$('[data-lane=safety] [data-home=trustedToAI]')));
+await check('Needs: Change order opens the editor', '!!document.querySelector(".la-needs.editing")', () => page.click('[data-test="order.research.reAlloc"]'));
 await shot('21-lab-agents');
-// B4: one WSL target range for the slider and the engine.
+// UB-B Security: a Set per level in What a higher level costs (range 2–5 as in the engine).
 await tabTo('security');
-ok('Security target slider range matches the engine (2–5)', JSON.parse(await get(`(() => { const r = document.querySelector('[data-panel=lab] [data-home=wsl] input[type=range]'); return !!r && r.min === '2' && r.max === '5'; })()`)));
-await check('Security target: slider at the floor + Set', 's.player.security.target', async () => {
-  await setSlider(page.locator('[data-panel=lab] [data-home=wsl] input[type=range]'), 2);
-  await page.click('[data-panel=lab] [data-act=SEC_TARGET]');
-});
-ok('Security target set to the slider value', JSON.parse(await get('s.player.security.target === 2')));
+ok('Security: level rows up to 5', JSON.parse(await get(`!!document.querySelector('[data-panel=lab] [data-home=wslCosts] [data-level="5"]')`)));
+{
+  const setBtn = await page.$('[data-panel=lab] [data-home=wslCosts] [data-act^="SEC_TARGET."]:not([disabled])');
+  const lvl = setBtn ? Number((await setBtn.getAttribute('data-act')).slice(11)) : NaN;
+  if (setBtn) {
+    await check('Security target: Set on a level row', 's.player.security.target', () => setBtn.click());
+    ok('Security target set to the row level', JSON.parse(await get(`s.player.security.target === ${lvl}`)));
+  } else ok('Security target: every Set says why it is blocked', (await page.$$('[data-panel=lab] [data-home=wslCosts] [data-act^="SEC_TARGET."][disabled]')).length > 0);
+}
+await check('Security: need-to-know Partial', 's.player.security.siloing', () => page.click('[data-panel=lab] [data-act="SEC_SILO.1"]'));
 await nav('finance');
 await page.click('[data-tabs=finance] [data-tab=cash]'); await wait(80); // J1 F3: Finance has tabs
 await check('Raise ask slider', `document.querySelector('[data-act="fin.raise"]').innerText`, () => setSlider(page.locator('[data-panel=finance] input[type=range]').first(), 3.3));
@@ -630,13 +636,13 @@ await shot('43-research-knowhow');
 await tabTo('projects');
 if (await page.$('[data-act^="reopen."]')) await check('Research: reopen a failed project as speculative', 'JSON.stringify(s.player.research.queue)', () => page.locator('[data-act^="reopen."]').first().click());
 ok('Research: no paradigm section left in Models', await (async () => { await nav('models'); return !(await page.$('[data-paradigm]')); })());
-// Model v3 V2b Company › Work: three role cards (effective labour, fit vs people, coverage, needs with caps and order),
-// milestones with criteria; research speed card on Flow.
+// UB-B LAB › AI staff & needs: the needs lists' editor (Change order: caps and order); build capacity on the engineers
+// card. Skill at each job and milestones moved to MODELS.
 await nav('lab');
 await tabTo('work');
 await wait(80);
-ok('Work: three role cards with labour, fit axis and coverage', JSON.parse(await get(`['SWE', 'EXP', 'IDEAS'].every((w) => !!document.querySelector('[data-test="labour.' + w + '"]') && !!document.querySelector('[data-test="fit.' + w + '"]') && !!document.querySelector('[data-test="coverage.' + w + '"]'))`)));
-ok('Work: build capacity has its home in the engineers card', !!(await page.$('[data-home=buildCapacity] [data-test="labour.SWE"]')) || !!(await page.$('[data-home=buildCapacity][data-wt=SWE]')));
+ok('Work: build capacity on the engineers needs card', !!(await page.$('[data-home="needs.eng"] [data-test=build-queue]')));
+await page.click('[data-test="order.research.reAlloc"]'); await page.click('[data-test="order.build.engAlloc"]'); await wait(60);
 await check('Work: research-engineer cap (share)', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', 'share:0.5'));
 await check('Work: research-engineer cap cleared', 'JSON.stringify(s.player.research.re)', () => page.selectOption('[data-test="needs.research.reAlloc"] [data-test="cap.exp"]', ''));
 await check('Work: research-engineer order', 'JSON.stringify(s.player.research.re.order)', () => page.click('[data-test="needs.research.reAlloc"] [data-test="need-down.ops"]'));
@@ -645,7 +651,6 @@ await check('Work: engineers cap (count)', 'JSON.stringify(s.player.build.alloc)
 await check('Work: engineers cap cleared', 'JSON.stringify(s.player.build.alloc)', () => page.selectOption('[data-test="needs.build.engAlloc"] [data-test="cap.upkeep"]', ''));
 await check('Work: engineers order', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-down.runs"]'));
 await check('Work: engineers order back', 'JSON.stringify(s.player.build.alloc.order)', () => page.click('[data-test="needs.build.engAlloc"] [data-test="need-up.runs"]'));
-ok('Work: seven milestones with criteria', JSON.parse(await get(`document.querySelectorAll('[data-home=milestoneCriteria] [data-ms]').length === 7`)));
 await shot('44-lab-work');
 await tabTo('board');
 ok('L0 research speed: × with its tooltip home (UB-5)', !!(await page.$('.topstrip2 [data-home=labSpeed]')));
@@ -2041,10 +2046,10 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
 // J2: engineers' load, spare serving, days cut, same-lineage monitors, risk lever what-ifs, launches on the build queue.
 await nav('lab');
 await tabTo('work');
-ok('J2 P1: engineering pool shows build capacity and how busy it is', /busy/.test(await page.locator('[data-test=build-queue]').innerText()));
+ok('J2 P1: engineering pool shows build capacity and how much is in use', /Build capacity/.test(await page.locator('[data-test=build-queue]').innerText()) && /in use/.test(await page.locator('[data-test=build-queue]').innerText()));
 await page.hover('[data-test=build-queue]');
 await wait(300);
-ok('J2 P1: the build tooltip splits runs, product upkeep and builds', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Runs/.test(t) && /Product upkeep/.test(t) && /Builds/.test(t); })()`)));
+ok('J2 P1: the build tooltip splits upkeep and the build queue', JSON.parse(await get(`(() => { const t = document.querySelector('.tip')?.innerText ?? ''; return /Upkeep/.test(t) && /Build queue/.test(t); })()`)));
 await shot('50-j2-build-load');
 await clearTips();
 ok('J2 AG1: a same-lineage monitor shows its lower catch on scheming-type incidents', !!(await page.$('[data-test="agent-catch.capRoutine.coll"]')) && !!(await page.$('[data-test="same-monitor.capRoutine"]')));
@@ -2103,7 +2108,7 @@ await tabTo('work');
   if (old) {
     await page.selectOption('[data-test="agent-model.capFrontier"]', old);
     await wait(150);
-    ok('Agents: an older frontier model previews lower research speed', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Research speed/.test(t) && /▼/.test(t); })()`)));
+    ok('Agents: an older frontier model previews less work done on ideas', JSON.parse(await get(`(() => { const t = document.querySelector('[data-test="agent-edit.capFrontier"]')?.innerText ?? ''; return /Work done, ideas/.test(t) && /▼/.test(t); })()`)));
     await shot('34-day900-agents-preview');
     await page.click('[data-test="agent-cancel.capFrontier"]');
   }

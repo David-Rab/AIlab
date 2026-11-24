@@ -73,12 +73,12 @@ function nextTeamBuys(s: GameStateV2, k: TeamKey): { text: ReactNode; tip: strin
     const r = reAllocView(s);
     if (r.idle >= 0.5) return { text: `nothing now · ${t1(r.idle)} teams spare`, tip: 'Research-engineer capacity no need takes (at most two teams per programme).', quiet: true };
     const g = teamGain(s, { role, dept, quality: 'strong' });
-    return g.amount > 0 ? { text: <>{g.target ?? 'next project'} <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: 'Days sooner for the capability project these research engineers speed most, after one research day with them.', quiet: false }
+    return g.amount > 0 ? { text: <>next project <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: `Days sooner for the capability project these research engineers speed most, after one research day with them${g.target ? `: ${g.target}` : ''}.`, quiet: false }
       : { text: 'little · no project needs more', tip: 'No capability project moves faster with them today.', quiet: true };
   }
   if (k === 'sci.cap') {
     const g = teamGain(s, { role, dept, quality: 'strong', specialty: 'pretraining' });
-    return g.amount > 0 ? { text: <>{g.target ?? 'next result'} <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: 'Days sooner for the capability project a new science team speeds most, after one research day with it.', quiet: false }
+    return g.amount > 0 ? { text: <>next project <b className="num tone-pos">{F.num(g.amount, 0)} d</b> sooner</>, tip: `Days sooner for the capability project a new science team speeds most, after one research day with it${g.target ? `: ${g.target}` : ''}.`, quiet: false }
       : { text: 'little · no programme waits for a team', tip: 'Every capability programme already has the science teams it takes.', quiet: true };
   }
   const g = teamGain(s, { role, dept: 'saf', quality: 'strong', ...(role === 'sci' ? { specialty: 'alignment' as const } : {}) });
