@@ -246,6 +246,8 @@ function Sources({ s, v, openLicence }: { s: GameStateV2; v: DataPortfolioView; 
   const online = Object.values(pools).reduce((a, x) => a + x, 0);
   const genShare = online > 0 ? pools.synthetic / online : 0;
   const q = (k: Src) => { const r = row(k); return r && r.tokensT > 0 ? <> · <Term id="dataQuality">quality</Term> <Tip content={() => <TipCard title={<Term id="dataQuality">Quality</Term>} value={F.num(r.quality, 2)}>Token-weighted quality of this source; the public web is 1.</TipCard>}><span className="dv-q num">{F.num(r.quality, r.quality >= 1 ? 1 : 2)}</span></Tip></> : null; };
+  const licAssets = s.player.dataPortfolio.assets.filter((a) => a.kind === 'licensed');
+  const licWord = !licAssets.length ? 'none bought yet' : licAssets.every((a) => (a as { day?: number }).day === undefined) ? `bought before ${fmtDate(dateOf(s, 0)).replace(/ \d+,/, '')}` : `${licAssets.length} ${licAssets.length === 1 ? 'corpus' : 'corpora'} bought`;
   const lv = usageLevels(s);
   const cur = lv.find((l) => l.current);
   const teachers = s.player.models.versions.filter((x) => x.status !== 'retired' && x.status !== 'rolledBack' && x.build);
@@ -253,7 +255,7 @@ function Sources({ s, v, openLicence }: { s: GameStateV2; v: DataPortfolioView; 
     <Card className="dv-srcs" home="dataSources" title={<span className="row-i"><Layers size={15} /><Term id="dataPortfolio">Sources</Term></span>} sub="what you own and what each adds">
       <SrcLine k="public" r={row('public')} sub={<><Tip content={() => <TipCard title={<Term id="publicWeb">Public web crawled</Term>} value={F.pct(v.crawl.coverage)} rows={[{ label: 'Web stock', value: tokT(v.crawl.stockT) }]}>Every lab reads the same finite web.</TipCard>}><span>{F.pct(v.crawl.coverage)}</span></Tip> of the public web crawled{q('public')}{v.crawl.licensed ? <> · <span className="tone-pos">licensed</span></> : null}</>}
         extra={<div className="small dim">{tokT(Math.max(0, v.crawl.stockT * (1 - v.crawl.coverage)))} of the web not crawled</div>} />
-      <SrcLine k="licensed" r={row('licensed')} sub={<>{(row('licensed')?.assets ?? 0) > 0 ? 'corpora you bought' : 'none bought yet'}{q('licensed')}</>}
+      <SrcLine k="licensed" r={row('licensed')} sub={<>{licWord}{q('licensed')}</>}
         extra={<div className="row-i dv-sact"><button className="btn btn-sm" data-test="data-buy-licence" onClick={openLicence}><ShoppingCart size={13} />Buy a licence</button>
           <Tip content={() => <TipCard title="On the way" rows={lic.map((p) => ({ label: `${dn(p.domain)} ${p.label.toLowerCase()} ${tokT(p.tokensT)}`, value: fmtDate(dateOf(s, p.due)) }))}>Licensed data arrives on its due day.</TipCard>}><span className="small dim" data-test="data-pending">{lic.length ? `${lic.length} on the way` : 'none on the way'}</span></Tip></div>} />
       <SrcLine k="usage" r={row('usage')} sub={<>from your products&apos; conversations{q('usage')} · <b className="num">+{tokT(v.usagePerDayT)}</b> a day</>}
