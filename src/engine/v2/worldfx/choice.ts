@@ -12,10 +12,11 @@
 //              (≤ V). A model with x 0.97 at a tenth of the price beats one with x 1 whenever V·0.03 < Δp.
 //   choice     each provider offers on band b its best tier; shares on b ∝ brand·exp(u) among the providers a buyer can
 //              reach (access = the share of buyers who can, independently per provider [D]), u = SHARE_SLOPE_G·fit +
-//              S_b ÷ μ_b, μ_b = p_min,b ÷ ε (p_min,b the cheapest offer that does the whole band; MK-6: the caller's μ_b, the
-//              band's average price yesterday ÷ ε, when given). μ is the old logit's
-//              price scale: at the cheapest offer the price response is the old elasticity ε, and for prices near each
-//              other −ε(p ÷ p_min − 1) ≈ −ε·ln(p ÷ p_min), the old price term. SHARE_SLOPE_G·fit is V4's quality term,
+//              S_b ÷ μ_b, μ_b = c_min,b ÷ ε (MK-6c: c_min,b the lowest serving cost per adopted hour among the region's
+//              tiers that do the whole band, x_b = 1; none: the most adequate tier's, the cheapest of those; bandMu).
+//              Cost-based, so μ does not move with prices (no μ → price → μ loop), and in a band a cheap tier does,
+//              buyers are as sensitive to price as that tier's cost makes them: a price δ·c_min above another costs
+//              δ·ε in utility. SHARE_SLOPE_G·fit is V4's quality term,
 //              kept: beyond adequacy a better model still does the task better. With equal prices and every offer
 //              adequate (and full access) the choice is the old logit exactly; where a cheap tier does the task too, the price difference
 //              in units of μ (≫ 1 for a tier 10× cheaper) decides; where it does not, V·(1 − x) ÷ μ keeps the work on the
@@ -23,9 +24,10 @@
 //   target     provider share = the mean of its band shares (sums to 1); its customers' tier mix = its band shares.
 import { MARKET_BANDS, PRICE_ELASTICITY, SHARE_SLOPE_G } from '../../../data/v2/serving';
 
-/** One model a provider offers on a sector's work: its fit (OOM), coverage of the sector's tasks and price per adopted
- *  task-hour ($, already value-capped). */
-export interface Tier { fit: number; a: number; price: number }
+/** One model a provider offers on a sector's work: its fit (OOM), coverage of the sector's tasks, price per adopted
+ *  task-hour ($, already value-capped) and (MK-6c) serving cost per adopted task-hour ($; absent: the price), what μ_b
+ *  reads. */
+export interface Tier { fit: number; a: number; price: number; cost?: number }
 
 export interface Choice {
   /** Upper edge of the coverable range (the best coverage on offer) and the bands' upper edges. */
@@ -35,7 +37,7 @@ export interface Choice {
   /** share[i][b]: provider i's share of band b's hours; pick[i][b]: the index of its tier there. */
   share: number[][];
   pick: number[][];
-  /** μ_b ($): the band's price scale. */
+  /** μ_b ($): the band's price scale (bandMu). */
   mu: number[];
   /** RD-P03: for a provider with seller groups (`groups[i]`), sub[i][b][k] = tier k's part of its band-b share (each
    *  group's best tier for the band, split by the logit among the groups); undefined for the others. */
@@ -281,6 +283,45 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
 }
 
 /**
+ * MK-6c (design/MARKET.md M5): the bands' price scales μ_b = c_min,b ÷ ε, c_min,b the lowest serving cost per adopted
+ * hour (Tier.cost, else its price) among every serving provider's tiers (acc > 0, brand > 0; every tier, whatever a buyer
+ * group reaches: the market's μ) that do band b's tasks adequately (coverage a ≥ the band's upper edge, x_b = 1); where
+ * no tier does the whole band, the most adequate tier's cost (the highest a; the cheapest of those). Bands of
+ * [0, aTop] in B equal parts (aTop default: the best coverage among the serving tiers). Independent of prices: the
+ * same μ in the choice and in the sellers' Nash markups (mix.ts nashTargets), with no fixed point to solve.
+ */
+export function bandMu(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], aTop?: number, B = MARKET_BANDS): number[] {
+  const mu = zeros(B);
+  let top = aTop ?? 0;
+  const ts: Tier[] = [];
+  for (let i = 0; i < lineups.length; i++) {
+    if (!(acc[i] > 0 && brand[i] > 0)) continue;
+    for (const t of lineups[i]) {
+      ts.push(t);
+      if (aTop === undefined && t.a > top) top = t.a;
+    }
+  }
+  if (!(top > 0) || !ts.length) return mu;
+  for (let b = 0; b < B; b++) {
+    const hi = (top * (b + 1)) / B;
+    let cAd = Infinity;
+    let aBest = -Infinity;
+    let cBest = Infinity;
+    for (const t of ts) {
+      const c = t.cost ?? t.price;
+      if (t.a >= hi) {
+        if (c < cAd) cAd = c;
+      } else if (t.a > aBest || (t.a === aBest && c < cBest)) {
+        aBest = t.a;
+        cBest = c;
+      }
+    }
+    mu[b] = Math.max(1e-12, cAd < Infinity ? cAd : cBest) / PRICE_ELASTICITY;
+  }
+  return mu;
+}
+
+/**
  * The surplus choice of one sector's buyers in one region. `lineups[i]` provider i's tiers (empty: not serving),
  * `brand[i]` its brand weight, `acc[i]` the share of the region's buyers who can buy from it at all (access: export
  * controls, data rules, procurement; each provider independently), `V` the value of an adopted task-hour ($), `aTop`
@@ -297,8 +338,9 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
  * gets e = 0 but stays in the choice sets, so the sets (memoised on `acc`) are the same for every group and its share is
  * exactly as if it were absent. μ_b, a_top and the quality reference stay the market's (every tier's), so the groups'
  * bands and price scales are the same and their shares add band by band [D].
- * MK-6 (design/MARKET.md M5): `muIn[b]` (optional, > 0) sets μ_b: the market's price scale, yesterday's hours-weighted
- * average price of band b over all sellers ÷ ε (mix.ts), the same μ the sellers' Nash markups read.
+ * MK-6c (design/MARKET.md M5): μ_b = bandMu (the cheapest adequate tier's cost ÷ ε); `muIn` (optional, length B)
+ * sets it instead (mix.ts passes the market's bandMu to every buyer group and to the MK-7 re-run, whose dropped offers
+ * stay in the market's μ).
  */
 export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[], reach?: readonly (readonly boolean[] | undefined)[], muIn?: readonly number[]): Choice {
   const n = lineups.length;
@@ -339,7 +381,6 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
   if (S.tq.length < nt) S.tq = new Float64Array(2 * nt), S.ta = new Float64Array(2 * nt), S.tp = new Float64Array(2 * nt), S.tr = new Uint8Array(2 * nt);
   if (S.u.length < n) S.u = new Float64Array(2 * n), S.e = new Float64Array(2 * n), S.sh = new Float64Array(2 * n), S.off = new Int32Array(2 * n + 1);
   const { tq, ta, tp, tr, u, e, sh, off } = S;
-  let pAll = Infinity;
   for (let i = 0, j = 0; i < n; i++) {
     off[i] = j;
     if (!on[i]) continue;
@@ -351,23 +392,16 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
       tq[j] = SHARE_SLOPE_G * (t.fit - fitMax);
       ta[j] = t.a;
       tp[j] = t.price;
-      if (t.price < pAll) pAll = t.price;
     }
   }
   off[n] = nt;
+  const muB = muIn && muIn.length === B ? muIn : bandMu(lineups, brand, acc, top, B);
   for (let b = 0; b < B; b++) {
     const lo = (top * b) / B;
     const hi = (top * (b + 1)) / B;
     const w = hi - lo;
-    // μ_b: MK-6 the caller's (yesterday's average price of the band ÷ ε, mix.ts); else the cheapest offer in the region
-    // that does the whole band (else the cheapest offer), over ε.
-    let m: number;
-    if (muIn && muIn[b] > 0) m = muIn[b];
-    else {
-      let pAd = Infinity;
-      for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
-      m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
-    }
+    // μ_b: MK-6c the market's bandMu (the caller's, else here).
+    const m = Math.max(1e-12, muB[b]);
     mu[b] = m;
     let uMax = -Infinity;
     for (let i = 0; i < n; i++) {

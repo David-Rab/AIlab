@@ -9,7 +9,7 @@ import { PRODUCT_TOOL_BY_ID, type ProductToolId } from '../../../data/v2/tools';
 import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departments/build';
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceStance, SystemCtx } from '../types';
-import { hypothetical, previewDeployments, type EditPreview } from '../worldfx/productView';
+import { hypothetical, previewDeployments, type EditPreview, type MarketBase } from '../worldfx/productView';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { RECIPE_LEAK_SHARE } from '../production/diffusion';
 import { DISTILL_S } from '../../../data/v2/calibration';
@@ -163,9 +163,9 @@ export function editedLive(s: GameStateV2, d: Deployment, c: ProductChanges): { 
 }
 
 /** Before → after of an edit (pure). */
-export function previewEdit(s: GameStateV2, d: Deployment, c: ProductChanges): EditPreview {
+export function previewEdit(s: GameStateV2, d: Deployment, c: ProductChanges, base?: MarketBase): EditPreview {
   const { n } = editedLive(s, d, c);
-  return previewDeployments(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)), d.id);
+  return previewDeployments(s, s.player.deployments.map((x) => (x.id === d.id ? n : x)), d.id, {}, base);
 }
 
 /** Upgrade policy (R6): each product moves to the newest cleared version of the same variant that measures better. */

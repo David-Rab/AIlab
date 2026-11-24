@@ -134,13 +134,16 @@ export const CONTROL_LAYER_DG = -0.0833;
 
 /** Market share logit per segment (V4.2): weight ∝ exp(SHARE_SLOPE_G·(fit − best fit)) · price^−PRICE_ELASTICITY ·
  *  access · brand. v2's 2.1 per level at ≈ 2 levels per OOM before SC [D].
- *  PRICE_ELASTICITY ε: the buyers' price response in the sector choice (worldfx/choice.ts): μ_b = the band's average
- *  price ÷ ε, so at the going price the response is ε. MK-6 [fit, research/MARKET-sources.md §3]: ε = 1.4 puts the
- *  start leader's hours-weighted Nash–Bertrand margin at ≈ 0.86–0.87 (its ≈ 0.2 share of adopted hours, ≈ 0.4 outside
- *  China; seeds 2027, 7, 42; scripts/v2/_mk6/check.ts), inside the 0.8–0.9 where the margin evidence (0.6–0.85 [P]) and
- *  the Demirer et al. elasticity bound (≥ ≈ 0.9) overlap; final calibration at MK-CP. (Was 1 on p_min ÷ ε.) */
+ *  PRICE_ELASTICITY ε: the buyers' price response in the sector choice (worldfx/choice.ts): MK-6c μ_b = c_min,b ÷ ε,
+ *  c_min,b the cheapest adequate tier's serving cost (choice.ts bandMu), so a price c_min·(1 + δ) costs δ·ε in utility
+ *  and the own-price elasticity at price p is ε·(1 − s)·p ÷ c_min (at the Nash margin 1 ÷ the margin: ≈ 1.2 at the
+ *  start, near Demirer et al.'s −1.11). The old logits' price terms (mix.ts: the player's best offer per sector for the
+ *  readouts, priceFactor) read the same ε. [fit, research/MARKET-sources.md §3] ε = 0.3 puts the start leader's
+ *  hours-weighted Nash–Bertrand margin at ≈ 0.81–0.83 (seeds 2027, 7, 42; scripts/v2/_mk6/check.ts), inside the 0.8–0.9
+ *  where the margin evidence (0.6–0.85 [P]) and the Demirer et al. bound overlap; final calibration at MK-CP. (MK-6 /
+ *  MK-6b: 1.4 on μ_b = the band's average price ÷ ε; before MK-6: 1 on the cheapest adequate offer's PRICE ÷ ε.) */
 export const SHARE_SLOPE_G = 4;
-export const PRICE_ELASTICITY = 1.4;
+export const PRICE_ELASTICITY = 0.3;
 /** A5: bands of equal adopted task-hours a sector's buyers choose in (worldfx/choice.ts): the quadrature of the
  *  task-difficulty range. The cheapest adequate offer wins each band, so the hours a cheap model takes are its coverage
  *  ÷ the best coverage to within half a band [D: 8 bands; the share moves by ≤ 1/16 when one more band opens]. */

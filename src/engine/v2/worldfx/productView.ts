@@ -39,6 +39,9 @@ export interface ProductRead {
   unserved: Money;
   /** MK-7: buyers turned away for want of serving compute and where they went (revenue.ts TurnedAway). */
   turnedAway: TurnedAway;
+  /** MK-7: buyers it took from the player's capacity-short products into its spare compute (hours a year, $B/yr; in
+   *  revenue). */
+  spillIn: { hours: number; dollars: Money };
   /** Serving compute cost ($B/yr) at the rental price of an H100e. */
   runCost: Money;
   /** Cost and price per work-hour ($; Chat: per subscriber-month), margin 1 − cost/price, share sold at the value cap,
@@ -324,7 +327,7 @@ function providerName(s: GameStateV2, key: string): string {
 
 /** Spend-weighted share of each provider in the segment a product sells into (consumer, all sectors, or GOV/MIL), and
  *  the player's customer view there (B2). */
-function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['channel'], pi: number): { shares: number[]; cust: CustomerView } {
+export function segmentShares(s: GameStateV2, mix: WorldMix, channel: Deployment['channel'], pi: number): { shares: number[]; cust: CustomerView } {
   const n = mix.providers.length;
   const acc = new Array<number>(n).fill(0);
   const segs: CustomerSeg[] = [];
@@ -386,7 +389,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
     out.set(d.id, {
       id: d.id, channel: d.channel, revenue: x.revenue, demand: x.demand,
       share: pi >= 0 ? sh[pi] : 0, rival, bound: x.bound, rpH: x.rpH,
-      needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue), turnedAway: x.turnedAway,
+      needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue), turnedAway: x.turnedAway, spillIn: x.spillIn,
       runCost: Math.min(x.servingH100e, x.needH100e) * tco,
       cost: d.channel === 'consumer' ? x.subCost ?? 0 : x.costPerHour, price: d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour,
       margin: (d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour) > 0 ? 1 - (d.channel === 'consumer' ? (x.subCost ?? 0) / (x.subPrice ?? 1) : x.costPerHour / x.pricePerHour) : 0,
@@ -421,16 +424,34 @@ export interface EditPreview {
   totalAfter: Money;
   /** Day the edit takes effect (the next tick, D7). */
   fromDay: number;
+  /** MK-12: every product's readout before and after (an edit moves buyers and serving between products) and the
+   *  revenue readouts they came from. */
+  allBefore: Map<string, ProductRead>;
+  allAfter: Map<string, ProductRead>;
+  rdBefore: RevenueReadout;
+  rdAfter: RevenueReadout;
+}
+
+/** MK-12: today's market readouts (mix, revenue, product readouts), computed once and passed to every card and preview
+ *  of one screen render. */
+export interface MarketBase { mix: WorldMix; rd: RevenueReadout; reads: Map<string, ProductRead> }
+export function marketBase(s: GameStateV2): MarketBase {
+  const mix = worldMix(s);
+  const rd = revenueReadout(s, mix);
+  return { mix, rd, reads: productReadouts(s, mix, rd) };
 }
 
 /** Before → after of replacing product `id` with `next` (or adding it, for a launch). */
-export function previewDeployments(s: GameStateV2, deps: Deployment[], id: string, over: Parameters<typeof hypothetical>[2] = {}): EditPreview {
-  const mix0 = worldMix(s);
-  const rd0 = revenueReadout(s, mix0);
-  const before = productReadouts(s, mix0, rd0).get(id);
+/** The market is recomputed on a copy of the state with the edited products by the revenue system's own path (worldMix →
+ *  revenueReadout: buyer choice, prices, serving split, rationing and spillover), so the preview is what the next tick
+ *  computes (MK-12, scripts/v2/_mk12/check.ts). `base`: today's readouts, if already computed. */
+export function previewDeployments(s: GameStateV2, deps: Deployment[], id: string, over: Parameters<typeof hypothetical>[2] = {}, base: MarketBase = marketBase(s)): EditPreview {
   const s2 = hypothetical(s, deps, over);
   const mix1 = worldMix(s2);
   const rd1 = revenueReadout(s2, mix1);
-  const after = productReadouts(s2, mix1, rd1).get(id);
-  return { before, after, totalBefore: rd0.total, totalAfter: rd1.total, fromDay: s.time.day + 1 };
+  const allAfter = productReadouts(s2, mix1, rd1);
+  return {
+    before: base.reads.get(id), after: allAfter.get(id), totalBefore: base.rd.total, totalAfter: rd1.total, fromDay: s.time.day + 1,
+    allBefore: base.reads, allAfter, rdBefore: base.rd, rdAfter: rd1,
+  };
 }
