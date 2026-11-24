@@ -8,7 +8,7 @@
 import { LOCKDOWN_COLLUSION_MULT, labControlSetting, lockdownOn } from '../safety/safeguards';
 import { controlOn } from '../safety/safeguards';
 import {
-  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID, PRICE_TIERS,
+  AGENT_TASK_HOURS, COLLUSION_TRAITS, COPY_COLLUSION, FEATURE_BY_ID,
   type FeatureDef, type FeatureId,
 } from '../../../data/v2/features';
 import { controlProtocol, monitorCatchAt, oomOfLevel, oversightGap } from '../safety/oversight';
@@ -234,7 +234,6 @@ export function featureToggleBlock(s: GameStateV2, d: Deployment, id: string): s
   return undefined;
 }
 
-export const priceIndexOf = (tier: Deployment['price']) => PRICE_TIERS[tier] ?? 1;
 
 // ───────────────────────────── policies ─────────────────────────────
 

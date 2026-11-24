@@ -6,7 +6,7 @@
 //   cost per work-hour = H100e-hours per work-hour × $ per H100e-hour
 //   H100e-hours per work-hour = FLOP per token (2·N_active) × (uncached input ÷ U_prefill + output ÷ U_decode) ÷ peak ÷ 3600
 // with tokens per work-hour by work type (× scaffolds), utilisation and peak from data/v2/workTypes.ts.
-import type { DomainId, PriceTier, RegionId, SectorId } from '../../engine/v2/types';
+import type { DomainId, RegionId, SectorId } from '../../engine/v2/types';
 
 /** FLOP-bearing tokens per human work-hour of AI work (uncached input, output) [R20 D2]: agentic coding ≈ 2M input per
  *  hour, 90% cache reads (bandwidth, not FLOP), 40k output — the internal SWE figure (workTypes TOKENS_PER_WORK_HOUR,
@@ -110,13 +110,21 @@ export const CHAT_WORK = { w: { SOCIAL: 0.4, REASON: 0.4, MEDIA: 0.2 } as Partia
  *  job, not the best human's in the world (the internal work types' reference), so it automates before SC. */
 export const SECTOR_REF = { mid: 0.47, perTheta: 0.2 };
 
-/** Price policy (V4.2): markup over the product's own cost per work-hour [D, R20 D3: API gross margin ≈ 0.6 (range
- *  0.4–0.85; DeepSeek's theoretical 84.5%)]: budget margin 0.4, standard 0.6, premium 0.75. Never above the task's value. */
-export const MARKUP: Record<PriceTier, number> = { budget: 1 / 0.6, standard: 1 / 0.4, premium: 1 / 0.25 };
-/** Rivals price at their own cost × this markup [D: the standard margin]; DeepCent (China) at the budget margin
- *  (DeepSeek-style pricing below Western labs, R20 D3) [D]. */
-export const RIVAL_MARKUP = MARKUP.standard;
-export const CHINA_MARKUP = MARKUP.budget;
+/** MK-6 (design/MARKET.md M5, M6): prices set by competition. Every closed seller (the player, each rival, DeepCent) has
+ *  one margin per adopted task-hour M ($) per sector × region, the multi-product logit Nash–Bertrand markup of its whole
+ *  lineup (worldfx/mix.ts, SectorMix.markupTarget); each of its tiers sells at its own serving cost + M (≤ the value per
+ *  hour, ≥ cost). M moves toward its target with PRICE_TAU (years) [D: list prices change about monthly]. A product on
+ *  the 'share' stance prices at cost + WIN_SHARE_FRACTION × M [D]. */
+export const PRICE_TAU = 30 / 365;
+export const WIN_SHARE_FRACTION = 0.5;
+/** MK-6: a seller's M where it has none yet (a save from before MK-6, a new entrant in a sector): today's cost-plus price,
+ *  M = (markup − 1) × its main model's cost, at the old standard markup (margin 0.6) and DeepCent's old budget one
+ *  (margin 0.4); it then moves to its target at PRICE_TAU. A new game starts at the fixed point (mix.ts initPrices). */
+export const SEED_MARKUP = { closed: 1 / 0.4, china: 1 / 0.6 };
+/** MK-6 interim until MK-9 (Chat's plan price by M5): a consumer plan's price as a share of the willingness to pay, the
+ *  old tiers' ratios to Standard: Win share and DeepCent at the old Budget's ×0.67, open-weight hosts at their ×1.2 over
+ *  cost against the old standard ×2.5 (×0.48). */
+export const CONSUMER_PLAN_FACTOR = { profit: 1, share: 0.4 / 0.6, china: 0.4 / 0.6, open: 1.2 * 0.4 };
 
 /** Safeguards and the AI-control layer cost fit, in OOM [D] (RD-U01: v2's level offsets restated in OOM): hardened
  *  −0.1667 (was −0.2 L), classifiers −0.0417 (was −0.05 L), control layer −0.0833 (was −0.1 L). The UI shows these. */
@@ -124,11 +132,14 @@ export const SAFEGUARD_DG: Record<'minimal' | 'standard' | 'classifiers' | 'hard
 export const CONTROL_LAYER_DG = -0.0833;
 
 /** Market share logit per segment (V4.2): weight ∝ exp(SHARE_SLOPE_G·(fit − best fit)) · price^−PRICE_ELASTICITY ·
- *  access · brand. v2's 2.1 per level at ≈ 2 levels per OOM before SC [D]. Price elasticity 1 (v2: 1.5 on a price index
- *  spanning ×0.7–1.4): prices now span the providers' costs (×2–5), and frontier models keep large shares at 5–15× the
- *  price of small ones (R20 D3 list prices) [D]. */
+ *  access · brand. v2's 2.1 per level at ≈ 2 levels per OOM before SC [D].
+ *  PRICE_ELASTICITY ε: the buyers' price response in the sector choice (worldfx/choice.ts): μ_b = the band's average
+ *  price ÷ ε, so at the going price the response is ε. MK-6 [fit, research/MARKET-sources.md §3]: ε = 1.4 puts the
+ *  start leader's hours-weighted Nash–Bertrand margin at ≈ 0.86–0.87 (its ≈ 0.2 share of adopted hours, ≈ 0.4 outside
+ *  China; seeds 2027, 7, 42; scripts/v2/_mk6/check.ts), inside the 0.8–0.9 where the margin evidence (0.6–0.85 [P]) and
+ *  the Demirer et al. elasticity bound (≥ ≈ 0.9) overlap; final calibration at MK-CP. (Was 1 on p_min ÷ ε.) */
 export const SHARE_SLOPE_G = 4;
-export const PRICE_ELASTICITY = 1;
+export const PRICE_ELASTICITY = 1.4;
 /** A5: bands of equal adopted task-hours a sector's buyers choose in (worldfx/choice.ts): the quadrature of the
  *  task-difficulty range. The cheapest adequate offer wins each band, so the hours a cheap model takes are its coverage
  *  ÷ the best coverage to within half a band [D: 8 bands; the share moves by ≤ 1/16 when one more band opens]. */
@@ -250,7 +261,7 @@ export const CONSUMER_MKT = {
  *  $20 while serving got far cheaper; R22 §2). Standard and Premium sell at the willingness to pay (no plan sells above
  *  it); a tier below Standard sells below it by its markup's ratio to Standard's (Budget ×0.67 ≈ $14.7) [D]. The engine
  *  never sells below a paying user's serving cost (worldfx/serving.ts subPrice). */
-export const consumerPlanPrice = (markup: number) => CONSUMER_MKT.wtpMonth * Math.min(1, markup / MARKUP.standard);
+export const consumerPlanPrice = (factor = 1) => CONSUMER_MKT.wtpMonth * Math.min(1, factor);
 
 /** Hours a served H100e runs per year (24/7). */
 export const SERVE_HOURS_PER_YEAR = 8766;

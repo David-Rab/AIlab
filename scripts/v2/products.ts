@@ -13,7 +13,7 @@
 //       refreshes the internal model; upgrade-to-newest moves a product to a better cleared version
 //   P9  retire; save round trip with an edited product
 //   C2  feature data (every feature acts where offered) and feature upkeep (block at the end)
-import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, PRICE_TIERS, type FeatureFx } from '../../src/data/v2/features';
+import { AGENT_TASK_HOURS, FEATURES, FEATURE_BY_ID, type FeatureFx } from '../../src/data/v2/features';
 import { PRODUCT_MONITOR_WATCH } from '../../src/data/v2/oversight';
 import { SECTORS } from '../../src/data/v2/sectors';
 import { engDemand, featureInUse, featureUpkeepTW, upkeepLines } from '../../src/engine/v2/departments/build';
@@ -70,7 +70,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   // carrying the start's list for its channel, all of them built.
   const startTools = (ch: Deployment['channel']) => START_BY_ID.leader.products.find((x) => x.channel === ch)?.features ?? [];
   const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
-  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.price === 'standard' && d.priceIndex === 1 && sameSet(d.features, startTools(d.channel)) && d.features.every((f) => s.player.features.includes(f)) && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
+  check(ext.length === 3 && ext.every((d) => d.kind === 'product' && d.stance === 'profit' && sameSet(d.features, startTools(d.channel)) && d.features.every((f) => s.player.features.includes(f)) && !d.monitorId && (d.lineup ?? []).every((id) => own.has(id))),
     'P1 leader start: Chat, API, Enterprise are products at the standard tier with the start\'s built tools for their channel (RF-P1) and no monitor; any lineup is of the lab\'s own versions',
     ext.map((d) => `${d.channel}: ${d.features.join('+') || '-'}`).join('; '));
   const pol = s.player.policies;
@@ -90,18 +90,18 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   const id = api.id;
   const start = api.startDay;
   const v0 = s.player.models.versions[0];
-  const pv = previewEdit(s, api, { price: 'premium', monitorId: v0.id });
+  const pv = previewEdit(s, api, { stance: 'share', monitorId: v0.id });
   check(!!pv.before && !!pv.after && pv.fromDay === s.time.day + 1, 'P3 preview has before and after and takes effect at the next tick', `from ${pv.fromDay}`);
-  const err = act(s, 'product.update', { id, price: 'premium', monitorId: v0.id });
+  const err = act(s, 'product.update', { id, stance: 'share', monitorId: v0.id });
   check(!err, 'P3 product.update applies', err ?? '');
   const d = prod(s, 'api');
-  check(d.id === id && d.startDay === start && d.status === 'live' && d.price === 'premium' && d.priceIndex === PRICE_TIERS.premium && d.monitorId === v0.id, 'P3 the product stays live (same id and start day) with the new tier and monitor');
+  check(d.id === id && d.startDay === start && d.status === 'live' && d.stance === 'share' && d.monitorId === v0.id, 'P3 the product stays live (same id and start day) with the new stance and monitor');
   tick(s, { skip: ['endings'] });
   const after = d.revenueRate ?? 0;
   check(near(after, pv.after!.revenue, 0.03), 'P3 the preview\'s revenue is what the next tick computes (±3%)', `${pv.after!.revenue.toFixed(3)} vs ${after.toFixed(3)}`);
   check(near(d.needH100e ?? 0, pv.after!.needH100e, 0.05), 'P3 the preview\'s serving need (incl. monitor) matches the next tick (±5%)', `${pv.after!.needH100e.toFixed(0)} vs ${d.needH100e}`);
-  const err2 = act(s, 'product.update', { id, monitorId: 'none', price: 'standard' });
-  check(!err2 && !prod(s, 'api').monitorId && prod(s, 'api').price === 'standard', 'P3 a monitor can be removed live; the tier changed back');
+  const err2 = act(s, 'product.update', { id, monitorId: 'none', stance: 'profit' });
+  check(!err2 && !prod(s, 'api').monitorId && prod(s, 'api').stance === 'profit', 'P3 a monitor can be removed live; the stance changed back');
   const bad = act(s, 'product.update', { id, versionId: 'nope' });
   check(!!bad, 'P3 an unknown model is refused', bad ?? '');
 }
@@ -261,7 +261,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   run(s, 10);
   const v0 = s.player.models.versions[0];
   const ent = prod(s, 'enterprise');
-  act(s, 'product.update', { id: prod(s, 'api').id, monitorId: v0.id, price: 'budget' });
+  act(s, 'product.update', { id: prod(s, 'api').id, monitorId: v0.id, stance: 'share' });
   const r = act(s, 'product.retire', { id: ent.id });
   check(!r && ent.status === 'withdrawn', 'P9 product.retire withdraws the product', r ?? '');
   run(s, 1);
@@ -498,7 +498,7 @@ function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Part
   check(only(rt, ['revenue', 'compute', 'leadDays']) && Math.abs(signed(rt, 'revenue') - (revenueReadout(r).total - rd0)) <= 0.006 && Math.abs(lead + Math.round(distillDaysPerYear(r) - dd0)) <= 0.5,
     'RD-B20 retire preview: the revenue the market loses (its serving goes to the other products) and the distillation it really ends; no trust risk', `${JSON.stringify(rt)} real rev ${revenueReadout(r).total - rd0} lead ${distillDaysPerYear(r) - dd0}`);
   // Update (model swap), serving share, feature toggle, product policy: no product-team time, no invented lead / approval risks.
-  const up = pvOf(s, 'product.update', { id: api.id, price: 'premium' });
+  const up = pvOf(s, 'product.update', { id: api.id, stance: 'share' });
   const sv = pvOf(s, 'product.serving', { id: api.id, share: 0.1 });
   const ft = pvOf(s, 'feature.toggle', { product: api.id, feature: 'codingAgent', on: true });
   const po = pvOf(s, 'products.policy', { upgradeToNewest: true, autoEvaluate: false });

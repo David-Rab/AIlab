@@ -7,7 +7,7 @@ import type { GameStateV2 } from '../types';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 105;
+export const SCHEMA_REV = 106;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -42,6 +42,21 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
     const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
     for (const d of p?.deployments ?? []) delete d.effort;
     for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
+  },
+  /** 105 → 106 (MK-6, design/MARKET.md M5, M6): price tiers removed. Every product and waiting launch takes the 'profit'
+   *  stance (price and priceIndex dropped); the sellers' margins (world.fx.priceM) start at today's cost-plus prices
+   *  when first read (SEED_MARKUP) and move to their Nash–Bertrand targets. */
+  105: (s) => {
+    const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
+    for (const d of p?.deployments ?? []) {
+      delete d.price;
+      delete d.priceIndex;
+      d.stance = 'profit';
+    }
+    for (const it of p?.build?.queue ?? []) if (it.launch) {
+      delete it.launch.price;
+      it.launch.stance = 'profit';
+    }
   },
 };
 

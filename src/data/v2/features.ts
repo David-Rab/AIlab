@@ -1,7 +1,7 @@
 // Products and product features (STRUCTURE §4.4, §4.9; BUILD-PLAN R6, decisions D5 and D7). Owner: WS1.
 //
 // Channels become products the player owns. A product is a package: a model (optionally with a mini serving its free
-// tier), an optional monitor model, a price tier, safeguards, KYC and features. Everything is editable while
+// tier), an optional monitor model, a price stance (MK-6), safeguards, KYC and features. Everything is editable while
 // live (rule R4); edits take effect at the next tick (D7).
 //
 // Features are built once lab-wide by the engineers (build queue, team-weeks + cash) after their tree node is known,
@@ -14,22 +14,8 @@
 // the product's serving share. Only Companion keeps a per-trait multiplier, a stated stand-in (`hazard`).
 // Every feature is a gain when on (no start type has one for free; sector adaptations are per product: models/adaptations.ts).
 // [D] = design value.
-import type { Channel, PriceTier, SectorId, TraitId } from '../../engine/v2/types';
+import type { Channel, SectorId, TraitId } from '../../engine/v2/types';
 import type { WorkTypeId } from './workTypes';
-import { MARKUP } from './serving';
-
-export type { PriceTier };
-/** Price tier → markup relative to the standard tier (price = markup × the product's cost per work-hour, MARKUP in
- *  data/v2/serving.ts: budget margin 0.4, standard 0.6, premium 0.75) [D, R20 D3]. Demand share falls with price^−1.5
- *  (PRICE_ELASTICITY). */
-export const PRICE_TIERS: Record<PriceTier, number> = { budget: MARKUP.budget / MARKUP.standard, standard: 1, premium: MARKUP.premium / MARKUP.standard };
-export const PRICE_TIER_IDS: PriceTier[] = ['budget', 'standard', 'premium'];
-/** Nearest tier to a price index (bots that set an index). */
-export function tierOfIndex(x: number): PriceTier {
-  let best: PriceTier = 'standard';
-  for (const t of PRICE_TIER_IDS) if (Math.abs(PRICE_TIERS[t] - x) < Math.abs(PRICE_TIERS[best] - x)) best = t;
-  return best;
-}
 
 /** Products by engine channel: display name, segment and blurb. Customer counts come from the customer stock
  *  (ProductRead.cust), paid seats and Chat's users and subscribers; sector products have no count, only a share (B4). */
@@ -53,11 +39,6 @@ export const PRODUCT_ORDER: Channel[] = ['consumer', 'api', 'enterprise', 'vette
 
 // RD-P01a (DD-01): any product offers a lineup of real models (Deployment.lineup); Chat's free users run one of them
 // (freeTierId; worldfx/serving.ts chatFreeTier), its paying users the main model. MINI_CHANNELS is gone.
-/** RD-B11 (B16): a channel's price multiplier over its tier's markup. It is part of the product's offer
- *  (worldfx/serving.ts productOffer), so buyers see it in their choice: Vetted keeps the old Trusted access ×3 (vetted
- *  partners, R12 §0.6) [D] until MK-6 deletes CHANNEL_PRICE with the price tiers (MARKET.md M5, M6). */
-export const CHANNEL_PRICE: Partial<Record<Channel, number>> = { vetted: 3 };
-
 /** Catch rate of a monitor as capable as the model it watches (model v3 E6: it falls with the capability gap in OOM,
  *  data/v2/oversight.ts, and rises with AI-control containment tools, AG07). */
 export { MONITOR_CATCH_BASE } from './oversight';

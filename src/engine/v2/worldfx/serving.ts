@@ -5,12 +5,14 @@
 //   H100e-h per w-hour  = FLOP per token (2·N_active of the served version) × (input ÷ U_prefill + output ÷ U_decode)
 //                         ÷ peak FLOP/s ÷ 3600, tokens per work-hour by work type × scaffolds
 //   capacity            = serving H100e × 8766 h ÷ (H100e-hours per work-hour)   (work-hours per year)
-//   price               = min(markup × c, value) per adopted task-hour (never below c); an adopted hour saves (α + (1 − α)·g_aug)
-//                         hours of the sector's work (substituted vs augmented), so value = wage × that; rivals price at
-//                         their own cost × RIVAL_MARKUP, China × CHINA_MARKUP
+//   price               MK-6 (design/MARKET.md M5): set per region in worldfx/mix.ts, p = min(c + M, value) per adopted
+//                         task-hour (never below c), M the seller's Nash–Bertrand margin; an adopted hour saves
+//                         (α + (1 − α)·g_aug) hours of the sector's work (substituted vs augmented), so value = wage × that.
+//                         The offer here carries price = markup × c with markup 1 for those sellers (OPEN_MARKUP for
+//                         open-weight hosts, priced near cost)
 //   A2c agent work      k = a·λ agent-hours per supervising hour, λ = 1/(c/h80 + ρ(1 − a) + m), × the buyer's gate; price per
-//                         agent-hour = min(markup × cost on the autonomous profile, wage); seat price = list × markup ÷
-//                         standard, ≥ the seat's serving cost (data/v2/serving.ts SEATS, AGENT_WORK)
+//                         agent-hour = min(cost on the autonomous profile × p/c, wage) and seat price = the seat's serving
+//                         cost × p/c (mix.ts: the tier's price-to-cost ratio; data/v2/serving.ts SEATS, AGENT_WORK)
 //   sector coverage     a = σ((fit − θ_s)/s) × p(H_s | h50): the work-type function of V3 (departments/workfit.ts) with
 //                         the sector's median professional as reference (θ_s, SECTOR_REF), fit = Σ ω_d G_d + ΔG(safeguards,
 //                         scaffolds), h50 × horizon extenders
@@ -19,10 +21,10 @@
 // coverage.
 import { controlOn } from '../safety/safeguards';
 import {
-  AGENT_WORK, CHAT_WORK, CHINA_MARKUP, CONSUMER_MKT, CONTROL_LAYER_DG, consumerPlanPrice, LINEUP, MARKUP, RIVAL_MARKUP,
-  SAFEGUARD_DG, SEATS, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
+  AGENT_WORK, CHAT_WORK, CONSUMER_MKT, CONSUMER_PLAN_FACTOR, CONTROL_LAYER_DG, consumerPlanPrice, LINEUP, WIN_SHARE_FRACTION,
+  SAFEGUARD_DG, SECTOR_REF, SECTOR_WORK, TOKENS, type TokenProfile,
 } from '../../../data/v2/serving';
-import { CHANNEL_PRICE, ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
+import { ENABLER_TOOLS, FEATURE_BY_ID, P05_ORCHESTRATION, TOOL_BY_ID, enablerNeed, type ToolId, type FeatureFx, type WorkScope } from '../../../data/v2/features';
 import { ECON, REGION_SCALE, SECTORS } from '../../../data/v2/sectors';
 import { DISTILL, REFERENCE_BASE, PARAM_RANGE } from '../../../data/v2/runDesign';
 import { ASSIST, COVER, H80_OVER_H50, PEAK_FLOPS, TOK_MIN, TOK_PER_RL_OOM, U_DECODE, U_PREFILL, type WorkTypeId } from '../../../data/v2/workTypes';
@@ -214,11 +216,13 @@ export interface ModelUse { v: Fitted; fpt: number; w: number }
  *  task-hour ($), price per adopted task-hour before the value cap ($). A2c agent work: agent-hours per supervising hour
  *  before the buyer's gate (k = a·λ), agent-hours one supervising hour sustains (λ), H100e-hours, cost and price per
  *  agent-hour (autonomous profile, before the value cap); H100e-hours per seated (assisted) hour and the seat price per
- *  seat-month ($: list × the markup relative to standard, never below the seat's serving cost). */
+ *  seat-month ($: its serving cost × markup; MK-6 mix.ts reprices it by the tier's price-to-cost ratio). */
 export interface Offer { fit: number; a: number; hph: number; cost: number; price: number; k: number; lam: number; hphAg: number; costAg: number; priceAg: number; hphAs: number; seat: number }
 /** ud: the serving lab's decode utilisation (D10; default the 2025 reference 0.07). */
 /** tools (RD-P07): the enabler features the provider has; in a sector that needs a tool it lacks, coverage × (1 − toolGap). */
 /** `adapted`: the offer's lab has a live sector adaptation for this sector (RD-P08, models/adaptations.ts). */
+/** `markup` (MK-6): the price over cost the offer carries before the seller's margin: 1 for the sellers that price by
+ *  competition (mix.ts adds their margin M per region), OPEN_MARKUP for open-weight hosts. */
 export interface OfferOpts { dG?: number; hMult?: number; tok?: number; markup: number; rate: number; ud?: number; tools?: readonly string[]; adapted?: boolean }
 
 /** Agent-hours one supervising human-hour sustains at coverage a and 50% horizon h50 (minutes): 1 / (c/h80 + ρ·(1 − a) +
@@ -311,7 +315,7 @@ export function offerOf(s: GameStateV2, uses: ModelUse[], sid: SectorId | 'CHAT'
   const seatCost = chat ? 0 : seatHoursPerMonth(sid) * hphAs * o.rate;
   return {
     fit, a, hph, cost, price: o.markup * cost, k, lam, hphAg, costAg, priceAg: o.markup * costAg, hphAs,
-    seat: chat ? 0 : Math.max(seatCost, (SEATS.price * o.markup) / MARKUP.standard),
+    seat: chat ? 0 : seatCost * o.markup,
   };
 }
 
@@ -334,7 +338,7 @@ export function adoptedTokens(s: GameStateV2, sid: SectorId): TokenProfile {
 export const valuePerHour = (s: GameStateV2, sid: SectorId, r: RegionId) => wagePerHour(sid, r) * savedPerAdoptedHour(s, r, sid);
 /** Agent-hours a supervising hour buys from an offer in a region (A2c), and the price per agent-hour: k × the buyer's gate
  *  σ(ln(wage ÷ (price + wage/λ))/kSpread) — an agent-hour plus the human time it takes against the human hour; the price
- *  is cost-plus, capped at the wage (an agent-hour is a human-equivalent hour of the work), never below cost. */
+ *  is its cost × the tier's price-to-cost ratio (MK-6, mix.ts), capped at the wage (an agent-hour is a human-equivalent hour of the work), never below cost. */
 export function agentDemandOf(o: Pick<Offer, 'k' | 'lam' | 'priceAg' | 'costAg'>, wageH: number): { k: number; price: number } {
   const price = Math.max(o.costAg, Math.min(o.priceAg, wageH));
   if (!(o.k > 0)) return { k: 0, price };
@@ -357,12 +361,11 @@ export const costGateOf = (price: number, a: number, wageH: number) => sig(Math.
 
 // ───────────────────────────── the player's products ─────────────────────────────
 
-/** Markup of a product's price tier (price = markup × its cost per work-hour). */
-export const markupOf = (d: Deployment) => MARKUP[d.price] ?? MARKUP.standard;
-/** RD-B11 (B16): a channel's price multiplier over the tier's markup (data/v2/features.ts CHANNEL_PRICE: Trusted ×3);
- *  1 elsewhere. It is in the product's offer (productOffer), so buyers see it. */
-export const channelPriceOf = (d: Deployment) => CHANNEL_PRICE[d.channel] ?? 1;
-export { RIVAL_MARKUP, CHINA_MARKUP };
+/** MK-6 (design/MARKET.md M6): the share of the lab's margin M a product's stance takes (Best profit 1, Win share
+ *  WIN_SHARE_FRACTION): its tiers sell at their serving cost + this × M (mix.ts). */
+export const stanceFactor = (d: Pick<Deployment, 'stance'>) => (d.stance === 'share' ? WIN_SHARE_FRACTION : 1);
+/** MK-6 interim until MK-9: a Chat product's plan price as a share of the willingness to pay (CONSUMER_PLAN_FACTOR). */
+export const planFactorOf = (d: Pick<Deployment, 'stance'>) => (d.stance === 'share' ? CONSUMER_PLAN_FACTOR.share : CONSUMER_PLAN_FACTOR.profit);
 
 /** The model a product's paying customers use: its main version. RD-B11 (B15) / RD-P01a: Chat's free users run its
  *  free-tier slot (chatFreeTier) and a sector product's other lineup models are tiers of their own (productTierUses);
@@ -431,12 +434,12 @@ export const sectorH50 = (s: GameStateV2, v: Fitted, sid: SectorId | 'CHAT', hMu
 export const settingsDG = (d: Deployment) => (SAFEGUARD_DG[d.safeguards] ?? 0) + (controlOn(d) ? CONTROL_LAYER_DG : 0);
 
 /** A product's offer on a sector (RD-P08: its own live adaptation there raises its coverage, offerOf). RD-B11 (B16):
- *  priced at the tier's markup × the channel's price multiplier (channelPriceOf: Trusted ×3), so the market's choice
- *  and the revenue read the same price. RD-P07: its tools (productTools) widen the tasks it covers where the sector
+ *  at its serving cost (markup 1): MK-6 the market (mix.ts) adds the lab's margin per region, and the revenue reads
+ *  those prices (SectorMix.playerLines). RD-P07: its tools (productTools) widen the tasks it covers where the sector
  *  needs them. */
 export function productOffer(s: GameStateV2, d: Deployment, sid: SectorId, uses = productUses(s, d), fx = productFx(s, d), tools = productTools(s, d)): Offer {
   const x = fxOn(fx, sid);
-  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, markup: markupOf(d) * channelPriceOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
+  return offerOf(s, uses, sid, { dG: settingsDG(d) + x.dG, hMult: x.hMult, tok: x.tok, markup: 1, rate: serveDollarsPerHour(s), ud: decodeUtilNow(s), tools, adapted: adaptedHere(s, d, sid) });
 }
 
 // ───────────────────────────── consumer chat ─────────────────────────────
@@ -471,18 +474,18 @@ export function chatFreeTier(s: GameStateV2, d: Deployment): { fit: number; fpt:
   const v = freeTierVersion(s, d);
   if (!v) return undefined;
   const x = fxOn(productFx(s, d), 'CHAT');
-  const opts: OfferOpts = { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: markupOf(d), rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) };
+  const opts: OfferOpts = { dG: settingsDG(d) + x.dG, hMult: x.hMult, markup: 1, rate: serveDollarsPerHour(s), ud: decodeUtilNow(s) };
   const fpt = flopPerToken(s, v);
   return { fit: offerOf(s, [{ v, fpt, w: 1 }], 'CHAT', opts).fit, fpt, tau: tokEff(v), id: v.id };
 }
 
 /** Consumer subscription per month ($): a paying user's serving cost on the product's model (paid usage runs on the main
- *  model) and the plan's price. A6b: the price is the market's flat plan price for the tier (consumerPlanPrice: the
- *  willingness to pay on Standard), not cost-plus; margin = price − cost. Never below cost (a plan that must cost more
+ *  model) and the plan's price. A6b: the price is the market's flat plan price (consumerPlanPrice: the
+ *  willingness to pay × `factor`, MK-6 interim CONSUMER_PLAN_FACTOR), not cost-plus; margin = price − cost. Never below cost (a plan that must cost more
  *  than the willingness to pay finds no subscribers, paidShareTarget). */
-export function subPrice(s: GameStateV2, fpt: number, markup: number, tau = 1, ud = U_DECODE): { cost: number; price: number } {
+export function subPrice(s: GameStateV2, fpt: number, factor: number, tau = 1, ud = U_DECODE): { cost: number; price: number } {
   const cost = chatHoursPerDay(fpt, CONSUMER_MKT.perDay.paid, tau, ud) * serveDollarsPerHour(s) * 30.4;
-  return { cost, price: Math.max(cost, consumerPlanPrice(markup)) };
+  return { cost, price: Math.max(cost, consumerPlanPrice(factor)) };
 }
 /** Target paid share of a provider's weekly users (A2b): (p0 + p1 · coverage of consumer chat) × (going price ÷ its
  *  price)^ε, capped; the going price is the users' share-weighted subscription price in the region among plans sold at
