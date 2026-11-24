@@ -26,7 +26,6 @@ import { flopPerToken, workFit } from '../departments/workfit';
 import { agentCompute, agentVersion, monitorBudget } from '../departments/agents';
 import { MONITOR_SAME } from '../../../data/v2/agents';
 import { FREE_TIER } from '../../../data/v2/serving';
-import { PRICE_TIERS } from '../../../data/v2/features';
 import { deployGate } from '../models/deployments';
 import { EVENT_BY_ID } from '../core/registry';
 import { decimalYear } from '../core/time';
@@ -264,9 +263,6 @@ export interface RefPlayOpts {
    *  set as the API's mini. Default off (TIERS): every sector product sells its lineup (data/v2/serving.ts LINEUP), as
    *  the rivals' do, so RefBot needs no extra distil; the option stays for experiments. */
   cheapTier?: boolean;
-  /** MKT: sector products sell at the premium tier while serving cuts them below 1 ÷ its price ratio (capacityPricing).
-   *  Default: on with the 'compete' release (RefBot), off otherwise. */
-  capacityPrice?: boolean;
 }
 
 /** RD-T08 (TRN-20): RefBot's fixed data target, the 2025 reference shares (the start portfolio's natural mix, which the
@@ -523,7 +519,6 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   if (follower && day % 30 === 0) {
     for (const ch of PRODUCT_CHANNELS) if (!p.deployments.some((d) => d.channel === ch && d.status !== 'withdrawn')) tryAct(s, api, 'product.launch', { channel: ch });
   }
-  if ((o.capacityPrice ?? release === 'compete') && day % RELEASE_EVERY === 0) capacityPricing(s, api);
 
   syncPoolShares(s, api);
 
@@ -628,28 +623,8 @@ function competeRelease(s: GameStateV2, api: EngineApi, skip: string[]) {
   }
 }
 
-/** MKT: a sector product (API, Enterprise) whose serving cut leaves it under 1 ÷ PRICE_TIERS.premium of its need sells at
- *  the premium tier, and returns to standard once it is served in full there. While demand exceeds the serving pool the
- *  extra margin is all gain: buyers respond to price with elasticity ≤ PRICE_ELASTICITY = 1 (OpenRouter's 100T-token
- *  study, arXiv 2601.10088: a 10% price cut adds 0.5–0.7% usage), so at ×1.6 the demand still fills what a product served
- *  below 1/1.6 of its need, and at standard after a full-served premium spell it is served ≥ 1/1.6 (no flapping). Labs
- *  price scarce capacity [P, Anthropic pricing page, Nov 2026: fast mode ×2 for priority output, Batch −50% for
- *  flexible]; AI 2027's own revenue ($140B in 2027 on ≈ 2M external H100e: ≈ $74k per H100e-year, research/02 §1.3, §1.6)
- *  sits above the standard tier's cost-plus earnings per H100e. Chat stays standard (its plan sells at the willingness to
- *  pay, consumerPlanPrice). TIERS: the premium applies to every tier of the product's lineup (its markup prices them
- *  all): the tiers share the product's serving and earn the same per H100e-hour at one markup, so the scarcity rent per
- *  H100e-hour is the same whichever tier uses it; a cheap-tier buyer the premium sends to a rival frees H100e for the
- *  backlog at the same rent. Sourced: OpenAI's Fast mode (was Priority processing) is ×2 Standard across its model
- *  families, minis included (gpt-5.4-mini $1.50 / $9.00 vs $0.75 / $4.50 per M); Google's Priority ≈ ×1.8 Standard on every Gemini model down to Flash-Lite [P, pricing pages
- *  fetched 2026-11-21]; Anthropic sells fast mode on its top tiers only (Fable 5.2, Opus 5.5 ×2). */
-function capacityPricing(s: GameStateV2, api: EngineApi) {
-  for (const d of s.player.deployments) {
-    if ((d.channel !== 'api' && d.channel !== 'enterprise') || d.status !== 'live' || !(d.needH100e! > 0)) continue;
-    const served = (d.servedH100e ?? 0) / d.needH100e!;
-    if (d.price === 'standard' && served < 1 / PRICE_TIERS.premium) tryAct(s, api, 'product.update', { id: d.id, price: 'premium' });
-    else if (d.price === 'premium' && served >= 1 - 1e-6) tryAct(s, api, 'product.update', { id: d.id, price: 'standard' });
-  }
-}
+// MK-6 (design/MARKET.md M5, M7): the bot's capacity pricing (premium tier while serving-cut) is gone with the price
+// tiers: prices are set by competition and capacity is rationed at the list price.
 
 /** Pool share each kind of run asks for (RefBot's launch shares; the base share is the one it launched with). */
 const askShare = (s: GameStateV2, r: TrainingRun) =>

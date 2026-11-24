@@ -12,8 +12,8 @@ import {
   Minus, MousePointer2, Pencil, Plus, Rocket, Ruler, Server, Shield, ShieldCheck, SlidersHorizontal, SquareTerminal, Telescope, Users, X,
   type LucideIcon,
 } from 'lucide-react';
-import { CHANNEL_PRICE, FEATURES, PRICE_TIER_IDS, PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed, type FeatureDef } from '../../../data/v2/features';
-import { MARKUP, consumerPlanPrice } from '../../../data/v2/serving';
+import { FEATURES, PRODUCT_DEFS, PRODUCT_ORDER, enablerNeed, type FeatureDef } from '../../../data/v2/features';
+import { CONSUMER_PLAN_FACTOR, WIN_SHARE_FRACTION, consumerPlanPrice } from '../../../data/v2/serving';
 import { SECTORS } from '../../../data/v2/sectors';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
@@ -24,7 +24,7 @@ import {
   pendingLaunch, idleServing, charterHolds, freeTierVersion, ADAPT_TW, adaptationsBuilding, CERT_CASH, CERT_DAYS, CERT_FRICTION_CUT, certified,
   demandModifiers, PENALTY_MAX, revenueTrend, customerDrift, limitReason, agentsReady, winBack,
 } from '../../../engine/v2';
-import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceTier, ProductChanges, ProductRead } from '../../../engine/v2';
+import type { Channel, Deployment, FeatureKind, GameStateV2, ModelVersion, PriceStance, ProductChanges, ProductRead } from '../../../engine/v2';
 import { store, useV2 } from '../store';
 import { ActBtn, Limit, Seg, Term, Tip, TipCard, type Params } from '../ui';
 import { PanelHead, Ref } from '../kit';
@@ -37,7 +37,8 @@ const P_ICON: Partial<Record<Channel, LucideIcon>> = { consumer: MessageCircle, 
 /** Who buys, and how (the card's header line). */
 const P_WHO: Partial<Record<Channel, string>> = { consumer: 'people, by subscription', api: 'developers, by task', enterprise: 'companies, by seat and by task', vetted: 'government, defence and regulated firms, by contract' };
 const SG_LABEL: Record<Deployment['safeguards'], string> = { minimal: 'Minimal', standard: 'Standard', classifiers: 'Classifiers', hardened: 'Hardened' };
-const TIER_LABEL: Record<PriceTier, string> = { budget: 'Low', standard: 'Standard', premium: 'Premium' };
+const STANCE_LABEL: Record<PriceStance, string> = { profit: 'Best profit', share: 'Win share' };
+const STANCE_IDS: PriceStance[] = ['profit', 'share'];
 const BOUND_WORD: Record<string, string> = { capacity: 'serving compute', quality: 'quality', price: 'price', demand: 'demand' };
 /** VOCAB §PRODUCTS: player names of the tools whose engine names differ. */
 const TOOL_NAME: Record<string, string> = { deepResearch: 'Research mode', codingAgent: 'Coding harness' };
@@ -63,7 +64,7 @@ function editParams(id: string, c: ProductChanges): Params {
   if (c.lineup !== undefined) p.lineup = c.lineup.join(',');
   if (c.freeTierId !== undefined) p.freeTierId = c.freeTierId ?? '';
   if (c.monitorId !== undefined) p.monitorId = c.monitorId ?? '';
-  if (c.price) p.price = c.price;
+  if (c.stance) p.stance = c.stance;
   if (c.safeguards) p.safeguards = c.safeguards;
   if (c.kyc !== undefined) p.kyc = c.kyc;
   if (c.features) p.features = c.features.join(',');
@@ -79,7 +80,7 @@ function changeLines(s: GameStateV2, d: Deployment, c: ProductChanges): { k: str
   if ((n.lineup ?? []).join() !== (d.lineup ?? []).join()) out.push({ k: 'Lineup', from: lineTxt(d), to: lineTxt(n) });
   if (n.freeTierId !== d.freeTierId) out.push({ k: 'Free tier', from: d.freeTierId ? nameOf(s, d.freeTierId) : 'cheapest', to: n.freeTierId ? nameOf(s, n.freeTierId) : 'cheapest' });
   if (n.monitorId !== d.monitorId) out.push({ k: 'Monitor', from: d.monitorId ? nameOf(s, d.monitorId) : 'none', to: n.monitorId ? nameOf(s, n.monitorId) : 'none' });
-  if (n.price !== d.price) out.push({ k: 'Price', from: TIER_LABEL[d.price], to: TIER_LABEL[n.price] });
+  if (n.stance !== d.stance) out.push({ k: 'Price', from: STANCE_LABEL[d.stance], to: STANCE_LABEL[n.stance] });
   if (n.safeguards !== d.safeguards) out.push({ k: 'Safeguards', from: SG_LABEL[d.safeguards], to: SG_LABEL[n.safeguards] });
   if (n.kyc !== d.kyc) out.push({ k: 'KYC', from: String(d.kyc), to: String(n.kyc) });
   const fOn = n.features.filter((f) => !d.features.includes(f));
@@ -283,12 +284,12 @@ function ProductCard({ s, d, r, draft, setDraft }: { s: GameStateV2; d: Deployme
       <div className="sec2 set">
         <div className="setrow">
           <Tip content={() => chat
-            ? <TipCard title={<Term id="priceTier">Price</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `${usd(consumerPlanPrice(MARKUP[t]))} a month` }))}>Chat sells flat monthly plans at the market's price: Standard and Premium at what users will pay, Low below it (more users subscribe). A plan never sells below a paying user's serving cost.</TipCard>
-            : <TipCard title={<Term id="priceTier">Price</Term>} rows={PRICE_TIER_IDS.map((t) => ({ label: TIER_LABEL[t], value: `${(MARKUP[t] * (CHANNEL_PRICE[d.channel] ?? 1)).toFixed(1)}× serving cost (margin ${F.pct(1 - 1 / MARKUP[t])})` }))}>A markup over this product's serving cost, never above what the work is worth to the buyer. On work a cheaper offer also does, buyers take the cheaper one.</TipCard>}>
+            ? <TipCard title={<Term id="priceTier">Price</Term>} rows={STANCE_IDS.map((t) => ({ label: STANCE_LABEL[t], value: `${usd(consumerPlanPrice(CONSUMER_PLAN_FACTOR[t]))} a month` }))}>Chat sells flat monthly plans: Best profit at what users will pay, Win share below it (more users subscribe). A plan never sells below a paying user's serving cost.</TipCard>
+            : <TipCard title={<Term id="priceTier">Price</Term>} rows={[{ label: STANCE_LABEL.profit, value: 'the margin that earns most against rivals' }, { label: STANCE_LABEL.share, value: `${F.pct(WIN_SHARE_FRACTION)} of that margin` }]}>Every model in the lineup sells at its own serving cost plus one margin per hour, set by competition: the more of its buyers your lab holds, the higher the margin they accept. A cheaper model passes on its lower cost and keeps the margin. Never above what the work is worth to the buyer.</TipCard>}>
             <span className="k"><Term id="priceTier">Price</Term></span>
           </Tip>
-          <Seg testId={`prod-price.${d.id}`} value={n.price} options={PRICE_TIER_IDS.map((t) => ({ v: t, label: TIER_LABEL[t] }))} onChange={(t) => set({ price: t })} />
-          <Tip content={() => <TipCard title={chat ? 'Plan price' : 'Price over serving cost'} rows={r ? [{ label: 'Margin', value: F.pct(r.margin) }] : []}>{chat ? 'What a paying user pays a month.' : 'Every model in the lineup sells at this multiple of its own serving cost.'}</TipCard>}><span className="dim small">{chat ? (r ? `${usd(r.price)} a month` : '') : `${(MARKUP[n.price] * (CHANNEL_PRICE[d.channel] ?? 1)).toFixed(1)}× serving cost`}</span></Tip>
+          <Seg testId={`prod-price.${d.id}`} value={n.stance} options={STANCE_IDS.map((t) => ({ v: t, label: STANCE_LABEL[t] }))} onChange={(t) => set({ stance: t })} />
+          <Tip content={() => <TipCard title={chat ? 'Plan price' : 'Price over serving cost'} rows={r ? [{ label: 'Margin', value: F.pct(r.margin) }] : []}>{chat ? 'What a paying user pays a month.' : 'Its average price per hour of work ÷ its serving cost per hour.'}</TipCard>}><span className="dim small">{chat ? (r ? `${usd(r.price)} a month` : '') : r && r.markup > 0 ? `${r.markup.toFixed(1)}× serving cost` : ''}</span></Tip>
         </div>
       </div>
       <div className="pfoot">

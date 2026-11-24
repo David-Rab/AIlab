@@ -96,6 +96,17 @@ fraction [D, e.g. 0.5].
 Seats (per-person licences, Enterprise and Vetted) and agent-hours (Agent mode) are priced by the same rule on their own
 cost.
 
+As built (MK-6, worldfx/mix.ts): per sector × region each closed seller i has one margin M_i ($ per adopted task-hour),
+a stock moving to its target at PRICE_TAU = 30 days; every tier k of its products sells at min(value, c_k + f·M_i)
+(f = 1 Best profit, WIN_SHARE_FRACTION = 0.5 Win share; open-weight hosts at 1.2 × cost). Target: the first-order
+condition of one margin over all its groups g and bands b, M*_i = Σ q / Σ q·(1 − s)/μ_b with q = w_g·s_gb its hours
+(one segment: μ ÷ (1 − s)), capped at the value. μ_b = p̄_b ÷ ε, p̄_b the band's hours-weighted price over all sellers:
+the buyers' choice reads yesterday's p̄_b; the target reads p̄_b with every seller at its target (today's shares, solved
+by iteration), the same μ at the fixed point, so margins follow costs at PRICE_TAU rather than ≈ 7× slower through the
+μ → price → μ loop. Agent-hour price = c_ag × p/c of the tier (≤ wage); seat price = seat serving cost × p/c. ε =
+PRICE_ELASTICITY = 1.4 puts the start leader's margin at ≈ 0.86–0.87. A new game starts at the fixed point; a save
+from before MK-6 starts at today's cost-plus prices (M = 1.5 × the seller's main-model cost) and moves from there.
+
 ### Capacity (M7)
 
 The Auto serving split stays (most revenue per H100e first). A product whose need exceeds its served compute serves the

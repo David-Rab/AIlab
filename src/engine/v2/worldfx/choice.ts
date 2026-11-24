@@ -12,7 +12,8 @@
 //              (≤ V). A model with x 0.97 at a tenth of the price beats one with x 1 whenever V·0.03 < Δp.
 //   choice     each provider offers on band b its best tier; shares on b ∝ brand·exp(u) among the providers a buyer can
 //              reach (access = the share of buyers who can, independently per provider [D]), u = SHARE_SLOPE_G·fit +
-//              S_b ÷ μ_b, μ_b = p_min,b ÷ ε (p_min,b the cheapest offer that does the whole band). μ is the old logit's
+//              S_b ÷ μ_b, μ_b = p_min,b ÷ ε (p_min,b the cheapest offer that does the whole band; MK-6: the caller's μ_b, the
+//              band's average price yesterday ÷ ε, when given). μ is the old logit's
 //              price scale: at the cheapest offer the price response is the old elasticity ε, and for prices near each
 //              other −ε(p ÷ p_min − 1) ≈ −ε·ln(p ÷ p_min), the old price term. SHARE_SLOPE_G·fit is V4's quality term,
 //              kept: beyond adequacy a better model still does the task better. With equal prices and every offer
@@ -293,8 +294,10 @@ function bandSharesGuarded(cs: ChoiceSets, e: Float64Array, u: Float64Array, bra
  * gets e = 0 but stays in the choice sets, so the sets (memoised on `acc`) are the same for every group and its share is
  * exactly as if it were absent. μ_b, a_top and the quality reference stay the market's (every tier's), so the groups'
  * bands and price scales are the same and their shares add band by band [D].
+ * MK-6 (design/MARKET.md M5): `muIn[b]` (optional, > 0) sets μ_b: the market's price scale, yesterday's hours-weighted
+ * average price of band b over all sellers ÷ ε (mix.ts), the same μ the sellers' Nash markups read.
  */
-export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[], reach?: readonly (readonly boolean[] | undefined)[]): Choice {
+export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: readonly number[], acc: readonly number[], V: number, aTop?: number, B = MARKET_BANDS, groups?: readonly (readonly number[] | undefined)[], reach?: readonly (readonly boolean[] | undefined)[], muIn?: readonly number[]): Choice {
   const n = lineups.length;
   // P3: the serving providers' tiers flattened once (offsets per provider), the band-independent parts hoisted (the
   // quality term, the cheapest price), shares accumulated in a flat buffer per band; the same operations in the same
@@ -352,10 +355,15 @@ export function surplusChoice(lineups: readonly (readonly Tier[])[], brand: read
     const lo = (top * b) / B;
     const hi = (top * (b + 1)) / B;
     const w = hi - lo;
-    // μ_b: the cheapest offer in the region that does the whole band (else the cheapest offer), over the old elasticity.
-    let pAd = Infinity;
-    for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
-    const m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
+    // μ_b: MK-6 the caller's (yesterday's average price of the band ÷ ε, mix.ts); else the cheapest offer in the region
+    // that does the whole band (else the cheapest offer), over ε.
+    let m: number;
+    if (muIn && muIn[b] > 0) m = muIn[b];
+    else {
+      let pAd = Infinity;
+      for (let j = 0; j < nt; j++) if (ta[j] >= hi && tp[j] < pAd) pAd = tp[j]; // adequacy 1
+      m = Math.max(1e-12, pAd < Infinity ? pAd : pAll) / PRICE_ELASTICITY;
+    }
     mu[b] = m;
     let uMax = -Infinity;
     for (let i = 0; i < n; i++) {

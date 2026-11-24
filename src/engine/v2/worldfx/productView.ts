@@ -12,7 +12,7 @@ import { catchRate, monitorOverhead, productMonitorVersion } from '../models/pro
 import { featureUpkeepTW } from '../departments/build';
 import { versionById } from '../models/labs';
 import { toolNewInGame } from '../actors/rivalModel';
-import { lineupVersions, markupOf, serveDollarsPerHour } from './serving';
+import { lineupVersions, serveDollarsPerHour } from './serving';
 import { flopPerToken, workFit } from '../departments/workfit';
 import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { CONSUMER_MKT, CUSTOMER_TAU, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
@@ -50,7 +50,7 @@ export interface ProductRead {
   subs?: number;
   monitorOverhead: number;
   catchRate: number;
-  /** B1: the price tier as a markup over cost, and the product's serving economics by source (DeploymentRevenue). */
+  /** B1 / MK-6: its price ÷ serving cost per billed hour (sector products), and its serving economics by source. */
   markup: number;
   econ: ProductEcon;
   /** B2: the customer stock vs its target and speed. */
@@ -390,7 +390,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
       valueCapped: x.valueCapped, hours: x.hours, capHours: x.capHours, ...(x.users !== undefined ? { users: x.users, subs: x.subs } : {}),
       monitorOverhead: monitorOverhead(s, d),
       catchRate: d.monitorId ? catchRate(s, versionById(s, d.versionId), productMonitorVersion(s, d), false, true).rate : 0,
-      markup: markupOf(d), econ: econOf(x, going),
+      markup: x.costPerHour > 0 ? x.pricePerHour / x.costPerHour : 1, econ: econOf(x, going),
       cust: d.channel === 'consumer' && pi >= 0 ? { ...seg.cust, users: x.users ?? 0, usersTarget: usersAtTarget(s, mix, pi, x.users ?? 0) } : seg.cust,
       ...(d.channel !== 'consumer' ? { lineup: lineupRows(s, d, x) } : {}),
     });

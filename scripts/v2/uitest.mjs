@@ -487,13 +487,13 @@ if (apiId) {
   ok('Products (UB-F): the drawer has no safeguard controls; the card links to SAFETY › Safeguards (their home)', !(await page.$(`[data-test=prod-drawer] [data-test="prod-monitor.${apiId}"]`)) && !(await page.$(`[data-test=prod-drawer] [data-test="prod-sg.${apiId}"]`)) && !!(await page.$(`[data-panel=products] [data-product="${apiId}"] [data-ref=productSafeguards]`)));
   await page.click('[data-test=prod-drawer-close]');
   await wait(80);
-  await page.click(`${card} [data-test^=prod-price] [data-opt=premium]`);
+  await page.click(`${card} [data-test^=prod-price] [data-opt=share]`);
   await wait(120);
   const pop = JSON.parse(await get(`(() => { const p = document.querySelector('[data-test="prod-edit.${apiId}"]'); return p ? p.innerText : ''; })()`));
   ok('Products: an edit opens the before → after preview (stays live, effective date)', /stays live/.test(pop) && /→/.test(pop) && /from /.test(pop), pop.replace(/\n/g, ' ').slice(0, 120));
-  await check('Products: Apply updates the live product (premium)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.price, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
-  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.price === 'premium'; })()`)));
-  await page.click(`${card} [data-test^=prod-price] [data-opt=standard]`);
+  await check('Products: Apply updates the live product (Win share)', `(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return [d.stance, d.status, d.startDay]; })()`, () => page.click(`[data-act="product.update.${apiId}"]`));
+  ok('Products: the product stayed live with its start day', JSON.parse(await get(`(() => { const d = s.player.deployments.find(x => x.id === "${apiId}"); return d.status === 'live' && d.stance === 'share'; })()`)));
+  await page.click(`${card} [data-test^=prod-price] [data-opt=profit]`);
   await wait(80);
   await check('Products: Cancel drops a draft edit', `!!document.querySelector('[data-test="prod-edit.${apiId}"]')`, () => page.click(`[data-test="prod-cancel.${apiId}"]`));
   await page.click(`[data-test="prod-lineup-more.${apiId}"]`);
@@ -1555,7 +1555,7 @@ await nav('products');
   // Edit preview: a cheaper tier moves the target share at once (the stock follows later).
   const api = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'api' && d.status === 'live') || {}).id || ''`));
   if (api) {
-    await page.click(`[data-test="prod-price.${api}"] [data-opt="premium"]`).catch(() => {});
+    await page.click(`[data-test="prod-price.${api}"] [data-opt="share"]`).catch(() => {});
     await wait(120);
     const pv = await page.evaluate((id) => document.querySelector(`[data-test="prod-edit.${id}"]`)?.innerText ?? '', api);
     ok('B2: the edit preview shows the target share before → after', /Target share/.test(pv) && /\d%\s*→\s*\d/.test(pv), pv.replace(/\n/g, ' ').slice(0, 120));
@@ -1567,7 +1567,7 @@ await shot('25-day1-products');
   // A Premium Chat plan asks more than consumers pay: the price stops at the willingness to pay and the card flags it.
   const chat = JSON.parse(await get(`(s.player.deployments.find((d) => d.channel === 'consumer' && d.status === 'live') || {}).id || ''`));
   if (chat) {
-    await page.evaluate((id) => window.ai27v2.act('product.update', { id, price: 'premium' }), chat);
+    await page.evaluate((id) => window.ai27v2.act('product.update', { id, stance: 'share' }), chat);
     await page.evaluate(() => window.ai27v2.step(1));
     await closeModals();
     await nav('products');

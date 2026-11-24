@@ -609,14 +609,15 @@ export type Channel = 'consumer' | 'api' | 'enterprise' | 'vetted' | 'internal' 
 
 /** What a deployment is (R6): a product customers buy, the internal research fleet, or an open-weights release. */
 export type DeploymentKind = 'product' | 'internal' | 'open';
-/** Product price tier (R6): budget / standard / premium → priceIndex (data/v2/features.ts PRICE_TIERS). */
-export type PriceTier = 'budget' | 'standard' | 'premium';
+/** MK-6 (design/MARKET.md M6): a product's price stance. 'profit': the seller's Nash–Bertrand margin M over each tier's
+ *  serving cost; 'share': WIN_SHARE_FRACTION × M (data/v2/serving.ts). */
+export type PriceStance = 'profit' | 'share';
 /** RD-P08 (DD-04): a sector adaptation owned by a product (models/adaptations.ts): its scaffold for the sector is built;
  *  `certDone` the day its certification ends where the sector requires one (CERT_SECTORS), unset where it needs none. */
 export interface Adaptation { sector: SectorId; certDone?: Day }
 
 /** A deployment. External ones are products (STRUCTURE §4.4): a package of model (+ an optional lineup of other models) and an
- *  optional monitor, a price tier, safeguards, KYC, effort and features, all editable while live (R4, R6). */
+ *  optional monitor, a price stance, safeguards, KYC, effort and features, all editable while live (R4, R6). */
 export interface Deployment {
   id: string;
   kind: DeploymentKind;
@@ -641,9 +642,9 @@ export interface Deployment {
   frameworkApplied?: string[];
   /** Day the current version went into this deployment (M4: a swap keeps startDay; set by swapDeployment). */
   versionSince?: Day;
-  /** Price tier (R6); priceIndex is kept equal to its index. */
-  price: PriceTier;
-  priceIndex: number; // 1 = market reference price (derived from the tier)
+  /** MK-6 (M6): the price stance (worldfx/mix.ts: every tier at its serving cost + the lab's margin M, × WIN_SHARE_FRACTION
+   *  on 'share'). */
+  stance: PriceStance;
   /** Share of the serving pool: set by hand when the Auto serving policy is off; with Auto on it is written daily
    *  from the split (what this product actually gets). Internal uses the agents pool. */
   servingShare: number;
@@ -1309,7 +1310,7 @@ export type BuildKind = 'runSetup' | 'feature' | 'tooling' | 'harness' | 'safegu
 export interface PendingLaunch {
   channel: Channel;
   versionId: string;
-  price: PriceTier;
+  stance: PriceStance;
   kyc?: 0 | 1 | 2 | 3;
   monitorId?: string;
 }
@@ -2251,6 +2252,13 @@ export interface WorldFxState {
    *  access; provider keys as in `cust`). A stock toward MULTI_HOMING's target; absent entries start at the region's
    *  even spread (data/v2/serving.ts MULTI_HOMING). */
   secReach?: Record<RegionId, Record<string, number>>;
+  /** MK-6 (design/MARKET.md M5): per region and sector, each closed seller's margin M ($ per adopted task-hour over each
+   *  tier's serving cost; provider keys as in `cust`), a stock toward its Nash–Bertrand target (PRICE_TAU); absent
+   *  entries start at today's cost-plus price (SEED_MARKUP). */
+  priceM?: Record<RegionId, Record<string, Record<string, number>>>;
+  /** MK-6: per region and sector, yesterday's hours-weighted average price of each band of the buyers' choice ($ per
+   *  adopted task-hour, all sellers): μ_b = this ÷ PRICE_ELASTICITY (worldfx/choice.ts). Absent: today's p_min rule. */
+  bandP?: Record<RegionId, Record<string, number[]>>;
   /** RD-P07, RF-P1: the day the player first shipped each product tool new in this game (no lab had it at the start;
    *  actors/rivalModel.ts recordToolShips). */
   toolShip?: Record<string, Day>;
