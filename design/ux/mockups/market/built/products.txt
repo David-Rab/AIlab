@@ -1,0 +1,194 @@
+Products
+Policies
+1 on
+PROFIT FROM PRODUCTS
+$61.6B/yr
+revenue $82.9B − serving cost $21.2B
+SERVING COMPUTE
+Compute
+1.2M
+of 1.8M H100e needed
+short 653K
+Buyers turned away $28.6B/yr
+BUSINESS BUYERS
+your share of their AI spend
+0%
+25%
+50%
+38%
+→ 26%
+in ~2 yr
+▼
+DeepCent 22%
+Chat
+the public
+PROFIT
+margin 98%
+$25.0B/yr
+revenue $25.6B
+serving cost $556M
+USERS
+1.6B
+weekly users · 96.8M pay
+PRICE
+$22
+per month · at the cap
+SERVING COMPUTE
+31K of 45K needed
+Free users
+rate-limited
+· paying users all served
+Price stance
+Best profit
+Win share
+LINEUP
+MODEL
+SKILL
+SERVES
+1
+Atlas-3.0-minimain
+paying users
+2
+Atlas-3.0-mini-mini
+free users
+Add a model
+· 7 you could add
+TOOLS
+Memory
+Voice & vision
+Companion
+Add a tool
+· 1 more fit
+Users
+Safeguards
+API
+small firms & developers
+PROFIT
+margin 60%
+$3.3B/yr
+revenue $5.5B
+serving cost $2.2B
+WORK SOLD
+2.6B
+hours of work a year
+PRICE
+$2.11
+per hour
+SERVING COMPUTE
+124K of 200K needed
+$3.4B/yr
+of buyers
+turned away
+Price stance
+Best profit
+Win share
+LINEUP
+buyers pick per task
+MODEL
+SKILL
+HOURS SOLD
+1
+Atlas-2.0main
+90%
+2
+Atlas-2.0-mini
+10%
+Add a model
+· 7 you could add
+TOOLS
+Computer use
+Coding harness
+Agent mode
+Add a tool
+· 3 more fit
+Customers by sector
+Safeguards
+Enterprise
+large firms
+PROFIT
+margin 64%
+$31.1B/yr
+revenue $48.7B
+serving cost $17.6B
+WORK SOLD
+11.5B
+hours of work a year
+PRICE
+$4.23
+per hour
+SERVING COMPUTE
+974K of 1.5M needed
+$25.2B/yr
+of buyers
+turned away
+Price stance
+Best profit
+Win share
+LINEUP
+buyers pick per task
+MODEL
+SKILL
+HOURS SOLD
+1
+Atlas-3.0main
+89%
+2
+Atlas-3.0-mini
+11%
+Add a model
+· 7 you could add
+TOOLS
+Memory
+Research agent
+Finance 5.9 mo
+Back-office agent
+Finance 5.9 mo
+Government 5.9 mo
+Clinical assistant
+Healthcare 5.9 mo
+Agent mode
+Add a tool
+· 4 more fit
+Customers by sector
+Safeguards
+Vetted
+government, military, critical infrastructure, regulated firms
+PROFIT
+margin 73%
+$2.3B/yr
+revenue $3.1B
+serving cost $820M
+WORK SOLD
+893M
+hours of work a year
+PRICE
+$3.45
+per hour
+SERVING COMPUTE
+45K of 45K needed
+all buyers served
+Price stance
+Best profit
+Win share
+LINEUP
+buyers pick per task
+MODEL
+SKILL
+HOURS SOLD
+1
+Atlas-3.0main
+87%
+2
+Atlas-2.0-mini
+1.0%
+3
+Atlas-3.0-mini
+12%
+Add a model
+· 6 you could add
+TOOLS
+Agent mode
+Add a tool
+· 8 more fit
+Customers by sector
+Safeguards
