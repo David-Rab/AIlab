@@ -48,6 +48,7 @@ import {
   servingFlop, type FamilyMap, type GPreParts, type RlGains,
 } from './effective';
 import { internalVersion, otherLabs, uniqueVersionName, versionById } from './labs';
+import { baseLabel, continuedName, nextMinor, reserveBaseName, studentName, versionLabel } from './naming';
 import { baseFlopPerDay } from '../actors/rivalModel';
 import { measuredSd } from './benchmarks';
 import { bookCash } from '../finance/ledger';
@@ -714,6 +715,8 @@ function planRl(s: GameStateV2, p: LaunchRunParams): ActPlan | string {
   if (!d) return 'No design';
   const start = rlStartOf(base, p.grader, versionById(s, p.teacherVersionId));
   if (!start) return 'Pick a version to amplify';
+  // MODEL-NAMING §5: amplify works on a full model; a distilled student is not amplified.
+  if (start.on === 'version' && start.version.variant === 'mini') return 'Amplify needs a full model, not a distilled student';
   // Model v3 D5: a family with no environment suite cannot be focused (checked first: no environments, no RL).
   let reason: string | undefined;
   if (d.rlFocus !== 'broad') for (const f of d.rlFocus) if (!suiteOf(s, f)) reason ??= `No ${RL_FAMILY_LABEL[f]} environment suite yet`;
@@ -793,6 +796,12 @@ export function launchRun(s: GameStateV2, ctx: SystemCtx, p: LaunchRunParams): T
   // UB-2b: the lab's forecast as launched (readouts: the run queue's band; predicted vs measured once it is evaluated).
   const fc = runForecast(s, p);
   if (fc) run.forecast = { mid: Math.round(fc.mid * 1e3) / 1e3, sd: Math.round(fc.sd * 1e3) / 1e3 };
+  // MODEL-NAMING §2-4: a pretraining run reserves its base's rung (from the launch forecast, never the true level) and
+  // major now; a continued run its parent's with one more C. The run is named after the base it will make.
+  const parentNm = p.kind === 'continue' ? m.bases.find((b) => b.id === p.baseId)?.nm : undefined;
+  if (p.kind === 'base') run.nm = reserveBaseName(s, run.forecast?.mid);
+  else if (parentNm) run.nm = continuedName(s, parentNm);
+  if (run.nm) run.name = `${kindName} ${baseLabel(s, run.nm)}`;
   if (p.post) run.post = { ...p.post, rlFocus: Array.isArray(p.post.rlFocus) ? [...p.post.rlFocus] : 'broad', methods: [...(p.post.methods ?? [])] };
   if (p.kind === 'distill') {
     // The student's size and tokens (teacher outputs) are fixed at launch, as the plan read them.
@@ -834,17 +843,12 @@ function latestOnBase(s: GameStateV2, baseId: string): ModelVersion | undefined 
   return v;
 }
 
-function versionName(s: GameStateV2, baseId: string, suffix = ''): string {
-  const b = s.player.models.bases.find((x) => x.id === baseId);
-  const nOn = s.player.models.versions.filter((v) => v.baseId === baseId).length;
-  return uniqueVersionName(s, `${b?.name ?? PLAYER_MODEL_FAMILY}.${nOn}${suffix}`);
-}
 
 function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: VersionBuild, parent: ModelVersion | undefined, extra: Partial<ModelVersion>): ModelVersion {
   const w = s.hidden.timeline;
   const G = gOfBuild(build);
   const v: ModelVersion = {
-    id: `V${s.player.models.nextName++}`, name: versionName(s, base.id), baseId: base.id, day: s.time.day, recG: playerRecipeG(s),
+    id: `V${s.player.models.nextName++}`, name: '', nm: { minor: nextMinor(s, base.id) }, baseId: base.id, day: s.time.day, recG: playerRecipeG(s),
     variant: 'full', design: run.post ? { ...run.post } : { ...(parent?.design ?? { pref: 'constitution', rlFocus: 'broad', rlBudget: 'standard', cot: 'visible', safety: 'standard', methods: [] }) },
     G, Lg: levelOfG(w, G), domains: domainsOf(w, G, build),
     traitsTrue: { ...(parent?.traitsTrue ?? base.traitsTrue) }, masks: copyMasks(parent), uModes: [...base.uModes],
@@ -852,6 +856,7 @@ function newVersion(s: GameStateV2, run: TrainingRun, base: BaseModel, build: Ve
     status: 'evaluating', flags: {}, build, ...extra,
   };
   if (parent) v.parentVersionId = parent.id;
+  v.name = base.nm ? versionLabel(s, v) : uniqueVersionName(s, `${base.name}.${v.nm!.minor}`);
   return v;
 }
 
@@ -876,7 +881,8 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
     const t = src.teacher;
     const base = m.bases.find((b) => b.id === t.baseId) ?? m.bases[0];
     const v = newVersion(s, run, base, pre.student!, t, { variant: 'mini', params: pre.params, fpt: pre.fpt, monitorability: pre.monitorability, design: { ...t.design }, appeal: t.appeal ?? 1 });
-    v.name = uniqueVersionName(s, `${t.name}-mini`);
+    v.nm = studentName(s, v); // MODEL-NAMING §7: the size band against its base, under its full-size ancestor
+    v.name = versionLabel(s, v);
     run.resultId = v.id;
     if (run.autoTier) v.autoTier = true; // RD-P01b: joins its teacher's lineups when ready (models/cheapTier.ts)
     m.versions.push(v);
@@ -892,6 +898,7 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
       gPre: pre.gPre, ePre: pre.ePre, design: d, sD: pre.sD, epochs: pre.bg!.epochs,
       fpt: pre.fpt, monitorability: pre.monitorability, signals: clampSignals(pre.signals!),
       lineage: `L-player-${nb}`, traitsTrue: { ...m.bases[0].traitsTrue }, uModes: [], // placeholder: applyBaseToLineage sets them from the draw's synthetic teachers
+      nm: run.nm ?? reserveBaseName(s, run.forecast?.mid),
     };
   } else {
     const parent = src.parent;
@@ -900,7 +907,11 @@ function completePretrain(s: GameStateV2, ctx: SystemCtx, run: TrainingRun, rec:
       gPre: pre.gPre, ePre: pre.ePre, parentBaseId: parent.id, ...(pre.epochs !== undefined ? { epochs: pre.epochs } : {}),
       traitsTrue: { ...parent.traitsTrue }, uModes: [...parent.uModes], sD: { ...pre.sD }, signals: { ...(parent.signals ?? {}) },
     };
+    const cn = run.nm ?? (parent.nm ? continuedName(s, parent.nm) : undefined);
+    if (cn) b.nm = cn;
+    else delete b.nm;
   }
+  if (b.nm) b.name = baseLabel(s, b.nm);
   m.bases.push(b);
   run.resultId = b.id;
   applyBaseToLineage(s, ctx, run, b); // WS2 hook: new lineage traits and U-modes (§3.4.4, §3.5.5); continued: step the lineage (ω 0.5)
@@ -1049,6 +1060,11 @@ export function streamPeriodBuild(s: GameStateV2, v: ModelVersion, poolFlop: num
 function applyStreamPeriod(s: GameStateV2, v: ModelVersion, poolFlop: number) {
   const nb = streamPeriodBuild(s, v, poolFlop);
   v.build = nb;
+  // MODEL-NAMING §6: each refresh is a patch, in place (Cruiser-3.1 → 3.1.1 …).
+  if (v.nm) {
+    v.nm = { ...v.nm, patch: (v.nm.patch ?? 0) + 1 };
+    v.name = versionLabel(s, v);
+  }
   const G = gOfBuild(nb);
   if (G > v.G) {
     v.G = G;

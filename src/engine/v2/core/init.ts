@@ -2,6 +2,7 @@
 // Composes the owner-provided initialisers (initialFinance, initialGov, initialWorld, …) so each workstream owns
 // its start values in its own module. All newGame randomness comes from stream 'world' (§2.3).
 import { BENCHMARKS } from '../../../data/v2/benchmarks';
+import { deriveNames } from '../models/naming';
 import { PLAYER_MODEL_FAMILY } from '../../../data/v2/names';
 import { DISTILL_TPP, PRE_GAME_G_PER_YEAR, REFERENCE_BASE, REFERENCE_POST, RL_BUDGET } from '../../../data/v2/runDesign';
 import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibration';
@@ -340,6 +341,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // RD-B02: the start run's launch snapshot (its RL recipe is its launch day's; suites, domain effects, P07 and the
   // serving stack are day 0's, the first day the lab can adopt anything).
   for (const r of s.player.models.runs) fillRecipe(s, r);
+  deriveNames(s); // MODEL-NAMING: the start base's rung from V0's measured level, V0 minor 0, its students' tier words
   // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
   initCustomerStocks(s);
   seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
