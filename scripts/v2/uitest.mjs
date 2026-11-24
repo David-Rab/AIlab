@@ -611,8 +611,7 @@ if (await page.$('[data-test=product-guards-edit]')) {
   await page.click(`[data-test="pg-level.${pid}"] [data-opt=${to}]`);
   await wait(150);
   const pv = await page.$eval(`[data-test="pg-preview.${pid}"]`, (e) => e.innerText).catch(() => '');
-  ok('SAFETY › Safeguards (UB-F): a product safeguard edit shows its stop rate and revenue before → after', /Stop rate, misuse/.test(pv) && /→/.test(pv) && /Revenue now/.test(pv), pv.replace(/
-/g, ' ').slice(0, 140));
+  ok('SAFETY › Safeguards (UB-F): a product safeguard edit shows its stop rate and revenue before → after', /Stop rate, misuse/.test(pv) && /→/.test(pv) && /Revenue now/.test(pv), pv.replace(/\n/g, ' ').slice(0, 140));
   await check('SAFETY › Safeguards (UB-F): Apply sets the product safeguard level', `s.player.deployments.find((d) => d.id === "${pid}")?.safeguards ?? ''`, () => page.click(`[data-act="pg-apply.${pid}"]`));
   await page.click(`[data-test="pg-level.${pid}"] [data-opt=${lvl}]`).catch(() => {});
   await wait(100);
