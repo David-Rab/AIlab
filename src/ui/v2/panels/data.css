@@ -33,8 +33,7 @@
 .dv-reads { position: absolute; left: 0; top: 0; height: 26px; border-right: 1.5px solid #fff; border-bottom: 1.5px solid #fff; pointer-events: none; }
 .dv-axis { height: 16px; }
 .dv-ticks { position: relative; height: 14px; font-size: 10.5px; color: var(--text-3); font-family: var(--mono, ui-monospace, monospace); border-top: 1px solid var(--line); }
-.dv-ticks span { position: absolute; top: 2px; transform: translateX(-50%); }
-.dv-ticks span:first-child { transform: none; }
+.dv-ticks .tk { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
 .dv-teach { flex: 1; display: flex; flex-direction: column; }
 .dv-tbars { flex: 1; min-height: 150px; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; align-items: end; border-bottom: 1px solid var(--line); padding-top: 6px; }
 .dv-tcol { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; min-width: 0; }

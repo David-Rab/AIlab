@@ -5951,3 +5951,103 @@ the shots. Unstopped harm reads 0.020 (3 decimals below 0.1). The picker is a na
 Loss-of-control readout: a second display of the datum (its driver link now points to SAFETY › Risks). The Unknown state
 of the risk tile needs a belief state wide enough to move the risk itself (a fresh model with no evidence). Able to "?"
 on unmeasured rows reads a relative's skill; a separate "not measured" look may read better.
+
+### UB-B (TRAINING › Data, Environments, Runs; LAB › Hiring & teams, AI staff & needs, Security; branch build-b from rd 0074952; mockups rd/train-data*.png, train-env.png, train-runs*.png, lab-hiring.png, lab-aistaff.png, lab-security.png; DATA-b.md)
+
+**TRAINING › Data (panels/Data.tsx, data.css).** Three tiles: Enough for the next run? (reads per token of Next run's
+default new base, `runCard(...).limits` tokens ÷ unique tokens, on a 0 · 1 · 4 · short gauge; verdict = Next run's Data
+limit rule, Short when repetition costs effective compute, `dataVerdict`), Quality of what it reads (the draw's mean
+quality; generated share and quality), New data a day (generated + usage). Data by domain: stacked bars by source (each
+source's tokens × its domain mix) with a bracket for what the next new base reads per domain (draw share × tokens).
+Generated data by teacher: one bar per synthetic asset (teacher = version name, hatched = writing now), quality range per
+base in the header. Sources: public web (crawled share, not crawled), licensed (Buy a licence → drawer; on the way),
+usage (policy None / Standard / Broad as actions, the gain and civil-liberties cost of a broader level), generated (teacher
+picker: a model writes for a year, default = the internal research model; data-generation share → LAB), expert (→
+Environments). Licence drawer (L2): domain (incl. Web crawl licensing), kind (three tiers), amount 0.1–20T, before → after
+(cost, arrives, domain tokens, domain share, skill ▲ from the natural-mix specialisation), note with the verdict.
+Next run passes its default base (`nextBaseCard`) as a prop. Deleted: the portfolio table with U and the domain heat
+strip, the natural-mix card, the four form cards (teacher yield table, job share / days pills, size pills).
+
+**TRAINING › Environments (panels/Suites.tsx, suites.css).** Families sorted by share of pressure: realism (% of the
+standard, tick = 100%, bar to 150%), loopholes, share of hacking pressure, Harden and Expand with the after value, days
+and cash (pending work with its ETA; + demos kept). Unbuilt families and the locked family ("needs the discovery …" →
+Discoveries). Hacking pressure of the next run: Low / Medium / High (`pressureLevel`, thirds of 0–1) on the run's own
+pressure as Next run shows it (`plannedPressure` S2: the suites preview's nominal budget pressure is scaled to it), what
+makes it (top three + the rest), ways to lower it (harden the top family; harden the top three, combined as the sum of
+the single drops; Light budget → Next run) and the after-hardening mark on the gauge. Deleted: the plan card with the
+focus pills (focus lives on Next run), the expert-data and post-training-share columns (expert data in the realism
+tooltip, share in the family cell), the cause-chain footer.
+
+**TRAINING › Runs (panels/Runs.tsx, training.css).** Timeline by lane (Pretraining, Post-training, Distil, Evals): every
+running / finished run from launch to finish (running: done part + hatched to the ETA), labelled with what it made;
+evals = the latest measurement and the queue's tasks with due dates; today line; training compute now (runs, continual
+learning, idle → LAB). Forecast vs result: the last five runs with a launch forecast, each centred on its forecast on one
+shared scale, measured dot ± 90%, verdict (As forecast / Below / Above / Not yet), "k of n inside the range". Running now:
+the run with the largest share (progress, due, training share − / +, holdups incl. the safety framework's hold, "would
+meet <milestone>" from the forecast mid vs LEVEL_KNOTS, other running runs, Cancel run). Run drawer: forecast vs result
+(miss in sd, "too sure" outside the range), launched / finished (or due), training share, launch snapshot from the
+run's stored design (post: start base, focus, budget, reasoning, preference, safety training, methods; base: size,
+design, mix, filter; distil: teacher, student size), links to the model, Evals and SAFETY › Model. Deleted: the run
+queue card, its Gantt and rows, the continual-learning / idle rows and "Last finished".
+
+**Engine (save-safe).** `TrainingRun.endDay`, `TrainingRun.resultId` (optional; set in completeRun / completePretrain /
+completeRl). `models/runReadouts.ts`: `runResults` (stored link, else pairing for older runs: a base by its start day, a
+post-training run → the first unpaired full version on its base after launch, a distil → the first unpaired smaller
+version of its teacher), `runHistory` (title, lane, start / end, result, launch forecast and band, measured level ± sd of
+what it made — a base: the first full version on it — and the check), `pressureLevel`.
+
+**NEW readouts (DATA-b) built / skipped.** Built: data verdict (UI view on runCard), run → model link and end date
+(engine), launch snapshot from the run, hacking-pressure scale, combined hardening preview (sum of single previews).
+Skipped (honest display): licence offers from named sellers (the three tiers stay a fixed menu); per-domain reads per
+token (one value; the chart shows the next base's tokens per domain); a believed teacher-quality preview (the teacher
+picker shows no forecast; synForm / teacherRows read true G); loopholes as a belief (shown as the suite's value); what
+Expand buys in skill (the preview reads true stacks; Expand shows realism only); a reason when a run outlasts its launch
+ETA; the drawer's environments snapshot and the forecast as "+x over <model>" (absolute levels instead).
+
+**LAB (panels/Lab.tsx, LabTabs.tsx, Agents.tsx, Work.tsx, BuildLoad.tsx, lab / agents / work css; built by a forked
+agent, commits f2675c2, ed65d92).** Tabs Allocation · Hiring & teams · AI staff & needs · Security (ids board / people /
+work / security kept). Board: one-line AI share per role stays; a row click opens AI staff & needs at that role's needs
+list (scientists: their job card); the board's own needs copy is gone. Hiring & teams: one row per role with team tiles
+(filling teams hatched, cancel), hiring target − / +, payroll and per-team cost, time to hire a team, "Next team buys"
+(`teamGain`; the tooltip names the project); offers (Hire), payroll split, hiring speed, morale (all / safety staff),
+star hire. AI staff & needs: four job cards (model and watcher pickers with before → after, AI share, work done, copies,
+compute → Allocation, cost per hour AI vs people, works with, harmful acts; Safety: AI share allowed, spot-checks,
+safeguards link), totals and links (lab tools → Know-how, how close AI is to each job → Models); below, the three needs
+lists (engineers incl. the upkeep split, capability and safety research engineers), read-only until "Change order".
+Security: weight security against the industry baseline and your target (note when the target is below it), theft risk
+with its drivers, who wants the weights (theft intent → Relations), thefts detected; access (people with access, need-to-
+know Open / Partial / Strict with the counts, counter-intelligence, clearances, secrets security); what a higher level
+costs (spend a year, theft risk, time to reach, Set per row); budget and security log. Readouts: `models/labReadouts.ts`
+(`believedTheftChance`, `securityLevelsView`, `securityLogView`, `upkeepShares`; facts and the lab's own estimates).
+Deleted: the old Teams / Hiring cards, the agent-lane table (risk badges, compute steppers, control-protocol readout),
+the Work role cards and the milestones card, dead CSS in panels.css.
+
+**SL labels: dropped.** The RAND "Securing AI Model Weights" report could not be read here (protected PDF), and the
+game's 2–5 weight-security scale is mapped to SL1–SL5 only through AI 2027's security appendix, not RAND itself: no
+SL labels on Security. The `wsl` glossary entry still says "(RAND)"; check it with the report.
+
+**LAB NEW readouts skipped.** Per-team morale or retention, attrition and poaching losses, a spy estimate, theft risk
+per year (the risk is the risk map's per-attempt estimate and says so), a know-how leak record, measured AI share. No
+Pass on team offers (no engine action). Siloing has a cost in the engine (−5% output per step): its tooltip shows it,
+unlike DATA-b's note.
+
+**Checks.** tsc app + scripts/v2 clean; `npm run build` ok; lint-hidden ok; lint-ux all pass (tooltips added on every
+TRAINING number and the engineers' upkeep line); lint-structure 1 fail, pre-existing (action title
+`research.safReAlloc`). uitest: TRAINING steps rewritten (runs: timeline / Running now / compute line; D6 Environments;
+D4 Data with the licence drawer, teacher picker and usage policy; the Environments row hand-over) and LAB tabs (fork):
+every TRAINING and LAB step passes; R10 (registry limits shown where they bind: continual learning on Runs, the security floor on Security) and J1 O1 (rendered tooltip coverage 86.0%) pass. Full run: 663 passed, 30 failed, all outside these screens (Products, B2, D8 evals, E11, Investigations, FIN4a, F6c, F6e, IA: SAFETY trait graph / header homes) except two from the removed agent lanes: J2 AG1 (same-lineage monitor catch) and E6 (control tax under the control layer; the step no longer crashes the run). Screenshots
+scripts/v2/shots/build-b/ (train-* at d0, d400, d900 and d400run = the day-400 fixture with Next run's post-training,
+a distil and a new base launched and played to Dec 8, 2026, as DATA-b's Runs data; lab-* at d0, d400, d900); scripts
+build-b.mjs (also lists untipped numbers per tab) and build-b-lab.mjs.
+
+**Differences from the mockups.** Data: "Data generation 22% of compute ▸ LAB" is a link chip; the licence amount runs
+0.1–20T (the engine's range), not 1–50T; the drawer has no reads-per-token row (its value is for the latest base's size
+and disagreed with the tile). Environments: pressure reads the run's own RL compute, as Next run shows it (day 400: High,
+×2.1); harden previews scale the suites preview to that; Harden Coding at day 400 reads High → Medium (mockup High →
+High). Runs: forecast rows are listed newest first; the drawer shows absolute levels, not "+x over Atlas-2.8"; no "Then"
+row; distil bars are as long as the run. LAB: see above (no Pass, theft risk without a horizon, harmful-acts row kept on
+each job card).
+
+**Left / designer.** The control protocol and stop-rate readouts left LAB › AI staff and need a home on SAFETY ›
+Safeguards (the SAFETY build). Leftovers to delete by hand (rm was refused here): `.ubb-tmp/` and `.ubb-lab-append.css`
+at the worktree root, `scripts/v2/shots/_ubb-dbg.mjs`.

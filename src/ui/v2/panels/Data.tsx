@@ -183,7 +183,7 @@ function DomainChart({ dom, card }: { dom: Record<DomainId, Record<Src, number>>
             </Tip>
           );
         })}
-        <div className="dv-axis"><span /><Tip content={() => <TipCard title="Tokens">Trillions of tokens you own in each domain.</TipCard>}><span className="dv-ticks">{ticks.map((x) => <span key={x} style={{ left: w(x) }}>{x === 0 ? 0 : `${x.toLocaleString('en-US')}T`}</span>)}</span></Tip><span /></div>
+        <div className="dv-axis"><span /><span className="dv-ticks">{ticks.map((x) => <Tip key={x} content={() => <TipCard title="Tokens">Trillions of tokens you own in each domain.</TipCard>}><span className="tk" style={{ left: w(x) }}>{x === 0 ? 0 : `${x.toLocaleString('en-US')}T`}</span></Tip>)}</span><span /></div>
       </div>
     </Card>
   );
