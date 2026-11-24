@@ -6260,3 +6260,29 @@ Investigations open-a-case on day 1 (and its card), D8 policy-row text and the e
 F6c Retire version, F6e targeted training, FIN4a, IA safetyHeader / frameworkHold homes, Products locked tools (no locked
 tool on the fixture). Screenshots: scripts/v2/shots/ub-f/ (d400, d900: safeguards, control drawer + switch preview,
 product safeguards drawer, runs, evals, overview lane tooltip, products drawer, cases), script ub-f.mjs (ignored).
+
+### CP4 (checkpoint before the merge to master; branch cp4-fix from rd 3f3ac9a; report design/RD-AUDIT/CP4.md)
+
+- **Fixtures** regenerated at rd 3f3ac9a (eea1847) and again after the lead fix (ea54385: the lead estimate feeds bot /
+  gov / finance choices, so day 400 / 900 and both start fixtures move; seed-2027 canary SC / SAR / SIAR unchanged
+  641 / 879 / none).
+- **Lead estimate on the best measured version (2679a20).** actors/intel.ts `updateIntel` measured the player by
+  `lagDays(s, id, 'player')`, i.e. `bestPlayerVersion` (best live version by true G, which on the day-400 fixture is
+  Atlas-2.10, still in testing). It now uses `bestMeasuredVersion`'s G on the same clock: while that model is at or
+  above the lab's G, days since the player's line reached the lab's G minus days since it reached the measured
+  model's; otherwise the days since the lab's line reached the measured model's G, negated. Readout / belief only;
+  bestG, lagDays and the frontier series are unchanged. Check `scripts/v2/_cp4/lead.ts`: raising the in-testing
+  version's true G leaves every lab's estimate unchanged (it moved two of five before), a lower measured version lowers
+  all five. **Moves calibration: maybe** (gov / finance / bots read the estimate; fixtures moved, canary did not).
+- **One-off checks after UB-3 (59087e2):** migration parts deleted from 14 `_xxx` checks, rev-103 pins dropped in
+  `_rfs5` / `_rfs8` / `_rfs14`, drifted live parts restated (list in CP4.md); all 16 pass.
+- **Rigs:** research.ts / worktypes.ts crashed on panels deleted by UB-8 / UB-5 (Recipe.tsx, Company.tsx) and now read
+  KnowHow.tsx and Lab.tsx + LabTabs.tsx (5ba98f3); ws4 C1 restated for Bio Critical / RF-S13b (88bece4).
+- **Runs on ea54385:** test:full 14/37 jobs ok, 2979 passed / 84 failed (test:ui 689 / 13); test:deep 21 / 2.
+  Classes (a) 60, (b) 12, (c) 8 (2 fixed), (d) 5 (control exposure ×2, serving D3 ×2, sabotage SAFMECH readout).
+- **Traces.** Canary: the SAR / SIAR move comes with the UB-1 merge (bfa46a9 → ef5757c: 622 / 858 / 893 →
+  641 / 879 / none). Milestones read the true work-fit predicate, not measured levels, so the move is indirect,
+  through the expert-domain level readers. Measured level below true: the RD-M01 fit is unbiased on noiseless tables
+  (0.00) and under the engine's noise (Monte Carlo −0.07 … +0.10). The offset comes from the measurement-time inputs
+  (sandbagging, suite elicitation), not the fit. Probes `_cp4/p_measbias.ts`, `_cp4/p_measmc.ts`.
+- **Left:** CP4.md "Left before merging rd to master".
