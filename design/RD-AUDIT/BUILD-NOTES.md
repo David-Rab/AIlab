@@ -6206,3 +6206,47 @@ each job card).
 **Left / designer.** The control protocol and stop-rate readouts left LAB › AI staff and need a home on SAFETY ›
 Safeguards (the SAFETY build). Leftovers to delete by hand (rm was refused here): `.ubb-tmp/` and `.ubb-lab-append.css`
 at the worktree root, `scripts/v2/shots/_ubb-dbg.mjs`.
+### UB-F (follow-ups after the remaining-screen builds; branch ub-follow from rd; UI-BUILD "Follow-ups after the remaining-screen builds")
+
+**SAFETY › Safeguards is the one home of every safeguard control (OQ-7).** (1) Control protocol setting: a new player
+action `safety.controlSetting` (safety/actions.ts; params `setting` = defer10 / defer20 / resample) re-sets the existing
+SR-13 safeguard item's `setting` on every deployment that runs a control protocol (addSafeguard: Resample keeps its
+T-RESAMPLE gate). No physics change: the item's setting already drove controlTerms; before, nothing set it. Its preview is
+`controlSettingPreviews` (the believed act table on a copy): slowdown, trusted-model H100e, unstopped acts / yr. The
+control drawer's footer has "Switch to <setting>" for the picked option (Remove stays); the step-by-step levers Apply it
+(a locked setting still opens the drawer). (2) Product safeguards editor: SafetyProductGuards.tsx, an L2 drawer opened
+from a product row (monitor / product-safeguards cells, "no monitor · Add"): per product its monitor, level and KYC as a
+draft with before → after (misuse and misbehaviour stop rates from the believed act table on a copy, monitor catch,
+revenue now and target share from previewEdit), Apply = product.update. The Products drawer's safeguards section is
+gone (it keeps Retire; the card's "Safeguards ›" chip is the link, as the mockup). (3) Readouts that lost their home with
+LAB's agent lanes: the control cell's tooltip names the deferred share, what slips past and the AI labour lost; the
+monitor cell shows a same-family chip and, in its tooltip, its stop on scheming-type acts (StaffJobRow.monitorStopColl,
+from useMonitor's stopColl). uitest J2 AG1 / E6 rewritten onto SAFETY › Safeguards.
+
+**TRAINING › Runs.** Running now: the run's training share is read-only with an "Allocation" chip to LAB (the mockup has no
+−/+). A running run's share can no longer be changed after launch (runs.setShare stays in the engine, no UI).
+
+**MODELS › Evals (OQ-6).** The measurement rows are job-scale skill tracks (SkillBars.tsx `SkillTrack` / `SkillHead`, the
+shared ticks of skillMarksOf CODE as the model card's Capability row; ruler from rulerHi): measured bar and 90% range,
+"in testing" for an unmeasured version. The raw level axis is gone; the ± column reads the 90% range (1.64 sd) as a
+difference; the tooltip says where it stands (standing words) and the test it is measured on.
+
+**Overview race.** "YOU · <model>" and the lane tooltip's "Your best measured model" now name `bestMeasuredVersion` (was
+the AI-staff model, which at day 400 is Atlas-2.10 in testing). Engine follow-up: the intel estimate itself
+(actors/intel.ts `truthLead = lagDays(s, id, 'player')`) is anchored on `bestPlayerVersion` (best live version by TRUE G,
+which includes a version still in testing); anchoring it on the best measured version moves lead / gov / finance readers
+(engine, not done here).
+
+**SAFETY › Cases limits (uitest R10).** case.staffing on the draft case (5–40 engineers · 120 d at most, own line),
+response.hardenFloor on the Harden environments response, incident.publicTimer stays in each group's dates list (R10
+opens the lists).
+
+**Skipped readouts.** Built (pure views): the win-back model fix's share preview (Products drawer: target share now →
+with that model, previewEdit); reads per token per domain (TRAINING › Data domain tooltip: the next base's draw ÷
+tokens owned there). Need engine work: revenue history per product (only the total has a series); separate API /
+Enterprise customers (one shared segment); rival price per sector; a share preview for the certification fix; lead
+history per lab (only today's estimate is kept); rivals' released models on your evals; a case's belief range after the
+verdict (casePreview.ranges); licence offers from named sellers; a believed teacher-quality preview (synForm reads true
+G); loopholes as a belief; what Expand buys in skill (the preview reads true stacks); a reason when a run outlasts its
+launch ETA (no launch ETA stored); per-team morale / retention; spy estimate; yearly theft risk (attempt frequency is not
+believed state); know-how leak record; measured AI share.
