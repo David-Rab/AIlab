@@ -62,6 +62,8 @@ for (const b of raw.player.deployments) {
 }
 check(mapOk, 'features → tools (Voice & vision off the business products), adaptations → harnesses with their certification, Agents → Agent mode');
 check(!raw.player.deployments.some((b) => b.channel === 'agents') || s.player.features.includes('agentMode'), 'a former Agents product makes Agent mode built');
+check(s.player.deployments.filter((d) => ['api', 'enterprise', 'vetted'].includes(d.channel) && d.status !== 'withdrawn').every((d) => d.features.includes('agentMode')),
+  'every live API / Enterprise / Vetted product gets Agent mode (lead decision: keep the save\'s income)');
 for (const r of s.rivals) console.log(`  rival ${r.core.id} (${r.archetype}): ${(raw.rivals.find((x) => x.core.id === r.core.id)?.tools ?? []).join(', ') || '-'} → ${(r.tools ?? []).join(', ') || '-'}`);
 console.log(`  China: ${(s.china.lab.tools ?? []).join(', ') || '-'}; toolShip ${JSON.stringify(s.world.fx.toolShip ?? {})}`);
 
@@ -70,7 +72,12 @@ const agH = (g: GameStateV2, id: string) => revenueReadout(g).deps.find((x) => x
 const live = s.player.deployments.filter((d) => d.kind === 'product' && d.status !== 'withdrawn' && d.channel !== 'consumer');
 console.log('\nAgent-hours by live business product (as migrated):');
 for (const d of live) console.log(`  ${d.id} ${d.channel}: Agent mode ${d.features.includes('agentMode') ? 'on' : 'off'}, model h50 ${measuredHorizonH(s.player.models.versions.find((v) => v.id === d.versionId))?.toFixed(1) ?? '?'} h, agent-hours ${agH(s, d.id).toExponential(2)}`);
-check(live.filter((d) => !d.features.includes('agentMode')).every((d) => agH(s, d.id) === 0), 'a product without Agent mode sells 0 agent-hours');
+{
+  const off = clone(s);
+  for (const d of off.player.deployments) d.features = d.features.filter((t) => t !== 'agentMode');
+  check(live.every((d) => agH(off, d.id) === 0), 'a product without Agent mode sells 0 agent-hours (Agent mode switched off on a copy)', live.map((d) => `${d.id} ${agH(off, d.id)}`).join(', '));
+  console.log(`  revenue on load with Agent mode off everywhere: $${revenueReadout(off).total.toFixed(2)}B/yr`);
+}
 {
   const g = clone(s);
   if (!g.player.features.includes('agentMode')) g.player.features.push('agentMode');
@@ -90,7 +97,7 @@ check(live.filter((d) => !d.features.includes('agentMode')).every((d) => agH(s, 
     check(agH(h, d0.id) === 0, 'the same product with a model short of the gate sells 0 agent-hours', `${d0.id}: ${agentsGate(v)}`);
   }
   const r0 = revenueReadout(s).total, r1 = revenueReadout(g).total;
-  console.log(`\nRevenue on load: as migrated $${r0.toFixed(2)}B/yr; with Agent mode on every live business product $${r1.toFixed(2)}B/yr`);
+  console.log(`\nRevenue on load: as migrated $${r0.toFixed(2)}B/yr (Agent mode on every live business product: $${r1.toFixed(2)}B/yr)`);
 }
 
 // ───────── 3. certification through a harness ─────────

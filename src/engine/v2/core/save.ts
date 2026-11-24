@@ -75,8 +75,10 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
    *    Finance, Legal and Media (Back-office, Clinical, Operations and Defence harnesses are not offered there), Military
    *    on Enterprise (the Defence suite is Vetted-only), Media on Vetted (Creative studio is not offered there). Its progress is lost with it (a later harness starts a new certification). A queued
    *    adaptation build is dropped (its host's harness is the build now).
-   *  - A product that was an Agents product (MK-1 moved it to the API; marked `wasAgents` by 103 → 104) gets Agent mode
-   *    switched on and built; if Agent mode is new in the game, the rival lag rule counts from that product's launch.
+   *  - Agent mode (lead decision: keep a save's income, since before MK-11 every business product sold agent-hours):
+   *    switched on for every live API, Enterprise and Vetted product and for a product that was an Agents product (MK-1
+   *    moved it to the API; marked `wasAgents` by 103 → 104), and built for the lab when any gets it; if Agent mode is
+   *    new in the game, the rival lag rule counts from the earliest such product's launch.
    *  - Rivals and China: their tools mapped the same way, plus the tools their lab had shipped by the start
    *    (toolsAtStart); world.fx.toolShip keys mapped. */
   106: (s) => {
@@ -98,7 +100,8 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
         built.add(h);
         if (needsCert(a.sector as never) && a.certDone !== undefined && !certs.some((c) => c.sector === a.sector)) certs.push({ sector: a.sector, certDone: a.certDone });
       }
-      if (d.wasAgents) {
+      const liveBiz = (d.channel === 'api' || d.channel === 'enterprise' || d.channel === 'vetted') && d.status !== 'withdrawn';
+      if (d.wasAgents || liveBiz) {
         feats.add('agentMode');
         built.add('agentMode');
         if (d.startDay !== undefined) agentsShip = Math.min(agentsShip ?? Infinity, d.startDay);
