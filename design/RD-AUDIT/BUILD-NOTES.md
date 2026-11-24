@@ -6250,3 +6250,13 @@ verdict (casePreview.ranges); licence offers from named sellers; a believed teac
 G); loopholes as a belief; what Expand buys in skill (the preview reads true stacks); a reason when a run outlasts its
 launch ETA (no launch ETA stored); per-team morale / retention; spy estimate; yearly theft risk (attempt frequency is not
 believed state); know-how leak record; measured AI share.
+
+**Check.** tsc app + scripts/v2 clean; `npm run build` ok; lint-ux and lint-hidden pass; lint-structure 1 fail,
+pre-existing (action title `research.safReAlloc`). uitest: 688 passed / 14 failed (UB-B: 663 / 30). Every UB-F step
+passes (control switch and preview, product safeguards editor, J2 AG1 and E6 on Safeguards, Runs link, Evals skill
+bars, R10 Cases limits: the public timer's incident is on an earlier model, so R10 now also opens "earlier models";
+checked on the day-900 fixture after the run). Remaining failures, all pre-existing and outside UB-F's changes:
+Investigations open-a-case on day 1 (and its card), D8 policy-row text and the evalGate term, E11 foothold Remove preview,
+F6c Retire version, F6e targeted training, FIN4a, IA safetyHeader / frameworkHold homes, Products locked tools (no locked
+tool on the fixture). Screenshots: scripts/v2/shots/ub-f/ (d400, d900: safeguards, control drawer + switch preview,
+product safeguards drawer, runs, evals, overview lane tooltip, products drawer, cases), script ub-f.mjs (ignored).

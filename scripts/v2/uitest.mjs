@@ -2352,7 +2352,7 @@ for (const l of LIMIT_DEFS.filter((x) => x.panel !== 'codex')) {
   await nav(l.panel);
   if (l.tab) await tabTo(l.tab);
   if (l.panel === 'research' && l.tab === 'projects') { await page.click('[data-home=priorities] [data-card] .nm').catch(() => {}); await wait(80); } // UB-6: per-programme limits sit in the card drawer
-  if (l.panel === 'safety' && l.tab === 'cases') { for (const b of await page.$$('[data-test^="inc-list."]')) await b.click().catch(() => {}); await wait(80); } // UB-F: an incident's public timer sits in its group's dates list
+  if (l.panel === 'safety' && l.tab === 'cases') { await page.click('[data-test=earlier-show]', { timeout: 2000 }).catch(() => {}); await wait(80); for (const b of await page.$$('[data-test^="inc-list."]')) await b.click().catch(() => {}); await wait(80); } // UB-F: an incident's public timer sits in its group's dates list
   if (l.panel === 'research' && l.tab !== 'projects') {
     const ids = await page.$$eval('[data-panel=research] .dc-nd:not(.st-known):not(.st-soon)', (els) => els.map((e) => e.getAttribute('data-node')));
     for (const id of ids) {
