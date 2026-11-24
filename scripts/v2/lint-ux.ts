@@ -131,6 +131,19 @@ ok(`Required terms present (${REQUIRED.length})`, req.length === 0, req.join(', 
   ok('No removed v2 concepts in the glossary, limits or UI text (B4)', hits.length === 0, hits.slice(0, 10).join(' | '));
 }
 
+// ── 4b. MK-12: no removed market concept in the glossary or the limits registry (design/MARKET.md "Removed": the Agents,
+//    Gov and Trusted products, price tiers, thinking effort). The UI's text is MK-13's (the Products screen rebuild). ──
+{
+  const REMOVED: [string, RegExp][] = [
+    ['Agents product', /\bAgents (products?|channel)\b|\bAPI (and|\/) Agents\b|\bAgents,? (and )?Enterprise\b/], ['Trusted product', /\bTrusted (products?|partners?|buyers|channel)\b/],
+    ['Gov product', /\bGov (products?|channel)\b|\bor Gov\b/], ['price tiers', /\bprice tiers?\b|\b(standard|premium|budget) tier\b/i], ['Low price tier', /\bLow price\b/], ['thinking effort', /\bthinking effort\b/i],
+  ];
+  const hits: string[] = [];
+  for (const [id, t] of Object.entries(GLOSSARY_V2)) for (const [name, re] of REMOVED) if (re.test(t.title) || re.test(t.body)) hits.push(`glossary ${id}: ${name}`);
+  for (const l of LIMITS) for (const [name, re] of REMOVED) if (re.test(l.title) || re.test(l.rule)) hits.push(`limit ${l.id}: ${name}`);
+  ok('No removed market concepts in the glossary or limits (MK-12)', hits.length === 0, hits.slice(0, 10).join(' | '));
+}
+
 // ── 5. finance glossary numbers follow the engine's constants (FIN6c: the FIN6a refit left four entries stale; the
 //    glossary is plain data and cannot import the engine, so this check keeps them in step) ──
 {

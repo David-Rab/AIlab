@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { deserialize } from '../../../src/engine/v2/core/save';
 import { tick } from '../../../src/engine/v2/core/loop';
 import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
-import { worldMix } from '../../../src/engine/v2/worldfx/mix';
+import { PRICE_ELASTICITY, worldMix } from '../../../src/engine/v2/worldfx/mix';
 import { revenueReadout, sectorSpendParts } from '../../../src/engine/v2/worldfx/revenue';
 import { CONSUMER_MKT } from '../../../src/data/v2/serving';
 import * as SERVING from '../../../src/data/v2/serving';
@@ -53,9 +53,17 @@ function report(label: string, s: GameStateV2): Summary {
     const row = REGIONS.map((r: RegionId) => {
       const m = mix.sec[r][sid] as typeof mix.sec[RegionId][SectorId] & { seatCost?: number[]; seatMTarget?: number[]; seatM?: number[] };
       const sp = pi >= 0 ? m.seatPrices[pi] : NaN;
-      return `${r} $${f2(sp)} (cost $${f2(m.seatCost?.[pi] ?? NaN)}, share ${pc(pi >= 0 ? m.share[pi] : NaN)}, M $${f2(m.seatM?.[pi] ?? NaN)} → $${f2(m.seatMTarget?.[pi] ?? NaN)}; going $${f2(m.seatPrice)})`;
+      // The cost-anchored alternative (MK-6c's μ_b form on seats): c + (c_min ÷ PRICE_ELASTICITY) ÷ (1 − s), ≤ cap.
+      let cmin = Infinity;
+      mix.providers.forEach((q, i) => { if (!q.open && (m.seatCost?.[i] ?? 0) > 0 && m.seatPrices[i] > 0) cmin = Math.min(cmin, m.seatCost![i]); });
+      const alt = pi >= 0 && m.seatCost ? Math.min(SEAT_CAP, m.seatCost[pi] + cmin / PRICE_ELASTICITY / Math.max(1e-6, 1 - m.share[pi])) : NaN;
+      return `${r} ${f2(sp)} [cost-anchored ${f2(alt)}] (cost $${f2(m.seatCost?.[pi] ?? NaN)}, share ${pc(pi >= 0 ? m.share[pi] : NaN)}, M $${f2(m.seatM?.[pi] ?? NaN)} → $${f2(m.seatMTarget?.[pi] ?? NaN)}; going $${f2(m.seatPrice)})`;
     });
     console.log(`    ${sid.padEnd(6)} ${row.join('  ')}`);
+  }
+  for (const [r, sid] of [['US', 'SOFT'], ['US', 'HEALTH'], ['CN', 'SOFT']] as [RegionId, SectorId][]) {
+    const m = mix.sec[r][sid];
+    console.log(`    every seller, ${r} ${sid}: ${mix.providers.map((p, i) => (m.seatPrices[i] > 0 ? `${p.key} $${f2(m.seatPrices[i])} (s ${pc(m.share[i])})` : '')).filter(Boolean).join(', ')}`);
   }
   const rd = revenueReadout(s);
   let chat = 0;
@@ -117,19 +125,28 @@ if (o) writeFileSync(o, JSON.stringify(out, null, 1));
     let sb = 0;
     let near = 0;
     let n = 0;
+    let small = 0;
+    let ns = 0;
     for (const r of REGIONS) for (const sid of Object.keys(mix.sec[r]) as SectorId[]) {
       const m = mix.sec[r][sid] as typeof mix.sec[RegionId][SectorId] & { seatCost: number[] };
       mix.providers.forEach((p, i) => {
         if (p.open || !(m.seatPrices[i] > 0)) return;
         if (m.seatPrices[i] > SEAT_CAP + 1e-9 || m.seatPrices[i] < m.seatCost[i] - 1e-9) sb++;
       });
-      if (pi >= 0 && m.share[pi] > 0) {
-        n++;
-        if (m.seatPrices[pi] > 0.8 * SEAT_CAP) near++;
-      }
+      mix.providers.forEach((p, i) => {
+        if (p.open || !(m.seatPrices[i] > 0) || !(m.share[i] > 0)) return;
+        if (m.share[i] >= 0.3) {
+          n++;
+          if (m.seatPrices[i] > 0.8 * SEAT_CAP) near++;
+        } else if (m.share[i] < 0.1) {
+          ns++;
+          if (m.seatPrices[i] < 0.8 * SEAT_CAP) small++;
+        }
+      });
     }
     check(sb === 0, 'seat prices within [seat serving cost, cap] everywhere');
-    check(n > 0 && near / n > 0.5, 'at the start the player\'s seats sell near the list-price cap (not ≈ $6) in most sectors × regions', `${near}/${n} above 0.8 × cap`);
+    check(n > 0 && near / n > 0.9, 'at the start leaders (seat share ≥ 0.3) sell seats near the list-price cap (> 0.8 × cap)', `${near}/${n}`);
+    check(ns > 0 && small / ns > 0.5, 'at the start small sellers (share < 0.1) sell seats below 0.8 × cap in most cells', `${small}/${ns}`);
   }
 }
 

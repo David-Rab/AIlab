@@ -976,13 +976,15 @@ for (const d of [400, 900]) {
 
 // ───────── E1–E8 cheap tiers: the market's surplus choice over bands of task difficulty (task A5; worldfx/choice.ts) ─────────
 // Buyers of a sector's adopted task-hours choose per band of task difficulty by logit on surplus V·x − p (x the share of
-// the band the tier does adequately, from the work-type coverage), scale μ = the cheapest adequate price ÷ ε, plus V4's
-// quality term; access is a share of buyers. Cheap tiers: the player's product minis, other providers' students.
+// the band the tier does adequately, from the work-type coverage), scale μ = the cheapest adequate tier's cost ÷ ε
+// (MK-6c; a tier without a cost: its price), plus V4's quality term; access is a share of buyers. Cheap tiers: the player's product minis, other providers' students.
 {
   const one = (fit: number, a: number, price: number): Tier[] => [{ fit, a, price }];
   const V = 30;
-  // E1 a cheap adequate model wins share from a pricier one with the same coverage (and fit).
-  const c1 = surplusChoice([one(28, 0.3, 2), one(28, 0.3, 0.2)], [1, 1], [1, 1], V);
+  // E1 a cheap adequate model wins share from a pricier one with the same coverage (and fit). MK-6c: both at the start's
+  // ≈ 0.8 margin (cost = price ÷ 5), so μ is the cheap one's cost ÷ ε.
+  const atMargin = (t: Tier[]) => t.map((x) => ({ ...x, cost: x.price / 5 }));
+  const c1 = surplusChoice([atMargin(one(28, 0.3, 2)), atMargin(one(28, 0.3, 0.2))], [1, 1], [1, 1], V);
   check(c1.target[1] > 0.99 && near(c1.target[0] + c1.target[1], 1, 1e-12), 'A5 E1 a cheap model with the same coverage wins the hours from a pricier one (a tenth of the price: > 99%)',
     `pricier ${c1.target[0].toFixed(4)}, cheap ${c1.target[1].toFixed(4)}`);
   // The brief's crossover on one band: x 0.97 at a tenth of the price beats x 1 exactly when V·0.03 < Δp (fit equal).

@@ -119,6 +119,23 @@ p_k)/μ_b, and with the frontier at its own FOC margin that is at most ≈ 1/(1 
 4 × 0.61 OOM = 2.4 for the mini even at cost. Cheap tiers win only where every seller's cheap tiers are adequate in the
 easy band (then p̄_b and μ_b are low: US Services, rivals' minis 12–13% of their hours at M ≈ 0.24 vs 2.1–2.3).
 
+As built (MK-6c, choice.ts `bandMu`): μ_b = c_min,b ÷ ε, c_min,b the lowest serving cost per adopted hour among every
+serving provider's tiers in the region (all tiers, whatever a buyer group reaches: the market's μ) that do band b's
+tasks adequately (coverage ≥ the band's upper edge, x_b = 1); where none does, the most adequate tier's cost (the
+cheapest of those). The same μ in every buyer group's choice, in the MK-7 re-run and in the targets (nashTargets reads
+the choice's μ). μ no longer depends on prices, so the band-price fixed point (the iteration, the Aitken step), the
+SectorMix `bandPrice` readout and the stored yesterday's band prices `fx.bandP` are gone (save 108 → 109 drops it);
+margins still move to their targets at PRICE_TAU, and a new game's initPrices is 8 rounds at 0.6 (≈ 0.1–0.2% off the
+fixed point; newGame ≈ 0.2–0.3 s from ≈ 0.5–0.7 s). Since μ is now a cost scale, ε means the price response at the
+cheapest adequate cost (own-price elasticity at the Nash margin = 1 ÷ margin): ε = 0.3 (from 1.4) puts the start
+leader's hours-weighted margin at 0.81–0.83 (seeds 2027, 7, 42; rivals 0.62–0.69; DeepCent's open weights 0.17) and
+start player revenue at $14–16B (MK-6b: $20–26B). Cheap tiers win the easy bands again: at day 20 the API's US Software
+hours by tier are 0.81 / 0.09 / 0.09 / 0 (TIERS E7 passes). Finding: a cheap model that does every band collapses the
+price scale for all sellers. On the day-369 save Atlas-4.0-mini (cost $0.11/h, adequate on all of US Software) lowers
+c_min in bands 3–8 from $0.51–0.72 to $0.11, so margins there fall ≈ 5–7×: adding it to Enterprise now cuts profit
+(30 days: revenue 112.3 → 80.5, profit 91.1 → 68.4; MK-6b 119.0 → 195.6, 97.8 → 183.4) though it frees ≈ 1.1M H100e
+of need. Open for the designer (MK-CP): whether a seller's own model should set the scale its other models face.
+
 ### Capacity (M7)
 
 The Auto serving split stays (most revenue per H100e first). A product whose need exceeds its served compute serves the
@@ -154,12 +171,17 @@ with every seller at its target. With ε = 1 the uncapped margin exceeds p̄ for
 $22 (real plans held at $20 as costs fell); Win share takes half the capped margin (≈ $12). Open-weight hosts keep the
 flat 0.48 × wtp (OPEN_PLAN_SHARE). **Seats.** Per sector × region one seat margin per closed seller (fx.seatM), its
 tiers' seats at min(SEATS.cap, c_k + f·M) ≥ c_k (c_k = seat hours a month × H100e-hours per assisted hour × $/H100e-h);
-target M* = min(μ_seat ÷ (1 − s), cap − c̄) ≥ 0, s the seller's share of the seats there (its customer stock: seats split
-by it), μ_seat = p̄_seat ÷ PRICE_ELASTICITY (the sector buyers' elasticity, as μ_b), p̄_seat the share-weighted seat price
-at the targets. SEATS.cap = $27.5, the median 2025 list price (research/MARKET-sources.md §3p). Absent stocks (older
-saves) start at the cap prices and move at PRICE_TAU; no schema change. Finding: the seat market has no seller-level
-seat-price response in the engine (seats are split by the work choice), so μ_seat is the M5 analogue, not a fitted
-response; leaders (s ≈ 0.4) sit at the cap, small sellers (s ≈ 0.05) converge to ≈ 3.5 × cost (CN at the start ≈ $4–17).
+target M* = μ_seat ÷ (1 − s) with μ_seat = p ÷ ε_seat (the seller's own price: the first-order condition of a logit
+in log price, own-price elasticity ε·(1 − s)), i.e. M* = c̄ ÷ (ε·(1 − s) − 1) where ε·(1 − s) > 1, else cap − c̄; ≤ cap
+− c̄, ≥ 0. s the seller's share of the seats there (its customer stock: seats split by it), c̄ its customers' seat cost.
+ε_seat = SEATS.elasticity = 1.63 (§3, 3f′: firm margin m ≥ 0.90 at the leader's S = 0.32, m = 1/(ε(1 − S))). SEATS.cap
+= $27.5, the median 2025 list price (research/MARKET-sources.md §3p). After MK-6c: cost-anchored like μ_b (no going
+price, no fixed point), but not μ_b's c_min ÷ PRICE_ELASTICITY (ε 0.3, a cost-scale constant): on seats that form gives
+the start leader $5–25 (Healthcare, Government ≈ $5–7), below every list price, while real seats sold at $19–39 on ≈
+$1–5 of serving. At the start every leader (s ≥ 0.3, 28 of 28 cells) sells at $26.4–27.4; small sellers (s < 0.1)
+at ≈ 2.8 × cost ($2.6–15). Absent stocks (older saves) start at the cap prices and move at PRICE_TAU; no schema change.
+Finding: the seat market has no seller-level seat-price response in the engine (seats are split by the work choice), so
+ε_seat is the M5 analogue, not a fitted response; the margin jumps to the cap once ε(1 − s) ≤ 1 (s ≥ 0.39).
 
 ## Tools (M9)
 

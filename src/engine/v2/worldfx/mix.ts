@@ -12,12 +12,11 @@
 //                 M*_Xk = Σ_{g,b} q_kgb / Σ_{g,b} q_kgb·(1 − s_gb)/μ_b,  q_kgb model k's hours in group g, band b,
 //               s_gb the seller's total share there (it internalises the cannibalisation between its own models in a
 //               band); a model with no hours: the seller's hours-weighted margin per $ of cost × its own cost;
-//               μ_b = p̄_b ÷ ε, p̄_b the band's hours-weighted average price over all sellers. The choice reads
-//               yesterday's p̄_b (fx.bandP); the targets read p̄_b with every seller at its target (today's shares;
-//               nashTargets), the same μ at the fixed point, so margins follow costs at PRICE_TAU. Agent-hours
-//               at their cost × the tier's price-to-cost ratio p/c; MK-9: seats at seat cost + the seller's seat margin
-//               (seatTargets, ≤ SEATS.cap) and Chat plans at cost + the plan margin (planTargets, ≤ wtp). Open weights:
-//               hosts at cost × OPEN_MARKUP.
+//               MK-6c: μ_b = c_min,b ÷ ε, c_min,b the lowest serving cost per adopted hour among the tiers that do the
+//               whole band (choice.ts bandMu), the same μ in the choice and the targets; it does not depend on prices,
+//               so margins follow costs at PRICE_TAU. Agent-hours at their cost × the tier's price-to-cost ratio
+//               p/c; MK-9: seats at seat cost + the seller's seat margin (seatTargets, ≤ SEATS.cap) and Chat plans at
+//               cost + the plan margin (planTargets, ≤ wtp). Open weights: hosts at cost × OPEN_MARKUP.
 //   target_X  = A5: the buyers' surplus choice over bands of task difficulty (worldfx/choice.ts) among every provider's
 //               lineup (TIERS: its model and the LINEUP students of it, every provider by the same rule; each player
 //               product with its own lineup, playerProdW its part of the player's hours); MK-5 (design/MARKET.md M2): one
@@ -49,7 +48,7 @@ import { CHINA_ID } from '../models/labs';
 import type { Deployment, DomainId, GameStateV2, LabId, ModelVersion, RegionId, RivalLab, SectorId, SimpleModel, SystemCtx } from '../types';
 import { robotAvail } from './robots';
 import { agentCeilingOf, seatHoursPerMonth, workHoursOf, type AgentCeiling } from './use';
-import { mergeChoices, surplusChoice, type Choice, type Tier } from './choice';
+import { bandMu, mergeChoices, surplusChoice, type Choice, type Tier } from './choice';
 import { buyerGroups } from '../../../data/v2/market';
 import { techRamp } from './policy';
 import { V2_DOMAIN_OFF, domainScaleG, gOfLevel, gOfV2Level, oomPerLevel, v2LevelGate } from '../models/capability';
@@ -178,16 +177,14 @@ export interface SectorMix {
   byGroup: Partial<Record<BuyerGroupId, { w: number; target: number[]; playerProdW: Record<string, number>; ch: Choice; mask: readonly (readonly boolean[] | undefined)[] }>>;
   /** MK-7 (M7): the choice's inputs, to re-run it for buyers turned away (rerunChoice); tierDep: the player product of
    *  each of its tiers (its lineup in the choice's order). */
-  rerun: { lineups: Tier[][]; brand: number[]; acc: number[]; value: number; aTop: number; B: number; groups: (number[] | undefined)[]; muIn?: number[]; tierDep: string[] };
+  rerun: { lineups: Tier[][]; brand: number[]; acc: number[]; value: number; aTop: number; B: number; groups: (number[] | undefined)[]; muIn: number[]; tierDep: string[] };
   /** MK-6b (M5): per provider and model (markupModels[i]: its distinct models' ids in lineup order; tierModel[i][k]: tier
    *  k's index there) the margin M it prices that model at here ($ per adopted task-hour over each tier's cost; all 0 for
-   *  open weights) and its Nash–Bertrand target (NaN: open weights or not selling here); the bands' hours-weighted
-   *  average price today (tomorrow's μ_b × ε). */
+   *  open weights) and its Nash–Bertrand target (NaN: open weights or not selling here). */
   markup: number[][];
   markupTarget: number[][];
   markupModels: string[][];
   tierModel: number[][];
-  bandPrice: number[];
   /** MK-6: per player product its lineup here at this region's prices (productLineup order; price, priceAg and seat
    *  set): what revenue.ts bills. */
   playerLines: Record<string, Offer[]>;
@@ -492,164 +489,73 @@ export function bestPublicOf(s: GameStateV2): Record<DomainId, number> {
  * segment: μ ÷ (1 − s)). Capped at the value. A model with no hours here: the seller's hours-weighted margin per $ of
  * cost over its models with hours (Σ q_k·M*_k ÷ Σ q_k·c_k) × the model's own cost `mc[i][k]`, so a newly added cheap
  * model starts at a price in proportion to its cost (and can win the easy bands); a seller with no hours at all: the
- * mean μ (s = 0) on its main model, scaled by cost to its others. μ_b = p̄_b ÷ ε, p̄_b the band's hours-weighted average
- * price (all sellers) with every closed seller at its target margins and today's shares and tier mix (open weights at
- * their own price), solved by iteration from `p0` (yesterday's band prices, the choice's μ). The market's price level is
- * so part of the target and a seller's margin follows the costs it faces at PRICE_TAU; with yesterday's level alone it
- * would follow them over the loop M → average price → μ → M, whose gain per round is about the margin (≈ 0.85), i.e.
- * ≈ 7× slower.
+ * mean μ (s = 0) on its main model, scaled by cost to its others. MK-6c: μ_b the choice's (ch.mu, choice.ts bandMu: the
+ * cheapest adequate tier's cost ÷ ε), which does not depend on prices, so the target is direct (MK-6's band-price
+ * fixed point and its Aitken step are gone).
  */
-/** MK-9 (design/MARKET.md M5): each closed seller's seat margin target on the seat market of one sector × region,
- *  M*_i = min(μ_seat ÷ (1 − s_i), SEATS.cap − c_i) ≥ 0, μ_seat = p̄ ÷ PRICE_ELASTICITY, p̄ the seats' share-weighted price
- *  with every seller at its target (fixed point from today's going price going0; a seller's seat price is its customers'
- *  tier mix of min(cap, c_k + f_k·M), f_k the player's stance factors). NaN: open weights or not selling here. */
-function seatTargets(providers: readonly Provider[], offers: readonly (Offer | undefined)[], share: readonly number[], seatCost: readonly number[], tierW: readonly (readonly number[])[], lines: readonly (readonly Offer[])[], shm: number, rate: number, playerIdx: number, stance: readonly number[], going0: number): number[] {
-  const n = providers.length;
-  const out = filled(n, NaN);
-  const sell = providers.map((p, i) => !p.open && !!offers[i]);
-  const priceAt = (i: number, M: number) => {
-    const L = lines[i];
-    const tw = tierW[i];
-    let p = 0;
-    let w = 0;
-    for (let k = 0; k < L.length; k++) if (tw[k] > 0) {
-      const c = shm * L[k].hphAs * rate;
-      p += tw[k] * Math.max(c, Math.min(SEATS.cap, c + M * (i === playerIdx ? stance[k] : 1)));
-      w += tw[k];
-    }
-    return w > 0 ? p / w : Math.max(seatCost[i], Math.min(SEATS.cap, seatCost[i] + M));
-  };
-  let going = going0 > 0 ? going0 : SEATS.cap;
-  for (let it = 0; it < 30; it++) {
-    const mu = going / PRICE_ELASTICITY;
-    for (let i = 0; i < n; i++) if (sell[i]) out[i] = Math.max(0, Math.min(mu / Math.max(1e-6, 1 - share[i]), SEATS.cap - seatCost[i]));
-    let w = 0;
-    let p = 0;
-    for (let i = 0; i < n; i++) if (sell[i] && share[i] > 0) {
-      w += share[i];
-      p += share[i] * priceAt(i, out[i]);
-    }
-    if (!(w > 0)) break;
-    const g = p / w;
-    const done = Math.abs(g - going) <= 1e-6 * going;
-    going = g;
-    if (done) break;
-  }
-  return out;
+/** MK-9 (design/MARKET.md M5): each closed seller's seat margin target on the seat market of one sector × region: the
+ *  first-order condition of a logit in log price with ε = SEATS.elasticity, p − c = p ÷ (ε·(1 − s)), i.e.
+ *  M*_i = c_i ÷ (ε·(1 − s_i) − 1) where ε·(1 − s_i) > 1, else SEATS.cap − c_i; ≤ SEATS.cap − c_i, ≥ 0. s_i its share of
+ *  the seats here, c_i its customers' seat serving cost. NaN: open weights or not selling here. */
+function seatTargets(providers: readonly Provider[], offers: readonly (Offer | undefined)[], share: readonly number[], seatCost: readonly number[]): number[] {
+  return providers.map((p, i) => {
+    if (p.open || !offers[i]) return NaN;
+    const c = seatCost[i];
+    const room = Math.max(0, SEATS.cap - c);
+    const e = SEATS.elasticity * (1 - Math.min(1, share[i]));
+    return e > 1 ? Math.min(room, c / (e - 1)) : room;
+  });
 }
 
-function nashTargets(ch: Choice, segs: readonly { w: number; ch: Choice }[], providers: readonly Provider[], offers: readonly (Offer | undefined)[], lines: readonly (readonly Offer[])[], tierPrice: readonly (readonly number[])[], playerIdx: number, stance: readonly number[], value: number, p0: readonly number[], tm: readonly (readonly number[])[], mc: readonly (readonly number[])[]): number[][] {
+function nashTargets(ch: Choice, segs: readonly { w: number; ch: Choice }[], providers: readonly Provider[], offers: readonly (Offer | undefined)[], value: number, tm: readonly (readonly number[])[], mc: readonly (readonly number[])[]): number[][] {
   const n = providers.length;
-  const B = ch.mu.length;
+  const mu = ch.mu;
+  const B = mu.length;
   const out = mc.map((c) => filled(c.length, NaN));
   const isN = providers.map((p, i) => !p.open && !!offers[i]);
   if (!isN.some(Boolean)) return out;
-  // Per closed seller and model its hours (Q) and hours × (1 − s) per band (D), s the seller's share in the group's band.
-  const Q: number[][] = mc.map((c) => filled(c.length, 0));
-  const D: number[][][] = mc.map((c) => c.map(() => filled(B, 0)));
+  let sum = 0;
+  let nb = 0;
+  for (let b = 0; b < B; b++) if (mu[b] > 0) (sum += mu[b]), nb++;
+  const muBar = nb ? sum / nb : 0;
   for (let i = 0; i < n; i++) {
     if (!isN[i]) continue;
+    // Per model its hours (Q) and Σ hours × (1 − s) ÷ μ_b (D), s the seller's share in the group's band.
     const ti = tm[i];
+    const o = out[i];
+    const c = mc[i];
+    const Q = filled(o.length, 0);
+    const D = filled(o.length, 0);
     for (const p of segs) for (let b = 0; b < B; b++) {
       const x = p.ch.share[i][b];
-      if (!(x > 0)) continue;
+      if (!(x > 0) || !(mu[b] > 0)) continue;
       const q = p.w * x;
       const sb = p.ch.sub[i]?.[b];
       if (sb?.length) {
         for (let k = 0; k < sb.length; k++) if (sb[k] > 0) {
-          Q[i][ti[k]] += q * sb[k];
-          D[i][ti[k]][b] += q * sb[k] * (1 - x);
+          Q[ti[k]] += q * sb[k];
+          D[ti[k]] += (q * sb[k] * (1 - x)) / mu[b];
         }
       } else {
         const k = p.ch.pick[i][b];
         if (k < 0) continue;
-        Q[i][ti[k]] += q;
-        D[i][ti[k]][b] += q * (1 - x);
+        Q[ti[k]] += q;
+        D[ti[k]] += (q * (1 - x)) / mu[b];
       }
+    }
+    let qm = 0;
+    let qc = 0;
+    for (let m = 0; m < o.length; m++) {
+      if (!(Q[m] > 0)) continue;
+      o[m] = Math.min(value, D[m] > 0 ? Q[m] / D[m] : value);
+      qm += Q[m] * o[m];
+      qc += Q[m] * c[m];
+    }
+    for (let m = 0; m < o.length; m++) {
+      if (Q[m] > 0) continue;
+      o[m] = Math.min(value, qc > 0 ? (qm / qc) * c[m] : c[0] > 0 ? (muBar * c[m]) / c[0] : muBar);
     }
   }
-  // Per band and seller with hours there its tier mix (the seller-group split, else its pick).
-  const W: (readonly number[] | undefined)[][] = [];
-  for (let b = 0; b < B; b++) {
-    W.push(providers.map((_, i) => {
-      if (!(ch.share[i][b] > 0)) return undefined;
-      const sb = ch.sub[i]?.[b];
-      if (sb?.length) return sb;
-      const w = filled(lines[i].length, 0);
-      if (ch.pick[i][b] >= 0) w[ch.pick[i][b]] = 1;
-      return w;
-    }));
-  }
-  // One round: the targets at band prices x, then the band prices those targets give (into y).
-  const round = (x: readonly number[], y: number[]) => {
-    let sum = 0;
-    let nb = 0;
-    for (let b = 0; b < B; b++) if (x[b] > 0) {
-      sum += x[b];
-      nb++;
-    }
-    const muBar = nb ? sum / nb / PRICE_ELASTICITY : 0;
-    for (let i = 0; i < n; i++) {
-      if (!isN[i]) continue;
-      const o = out[i];
-      const c = mc[i];
-      let qm = 0;
-      let qc = 0;
-      for (let m = 0; m < o.length; m++) {
-        const Qm = Q[i][m];
-        if (!(Qm > 0)) continue;
-        let d = 0;
-        for (let b = 0; b < B; b++) if (D[i][m][b] > 0 && x[b] > 0) d += (D[i][m][b] * PRICE_ELASTICITY) / x[b];
-        o[m] = Math.min(value, d > 0 ? Qm / d : value);
-        qm += Qm * o[m];
-        qc += Qm * c[m];
-      }
-      for (let m = 0; m < o.length; m++) {
-        if (Q[i][m] > 0) continue;
-        o[m] = Math.min(value, qc > 0 ? (qm / qc) * c[m] : c[0] > 0 ? (muBar * c[m]) / c[0] : muBar);
-      }
-    }
-    for (let b = 0; b < B; b++) {
-      let hw = 0;
-      let hp = 0;
-      for (let i = 0; i < n; i++) {
-        const w = W[b][i];
-        if (!w) continue;
-        const sx = ch.share[i][b];
-        const L = lines[i];
-        let p = 0;
-        for (let k = 0; k < w.length; k++) {
-          if (!(w[k] > 0)) continue;
-          p += w[k] * (isN[i] ? Math.max(L[k].cost, Math.min(value, L[k].cost + out[i][tm[i][k]] * (i === playerIdx ? stance[k] : 1))) : tierPrice[i][k]);
-        }
-        hw += sx;
-        hp += sx * p;
-      }
-      y[b] = hw > 0 ? hp / hw : x[b];
-    }
-  };
-  // The rounds contract slowly (by about the margin each: the price level feeds μ), so every two rounds take an Aitken
-  // Δ² step per band (exact for one slow mode; kept only where it stays positive).
-  let x0 = p0.map((x, b) => (x > 0 ? x : ch.mu[b] * PRICE_ELASTICITY));
-  const x1 = filled(B, 0);
-  const x2 = filled(B, 0);
-  for (let it = 0; it < 30; it++) {
-    round(x0, x1);
-    round(x1, x2);
-    let moved = 0;
-    for (let b = 0; b < B; b++) if (x2[b] > 0) moved = Math.max(moved, Math.abs(x2[b] - x1[b]) / x2[b]);
-    if (moved < 1e-7) break;
-    const nx = filled(B, 0);
-    for (let b = 0; b < B; b++) {
-      const d1 = x1[b] - x0[b];
-      const d2 = x2[b] - x1[b];
-      const den = d2 - d1;
-      const a = Math.abs(den) > 1e-15 * Math.max(1, Math.abs(x2[b])) ? x2[b] - (d2 * d2) / den : x2[b];
-      nx[b] = a > 0 && Number.isFinite(a) ? a : x2[b];
-    }
-    x0 = nx;
-  }
-  round(x0, x1);
   return out;
 }
 
@@ -937,7 +843,7 @@ function computeMix(s: GameStateV2): WorldMix {
           const want = nash ? o.cost + Mi[i][tmS[i][k]] * (i === playerIdx ? pStance[si][k] : 1) : o.price;
           const price = Math.max(o.cost, Math.min(want, value));
           const q = o.cost > 0 ? price / o.cost : 1;
-          tl.push({ fit: o.fit, a: o.a, price });
+          tl.push({ fit: o.fit, a: o.a, price, cost: o.cost });
           tp.push(price);
           // MK-9: a seat at its serving cost + the seller's seat margin (the player's × the product's stance), ≤ SEATS.cap.
           const sc = shm * o.hphAs * rate;
@@ -948,10 +854,9 @@ function computeMix(s: GameStateV2): WorldMix {
         tierPrice.push(tp);
         priced.push(po);
       }
-      // MK-6: μ_b = yesterday's hours-weighted average price of the band over all sellers ÷ ε (absent: the choice's own
-      // p_min rule), the same in the choice and in the sellers' markups.
-      const bp = s.world.fx.bandP?.[r]?.[t.id];
-      const muIn = bp && bp.length === B ? bp.map((x) => x / PRICE_ELASTICITY) : undefined;
+      // MK-6c: μ_b = the cheapest adequate tier's cost ÷ ε over every tier here (choice.ts bandMu), the same for every
+      // buyer group, in the sellers' markups and in the MK-7 re-run.
+      const muIn = bandMu(lineups, brandPow, accSec[ri], aTops[si], B);
       // RD-P03 (DD-02): each player product is its own seller (its lineup's tiers a group), sharing the player's brand and
       // reach. MK-5 (M2): the sector's business buyers are three groups (small / large / vetted, market.ts buyerGroups),
       // each choosing among the offers it reaches (every other provider's; the player's products on its rungs of the
@@ -969,24 +874,7 @@ function computeMix(s: GameStateV2): WorldMix {
         } else parts.push({ w: wg, ch: surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si], gr.mask[g], muIn), gs: [BUYER_GROUP_IDS[g]] });
       }
       const ch = parts.length ? mergeChoices(parts) : surplusChoice(lineups, brandPow, accSec[ri], value, aTops[si], B, groups[si], undefined, muIn);
-      // MK-6: the bands' hours-weighted average price today (over all sellers; tomorrow's μ_b in the choice).
-      const bandPrice = filled(B, 0);
-      for (let b = 0; b < B; b++) {
-        let hw = 0;
-        let hp = 0;
-        for (let i = 0; i < n; i++) {
-          const x = ch.share[i][b];
-          if (!(x > 0)) continue;
-          const sb = ch.sub[i]?.[b];
-          let p = 0;
-          if (sb?.length) for (let k = 0; k < sb.length; k++) p += sb[k] * tierPrice[i][k];
-          else p = tierPrice[i][ch.pick[i][b]] ?? 0;
-          hw += x;
-          hp += x * p;
-        }
-        bandPrice[b] = hw > 0 ? hp / hw : 0;
-      }
-      const markupTarget = nashTargets(ch, parts.length ? parts : [{ w: 1, ch }], providers, offers[si], lines, tierPrice, playerIdx, pStance[si], value, bp && bp.length === B ? bp : bandPrice, tmS, mCost);
+      const markupTarget = nashTargets(ch, parts.length ? parts : [{ w: 1, ch }], providers, offers[si], value, tmS, mCost);
       const target = ch.target;
       const tierW: number[][] = [];
       for (let i = 0; i < n; i++) {
@@ -1134,20 +1022,19 @@ function computeMix(s: GameStateV2): WorldMix {
       const wh = workHoursOf(st, t.id);
       const agentCeiling = agentCeilingOf(SECTORS[si], st.E0 * ECON.hours, wage, wh.adopted, wh.adopted * price, pCost, wh.supervising * kw, wh.supervising * kp, kw > 0 ? kb / kw : wage);
       if (agentCeiling.fill < 1) for (let i = 0; i < n; i++) agentK[i] *= agentCeiling.fill;
-      // MK-9 (M5): seat margin targets, the same rule on the seat market: M*_i = μ_seat ÷ (1 − s_i) ≤ SEATS.cap − c_i,
-      // s_i the seller's share of the seats here (seats split by the customer stock; open weights' are in-house), c_i its
-      // customers' seat serving cost, μ_seat = p̄_seat ÷ PRICE_ELASTICITY (the sector buyers' within-market elasticity, as
-      // μ_b), p̄_seat the share-weighted seat price with every seller at its target (iterated from today's going price).
+      // MK-9 (M5): seat margin targets on the seat market (seatTargets): M*_i = μ_seat ÷ (1 − s_i) with μ_seat = p_i ÷ ε
+      // (its own price; SEATS.elasticity), i.e. c_i ÷ (ε·(1 − s_i) − 1), ≤ SEATS.cap − c_i; s_i the seller's share of the
+      // seats here (seats split by the customer stock; open weights' are in-house), c_i its customers' seat serving cost.
       const seatPrice = sw > 0 ? sp / sw : SEATS.cap;
-      const seatMTarget = seatTargets(providers, offers[si], share, seatCost, tierW, lines, shm, rate, playerIdx, pStance[si], seatPrice);
+      const seatMTarget = seatTargets(providers, offers[si], share, seatCost);
       rowOut[t.id] = {
         share, target, fit, cover, prices, agentK, agentPrices, seatPrices, seatPrice, seatM: seatMi, seatMTarget, seatCost, agentCeiling, g: domRecord(gw),
         price, pCost, F, K: wsum > 0 ? K : 0,
         ...(playerIdx >= 0 && pCand[si] >= 0 ? { playerDep: cands[pCand[si]].dep.id } : {}),
         playerPrice: pp, priceFactor: playerIdx >= 0 && pp > 0 && px > 0 ? Math.min(1, Math.pow(pp / px, -PRICE_ELASTICITY)) : 1,
         tiers: { choice: ch, offers: lines, kind: kinds[si], price: tierPrice, weight: tierW }, playerTierW: tierWOut, playerProdW: prodWOut, byGroup,
-        markup: Mi, markupTarget, markupModels: midS, tierModel: tmS, bandPrice, playerLines,
-        rerun: { lineups, brand: brandPow, acc: accSec[ri], value, aTop: aTops[si], B, groups: groups[si], ...(muIn ? { muIn } : {}), tierDep: pTiers[si].map((x) => cands[x.c].dep.id) },
+        markup: Mi, markupTarget, markupModels: midS, tierModel: tmS, playerLines,
+        rerun: { lineups, brand: brandPow, acc: accSec[ri], value, aTop: aTops[si], B, groups: groups[si], muIn, tierDep: pTiers[si].map((x) => cands[x.c].dep.id) },
       };
     }
     sec[r] = rowOut;
@@ -1402,12 +1289,11 @@ export function advanceCustomers(s: GameStateV2, mix: WorldMix, dt = 1 / 365, se
 
 const sig6 = (x: number) => Number(x.toPrecision(6));
 /** MK-6 (M5), MK-6b: each closed seller's margin M per region, sector and model moves the fraction k toward its
- *  Nash–Bertrand target (fx.priceM; sellers and models that left drop out); the bands' average prices are kept for tomorrow's μ_b (fx.bandP). MK-9: the
- *  plan margins (fx.planM) and seat margins (fx.seatM) the same way. */
+ *  Nash–Bertrand target (fx.priceM; sellers and models that left drop out). MK-9: the plan margins (fx.planM) and
+ *  seat margins (fx.seatM) the same way. */
 function stepPrices(s: GameStateV2, mix: WorldMix, k: number) {
   const fx = s.world.fx;
   fx.priceM ??= { US: {}, CN: {}, ROW: {} };
-  fx.bandP ??= { US: {}, CN: {}, ROW: {} };
   fx.seatM ??= { US: {}, CN: {}, ROW: {} };
   // MK-9: plan margins (one per closed Chat seller) and seat margins (per region, sector and closed seller).
   const plan: Record<string, number> = {};
@@ -1418,7 +1304,6 @@ function stepPrices(s: GameStateV2, mix: WorldMix, k: number) {
   fx.planM = plan;
   for (const r of REGIONS) {
     const pm = (fx.priceM[r] ??= {});
-    const bp = (fx.bandP[r] ??= {});
     const sm = (fx.seatM[r] ??= {});
     for (const t of SECTOR_TASKS) {
       const m = mix.sec[r][t.id];
@@ -1434,7 +1319,6 @@ function stepPrices(s: GameStateV2, mix: WorldMix, k: number) {
         if (row) out[p.key] = row;
       });
       pm[t.id] = out;
-      bp[t.id] = m.bandPrice.map(sig6);
       const so: Record<string, number> = {};
       mix.providers.forEach((p, i) => {
         const x = m.seatMTarget[i];
@@ -1444,10 +1328,10 @@ function stepPrices(s: GameStateV2, mix: WorldMix, k: number) {
     }
   }
 }
-/** MK-6: a new game's prices at the market's fixed point: margins at their targets and band prices at the prices they
- *  give, iterated (the targets already solve the price level at given shares; the rounds settle the shares). Before
- *  initCustomerStocks, so the start's customers face these prices. */
-export function initPrices(s: GameStateV2, iters = 20, k = 0.5) {
+/** MK-6: a new game's prices at the market's fixed point: margins stepped toward their targets (the shares they give
+ *  move the targets; MK-6c: μ is cost-based, so 8 rounds at 0.6 settle it to ≈ 0.1–0.2%). Before initCustomerStocks, so
+ *  the start's customers face these prices. */
+export function initPrices(s: GameStateV2, iters = 8, k = 0.6) {
   for (let it = 0; it < iters; it++) stepPrices(s, computeMix(s), k);
 }
 
