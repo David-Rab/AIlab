@@ -556,13 +556,39 @@ await clearTips();
   }
 }
 await check('SAFETY › Risks: the safeguards link opens Safeguards', 'store.tab.safety || ""', () => page.click('[data-test=sfr-guards] [data-ref=safeguardsTab]'));
-ok('SAFETY › Safeguards: AI staff safeguards, footholds and policies', !!(await page.$('[data-home=staffSafeguards]')) && !!(await page.$('[data-home=footholds]')) && !!(await page.$('[data-home=safetyPolicy]')));
-ok('Safety: Trusted to AI and monitors link to Company (D4)', !!(await page.$('[data-home=safetyPolicy] [data-ref=trustedToAI]')) && !!(await page.$('[data-home=safetyPolicy] [data-ref=agentMonitor]')));
+// UB-C: Safeguards (deployments grid with the act-table stop rate, step by step, levers, framework card and its drawer).
+ok('SAFETY › Safeguards: deployments grid, step by step, levers and the framework card', !!(await page.$('[data-home=staffSafeguards] [data-dep]')) && !!(await page.$('[data-home=stopSteps]')) && !!(await page.$('[data-home=stopSteps] [data-test^="lever."]')) && !!(await page.$('[data-home=safetyFramework]#ctl-policy')));
+{
+  // The AI staff stop rate is the act table's (Risks) range, so the two screens agree.
+  const rng = await page.$eval('[data-test=staff-stop]', (e) => e.textContent ?? '').catch(() => '');
+  await tabTo('risks');
+  const stops = (await page.$$eval('[data-home=actTable] .sfr-tr:not(.hero) [data-col=stop]', (els) => els.map((e) => e.textContent ?? ''))).map((x) => parseInt(x, 10)).filter((x) => x > 0);
+  const staff = /AI staff work/.test(await page.$eval('[data-home=actTable]', (e) => e.innerText).catch(() => ''));
+  await tabTo('safeguards');
+  const rt = staff && stops.length ? [Math.min(...stops), Math.max(...stops)] : null;
+  ok('SAFETY › Safeguards: AI staff stop rate equals the act table range', !rt || (rng.includes(String(rt[0])) && rng.includes(String(rt[1]))), `${rng} vs ${JSON.stringify(rt)}`);
+}
+await page.click('[data-test=framework-edit]');
+await wait(150);
+ok('SAFETY › Safeguards: the framework drawer holds release evals and rule lines', !!(await page.$('[data-home=safetyPolicy] [data-act^="fw-depth."]')) && !!(await page.$('[data-home=safetyPolicy] [data-act^="fw-rule."]')));
+await page.click('[data-test=sf-drawer-close]');
+await wait(100);
 await tabTo('instruments');
-ok('SAFETY › Instruments: instruments, detection by level, the capability vs sight-limit history, validation', !!(await page.$('[data-home=techniques]')) && !!(await page.$('[data-home=detectionByLevel]')) && !!(await page.$('[data-test=race-chart]')) && !!(await page.$('[data-home=validation]')));
-await check('Instruments: tools list opens', 'document.querySelectorAll("[data-technique]").length', () => page.click('[data-test=tools-open]'));
+ok('SAFETY › Instruments: reliability grid, hidden goals you can read, validation, disagreements', !!(await page.$('[data-home=reliabilityGrid] [data-instrument]')) && !!(await page.$('[data-home=hiddenGoalReads]')) && !!(await page.$('[data-home=validation]')) && !!(await page.$('[data-home=disagreements]')));
+await page.click('[data-test=detection-open]');
+await wait(150);
+ok('SAFETY › Instruments: the detection grid drawer holds the grid and the sight-limit history', !!(await page.$('[data-home=detectionByLevel]')) && !!(await page.$('[data-test=race-chart]')));
+await page.click('[data-test=sf-drawer-close]');
+await page.click('[data-test=results-open]');
+await wait(150);
+ok('SAFETY › Instruments: the results drawer holds the results and the publish policy', !!(await page.$('[data-home=findings]')) && !!(await page.$('[data-act^="safety.publishPolicy"]')));
+await page.click('[data-test=sf-drawer-close]');
 await tabTo('model');
-ok('SAFETY › Model: 4 risk families, trait graph, successor steering', (await page.$$('[data-home=riskFamilies] [data-family]')).length === 4 && !!(await page.$('[data-test=traitgraph]')) && !!(await page.$('[data-home=successorPull]')));
+ok('SAFETY › Model: trait beliefs (4 families + other), in tests vs in real use, where beliefs come from', (await page.$$('[data-home=traitBeliefs] [data-family]')).length === 5 && (await page.$$('[data-home=traitBeliefs] [data-trait]')).length === 17 && !!(await page.$('[data-home=testGap]')) && !!(await page.$('[data-home=beliefSources]')));
+await page.click('[data-test="trait-open.SCHEME"]');
+await wait(150);
+ok('SAFETY › Model: a trait opens its evidence drawer with an Open case button', !!(await page.$('[data-home=traitEvidence] [data-act="trait-case"]')));
+await page.click('[data-test=sf-drawer-close]');
 // UB-9: safety programmes live on RESEARCH › Portfolio (UB-6); SAFETY has a link chip, no second copy.
 ok('SAFETY: no Programmes tab; a Safety programmes chip links to RESEARCH › Portfolio', !(await page.$('main.center [data-tabs=safety] [data-tab=lines]')) && !(await page.$('[data-home=researchLines]')) && !!(await page.$('.sf-tabs [data-ref=safetyProgrammes]')));
 await check('SAFETY: the Safety programmes chip opens RESEARCH › Portfolio', 'store.panel + "." + (store.tab.research || "")', () => page.click('.sf-tabs [data-ref=safetyProgrammes]'));
@@ -570,7 +596,8 @@ ok('SAFETY: the chip lands on the Portfolio safety column', !!(await page.$('[da
 await nav('safety');
 await tabTo('cases');
 await check('Investigations: open a case with 20 engineers', 'JSON.stringify(s.player.safety.investigations.filter((i) => !i.outcome).map((i) => i.fte))', async () => { await page.selectOption('[data-test=inv-trait]', 'SUCC'); await page.selectOption('[data-test=inv-fte]', '20'); await page.click('[data-panel=safety] [data-home=investigations] [data-act="safety.investigate"]'); });
-ok('Investigations: case card shows the 5–40 staffing and the 120-day close', JSON.parse(await get(`(() => { const c = document.querySelector('[data-case]'); return !!c && /5–40/.test(c.textContent) && /120 d max/.test(c.textContent); })()`)));
+ok('Investigations: the open case shows as a case card', !!(await page.$('[data-home=investigations] [data-case]')));
+ok('SAFETY › Incidents & cases: incident timeline and disclosure policy', !!(await page.$('[data-home=incidentTimeline]')) && !!(await page.$('[data-home=disclosure] [data-act^="disclosure."]')));
 for (const t of await tabsOf()) await check(`Safety tab ${t}`, 'store.tab.safety || ""', () => tabTo(t), 30).catch(() => {});
 await tabTo('risks');
 await nav('codex');
@@ -1062,11 +1089,14 @@ async function e11Check(where, plant = false) {
     await page.click('[data-act="control-add"]');
     await wait(150);
     const onNow = JSON.parse(await get('s.player.deployments.some((d) => d.channel === "internal" && d.status === "live" && (d.guards || []).some((g) => g.kind === "control"))'));
+    // UB-C: once on, the control cell opens the control protocol drawer, which holds Remove.
+    if (await page.$("[data-test=control-edit]")) { await page.click("[data-test=control-edit]"); await wait(150); }
     const btn = await page.$('[data-act="control-remove"]');
     let rtip = '';
-    if (btn) { await page.hover('[data-act="control-remove"]'); await wait(350); rtip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? ''); await clearTips(); await page.click('[data-act="control-remove"]'); await wait(150); }
+    if (btn) { await page.hover('[data-act="control-remove"]'); await wait(350); rtip = await page.evaluate(() => document.querySelector('.tip')?.innerText ?? ''); await clearTips(); if (!(await page.$('[data-act="control-remove"]'))) { await page.click('[data-test=control-edit]'); await wait(150); } await page.click('[data-act="control-remove"]'); await wait(150); }
     const offNow = JSON.parse(await get('!s.player.deployments.some((d) => d.channel === "internal" && (d.guards || []).some((g) => g.kind === "control"))'));
-    ok(`F6 ${where}: Remove control sits next to Add control, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /slowdown ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
+    ok(`F6 ${where}: Remove control sits in the control protocol drawer, previews the tax saved and the believed danger, and turns the layer off`, onNow && !!btn && /slowdown ends/.test(rtip) && /harmful acts/.test(rtip) && offNow && !!(await page.$('[data-act="control-add"]')), rtip.replace(/\s+/g, ' ').slice(0, 200));
+    if (await page.$("[data-test=sf-drawer-close]")) await page.click("[data-test=sf-drawer-close]");
   }
   await clearTips();
   await tabTo('safeguards');
@@ -1312,42 +1342,26 @@ async function d4Check(where, act, stepOk = true) {
   await shot(`d4-${tag}-data`);
 }
 // ── E12 (model v3): trait families with traits one level down, training pressure per run, successor pull ──
-const E12_TERMS = ['traitBehaviour', 'traitAwareness', 'traitDisposition', 'traitProtective', 'trainingPressure', 'traitMovement', 'successorPull', 'aiRdShare', 'rdOversight'];
+// UB-C: the trait-meaning kinds and the successor card left SAFETY › Model (mockup saf-model.png); their terms stay in the glossary.
+const E12_TERMS = ['trainingPressure', 'traitMovement', 'successorPull'];
 const e12Seen = new Set();
 const collectTerms = async () => { for (const t of await page.$$eval('[data-term]', (els) => els.map((e) => e.getAttribute('data-term')))) e12Seen.add(t); };
 async function e12Check(where) {
   const tag = where.replace(' ', '');
   await page.evaluate(() => { window.ai27v2.setTab('safety', 'model'); });
   await nav('safety');
-  // 1. Families on top; the traits only one level down (closed at first), each with its meaning.
-  const fams = await page.$$eval('[data-home=riskFamilies] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
-  const closed = await page.$$eval('[data-home=riskFamilies] [data-trait]', (els) => els.length);
-  ok(`E12 ${where}: Safety shows the four risk families with no trait rows until opened`, fams.join(',') === 'please,gaming,deception,power' && closed === 0, `${fams.join(',')} · ${closed} trait rows`);
-  let rows = 0;
-  let meant = 0;
-  for (const f of [...fams, 'other']) {
-    await page.click(`[data-test="fam-open.${f}"]`);
-    await wait(60);
-    const tr = await page.$$eval(`[data-test="fam-traits.${f}"] [data-trait]`, (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), m: e.querySelector('.sf-mean')?.textContent ?? '', v: e.querySelector('.num')?.textContent ?? '' })));
-    rows += tr.length;
-    meant += tr.filter((x) => /^(behaviour|awareness|disposition|protective)$/.test(x.m) && /\d+(\.\d)?% \(\d+(\.\d)?%–\d+(\.\d)?%\)/.test(x.v)).length;
-    await collectTerms();
-    if (f === 'deception') { await page.mouse.move(1, 1); await shot(`e12-${tag}-families`); }
-  }
-  await page.click('[data-test="fam-open.other"]');
-  ok(`E12 ${where}: each family opens to its traits (17 in all), each with its meaning and believed estimate ± sd`, rows === 17 && meant === 17, `${rows} rows, ${meant} with meaning and band`);
-  // 3. Successor pull: the numbers shown equal the (belief-based) selector. F6b: one click down (the side switch).
-  ok(`UB-9 ${where}: SAFETY › Model shows the risk families and the successor pull side by side`, !!(await page.$('[data-home=successorPull]')) && !!(await page.$('[data-home=riskFamilies]')));
-  const sp = JSON.parse(await page.evaluate(() => JSON.stringify(window.ai27v2.probe.successorPullView())));
-  const om = (await page.$eval('[data-test=succ-omega]', (e) => e.textContent ?? '').catch(() => '')).match(/\d+\.\d%/)?.[0];
-  const r = Number((await page.$eval('[data-test=succ-r]', (e) => e.textContent ?? '').catch(() => '')).replace('%', ''));
-  const parts = await page.$$eval('[data-test=succ-part]', (els) => els.map((e) => ({ slot: e.getAttribute('data-slot'), sh: e.querySelector('[data-test=succ-part-share]')?.textContent ?? '', om: e.querySelector('[data-test=succ-part-omega]')?.textContent ?? '' })));
-  const partsOk = parts.length === sp.parts.length && sp.parts.every((p, i) => parts[i].slot === p.slot && Math.abs(Number(parts[i].sh.replace('%', '')) - p.share * 100) <= 0.5 && parts[i].om === `${(p.omega * 100).toFixed(1)}%`);
-  ok(`E12 ${where}: successor pull shown (ω, AI share of R&D, per work type) equals successorPullView`, om === `${(sp.omega * 100).toFixed(1)}%` && Math.abs(r - sp.r * 100) <= 0.5 && partsOk,
-    `ω ${om} vs ${sp.omega.toFixed(3)} · r ${r}% vs ${(sp.r * 100).toFixed(1)} · ${parts.map((p) => `${p.slot} ${p.sh} ${p.om}`).join(' ')}`);
-  const sTip = await tipText('[data-test=succ-omega]');
-  ok(`E12 ${where}: the successor pull tooltip gives its band and says it is estimated from beliefs`, /Range/.test(sTip) && /beliefs/.test(sTip), sTip.replace(/\n/g, ' ').slice(0, 160));
+  // UB-C: the trait table shows the four families and every trait with its belief (best guess and 90% range, or Unknown).
+  await wait(120);
+  const fams = await page.$$eval('[data-home=traitBeliefs] [data-family]', (els) => els.map((e) => e.getAttribute('data-family')));
+  ok(`E12 ${where}: Safety › Model shows the four risk families (and other traits)`, fams.join(',') === 'please,gaming,deception,power,other', fams.join(','));
+  const tr = await page.$$eval('[data-home=traitBeliefs] [data-trait]', (els) => els.map((e) => ({ t: e.getAttribute('data-trait'), v: e.querySelector('.sf-rv')?.textContent ?? '' })));
+  const okRows = tr.filter((x) => /^(Unknown \d+–\d+%|\d+% \d+–\d+%)$/.test(x.v.trim())).length;
+  ok(`E12 ${where}: every trait (17) shows its best guess and range or Unknown`, tr.length === 17 && okRows === 17, `${tr.length} rows, ${okRows} read; ${tr.slice(0, 3).map((x) => x.v).join(' | ')}`);
+  await page.mouse.move(1, 1);
+  await shot(`e12-${tag}-families`);
   await collectTerms();
+  await clearTips();
+  await shot(`e12-${tag}-safety`);  await collectTerms();
   await clearTips();
   await shot(`e12-${tag}-safety`);
   // 2. Training pressure of the planned run (Blueprint): signal rows with causes, families pushed, ω, successor link.
@@ -1374,11 +1388,11 @@ async function e12Check(where) {
     await shot(`e12-${tag}-blueprint-${k}`);
   }
   const succ = await page.$eval('[data-test=bp-succ]', (e) => e.textContent ?? '').catch(() => '');
-  ok(`E12 ${where}: Training links the successor pull to its home on Safety`, /Successor steering from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
+  ok(`E12 ${where}: Training links the successor pull to Safety`, /Successor steering from/.test(succ) && !!(await page.$('[data-test=bp-succ] [data-ref=successorPull]')), succ);
   if (where === 'day 400') {
     await page.click('[data-test=bp-succ] [data-ref=successorPull]');
     await wait(150);
-    ok('F6b: the Blueprint successor link opens Safety on the successor pull card', !!(await page.$('[data-home=successorPull]')));
+    ok('F6b: the Training successor link opens SAFETY › Risks (successor steering is an act row there)', !!(await page.$('[data-home=actTable]')));
   }
   await collectTerms();
   // Model card: what the finished run applied, one click down.

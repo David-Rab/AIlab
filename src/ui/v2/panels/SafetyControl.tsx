@@ -1,66 +1,17 @@
-// Model v3 E11 / UB-9: SAFETY › Safeguards' AI staff safeguards card (what stops acts against the lab, the control
-// layer with its Slowdown) and the footholds card (HOME of every foothold the lab knows of: symptoms of suspected ones with
-// where a case could look, located ones with the remove response, removed ones as history). Reads controlReadout and
-// footholdView only: believed control, never the true level or the world's tolerance; never a hidden foothold.
+// Model v3 E11 / UB-9 / UB-C: SAFETY › Safeguards' footholds card (HOME of every foothold the lab knows of: symptoms of
+// suspected ones with where a case could look, located ones with the remove response, removed ones as history) and the
+// framework package button. The AI staff safeguards themselves live in SafetySafeguards.tsx (UB-C). Reads footholdView
+// only: never a hidden foothold.
 import { PACKAGE_LABEL, packageMeets } from '../../../engine/v2/safety/packages';
-import { LOCKDOWN_SLOWDOWN, controlOn, lockdownOn } from '../../../engine/v2/safety/safeguards';
-import { useMemo, type ReactNode } from 'react';
-import { believedInternalOversight, controlReadout, dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
-import { CONTROL } from '../../../data/v2/danger';
+import { dateOf, fmtDate, footholdView, versionById } from '../../../engine/v2';
 import type { FootholdRow, GameStateV2 } from '../../../engine/v2';
 import { TRAIT_BY_ID } from '../../../data/v2/traits';
-import { safetyModel } from '../safetyRule';
 import { ActBtn, Term, Tip, TipCard } from '../ui';
-import { Card, HBar, Ref } from '../kit';
+import { Card, Ref } from '../kit';
 import * as F from '../fmt';
 import { FOOTHOLD_ICON, ICON } from '../icons';
-import { C } from '../theme';
 
 const AGENTS = { panel: 'lab', tab: 'work', anchor: 'agents' } as const;
-
-/** UB-9: SAFETY › Safeguards on AI staff work: what stops acts against the lab (blocked, caught by monitors, caught by
- *  human review, watcher gap) and the control layer with its Slowdown. Loss-of-control risk and its parts live in the
- *  SAFETY header (one home); this card holds the safeguards only. */
-export function ControlCard({ s }: { s: GameStateV2 }) {
-  const c = useMemo(() => controlReadout(s), [s, s.time.day, s.player.deployments.some((d) => d.channel === 'internal' && controlOn(d))]);
-  const id = c.risk?.versionId ?? c.versionId;
-  const ov = useMemo(() => { const v = id ? safetyModel(s, id) : undefined; return v ? believedInternalOversight(s, v, CONTROL.trait) : undefined; }, [s, s.time.day, id, c.layer]);
-  const selfWatch = !!c.monitorName?.startsWith('copy of');
-  const gapText = c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? 'watching itself' : `watcher ${F.num(c.monitorGapL ?? 0, 1)} levels below`;
-  const part = (k: string, label: ReactNode, v: number, test: string) => (
-    <Tip key={k} as="div" content={() => <TipCard title={label} value={F.pct(v)}>Share of attempts at acts against the lab this safeguard stops on its own; together they make the Stop rate of the Acts against the lab row in Risks.</TipCard>}>
-      <div className="sf-drv" data-test={test}><span className="k">{label}</span><HBar v={v} max={1} w={90} color={C.und} /><span className="num">{F.pct(v)}</span></div>
-    </Tip>
-  );
-  return (
-    <Card title={<span className="row-i"><ICON.control size={14} />AI staff safeguards</span>} home="staffSafeguards" id="ctl-control" className="sf-ctl"
-      sub={<>{c.risk?.name ?? c.name ?? 'no model'} · stops acts against the lab</>}
-      right={<Ref id="lossRisk" to={{ panel: 'safety', tab: 'risks' }}>Stop rate in Risks</Ref>}>
-      <div className="sf-ctl-drv">
-        {ov && part('block', <Term id="controlLayer">Blocked by control protocols</Term>, ov.block, 'control-block')}
-        {ov && part('mon', <Term id="agentMonitor">Caught by monitors</Term>, ov.monitor, 'control-monitor')}
-        {ov && part('human', <Term id="humanGap">Caught by human review</Term>, ov.human, 'control-human')}
-        <div className="small dim" data-test="control-gap"><Term id="oversightGap">Watcher</Term>: {c.monitorGapOom === undefined ? 'no monitor' : selfWatch ? <>watching itself: <Term id="collusion">{c.monitorName}</Term></> : `${c.monitorName} · ${gapText}`} · {c.humanGapOom > 0 ? 'past expert human reviewers: they miss more' : 'below best human'}</div>
-      </div>
-      <div className="sf-ctl-layer">
-        <Tip content={() => <TipCard title={<Term id="controlLayer">Control protocol</Term>} value={c.layer ? 'on' : 'off'} rows={[
-          { label: <Term id="controlTax">Slowdown</Term>, value: `−${F.pct(c.tax)} AI staff work (largest job)${c.layer ? '' : ' if on'}` },
-          { label: <Term id="unstoppedHarm">Unstopped harm</Term>, value: `×${F.num(c.missMult, 2)}${c.layer ? '' : ' if on'}` },
-        ]} footer="Slowdown per job: Lab › AI staff & needs.">Blocks risky actions and sends the most suspicious 10% to a trusted monitor. Removing it ends the slowdown and the protection.</TipCard>}>
-          <span className="row-i" data-test="control-layer"><ICON.wsl size={13} /><Term id="controlLayer">Control protocol</Term> <b>{c.layer ? 'on' : 'off'}</b> <span className="dim small">· <Term id="controlTax">slowdown</Term> −{F.pct(c.tax)}{c.layer ? '' : ' if on'}</span></span>
-        </Tip>
-        <span className="sp" />
-        {!c.layer && c.versionId && <ActBtn id="safety.respond" testId="control-add" params={{ kind: 'addControl', versionId: c.versionId }} label="Add control protocol" />}
-        {c.layer && c.layerVersionId && <ActBtn id="safety.respond" testId="control-remove" params={{ kind: 'removeControl', versionId: c.layerVersionId }} label="Remove control protocol" />}
-        {c.versionId && s.player.safety.techniques['T-LOCK']?.unlocked && (lockdownOn(s)
-          ? <ActBtn id="safety.respond" testId="lockdown-remove" params={{ kind: 'removeLockdown', versionId: c.versionId }} label="Remove lockdown" />
-          : <ActBtn id="safety.respond" testId="lockdown-add" params={{ kind: 'addLockdown', versionId: c.versionId }} label={`Add comms lockdown (−${Math.round(LOCKDOWN_SLOWDOWN * 100)}% work)`} />)}
-        {(() => { const d = s.player.deployments.find((x) => x.channel === 'internal' && x.status === 'live'); return d ? <PackageRow s={s} depId={d.id} testId="internal-package" /> : null; })()}
-        <Ref id="controlTax" to={AGENTS}>Slowdown per job</Ref>
-      </div>
-    </Card>
-  );
-}
 
 const fmtSize = (r: FootholdRow) => {
   if (r.size === undefined) return '—';

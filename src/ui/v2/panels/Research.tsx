@@ -296,7 +296,7 @@ export function Research({ s }: { s: GameStateV2 }) {
     <div className="panel-v2 rs-panel" data-panel="research">
       <PanelHead icon={ICON.research} title="Research" tabs={<Tabs panel="research" def="projects" tabs={[{ id: 'projects', label: 'Portfolio', icon: ICON.experiments }, { id: 'tree', label: 'Discoveries', icon: ICON.split }, { id: 'knowhow', label: 'Know-how', icon: Layers }]} />}
         right={tab === 'projects' ? <AddProject s={s} />
-          : tab === 'knowhow' ? <span className="row-i"><button className="ref-chip" data-ref="labTools" onClick={() => store.goto('research', { tab: 'knowhow', anchor: 'labTools' })}><Wrench size={12} /> Lab tools</button><Ref id="publishPolicy" to={{ panel: 'safety', tab: 'safeguards', anchor: 'policy' }}>Publish policy</Ref></span>
+          : tab === 'knowhow' ? <span className="row-i"><button className="ref-chip" data-ref="labTools" onClick={() => store.goto('research', { tab: 'knowhow', anchor: 'labTools' })}><Wrench size={12} /> Lab tools</button><Ref id="publishPolicy" to={{ panel: 'safety', tab: 'instruments', anchor: 'findings' }}>Publish policy</Ref></span>
           : <TreeTools />} />
       {tab === 'projects' && <Portfolio s={s} />}
       {tab === 'knowhow' && <KnowHow s={s} />}

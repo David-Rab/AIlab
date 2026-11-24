@@ -671,7 +671,7 @@ function Pushes({ s, cur, pr, open, setOpen }: { s: GameStateV2; cur: Eval; pr?:
             { label: <Term id="aiRdShare">AI share of R&D</Term>, value: F.pct(sp.r) },
             ...sp.parts.map((x) => ({ label: <>{versionById(s, x.versionId)?.name ?? x.versionId} on {x.slot === 'SWE' ? 'software' : x.slot === 'EXP' ? 'experiments' : 'research ideas'}</>, value: `${F.pct(x.share)} · ${F.pct(x.oversight)} stopped` })),
           ]}>When this run finishes, its new model&apos;s traits move toward those of the models doing your research, more the more of it they do unwatched.</TipCard>}>
-            <div className="bp-succ small row-i" data-test="bp-succ"><ICON.agents size={12} /><span><Term id="successorPull">Successor steering</Term> from {pullers.length ? pullers.join(', ') : 'no AI model'}</span><span className="sp" /><Ref id="successorPull" to={{ panel: 'safety', tab: 'model', anchor: 'successorPull' }}>Safety</Ref></div>
+            <div className="bp-succ small row-i" data-test="bp-succ"><ICON.agents size={12} /><span><Term id="successorPull">Successor steering</Term> from {pullers.length ? pullers.join(', ') : 'no AI model'}</span><span className="sp" /><Ref id="successorPull" to={{ panel: 'safety', tab: 'risks' }}>Safety</Ref></div>
           </Tip>
         </div>
       )}
