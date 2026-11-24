@@ -1,36 +1,33 @@
-// Models › Suites (model v3 D6; design/notes/D6.md): the lab's RL environment suites, one row per family.
-// Home of each suite's fidelity, exploitability, expert data, RL share on the planned run, pending work and the S2 of the
-// planned run. L1: the planned run (focus pills, S2 bar split by family) and the suite rows (fidelity and exploitability
-// bars with their marks). L2: build and harden buttons with cost and the after value inline. L3: tooltips (the work's
-// cost, the suite's before → after, the planned run's ΔG per domain and S2 before → after, builds/hardenings done).
-// The Blueprint's post-train card shows only the run's weighted summary and links here; the RL ceiling stack lives on
-// Research › Recipe and the engineers' load on Lab › AI staff & needs (links only).
-import { useMemo } from 'react';
-import { Dumbbell, Hammer, Lock, ShieldCheck, type LucideIcon } from 'lucide-react';
+// TRAINING › Environments (UB-B; approved mockup design/ux/mockups/rd/train-env.png; DATA-b.md).
+// HOME of each family's realism, loopholes, share of the next run's hacking pressure, its Harden / Expand work (cost,
+// days, after value; pending work with its ETA), and the next run's hacking pressure (Low / Medium / High), what makes
+// it and the ways to lower it. The next run's design (focus, budget) is set on Next run; this tab reads it (the plan
+// Next run handed over, else a broad Standard post-training of the latest base).
+import { useMemo, type ReactNode } from 'react';
+import { AlertTriangle, ChevronRight, Dumbbell, Hammer, Lock, Maximize2, ShieldCheck, type LucideIcon } from 'lucide-react';
 import {
-  dateOf, exploitFloor, optionLocked, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, suitePending, suitePlanEffect, suiteS2Parts, suitesView,
-  suiteWorkPreview, unbuiltSuites, demosAvailable,
+  dateOf, demosAvailable, engAllocView, exploitFloor, plannedPressure, familyDomain, fmtDate, lockedSuiteFamilies, nodeStatus, postFromParams, pressureLevel, suitePending,
+  suitePlanEffect, suiteS2Parts, suitesView, suiteWorkPreview, unbuiltSuites,
 } from '../../../engine/v2';
 import type { GameStateV2, LaunchRunParams, PostDesign, RLFamily, SuiteRow, SuiteWorkPreview } from '../../../engine/v2';
 import { RL_FAMILY_LABEL } from '../../../data/v2/suites';
 import { TREE_BY_ID } from '../../../data/v2/tree';
 import { store } from '../store';
-import { Meter, Term, Tip, TipCard, type Params } from '../ui';
-import { Card, effX, Ref } from '../kit';
+import { Term, Tip, TipCard, type Params } from '../ui';
+import { Card } from '../kit';
 import * as F from '../fmt';
 import { DOMAIN_ICON } from '../icons';
-import { C } from '../theme';
 import './suites.css';
 
-/** store.tab key of the planned run (the Blueprint's post-train params, JSON) and the fields kept. */
+/** store.tab key of the planned run (Next run's post-training params, JSON) and the fields kept. */
 export const PLAN_KEY = 'models.plan';
 const PLAN_FIELDS = ['baseId', 'rlFocus', 'rlBudget', 'pref', 'cot', 'safety', 'methods'] as const;
-const DOMS = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'] as const;
-/** Width of the S2 bar (px, suites.css .sx-s2bar): a segment is labelled when its family name fits. */
-const S2_BAR_PX = 400;
 const BUDGET_LABEL: Record<string, string> = { light: 'Light', standard: 'Standard', heavy: 'Heavy' };
+/** Realism shown as % of the standard (1 = 100%); bars run to the 1.5 ceiling. */
+const FID_MAX = 1.5;
+const LOOP_MAX = 0.25;
 
-/** Open Training › Environments; with `p` (the Blueprint's post-train params) as the planned run. */
+/** Open Training › Environments; with `p` (Next run's post-training params) as the planned run. */
 export function openSuites(p?: Params) {
   if (p) store.setTab(PLAN_KEY, JSON.stringify(Object.fromEntries(PLAN_FIELDS.filter((k) => p[k] !== undefined).map((k) => [k, p[k]]))));
   store.goto('blueprint', { tab: 'suites' });
@@ -42,12 +39,8 @@ function readPlan(): { p: Params; fromBp: boolean } {
   } catch { /* fall through */ }
   return { p: { rlFocus: 'broad' }, fromBp: false };
 }
-const setFocus = (p: Params, focus: string) => store.setTab(PLAN_KEY, JSON.stringify({ ...p, rlFocus: focus }));
-
-const fid = (x: number) => `×${x.toFixed(2)}`;
-/** Expert data (T tokens): 2.0B, 1.2T. */
-const tok = (t: number) => (t >= 1 ? `${t.toFixed(1)}T` : `${+(t * 1000).toFixed(t >= 0.1 ? 0 : 1)}B`);
 const famIcon = (f: RLFamily): LucideIcon => DOMAIN_ICON[familyDomain(f)] ?? Dumbbell;
+const pc1 = (x: number) => F.pct(x, x < 0.1 ? 1 : 0);
 
 interface Plan { lp: LaunchRunParams; post: PostDesign; p: Params; fromBp: boolean; baseName?: string }
 function planOf(s: GameStateV2): Plan {
@@ -57,6 +50,7 @@ function planOf(s: GameStateV2): Plan {
   const post = postFromParams(p);
   return { lp: { kind: 'post', baseId: base?.id ?? '', post }, post, p, fromBp, baseName: base?.name };
 }
+type Pv = { build: SuiteWorkPreview; harden: SuiteWorkPreview; demos?: SuiteWorkPreview };
 
 export function Suites({ s }: { s: GameStateV2 }) {
   const plan = planOf(s);
@@ -67,182 +61,121 @@ export function Suites({ s }: { s: GameStateV2 }) {
     const pv = Object.fromEntries(view.rows.map((r) => [r.family, {
       build: suiteWorkPreview(s, r.family, 'build', plan.lp, before), harden: suiteWorkPreview(s, r.family, 'harden', plan.lp, before),
       ...(demosAvailable(s, r.family) ? { demos: suiteWorkPreview(s, r.family, 'build', plan.lp, before, true) } : {}),
-    }])) as Record<RLFamily, { build: SuiteWorkPreview; harden: SuiteWorkPreview; demos?: SuiteWorkPreview }>;
-    return { view, before, pv, s2: suiteS2Parts(s, plan.post), locked: lockedSuiteFamilies(s), unbuilt: unbuiltSuites(s, plan.lp, before) };
+    }])) as Record<RLFamily, Pv>;
+    const eng = engAllocView(s);
+    // The planned run's hacking pressure as Next run shows it (its RL compute against the base sets the pressure).
+    const s2Of = (post: PostDesign) => { try { return plannedPressure(s, { ...plan.lp, post })?.rows.find((r) => r.id === 'S2')?.value; } catch { return undefined; } };
+    return {
+      view, pv, s2: suiteS2Parts(s, plan.post), planned: s2Of(plan.post), light: s2Of({ ...plan.post, rlBudget: 'light' }) ?? suiteS2Parts(s, { ...plan.post, rlBudget: 'light' }).total,
+      locked: lockedSuiteFamilies(s), unbuilt: unbuiltSuites(s, plan.lp, before), spare: eng.cap > 0 ? eng.idle / eng.cap : 0,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  const sum = d.s2.rows.reduce((a, r) => a + r.s2, 0);
+  const partOf = (f: RLFamily) => (sum > 0 ? (d.s2.rows.find((r) => r.family === f)?.s2 ?? 0) / sum : 0);
+  const n = d.view.rows.filter((r) => r.share > 0).length;
   return (
     <div className="sx" data-test="suites">
-      <PlanCard s={s} plan={plan} rows={d.view.rows} s2={d.s2} reason={d.before.reason} />
-      <Card title={<span className="row-i"><Dumbbell size={15} /><Term id="envSuite">Environments</Term></span>} home="suites" className="sx-card"
-        sub={<>{d.view.rows.length} families</>}
-        right={<span className="row-i"><Ref id="rlCeiling" to={{ panel: 'research', tab: 'knowhow' }}>Post-training ceiling</Ref><Ref id="buildCapacity" to={{ panel: 'lab', tab: 'work' }}>Engineers</Ref></span>}>
+      <Card className="sx-card" home="suites" title={<span className="row-i"><Dumbbell size={15} /><Term id="envSuite">Environments</Term>&nbsp;by family</span>} sub="tasks and graders your models practise on in post-training">
         <div className="sx-grid">
           <span className="ch">Family</span>
-          <span className="ch"><Term id="suiteFidelity">Realism</Term></span>
+          <span className="ch"><Term id="suiteFidelity">Realism</Term> <span className="lc">· tick = standard</span></span>
           <span className="ch"><Term id="suiteExploit">Loopholes</Term></span>
-          <span className="ch r"><Term id="expertData">Expert data</Term></span>
-          <span className="ch r"><Term id="suiteRlShare">Post-training share</Term></span>
-          <span className="ch"><Term id="suiteBuild">Expand</Term></span>
-          <span className="ch"><Term id="suiteHarden">Harden</Term></span>
-          {d.view.rows.map((r) => <SuiteLine key={r.family} s={s} r={r} pv={d.pv[r.family]} />)}
+          <span className="ch"><Term id="rewardHackPressure">Share of pressure</Term></span>
+          <span className="ch"><Term id="buildCapacity">Work</Term> <span className="lc">· engineers {F.pct(d.spare)} spare</span></span>
+          {[...d.view.rows].sort((a, b) => partOf(b.family) - partOf(a.family) || b.share - a.share).map((r) => <SuiteLine key={r.family} s={s} r={r} pv={d.pv[r.family]} part={partOf(r.family)} n={n} />)}
           {d.unbuilt.map((u) => <UnbuiltLine key={u.family} s={s} family={u.family} pv={u.build} />)}
           {d.locked.map((l) => <LockedLine key={l.family} s={s} family={l.family} node={l.node} />)}
         </div>
-        <div className="sx-chain" data-test="suites-chain">
-          <span><Hammer size={12} /><Term id="suiteBuild">Expand</Term><span className="arr">→</span><Term id="expertData">expert data</Term><span className="arr">→</span><Term id="suiteFidelity">realism</Term><span className="arr">→</span>the family&apos;s <Term id="rlCeiling">post-training ceiling</Term><span className="arr">→</span>skill from later runs</span>
-          <span><ShieldCheck size={12} /><Term id="suiteHarden">Harden</Term><span className="arr">→</span><Term id="suiteExploit">loopholes</Term><span className="arr">→</span><Term id="rewardHackPressure">hacking pressure</Term><span className="arr">→</span><Term id="riskFamily">gaming traits</Term></span>
-        </div>
       </Card>
+      <PressureCard s={s} plan={plan} s2={d.s2} planned={d.planned} light={d.light} rows={d.view.rows} pv={d.pv} />
     </div>
-  );
-}
-
-// ───────── planned run (L1: focus, S2 split by family) ─────────
-function PlanCard({ s, plan, rows, s2, reason }: { s: GameStateV2; plan: Plan; rows: SuiteRow[]; s2: ReturnType<typeof suiteS2Parts>; reason?: string }) {
-  const focus = plan.post.rlFocus === 'broad' ? 'broad' : plan.post.rlFocus.join(',');
-  const pills: { v: string; label: string }[] = [{ v: 'broad', label: 'Broad' }, ...rows.filter((r) => !optionLocked(s, 'rlFocus', r.family)).map((r) => ({ v: r.family, label: r.label }))];
-  if (focus !== 'broad' && !pills.some((x) => x.v === focus)) pills.push({ v: focus, label: focus.split(',').map((f) => RL_FAMILY_LABEL[f as RLFamily] ?? f).join(' + ') });
-  const parts = [...s2.rows].filter((r) => r.s2 > 1e-6).sort((a, b) => b.s2 - a.s2);
-  const s2Tip = () => (
-    <TipCard title={<Term id="rewardHackPressure">Hacking pressure</Term>} value={s2.total.toFixed(2)} rows={[
-      ...parts.map((r) => ({ label: `${RL_FAMILY_LABEL[r.family]}: ${F.pct(r.share)} of post-training, ${F.pct(r.exploit, 1)} loopholes`, value: `+${r.s2.toFixed(3)}` })),
-      { label: <><Term id="rlBudget">Post-training budget</Term> ({BUDGET_LABEL[plan.post.rlBudget]})</>, value: `×${s2.pressure.toFixed(1)}` },
-      ...(s2.p11 > 0 ? [{ label: 'Automated research', value: `+${s2.p11.toFixed(1)}` }] : []),
-    ]} footer="0 (none) to 1 (strongest); it pushes the gaming traits. Harden the environments with the biggest segment first.">
-      Each family adds more the more post-training it gets and the more loopholes its graders have.
-    </TipCard>
-  );
-  return (
-    <Card title={<Term id="plannedRun">Next run</Term>} home="suitePlan" className="sx-plan"
-      sub={<>{plan.baseName ?? 'no base model'} · <Term id="postTrain">post-training</Term> · <Term id="rlBudget">{BUDGET_LABEL[plan.post.rlBudget] ?? plan.post.rlBudget} budget</Term>{plan.fromBp ? ' · from Next run' : ' · standard design'}</>}
-      right={<button className="btn btn-sm" data-go="blueprint" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run ›</button>}>
-      <div className="sx-plan-body">
-        <div className="sx-focus">
-          <span className="tip-cap"><Term id="rlFocus">Focus</Term></span>
-          <span className="seg" data-test="suites-focus">
-            {pills.map((x) => <button key={x.v} className={`seg-btn ${focus === x.v ? 'active' : ''}`} data-focus={x.v} onClick={() => setFocus(plan.p, x.v)}>{x.label}</button>)}
-          </span>
-          {reason && <span className="small tone-warn">{reason}</span>}
-        </div>
-        <Tip as="div" content={s2Tip}>
-          <div className="sx-s2" data-test="suites-s2">
-            <span className="tip-cap"><Term id="rewardHackPressure">Hacking pressure</Term></span>
-            <b className="num">{s2.total.toFixed(2)}</b>
-            <span className="sx-s2bar">
-              {parts.map((r, i) => <i key={r.family} style={{ width: `${Math.min(100, r.s2 * 100)}%`, background: C.bad, opacity: 1 - Math.min(0.6, i * 0.14) }}>{r.s2 * S2_BAR_PX >= 46 ? RL_FAMILY_LABEL[r.family] : ''}</i>)}
-              {s2.p11 > 0 && <i style={{ width: `${s2.p11 * 100}%`, background: C.watch }}>AI research</i>}
-            </span>
-            <span className="small dim">max 1</span>
-          </div>
-        </Tip>
-      </div>
-    </Card>
   );
 }
 
 // ───────── one family ─────────
-function SuiteLine({ s, r, pv }: { s: GameStateV2; r: SuiteRow; pv: { build: SuiteWorkPreview; harden: SuiteWorkPreview; demos?: SuiteWorkPreview } }) {
+function SuiteLine({ s, r, pv, part, n }: { s: GameStateV2; r: SuiteRow; pv: Pv; part: number; n: number }) {
   const I = famIcon(r.family);
   const floor = exploitFloor(r.family);
   const pend = suitePending(s, r.family);
-  const xMax = 0.5;
+  const used = r.share > 0;
   return (
     <div className="sx-line" data-suite={r.family}>
-      <span className="sx-fam"><I size={14} /><b>{r.label}</b></span>
-      <Tip content={() => <TipCard title={<Term id="suiteFidelity">Realism</Term>} value={fid(r.fid)} rows={[
-        { label: 'Live tasks', value: F.count(r.tasks) },
-        { label: 'Grader quality', value: `×${r.grader.toFixed(2)}` },
-        { label: 'Builds done', value: String(r.builds) },
-        { label: 'Next build', value: `${fid(pv.build.effect.fid[0])} → ${fid(pv.build.effect.fid[1])}` },
-      ]} footer="Grows with live tasks and grader quality; 1 at the start, never above 1.5. Without upkeep tasks go stale (half in 6 months).">How much of the post-training ceiling this family&apos;s environments let a model reach.</TipCard>}>
-        <span className="sx-bar" data-test="suite-fid"><Meter value={r.fid - 0.5} max={1} marker={0.5} color={C.good} width={96} /><b className="num">{fid(r.fid)}</b></span>
+      <span className="sx-fam"><span className="sx-ic"><I size={16} /></span><span><b>{r.label}</b>
+        <Tip content={() => <TipCard title={<Term id="suiteRlShare">Share of the next run</Term>} value={F.pct(r.share)}>Share of the next run&apos;s post-training spent in these environments.</TipCard>}>
+          <span className={`small ${used ? 'tone-pos' : 'dim'}`} data-test="suite-share">{used ? `✓ in next run · ${n > 0 && Math.abs(r.share - 1 / n) < 0.01 ? `1/${n}` : F.pct(r.share)}` : 'not in next run'}</span>
+        </Tip></span></span>
+      <Tip content={() => <TipCard title={<Term id="suiteFidelity">Realism</Term>} value={F.pct(r.fid)} rows={[
+        { label: 'Live tasks', value: F.count(r.tasks) }, { label: 'Grader quality', value: `×${r.grader.toFixed(2)}` }, { label: 'Builds done', value: String(r.builds) },
+        { label: <Term id="expertData">Expert data</Term>, value: `${F.num(r.expertT * 1000, r.expertT < 0.01 ? 1 : 0)}B tokens` },
+      ]} footer="100% is the standard; at most 150%. Without upkeep tasks go stale (half in 6 months).">How much of the post-training ceiling this family&apos;s environments let a model reach.</TipCard>}>
+        <span className="sx-bar" data-test="suite-fid"><span className="sx-track"><i className="fid" style={{ width: `${Math.min(1, r.fid / FID_MAX) * 100}%` }} /><b className="tick" style={{ left: `${(1 / FID_MAX) * 100}%` }} /></span><b className="num">{F.pct(r.fid)}</b></span>
       </Tip>
-      <Tip content={() => <TipCard title={<Term id="suiteExploit">Loopholes</Term>} value={`${F.pct(r.exploit, 1)} of tasks`} rows={[
-        { label: 'Floor', value: F.pct(floor, 1) },
-        { label: 'Hardenings done', value: String(r.hardenings) },
-        { label: 'Next hardening', value: `${F.pct(pv.harden.effect.exploit[0], 1)} → ${F.pct(pv.harden.effect.exploit[1], 1)}` },
-      ]} footer="White mark: the floor no red team gets below.">Share of these environments&apos; tasks whose grader a model can game.</TipCard>}>
-        <span className="sx-bar" data-test="suite-exploit"><Meter value={Math.min(r.exploit, xMax)} max={xMax} marker={floor} color={C.bad} width={96} /><b className="num">{F.pct(r.exploit, 1)}</b></span>
+      <Tip content={() => <TipCard title={<Term id="suiteExploit">Loopholes</Term>} value={`${pc1(r.exploit)} of tasks`} rows={[{ label: 'Floor', value: pc1(floor) }, { label: 'Hardenings done', value: String(r.hardenings) }]} footer="No red team gets below the floor.">Share of these environments&apos; tasks whose grader a model can game.</TipCard>}>
+        <span className="sx-bar" data-test="suite-exploit"><span className="sx-track"><i className={`loop ${r.exploit >= 0.08 ? 'hi' : r.exploit >= 0.03 ? 'mid' : ''}`} style={{ width: `${Math.min(1, r.exploit / LOOP_MAX) * 100}%` }} /></span><b className={`num ${r.exploit >= 0.08 ? 'tone-warn' : ''}`}>{pc1(r.exploit)}</b></span>
       </Tip>
-      <Tip className="sx-r" content={() => <TipCard title={<Term id="expertData">Expert data</Term>} value={`${tok(r.expertT)} tokens`} rows={[{ label: 'Live tasks (≈ 20k tokens each; stale ones drop out)', value: F.count(r.tasks) }]}>Expert-written tasks built into these environments; more raises their realism.</TipCard>}>
-        <span className="num" data-test="suite-expert">{tok(r.expertT)} <span className="dim">tok</span></span>
+      <Tip content={() => <TipCard title={<Term id="rewardHackPressure">Share of hacking pressure</Term>} value={F.pct(part)}>This family&apos;s part of the next run&apos;s hacking pressure: its loopholes times its share of the run.</TipCard>}>
+        <span className="sx-bar sm" data-test="suite-part"><span className="sx-track sm"><i className={`loop ${part >= 0.3 ? 'hi' : part >= 0.1 ? 'mid' : ''}`} style={{ width: `${part * 100}%` }} /></span><span className="num small">{F.pct(part)}</span></span>
       </Tip>
-      <Tip className="sx-r" content={() => <TipCard title={<Term id="suiteRlShare">Post-training share</Term>} value={F.pct(r.share)}>Share of the next run&apos;s post-training compute spent in these environments.</TipCard>}>
-        <span className={`num ${r.share > 0 ? '' : 'dim'}`} data-test="suite-share">{F.pct(r.share)}</span>
-      </Tip>
-      <WorkCell s={s} r={r} pv={pv.build} pend={pend.find((x) => x.work === 'build')} demos={pv.demos} />
-      <WorkCell s={s} r={r} pv={pv.harden} pend={pend.find((x) => x.work === 'harden')} />
+      <span className="sx-work-col">
+        <WorkCell s={s} r={r} pv={pv.harden} pend={pend.find((x) => x.work === 'harden')} />
+        <WorkCell s={s} r={r} pv={pv.build} pend={pend.find((x) => x.work === 'build')} demos={pv.demos} />
+      </span>
     </div>
   );
 }
 
-/** A build or harden button with its cost and the suite's after value, or the pending item with its ETA. */
+/** A Harden or Expand button with its after value, days and cash, or the pending item with its ETA. */
 function WorkCell({ s, r, pv, pend, demos }: { s: GameStateV2; r: SuiteRow; pv: SuiteWorkPreview; pend?: { leftTW: number; etaDays: number }; demos?: SuiteWorkPreview }) {
   const build = pv.work === 'build';
   const id = build ? 'suite.build' : 'suite.harden';
+  const Ic = build ? Maximize2 : ShieldCheck;
+  const what = build ? <><Term id="suiteFidelity">Realism</Term> → <b className="num">{F.pct(pv.effect.fid[1])}</b></> : <><Term id="suiteExploit">Loopholes</Term> → <b className="num">{pc1(pv.effect.exploit[1])}</b></>;
   if (pend) {
     const eta = Number.isFinite(pend.etaDays) ? pend.etaDays : undefined;
     return (
-      <Tip content={() => <TipCard title={`${build ? 'Expanding' : 'Hardening'} ${r.label} environments`} value={eta !== undefined ? fmtDate(dateOf(s, s.time.day + eta)) : 'waits'} rows={[
-        { label: 'Left', value: `${pend.leftTW.toFixed(1)} team-weeks` },
-        { label: 'Done in', value: eta !== undefined ? F.days(eta) : 'waits for engineers' },
-        { label: 'Then', value: build ? `realism ${fid(pv.effect.fid[0])} → ${fid(pv.effect.fid[1])}` : `loopholes ${F.pct(pv.effect.exploit[0], 1)} → ${F.pct(pv.effect.exploit[1], 1)}` },
-      ]} footer="On the build queue (Lab › AI staff & needs); paid when queued.">One {build ? 'expansion' : 'hardening'} per family at a time.</TipCard>}>
-        <span className="sx-work pend" data-pending={`${r.family}:${pv.work}`}>{build ? <Hammer size={12} /> : <ShieldCheck size={12} />}<span>{build ? 'building' : 'hardening'}</span><b className="num">{eta !== undefined ? F.days(eta) : 'waits'}</b></span>
+      <Tip content={() => <TipCard title={`${build ? 'Expanding' : 'Hardening'} ${r.label} environments`} value={eta !== undefined ? fmtDate(dateOf(s, s.time.day + eta)) : 'waits'} rows={[{ label: 'Left', value: `${pend.leftTW.toFixed(1)} team-weeks` }]} footer="On the engineers' build queue; paid when queued.">One {build ? 'expansion' : 'hardening'} per family at a time.</TipCard>}>
+        <span className="sx-work pend" data-pending={`${r.family}:${pv.work}`}><span className="btn btn-sm is-off"><Ic size={12} />{build ? 'Expanding' : 'Hardening'}</span><span className="small">{what} · {eta !== undefined ? `done in ${F.days(eta)}` : 'waits for engineers'}</span></span>
       </Tip>
     );
   }
-  const a = pv.after.rl;
-  const b = pv.before.rl;
-  const dG = a && b ? a.general - b.general : 0;
-  const doms = a && b ? DOMS.map((x) => [x, a.perDomain[x] - b.perDomain[x]] as const).filter(([, v]) => Math.abs(v) >= 0.005).sort((x, y) => y[1] - x[1]).slice(0, 4) : [];
   const dS2 = pv.after.s2 - pv.before.s2;
-  const after = build ? fid(pv.effect.fid[1]) : F.pct(pv.effect.exploit[1], 1);
-  const effect = build ? (Math.abs(dG) >= 0.005 ? `skill ${effX(dG)}` : 'skill –') : (Math.abs(dS2) >= 0.0005 ? `hacking −${Math.abs(dS2).toFixed(Math.abs(dS2) >= 0.01 ? 2 : 3)}` : 'hacking –');
   const tip = () => (
-    <TipCard title={build ? <Term id="suiteBuild">Expand {r.label} environments</Term> : <Term id="suiteHarden">Harden {r.label} environments</Term>} value={pv.block ? <span className="tone-neg">{pv.block}</span> : <span className="tag2">preview</span>} rows={[
+    <TipCard title={<Term id={build ? 'suiteBuild' : 'suiteHarden'}>{build ? 'Expand' : 'Harden'} {r.label} environments</Term>} value={pv.block ? <span className="tone-neg">{pv.block}</span> : undefined} rows={[
       { label: build ? <Term id="expertData">Expert data (cash, now)</Term> : 'Expert red-teamers (cash, now)', value: F.money(pv.cost.cashB), tone: 'neg' },
       { label: <Term id="teamWeek">Engineers</Term>, value: `${pv.cost.tw.toFixed(1)} team-weeks`, tone: 'neg' },
       { label: 'Done in', value: F.days(pv.waitDays) },
-      build ? { label: <Term id="suiteFidelity">Realism</Term>, value: `${fid(pv.effect.fid[0])} → ${fid(pv.effect.fid[1])}`, tone: 'pos' } : { label: <Term id="suiteExploit">Loopholes</Term>, value: `${F.pct(pv.effect.exploit[0], 1)} → ${F.pct(pv.effect.exploit[1], 1)}`, tone: 'pos' },
-      { label: <><Term id="plannedRun">Next run</Term>: post-training gain</>, value: a && b ? `${effX(a.general - b.general)} effective compute` : '—', ...(dG >= 0.005 ? { tone: 'pos' as const } : {}) },
-      ...doms.map(([x, v]) => ({ label: <span className="dim">· {x}</span>, value: effX(v) })),
-      { label: <><Term id="plannedRun">Next run</Term>: <Term id="rewardHackPressure">hacking pressure</Term></>, value: `${pv.before.s2.toFixed(3)} → ${pv.after.s2.toFixed(3)}`, ...(dS2 < -0.0005 ? { tone: 'pos' as const } : {}) },
-    ]} footer={build ? 'Realism raises this family\'s post-training ceiling; other domains gain through transfer. Runs launched later use it.' : 'Fewer loopholes: less hacking pressure on runs launched later. Returns falling down to the floor.'} />
+      build ? { label: <Term id="suiteFidelity">Realism</Term>, value: `${F.pct(pv.effect.fid[0])} → ${F.pct(pv.effect.fid[1])}`, tone: 'pos' } : { label: <Term id="suiteExploit">Loopholes</Term>, value: `${pc1(pv.effect.exploit[0])} → ${pc1(pv.effect.exploit[1])}`, tone: 'pos' },
+      { label: <>Next run: <Term id="rewardHackPressure">hacking pressure</Term></>, value: pv.before.s2 > 0 ? `−${F.pct((pv.before.s2 - pv.after.s2) / pv.before.s2)}` : '–', ...(dS2 < -0.0005 ? { tone: 'pos' as const } : {}) },
+    ]} footer={build ? 'Realism raises this family\'s post-training ceiling; runs launched later use it.' : 'Fewer loopholes: less hacking pressure on runs launched later. Returns fall toward the floor.'} />
   );
   return (
-    <Tip content={tip}>
-      <span className="sx-work">
-        <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act={id} data-family={r.family} onClick={() => store.act(id, { family: r.family })}>
-          {build ? <Hammer size={12} /> : <ShieldCheck size={12} />}<span>{build ? 'Expand' : 'Harden'}</span>
-        </button>
-        <span className="sx-cost small dim">{pv.cost.tw.toFixed(1)} team-weeks · {F.money(pv.cost.cashB)}</span>
-        <span className="sx-after small" data-test={`suite-after.${pv.work}`}>→ {after} <span className={(build ? dG >= 0.005 : dS2 < -0.0005) ? 'tone-pos' : 'dim'}>{effect}</span></span>
-        {demos && <DemosBtn r={r} pv={demos} />}
-      </span>
-    </Tip>
+    <span className="sx-work">
+      <Tip content={tip}>
+        <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act={id} data-family={r.family} onClick={() => store.act(id, { family: r.family })}><Ic size={12} /><span>{build ? 'Expand' : 'Harden'}</span></button>
+      </Tip>
+      <span className="small sx-after" data-test={`suite-after.${pv.work}`}>{what} <span className="dim">· {F.days(pv.waitDays)} · {F.money(pv.cost.cashB)}</span></span>
+      {demos && <DemosBtn r={r} pv={demos} />}
+    </span>
   );
 }
 
 /** RD-T06: the long-tasks demonstrations build (unlocked by P12): a build that also buys recorded expert work. */
 function DemosBtn({ r, pv }: { r: SuiteRow; pv: SuiteWorkPreview }) {
   return (
-    <Tip content={() => <TipCard title={<Term id="suiteBuild">Expand with human demonstrations</Term>} value={pv.block ? <span className="tone-neg">{pv.block}</span> : <span className="tag2">preview</span>} rows={[
+    <Tip content={() => <TipCard title={<Term id="suiteBuild">Expand with human demonstrations</Term>} value={pv.block ? <span className="tone-neg">{pv.block}</span> : undefined} rows={[
       { label: <Term id="expertData">Expert data (cash, now)</Term>, value: F.money(pv.cost.cashB), tone: 'neg' },
-      { label: 'Of which demonstrations', value: `${tok(pv.cost.demosT)} tokens` },
       { label: <Term id="teamWeek">Engineers</Term>, value: `${pv.cost.tw.toFixed(1)} team-weeks`, tone: 'neg' },
-      { label: <Term id="suiteFidelity">Realism</Term>, value: `${fid(pv.effect.fid[0])} → ${fid(pv.effect.fid[1])}`, tone: 'pos' },
+      { label: <Term id="suiteFidelity">Realism</Term>, value: `${F.pct(pv.effect.fid[0])} → ${F.pct(pv.effect.fid[1])}`, tone: 'pos' },
     ]} footer="Experts record days-long work into the long-task environments." />}>
-      <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act="suite.build" data-family={r.family} data-demos="1" onClick={(e) => { e.stopPropagation(); store.act('suite.build', { family: r.family, demos: true }); }}>
+      <button className={`btn btn-sm act-btn ${pv.block ? 'is-off' : ''}`} disabled={!!pv.block} data-act="suite.build" data-family={r.family} data-demos="1" onClick={() => store.act('suite.build', { family: r.family, demos: true })}>
         <Hammer size={12} /><span>+ demos</span><span className="small dim">{F.money(pv.cost.cashB)}</span>
       </button>
     </Tip>
   );
 }
 
-/** A family whose idea is known but whose first suite is not built (RD-B03): no RL on it until the build finishes. The
- *  Build cell is the usual one (cost, ETA, the planned run's before → after); there is nothing to harden yet. */
+/** A family whose idea is known but whose first environments are not built: no post-training on it until they are. */
 function UnbuiltLine({ s, family, pv }: { s: GameStateV2; family: RLFamily; pv: SuiteWorkPreview }) {
   const I = famIcon(family);
   const label = RL_FAMILY_LABEL[family];
@@ -250,20 +183,14 @@ function UnbuiltLine({ s, family, pv }: { s: GameStateV2; family: RLFamily; pv: 
   const pend = suitePending(s, family).find((x) => x.work === 'build');
   return (
     <div className="sx-line unbuilt" data-suite={family} data-unbuilt={family}>
-      <span className="sx-fam"><I size={14} /><b>{label}</b></span>
-      <Tip className="sx-none" content={() => <TipCard title={label} value={<span className="tag2">none yet</span>} rows={[
-        { label: <Term id="suiteFidelity">Realism</Term>, value: 'none' },
-        { label: 'First build', value: `${fid(pv.effect.fid[1])} · ${F.pct(pv.effect.exploit[1], 1)} loopholes` },
-      ]} footer="Runs cannot train on this family until its first environments are built.">No environments yet: broad post-training leaves this family out, it cannot be a focus and it costs no upkeep.</TipCard>}>
-        <span className="small dim" data-test="suite-none">No environments yet: expand to build them</span>
-      </Tip>
-      <WorkCell s={s} r={r} pv={pv} pend={pend} />
-      <span />
+      <span className="sx-fam"><span className="sx-ic dash"><I size={16} /></span><span><b>{label}</b><span className="small dim">no environments</span></span></span>
+      <span className="sx-span3 small dim" data-test="suite-none">Not in any run until its first environments are built</span>
+      <span className="sx-work-col"><WorkCell s={s} r={r} pv={pv} pend={pend} /></span>
     </div>
   );
 }
 
-/** A family with no suite yet: the idea that unlocks it (click opens it in Research). */
+/** A family that needs a discovery first (click opens it in Discoveries). */
 function LockedLine({ s, family, node }: { s: GameStateV2; family: RLFamily; node: string }) {
   const I = famIcon(family);
   const n = TREE_BY_ID[node];
@@ -271,12 +198,64 @@ function LockedLine({ s, family, node }: { s: GameStateV2; family: RLFamily; nod
   const pr = s.player.tree[node]?.progress ?? 0;
   return (
     <div className="sx-line locked" data-suite={family} data-locked={node}>
-      <span className="sx-fam"><I size={14} /><b>{RL_FAMILY_LABEL[family]}</b></span>
-      <Tip content={() => <TipCard title={<>{RL_FAMILY_LABEL[family]} <Lock size={11} /></>} value={<span className="tag2">none yet</span>} rows={[{ label: 'Unlocked by', value: n?.name ?? 'a discovery' }, { label: 'Status', value: st === 'active' ? `${F.pct(pr)} researched` : (({ open: 'Available', locked: 'Locked', queued: 'Queued', failed: 'Failed', known: 'Known' } as Record<string, string>)[st] ?? st) }]} footer="Click to open the idea in Research.">No environments for this family yet: runs cannot train on it. Once the idea is known, build its first suite here.</TipCard>}>
-        <button className="bp-opt locked sx-lock" data-node={node} onClick={() => { store.setTab('research.sel', node); store.goto('research', { tab: 'tree' }); }}>
-          <Lock size={11} />needs {n?.name ?? 'a discovery'}{st === 'active' ? <span className="dim"> · {F.pct(pr)}</span> : st === 'queued' ? <span className="dim"> · queued</span> : null}
-        </button>
+      <span className="sx-fam"><span className="sx-ic dash"><I size={16} /></span><span><b>{RL_FAMILY_LABEL[family]}</b><span className="small dim">no environments</span></span></span>
+      <Tip className="sx-span4" content={() => <TipCard title={<>{RL_FAMILY_LABEL[family]} <Lock size={11} /></>} rows={[{ label: 'Unlocked by', value: n?.name ?? 'a discovery' }, { label: 'Status', value: st === 'active' ? `${F.pct(pr)} researched` : (({ open: 'Available', locked: 'Locked', queued: 'Queued', failed: 'Failed', known: 'Known' } as Record<string, string>)[st] ?? st) }]}>Once the discovery is made, build its first environments here.</TipCard>}>
+        <span className="small dim row-i sx-lock"><Lock size={12} />Locked: needs the discovery <b>{n?.name ?? 'a discovery'}</b>{st === 'active' ? ` (${F.pct(pr)})` : ''}
+          <button className="dv-chip" data-node={node} onClick={() => { store.setTab('research.sel', node); store.goto('research', { tab: 'tree' }); }}>Discoveries <ChevronRight size={11} /></button></span>
       </Tip>
     </div>
+  );
+}
+
+// ───────── hacking pressure of the next run (L1) ─────────
+function PressureCard({ s, plan, s2, planned, light, rows, pv }: { s: GameStateV2; plan: Plan; s2: ReturnType<typeof suiteS2Parts>; planned?: number; light: number; rows: SuiteRow[]; pv: Record<RLFamily, Pv> }) {
+  const sum = s2.rows.reduce((a, r) => a + r.s2, 0);
+  const total = planned ?? s2.total;
+  /** The suites preview reads the budget's nominal pressure; Next run's reads the run's own RL compute: scale to it. */
+  const k = sum > 0 ? Math.max(0, total - s2.p11) / sum : 1;
+  const lvl = pressureLevel(total);
+  const parts = [...s2.rows].filter((r) => r.s2 > 1e-6).sort((a, b) => b.s2 - a.s2);
+  const big = parts.slice(0, 3);
+  const rest = parts.slice(3);
+  const restSum = rest.reduce((a, r) => a + r.s2, 0);
+  const canHarden = (f: RLFamily) => pv[f] && !pv[f].harden.block && !suitePending(s, f).some((x) => x.work === 'harden');
+  const top = big.find((r) => canHarden(r.family));
+  const drop = (f: RLFamily) => (pv[f] ? k * (pv[f].harden.before.s2 - pv[f].harden.after.s2) : 0);
+  const three = big.filter((r) => canHarden(r.family));
+  const after3 = Math.max(0, total - three.reduce((a, r) => a + drop(r.family), 0));
+  const cost3 = three.reduce((a, r) => a + pv[r.family].harden.cost.cashB, 0);
+  const days3 = Math.max(0, ...three.map((r) => pv[r.family].harden.waitDays));
+  const x = (v: number) => `${Math.min(1, Math.max(0, v)) * 100}%`;
+  const maxPart = Math.max(1e-9, ...parts.map((r) => r.s2));
+  const Way = ({ label, sub, to, act, test }: { label: ReactNode; sub: ReactNode; to: number; act: ReactNode; test: string }) => (
+    <div className="sx-way" data-test={test}><span><span>{label}</span><span className="small dim">{sub}</span></span><b className="num">{lvl} <span className="dim">→</span> <span className={pressureLevel(to) !== lvl ? 'tone-warn' : ''}>{pressureLevel(to)}</span></b>{act}</div>
+  );
+  return (
+    <Card className="sx-press" home="suitePlan" title={<span className="row-i"><AlertTriangle size={15} /><Term id="rewardHackPressure">Hacking pressure</Term>&nbsp;of the next run</span>}
+      sub={<>{plan.baseName ?? 'no base model'} · {BUDGET_LABEL[plan.post.rlBudget] ?? plan.post.rlBudget} budget{plan.fromBp ? '' : ' · standard plan'}</>}>
+      <Tip as="div" content={() => <TipCard title={<Term id="rewardHackPressure">Hacking pressure</Term>} value={lvl} rows={[
+        ...parts.map((r) => ({ label: `${RL_FAMILY_LABEL[r.family]}: ${F.pct(r.share)} of the run, ${pc1(r.exploit)} loopholes`, value: F.pct(r.s2 / Math.max(1e-9, sum)) })),
+        { label: <><Term id="rlBudget">Post-training budget</Term> ({BUDGET_LABEL[plan.post.rlBudget]})</>, value: `×${(k * s2.pressure).toFixed(1)}` },
+        ...(s2.p11 > 0 ? [{ label: 'Automated research', value: 'adds some' }] : []),
+      ]} footer="Low, Medium and High are thirds of the scale. It pushes the Gaming tendencies.">How strongly the next run rewards gaming the graders.</TipCard>}>
+        <div className="sx-phd" data-test="suites-s2" data-level={lvl}><b className={`sx-lvl ${lvl}`}>{lvl}</b><span className="dim">pushes <span className="tone-warn">▲ <Term id="riskFamily">Gaming</Term></span> in the next model</span><span className="sp" /><button className="dv-chip" onClick={() => store.goto('blueprint', { tab: 'next' })}>Pushes <ChevronRight size={11} /></button></div>
+        <div className="sx-pg"><i className="z lo" /><i className="z md" /><i className="z hi" />{three.length > 0 && <b className="after" style={{ left: x(after3) }} />}<b className="mk" style={{ left: x(total) }} /></div>
+        <div className="sx-pgl small dim"><span>Low</span><span>Medium</span><span>High</span></div>
+      </Tip>
+      <div className="sx-sec"><div className="cap">What makes it</div>
+        {big.map((r) => <div key={r.family} className="sx-part" data-part={r.family}><span>{RL_FAMILY_LABEL[r.family]}</span><span className="sx-ptrack"><i style={{ width: `${(r.s2 / maxPart) * 100}%` }} /></span><span className="num small">{F.pct(r.s2 / Math.max(1e-9, sum))}</span></div>)}
+        {rest.length > 0 && <div className="sx-part"><span>{rest.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</span><span className="sx-ptrack"><i style={{ width: `${(restSum / maxPart) * 100}%` }} /></span><span className="num small">{F.pct(restSum / Math.max(1e-9, sum))}</span></div>}
+        <div className="small dim">The graders&apos; loopholes, by each family&apos;s share of the run. The <b>{BUDGET_LABEL[plan.post.rlBudget]}</b> post-training budget multiplies it by {(k * s2.pressure).toFixed(1)}.</div>
+      </div>
+      <div className="sx-sec"><div className="cap">Ways to lower it</div>
+        {top && <Way test="way-top" label={<>Harden {RL_FAMILY_LABEL[top.family]}</>} sub={<>{F.days(pv[top.family].harden.waitDays)} · {F.money(pv[top.family].harden.cost.cashB)} · engineers</>} to={total - drop(top.family)}
+          act={<button className="btn btn-sm" data-act="suite.harden" data-family={top.family} onClick={() => store.act('suite.harden', { family: top.family })}>Do</button>} />}
+        {three.length > 1 && <Way test="way-three" label={<>Harden {three.map((r) => RL_FAMILY_LABEL[r.family]).join(', ')}</>} sub={<>{F.days(days3)} · {F.money(cost3)} · engineers</>} to={after3}
+          act={<button className="btn btn-sm" data-test="harden-three" onClick={() => three.forEach((r) => store.act('suite.harden', { family: r.family }))}>Do</button>} />}
+        {plan.post.rlBudget !== 'light' && <Way test="way-light" label="Light post-training budget" sub="the run gives less skill" to={light} act={<button className="dv-chip" onClick={() => store.goto('blueprint', { tab: 'next' })}>Next run <ChevronRight size={11} /></button>} />}
+        {three.length > 0 && <div className="small dim row-i"><b className="sx-afterkey" />after hardening {three.length === 1 ? 'it' : `all ${three.length === 3 ? 'three' : 'two'}`}</div>}
+        {rows.length === 0 && <div className="small dim">No environments yet.</div>}
+      </div>
+    </Card>
   );
 }
