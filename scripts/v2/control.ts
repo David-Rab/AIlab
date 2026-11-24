@@ -38,9 +38,13 @@ const f3 = (x: number) => x.toFixed(3);
 const fixture = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
 const routine = (s: GameStateV2) => s.player.models.versions.find((x) => x.id === s.player.agents.capRoutine.versionId)!;
 const setLevel = (v: ModelVersion, L: number) => { v.Lg = L; for (const d of DOMS) v.domains[d] = L; };
-/** The day-400 lab with every model at level L and a moderate misaligned disposition (Mis ≈ 0.4). */
+/** The day-400 lab with every model at level L and a moderate misaligned disposition (Mis ≈ 0.4), with no control
+ *  layer: the fixture's play may have put it on internal deployments / agent packages, and the checks below add
+ *  oversight themselves (strongOversight) against a lab without it. */
 function lab(L = 12): GameStateV2 {
   const s = fixture('day400.json');
+  for (const d of s.player.deployments) if (d.channel === 'internal') setControl(d, false);
+  for (const a of Object.values(s.player.agents)) a.control = false;
   for (const v of s.player.models.versions) {
     v.traitsTrue = { ...TRAIT_START, SCHEME: 0.6, POWER: 0.6, AF: 0.4, SUCC: 0.3 };
     v.uModes = [];
@@ -228,18 +232,23 @@ for (const fx of ['day400.json', 'day900.json']) {
   }
   check(bad.length === 0, 'process: no engine file rolls a chance on P_mis, the doom curve or doomThreshold (no single-roll path)', bad.join('; ') || `${files.length} files scanned`);
   // Deterministic given the state: resolveAsi takes no RNG, and the endings system gives the same ASI ending whatever the
-  // 'endings' stream holds.
+  // 'endings' stream holds. The ending is compared with resolveAsi on the state the tick resolved it on: within the tick
+  // the lab's safety framework may add its package (the control layer on the internal fleet at this level, packages.ts),
+  // so the state before the tick is not the one the ending reads.
   const s = lab(15);
   s.player.milestoneDays[6] = s.time.day;
   const ids = new Set<string>();
+  const at = new Set<string>();
+  let r = resolveAsi(s, 'player');
   for (let k = 1; k <= 12; k++) {
     const y = clone(s);
     y.rng.endings = (k * 2246822519) >>> 0;
     tick(y);
     ids.add(y.ending?.id ?? 'none');
+    r = resolveAsi(y, 'player');
+    at.add(r.id);
   }
-  const r = resolveAsi(s, 'player');
-  check(ids.size === 1 && [...ids][0] === r.id && resolveAsi.length === 2, 'process: the ASI ending is a function of the state (12 RNG states, one ending; resolveAsi takes no RNG)', `${[...ids].join(', ')}; E ${f3(r.exposure)} vs θ_w ${f3(r.threshold)}`);
+  check(ids.size === 1 && at.size === 1 && [...ids][0] === r.id && resolveAsi.length === 2, 'process: the ASI ending is a function of the state (12 RNG states, one ending; resolveAsi takes no RNG)', `${[...ids].join(', ')}; E ${f3(r.exposure)} vs θ_w ${f3(r.threshold)}`);
   // Crossing: the same lab keeps control at ASI with E just under θ_w and loses it just over (Mis scaled).
   const near = (k: number) => {
     const y = lab(15);
