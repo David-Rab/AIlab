@@ -19,7 +19,7 @@ import { REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { CONSUMER_MKT, CUSTOMER_TAU, SERVE_HOURS_PER_YEAR } from '../../../data/v2/serving';
 import type { Deployment, GameStateV2, Money, RegionId, SectorId } from '../types';
 import { paidDeployments, worldMix, type TierKind, type WorldMix } from './mix';
-import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout } from './revenue';
+import { consumerSpend, consumerUsers, revenueReadout, sectorSpend, type DeploymentRevenue, type RevenueReadout, type TurnedAway } from './revenue';
 
 export interface ProductRead {
   id: string;
@@ -37,6 +37,8 @@ export interface ProductRead {
   cutH100e: number;
   /** Unserved demand ($B/yr). */
   unserved: Money;
+  /** MK-7: buyers turned away for want of serving compute and where they went (revenue.ts TurnedAway). */
+  turnedAway: TurnedAway;
   /** Serving compute cost ($B/yr) at the rental price of an H100e. */
   runCost: Money;
   /** Cost and price per work-hour ($; Chat: per subscriber-month), margin 1 − cost/price, share sold at the value cap,
@@ -384,7 +386,7 @@ export function productReadouts(s: GameStateV2, mix: WorldMix = worldMix(s), rd:
     out.set(d.id, {
       id: d.id, channel: d.channel, revenue: x.revenue, demand: x.demand,
       share: pi >= 0 ? sh[pi] : 0, rival, bound: x.bound, rpH: x.rpH,
-      needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue),
+      needH100e: x.needH100e, servedH100e: x.servingH100e, cutH100e: x.cutH100e, unserved: Math.max(0, x.demand - x.revenue), turnedAway: x.turnedAway,
       runCost: Math.min(x.servingH100e, x.needH100e) * tco,
       cost: d.channel === 'consumer' ? x.subCost ?? 0 : x.costPerHour, price: d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour,
       margin: (d.channel === 'consumer' ? x.subPrice ?? 0 : x.pricePerHour) > 0 ? 1 - (d.channel === 'consumer' ? (x.subCost ?? 0) / (x.subPrice ?? 1) : x.costPerHour / x.pricePerHour) : 0,

@@ -183,7 +183,6 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     // leader's ≈ 700M weekly users at the start), paid shares empty (they start at their targets on the first revenue tick).
     reach: { US: CONSUMER_MKT.reach.startUS, CN: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.row, ROW: CONSUMER_MKT.reach.startUS * CONSUMER_MKT.reach.startRow },
     paid: { US: {}, CN: {}, ROW: {} },
-    capPenalty: { consumer: 0, sector: 0 },
     youthRel,
     incidentR,
     autoLevel: { US: 1, CN: 1, ROW: 1 },
