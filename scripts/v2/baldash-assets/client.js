@@ -156,11 +156,11 @@ themeBtn.onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 
 syncTheme();
 const texBtn = document.getElementById('tex');
 texBtn.onclick = () => { const on = !document.body.classList.contains('tex'); document.body.classList.toggle('tex', on); texBtn.setAttribute('aria-pressed', String(on)); };
-const renderers = { out: null, par: null, tgt: null };
+const renderers = { out: null, par: null, tgt: null, scn: null };
 const rendered = {};
 function showTab(t) {
   for (const b of document.querySelectorAll('nav.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
-  for (const k of ['out', 'par', 'tgt']) document.getElementById('p-' + k).hidden = k !== t;
+  for (const k of ['out', 'par', 'tgt', 'scn']) document.getElementById('p-' + k).hidden = k !== t;
   if (!rendered[t]) { rendered[t] = true; renderers[t](); } else if (renderers[t + '_re']) renderers[t + '_re']();
 }
 for (const b of document.querySelectorAll('nav.tabs button')) b.onclick = () => showTab(b.dataset.tab);

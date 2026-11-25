@@ -1,11 +1,12 @@
 // Balance dashboard (design/bal/TOOLING-DESIGN.md, C4). Reads balance/runs/<name>/ and the registries in balance/,
 // writes one self-contained balance/dash/index.html (data inlined, vanilla JS + SVG, no network).
-//   npm run bal:dash -- --runs smoke[,other]
+//   npm run bal:dash -- --runs smoke[,other] [--scenarios file.ts]
 // The page assets live in scripts/v2/baldash-assets/ (template.html, style.css, client.js).
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param, Target } from '../../balance/schema';
+import type { AlignmentLevel, Checkpoint, Timeline } from '../../balance/scenarios';
 import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
 import { STARTS } from '../../src/data/v2/starts';
 import { PRESET_BY_LABEL } from '../../src/data/v2/calibration';
@@ -23,20 +24,22 @@ interface Game {
   pMisAtEnd?: number; pMisAtASI?: number; minCash?: number; insolvent?: boolean;
 }
 
-function parseArgs(): { runs: string[]; out: string } {
+function parseArgs(): { runs: string[]; out: string; scenarios: string } {
   const a = process.argv.slice(2);
   let runs = '';
   let out = join(ROOT, 'balance/dash/index.html');
+  let scenarios = join(ROOT, 'balance/scenarios.ts'); // --scenarios <file> points at a test copy
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--runs') runs = a[++i] ?? '';
     else if (a[i] === '--out') out = a[++i] ?? out;
+    else if (a[i] === '--scenarios') scenarios = resolve(a[++i] ?? scenarios);
   }
   const list = runs.split(',').map((s) => s.trim()).filter(Boolean);
   if (!list.length) {
     console.error('usage: npm run bal:dash -- --runs <name>[,<name>...] [--out file.html]');
     process.exit(2);
   }
-  return { runs: list, out };
+  return { runs: list, out, scenarios };
 }
 
 function readJson<T>(path: string): T | undefined {
@@ -77,8 +80,13 @@ async function loadRegistries(): Promise<{ params: Param[]; targets: Target[] }>
   return { params, targets: tm.TARGETS };
 }
 
+async function loadScenarios(file: string): Promise<{ timelines: Timeline[]; levels: AlignmentLevel[]; checkpoints: Checkpoint[] }> {
+  const m = (await import(pathToFileURL(file).href)) as { TIMELINES: Timeline[]; ALIGNMENT_LEVELS: AlignmentLevel[]; CHECKPOINTS: Checkpoint[] };
+  return { timelines: m.TIMELINES, levels: m.ALIGNMENT_LEVELS, checkpoints: m.CHECKPOINTS };
+}
+
 async function main() {
-  const { runs, out } = parseArgs();
+  const { runs, out, scenarios } = parseArgs();
   const runData = runs.map((name) => {
     const dir = join(ROOT, 'balance/runs', name);
     const gp = join(dir, 'games.jsonl');
@@ -104,19 +112,20 @@ async function main() {
     start: Object.fromEntries(STARTS.map((x) => [x.id, x.name])),
     world: Object.fromEntries(Object.entries(PRESET_BY_LABEL).map(([label, id]) => [id, label])),
   };
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names };
+  const scen = await loadScenarios(scenarios);
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');
   const tpl = readFileSync(join(ASSETS, 'template.html'), 'utf8');
   const html = tpl
     .replace('/*__CSS__*/', () => readFileSync(join(ASSETS, 'style.css'), 'utf8'))
-    .replace('/*__JS__*/', () => readFileSync(join(ASSETS, 'client.js'), 'utf8').replace(/<\/script/gi, '<\\/script'))
+    .replace('/*__JS__*/', () => ['client.js', 'scenarios.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
     .replace('/*__DATA__*/', () => json);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
   const n = runData.reduce((s, r) => s + r.games.length, 0);
-  console.log(`bal:dash: ${out} (${n} games from ${runs.join(', ')}; ${params.length} params, ${targets.length} targets; ${(html.length / 1024).toFixed(0)} KB)`);
+  console.log(`bal:dash: ${out} (${n} games from ${runs.join(', ')}; ${params.length} params, ${targets.length} targets, ${scen.checkpoints.length} scenario checkpoints; ${(html.length / 1024).toFixed(0)} KB)`);
   for (const r of runData) if (r.badLines) console.log(`  ${r.name}: skipped ${r.badLines} unreadable line(s)`);
 }
 
