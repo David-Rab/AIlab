@@ -35,6 +35,9 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 
 | ID | Result | Time | Notes |
 |---|---|---|---|
+| C1 runner | accepted | 22 min, 96k | bots.ts output byte-identical after the loop move; dispatch via IPC; cache replay works. Perf under load: 70 s/game (needs a quiet measurement). |
+| C2 bot settings | accepted | 27 min, 172k | 65 fields; fingerprints identical 24/24 (cmp); tsc clean. |
+| C4 dashboard | accepted pending real-data check | 13 min, 165k | Followed the dataviz skill, validator run, screenshots read and 6 layout fixes made. Built on a fake run because the real one was not ready. |
 | B5a consolidate | accepted | 7 min, 129k | 100 questions into 53 items; checked research/07 field by field unprompted; excellent. Left 3 temp files (rm denied). |
 | B5c actors-data rulings | accepted | 9 min, 188k | unclear 136 to 4; field-by-field against research/07 and 10. |
 | B5d cap/market/finance rulings | accepted | 8 min, 168k | unclear 27 to 8. |
@@ -63,11 +66,14 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 ## Phase C: tooling (design/bal/TOOLING-DESIGN.md), started 2026-11-25
 | ID | Task | Model / effort | Status |
 |---|---|---|---|
-| C1 | balrun.ts parallel runner + shared game loop | Sonnet high | running |
-| C2 | Bot settings object (identical fingerprints) | Sonnet high | running |
-| C4 | baldash.ts static dashboard (dataviz standard) | Sonnet high | running |
+| C1 | balrun.ts parallel runner + shared game loop | Sonnet high | done 4f1edcf |
+| C2 | Bot settings object (identical fingerprints) | Sonnet high | done 4f1edcf |
+| C4 | baldash.ts static dashboard (dataviz standard) | Sonnet high | done 4f1edcf (built on fake data) |
 | C3 | --set overrides for object/table params | Sonnet medium | after C1 |
 | C5 | Sensitivity screening | Sonnet high | after C1+C3 |
 | C6 | Bot perturbation scan + headroom | Sonnet high | after C1+C2 |
 
 Designer framing (2026-11-25): real data exists only to 2026; the future is scenarios (hard alignment, slow adoption, easy capabilities), which act like setup choices. Balance must hold across scenarios. This is the core of B6.
+
+## Engine speed-up: separate session (designer, 2026-11-25)
+A different session does the engine speed-up on branch `bal-perf` (worktree ../AI27-perf), from design/bal/HANDOFF-PERF.md. When it's done the designer tells this session to merge it into `bal`. Don't do engine performance work here.
