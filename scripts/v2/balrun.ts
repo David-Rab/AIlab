@@ -7,7 +7,7 @@
 //
 // Overrides (scripts/v2/paramOverride.ts): --set applies a registry param override to every cell (repeatable; the value is JSON,
 // else a string). --sets takes a JSON array of { name, set: { id: value } }; each becomes an extra cell dimension and the
-// baseline (only the --set values) is always included as 'base'. Each override set gets its own worker processes: a worker
+// baseline (only the --set values) is always included as 'base'. Each worker process is bound to one override set for its whole life (see the scheduler in parent()): a worker
 // applies its set in a --import preload (overridePreload.ts, before balrun or the game modules load) and never sees another
 // set's jobs, so nothing leaks between jobs (overrides mutate loaded module objects and cannot be undone, hence one set per
 // process rather than re-applying the baseline). The set name and values are in the cache key and in every GameRecord.
@@ -269,40 +269,81 @@ async function parent() {
     console.log(`[${name}] ${done}/${total} games, ${(done / Math.max(mins, 1e-9)).toFixed(1)}/min, ${((Date.now() - t0) / 1000).toFixed(0)} s${failed.length ? `, ${failed.length} failed` : ''}`);
   }, 30_000);
 
-  for (let si = 0; si < sets.length; si++) {
-  const mine = jobs.filter((j) => j.set === si);
-  let next = 0;
-  const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
-  await Promise.all(Array.from({ length: Math.min(workers, mine.length) }, (_, k) => new Promise<void>((resolveW) => {
-    const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
-    // simcache prints its hit/miss line to stderr when a worker exits: total them, pass anything else on.
-    let buf = '';
-    child.stderr!.on('data', (d: Buffer) => {
-      buf += d.toString();
-      const lines = buf.split(/\r?\n/);
-      buf = lines.pop()!;
-      for (const l of lines) {
-        const m = /^simcache: (\d+) hit\(s\), (\d+) miss/.exec(l);
-        if (m) { hits += Number(m[1]); misses += Number(m[2]); } else console.error(l);
+  // Scheduling: up to `workers` processes at once, each bound to ONE override set for its whole life (overrides mutate the
+  // loaded modules and can't be undone). A worker takes its set's jobs over IPC and exits when that set has none left; the
+  // parent then fills the free slot: first a set with no worker yet, else the set with the most pending jobs per worker.
+  const queues = sets.map((_, si) => jobs.filter((j) => j.set === si));
+  const nextIdx = sets.map(() => 0);
+  const alive = sets.map(() => 0); // live workers per set
+  const starting = sets.map(() => 0); // of those, not yet ready (no job fed)
+  let active = 0;
+  let wid = 0;
+  await new Promise<void>((resolveAll) => {
+    const fill = () => {
+      for (;;) {
+        if (active >= workers) break;
+        let best = -1;
+        let bestScore = -1;
+        for (let si = 0; si < sets.length; si++) {
+          const pend = queues[si].length - nextIdx[si] - starting[si];
+          if (pend <= 0) continue;
+          const score = alive[si] === 0 ? Infinity : pend / alive[si];
+          if (score > bestScore) { best = si; bestScore = score; }
+        }
+        if (best < 0) break;
+        spawn(best);
       }
-    });
-    const feed = () => {
-      if (next < mine.length) child.send({ job: mine[next++] });
-      else child.send({ stop: true });
+      if (active === 0) resolveAll();
     };
-    child.on('message', (m: { ready?: boolean; id?: number; ms?: number; err?: string }) => {
-      if (m.ready) return feed();
-      done++;
-      if (m.err) failed.push(`job ${m.id}: ${m.err.split('\n')[0]}`);
-      else if (m.ms !== undefined) doneMs.push(m.ms);
-      feed();
-    });
-    child.on('exit', (code) => {
-      if (code !== 0 && code !== null) failed.push(`worker ${k} exit ${code}`);
-      resolveW();
-    });
-  })));
-  }
+    const spawn = (si: number) => {
+      const k = wid++;
+      const mine = queues[si];
+      const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
+      const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
+      active++;
+      alive[si]++;
+      starting[si]++;
+      let ready = false;
+      // simcache prints its hit/miss line to stderr when a worker exits: total them, pass anything else on.
+      let buf = '';
+      child.stderr!.on('data', (d: Buffer) => {
+        buf += d.toString();
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop()!;
+        for (const l of lines) {
+          const m = /^simcache: (\d+) hit\(s\), (\d+) miss/.exec(l);
+          if (m) { hits += Number(m[1]); misses += Number(m[2]); } else console.error(l);
+        }
+      });
+      const feed = () => {
+        if (nextIdx[si] < mine.length) child.send({ job: mine[nextIdx[si]++] });
+        else child.send({ stop: true });
+      };
+      child.on('message', (m: { ready?: boolean; id?: number; ms?: number; err?: string }) => {
+        if (m.ready) { ready = true; starting[si]--; return feed(); }
+        done++;
+        if (m.err) failed.push(`job ${m.id}: ${m.err.split('\n')[0]}`);
+        else if (m.ms !== undefined) doneMs.push(m.ms);
+        feed();
+      });
+      child.on('exit', (code) => {
+        if (code !== 0 && code !== null) failed.push(`worker ${k} exit ${code}`);
+        if (!ready) {
+          starting[si]--;
+          if (code !== 0) { // died before loading: don't respawn forever; drop this set's remaining jobs
+            const lost = mine.length - nextIdx[si];
+            nextIdx[si] = mine.length;
+            done += lost;
+            if (lost) failed.push(`set ${sets[si].name || 'base'}: ${lost} job(s) not run`);
+          }
+        }
+        alive[si]--;
+        active--;
+        fill();
+      });
+    };
+    fill();
+  });
   clearInterval(tick10);
   clearInterval(tick30);
 
