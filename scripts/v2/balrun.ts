@@ -20,8 +20,9 @@
 // Workers are child processes of this script. The parent hands out (cell, seed) jobs one at a time (a free worker takes the
 // next, so long games don't leave others idle); each worker appends to its own games.<k>.jsonl and the parent merges them
 // into games.jsonl at the end, in job order.
-import { execSync, fork } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { execSync, fork, type ChildProcess } from 'node:child_process';
+import { Worker } from 'node:worker_threads';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { POLICY_IDS } from './policies';
@@ -151,9 +152,16 @@ async function worker() {
   const run = arg('name');
   const file = join(dir, `games.${arg('sidx')}_${k}.jsonl`);
   await loadGame();
+  // Exit when the parent goes away. A game plays synchronously, so the IPC 'disconnect' event can't fire mid-game: a watchdog
+  // thread polls the parent PID and kills this process outright (an abandoned game isn't cached or written, a re-run replays it).
+  const gone = () => { try { process.kill(process.ppid, 0); return false; } catch { return true; } };
+  process.on('disconnect', () => process.exit(0));
+  new Worker("const{workerData:p}=require('node:worker_threads');setInterval(()=>{try{process.kill(p.ppid,0)}catch{process.kill(p.pid,'SIGKILL')}},1000)", { eval: true, workerData: { ppid: process.ppid, pid: process.pid } }).unref();
+  if (gone() || !process.connected) process.exit(0);
   process.on('message', (m: { job?: Job; stop?: boolean }) => {
     if (m.stop) process.exit(0);
     if (!m.job) return;
+    if (!process.connected || gone()) process.exit(0);
     try {
       const rec: GameRecord = { run, ...playCached(m.job.cell, m.job.seed), ...(OVR_NAME ? { overrideSet: OVR_NAME, ...(Object.keys(OVR).length ? { overrides: OVR as GameRecord['overrides'] } : {}) } : {}) };
       appendFileSync(file, `${JSON.stringify(rec)}\n`);
@@ -243,6 +251,26 @@ async function parent() {
 
   const dir = join(ROOT, 'balance', 'runs', name);
   mkdirSync(dir, { recursive: true });
+  // Lock: one live run per name. A lock whose PID is dead is stale and replaced.
+  const lockFile = join(dir, 'running.lock');
+  if (existsSync(lockFile)) {
+    let pid = 0;
+    try { pid = Number((JSON.parse(readFileSync(lockFile, 'utf8')) as { pid?: number }).pid); } catch { /* unreadable: stale */ }
+    let live = false;
+    if (pid > 0 && pid !== process.pid) { try { process.kill(pid, 0); live = true; } catch { live = false; } }
+    if (live) { console.error(`balrun: run "${name}" is already running (PID ${pid}, ${lockFile}). Stop it or use another --name.`); process.exit(2); }
+  }
+  writeFileSync(lockFile, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
+  const children = new Set<ChildProcess>();
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    for (const c of children) { try { c.kill('SIGKILL'); } catch { /* already gone */ } }
+    try { rmSync(lockFile, { force: true }); } catch { /* ignore */ }
+  };
+  process.on('exit', cleanup);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK'] as const) process.on(sig, () => { cleanup(); process.exit(130); });
   for (const f of readdirSync(dir)) if (/^(games([._\d]+)?\.jsonl|summary\.json|progress\.json)$/.test(f)) rmSync(join(dir, f));
   const startedAt = new Date().toISOString();
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
@@ -295,11 +323,12 @@ async function parent() {
       }
       if (active === 0) resolveAll();
     };
-    const spawn = (si: number) => {
+    const spawn = (si: number, retry = false) => {
       const k = wid++;
       const mine = queues[si];
       const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
       const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
+      children.add(child);
       active++;
       alive[si]++;
       starting[si]++;
@@ -327,6 +356,13 @@ async function parent() {
         feed();
       });
       child.on('exit', (code) => {
+        children.delete(child);
+        if (!ready && !retry && code === 3221225794) { // STATUS_DLL_INIT_FAILED: Windows couldn't start it; try once more after a pause
+          starting[si]--;
+          alive[si]--;
+          setTimeout(() => { active--; spawn(si, true); }, 3000); // active stays held meanwhile so the run isn't seen as finished
+          return;
+        }
         if (code !== 0 && code !== null) failed.push(`worker ${k} exit ${code}`);
         if (!ready) {
           starting[si]--;
