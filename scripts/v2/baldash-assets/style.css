@@ -108,6 +108,10 @@ table.dt td.nowrap { white-space: nowrap; }
 .tips { border-bottom: 1px dotted var(--muted); cursor: help; }
 /* ---- Scenarios tab */
 .scn-stack { display: block; }
+.scn-live { border: 1px solid var(--ink); border-left-width: 5px; border-radius: 8px; background: var(--wash); padding: 10px 14px; margin-bottom: 12px; }
+.scn-live b { font-size: 14px; }
+.scn-live .muted, .scn-live .warnx { margin-top: 3px; font-size: 12px; }
+.scn-live.final { border-color: var(--border); }
 .scn-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .scn-h .seg-ctl { margin-left: 0; }
 .scn-tls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 8px; }

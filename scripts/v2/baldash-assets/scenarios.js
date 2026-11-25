@@ -2,6 +2,7 @@
 // Reads D.scenarios (balance/scenarios.ts: TIMELINES, ALIGNMENT_LEVELS, CHECKPOINTS). Appended to client.js by baldash.ts.
 const SC = D.scenarios || { timelines: [], levels: [], checkpoints: [] };
 const CPS = SC.checkpoints || [];
+const LIVE = D.live || null; // set by --scenarios-live: the timeline layer comes from a running forecast job (baldash-live.ts)
 const NOW = 2026.9; // "late 2026": the end of the shared history
 const TL_ORDER = ['fast', 'central', 'slow'];
 const TL_FALLBACK = { fast: 'Fast', central: 'Central', slow: 'Slow' };
@@ -75,13 +76,13 @@ function valueText(c) { // the headline reading of one checkpoint
 
 // ---- the three timeline charts share one time axis
 const PLOTTED = new Set(['horizon50', 'horizon80', 'worldCompute', 'milestone', 'interval']);
-const TIME_CAP = 2045; // the long tails (the 2070s, 2100+) would squash everything else: the axis stops here and later dates get an arrow
+const TIME_CAP = 2060; // the long tails (the 2070s, 2100+) would squash everything else: the axis stops here and later dates get an arrow
 const timeRange = (() => {
   const ys = [NOW];
   let over = false; // some date lies beyond the cap
   const add = (v) => { if (v == null) return; if (v > TIME_CAP) over = true; else ys.push(v); };
   for (const c of CPS) if (PLOTTED.has(c.quantity) || c.series || isTed(c)) { add(c.date); if (c.quantity === 'milestone' || isTed(c)) for (const v of [c.value, c.lo, c.hi, c.p10, c.p90]) add(v); }
-  let lo = Math.floor(Math.min(...ys) - 0.01), hi = over ? TIME_CAP : Math.ceil(Math.max(...ys) + 0.01);
+  let lo = Math.floor(Math.min(...ys) - 0.01), hi = TIME_CAP; // the axis always runs to the cap, so charts of different builds line up
   if (CPS.filter((c) => PLOTTED.has(c.quantity)).length === 0) { lo = 2024; hi = 2031; }
   lo = Math.min(lo, 2025); hi = Math.max(hi, lo + 5);
   return [lo, hi];
@@ -297,10 +298,14 @@ function milestoneChart(host) {
     const y0 = f.top + i * rowH, color = TL_COLOR[t.id];
     if (i) f.svg.append(S('line', { x1: 0, x2: f.W, y1: y0, y2: y0, stroke: 'var(--grid)', 'stroke-width': 1 }));
     f.svg.append(S('circle', { cx: 8, cy: y0 + 16, r: 4.5, style: `fill:${color}` }), S('text', { x: 20, y: y0 + 20, class: 't-ink', style: 'font-weight:600' }, tlShort(t.id)));
+    if (LIVE) { // interim data: say how many runs stand behind the block, and flag a thin one
+      const n = (LIVE.clusterN || {})[t.id] || 0;
+      f.svg.append(S('text', { x: xEnd + GUT, y: y0 + 20, class: n < 30 ? 't-ink' : 't-muted', style: 'font-size:11px' }, n === 0 ? 'no runs yet' : n < 30 ? `only ${n} run${n === 1 ? '' : 's'}: rough` : `${n} runs`));
+    }
     LANES.forEach(([k], j) => {
       const c = find(t, k), cy = y0 + HEAD + j * LH + LH / 2, dim = k === 'TED-AI';
       f.svg.append(S('text', { x: f.L - 8, y: cy + 4, 'text-anchor': 'end', class: dim ? 't-muted' : 't-ink' }, k));
-      if (!c) { f.svg.append(S('text', { x: f.L + 8, y: cy + 4, class: 't-muted' }, 'no date yet')); return; }
+      if (!c) { f.svg.append(S('text', { x: Math.max(f.L + 8, xs(NOW) + 8), y: cy + 4, class: 't-muted' }, LIVE ? 'no date yet: this group has not reached it' : 'no date yet')); return; }
       const op = dim ? 0.7 : 1;
       const p10 = c.p10 ?? c.lo ?? c.value, p90 = c.p90 ?? null, lo = c.lo ?? c.value, hi = c.hi ?? null;
       const farEnd = p90 == null ? Infinity : p90; // a missing p90 is "never reached" by the share beyond the box
@@ -349,9 +354,27 @@ function keyRow() {
     H('span', { class: 'it', tabindex: '0' }, sw('mk-band2'), 'Model samples: dark = middle half (p25 to p75), light = p10 to p90'), H('span', { class: 'it', tabindex: '0' }, sw('mk-arrow'), 'Arrow: the range goes past the edge of the chart'), H('span', { class: 'it' }, H('span', { class: 'tk' }), 'Now (late 2026)'));
 }
 
+/** Banner of a live build: how far the forecast jobs are, when the clusters were last rebuilt. */
+function liveBanner() {
+  const st = LIVE.status;
+  if (!st) return H('div', { class: 'scn-live warn', role: 'status' }, H('b', { text: 'Interim: no status file found, so the number of forecast runs is unknown.' }));
+  const total = st.requested || 3000, n = st.clusterSamples != null ? st.clusterSamples : st.samples;
+  const when = st.clustersUpdatedAt || st.updatedAt, t = new Date(when);
+  const hhmm = isNaN(t) ? '?' : t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const jobs = Object.entries(st.jobs || {}).map(([k, v]) => `${k} ${v}`).join(', ');
+  const failed = (st.clusterSamples != null ? st.clusterSamples - (st.clusterOk || 0) : st.failedSoFar) || 0;
+  const head = st.final ? `Final: all ${total.toLocaleString('en-US')} forecast runs are in, updated ${hhmm}. Clusters are settled.`
+    : `Interim: ${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} forecast runs, updated ${hhmm}. Clusters still moving.`;
+  const stale = !st.final && !isNaN(t) && Date.now() - t.getTime() > 20 * 60000;
+  const detail = `${(st.clusterOk != null ? st.clusterOk : st.okSoFar || 0).toLocaleString('en-US')} usable, ${failed.toLocaleString('en-US')} failed and left out. Jobs: ${jobs || 'none'}. ` + 'The three timelines are slices of the finished runs, cut by when AI first codes better than any human, and the page reloads itself every minute.';
+  return H('div', { class: 'scn-live' + (st.final ? ' final' : ''), role: 'status' }, H('b', { text: head }), H('div', { class: 'muted', text: detail }),
+    stale ? H('div', { class: 'warnx', text: 'This build is more than 20 minutes old: the rebuild loop may have stopped.' }) : null);
+}
+
 function renderScenarios() {
   const host = document.getElementById('p-scn');
   clear(host);
+  if (LIVE) host.append(liveBanner());
   const nBy = (s) => CPS.filter((c) => c.status === s).length;
   const nTgt = CPS.filter((c) => c.targetId).length;
   // ---- 1. intro, legend of the three timelines
@@ -375,7 +398,7 @@ function renderScenarios() {
   hCard.append(hHost);
   const wCard = scnCard('How much computing power does the world have?', subEl('Total AI computing in the world, counted in chips equal to one top-end 2023 chip (', infoTip('H100e: H100 equivalents, the standard unit of AI computing power.', 'H100 equivalents'), '). Each step up the axis is ten times more. The AI Futures Model does not model the world total, so the timelines have no line here.'));
   wCard.append(wHost);
-  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from 1,000 runs of the AI Futures Model. The dot is the median date; the box holds the middle half of the runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
+  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model finished so far (each timeline is one slice of them, cut by when AI first codes better than any human)' : '1,000 runs of the AI Futures Model') + '. The dot is the median date; the box holds the middle half of the runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
   mCard.append(mHost);
   const uCard = scnCard('How much does AI speed up AI research?', subEl('How many times faster AI research runs with AI helping (1 means no help), on a scale where each step up is ten times more. The black marker is the METR estimate for late 2026. The three timelines are nudged sideways so they do not overlap. After takeoff the model’s numbers run off any sensible scale, so the upper part of the range is cut at the top of the chart.'));
   uCard.append(uHost);
@@ -510,3 +533,14 @@ function groupEl(title, sub, list, emptyMsg, band) {
   return el;
 }
 renderers.scn = renderScenarios;
+
+// ---- first view (client.js and scenarios.js are one script; this runs after every renderer is defined)
+{ // a reload (the live page refreshes itself) comes back to the same tab and scroll position
+  const h = (location.hash || '').slice(1), tabs = ['out', 'par', 'tgt', 'scn'];
+  showTab(tabs.includes(h) ? h : D.live ? 'scn' : 'out');
+  if (D.live) {
+    const y = Number(sessionStorage.getItem('baldash-scroll') || 0);
+    if (y) window.scrollTo(0, y);
+    addEventListener('scroll', () => sessionStorage.setItem('baldash-scroll', String(window.scrollY)), { passive: true });
+  }
+}

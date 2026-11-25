@@ -1,6 +1,8 @@
 // Balance dashboard (design/bal/TOOLING-DESIGN.md, C4). Reads balance/runs/<name>/ and the registries in balance/,
 // writes one self-contained balance/dash/index.html (data inlined, vanilla JS + SVG, no network).
-//   npm run bal:dash -- --runs smoke[,other] [--scenarios file.ts]
+//   npm run bal:dash -- --runs smoke[,other] [--scenarios file.ts] [--scenarios-live <aifm-runs/out/eli_live>]
+// --scenarios-live: the Scenarios tab takes its timeline layer from the live cluster files of a running AI Futures Model job
+// (see baldash-live.ts), shows an "Interim" banner and reloads itself every minute.
 // The page assets live in scripts/v2/baldash-assets/ (template.html, style.css, client.js).
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -10,6 +12,7 @@ import type { AlignmentLevel, Checkpoint, Timeline } from '../../balance/scenari
 import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
 import { STARTS } from '../../src/data/v2/starts';
 import { PRESET_BY_LABEL } from '../../src/data/v2/calibration';
+import { loadLive } from './baldash-live';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../..');
@@ -24,22 +27,24 @@ interface Game {
   pMisAtEnd?: number; pMisAtASI?: number; minCash?: number; insolvent?: boolean;
 }
 
-function parseArgs(): { runs: string[]; out: string; scenarios: string } {
+function parseArgs(): { runs: string[]; out: string; scenarios: string; live: string | null } {
   const a = process.argv.slice(2);
   let runs = '';
   let out = join(ROOT, 'balance/dash/index.html');
   let scenarios = join(ROOT, 'balance/scenarios.ts'); // --scenarios <file> points at a test copy
+  let live: string | null = null;
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--runs') runs = a[++i] ?? '';
     else if (a[i] === '--out') out = a[++i] ?? out;
     else if (a[i] === '--scenarios') scenarios = resolve(a[++i] ?? scenarios);
+    else if (a[i] === '--scenarios-live') live = resolve(a[++i] ?? '');
   }
   const list = runs.split(',').map((s) => s.trim()).filter(Boolean);
   if (!list.length) {
     console.error('usage: npm run bal:dash -- --runs <name>[,<name>...] [--out file.html]');
     process.exit(2);
   }
-  return { runs: list, out, scenarios };
+  return { runs: list, out, scenarios, live };
 }
 
 function readJson<T>(path: string): T | undefined {
@@ -86,7 +91,7 @@ async function loadScenarios(file: string): Promise<{ timelines: Timeline[]; lev
 }
 
 async function main() {
-  const { runs, out, scenarios } = parseArgs();
+  const { runs, out, scenarios, live } = parseArgs();
   const runData = runs.map((name) => {
     const dir = join(ROOT, 'balance/runs', name);
     const gp = join(dir, 'games.jsonl');
@@ -113,19 +118,27 @@ async function main() {
     world: Object.fromEntries(Object.entries(PRESET_BY_LABEL).map(([label, id]) => [id, label])),
   };
   const scen = await loadScenarios(scenarios);
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen };
+  let liveInfo: { status: unknown; clusterN: Record<string, number> } | null = null;
+  if (live) { // the live clusters replace the timeline layer and the timeline texts; history and alignment stay
+    const lv = loadLive(live);
+    scen.timelines = lv.timelines;
+    scen.checkpoints = [...scen.checkpoints.filter((c) => c.layer !== 'timeline'), ...lv.checkpoints];
+    liveInfo = { status: lv.status, clusterN: lv.clusterN };
+  }
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');
   const tpl = readFileSync(join(ASSETS, 'template.html'), 'utf8');
   const html = tpl
+    .replace('<!--__REFRESH__-->', live ? '<meta http-equiv="refresh" content="60">' : '')
     .replace('/*__CSS__*/', () => readFileSync(join(ASSETS, 'style.css'), 'utf8'))
     .replace('/*__JS__*/', () => ['client.js', 'scenarios.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
     .replace('/*__DATA__*/', () => json);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
   const n = runData.reduce((s, r) => s + r.games.length, 0);
-  console.log(`bal:dash: ${out} (${n} games from ${runs.join(', ')}; ${params.length} params, ${targets.length} targets, ${scen.checkpoints.length} scenario checkpoints; ${(html.length / 1024).toFixed(0)} KB)`);
+  console.log(`bal:dash: ${out} (${n} games from ${runs.join(', ')}; ${params.length} params, ${targets.length} targets, ${scen.checkpoints.length} scenario checkpoints${live ? ', timeline layer LIVE from ' + live : ''}; ${(html.length / 1024).toFixed(0)} KB)`);
   for (const r of runData) if (r.badLines) console.log(`  ${r.name}: skipped ${r.badLines} unreadable line(s)`);
 }
 

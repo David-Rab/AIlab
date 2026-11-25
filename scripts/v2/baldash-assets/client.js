@@ -159,6 +159,7 @@ texBtn.onclick = () => { const on = !document.body.classList.contains('tex'); do
 const renderers = { out: null, par: null, tgt: null, scn: null };
 const rendered = {};
 function showTab(t) {
+  try { history.replaceState(null, '', '#' + t); } catch (e) { /* file:// in some browsers */ }
   for (const b of document.querySelectorAll('nav.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
   for (const k of ['out', 'par', 'tgt', 'scn']) document.getElementById('p-' + k).hidden = k !== t;
   if (!rendered[t]) { rendered[t] = true; renderers[t](); } else if (renderers[t + '_re']) renderers[t + '_re']();
@@ -777,4 +778,4 @@ renderers.tgt = renderTargets;
   });
   el.textContent = parts.join('  |  ') + `  |  built ${D.generated.slice(0, 16).replace('T', ' ')}`;
 })();
-showTab('out');
+// the first tab is shown at the end of scenarios.js, the last file of the page script
