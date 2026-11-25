@@ -71,3 +71,10 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 - **Fewer failed runs:** find out why samples fail or time out, and fix what's fixable (timeouts, worker load). Report the rest.
 - **Dashboard time axis extends to 2060.**
 - This replaces the round-3 tuned configs (Daniel/Eli tweaks); those runs stay on disk for reference.
+
+## Round 6 (2026-11-25): designer questions and lead proposals
+- **The game has no time cap:** it plays until an ending, so slow-world years to ~2040+ are played and their benchmarks matter.
+- **AIFM inputs are fixed author projections:** human researchers, inference, experiment, training, all-AI-company and world compute. They don't react to model strength.
+- **Designer:** calibration exists to make the *player's* outcomes realistic. NPCs (China, rivals, government) don't matter for now; they stay at the middle settings.
+- **Lead proposal (pending designer OK):** calibrate the world with a **sourced realistic-lab reference policy running on the player's own mechanics** (RefBot rebuilt with sourced choices), not against the NPC leader lab, whose internals differ. The strong bot (plays to win) measures difficulty.
+- **Pending designer choice:** how to split the 3,000 Eli runs into scenarios. Options: by coder date, by SAR date, or a coder × takeoff matrix. A comparison view is being built (SC9).
