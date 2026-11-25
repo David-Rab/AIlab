@@ -37,3 +37,8 @@ These are default-off flags with no effect on normal play, proven by the 24-game
 
 ## Speed
 About 3–8 s per run for 2025–2045. 1,000 runs on 8 workers take 10–20 minutes.
+
+## Designer decisions (2026-11-25)
+1. **Force the player's lab:** yes.
+2. **Default-off engine hooks**, proven by fingerprint: yes.
+3. **Fixed Stage 1 policy** = RefBot's current settings plus the research ideas real labs plausibly pursue: yes.
