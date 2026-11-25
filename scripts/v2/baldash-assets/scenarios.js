@@ -11,16 +11,17 @@ const LAYERS = { ac: { timelines: SC.timelines || [], cps: (SC.checkpoints || []
 if (LIVE && LIVE.sar) LAYERS.sar = { timelines: LIVE.sar.timelines, cps: LIVE.sar.checkpoints, clusterN: LIVE.sar.clusterN || {} };
 const MATRIX = LIVE && LIVE.matrix && LIVE.matrix.cells ? LIVE.matrix : null;
 const SPLITS = ['ac', ...(LAYERS.sar ? ['sar'] : []), ...(MATRIX ? ['matrix'] : [])];
-let SPLIT = 'ac', LAST_1D = 'ac';
-let CPS = [...BASE_CPS, ...LAYERS.ac.cps];
-let CUR_N = LAYERS.ac.clusterN;
+// The designer chose the SAR-date split: a live build opens on it (the other cuts stay one click away).
+let SPLIT = LAYERS.sar ? 'sar' : 'ac', LAST_1D = SPLIT;
+let CPS = [...BASE_CPS, ...LAYERS[SPLIT].cps];
+let CUR_N = LAYERS[SPLIT].clusterN;
 const NOW = 2026.9; // "late 2026": the end of the shared history
 const TL_ORDER = ['fast', 'central', 'slow'];
 const TL_FALLBACK = { fast: 'Fast', central: 'Central', slow: 'Slow' };
 // Fixed timeline colours: categorical slots 1-3, checked together with validate_palette.js --pairs all (both modes).
 const TL_COLOR = { fast: 'var(--s2)', central: 'var(--s1)', slow: 'var(--s3)' };
 const pickTimelines = (list) => TL_ORDER.map((id) => (list || []).find((t) => t.id === id) || { id, name: TL_FALLBACK[id], sourceModel: '', summary: '' });
-let TIMELINES = pickTimelines(LAYERS.ac.timelines);
+let TIMELINES = pickTimelines(LAYERS[SPLIT].timelines);
 function useLayer(id) { const L = LAYERS[id]; CPS = [...BASE_CPS, ...L.cps]; TIMELINES = pickTimelines(L.timelines); CUR_N = L.clusterN; }
 const tlOf = (id) => TIMELINES.find((t) => t.id === id);
 const tlShort = (id) => String(tlOf(id).name).split(' (')[0];
@@ -411,8 +412,9 @@ const sepText = (p) => (p.none ? 'not reached' : p.sep ? `separate (${p.years.to
 function splitCard() {
   const seg = H('div', { class: 'seg-ctl', style: { marginLeft: '0' }, role: 'group', 'aria-label': 'Split by' },
     SPLITS.map((k) => H('button', { text: SPLIT_NAME[k], 'aria-pressed': String(SPLIT === k), onclick: () => setSplit(k) })));
+  const chosen = LAYERS.sar ? H('span', { class: 'muted', style: { marginLeft: '10px' }, text: 'SAR date is the chosen split' + (SPLIT === 'sar' ? ' (shown)' : '') + '.' }) : null;
   const card = H('div', { class: 'card scn-splitcard' },
-    H('div', { class: 'scn-h' }, H('h2', { text: 'Split by' }), seg),
+    H('div', { class: 'scn-h' }, H('h2', { text: 'Split by' }), seg, chosen),
     H('div', { class: 'sub', text: SPLIT_HELP[SPLIT] }));
   const ids = ['ac', ...(LAYERS.sar ? ['sar'] : [])];
   if (ids.length > 1 || SPLIT !== 'matrix') {
@@ -646,7 +648,7 @@ function renderScenarios() {
   hCard.append(hHost);
   const wCard = scnCard('How much computing power does the world have?', subEl('Total AI computing in the world, counted in chips equal to one top-end 2023 chip (', infoTip('H100e: H100 equivalents, the standard unit of AI computing power.', 'H100 equivalents'), '). Each step up the axis is ten times more. The AI Futures Model does not model the world total, so the timelines have no line here.'));
   wCard.append(wHost);
-  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model (each timeline is one slice of them, cut by ' + SPLIT_WHAT[SPLIT] + ')' : '1,000 runs of the AI Futures Model') + '. The dot is the median date; the box holds the middle half of this group’s runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
+  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model (each timeline is one slice of them, cut by ' + SPLIT_WHAT[SPLIT] + ')' : '3,000 runs of the AI Futures Model, split by the date AI first does AI research better than any human (SAR)') + '. The dot is the median date; the box holds the middle half of this group’s runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
   mCard.append(mHost);
   const uCard = scnCard('How much does AI speed up AI research?', subEl('How many times faster AI research runs with AI helping (1 means no help), on a scale where each step up is ten times more. The black marker is the METR estimate for late 2026. The three timelines are nudged sideways so they do not overlap. After takeoff the model’s numbers run off any sensible scale, so the upper part of the range is cut at the top of the chart.'));
   uCard.append(uHost);
