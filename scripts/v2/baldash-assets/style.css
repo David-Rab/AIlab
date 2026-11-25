@@ -158,3 +158,24 @@ td.src .ref { font: 11px ui-monospace, Consolas, monospace; color: var(--muted);
 .st .dot.hol { background: var(--surface); border: 2px solid var(--ink2); }
 .chip.lnk { cursor: pointer; border: 0; color: var(--ink); text-decoration: underline; }
 @media (max-width: 1000px) { .scn-tls { grid-template-columns: 1fr; } .scn-lvls { grid-template-columns: 1fr 1fr; } }
+
+/* ---- Scenarios: split switch, readout, inputs, matrix */
+.scn-splitcard .scn-h { margin-bottom: 4px; }
+.scn-sub-h { font-size: 13px; margin: 12px 0 2px; }
+.scn-seg th.scn-cur { background: var(--wash); }
+.scn-seg td.scn-sep { color: var(--ink); }
+.scn-seg td.scn-ovl { color: var(--ink2); font-style: italic; }
+.scn-inputs { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 8px; }
+.scn-ch { font-size: 12px; margin-bottom: 2px; }
+.scn-mx { display: grid; grid-template-columns: minmax(120px, 150px) repeat(3, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
+.scn-mxh { padding: 0 2px 2px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.scn-mxh .sw { margin-right: 6px; }
+.scn-mxr { display: flex; flex-direction: column; justify-content: center; gap: 2px; font-size: 12px; }
+.scn-mxr b { font-size: 13px; }
+.scn-mxc { border: 1px solid var(--border); border-top: 3px solid var(--ink); border-radius: 8px; padding: 8px 10px; min-width: 0; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.scn-mxc:hover, .scn-mxc:focus { background: var(--wash); }
+.scn-mxn { font-size: 20px; font-weight: 650; }
+.scn-mxl { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.scn-mxl .k { color: var(--ink2); width: 28px; flex: none; }
+.scn-mxw { color: var(--ink); font-weight: 600; }
+@media (max-width: 1000px) { .scn-inputs { grid-template-columns: 1fr; } }

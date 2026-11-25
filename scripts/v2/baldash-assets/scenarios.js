@@ -1,14 +1,27 @@
 // ================================================================ TAB 4: SCENARIOS
 // Reads D.scenarios (balance/scenarios.ts: TIMELINES, ALIGNMENT_LEVELS, CHECKPOINTS). Appended to client.js by baldash.ts.
 const SC = D.scenarios || { timelines: [], levels: [], checkpoints: [] };
-const CPS = SC.checkpoints || [];
 const LIVE = D.live || null; // set by --scenarios-live: the timeline layer comes from a running forecast job (baldash-live.ts)
+// The timeline layer can be cut three ways (live builds that found the files): by AC date, by SAR date, or as a 3x3 matrix.
+// BASE_CPS (history, alignment) never changes; useLayer() swaps in one split's timeline checkpoints and texts.
+const BASE_CPS = (SC.checkpoints || []).filter((c) => c.layer !== 'timeline');
+const SPLIT_NAME = { ac: 'Coder date', sar: 'SAR date', matrix: 'Coder × takeoff' };
+const SPLIT_WHAT = { ac: 'when AI first codes better than any human (AC)', sar: 'when AI first does AI research better than any human (SAR)' };
+const LAYERS = { ac: { timelines: SC.timelines || [], cps: (SC.checkpoints || []).filter((c) => c.layer === 'timeline'), clusterN: LIVE ? LIVE.clusterN || {} : {} } };
+if (LIVE && LIVE.sar) LAYERS.sar = { timelines: LIVE.sar.timelines, cps: LIVE.sar.checkpoints, clusterN: LIVE.sar.clusterN || {} };
+const MATRIX = LIVE && LIVE.matrix && LIVE.matrix.cells ? LIVE.matrix : null;
+const SPLITS = ['ac', ...(LAYERS.sar ? ['sar'] : []), ...(MATRIX ? ['matrix'] : [])];
+let SPLIT = 'ac', LAST_1D = 'ac';
+let CPS = [...BASE_CPS, ...LAYERS.ac.cps];
+let CUR_N = LAYERS.ac.clusterN;
 const NOW = 2026.9; // "late 2026": the end of the shared history
 const TL_ORDER = ['fast', 'central', 'slow'];
 const TL_FALLBACK = { fast: 'Fast', central: 'Central', slow: 'Slow' };
 // Fixed timeline colours: categorical slots 1-3, checked together with validate_palette.js --pairs all (both modes).
 const TL_COLOR = { fast: 'var(--s2)', central: 'var(--s1)', slow: 'var(--s3)' };
-const TIMELINES = TL_ORDER.map((id) => (SC.timelines || []).find((t) => t.id === id) || { id, name: TL_FALLBACK[id], sourceModel: '', summary: '' });
+const pickTimelines = (list) => TL_ORDER.map((id) => (list || []).find((t) => t.id === id) || { id, name: TL_FALLBACK[id], sourceModel: '', summary: '' });
+let TIMELINES = pickTimelines(LAYERS.ac.timelines);
+function useLayer(id) { const L = LAYERS[id]; CPS = [...BASE_CPS, ...L.cps]; TIMELINES = pickTimelines(L.timelines); CUR_N = L.clusterN; }
 const tlOf = (id) => TIMELINES.find((t) => t.id === id);
 const tlShort = (id) => String(tlOf(id).name).split(' (')[0];
 const LV_ORDER = ['beginner', 'easy', 'normal', 'hard', 'impossible'];
@@ -99,7 +112,7 @@ function cpTip(c, color, who) {
   const dist = isDist(c), yearly = c.quantity === 'milestone' || isTed(c);
   const f1 = hz ? (v) => fmtDur(toMin(c, v)) : yearly ? fmtWhen : (v) => fmtNum(c, v);
   const b = c.lo != null && c.hi != null ? `${f1(c.lo)} to ${f1(c.hi)}` : dist && c.lo != null ? `${f1(c.lo)} and above (the upper end is off the chart)` : null;
-  if (b) lines.push([dist ? 'Middle half (p25 to p75)' : 'Range', dist ? b : `${b}. ${BAND_DEF[c.bandFrom] || ''}`]);
+  if (b) lines.push([dist ? 'Middle half of this group’s runs (p25 to p75)' : 'Range', dist ? b : `${b}. ${BAND_DEF[c.bandFrom] || ''}`]);
   if (dist) lines.push(['Wider range (p10 to p90)', fmtWide(c, f1)]);
   lines.push(['Source', c.source || '—']);
   if (c.sourceRef) lines.push(['Reference', c.sourceRef]);
@@ -114,7 +127,7 @@ const markerAttrs = (color, hollow) => (hollow ? { fill: 'var(--surface)', strok
 /** Frame shared by the three charts: surface, history wash, year grid, "now" marker. Returns helpers. */
 function timeFrame(host, o) {
   clear(host);
-  const W = Math.max(host.clientWidth || 900, 640), L = o.L || 92, R = o.R || 104, top = 24, bot = 26, ph = o.ph;
+  const W = Math.max(host.clientWidth || 900, o.minW || 640), L = o.L || 92, R = o.R || 104, top = 24, bot = 26, ph = o.ph;
   const [x0, x1] = o.range || timeRange, xs = (y) => L + ((y - x0) / (x1 - x0)) * (W - L - R);
   const svg = S('svg', { width: W, height: top + ph + bot, role: 'group', 'aria-label': o.aria });
   if (NOW > x0) svg.append(S('rect', { x: L, y: top, width: xs(Math.min(NOW, x1)) - L, height: ph, fill: 'var(--wash)' }));
@@ -299,7 +312,7 @@ function milestoneChart(host) {
     if (i) f.svg.append(S('line', { x1: 0, x2: f.W, y1: y0, y2: y0, stroke: 'var(--grid)', 'stroke-width': 1 }));
     f.svg.append(S('circle', { cx: 8, cy: y0 + 16, r: 4.5, style: `fill:${color}` }), S('text', { x: 20, y: y0 + 20, class: 't-ink', style: 'font-weight:600' }, tlShort(t.id)));
     if (LIVE) { // interim data: say how many runs stand behind the block, and flag a thin one
-      const n = (LIVE.clusterN || {})[t.id] || 0;
+      const n = CUR_N[t.id] || 0;
       f.svg.append(S('text', { x: xEnd + GUT, y: y0 + 20, class: n < 30 ? 't-ink' : 't-muted', style: 'font-size:11px' }, n === 0 ? 'no runs yet' : n < 30 ? `only ${n} run${n === 1 ? '' : 's'}: rough` : `${n} runs`));
     }
     LANES.forEach(([k], j) => {
@@ -351,7 +364,7 @@ function keyRow() {
   const sw = (cls) => H('span', { class: 'mk ' + cls });
   return H('div', { class: 'legend scn-key' },
     H('span', { class: 'it', tabindex: '0' }, sw('mk-hist'), 'Measured history'), H('span', { class: 'it', tabindex: '0' }, sw('mk-hollow'), 'Unsure or proposed'), H('span', { class: 'it', tabindex: '0' }, sw('mk-band'), 'Range given by the source'),
-    H('span', { class: 'it', tabindex: '0' }, sw('mk-band2'), 'Model samples: dark = middle half (p25 to p75), light = p10 to p90'), H('span', { class: 'it', tabindex: '0' }, sw('mk-arrow'), 'Arrow: the range goes past the edge of the chart'), H('span', { class: 'it' }, H('span', { class: 'tk' }), 'Now (late 2026)'));
+    H('span', { class: 'it', tabindex: '0' }, sw('mk-band2'), 'Model samples: dark = middle half of this group’s runs (p25 to p75), light = p10 to p90'), H('span', { class: 'it', tabindex: '0' }, sw('mk-arrow'), 'Arrow: the range goes past the edge of the chart'), H('span', { class: 'it' }, H('span', { class: 'tk' }), 'Now (late 2026)'));
 }
 
 /** Banner of a live build: how far the forecast jobs are, when the clusters were last rebuilt. */
@@ -366,15 +379,250 @@ function liveBanner() {
   const head = st.final ? `Final: all ${total.toLocaleString('en-US')} forecast runs are in, updated ${hhmm}. Clusters are settled.`
     : `Interim: ${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} forecast runs, updated ${hhmm}. Clusters still moving.`;
   const stale = !st.final && !isNaN(t) && Date.now() - t.getTime() > 20 * 60000;
-  const detail = `${(st.clusterOk != null ? st.clusterOk : st.okSoFar || 0).toLocaleString('en-US')} usable, ${failed.toLocaleString('en-US')} failed and left out. Jobs: ${jobs || 'none'}. ` + 'The three timelines are slices of the finished runs, cut by when AI first codes better than any human, and the page reloads itself every minute.';
+  const detail = `${(st.clusterOk != null ? st.clusterOk : st.okSoFar || 0).toLocaleString('en-US')} usable, ${failed.toLocaleString('en-US')} failed and left out. Jobs: ${jobs || 'none'}. ` + (st.final ? 'The timelines below are slices of these runs; choose how they are cut under "Split by". This page does not refresh itself.' : 'The timelines below are slices of the runs so far, and the page reloads itself every minute.');
   return H('div', { class: 'scn-live' + (st.final ? ' final' : ''), role: 'status' }, H('b', { text: head }), H('div', { class: 'muted', text: detail }),
     stale ? H('div', { class: 'warnx', text: 'This build is more than 20 minutes old: the rebuild loop may have stopped.' }) : null);
+}
+
+// ---- "Split by" switch and the separation readout
+const SPLIT_HELP = {
+  ac: 'The runs are ranked by the date AI first codes better than any human (AC). Fast = the 20th to 30th percentile, central = 45th to 55th, slow = 70th to 80th.',
+  sar: 'The runs are ranked by the date AI first does AI research better than any human (SAR). Fast = the 20th to 30th percentile, central = 45th to 55th, slow = 70th to 80th. A run that never reaches SAR counts as later than all the others.',
+  matrix: 'All usable runs are sorted into thirds by AC date (early, middle, late coder). Inside each third they are sorted into thirds again by takeoff speed: the years from AC to ASI (a run that never reaches ASI counts as slowest). Every cell holds about a ninth of the runs.',
+};
+/** For one split: per milestone lane, how the p25-p75 boxes of neighbouring groups sit. a = earlier group, b = later group. */
+function separation(layerId) {
+  const L = LAYERS[layerId], tls = pickTimelines(L.timelines);
+  const find = (t, k) => L.cps.find((c) => c.timeline === t.id && (k === 'TED-AI' ? isTed(c) : c.quantity === 'milestone' && c.milestone === k) && c.value != null);
+  return LANES.map(([k]) => {
+    const pair = (ta, tb) => {
+      const a = find(ta, k), b = find(tb, k);
+      if (!a || !b) return { none: true };
+      const aHi = a.hi == null ? Infinity : a.hi, bHi = b.hi == null ? Infinity : b.hi, bLo = b.lo ?? b.value;
+      const gap = bLo - aHi;
+      if (gap > 0) return { sep: true, years: gap };
+      const ov = Math.min(aHi, bHi) - bLo;
+      return { sep: false, years: isFinite(ov) ? ov : null };
+    };
+    return { k, fc: pair(tls[0], tls[1]), cs: pair(tls[1], tls[2]) };
+  });
+}
+const sepText = (p) => (p.none ? 'not reached' : p.sep ? `separate (${p.years.toFixed(1)} yr apart)` : `overlap (${p.years == null ? 'open-ended' : p.years.toFixed(1) + ' yr'})`);
+function splitCard() {
+  const seg = H('div', { class: 'seg-ctl', style: { marginLeft: '0' }, role: 'group', 'aria-label': 'Split by' },
+    SPLITS.map((k) => H('button', { text: SPLIT_NAME[k], 'aria-pressed': String(SPLIT === k), onclick: () => setSplit(k) })));
+  const card = H('div', { class: 'card scn-splitcard' },
+    H('div', { class: 'scn-h' }, H('h2', { text: 'Split by' }), seg),
+    H('div', { class: 'sub', text: SPLIT_HELP[SPLIT] }));
+  const ids = ['ac', ...(LAYERS.sar ? ['sar'] : [])];
+  if (ids.length > 1 || SPLIT !== 'matrix') {
+    const res = Object.fromEntries(ids.map((id) => [id, separation(id)]));
+    const total = (id) => { let n = 0, sepN = 0; for (const r of res[id]) for (const p of [r.fc, r.cs]) if (!p.none) { n++; if (p.sep) sepN++; } return `${sepN} of ${n}`; };
+    const rows = LANES.map(([k], i) => H('tr', {}, H('td', {}, H('b', { text: k }), k === 'SC' ? H('span', { class: 'muted', text: ' (the model’s AC)' }) : null),
+      ids.flatMap((id) => [res[id][i].fc, res[id][i].cs].map((p) => H('td', { class: p.none ? 'muted' : p.sep ? 'scn-sep' : 'scn-ovl', text: sepText(p) })))));
+    const head1 = H('tr', {}, H('th', { rowSpan: 2, text: 'Milestone', style: { cursor: 'default' } }), ids.map((id) => H('th', { colSpan: 2, class: id === SPLIT ? 'scn-cur' : '', style: { cursor: 'default' }, text: SPLIT_NAME[id] + (id === SPLIT ? ' (shown)' : '') })));
+    const head2 = H('tr', {}, ids.flatMap(() => ['Fast and central', 'Central and slow'].map((t) => H('th', { style: { cursor: 'default' }, text: t }))));
+    card.append(H('h3', { class: 'scn-sub-h', text: 'How much do the groups overlap?' }),
+      H('div', { class: 'sub' }, 'For each milestone: do the middle-half boxes (p25 to p75 of each group’s own runs) of neighbouring groups overlap or stand apart? The good split is the one whose boxes stand apart for the most milestones. ',
+        ids.map((id) => `${SPLIT_NAME[id]}: ${total(id)} neighbouring pairs separate. `).join('')),
+      H('div', { class: 'tablewrap' }, H('table', { class: 'dt scn-seg' }, H('thead', {}, head1, head2), H('tbody', {}, rows))));
+  }
+  return card;
+}
+
+// ---- Inputs chart: the authors' fixed projection, shared by every scenario
+const INPUT_LINES = [
+  ['world_H100e', 'World AI compute', 'var(--s7)', 'All AI chips in the world.'],
+  ['total_ai_company_H100e', 'All AI companies', 'var(--s8)', 'The chips owned by AI companies.'],
+  ['experiment_H100e', 'Research experiments', 'var(--s4)', 'Compute the AI companies spend on research experiments.'],
+  ['training_H100e', 'Frontier training', 'var(--s6)', 'Compute used to train the frontier model.'],
+  ['inference_H100e', 'Inference', 'var(--s5)', 'Compute used to run AI models for users and for AI research labour.'],
+];
+const FIXED_NOTE = 'authors’ fixed projection (same in all scenarios)';
+function inputsCard(inHost, lhHost) {
+  const card = H('div', { class: 'card' }, H('h2', { text: 'What the model is given: computing power and human researchers' }),
+    H('div', { class: 'sub' }, 'Inputs, not results: the AI Futures Model authors’ fixed projection, identical in every run and every split. Computing power is in ',
+      infoTip('H100e: H100 equivalents, the standard unit of AI computing power.', 'H100 equivalents'), ' on a scale where each step up is ten times more. Dots are measured world computing power from the shared history.'));
+  card.append(H('div', { class: 'legend scn-key' }, INPUT_LINES.map(([, name, color, tip]) => { const it = H('span', { class: 'it', tabindex: '0' }, H('span', { class: 'sw', style: { background: color } }), name); bindTip(it, () => ({ lines: [tip] })); return it; }),
+    H('span', { class: 'it', tabindex: '0' }, H('span', { class: 'mk mk-hist' }), 'Measured world computing power')));
+  card.append(H('div', { class: 'scn-inputs' },
+    H('div', {}, H('div', { class: 'scn-ch' }, H('b', { text: 'Computing power (H100e)' }), H('span', { class: 'muted', text: ' ' + FIXED_NOTE })), inHost),
+    H('div', {}, H('div', { class: 'scn-ch' }, H('b', { text: 'Human researchers' }), H('span', { class: 'muted', text: ' ' + FIXED_NOTE })), lhHost)));
+  return card;
+}
+function inputsCharts(host, host2) {
+  const IN = LIVE.inputs, T = IN.time, x0 = 2017, x1 = TIME_CAP;
+  const idx = T.map((t, i) => i).filter((i) => T[i] >= x0 && T[i] <= x1 + 1e-9);
+  const hist = BASE_CPS.filter((c) => c.layer === 'history' && c.quantity === 'worldCompute' && c.value != null && c.date != null);
+  const decades = (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v));
+  // --- chart 1: five compute lines on a log scale, plus the measured world points
+  const vals = INPUT_LINES.flatMap(([k]) => idx.map((i) => IN.series[k][i])).concat(hist.flatMap((c) => [c.value, c.lo, c.hi].filter((v) => v != null && v > 0)));
+  const ymin = Math.min(...vals) / 1.6, ymax = Math.max(...vals) * 1.6;
+  const f = timeFrame(host, { ph: 300, aria: 'Computing power inputs over time, log scale', range: [x0, x1], R: 150, L: 64 });
+  const ys = logAxis(f, decades(ymin, ymax), ymin, ymax);
+  const xOf = (t) => f.xs(t);
+  const ends = [];
+  for (const [k, name, color] of INPUT_LINES) {
+    const pts = idx.map((i) => `${xOf(T[i])},${ys(IN.series[k][i])}`).join(' ');
+    f.svg.append(S('polyline', { points: pts, fill: 'none', style: `stroke:${color};stroke-width:2`, 'stroke-linejoin': 'round' }));
+    ends.push({ name, color, y: ys(IN.series[k][idx[idx.length - 1]]) });
+  }
+  // direct labels at the right end, pushed apart so none touch
+  ends.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) ends[i].ly = Math.max(ends[i].y, (ends[i - 1].ly ?? ends[i - 1].y) + 14);
+  ends[0].ly = ends[0].y;
+  for (const e of ends) f.svg.append(S('text', { x: f.W - f.R + 8, y: (e.ly ?? e.y) + 4, style: `fill:${e.color};font-weight:600;font-size:12px` }, e.name));
+  const hits = [];
+  for (const c of hist) {
+    const x = xOf(c.date), y = ys(Math.max(c.value, ymin));
+    if (c.lo != null && c.hi != null && c.lo > 0) f.svg.append(S('line', { x1: x, x2: x, y1: ys(c.lo), y2: ys(c.hi), style: 'stroke:var(--ink);stroke-width:1.5;opacity:0.7' }));
+    const m = S('circle', Object.assign({ cx: x, cy: y, r: 5 }, markerAttrs('var(--ink)', hollowOf(c))));
+    f.svg.append(m);
+    const hit = S('circle', { cx: x, cy: y, r: 10, class: 'hit', tabindex: '0' });
+    const get = () => cpTip(c, 'var(--ink)', 'Measured');
+    hit.setAttribute('aria-label', tipText(get()));
+    bindTip(hit, get, { on: () => m.setAttribute('r', 6.5), off: () => m.setAttribute('r', 5) });
+    hits.push(hit);
+  }
+  // hover columns: one per year, listing every line at that year
+  const colW = (f.W - f.L - f.R) / (x1 - x0);
+  for (const i of idx) {
+    const t = T[i], r = S('rect', { x: xOf(t) - colW / 2, y: f.top, width: colW, height: f.ph, class: 'hit', fill: 'transparent', tabindex: '0' });
+    const get = () => ({ title: `${Math.round(t)}: ${FIXED_NOTE}`, rows: INPUT_LINES.map(([k, name, color]) => ({ c: color, v: fmtCompact(IN.series[k][i]), n: name, raw: IN.series[k][i] })).sort((a, b) => b.raw - a.raw), lines: ['H100e: H100 equivalents.'] });
+    r.setAttribute('aria-label', tipText(get()));
+    bindTip(r, get);
+    f.svg.append(r);
+  }
+  f.finish();
+  f.svg.append(...hits);
+  // --- chart 2: human researchers, its own unit and its own axis (never a second axis on chart 1)
+  const lv = idx.map((i) => IN.series.L_HUMAN[i]);
+  const lmin = Math.min(...lv) / 1.6, lmax = Math.max(...lv) * 1.6;
+  const g = timeFrame(host2, { ph: 300, aria: 'Human researchers over time, log scale', range: [x0, x1], L: 56, R: 12, minW: 300 });
+  const lys = logAxis(g, decades(lmin, lmax), lmin, lmax);
+  g.svg.append(S('polyline', { points: idx.map((i) => `${g.xs(T[i])},${lys(IN.series.L_HUMAN[i])}`).join(' '), fill: 'none', style: 'stroke:var(--ink);stroke-width:2', 'stroke-linejoin': 'round' }));
+  const lh = [];
+  for (const i of idx) {
+    const t = T[i], r = S('rect', { x: g.xs(t) - (g.W - g.L - g.R) / (x1 - x0) / 2, y: g.top, width: (g.W - g.L - g.R) / (x1 - x0), height: g.ph, class: 'hit', fill: 'transparent', tabindex: '0' });
+    const get = () => ({ title: `${Math.round(t)}: ${FIXED_NOTE}`, rows: [{ c: 'var(--ink)', v: fmtCompact(IN.series.L_HUMAN[i]), n: 'Human researchers (the model’s L_HUMAN)' }] });
+    r.setAttribute('aria-label', tipText(get()));
+    bindTip(r, get);
+    lh.push(r);
+  }
+  g.finish();
+  g.svg.append(...lh);
+}
+
+// ---- Matrix view: coder date x takeoff speed
+const COL_COLOR = { fast: 'var(--s2)', middle: 'var(--s1)', slow: 'var(--s3)' };
+const COL_LABEL = { fast: 'Fast takeoff', middle: 'Middle takeoff', slow: 'Slow takeoff' };
+const ROW_LABEL = { early: 'Early coder', middle: 'Middle coder', late: 'Late coder' };
+const yrTxt = (v) => (v == null ? 'never' : v.toFixed(1));
+const boxTxt = (q) => (q.p50 == null ? 'over half never' : `${yrTxt(q.p50)}`);
+const rangeTxt = (q) => (q.p25 == null && q.p75 == null ? '' : `${q.p25 == null ? 'never' : yrTxt(q.p25)} to ${yrTxt(q.p75)}`);
+const cellOf = (r, c) => MATRIX.cells.find((x) => x.row === r && x.col === c);
+const gapKey = () => (MATRIX.definition && MATRIX.definition.gap_field) || 'gap_AC_ASI';
+const gapTxt = (g) => (g.min == null ? 'never reaches ASI' : g.n_reached < 1 ? '' : `${g.min.toFixed(1)} to ${g.max.toFixed(1)} yr${g.p90 == null ? ' (some never)' : ''}`);
+function matrixCards(chartHost) {
+  const M = MATRIX, nPool = M.pool.n_ok_pooled;
+  const card = H('div', { class: 'card' }, H('h2', { text: 'Coder date × takeoff speed' }),
+    H('div', { class: 'sub' }, `${nPool.toLocaleString('en-US')} usable runs. Rows: when AI first codes better than any human (AC), in thirds. Columns: takeoff speed, the years from AC to ASI, in thirds within each row. Each cell shows the share of all runs, the median date with the middle half of its own runs (p25 to p75) in brackets, and how many runs never reach ASI by 2100.`));
+  const grid = H('div', { class: 'scn-mx' });
+  grid.append(H('div'));
+  for (let j = 0; j < 3; j++) {
+    const name = ['fast', 'middle', 'slow'][j], cells = [0, 1, 2].map((i) => cellOf(i, j)), gs = cells.map((c) => c[gapKey()]);
+    const lo = Math.min(...gs.map((g) => g.min ?? Infinity)), hi = Math.max(...gs.map((g) => g.max ?? -Infinity));
+    const someNever = cells.some((c) => c.milestones.ASI.n_reached < c.n);
+    grid.append(H('div', { class: 'scn-mxh' }, H('span', { class: 'sw', style: { background: COL_COLOR[name] } }), H('b', { text: COL_LABEL[name] }),
+      H('div', { class: 'muted', text: isFinite(lo) ? `AC to ASI: ${lo.toFixed(1)} to ${isFinite(hi) ? hi.toFixed(1) : '?'} yr${someNever ? ', or never' : ''}` : '' })));
+  }
+  for (let i = 0; i < 3; i++) {
+    const r = M.rows[i];
+    grid.append(H('div', { class: 'scn-mxr' }, H('b', { text: ROW_LABEL[r.name] }), H('div', { class: 'muted', text: r.date_min != null ? `AC ${r.date_min.toFixed(1)} to ${r.date_max.toFixed(1)}` : '' }), H('div', { class: 'muted', text: `${r.n} runs` })));
+    for (let j = 0; j < 3; j++) {
+      const c = cellOf(i, j), name = c.col_name;
+      const never = c.frac_not_reached_by_2100;
+      const line = (lab, q) => H('div', { class: 'scn-mxl' }, H('span', { class: 'k', text: lab }), H('b', { text: boxTxt(q) }), H('span', { class: 'muted', text: q.p50 == null ? '' : ` (${rangeTxt(q)})` }));
+      const el = H('div', { class: 'scn-mxc', tabindex: '0', style: { borderTopColor: COL_COLOR[name] } },
+        H('div', {}, H('span', { class: 'scn-mxn', text: fmtShare(c.share_of_pool) }), H('span', { class: 'muted', text: ` of all runs (${c.n})` })),
+        line('SAR', c.milestones.SAR), line('ASI', c.milestones.ASI),
+        H('div', { class: never > 0.005 ? 'scn-mxw' : 'muted', text: never > 0.005 ? `${fmtShare(never)} never reach ASI by 2100` : 'all reach ASI by 2100' }));
+      bindTip(el, () => ({ title: `${ROW_LABEL[c.row_name]}, ${COL_LABEL[name].toLowerCase()}`, lines: [
+        ['Runs', `${c.n}, ${fmtShare(c.share_of_pool)} of all`],
+        ['AC', `${yrTxt(c.milestones.AC.p50)} (middle half ${rangeTxt(c.milestones.AC)}); all runs ${yrTxt(c.milestones.AC.min)} to ${yrTxt(c.milestones.AC.max)}`],
+        ['SAR', `${yrTxt(c.milestones.SAR.p50)} (middle half ${rangeTxt(c.milestones.SAR)}); p10 to p90 ${yrTxt(c.milestones.SAR.p10)} to ${yrTxt(c.milestones.SAR.p90)}`],
+        ['ASI', `${yrTxt(c.milestones.ASI.p50)} (middle half ${rangeTxt(c.milestones.ASI)}); p10 to p90 ${yrTxt(c.milestones.ASI.p10)} to ${yrTxt(c.milestones.ASI.p90)}`],
+        ['AC to ASI', `median ${c[gapKey()].p50 == null ? 'never' : c[gapKey()].p50.toFixed(1) + ' yr'}; ${gapTxt(c[gapKey()])}`],
+        ['Not reaching ASI by 2100', `${fmtShare(never)} (${fmtShare(c.frac_never_reached_asi)} never, even by 2200)`]] }));
+      grid.append(el);
+    }
+  }
+  card.append(grid);
+  const chart = H('div', { class: 'card' }, H('h2', { text: 'When does each cell reach SAR and ASI?' }),
+    H('div', { class: 'sub' }, 'Each cell has two lanes: SAR (AI that does AI research better than any human; hollow dot) and ASI (superintelligence; filled dot). The dot is the median date, the box holds the middle half of this cell’s runs (p25 to p75), the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further. Colour is takeoff speed, as in the grid.'),
+    chartHost);
+  return [card, chart];
+}
+function matrixChart(host) {
+  const M = MATRIX, LH = 17, PAD = 14, GH = 38, rowH = 2 * LH + PAD;
+  const f = timeFrame(host, { ph: 3 * (GH + 3 * rowH), aria: 'SAR and ASI dates of the nine coder-date and takeoff-speed cells', L: 150, R: 150 });
+  const { xs, x1 } = f, xEnd = xs(x1), X = (v) => xs(Math.min(v, x1)), hits = [];
+  for (let i = 0; i < 3; i++) {
+    const g0 = f.top + i * (GH + 3 * rowH), r = M.rows[i];
+    if (i) f.svg.append(S('line', { x1: 0, x2: f.W, y1: g0, y2: g0, stroke: 'var(--grid)', 'stroke-width': 1 }));
+    f.svg.append(S('text', { x: 8, y: g0 + 16, class: 't-ink', style: 'font-weight:650' }, ROW_LABEL[r.name]), S('text', { x: 8, y: g0 + 31, class: 't-muted', style: 'font-size:11px' }, r.date_min != null ? `AC ${r.date_min.toFixed(1)} to ${r.date_max.toFixed(1)}` : ''));
+    for (let j = 0; j < 3; j++) {
+      const c = cellOf(i, j), color = COL_COLOR[c.col_name], y0 = g0 + GH + j * rowH;
+      f.svg.append(S('text', { x: 20, y: y0 + LH + 3, class: 't-ink', style: 'font-size:12px' }, COL_LABEL[c.col_name].replace(' takeoff', '')));
+      [['SAR', c.milestones.SAR], ['ASI', c.milestones.ASI]].forEach(([lab, q], k) => {
+        const cy = y0 + k * LH + LH / 2 + 1;
+        f.svg.append(S('text', { x: f.L - 8, y: cy + 4, 'text-anchor': 'end', class: 't-muted', style: 'font-size:11px' }, lab));
+        if (q.p50 == null) { f.svg.append(S('text', { x: Math.max(f.L + 8, xs(NOW) + 8), y: cy + 4, class: 't-muted', style: 'font-size:11px' }, 'median: over half never reach it')); return; }
+        const hi = q.p75 == null ? Infinity : q.p75, far = q.p90 == null ? Infinity : q.p90, solid = lab === 'ASI';
+        const gEl = S('g', {});
+        gEl.append(S('line', { x1: X(q.p10), x2: X(far), y1: cy, y2: cy, style: `stroke:${color};stroke-width:1.5;opacity:0.55` }));
+        gEl.append(S('line', { x1: X(q.p10), x2: X(q.p10), y1: cy - 4, y2: cy + 4, style: `stroke:${color};stroke-width:1.5;opacity:0.75` }));
+        if (far <= x1) gEl.append(S('line', { x1: X(far), x2: X(far), y1: cy - 4, y2: cy + 4, style: `stroke:${color};stroke-width:1.5;opacity:0.75` }));
+        const bx = X(q.p25), bw = Math.max(3, X(hi) - bx);
+        gEl.append(S('rect', { x: bx, y: cy - 6, width: bw, height: 12, rx: 2, style: `fill:${color};fill-opacity:${solid ? 0.45 : 0.2};stroke:${color};stroke-width:1` }));
+        const m = S('circle', { cx: X(q.p50), cy, r: 4.5, fill: solid ? color : 'var(--surface)', stroke: solid ? 'var(--surface)' : color, 'stroke-width': 2 });
+        gEl.append(m);
+        const beyond = far > x1 || hi > x1 || q.p50 > x1;
+        if (beyond) gEl.append(arrowMark('right', xEnd, cy, color));
+        f.svg.append(gEl);
+        f.svg.append(S('text', { x: xEnd + 14, y: cy + 4, class: 't-ink', style: 'font-size:11px' }, `${q.p50.toFixed(1)}`));
+        if (lab === 'ASI') f.svg.append(S('text', { x: xEnd + 52, y: cy + 4, class: c.frac_not_reached_by_2100 > 0.005 ? 't-ink' : 't-muted', style: 'font-size:11px' }, c.frac_not_reached_by_2100 > 0.005 ? `${fmtShare(c.frac_not_reached_by_2100)} not by 2100` : ''));
+        const a = Math.min(X(q.p10), bx) - 4, b = Math.max(X(far), bx + bw) + 4;
+        const hit = S('rect', { x: a, y: cy - 8, width: Math.max(12, b - a), height: 16, class: 'hit', tabindex: '0' });
+        const get = () => ({ title: `${lab}: ${ROW_LABEL[c.row_name].toLowerCase()}, ${COL_LABEL[c.col_name].toLowerCase()}`,
+          rows: [{ c: color, v: yrTxt(q.p50), n: 'median', hl: true }],
+          lines: [['Middle half of this cell’s runs (p25 to p75)', `${yrTxt(q.p25)} to ${yrTxt(q.p75)}`], ['Wider range (p10 to p90)', `${yrTxt(q.p10)} to ${yrTxt(q.p90)}`], ['Runs', `${c.n}, ${fmtShare(c.share_of_pool)} of all`]] });
+        hit.setAttribute('aria-label', tipText(get()));
+        bindTip(hit, get, { on: () => m.setAttribute('r', 6), off: () => m.setAttribute('r', 4.5) });
+        hits.push(hit);
+      });
+    }
+  }
+  f.svg.append(S('text', { x: xEnd + 14, y: f.top - 4, class: 't-muted', style: 'font-size:11px' }, 'median'));
+  f.finish();
+  f.svg.append(...hits);
+}
+
+let scnDraw = null; // the current redraw; the one resize listener below calls it
+window.addEventListener('resize', () => { if (scnDraw && !document.getElementById('p-scn').hidden) { clearTimeout(scnDraw.t); scnDraw.t = setTimeout(scnDraw, 120); } });
+function setSplit(k) {
+  SPLIT = k;
+  if (k !== 'matrix') { LAST_1D = k; useLayer(k); }
+  const y = window.scrollY;
+  renderScenarios();
+  window.scrollTo(0, y);
 }
 
 function renderScenarios() {
   const host = document.getElementById('p-scn');
   clear(host);
   if (LIVE) host.append(liveBanner());
+  if (SPLITS.length > 1) host.append(splitCard());
   const nBy = (s) => CPS.filter((c) => c.status === s).length;
   const nTgt = CPS.filter((c) => c.targetId).length;
   // ---- 1. intro, legend of the three timelines
@@ -384,7 +632,7 @@ function renderScenarios() {
     H('div', { class: 'scn-tl-h' }, H('span', { class: 'sw', style: { background: TL_COLOR[t.id] } }), H('b', { text: t.name })),
     H('div', { class: 'muted', text: t.sourceModel || 'source model not named yet' }), H('div', { text: t.summary || '' })))));
   intro.append(keyRow());
-  host.append(intro);
+  if (SPLIT !== 'matrix') host.append(intro);
 
   // ---- 2. the three charts, one time axis
   const h50 = CPS.filter((c) => c.quantity === 'horizon50').length, h80 = CPS.filter((c) => c.quantity === 'horizon80').length;
@@ -398,7 +646,7 @@ function renderScenarios() {
   hCard.append(hHost);
   const wCard = scnCard('How much computing power does the world have?', subEl('Total AI computing in the world, counted in chips equal to one top-end 2023 chip (', infoTip('H100e: H100 equivalents, the standard unit of AI computing power.', 'H100 equivalents'), '). Each step up the axis is ten times more. The AI Futures Model does not model the world total, so the timelines have no line here.'));
   wCard.append(wHost);
-  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model finished so far (each timeline is one slice of them, cut by when AI first codes better than any human)' : '1,000 runs of the AI Futures Model') + '. The dot is the median date; the box holds the middle half of the runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
+  const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model (each timeline is one slice of them, cut by ' + SPLIT_WHAT[SPLIT] + ')' : '1,000 runs of the AI Futures Model') + '. The dot is the median date; the box holds the middle half of this group’s runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
   mCard.append(mHost);
   const uCard = scnCard('How much does AI speed up AI research?', subEl('How many times faster AI research runs with AI helping (1 means no help), on a scale where each step up is ten times more. The black marker is the METR estimate for late 2026. The three timelines are nudged sideways so they do not overlap. After takeoff the model’s numbers run off any sensible scale, so the upper part of the range is cut at the top of the chart.'));
   uCard.append(uHost);
@@ -411,13 +659,22 @@ function renderScenarios() {
     hSub.append(`The length of task, in human working time, that the best AI finishes ${view.h === 'horizon50' ? 'half' : 'four times in five'} of the time. Each step up the axis is ten times longer. `, infoTip(WORK_NOTE, 'What is a work-month?'));
     hBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['horizon50', 'horizon80'][i] === view.h)));
     timeLogChart(hHost, { key: view.h, conv: toMin, ticks: horizonTicks, dom: [1, 1e5], aria: 'AI task length over time, by timeline' });
-    timeLogChart(wHost, { key: 'worldCompute', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e7, 1e9], aria: 'World computing power over time, by timeline' });
-    milestoneChart(mHost);
+    if (!hasInputs) timeLogChart(wHost, { key: 'worldCompute', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e7, 1e9], aria: 'World computing power over time, by timeline' });
+    if (SPLIT !== 'matrix') milestoneChart(mHost);
     timeLogChart(uHost, { pick: (c) => c.series === 'speedup', hist: (c) => c.id === 'H26.uplift.metr', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => (v >= 1e6 ? fmtCompact(v) : v.toLocaleString('en-US')) + 'x', hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1, 1e3], aria: 'AI research speed-up over time, by timeline' });
     timeLogChart(eHost, { pick: (c) => c.series === 'effCompute', hist: () => false, conv: (c, v) => v, linear: { fmt: (v) => '10^' + v }, dom: [28, 40], aria: 'Effective compute over time, by timeline' });
-    timeLogChart(tHost, { pick: (c) => c.series === 'trainCompute', hist: () => false, shared: true, conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e5, 1e8], aria: 'Frontier training compute assumed by the model' });
+    if (SPLIT === 'matrix') matrixChart(mxHost);
+    if (hasInputs) inputsCharts(inHost, lhHost);
+    if (!hasInputs) timeLogChart(tHost, { pick: (c) => c.series === 'trainCompute', hist: () => false, shared: true, conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e5, 1e8], aria: 'Frontier training compute assumed by the model' });
   };
-  const sw = H('div', { class: 'scn-stack' }, mCard, hCard, uCard, eCard, tCard, wCard);
+  const inHost = H('div', { class: 'chart' }), lhHost = H('div', { class: 'chart' });
+  const hasInputs = !!(LIVE && LIVE.inputs && LIVE.inputs.time && LIVE.inputs.time.length);
+  const inCard = inputsCard(inHost, lhHost);
+  const mxHost = H('div', { class: 'chart' });
+  const sw = H('div', { class: 'scn-stack' });
+  if (SPLIT === 'matrix') sw.append(...matrixCards(mxHost));
+  else sw.append(mCard, hCard, uCard, eCard);
+  if (hasInputs) sw.append(inCard); else sw.append(tCard, wCard);
   host.append(sw);
   // table twin of the chart data
   const twin = H('details', { class: 'card scn-twin' }, H('summary', { text: 'The chart points as a table' }));
@@ -438,7 +695,7 @@ function renderScenarios() {
   host.append(twin);
   draw();
   renderers.scn_re = draw;
-  window.addEventListener('resize', () => { if (!document.getElementById('p-scn').hidden) { clearTimeout(draw.t); draw.t = setTimeout(draw, 120); } });
+  scnDraw = draw;
 
   // ---- 3. alignment levels
   const lv = H('div', { class: 'card' }, H('h2', { text: 'Alignment difficulty levels' }),
@@ -522,7 +779,7 @@ function groupEl(title, sub, list, emptyMsg, band) {
     rows.push(H('tr', {},
       H('td', {}, H('div', { text: c.label }), c.date != null && c.quantity !== 'milestone' ? H('div', { class: 'muted', text: fmtWhen(c.date) }) : c.quantity === 'interval' ? H('div', { class: 'muted', text: `${MS_NAME[c.from] || c.from} to ${MS_NAME[c.milestone] || c.milestone}` }) : null, c.notes ? H('div', { class: 'muted', text: c.notes }) : null),
       H('td', { class: 'num' }, c.value != null ? fmtNum(c, c.value) : '—', raw ? H('div', { class: 'muted', text: raw }) : null),
-      H('td', { class: 'num' }, b ? b : H('span', { class: 'muted', text: 'no range' }), b ? H('div', { class: 'muted', text: isDist(c) ? 'middle half (p25 to p75)' : c.bandFrom === 'source' ? 'from the source' : c.bandFrom === 'designer' ? 'designer’s' : '' }) : null, isDist(c) ? H('div', { class: 'muted', text: 'p10 to p90: ' + fmtWide(c, (x) => fmtNum(c, x)) }) : null),
+      H('td', { class: 'num' }, b ? b : H('span', { class: 'muted', text: 'no range' }), b ? H('div', { class: 'muted', text: isDist(c) ? 'middle half of this group’s runs (p25 to p75)' : c.bandFrom === 'source' ? 'from the source' : c.bandFrom === 'designer' ? 'designer’s' : '' }) : null, isDist(c) ? H('div', { class: 'muted', text: 'p10 to p90: ' + fmtWide(c, (x) => fmtNum(c, x)) }) : null),
       H('td', { text: c.unit }),
       H('td', { class: 'src', title: c.sourceRef }, H('div', { text: c.source }), H('div', { class: 'ref', text: c.sourceRef })),
       H('td', {}, statusChip(c.status)),

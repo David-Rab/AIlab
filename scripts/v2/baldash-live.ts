@@ -3,13 +3,13 @@
 // builds from its pasted numbers. History, alignment levels and the timeline texts' structure still come from scenarios.ts.
 //   npm run bal:dash -- --runs perf10 --scenarios-live <aifm-runs/out/eli_live>
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { Checkpoint, Milestone, Timeline, TimelineId } from '../../balance/scenarios';
 
 type Q5 = [number | null, number | null, number | null, number | null, number | null];
 interface PerQ { p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null }
 interface ClusterFile {
-  cluster: { n: number; ac_percentile_lo: number; ac_percentile_hi: number; ac_date_lo: number | null; ac_date_hi: number | null; share_of_pool: number | null };
+  cluster: { n: number; share_of_pool: number | null } & Record<string, number | string | null>; // <key>_percentile_lo/_hi, <key>_date_lo/_hi (ac_ or sar_)
   pool: { n_ok_pooled: number; n_rollouts_in_files: number; n_failed_excluded: number };
   num_rollouts_ok: number;
   milestones: Record<string, PerQ & { frac_not_reached_by_2100: number | null; frac_never_reached: number | null }>;
@@ -21,7 +21,15 @@ export interface LiveStatus {
   jobs: Record<string, 'done' | 'running' | 'pending'>;
   clusterSamples?: number; clusterOk?: number; clustersUpdatedAt?: string; final?: boolean; allJobsDone?: boolean;
 }
-export interface LiveData { dir: string; status: LiveStatus | null; timelines: Timeline[]; checkpoints: Checkpoint[]; clusterN: Record<string, number> }
+/** One way of cutting the runs into fast / central / slow: its timeline texts, timeline-layer checkpoints and run counts. */
+export interface SplitLayer { id: SplitId; label: string; dir: string; timelines: Timeline[]; checkpoints: Checkpoint[]; clusterN: Record<string, number> }
+export type SplitId = 'ac' | 'sar';
+export interface InputsData { time: number[]; series: Record<string, number[]> }
+export interface LiveData {
+  dir: string; status: LiveStatus | null; timelines: Timeline[]; checkpoints: Checkpoint[]; clusterN: Record<string, number>;
+  sar: SplitLayer | null; matrix: unknown | null; inputs: InputsData | null;
+}
+export interface LiveOpts { sarDir?: string; matrixDir?: string; inputsCsv?: string }
 
 const IDS: TimelineId[] = ['fast', 'central', 'slow'];
 const SERIES_YEARS = [2027, 2028, 2030, 2032, 2035, 2040, 2045]; // the extractor reads 2025 to 2045; a point past the axis would not show
@@ -33,33 +41,54 @@ const yr = (v: number | null) => (v === null ? 'n/a' : v.toFixed(2));
 const pc = (f: number | null) => (f == null ? 'n/a' : `${+(f * 100).toPrecision(2)}%`);
 const readJson = <T>(p: string): T | undefined => { try { return JSON.parse(readFileSync(p, 'utf8')) as T; } catch { return undefined; } };
 
-export function loadLive(dir: string): LiveData {
-  if (!existsSync(dir)) throw new Error(`--scenarios-live: no folder ${dir}`);
-  const status = readJson<LiveStatus>(join(dir, 'status.json')) ?? null;
+const SPLITS: Record<SplitId, { key: string; pre: string; label: string; what: string; reaches: string }> = {
+  ac: { key: 'AC', pre: 'ac', label: 'Coder date', what: 'AC date', reaches: 'when AI first codes better than any human (AC)' },
+  sar: { key: 'SAR', pre: 'sar', label: 'SAR date', what: 'SAR date', reaches: 'when AI first does AI research better than any human (SAR)' },
+};
+
+const INPUT_COLS = ['L_HUMAN', 'inference_H100e', 'experiment_H100e', 'training_H100e', 'world_H100e', 'total_ai_company_H100e'];
+/** The authors' fixed input projection (aifm-public inputs/input_data.csv), same in every run. Rows up to 2061 only. */
+function loadInputs(csv: string): InputsData | null {
+  if (!existsSync(csv)) return null;
+  const lines = readFileSync(csv, 'utf8').split(/\r?\n/).filter(Boolean);
+  const cols = lines[0].split(',');
+  const time: number[] = [], series: Record<string, number[]> = Object.fromEntries(INPUT_COLS.map((c) => [c, [] as number[]]));
+  for (const ln of lines.slice(1)) {
+    const v = ln.split(',').map(Number);
+    if (!(v[cols.indexOf('time')] <= 2061)) continue;
+    time.push(v[cols.indexOf('time')]);
+    for (const c of INPUT_COLS) series[c].push(v[cols.indexOf(c)]);
+  }
+  return { time, series };
+}
+
+/** Timeline texts and checkpoints for one split, from the cluster files in dir. */
+function buildLayer(dir: string, split: SplitId, withInputs: boolean): SplitLayer {
+  const sp = SPLITS[split];
   const files = IDS.map((id) => [id, readJson<ClusterFile>(join(dir, `${id}.json`))] as const);
   if (files.every(([, f]) => !f)) throw new Error(`--scenarios-live: no fast/central/slow.json in ${dir} (run summarize_live.py --clusters first)`);
   const timelines: Timeline[] = [];
   const checkpoints: Checkpoint[] = [];
   const clusterN: Record<string, number> = {};
-  // the frontier training compute is a model input, the same in every cluster: take it from any cluster that has runs
-  const trainFrom = files.map(([, f]) => f).find((f) => f && f.cluster.n > 0 && f.series.data.input_training_H100e);
+  const trainFrom = withInputs ? files.map(([, f]) => f).find((f) => f && f.cluster.n > 0 && f.series.data.input_training_H100e) : undefined;
   for (const [id, f] of files) {
     const n = f?.cluster.n ?? 0;
     clusterN[id] = n;
-    const pctTxt = f ? `${f.cluster.ac_percentile_lo}th to ${f.cluster.ac_percentile_hi}th percentile` : '';
-    const win = f && f.cluster.ac_date_lo != null && f.cluster.ac_date_hi != null ? `${f.cluster.ac_date_lo.toFixed(1)} to ${f.cluster.ac_date_hi.toFixed(1)}` : 'no date range yet';
+    const pctTxt = f ? `${f.cluster[sp.pre + '_percentile_lo']}th to ${f.cluster[sp.pre + '_percentile_hi']}th percentile` : '';
+    const dLo = f?.cluster[sp.pre + '_date_lo'], dHi = f?.cluster[sp.pre + '_date_hi'];
+    const win = typeof dLo === 'number' && typeof dHi === 'number' ? `${dLo.toFixed(1)} to ${dHi.toFixed(1)}` : 'no date range yet';
     const lead = id === 'fast' ? 'Fast' : id === 'central' ? 'Central' : 'Slow';
     timelines.push({
       id, name: lead,
-      sourceModel: f ? `AI Futures Model, Eli's settings. ${n} run${n === 1 ? '' : 's'} so far, from the ${pctTxt} of all runs by AC date.` : 'No runs yet.',
+      sourceModel: f ? `AI Futures Model, Eli's settings. ${n} run${n === 1 ? '' : 's'} so far, from the ${pctTxt} of all runs by ${sp.what}.` : 'No runs yet.',
       summary: n === 0 ? 'No run in this group yet.'
-        : `${id === 'fast' ? 'The quicker end' : id === 'central' ? 'The middle' : 'The slower end'} of the runs by when AI first codes better than any human (AC): between ${win}.${n < 30 ? ' Only a few runs so far, so the numbers are rough.' : ''}`,
+        : `${id === 'fast' ? 'The quicker end' : id === 'central' ? 'The middle' : 'The slower end'} of the runs by ${sp.reaches}: between ${win}.${n < 30 ? ' Only a few runs so far, so the numbers are rough.' : ''}`,
     });
     if (!f || n === 0) continue;
-    const src = `AI Futures Model, Eli's settings, interim cluster: ${n} runs, AC in the ${pctTxt} of all runs so far`;
-    const ref = `aifm-runs/out/eli_live/${id}.json (extract.py cluster logic)`;
+    const src = `AI Futures Model, Eli's settings, ${n} runs, ${sp.key} in the ${pctTxt} of all runs`;
+    const ref = `aifm-runs/out/${basename(dir)}/${id}.json (extract.py cluster logic)`;
     const small = n < 30 ? ` Only ${n} run${n === 1 ? '' : 's'} in this group so far: read the percentiles as rough.` : '';
-    const ran = `${n} runs in this group (${f.pool.n_ok_pooled} usable runs pooled so far; ${f.pool.n_failed_excluded} failed runs left out).${small}`;
+    const ran = `${n} runs in this group (${f.pool.n_ok_pooled} usable runs pooled; ${f.pool.n_failed_excluded} failed runs left out).${small}`;
     const dist = (q: Q5, cap = Infinity): Partial<Checkpoint> => {
       const k = (v: number | null) => (v !== null && v <= cap ? v : undefined);
       return { value: q[2] ?? undefined, lo: k(q[1]), hi: k(q[3]), p10: k(q[0]), p90: k(q[4]), bandFrom: 'source' };
@@ -114,5 +143,18 @@ export function loadLive(dir: string): LiveData {
   }
   // the shared training-compute line is drawn from the central timeline's rows: give it to the central id whatever cluster supplied it
   for (const c of checkpoints) if (c.series === 'trainCompute') { c.timeline = 'central'; c.id = `central.trainCompute.${c.date}`; }
-  return { dir, status, timelines, checkpoints, clusterN };
+  return { id: split, label: sp.label, dir, timelines, checkpoints, clusterN };
+}
+
+export function loadLive(dir: string, opts: LiveOpts = {}): LiveData {
+  if (!existsSync(dir)) throw new Error(`--scenarios-live: no folder ${dir}`);
+  const status = readJson<LiveStatus>(join(dir, 'status.json')) ?? null;
+  const ac = buildLayer(dir, 'ac', true);
+  // the other splits sit beside eli_live (out/eli_split_sar, out/eli_matrix); the inputs file in the aifm-runs repo clone
+  const sarDir = opts.sarDir ?? join(dir, '..', 'eli_split_sar');
+  const matrixDir = opts.matrixDir ?? join(dir, '..', 'eli_matrix');
+  const csv = opts.inputsCsv ?? join(dir, '..', '..', 'repo', 'inputs', 'input_data.csv');
+  const sar = existsSync(join(sarDir, 'central.json')) ? buildLayer(sarDir, 'sar', false) : null;
+  const matrix = readJson<unknown>(join(matrixDir, 'matrix.json')) ?? null;
+  return { dir, status, timelines: ac.timelines, checkpoints: ac.checkpoints, clusterN: ac.clusterN, sar, matrix, inputs: loadInputs(csv) };
 }
