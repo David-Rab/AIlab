@@ -43,3 +43,8 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
     - slow = sceptic settings (pure-exponential horizon trend and low returns, from the published ranges).
 
     Use AI 2040's dates as a comparison only.
+
+## Designer decisions, round 3 (2026-11-25)
+- **AI 2040 is set aside:** its delay is policy, not technical slowness.
+- **All three timelines come from the AI Futures Model**, tuned so the superhuman/automated coder median lands around **2027 (fast), 2031 (central) and 2034 (slow)**. Final choices come after the designer sees the distributions.
+- **Next:** run the model (aifm-public, newest commit) after the RefBot scan finishes; extract the distributions per timeline; show them on the dashboard's Scenarios tab.
