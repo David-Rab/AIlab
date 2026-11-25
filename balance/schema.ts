@@ -12,7 +12,7 @@ export type InlineRef = { kind: 'inline'; file: string; anchor: string };
 export interface Param {
   id: string;              // stable, e.g. 'cap.V3_CAL.ai2027.gSC'
   ref: ExportRef | InlineRef;
-  value?: number | number[] | string; // snapshot; the lint compares it with the live value. Required unless path contains '*' (a field family)
+  value?: number | number[] | string | boolean | boolean[]; // snapshot; the lint compares it with the live value. Required unless path contains '*' (a field family)
   unit?: string;           // 'OOM', 'days', 'USD/yr', 'fraction', ...
   area: Area;
   layer: 'world' | 'policy';  // world = how the world works; policy = how an actor (bot, rival, China, gov) chooses

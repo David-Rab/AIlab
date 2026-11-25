@@ -1,6 +1,7 @@
 // Balance registry lint (design/bal/REGISTRY-DESIGN.md). Run: npm run registry:lint
 //   --area <name>   lint only balance/params/<name>.ts (coverage skipped)
 //   --self-test     check that deliberately bad in-memory entries are caught; writes no files
+let PARTIAL = false; // set when --area loads a single params file
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -93,7 +94,8 @@ function crossChecks(params: Param[], targets: Target[]): string[] {
     const family = p.ref.kind === 'export' && (p.ref.path ?? []).includes('*');
     if (p.value === undefined && !family) errs.push(`${p.id}: value required (path has no '*')`);
   }
-  for (const t of targets) for (const id of t.fits ?? []) if (!seen.has(id)) errs.push(`${t.id}: fits unknown param ${id}`);
+  // Under --area only one params file is loaded, so a target's fit link may point at another area: skip there.
+  if (!PARTIAL) for (const t of targets) for (const id of t.fits ?? []) if (!seen.has(id)) errs.push(`${t.id}: fits unknown param ${id}`);
   return errs;
 }
 
@@ -115,7 +117,11 @@ function listTs(dir: string, out: string[] = []): string[] {
 
 function coverage(params: Param[]) {
   const registered = new Set<string>();
-  for (const p of params) if (p.ref.kind === 'export') registered.add(`${norm(p.ref.module)}#${p.ref.symbol}`);
+  for (const p of params) {
+    if (p.ref.kind === 'export') registered.add(`${norm(p.ref.module)}#${p.ref.symbol}`);
+    // A non-exported constant registered inline on its declaration counts as covered.
+    else { const m = /\bconst\s+(\w+)/.exec(p.ref.anchor); if (m) registered.add(`${norm(p.ref.file)}#${m[1]}`); }
+  }
   const files = [...listTs(join(ROOT, 'src/data')), ...listTs(join(ROOT, 'src/engine'))]
     .map((f) => norm(relative(ROOT, f)))
     .filter((f) => !f.endsWith('/glossary.ts') && f !== 'src/engine/v2/types.ts');
@@ -195,6 +201,7 @@ async function main() {
   if (args.includes('--self-test')) process.exit((await selfTest()) ? 0 : 1);
   const ai = args.indexOf('--area');
   const area = ai >= 0 ? args[ai + 1] : undefined;
+  PARTIAL = area !== undefined;
   const { params, targets } = await loadRegistries(area);
   const errs = await lintAll(params, targets);
   for (const e of errs) console.log(`ERROR ${e}`);

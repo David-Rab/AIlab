@@ -43,6 +43,12 @@ Look at the constant's own comment, then a block comment directly above a group 
 | No tag | `untagged` |
 | Two tags that conflict, or you can't tell which constant a group comment covers | `unclear`, plus a question |
 
+Rulings from wave 1 (apply them):
+- A file-header *legend* (a list of what tags mean) is not evidence. A header *statement* that asserts a kind for the file's values ("every numeric parameter is a [D] value", "s0 and coverage are [D]") is evidence for the values it names. Quote it.
+- `[C]`, "calibrated against the reference run", or "tuned so the bot ..." → `fitted` (script `'unnamed'` if none is named).
+- `[D from <source>]`, or `[D]` plus a research pointer → `designer`, with the pointer in `notes`.
+- Both a `[D]` and a sourced tag on the same value → `unclear`, plus a question.
+
 - `evidence`: the short quote plus file:line that made you choose the kind. For `untagged`: `"no tag; <file>:<line>"`.
 - `source`: only for `sourced`, copied as the code states it (a citation or `research/..` pointer). Never add a source the code doesn't name.
 - `fitted`: `fit.script` = the script the comment names, or `'unnamed'`. `fit.targets` = `[]` unless the target is one of the ids already in `balance/targets.ts`. Put the comment's description of what it is fitted to in `notes` (the lead links targets later).
@@ -59,6 +65,8 @@ Look at the constant's own comment, then a block comment directly above a group 
 
 ## Checks before you report
 - `npm run registry:lint -- --area <chunk>` exits 0. Fix every error it reports in your own file. If an error comes from another chunk's file, ignore it and mention it.
+- Don't run the lint without `--area`: a full run rewrites the shared `balance/coverage.txt` checklist while other agents are using it.
+- Booleans are allowed as `value`. A non-exported constant registered as an `InlineRef` whose anchor contains `const NAME` counts as covered, so don't list it under Skipped.
 - `npm run typecheck` passes.
 - Every coverage line in your files is either registered or listed under Skipped.
 
