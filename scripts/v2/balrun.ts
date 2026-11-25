@@ -3,7 +3,11 @@
 //
 //   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world ai2027[,sampled,...] --align medium[,sampled]
 //                                --start leader[,...] --seeds N --workers W [--no-cache]
-//                                [--set <param id>=<value> ...] [--sets <file.json>]
+//                                [--set <param id>=<value> ...] [--sets <file.json>] [--forced aifm]
+//
+// --forced aifm (Stage 1, design/bal/STAGE1-DESIGN.md): every game is a forced run (botgame.ts playForced): the AI Futures Model's
+// compute and staff paths drive the player's lab through the engine's FORCING hooks (installed by the worker preload,
+// forcedInputs.ts), unlimited cash, no endings system, played to 2060. The record carries forced: 'aifm' and a yearly `series`.
 //
 // Overrides (scripts/v2/paramOverride.ts): --set applies a registry param override to every cell (repeatable; the value is JSON,
 // else a string). --sets takes a JSON array of { name, set: { id: value } }; each becomes an extra cell dimension and the
@@ -26,6 +30,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSyn
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { POLICY_IDS } from './policies';
+import { AIFM_CSV, FORCED_KINDS } from './forcedInputs';
 import { CAL_SEEDS, quantOf } from './calseeds';
 import { cached, codeHash } from './simcache';
 import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId } from '../../src/engine/v2/types';
@@ -34,14 +39,17 @@ const ME = fileURLToPath(import.meta.url);
 const HERE = dirname(ME);
 const BOTGAME = join(HERE, 'botgame.ts');
 const PARAMOVR = join(HERE, 'paramOverride.ts');
+const FORCEDIN = join(HERE, 'forcedInputs.ts');
 const PRELOAD = pathToFileURL(join(HERE, 'overridePreload.ts')).href;
 const ROOT = join(HERE, '..', '..');
 
 // ───────────────────────────── Types ─────────────────────────────
-export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType }
+export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType; forced?: string }
 export interface GameRecord {
   run: string; seed: number;
   world: string; alignment: string; start: string; policy: string;
+  /** Stage 1 forced run (balrun --forced): which prescribed inputs drove the game. Absent in normal runs. */
+  forced?: string;
   overrides?: Record<string, number | string | boolean | number[]>;
   overrideSet?: string;
   endDay: number; ending: string; verdict: 'win' | 'mixed' | 'loss';
@@ -52,6 +60,8 @@ export interface GameRecord {
   rivalLeadAtSC?: number;
   chinaGapAtSC?: number;
   scores?: Record<string, number>;
+  /** Forced runs: one sample at 2025.5 and at every later whole year (botgame.ts ForcedSeries). */
+  series?: import('./botgame').ForcedSeries;
   ms: number;
 }
 type Body = Omit<GameRecord, 'run'>;
@@ -74,7 +84,22 @@ async function loadGame() {
 // ───────────────────────────── Playing one game ─────────────────────────────
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
+function playForcedOne(cell: Cell, seed: number): Body {
+  const t0 = performance.now();
+  const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
+  const series = G.playForced(G.ALL[cell.policy], s);
+  const md = s.player.milestoneDays;
+  const ms: Record<string, number> = {};
+  for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) if (md[i] !== undefined) ms[k] = md[i]!;
+  return {
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced,
+    endDay: s.time.day, ending: 'forced-end', verdict: 'mixed', milestones: ms, revenueByYear: [], series,
+    ms: Math.round(performance.now() - t0),
+  };
+}
+
 function playOne(cell: Cell, seed: number): Body {
+  if (cell.forced) return playForcedOne(cell, seed);
   const t0 = performance.now();
   const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
   let rivalLeadAtSC: number | undefined;
@@ -119,7 +144,7 @@ function playOne(cell: Cell, seed: number): Body {
 const OVR: Record<string, unknown> = process.env.BAL_OVERRIDES ? JSON.parse(process.env.BAL_OVERRIDES) : {};
 const OVR_NAME = process.env.BAL_SET_NAME;
 const playCached = (cell: Cell, seed: number): Body =>
-  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, PARAMOVR], () => playOne(cell, seed));
+  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, PARAMOVR, FORCEDIN, ...(cell.forced ? [AIFM_CSV] : [])], () => playOne(cell, seed));
 
 // ───────────────────────────── CLI ─────────────────────────────
 const argv = process.argv.slice(2);
@@ -143,7 +168,7 @@ const list = <T extends string>(k: string, ok: readonly string[], d: string): T[
   return xs as T[];
 };
 export const seedList = (n: number) => [...CAL_SEEDS, ...Array.from({ length: Math.max(0, n - CAL_SEEDS.length) }, (_, i) => 1001 + i)].slice(0, n);
-const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
+const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string; forced?: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.forced ? ` | forced:${c.forced}` : ''}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
 
 // ───────────────────────────── Worker ─────────────────────────────
 async function worker() {
@@ -207,7 +232,7 @@ export function summarize(recs: GameRecord[]) {
     const msTimes = rs.map((r) => r.ms);
     const c0 = rs[0];
     return {
-      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.overrideSet ? { overrideSet: c0.overrideSet } : {}), ...(c0.overrides ? { overrides: c0.overrides } : {}),
+      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.forced ? { forced: c0.forced } : {}), ...(c0.overrideSet ? { overrideSet: c0.overrideSet } : {}), ...(c0.overrides ? { overrides: c0.overrides } : {}),
       n,
       win: rate(count('win'), n), mixed: rate(count('mixed'), n), loss: rate(count('loss'), n),
       endings, milestoneDays: ms,
@@ -232,6 +257,7 @@ async function parent() {
   const nSeeds = Math.max(1, Number(arg('seeds', '20')));
   const workers = Math.max(1, Number(arg('workers', '8')));
   const noCache = flag('no-cache') >= 0;
+  const forced = flag('forced') >= 0 ? list<string>('forced', FORCED_KINDS, FORCED_KINDS[0])[0] : undefined;
   const seeds = seedList(nSeeds);
   const parseVal = (v: string) => { try { return JSON.parse(v); } catch { return v; } };
   const globalSet: OSet['set'] = {};
@@ -246,7 +272,7 @@ async function parent() {
   const sets: OSet[] = useSets ? [{ name: 'base', set: globalSet }, ...fileSets.map((x) => ({ name: x.name, set: { ...globalSet, ...x.set } }))] : [{ name: '', set: {} }];
   if (new Set(sets.map((x) => x.name)).size !== sets.length) { console.error('balrun: override set names must be unique and not "base"'); process.exit(2); }
   const cells: Cell[] = [];
-  for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start });
+  for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start, ...(forced ? { forced } : {}) });
   const jobs: Job[] = seeds.flatMap((seed) => cells.flatMap((cell) => sets.map((_, set) => ({ id: 0, cell, seed, set })))).map((j, id) => ({ ...j, id }));
 
   const dir = join(ROOT, 'balance', 'runs', name);
@@ -275,8 +301,8 @@ async function parent() {
   const startedAt = new Date().toISOString();
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
   writeFileSync(join(dir, 'config.json'), JSON.stringify({
-    name, args: argv, policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
-    gitCommit: git, codeHash: codeHash([ME, BOTGAME, PARAMOVR]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
+    name, args: argv, ...(forced ? { forced } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
+    gitCommit: git, codeHash: codeHash([ME, BOTGAME, PARAMOVR, FORCEDIN]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
   }, null, 2));
 
   const total = jobs.length;
@@ -326,8 +352,8 @@ async function parent() {
     const spawn = (si: number, retry = false) => {
       const k = wid++;
       const mine = queues[si];
-      const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
-      const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
+      const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(forced ? { BAL_FORCED: forced } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
+      const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets || forced ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
       children.add(child);
       active++;
       alive[si]++;
@@ -351,7 +377,7 @@ async function parent() {
       child.on('message', (m: { ready?: boolean; id?: number; ms?: number; err?: string }) => {
         if (m.ready) { ready = true; starting[si]--; return feed(); }
         done++;
-        if (m.err) failed.push(`job ${m.id}: ${m.err.split('\n')[0]}`);
+        if (m.err) { failed.push(`job ${m.id}: ${m.err.split('\n')[0]}`); console.error(m.err.split('\n').slice(0, 5).join('\n')); }
         else if (m.ms !== undefined) doneMs.push(m.ms);
         feed();
       });
