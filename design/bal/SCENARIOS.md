@@ -27,3 +27,19 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 
 ## Next
 - **SC1 (draft for designer review):** the checkpoint spec. Shared history targets with sources; per-timeline checkpoints with bands; the middle settings for China and adoption; candidate sceptic sources; the parameters that set each alignment level; and the open technical point above.
+
+## Designer decisions, round 2 (2026-11-25)
+- **All timelines share the 2025–26 path and diverge only after 2026.** Every 2026 value that came from a forecast (AI 2027) is replaced by measured data.
+- **Middle settings accepted:** China `fastfollower`, government `dealmaker`, public `anxious`, adoption (econ) `ai2027`.
+- **Leaning, not yet decided:**
+  - fast = the AI 2027 preset;
+  - central = the AI Futures authors' all-things-considered view (superhuman coder about 2030–2032);
+  - slow = AI 2040.
+- **Lead's notes on the leaning:**
+  - AI 2040 ("Plan A", AI Futures Project) is a *recommendation* scenario. Its superintelligence date of 2040 comes from decisive US/China government action; the authors say it would have arrived about 2030 without that action. As a slow *timeline* it would bake a policy outcome into world physics.
+  - Proposal: generate all three timelines from the public AI Futures Model (github AI-Futures-Project/aifm-public; used before at commit 1c40ecdb) with documented settings:
+    - fast = Daniel's configuration;
+    - central = Eli's configuration (or settings that land in the all-things-considered 2030–32 range);
+    - slow = sceptic settings (pure-exponential horizon trend and low returns, from the published ranges).
+
+    Use AI 2040's dates as a comparison only.
