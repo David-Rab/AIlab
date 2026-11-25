@@ -48,3 +48,12 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 - **AI 2040 is set aside:** its delay is policy, not technical slowness.
 - **All three timelines come from the AI Futures Model**, tuned so the superhuman/automated coder median lands around **2027 (fast), 2031 (central) and 2034 (slow)**. Final choices come after the designer sees the distributions.
 - **Next:** run the model (aifm-public, newest commit) after the RefBot scan finishes; extract the distributions per timeline; show them on the dashboard's Scenarios tab.
+
+## Designer decision, round 4 (2026-11-25): scope down alignment
+- Alignment is treated as nearly independent of the capability timeline (apart from AI-assisted alignment, which the game models through its own mechanisms). **For now, calibration uses one fixed alignment difficulty: central, leaning hard.**
+- **Lead's choice for that setting:**
+  - latent shift **-0.4**, halfway between today's medium (0) and hard (-0.8);
+  - loss-of-control threshold **fixed at 0.4**, not drawn, so it adds no noise.
+
+  It is a designer setting, not a sourced value, and is easy to change.
+- **The calibration grid is 3 timelines × 1 alignment setting.** The five difficulty levels come back later as a difficulty-setting task.
