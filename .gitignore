@@ -7,3 +7,4 @@ scripts/shots/
 scripts/v2/shots/
 play/
 .simcache/
+balance/coverage.txt

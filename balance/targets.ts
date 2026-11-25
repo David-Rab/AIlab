@@ -1,0 +1,46 @@
+// Worked examples (B2). Roles are 'unassigned' unless the code states them; `audit` is left to the lead and designer.
+import { defineTargets } from './schema';
+
+export const TARGETS = defineTargets([
+  {
+    id: 'T1.ai2027.SC',
+    statement: 'RefBot on the ai2027 world reaches the Superhuman Coder milestone in 2027.24, within the golden tolerance.',
+    type: 'point',
+    metric: 'scripts/v2/calib.ts medianChecks("T1", "ai2027"): median milestone day over CAL_SEEDS (seed 2027 plus 1-19), SC',
+    presets: ['ai2027'],
+    policy: 'ref',
+    value: { p50: 2027.24, unit: 'year' },
+    tolerance: 'GOLDEN_TOL.SC ±0.08 y (src/data/v2/calibration.ts:97)',
+    source: 'research/11 §5 and V2-SPEC §7.1 (calibration.ts:87 GOLDEN_EXPECTED)',
+    role: 'unassigned',
+    checkLabels: ['T1 ai2027 SC'],
+  },
+  {
+    id: 'METR.h50.doubling',
+    statement: "The reference frontier model's METR 50% time horizon doubles about every 4.2 months over 2025-26.",
+    type: 'rate',
+    metric: "scripts/v2/calib.ts (line ~459): months for the best model's h50Of to double from the start to 2027.0, ai2027 RefBot",
+    presets: ['ai2027'],
+    policy: 'ref',
+    value: { p50: 4.2, lo: 3.2, hi: 5.2, unit: 'months' },
+    tolerance: '±1 month (checked 3.2-5.2)',
+    source: 'METR (design/RD-AUDIT/CAL2.md:49 row "METR h50 doubling", target "4.2 ±1")',
+    role: 'unassigned',
+    checkLabels: ['V3.7 METR h50 doubling ≈ 4.2 months for the reference frontier 2025–26 (±1)'],
+  },
+  {
+    id: 'T-tree.durations',
+    statement: 'Each successful RefBot paradigm-project attempt lasts as long as it did under V1 (days, start to known), so adoption days stay where they were.',
+    type: 'point',
+    metric: 'scripts/v2/calib.ts --fit-tree: attemptDurations() per project vs V1_DAYS (calib.ts:175-180), seed 2027; presets combine by geometric mean of ratios',
+    presets: ['ai2027', 'authors2026', 'fast', 'slow'],
+    policy: 'ref',
+    value: { unit: 'days' },
+    tolerance: 'fitted until ratios match; no stated tolerance',
+    source: 'V1 RefBot measurements (calib.ts:174-180 V1_DAYS); src/data/v2/tree.ts:110-112',
+    role: 'unassigned',
+    fits: ['cap.FITTED_EFFORT_TM.P05'],
+    checkLabels: [],
+    known: 'Not a check(): the fit prints values to paste into FITTED_EFFORT_TM; see questions.md Q-B2-2.',
+  },
+]);
