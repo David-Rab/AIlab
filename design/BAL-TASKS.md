@@ -77,3 +77,8 @@ Designer framing (2026-11-25): real data exists only to 2026; the future is scen
 
 ## Engine speed-up: separate session (designer, 2026-11-25)
 A different session does the engine speed-up on branch `bal-perf` (worktree ../AI27-perf), from design/bal/HANDOFF-PERF.md. When it's done the designer tells this session to merge it into `bal`. Don't do engine performance work here.
+
+## C6 RefBot scan
+- C6a: sets prepared, balance/scans/refbot-a.json (78 sets: 69 numeric/retry + 9 research-list), commit 1dc9588.
+- C6b, first pass (designer's choice): run `refbot-a1`, ai2027/medium, leader, 10 seeds, 790 games, started 2026-11-25 in the background (log .scratch/refbot-a1.log). The full scan (20 seeds × ai2027 + sampled) runs after the bal-perf merge.
+- C6c: analysis by a fresh agent once the run finishes: paired differences per set against base (win rate, SC/SAR/ASI days, pMis), with intervals; the results write-up goes to design/bal/BOTS-RESULTS.md.
