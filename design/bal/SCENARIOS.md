@@ -78,3 +78,12 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 - **Designer:** calibration exists to make the *player's* outcomes realistic. NPCs (China, rivals, government) don't matter for now; they stay at the middle settings.
 - **Lead proposal (pending designer OK):** calibrate the world with a **sourced realistic-lab reference policy running on the player's own mechanics** (RefBot rebuilt with sourced choices), not against the NPC leader lab, whose internals differ. The strong bot (plays to win) measures difficulty.
 - **Pending designer choice:** how to split the 3,000 Eli runs into scenarios. Options: by coder date, by SAR date, or a coder × takeoff matrix. A comparison view is being built (SC9).
+
+## Round 7 (2026-11-25): designer notes
+- **The strong bot will likely be weaker than an average human player.** So the gap between the strong bot and the realistic-lab policy is a *lower bound* on a human's advantage, and the allowed gap must be small; otherwise humans face no challenge. A big gap means exploits, fixed in mechanisms.
+- **Stage 1 (forced runs) is especially important:** the game has a built-in runaway loop (compute → research → better models → more money and better research → more compute) that is delicate.
+- **Distributions matter, not just averages.**
+- **Lead plan for Stage 1:**
+  - first open-loop: inputs fed from the AIFM projections;
+  - then close the loops one at a time, measuring each loop's gain (how much a perturbation compounds);
+  - compare the game's *sampled* distributions with the AIFM groups by quantiles.
