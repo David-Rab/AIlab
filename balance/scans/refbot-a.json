@@ -1,0 +1,547 @@
+[
+ {
+  "name": "retryDays-down",
+  "set": {
+   "bots.ref.REF_RETRY_DAYS": 90
+  }
+ },
+ {
+  "name": "retryDays-up",
+  "set": {
+   "bots.ref.REF_RETRY_DAYS": 270
+  }
+ },
+ {
+  "name": "retryDays-0",
+  "set": {
+   "bots.ref.REF_RETRY_DAYS": 0
+  }
+ },
+ {
+  "name": "ideaTeams-down",
+  "set": {
+   "bots.ref.REF_IDEA_TEAMS": 2
+  }
+ },
+ {
+  "name": "ideaTeams-up",
+  "set": {
+   "bots.ref.REF_IDEA_TEAMS": 4
+  }
+ },
+ {
+  "name": "baseEvery-down",
+  "set": {
+   "bots.ref.BASE_EVERY": 135
+  }
+ },
+ {
+  "name": "baseEvery-up",
+  "set": {
+   "bots.ref.BASE_EVERY": 405
+  }
+ },
+ {
+  "name": "baseDays-down",
+  "set": {
+   "bots.ref.REF_BASE_DAYS": 61
+  }
+ },
+ {
+  "name": "baseDays-up",
+  "set": {
+   "bots.ref.REF_BASE_DAYS": 182
+  }
+ },
+ {
+  "name": "student-down",
+  "set": {
+   "bots.ref.REF_STUDENT": 0.25
+  }
+ },
+ {
+  "name": "student-up",
+  "set": {
+   "bots.ref.REF_STUDENT": 0.75
+  }
+ },
+ {
+  "name": "postEvery-down",
+  "set": {
+   "bots.ref.POST_EVERY": 21
+  }
+ },
+ {
+  "name": "postEvery-up",
+  "set": {
+   "bots.ref.POST_EVERY": 63
+  }
+ },
+ {
+  "name": "safetySciTeams-down",
+  "set": {
+   "bots.ref.REF_SAFETY_SCI_TEAMS": 3
+  }
+ },
+ {
+  "name": "safetySciTeams-up",
+  "set": {
+   "bots.ref.REF_SAFETY_SCI_TEAMS": 5
+  }
+ },
+ {
+  "name": "alignShare2025-down",
+  "set": {
+   "bots.ref.REF_ALIGN_SHARE.2025": 0.02
+  }
+ },
+ {
+  "name": "alignShare2025-up",
+  "set": {
+   "bots.ref.REF_ALIGN_SHARE.2025": 0.06
+  }
+ },
+ {
+  "name": "alignShare2026-down",
+  "set": {
+   "bots.ref.REF_ALIGN_SHARE.2026": 0.015
+  }
+ },
+ {
+  "name": "alignShare2026-up",
+  "set": {
+   "bots.ref.REF_ALIGN_SHARE.2026": 0.045
+  }
+ },
+ {
+  "name": "safetyShareFloor-down",
+  "set": {
+   "bots.ref.refSafetyShare.floor": 0.1
+  }
+ },
+ {
+  "name": "safetyShareFloor-up",
+  "set": {
+   "bots.ref.refSafetyShare.floor": 0.3
+  }
+ },
+ {
+  "name": "safetyAgentsTolerance-down",
+  "set": {
+   "bots.ref.refSafetyAgents.tolerance": 0.05
+  }
+ },
+ {
+  "name": "safetyAgentsTolerance-up",
+  "set": {
+   "bots.ref.refSafetyAgents.tolerance": 0.15
+  }
+ },
+ {
+  "name": "monitorSpend-down",
+  "set": {
+   "bots.ref.REF_MONITOR_SPEND": 0.025
+  }
+ },
+ {
+  "name": "monitorSpend-up",
+  "set": {
+   "bots.ref.REF_MONITOR_SPEND": 0.075
+  }
+ },
+ {
+  "name": "monitorCost-down",
+  "set": {
+   "bots.ref.REF_MONITOR_COST": 0.05
+  }
+ },
+ {
+  "name": "monitorCost-up",
+  "set": {
+   "bots.ref.REF_MONITOR_COST": 0.15
+  }
+ },
+ {
+  "name": "monitorShareCap-down",
+  "set": {
+   "bots.ref.refMonitors.shareCap": 0.4
+  }
+ },
+ {
+  "name": "monitorShareCap-up",
+  "set": {
+   "bots.ref.refMonitors.shareCap": 1
+  }
+ },
+ {
+  "name": "monitorTolerance-down",
+  "set": {
+   "bots.ref.refMonitors.tolerance": 0.05
+  }
+ },
+ {
+  "name": "monitorTolerance-up",
+  "set": {
+   "bots.ref.refMonitors.tolerance": 0.15
+  }
+ },
+ {
+  "name": "splitCadence-down",
+  "set": {
+   "bots.ref.refPlay.splitCadence": 15
+  }
+ },
+ {
+  "name": "splitCadence-up",
+  "set": {
+   "bots.ref.refPlay.splitCadence": 45
+  }
+ },
+ {
+  "name": "hiringLead-down",
+  "set": {
+   "bots.ref.refPlay.hiringLead": 0.06
+  }
+ },
+ {
+  "name": "hiringLead-up",
+  "set": {
+   "bots.ref.refPlay.hiringLead": 0.18
+  }
+ },
+ {
+  "name": "rlSaturation-down",
+  "set": {
+   "bots.ref.refPlay.rlSaturation": 0.475
+  }
+ },
+ {
+  "name": "rlSaturation-up",
+  "set": {
+   "bots.ref.refPlay.rlSaturation": 1
+  }
+ },
+ {
+  "name": "basePoolShare-down",
+  "set": {
+   "bots.ref.refPlay.basePoolShare": 0.3
+  }
+ },
+ {
+  "name": "basePoolShare-up",
+  "set": {
+   "bots.ref.refPlay.basePoolShare": 0.9
+  }
+ },
+ {
+  "name": "postPoolShare-down",
+  "set": {
+   "bots.ref.refPlay.postPoolShare": 0.25
+  }
+ },
+ {
+  "name": "postPoolShare-up",
+  "set": {
+   "bots.ref.refPlay.postPoolShare": 0.75
+  }
+ },
+ {
+  "name": "enterpriseMargin-down",
+  "set": {
+   "bots.ref.refPlay.enterpriseMargin": 0.125
+  }
+ },
+ {
+  "name": "enterpriseMargin-up",
+  "set": {
+   "bots.ref.refPlay.enterpriseMargin": 0.375
+  }
+ },
+ {
+  "name": "keepFull-down",
+  "set": {
+   "bots.ref.refPlay.keepFull": 3
+  }
+ },
+ {
+  "name": "keepFull-up",
+  "set": {
+   "bots.ref.refPlay.keepFull": 5
+  }
+ },
+ {
+  "name": "keepMinis-down",
+  "set": {
+   "bots.ref.refPlay.keepMinis": 1
+  }
+ },
+ {
+  "name": "keepMinis-up",
+  "set": {
+   "bots.ref.refPlay.keepMinis": 4
+  }
+ },
+ {
+  "name": "holdMargin-down",
+  "set": {
+   "bots.ref.leadStudent.holdMargin": 0.025
+  }
+ },
+ {
+  "name": "holdMargin-up",
+  "set": {
+   "bots.ref.leadStudent.holdMargin": 0.075
+  }
+ },
+ {
+  "name": "upgradeMargin-down",
+  "set": {
+   "bots.ref.competeRelease.upgradeMargin": 0.005
+  }
+ },
+ {
+  "name": "upgradeMargin-up",
+  "set": {
+   "bots.ref.competeRelease.upgradeMargin": 0.015
+  }
+ },
+ {
+  "name": "releaseLead-down",
+  "set": {
+   "bots.ref.RELEASE_LEAD": 0.15
+  }
+ },
+ {
+  "name": "releaseLead-up",
+  "set": {
+   "bots.ref.RELEASE_LEAD": 0.45
+  }
+ },
+ {
+  "name": "releaseRefresh-down",
+  "set": {
+   "bots.ref.RELEASE_REFRESH": 0.05
+  }
+ },
+ {
+  "name": "releaseRefresh-up",
+  "set": {
+   "bots.ref.RELEASE_REFRESH": 0.15
+  }
+ },
+ {
+  "name": "releaseCheaper-down",
+  "set": {
+   "bots.ref.RELEASE_CHEAPER": 0.4
+  }
+ },
+ {
+  "name": "releaseCheaper-up",
+  "set": {
+   "bots.ref.RELEASE_CHEAPER": 1
+  }
+ },
+ {
+  "name": "releaseEvery-down",
+  "set": {
+   "bots.ref.RELEASE_EVERY": 4
+  }
+ },
+ {
+  "name": "releaseEvery-up",
+  "set": {
+   "bots.ref.RELEASE_EVERY": 11
+  }
+ },
+ {
+  "name": "miniMinDays-down",
+  "set": {
+   "bots.ref.MINI_MIN_DAYS": 15
+  }
+ },
+ {
+  "name": "miniMinDays-up",
+  "set": {
+   "bots.ref.MINI_MIN_DAYS": 45
+  }
+ },
+ {
+  "name": "trustOversight-down",
+  "set": {
+   "bots.ref.TRUST_OVERSIGHT": [
+    0.2,
+    0.4
+   ]
+  }
+ },
+ {
+  "name": "trustOversight-up",
+  "set": {
+   "bots.ref.TRUST_OVERSIGHT": [
+    0.6,
+    1
+   ]
+  }
+ },
+ {
+  "name": "trustSabMax-down",
+  "set": {
+   "bots.ref.TRUST_SAB_MAX": 0.05
+  }
+ },
+ {
+  "name": "trustSabMax-up",
+  "set": {
+   "bots.ref.TRUST_SAB_MAX": 0.15
+  }
+ },
+ {
+  "name": "trustStep-down",
+  "set": {
+   "bots.ref.refTrusted.step": 0.05
+  }
+ },
+ {
+  "name": "trustStep-up",
+  "set": {
+   "bots.ref.refTrusted.step": 0.15
+  }
+ },
+ {
+  "name": "footholdCaseFte-down",
+  "set": {
+   "bots.ref.FOOTHOLD_CASE_FTE": 8
+  }
+ },
+ {
+  "name": "footholdCaseFte-up",
+  "set": {
+   "bots.ref.FOOTHOLD_CASE_FTE": 23
+  }
+ },
+ {
+  "name": "research-P24",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P24"
+   ]
+  }
+ },
+ {
+  "name": "research-P09",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P09"
+   ]
+  }
+ },
+ {
+  "name": "research-P11",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "rl.math",
+    "P11"
+   ]
+  }
+ },
+ {
+  "name": "research-P16",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P16"
+   ]
+  }
+ },
+ {
+  "name": "research-P18",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P18"
+   ]
+  }
+ },
+ {
+  "name": "research-P21",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P21"
+   ]
+  }
+ },
+ {
+  "name": "research-P10",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P10"
+   ]
+  }
+ },
+ {
+  "name": "research-P22",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "multimodal",
+    "P22"
+   ]
+  }
+ },
+ {
+  "name": "research-rivals-all",
+  "set": {
+   "bots.ref.REF_TREE": [
+    "P07",
+    "P05",
+    "P08",
+    "rl.mlResearch",
+    "P17",
+    "P16",
+    "P09",
+    "P24",
+    "rl.math",
+    "P11",
+    "multimodal",
+    "P22"
+   ]
+  }
+ }
+]

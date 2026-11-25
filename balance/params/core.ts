@@ -21,16 +21,25 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.GATE_OOM',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['gateOom'] },
-    value: [1.3656, 1.7706, 2.9856, 3.5256], unit: 'OOM above V0', ...BOT, kind: 'untagged',
+    value: { L65: 1.3656, L7: 1.7706, L85: 2.9856, L95: 3.5256 }, unit: 'OOM above V0', ...BOT, kind: 'untagged',
     evidence: 'ref.ts:63-66 "Each constant is that conversion\'s value on the ai2027 preset" (v2 display levels converted through the level map)',
     notes: 'A7: literal copy of v2 display-level gates converted through the level map (ref.ts:63-66); no registered original. Array order = L65, L7, L85, L95.',
   },
   {
     id: 'bots.ref.REF_TREE',
-    ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['research', '*'] },
+    ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['research'] },
+    value: ['P07', 'P05', 'P08', 'rl.mlResearch', 'P17'],
     ...BOT, kind: 'untagged',
     evidence: 'no tag; ref.ts:75-78 "RefBot\'s research ... keeps the old pacing by starting each project when the old gate would have opened"',
     notes: 'Research list in priority order; P08 starts at GATE_OOM.L7, rl.mlResearch at L65, P17 at L95; P07 and P05 at once.',
+  },
+  {
+    id: 'bots.ref.researchGate',
+    ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['researchGate'] },
+    value: { P08: 'L7', 'rl.mlResearch': 'L65', P17: 'L95' },
+    ...BOT, kind: 'untagged',
+    evidence: 'no tag; ref.ts:75-78 (gates of REF_TREE); settings.ts researchGate',
+    notes: 'Gate a research project waits for (GATE_OOM key); projects not listed start at once.',
   },
   {
     id: 'bots.ref.SAFE_TREE_EXTRA',
@@ -229,7 +238,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.refPlay.postsInFlight',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['postsInFlight'] },
-    value: [2, 1], unit: 'post-train runs at once', ...BOT, kind: 'untagged',
+    value: { leader: 2, follower: 1 }, unit: 'post-train runs at once', ...BOT, kind: 'untagged',
     evidence: 'no tag; ref.ts:425; header :8 "(≤ 2 in flight)"',
   },
   {
@@ -301,7 +310,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.askShare',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['askShares'] },
-    value: [0.6, 0.5, 0.3, 0.1, 0.3], unit: 'fraction of the training pool', ...BOT, kind: 'untagged',
+    value: { base: 0.6, post: 0.5, postTeacher: 0.3, distill: 0.1, other: 0.3 }, unit: 'fraction of the training pool', ...BOT, kind: 'untagged',
     evidence: 'no tag; ref.ts:644-646 "Pool share each kind of run asks for (RefBot\'s launch shares ...)"',
   },
   {
