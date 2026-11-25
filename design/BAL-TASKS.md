@@ -19,9 +19,9 @@ Background: `../AI27-vision/design/vision/BALANCE.md` and `HANDOFF-BOTS.md` (unc
 | B0 | Scout: how constants and targets are organised today | Sonnet high | done | design/bal/B0-SCOUT.md |
 | B1 | Registry schema design | Opus (lead) | approved 2026-11-25 | design/bal/REGISTRY-DESIGN.md |
 | B2 | Schema + lint + worked examples | Sonnet medium | done, committed 82ff69b | balance/, scripts/v2/registry-lint.ts |
-| B3 wave 1 | Inventories: capability, safety-data, market, finance, actors-engine | Sonnet high | running | balance/params/<chunk>.ts, design/bal/inv/<chunk>-notes.md |
-| B3 wave 2 | Inventories: models (mod: engine/v2/models, compute), safety-engine (sfe: engine/v2/safety, security), worldfx (wfx), actors-data (acd: data/actors.ts, data/world.ts, data/v2/{rivalModel,blocs,agents}), core (core: engine/v2/{core,departments,endings,events,bots}) | Sonnet high | after wave 1 | same |
-| B4 | Target inventory | Sonnet high | running | balance/targets.ts |
+| B3 wave 1 | Inventories: capability, safety-data, market, finance, actors-engine | Sonnet high | done, committed 26474a8 | balance/params/<chunk>.ts, design/bal/inv/<chunk>-notes.md |
+| B3 wave 2 | Inventories: models (mod: engine/v2/models, compute), safety-engine (sfe: engine/v2/safety, security), worldfx (wfx), actors-data (acd: data/actors.ts, data/world.ts, data/v2/{rivalModel,blocs,agents}), core (core: engine/v2/{core,departments,endings,events,bots}) | Sonnet high | running | same |
+| B4 | Target inventory | Sonnet high | done, committed 26474a8 | balance/targets.ts |
 | B5, B6 | Review; target discussion with designer | lead (+ designer) | after inventories | |
 
 Shared brief for all B3 agents: design/bal/INVENTORY-BRIEF.md.
@@ -33,5 +33,11 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 
 | ID | Result | Time | Notes |
 |---|---|---|---|
+| B3 actors-engine | accepted | 7 min, 201k | 68 entries; good evidence quotes. Raised the inline-coverage and closure-held magnitudes (RELATION_ACTIONS) issues. |
+| B3 safety-data | accepted | 8 min, 180k | 201 entries. Raised the `[C]` tag and header-statement questions (now rulings in the brief). |
+| B3 finance | accepted | 11 min, 235k | 190 entries. Found a comment/code mismatch (PROMISE_RESULT +10/-15 vs 30/-30) and duplicated runway thresholds. |
+| B3 market | accepted | 12 min, 216k | 346 entries. Found the start difficulty thresholds exist only in a comment. |
+| B3 capability | accepted | 12 min, 243k | 342 entries. Ran a full lint once, which rewrote the shared coverage checklist mid-wave (rule added to the brief). Wrote scratch scripts outside the worktree (C:Usersdavidp_tmp). |
+| B4 targets | accepted | 12 min, 229k | 152 targets; all 52 CAL2 rows. 16 good questions (coded bands differ from stated targets). Its rm of 3 temp files was denied; left uncommitted for the designer. |
 | B2 | accepted, two small lead fixes | 3 min, 73k tokens | All checks pass, self-test catches 5 planted errors. Lead fixes: example params set `actor: 'model'` on world physics (the lead's schema didn't define `actor`; comment added); P05 is `derived`, not `fitted` (the lead's brief was wrong; the agent flagged it). |
 | B0 | accepted first pass | 4 min, 97k tokens | All 7 questions answered with file:line; flagged its own uncertainties (src/ui unscanned, _xxx dirs, heuristic counts). No rework. |
