@@ -1,0 +1,9228 @@
+{
+ "generated": "balance/runs/refbot-a1 (79 cells x 10 seeds)",
+ "base": {
+  "wins": 7,
+  "asiAlignedSeeds": 5,
+  "medianDays": {
+   "SC": 636.5,
+   "SAR": 843,
+   "ASI": 962
+  },
+  "asiReached": 5,
+  "seeds": [
+   2027,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "perSeed": [
+  {
+   "seed": 2027,
+   "baseVerdict": "win",
+   "baseEnding": "asiAligned",
+   "winRateAllSets": 0.9102564102564102,
+   "asiAlignedRate": 0.9358974358974359
+  },
+  {
+   "seed": 1,
+   "baseVerdict": "loss",
+   "baseEnding": "rivalTakeover",
+   "winRateAllSets": 0.2564102564102564,
+   "asiAlignedRate": 0.2564102564102564
+  },
+  {
+   "seed": 2,
+   "baseVerdict": "mixed",
+   "baseEnding": "asiContested",
+   "winRateAllSets": 0.3717948717948718,
+   "asiAlignedRate": 0.3717948717948718
+  },
+  {
+   "seed": 3,
+   "baseVerdict": "win",
+   "baseEnding": "asiAligned",
+   "winRateAllSets": 0.8205128205128205,
+   "asiAlignedRate": 0.8205128205128205
+  },
+  {
+   "seed": 4,
+   "baseVerdict": "win",
+   "baseEnding": "asiAligned",
+   "winRateAllSets": 0.8333333333333334,
+   "asiAlignedRate": 0.8333333333333334
+  },
+  {
+   "seed": 5,
+   "baseVerdict": "win",
+   "baseEnding": "rivalAligned",
+   "winRateAllSets": 0.8974358974358975,
+   "asiAlignedRate": 0.0641025641025641
+  },
+  {
+   "seed": 6,
+   "baseVerdict": "win",
+   "baseEnding": "rivalAligned",
+   "winRateAllSets": 0.8846153846153846,
+   "asiAlignedRate": 0.4358974358974359
+  },
+  {
+   "seed": 7,
+   "baseVerdict": "win",
+   "baseEnding": "asiAligned",
+   "winRateAllSets": 0.9358974358974359,
+   "asiAlignedRate": 0.9358974358974359
+  },
+  {
+   "seed": 8,
+   "baseVerdict": "win",
+   "baseEnding": "asiAligned",
+   "winRateAllSets": 0.3333333333333333,
+   "asiAlignedRate": 0.5256410256410257
+  },
+  {
+   "seed": 9,
+   "baseVerdict": "loss",
+   "baseEnding": "ousted",
+   "winRateAllSets": 0.23076923076923078,
+   "asiAlignedRate": 0.28205128205128205
+  }
+ ],
+ "sets": [
+  {
+   "set": "retryDays-down",
+   "field": "retryDays",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_RETRY_DAYS": 90
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -289,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.32399999999999995,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 7,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -0.1,
+    "freedom": -5.5,
+    "prosperity": -2.3,
+    "company": 0.3,
+    "geopolitics": 0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.5,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "retryDays-up",
+   "field": "retryDays",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_RETRY_DAYS": 270
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -214,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.017000000000000015,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 7,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": -2.5,
+    "prosperity": -1,
+    "company": 1.2,
+    "geopolitics": -0.7
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "retryDays-0",
+   "field": "retryDays",
+   "dir": "0",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_RETRY_DAYS": 0
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -427,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.016000000000000014,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -0.3,
+    "freedom": -8,
+    "prosperity": -3.3,
+    "company": 2.6,
+    "geopolitics": -2.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "ideaTeams-down",
+   "field": "ideaTeams",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_IDEA_TEAMS": 2
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     0,
+     30
+    ],
+    "gained": 1,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -1,
+     5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 1,
+    "pSign": 0.6249999999999999
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -21,
+     9
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": 0,
+    "ci": [
+     -294,
+     21
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.007000000000000006,
+    "ci": [
+     -0.04200000000000004,
+     0.014999999999999986
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 5,
+    "slowerOrLost": 2,
+    "pSign": 0.4531250000000002
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 6.2,
+    "freedom": 3,
+    "prosperity": 6.8,
+    "company": 14,
+    "geopolitics": -2.6
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.4531250000000002,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.6249999999999999,
+     "ASIreach": 0.4531250000000002
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "ideaTeams-up",
+   "field": "ideaTeams",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_IDEA_TEAMS": 4
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -20,
+     40
+    ],
+    "gained": 2,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -2,
+     7.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     10.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 5,
+    "ci": [
+     -21,
+     21
+    ],
+    "medianDiffYears": 0.013689253935660506,
+    "nEarlier": 3,
+    "nLater": 5,
+    "pSign": 0.7265625000000007
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": 7,
+    "ci": [
+     -21,
+     21
+    ],
+    "medianDiffYears": 0.019164955509924708,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.0175,
+    "ci": [
+     -0.04400000000000004,
+     0
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 5,
+    "slowerOrLost": 3,
+    "pSign": 0.7265625000000007
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 6.8,
+    "freedom": 4,
+    "prosperity": 11.9,
+    "company": 8.1,
+    "geopolitics": 0.4
+   },
+   "medianEndDayDiff": -1.5,
+   "evidence": {
+    "minP": 0.7265625000000007,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.7265625000000007
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "baseEvery-down",
+   "field": "baseEvery",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.BASE_EVERY": 135
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -50,
+     30
+    ],
+    "gained": 2,
+    "lost": 3,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 16,
+    "ci": [
+     0,
+     25.5
+    ],
+    "medianDiffYears": 0.04380561259411362,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -6,
+    "ci": [
+     -14.5,
+     17
+    ],
+    "medianDiffYears": -0.01642710472279261,
+    "nEarlier": 7,
+    "nLater": 3,
+    "pSign": 0.3437500000000007
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": -5,
+    "ci": [
+     -23,
+     18
+    ],
+    "medianDiffYears": -0.013689253935660506,
+    "nEarlier": 6,
+    "nLater": 3,
+    "pSign": 0.5078125000000007
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -21,
+    "ci": [
+     -334,
+     1
+    ],
+    "medianDiffYears": -0.057494866529774126,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": -0.06499999999999995,
+    "ci": [
+     -0.069,
+     -0.01200000000000001
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 4,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 5,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -13.2,
+    "freedom": -12,
+    "prosperity": -11.4,
+    "company": 0.9,
+    "geopolitics": -2.7
+   },
+   "medianEndDayDiff": -14,
+   "evidence": {
+    "minP": 0.10937500000000017,
+    "metric": "SC",
+    "pValues": {
+     "win": 1,
+     "SC": 0.10937500000000017,
+     "SAR": 0.3437500000000007,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "baseEvery-up",
+   "field": "baseEvery",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.BASE_EVERY": 405
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 1,
+    "diffPP": -60,
+    "ci": [
+     -90,
+     -30
+    ],
+    "gained": 0,
+    "lost": 6,
+    "pSign": 0.031250000000000014
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 107.5,
+    "ci": [
+     51.5,
+     122.5
+    ],
+    "medianDiffYears": 0.2943189596167009,
+    "nEarlier": 0,
+    "nLater": 8,
+    "pSign": 0.007812500000000002
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 67,
+    "ci": [
+     36.5,
+     125.5
+    ],
+    "medianDiffYears": 0.1834360027378508,
+    "nEarlier": 0,
+    "nLater": 10,
+    "pSign": 0.001953125
+   },
+   "SIAR": {
+    "n": 3,
+    "baseReached": 10,
+    "setReached": 3,
+    "medianDiffDays": 2,
+    "ci": [
+     -54,
+     4
+    ],
+    "medianDiffYears": 0.0054757015742642025,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 1,
+    "baseReached": 5,
+    "setReached": 1,
+    "medianDiffDays": -152,
+    "ci": [
+     null,
+     null
+    ],
+    "medianDiffYears": -0.4161533196440794,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 1,
+    "medianDiff": -0.22299999999999998,
+    "ci": [
+     null,
+     null
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 1,
+    "fasterOrGained": 1,
+    "slowerOrLost": 4,
+    "pSign": 0.37500000000000006
+   },
+   "verdictsChanged": 7,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 1,
+   "meanScoreDiff": {
+    "survival": -35.5,
+    "freedom": -18.5,
+    "prosperity": -28.1,
+    "company": -23.9,
+    "geopolitics": -12.8
+   },
+   "medianEndDayDiff": 27.5,
+   "evidence": {
+    "minP": 0.001953125,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.031250000000000014,
+     "SC": 0.007812500000000002,
+     "SAR": 0.001953125,
+     "ASIreach": 0.37500000000000006
+    },
+    "class": "clear"
+   },
+   "rank": 1
+  },
+  {
+   "set": "baseDays-down",
+   "field": "baseDays",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_BASE_DAYS": 61
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 9,
+    "diffPP": 20,
+    "ci": [
+     -20,
+     60
+    ],
+    "gained": 3,
+    "lost": 1,
+    "pSign": 0.6249999999999999
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 77.5,
+    "ci": [
+     58,
+     138.5
+    ],
+    "medianDiffYears": 0.21218343600273784,
+    "nEarlier": 0,
+    "nLater": 10,
+    "pSign": 0.001953125
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 10.5,
+    "ci": [
+     -0.5,
+     61.5
+    ],
+    "medianDiffYears": 0.028747433264887063,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 8.5,
+    "ci": [
+     -19,
+     27
+    ],
+    "medianDiffYears": 0.02327173169062286,
+    "nEarlier": 4,
+    "nLater": 6,
+    "pSign": 0.7539062500000018
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 10,
+    "medianDiffDays": -3,
+    "ci": [
+     -241,
+     26
+    ],
+    "medianDiffYears": -0.008213552361396304,
+    "nEarlier": 3,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.041999999999999996,
+    "ci": [
+     -0.252,
+     0.276
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 10,
+    "fasterOrGained": 8,
+    "slowerOrLost": 2,
+    "pSign": 0.10937500000000017
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 10,
+   "meanScoreDiff": {
+    "survival": 16.4,
+    "freedom": 6.5,
+    "prosperity": 15.1,
+    "company": 26,
+    "geopolitics": 3.2
+   },
+   "medianEndDayDiff": -5.5,
+   "evidence": {
+    "minP": 0.001953125,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.6249999999999999,
+     "SC": 0.001953125,
+     "SAR": 0.10937500000000017,
+     "ASIreach": 0.10937500000000017
+    },
+    "class": "clear"
+   },
+   "rank": 3
+  },
+  {
+   "set": "baseDays-up",
+   "field": "baseDays",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_BASE_DAYS": 182
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 1,
+    "ci": [
+     -3.5,
+     35.5
+    ],
+    "medianDiffYears": 0.0027378507871321013,
+    "nEarlier": 4,
+    "nLater": 5,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 9,
+    "ci": [
+     1.5,
+     20
+    ],
+    "medianDiffYears": 0.024640657084188913,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 15,
+    "ci": [
+     -2,
+     28
+    ],
+    "medianDiffYears": 0.04106776180698152,
+    "nEarlier": 3,
+    "nLater": 7,
+    "pSign": 0.3437500000000007
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 9.5,
+    "ci": [
+     -72,
+     18
+    ],
+    "medianDiffYears": 0.026009582477754964,
+    "nEarlier": 1,
+    "nLater": 3,
+    "pSign": 0.6249999999999999
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.07500000000000001,
+    "ci": [
+     -0.275,
+     0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 4,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -8,
+    "freedom": -8.5,
+    "prosperity": -6.7,
+    "company": 3,
+    "geopolitics": 2.2
+   },
+   "medianEndDayDiff": 10.5,
+   "evidence": {
+    "minP": 0.10937500000000017,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.10937500000000017,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "student-down",
+   "field": "student",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_STUDENT": 0.25
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 3,
+    "diffPP": -40,
+    "ci": [
+     -70,
+     -10
+    ],
+    "gained": 0,
+    "lost": 4,
+    "pSign": 0.125
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -1,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 3,
+    "medianDiffDays": -7,
+    "ci": [
+     -7,
+     14
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": -0.0010000000000000009,
+    "ci": [
+     -0.243,
+     0.815
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 3,
+    "fasterOrGained": 2,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 2,
+   "meanScoreDiff": {
+    "survival": -26,
+    "freedom": -22,
+    "prosperity": -20.8,
+    "company": -10.8,
+    "geopolitics": -2.2
+   },
+   "medianEndDayDiff": -3.5,
+   "evidence": {
+    "minP": 0.125,
+    "metric": "win",
+    "pValues": {
+     "win": 0.125,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "student-up",
+   "field": "student",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_STUDENT": 0.75
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     10.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0.0015000000000000013,
+    "ci": [
+     -0.08900000000000001,
+     0.267
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 2,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -6.3,
+    "freedom": -10,
+    "prosperity": -3.7,
+    "company": 2.5,
+    "geopolitics": -0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "postEvery-down",
+   "field": "postEvery",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.POST_EVERY": 21
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 4,
+    "diffPP": -30,
+    "ci": [
+     -70,
+     10
+    ],
+    "gained": 1,
+    "lost": 4,
+    "pSign": 0.37500000000000006
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -13.5,
+     0.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 2,
+    "pSign": 0.6875000000000006
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 37,
+    "ci": [
+     4.5,
+     74
+    ],
+    "medianDiffYears": 0.10130047912388775,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SIAR": {
+    "n": 3,
+    "baseReached": 10,
+    "setReached": 3,
+    "medianDiffDays": 99,
+    "ci": [
+     -202,
+     135
+    ],
+    "medianDiffYears": 0.27104722792607805,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 2,
+    "baseReached": 5,
+    "setReached": 3,
+    "medianDiffDays": -89.5,
+    "ci": [
+     -300,
+     121
+    ],
+    "medianDiffYears": -0.24503764544832307,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 2,
+    "medianDiff": -0.11200000000000002,
+    "ci": [
+     -0.14200000000000002,
+     -0.08200000000000002
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 3,
+    "fasterOrGained": 2,
+    "slowerOrLost": 4,
+    "pSign": 0.6875000000000006
+   },
+   "verdictsChanged": 5,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 3,
+   "meanScoreDiff": {
+    "survival": -27.6,
+    "freedom": -20.5,
+    "prosperity": -23.5,
+    "company": -9.1,
+    "geopolitics": -8
+   },
+   "medianEndDayDiff": 7,
+   "evidence": {
+    "minP": 0.10937500000000017,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.37500000000000006,
+     "SC": 0.6875000000000006,
+     "SAR": 0.10937500000000017,
+     "ASIreach": 0.6875000000000006
+    },
+    "class": "noise"
+   },
+   "rank": 15
+  },
+  {
+   "set": "postEvery-up",
+   "field": "postEvery",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.POST_EVERY": 63
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -20,
+     40
+    ],
+    "gained": 2,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 7.5,
+    "ci": [
+     -6,
+     11.5
+    ],
+    "medianDiffYears": 0.02053388090349076,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -15,
+    "ci": [
+     -31.5,
+     -8
+    ],
+    "medianDiffYears": -0.04106776180698152,
+    "nEarlier": 9,
+    "nLater": 1,
+    "pSign": 0.02148437500000002
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -14.5,
+    "ci": [
+     -49,
+     -7
+    ],
+    "medianDiffYears": -0.03969883641341547,
+    "nEarlier": 9,
+    "nLater": 0,
+    "pSign": 0.00390625
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": -13,
+    "ci": [
+     -308,
+     6
+    ],
+    "medianDiffYears": -0.03559206023271732,
+    "nEarlier": 4,
+    "nLater": 1,
+    "pSign": 0.37500000000000006
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.279,
+     0.144
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 7,
+    "slowerOrLost": 1,
+    "pSign": 0.07031250000000003
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 11.4,
+    "freedom": -0.5,
+    "prosperity": 8.5,
+    "company": 15.5,
+    "geopolitics": -2.3
+   },
+   "medianEndDayDiff": -10,
+   "evidence": {
+    "minP": 0.02148437500000002,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 0.10937500000000017,
+     "SAR": 0.02148437500000002,
+     "ASIreach": 0.07031250000000003
+    },
+    "class": "suggestive"
+   },
+   "rank": 11
+  },
+  {
+   "set": "safetySciTeams-down",
+   "field": "safetySciTeams",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_SAFETY_SCI_TEAMS": 3
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -60,
+     20
+    ],
+    "gained": 1,
+    "lost": 3,
+    "pSign": 0.6249999999999999
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -2,
+     3.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -7,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 3,
+    "nLater": 0,
+    "pSign": 0.25000000000000006
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0.066,
+    "ci": [
+     -0.0030000000000000027,
+     0.756
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 4,
+    "slowerOrLost": 1,
+    "pSign": 0.37500000000000006
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -16.1,
+    "freedom": -11,
+    "prosperity": -9.7,
+    "company": -2.1,
+    "geopolitics": -2.5
+   },
+   "medianEndDayDiff": -3.5,
+   "evidence": {
+    "minP": 0.37500000000000006,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 0.6249999999999999,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.37500000000000006
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "safetySciTeams-up",
+   "field": "safetySciTeams",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_SAFETY_SCI_TEAMS": 5
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -14,
+     3.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.091,
+    "ci": [
+     -0.839,
+     0
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 3,
+    "slowerOrLost": 1,
+    "pSign": 0.6249999999999999
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -5.7,
+    "freedom": -10.5,
+    "prosperity": -7.3,
+    "company": -0.7,
+    "geopolitics": 0.2
+   },
+   "medianEndDayDiff": -3.5,
+   "evidence": {
+    "minP": 0.6249999999999999,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.6249999999999999
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "alignShare2025-down",
+   "field": "alignShare2025",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_ALIGN_SHARE.2025": 0.02
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 1,
+    "pSign": 0.6249999999999999
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": -7,
+    "ci": [
+     -7,
+     21
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0,
+    "ci": [
+     -0.0030000000000000027,
+     0.144
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 5,
+    "slowerOrLost": 3,
+    "pSign": 0.7265625000000007
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -0.8,
+    "freedom": -7,
+    "prosperity": 0.6,
+    "company": 3,
+    "geopolitics": -4.1
+   },
+   "medianEndDayDiff": -7,
+   "evidence": {
+    "minP": 0.6249999999999999,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 1,
+     "SAR": 0.6249999999999999,
+     "ASIreach": 0.7265625000000007
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "alignShare2025-up",
+   "field": "alignShare2025",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_ALIGN_SHARE.2025": 0.06
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 0,
+    "pSign": 0.25000000000000006
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -21,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 3.5,
+    "ci": [
+     -14,
+     14
+    ],
+    "medianDiffYears": 0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.02350000000000002,
+    "ci": [
+     -0.048,
+     0
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 3,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -3.3,
+    "freedom": -4.5,
+    "prosperity": 0.6,
+    "company": -1.9,
+    "geopolitics": 2.3
+   },
+   "medianEndDayDiff": -7,
+   "evidence": {
+    "minP": 0.25000000000000006,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.25000000000000006,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "alignShare2026-down",
+   "field": "alignShare2026",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_ALIGN_SHARE.2026": 0.015
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -4,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 0,
+    "pSign": 0.125
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -15,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -1,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": -0.0027378507871321013,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": -0.0020000000000000018,
+    "ci": [
+     -0.386,
+     -0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 4,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -11.5,
+    "freedom": -13,
+    "prosperity": -7.1,
+    "company": -1.5,
+    "geopolitics": 0.3
+   },
+   "medianEndDayDiff": -4.5,
+   "evidence": {
+    "minP": 0.125,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.125,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "alignShare2026-up",
+   "field": "alignShare2026",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_ALIGN_SHARE.2026": 0.045
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -60,
+     20
+    ],
+    "gained": 1,
+    "lost": 3,
+    "pSign": 0.6249999999999999
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     1
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 3,
+    "pSign": 0.25000000000000006
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -21,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -7,
+    "ci": [
+     -14,
+     7
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0.0040000000000000036,
+    "ci": [
+     0,
+     0.7979999999999999
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 4,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -20.1,
+    "freedom": -19,
+    "prosperity": -18.3,
+    "company": -1.4,
+    "geopolitics": 2.2
+   },
+   "medianEndDayDiff": -7,
+   "evidence": {
+    "minP": 0.25000000000000006,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.6249999999999999,
+     "SC": 0.25000000000000006,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "safetyShareFloor-down",
+   "field": "safetyShareFloor",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refSafetyShare.floor": 0.1
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "safetyShareFloor-up",
+   "field": "safetyShareFloor",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refSafetyShare.floor": 0.3
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "safetyAgentsTolerance-down",
+   "field": "safetyAgentsTolerance",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refSafetyAgents.tolerance": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.04200000000000004,
+     0.147
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 2,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 4,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -9.1,
+    "freedom": -6,
+    "prosperity": -8,
+    "company": -4,
+    "geopolitics": 0.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "safetyAgentsTolerance-up",
+   "field": "safetyAgentsTolerance",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refSafetyAgents.tolerance": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     88
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.0050000000000000044,
+     0.7829999999999999
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 1,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 2,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0.5,
+    "freedom": -5,
+    "prosperity": -1.5,
+    "company": -3.3,
+    "geopolitics": 0.5
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorSpend-down",
+   "field": "monitorSpend",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_MONITOR_SPEND": 0.025
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -0.5,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": -0.0013689253935660506,
+    "nEarlier": 5,
+    "nLater": 1,
+    "pSign": 0.21875000000000017
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 3.5,
+    "ci": [
+     -17.5,
+     13
+    ],
+    "medianDiffYears": 0.009582477754962354,
+    "nEarlier": 3,
+    "nLater": 5,
+    "pSign": 0.7265625000000007
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 7,
+    "ci": [
+     -146,
+     28
+    ],
+    "medianDiffYears": 0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.05700000000000005,
+    "ci": [
+     -0.121,
+     0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": 5.3,
+    "freedom": -5,
+    "prosperity": 1.2,
+    "company": 4.8,
+    "geopolitics": 1.4
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.21875000000000017,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.21875000000000017,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorSpend-up",
+   "field": "monitorSpend",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_MONITOR_SPEND": 0.075
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -20,
+     40
+    ],
+    "gained": 2,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -17.5,
+     13
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 3.5,
+    "ci": [
+     0,
+     21
+    ],
+    "medianDiffYears": 0.009582477754962354,
+    "nEarlier": 0,
+    "nLater": 2,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 2,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -2.7,
+    "freedom": -2,
+    "prosperity": -0.4,
+    "company": 4.2,
+    "geopolitics": 0.4
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorCost-down",
+   "field": "monitorCost",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_MONITOR_COST": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 0,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 6,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7.5,
+    "freedom": -4.5,
+    "prosperity": -2.5,
+    "company": -5,
+    "geopolitics": 0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorCost-up",
+   "field": "monitorCost",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.REF_MONITOR_COST": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 6,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -2.1,
+    "freedom": -1.5,
+    "prosperity": 1.9,
+    "company": -2.1,
+    "geopolitics": 1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorShareCap-down",
+   "field": "monitorShareCap",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refMonitors.shareCap": 0.4
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorShareCap-up",
+   "field": "monitorShareCap",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refMonitors.shareCap": 1
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorTolerance-down",
+   "field": "monitorTolerance",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refMonitors.tolerance": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -20,
+     40
+    ],
+    "gained": 2,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": -7,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.0020000000000000018,
+    "ci": [
+     -0.04400000000000004,
+     0
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 4,
+    "slowerOrLost": 1,
+    "pSign": 0.37500000000000006
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 4,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": 0.7,
+    "freedom": 1.5,
+    "prosperity": 7,
+    "company": 4.8,
+    "geopolitics": -0.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.37500000000000006,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.37500000000000006
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "monitorTolerance-up",
+   "field": "monitorTolerance",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refMonitors.tolerance": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 1,
+    "pSign": 0.6249999999999999
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 3,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -5,
+    "freedom": -4.5,
+    "prosperity": -0.1,
+    "company": 4,
+    "geopolitics": -1.3
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.6249999999999999,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.6249999999999999
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "splitCadence-down",
+   "field": "splitCadence",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.splitCadence": 15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -50,
+     50
+    ],
+    "gained": 3,
+    "lost": 3,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 1,
+    "ci": [
+     -5.5,
+     4.5
+    ],
+    "medianDiffYears": 0.0027378507871321013,
+    "nEarlier": 4,
+    "nLater": 6,
+    "pSign": 0.7539062500000018
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 1.5,
+    "ci": [
+     -26,
+     9
+    ],
+    "medianDiffYears": 0.004106776180698152,
+    "nEarlier": 4,
+    "nLater": 6,
+    "pSign": 0.7539062500000018
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 9,
+    "medianDiffDays": -12,
+    "ci": [
+     -129,
+     15
+    ],
+    "medianDiffYears": -0.03285420944558522,
+    "nEarlier": 3,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.077,
+    "ci": [
+     -0.11300000000000002,
+     0.007000000000000006
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 9,
+    "fasterOrGained": 7,
+    "slowerOrLost": 2,
+    "pSign": 0.1796875000000001
+   },
+   "verdictsChanged": 6,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 6.2,
+    "freedom": -2.5,
+    "prosperity": 4.3,
+    "company": 20.1,
+    "geopolitics": 0.6
+   },
+   "medianEndDayDiff": -6,
+   "evidence": {
+    "minP": 0.1796875000000001,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.7539062500000018,
+     "ASIreach": 0.1796875000000001
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "splitCadence-up",
+   "field": "splitCadence",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.splitCadence": 45
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -50,
+     0
+    ],
+    "gained": 0,
+    "lost": 2,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -1.5,
+    "ci": [
+     -9,
+     -1
+    ],
+    "medianDiffYears": -0.004106776180698152,
+    "nEarlier": 9,
+    "nLater": 1,
+    "pSign": 0.02148437500000002
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 6,
+    "ci": [
+     -16,
+     13
+    ],
+    "medianDiffYears": 0.01642710472279261,
+    "nEarlier": 3,
+    "nLater": 6,
+    "pSign": 0.5078125000000007
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 6,
+    "ci": [
+     -23,
+     13
+    ],
+    "medianDiffYears": 0.01642710472279261,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0.0050000000000000044,
+    "ci": [
+     0.0020000000000000018,
+     0.009999999999999981
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 2,
+    "slowerOrLost": 4,
+    "pSign": 0.6875000000000006
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -19,
+    "freedom": -17,
+    "prosperity": -16,
+    "company": -5.5,
+    "geopolitics": -4.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.02148437500000002,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.5,
+     "SC": 0.5,
+     "SAR": 0.02148437500000002,
+     "ASIreach": 0.6875000000000006
+    },
+    "class": "suggestive"
+   },
+   "rank": 9
+  },
+  {
+   "set": "hiringLead-down",
+   "field": "hiringLead",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.hiringLead": 0.06
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -20,
+     40
+    ],
+    "gained": 2,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 2,
+    "pSign": 0.5
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     3
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -21,
+     12
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 5,
+    "nLater": 5,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -14,
+    "ci": [
+     -28,
+     0
+    ],
+    "medianDiffYears": -0.038329911019849415,
+    "nEarlier": 3,
+    "nLater": 0,
+    "pSign": 0.25000000000000006
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.0025000000000000022,
+    "ci": [
+     -0.008000000000000007,
+     -0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 6,
+    "slowerOrLost": 1,
+    "pSign": 0.12500000000000006
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": -1.2,
+    "freedom": -2,
+    "prosperity": 3.8,
+    "company": 6.1,
+    "geopolitics": -1.4
+   },
+   "medianEndDayDiff": -11.5,
+   "evidence": {
+    "minP": 0.12500000000000006,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 0.5,
+     "SAR": 0.9999999999999998,
+     "ASIreach": 0.12500000000000006
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "hiringLead-up",
+   "field": "hiringLead",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.hiringLead": 0.18
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 3.5,
+    "ci": [
+     -14,
+     12.5
+    ],
+    "medianDiffYears": 0.009582477754962354,
+    "nEarlier": 4,
+    "nLater": 5,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -21,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0.147
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 4,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -9.5,
+    "freedom": -4,
+    "prosperity": -2.1,
+    "company": 5.2,
+    "geopolitics": -0.6
+   },
+   "medianEndDayDiff": -1,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 1,
+     "SAR": 0.5,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "rlSaturation-down",
+   "field": "rlSaturation",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.rlSaturation": 0.475
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -7,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 7,
+    "nLater": 1,
+    "pSign": 0.07031250000000003
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": -14,
+    "ci": [
+     -35,
+     0
+    ],
+    "medianDiffYears": -0.038329911019849415,
+    "nEarlier": 5,
+    "nLater": 2,
+    "pSign": 0.4531250000000002
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -14,
+    "ci": [
+     -272,
+     7
+    ],
+    "medianDiffYears": -0.038329911019849415,
+    "nEarlier": 4,
+    "nLater": 1,
+    "pSign": 0.37500000000000006
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.0010000000000000009,
+    "ci": [
+     -0.03400000000000003,
+     0.0020000000000000018
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 6,
+    "slowerOrLost": 1,
+    "pSign": 0.12500000000000006
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": 6,
+    "freedom": -5,
+    "prosperity": 2.3,
+    "company": 10.8,
+    "geopolitics": 0.5
+   },
+   "medianEndDayDiff": -11.5,
+   "evidence": {
+    "minP": 0.07031250000000003,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 0.07031250000000003,
+     "ASIreach": 0.12500000000000006
+    },
+    "class": "noise"
+   },
+   "rank": 14
+  },
+  {
+   "set": "rlSaturation-up",
+   "field": "rlSaturation",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.rlSaturation": 1
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "basePoolShare-down",
+   "field": "basePoolShare",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.basePoolShare": 0.3
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 100,
+    "ci": [
+     79,
+     172.5
+    ],
+    "medianDiffYears": 0.2737850787132101,
+    "nEarlier": 0,
+    "nLater": 10,
+    "pSign": 0.001953125
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 24.5,
+    "ci": [
+     4,
+     92.5
+    ],
+    "medianDiffYears": 0.06707734428473648,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 17.5,
+    "ci": [
+     -7,
+     55.5
+    ],
+    "medianDiffYears": 0.04791238877481177,
+    "nEarlier": 3,
+    "nLater": 7,
+    "pSign": 0.3437500000000007
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": 13,
+    "ci": [
+     -155,
+     65
+    ],
+    "medianDiffYears": 0.03559206023271732,
+    "nEarlier": 1,
+    "nLater": 4,
+    "pSign": 0.37500000000000006
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.45599999999999996,
+     0.011999999999999983
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 4,
+    "slowerOrLost": 4,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": -3,
+    "freedom": -3,
+    "prosperity": -1,
+    "company": 15.6,
+    "geopolitics": -1.6
+   },
+   "medianEndDayDiff": 8.5,
+   "evidence": {
+    "minP": 0.001953125,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 0.001953125,
+     "SAR": 0.10937500000000017,
+     "ASIreach": 1
+    },
+    "class": "clear"
+   },
+   "rank": 4
+  },
+  {
+   "set": "basePoolShare-up",
+   "field": "basePoolShare",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.basePoolShare": 0.9
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 1,
+    "diffPP": -60,
+    "ci": [
+     -100,
+     -20
+    ],
+    "gained": 1,
+    "lost": 7,
+    "pSign": 0.07031250000000003
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -32.5,
+    "ci": [
+     -37,
+     -21.5
+    ],
+    "medianDiffYears": -0.08898015058179329,
+    "nEarlier": 10,
+    "nLater": 0,
+    "pSign": 0.001953125
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0.5,
+    "ci": [
+     -9.5,
+     25
+    ],
+    "medianDiffYears": 0.0013689253935660506,
+    "nEarlier": 5,
+    "nLater": 5,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 2,
+    "baseReached": 10,
+    "setReached": 2,
+    "medianDiffDays": -60,
+    "ci": [
+     -93,
+     -27
+    ],
+    "medianDiffYears": -0.16427104722792607,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "ASI": {
+    "n": 0,
+    "baseReached": 5,
+    "setReached": 1,
+    "medianDiffDays": null,
+    "ci": [
+     null,
+     null
+    ],
+    "medianDiffYears": null,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 0,
+    "medianDiff": null,
+    "ci": [
+     null,
+     null
+    ]
+   },
+   "endingsChanged": 6,
+   "asiReach": {
+    "base": 5,
+    "set": 1,
+    "fasterOrGained": 1,
+    "slowerOrLost": 5,
+    "pSign": 0.21875000000000017
+   },
+   "verdictsChanged": 8,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 1,
+   "meanScoreDiff": {
+    "survival": -44,
+    "freedom": -27.5,
+    "prosperity": -33.3,
+    "company": -20.3,
+    "geopolitics": -7.2
+   },
+   "medianEndDayDiff": -13,
+   "evidence": {
+    "minP": 0.001953125,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.07031250000000003,
+     "SC": 0.001953125,
+     "SAR": 1,
+     "ASIreach": 0.21875000000000017
+    },
+    "class": "clear"
+   },
+   "rank": 2
+  },
+  {
+   "set": "postPoolShare-down",
+   "field": "postPoolShare",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.postPoolShare": 0.25
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "postPoolShare-up",
+   "field": "postPoolShare",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.postPoolShare": 0.75
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "enterpriseMargin-down",
+   "field": "enterpriseMargin",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.enterpriseMargin": 0.125
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "enterpriseMargin-up",
+   "field": "enterpriseMargin",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.enterpriseMargin": 0.375
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "keepFull-down",
+   "field": "keepFull",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.keepFull": 3
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "keepFull-up",
+   "field": "keepFull",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.keepFull": 5
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "keepMinis-down",
+   "field": "keepMinis",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.keepMinis": 1
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 9,
+    "diffPP": 20,
+    "ci": [
+     0,
+     50
+    ],
+    "gained": 2,
+    "lost": 0,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -4.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 3,
+    "slowerOrLost": 0,
+    "pSign": 0.25000000000000006
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 7,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 10.4,
+    "freedom": 5.5,
+    "prosperity": 9.9,
+    "company": 12,
+    "geopolitics": -1.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.25000000000000006,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 0.5,
+     "SC": 1,
+     "SAR": 0.5,
+     "ASIreach": 0.25000000000000006
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "keepMinis-up",
+   "field": "keepMinis",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refPlay.keepMinis": 4
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "holdMargin-down",
+   "field": "holdMargin",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.leadStudent.holdMargin": 0.025
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": 1,
+    "freedom": 0,
+    "prosperity": 1,
+    "company": 4.1,
+    "geopolitics": 0.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "holdMargin-up",
+   "field": "holdMargin",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.leadStudent.holdMargin": 0.075
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     0,
+     30
+    ],
+    "gained": 1,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": 9.2,
+    "freedom": 6,
+    "prosperity": 8,
+    "company": 4.4,
+    "geopolitics": 0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "upgradeMargin-down",
+   "field": "upgradeMargin",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.competeRelease.upgradeMargin": 0.005
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 9,
+    "diffPP": 20,
+    "ci": [
+     0,
+     50
+    ],
+    "gained": 2,
+    "lost": 0,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 1,
+    "pSign": 0.37500000000000006
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": -7,
+    "ci": [
+     -147,
+     0
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 4,
+    "nLater": 0,
+    "pSign": 0.125
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.04400000000000001,
+    "ci": [
+     -0.17800000000000005,
+     0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 7,
+    "slowerOrLost": 0,
+    "pSign": 0.015625000000000003
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 15.2,
+    "freedom": 9,
+    "prosperity": 13.4,
+    "company": 9.1,
+    "geopolitics": 0.9
+   },
+   "medianEndDayDiff": -4.5,
+   "evidence": {
+    "minP": 0.015625000000000003,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 0.5,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.015625000000000003
+    },
+    "class": "suggestive"
+   },
+   "rank": 8
+  },
+  {
+   "set": "upgradeMargin-up",
+   "field": "upgradeMargin",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.competeRelease.upgradeMargin": 0.015
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -60,
+     20
+    ],
+    "gained": 1,
+    "lost": 3,
+    "pSign": 0.6249999999999999
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     8
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0,
+    "ci": [
+     -0.15400000000000003,
+     0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 2,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 2,
+   "asiAlignedSeeds": 3,
+   "meanScoreDiff": {
+    "survival": -18.6,
+    "freedom": -10.5,
+    "prosperity": -10.1,
+    "company": -5.4,
+    "geopolitics": -1.9
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.6249999999999999,
+    "metric": "win",
+    "pValues": {
+     "win": 0.6249999999999999,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseLead-down",
+   "field": "releaseLead",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_LEAD": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     12.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 4,
+    "pSign": 0.6875000000000006
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 5,
+    "slowerOrLost": 2,
+    "pSign": 0.4531250000000002
+   },
+   "verdictsChanged": 5,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": 6.8,
+    "freedom": 4,
+    "prosperity": 10.9,
+    "company": 2.9,
+    "geopolitics": 0.5
+   },
+   "medianEndDayDiff": -3.5,
+   "evidence": {
+    "minP": 0.4531250000000002,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.4531250000000002
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseLead-up",
+   "field": "releaseLead",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_LEAD": 0.45
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     -5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 0,
+    "pSign": 0.25000000000000006
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.139,
+     0.0020000000000000018
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 2,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -16.5,
+    "freedom": -10.5,
+    "prosperity": -8.3,
+    "company": 2.6,
+    "geopolitics": 0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseRefresh-down",
+   "field": "releaseRefresh",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_REFRESH": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0.0010000000000000009,
+    "ci": [
+     -0.074,
+     0.3959999999999999
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 2,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7.8,
+    "freedom": 2.5,
+    "prosperity": -0.1,
+    "company": -2.9,
+    "geopolitics": -1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseRefresh-up",
+   "field": "releaseRefresh",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_REFRESH": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -10.5,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.074,
+     0.616
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 2,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 2,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -7.6,
+    "freedom": -5,
+    "prosperity": -4.3,
+    "company": 3,
+    "geopolitics": -2.3
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseCheaper-down",
+   "field": "releaseCheaper",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_CHEAPER": 0.4
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": 0,
+    "ci": [
+     -280,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.138,
+     0
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 4,
+    "slowerOrLost": 0,
+    "pSign": 0.125
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": 1.2,
+    "freedom": -5.5,
+    "prosperity": 0,
+    "company": 11.2,
+    "geopolitics": -1.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.125,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.125
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseCheaper-up",
+   "field": "releaseCheaper",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_CHEAPER": 1
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -50,
+     0
+    ],
+    "gained": 0,
+    "lost": 2,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 8,
+    "baseReached": 10,
+    "setReached": 8,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 2,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 0,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7,
+    "freedom": -9.5,
+    "prosperity": -3.9,
+    "company": -6.5,
+    "geopolitics": -2.6
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "win",
+    "pValues": {
+     "win": 0.5,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseEvery-down",
+   "field": "releaseEvery",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_EVERY": 4
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -3.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 7,
+    "ci": [
+     -7,
+     14
+    ],
+    "medianDiffYears": 0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 5,
+    "pSign": 0.4531250000000002
+   },
+   "ASI": {
+    "n": 3,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": -7,
+    "ci": [
+     -7,
+     14
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 3,
+    "medianDiff": 0.0020000000000000018,
+    "ci": [
+     -0.118,
+     0.384
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 4,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": -9.5,
+    "freedom": -9.5,
+    "prosperity": -4,
+    "company": 1,
+    "geopolitics": -3.2
+   },
+   "medianEndDayDiff": -7,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "releaseEvery-up",
+   "field": "releaseEvery",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.RELEASE_EVERY": 11
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 9,
+    "diffPP": 20,
+    "ci": [
+     -20,
+     60
+    ],
+    "gained": 3,
+    "lost": 1,
+    "pSign": 0.6249999999999999
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     3.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 3,
+    "pSign": 0.6249999999999999
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 10.5,
+    "ci": [
+     -10.5,
+     21.5
+    ],
+    "medianDiffYears": 0.028747433264887063,
+    "nEarlier": 2,
+    "nLater": 6,
+    "pSign": 0.2890625000000001
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 9,
+    "medianDiffDays": 7,
+    "ci": [
+     -14,
+     41
+    ],
+    "medianDiffYears": 0.019164955509924708,
+    "nEarlier": 1,
+    "nLater": 3,
+    "pSign": 0.6249999999999999
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.007999999999999993,
+    "ci": [
+     -0.604,
+     0.11899999999999997
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 9,
+    "fasterOrGained": 5,
+    "slowerOrLost": 3,
+    "pSign": 0.7265625000000007
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 9,
+   "meanScoreDiff": {
+    "survival": 15.4,
+    "freedom": 6,
+    "prosperity": 13.4,
+    "company": 15.7,
+    "geopolitics": 0.8
+   },
+   "medianEndDayDiff": 3.5,
+   "evidence": {
+    "minP": 0.6249999999999999,
+    "metric": "win",
+    "pValues": {
+     "win": 0.6249999999999999,
+     "SC": 1,
+     "SAR": 0.6249999999999999,
+     "ASIreach": 0.7265625000000007
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "miniMinDays-down",
+   "field": "miniMinDays",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.MINI_MIN_DAYS": 15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -50,
+     0
+    ],
+    "gained": 0,
+    "lost": 2,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     13
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -16.4,
+    "freedom": -10.5,
+    "prosperity": -9.5,
+    "company": -1.8,
+    "geopolitics": -0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "win",
+    "pValues": {
+     "win": 0.5,
+     "SC": 1,
+     "SAR": 0.5,
+     "ASIreach": 0.9999999999999998
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "miniMinDays-up",
+   "field": "miniMinDays",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.MINI_MIN_DAYS": 45
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 4,
+    "diffPP": -30,
+    "ci": [
+     -60,
+     0
+    ],
+    "gained": 0,
+    "lost": 3,
+    "pSign": 0.25000000000000006
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 2,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 3,
+   "meanScoreDiff": {
+    "survival": -19.9,
+    "freedom": -15.5,
+    "prosperity": -13.1,
+    "company": -5.2,
+    "geopolitics": -4.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.25000000000000006,
+    "metric": "win",
+    "pValues": {
+     "win": 0.25000000000000006,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustOversight-down",
+   "field": "trustOversight",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.TRUST_OVERSIGHT": [
+     0.2,
+     0.4
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 2,
+    "slowerOrLost": 0,
+    "pSign": 0.5
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 6,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 0.5
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustOversight-up",
+   "field": "trustOversight",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.TRUST_OVERSIGHT": [
+     0.6,
+     1
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 5,
+    "diffPP": -20,
+    "ci": [
+     -50,
+     0
+    ],
+    "gained": 0,
+    "lost": 2,
+    "pSign": 0.5
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.028999999999999998,
+    "ci": [
+     -0.42300000000000004,
+     0.6619999999999999
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 2,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -2.2,
+    "freedom": -9.5,
+    "prosperity": -4.9,
+    "company": -4.1,
+    "geopolitics": -2.5
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "win",
+    "pValues": {
+     "win": 0.5,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustSabMax-down",
+   "field": "trustSabMax",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.TRUST_SAB_MAX": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -14,
+     0
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 0,
+    "pSign": 0.5
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.025500000000000023,
+    "ci": [
+     -0.08200000000000002,
+     0
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 2,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 4,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -8.4,
+    "freedom": -5,
+    "prosperity": -6.6,
+    "company": -5.3,
+    "geopolitics": 0.3
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustSabMax-up",
+   "field": "trustSabMax",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.TRUST_SAB_MAX": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0010000000000000009,
+     0
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 6,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7.6,
+    "freedom": -4.5,
+    "prosperity": -2.6,
+    "company": -6.1,
+    "geopolitics": 0.2
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustStep-down",
+   "field": "trustStep",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refTrusted.step": 0.05
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.0020000000000000018,
+     0.0020000000000000018
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 5,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7.5,
+    "freedom": -4.5,
+    "prosperity": -2.5,
+    "company": -5.6,
+    "geopolitics": 0.1
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "trustStep-up",
+   "field": "trustStep",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.refTrusted.step": 0.15
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -30,
+     0
+    ],
+    "gained": 0,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 4,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 1,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 1,
+   "asiReach": {
+    "base": 5,
+    "set": 4,
+    "fasterOrGained": 1,
+    "slowerOrLost": 1,
+    "pSign": 1
+   },
+   "verdictsChanged": 1,
+   "identicalSeeds": 6,
+   "asiAlignedSeeds": 4,
+   "meanScoreDiff": {
+    "survival": -7.6,
+    "freedom": -4.5,
+    "prosperity": -2.6,
+    "company": -6.1,
+    "geopolitics": 0.3
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "footholdCaseFte-down",
+   "field": "footholdCaseFte",
+   "dir": "down",
+   "kind": "setting",
+   "override": {
+    "bots.ref.FOOTHOLD_CASE_FTE": 8
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "footholdCaseFte-up",
+   "field": "footholdCaseFte",
+   "dir": "up",
+   "kind": "setting",
+   "override": {
+    "bots.ref.FOOTHOLD_CASE_FTE": 23
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "gained": 0,
+    "lost": 0,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 5,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     0
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 0,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": 0,
+    "ci": [
+     0,
+     0
+    ]
+   },
+   "endingsChanged": 0,
+   "asiReach": {
+    "base": 5,
+    "set": 5,
+    "fasterOrGained": 0,
+    "slowerOrLost": 0,
+    "pSign": 1
+   },
+   "verdictsChanged": 0,
+   "identicalSeeds": 10,
+   "asiAlignedSeeds": 5,
+   "meanScoreDiff": {
+    "survival": 0,
+    "freedom": 0,
+    "prosperity": 0,
+    "company": 0,
+    "geopolitics": 0
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 1,
+    "metric": "win",
+    "pValues": {
+     "win": 1,
+     "SC": 1,
+     "SAR": 1,
+     "ASIreach": 1
+    },
+    "class": "inert"
+   },
+   "rank": null
+  },
+  {
+   "set": "research-P24",
+   "field": "research",
+   "dir": "P24",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P24"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -50,
+     30
+    ],
+    "gained": 2,
+    "lost": 3,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 3,
+    "ci": [
+     0,
+     3
+    ],
+    "medianDiffYears": 0.008213552361396304,
+    "nEarlier": 1,
+    "nLater": 7,
+    "pSign": 0.07031250000000003
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -52.5,
+    "ci": [
+     -108.5,
+     -14
+    ],
+    "medianDiffYears": -0.1437371663244353,
+    "nEarlier": 8,
+    "nLater": 1,
+    "pSign": 0.03906250000000003
+   },
+   "SIAR": {
+    "n": 8,
+    "baseReached": 10,
+    "setReached": 8,
+    "medianDiffDays": -56,
+    "ci": [
+     -119,
+     -21
+    ],
+    "medianDiffYears": -0.15331964407939766,
+    "nEarlier": 7,
+    "nLater": 1,
+    "pSign": 0.07031250000000003
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 8,
+    "medianDiffDays": -66.5,
+    "ci": [
+     -147,
+     7
+    ],
+    "medianDiffYears": -0.18206707734428473,
+    "nEarlier": 3,
+    "nLater": 1,
+    "pSign": 0.6249999999999999
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0.0010000000000000009,
+    "ci": [
+     -0.0040000000000000036,
+     0.009000000000000008
+    ]
+   },
+   "endingsChanged": 7,
+   "asiReach": {
+    "base": 5,
+    "set": 8,
+    "fasterOrGained": 7,
+    "slowerOrLost": 2,
+    "pSign": 0.1796875000000001
+   },
+   "verdictsChanged": 6,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": -1.6,
+    "freedom": -4.5,
+    "prosperity": 3,
+    "company": 12.8,
+    "geopolitics": -3.3
+   },
+   "medianEndDayDiff": -78.5,
+   "evidence": {
+    "minP": 0.03906250000000003,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 0.07031250000000003,
+     "SAR": 0.03906250000000003,
+     "ASIreach": 0.1796875000000001
+    },
+    "class": "suggestive"
+   },
+   "rank": 12
+  },
+  {
+   "set": "research-P09",
+   "field": "research",
+   "dir": "P09",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P09"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 3,
+    "ci": [
+     -3,
+     12.5
+    ],
+    "medianDiffYears": 0.008213552361396304,
+    "nEarlier": 3,
+    "nLater": 5,
+    "pSign": 0.7265625000000007
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -14.5,
+    "ci": [
+     -35,
+     0
+    ],
+    "medianDiffYears": -0.03969883641341547,
+    "nEarlier": 7,
+    "nLater": 1,
+    "pSign": 0.07031250000000003
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": -21,
+    "ci": [
+     -35,
+     7
+    ],
+    "medianDiffYears": -0.057494866529774126,
+    "nEarlier": 6,
+    "nLater": 2,
+    "pSign": 0.2890625000000001
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -17.5,
+    "ci": [
+     -21,
+     7
+    ],
+    "medianDiffYears": -0.04791238877481177,
+    "nEarlier": 3,
+    "nLater": 1,
+    "pSign": 0.6249999999999999
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.013999999999999999,
+    "ci": [
+     -0.09800000000000002,
+     0.0020000000000000018
+    ]
+   },
+   "endingsChanged": 6,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 6,
+    "slowerOrLost": 2,
+    "pSign": 0.2890625000000001
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": 6.1,
+    "freedom": -1,
+    "prosperity": 5.2,
+    "company": 4.4,
+    "geopolitics": 0.5
+   },
+   "medianEndDayDiff": -17.5,
+   "evidence": {
+    "minP": 0.07031250000000003,
+    "metric": "SAR",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 0.7265625000000007,
+     "SAR": 0.07031250000000003,
+     "ASIreach": 0.2890625000000001
+    },
+    "class": "noise"
+   },
+   "rank": 13
+  },
+  {
+   "set": "research-P11",
+   "field": "research",
+   "dir": "P11",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "rl.math",
+     "P11"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 5,
+    "ci": [
+     1,
+     13.5
+    ],
+    "medianDiffYears": 0.013689253935660506,
+    "nEarlier": 0,
+    "nLater": 8,
+    "pSign": 0.007812500000000002
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -7.5,
+    "ci": [
+     -35,
+     0
+    ],
+    "medianDiffYears": -0.02053388090349076,
+    "nEarlier": 7,
+    "nLater": 1,
+    "pSign": 0.07031250000000003
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -4,
+    "ci": [
+     -35.5,
+     2
+    ],
+    "medianDiffYears": -0.010951403148528405,
+    "nEarlier": 5,
+    "nLater": 2,
+    "pSign": 0.4531250000000002
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": 0,
+    "ci": [
+     -286,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.020000000000000018,
+    "ci": [
+     -0.05600000000000005,
+     0.014999999999999986
+    ]
+   },
+   "endingsChanged": 4,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 4,
+    "slowerOrLost": 2,
+    "pSign": 0.6875000000000006
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": 3.7,
+    "freedom": -4.5,
+    "prosperity": 1.8,
+    "company": 7.7,
+    "geopolitics": -3.7
+   },
+   "medianEndDayDiff": 0,
+   "evidence": {
+    "minP": 0.007812500000000002,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 0.007812500000000002,
+     "SAR": 0.07031250000000003,
+     "ASIreach": 0.6875000000000006
+    },
+    "class": "clear"
+   },
+   "rank": 6
+  },
+  {
+   "set": "research-P16",
+   "field": "research",
+   "dir": "P16",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P16"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -23.5,
+     3
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 6,
+    "nLater": 4,
+    "pSign": 0.7539062500000018
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -15.5,
+    "ci": [
+     -22.5,
+     -1
+    ],
+    "medianDiffYears": -0.04243668720054757,
+    "nEarlier": 8,
+    "nLater": 0,
+    "pSign": 0.007812500000000002
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": -8,
+    "ci": [
+     -28,
+     6
+    ],
+    "medianDiffYears": -0.02190280629705681,
+    "nEarlier": 5,
+    "nLater": 3,
+    "pSign": 0.7265625000000007
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -11,
+    "ci": [
+     -27,
+     -7
+    ],
+    "medianDiffYears": -0.030116358658453114,
+    "nEarlier": 4,
+    "nLater": 0,
+    "pSign": 0.125
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0.0010000000000000009,
+    "ci": [
+     -0.0010000000000000009,
+     0.376
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 7,
+    "slowerOrLost": 1,
+    "pSign": 0.07031250000000003
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": -0.8,
+    "freedom": -2,
+    "prosperity": 1.1,
+    "company": 10,
+    "geopolitics": 1.6
+   },
+   "medianEndDayDiff": -16.5,
+   "evidence": {
+    "minP": 0.007812500000000002,
+    "metric": "SAR",
+    "pValues": {
+     "win": 1,
+     "SC": 0.7539062500000018,
+     "SAR": 0.007812500000000002,
+     "ASIreach": 0.07031250000000003
+    },
+    "class": "clear"
+   },
+   "rank": 5
+  },
+  {
+   "set": "research-P18",
+   "field": "research",
+   "dir": "P18",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P18"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 6,
+    "diffPP": -10,
+    "ci": [
+     -40,
+     20
+    ],
+    "gained": 1,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -0.5,
+     8.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 2,
+    "nLater": 4,
+    "pSign": 0.6875000000000006
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7.5,
+     1
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 2,
+    "pSign": 0.6875000000000006
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7.5,
+     14
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 3,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": 7,
+    "ci": [
+     -29,
+     21
+    ],
+    "medianDiffYears": 0.019164955509924708,
+    "nEarlier": 1,
+    "nLater": 2,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.024999999999999998,
+    "ci": [
+     -0.09299999999999997,
+     0
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 3,
+    "slowerOrLost": 3,
+    "pSign": 1
+   },
+   "verdictsChanged": 3,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": 1.1,
+    "freedom": -3.5,
+    "prosperity": 4,
+    "company": 0.8,
+    "geopolitics": -1.5
+   },
+   "medianEndDayDiff": 5.5,
+   "evidence": {
+    "minP": 0.6875000000000006,
+    "metric": "SC",
+    "pValues": {
+     "win": 1,
+     "SC": 0.6875000000000006,
+     "SAR": 0.6875000000000006,
+     "ASIreach": 1
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "research-P21",
+   "field": "research",
+   "dir": "P21",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P21"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -30,
+     30
+    ],
+    "gained": 1,
+    "lost": 1,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     0,
+     3.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 0,
+    "nLater": 2,
+    "pSign": 0.5
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -7,
+     3.5
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 2,
+    "pSign": 0.6875000000000006
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -28,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 4,
+    "pSign": 1
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 6,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -287,
+     7
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 2,
+    "nLater": 1,
+    "pSign": 1
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": 0,
+    "ci": [
+     -0.04300000000000004,
+     0.0020000000000000018
+    ]
+   },
+   "endingsChanged": 3,
+   "asiReach": {
+    "base": 5,
+    "set": 6,
+    "fasterOrGained": 4,
+    "slowerOrLost": 2,
+    "pSign": 0.6875000000000006
+   },
+   "verdictsChanged": 2,
+   "identicalSeeds": 1,
+   "asiAlignedSeeds": 6,
+   "meanScoreDiff": {
+    "survival": -3.2,
+    "freedom": -2.5,
+    "prosperity": -2,
+    "company": 7.4,
+    "geopolitics": -1.7
+   },
+   "medianEndDayDiff": -3.5,
+   "evidence": {
+    "minP": 0.5,
+    "metric": "SC",
+    "pValues": {
+     "win": 1,
+     "SC": 0.5,
+     "SAR": 0.6875000000000006,
+     "ASIreach": 0.6875000000000006
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "research-P10",
+   "field": "research",
+   "dir": "P10",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P10"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 1,
+    "ci": [
+     0,
+     10.5
+    ],
+    "medianDiffYears": 0.0027378507871321013,
+    "nEarlier": 1,
+    "nLater": 6,
+    "pSign": 0.12500000000000006
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -0.5,
+    "ci": [
+     -14.5,
+     1
+    ],
+    "medianDiffYears": -0.0013689253935660506,
+    "nEarlier": 5,
+    "nLater": 2,
+    "pSign": 0.4531250000000002
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -3.5,
+    "ci": [
+     -21.5,
+     14
+    ],
+    "medianDiffYears": -0.009582477754962354,
+    "nEarlier": 5,
+    "nLater": 3,
+    "pSign": 0.7265625000000007
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 7,
+    "medianDiffDays": -7,
+    "ci": [
+     -35,
+     14
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 2,
+    "nLater": 2,
+    "pSign": 0.9999999999999998
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.0020000000000000018,
+    "ci": [
+     -0.01200000000000001,
+     0.024999999999999994
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 7,
+    "fasterOrGained": 5,
+    "slowerOrLost": 3,
+    "pSign": 0.7265625000000007
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 7,
+   "meanScoreDiff": {
+    "survival": -3.3,
+    "freedom": -7,
+    "prosperity": 0.5,
+    "company": 6.5,
+    "geopolitics": -2.5
+   },
+   "medianEndDayDiff": 2.5,
+   "evidence": {
+    "minP": 0.12500000000000006,
+    "metric": "SC",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 0.12500000000000006,
+     "SAR": 0.4531250000000002,
+     "ASIreach": 0.7265625000000007
+    },
+    "class": "noise"
+   },
+   "rank": null
+  },
+  {
+   "set": "research-P22",
+   "field": "research",
+   "dir": "P22",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "multimodal",
+     "P22"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 7,
+    "diffPP": 0,
+    "ci": [
+     -40,
+     40
+    ],
+    "gained": 2,
+    "lost": 2,
+    "pSign": 0.9999999999999998
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 5.5,
+    "ci": [
+     0,
+     14
+    ],
+    "medianDiffYears": 0.015058179329226557,
+    "nEarlier": 0,
+    "nLater": 7,
+    "pSign": 0.015625000000000003
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 0,
+    "ci": [
+     -10.5,
+     7
+    ],
+    "medianDiffYears": 0,
+    "nEarlier": 4,
+    "nLater": 3,
+    "pSign": 1
+   },
+   "SIAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -7,
+    "ci": [
+     -24.5,
+     17.5
+    ],
+    "medianDiffYears": -0.019164955509924708,
+    "nEarlier": 6,
+    "nLater": 4,
+    "pSign": 0.7539062500000018
+   },
+   "ASI": {
+    "n": 5,
+    "baseReached": 5,
+    "setReached": 9,
+    "medianDiffDays": -14,
+    "ci": [
+     -265,
+     0
+    ],
+    "medianDiffYears": -0.038329911019849415,
+    "nEarlier": 4,
+    "nLater": 0,
+    "pSign": 0.125
+   },
+   "pMisAtASI": {
+    "n": 5,
+    "medianDiff": -0.054,
+    "ci": [
+     -0.22899999999999998,
+     -0.0010000000000000009
+    ]
+   },
+   "endingsChanged": 5,
+   "asiReach": {
+    "base": 5,
+    "set": 9,
+    "fasterOrGained": 8,
+    "slowerOrLost": 0,
+    "pSign": 0.007812500000000002
+   },
+   "verdictsChanged": 4,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 8,
+   "meanScoreDiff": {
+    "survival": 7.1,
+    "freedom": 0.5,
+    "prosperity": 5.4,
+    "company": 19.6,
+    "geopolitics": -0.7
+   },
+   "medianEndDayDiff": -10.5,
+   "evidence": {
+    "minP": 0.007812500000000002,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 0.9999999999999998,
+     "SC": 0.015625000000000003,
+     "SAR": 1,
+     "ASIreach": 0.007812500000000002
+    },
+    "class": "clear"
+   },
+   "rank": 7
+  },
+  {
+   "set": "research-rivals-all",
+   "field": "research",
+   "dir": "rivals-all",
+   "kind": "research",
+   "override": {
+    "bots.ref.REF_TREE": [
+     "P07",
+     "P05",
+     "P08",
+     "rl.mlResearch",
+     "P17",
+     "P16",
+     "P09",
+     "P24",
+     "rl.math",
+     "P11",
+     "multimodal",
+     "P22"
+    ]
+   },
+   "win": {
+    "baseWins": 7,
+    "setWins": 8,
+    "diffPP": 10,
+    "ci": [
+     -30,
+     50
+    ],
+    "gained": 3,
+    "lost": 2,
+    "pSign": 1
+   },
+   "SC": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": 42,
+    "ci": [
+     -2,
+     56
+    ],
+    "medianDiffYears": 0.11498973305954825,
+    "nEarlier": 2,
+    "nLater": 8,
+    "pSign": 0.10937500000000017
+   },
+   "SAR": {
+    "n": 10,
+    "baseReached": 10,
+    "setReached": 10,
+    "medianDiffDays": -82.5,
+    "ci": [
+     -120,
+     -7
+    ],
+    "medianDiffYears": -0.22587268993839835,
+    "nEarlier": 8,
+    "nLater": 2,
+    "pSign": 0.10937500000000017
+   },
+   "SIAR": {
+    "n": 9,
+    "baseReached": 10,
+    "setReached": 9,
+    "medianDiffDays": -100,
+    "ci": [
+     -174,
+     7
+    ],
+    "medianDiffYears": -0.2737850787132101,
+    "nEarlier": 7,
+    "nLater": 2,
+    "pSign": 0.1796875000000001
+   },
+   "ASI": {
+    "n": 4,
+    "baseReached": 5,
+    "setReached": 9,
+    "medianDiffDays": -182,
+    "ci": [
+     -279,
+     -7
+    ],
+    "medianDiffYears": -0.49828884325804246,
+    "nEarlier": 4,
+    "nLater": 0,
+    "pSign": 0.125
+   },
+   "pMisAtASI": {
+    "n": 4,
+    "medianDiff": -0.06750000000000003,
+    "ci": [
+     -0.14500000000000002,
+     -0.0030000000000000027
+    ]
+   },
+   "endingsChanged": 6,
+   "asiReach": {
+    "base": 5,
+    "set": 9,
+    "fasterOrGained": 9,
+    "slowerOrLost": 1,
+    "pSign": 0.02148437500000002
+   },
+   "verdictsChanged": 5,
+   "identicalSeeds": 0,
+   "asiAlignedSeeds": 9,
+   "meanScoreDiff": {
+    "survival": 7.2,
+    "freedom": 0.5,
+    "prosperity": 7,
+    "company": 20.4,
+    "geopolitics": 0.4
+   },
+   "medianEndDayDiff": -102,
+   "evidence": {
+    "minP": 0.02148437500000002,
+    "metric": "ASIreach",
+    "pValues": {
+     "win": 1,
+     "SC": 0.10937500000000017,
+     "SAR": 0.10937500000000017,
+     "ASIreach": 0.02148437500000002
+    },
+    "class": "suggestive"
+   },
+   "rank": 10
+  }
+ ],
+ "notes": {
+  "design": "paired by seed against base; 10 seeds; ai2027/medium/leader; bootstrap CI = percentile, 4000 resamples of the paired seeds; pSign = exact two-sided sign test on discordant pairs; ASI paired stats use only seeds where both base and set reached ASI (asiReach counts every seed: fasterOrGained = set reached ASI earlier or reached it where base never did); evidence.class: inert = identical to base on all 10 seeds, clear = min exact p <= 0.01, suggestive < 0.05, noise otherwise (min over win, SC, SAR, ASI-reach tests; ~312 tests so a few false hits are expected); rank = position in the top-15 table of BOTS-RESULTS.md",
+  "day0": "2025-07-01; year = 2025.5 + day/365.25"
+ }
+}
