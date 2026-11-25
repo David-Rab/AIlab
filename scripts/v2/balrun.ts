@@ -3,6 +3,14 @@
 //
 //   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world ai2027[,sampled,...] --align medium[,sampled]
 //                                --start leader[,...] --seeds N --workers W [--no-cache]
+//                                [--set <param id>=<value> ...] [--sets <file.json>]
+//
+// Overrides (scripts/v2/paramOverride.ts): --set applies a registry param override to every cell (repeatable; the value is JSON,
+// else a string). --sets takes a JSON array of { name, set: { id: value } }; each becomes an extra cell dimension and the
+// baseline (only the --set values) is always included as 'base'. Each override set gets its own worker processes: a worker
+// applies its set in a --import preload (overridePreload.ts, before balrun or the game modules load) and never sees another
+// set's jobs, so nothing leaks between jobs (overrides mutate loaded module objects and cannot be undone, hence one set per
+// process rather than re-applying the baseline). The set name and values are in the cache key and in every GameRecord.
 //
 // Output, under balance/runs/<name>/ (git-ignored): config.json, games.jsonl (one GameRecord per line), progress.json
 // (rewritten about every 10 s), summary.json (per-cell aggregates). Every game goes through the simulation cache
@@ -15,7 +23,7 @@
 import { execSync, fork } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { lagDays } from '../../src/engine/v2/models/capability';
 import { labMisalignment, pMis } from '../../src/engine/v2/safety/traits';
 import { ALL, newBotGame, playBot } from './botgame';
@@ -26,6 +34,8 @@ import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId }
 const ME = fileURLToPath(import.meta.url);
 const HERE = dirname(ME);
 const BOTGAME = join(HERE, 'botgame.ts');
+const PARAMOVR = join(HERE, 'paramOverride.ts');
+const PRELOAD = pathToFileURL(join(HERE, 'overridePreload.ts')).href;
 const ROOT = join(HERE, '..', '..');
 
 // ───────────────────────────── Types ─────────────────────────────
@@ -33,7 +43,8 @@ export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDi
 export interface GameRecord {
   run: string; seed: number;
   world: string; alignment: string; start: string; policy: string;
-  overrides?: Record<string, number | string | boolean>;
+  overrides?: Record<string, number | string | boolean | number[]>;
+  overrideSet?: string;
   endDay: number; ending: string; verdict: 'win' | 'mixed' | 'loss';
   milestones: { SC?: number; SAR?: number; SIAR?: number; ASI?: number };
   pMisAtEnd?: number; pMisAtASI?: number;
@@ -45,7 +56,8 @@ export interface GameRecord {
   ms: number;
 }
 type Body = Omit<GameRecord, 'run'>;
-interface Job { id: number; cell: Cell; seed: number }
+interface Job { id: number; cell: Cell; seed: number; set: number }
+interface OSet { name: string; set: Record<string, number | string | boolean | number[]> }
 
 const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'slow'];
 const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
@@ -96,7 +108,10 @@ function playOne(cell: Cell, seed: number): Body {
 }
 
 /** One game through the simulation cache (the key is the cell and the seed). */
-const playCached = (cell: Cell, seed: number): Body => cached('balrun', { ...cell, seed }, [ME, BOTGAME], () => playOne(cell, seed));
+const OVR: Record<string, unknown> = process.env.BAL_OVERRIDES ? JSON.parse(process.env.BAL_OVERRIDES) : {};
+const OVR_NAME = process.env.BAL_SET_NAME;
+const playCached = (cell: Cell, seed: number): Body =>
+  cached('balrun', { ...cell, seed, ...(OVR_NAME ? { overrideSet: OVR_NAME, overrides: OVR } : {}) }, [ME, BOTGAME, PARAMOVR], () => playOne(cell, seed));
 
 // ───────────────────────────── CLI ─────────────────────────────
 const argv = process.argv.slice(2);
@@ -120,19 +135,19 @@ const list = <T extends string>(k: string, ok: readonly string[], d: string): T[
   return xs as T[];
 };
 export const seedList = (n: number) => [...CAL_SEEDS, ...Array.from({ length: Math.max(0, n - CAL_SEEDS.length) }, (_, i) => 1001 + i)].slice(0, n);
-const cellKey = (c: { policy: string; world: string; alignment: string; start: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}`;
+const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
 
 // ───────────────────────────── Worker ─────────────────────────────
 function worker() {
   const k = Number(arg('child'));
   const dir = arg('dir');
   const run = arg('name');
-  const file = join(dir, `games.${k}.jsonl`);
+  const file = join(dir, `games.${arg('sidx')}_${k}.jsonl`);
   process.on('message', (m: { job?: Job; stop?: boolean }) => {
     if (m.stop) process.exit(0);
     if (!m.job) return;
     try {
-      const rec: GameRecord = { run, ...playCached(m.job.cell, m.job.seed) };
+      const rec: GameRecord = { run, ...playCached(m.job.cell, m.job.seed), ...(OVR_NAME ? { overrideSet: OVR_NAME, ...(Object.keys(OVR).length ? { overrides: OVR as GameRecord['overrides'] } : {}) } : {}) };
       appendFileSync(file, `${JSON.stringify(rec)}\n`);
       process.send!({ id: m.job.id, ms: rec.ms });
     } catch (err) {
@@ -159,7 +174,7 @@ const q3 = (xs: number[]) => (xs.length ? { p10: Math.round(quantOf(xs, 0.1)), p
 export function summarize(recs: GameRecord[]) {
   const cells = new Map<string, GameRecord[]>();
   for (const r of recs) {
-    const k = cellKey(r) + (r.overrides ? ` | ${JSON.stringify(r.overrides)}` : '');
+    const k = cellKey(r);
     (cells.get(k) ?? cells.set(k, []).get(k)!).push(r);
   }
   return [...cells.entries()].map(([key, rs]) => {
@@ -176,7 +191,7 @@ export function summarize(recs: GameRecord[]) {
     const msTimes = rs.map((r) => r.ms);
     const c0 = rs[0];
     return {
-      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.overrides ? { overrides: c0.overrides } : {}),
+      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.overrideSet ? { overrideSet: c0.overrideSet } : {}), ...(c0.overrides ? { overrides: c0.overrides } : {}),
       n,
       win: rate(count('win'), n), mixed: rate(count('mixed'), n), loss: rate(count('loss'), n),
       endings, milestoneDays: ms,
@@ -202,18 +217,30 @@ async function parent() {
   const workers = Math.max(1, Number(arg('workers', '4')));
   const noCache = flag('no-cache') >= 0;
   const seeds = seedList(nSeeds);
+  const parseVal = (v: string) => { try { return JSON.parse(v); } catch { return v; } };
+  const globalSet: OSet['set'] = {};
+  argv.forEach((a, i) => {
+    if (a !== '--set') return;
+    const m = /^([^=]+)=(.*)$/s.exec(argv[i + 1] ?? '');
+    if (!m) { console.error('balrun: --set needs <param id>=<value>'); process.exit(2); }
+    globalSet[m[1]] = parseVal(m[2]);
+  });
+  const fileSets: OSet[] = flag('sets') >= 0 ? JSON.parse(readFileSync(arg('sets'), 'utf8')) : [];
+  const useSets = flag('sets') >= 0 || Object.keys(globalSet).length > 0;
+  const sets: OSet[] = useSets ? [{ name: 'base', set: globalSet }, ...fileSets.map((x) => ({ name: x.name, set: { ...globalSet, ...x.set } }))] : [{ name: '', set: {} }];
+  if (new Set(sets.map((x) => x.name)).size !== sets.length) { console.error('balrun: override set names must be unique and not "base"'); process.exit(2); }
   const cells: Cell[] = [];
   for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start });
-  const jobs: Job[] = seeds.flatMap((seed) => cells.map((cell) => ({ id: 0, cell, seed }))).map((j, id) => ({ ...j, id }));
+  const jobs: Job[] = seeds.flatMap((seed) => cells.flatMap((cell) => sets.map((_, set) => ({ id: 0, cell, seed, set })))).map((j, id) => ({ ...j, id }));
 
   const dir = join(ROOT, 'balance', 'runs', name);
   mkdirSync(dir, { recursive: true });
-  for (const f of readdirSync(dir)) if (/^(games(\.\d+)?\.jsonl|summary\.json|progress\.json)$/.test(f)) rmSync(join(dir, f));
+  for (const f of readdirSync(dir)) if (/^(games([._\d]+)?\.jsonl|summary\.json|progress\.json)$/.test(f)) rmSync(join(dir, f));
   const startedAt = new Date().toISOString();
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
   writeFileSync(join(dir, 'config.json'), JSON.stringify({
     name, args: argv, policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
-    gitCommit: git, codeHash: codeHash([ME, BOTGAME]), node: process.version, seeds, cells: cells.map(cellKey), startedAt,
+    gitCommit: git, codeHash: codeHash([ME, BOTGAME, PARAMOVR]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
   }, null, 2));
 
   const total = jobs.length;
@@ -234,10 +261,12 @@ async function parent() {
     console.log(`[${name}] ${done}/${total} games, ${(done / Math.max(mins, 1e-9)).toFixed(1)}/min, ${((Date.now() - t0) / 1000).toFixed(0)} s${failed.length ? `, ${failed.length} failed` : ''}`);
   }, 30_000);
 
+  for (let si = 0; si < sets.length; si++) {
+  const mine = jobs.filter((j) => j.set === si);
   let next = 0;
-  const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}) };
-  await Promise.all(Array.from({ length: Math.min(workers, total) }, (_, k) => new Promise<void>((resolveW) => {
-    const child = fork(ME, ['--child', String(k), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx'], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
+  const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}), ...(useSets ? { BAL_OVERRIDES: JSON.stringify(sets[si].set), BAL_SET_NAME: sets[si].name } : {}) };
+  await Promise.all(Array.from({ length: Math.min(workers, mine.length) }, (_, k) => new Promise<void>((resolveW) => {
+    const child = fork(ME, ['--child', String(k), '--sidx', String(si), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx', ...(useSets ? ['--import', PRELOAD] : [])], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
     // simcache prints its hit/miss line to stderr when a worker exits: total them, pass anything else on.
     let buf = '';
     child.stderr!.on('data', (d: Buffer) => {
@@ -250,7 +279,7 @@ async function parent() {
       }
     });
     const feed = () => {
-      if (next < total) child.send({ job: jobs[next++] });
+      if (next < mine.length) child.send({ job: mine[next++] });
       else child.send({ stop: true });
     };
     child.on('message', (m: { ready?: boolean; id?: number; ms?: number; err?: string }) => {
@@ -265,14 +294,15 @@ async function parent() {
       resolveW();
     });
   })));
+  }
   clearInterval(tick10);
   clearInterval(tick30);
 
   // Merge the per-worker files into games.jsonl in job order (cell order within seed order).
-  const order = new Map(jobs.map((j) => [`${cellKey({ ...j.cell })}#${j.seed}`, j.id]));
+  const order = new Map(jobs.map((j) => [`${cellKey({ ...j.cell, overrideSet: useSets ? sets[j.set].name : undefined })}#${j.seed}`, j.id]));
   const recs: GameRecord[] = [];
   for (const f of readdirSync(dir)) {
-    if (!/^games\.\d+\.jsonl$/.test(f)) continue;
+    if (!/^games\.\d+_\d+\.jsonl$/.test(f)) continue;
     for (const line of readFileSync(join(dir, f), 'utf8').split('\n')) if (line.trim()) recs.push(JSON.parse(line) as GameRecord);
     rmSync(join(dir, f));
   }

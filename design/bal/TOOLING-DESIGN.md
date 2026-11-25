@@ -56,3 +56,11 @@ A cell is (world, alignment, start, policy, override set). For each cell:
 
 ## Scenarios
 The world presets and alignment draws that exist today (ai2027, authors2026, fast, slow, sampled × medium/sampled) are the scenario cells for now. Scenario axes (alignment difficulty, capability ease, adoption speed, ...) are a designer topic (see B6 and the designer's framing in BAL-TASKS). The runner takes world and alignment as plain cell keys, so new axes slot in later without a format change.
+
+## Overrides (C3)
+`scripts/v2/paramOverride.ts` `applyOverrides({ id: value })` sets registry params on the live game modules. `balrun --set <id>=<value>` (repeatable, JSON value) applies to every cell; `--sets file.json` is an array of `{ name, set }`, each an extra cell dimension, with `base` (only the `--set` values) always included. `GameRecord` carries `overrides` and `overrideSet`; both are in the cache key and the summary cell.
+- **Supported:** `export` refs whose path ends in a field of an object or array. A plain field is replaced by the value. A `'*'` family (in the path) is different: a number **multiplies** every numeric member (1.1 = +10%); any other type sets every member. Kind `fitted` is allowed (the point of a sensitivity run).
+- **Rejected with an error naming the id:** unknown id, `inline` refs, top-level exports (empty path; ES bindings are read-only), unresolved paths, and any set after which the live value did not change (frozen object, value copied at import time).
+- **No leakage:** overrides mutate the process's loaded modules and cannot be undone, so each override set has its own worker processes (jobs are dispatched per set), and a `--import` preload applies the set before balrun or the game modules load.
+- **Limit:** a module that copies a value into another constant at import is not detected by the read-back (the copy is a different object); show an effect on game behaviour per param, as the test run does.
+- `npx tsx scripts/v2/paramOverride.ts --census` counts overridable params by kind (1822 params: 867 field, 218 family, 371 inline, 366 top-level).
