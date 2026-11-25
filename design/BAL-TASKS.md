@@ -81,4 +81,5 @@ A different session does the engine speed-up on branch `bal-perf` (worktree ../A
 ## C6 RefBot scan
 - C6a: sets prepared, balance/scans/refbot-a.json (78 sets: 69 numeric/retry + 9 research-list), commit 1dc9588.
 - C6b, first pass (designer's choice): run `refbot-a1`, ai2027/medium, leader, 10 seeds, 790 games, started 2026-11-25 in the background (log .scratch/refbot-a1.log). The full scan (20 seeds × ai2027 + sampled) runs after the bal-perf merge.
+- C6b PAUSED by the designer (2026-11-25, to avoid competing with the bal-perf session). 228+ games are cached in .simcache; resume with the same command (replays the cache): `npx tsx scripts/v2/balrun.ts --name refbot-a1 --policy ref --world ai2027 --align medium --start leader --seeds 10 --sets balance/scans/refbot-a.json`. Note: any src/ change (e.g. the bal-perf merge) invalidates the cache.
 - C6c: analysis by a fresh agent once the run finishes: paired differences per set against base (win rate, SC/SAR/ASI days, pMis), with intervals; the results write-up goes to design/bal/BOTS-RESULTS.md.
