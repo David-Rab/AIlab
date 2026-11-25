@@ -61,3 +61,13 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 ## Designer clarification (2026-11-25): bots
 - **A bot's only goal is to win within the given world.** It never slows itself or avoids research to match a calibration target.
 - **The world is calibrated against the realistic leader lab (non-player actors), never against a bot.** RefBot loses its calibration role and becomes the starting point for the strong-bot search.
+
+## Designer decisions, round 5 (2026-11-25): timelines as percentiles of one forecast
+- **Use Eli's published beliefs, unchanged:** the AIFM config `sampling_config_q2_eli.yaml` at commit 1c40ecdb, no tweaks.
+- **Run 3,000 samples.** Timelines are the 25th, 50th and 75th percentiles of the automated-coder date: **fast = p25, central = p50, slow = p75**.
+  - Each timeline is the cluster of runs whose AC date falls within ±5 percentile points of its percentile (p20–30, p45–55, p70–80; about 300 runs each).
+  - The cluster's own medians and quartiles of every quantity are the benchmarks.
+- **Only medians and quartiles are used,** not tails.
+- **Fewer failed runs:** find out why samples fail or time out, and fix what's fixable (timeouts, worker load). Report the rest.
+- **Dashboard time axis extends to 2060.**
+- This replaces the round-3 tuned configs (Daniel/Eli tweaks); those runs stay on disk for reference.
