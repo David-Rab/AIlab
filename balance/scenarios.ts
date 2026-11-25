@@ -34,7 +34,10 @@ export interface Checkpoint {
   milestone?: Milestone;              // quantity 'milestone' (value = decimal year) or 'interval' (from -> milestone, in years)
   from?: Milestone;                   // quantity 'interval'
   value?: number;                     // central value
-  lo?: number; hi?: number;           // band, only when the source gives one (bandFrom = 'source')
+  lo?: number; hi?: number;           // band, only when the source gives one (bandFrom = 'source'); for a distribution, p25 and p75
+  p10?: number; p90?: number;         // outer band of a distribution (needs lo/hi: p10 <= lo, hi <= p90); a percentile that is not reached is left out
+  neverBy2100?: number;               // distribution of a date: the share of samples (0 to 1) that do not reach it by 2100; the percentiles count them as later
+  series?: 'speedup' | 'effCompute' | 'trainCompute'; // which chart a dated 'other' timeline value belongs to
   unit: string;                       // 'min', 'H100e', 'USD B', 'year', 'years', 'fraction', ...
   bandFrom: 'source' | 'none' | 'designer';
   source: string;                     // citation in words
@@ -48,20 +51,20 @@ export const TIMELINES: Timeline[] = [
   {
     id: 'fast',
     name: 'Fast (AI 2027)',
-    sourceModel: 'AI 2027 scenario and its timelines and takeoff forecasts (Kokotajlo et al. 2025)',
-    summary: 'AI that codes better than any human arrives in early 2027, and superintelligence follows by the end of 2027. This is the pace the AI 2027 scenario describes.',
+    sourceModel: "AI Futures Model (aifm-public 1c40ecdb), Daniel's published parameter ranges unchanged; 1,000 samples, 949 ran (aifm-runs/CONFIGS.md)",
+    summary: 'AI that codes better than any human arrives in late 2027 (median), and superintelligence follows in about 2030 (median). The spread is wide: a quarter of the runs have superintelligence only after 2036.',
   },
   {
     id: 'central',
     name: 'Central (AI Futures model)',
-    sourceModel: "AI Futures Model, authors' median run, Eli's median parameters 08/16/26 (AI Futures Project)",
-    summary: 'AI that codes better than any human arrives around 2029 to 2030, and superintelligence follows about four years later, in the early 2030s.',
+    sourceModel: "AI Futures Model (aifm-public 1c40ecdb), Eli's parameter ranges with slower growth of today's AI coding uplift; 1,000 samples, 987 ran (aifm-runs/CONFIGS.md)",
+    summary: 'AI that codes better than any human arrives around 2030 (median), and superintelligence follows about ten years later, around 2040 (median). The spread is wide: about one run in twelve has no such coder even by 2100.',
   },
   {
     id: 'slow',
     name: 'Slow (steady exponential)',
-    sourceModel: 'AI Futures Project December 2025 model update (pure exponential horizon growth), with the METR 7-month doubling trend; later milestones not yet sourced',
-    summary: 'The length of tasks AI can do keeps growing at a steady pace instead of speeding up, so AI that codes better than any human arrives around 2034. The dates after that are still to be sourced.',
+    sourceModel: "AI Futures Model (aifm-public 1c40ecdb), Daniel's ranges with a pure-exponential task-length trend and a longer task needed for the coder; 1,000 samples, 1,000 ran (aifm-runs/CONFIGS.md)",
+    summary: 'The length of tasks AI can do keeps growing at a steady pace instead of speeding up, so AI that codes better than any human arrives around 2034 (median) and superintelligence around 2039 (median).',
   },
 ];
 
@@ -205,96 +208,224 @@ const HISTORY: Checkpoint[] = [
   hist('H26.uplift.anthropicCoding', 'other', 'Coding uplift inside Anthropic, Oct 2026', 2026.79, 'x', 'Anthropic internal', 'research/09:45', { value: 2 }),
 ];
 
-// ───────────── fast = AI 2027 (SC1 §3a) ─────────────
-const AI27 = 'AI 2027 scenario and takeoff forecast';
-const FAST: Checkpoint[] = [
-  tl('fast', 'horizon80.2026.27', 'horizon80', 'Internal 80% horizon, median superexponential trajectory, 2026.27', 'min', AI27, 'research/03:258',
-    { date: 2026.27, value: 179, status: 'unsure', notes: 'Conflicts with ~3 work-weeks at end-2026 (7,200 min) if both are on one curve: 179 min at 2026.27 vs about 3 work-weeks at end-2026. The exponential branch is ~123 min.' }),
-  tl('fast', 'horizon80.2026.27.exp', 'horizon80', 'Internal 80% horizon, exponential branch, 2026.27', 'min', AI27, 'research/03:258', { date: 2026.27, value: 123 }),
-  tl('fast', 'horizon80.2026-end', 'horizon80', 'Task horizon (80%) on the central AI 2027 trajectory, end of 2026', 'min', AI27, 'research/09:59',
-    { date: 2026.99, value: 7200, status: 'unsure', notes: 'SC1 gives "~3 work-weeks (80%)"; written here as 3 x 40 h x 60 min. Conflicts with 179 min at 2026.27 if both are on one curve. The AI Futures Project graded the measured horizon at 1.04x of the trajectory through 2025.' }),
-  tl('fast', 'M.1.5x', 'other', 'AI R&D speed-up reaches 1.5x', 'x', AI27, 'research/03:236; targets.ts GOLD.ai2027.M1.5',
-    { date: 2026.07, value: 1.5, targetId: 'GOLD.ai2027.M1.5', notes: 'Value is the multiplier, date is when the AI 2027 trajectory reaches it. An AI 2027 forecast dated 2026: SC1 §1 note (c) and Q5 ask whether to replace it by the measured H26.' }),
-  tl('fast', 'M.3x', 'other', 'AI R&D speed-up reaches 3x', 'x', AI27, 'research/03:236; targets.ts GOLD.ai2027.M3',
-    { date: 2026.96, value: 3, targetId: 'GOLD.ai2027.M3', notes: 'Value is the multiplier, date is when the AI 2027 trajectory reaches it. SC1 §1 note (c) and Q5 ask whether to replace it by the measured H26.' }),
-  tl('fast', 'M.10x', 'other', 'AI R&D speed-up reaches 10x', 'x', AI27, 'research/03:236; targets.ts GOLD.ai2027.M10', { date: 2027.5, value: 10, targetId: 'GOLD.ai2027.M10', notes: 'Value is the multiplier, date is when the AI 2027 trajectory reaches it.' }),
-  tl('fast', 'M.50x', 'other', 'AI R&D speed-up reaches 50x', 'x', AI27, 'research/03:236; targets.ts GOLD.ai2027.M50', { date: 2027.8, value: 50, targetId: 'GOLD.ai2027.M50', notes: 'Value is the multiplier, date is when the AI 2027 trajectory reaches it.' }),
-  tl('fast', 'SC', 'milestone', 'AI that codes better than any human (SC)', 'year', AI27, 'research/11:149-166; targets.ts:20', { milestone: 'SC', value: 2027.24, targetId: 'GOLD.ai2027.SC', notes: 'Mar 2027, day 638. No band in source (forecast CI: Eli 2025-2039, Nikola 2025-2033). Also tested as T1.ai2027.SC and T1L.ai2027.SC.' }),
-  tl('fast', 'SAR', 'milestone', 'AI that does AI research better than any human (SAR)', 'year', AI27, 'research/11:149-166; targets.ts:20', { milestone: 'SAR', value: 2027.66, targetId: 'GOLD.ai2027.SAR', notes: 'Aug 2027, day 791. Also tested as T1.ai2027.SAR and T1L.ai2027.SAR.' }),
-  tl('fast', 'SIAR', 'milestone', 'Superintelligent AI researcher (SIAR)', 'year', AI27, 'research/11:149-166; targets.ts:20', { milestone: 'SIAR', value: 2027.92, targetId: 'GOLD.ai2027.SIAR', notes: 'Nov 2027, day 883. Also tested as T1.ai2027.SIAR and T1L.ai2027.SIAR.' }),
-  tl('fast', 'ASI', 'milestone', 'Artificial superintelligence (ASI)', 'year', AI27, 'research/11:149-166; targets.ts:20', { milestone: 'ASI', value: 2028.0, targetId: 'GOLD.ai2027.ASI', notes: 'Dec 2027, day 915. Also tested as T1.ai2027.ASI and T1L.ai2027.ASI.' }),
-  tl('fast', 'interval.SC-SAR', 'interval', 'Time from SC to SAR', 'years', AI27, `${SC1}:73 (derived from the four dates)`, { from: 'SC', milestone: 'SAR', value: 0.42 }),
-  tl('fast', 'interval.SAR-SIAR', 'interval', 'Time from SAR to SIAR', 'years', AI27, `${SC1}:73 (derived from the four dates)`, { from: 'SAR', milestone: 'SIAR', value: 0.26 }),
-  tl('fast', 'interval.SIAR-ASI', 'interval', 'Time from SIAR to ASI', 'years', AI27, `${SC1}:73 (derived from the four dates)`, { from: 'SIAR', milestone: 'ASI', value: 0.08 }),
-  tl('fast', 'mult.SC', 'other', 'AI R&D speed-up at SC', 'x', AI27, 'research/03:188', { milestone: 'SC', value: 5, notes: 'Fixed in the source, no uncertainty modelled.' }),
-  tl('fast', 'mult.SAR', 'other', 'AI R&D speed-up at SAR', 'x', AI27, 'research/03:188', { milestone: 'SAR', value: 25, notes: 'Fixed in the source, no uncertainty modelled.' }),
-  tl('fast', 'mult.SIAR', 'other', 'AI R&D speed-up at SIAR', 'x', AI27, 'research/03:188', { milestone: 'SIAR', value: 250, notes: 'Fixed in the source, no uncertainty modelled.' }),
-  tl('fast', 'mult.ASI', 'other', 'AI R&D speed-up at ASI', 'x', AI27, 'research/03:188', { milestone: 'ASI', value: 2000, notes: 'Fixed in the source, no uncertainty modelled.' }),
-  tl('fast', 'worldCompute.growth-to-2029', 'other', 'World compute growth per year until 2029', 'x per year', AI27, 'research/11:149-166 (#18); research/09:43', { date: 2029.0, value: 2.25, notes: 'Holds until 2029.0.' }),
-  tl('fast', 'worldCompute.growth-after-2029', 'other', 'World compute growth per year after 2029', 'x per year', AI27, 'research/11:149-166 (#18); research/09:43', { date: 2029.0, value: 1.5, notes: 'Holds from 2029.0.' }),
-  tl('fast', 'worldCompute.2026-end', 'worldCompute', 'World compute, end of 2026', 'H100e', AI27, 'research/11:149-166 (#18); research/09:43', { date: 2026.99, value: m(40), notes: 'The same figure as H8.' }),
-  tl('fast', 'labCompute.growth', 'other', 'Lab compute growth per year (OpenBrain)', 'x per year', AI27, 'calibration.ts:64-67 (AI2027_COMPUTE_TABLE); research/09:42', { value: 3.4 }),
-  tl('fast', 'labCompute.2025.5', 'other', 'OpenBrain compute, mid-2025', 'H100e', AI27, 'calibration.ts:64-67 (AI2027_COMPUTE_TABLE); research/09:42', { date: 2025.5, value: m(1) }),
-  tl('fast', 'labCompute.2026.5', 'other', 'OpenBrain compute, mid-2026', 'H100e', AI27, 'calibration.ts:64-67 (AI2027_COMPUTE_TABLE); research/09:42', { date: 2026.5, value: m(4) }),
-  tl('fast', 'labCompute.2027-late', 'other', 'OpenBrain compute, late 2027', 'H100e', AI27, 'calibration.ts:64-67 (AI2027_COMPUTE_TABLE); research/09:42', { date: 2027.9, value: m(15), notes: 'SC1 gives "late 2027" with no month; date is an assumed late-2027 reading.' }),
-  tl('fast', 'openbrain.revenue2026', 'revenue', 'OpenBrain revenue, 2026', 'USD B', AI27, 'targets.ts:636', { date: 2026.5, value: 45, targetId: 'F7.revenue2026', notes: 'The game codes 36-67 (a blend with Anthropic CY2026). A lab-level forecast.' }),
-  tl('fast', 'openbrain.revenue2027', 'revenue', 'OpenBrain revenue, 2027', 'USD B', AI27, 'targets.ts:872', { date: 2027.5, value: 140, targetId: 'F11.revenue2027', notes: 'SC1 lists no coded band for 2027 (n/a).' }),
-  tl('fast', 'openbrain.capex2026', 'capex', 'OpenBrain capex, 2026', 'USD B', AI27, 'targets.ts:648', { date: 2026.5, value: 200, targetId: 'F7.capex2026', notes: 'The game codes 150-250. SC1 lists "capex $200B" under OpenBrain 2026 / 2027; read as 2026.' }),
-];
+// ───────────── timelines = the AI Futures Model (aifm-public 1c40ecdb), three configurations, 1,000 samples each ─────────────
+// Extracted by aifm-runs/scripts/extract.py into aifm-runs/out/{fast,central,slow}.json (settings: aifm-runs/CONFIGS.md).
+// Every row is [p10, p25, p50, p75, p90]; null = that percentile is not reached (more samples never reach the milestone
+// than the tail holds). Years are decimal years; the series are read at 1 January of the year.
+type Q5 = [number, number, number, number | null, number | null];
+interface AifmRun {
+  ok: number; requested: number;   // samples that ran / were asked for (failed or timed-out samples are dropped by the extractor)
+  milestones: Record<'AC' | 'SAR' | 'SIAR' | 'TED-AI' | 'ASI', { q: Q5; by2100: number; never: number }>; // by2100 / never: share of samples not reached by 2100 / never in the run (to 2200)
+  gaps: Record<'AC->SAR' | 'SAR->SIAR' | 'SIAR->ASI' | 'AC->ASI', { q: Q5; n: number }>;               // years, over the samples that reach both ends
+  series: Record<'h80' | 'h50' | 'speedup' | 'effCompute', Record<number, Q5>>;
+}
+const AIFM_YEARS = [2027, 2028, 2030, 2032, 2035];
+// Frontier training compute, an input of the model (not sampled in the public configs): the same in every timeline.
+const AIFM_TRAIN: Record<number, number> = { 2027: 479640, 2028: 1512000, 2030: 7518000, 2032: 20877209, 2035: 79888790 };
+const AIFM_RUN: Record<TimelineId, AifmRun> = {
+  fast: {
+    ok: 949, requested: 1000,
+    milestones: {
+      AC: { q: [2026.92, 2027.27, 2027.89, 2028.97, 2031.6], by2100: 0.0105, never: 0.0095 },
+      SAR: { q: [2027.21, 2027.79, 2028.82, 2030.93, 2035.7], by2100: 0.0148, never: 0.0116 },
+      SIAR: { q: [2027.52, 2028.17, 2029.71, 2033.54, 2047.43], by2100: 0.0358, never: 0.0232 },
+      'TED-AI': { q: [2027.43, 2028.05, 2029.37, 2033.13, 2045.93], by2100: 0.039, never: 0.0316 },
+      ASI: { q: [2027.55, 2028.34, 2030.28, 2036.41, 2066.86], by2100: 0.0674, never: 0.0485 },
+    },
+    gaps: {
+      'AC->SAR': { q: [0.01, 0.17, 0.54, 1.35, 3.81], n: 938 },
+      'SAR->SIAR': { q: [0.08, 0.19, 0.6, 1.99, 7.67], n: 927 },
+      'SIAR->ASI': { q: [0.01, 0.03, 0.2, 1.22, 6.9], n: 902 },
+      'AC->ASI': { q: [0.22, 0.52, 1.43, 4.98, 15.33], n: 902 },
+    },
+    series: {
+      h80: {
+        2027: [530.0, 701.0, 1100.0, 2600.0, 10600.0],
+        2028: [2520.0, 7690.0, 121000.0, 4.19e41, 9.94e63],
+        2030: [95000.0, 38100000.0, 2.27e43, 2.68e70, 2.18e107],
+        2032: [2860000.0, 1020000000000.0, 1.71e51, 5.47e79, 6.65e125],
+        2035: [181000000.0, 3.2e20, 4.69e54, 8.51e88, 3.61e146],
+      },
+      h50: {
+        2027: [2690.0, 3560.0, 5580.0, 13200.0, 53900.0],
+        2028: [12800.0, 39100.0, 614000.0, 2.13e42, 5.05e64],
+        2030: [483000.0, 194000000.0, 1.15e44, 1.36e71, 1.11e108],
+        2032: [14500000.0, 5170000000000.0, 8.69e51, 2.78e80, 3.38e126],
+        2035: [922000000.0, 1.63e21, 2.38e55, 4.32e89, 1.83e147],
+      },
+      speedup: {
+        2027: [1.12, 1.23, 1.46, 2.04, 4.06],
+        2028: [1.28, 1.62, 3.16, 50.3, 190000000.0],
+        2030: [1.97, 5.85, 274.0, 8670000.0, 8.72e16],
+        2032: [3.19, 32.3, 4360.0, 330000000.0, 1.29e19],
+        2035: [8.71, 133.0, 24400.0, 4190000000.0, 3.33e20],
+      },
+      effCompute: {
+        2027: [28.21, 28.51, 29.16, 30.44, 32.05],
+        2028: [29.3, 29.98, 31.51, 36.09, 65.07],
+        2030: [31.56, 33.52, 39.16, 60.91, 112.67],
+        2032: [33.39, 36.47, 46.34, 71.7, 130.38],
+        2035: [35.41, 39.84, 51.93, 80.27, 142.99],
+      },
+    },
+  },
+  central: {
+    ok: 987, requested: 1000,
+    milestones: {
+      AC: { q: [2027.32, 2028.23, 2030.42, 2040.98, 2078.18], by2100: 0.0831, never: 0.0638 },
+      SAR: { q: [2027.81, 2029.15, 2032.45, 2045.1, 2090.1], by2100: 0.0952, never: 0.0729 },
+      SIAR: { q: [2028.34, 2030.14, 2036.1, 2057.28, null], by2100: 0.1398, never: 0.1033 },
+      'TED-AI': { q: [2028.31, 2030.02, 2035.85, 2060.19, null], by2100: 0.154, never: 0.1196 },
+      ASI: { q: [2028.66, 2030.88, 2040.35, 2075.67, null], by2100: 0.2067, never: 0.1672 },
+    },
+    gaps: {
+      'AC->SAR': { q: [0.0, 0.17, 0.67, 2.17, 7.18], n: 915 },
+      'SAR->SIAR': { q: [0.16, 0.36, 1.23, 4.75, 14.2], n: 885 },
+      'SIAR->ASI': { q: [0.03, 0.12, 0.85, 4.17, 18.12], n: 822 },
+      'AC->ASI': { q: [0.37, 0.9, 3.02, 10.65, 30.15], n: 822 },
+    },
+    series: {
+      h80: {
+        2027: [377.0, 496.0, 833.0, 2410.0, 23600.0],
+        2028: [996.0, 2370.0, 14200.0, 3.33e26, 1.57e52],
+        2030: [6110.0, 76100.0, 2070000000000000.0, 4.65e57, 3.91e82],
+        2032: [25000.0, 2520000.0, 1.32e40, 9.8e66, 1.23e102],
+        2035: [178000.0, 456000000.0, 1.62e46, 1.81e75, 5.35e112],
+      },
+      h50: {
+        2027: [1910.0, 2520.0, 4230.0, 12200.0, 120000.0],
+        2028: [5060.0, 12000.0, 72100.0, 1.69e27, 7.98e52],
+        2030: [31000.0, 386000.0, 1.05e16, 2.36e58, 1.98e83],
+        2032: [127000.0, 12800000.0, 6.68e40, 4.98e67, 6.26e102],
+        2035: [904000.0, 2320000000.0, 8.23e46, 9.19e75, 2.72e113],
+      },
+      speedup: {
+        2027: [1.02, 1.06, 1.18, 1.5, 2.15],
+        2028: [1.04, 1.12, 1.42, 2.74, 25.1],
+        2030: [1.07, 1.29, 2.68, 81.2, 198000.0],
+        2032: [1.11, 1.47, 10.2, 1540.0, 18100000.0],
+        2035: [1.16, 1.92, 52.5, 10700.0, 183000000.0],
+      },
+      effCompute: {
+        2027: [28.18, 28.47, 29.08, 30.21, 31.65],
+        2028: [29.15, 29.68, 30.8, 33.24, 37.81],
+        2030: [30.94, 32.03, 34.59, 41.49, 59.96],
+        2032: [32.27, 33.74, 38.02, 48.74, 72.6],
+        2035: [33.79, 35.87, 41.97, 56.21, 85.66],
+      },
+    },
+  },
+  slow: {
+    ok: 1000, requested: 1000,
+    milestones: {
+      AC: { q: [2027.81, 2029.51, 2033.78, 2043.16, 2064.06], by2100: 0.051, never: 0.031 },
+      SAR: { q: [2028.42, 2030.56, 2035.46, 2047.63, 2072.69], by2100: 0.064, never: 0.038 },
+      SIAR: { q: [2028.79, 2031.56, 2038.02, 2053.56, 2100.86], by2100: 0.102, never: 0.056 },
+      'TED-AI': { q: [2028.72, 2031.17, 2036.99, 2053.02, 2098.55], by2100: 0.099, never: 0.063 },
+      ASI: { q: [2028.93, 2032.04, 2039.38, 2060.16, 2140.77], by2100: 0.136, never: 0.091 },
+    },
+    gaps: {
+      'AC->SAR': { q: [0.01, 0.23, 0.77, 2.22, 7.01], n: 962 },
+      'SAR->SIAR': { q: [0.1, 0.29, 0.95, 3.12, 10.98], n: 944 },
+      'SIAR->ASI': { q: [0.01, 0.04, 0.26, 1.69, 7.36], n: 909 },
+      'AC->ASI': { q: [0.27, 0.7, 2.15, 7.25, 20.95], n: 909 },
+    },
+    series: {
+      h80: {
+        2027: [380.0, 487.0, 775.0, 1590.0, 4050.0],
+        2028: [961.0, 1770.0, 5210.0, 35600.0, 796000.0],
+        2030: [4730.0, 16600.0, 178000.0, 21800000.0, 1.19e22],
+        2032: [14500.0, 96700.0, 2810000.0, 553000000000.0, 5.97e39],
+        2035: [57000.0, 889000.0, 202000000.0, 1.55e21, 5.49e48],
+      },
+      h50: {
+        2027: [1930.0, 2480.0, 3940.0, 8050.0, 20600.0],
+        2028: [4880.0, 8980.0, 26500.0, 181000.0, 4040000.0],
+        2030: [24000.0, 84400.0, 904000.0, 111000000.0, 6.06e22],
+        2032: [73500.0, 491000.0, 14300000.0, 2810000000000.0, 3.03e40],
+        2035: [290000.0, 4520000.0, 1030000000.0, 7.9e21, 2.79e49],
+      },
+      speedup: {
+        2027: [1.08, 1.15, 1.31, 1.56, 2.09],
+        2028: [1.12, 1.22, 1.45, 1.99, 4.19],
+        2030: [1.19, 1.36, 1.81, 6.66, 644000.0],
+        2032: [1.24, 1.5, 2.4, 382.0, 125000000000.0],
+        2035: [1.3, 1.78, 8.26, 122000.0, 2240000000000000.0],
+      },
+      effCompute: {
+        2027: [28.2, 28.49, 29.09, 30.23, 31.69],
+        2028: [29.15, 29.67, 30.76, 32.92, 36.48],
+        2030: [30.85, 31.79, 34.11, 39.08, 59.53],
+        2032: [32.04, 33.48, 37.06, 45.52, 80.02],
+        2035: [33.54, 35.65, 40.82, 58.33, 106.74],
+      },
+    },
+  },
+};
 
-// ───────────── central = AI Futures authors' 2026 AIFM run (SC1 §3b) ─────────────
-const AIFM = "AI Futures Model, Eli's median parameters (08/16/26)";
-const AIFM_TABLE = 'world.ts:289-290 (AIFM input_data.csv)';
-const CENTRAL: Checkpoint[] = [
-  tl('central', 'horizon80.2026.27', 'horizon80', 'Present 80% horizon (anchor), 2026.27', 'min', AIFM, 'research/03:203; targets.ts:109', { date: 2026.27, value: 186, lo: 97, hi: 399, bandFrom: 'source', targetId: 'GOLD.authors2026.h80', notes: 'Band is the CI [97,399]; the game tolerance is +-15%. Today only the v1 integrator is tested against it.' }),
-  tl('central', 'horizonForAC', 'other', 'Task horizon needed for AC (80%)', 'work-years', AIFM, 'research/03:206', { value: 125, lo: 0.1, hi: 156250, bandFrom: 'source', notes: 'Kept in work-years (the source unit) rather than converted to minutes.' }),
-  tl('central', 'doublingTime', 'other', 'Horizon doubling time now', 'months', AIFM, 'research/03:204-205', { value: 4.5, lo: 2.2, hi: 9.2, bandFrom: 'source' }),
-  tl('central', 'difficultyFactor', 'other', 'Difficulty factor d of the horizon trend', 'factor', AIFM, 'research/03:204-205', { value: 0.92, lo: 0.82, hi: 1.02, bandFrom: 'source' }),
-  tl('central', 'horizon80.2027.0', 'horizon80', 'Horizon at 2027.0 (lite law, hand-computed)', 'min', AIFM, 'world.ts:101-114 with authors2026 values (hand-computed, SC1 §3b)', { date: 2027.0, value: 914, status: 'unsure', notes: 'Hand-computed from the lite law, not read from a dated AIFM run; needs one AIFM run.' }),
-  tl('central', 'horizon80.2028.0', 'horizon80', 'Horizon at 2028.0 (lite law, hand-computed)', 'min', AIFM, 'world.ts:101-114 with authors2026 values (hand-computed, SC1 §3b)', { date: 2028.0, value: 20600, status: 'unsure', notes: 'Hand-computed from the lite law, not read from a dated AIFM run; needs one AIFM run.' }),
-  tl('central', 'horizon80.2029.0', 'horizon80', 'Horizon at 2029.0 (lite law, hand-computed)', 'min', AIFM, 'world.ts:101-114 with authors2026 values (hand-computed, SC1 §3b)', { date: 2029.0, value: m(3.2), status: 'unsure', notes: 'Hand-computed from the lite law, not read from a dated AIFM run; needs one AIFM run.' }),
-  ...([[2025, 8.6, 0.516], [2026, 22.4, 1.79], [2027, 57.1, 6.85], [2028, 135, 21.6], [2030, 537, 107], [2032, 1510, 300]] as [number, number, number][])
-    .flatMap(([y, world, leader]) => [
-      tl('central', `worldCompute.${y}`, 'worldCompute', `World compute, ${y}`, 'H100e', AIFM, AIFM_TABLE, { date: y, value: m(world), notes: 'Table year read at the start of the year (the table gives 57.1M at 2027.0 and 35.8M at 2026.5).' }),
-      tl('central', `leaderCompute.${y}`, 'other', `Leading-lab compute, ${y}`, 'H100e', AIFM, 'world.ts:290', { date: y, value: m(leader) }),
-    ]),
-  tl('central', 'AC', 'other', 'AI that can do all coding (AC), model median', 'year', AIFM, 'research/11:211, :218; research/03:244',
-    { value: 2029.16, lo: 2027.46, hi: 2070.79, bandFrom: 'source', status: 'unsure', notes: 'SC is AC + 0.52. Conflict: the model median is 2029.16, while the run gives p10 Jun 2027 / p50 Jan 2030 / p90 Oct 2070. Band is the run p10 to p90 (months read at mid-month).' }),
-  tl('central', 'AC.eli', 'other', "AC, Eli's all-things-considered view", 'year', AIFM, 'research/11:211, :218; research/03:244; blog quote "10th percentile 2027.5, 50th 2032.5, 90th 2085"',
-    { value: 2032.5, lo: 2027.5, hi: 2085, bandFrom: 'source', status: 'unsure', notes: 'Open designer question (Q2): the model-run median (AC 2029.16) or this view (p50 2030.08 to 2032.5).' }),
-  tl('central', 'SC', 'milestone', 'AI that codes better than any human (SC)', 'year', AIFM, 'research/11:211', { milestone: 'SC', value: 2029.68, targetId: 'GOLD.authors2026.SC', notes: 'No band in source (game +-0.08 y). The v1 integrator (day 1495) gives 2029.59. Also tested as T1.authors2026.SC and T1L.authors2026.SC.' }),
-  tl('central', 'SAR', 'milestone', 'AI that does AI research better than any human (SAR)', 'year', AIFM, 'research/11:211', { milestone: 'SAR', value: 2029.89, targetId: 'GOLD.authors2026.SAR', notes: 'Also tested as T1.authors2026.SAR and T1L.authors2026.SAR.' }),
-  tl('central', 'SIAR', 'milestone', 'Superintelligent AI researcher (SIAR)', 'year', AIFM, 'research/11:211', { milestone: 'SIAR', value: 2031.48, targetId: 'GOLD.authors2026.SIAR', notes: 'Also tested as T1.authors2026.SIAR and T1L.authors2026.SIAR.' }),
-  tl('central', 'ASI', 'milestone', 'Artificial superintelligence (ASI)', 'year', AIFM, 'research/11:211', { milestone: 'ASI', value: 2033.73, targetId: 'GOLD.authors2026.ASI', notes: 'Also tested as T1.authors2026.ASI and T1L.authors2026.ASI.' }),
-  tl('central', 'interval.AC-SAR', 'other', 'Time from AC to SAR', 'years', AIFM, 'research/11:209; research/03:244', { value: 0.73, notes: 'AC is not one of the four milestones, so this is not an interval checkpoint. Eli: P(AC to ASI < 1 y) 30%, < 3 y 60%.' }),
-  tl('central', 'interval.AC-SIAR', 'other', 'Time from AC to SIAR', 'years', AIFM, 'research/11:209; research/03:244', { value: 2.31, notes: 'AC is not one of the four milestones, so this is not an interval checkpoint.' }),
-  tl('central', 'interval.AC-ASI', 'other', 'Time from AC to ASI', 'years', AIFM, 'research/11:209; research/03:244', { value: 4.56, notes: 'AC is not one of the four milestones, so this is not an interval checkpoint. Eli: P(AC to ASI < 1 y) 30%, < 3 y 60%.' }),
-  tl('central', 'interval.SC-SAR', 'interval', 'Time from SC to SAR (AI 2027 takeoff forecast)', 'years', 'AI 2027 takeoff forecast, 80% CI', 'research/03:195', { from: 'SC', milestone: 'SAR', value: 0.3, hi: 0.95, bandFrom: 'source', notes: 'Only the p90 (0.95) is given. Differs from the 0.21 y between the model-run SC and SAR dates above.' }),
-  tl('central', 'interval.SAR-SIAR', 'interval', 'Time from SAR to SIAR (AI 2027 takeoff forecast)', 'years', 'AI 2027 takeoff forecast, 80% CI', 'research/03:195', { from: 'SAR', milestone: 'SIAR', value: 0.3, lo: 0.04, hi: 56, bandFrom: 'source' }),
-  tl('central', 'interval.SIAR-ASI', 'interval', 'Time from SIAR to ASI (AI 2027 takeoff forecast)', 'years', 'AI 2027 takeoff forecast, 80% CI', 'research/03:195', { from: 'SIAR', milestone: 'ASI', value: 0.16, lo: 0.01, bandFrom: 'source', notes: 'The CI upper end is open (">100").' }),
-  tl('central', 'uplift', 'other', 'Serial coding uplift now', 'x', AIFM, 'research/03:209-211', { date: 2026.27, value: 1.7, lo: 0.1, hi: 4.9, bandFrom: 'source', notes: 'SC1 gives only "2026"; date is the 2026.27 anchor.' }),
-  tl('central', 'uplift.doubling', 'other', 'Doubling time of the uplift above 1x', 'months', AIFM, 'research/03:209-211', { value: 6.5 }),
-  tl('central', 'revenue.now', 'revenue', 'Lab revenue now', 'USD B', AIFM, 'research/03:209-211', { date: 2026.27, value: 47, notes: 'SC1 gives only "2026"; date is the 2026.27 anchor.' }),
-  tl('central', 'revenue.growth', 'other', 'Lab revenue growth per year', 'x per year', AIFM, 'research/03:209-211', { value: 5, lo: 2, hi: 12.5, bandFrom: 'source' }),
-];
+const AIFM_MAX_MIN = 1e7; // horizons above this (about 83 work-years) are the model's post-takeoff blow-up: not shown
+const aifmSource = (t: TimelineId) => `AI Futures Model, aifm-public 1c40ecdb, 1000 samples, config ${t} (aifm-runs/CONFIGS.md)`;
+const aifmRef = (t: TimelineId) => `aifm-runs/configs/${t}.yaml`;
+const yr = (v: number | null) => (v === null ? 'n/a' : v.toFixed(2));
+const pc = (f: number) => `${+(f * 100).toPrecision(2)}%`;
 
-// ───────────── slow = sourced sceptic (SC1 §3c) ─────────────
-const SLOW_BLANK = 'No source gives this yet; needs one run of the public AI Futures model (SC1 §3c).';
-const SLOW: Checkpoint[] = [
-  tl('slow', 'SC', 'milestone', 'AI that codes better than any human (SC)', 'year', 'AI Futures Project, Dec 2025 model update (pure exponential)', 'https://blog.aifutures.org/p/ai-futures-model-dec-2025-update; targets.ts GOLD.slow.SC',
-    { milestone: 'SC', value: 2034, status: 'unsure', targetId: 'GOLD.slow.SC', notes: 'The source gives AC (all coding) in 2034; SC1 reads "AC / SC" as one date. No band in source; the game range is 2034-2035 (target p50 2034.5).' }),
-  tl('slow', 'doubling', 'other', 'Horizon doubling time (METR 2019-25 trend)', 'months', 'METR, Measuring AI Ability to Complete Long Tasks', 'https://arxiv.org/html/2503.14499v1; research/11:235-245', { value: 7, notes: 'History H1 (4.2 months) must still hold to late 2026.' }),
-  tl('slow', 'horizon80.2026.27', 'horizon80', '80% horizon at 2026.27 under 7-month doubling', 'min', 'METR TH1.1 (history H2)', 'research/09:59', { date: 2026.27, value: 186, notes: 'Must still equal history H2 under a 7-month doubling.' }),
-  tl('slow', 'horizon1month', 'other', 'Year the horizon reaches one month (167 work hours)', 'year', 'METR, Measuring AI Ability to Complete Long Tasks', 'https://arxiv.org/html/2503.14499v1',
-    { lo: 2028.75, hi: 2031.25, bandFrom: 'source', status: 'unsure', notes: 'Range as quoted: "late 2028 to early 2031" (v1 text); another version may read mid-2028 to mid-2031 (2028.5 to 2031.5). Quarters read as 2028.75 and 2031.25. A range with no central value.' }),
-  tl('slow', 'SAR', 'milestone', 'AI that does AI research better than any human (SAR)', 'year', 'none', `${SC1}:122`, { milestone: 'SAR', status: 'blank', notes: SLOW_BLANK }),
-  tl('slow', 'SIAR', 'milestone', 'Superintelligent AI researcher (SIAR)', 'year', 'none', `${SC1}:122`, { milestone: 'SIAR', status: 'blank', notes: SLOW_BLANK }),
-  tl('slow', 'ASI', 'milestone', 'Artificial superintelligence (ASI)', 'year', 'none', `${SC1}:122`, { milestone: 'ASI', status: 'blank', notes: SLOW_BLANK }),
-  tl('slow', 'horizon.2027-29', 'horizon80', 'Horizon at 2027 to 2029', 'min', 'none', `${SC1}:114`, { status: 'blank', notes: SLOW_BLANK }),
-  tl('slow', 'worldCompute.2026-end', 'worldCompute', 'World compute, end of 2026', 'H100e', 'Epoch AI (history H8)', 'research/09:43, :72-74', { date: 2026.99, lo: m(35), hi: m(46), bandFrom: 'source', notes: 'The history band (H8); a range with no central value in this row.' }),
-  tl('slow', 'worldCompute.beyond', 'worldCompute', 'World compute after 2026', 'H100e', 'none', `${SC1}:123`, { status: 'blank', notes: SLOW_BLANK }),
-  tl('slow', 'aifmRun', 'other', 'Run the public AI Futures model with an exponential setting (decay 0) to read AC, SAR, SIAR, ASI, the horizon and compute at dates', 'run', 'Proposal in SC1 §3c (the route used for the central run)', `${SC1}:114`, { status: 'proposed', notes: 'Awaiting the designer (SC1 Q3). Fills the blank slow rows above.' }),
-];
+function aifmTimeline(t: TimelineId): Checkpoint[] {
+  const run = AIFM_RUN[t], src = aifmSource(t), ref = aifmRef(t), out: Checkpoint[] = [];
+  const ran = `${run.ok} of ${run.requested} samples ran; the rest failed or timed out and are dropped.`;
+  // A distribution row: value = p50, band = p25 to p75, outer band = p10 to p90. A percentile that is null (or above `cap`) is left out.
+  const dist = (q: Q5, cap = Infinity): Extra => {
+    const k = (v: number | null) => (v !== null && v <= cap ? v : undefined);
+    return { value: q[2], lo: k(q[1]), hi: k(q[3]), p10: k(q[0]), p90: k(q[4]), bandFrom: 'source' };
+  };
+  const MS: [Milestone | 'TED-AI', 'AC' | 'SAR' | 'SIAR' | 'TED-AI' | 'ASI', string][] = [
+    ['SC', 'AC', 'AI that codes better than any human (SC)'], ['SAR', 'SAR', 'AI that does AI research better than any human (SAR)'],
+    ['SIAR', 'SIAR', 'Superintelligent AI researcher (SIAR)'], ['TED-AI', 'TED-AI', 'Top-human-expert-dominating AI (TED-AI)'], ['ASI', 'ASI', 'Artificial superintelligence (ASI)'],
+  ];
+  for (const [mine, theirs, label] of MS) {
+    const d = run.milestones[theirs], q = d.q;
+    const tail = `p10 ${yr(q[0])}, p90 ${q[4] !== null ? yr(q[4]) : 'not reached (more than 10% of samples never get there)'}. ${pc(d.by2100)} of samples do not reach it by 2100 (${pc(d.never)} never, to 2200); the percentiles count those as later than every sample that does.`;
+    const note = mine === 'SC' ? `The model's AC (all coding) is read as our SC. ${tail} ${ran}`
+      : mine === 'TED-AI' ? `The model's TED-AI has no counterpart among the game's four milestones. It often comes before SIAR (the gap from SIAR to TED-AI is usually negative). ${tail}`
+        : tail;
+    out.push(tl(t, mine, mine === 'TED-AI' ? 'other' : 'milestone', label, 'year', src, ref,
+      { ...(mine === 'TED-AI' ? {} : { milestone: mine }), ...dist(q), neverBy2100: d.by2100, notes: note }));
+  }
+  const GAPS: [Milestone, Milestone, 'AC->SAR' | 'SAR->SIAR' | 'SIAR->ASI', string][] = [
+    ['SC', 'SAR', 'AC->SAR', 'Time from SC to SAR'], ['SAR', 'SIAR', 'SAR->SIAR', 'Time from SAR to SIAR'], ['SIAR', 'ASI', 'SIAR->ASI', 'Time from SIAR to ASI'],
+  ];
+  for (const [from, to, key, label] of GAPS) {
+    const g = run.gaps[key], q = g.q;
+    out.push(tl(t, `interval.${from}-${to}`, 'interval', label, 'years', src, ref,
+      { from, milestone: to, ...dist(q),
+        notes: `Median of the per-sample gaps, over the ${g.n} samples that reach both milestones; it is not the difference of the two median dates. p10 ${q[0]}, p90 ${q[4]}.${from === 'SC' ? " The start is the model's AC." : ''}` }));
+  }
+  for (const y of AIFM_YEARS) {
+    const date = y, when = `At 1 January ${y}.`;
+    const h = (key: 'h80' | 'h50') => {
+      const q = run.series[key][y];
+      if (q[2] > AIFM_MAX_MIN) return; // the median itself is in the blow-up: no checkpoint
+      const cut = q.some((v) => v !== null && v > AIFM_MAX_MIN) ? " Percentiles above 1e7 minutes are left out: after takeoff the model's horizon explodes to absurd lengths." : '';
+      const eighty = key === 'h80';
+      out.push(tl(t, `${eighty ? 'horizon80' : 'horizon50'}.${y}`, eighty ? 'horizon80' : 'horizon50',
+        `AI task length (${eighty ? '80' : '50'}% success), ${y}`, 'min', src, ref,
+        { date, ...dist(q, AIFM_MAX_MIN),
+          notes: eighty ? `${when} Modelled: the model's horizon is the METR 80% horizon.${cut}`
+            : `${when} Derived, not modelled: the 80% horizon times 5.08, the median ratio of the METR 50% to 80% horizons (the model tracks only the 80% horizon).${cut}` }));
+    };
+    h('h80'); h('h50');
+    out.push(tl(t, `speedup.${y}`, 'other', `AI research speed-up, ${y}`, 'x', src, ref,
+      { date, ...dist(run.series.speedup[y]), series: 'speedup',
+        notes: `${when} The model's AI software R&D progress multiplier (1 = no help from AI) at present-day resources. After takeoff the model's value runs to absurd sizes (above about 1e6): read the upper percentiles as off the scale.` }));
+    out.push(tl(t, `effCompute.${y}`, 'other', `Effective compute, ${y}`, 'OOM', src, ref,
+      { date, ...dist(run.series.effCompute[y]), series: 'effCompute',
+        notes: `${when} log10 of cumulative effective compute in FLOP (hardware and software efficiency together; software efficiency is 0 at 2025.13). After takeoff the upper percentiles run far beyond anything physical.` }));
+    out.push(tl(t, `trainCompute.${y}`, 'other', `Frontier training compute, ${y}`, 'H100e', src, ref,
+      { date, value: AIFM_TRAIN[y], series: 'trainCompute',
+        notes: `${when} A model input, not an output: the public configs fix it, so it is the same in all three timelines and has no band. The model's inference compute is about 0.71 times this and its experiment compute about 7.1 times.` }));
+  }
+  return out;
+}
+const FAST = aifmTimeline('fast'), CENTRAL = aifmTimeline('central'), SLOW = aifmTimeline('slow');
 
 // ───────────── alignment levels (SC1 §6) ─────────────
 const LABEL_REF = 'targets.ts:453; starts.ts:20-24';

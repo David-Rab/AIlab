@@ -1,5 +1,5 @@
 // Scenarios lint (design/bal/SCENARIOS.md). Run: npm run scenarios:lint
-// Checks balance/scenarios.ts: unique ids, layer/timeline/align consistency, targetId in balance/targets.ts, lo <= value <= hi,
+// Checks balance/scenarios.ts: unique ids, layer/timeline/align consistency, targetId in balance/targets.ts, lo <= value <= hi, p10 <= lo and hi <= p90, neverBy2100 in 0..1,
 // a milestone checkpoint per timeline, history dates <= 2027.0. Prints counts per layer, timeline and status. Exit 1 on any error.
 import { ALIGNMENT_LEVELS, CHECKPOINTS, TIMELINES } from '../../balance/scenarios';
 import type { Checkpoint } from '../../balance/scenarios';
@@ -44,6 +44,13 @@ for (const c of CHECKPOINTS) {
   if (lo !== undefined && hi !== undefined && lo > hi) err(c, `lo ${lo} > hi ${hi}`);
   if (value !== undefined && lo !== undefined && value < lo) err(c, `value ${value} < lo ${lo}`);
   if (value !== undefined && hi !== undefined && value > hi) err(c, `value ${value} > hi ${hi}`);
+  // outer band of a distribution (p10, p90) sits outside the p25 to p75 band and needs a source band
+  const { p10, p90 } = c;
+  if (p10 !== undefined && (lo === undefined || p10 > lo)) err(c, `p10 ${p10} must be set with lo and be <= lo ${lo}`);
+  if (p90 !== undefined && (hi === undefined || p90 < hi)) err(c, `p90 ${p90} must be set with hi and be >= hi ${hi}`);
+  if ((p10 !== undefined || p90 !== undefined) && c.bandFrom !== 'source') err(c, 'has p10/p90 but bandFrom is not source');
+  if (c.neverBy2100 !== undefined && !(c.neverBy2100 >= 0 && c.neverBy2100 <= 1)) err(c, `neverBy2100 ${c.neverBy2100} is not a share between 0 and 1`);
+  if (c.series !== undefined && (c.layer !== 'timeline' || c.date === undefined)) err(c, 'series needs a dated timeline checkpoint');
   if ((lo !== undefined || hi !== undefined) && c.bandFrom === 'none') err(c, 'has lo/hi but bandFrom is none');
   if (c.bandFrom === 'source' && lo === undefined && hi === undefined) err(c, 'bandFrom source but no lo/hi');
 
