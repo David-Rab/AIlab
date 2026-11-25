@@ -57,3 +57,7 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
 
   It is a designer setting, not a sourced value, and is easy to change.
 - **The calibration grid is 3 timelines × 1 alignment setting.** The five difficulty levels come back later as a difficulty-setting task.
+
+## Designer clarification (2026-11-25): bots
+- **A bot's only goal is to win within the given world.** It never slows itself or avoids research to match a calibration target.
+- **The world is calibrated against the realistic leader lab (non-player actors), never against a bot.** RefBot loses its calibration role and becomes the starting point for the strong-bot search.
