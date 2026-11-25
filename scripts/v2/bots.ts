@@ -10,25 +10,19 @@
 // The criteria are informational until integration (M2+): with M0 placeholders, progress and traits do not respond
 // to player levers, so every bot reaches the same milestones on the same days.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { engine } from '../../src/engine/v2';
-import { capex2xBot } from '../../src/engine/v2/bots/capex2x';
-import { mixedBot } from '../../src/engine/v2/bots/mixed';
-import { raceBot } from '../../src/engine/v2/bots/race';
-import { refBot } from '../../src/engine/v2/bots/ref';
-import { safeBot } from '../../src/engine/v2/bots/safe';
-import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
-import { resolve, tick } from '../../src/engine/v2/core/loop';
-import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { misalignment } from '../../src/engine/v2/safety/traits';
-import type { AlignDiffId, BotPolicy, EndingId, EndingV2, GameStateV2, StartType, TraitId, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, EndingId, EndingV2, GameStateV2, StartType, TraitId, WorldPresetId } from '../../src/engine/v2/types';
+import { ALL, newBotGame, playBot } from './botgame';
+
+// The game loop (playBot), the bot table and the game setup live in botgame.ts, shared with balrun.ts.
+export { playBot };
 
 const arg = (k: string, d: string) => {
   const i = process.argv.indexOf(`--${k}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : d;
 };
 const SEEDS = Number(arg('seeds', '200'));
-const ALL: Record<string, BotPolicy> = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot };
 const BOTS = arg('bots', 'race,safe,mixed,capex2x,ref').split(',').filter((b) => ALL[b]);
 const START = arg('start', 'leader') as StartType;
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
@@ -43,20 +37,6 @@ export interface RunResult {
   /** World features for the diagnostic: λ1–λ6, ln D, doomThreshold. */
   world6: number[]; lnD: number; doom: number;
   traits: Partial<Record<TraitId, number>>;
-}
-
-/** Play one game with a bot until it ends (the endings system caps it at 2050-12-31). */
-export function playBot(bot: BotPolicy, s: GameStateV2): GameStateV2 {
-  let guard = 0;
-  while (!s.ending && guard++ < 40000) {
-    for (const p of [...s.events.pending]) {
-      const c = bot.decide(s, p);
-      if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
-    }
-    bot.act(s, engine);
-    tick(s);
-  }
-  return s;
 }
 
 const KEY_TRAITS: TraitId[] = ['RH', 'SYC', 'PERSONA', 'CONCEAL', 'EA', 'OBF', 'AF', 'SCHEME', 'POWER', 'SAND', 'SUCC', 'COLLUDE', 'TGAME', 'HONEST', 'CORRIG'];
@@ -175,7 +155,7 @@ function main() {
     for (let i = FROM; i < FROM + SEEDS; i++) {
       const combo = COMBOS[i % COMBOS.length];
       const seed = 10_000 + i;
-      const s = newGame(defaultSetupV2({ seed, ...combo, econ: combo.world === 'ai2027' ? 'ai2027' : 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start: START }));
+      const s = newBotGame(seed, combo, START);
       playBot(bot, s);
       const e = s.ending!;
       results.push({ bot: name, seed, start: START, ...combo, ending: e.id, verdict: e.verdict, day: e.day, scores: e.scores, power: e.power, ...misRecord(s) });

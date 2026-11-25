@@ -1,0 +1,299 @@
+// Parallel balance game runner (design/bal/TOOLING-DESIGN.md, C1). Plays every (policy × world × alignment × start) cell
+// on one shared seed list, W worker processes, one GameRecord per game, and writes a per-cell summary.
+//
+//   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world ai2027[,sampled,...] --align medium[,sampled]
+//                                --start leader[,...] --seeds N --workers W [--no-cache]
+//
+// Output, under balance/runs/<name>/ (git-ignored): config.json, games.jsonl (one GameRecord per line), progress.json
+// (rewritten about every 10 s), summary.json (per-cell aggregates). Every game goes through the simulation cache
+// (simcache.ts `cached`, keyed on the cell and the seed), so re-running a run replays finished games at once;
+// --no-cache plays them all again. Paired seeds: every cell uses the same seed list, CAL_SEEDS first, then 1001, 1002, …
+//
+// Workers are child processes of this script. The parent hands out (cell, seed) jobs one at a time (a free worker takes the
+// next, so long games don't leave others idle); each worker appends to its own games.<k>.jsonl and the parent merges them
+// into games.jsonl at the end, in job order.
+import { execSync, fork } from 'node:child_process';
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { lagDays } from '../../src/engine/v2/models/capability';
+import { labMisalignment, pMis } from '../../src/engine/v2/safety/traits';
+import { ALL, newBotGame, playBot } from './botgame';
+import { CAL_SEEDS, quantOf } from './calseeds';
+import { cached, codeHash } from './simcache';
+import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId } from '../../src/engine/v2/types';
+
+const ME = fileURLToPath(import.meta.url);
+const HERE = dirname(ME);
+const BOTGAME = join(HERE, 'botgame.ts');
+const ROOT = join(HERE, '..', '..');
+
+// ───────────────────────────── Types ─────────────────────────────
+export interface Cell { policy: string; world: WorldPresetId; alignment: AlignDiffId; start: StartType }
+export interface GameRecord {
+  run: string; seed: number;
+  world: string; alignment: string; start: string; policy: string;
+  overrides?: Record<string, number | string | boolean>;
+  endDay: number; ending: string; verdict: 'win' | 'mixed' | 'loss';
+  milestones: { SC?: number; SAR?: number; SIAR?: number; ASI?: number };
+  pMisAtEnd?: number; pMisAtASI?: number;
+  revenueByYear?: number[];
+  minCash?: number; insolvent?: boolean;
+  rivalLeadAtSC?: number;
+  chinaGapAtSC?: number;
+  scores?: Record<string, number>;
+  ms: number;
+}
+type Body = Omit<GameRecord, 'run'>;
+interface Job { id: number; cell: Cell; seed: number }
+
+const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'slow'];
+const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
+const STARTS: StartType[] = ['spinout', 'challenger', 'bigtech', 'leader'];
+
+// ───────────────────────────── Playing one game ─────────────────────────────
+const r3 = (x: number) => Math.round(x * 1000) / 1000;
+
+function playOne(cell: Cell, seed: number): Body {
+  const t0 = performance.now();
+  const s = newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
+  let rivalLeadAtSC: number | undefined;
+  let chinaGapAtSC: number | undefined;
+  let seenSC = false;
+  playBot(ALL[cell.policy], s, (x: GameStateV2) => {
+    if (seenSC || x.player.milestoneDays[3] === undefined) return;
+    seenSC = true;
+    // Days the best rival (China: the Chinese lab) is ahead of the player at the player's SC; negative = behind.
+    const act = x.rivals.filter((r) => r.core.status === 'active');
+    if (act.length) rivalLeadAtSC = Math.round(Math.max(...act.map((r) => lagDays(x, 'player', r.core.id))));
+    if (x.china.lab.core.status === 'active') chinaGapAtSC = Math.round(lagDays(x, 'player', 'china'));
+  });
+  const e = s.ending!;
+  const md = s.player.milestoneDays;
+  const ms: Record<string, number> = {};
+  for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) if (md[i] !== undefined) ms[k] = md[i]!;
+  const S = s.series;
+  const revenueByYear: number[] = [];
+  for (let yr = 1; 365 * yr <= e.day; yr++) {
+    let j = -1;
+    for (let i = 0; i < S.day.length && S.day[i] <= 365 * yr; i++) j = i;
+    if (j >= 0 && S.revenue[j] !== undefined) revenueByYear.push(Math.round(S.revenue[j]));
+  }
+  const mis = labMisalignment(s, 'player');
+  const asiOwn = e.epilogue.asiLab === 'player' && e.epilogue.misAtAsi !== undefined;
+  const cashes = S.cash.filter((c) => Number.isFinite(c));
+  return {
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy,
+    endDay: e.day, ending: e.id, verdict: e.verdict, milestones: ms,
+    pMisAtEnd: r3(pMis(s, mis)), ...(asiOwn ? { pMisAtASI: r3(pMis(s, e.epilogue.misAtAsi!)) } : {}),
+    revenueByYear,
+    ...(cashes.length ? { minCash: Math.round(Math.min(...cashes)) } : {}),
+    insolvent: e.id === 'insolvent',
+    ...(rivalLeadAtSC !== undefined ? { rivalLeadAtSC } : {}), ...(chinaGapAtSC !== undefined ? { chinaGapAtSC } : {}),
+    scores: { ...e.scores },
+    ms: Math.round(performance.now() - t0),
+  };
+}
+
+/** One game through the simulation cache (the key is the cell and the seed). */
+const playCached = (cell: Cell, seed: number): Body => cached('balrun', { ...cell, seed }, [ME, BOTGAME], () => playOne(cell, seed));
+
+// ───────────────────────────── CLI ─────────────────────────────
+const argv = process.argv.slice(2);
+const flag = (k: string) => argv.indexOf(`--${k}`);
+const arg = (k: string, d?: string) => {
+  const i = flag(k);
+  if (i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--')) return argv[i + 1];
+  if (d === undefined) {
+    console.error(`balrun: missing --${k}`);
+    process.exit(2);
+  }
+  return d;
+};
+const list = <T extends string>(k: string, ok: readonly string[], d: string): T[] => {
+  const xs = arg(k, d).split(',').filter(Boolean);
+  const bad = xs.filter((x) => !ok.includes(x));
+  if (bad.length || !xs.length) {
+    console.error(`balrun: --${k} ${bad.join(',') || '(empty)'} not one of ${ok.join(', ')}`);
+    process.exit(2);
+  }
+  return xs as T[];
+};
+export const seedList = (n: number) => [...CAL_SEEDS, ...Array.from({ length: Math.max(0, n - CAL_SEEDS.length) }, (_, i) => 1001 + i)].slice(0, n);
+const cellKey = (c: { policy: string; world: string; alignment: string; start: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}`;
+
+// ───────────────────────────── Worker ─────────────────────────────
+function worker() {
+  const k = Number(arg('child'));
+  const dir = arg('dir');
+  const run = arg('name');
+  const file = join(dir, `games.${k}.jsonl`);
+  process.on('message', (m: { job?: Job; stop?: boolean }) => {
+    if (m.stop) process.exit(0);
+    if (!m.job) return;
+    try {
+      const rec: GameRecord = { run, ...playCached(m.job.cell, m.job.seed) };
+      appendFileSync(file, `${JSON.stringify(rec)}\n`);
+      process.send!({ id: m.job.id, ms: rec.ms });
+    } catch (err) {
+      process.send!({ id: m.job.id, err: String((err as Error)?.stack ?? err) });
+    }
+  });
+  process.send!({ ready: true });
+}
+
+// ───────────────────────────── Summary ─────────────────────────────
+/** Wilson 95% interval of k successes in n trials. */
+export function wilson(k: number, n: number): [number, number] {
+  if (n === 0) return [0, 0];
+  const z = 1.96;
+  const p = k / n;
+  const d = 1 + (z * z) / n;
+  const c = p + (z * z) / (2 * n);
+  const h = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return [Math.max(0, (c - h) / d), Math.min(1, (c + h) / d)];
+}
+const rate = (k: number, n: number) => ({ k, rate: n ? k / n : 0, ci95: wilson(k, n).map((x) => Math.round(x * 1000) / 1000) as [number, number] });
+const q3 = (xs: number[]) => (xs.length ? { p10: Math.round(quantOf(xs, 0.1)), p50: Math.round(quantOf(xs, 0.5)), p90: Math.round(quantOf(xs, 0.9)) } : null);
+
+export function summarize(recs: GameRecord[]) {
+  const cells = new Map<string, GameRecord[]>();
+  for (const r of recs) {
+    const k = cellKey(r) + (r.overrides ? ` | ${JSON.stringify(r.overrides)}` : '');
+    (cells.get(k) ?? cells.set(k, []).get(k)!).push(r);
+  }
+  return [...cells.entries()].map(([key, rs]) => {
+    const n = rs.length;
+    const count = (v: GameRecord['verdict']) => rs.filter((r) => r.verdict === v).length;
+    const endings: Record<string, number> = {};
+    for (const r of rs) endings[r.ending] = (endings[r.ending] ?? 0) + 1;
+    const ms: Record<string, ReturnType<typeof q3> & { reached?: number }> = {};
+    for (const m of ['SC', 'SAR', 'SIAR', 'ASI'] as const) {
+      const xs = rs.map((r) => r.milestones[m]).filter((x): x is number => x !== undefined);
+      ms[m] = { ...(q3(xs) ?? { p10: null, p50: null, p90: null }), reached: xs.length } as never;
+    }
+    const pm = rs.map((r) => r.pMisAtASI).filter((x): x is number => x !== undefined);
+    const msTimes = rs.map((r) => r.ms);
+    const c0 = rs[0];
+    return {
+      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.overrides ? { overrides: c0.overrides } : {}),
+      n,
+      win: rate(count('win'), n), mixed: rate(count('mixed'), n), loss: rate(count('loss'), n),
+      endings, milestoneDays: ms,
+      pMisAtASI: { n: pm.length, p50: pm.length ? Math.round(quantOf(pm, 0.5) * 1000) / 1000 : null },
+      insolvent: rate(rs.filter((r) => r.insolvent).length, n),
+      gameMs: { median: Math.round(quantOf(msTimes, 0.5)) },
+    };
+  });
+}
+
+// ───────────────────────────── Parent ─────────────────────────────
+async function parent() {
+  const name = arg('name');
+  if (!/^[\w.-]+$/.test(name)) {
+    console.error('balrun: --name must be letters, digits, . _ -');
+    process.exit(2);
+  }
+  const policies = list<string>('policy', Object.keys(ALL), 'ref');
+  const worlds = list<WorldPresetId>('world', WORLDS, 'ai2027');
+  const aligns = list<AlignDiffId>('align', ALIGNS, 'medium');
+  const starts = list<StartType>('start', STARTS, 'leader');
+  const nSeeds = Math.max(1, Number(arg('seeds', '20')));
+  const workers = Math.max(1, Number(arg('workers', '4')));
+  const noCache = flag('no-cache') >= 0;
+  const seeds = seedList(nSeeds);
+  const cells: Cell[] = [];
+  for (const policy of policies) for (const world of worlds) for (const alignment of aligns) for (const start of starts) cells.push({ policy, world, alignment, start });
+  const jobs: Job[] = seeds.flatMap((seed) => cells.map((cell) => ({ id: 0, cell, seed }))).map((j, id) => ({ ...j, id }));
+
+  const dir = join(ROOT, 'balance', 'runs', name);
+  mkdirSync(dir, { recursive: true });
+  for (const f of readdirSync(dir)) if (/^(games(\.\d+)?\.jsonl|summary\.json|progress\.json)$/.test(f)) rmSync(join(dir, f));
+  const startedAt = new Date().toISOString();
+  const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
+  writeFileSync(join(dir, 'config.json'), JSON.stringify({
+    name, args: argv, policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
+    gitCommit: git, codeHash: codeHash([ME, BOTGAME]), node: process.version, seeds, cells: cells.map(cellKey), startedAt,
+  }, null, 2));
+
+  const total = jobs.length;
+  let done = 0;
+  let hits = 0;
+  let misses = 0;
+  const failed: string[] = [];
+  const doneMs: number[] = [];
+  const t0 = Date.now();
+  const writeProgress = () => {
+    const mins = (Date.now() - t0) / 60000;
+    writeFileSync(join(dir, 'progress.json'), JSON.stringify({ done, total, failed: failed.length, gamesPerMin: mins > 0 ? Math.round((done / mins) * 10) / 10 : 0, startedAt, updatedAt: new Date().toISOString() }));
+  };
+  writeProgress();
+  const tick10 = setInterval(writeProgress, 10_000);
+  const tick30 = setInterval(() => {
+    const mins = (Date.now() - t0) / 60000;
+    console.log(`[${name}] ${done}/${total} games, ${(done / Math.max(mins, 1e-9)).toFixed(1)}/min, ${((Date.now() - t0) / 1000).toFixed(0)} s${failed.length ? `, ${failed.length} failed` : ''}`);
+  }, 30_000);
+
+  let next = 0;
+  const env = { ...process.env, ...(noCache ? { SIMCACHE: 'off' } : {}) };
+  await Promise.all(Array.from({ length: Math.min(workers, total) }, (_, k) => new Promise<void>((resolveW) => {
+    const child = fork(ME, ['--child', String(k), '--dir', dir, '--name', name], { execArgv: ['--import', 'tsx'], env, stdio: ['inherit', 'inherit', 'pipe', 'ipc'] });
+    // simcache prints its hit/miss line to stderr when a worker exits: total them, pass anything else on.
+    let buf = '';
+    child.stderr!.on('data', (d: Buffer) => {
+      buf += d.toString();
+      const lines = buf.split(/\r?\n/);
+      buf = lines.pop()!;
+      for (const l of lines) {
+        const m = /^simcache: (\d+) hit\(s\), (\d+) miss/.exec(l);
+        if (m) { hits += Number(m[1]); misses += Number(m[2]); } else console.error(l);
+      }
+    });
+    const feed = () => {
+      if (next < total) child.send({ job: jobs[next++] });
+      else child.send({ stop: true });
+    };
+    child.on('message', (m: { ready?: boolean; id?: number; ms?: number; err?: string }) => {
+      if (m.ready) return feed();
+      done++;
+      if (m.err) failed.push(`job ${m.id}: ${m.err.split('\n')[0]}`);
+      else if (m.ms !== undefined) doneMs.push(m.ms);
+      feed();
+    });
+    child.on('exit', (code) => {
+      if (code !== 0 && code !== null) failed.push(`worker ${k} exit ${code}`);
+      resolveW();
+    });
+  })));
+  clearInterval(tick10);
+  clearInterval(tick30);
+
+  // Merge the per-worker files into games.jsonl in job order (cell order within seed order).
+  const order = new Map(jobs.map((j) => [`${cellKey({ ...j.cell })}#${j.seed}`, j.id]));
+  const recs: GameRecord[] = [];
+  for (const f of readdirSync(dir)) {
+    if (!/^games\.\d+\.jsonl$/.test(f)) continue;
+    for (const line of readFileSync(join(dir, f), 'utf8').split('\n')) if (line.trim()) recs.push(JSON.parse(line) as GameRecord);
+    rmSync(join(dir, f));
+  }
+  recs.sort((a, b) => (order.get(`${cellKey(a)}#${a.seed}`) ?? 0) - (order.get(`${cellKey(b)}#${b.seed}`) ?? 0));
+  writeFileSync(join(dir, 'games.jsonl'), recs.map((r) => `${JSON.stringify(r)}\n`).join(''));
+  writeProgress();
+  const summary = summarize(recs);
+  writeFileSync(join(dir, 'summary.json'), JSON.stringify({ name, n: recs.length, expected: total, failed, wallSeconds: Math.round((Date.now() - t0) / 1000), cells: summary }, null, 2));
+
+  // Compact per-cell table.
+  const pc = (r: { rate: number }) => `${(100 * r.rate).toFixed(0)}%`.padStart(4);
+  const md = (m: { p50: number | null } | null | undefined) => (m?.p50 != null ? String(m.p50).padStart(5) : '    -');
+  console.log(`\n${name}: ${recs.length}/${total} games in ${((Date.now() - t0) / 1000).toFixed(0)} s (cache ${hits} hit, ${misses} miss)${failed.length ? `, ${failed.length} FAILED` : ''} -> balance/runs/${name}/`);
+  console.log('cell                                  n   win [95%]       mixed  loss   SC    SAR   ASI  pMis@ASI insolv');
+  for (const c of summary) {
+    console.log(`${c.key.padEnd(34)} ${String(c.n).padStart(3)}  ${pc(c.win)} [${(100 * c.win.ci95[0]).toFixed(0)}-${(100 * c.win.ci95[1]).toFixed(0)}]`.padEnd(60)
+      + ` ${pc(c.mixed)}  ${pc(c.loss)}  ${md(c.milestoneDays.SC)} ${md(c.milestoneDays.SAR)} ${md(c.milestoneDays.ASI)}  ${c.pMisAtASI.p50 !== null ? c.pMisAtASI.p50.toFixed(2) : '   -'}   ${pc(c.insolvent)}`);
+  }
+  for (const f of failed.slice(0, 5)) console.error(`  ${f}`);
+  if (failed.length) process.exitCode = 1;
+}
+
+if (flag('child') >= 0) worker();
+else if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/v2/balrun.ts')) await parent();

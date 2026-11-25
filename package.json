@@ -8,6 +8,8 @@
     "build": "tsc --noEmit -p . && vite build",
     "typecheck": "tsc --noEmit -p .",
     "registry:lint": "tsx scripts/v2/registry-lint.ts",
+    "bal:run": "tsx scripts/v2/balrun.ts",
+    "bal:dash": "tsx scripts/v2/baldash.ts",
     "test:ui": "npm run build && node scripts/v2/uitest.mjs",
     "test:quick": "tsx scripts/v2/run.ts --tier quick",
     "test:cal": "tsx scripts/v2/run.ts --tier cal",

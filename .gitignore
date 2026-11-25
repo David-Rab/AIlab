@@ -9,3 +9,5 @@ play/
 .simcache/
 balance/coverage.txt
 .scratch/
+balance/runs/
+balance/dash/
