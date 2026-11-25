@@ -87,3 +87,8 @@ The game starts mid-2025, so about 1.4 years of every game is history. The timel
   - first open-loop: inputs fed from the AIFM projections;
   - then close the loops one at a time, measuring each loop's gain (how much a perturbation compounds);
   - compare the game's *sampled* distributions with the AIFM groups by quantiles.
+
+## Round 8 (2026-11-25): split chosen
+- **Timelines = the SAR-date split of Eli's 3,000 unchanged AIFM runs:** fast = SAR percentiles 20–30, central = 45–55, slow = 70–80.
+- **Group medians (AC / SAR / ASI):** fast 2027.9 / 2028.4 / 2029.8; central 2029.7 / 2030.6 / 2033.2; slow 2034.8 / 2037.6 / 2046.5.
+- The coder × takeoff matrix stays on the dashboard for later variant worlds.
