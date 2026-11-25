@@ -24,9 +24,7 @@ import { execSync, fork } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { lagDays } from '../../src/engine/v2/models/capability';
-import { labMisalignment, pMis } from '../../src/engine/v2/safety/traits';
-import { ALL, newBotGame, playBot } from './botgame';
+import { POLICY_IDS } from './policies';
 import { CAL_SEEDS, quantOf } from './calseeds';
 import { cached, codeHash } from './simcache';
 import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId } from '../../src/engine/v2/types';
@@ -63,16 +61,25 @@ const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'sl
 const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
 const STARTS: StartType[] = ['spinout', 'challenger', 'bigtech', 'leader'];
 
+// The game modules (the whole engine, ~1 s of tsx transpiling and ~0.4 GB) are loaded by the worker only: the parent never plays.
+let lagDays: typeof import('../../src/engine/v2/models/capability').lagDays;
+let labMisalignment: typeof import('../../src/engine/v2/safety/traits').labMisalignment;
+let pMis: typeof import('../../src/engine/v2/safety/traits').pMis;
+let G: typeof import('./botgame');
+async function loadGame() {
+  [{ lagDays }, { labMisalignment, pMis }, G] = await Promise.all([import('../../src/engine/v2/models/capability'), import('../../src/engine/v2/safety/traits'), import('./botgame')]);
+}
+
 // ───────────────────────────── Playing one game ─────────────────────────────
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
 function playOne(cell: Cell, seed: number): Body {
   const t0 = performance.now();
-  const s = newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
+  const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
   let rivalLeadAtSC: number | undefined;
   let chinaGapAtSC: number | undefined;
   let seenSC = false;
-  playBot(ALL[cell.policy], s, (x: GameStateV2) => {
+  G.playBot(G.ALL[cell.policy], s, (x: GameStateV2) => {
     if (seenSC || x.player.milestoneDays[3] === undefined) return;
     seenSC = true;
     // Days the best rival (China: the Chinese lab) is ahead of the player at the player's SC; negative = behind.
@@ -138,11 +145,12 @@ export const seedList = (n: number) => [...CAL_SEEDS, ...Array.from({ length: Ma
 const cellKey = (c: { policy: string; world: string; alignment: string; start: string; overrideSet?: string }) => `${c.policy} | ${c.world}/${c.alignment} | ${c.start}${c.overrideSet ? ` | ${c.overrideSet}` : ''}`;
 
 // ───────────────────────────── Worker ─────────────────────────────
-function worker() {
+async function worker() {
   const k = Number(arg('child'));
   const dir = arg('dir');
   const run = arg('name');
   const file = join(dir, `games.${arg('sidx')}_${k}.jsonl`);
+  await loadGame();
   process.on('message', (m: { job?: Job; stop?: boolean }) => {
     if (m.stop) process.exit(0);
     if (!m.job) return;
@@ -209,12 +217,12 @@ async function parent() {
     console.error('balrun: --name must be letters, digits, . _ -');
     process.exit(2);
   }
-  const policies = list<string>('policy', Object.keys(ALL), 'ref');
+  const policies = list<string>('policy', POLICY_IDS, 'ref');
   const worlds = list<WorldPresetId>('world', WORLDS, 'ai2027');
   const aligns = list<AlignDiffId>('align', ALIGNS, 'medium');
   const starts = list<StartType>('start', STARTS, 'leader');
   const nSeeds = Math.max(1, Number(arg('seeds', '20')));
-  const workers = Math.max(1, Number(arg('workers', '4')));
+  const workers = Math.max(1, Number(arg('workers', '8')));
   const noCache = flag('no-cache') >= 0;
   const seeds = seedList(nSeeds);
   const parseVal = (v: string) => { try { return JSON.parse(v); } catch { return v; } };
@@ -222,7 +230,7 @@ async function parent() {
   argv.forEach((a, i) => {
     if (a !== '--set') return;
     const m = /^([^=]+)=(.*)$/s.exec(argv[i + 1] ?? '');
-    if (!m) { console.error('balrun: --set needs <param id>=<value>'); process.exit(2); }
+    if (!m) throw new Error('balrun: --set needs <param id>=<value>');
     globalSet[m[1]] = parseVal(m[2]);
   });
   const fileSets: OSet[] = flag('sets') >= 0 ? JSON.parse(readFileSync(arg('sets'), 'utf8')) : [];
@@ -325,5 +333,5 @@ async function parent() {
   if (failed.length) process.exitCode = 1;
 }
 
-if (flag('child') >= 0) worker();
+if (flag('child') >= 0) await worker();
 else if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/v2/balrun.ts')) await parent();

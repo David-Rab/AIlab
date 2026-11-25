@@ -10,10 +10,12 @@ import { safeBot } from '../../src/engine/v2/bots/safe';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
+import type { PolicyId } from './policies';
 import type { AlignDiffId, BotPolicy, GameStateV2, StartType, WorldPresetId } from '../../src/engine/v2/types';
 
 /** The named bot policies. */
-export const ALL: Record<string, BotPolicy> = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot };
+const POLICIES = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot } satisfies Record<PolicyId, BotPolicy>; // policies.ts lists the same ids
+export const ALL: Record<string, BotPolicy> = POLICIES;
 
 /** A fresh bot game: Realistic gov / public / China / rivals actors, Rising storyteller, no tutorial. */
 export function newBotGame(seed: number, combo: { world: WorldPresetId; alignment: AlignDiffId }, start: StartType): GameStateV2 {
