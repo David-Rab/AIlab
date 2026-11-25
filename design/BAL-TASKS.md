@@ -59,3 +59,15 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 - Refactors (one home per duplicated number §C; effect sizes out of closures §D2/D3).
 - Target questions §E: these go to B6.
 - Six uncommitted temp files left by agents whose deletes were denied (listed in git status).
+
+## Phase C: tooling (design/bal/TOOLING-DESIGN.md), started 2026-11-25
+| ID | Task | Model / effort | Status |
+|---|---|---|---|
+| C1 | balrun.ts parallel runner + shared game loop | Sonnet high | running |
+| C2 | Bot settings object (identical fingerprints) | Sonnet high | running |
+| C4 | baldash.ts static dashboard (dataviz standard) | Sonnet high | running |
+| C3 | --set overrides for object/table params | Sonnet medium | after C1 |
+| C5 | Sensitivity screening | Sonnet high | after C1+C3 |
+| C6 | Bot perturbation scan + headroom | Sonnet high | after C1+C2 |
+
+Designer framing (2026-11-25): real data exists only to 2026; the future is scenarios (hard alignment, slow adoption, easy capabilities), which act like setup choices. Balance must hold across scenarios. This is the core of B6.
