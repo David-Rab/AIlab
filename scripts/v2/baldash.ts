@@ -6,6 +6,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Param, Target } from '../../balance/schema';
+import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
+import { STARTS } from '../../src/data/v2/starts';
+import { PRESET_BY_LABEL } from '../../src/data/v2/calibration';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../..');
@@ -95,7 +98,13 @@ async function main() {
     range: p.range ?? null, fit: p.fit ?? null,
     where: p.ref.kind === 'export' ? `${p.ref.module} ${p.ref.symbol}${p.ref.path ? '.' + p.ref.path.join('.') : ''}` : `${p.ref.file} (inline)`,
   }));
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets };
+  // Player-facing names, read from the game at build time (ids without an entry show as the id).
+  const names = {
+    ending: Object.fromEntries(Object.entries(ENDING_TEXT).map(([id, t]) => [id, t[0]])),
+    start: Object.fromEntries(STARTS.map((x) => [x.id, x.name])),
+    world: Object.fromEntries(Object.entries(PRESET_BY_LABEL).map(([label, id]) => [id, label])),
+  };
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');

@@ -101,6 +101,10 @@ const ROLE_DEF = {
 };
 const VERDICTS = ['win', 'mixed', 'loss'];
 const VERDICT_NAME = { win: 'Win', mixed: 'Mixed', loss: 'Loss' };
+const NAMES = D.names || {};
+const dispName = (kind, id) => (NAMES[kind] && NAMES[kind][id]) || String(id);
+const endTitle = (id) => (NAMES.ending && NAMES.ending[id]) || prettify(id);
+const endFull = (id) => (NAMES.ending && NAMES.ending[id] ? `${NAMES.ending[id]} (${id})` : String(id));
 const prettify = (s) => { const t = String(s).replace(/[_-]+/g, ' ').trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
 
 // ---------------------------------------------------------------- tooltip (one shared element)
@@ -287,10 +291,10 @@ function buildCells(games) {
   cells.sort((a, b) => idx('world', a.world) - idx('world', b.world) || idx('alignment', a.alignment) - idx('alignment', b.alignment) || idx('start', a.start) - idx('start', b.start) || idx('policy', a.policy) - idx('policy', b.policy) || idx('run', a.run) - idx('run', b.run) || a.ov.localeCompare(b.ov));
   const varies = (d) => new Set(cells.map((c) => c[d])).size > 1;
   const showDims = DIMS.map((x) => x[0]).filter((d) => d === 'world' || d === 'policy' || varies(d));
-  for (const c of cells) c.label = [...showDims.map((d) => c[d]), ...(c.ov ? ['+overrides'] : [])].join(' · ');
+  for (const c of cells) c.label = [...showDims.map((d) => dispName(d, c[d])), ...(c.ov ? ['+overrides'] : [])].join(' · ');
   return cells;
 }
-const cellFull = (c) => `${c.run} · ${c.world} · ${c.alignment} · ${c.start} · ${c.policy}` + (c.ov ? ` · ${c.ov}` : '');
+const cellFull = (c) => `${c.run} · ${dispName('world', c.world)} · ${c.alignment} · ${dispName('start', c.start)} · ${c.policy}` + (c.ov ? ` · ${c.ov}` : '');
 
 function filteredGames() { return ALL.filter((g) => DIMS.every(([d]) => sel[d].has(g[d]))); }
 
@@ -328,13 +332,13 @@ function renderOutcomes() {
       cb.checked = true;
       cb.onchange = () => { cb.checked ? sel[d].add(v) : sel[d].delete(v); refresh(); renderBody(); };
       boxes.push([v, cb]);
-      pop.append(H('label', {}, cb, String(v) || '(none)'));
+      pop.append(H('label', {}, cb, dispName(d, v) || '(none)'));
     }
     all.onchange = () => { for (const v of DIMVALS[d]) all.checked ? sel[d].add(v) : sel[d].delete(v); refresh(); renderBody(); };
     const refresh = () => {
       for (const [v, cb] of boxes) cb.checked = sel[d].has(v);
       all.checked = sel[d].size === DIMVALS[d].length;
-      sumB.textContent = sel[d].size === DIMVALS[d].length ? 'all' : sel[d].size === 1 ? String([...sel[d]][0]) : `${sel[d].size} of ${DIMVALS[d].length}`;
+      sumB.textContent = sel[d].size === DIMVALS[d].length ? 'all' : sel[d].size === 1 ? dispName(d, [...sel[d]][0]) : `${sel[d].size} of ${DIMVALS[d].length}`;
     };
     upd.push(refresh); refresh();
     det.append(H('summary', {}, name, sumB), pop);
@@ -490,18 +494,18 @@ function cardEndings(cells) {
   const card = cardWrap('Which ending the games reached', 'Share of games per cell. The six most common endings overall have their own colour; the rest are folded into Other.');
   const present = ENDING_ORDER.filter((e) => cells.some((c) => c.endings.has(e)));
   const shown = present.filter((e) => ENDING_ORDER.indexOf(e) < 6), hasOther = present.some((e) => ENDING_ORDER.indexOf(e) >= 6) || cells.some((c) => c.games.some((g) => !g.ending));
-  const items = shown.map((e) => ({ name: prettify(e), color: slotColor(ENDING_ORDER.indexOf(e)) }));
+  const items = shown.map((e) => ({ name: endTitle(e), color: slotColor(ENDING_ORDER.indexOf(e)) }));
   if (hasOther) items.push({ name: 'Other or not recorded', color: 'var(--other)' });
   card.append(legend(items));
   const chart = H('div', { class: 'chart' });
   card.append(chart);
   const rows = cells.map((c) => {
-    const segs = shown.map((e) => ({ key: e, name: prettify(e), color: slotColor(ENDING_ORDER.indexOf(e)), on: slotOn(ENDING_ORDER.indexOf(e)), count: c.endings.get(e) || 0, tex: ENDING_ORDER.indexOf(e) }));
+    const segs = shown.map((e) => ({ key: e, name: endFull(e), color: slotColor(ENDING_ORDER.indexOf(e)), on: slotOn(ENDING_ORDER.indexOf(e)), count: c.endings.get(e) || 0, tex: ENDING_ORDER.indexOf(e) }));
     const rest = c.n - sum(segs.map((s) => s.count));
     segs.push({ key: '_other', name: 'Other or not recorded', color: 'var(--other)', on: 'var(--on-other)', count: rest, tex: 7 });
     return { label: c.label, tipTitle: cellFull(c), segs, right: `n=${c.n}`, otherNames: [...c.endings.keys()].filter((e) => !shown.includes(e)) };
   });
-  card.draw = () => stackedRows(chart, rows, { mode: 'pct', labelW: 250, rightW: 110, aria: 'Ending mix per cell', rowTipExtra: (row) => (row.otherNames.length ? ['Other includes: ' + row.otherNames.map((e) => `${prettify(e)} ${cells[rows.indexOf(row)].endings.get(e)}`).join(', ')] : []) });
+  card.draw = () => stackedRows(chart, rows, { mode: 'pct', labelW: 250, rightW: 110, aria: 'Ending mix per cell', rowTipExtra: (row) => (row.otherNames.length ? ['Other includes: ' + row.otherNames.map((e) => `${endFull(e)} ${cells[rows.indexOf(row)].endings.get(e)}`).join(', ')] : []) });
   return card;
 }
 
@@ -526,7 +530,7 @@ function outcomeTable(cells) {
   }
   cols.push({ label: 'Ran out of money', get: (c) => (c.ins.known ? c.ins.yes / c.ins.known : -1), fmt: (v, c) => (c.ins.known ? `${fp(v, 1)} (${c.ins.yes} of ${c.ins.known})` : NR), num: true });
   cols.push({ label: 'Misalignment chance at ASI (median)', get: (c) => c.pmis.p50 ?? -1, fmt: (v, c) => (c.pmis.known ? fp(c.pmis.p50, 1) : NR), num: true });
-  for (const e of topEnd) cols.push({ label: prettify(e), get: (c) => c.endings.get(e) || 0, fmt: (v, c) => `${v} (${fp(v / c.n)})`, num: true });
+  for (const e of topEnd) cols.push({ label: endTitle(e), get: (c) => c.endings.get(e) || 0, fmt: (v, c) => `${v} (${fp(v / c.n)})`, num: true });
   cols.push({ label: 'Other endings', get: (c) => c.n - sum(topEnd.map((e) => c.endings.get(e) || 0)), num: true });
   const wrap = H('div', { class: 'tablewrap' });
   card.append(wrap);
