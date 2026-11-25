@@ -84,3 +84,13 @@ A different session does the engine speed-up on branch `bal-perf` (worktree ../A
 - C6b PAUSED by the designer (2026-11-25, to avoid competing with the bal-perf session). 228+ games are cached in .simcache; resume with the same command (replays the cache): `npx tsx scripts/v2/balrun.ts --name refbot-a1 --policy ref --world ai2027 --align medium --start leader --seeds 10 --sets balance/scans/refbot-a.json`. Note: any src/ change (e.g. the bal-perf merge) invalidates the cache.
 - C6c: analysis by a fresh agent once the run finishes: paired differences per set against base (win rate, SC/SAR/ASI days, pMis), with intervals; the results write-up goes to design/bal/BOTS-RESULTS.md.
 - 2026-11-25: the designer set the engine speed-up aside ("no easy speedup"); nothing to merge from bal-perf. The scan resumed (refbot-a1) from the cache.
+
+## Timelines from the AI Futures Model (2026-11-25)
+- Setup in ../aifm-runs (outside the repo; downloaded code run with python -I). Configs and trial log: aifm-runs/CONFIGS.md.
+- Tuned (100-sample trials, seed 20261125), automated-coder p50:
+  - fast = Daniel Q2 unchanged (published 2027.92);
+  - central = Eli Q2 with excess_uplift_doubling_time [3.5, 37.5]: 2030.97;
+  - slow = exponential horizon trend, AC horizon at Eli's row, present doubling at Eli's row: 2034.03.
+- Full runs, 1000 samples each, sequential background jobs: fast started, then central, then slow. Then extract.py, then encode into balance/scenarios.ts, then the Scenarios tab.
+- RefBot scan pass 1 results: design/bal/BOTS-RESULTS.md. Lead's recommendation: no full scan in the old world; use the findings as the strong-bot search space after the scenario worlds exist.
+- Runner: workers now die with the parent; run lock added (commit after C3c).
