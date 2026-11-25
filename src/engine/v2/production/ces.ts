@@ -5,6 +5,7 @@
 import { H_REF_BASE, H_REF_PER_MONTH, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
+import { FORCING } from '../core/forcing';
 import { shareRefAt } from '../departments/split';
 import type { ProdParams, TimelineWorld } from '../types';
 
@@ -69,11 +70,15 @@ const monthsOf = (yr: number) => (yr - 2025.5) * 12;
 
 /** Reference capabilities headcount H_ref(t) = 2050 + 49.2·months (research/13 §1.2; R11 #12). */
 export function hRef(yr: number): number {
+  // Calibration hook (core/forcing.ts): a prescribed headcount path, as a multiplier vs 2025.5. Unset in normal play.
+  if (FORCING.staffPath !== undefined) return Math.max(200, H_REF_BASE * FORCING.staffPath(yr));
   return Math.max(200, H_REF_BASE + H_REF_PER_MONTH * monthsOf(yr));
 }
 
 /** refTotal(t) = refCapCompute(w, t)/0.68: the leading lab's total compute on the reference path (H100e, §3.1.1). */
 export function refTotal(w: TimelineWorld, yr: number): number {
+  // Calibration hook (core/forcing.ts): a prescribed total-compute path. Unset in normal play.
+  if (FORCING.computePath !== undefined) return FORCING.computePath(yr);
   return refCapCompute(asV1World(w), yr - 2025.5) / 0.68;
 }
 

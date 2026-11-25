@@ -19,6 +19,7 @@ import { recipeDiffusionPerDay } from './diffusion';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
+import { FORCING } from '../core/forcing';
 import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab } from '../models/labs';
 import { addRivalKnowledge, adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
@@ -272,7 +273,8 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
   if (apply && res > 0) {
-    f = bestRivalMix(w, G, fpt, core.staff.cap, C);
+    // Calibration hook (core/forcing.ts): pin the experiments share. Unset in normal play (the best mix).
+    f = FORCING.pinResearchMix !== undefined ? Math.min(1, Math.max(0, FORCING.pinResearchMix)) : bestRivalMix(w, G, fpt, core.staff.cap, C);
     core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
@@ -283,7 +285,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
     // RD-X02 (DD-14 rival part): the same research speed works through the paradigms' typed effects.
-    if (r.phys) adoptRivalIdeas(s, r, x.rs);
+    if (r.phys && !FORCING.noIdeaAdoption) adoptRivalIdeas(s, r, x.rs); // FORCING (core/forcing.ts): unset in normal play
   }
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
@@ -329,10 +331,10 @@ export const productionSystem: EngineSystem = {
     const dif = [PLAYER_ID, ...otherLabs(s).map((x) => x.core.id)].map((id) => ({ id, d: recipeDiffusionPerDay(s, id) }));
     const r = advanceLab(s, PLAYER_ID);
     const pd = dif[0].d;
-    if (pd.dG > 0) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
+    if (pd.dG > 0 && !FORCING.noDiffusion) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
     for (const { id, d } of dif.slice(1)) {
       const lab = rivalLab(s, id);
-      if (lab && d.dG > 0) addRivalKnowledge(lab, d.dG);
+      if (lab && d.dG > 0 && !FORCING.noDiffusion) addRivalKnowledge(lab, d.dG);
     }
     if (r) {
       ctx.memo.set('WS1:production:player', r);
