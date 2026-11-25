@@ -22,8 +22,8 @@ Background: `../AI27-vision/design/vision/BALANCE.md` and `HANDOFF-BOTS.md` (unc
 | B3 wave 1 | Inventories: capability, safety-data, market, finance, actors-engine | Sonnet high | done, committed 26474a8 | balance/params/<chunk>.ts, design/bal/inv/<chunk>-notes.md |
 | B3 wave 2 | Inventories: models (mod: engine/v2/models, compute), safety-engine (sfe: engine/v2/safety, security), worldfx (wfx), actors-data (acd: data/actors.ts, data/world.ts, data/v2/{rivalModel,blocs,agents}), core (core: engine/v2/{core,departments,endings,events,bots}) | Sonnet high | done, committed 50a69e7 | same |
 | B4 | Target inventory | Sonnet high | done, committed 26474a8 | balance/targets.ts |
-| B5a | Consolidate ~100 inventory questions into rulings | Sonnet high | running | design/bal/B5-QUESTIONS.md |
-| B5b | Lead rulings, apply them, summary to designer | lead | after B5a | |
+| B5a | Consolidate ~100 inventory questions into rulings | Sonnet high | done | design/bal/B5-QUESTIONS.md |
+| B5b | Lead rulings (balance/CLASSIFY.md), applied by 3 agents (B5c-e) | lead + Sonnet | done | balance/params/*.ts |
 | B6 | Target discussion with designer | lead + designer | after B5b | |
 
 Shared brief for all B3 agents: design/bal/INVENTORY-BRIEF.md.
@@ -35,6 +35,10 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 
 | ID | Result | Time | Notes |
 |---|---|---|---|
+| B5a consolidate | accepted | 7 min, 129k | 100 questions into 53 items; checked research/07 field by field unprompted; excellent. Left 3 temp files (rm denied). |
+| B5c actors-data rulings | accepted | 9 min, 188k | unclear 136 to 4; field-by-field against research/07 and 10. |
+| B5d cap/market/finance rulings | accepted | 8 min, 168k | unclear 27 to 8. |
+| B5e six files rulings | accepted | 10 min, 202k | unclear 13 to 0; flagged its own judgement calls. |
 | B3 actors-data | accepted, lead fixed 2 type errors | 6 min, 137k | 250 entries; 136 unclear from one ambiguous header. Reported typecheck clean for its file, but it had 2 errors (a missing optional and an unused param); the lead fixed them. |
 | B3 worldfx | accepted | 6 min, 140k | 80 entries; found values duplicated across files. |
 | B3 models | accepted | 7 min, 183k | 66 entries (folder is mostly logic). |
@@ -48,3 +52,10 @@ One row per delegated task: first-pass result (accepted / rework / redo), wall t
 | B4 targets | accepted | 12 min, 229k | 152 targets; all 52 CAL2 rows. 16 good questions (coded bands differ from stated targets). Its rm of 3 temp files was denied; left uncommitted for the designer. |
 | B2 | accepted, two small lead fixes | 3 min, 73k tokens | All checks pass, self-test catches 5 planted errors. Lead fixes: example params set `actor: 'model'` on world physics (the lead's schema didn't define `actor`; comment added); P05 is `derived`, not `fitted` (the lead's brief was wrong; the agent flagged it). |
 | B0 | accepted first pass | 4 min, 97k tokens | All 7 questions answered with file:line; flagged its own uncertainties (src/ui unscanned, _xxx dirs, heuristic counts). No rework. |
+
+## Parked designer decisions (2026-11-25: "prefer not to decide on these now"; don't re-ask unprompted)
+- Possible game bugs, comment vs code: B5-QUESTIONS §B (9 items).
+- End-screen score provenance: §F6.
+- Refactors (one home per duplicated number §C; effect sizes out of closures §D2/D3).
+- Target questions §E: these go to B6.
+- Six uncommitted temp files left by agents whose deletes were denied (listed in git status).

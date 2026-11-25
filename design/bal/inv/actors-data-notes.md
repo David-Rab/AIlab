@@ -48,3 +48,32 @@ The 40 inline entries are all in `src/data/world.ts`: per preset (ai2027, author
 - world.ts:309-310 globalCompute exponent split years (`years - 3.5`) is the registered 3.5; `refCapCompute` AIFM path x offset 2025.5 (start date; world.ts:306, 318)
 
 Not in this chunk's coverage list but in the same files: v2 rivalModel/blocs/agents comments name no other numeric literals.
+
+## B5 changes (CLASSIFY.md applied, 2026-11-25)
+
+Kind counts, 250 entries: before sourced 54, unclear 136, designer 17, untagged 36, fitted 3, derived 2, stand-in 2; after sourced 134, designer 69, unclear 4, untagged 35, fitted 5, derived 3, stand-in 0.
+
+**A1 (preset fields, checked one by one against research/07 lines 70-74, 159-163, 219-223 and research/10 lines 51-55).** 158 entries (excluding the leader row): 100 sourced, 54 designer, 4 unclear. Of the 136 that were unclear: 84 sourced, 48 designer, 4 unclear. The 16 gov, public and China weights were already sourced; the 5 lab weights are now sourced too (research/07 lists them), and the Gambler and Sprint China weights are checked against the sub-roll text. The helper `presetParams` now takes per-preset research rows (`rowOverride`): each field has an explicit cell and a missing cell throws, and the lint still compares every value with the live data.
+- Fields a row does not list are `designer` ("not in research/07"). research/07-actors.md:18 says only "A preset is a set of multipliers on a common parameter schema"; it does not say that unlisted fields are baseline, so the baseline-1 reading was not applied.
+- Code differs from the research number (designer, with "research/07 says X"): Big Tech `computeMult` 1.3 (07 says x1.5); lab `gapYears` for Safety, Big Tech, Open-Weights, Upstart (07 gives gaps in months: 2-6, 1-5, 4-9, 6-15; the code differs slightly); China Gambler `hawk` 80 (07:281 says +30, which is 75); Centralized Sprint `openSource` 0.3 (10 says "open -> 0.3 after rung 3"; the field has no rung condition).
+- Absentee: "all biases 0.6" is read as the four *_bias params (accel, security, reg, hawk); `transactional` (1) and `pollSensitivity` (0.6) are not named, so they are designer.
+- Populist `reg` 1.2 is sourced although research/07 conditions it on Public.Concern > 60 and the preset field carries no condition (noted in the entry).
+- Centralized Sprint weight 10 is sourced: research/10 gives 15% with 1 in 3 the Gambler (about 5% overall).
+
+**A9 (world.ts preset entries).** The comment above each one-line `build()` covers its fields; the `w.x = ...` statements after the call are outside it. Result: ai2027 `g0` and `pEx` moved sourced to fitted (script `manual`): the comment names them as the values that "reproduce" the scenario dates, and research/11-engine-audit.md:156,159 tags both "[D] fit". The other ai2027 fields stay sourced; authors2026 `cs` and `G` stay fitted (named); slow `sarSpeed`, `computeGrowth`, `computeElasticity` stay untagged (separate statements; `sarSpeed` is named in the comment but only as an adjustment).
+
+**Other rows.**
+- A7: `BASE_RUN_DAYS` is a literal copy of `bots.ref.REF_BASE_DAYS` (derived), so derived with the copy note. `CL_POOL_SHARE` copies `cap.STREAM_POOL_SHARE` (designer) and `CL_DAYS` copies `cap.STREAM_PERIOD_DAYS` (designer): stand-in to designer. The comment for `CL_DAYS` does not name `STREAM_PERIOD_DAYS`; "the player's rule at aggregate level" is read as covering it.
+- A2: pointers moved into `source` for `BASE_RUN_DAYS`, `BASE_POOL_SHARE`, `RIVAL_TPP`, `REF_AGENT_SHARES`, `TRUST_EST_DEFAULT`, `MONITOR_STD_POOL_SHARE`, `BLOCS.agenda`, China `efficiency` (CAL-W).
+- BLOCS `clout`, `cloutNov26`, `approval`: research/08-policy-ecosystem.md:664-690 states every value (checked all 15 rows: equal), but line 690 says "All clout and approval numbers are [D] calibrations", so designer with the table as source (was sourced, sourced, untagged). Flip to sourced if the lead reads "the cited text states this number" (A8a) as winning over the [D] tag.
+- A10: no layer changed. Preset `weight` fields stay world; player defaults (`DEFAULT_CAP_SHARES`, `TRUST_EST_DEFAULT`, `MONITOR_STD_POOL_SHARE`, `SAFETY_AGENT_DEFAULT_SHARE`) stay policy; `SAFETY_AGENT_MAX_SHARE` and the rival timing constants stay world.
+- Fixed stale line numbers in the `agents.ts` evidence strings (they pointed 100 lines past the end of the 80-line file; now :35-68).
+
+## Open questions after B5
+
+| id | question | evidence |
+|---|---|---|
+| Q-actors-data-7 | BASELINES `desc` strings ("Calibrated to measured data through 2026 ...") are UI text, not comments. CLASSIFY does not say whether a `desc` string counts as evidence; every start-state value stays `untagged` (valuation `designer`). | world.ts:268, 278 |
+| Q-actors-data-8 | China Hawkish Gambler is a "sub-roll" of Centralized Sprint (research/10:54) and the row lists only taiwan 2.0 and treaty 0.4. Does it inherit the Sprint's centralize 1.6, theft 1.6 and open 0.3 (then sourced / sourced / designer, as the Sprint) or are unlisted fields designer? Left `unclear`: `gambler.centralize`, `.theft`, `.openSource`. | research/10-china.md:54 |
+| Q-actors-data-9 | Centralized Sprint `hawk` 65 = start 45 [D] (research/10:39) + "hawk +20" (research/10:54). Is a sum of two research numbers `sourced`, `designer` (the 45 is [D]), or derived? Left `unclear`: `nationalizer.hawk`. | research/10-china.md:39, 54 |
+| Q-actors-data-10 | `ENG_REF_SHARE` and `REF_AGENT_SHARES` are the reference agent-compute split of a lab (rivals read routine/frontier from it; the player's start split is built from it). World or policy (a rival's choice weights)? Left `world`. | agents.ts:35-41 |

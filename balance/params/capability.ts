@@ -103,6 +103,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'workTypes.ts:29 "The work types [R20 E, R19 §1.1, MODEL-V3 §6.1; H and weights D]."',
     notes: 'Domain weights per work type; the records carry no per-field source.',
+    source: 'research/19 §1.1; MODEL-V3 §6.1',
   },
   {
     id: 'cap.WORK_TYPES.H',
@@ -112,15 +113,17 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'workTypes.ts:29 "The work types [R20 E, R19 §1.1, MODEL-V3 §6.1; H and weights D]."',
     notes: 'Typical task length per work type.',
+    source: 'MODEL-V3 §6.1; research/20 E (H and weights are [D])',
   },
   {
     id: 'cap.WORK_TYPES.v',
     ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'WORK_TYPES', path: ['*', 'v'] },
     unit: 'fraction (0..1)',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'workTypes.ts:29 "[R20 E, R19 §1.1, MODEL-V3 §6.1; H and weights D]" leaves v untagged; field doc :21 cites "[R20 E3]" for what v does, not for its values',
-    notes: 'Verifiability per work type; see Q-capability-1.',
+    notes: 'Game-ready E3 [G], a design proposal; no primary source (research/20:580)',
+    source: 'research/20-model-v3-calibration.md:583',
   },
   {
     id: 'cap.WORK_TYPES.heads',
@@ -224,6 +227,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'workTypes.ts:127-130 "s 0.8 OOM puts the 2025 frontier\'s software coverage at ≈ 0.2 (...research/13 §2.7, §2.10) [D]."',
     notes: 'Logistic width of coverage.',
+    source: 'research/13 §2.7, §2.10',
   },
   {
     id: 'cap.COVER.top',
@@ -370,6 +374,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'workTypes.ts:165-170 "[D from R20 D2 / R12 §5]: on FrontierMath ≈ 43M output tokens ... 0.93 / 0.95 ≈ 1"',
     notes: 'Designer value read off two data points (R20 D2, R12 §0.2/§2), not a fit.',
+    source: 'research/20 D2; research/12 §5',
   },
   {
     id: 'cap.TOK_MIN',
@@ -591,9 +596,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 1.6,
     unit: 'OOM',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'workTypes.ts:202-204 doc tags Δ_bm "[fit]" for the group, but no refit entry names slow\'s Δ_bm 1.6 (the :279 "median 1.6–2.1" is ai2027\'s range)',
     perPreset: true,
+    notes: 'carried default, no refit of its own',
   },
   {
     id: 'cap.V3_CAL.slow.r',
@@ -622,10 +628,11 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 30.15,
     unit: 'OOM',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'fitted',
     evidence: 'workTypes.ts:209 "`sampled` uses ai2027\'s."; :245 "ai2027 (and sampled) 30.20 → 30.12"',
     perPreset: true,
-    notes: 'A literal copy of the ai2027 value in code, not computed.',
+    notes: 'copy of cap.V3_CAL.ai2027.gSC',
+    fit: { targets: [], script: 'unnamed' },
   },
   {
     id: 'cap.V3_CAL.sampled.dBM',
@@ -633,10 +640,11 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 1.8,
     unit: 'OOM',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'fitted',
     evidence: 'workTypes.ts:209 "`sampled` uses ai2027\'s."',
     perPreset: true,
-    notes: 'A literal copy of the ai2027 value in code, not computed.',
+    notes: 'copy of cap.V3_CAL.ai2027.dBM',
+    fit: { targets: [], script: 'unnamed' },
   },
   {
     id: 'cap.V3_CAL.sampled.r',
@@ -644,10 +652,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 4,
     unit: 'doublings per doubling',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'sourced',
     evidence: 'workTypes.ts:209 "`sampled` uses ai2027\'s."',
     perPreset: true,
-    notes: 'A literal copy of the ai2027 value in code, not computed.',
+    source: 'research/13 §2.2; Davidson & Houlden 2025', notes: 'copy of cap.V3_CAL.ai2027.r',
   },
   {
     id: 'cap.V3_CAL.sampled.sdSC',
@@ -658,7 +666,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'derived',
     evidence: 'workTypes.ts:209 "`sampled` uses ai2027\'s."; sdSC: SD_AT_SC',
     perPreset: true,
-    notes: 'A literal copy of the ai2027 value in code, not computed.',
+    notes: 'copy of cap.V3_CAL.ai2027.sdSC',
   },
   {
     id: 'cap.DIFFUSION_TAU_DAYS',
@@ -1086,8 +1094,9 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 1.5,
     unit: 'multiplier',
     area: 'research', layer: 'world',
-    kind: 'untagged',
+    kind: 'designer',
     evidence: 'no tag; tree.ts:117 "Specialty bonus: a team works ×1.5 in its own column (TECH-TREE §5 T2)."',
+    source: 'design/TECH-TREE.md §5 T2 (x1.5 in its column)',
   },
   {
     id: 'cap.CAPACITY_UNIT',
@@ -1275,6 +1284,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'designer',
     evidence: 'research.ts:44-45 "Ideation belief noise: sd = BELIEF_NOISE × prior mean × √batch ... [D, R20 B5: \\"taste narrows the noise\\"; MODEL-V3 §8 ...]"',
+    source: 'research/20 B5; MODEL-V3 §8',
   },
   {
     id: 'cap.CAND.mean0',
@@ -1515,10 +1525,11 @@ export const PARAMS_CAPABILITY = defineParams([
     ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'PROJECT_MAX_TEAMS' },
     value: 6,
     unit: 'teams',
-    area: 'research', layer: 'world',
+    area: 'research', layer: 'policy',
     kind: 'designer',
     evidence: 'research.ts:131 "Most science teams one capability project takes (\\"max\\" teams wanted) [D: √capacity returns]"',
     notes: 'Cap on allocation; see Q-capability-3 (world or policy).',
+    actor: 'player',
   },
   {
     id: 'cap.AUTO_RANK_W',
@@ -1606,6 +1617,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'runDesign.ts:12-13 "The frontier\'s pace before the game, in OOM of effective compute G a year (research/12 §0.2: frontier G +1.1–1.3 a year) [D]."',
     range: { lo: 1.1, hi: 1.3, from: 'runDesign.ts:12 "research/12 §0.2: frontier G +1.1-1.3 a year"' },
+    source: 'research/12 §0.2',
   },
   {
     id: 'cap.E_START',
@@ -1775,6 +1787,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'designer',
     evidence: 'runDesign.ts:65 "RL runs: rollouts are inference, so model-FLOP utilisation is lower: MFU_RL = 0.6 × MFU [D, R20 C1]."',
+    source: 'research/20 C1',
   },
   {
     id: 'cap.RL_BUDGET',
@@ -1785,6 +1798,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'runDesign.ts:70 "RL budget: RL FLOP as a share ρ of the base\'s pretraining FLOP [D, R20 C1: frontier 0.05–1 (R1 0.05, Grok 4 ≈ 1)]."',
     notes: 'Array order = light, standard, heavy.',
+    source: 'research/20 C1',
   },
   {
     id: 'cap.RL_CURVE.A0',
@@ -1845,6 +1859,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'designer',
     evidence: 'runDesign.ts:91 "RL gain of the reference post-training run at the start recipe, OOM [D: research/12 \\"reasoning RL ≈ 1 OOM\\"; R20 B3]."',
+    source: 'research/12 (reasoning RL ~1 OOM); research/20 B3',
   },
   {
     id: 'cap.RL_FOCUS_SHARE',
@@ -1932,9 +1947,10 @@ export const PARAMS_CAPABILITY = defineParams([
     ref: { kind: 'export', module: 'src/data/v2/runDesign.ts', symbol: 'STUDENT_DEFAULT' },
     value: 1 / 8,
     unit: 'fraction of teacher parameters',
-    area: 'capability', layer: 'world',
+    area: 'capability', layer: 'policy',
     kind: 'designer',
     evidence: 'runDesign.ts:114 "Default student size: an eighth of the teacher\'s active parameters [D]."',
+    actor: 'player',
   },
   {
     id: 'cap.CONTINUE_SHARE',
@@ -1945,6 +1961,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'runDesign.ts:116 "Continued pretraining: default FLOP as a share of the parent base\'s FLOP (research/12 §0.3: 0.2–0.5) [D]."',
     range: { lo: 0.2, hi: 0.5, from: 'runDesign.ts:116 "research/12 §0.3: 0.2-0.5"' },
+    source: 'research/12 §0.3',
   },
   {
     id: 'cap.IDA_RL_SHARE',
@@ -2111,9 +2128,9 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 2,
     unit: 'hours',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'designer',
     evidence: 'runDesign.ts:211-212 "SWE = the SWE work type\'s H (2 h)" [data/v2/workTypes.ts]',
-    notes: 'A literal copy of WORK_TYPES.SWE.H.',
+    notes: 'copy of cap.WORK_TYPES.H (SWE)',
   },
   {
     id: 'cap.RL_FAMILIES.mlResearch.taskH',
@@ -2121,9 +2138,9 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 8,
     unit: 'hours',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'designer',
     evidence: 'runDesign.ts:212 "ML research = EXP\'s (8 h; RE-Bench\'s tasks are 8-hour tasks [R20 F1])"',
-    notes: 'A literal copy of WORK_TYPES.EXP.H.',
+    notes: 'copy of cap.WORK_TYPES.H (EXP)',
   },
   {
     id: 'cap.RL_FAMILIES.longHorizon.taskH',
@@ -2131,9 +2148,9 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 40,
     unit: 'hours',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'designer',
     evidence: 'runDesign.ts:212-213 "long-horizon agentic = IDEAS\' (40 h, a working week) [data/v2/workTypes.ts]"',
-    notes: 'A literal copy of WORK_TYPES.IDEAS.H.',
+    notes: 'copy of cap.WORK_TYPES.H (IDEAS)',
   },
   {
     id: 'cap.RL_FAMILIES.computerUse.taskH',
@@ -2178,9 +2195,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: [0.06, 0.18, 0.01, 0.12, 0.01, 0.01, 0.01],
     unit: 'share of tasks',
     area: 'safety', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'suites.ts:12 "Start exploitability per family (a red-teamed suite, the leader\'s start) [D, sourced per family]: research/20 F1\'s 2025 hack rates ... after red-teaming ... which leave 40% of them [D]"',
     notes: 'Array order = math, swe, computerUse, mlResearch, longHorizon, cyber, bio. Tagged both [D] and sourced; see Q-capability-4.',
+    source: 'research/20 F1 (2025 hack rates); red-teaming share [D]',
   },
   {
     id: 'cap.START_EXPLOIT_MULT',
@@ -2207,9 +2225,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 0.002,
     unit: 'T tokens per family',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'suites.ts:34 "Expert data: the start suites hold EXPERT_START_T per family (T tokens) = fidelity 1 [D, sourced per unit]: Epoch\'s RL-environment FAQ [P, research/12 §2] ..."',
     notes: 'Derived in the comment: 100k tasks x 20k tokens. Tagged both [D] and sourced; see Q-capability-4.',
+    source: 'Epoch RL-environment FAQ [P, research/12 §2]',
   },
   {
     id: 'cap.EXPERT_PRICE_B_PER_T',
@@ -2217,9 +2236,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 50,
     unit: 'USD B per T tokens',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'suites.ts:34-38 "[D, sourced per unit] ... $0.05 per expert token ($50B per T)"',
     notes: 'Tagged both [D] and sourced (Epoch FAQ; a ~$1B/yr spend marked UNVERIFIED); see Q-capability-4.',
+    source: 'Epoch RL-environment FAQ (a ~$1B/yr spend marked UNVERIFIED in the code comment)',
   },
   {
     id: 'cap.DEMO_BUILD.tokensT',
@@ -2431,9 +2451,10 @@ export const PARAMS_CAPABILITY = defineParams([
     id: 'cap.LICENCE_TIERS.defaultT',
     ref: { kind: 'export', module: 'src/data/v2/dataAssets.ts', symbol: 'LICENCE_TIERS', path: ['*', 'defaultT'] },
     unit: 'T tokens',
-    area: 'capability', layer: 'world',
+    area: 'capability', layer: 'policy',
     kind: 'untagged',
     evidence: 'no tag; dataAssets.ts:40 "Default sizes give deals of $0.5–1.5B (5T / 0.5T / 0.05T)."',
+    actor: 'player',
   },
   {
     id: 'cap.LICENCE_DELIVERY_DAYS',
@@ -2537,6 +2558,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'dataAssets.ts:61 "Cap 1 [D, model v3 D11]: research/20 A3\'s synthetic range 0.5–1.5 is a guess [G]"',
     notes: 'Raised by P10_SYN_Q_RAISE per unit of the P10 effect.',
+    source: 'model v3 D11; research/20 A3',
   },
   {
     id: 'cap.SYN_START_T',
@@ -2562,9 +2584,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 0.5,
     unit: 'quality per unit of effect',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'dataAssets.ts:78-85 "Sources: Maini et al. 2024 ... [P] ... phi-4 ... Size [D]: WRAP\'s ×3 is against raw C4; ... only part of it is headroom over q 1: research/20\'s 1.5."',
     notes: 'Sources cited and the size tagged [D]; see Q-capability-4.',
+    source: 'Maini et al. 2024 (WRAP); phi-4; research/20 (1.5 headroom); size [D]',
   },
   {
     id: 'cap.P21_WORTH_OOM',
@@ -2626,6 +2649,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'capability', layer: 'world',
     kind: 'designer',
     evidence: 'dataAssets.ts:122 "q 3 [D: research/20 A3\'s top curated tier]."',
+    source: 'research/20 A3',
   },
   {
     id: 'cap.SYN_JOB.share',
@@ -2731,9 +2755,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: -0.2,
     unit: 'L units',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'fitted',
     evidence: 'benchmarks.ts:39 "RD-M01b [D]" and :41-42 "fit m_G 25.4, k_G 1.0 → mL −0.2, kL 0.5"',
-    notes: 'Tagged [D] and also described as a fit to three anchors (GPT-4o 69.1, o1 78.2, GPT-5 84.2); see Q-capability-6.',
+    notes: 'RD-M01b fit m_G 25.4, k_G 1.0 to three anchors (GPT-4o 69.1, o1 78.2, GPT-5 84.2); also tagged [D]',
+    fit: { targets: [], script: 'manual' },
   },
   {
     id: 'cap.BENCHMARKS.mmmu.kL',
@@ -2741,9 +2766,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 0.5,
     unit: 'logit per L',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'fitted',
     evidence: 'benchmarks.ts:39 "RD-M01b [D]" and :41-42 "fit m_G 25.4, k_G 1.0 → mL −0.2, kL 0.5"',
-    notes: 'Same as mmmu.mL; see Q-capability-6.',
+    notes: 'RD-M01b fit to three anchors (GPT-4o 69.1, o1 78.2, GPT-5 84.2); also tagged [D]',
+    fit: { targets: [], script: 'manual' },
   },
   {
     id: 'cap.BENCHMARKS.mmmu.ceil',
@@ -2760,9 +2786,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 4.9,
     unit: 'L units',
     area: 'capability', layer: 'world',
-    kind: 'unclear',
+    kind: 'designer',
     evidence: 'benchmarks.ts:45-47 "RD-M01b [D]: ... Frontier ≈ 28% at G ≈ 27.0 → m_G 27.9; k_G 1.0 is a stand-in ... → mL 4.9"',
-    notes: 'Tagged [D], computed from an anchor and a stand-in slope; see Q-capability-6.',
+    notes: 'm_G from an anchor; k_G 1.0 is a stand-in slope (see B5d-notes)',
+    source: 'RD-M01b: frontier ~28% at G ~27.0 (benchmarks.ts:45-47)',
   },
   {
     id: 'cap.BENCHMARKS.embodied.kL',
@@ -2817,9 +2844,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: [0, 0, 0.3],
     unit: 'L units',
     area: 'capability', layer: 'world',
-    kind: 'untagged',
+    kind: 'designer',
     evidence: 'no tag; benchmarks.ts:58 "Elicitation bonus (L) by evaluator: stronger elicitation by independent evaluators (§3.3.4)."',
     notes: 'Array order = self, evalGov, evalIndep.',
+    source: 'design/V2-SPEC.md §3.3.4 (elic 0 self, 0 evalGov, +0.3 evalIndep)',
   },
   {
     id: 'cap.SAND_GAP',
@@ -2827,8 +2855,9 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 1.5,
     unit: 'L units',
     area: 'safety', layer: 'world',
-    kind: 'untagged',
+    kind: 'designer',
     evidence: 'no tag; benchmarks.ts:60 "Sandbagging gap on dangerous benchmarks: gap = −1.5·SAND (§3.3.4)."',
+    source: 'design/V2-SPEC.md §3.3.4 (gap = -1.5 x SAND)',
   },
   {
     id: 'cap.EA_CONFOUND',
@@ -2886,6 +2915,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'evals.ts:15-17 "research/20 §G (c) [G]: ... full 20 staff-weeks (10 staff, 2 weeks), deep 45 ..., basic 4 ... [D within the range]."',
     notes: 'Basic 4, full 20, deep 45. Range is research/20 §G (c) [G]: a frontier pre-deployment pass takes 1-3 weeks with 3-10 staff.',
+    source: 'research/20 §G (c)',
   },
   {
     id: 'cap.EVAL_DEPTHS.staff',
@@ -2930,6 +2960,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'safety', layer: 'world',
     kind: 'designer',
     evidence: 'evals.ts:59-60 "Staff an external evaluator puts on one suite ... [D: UK AISI tested 30+ models in two years with a team of this order per pass, research/20 §G]."',
+    source: 'research/20 §G',
   },
   {
     id: 'cap.REEVAL_DG',
@@ -2980,6 +3011,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:2-4 "Gates, prerequisites, Effort ... and Lag ... are research/16\'s [D] values; ... Effect magnitudes are [D]"',
     notes: 'Each record carries r16, its research/16 T-number.',
+    source: 'research/16 (tech table)',
   },
   {
     id: 'cap.WORLD_TECHS.effort',
@@ -2989,6 +3021,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:2-4 "Gates, prerequisites, Effort ... and Lag ... are research/16\'s [D] values; ... Effect magnitudes are [D]"',
     notes: 'Each record carries r16, its research/16 T-number; evidence per tech in research/16 §3.2 and N6.',
+    source: 'research/16 (tech table)',
   },
   {
     id: 'cap.WORLD_TECHS.lag',
@@ -2998,6 +3031,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:2-4 "Gates, prerequisites, Effort ... and Lag ... are research/16\'s [D] values; ... Effect magnitudes are [D]"',
     notes: 'Each record carries r16, its research/16 T-number; evidence per tech in research/16 §3.2 and N6.',
+    source: 'research/16 (tech table)',
   },
   {
     id: 'cap.WORLD_TECHS.effects.g',
@@ -3007,6 +3041,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "GDP growth (fraction/yr) at full ramp"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.expCap',
@@ -3015,6 +3050,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Experiment capacity for world science"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.sciQ',
@@ -3023,6 +3059,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Multiplier on SCI-sector Bass q"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.energy',
@@ -3032,6 +3069,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Energy price change at full ramp (fraction)"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.physFloor',
@@ -3041,6 +3079,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "World PHYS model level floor at full ramp"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.logPhys',
@@ -3050,6 +3089,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Extra PHYS level in LOG (autonomous vehicles)"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.benefit',
@@ -3059,6 +3099,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Public benefit (approval points per year at full ramp)"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.computeEff',
@@ -3067,6 +3108,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Compute-efficiency multiplier for all labs"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.persuasion',
@@ -3075,6 +3117,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "Persuasion multiplier (INFO channel)"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.milP',
@@ -3084,6 +3127,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "MIL control penetration added at full ramp"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.WORLD_TECHS.effects.infraP',
@@ -3093,6 +3137,7 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'designer',
     evidence: 'techs.ts:4 "Effect magnitudes are [D] (\\"+0.2 to +2 pp each at full ramp\\" for g_tech, research/16 §4.2)"; field doc "INFRA cyber-defense penetration added at full ramp"',
     notes: 'Per-tech records carry r16; not every tech sets this effect.',
+    source: 'research/16 §4.2',
   },
   {
     id: 'cap.COPY_COLLUSION',
@@ -3110,9 +3155,10 @@ export const PARAMS_CAPABILITY = defineParams([
     value: 0.26,
     unit: 'OOM',
     area: 'capability', layer: 'world',
-    kind: 'derived',
+    kind: 'fitted',
     evidence: 'features.ts:64-69 "ΔG +0.26 OOM [D], set so that at the reference fit ... the slot\'s effective labour is ×1.3 ... logit +0.324 × COVER.s 0.8 = 0.26."',
-    notes: 'Tagged [D] and also derived from the x1.3 labour target and COVER.s 0.8 (a literal here, not computed).',
+    notes: 'solved so the slot labour is x1.3 at the reference fit: logit +0.324 x COVER.s 0.8 = 0.26 (features.ts:64-69)',
+    fit: { targets: [], script: 'manual' },
   },
   {
     id: 'cap.P05_ORCHESTRATION.tokens',

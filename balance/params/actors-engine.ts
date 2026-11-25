@@ -52,7 +52,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: [120, 60, 15, 60, 60, 45, 30],
     unit: 'days', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
     evidence: 'no tag; rivals.ts:55 "Public-model release lag behind the internal model, days (§3.10.3). Safety = 90 d + ~30 d of evals."',
-    notes: 'Key order safety, bigtech, maverick, openweights, upstart, deepcent, leader.',
+    notes: 'V2-SPEC §3.10.3 states only 4 of the 7 archetypes (safety 90 d, bigtech 60, maverick 15, openweights 60), so the entry stays untagged (A8). Key order safety, bigtech, maverick, openweights, upstart, deepcent, leader.',
   },
   {
     id: 'act.BASE_MONTHS',
@@ -107,9 +107,9 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     id: 'act.RUNG_TRUST',
     ref: { kind: 'export', module: REL, symbol: 'RUNG_TRUST' },
     value: [0, 25, 45, 65, 80],
-    unit: 'trust points', area: 'actors', layer: 'world', kind: 'untagged',
+    unit: 'trust points', area: 'actors', layer: 'world', kind: 'designer', source: 'V2-SPEC §3.9.1',
     evidence: 'no tag; relations.ts:23 "Access-rung trust thresholds (rungs 1..4) (§3.9.1)."',
-    notes: 'Index = access rung 0..4.',
+    notes: 'A8c: spec states 25 / 45 / 65 / 80 for rungs 1..4. Index = access rung 0..4.',
   },
   {
     // A list of node ids: one entry over the elements (path '*'), no value.
@@ -186,7 +186,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: [0.7, 0.6, 0.5, 0.2, 0.5, 0.6, 0.8],
     unit: 'probability', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
     evidence: 'no tag; rivals.ts:59 "P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4)."',
-    notes: 'Key order maverick, openweights, bigtech, safety, upstart, deepcent, leader.',
+    notes: 'V2-SPEC §3.10.3 states only 4 of the 7 archetypes (0.7 / 0.6 / 0.5 / safety 0.2), so the entry stays untagged (A8). Key order maverick, openweights, bigtech, safety, upstart, deepcent, leader.',
   },
   {
     id: 'act.SD_AI_MAX',
@@ -206,7 +206,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     id: 'act.LEADER_DAY0_TRAIN',
     ref: { kind: 'inline', file: RMODEL, anchor: 'const LEADER_DAY0_TRAIN = 1e6 * 0.4;' },
     value: 400000,
-    unit: 'H100e', area: 'actors', layer: 'world', actor: 'leader', kind: 'untagged',
+    unit: 'H100e', area: 'actors', layer: 'world', actor: 'leader', kind: 'derived', notes: 'Computed in code as 1e6 x 0.4 (A7).',
     evidence: 'no tag; rivalModel.ts:706-707 "the leader\'s day-0 training pool (DAY0_REF\'s 1e6 H100e × the 2025 training share 0.4) it was sized on"',
   },
   {
@@ -222,7 +222,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: [90, 60, 50, 20, 45],
     unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
     evidence: 'no tag; intel.ts:21 "The lag the player ASSUMES between a lab\'s public and internal model, from its visible framework clause."',
-    notes: 'Key order conditional, allAdopt, unconditional, override, state. A belief the player holds, not truth.',
+    notes: 'readout (A10). Key order conditional, allAdopt, unconditional, override, state. A belief the player holds, not truth.',
   },
   {
     // Flattened [lo, hi] pairs in key order conditional, allAdopt, unconditional, override, state.
@@ -231,15 +231,15 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: [0.08, 0.45, 0.12, 0.5, 0.15, 0.6, 0.2, 0.7, 0.15, 0.65],
     unit: 'misalignment (0..1)', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
     evidence: 'no tag; intel.ts:24 "Prior misalignment band by visible clause type (research/17 §1.6.4: the framework is the main observable)."',
-    notes: 'Flattened lo,hi pairs in key order conditional, allAdopt, unconditional, override, state.',
+    notes: 'readout (A10). Flattened lo,hi pairs in key order conditional, allAdopt, unconditional, override, state.',
   },
   {
     id: 'act.GOV_SCORE',
     ref: { kind: 'inline', file: IDX, anchor: 'const GOV_SCORE: Record<string, number> = {' },
     value: [0.65, 0.75, 0.6, 0.3, 0.45],
-    unit: 'score 0..1', area: 'actors', layer: 'world', actor: 'player', kind: 'unclear',
+    unit: 'score 0..1', area: 'actors', layer: 'world', actor: 'player', kind: 'designer', source: 'index.ts:21 (R9)',
     evidence: 'index.ts:21 "// R9 parent: a corporate division with a responsibility council but no independent safety board (GDM: C−) [D]." sits above the table but names only the `parent` entry',
-    notes: 'Key order legacyNonprofit, nonprofitPBC, pbcTrust, founder, parent. See Q-actors-engine-2.',
+    notes: 'A9: the [D] comment above the table covers all five boards. Key order legacyNonprofit, nonprofitPBC, pbcTrust, founder, parent.',
   },
 
   // ───────────────────────── notable inline literals (40) ─────────────────────────
@@ -436,7 +436,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     id: 'act.rivals.racePressureMonths',
     ref: { kind: 'inline', file: RIVALS, anchor: 'return clamp(months / 6, 0, 1);' },
     value: 6,
-    unit: 'months', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
+    unit: 'months', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.10.3', notes: 'A8c: spec states pressure = clamp(months behind the leader / 6, 0, 1).',
     evidence: 'no tag; rivals.ts:216 "Race pressure (§3.10.3): clamp(months behind the leader / 6, 0, 1)"',
   },
   {
@@ -497,7 +497,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     id: 'act.rivals.chinaSafetyInvestment',
     ref: { kind: 'inline', file: RIVALS, anchor: 'safetyInvestment: 0.1 + (0.4 * s.china.meters.safetyConcern) / 100' },
     value: [0.1, 0.4],
-    unit: 'fraction', area: 'actors', layer: 'policy', actor: 'china', kind: 'untagged',
+    unit: 'fraction', area: 'actors', layer: 'policy', actor: 'china', kind: 'designer', source: 'V2-SPEC §3.10.4', notes: 'A8c: spec states safetyInvestment 0.10 + 0.4 x safetyConcern / 100.',
     evidence: 'no tag; rivals.ts:183-184 "China\'s safety investment follows its safety concern (§3.10.4)."',
   },
   {
@@ -513,14 +513,14 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     id: 'act.intel.leadSd',
     ref: { kind: 'inline', file: INTEL, anchor: 'const sd = 20 + 80 * Math.exp(-0.6 * evidence);' },
     value: [20, 80, 0.6],
-    unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
+    unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged', notes: 'readout (A10).',
     evidence: 'no tag; intel.ts:50 (sd of the player\'s lead estimate shrinks with evidence)',
   },
   {
     id: 'act.relations.trustLossFactor',
     ref: { kind: 'inline', file: REL, anchor: 'base * 3 * (1 + T / 100)' },
     value: 3,
-    unit: 'multiplier', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
+    unit: 'multiplier', area: 'actors', layer: 'world', actor: 'player', kind: 'designer', source: 'V2-SPEC §3.9.1', notes: 'A8c: spec states loss = base x 3 x (1 + T/100).',
     evidence: 'no tag; relations.ts:17 "Trust gain/loss asymmetry (§3.9.1): gain base·(1 − T/100); loss base·3·(1 + T/100)."',
   },
   {

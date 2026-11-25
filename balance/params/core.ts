@@ -22,9 +22,9 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.GATE_OOM',
     ref: { kind: 'inline', file: REF, anchor: 'const GATE_OOM = {' },
-    value: [1.3656, 1.7706, 2.9856, 3.5256], unit: 'OOM above V0', ...BOT, kind: 'derived',
+    value: [1.3656, 1.7706, 2.9856, 3.5256], unit: 'OOM above V0', ...BOT, kind: 'untagged',
     evidence: 'ref.ts:63-66 "Each constant is that conversion\'s value on the ai2027 preset" (v2 display levels converted through the level map)',
-    notes: 'Array order = L65, L7, L85, L95 (gates for rl.mlResearch, P08, P23, P17 in REF_TREE / SAFE_TREE_EXTRA).',
+    notes: 'A7: literal copy of v2 display-level gates converted through the level map (ref.ts:63-66); no registered original. Array order = L65, L7, L85, L95.',
   },
   {
     id: 'bots.ref.REF_TREE',
@@ -56,7 +56,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.ref.REF_BASE_DAYS',
     ref: { kind: 'inline', file: REF, anchor: 'const REF_BASE_DAYS = 121;' },
-    value: 121, unit: 'days (base run length at 60% of the pool)', ...BOT, kind: 'derived',
+    value: 121, unit: 'days (base run length at 60% of the pool)', ...BOT, kind: 'untagged', notes: 'A7: literal copy of a v2 run result: mkt.ces.frontierDays 91 d x 0.8 / 0.6 = 121 (original untagged).',
     evidence: 'ref.ts:101-104 "v2\'s reference run (1 × F(t) = 91 days of 80% of the reference training pool) took 121 days at that share" (91 × 0.8 / 0.6)',
   },
   {
@@ -569,7 +569,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'bots.common.LEADER_CAP_STAFF',
     ref: { kind: 'inline', file: COM, anchor: 'const LEADER_CAP_STAFF = 2020;' },
-    value: 2020, unit: 'heads', ...BOT, kind: 'derived',
+    value: 2020, unit: 'heads', ...BOT, kind: 'untagged', notes: 'A7: literal copy of mkt.START_TEAMS.classic (4 x 150 + 11 x 100 + 8 x 40 = 2020); original untagged.',
     evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40)" = 2020',
   },
   // ───────────────────────────── core/ ─────────────────────────────
@@ -590,16 +590,16 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.clock.Y10_SD_DAILY',
     ref: { kind: 'inline', file: 'src/engine/v2/core/clock.ts', anchor: 'const Y10_SD_DAILY = 0.25 / Math.sqrt(91);' },
-    value: 0.0262, unit: 'percentage points per day', area: 'finance', layer: 'world', kind: 'untagged',
+    value: 0.0262, unit: 'percentage points per day', area: 'finance', layer: 'world', kind: 'derived',
     evidence: 'no tag; clock.ts:6 "σ = 25bp per quarter"',
-    notes: 'Computed as 0.25 / sqrt(91); the snapshot value is rounded.',
+    notes: 'A7: computed in code as 0.25 / sqrt(91); the snapshot value is rounded.',
   },
   {
     id: 'core.clock.Y10_REVERT_DAILY',
     ref: { kind: 'inline', file: 'src/engine/v2/core/clock.ts', anchor: 'const Y10_REVERT_DAILY = 0.15 / 91;' },
-    value: 0.001648, unit: 'fraction of the gap per day', area: 'finance', layer: 'world', kind: 'designer',
+    value: 0.001648, unit: 'fraction of the gap per day', area: 'finance', layer: 'world', kind: 'derived',
     evidence: 'clock.ts:7 "[D] mean reversion ≈15% of the gap per quarter"',
-    notes: 'Computed as 0.15 / 91; the snapshot value is rounded.',
+    notes: 'A7: computed in code as 0.15 / 91 ([D] 15% a quarter); the snapshot value is rounded.',
   },
   {
     id: 'core.clock.sofrSpread',
@@ -622,9 +622,9 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.starts.KW_PER_H',
     ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: 'const KW_PER_H = 0.93;' },
-    value: 0.93, unit: 'kW per H100e', area: 'core', layer: 'world', actor: 'player', kind: 'unclear',
+    value: 0.93, unit: 'kW per H100e', area: 'core', layer: 'world', actor: 'player', kind: 'sourced', source: 'research/15 §1.2 ("R15")',
     evidence: 'starts.ts:15 "kW per H100e at the start (compute/power.ts initialPower) and site headroom for the owned fleet [D]": one [D] closes a sentence about two constants',
-    notes: 'See Q-core-3.',
+    notes: 'A7: copy of mod.power.kWPerH100e0 (compute/power.ts initialPower).',
   },
   {
     id: 'core.starts.SITE_HEADROOM',
@@ -635,14 +635,14 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.starts.LEASE_PER_GW_Y',
     ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: 'const LEASE_PER_GW_Y = 1.2;' },
-    value: 1.2, unit: 'USD B per GW-year', area: 'core', layer: 'world', actor: 'player', kind: 'derived',
+    value: 1.2, unit: 'USD B per GW-year', area: 'core', layer: 'world', actor: 'player', kind: 'sourced', source: 'research/15',
     evidence: 'starts.ts:18 "Colocation lease ≈ $1.2B per GW-year (finance/ledger.ts, R15)": a copy of the ledger\'s rate (ledger.ts:17 tags it "[D]")',
-    notes: 'Copy of finance/ledger.ts S1 lease rate.',
+    notes: 'A7: copy of mkt.LEASE.perGWYear (finance/ledger.ts S1 lease rate).',
   },
   {
     id: 'core.starts.BROWNFIELD_PER_GW',
     ref: { kind: 'inline', file: 'src/engine/v2/core/starts.ts', anchor: 'const BROWNFIELD_PER_GW = 14;' },
-    value: 14, unit: 'USD B per GW', area: 'core', layer: 'world', actor: 'player', kind: 'derived',
+    value: 14, unit: 'USD B per GW', area: 'core', layer: 'world', actor: 'player', kind: 'sourced', source: 'research/15 §1.2 ("R15")', notes: 'A7: literal 14 = mkt.FACILITY_PER_GW 10 + mkt.NETWORK_PER_GW 4 (the leader start site).',
     evidence: 'starts.ts:18 "brownfield capex $14B/GW (the leader\'s S2)": copied from the leader start\'s site',
   },
   {
@@ -693,14 +693,14 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.UPKEEP.product',
     ref: { kind: 'export', module: 'src/engine/v2/departments/build.ts', symbol: 'UPKEEP', path: ['product'] },
-    value: 0.2, unit: 'team-weeks per week per product', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
+    value: 0.2, unit: 'team-weeks per week per product', area: 'core', layer: 'world', actor: 'player', kind: 'fitted', fit: { targets: [], script: 'manual' },
     evidence: 'build.ts:66 "Standing engineering load, team-weeks per week [D] (J2 P1). Product: 0.2 + 1.6 × √(revenue ÷ $10B/yr)"',
-    notes: 'The comment also says J2 tuned the model v3 V3 upkeep (x 0.4) to v2\'s build capacity; no [C] tag, no script named.',
+    notes: 'A5: "Model v3 V3: product and monitor upkeep x 0.4 ... J2 tuned it to v2 build capacity". The 0.2 + 1.6 sqrt(revenue / $10B) form is [D] (J2 P1).',
   },
   {
     id: 'core.UPKEEP.productRev',
     ref: { kind: 'export', module: 'src/engine/v2/departments/build.ts', symbol: 'UPKEEP', path: ['productRev'] },
-    value: 1.6, unit: 'team-weeks per week at revUnit revenue', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
+    value: 1.6, unit: 'team-weeks per week at revUnit revenue', area: 'core', layer: 'world', actor: 'player', kind: 'fitted', fit: { targets: [], script: 'manual' }, notes: 'A5: same J2 tuning (x 0.4 to v2 build capacity) as core.UPKEEP.product.',
     evidence: 'build.ts:66-67 "[D] (J2 P1). Product: 0.2 + 1.6 × √(revenue ÷ $10B/yr)"',
   },
   {
@@ -712,22 +712,22 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.UPKEEP.monitor',
     ref: { kind: 'export', module: 'src/engine/v2/departments/build.ts', symbol: 'UPKEEP', path: ['monitor'] },
-    value: 0.4, unit: 'team-weeks per week per monitor', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
+    value: 0.4, unit: 'team-weeks per week per monitor', area: 'core', layer: 'world', actor: 'player', kind: 'fitted', fit: { targets: [], script: 'manual' }, notes: 'A5: same J2 tuning (x 0.4 to v2 build capacity) as core.UPKEEP.product.',
     evidence: 'build.ts:66-68 "[D] (J2 P1) ... each monitor in production 0.4"',
   },
   {
     id: 'core.UPKEEP.featureYr',
     ref: { kind: 'export', module: 'src/engine/v2/departments/build.ts', symbol: 'UPKEEP', path: ['featureYr'] },
-    value: 0.5, unit: 'fraction of build team-weeks per year', area: 'core', layer: 'world', actor: 'player', kind: 'derived',
+    value: 0.5, unit: 'fraction of build team-weeks per year', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
     evidence: 'build.ts:72 "featureYr: TOOL_UPKEEP.yr" (data/v2/tools.ts:297); build.ts:81 "[D]: a built product tool in use keeps half its build team-weeks busy each year"',
-    notes: 'Copy of TOOL_UPKEEP.yr; the value lives in data/v2/tools.ts.',
+    notes: 'A7: copy of mkt.TOOL_UPKEEP.yr (data/v2/tools.ts).',
   },
   {
     id: 'core.UPKEEP.featureIdle',
     ref: { kind: 'export', module: 'src/engine/v2/departments/build.ts', symbol: 'UPKEEP', path: ['featureIdle'] },
-    value: 0.1, unit: 'fraction of featureYr when built but unused', area: 'core', layer: 'world', actor: 'player', kind: 'derived',
+    value: 0.1, unit: 'fraction of featureYr when built but unused', area: 'core', layer: 'world', actor: 'player', kind: 'designer',
     evidence: 'build.ts:72 "featureIdle: TOOL_UPKEEP.idle" (data/v2/tools.ts:297)',
-    notes: 'Copy of TOOL_UPKEEP.idle.',
+    notes: 'A7: copy of mkt.TOOL_UPKEEP.idle (data/v2/tools.ts).',
   },
   {
     id: 'core.LAUNCH_TW',
@@ -892,7 +892,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.endings.catastropheP',
     ref: { kind: 'inline', file: 'src/engine/v2/endings/endings.ts', anchor: 'rng.chance(0.15 * exposure * (1 - defenceIndex(s, kind)))' },
-    value: 0.15, unit: 'probability scale', area: 'worldfx', layer: 'world', kind: 'untagged',
+    value: 0.15, unit: 'probability scale', area: 'worldfx', layer: 'world', kind: 'designer', source: 'V2-SPEC §5.1 #4', notes: 'A8c: spec states P = 0.15 x exposure x (1 - defense).',
     evidence: 'no tag; endings.ts:53-54 "civilisation-scale with P = 0.15·exposure·(1 − defence) (§5.1 #4)"',
   },
   {
@@ -934,29 +934,29 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.epilogue.playerContain',
     ref: { kind: 'inline', file: 'src/engine/v2/endings/epilogue.ts', anchor: 'gate.active && !gate.falseValidated ? 0.2 : 0;' },
-    value: [0.2, 0.1], unit: 'containment (verified gatekeeper; AG10 adopted)', area: 'safety', layer: 'world', actor: 'player', kind: 'untagged',
+    value: [0.2, 0.1], unit: 'containment (verified gatekeeper; AG10 adopted)', area: 'safety', layer: 'world', actor: 'player', kind: 'designer', source: 'V2-SPEC §5.2',
     evidence: 'no tag; epilogue.ts:23 "Cont = Contain(ASI) + 0.2·[F32 verified gatekeeper] + 0.1·[AG10 e > 0.6 adopted], clamped 0..1" (§5.2)',
-    notes: 'AG10 counts when its true efficacy exceeds 0.6.',
+    notes: 'A8c: spec states Cont = Contain(2000) + 0.2 [F32] + 0.1 [AG10 e > 0.6].',
   },
   // ───────────────────────────── events/ ─────────────────────────────
   {
     id: 'core.STORYTELLERS.maxCrises',
     ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'maxCrises'] },
-    unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'untagged',
+    unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
     evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)" (header :7-8 "at most `maxCrises` crisis decisions pending")',
-    notes: 'Measured 1, rising 2, chaotic 2.',
+    notes: 'A8c: spec table states 1 / 2 / 2 (Measured, Rising, Chaotic).',
   },
   {
     id: 'core.STORYTELLERS.quietDays',
     ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'quietDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'untagged',
+    unit: 'days', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
     evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)"',
-    notes: 'Measured 21, rising 14, chaotic 7.',
+    notes: 'A8c: spec table states 21 / 14 / 7 days.',
   },
   {
     id: 'core.STORYTELLERS.mult',
     ref: { kind: 'inline', file: 'src/engine/v2/events/director.ts', anchor: 'export const STORYTELLERS: Record<StorytellerId, Storyteller> = {' },
-    value: 'measured 0.8; rising 0.7 + 0.2 × (act − 1); chaotic 1.2 × noise (noise ~ N(1, 0.3) clamped 0.4-1.6, redrawn monthly)', unit: 'trigger probability multiplier', area: 'core', layer: 'world', kind: 'untagged',
+    value: 'measured 0.8; rising 0.7 + 0.2 × (act − 1); chaotic 1.2 × noise (noise ~ N(1, 0.3) clamped 0.4-1.6, redrawn monthly)', unit: 'trigger probability multiplier', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1', notes: 'A8c: spec table states 0.8 / ramp 0.7 to 1.3 / 1.2 +-30%.',
     evidence: 'no tag; director.ts:23-27 "Storyteller table (§4.1)"; header :9 "trigger probability multiplier by storyteller"',
   },
   {

@@ -14,17 +14,20 @@ const AGENTS = 'src/data/v2/agents.ts';
 
 type Field = {
   name: string; unit?: string; area: Param['area']; layer: Param['layer']; actor?: Param['actor'];
-  kind: Param['kind']; evidence: string; source?: string; notes?: string;
+  kind?: Param['kind']; evidence?: string; source?: string; notes?: string;
 };
 type Preset = { id: string; values: (number | number[])[]; skip?: string[] };
 
-/** One entry per preset and field. `fields[i]` describes `preset.values[i]`; `index` is the preset's array index. */
+/** One entry per preset and field. `fields[i]` describes `preset.values[i]`; `index` is the preset's array index. A field
+ *  with no `kind` takes it from `override` (the research-row tables below); a preset or field the override leaves alone
+ *  keeps the field's own kind and evidence. */
 function presetParams(prefix: string, module: string, symbol: string, fields: Field[], presets: Preset[], override?: (preset: string, f: Field) => Partial<Field> | undefined): Param[] {
   const out: Param[] = [];
   presets.forEach((p, index) => {
     fields.forEach((f0, i) => {
       if (p.skip?.includes(f0.name)) return;
       const f = { ...f0, ...(override?.(p.id, f0) ?? {}) };
+      if (!f.kind || !f.evidence) throw new Error(`${prefix}.${symbol}.${p.id}.${f.name}: no kind or evidence`);
       const e: Param = {
         id: `${prefix}.${symbol}.${p.id}.${f.name}`,
         ref: { kind: 'export', module, symbol, path: [index, f.name] },
@@ -42,22 +45,51 @@ function presetParams(prefix: string, module: string, symbol: string, fields: Fi
   return out;
 }
 
+// Research-row checks (CLASSIFY A1). For each preset the research row is quoted once; every field is then one of:
+//   true          the row states this number: sourced
+//   { s: note }   sourced, with a note on how the row states it
+//   string        designer: the row does not list the field, or lists a different number (the string says which)
+//   { q: note }   unclear: CLASSIFY does not settle it (see the notes file)
+//   null          the field keeps its own kind and evidence
+// research/07-actors.md:18 says "A preset is a set of multipliers on a common parameter schema"; it does not say that
+// fields a row leaves out are baseline, so an unlisted field is a designer value.
+type Cell = true | string | { s: string } | { q: string } | null;
+type Row = { name: string; file: string; line: number; text: string; weight: string; cells: Record<string, Cell> };
+const R07 = 'research/07-actors.md';
+const R10 = 'research/10-china.md';
+const N07 = 'not in research/07';
+const N10 = 'not in research/10';
+
+function rowOverride(rows: Record<string, Row>) {
+  return (id: string, f: Field): Partial<Field> | undefined => {
+    const r = rows[id];
+    if (!r) return undefined;
+    if (!(f.name in r.cells)) throw new Error(`${id}.${f.name}: no cell`);
+    const c = r.cells[f.name];
+    if (c === null) return undefined;
+    const where = `${r.file}:${r.line} ${r.name}`;
+    const quoted = f.name === 'weight' ? `${where} "Realistic weight ${r.weight}"` : `${where} "${r.text}"`;
+    const join = (n?: string) => [f.notes?.replace(/\.$/, ''), n].filter(Boolean).join('; ') || undefined;
+    const source = `${r.file}:${r.line}`;
+    if (c === true) return { kind: 'sourced', evidence: quoted, source };
+    if (typeof c === 'string') return { kind: 'designer', evidence: quoted, notes: join(c) };
+    if ('s' in c) return { kind: 'sourced', evidence: quoted, source, notes: join(c.s) };
+    return { kind: 'unclear', evidence: quoted, notes: join(c.q) };
+  };
+}
+
 // ───────────────────────── actors.ts: GOV_PRESETS ─────────────────────────
-const GOV_UNCLEAR = 'actors.ts:1 "Source: research/07-actors.md (weights = \\"Realistic\\" draw probabilities)" names the weights only; the trait values (rows actors.ts:9-13) carry no tag of their own';
 const GOV_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'gov', kind: 'sourced',
-    evidence: 'actors.ts:1 "Source: research/07-actors.md (weights = \\"Realistic\\" draw probabilities)"', source: 'research/07-actors.md',
+  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'gov',
     notes: 'Probability a sampled world draws this government personality; the five weights sum to 100.' },
-  { name: 'accel', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'security', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'reg', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'transactional', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'hawk', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'natThreshold', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR,
-    notes: 'Nationalization index above which the government escalates (gov.ts:141, :152, :154); Q-actors-data-1' },
-  { name: 'lag', unit: 'days', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR,
-    notes: 'Hold time before a security rung (gov.ts:143, 0.7 x lag, floor 7 days); Q-actors-data-1' },
-  { name: 'pollSensitivity', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov', kind: 'unclear', evidence: GOV_UNCLEAR, notes: 'Q-actors-data-1' },
+  { name: 'accel', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+  { name: 'security', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+  { name: 'reg', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+  { name: 'transactional', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+  { name: 'hawk', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
+  { name: 'natThreshold', area: 'actors', layer: 'policy', actor: 'gov', notes: 'Nationalization index above which the government escalates (gov.ts:141, :152, :154)' },
+  { name: 'lag', unit: 'days', area: 'actors', layer: 'policy', actor: 'gov', notes: 'Hold time before a security rung (gov.ts:143, 0.7 x lag, floor 7 days)' },
+  { name: 'pollSensitivity', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'gov' },
 ];
 const GOV_VALUES: Preset[] = [
   { id: 'dealmaker', values: [45, 1.5, 0.8, 0.4, 1.6, 0.8, 85, 20, 1] },
@@ -66,20 +98,30 @@ const GOV_VALUES: Preset[] = [
   { id: 'regulator', values: [12, 0.8, 1.2, 1.6, 0.6, 0.9, 70, 25, 1.2] },
   { id: 'absentee', values: [5, 0.6, 0.6, 0.6, 1, 0.6, 90, 45, 0.6] },
 ];
+const GOV_ROWS: Record<string, Row> = {
+  dealmaker: { name: 'Dealmaker', file: R07, line: 70, weight: '45%', text: 'accel 1.5, transactional 1.6, reg 0.4, security 0.8, hawk 0.8, nat_threshold 85, lag 20',
+    cells: { weight: true, accel: true, security: true, reg: true, transactional: true, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
+  hawk: { name: 'Security Hawk', file: R07, line: 71, weight: '25%', text: 'security 1.6, hawk 1.6, accel 1.1, reg 0.7, nat_threshold 60, lag 10',
+    cells: { weight: true, accel: true, security: true, reg: true, transactional: N07, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
+  populist: { name: 'Populist', file: R07, line: 73, weight: '13%', text: 'reg 1.2 (only when Public.Concern > 60), accel 1.0, transactional 1.2, poll_sensitivity 2.0, lag 15',
+    cells: { weight: true, accel: true, security: N07, reg: { s: 'research/07 conditions it on Public.Concern > 60; the preset field carries no condition' }, transactional: true, hawk: N07, natThreshold: N07, lag: true, pollSensitivity: true } },
+  regulator: { name: 'Cautious Regulator', file: R07, line: 72, weight: '12%', text: 'reg 1.6, accel 0.8, security 1.2, hawk 0.9, transactional 0.6, nat_threshold 70, lag 25',
+    cells: { weight: true, accel: true, security: true, reg: true, transactional: true, hawk: true, natThreshold: true, lag: true, pollSensitivity: N07 } },
+  absentee: { name: 'Absentee', file: R07, line: 74, weight: '5%', text: 'all biases 0.6, lag 45, nat_threshold 90',
+    cells: { weight: true, accel: { s: 'accel_bias, "all biases 0.6"' }, security: { s: 'security_bias, "all biases 0.6"' }, reg: { s: 'reg_bias, "all biases 0.6"' },
+      transactional: N07, hawk: { s: 'hawk_bias, "all biases 0.6"' }, natThreshold: true, lag: true, pollSensitivity: 'not in research/07; poll_sensitivity is not one of the *_bias params that "all biases 0.6" names' } },
+};
 
 // ───────────────────────── actors.ts: PUBLIC_PRESETS ─────────────────────────
-const PUB_UNCLEAR = 'actors.ts:1 "Source: research/07-actors.md (weights = \\"Realistic\\" draw probabilities)" names the weights only; the trait values (rows actors.ts:21-25) carry no tag of their own';
 const PUB_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'public', kind: 'sourced',
-    evidence: 'actors.ts:1 "Source: research/07-actors.md (weights = \\"Realistic\\" draw probabilities)"', source: 'research/07-actors.md',
+  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'public',
     notes: 'Probability a sampled world draws this public mood; the five weights sum to 100.' },
-  { name: 'shock', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'halfLife', unit: 'days', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR,
-    notes: 'Concern decays toward base with ln2 / halfLife per day (public.ts:37); Q-actors-data-1' },
-  { name: 'jobs', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'xrisk', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'benefit', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'mobilization', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'unclear', evidence: PUB_UNCLEAR, notes: 'Q-actors-data-1' },
+  { name: 'shock', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
+  { name: 'halfLife', unit: 'days', area: 'actors', layer: 'world', actor: 'public', notes: 'Concern decays toward base with ln2 / halfLife per day (public.ts:37)' },
+  { name: 'jobs', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
+  { name: 'xrisk', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
+  { name: 'benefit', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
+  { name: 'mobilization', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public' },
 ];
 const PUB_VALUES: Preset[] = [
   { id: 'anxious', values: [50, 1, 120, 1.2, 1, 0.7, 0.8] },
@@ -88,22 +130,37 @@ const PUB_VALUES: Preset[] = [
   { id: 'doomer', values: [10, 1.3, 140, 1, 1.8, 0.7, 1.2] },
   { id: 'distracted', values: [8, 0.6, 60, 0.8, 0.7, 0.8, 0.4] },
 ];
+const PUB_ROWS: Record<string, Row> = {
+  anxious: { name: 'Anxious Majority', file: R07, line: 159, weight: '50%', text: 'shock 1.0, decay half-life 120 d, jobs 1.2, xrisk 1.0, benefit 0.7, mobilization 0.8',
+    cells: { weight: true, shock: true, halfLife: true, jobs: true, xrisk: true, benefit: true, mobilization: true } },
+  backlash: { name: 'Populist Backlash', file: R07, line: 160, weight: '22%', text: 'jobs 1.6, mobilization 1.5, DC_NIMBY growth ×2, OB_Approval drift −0.05/day while OB is in the news',
+    cells: { weight: true, shock: N07, halfLife: N07, jobs: true, xrisk: N07, benefit: N07, mobilization: true } },
+  optimist: { name: 'Tech Optimist', file: R07, line: 161, weight: '10%', text: 'benefit 1.6, decay half-life 45 d, shock 0.7, mobilization 0.5',
+    cells: { weight: true, shock: true, halfLife: true, jobs: N07, xrisk: N07, benefit: true, mobilization: true } },
+  doomer: { name: 'Doomer Wave', file: R07, line: 162, weight: '10%', text: 'xrisk 1.8, shock 1.3, mobilization 1.2',
+    cells: { weight: true, shock: true, halfLife: N07, jobs: N07, xrisk: true, benefit: N07, mobilization: true } },
+  distracted: { name: 'Distracted', file: R07, line: 163, weight: '8%', text: 'shock 0.6, salience cap 8, mobilization 0.4',
+    cells: { weight: true, shock: true, halfLife: N07, jobs: N07, xrisk: N07, benefit: N07, mobilization: true } },
+};
 
 // ───────────────────────── actors.ts: CHINA_PRESETS ─────────────────────────
-const CN_UNCLEAR = 'actors.ts:31 "Weights from research/10-china.md ... which supersedes 07" names the weights only; the trait values (rows actors.ts:36-41) carry no tag of their own';
+// The preset names in research/10 differ from the code's (Fast Follower = fastfollower, Open-Source Diffuser = diffuser,
+// Self-Reliance Fortress = selfreliant, Centralized Sprint = nationalizer, Hawkish Gambler = gambler (a sub-roll of the
+// Sprint), Cautious Stabilizer = bargainer). The `hawk` field is an absolute Hawk_vs_Dove score; research/10 gives
+// offsets from a start of 45 ("45 [D]", research/10-china.md:39).
 const CN_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'china', kind: 'sourced',
-    evidence: 'actors.ts:31 "Weights from research/10-china.md (China deep dive, incl. Chinese-language sources), which supersedes 07."', source: 'research/10-china.md',
+  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'china',
     notes: 'Probability a sampled world draws this China posture; the six weights sum to 100.' },
-  { name: 'centralize', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'theft', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'taiwan', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'treaty', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Q-actors-data-1' },
-  { name: 'openSource', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Q-actors-data-1' },
+  { name: 'centralize', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
+  { name: 'theft', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
+  { name: 'taiwan', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
+  { name: 'treaty', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
+  { name: 'openSource', unit: 'multiplier', area: 'actors', layer: 'policy', actor: 'china' },
   { name: 'efficiency', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'china', kind: 'designer',
     evidence: 'actors.ts:32-34 "efficiency: 1 for every preset (CAL-W: AI 2027 gives DeepCent no research efficiency separable from compute; the Fast Follower 1.1 / Diffuser 1.05 flavours were [D] with no source; designer CP3k: equal recipe efficiency)"',
-    notes: 'Designer CP3k plus research pointer CAL-W (research/CAL-world-sources.md, as world.ts:220-221 cites it); 1 in every preset.' },
-  { name: 'hawk', area: 'actors', layer: 'policy', actor: 'china', kind: 'unclear', evidence: CN_UNCLEAR, notes: 'Hawkishness score, 30-80 (Q-actors-data-1)' },
+    source: 'research/CAL-world-sources.md (CAL-W)',
+    notes: 'Designer CP3k plus research pointer CAL-W (as world.ts:220-221 cites it); 1 in every preset. research/10 says "cost_efficiency +25%" / "rd efficiency +20%" for the Fast Follower; the code has 1.' },
+  { name: 'hawk', area: 'actors', layer: 'policy', actor: 'china', notes: 'Hawkishness score, 30-80' },
 ];
 const CN_VALUES: Preset[] = [
   { id: 'fastfollower', values: [35, 0.5, 0.7, 0.8, 1, 1.3, 1, 40] },
@@ -113,18 +170,37 @@ const CN_VALUES: Preset[] = [
   { id: 'gambler', values: [5, 1.6, 1.6, 2, 0.4, 0.3, 1, 80] },
   { id: 'bargainer', values: [10, 1, 0.8, 0.6, 1.8, 0.9, 1, 30] },
 ];
+const GAMBLER_Q = 'the row gives only taiwan 2.0 and treaty 0.4; the Gambler is a sub-roll of the Centralized Sprint, but CLASSIFY does not say whether a sub-roll inherits the parent row (Q-actors-data-8)';
+const CN_ROWS: Record<string, Row> = {
+  fastfollower: { name: 'Fast Follower', file: R10, line: 51, weight: '35%', text: 'centralize 0.5, distill 1.5, open 1.3, theft 0.7, taiwan 0.8, treaty 1.0, cost_efficiency +25%',
+    cells: { weight: true, centralize: true, theft: true, taiwan: true, treaty: true, openSource: { s: 'research/10 names it "open"' }, efficiency: null, hawk: N10 } },
+  diffuser: { name: 'Open-Source Diffuser', file: R10, line: 52, weight: '20%', text: 'open 1.8, norms_diplo +20, global_share_bonus, theft 0.8, taiwan 0.7',
+    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: 'not in research/10 (the row has norms_diplo +20, no treaty)', openSource: { s: 'research/10 names it "open"' }, efficiency: null, hawk: N10 } },
+  selfreliant: { name: 'Self-Reliance Fortress', file: R10, line: 53, weight: '20%', text: 'self_reliance 1.8, domestic_fab ×1.5, US_chip_uptake 0.3, smuggling 0.8, taiwan 0.6, centralize 1.0',
+    cells: { weight: true, centralize: true, theft: N10, taiwan: true, treaty: N10, openSource: N10, efficiency: null, hawk: N10 } },
+  nationalizer: { name: 'Centralized Sprint', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail ... about 5% overall)',
+    text: 'centralize 1.6, theft 1.6, open → 0.3 after rung 3, taiwan 1.3, treaty 0.7 (offers only from weakness), hawk +20',
+    cells: { weight: { s: '15% less the Gambler tail of 1 in 3 (about 5% overall) = 10' }, centralize: true, theft: true, taiwan: true, treaty: true,
+      openSource: 'research/10 says "open → 0.3 after rung 3"; the preset field holds 0.3 with no rung condition',
+      efficiency: null, hawk: { q: 'research/10 gives hawk +20 and a start of 45 [D]; 65 is 45 + 20, a sum of two research numbers that the text does not state (Q-actors-data-9)' } } },
+  gambler: { name: 'Hawkish Gambler', file: R10, line: 54, weight: '15% (sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall)',
+    text: 'sub-roll: 1 in 3 is the Hawkish Gambler tail, taiwan 2.0, treaty 0.4, about 5% overall',
+    cells: { weight: true, centralize: { q: GAMBLER_Q }, theft: { q: GAMBLER_Q }, taiwan: true, treaty: true, openSource: { q: GAMBLER_Q }, efficiency: null,
+      hawk: 'research/07-actors.md:281 says Taiwan Gambler "hawk +30" (75 from a start of 45); the code has 80' } },
+  bargainer: { name: 'Cautious Stabilizer', file: R10, line: 55, weight: '10%', text: 'treaty 1.8, verification +25, safety +25, taiwan 0.6, theft 0.8',
+    cells: { weight: true, centralize: N10, theft: true, taiwan: true, treaty: true, openSource: N10, efficiency: null, hawk: N10 } },
+};
 
 // ───────────────────────── actors.ts: LAB_ARCHETYPES ─────────────────────────
-const LAB_UNCLEAR = 'actors.ts:1 "Source: research/07-actors.md (weights = \\"Realistic\\" draw probabilities)" is the file header for "Actor personality presets"; the lab archetype rows (actors.ts:49-54) carry no tag of their own';
+// gapYears: research/07 gives the gap in months (the Gap_Months meter, research/07-actors.md:204); the code is in years.
 const LAB_FIELDS: Field[] = [
-  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR,
-    notes: 'Probability a rival draws this archetype; the five sampled weights sum to 100. Q-actors-data-2' },
-  { name: 'safety', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR, notes: 'Q-actors-data-2' },
-  { name: 'openness', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR, notes: 'Q-actors-data-2' },
-  { name: 'lobby', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR, notes: 'Lobbying stance, -70..60; Q-actors-data-2' },
-  { name: 'computeMult', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR, notes: 'Q-actors-data-2' },
-  { name: 'gapYears', unit: 'years', area: 'actors', layer: 'world', actor: 'rivals', kind: 'unclear', evidence: LAB_UNCLEAR,
-    notes: 'Array order = low, high (start gap range behind the leader); Q-actors-data-2' },
+  { name: 'weight', unit: 'percent (draw probability)', area: 'actors', layer: 'world', actor: 'rivals',
+    notes: 'Probability a rival draws this archetype; the five sampled weights sum to 100.' },
+  { name: 'safety', area: 'actors', layer: 'policy', actor: 'rivals' },
+  { name: 'openness', area: 'actors', layer: 'policy', actor: 'rivals' },
+  { name: 'lobby', area: 'actors', layer: 'policy', actor: 'rivals', notes: 'Lobbying stance, -70..60' },
+  { name: 'computeMult', unit: 'multiplier', area: 'actors', layer: 'world', actor: 'rivals' },
+  { name: 'gapYears', unit: 'years', area: 'actors', layer: 'world', actor: 'rivals', notes: 'Array order = low, high (start gap range behind the leader)' },
 ];
 const LAB_VALUES: Preset[] = [
   { id: 'safety', values: [25, 80, 15, 60, 0.8, [0.15, 0.45]] },
@@ -135,6 +211,18 @@ const LAB_VALUES: Preset[] = [
   // The leader row (actors.ts:50-53 comment): never sampled; computeMult and gapYears are "unused", so not registered.
   { id: 'leader', values: [0, 35, 25, -30, 1, [0, 0]], skip: ['computeMult', 'gapYears'] },
 ];
+const LAB_ROWS: Record<string, Row> = {
+  safety: { name: 'Safety Rival', file: R07, line: 219, weight: '25%', text: 'safety 80, openness 15, lobby +60, poach 40, cooperation 50, gap 2-6',
+    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: N07, gapYears: 'research/07 says gap 2-6 months (0.17-0.5 y); the code has 0.15-0.45' } },
+  bigtech: { name: 'Big Tech Incumbent', file: R07, line: 220, weight: '30%', text: 'safety 50, openness 30, lobby -20, compute ×1.5, gap 1-5, reaction lag 30 d',
+    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: 'research/07 says compute ×1.5; the code has 1.3', gapYears: 'research/07 says gap 1-5 months (0.08-0.42 y); the code has 0.1-0.4' } },
+  maverick: { name: 'Maverick Accelerationist', file: R07, line: 221, weight: '20%', text: 'safety 20, openness 50, lobby -70, build_speed ×1.5, scandal_rate ×2',
+    cells: { weight: true, safety: true, openness: true, lobby: true, computeMult: N07, gapYears: N07 } },
+  openweights: { name: 'Open-Weights Spoiler', file: R07, line: 222, weight: '15%', text: 'openness 85 (drops to 40 if gap < 3 mo), safety 30, gap 4-9',
+    cells: { weight: true, safety: true, openness: true, lobby: N07, computeMult: N07, gapYears: 'research/07 says gap 4-9 months (0.33-0.75 y); the code has 0.35-0.7' } },
+  upstart: { name: 'Boutique Upstart', file: R07, line: 223, weight: '10%', text: 'poach 80, compute ×0.3, gap 6-15, acquisition_prob high',
+    cells: { weight: true, safety: N07, openness: N07, lobby: N07, computeMult: true, gapYears: 'research/07 says gap 6-15 months (0.5-1.25 y); the code has 0.5-1.1' } },
+};
 const LEADER_NOTE = 'actors.ts:50-52 "The AI 2027 leading lab (BUILD-PLAN R2): never sampled (weight 0); ... at reference inputs"; no tag on the value';
 
 // ───────────────────────── world.ts: BASELINES ─────────────────────────
@@ -165,7 +253,7 @@ function baselineParams(): Param[] {
     const e: Param = {
       id: `acd.BASELINES.${r.id}.${f.name}`,
       ref: { kind: 'export', module: WORLD, symbol: 'BASELINES', path: [index, 'start', f.name] },
-      value: r.v[i], area: f.area, layer: f.layer, kind: f.kind, evidence: f.evidence, perPreset: true,
+      value: r.v[i], area: f.area, layer: f.layer, kind: f.kind!, evidence: f.evidence!, perPreset: true,
     };
     if (f.actor) e.actor = f.actor;
     if (f.unit) e.unit = f.unit;
@@ -183,13 +271,15 @@ const AUDIT8 = 'world.ts:161 "Audit #8 / §5.3: AIFM sampling_config(_q2_eli).ya
 const AUDIT9 = 'world.ts:167 "Audit #9 / §5.4: Daniel Aug-2026 (AC p50 2027.92) + AI 2027 p10 takeoff (SC->ASI ~0.21 y)."';
 const AUDIT22 = 'world.ts:174 "Audit #22 / §5.5: METR 7-month exponential; AI 2027 median h_SC and cs; SAR anchor lowered to avoid a 1.6->25 jump."';
 const SRC_RES11 = 'research/11-engine-audit.md (audit #1, world.ts:157; header world.ts:2-3 "audited against the primary sources in research/11-engine-audit.md")';
-const note1 = 'The comment sits above the one-line preset and is read as covering all of its fields (Q-actors-data-3).';
+const note1 = 'Covered by the audit comment directly above the one-line build() (CLASSIFY A9).';
+const FIT_AUDIT1 = 'Named in the comment (g0 and pEx "reproduce" the scenario dates; research/11-engine-audit.md:156,159 "[D] fit"); tuned by hand (CLASSIFY A5)';
 
 const PRESET_INLINE: Param[] = [
   // ai2027 (world.ts:158)
   { id: 'acd.world.ai2027.g0', ref: { kind: 'inline', file: WORLD, anchor: 'g0: 28.5' }, value: 28.5, unit: 'months',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
-    notes: 'Months of 2024/25-pace progress to superhuman-coder horizon (header world.ts:4); solves hSC.' },
+    area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
+    fit: { targets: [], script: 'manual' },
+    notes: FIT_AUDIT1 + '. Months of 2024/25-pace progress to superhuman-coder horizon (header world.ts:4); solves hSC.' },
   { id: 'acd.world.ai2027.T', ref: { kind: 'inline', file: WORLD, anchor: 'T: 4.74,' }, value: 4.74, unit: 'months per doubling',
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
   { id: 'acd.world.ai2027.decay', ref: { kind: 'inline', file: WORLD, anchor: 'decay: 0.1, g0: 28.5' }, value: 0.1, unit: 'fraction',
@@ -197,8 +287,9 @@ const PRESET_INLINE: Param[] = [
   { id: 'acd.world.ai2027.cs', ref: { kind: 'inline', file: WORLD, anchor: 'cs: 3.9,' }, value: 3.9, unit: 'months',
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
   { id: 'acd.world.ai2027.pEx', ref: { kind: 'inline', file: WORLD, anchor: 'pEx: 0.25,' }, value: 0.25,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
-    notes: 'Stage-1 multiplier M = 1 + pEx*(sEx/pEx)^f (world.ts:66).' },
+    area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
+    fit: { targets: [], script: 'manual' },
+    notes: FIT_AUDIT1 + '. Stage-1 multiplier M = 1 + pEx*(sEx/pEx)^f (world.ts:66).' },
   { id: 'acd.world.ai2027.sEx', ref: { kind: 'inline', file: WORLD, anchor: 'sEx: 4, G: [4.19' }, value: 4,
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
   { id: 'acd.world.ai2027.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [4.19, 16, 49.5]' }, value: [4.19, 16, 49.5], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
@@ -213,14 +304,14 @@ const PRESET_INLINE: Param[] = [
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT8, source: 'research/11-engine-audit.md audit #8 / §5.3 (AIFM sampling_config(_q2_eli).yaml medians)', perPreset: true, notes: note1 },
   { id: 'acd.world.authors2026.cs', ref: { kind: 'inline', file: WORLD, anchor: 'cs: 17,' }, value: 17, unit: 'months',
     area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT8, perPreset: true,
-    fit: { targets: [], script: 'unnamed' }, notes: 'Comment: "cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y".' },
+    fit: { targets: [], script: 'unnamed' }, notes: 'Named in the comment: "cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y".' },
   { id: 'acd.world.authors2026.pEx', ref: { kind: 'inline', file: WORLD, anchor: 'pEx: 0.1, sEx: 2' }, value: 0.1,
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT8, source: 'research/11-engine-audit.md audit #8 / §5.3 (AIFM sampling_config(_q2_eli).yaml medians)', perPreset: true, notes: note1 },
   { id: 'acd.world.authors2026.sEx', ref: { kind: 'inline', file: WORLD, anchor: 'sEx: 2, G: [1.52' }, value: 2,
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT8, source: 'research/11-engine-audit.md audit #8 / §5.3 (AIFM sampling_config(_q2_eli).yaml medians)', perPreset: true, notes: note1 },
   { id: 'acd.world.authors2026.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [1.52, 101, 1340]' }, value: [1.52, 101, 1340], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
     area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT8, perPreset: true,
-    fit: { targets: [], script: 'unnamed' }, notes: 'Comment: "cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y".' },
+    fit: { targets: [], script: 'unnamed' }, notes: 'Named in the comment: "cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y".' },
   // fast (world.ts:168)
   { id: 'acd.world.fast.hSCmin', ref: { kind: 'inline', file: WORLD, anchor: 'hSCmin: 12 * WORK_MONTH_MIN' }, value: 12, unit: 'work-months (x WORK_MONTH_MIN minutes)',
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
@@ -252,22 +343,22 @@ const PRESET_INLINE: Param[] = [
   { id: 'acd.world.slow.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [10, 394, 2000]' }, value: [10, 394, 2000], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5', perPreset: true, notes: note1 },
   { id: 'acd.world.slow.sarSpeed', ref: { kind: 'inline', file: WORLD, anchor: 'w.sarSpeed = 10;' }, value: 10, unit: 'x human-only speed at SAR',
-    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:174 "SAR anchor lowered to avoid a 1.6->25 jump" (an adjustment, not a tag)', perPreset: true,
-    notes: 'Otherwise sarSpeed = max(25, 1 + sEx) (world.ts:57).' },
+    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:174 "SAR anchor lowered to avoid a 1.6->25 jump" names this field but gives an adjustment, not a tag or source', perPreset: true,
+    notes: 'A separate statement after the build() call. Otherwise sarSpeed = max(25, 1 + sEx) (world.ts:57).' },
   { id: 'acd.world.slow.computeGrowth', ref: { kind: 'inline', file: WORLD, anchor: 'w.computeGrowth = 1.8;' }, value: 1.8, unit: 'x per year',
-    area: 'market', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:178 (slow preset override; world.ts:174 audit comment names no compute value)', perPreset: true },
+    area: 'market', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:178 (a separate statement after build(); the audit comment world.ts:174 names no compute value)', perPreset: true },
   { id: 'acd.world.slow.computeElasticity', ref: { kind: 'inline', file: WORLD, anchor: 'w.computeElasticity = 0.7;' }, value: 0.7, unit: 'exponent',
-    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:178 (slow preset override)', perPreset: true,
+    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:179 (a separate statement after build(); the audit comment world.ts:174 names no elasticity)', perPreset: true,
     notes: 'The other presets keep the build() default 0.5 (world.ts:147).' },
 ];
 
 export const PARAMS_ACTORS_DATA = defineParams([
   // ───────────────────────── actors.ts: presets (per preset and field) ─────────────────────────
-  ...presetParams('acd', ACT, 'GOV_PRESETS', GOV_FIELDS, GOV_VALUES),
-  ...presetParams('acd', ACT, 'PUBLIC_PRESETS', PUB_FIELDS, PUB_VALUES),
-  ...presetParams('acd', ACT, 'CHINA_PRESETS', CN_FIELDS, CN_VALUES),
-  ...presetParams('acd', ACT, 'LAB_ARCHETYPES', LAB_FIELDS, LAB_VALUES, (id) =>
-    id === 'leader' ? { kind: 'untagged', evidence: `no tag; ${LEADER_NOTE}`, notes: 'Leader row; weight 0 means never sampled. computeMult and gapYears are unused there and not registered.' } : undefined),
+  ...presetParams('acd', ACT, 'GOV_PRESETS', GOV_FIELDS, GOV_VALUES, rowOverride(GOV_ROWS)),
+  ...presetParams('acd', ACT, 'PUBLIC_PRESETS', PUB_FIELDS, PUB_VALUES, rowOverride(PUB_ROWS)),
+  ...presetParams('acd', ACT, 'CHINA_PRESETS', CN_FIELDS, CN_VALUES, rowOverride(CN_ROWS)),
+  ...presetParams('acd', ACT, 'LAB_ARCHETYPES', LAB_FIELDS, LAB_VALUES, (id, f) =>
+    id === 'leader' ? { kind: 'untagged', evidence: `no tag; ${LEADER_NOTE}`, notes: 'Leader row; weight 0 means never sampled. computeMult and gapYears are unused there and not registered.' } : rowOverride(LAB_ROWS)(id, f)),
 
   // ───────────────────────── world.ts ─────────────────────────
   ...baselineParams(),
@@ -352,31 +443,35 @@ export const PARAMS_ACTORS_DATA = defineParams([
   },
   {
     id: 'acd.BASE_RUN_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'BASE_RUN_DAYS' }, value: 121, unit: 'days',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
+    area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
     evidence: 'rivalModel.ts:17-18 "A base run trains for this many days on this share of the lab\'s training pool: RefBot\'s sizing (bases that train in ≈ 121 days on 60% of its pool, V1 notes; v2\'s 1F run) [D]."',
+    source: 'V1 notes; v2 1F run',
+    notes: 'copy of bots.ref.REF_BASE_DAYS (bots/ref.ts:105, 91 x 0.8 / 0.6); a literal copy takes the original\'s kind (CLASSIFY A7)',
   },
   {
     id: 'acd.BASE_POOL_SHARE', ref: { kind: 'export', module: RIVM, symbol: 'BASE_POOL_SHARE' }, value: 0.6, unit: 'fraction of training pool',
     area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
     evidence: 'rivalModel.ts:17-18 "...on this share of the lab\'s training pool: RefBot\'s sizing ... [D]." (one comment above both constants)',
+    source: 'V1 notes; bots/ref.ts:101 "60% of the pool"',
   },
   {
     id: 'acd.RIVAL_TPP', ref: { kind: 'export', module: RIVM, symbol: 'RIVAL_TPP' }, value: 400, unit: 'tokens per active parameter',
     area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
     evidence: 'rivalModel.ts:21-24 "the reference design\'s (runDesign.ts REF_TPP, 400 since A6b) [R20 A1, D]"; `RIVAL_TPP = REF_TPP`',
-    notes: 'Computed from REF_TPP (another file); the comment also tags [R20 A1, D] (DeepSeek-V3 about 400 tokens per active parameter).',
+    source: 'research/20 A1 (DeepSeek-V3 about 400 tokens per active parameter)',
+    notes: 'Computed from REF_TPP (another file; cap.REF_TPP); the comment also tags [R20 A1, D].',
   },
   {
     id: 'acd.CL_POOL_SHARE', ref: { kind: 'export', module: RIVM, symbol: 'CL_POOL_SHARE' }, value: 0.15, unit: 'fraction of training pool',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'stand-in',
-    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS)',
-    notes: 'Equals the player\'s STREAM_POOL_SHARE. Q-actors-data-4',
+    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
+    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS); "(the player\'s STREAM_POOL_SHARE; ...)"',
+    notes: 'copy of cap.STREAM_POOL_SHARE (runDesign.ts:124); a literal copy takes the original\'s kind (CLASSIFY A7)',
   },
   {
     id: 'acd.CL_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'CL_DAYS' }, value: 7, unit: 'days',
-    area: 'actors', layer: 'world', actor: 'rivals', kind: 'stand-in',
-    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS)',
-    notes: 'Q-actors-data-4',
+    area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
+    evidence: 'rivalModel.ts:25-30 "[D: stand-in, the player\'s rule at aggregate level]" (one comment above CL_POOL_SHARE and CL_DAYS); "every CL_DAYS spends the FLOP it delivered"',
+    notes: 'copy of cap.STREAM_PERIOD_DAYS (the player\'s weekly stream period, 7); a literal copy takes the original\'s kind (CLASSIFY A7)',
   },
   {
     id: 'acd.POST_DAYS', ref: { kind: 'export', module: RIVM, symbol: 'POST_DAYS' }, value: [42, 70], unit: 'days',
@@ -401,70 +496,71 @@ export const PARAMS_ACTORS_DATA = defineParams([
   // BLOCS records carry no per-record source; the file header (blocs.ts:1-4) cites research/08 for clout/approval and the agenda codes.
   {
     id: 'acd.BLOCS.clout', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'clout'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'sourced',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, Part 3 support/oppose codes)"',
-    source: 'research/08 §1.16 (clout/approval)', notes: 'Q-actors-data-5',
+    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
+    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Clout Jul-25", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
+    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Jul-25)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2: [D] plus a research pointer).',
   },
   {
     id: 'acd.BLOCS.cloutNov26', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'cloutNov26'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'untagged',
-    evidence: 'no tag; blocs.ts:68 field `cloutNov26` and rows blocs.ts:71-100 (the header cites research/08 §1.16 for "clout/approval" without naming this field)',
-    notes: 'Q-actors-data-5',
+    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
+    evidence: 'blocs.ts:1 header cites research/08 §1.16 "clout/approval"; research/08-policy-ecosystem.md:664-690 table "Clout Nov-26" (all rows equal), "All clout and approval numbers are [D] calibrations." and "Calibration logic for the Nov 2026 column"',
+    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Nov-26)', notes: 'The second starting column (research/08:13); the cited table states every value, tagged [D] (CLASSIFY A2).',
   },
   {
     id: 'acd.BLOCS.approval', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'approval'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'sourced',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, Part 3 support/oppose codes)"',
-    source: 'research/08 §1.16 (clout/approval)', notes: 'Q-actors-data-5',
+    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
+    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Default Approval_OB", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
+    source: 'research/08-policy-ecosystem.md §1.16 (table, Default Approval_OB)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2).',
   },
   {
     id: 'acd.BLOCS.agenda', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'agenda', '*'] },
     unit: 'weight -3..+3', area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
     evidence: 'blocs.ts:3-4 "Agenda weights −3..+3 per policy id, converted from research/08 Part 3 codes: \\"++\\" = +3, \\"+\\" = +1, \\"−\\" = −1, \\"−−\\" = −3 [conversion D]."',
-    notes: 'Designer conversion of research/08 Part 3 support/oppose codes; one weight per bloc and policy id.',
+    source: 'research/08-policy-ecosystem.md Part 3 (support/oppose codes)',
+    notes: 'Designer conversion of the Part 3 support/oppose codes; one weight per bloc and policy id.',
   },
 
   // ───────────────────────── v2/agents.ts ─────────────────────────
   {
     id: 'acd.ENG_REF_SHARE', ref: { kind: 'export', module: AGENTS, symbol: 'ENG_REF_SHARE' }, value: 0.2, unit: 'fraction of agent compute',
     area: 'research', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'agents.ts:138 "Reference share of a lab\'s agent compute spent on engineering (coding for the build queue) [D]."',
-    notes: 'Also the player\'s reference split (split.ts playerShareRef).',
+    evidence: 'agents.ts:35-37 "Reference share of a lab\'s agent compute spent on engineering (coding for the build queue) [D]."',
+    notes: 'Also the player\'s reference split (split.ts playerShareRef). Layer: Q-actors-data-10.',
   },
   {
     id: 'acd.REF_AGENT_SHARES', ref: { kind: 'export', module: AGENTS, symbol: 'REF_AGENT_SHARES' }, value: [0.2, 0.65, 0.15], unit: 'fraction of agent compute',
     area: 'research', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'agents.ts:142-143 "Reference shares of ALL of a lab\'s agent compute (the reference lab; mockups-v3 v3-company) [D]"',
-    notes: 'Array order = eng, capRoutine, capFrontier; eng is ENG_REF_SHARE.',
+    evidence: 'agents.ts:39-40 "Reference shares of ALL of a lab\'s agent compute (the reference lab; mockups-v3 v3-company) [D]"',
+    source: 'mockups-v3 v3-company',
+    notes: 'Array order = eng, capRoutine, capFrontier; eng is ENG_REF_SHARE. Layer: Q-actors-data-10.',
   },
   {
     id: 'acd.DEFAULT_CAP_SHARES', ref: { kind: 'export', module: AGENTS, symbol: 'DEFAULT_CAP_SHARES' }, value: [1, 0.65 / (1 - 0.2), 0.15 / (1 - 0.2)], unit: 'share of the research agent pool',
     area: 'research', layer: 'policy', actor: 'player', kind: 'derived',
-    evidence: 'agents.ts:145-148 "The player\'s default package shares: research uses as shares of the research agent pool (the reference shares net of engineering: 0.8125 / 0.1875)"; computed from REF_AGENT_SHARES and ENG_REF_SHARE',
-    notes: 'Array order = eng, capRoutine, capFrontier; layer policy because it is the player\'s default setting (Q-actors-data-6).',
+    evidence: 'agents.ts:42-43 "The player\'s default package shares: research uses as shares of the research agent pool (the reference shares net of engineering: 0.8125 / 0.1875)"; computed from REF_AGENT_SHARES and ENG_REF_SHARE',
+    notes: 'Array order = eng, capRoutine, capFrontier; layer policy because it is the player\'s default setting (CLASSIFY A10).',
   },
   {
     id: 'acd.TRUST_EST_DEFAULT', ref: { kind: 'export', module: AGENTS, symbol: 'TRUST_EST_DEFAULT' }, value: 0.3, unit: 'probability',
     area: 'safety', layer: 'policy', actor: 'player', kind: 'designer',
-    evidence: 'agents.ts:158-159 "SR-20: the trust line when the framework has no Misalignment-signs rule: upper end of believed SCHEME / AF / SAND ≤ 30% ... [D]."',
-    notes: 'Q-actors-data-6',
+    evidence: 'agents.ts:55-56 "SR-20: the trust line when the framework has no Misalignment-signs rule: upper end of believed SCHEME / AF / SAND ≤ 30% ... [D]."',
+    source: 'SR-20; data/v2/framework.ts (default misalignment line)',
   },
   {
     id: 'acd.MONITOR_STD_POOL_SHARE', ref: { kind: 'export', module: AGENTS, symbol: 'MONITOR_STD_POOL_SHARE' }, value: 0.2, unit: 'fraction of the safety pool',
     area: 'safety', layer: 'policy', actor: 'player', kind: 'designer',
-    evidence: 'agents.ts:161-162 "Default monitoring budget, as a share of the old safety pool ... the pre-R7 runtime-monitoring reserve (`monitoringShare`) [D]."',
-    notes: 'Q-actors-data-6',
+    evidence: 'agents.ts:58-59 "Default monitoring budget, as a share of the old safety pool ... the pre-R7 runtime-monitoring reserve (`monitoringShare`) [D]."',
+    source: 'pre-R7 monitoringShare; RD-A05a',
   },
   {
     id: 'acd.SAFETY_AGENT_DEFAULT_SHARE', ref: { kind: 'export', module: AGENTS, symbol: 'SAFETY_AGENT_DEFAULT_SHARE' }, value: 0.2, unit: 'fraction of the safety pool',
     area: 'safety', layer: 'policy', actor: 'player', kind: 'designer',
-    evidence: 'agents.ts:169 "Share of the safety pool the safety agents get when Trusted to AI is turned on with none running [D]."',
-    notes: 'Q-actors-data-6',
+    evidence: 'agents.ts:66 "Share of the safety pool the safety agents get when Trusted to AI is turned on with none running [D]."',
   },
   {
     id: 'acd.SAFETY_AGENT_MAX_SHARE', ref: { kind: 'export', module: AGENTS, symbol: 'SAFETY_AGENT_MAX_SHARE' }, value: 0.6, unit: 'fraction of the safety pool',
     area: 'safety', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; agents.ts:171 (the comment above, agents.ts:166-168, describes the 0–100% policy and the removed 50% cap, not this value)',
+    evidence: 'no tag; agents.ts:68 (the comment above, agents.ts:63-65, describes the 0–100% policy and the removed 50% cap, not this value)',
     notes: 'Upper limit on the player\'s Trusted-to-AI share.',
   },
 ]);

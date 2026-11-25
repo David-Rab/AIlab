@@ -43,3 +43,8 @@ The principle: classification follows **evidence in the code or a cited document
 ## Open items, not yet classified
 - Fitted entries with `fit.targets: []` are linked to targets in B6 (the target discussion).
 - Duplicated values (B5-QUESTIONS §C) are recorded with `notes: 'copy of ...'` until a refactor gives each number one home.
+
+## Later rulings (B5 apply, 2026-11-25)
+- A literal copy of an original that is itself untagged or unregistered stays `untagged`, with `notes: 'copy of ...'`. If the original's kind changes, the copy follows.
+- A design-doc pointer makes an entry `designer` only when the doc states the whole value (every record of a family); otherwise it stays `untagged`.
+- A research note that states the number but tags it `[D]` ("[D] calibrations") makes the entry `designer`, not `sourced`.

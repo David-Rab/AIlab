@@ -56,10 +56,10 @@ export const PARAMS_WORLDFX = defineParams([
     notes: 'Array order = US, CN, ROW. Start-state GDP; the same values are the macro(...) arguments in sectors.ts:217.',
   }),
   exp('HYPE.rev', 'macro.ts', 'HYPE', ['rev'], 0.2, 'hype per doubling of AI-lab revenue', {
-    ...W, kind: 'unclear', evidence: HYPE_EV, notes: 'Two tags, [D] and fitted; see Q-worldfx-1.',
+    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
   }),
   exp('HYPE.level', 'macro.ts', 'HYPE', ['level'], 0.06, 'hype per level of the best public model', {
-    ...W, kind: 'unclear', evidence: HYPE_EV, notes: 'Two tags, [D] and fitted; see Q-worldfx-1.',
+    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
   }),
 
   // ---------------------------------------------------------------- control.ts (named)
@@ -74,28 +74,28 @@ export const PARAMS_WORLDFX = defineParams([
     notes: 'Array order = T0..T3. T1 is multiplied by Accept in ctrlOf.',
   }),
   exp('LEVERAGE_THRESHOLDS.entrenched', 'control.ts', 'LEVERAGE_THRESHOLDS', ['entrenched'], 0.15, 'leverage', {
-    ...W, kind: 'untagged', evidence: 'no tag; control.ts:5 "Lev ≥ 0.15 Entrenched"; :19',
+    ...W, kind: 'designer', source: 'V2-SPEC §3.11.2', notes: 'A8c: the cited spec section states 0.15 / 0.35 / 0.6.', evidence: 'no tag; control.ts:5 "Lev ≥ 0.15 Entrenched"; :19',
   }),
   exp('LEVERAGE_THRESHOLDS.indispensable', 'control.ts', 'LEVERAGE_THRESHOLDS', ['indispensable'], 0.35, 'leverage', {
-    ...W, kind: 'untagged', evidence: 'no tag; control.ts:5 "≥ 0.35 Indispensable"; :19',
+    ...W, kind: 'designer', source: 'V2-SPEC §3.11.2', notes: 'A8c: the cited spec section states 0.15 / 0.35 / 0.6.', evidence: 'no tag; control.ts:5 "≥ 0.35 Indispensable"; :19',
   }),
   exp('LEVERAGE_THRESHOLDS.decisive', 'control.ts', 'LEVERAGE_THRESHOLDS', ['decisive'], 0.6, 'leverage', {
-    ...W, kind: 'untagged', evidence: 'no tag; control.ts:5 "≥ 0.6 (+ robots > 10% of labor or W25) Decisive"; :19',
+    ...W, kind: 'designer', source: 'V2-SPEC §3.11.2', notes: 'A8c: the cited spec section states 0.15 / 0.35 / 0.6.', evidence: 'no tag; control.ts:5 "≥ 0.6 (+ robots > 10% of labor or W25) Decisive"; :19',
   }),
   inl('control.K_DOM', 'control.ts', 'const K_DOM: Record<ControlDomainId, number> = { ECON: 2, GOV: 1.5, MIL: 1, INFRA: 1.5 };', [2, 1.5, 1, 1.5], '1/yr', {
     ...W, kind: 'designer', evidence: 'control.ts:20 "{ ECON: 2, GOV: 1.5, MIL: 1, INFRA: 1.5 }; // per year [D]"',
     notes: 'Array order = ECON, GOV, MIL, INFRA. Penetration catch-up rate toward target.',
   }),
-  exp('ACCEPT.base', 'control.ts', 'ACCEPT', ['base'], 0.3, 'fraction', { ...W, kind: 'unclear', evidence: ACCEPT_EV, notes: 'Two tags, [D] and fit; see Q-worldfx-2.' }),
-  exp('ACCEPT.gain', 'control.ts', 'ACCEPT', ['gain'], 0.65, 'fraction', { ...W, kind: 'unclear', evidence: ACCEPT_EV, notes: 'Two tags, [D] and fit; see Q-worldfx-2.' }),
+  exp('ACCEPT.base', 'control.ts', 'ACCEPT', ['base'], 0.3, 'fraction', { ...W, kind: 'designer', source: 'V2-SPEC §7.3', evidence: ACCEPT_EV, notes: 'A3: [D, fit §7.3] names a spec section, no script or target, so designer.' }),
+  exp('ACCEPT.gain', 'control.ts', 'ACCEPT', ['gain'], 0.65, 'fraction', { ...W, kind: 'designer', source: 'V2-SPEC §7.3', evidence: ACCEPT_EV, notes: 'A3: [D, fit §7.3] names a spec section, no script or target, so designer.' }),
   exp('ACCEPT.mid', 'control.ts', 'ACCEPT', ['mid'], 11.5, 'display level', {
     ...W, kind: 'fitted',
     evidence: 'control.ts:23-30 "Model v3 G1 refit of `mid` ... 9.5 → 11.5: median 2027-08-18 → 2027-12-16 (design/notes/G1.md)"',
     fit: { targets: ['W.govAccept85'], script: 'unnamed' },
     notes: 'Refit so the median first day of GOV T1 Accept >= 0.85 over the 20 CAL_SEEDS classic RefBot runs is 2027-12-15; before that it was [D, fit §7.3].',
   }),
-  exp('ACCEPT.spread', 'control.ts', 'ACCEPT', ['spread'], 0.8, 'display levels', { ...W, kind: 'unclear', evidence: ACCEPT_EV, notes: 'Two tags, [D] and fit; see Q-worldfx-2.' }),
-  exp('ACCEPT.rate', 'control.ts', 'ACCEPT', ['rate'], 6, '1/yr', { ...W, kind: 'unclear', evidence: ACCEPT_EV, notes: 'Accept catch-up rate toward its target; two tags, see Q-worldfx-2.' }),
+  exp('ACCEPT.spread', 'control.ts', 'ACCEPT', ['spread'], 0.8, 'display levels', { ...W, kind: 'designer', source: 'V2-SPEC §7.3', evidence: ACCEPT_EV, notes: 'A3: [D, fit §7.3] names a spec section, no script or target, so designer.' }),
+  exp('ACCEPT.rate', 'control.ts', 'ACCEPT', ['rate'], 6, '1/yr', { ...W, kind: 'designer', source: 'V2-SPEC §7.3', evidence: ACCEPT_EV, notes: 'Accept catch-up rate toward its target. A3: [D, fit §7.3], no script or target, so designer.' }),
 
   // ---------------------------------------------------------------- mix.ts / productView.ts / readouts.ts (named)
   exp('OPEN_MARKUP', 'mix.ts', 'OPEN_MARKUP', [], 1.2, 'x cost', {
@@ -103,7 +103,7 @@ export const PARAMS_WORLDFX = defineParams([
   }),
   exp('CONVERGED', 'productView.ts', 'CONVERGED', [], 0.005, 'fraction', {
     ...W, kind: 'designer', evidence: 'productView.ts:126 "The stock counts as at its target within half a percentage point ... [D]."',
-    notes: 'A readout threshold (days-to-converge on the product card), not a world mechanic.',
+    notes: 'readout: threshold for days-to-converge on the product card, not a world mechanic.',
   }),
   inl('productView.TAU_DAYS', 'productView.ts', 'const TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365,', [21.0577, 237.25, 273.75], 'days', {
     ...W, kind: 'derived', evidence: 'productView.ts:167 "TAU_DAYS = { consumer: CUSTOMER_TAU.consumer * 365, ... }" (computed from CUSTOMER_TAU)',
@@ -122,10 +122,10 @@ export const PARAMS_WORLDFX = defineParams([
 
   // ---------------------------------------------------------------- robots.ts (named)
   exp('ROBOT.stock0', 'robots.ts', 'ROBOT', ['stock0'], 1.5e6, 'HWE', {
-    ...W, kind: 'derived',
+    ...W, kind: 'designer',
     evidence: 'robots.ts:3-4 "Industrial robots ≈ 0.3 HWE each [D]; ≈5M operational at end-2025 (IFR 2026 [V]) → ≈1.5M HWE"',
     source: 'IFR 2026 (about 5M operational industrial robots) x 0.3 HWE each [D]',
-    notes: 'Derived by the comment from a sourced count and a designer HWE factor; written as a literal.',
+    notes: 'Literal; the comment derives it from a sourced robot count (IFR) times a designer 0.3 HWE factor, so the code adds a designer number (A1b).',
   }),
   exp('ROBOT.conventional0', 'robots.ts', 'ROBOT', ['conventional0'], 0.2e6, 'HWE/yr', {
     ...W, kind: 'sourced',
@@ -174,9 +174,9 @@ export const PARAMS_WORLDFX = defineParams([
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:61-63 (same comment as ALPHA_MID_L)',
   }),
   inl('sectors.FRIEND_SOCIAL_MID', 'sectors.ts', 'const FRIEND_SOCIAL_MID = 6.5;', 6.5, 'display level', {
-    ...W, kind: 'designer',
+    ...W, kind: 'fitted', fit: { targets: [], script: 'manual' },
     evidence: 'sectors.ts:82-85 "Consumer SOCIAL level at which the AI-friend share is half its ceiling (research/16 §2.1) [D]. M2: 7 → 6.5 on integrated RefBot play"',
-    notes: 'Moved 7 to 6.5 after an integrated RefBot run; the comment tags it [D], not fitted.',
+    notes: 'A5: comment "M2: 7 -> 6.5 on integrated RefBot play" (tuned to an outcome); tag was [D].',
   }),
   exp('HIRE_TAU', 'sectors.ts', 'HIRE_TAU', [], 0.05, 'years', {
     ...W, kind: 'designer', evidence: 'sectors.ts:88 "Hiring-rate adjustment time (years) [D, M4]."',
@@ -276,8 +276,8 @@ export const PARAMS_WORLDFX = defineParams([
     notes: 'AI-friend share ceiling above the 0.03 floor; sibling of the start value friendShare 0.03.',
   }),
   inl('sectors.friendShareStart', 'sectors.ts', 'friendShare: 0.03, // ≈3% of adults [D, R16 N3a]', 0.03, 'share of adults', {
-    ...W, kind: 'designer', evidence: 'sectors.ts:215 "≈3% of adults [D, R16 N3a]"',
-    notes: '[D, from R16 N3a] ruling: designer with the research pointer. Also the floor of friendStar.',
+    ...W, kind: 'designer', source: 'research/16 N3a', evidence: 'sectors.ts:215 "≈3% of adults [D, R16 N3a]"',
+    notes: 'A2: [D, R16 N3a] is designer with the pointer in source. Also the floor of friendStar.',
   }),
   inl('sectors.sezFrictionCut', 'sectors.ts', "(id === 'MFG' || id === 'LOG' || id === 'ENGY')) R *= 0.3;", 0.3, 'x friction', {
     ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:110; policy.ts:17 says "SEZ friction waiver"',
@@ -323,8 +323,8 @@ export const PARAMS_WORLDFX = defineParams([
 
   // ---- mix.ts / serving.ts / actions.ts
   inl('mix.brandApprovalSwing', 'mix.ts', '1 + 0.1 * Math.max(-1, Math.min(1, s.pub.approval / 50))', 0.1, 'brand multiplier swing', {
-    ...W, actor: 'player', kind: 'untagged', evidence: 'no tag; mix.ts:318 "±0.1 with approval (§3.11.1)" (a spec section pointer, not a source)',
-    notes: 'Approval 50 gives the full swing.',
+    ...W, actor: 'player', kind: 'designer', source: 'V2-SPEC §3.11.1', evidence: 'no tag; mix.ts:318 "±0.1 with approval (§3.11.1)" (a spec section pointer, not a source)',
+    notes: 'A8c: spec §3.11.1 states "moves ±0.1 with approval". Approval 50 gives the full swing.',
   }),
   inl('mix.chinaOpenAccessUS', 'mix.ts', '(r === \'US\' ? 0.3 : 0.7)', 0.3, 'fraction of buyers who can use', {
     ...W, actor: 'china', kind: 'untagged', evidence: 'no tag; mix.ts:313',
