@@ -42,3 +42,11 @@ About 3–8 s per run for 2025–2045. 1,000 runs on 8 workers take 10–20 minu
 1. **Force the player's lab:** yes.
 2. **Default-off engine hooks**, proven by fingerprint: yes.
 3. **Fixed Stage 1 policy** = RefBot's current settings plus the research ideas real labs plausibly pursue: yes.
+
+## Designer decision (2026-11-26): takeoff fixes A, B, C approved
+From [S1-TAKEOFF-DIAG.md](S1-TAKEOFF-DIAG.md):
+- **A.** A ceiling on AI research taste, as in the AIFM (m2b^(1+limit)).
+- **B.** Idea generation goes through the experiment-compute bottleneck (or is capped).
+- **C.** Feedback settings (r, dBM, taste spread) are scenario-specific, fitted per timeline to the AIFM group's takeoff gaps.
+
+D (release lumps) waits until after A–C. E (rival distillation) waits for the NPC calibration. These are mechanism changes: behaviour changes on purpose, and the fingerprint baseline is re-recorded after each one.
