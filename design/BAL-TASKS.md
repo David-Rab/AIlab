@@ -103,3 +103,16 @@ Unlock projects and safety projects should later get taste effects (e.g. the ful
 - Inflow: new graduates, plus people from outside fields for researchers. Outflow: hiring.
 - Wages follow a simple standard mechanism: they rise as demand grows and supply depletes, and everyone is paid at the marginal wage.
 - **Until this exists:** the harness exception is in force. Forced runs set the player's headcount to the AIFM L_HUMAN path, clearly labelled as pending this model. It's a known deviation, not a mechanic.
+
+## Round 2: changes before the next measurement (agreed 2026-11-26)
+| # | Change | Kind | Status |
+|---|---|---|---|
+| R2.1 | Staff harness exception (forced runs only, labelled, pending hiring market) | harness | running |
+| R2.2 | Starting compute re-split to real labs / AIFM (experiments ~35%, final training ~11%), start model unchanged | game data | running |
+| R2.3 | Faithful horizon fix: horizon growth per OOM becomes a per-timeline setting, together with the per-timeline initial software pace, both from the AIFM groups. All timelines match the measured METR history; gSC re-derived from each group's required horizon. | mechanism + per-timeline data | after R2.1–2.2 |
+| R2.4 | Diminishing returns for idea projects (tree and safety), using the same law and shared code as lines | mechanism | after R2.1–2.2 (can run parallel with R2.3 if files don't overlap) |
+| R2.5 | Measurement additions: the speed-up doubling-time metric in s1compare (game vs AIFM uplift doubling time) | tooling | with R2.3 |
+| M2 | **Measure:** re-translate per-timeline settings (incl. R2.3), re-run step 1 on the forced harness, and compare with the timelines (SC, gaps, horizon, software pace, speed-up doubling) | measure | after all above |
+| C2 | Fix C step 2: fit only the residual (takeoff via dBM / r / m2b within AIFM IQRs; SC via gSC if still needed) | fit | after M2 |
+
+Deferred: hiring market; taste effects for unlock and safety projects; D (release lumps, re-check after C2); E (rival distillation, with NPC calibration); Stage 2 realistic-lab policy; Stage 3 strong bot.
