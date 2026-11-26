@@ -3,10 +3,12 @@
 // the remaining rolled nodes on models/tree.ts, until RD-R02b / RD-R04 (SYNTHESIS §6 Phase 3) move them onto this engine.
 //
 // A project's life runs by itself (MODEL-V3 §5.3):
-//   1 ideation      the project's science teams find candidates at (m_IDEAS × capacity)^λ × taste per team-month of
-//                   ideation work (m_IDEAS: AI labour in research ideas, departments/workfit.ts). Each candidate has a
-//                   hidden true small-scale effect x (the project's per-world draw × a candidate factor) and a belief =
-//                   x + noise (taste lowers the noise). Once PICK_AT candidates exist the team tests the one with the best
+//   1 ideation      the project's science teams find candidates at (m_IDEAS × capacity)^λ per team-month of ideation
+//                   work (m_IDEAS: AI labour in research ideas, departments/workfit.ts); taste does not change how many.
+//                   Each candidate comes from the AI with probability s (its share of the ideas labour) or from the
+//                   humans, and has the taste of that source, which sets its quality. It has a hidden true small-scale
+//                   effect x (the project's per-world draw × a candidate factor) and a belief = x + noise (the team's
+//                   mixture taste T = (1 − s)·T_human + s·T_AI lowers the noise). Once PICK_AT candidates exist the team tests the one with the best
 //                   score μ + κσ (κ from the lab's risk policy); scientists keep ideating meanwhile (pool ≤ POOL_MAX, then a
 //                   better find replaces the weakest).
 //   2 small         experiment work at the AI Futures experiment CES X(c, ℓ) of the project's own experiment FLOP per day
@@ -52,7 +54,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { believedTasteInputs, expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, qualityZ, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -175,43 +177,36 @@ export const capSciTeams = (s: GameStateV2) => s.player.teams.filter((t) => t.ro
 /** Capabilities research engineers, team-equivalents. */
 export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) => a + (t.role === 're' && t.dept === 'cap' ? reCapacity(onDuty(s, t)) : 0), 0);
 
-/** Capacity and taste of the science teams on a project. Taste (MODEL-V3 §8, V3.4) is each team's E[max(human, AI)] on
- *  the AIFM taste distribution (quality sets the team's place in it, the frontier-research model's AI taste lifts it),
- *  capacity-weighted; 1 = a Strong team without AI. */
-export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap: number; q: number } {
+/** Capacity and taste of a project's science teams. q = the mixture mean T = (1 − s)·T_human + s·T_AI (departments/workfit.ts
+ *  teamTaste), capacity-weighted; 1 = a Strong team without AI. qh, qa and s are its parts: the humans' taste (capacity-
+ *  weighted), the AI's, and the AI's share of the ideas, from which each candidate draws its source (newCandidate). */
+export interface SciTaste { cap: number; q: number; qh?: number; qa?: number; s?: number }
+function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdAI: number; sAI: number; m2b: number; tl: number }): SciTaste {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
-  const wc = workContext(s);
-  const m2b = s.hidden.timeline.prod.m2b;
-  const tl = tasteLimitOf(s.hidden.timeline);
   const star = starTaste(s);
+  const qa = aiTaste(inp.sdAI, inp.m2b, inp.tl);
   let cap = 0;
   let qw = 0;
+  let hw = 0;
   for (const t of teams) {
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
+    qw += c * teamTaste(qualityZ(t.quality), inp.sdAI, inp.sAI, inp.m2b, star, inp.tl);
+    hw += c * humanTaste(qualityZ(t.quality), inp.m2b, star);
   }
-  return { cap, q: cap > 0 ? qw / cap : 1 };
+  return cap > 0 ? { cap, q: qw / cap, qh: hw / cap, qa, s: inp.sAI } : { cap, q: 1 };
+}
+export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): SciTaste {
+  const wc = workContext(s);
+  return sciTasteOf(s, id, teams, { sdAI: wc.sdAI, sAI: wc.sAI, m2b: s.hidden.timeline.prod.m2b, tl: tasteLimitOf(s.hidden.timeline) });
 }
 
 /** UB-2: sciOn for readouts: the same capacity (fact) with the believed taste (departments/workfit.ts
  *  believedTasteInputs: the frontier-research AI staff's measured fit, the believed taste spread) in place of the true. */
-export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap: number; q: number } {
-  const n = node(id);
-  if (!n) return { cap: 0, q: 1 };
-  const { sdAI, sAI, m2b, tl } = believedTasteInputs(s);
-  const star = starTaste(s);
-  let cap = 0;
-  let qw = 0;
-  for (const t of teams) {
-    if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(onDuty(s, t), n.column);
-    cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, star, tl);
-  }
-  return { cap, q: cap > 0 ? qw / cap : 1 };
+export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams): SciTaste {
+  return sciTasteOf(s, id, teams, believedTasteInputs(s));
 }
 
 /** A project's experiment inputs as the next research day gives them: its research-engineer team-equivalents from the
@@ -231,7 +226,7 @@ export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAlloc
 }
 
 /** RD-B18 (B31): the one capability-project ETA, in days, that every readout and preview uses. Ideation to PICK_AT
- *  candidates at the science teams' rate (as stepProject: (m_IDEAS × capacity)^λ × taste × speed over the ideation
+ *  candidates at the science teams' rate (as stepProject: (m_IDEAS × capacity)^λ × speed over the ideation
  *  stage's team-months, a line's batch), then the test stages at the project's experiment inputs (projectExpInputs).
  *  `sci` previews other staffing (default: the teams on it). 0 for a project past its tests; Infinity = stalled.
  *  RF-R4 (a readout, never the hidden draw): the believed production parameters (production/believed.ts) at the project's
@@ -257,7 +252,7 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
     const experiments = rate > 0 ? left / rate : Infinity;
     return { ideation: 0, experiments, eta: experiments };
   }
-  const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * sci.q * speed) / (sg.idea * b * 30) : 0;
+  const ideaPerDay = sci.cap > 0 ? (Math.pow(Math.max(1, x?.mIdeas ?? 1) * sci.cap, P.lam) * speed) / (sg.idea * b * 30) : 0;
   const workPerDay = X > 0 ? (X * speed * Math.sqrt(RE_LABOUR_UNIT)) / 30 : 0;
   const t = st?.test;
   const ideation = t ? 0 : ideaPerDay > 0 ? Math.max(0, PICK_AT - (st?.cands.length ?? 0) - (st?.idea ?? 0)) / ideaPerDay : Infinity;
@@ -315,9 +310,10 @@ export const trialWork = (n: TreeNodeDef) => {
   const sg = stagesOf(n);
   return PICK_AT * sg.idea + sg.small + sg.scale;
 };
-/** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × taste × speed / 30). */
+/** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × speed / 30; taste sets
+ *  quality, not how fast the work goes). */
 const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
-  sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * sci.q * speed) / 30 : 0;
+  sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * speed) / 30 : 0;
 /** An unlock project's test state, started on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
   if (!st.trial) {
@@ -362,7 +358,7 @@ function valueEnv(s: GameStateV2) {
   };
 }
 
-/** Each team's taste (as sciOn: E[max(human, AI)] on the AIFM taste distribution; 1 = a Strong team without AI). */
+/** Each team's taste (as sciOn: the human/AI mixture mean on the AIFM taste distribution; 1 = a Strong team without AI). */
 function tasteOf(s: GameStateV2): (t: Team) => number {
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
@@ -378,8 +374,8 @@ const valueOom = (n: TreeNodeDef, x: number) =>
 
 /** RD-A03 (CAP-08): a project's term in the science-team planner, the expected value it delivers per day (lab-wide
  *  software OOM; VALUE_PROXY for domain, data and unlock effects [D]) as a function of the science capacity C on it and
- *  the teams' capacity-weighted taste q. Ideation runs at (m_IDEAS·C)^λ × q × speed per team-month of ideation work, as
- *  stepProject runs it:
+ *  the teams' capacity-weighted taste q. Ideation runs at (m_IDEAS·C)^λ × speed per team-month of ideation work (q sets
+ *  the ideas' quality, not their number), as stepProject runs it:
  *  - a line: candidates per day × the pool's prior mean of a batch (each result is tested and adopted);
  *  - a one-off idea in ideation: candidates per day ÷ PICK_AT (one result per PICK_AT candidates) × the attempt's odds ×
  *    the prior mean (taste lifts it); in its small or big test 0 (releasesTeams);
@@ -390,20 +386,20 @@ export function projectValue(s: GameStateV2, id: string, env = valueEnv(s)): (ca
   const st = s.player.tree[id]?.cap;
   if (!n || !isCapProject(n) || releasesTeams(n, st) || st?.stage === 'adopting' || st?.stage === 'failed') return () => 0;
   const lam = s.hidden.timeline.prod.lam;
-  const work = (cap: number, q: number) => (cap > 0 ? (Math.pow(env.mIdeas * cap, lam) * q * env.speed) / 30 : 0);
+  const work = (cap: number) => (cap > 0 ? (Math.pow(env.mIdeas * cap, lam) * env.speed) / 30 : 0);
   const spec = st?.spec ?? 0;
   const odds = attemptOdds(n, spec);
   if (isUnlockProject(n)) {
     const exp = env.expRate(id);
     const v = (odds * VALUE_PROXY.unlock) / trialWork(n);
-    return (cap, q) => (work(cap, q) + exp) * v;
+    return (cap) => (work(cap) + exp) * v;
   }
   const sg = stagesOf(n);
   if (n.kind === 'line') {
     // RD-R08: one idea per candidate; the flow runs the same ideas in expectation.
-    return (cap, q) => (cap > 0 ? (work(cap, q) / sg.idea) * valueOom(n, priorMean(s, n, { q })) : 0);
+    return (cap, q) => (cap > 0 ? (work(cap) / sg.idea) * valueOom(n, priorMean(s, n, { q })) : 0);
   }
-  return (cap, q) => (cap > 0 ? (work(cap, q) / (sg.idea * PICK_AT)) * odds * valueOom(n, priorMean(s, n, { q }, spec)) : 0);
+  return (cap, q) => (cap > 0 ? (work(cap) / (sg.idea * PICK_AT)) * odds * valueOom(n, priorMean(s, n, { q }, spec)) : 0);
 }
 
 /** Value of an assignment: Σ over projects of projectValue at the capacity and taste the teams give it (expected OOM per
@@ -698,15 +694,19 @@ const RISK = (s: GameStateV2) => RISK_KAPPA[s.player.research.risk ?? 'balanced'
 /** The score a team pursues: μ + κσ of its belief. */
 export const candidateScore = (c: Pick<Candidate, 'mu' | 'sd'>, kappa: number) => c.mu + kappa * c.sd;
 
-/** A new candidate from ideation (belief = truth + noise; taste lowers the noise). Lines read their pool now. */
-export function newCandidate(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, q: number, b: number): Candidate {
+/** A new candidate from ideation (belief = truth + noise; the team's mixture taste q lowers the noise). Lines read their
+ *  pool now. With `src` (sciOn's qh, qa, s) the candidate comes from the AI with probability s, else from the humans, and
+ *  its quality is that source's taste (its `q`); the expectation over the sources is q = (1 − s)·qh + s·qa. */
+export function newCandidate(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, q: number, b: number, src?: Pick<SciTaste, 'qh' | 'qa' | 's'>): Candidate {
   const spec = st.spec ?? 0;
   const k = st.next++;
   const nov = U(s, `nov:${n.id}:${spec}:${k}`);
-  const c: Candidate = { k, gen: st.gen, nov, b, q, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0, ...(n.kind === 'line' ? { at: st.pool ?? 0 } : {}) };
+  const mix = !!src && src.qa !== undefined && src.qh !== undefined && (src.s ?? 0) > 0;
+  const cq = mix ? (U(s, `src:${n.id}:${spec}:${k}`) < (src!.s as number) ? (src!.qa as number) : (src!.qh as number)) : q;
+  const c: Candidate = { k, gen: st.gen, nov, b, q: cq, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0, ...(n.kind === 'line' ? { at: st.pool ?? 0 } : {}) };
   const truth = candidateTruth(s, n, st, c);
   const pub = priorMean(s, n, c, spec);
-  // Taste narrows the belief noise ÷ T [D; V2a: ÷ quality², but AI taste reaches T ≈ 30–200].
+  // The mixture taste narrows the belief noise ÷ T [D; V2a: ÷ quality², but AI taste reaches T ≈ 30–200].
   const sd = (Math.sqrt(b) * pub * BELIEF_NOISE * (0.5 + nov) * Math.pow(SPECULATIVE.spread, spec)) / Math.max(0.2, q);
   c.mu = truth.x + sd * Z(s, `cb:${n.id}:${spec}:${k}`);
   c.sd = sd;
@@ -1103,18 +1103,18 @@ export function stepProject(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, day:
   // RD-R08: at high experiment throughput a line runs share φ of its day as the expected flow (stepFlow), the rest as the
   // explicit pipeline below (ideation and experiment time × (1 − φ)).
   const phi = n.kind === 'line' ? flowShare(inp.X) : 0;
-  const ideasFull = sci.cap > 0 ? (Math.pow(inp.mIdeas * sci.cap, P.lam) * sci.q * inp.speed) / (sg.idea * 30) : 0;
+  const ideasFull = sci.cap > 0 ? (Math.pow(inp.mIdeas * sci.cap, P.lam) * inp.speed) / (sg.idea * 30) : 0;
   // 2–3 Experiments: the experiment CES of the project's FLOP and research-engineer labour (team-months per day at unit
   // inputs: √RE_LABOUR_UNIT / 30, as one pair of teams). Work left over when a stage ends carries into the next one the same day.
   const rate = experimentRate(s, inp, reCap, flopDay);
   let used = phi > 0 ? stepFlow(s, ctx, n, st, phi, ideasFull, sci.q, rate, flopDay, queueBuild) : 0;
-  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ × taste.
+  // 1 Ideation (continuous while science teams are on it): (m_IDEAS × capacity)^λ candidates; taste sets their quality.
   if (sci.cap > 0 && phi < 1) {
     st.idea += ideasFull * (1 - phi);
     let guard = 0;
     while (st.idea >= 1 && guard++ < 8) {
       st.idea -= 1;
-      addCandidate(st, newCandidate(s, n, st, sci.q, 1), kappa);
+      addCandidate(st, newCandidate(s, n, st, sci.q, 1, sci), kappa);
     }
     st.idea = Math.min(st.idea, 1);
   }

@@ -185,7 +185,7 @@ export const tasteLimitOf = (w: Pick<TimelineWorld, 'v3'>): number => (Number.is
  *  `taste_limit_smoothing` 0.5, its default, config.py:344): T(x) = exp(ln A · (1 − exp(−x / ln A))), a smooth saturation of
  *  the log taste x that follows the lognormal for x ≪ ln A and approaches A from below, never above]. x is the game's log
  *  taste of the AI at `sdAI` SDs, ln F = −σ²/2 + sdAI·σ (lognormal of mean 1; the AIFM's x = μ + sd·σ with μ ≈ −σ²/2).
- *  Returns the SD whose lognormal taste is the saturated one, so teamTaste's E[max(human, AI)] reads it unchanged. The
+ *  Returns the SD whose lognormal taste is the saturated one, so aiTaste reads it as a lognormal. The
  *  humans stay lognormal: the AIFM re-fits μ and σ so top ÷ median = m2b whatever A is, and a human's log taste (≤ ~1.2)
  *  is far below ln A (≈ 9.4 at the median limit). */
 export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
@@ -196,19 +196,24 @@ export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
   return (xs + 0.5 * s * s) / s;
 }
 
-/** Taste of a team (research input per idea vs a Strong team without AI): E[max(T_team, F_AI)] with the team's human
- *  taste z SDs above the lab's average on the AIFM lognormal (mean 1, 99.9th pct = m2b × median), and AI taste sd_AI
- *  (bounded by the world's taste limit `limit`, ceilingSD) on the AI-done share sAI of the ideas (aiIdeasShare):
- *  (1 − s)·human + s·E[max(human, AI)] (DD-13). */
-export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, human: number, limit: number): number {
+/** A team's human taste (research input per idea vs a Strong team without AI): z SDs above the lab's average on the AIFM
+ *  lognormal (mean 1, 99.9th pct = m2b × median), × the star factor `human`. */
+export const humanTaste = (z: number, m2b: number, human: number): number => Math.exp(tasteSigma(m2b) * z) * human;
+
+/** The AI's taste: the lognormal mean at the AI's SD under the world's ceiling (ceilingSD), exp(−σ²/2 + sd·σ). */
+export function aiTaste(sdAIRaw: number, m2b: number, limit: number): number {
   const s = tasteSigma(m2b);
-  const Th = Math.exp(s * z) * human;
+  return Math.exp(-0.5 * s * s + ceilingSD(sdAIRaw, m2b, limit) * s);
+}
+
+/** Taste of a team (research input per idea vs a Strong team without AI), the mean of the mixture of where its ideas
+ *  come from (fix B; DD-13): T = (1 − s)·T_human + s·T_AI. T_human = the team's human taste (humanTaste), T_AI = the AI's
+ *  taste at sd_AI under the world's taste limit `limit` (aiTaste), s = the AI share of the ideas labour (aiIdeasShare).
+ *  Taste sets how good the ideas are, not how many; early AI, with a low taste, adds mostly mediocre ideas. */
+export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, human: number, limit: number): number {
+  const Th = humanTaste(z, m2b, human);
   if (sAI <= 0) return Th;
-  const sdAI = ceilingSD(sdAIRaw, m2b, limit);
-  const F = Math.exp(-0.5 * s * s + sdAI * s);
-  const zz = z + Math.log(human) / s;
-  const lifted = F * Phi(sdAI - zz) + Th * Phi(s - sdAI + zz);
-  return (1 - sAI) * Th + sAI * lifted;
+  return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
 /** A team's human taste position (SDs) from its quality. */
 export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];

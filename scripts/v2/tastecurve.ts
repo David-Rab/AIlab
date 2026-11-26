@@ -100,7 +100,7 @@ function aifmTaste(p: AifmP, d: TasteDist, rate: number, ecAC: number, ec: numbe
 interface GameRow { sd: number; sAI: number; m: number; q: number; qFull: number }
 /** The game's taste inputs at general G `g` on a lab state (start lab; `computeScale` × its compute), by the engine's own
  *  functions: workContext (sd_AI = sdAIOf of the frontier-research model's IDEAS fit, AI's ideas share, AI labour multiplier on
- *  ideas) and teamTaste (E[max(human, AI)] on the AIFM lognormal, saturated at A = m2b^(1+limit)). */
+ *  ideas) and teamTaste (the human/AI mixture mean (1 − s)·T_human + s·T_AI on the AIFM lognormal, AI saturated at A = m2b^(1+limit); fix B). */
 function gameCurve(world: 'ai2027' | 'fast', gs: number[], computeScale: number): GameRow[] {
   const s = newBotGame(1, { world, alignment: 'medium' }, 'leader');
   const v = agentVersion(s, 'capFrontier')!;
@@ -186,15 +186,15 @@ for (const world of ['ai2027', 'fast'] as const) {
   const perIdea = rows.map((r) => lineRate(pl.r, pl.n0, r.q) / lineRate(pl.r, pl.n0, rows[0].q));
   const perIdeaAged = rows.map((r) => lineRate(pl.r, 10 * pl.n0, r.q) / lineRate(pl.r, 10 * pl.n0, rows[0].q));
   // (c) the line's research input per day, as stepFlow computes it (research.ts:1018-1038): ideas ideated per day (ideasFull,
-  // :1106, ∝ (mIdeas·cap)^λ·q) and tested at k = min(ideas/ι, work/w); gain = k·g·lineRate(r, M, q) with ι, w, g from the
+  // :1106, ∝ (mIdeas·cap)^λ, no taste since fix B) and tested at k = min(ideas/ι, work/w); gain = k·g·lineRate(r, M, q) with ι, w, g from the
   // game's flowStats at taste q and ρ = ideas·(small+scale)/work. Two regimes: idea-limited (experiment work not binding) and
   // experiment-limited (work fixed at twice what G0's ideas need).
   const sg = stagesOf(line);
   const flow = (limited: 'ideas' | 'exp') => {
     const work = limited === 'ideas' ? 1e9 : 1;
-    const c = limited === 'ideas' ? 1 : (work * 2) / (sg.small + sg.scale) / (Math.pow(rows[0].m, lam) * rows[0].q);
+    const c = limited === 'ideas' ? 1 : (work * 2) / (sg.small + sg.scale) / Math.pow(rows[0].m, lam);
     const gain = (r: GameRow) => {
-      const ideas = c * Math.pow(r.m, lam) * r.q;
+      const ideas = c * Math.pow(r.m, lam);
       const f = flowStats(line, 0, r.q, Math.max(1, (ideas * (sg.small + sg.scale)) / work));
       const k = Math.min(ideas / Math.max(1e-12, f.iota), work / Math.max(1e-12, f.w));
       return k * f.g * lineRate(pl.r, pl.n0, r.q);
