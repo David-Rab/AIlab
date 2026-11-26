@@ -68,3 +68,11 @@ Player focus: the player's research pipeline (`models/research.ts`) is the targe
 
 ## Fix C method (designer, 2026-11-26)
 Take each timeline's game settings from **its own AIFM group's median parameter draws**, translated into game terms. Fit only what doesn't translate cleanly, and keep fitted values within the AIFM ranges. This is the preferred method in general, wherever possible.
+
+## Designer decisions (2026-11-26), after FIXC-PRESC
+- **Diminishing returns for idea projects:** tree projects and safety projects follow the same law as the lines, ideally through shared code. Within a project, new ideas get harder and harder.
+- **Initial software-progress rate per timeline,** from the AIFM groups. Open point (lead): it must not break the shared 2025–26 path; see the note below.
+- **Experiment compute:** an agent is checking absolute vs share, the AIFM discount exponent, and real-lab splits (EXPCOMPUTE.md).
+- **Hiring: no harness-only forcing ("harness only things are dangerous").** The game's hiring mechanics should become a market: faster hiring possible, salaries rising for everyone at the marginal wage, quality of available hires falling as the pool depletes. Until then, the staff mismatch against the AIFM's L_HUMAN path is a known deviation in Stage 1.
+
+Lead note on the software rate: the AIFM groups start at different rates (1.11 / 1.05 / 0.74 OOM/yr), yet all match the measured METR horizon, because the AIFM's horizon law varies per run. The game's horizon is a fixed function of G, so a lower software rate before late 2026 would put slow's 2026 horizon below the measured value. Proposal: apply the per-timeline rate from late 2026 onward.
