@@ -1,0 +1,124 @@
+[
+ {
+  "name": "r-dn",
+  "set": {
+   "cap.V3_CAL.ai2027.r": 2.307,
+   "cap.V3_CAL.authors2026.r": 1.84
+  }
+ },
+ {
+  "name": "r-up",
+  "set": {
+   "cap.V3_CAL.ai2027.r": 6.934,
+   "cap.V3_CAL.authors2026.r": 5.53
+  }
+ },
+ {
+  "name": "dBM-dn",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 1.032,
+   "cap.V3_CAL.authors2026.dBM": 1.245
+  }
+ },
+ {
+  "name": "dBM-up",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 3.138,
+   "cap.V3_CAL.authors2026.dBM": 3.783
+  }
+ },
+ {
+  "name": "gSC-dn",
+  "set": {
+   "cap.V3_CAL.ai2027.gSC": 29.15,
+   "cap.V3_CAL.authors2026.gSC": 33.09
+  }
+ },
+ {
+  "name": "gSC-up",
+  "set": {
+   "cap.V3_CAL.ai2027.gSC": 31.15,
+   "cap.V3_CAL.authors2026.gSC": 35.09
+  }
+ },
+ {
+  "name": "sdSC-dn",
+  "set": {
+   "cap.V3_CAL.ai2027.sdSC": -1.079,
+   "cap.V3_CAL.authors2026.sdSC": 1.361
+  }
+ },
+ {
+  "name": "sdSC-up",
+  "set": {
+   "cap.V3_CAL.ai2027.sdSC": 2.079,
+   "cap.V3_CAL.authors2026.sdSC": 4.519
+  }
+ },
+ {
+  "name": "tasteLimit-dn",
+  "set": {
+   "cap.V3_CAL.ai2027.tasteLimit": 3.857,
+   "cap.V3_CAL.authors2026.tasteLimit": 3.857
+  }
+ },
+ {
+  "name": "tasteLimit-up",
+  "set": {
+   "cap.V3_CAL.ai2027.tasteLimit": 16.594,
+   "cap.V3_CAL.authors2026.tasteLimit": 16.594
+  }
+ },
+ {
+  "name": "m2b-dn",
+  "set": {
+   "cap.PROD_DEFAULT.m2b": 2.122,
+   "cap.PROD_PRESETS.authors2026.m2b": 2.347
+  }
+ },
+ {
+  "name": "m2b-up",
+  "set": {
+   "cap.PROD_DEFAULT.m2b": 5.511,
+   "cap.PROD_PRESETS.authors2026.m2b": 6.414
+  }
+ },
+ {
+  "name": "lam-dn",
+  "set": {
+   "cap.PROD_DEFAULT.lam": 0.359
+  }
+ },
+ {
+  "name": "lam-up",
+  "set": {
+   "cap.PROD_DEFAULT.lam": 0.641
+  }
+ },
+ {
+  "name": "rc-dn",
+  "set": {
+   "cap.PROD_DEFAULT.rc": -5
+  }
+ },
+ {
+  "name": "rc-up",
+  "set": {
+   "cap.PROD_DEFAULT.rc": -1
+  }
+ },
+ {
+  "name": "La-dn",
+  "set": {
+   "cap.PROD_DEFAULT.La": 24.8,
+   "cap.PROD_PRESETS.authors2026.La": 3.72
+  }
+ },
+ {
+  "name": "La-up",
+  "set": {
+   "cap.PROD_DEFAULT.La": 403.2,
+   "cap.PROD_PRESETS.authors2026.La": 60.48
+  }
+ }
+]
