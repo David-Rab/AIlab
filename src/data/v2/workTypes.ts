@@ -143,6 +143,10 @@ export const ASSIST = { model: 1 / 90, review: 0.27 };
 export const H50_V0_MIN = 203;
 /** Horizon per OOM of effective compute (METR 4.2-month doubling at ≈ 1.2–1.4 OOM/yr; research/20 A2/E1). */
 export const H50_PER_OOM = 4.2;
+/** R2.3: the smallest base of the horizon law (1 − A·x/T) the game evaluates: the AIFM horizon law has a pole where the base
+ *  reaches 0 (its horizon is unbounded there); the floor keeps it finite (about 1e11 × V0 at A ≈ 0.1) [D: nothing past it is read, every
+ *  work type is covered long before]. Only used with a per-world acceleration (V3_CAL.h50Accel ≠ 0). */
+export const H50_BASE_FLOOR = 0.02;
 /** p80/p50 = 1/5 (METR TH1.1 median) ⇒ success p(t) = 1/(1 + (t/h50)^β), β = ln 4 / ln 5 [R20 E1]. */
 export const H80_OVER_H50 = 1 / 5;
 export const HORIZON_BETA = Math.log(4) / Math.log(5);
@@ -321,14 +325,21 @@ export const TASTE_LIMIT_MEDIAN = 8;
 /** The AIFM's sampling of the taste limit (80% CI of its lognormal; clip) for the `sampled` world. */
 export const TASTE_LIMIT_CI80: [number, number] = [2, 32];
 export const TASTE_LIMIT_RANGE: [number, number] = [0, 100];
-export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number }
+/** R2.3 (faithful horizon fix, design/bal/FIXC-TRANSLATION.md section 6): the per-world horizon law and research pace.
+ *  h50PerOOM: horizon growth per OOM of effective compute at V0 (the METR doubling at V0 is log2 of it: T = ln2/ln(h50PerOOM) OOM);
+ *  h50Accel A: the AIFM's decay of that doubling length (A = 1 − doubling_difficulty_growth_factor): h50(x) = H50_V0_MIN ×
+ *    (1 − A·x/T)^(ln2/ln(1−A)), x = G − G(V0) (AIFM ac_anchor.py _make_decaying_horizon_observable); 0 = a constant factor per OOM;
+ *  pace: a world's research pace, the multiplier on every research rate (workfit.ts researchMods): the software OOM per year
+ *    one lab's research input buys (AIFM software_progress_rate). Defaults (4.2, 0, 1) are the pre-R2.3 game. */
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number }
+const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1 };
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN },
-  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94, tasteLimit: TASTE_LIMIT_MEDIAN },
-  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0, tasteLimit: 16 }, // Daniel's taste_limit median (sampling_config_daniel.yaml:62)
+  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
+  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
+  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0, tasteLimit: 16, ...H50_LAW }, // Daniel's taste_limit median (sampling_config_daniel.yaml:62)
   // slow gSC 38.3: a STATED STAND-IN (DECISIONS "Calibration decisions after CAL1 refits" item 7): the top of its source
   // range, standing in for the source's slower horizon trend (METR 7-month doubling), which no mechanism carries; with
   // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
-  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN },
-  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN }, // timelineFor draws it from TASTE_LIMIT_CI80
+  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
+  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW }, // timelineFor draws it from TASTE_LIMIT_CI80
 };

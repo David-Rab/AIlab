@@ -17,10 +17,10 @@ import type {
   BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { gOfLevel, gV0, h50Of } from '../models/capability';
+import { gOfLevel, gV0, h50Growth, h50Of } from '../models/capability';
 import { gapFactor, measuredOom, versionOom } from './oversight';
 import { AG05_OVERSIGHT } from '../../../data/v2/oversight';
-import { H50_PER_OOM, H50_V0_MIN } from '../../../data/v2/workTypes';
+import { H50_V0_MIN } from '../../../data/v2/workTypes';
 import { adopted, believedEfficacy, clamp01, copyRec, flag, labLevel, setFlag, tierOfLevel, trueEfficacy, versionById } from './common';
 import { SD_MAX, believedStackDetectionMap, eaCoef, eaSuppression, stackDetectionMap, takesEaPenalty, withEvidence } from './detection';
 import { againstOf, METHOD_MULT, methodMult, methodRemoval, methodUntested, usesMethod, type EffView, type MethodQ } from './methods';
@@ -180,7 +180,7 @@ export interface RunHack {
 // (b) Long-task RL trains on tasks the model can sometimes do: RL curricula drop prompts the policy always or never
 // solves (Yu et al. 2025 DAPO, arXiv 2503.14476 [P], dynamic sampling filters accuracy-0 and accuracy-1 prompts), so the
 // long-horizon family's task length is the longer of its 2025 length (taskH 40 h) and the trained model's 50% time
-// horizon (METR TH1.1 [P]: 203 min at V0, × H50_PER_OOM 4.2 per OOM; models/capability.ts h50Of). The other families'
+// horizon (METR TH1.1 [P]: 203 min at V0, × the world horizon law (4.2 per OOM by default); models/capability.ts h50Of). The other families'
 // tasks are set by their domain (an issue, an experiment), not by the horizon, and keep their length. S3 reads the run's
 // length. Task length adds no grading gap (RF-S7 reverted CP3h's unsourced length gap).
 
@@ -194,7 +194,7 @@ export function policyOf(s: GameStateV2, v?: ModelVersion, believed = false): Po
   if (!m) return { oom: 0, h50Min: H50_V0_MIN };
   if (believed) {
     const oom = measuredOom(s, m);
-    return { oom, h50Min: H50_V0_MIN * Math.pow(H50_PER_OOM, oom) * (m.build?.h80Mult ?? 1) };
+    return { oom, h50Min: H50_V0_MIN * h50Growth(s.hidden.timeline, oom) * (m.build?.h80Mult ?? 1) };
   }
   return { oom: versionOom(s, m), h50Min: h50Of(s.hidden.timeline, m) };
 }

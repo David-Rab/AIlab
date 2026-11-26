@@ -1,5 +1,47 @@
 // Worked examples (B2): one entry per ref shape. Copy the format; B3 inventories fill this area for real.
-import { defineParams } from '../schema';
+import { defineParams, type Param } from '../schema';
+
+// R2.3 (design/bal/FIXC-TRANSLATION.md section 6): the per-world horizon law and research pace. The preset defaults are the pre-R2.3
+// game (4.2 per OOM, no acceleration, pace 1); the per-timeline values from the AIFM groups live in balance/scans/fixC-translation-v2.json
+// and are applied by a balrun --sets file.
+const R23_PRESETS = ['ai2027', 'authors2026', 'fast', 'slow', 'sampled'] as const;
+const horizonLawParams = (): Param[] => R23_PRESETS.flatMap((p): Param[] => [
+  {
+    id: `cap.V3_CAL.${p}.h50PerOOM`,
+    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'V3_CAL', path: [p, 'h50PerOOM'] },
+    value: 4.2,
+    unit: 'x per OOM',
+    area: 'capability', layer: 'world',
+    kind: 'sourced',
+    evidence: 'workTypes.ts V3Cal: "h50PerOOM: horizon growth per OOM of effective compute at V0 (the METR doubling at V0 is log2 of it ...)"; default H50_PER_OOM 4.2',
+    source: 'METR TH1.1 doubling (research/20 A2/E1); per timeline: AIFM group median of present_doubling_time x anchor_progress_rate re-anchored to V0 (FIXC-TRANSLATION section 6, aifm-public progress_model/ac_anchor.py)',
+    range: { lo: 2.2, hi: 4.2, from: 'FIXC-TRANSLATION section 6: AIFM group medians 2.46 / 2.82 / 2.61 per OOM at V0' },
+    perPreset: true,
+  },
+  {
+    id: `cap.V3_CAL.${p}.h50Accel`,
+    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'V3_CAL', path: [p, 'h50Accel'] },
+    value: 0,
+    unit: 'fraction per doubling',
+    area: 'capability', layer: 'world',
+    kind: 'sourced',
+    evidence: 'workTypes.ts V3Cal: "h50Accel A: the AIFM decay of that doubling length (A = 1 - doubling_difficulty_growth_factor)"; default 0 = a constant factor per OOM',
+    source: 'AIFM doubling_difficulty_growth_factor (sampling_config_q2_eli.yaml), progress_model/ac_anchor.py _make_decaying_horizon_observable; per timeline the group median of 1 - d (FIXC-TRANSLATION section 6)',
+    range: { lo: 0, hi: 0.16, from: 'AIFM d IQR 0.845-0.977 (FIXC-TRANSLATION section 1): A 0.02-0.16' },
+    perPreset: true,
+  },
+  {
+    id: `cap.V3_CAL.${p}.pace`,
+    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'V3_CAL', path: [p, 'pace'] },
+    value: 1,
+    unit: 'x',
+    area: 'capability', layer: 'world',
+    kind: 'fitted',
+    evidence: 'workTypes.ts V3Cal: "pace: a world research pace, the multiplier on every research rate (workfit.ts researchMods)"; default 1',
+    fit: { targets: [], script: 'scripts/v2/balrun.ts --forced aifm (one forced probe per timeline; FIXC-TRANSLATION section 6): the factor that puts the game software OOM per year 2025.5-2026.5 on the AIFM group median' },
+    perPreset: true,
+  },
+]);
 
 export const PARAMS_CAPABILITY = defineParams([
   {
@@ -3450,4 +3492,13 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'no tag; hidden.ts:42 sampled preset draws La = 1 + LN80[1, 200] (calibration.ts:51 "research/13 §1.4")',
     notes: 'The 80% interval of the lognormal; array order = low, high.',
   },
+  {
+    id: 'cap.H50_BASE_FLOOR',
+    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'H50_BASE_FLOOR' },
+    value: 0.02,
+    area: 'capability', layer: 'world',
+    kind: 'designer',
+    evidence: 'workTypes.ts: "the smallest base of the horizon law (1 - A x/T) the game evaluates ... the floor keeps it finite [D]"; used only with h50Accel != 0',
+  },
+  ...horizonLawParams(),
 ]);

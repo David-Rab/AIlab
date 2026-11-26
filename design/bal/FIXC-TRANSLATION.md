@@ -77,3 +77,34 @@ Surprises:
 - **gSC is the dominant separator:** 4.5 vs 9.6 OOM, so slow is a different compute requirement, not just a slower taste. Part of this is mechanical: the split is on the SAR date, so slow groups mix late AC with a long AC to SAR gap (median 0.44 / 0.86 / 2.27 y).
 - **The fast value of gSC (32.13) is 0.9 OOM above today's 31.25**, and slow (37.33) is 1.0 below today's stand-in 38.3; central (33.66) is 0.43 below 34.09 (that value is one run on Eli's median parameters, read at AI2027-SC, 34.09 vs this group's 35.39 at the same milestone).
 - Failed runs (109) are excluded; their parameters (extreme infeasible draws, `scripts/failure_params.py`) are not in any group.
+
+## 6. R2.3: per-timeline horizon law and research pace (2026-11-26)
+
+Values: `balance/scans/fixC-translation-v2.json`; sets file `balance/scans/fixC-r23-sets.json` (applied to authors2026 like `fixC-step1.json`; the variant with the unfitted law is `fixC-r23-sets-faithful.json`). Source statistics re-streamed from the same three rollouts (scratch `r23_extract.py`, `r23_analyze.py`): progress, 80% horizon and `software_efficiency` at the METR dates, per run, then the group median.
+
+**Mechanism** (defaults reproduce the old game; fingerprint pair identical, state hashes included). `V3_CAL[preset]` carries three new numbers (`workTypes.ts` V3Cal): `h50PerOOM` (4.2), `h50Accel` (0), `pace` (1). `models/capability.ts` `h50Growth`/`h50Ratio` replace the constant factor in `h50Of`, `workfit.ts` measuredLabour and `safety/traits.ts` policyOf. With `h50Accel` = 0 the law is `4.2^x` bit for bit; with A > 0 it is the AIFM law `h50 = 203 x (1 - A x / T)^(ln2 / ln(1 - A))`, x = G - G(V0), T = ln2 / ln(h50PerOOM) OOM, the base floored at `H50_BASE_FLOOR` (0.02, the law's pole). Why this form: the AIFM horizon is superexponential (A = 1 - d is 0.07-0.10), so a constant per OOM cannot follow a group from 2025 to AC (the AC requirement is 10^7.1-10^7.5 minutes), and "constant plus acceleration" is exactly this family with two numbers. `pace` multiplies `researchMods.speed` (`workfit.ts`), the rate of every science and experiment team of both departments; it is stored in the world only when it is not 1.
+
+**Per timeline (fast / central / slow):**
+| | fast | central | slow | source |
+|---|---|---|---|---|
+| A = 1 - d | 0.1003 | 0.0900 | 0.0744 | AIFM `doubling_difficulty_growth_factor`, per-run median |
+| doubling length at V0, OOM (faithful, re-anchored from the horizon date) | 0.770 (2.46 per OOM) | 0.668 (2.82) | 0.723 (2.61) | `present_doubling_time x anchor_progress_rate` + A x OOM(V0 to 2026.27), median |
+| doubling length at V0, OOM (**used**, fitted) | 0.496 (4.05 per OOM) | 0.495 (4.06) | 0.495 (4.06) | one number per timeline fitted to the 2026.27 band, A fixed |
+| `pace` | 3.75 | 3.2 | 3.1 | fitted: game software 2025.5-2026.5 on the AIFM median |
+| AIFM software OOM, 2025.5-2026.5 (median of 290) | 1.119 | 0.932 | 0.889 | `software_efficiency`; the 20-sample figures of FIXC-PRESC (1.08 / 1.05 / 0.73) were a subsample |
+| game software OOM, same year (median of 4 seeds) | 1.14 | 0.90 | 0.97 | continuous stack (`stacksGEquiv`) |
+| median `ac_time_horizon_minutes` (log10) | 7.511 | 7.084 | 7.366 | AIFM parameter, per-run median |
+| `gSC` (law above, G(V0) 27.627 + OOM to 5 x requirement) | 31.949 | 32.139 | 32.762 | |
+| `gSC` with the faithful law | 34.337 | 33.718 | 35.131 | |
+| `gSC` of section 2 (progress route) | 32.133 | 33.66 | 37.327 | |
+
+**Why the law is fitted and not the faithful translation.** The game's player lab releases only +0.53 / +0.65 / +0.71 OOM of G by 2025.96 / 2026.13 / 2026.27 (median of seeds 1-4; AIFM effective compute +0.77 / 1.05 / 1.29): releases are lumpy, the player's own base runs are 3.6x smaller after R2.2, and the year-1 G does not respond to `pace` (released G +0.87 at 2026.5 for pace 1 to 5). Through the faithful law (about 2.5-2.8 per OOM at V0) the game's h50 is 326-351 / 363-398 / 382-423 min at those dates against the band low 509 at 2026.27 (fails by 17-25%). The old constant 4.2 gives 562 there. Fitting the V0 doubling length to put 2026.27 about 10% above the low edge gives 4.05-4.06 per OOM in every timeline (inside the AIFM per-OOM IQR, 2-7). Median game h50 (min) at the METR dates 2025.62 / 2025.96 / 2026.13 / 2026.27: fast 203 / 432 / 516 / 567, central 203 / 431 / 514 / 563, slow 203 / 429 / 509 / 557 against 203 [113, 406], 354 (no band; the AIFM's own series gives 523-582), 719 [317, 3634], 1045 [509, 3304]: all inside their bands. Seed 2027 alone releases later (G +0.27 at 2026.13, +0.40 at 2026.27) and fails the 2026.27 band at any per-OOM value inside the AIFM range (it would need about 10 per OOM).
+
+**Forced runs (4 seeds, `--forced aifm --policy refwide --world authors2026`, `--sc-shift 0`), SC date against the AIFM AC median (2027.94 / 2029.72 / 2034.82):**
+| run | fast | central | slow |
+|---|---|---|---|
+| fitted law, pace as above (`r23h`) | 2027.19 (score -2.3) | 2027.41 (-3.6) | 2027.65 (-2.5) |
+| faithful law, same pace (`r23`) | 2028.01 (+0.2) | 2027.97 (-2.7) | 2028.50 (-2.2) |
+| faithful law, pace 1 (`r23p1`) | 2029.19 (+3.8) | 2028.85 (-1.4) | 2029.72 (-1.8) |
+
+SC is almost independent of `gSC` (1.4 OOM of gSC moves it by months) and set by the pace: matching the AIFM's year-1 software rate needs pace 3-4, after which the game's year-2 software is 2.9 OOM/yr against the AIFM's 1.0-1.4 (no diminishing returns on idea projects, R2.4), and the takeoff starts in 2027. The slow timeline cannot reach 2034 at any pace tried. The three forced series are not a pass for SC; the residual belongs to C2 after R2.4.

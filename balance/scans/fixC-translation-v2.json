@@ -1,0 +1,263 @@
+{
+ "generated": "2026-11-26",
+ "task": "R2.3 faithful horizon fix",
+ "method": "design/bal/FIXC-TRANSLATION.md section 6; sets file balance/scans/fixC-r23-sets.json (applied to authors2026, like fixC-step1.json); faithful-law variant balance/scans/fixC-r23-sets-faithful.json",
+ "sourceStats": "Per run then group median over the same 290 / 289 / 290 groups as fixC-translation.json; AIFM series re-streamed (scratch r23_extract.py): progress, horizon_lengths (80%), software_efficiency at the METR dates",
+ "timelines": {
+  "fast": {
+   "horizonLaw": {
+    "h50Accel": {
+     "value": 0.1003,
+     "status": "sourced",
+     "source": "AIFM doubling_difficulty_growth_factor d, per run A = 1 - d, group median (ac_anchor.py _make_decaying_horizon_observable: horizon = H0 (1 - A (p - p0)/T0)^(ln2/ln(1-A)))",
+     "exponent": -6.555
+    },
+    "h50PerOOM": {
+     "value": 4.045,
+     "status": "fitted to the METR history bands (A fixed)",
+     "doublingLengthOOM": 0.496,
+     "faithful": {
+      "value": 2.46,
+      "doublingLengthOOM": 0.77,
+      "source": "AIFM present_doubling_time x anchor_progress_rate (T at the horizon date 2026.27) + A x (AIFM progress 2026.27 - progress at V0 2025.445), per run, group median: the AIFM curve re-anchored to the game V0 (203 min)",
+      "presentDoublingYears": "see fixC-translation.json",
+      "aifmLocalDoublingAtHorizonDate": "T = Tp - A*xp, xp (OOM V0 to 2026.27) 1.38"
+     },
+     "fitNote": "the faithful value puts the game median h50 at 2026.27 at 382 / 423 / 399 min, below the band low 509 (the player lab releases only +0.71 OOM by then, AIFM +1.15-1.29); the fit puts it at 557-567 (low edge +9-11%) with one number per timeline"
+    },
+    "aifmH50OnOwnSeries": "median 5 x h80 at 2025.62 / 2025.96 / 2026.13 / 2026.27: see design doc section 6"
+   },
+   "pace": {
+    "value": 3.75,
+    "status": "fitted (one factor)",
+    "target": {
+     "aifmSoftwareOOMperYr_2025_5_to_2026_5": 1.119,
+     "source": "AIFM software_efficiency growth 2025.5 -> 2026.5, group median",
+     "paramSoftwareRateAtReferenceYear": 1.167
+    },
+    "gameMeasured": {
+     "gStackGrowth_2025_5_to_2026_5": 1.14,
+     "note": "continuous software stack (stacksGEquiv), median of 4 seeds"
+    }
+   },
+   "gSC": {
+    "value": 31.949,
+    "status": "derived through the fitted law",
+    "source": "G(V0) of authors2026 27.627 + x where the law reaches 5 x median AIFM ac_time_horizon_minutes (log10 min 7.511)",
+    "faithfulLawValue": 34.337,
+    "progressRouteValue_oldTranslation": 32.133
+   },
+   "gameResults": {
+    "h50AtMetrDates_fitted": {
+     "2025.62": 203,
+     "2025.96": 432,
+     "2026.13": 516,
+     "2026.27": 567
+    },
+    "h50AtMetrDates_faithful": {
+     "2025.62": 203,
+     "2025.96": 326,
+     "2026.13": 363,
+     "2026.27": 382
+    },
+    "scDate_fitted": 2027.185,
+    "scDate_faithfulLaw": 2028.014,
+    "scDate_faithfulLawPace1": 2029.189,
+    "aifmAcMedianTarget": 2027.94
+   },
+   "fullSet": {
+    "cap.V3_CAL.authors2026.gSC": 31.949,
+    "cap.V3_CAL.authors2026.sdSC": 0.744,
+    "cap.V3_CAL.authors2026.dBM": 2.061,
+    "cap.V3_CAL.authors2026.r": 3.452,
+    "cap.V3_CAL.authors2026.tasteLimit": 7.524,
+    "cap.PROD_PRESETS.authors2026.m2b": 4.092,
+    "cap.PROD_PRESETS.authors2026.La": 20.33,
+    "cap.PROD_PRESETS.authors2026.slow10": 2.65,
+    "cap.PROD_DEFAULT.lam": 0.508,
+    "cap.PROD_DEFAULT.rc": -2,
+    "cap.PROD_DEFAULT.Ca": 721.6,
+    "cap.V3_CAL.authors2026.h50PerOOM": 4.045,
+    "cap.V3_CAL.authors2026.h50Accel": 0.1003,
+    "cap.V3_CAL.authors2026.pace": 3.75
+   }
+  },
+  "central": {
+   "horizonLaw": {
+    "h50Accel": {
+     "value": 0.09,
+     "status": "sourced",
+     "source": "AIFM doubling_difficulty_growth_factor d, per run A = 1 - d, group median (ac_anchor.py _make_decaying_horizon_observable: horizon = H0 (1 - A (p - p0)/T0)^(ln2/ln(1-A)))",
+     "exponent": -7.353
+    },
+    "h50PerOOM": {
+     "value": 4.056,
+     "status": "fitted to the METR history bands (A fixed)",
+     "doublingLengthOOM": 0.495,
+     "faithful": {
+      "value": 2.821,
+      "doublingLengthOOM": 0.668,
+      "source": "AIFM present_doubling_time x anchor_progress_rate (T at the horizon date 2026.27) + A x (AIFM progress 2026.27 - progress at V0 2025.445), per run, group median: the AIFM curve re-anchored to the game V0 (203 min)",
+      "presentDoublingYears": "see fixC-translation.json",
+      "aifmLocalDoublingAtHorizonDate": "T = Tp - A*xp, xp (OOM V0 to 2026.27) 1.233"
+     },
+     "fitNote": "the faithful value puts the game median h50 at 2026.27 at 382 / 423 / 399 min, below the band low 509 (the player lab releases only +0.71 OOM by then, AIFM +1.15-1.29); the fit puts it at 557-567 (low edge +9-11%) with one number per timeline"
+    },
+    "aifmH50OnOwnSeries": "median 5 x h80 at 2025.62 / 2025.96 / 2026.13 / 2026.27: see design doc section 6"
+   },
+   "pace": {
+    "value": 3.2,
+    "status": "fitted (one factor)",
+    "target": {
+     "aifmSoftwareOOMperYr_2025_5_to_2026_5": 0.932,
+     "source": "AIFM software_efficiency growth 2025.5 -> 2026.5, group median",
+     "paramSoftwareRateAtReferenceYear": 0.924
+    },
+    "gameMeasured": {
+     "gStackGrowth_2025_5_to_2026_5": 0.9,
+     "note": "continuous software stack (stacksGEquiv), median of 4 seeds"
+    }
+   },
+   "gSC": {
+    "value": 32.139,
+    "status": "derived through the fitted law",
+    "source": "G(V0) of authors2026 27.627 + x where the law reaches 5 x median AIFM ac_time_horizon_minutes (log10 min 7.084)",
+    "faithfulLawValue": 33.718,
+    "progressRouteValue_oldTranslation": 33.66
+   },
+   "gameResults": {
+    "h50AtMetrDates_fitted": {
+     "2025.62": 203,
+     "2025.96": 431,
+     "2026.13": 514,
+     "2026.27": 563
+    },
+    "h50AtMetrDates_faithful": {
+     "2025.62": 203,
+     "2025.96": 351,
+     "2026.13": 398,
+     "2026.27": 423
+    },
+    "scDate_fitted": 2027.412,
+    "scDate_faithfulLaw": 2027.967,
+    "scDate_faithfulLawPace1": 2028.852,
+    "aifmAcMedianTarget": 2029.72
+   },
+   "fullSet": {
+    "cap.V3_CAL.authors2026.gSC": 32.139,
+    "cap.V3_CAL.authors2026.sdSC": 0.31,
+    "cap.V3_CAL.authors2026.dBM": 1.916,
+    "cap.V3_CAL.authors2026.r": 2.885,
+    "cap.V3_CAL.authors2026.tasteLimit": 7.638,
+    "cap.PROD_PRESETS.authors2026.m2b": 3.894,
+    "cap.PROD_PRESETS.authors2026.La": 17.98,
+    "cap.PROD_PRESETS.authors2026.slow10": 2.853,
+    "cap.PROD_DEFAULT.lam": 0.507,
+    "cap.PROD_DEFAULT.rc": -2,
+    "cap.PROD_DEFAULT.Ca": 1216.2,
+    "cap.V3_CAL.authors2026.h50PerOOM": 4.056,
+    "cap.V3_CAL.authors2026.h50Accel": 0.09,
+    "cap.V3_CAL.authors2026.pace": 3.2
+   }
+  },
+  "slow": {
+   "horizonLaw": {
+    "h50Accel": {
+     "value": 0.0744,
+     "status": "sourced",
+     "source": "AIFM doubling_difficulty_growth_factor d, per run A = 1 - d, group median (ac_anchor.py _make_decaying_horizon_observable: horizon = H0 (1 - A (p - p0)/T0)^(ln2/ln(1-A)))",
+     "exponent": -8.959
+    },
+    "h50PerOOM": {
+     "value": 4.056,
+     "status": "fitted to the METR history bands (A fixed)",
+     "doublingLengthOOM": 0.495,
+     "faithful": {
+      "value": 2.607,
+      "doublingLengthOOM": 0.723,
+      "source": "AIFM present_doubling_time x anchor_progress_rate (T at the horizon date 2026.27) + A x (AIFM progress 2026.27 - progress at V0 2025.445), per run, group median: the AIFM curve re-anchored to the game V0 (203 min)",
+      "presentDoublingYears": "see fixC-translation.json",
+      "aifmLocalDoublingAtHorizonDate": "T = Tp - A*xp, xp (OOM V0 to 2026.27) 1.21"
+     },
+     "fitNote": "the faithful value puts the game median h50 at 2026.27 at 382 / 423 / 399 min, below the band low 509 (the player lab releases only +0.71 OOM by then, AIFM +1.15-1.29); the fit puts it at 557-567 (low edge +9-11%) with one number per timeline"
+    },
+    "aifmH50OnOwnSeries": "median 5 x h80 at 2025.62 / 2025.96 / 2026.13 / 2026.27: see design doc section 6"
+   },
+   "pace": {
+    "value": 3.1,
+    "status": "fitted (one factor)",
+    "target": {
+     "aifmSoftwareOOMperYr_2025_5_to_2026_5": 0.889,
+     "source": "AIFM software_efficiency growth 2025.5 -> 2026.5, group median",
+     "paramSoftwareRateAtReferenceYear": 0.941
+    },
+    "gameMeasured": {
+     "gStackGrowth_2025_5_to_2026_5": 0.97,
+     "note": "continuous software stack (stacksGEquiv), median of 4 seeds"
+    }
+   },
+   "gSC": {
+    "value": 32.762,
+    "status": "derived through the fitted law",
+    "source": "G(V0) of authors2026 27.627 + x where the law reaches 5 x median AIFM ac_time_horizon_minutes (log10 min 7.366)",
+    "faithfulLawValue": 35.131,
+    "progressRouteValue_oldTranslation": 37.327
+   },
+   "gameResults": {
+    "h50AtMetrDates_fitted": {
+     "2025.62": 203,
+     "2025.96": 429,
+     "2026.13": 509,
+     "2026.27": 557
+    },
+    "h50AtMetrDates_faithful": {
+     "2025.62": 203,
+     "2025.96": 336,
+     "2026.13": 376,
+     "2026.27": 399
+    },
+    "scDate_fitted": 2027.647,
+    "scDate_faithfulLaw": 2028.503,
+    "scDate_faithfulLawPace1": 2029.724,
+    "aifmAcMedianTarget": 2034.82
+   },
+   "fullSet": {
+    "cap.V3_CAL.authors2026.gSC": 32.762,
+    "cap.V3_CAL.authors2026.sdSC": -0.18,
+    "cap.V3_CAL.authors2026.dBM": 2.79,
+    "cap.V3_CAL.authors2026.r": 2.864,
+    "cap.V3_CAL.authors2026.tasteLimit": 7.711,
+    "cap.PROD_PRESETS.authors2026.m2b": 3.82,
+    "cap.PROD_PRESETS.authors2026.La": 14.19,
+    "cap.PROD_PRESETS.authors2026.slow10": 2.79,
+    "cap.PROD_DEFAULT.lam": 0.51,
+    "cap.PROD_DEFAULT.rc": -2,
+    "cap.PROD_DEFAULT.Ca": 1013.9,
+    "cap.V3_CAL.authors2026.h50PerOOM": 4.056,
+    "cap.V3_CAL.authors2026.h50Accel": 0.0744,
+    "cap.V3_CAL.authors2026.pace": 3.1
+   }
+  }
+ },
+ "metrBands": {
+  "2025.62": {
+   "v": 203,
+   "lo": 113,
+   "hi": 406
+  },
+  "2025.96": {
+   "v": 354,
+   "note": "no band; AIFM own series about 523-582"
+  },
+  "2026.13": {
+   "v": 719,
+   "lo": 317,
+   "hi": 3634
+  },
+  "2026.27": {
+   "v": 1045,
+   "lo": 509,
+   "hi": 3304
+  }
+ }
+}

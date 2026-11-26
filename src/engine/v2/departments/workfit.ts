@@ -17,7 +17,7 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
-  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H50_PER_OOM, HORIZON_BETA,
+  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
   MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
@@ -27,7 +27,7 @@ import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
-import { domainRefShift, gOfLevel, h50Of, versionDomainG } from '../models/capability';
+import { domainRefShift, gOfLevel, h50Of, h50Ratio, versionDomainG } from '../models/capability';
 import { measuredDomainOf } from '../models/labs';
 import { believedProd } from '../production/believed';
 import { adopted } from '../models/paradigms';
@@ -285,7 +285,8 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
  *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
  *    rates. Siloing −5% per level [D: compartmentalisation friction; who cannot share experiments is not modelled];
  *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; a verified
- *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult).
+ *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult);
+ *    the world's research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline).
  *  - sidelined: E12 security clearances take SIDELINE_SHARE of every team's heads off the teams for their 60 days
  *    (onDuty: capacity, not a speed factor). */
 export const SIDELINE_SHARE = 0.1;
@@ -294,6 +295,9 @@ export function researchMods(s: GameStateV2): ResearchMods {
   const p = s.player;
   const day = s.time.day;
   let mods = 1 - 0.05 * p.security.siloing;
+  // R2.3: the world's research pace (V3Cal.pace; 1 = the pre-R2.3 game): the software OOM per year the same research input buys.
+  const pace = s.hidden.timeline.v3.pace ?? 1;
+  if (pace !== 1) mods *= pace;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
   const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
   const frontierExp = s.flags.paused ? 0 : 1;
@@ -377,7 +381,7 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   let fit = sl.fit.fit;
   for (const d in ws) fit += ws[d as DomainId] * (gMeas(d as DomainId) - versionDomainG(v, d as DomainId));
   const hd = WORK_TYPES[sl.wt].horizon;
-  const h50 = sl.fit.h50 * Math.pow(H50_PER_OOM, gMeas(hd) - versionDomainG(v, hd));
+  const h50 = sl.fit.h50 * h50Ratio(w, gMeas(hd), versionDomainG(v, hd));
   const win = winRate(w, sl.wt, fit);
   const f: WorkFit = { fit, best: sl.fit.best, med: sl.fit.med, h50, a: coverage(w, sl.wt, fit, h50), win, assist: assistOf(win) };
   const r = handedLabour(believedProd(s).mid, f.a, sl.t, sl.H, sl.AI, f.assist);
