@@ -88,10 +88,10 @@ export const LINE_FIT = { mu: 0.645 };
  *  yearOverStart: the AIFM's year-1 mean research effort over its effort at 2025.5, so the start input = year1 ÷ this
  *    (research_efforts in the AIFM Q2 Eli rollouts, 20 samples per group: medians 1.47 / 1.50 / 1.51 for fast / central / slow).
  *  A line absent from year1 (Recurrent architectures, opened by P17 later) keeps its n₀ from LINE_FIT.mu.
- *  [fitted: year1 from .scratch/ra-probe.ts runs r0; yearOverStart sourced] */
+ *  [fitted: year1 from .scratch/ra-probe.ts runs pr, re-measured after M1+M2 and the P24 line, 2026-11-26; yearOverStart sourced] */
 export const LINE_START_INPUT = {
   yearOverStart: 1.5,
-  year1: { 'L.scale': 17.77, 'L.data': 11.59, 'L.opt': 3.35, 'L.env': 15.05, 'L.rlalg': 12.93, 'L.infer': 11.01 } as Record<string, number>,
+  year1: { 'L.scale': 11.90, 'L.data': 11.22, 'L.opt': 2.71, 'L.env': 15.04, 'L.rlalg': 12.92, 'L.infer': 11.01 } as Record<string, number>,
 };
 
 // ───────────────────────────── stage costs ─────────────────────────────

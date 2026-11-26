@@ -1601,12 +1601,12 @@ export const PARAMS_CAPABILITY = defineParams([
   ...['L.scale', 'L.data', 'L.opt', 'L.env', 'L.rlalg', 'L.infer'].map((l, i): Param => ({
     id: `cap.LINE_START_INPUT.year1.${l}`,
     ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'LINE_START_INPUT', path: ['year1', l] },
-    value: [17.77, 11.59, 3.35, 15.05, 12.93, 11.01][i],
+    value: [11.90, 11.22, 2.71, 15.04, 12.92, 11.01][i],
     unit: 'pool units (kept ideas x taste) in the first year',
     area: 'research', layer: 'world',
     kind: 'fitted',
     evidence: 'research.ts LINE_START_INPUT: "year1: the pool a line gains in the first year of a lines-first reference lab (policy reflines, forced AIFM inputs, pace 1, the pre-A pools)"',
-    fit: { targets: [], script: '.scratch/ra-probe.ts (reflines, 3 timelines x 6 seeds, stockAgeYears 0): the line pool at day 365 over a year; sets n0 = stockAgeYears x year1 / yearOverStart' },
+    fit: { targets: [], script: '.scratch/ra-probe.ts (reflines, 3 timelines x 6 seeds, stockAgeYears 0): the line pool at day 365 over a year; sets n0 = stockAgeYears x year1 / yearOverStart. Re-measured after M1+M2 and the P24 line, 2026-11-26 (was 17.77 / 11.59 / 3.35 / 15.05 / 12.93 / 11.01; L.scale, L.data and L.opt moved with the scale fix, the others did not)' },
   })),
   {
     id: 'cap.LINE_STAGES.idea',
