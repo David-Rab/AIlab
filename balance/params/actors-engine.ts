@@ -117,7 +117,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_IDEA_IDS', path: ['*'] },
     area: 'actors', layer: 'policy', actor: 'rivals', kind: 'stand-in',
     evidence: 'rivalModel.ts:480-483 "The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18)"',
-    notes: 'String ids of tree nodes rivals research (P05 P08 P09 P11 P16 P22 P24); a list, not a number.',
+    notes: 'String ids of tree nodes rivals research (P05 P08 P09 P11 P16 P22 P24); a list, not a number. P24 is the player research line since round 2 item 9; a rival keeps the one-off approximation P24_RIVAL_IDEA (tree.ts: +0.96 OOM pretraining idea, sd 0.4, 28.8 team-months) [D stand-in].',
   },
   {
     id: 'act.RIVAL_IDEA_TM_PER_YEAR',

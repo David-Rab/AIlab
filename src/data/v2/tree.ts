@@ -154,9 +154,17 @@ export const TREE: TreeNodeDef[] = [
   P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cap: 'Experts can record days-long work for your long-tasks suite: a demonstrations build (Suites tab) adds their demos, raising its fidelity, its RL ceiling and so the time horizon', cost: 'Research costs no cash; each demonstrations build buys its own expert data' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
-  // RD-E01a (DD-14): P24 is a capability idea in the pretraining stack (OOM), through the normal idea pipeline. Prior
-  // mean 0.96 OOM = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 (wide: no measurement) [D].
-  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, cap: 'AI-designed architecture and recipe: pretraining efficiency ≈ +1 OOM (wide uncertainty) for bases trained after adoption', saf: 'New lineage: traits redrawn, tools may not transfer' }),
+  // Round 2 item 9: P24 is a research line (pretraining stack): the one-off lump (+0.96 OOM, RD-E01a DD-14) was 65-70% of the
+  // central year-2 software jump with no AIFM counterpart (design/bal/SHAPE-DIAG.md). Opened by RL focus: ML research, as
+  // before. All numbers [D] (no source for AI-designed architectures), fitted to the old lump: a lab that opens the line and
+  // staffs it (1-2 teams, the reflines bot) gains about 0.96 OOM on its bases in 12 months, 0.6 in 6, about 1.4 in 24.
+  //  - rShare 0.3: between Recurrent architectures' 0.22 and Scaling recipes' 0.36; the log law front-loads a small share, this
+  //    keeps the first idea near 0.08 OOM and adds under a third to the pretraining lines' returns.
+  //  - mean 0.12: the first idea's prior at taste 1 (x LINE_FIT.mu); it sets n0 (about 4: a FRESH pool, LINE_START_INPUT has no
+  //    entry for P24, so n0 comes from the first idea and not from an initial research stock: research just beginning).
+  //  - par 0.5: half its ideas in the new-architecture tier (Gundlach: 2 of about 20 human innovations were; an AI explores
+  //    architecture space more widely than humans); s [0.02, 0.04] as that mix.
+  LINE('P24', 'AI-designed successor', 'pretraining', ['rl.mlResearch'], { stack: 'pre', mean: 0.12, s: [0.02, 0.04], par: 0.5, rShare: 0.3 }, { fx: { cap: 1, saf: -1 }, cap: 'A research line of AI-designed architectures and recipes: pretraining efficiency (OOM) for bases trained after adoption; each result adds a little, with diminishing returns', saf: 'New lineage: traits redrawn, tools may not transfer' }),
 
   // ── Post-training (Training unless noted) ──
   STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
@@ -247,6 +255,12 @@ for (const n of TREE) {
   if (SAFETY_COLUMNS_SET.has(n.column) || n.star) continue;
   n.kind ??= n.effect ? 'idea' : 'axis';
 }
+/** The one-off form of P24 that the rivals' simplified model keeps (actors/rivalModel.ts RIVAL_IDEA_IDS: an aggregate
+ *  state has no research line of its own beyond DEFAULT_LINES): a pretraining-stack idea of +0.96 OOM (sd 0.4) costing
+ *  28.8 team-months, as before round 2 item 9 [D stand-in]. */
+export const P24_RIVAL_IDEA: TreeNodeDef = {
+  ...TREE.find((n) => n.id === 'P24')!, kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, effortTM: V2_PARADIGM_EFFORT_TM.P24,
+};
 for (const n of TREE) {
   if (n.star || n.kind === 'line') continue;
   if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? V2_PARADIGM_EFFORT_TM[n.id];

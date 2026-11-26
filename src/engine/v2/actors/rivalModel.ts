@@ -27,7 +27,7 @@
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
 import { DEFAULT_LINES, kappaMean } from '../../../data/v2/research';
-import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
+import { P24_RIVAL_IDEA, TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
 import { lineRate, linePoolAt, stagesOf } from '../models/research';
 import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY, SHARE_REF } from '../../../data/v2/calibration';
@@ -467,7 +467,8 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
 
 // ───────────────────────────── paradigm ideas (RD-X02, DD-14 rival part) ─────────────────────────────
 
-/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (pretraining-stack
+/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (the player's
+ *  research line since round 2 item 9; a rival keeps the one-off approximation P24_RIVAL_IDEA, tree.ts: pretraining-stack
  *  idea: + x OOM on the pretraining recipe, so bases launched after adoption carry it; scale-invariant, as the player's),
  *  P16 (training-throughput stack idea: base-run FLOP ×10^x; its serving part, also.serve × x, on the serving stack),
  *  P09 / P11 / P22 (domain ideas: + x × the node's domain OOM on versions post-trained after adoption) and P05 (the
@@ -485,7 +486,7 @@ export const RIVAL_IDEA_TM_PER_YEAR = (SCI_PER_HEAD * H_REF_BASE * 12) / (DEFAUL
  *  the aggregate level]. */
 let orderMemo: TreeNodeDef[] | undefined;
 export const rivalIdeaOrder = (): TreeNodeDef[] =>
-  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => TREE_BY_ID[id]).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
+  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => (id === 'P24' ? P24_RIVAL_IDEA : TREE_BY_ID[id])).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
 /** Realised effect of an adopted idea (0 if not adopted or it did not work here). */
 export const rivalIdea = (r: Partial<Pick<RivalLab, 'phys'>>, id: string) => r.phys?.ideas?.done[id] ?? 0;
 /** Hidden: the effect lab `labId` realises from idea n. Availability is the world's: the paradigm's per-world success

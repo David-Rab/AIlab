@@ -1286,7 +1286,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'untagged',
     evidence: 'no tag on the field (tree.ts:40 "Prior mean of a candidate\'s small-scale effect"); tree.ts nodes set it inline (tree.ts:138-241) and a few carry a per-node comment (e.g. :154-155 P24 "sd 0.4 (wide: no measurement) [D]")',
-    notes: 'Lines, ideas and axes with a typed effect.',
+    notes: 'Lines, ideas and axes with a typed effect. Round 2 item 9: P24 (AI-designed successor) is a line, effect.mean 0.12 [D, fitted]: the prior of the first idea at taste 1, which with rShare 0.3 sets its n0 (about 4; a fresh pool, no LINE_START_INPUT entry) so a lab that opens and staffs it for a year gains about the 0.96 OOM of the old lump on its bases (6 months about 0.6, 24 months about 1.4). The old one-off P24 (mean 0.96, sd 0.4) survives only as P24_RIVAL_IDEA of the rivals.',
   },
   {
     id: 'cap.TREE.effect.sd',
@@ -1303,7 +1303,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'untagged',
     evidence: 'tree.ts ProjectEffect.s "Small-to-test exponent prior [mean, sd]: effect at the scale test = small-scale effect x 1000^s (survival)"; tree.ts nodes set it inline (tree.ts:145-148)',
-    notes: 'Lines only today (L.scale, L.data, L.opt, L.latent). Round 2 item 10 (SCALE-DIAG M1+M2): L.scale [0.05, 0.04] -> [0, 0] (its "compute rebalancing" scale term is the tokens per parameter of the run design, fOver/OPT_TPP, so it was counted twice); the rest unchanged; the upper clamp S_RANGE is now 0.065. Beyond the test scale the effect follows cap.TREE.effect.par and KAPPA_MAX, not s.',
+    notes: 'Lines only today (L.scale, L.data, L.opt, L.latent, P24 [0.02, 0.04] [D]: its par 0.5 mix). Round 2 item 10 (SCALE-DIAG M1+M2): L.scale [0.05, 0.04] -> [0, 0] (its "compute rebalancing" scale term is the tokens per parameter of the run design, fOver/OPT_TPP, so it was counted twice); the rest unchanged; the upper clamp S_RANGE is now 0.065. Beyond the test scale the effect follows cap.TREE.effect.par and KAPPA_MAX, not s.',
   },
   {
     id: 'cap.TREE.effect.par',
@@ -1314,7 +1314,7 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'tree.ts ProjectEffect.par "Share of the ideas of the node in the paradigm tier, whose effect keeps growing beyond the test scale"; research.ts KAPPA_TIER comment: 2 of about 20 identified innovations are scale-dependent',
     source: 'Gundlach et al. 2025 arXiv 2511.21622 (research/20-model-v3-calibration.md:217-254; design/bal/SCALE-DIAG.md section 3): the two scale-dependent changes (Transformer, Kaplan-to-Chinchilla) are 88% of the extrapolated log gains, the scale-invariant ones together under 10x',
     range: { lo: 0, hi: 1, from: 'Optimizer & architecture tweaks 0.1 (Gundlach 2 of about 20 innovations); Recurrent architectures 1 (a new architecture family, as the Transformer was); every other line 0' },
-    notes: 'Round 2 item 10 (SCALE-DIAG M1): default 0 = scale-invariant beyond the test scale; L.opt 0.1, L.latent 1.',
+    notes: 'Round 2 item 10 (SCALE-DIAG M1): default 0 = scale-invariant beyond the test scale; L.opt 0.1, L.latent 1. Round 2 item 9: P24 (AI-designed successor line) 0.5 [D: half its ideas in the new-architecture tier, as Gundlach counts 2 of about 20 human innovations; an AI explores architecture space more widely than humans].',
   },
   {
     id: 'cap.TREE.effect.rShare',
@@ -1323,7 +1323,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'designer',
     evidence: 'tree.ts:54-55 "Lines: the line\'s share w_l of the lab\'s returns to research r ... [D, V3 notes derivation 1]"',
-    notes: 'G-carrying lines sum to 1.',
+    notes: 'G-carrying lines sum to 1, except round 2 item 9: P24 (AI-designed successor, 0.3 [D]: between Recurrent architectures 0.22 and Scaling recipes 0.36) and L.latent (0.22) come on top, so the pretraining lines sum to 1.32 once both are open.',
   },
   {
     id: 'cap.TREE.effect.also',
@@ -1357,7 +1357,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'derived',
     evidence: 'tree.ts:102-105 "Paradigm nodes not in FITTED_EFFORT_TM ...: v2-derived values pending refit. They are the pre-R4 effortDays ... × 0.2 TM/day"',
-    notes: 'Const is not exported, so an inline ref; array order = P06, P09, P10, P11, P12, P14, P15, P16, P18, P21, P22, P23, P24, P25.',
+    notes: 'Const is not exported, so an inline ref; array order = P06, P09, P10, P11, P12, P14, P15, P16, P18, P21, P22, P23, P24, P25. P24 is a line since round 2 item 9 (no effortTM of its own): its 28.8 is read only by P24_RIVAL_IDEA, the one-off of the rivals.',
   },
   {
     id: 'cap.DEFAULT_LINES.w',

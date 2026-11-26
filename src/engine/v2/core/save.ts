@@ -10,7 +10,7 @@ import { deriveNames } from '../models/naming';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 110;
+export const SCHEMA_REV = 111;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
@@ -154,6 +154,17 @@ export const migrations: Record<number, (s: Record<string, unknown>) => void> = 
   109: (s) => {
     const fx = (s.world as { fx?: { bandP?: unknown } } | undefined)?.fx;
     if (fx) delete fx.bandP;
+  },
+  /** 110 → 111 (round 2 item 9): P24 (AI-designed successor) is a research line, no longer a one-off idea. Its project state
+   *  (an idea's stage, candidates, result, or 'known') is dropped, so the line starts fresh once RL focus: ML research is
+   *  known; an idea already built in keeps its effect in the pretraining stack. It leaves the research list and its teams
+   *  go idle (the player queues the line again). */
+  110: (s) => {
+    const p = s.player as { tree?: Record<string, unknown>; research?: { queue?: string[]; want?: Record<string, number> }; teams?: { projectId?: string }[] } | undefined;
+    if (p?.tree) delete p.tree.P24;
+    if (p?.research?.queue) p.research.queue = p.research.queue.filter((x) => x !== 'P24');
+    if (p?.research?.want) delete p.research.want.P24;
+    for (const t of p?.teams ?? []) if (t.projectId === 'P24') delete t.projectId;
   },
 };
 

@@ -87,6 +87,10 @@ export const REF_TREE: TreeGoal[] = treeGoals(DEFAULT_REF);
  *  architectures opens with neuralese recurrence (P17). D10: Inference efficiency is ranked (weight 0.1, DEFAULT_LINES):
  *  the serving stack raises decode utilisation, then cuts FLOP per token (models/stacks.ts serveSplit). */
 export const REF_RESEARCH_LINES = DEFAULT_LINES;
+/** Round 2 item 9: an unlocked line a bot lists in settings.research (P24, AI-designed successor) is staffed like a default
+ *  line, at this share of the free science teams [D: as Recurrent architectures' returns share, 0.22, rounded]. */
+export const REF_LISTED_LINE_W = 0.2;
+const listedLines = (c: RefBotSettings): { id: string; w: number }[] => c.research.filter((id) => TREE_BY_ID[id]?.kind === 'line').map((id) => ({ id, w: REF_LISTED_LINE_W }));
 /** Teams wanted on each of RefBot's paradigm projects [D]: v2's auto-assign put most of its science teams on its one or
  *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and
  *  gives the lines the rest. (A fixed 70% line share was tried: it fitted the lines more evenly across worlds but moved
@@ -354,6 +358,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   const goals = o.tree?.(s) ?? (c === DEFAULT_REF ? REF_TREE : treeGoals(c));
   const queue = p.research.queue;
   for (const g of goals) {
+    if (TREE_BY_ID[g.id]?.kind === 'line') continue; // a listed line is staffed with the lines below
     if (queue.includes(g.id) || nodeKnown(s, g.id) || missingNeeds(s, g.id).length) continue;
     const st = p.tree[g.id];
     if (st?.status === 'failed') {
@@ -364,7 +369,7 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
     if (g.when && !g.when(s)) continue;
     tryAct(s, api, 'research.start', { id: g.id });
   }
-  const lines = REF_RESEARCH_LINES.filter((l) => !missingNeeds(s, l.id).length);
+  const lines = [...REF_RESEARCH_LINES, ...listedLines(c)].filter((l) => !missingNeeds(s, l.id).length);
   for (const l of lines) if (!queue.includes(l.id)) tryAct(s, api, 'research.queue', { id: l.id });
   // Lines first (settings.linesFirst): the lines take the top places of the list, so the science teams fill them before any
   // one-off project (the player's reorder of the research list, no engine shortcut).
