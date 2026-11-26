@@ -21,11 +21,19 @@ import { fileURLToPath } from 'node:url';
 import { CHECKPOINTS, type Checkpoint, type TimelineId } from '../../balance/scenarios';
 import { START_DATE, decimalYearOf } from '../../src/engine/v2/core/time';
 
-const run = process.argv[2];
-if (!run) { console.error('usage: s1compare.ts <run>'); process.exit(2); }
+//   --map set=timeline,...  compare each override set (balrun --sets) with its own timeline only (base: every timeline); the
+//                           table then has one column per set and the groups are world x set (Fix C step 1).
+//   --sc-shift <years>      years added to the AIFM AC target for the game's SC (default 0.5, the AI 2027 reading); 0 = the
+//                           Fix C reading "SC = AC" (FIXC-TRANSLATION section 3).
+const argv = process.argv.slice(2);
+const flag = (f: string) => { const i = argv.indexOf(f); return i < 0 ? undefined : argv[i + 1]; };
+const run = argv[0];
+if (!run || run.startsWith('--')) { console.error('usage: s1compare.ts <run> [--map set=timeline,...] [--sc-shift years]'); process.exit(2); }
+const MAP: Record<string, string> | null = flag('--map') ? Object.fromEntries(flag('--map')!.split(',').map((x) => x.split('='))) : null;
+const SC_SHIFT = flag('--sc-shift') !== undefined ? Number(flag('--sc-shift')) : 0.5;
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'balance', 'runs', run);
 type Series = { year: number[]; G: (number | null)[]; h80: (number | null)[]; spd: (number | null)[]; comp: number[] };
-interface Rec { seed: number; world: string; milestones: Record<string, number>; series?: Series }
+interface Rec { seed: number; world: string; overrideSet?: string; milestones: Record<string, number>; series?: Series }
 const recs: Rec[] = readFileSync(join(dir, 'games.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 
 const TL: TimelineId[] = ['fast', 'central', 'slow'];
@@ -80,7 +88,7 @@ const quantity = (c: Checkpoint): Quantity | null => {
   if (c.value === undefined) return null;
   if (c.quantity === 'milestone' && c.milestone) {
     const m = c.milestone;
-    const shift = m === 'SC' ? 0.5 : 0;
+    const shift = m === 'SC' ? SC_SHIFT : 0;
     return (rs) => ({ game: med(rs.map((r) => (r.milestones[m] === undefined ? Infinity : dayYear(r.milestones[m])))), ...band(c, (x) => x + shift) });
   }
   if (c.quantity === 'interval' && c.milestone && c.from && c.from !== 'SC') {
@@ -95,13 +103,17 @@ const quantity = (c: Checkpoint): Quantity | null => {
 };
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
-const presets = [...new Set(recs.map((r) => r.world))];
+// With --map, the groups are world|set (a set's games carry overrideSet) instead of the world alone.
+const gkey = (r: Rec) => (MAP ? `${r.world}|${r.overrideSet ?? 'base'}` : r.world);
+const presets = [...new Set(recs.map(gkey))];
 const tlChecks = CHECKPOINTS.filter((c) => c.layer === 'timeline');
 const out: Record<string, Record<string, { rows: Row[]; scored: number; within1: number; meanAbs: number | null }>> = {};
 for (const p of presets) {
-  const rs = recs.filter((r) => r.world === p);
+  const rs = recs.filter((r) => gkey(r) === p);
   out[p] = {};
+  const only = MAP ? MAP[p.split('|')[1]] : undefined;
   for (const t of TL) {
+    if (MAP && only && t !== only) { out[p][t] = { rows: [], scored: 0, within1: 0, meanAbs: null }; continue; }
     const rows: Row[] = [];
     for (const c of tlChecks.filter((x) => x.timeline === t)) {
       const q = quantity(c);
@@ -125,11 +137,11 @@ const comp: Record<string, Record<string, number | null>> = {};
 for (const p of presets) {
   comp[p] = {};
   for (const y of [2027, 2030]) {
-    const xs = recs.filter((r) => r.world === p && r.series).map((r) => { const i = r.series!.year.indexOf(y); return i < 0 ? NaN : r.series!.comp[i] / r.series!.comp[0]; }).filter(Number.isFinite);
+    const xs = recs.filter((r) => gkey(r) === p && r.series).map((r) => { const i = r.series!.year.indexOf(y); return i < 0 ? NaN : r.series!.comp[i] / r.series!.comp[0]; }).filter(Number.isFinite);
     comp[p][String(y)] = xs.length ? Math.round(med(xs) * 100) / 100 : null;
   }
 }
-const meta = { run, games: recs.length, gamesPerPreset: Object.fromEntries(presets.map((p) => [p, recs.filter((r) => r.world === p).length])), aifmH80At2025_5: Math.round(H80_2025_5 * 10) / 10, aifmEcAt2025_5: EC_2025_5, computeGrowthInGames: comp };
+const meta = { run, games: recs.length, gamesPerPreset: Object.fromEntries(presets.map((p) => [p, recs.filter((r) => gkey(r) === p).length])), scShift: SC_SHIFT, map: MAP, aifmH80At2025_5: Math.round(H80_2025_5 * 10) / 10, aifmEcAt2025_5: EC_2025_5, computeGrowthInGames: comp };
 writeFileSync(join(dir, 's1compare.json'), JSON.stringify({ meta, presets: out }, null, 1));
 
 // ── table ──
