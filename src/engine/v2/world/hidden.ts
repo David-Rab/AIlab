@@ -69,6 +69,7 @@ export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'
   if (v3.h50PerOOM === H50_PER_OOM) delete (v3 as Partial<typeof v3>).h50PerOOM;
   if (v3.h50Accel === 0) delete (v3 as Partial<typeof v3>).h50Accel;
   if (v3.pace === 1) delete (v3 as Partial<typeof v3>).pace;
+  if (v3.stockAgeYears === 0) delete (v3 as Partial<typeof v3>).stockAgeYears;
   // Fix A: the sampled world draws the taste limit as the AIFM does (lognormal 80% CI [2, 32], clipped to [0, 100]).
   if (setup.world === 'sampled') v3.tasteLimit = Math.min(TASTE_LIMIT_RANGE[1], Math.max(TASTE_LIMIT_RANGE[0], rng.lognormal80(TASTE_LIMIT_CI80[0], TASTE_LIMIT_CI80[1])));
   return { ...w1, prod, v3 };

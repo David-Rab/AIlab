@@ -330,9 +330,13 @@ export const TASTE_LIMIT_RANGE: [number, number] = [0, 100];
  *  h50Accel A: the AIFM's decay of that doubling length (A = 1 − doubling_difficulty_growth_factor): h50(x) = H50_V0_MIN ×
  *    (1 − A·x/T)^(ln2/ln(1−A)), x = G − G(V0) (AIFM ac_anchor.py _make_decaying_horizon_observable); 0 = a constant factor per OOM;
  *  pace: a world's research pace, the multiplier on every research rate (workfit.ts researchMods): the software OOM per year
- *    one lab's research input buys (AIFM software_progress_rate). Defaults (4.2, 0, 1) are the pre-R2.3 game. */
-export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number }
-const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1 };
+ *    one lab's research input buys (AIFM software_progress_rate). Defaults (4.2, 0, 1) are the pre-R2.3 game.
+ *  stockAgeYears (item A): the age at the start of every research line's pool, in years of that line's own start research input
+ *    (the AIFM's initial research stock RS(0) = E(0)/g_E, the inverse of E/RS = 0.70 / 0.76 / 0.84 a year in its fast / central / slow
+ *    groups): each line's n₀ = stockAgeYears × LINE_START_INPUT[line] (models/research.ts linePool). 0 = off: n₀ from the first
+ *    idea's mean (LINE_FIT.mu), the game before item A. */
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number; stockAgeYears: number }
+const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1, stockAgeYears: 0 };
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
   ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
   authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },

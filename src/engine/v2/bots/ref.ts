@@ -366,6 +366,9 @@ export function refPlay(s: GameStateV2, api: EngineApi, o: RefPlayOpts = {}): vo
   }
   const lines = REF_RESEARCH_LINES.filter((l) => !missingNeeds(s, l.id).length);
   for (const l of lines) if (!queue.includes(l.id)) tryAct(s, api, 'research.queue', { id: l.id });
+  // Lines first (settings.linesFirst): the lines take the top places of the list, so the science teams fill them before any
+  // one-off project (the player's reorder of the research list, no engine shortcut).
+  if (c.linesFirst) lines.forEach((l, i) => { if (queue[i] !== l.id) tryAct(s, api, 'research.move', { id: l.id, to: i }); });
   const sci = p.teams.filter((x) => x.role === 'sci' && x.dept === 'cap').length;
   const ideas = queue.filter((id) => !lines.some((l) => l.id === id) && TREE_BY_ID[id] && COLUMN_DEPT[TREE_BY_ID[id].column] === 'cap' && !nodeKnown(s, id) && takesTeams(p.tree[id]?.cap));
   for (const id of ideas) if ((p.research.want[id] ?? 1) !== c.ideaTeams) tryAct(s, api, 'research.want', { id, n: c.ideaTeams });

@@ -39,7 +39,7 @@
 // value (auto projects first) under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY,
 } from '../../../data/v2/research';
@@ -91,7 +91,15 @@ export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: 
 
 /** A line's pool in this world (V3 notes, derivation 1): returns r_l = rShare × the preset's r, and the research input
  *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). */
-export const linePool = (s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef) => linePoolAt(s.hidden.timeline.v3.r, n);
+export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: number; n0: number } {
+  const v3 = s.hidden.timeline.v3;
+  const pl = linePoolAt(v3.r, n);
+  // Item A: the start pool is stockAgeYears of the line's own start input (the AIFM's initial research stock); 0 or no
+  // measured input = n₀ from the first idea's mean.
+  const age = v3.stockAgeYears ?? 0;
+  const rate = (LINE_START_INPUT.year1[n.id] ?? 0) / LINE_START_INPUT.yearOverStart;
+  return age > 0 && rate > 0 ? { r: pl.r, n0: age * rate } : pl;
+}
 /** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01). */
 export function linePoolAt(worldR: number, n: TreeNodeDef): { r: number; n0: number } {
   const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);

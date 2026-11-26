@@ -73,6 +73,21 @@ export const PACE_BATCH = 30;
  *  line's start effect [fit: the reference lab's pretraining stack ≈ 0.48 OOM/yr in its first year, Ho et al., R20 B1;
  *  calib.ts --fit-lines] (an object so the calibration harness can set it). */
 export const LINE_FIT = { mu: 0.645 };
+/** Item A: each line's research input at the start of the game, in pool units (the pool's own measure: kept ideas × taste), and the
+ *  measure the AIFM's initial research stock is taken against. A world with V3Cal.stockAgeYears > 0 starts the line's pool at
+ *  stockAgeYears × (year1[line] ÷ yearOverStart) (models/research.ts linePool): the pool is that many years of the line's own
+ *  start input, as the AIFM's initial stock RS(0) = E(0)/g_E is 1/g_E years of its start effort.
+ *  year1: the pool a line gains in the first year of a lines-first reference lab (policy 'reflines', forced AIFM inputs, pace 1,
+ *    the pre-A pools), mean of 3 timelines × 6 seeds. The input at day 0 itself is not measurable: the first idea of a line
+ *    lands after about 75 days (ideation, small tests, scale test), and the input then grows with compute.
+ *  yearOverStart: the AIFM's year-1 mean research effort over its effort at 2025.5, so the start input = year1 ÷ this
+ *    (research_efforts in the AIFM Q2 Eli rollouts, 20 samples per group: medians 1.47 / 1.50 / 1.51 for fast / central / slow).
+ *  A line absent from year1 (Recurrent architectures, opened by P17 later) keeps its n₀ from LINE_FIT.mu.
+ *  [fitted: year1 from .scratch/ra-probe.ts runs r0; yearOverStart sourced] */
+export const LINE_START_INPUT = {
+  yearOverStart: 1.5,
+  year1: { 'L.scale': 17.77, 'L.data': 11.59, 'L.opt': 3.35, 'L.env': 15.05, 'L.rlalg': 12.93, 'L.infer': 11.01 } as Record<string, number>,
+};
 
 // ───────────────────────────── stage costs ─────────────────────────────
 

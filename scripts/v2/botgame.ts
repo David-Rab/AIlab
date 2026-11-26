@@ -23,7 +23,9 @@ import type { AlignDiffId, BotPolicy, GameStateV2, StartType, TickOptions, World
 /** The named bot policies. */
 /** 'refwide' (Stage 1): RefBot's settings plus the research ideas the rival labs pursue (balance/scans/refbot-a.json, set research-rivals-all). */
 const REFWIDE = makeRefBot({ ...DEFAULT_REF, research: ['P07', 'P05', 'P08', 'rl.mlResearch', 'P17', 'P16', 'P09', 'P24', 'rl.math', 'P11', 'multimodal', 'P22'] });
-const POLICIES = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot, refwide: REFWIDE } satisfies Record<PolicyId, BotPolicy>; // policies.ts lists the same ids
+/** 'reflines' (item D): refwide with the research lines at the top of the research list, staffed from day 0 at RefBot's counts. */
+const REFLINES = makeRefBot({ ...DEFAULT_REF, linesFirst: true, research: ['P07', 'P05', 'P08', 'rl.mlResearch', 'P17', 'P16', 'P09', 'P24', 'rl.math', 'P11', 'multimodal', 'P22'] });
+const POLICIES = { race: raceBot, safe: safeBot, mixed: mixedBot, capex2x: capex2xBot, ref: refBot, refwide: REFWIDE, reflines: REFLINES } satisfies Record<PolicyId, BotPolicy>; // policies.ts lists the same ids
 export const ALL: Record<string, BotPolicy> = POLICIES;
 
 /** A fresh bot game: Realistic gov / public / China / rivals actors, Rising storyteller, no tutorial. */

@@ -23,6 +23,10 @@ export interface RefBotSettings {
   researchGate: Record<string, GateKey>;
   /** bots.ref.REF_IDEA_TEAMS: science teams wanted on each paradigm project. */
   ideaTeams: number;
+  /** bots.ref.REF_LINES_FIRST: the research lines sit at the top of the research list (before the one-off projects), so their
+   *  teams are staffed first, from day 0, at the counts RefBot wants; false = the lines queue behind the projects started
+   *  (RefBot as it was: the projects take the science teams first). */
+  linesFirst: boolean;
   /** bots.ref.BASE_EVERY: days between base runs. */
   baseEvery: number;
   /** bots.ref.REF_BASE_DAYS: the base's target run length (days) at its pool share, leader start. */
@@ -120,6 +124,7 @@ export const DEFAULT_REF: RefBotSettings = {
   research: ['P07', 'P05', 'P08', 'rl.mlResearch', 'P17'],
   researchGate: { P08: 'L7', 'rl.mlResearch': 'L65', P17: 'L95' },
   ideaTeams: 3,
+  linesFirst: false,
   baseEvery: 270,
   baseDays: 121,
   followerMaxBaseDays: 200,

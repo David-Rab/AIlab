@@ -56,6 +56,13 @@ export const PARAMS_CORE = defineParams([
     notes: 'The comment says a fixed 70% line share was tried and moved the ai2027 takeoff out of tolerance (V3-BUILD V2 notes).',
   },
   {
+    id: 'bots.ref.REF_LINES_FIRST',
+    ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['linesFirst'] },
+    value: false, unit: 'flag (policy reflines sets it)', ...BOT, kind: 'designer',
+    evidence: 'settings.ts linesFirst: "the research lines sit at the top of the research list (before the one-off projects), so their teams are staffed first, from day 0"',
+    notes: 'Item D (BAL-TASKS): false = RefBot as it was; the forced-run policy reflines is refwide with this on.',
+  },
+  {
     id: 'bots.ref.BASE_EVERY',
     ref: { kind: 'export', module: 'src/engine/v2/bots/settings.ts', symbol: 'DEFAULT_REF', path: ['baseEvery'] },
     value: 270, unit: 'days', ...BOT, kind: 'untagged',

@@ -190,7 +190,9 @@ export interface TimelineWorld {
    *  the superhuman coder, SD; AIFM's "AI taste at AC"), tasteLimit (AIFM taste_limit: a taste is bounded by m2b^(1 + tasteLimit)). */
   v3: { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number;
     /** R2.3 (workTypes.ts V3Cal): the horizon law and the research pace of the world. Absent in a save made before: 4.2, 0, 1. */
-    h50PerOOM?: number; h50Accel?: number; pace?: number };
+    h50PerOOM?: number; h50Accel?: number; pace?: number;
+    /** Item A (workTypes.ts V3Cal): the age of the research lines' start pools, years of their start input. Absent: n₀ from LINE_FIT. */
+    stockAgeYears?: number };
 }
 
 export interface ProdParams {

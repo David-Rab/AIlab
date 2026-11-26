@@ -41,6 +41,18 @@ const horizonLawParams = (): Param[] => R23_PRESETS.flatMap((p): Param[] => [
     fit: { targets: [], script: 'scripts/v2/balrun.ts --forced aifm (one forced probe per timeline; FIXC-TRANSLATION section 6): the factor that puts the game software OOM per year 2025.5-2026.5 on the AIFM group median' },
     perPreset: true,
   },
+  {
+    id: `cap.V3_CAL.${p}.stockAgeYears`,
+    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'V3_CAL', path: [p, 'stockAgeYears'] },
+    value: 0,
+    unit: 'years of start input (0 = off)',
+    area: 'capability', layer: 'world',
+    kind: 'sourced',
+    evidence: 'workTypes.ts V3Cal: "stockAgeYears (item A): the age at the start of every research line pool, in years of that line own start research input (the AIFM initial research stock RS(0) = E(0)/g_E ...)"; default 0 = n0 from LINE_FIT.mu',
+    source: 'AIFM initial research stock: RS(0) = E(0)^2 / E-prime(0), so the stock is 1/g_E years of start effort (aifm-public progress_model, research_stock vs research_efforts at 2025.5); group medians E/RS = 0.70 / 0.76 / 0.84 a year (SHAPE-DIAG section 4) = ages 1.43 / 1.32 / 1.19 years for fast / central / slow',
+    range: { lo: 1.19, hi: 1.43, from: 'SHAPE-DIAG section 4: AIFM fast / central / slow group medians of 1/(E/RS) at 2025.5' },
+    perPreset: true,
+  },
 ]);
 
 export const PARAMS_CAPABILITY = defineParams([
@@ -1562,6 +1574,27 @@ export const PARAMS_CAPABILITY = defineParams([
     fit: { targets: [], script: 'scripts/v2/calib.ts --fit-lines' },
     notes: 'Fitted to: the reference lab\'s pretraining stack gain ≈ 0.48 OOM/yr in its first year.',
   },
+  {
+    id: 'cap.LINE_START_INPUT.yearOverStart',
+    ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'LINE_START_INPUT', path: ['yearOverStart'] },
+    value: 1.5,
+    unit: 'x',
+    area: 'research', layer: 'world',
+    kind: 'sourced',
+    evidence: 'research.ts LINE_START_INPUT: "yearOverStart: the AIFM year-1 mean research effort over its effort at 2025.5, so the start input = year1 ÷ this"',
+    source: 'AIFM Q2 Eli rollouts (research_efforts, 20 samples per group): median year-1 mean E over E(2025.5) = 1.47 / 1.50 / 1.51 for fast / central / slow',
+    range: { lo: 1.47, hi: 1.51, from: 'the three group medians' },
+  },
+  ...['L.scale', 'L.data', 'L.opt', 'L.env', 'L.rlalg', 'L.infer'].map((l, i): Param => ({
+    id: `cap.LINE_START_INPUT.year1.${l}`,
+    ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'LINE_START_INPUT', path: ['year1', l] },
+    value: [17.77, 11.59, 3.35, 15.05, 12.93, 11.01][i],
+    unit: 'pool units (kept ideas x taste) in the first year',
+    area: 'research', layer: 'world',
+    kind: 'fitted',
+    evidence: 'research.ts LINE_START_INPUT: "year1: the pool a line gains in the first year of a lines-first reference lab (policy reflines, forced AIFM inputs, pace 1, the pre-A pools)"',
+    fit: { targets: [], script: '.scratch/ra-probe.ts (reflines, 3 timelines x 6 seeds, stockAgeYears 0): the line pool at day 365 over a year; sets n0 = stockAgeYears x year1 / yearOverStart' },
+  })),
   {
     id: 'cap.LINE_STAGES.idea',
     ref: { kind: 'export', module: 'src/data/v2/research.ts', symbol: 'LINE_STAGES', path: ['idea'] },
