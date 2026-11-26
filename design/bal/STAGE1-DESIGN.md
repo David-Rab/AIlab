@@ -51,3 +51,12 @@ From [S1-TAKEOFF-DIAG.md](S1-TAKEOFF-DIAG.md):
 
 D (release lumps) waits until after A–C. E (rival distillation) waits for the NPC calibration. These are mechanism changes: behaviour changes on purpose, and the fingerprint baseline is re-recorded after each one.
 - **Revision (designer, 2026-11-26, corrected):** fix B is replaced. The game keeps its structure: taste reaches research through ideation, a more tangible concept for the player, and labour and compute run the experiments. Ideation gets no compute requirement. **Requirement: the game's taste and ideation together must have the same effect on research progress as the AIFM's taste multiplier**, across the capability range (today → SC → takeoff). **Check:** a component-level curve comparison: at each capability level, the AIFM aggregate taste multiplier vs the game's combined taste-through-ideation multiplier on research rate. The AIFM curve saturates toward its ceiling (fix A), so the combined game curve must too. If ideation adds its own compounding, calibrate the ideation side until the curves match (part of fix C).
+
+## Designer decision (2026-11-26): taste as a human/AI mixture (fix B, final)
+1. **Taste sets idea quality only (option A).** The ideation rate (how many candidates) no longer includes taste. Quantity comes from scientists and AI help on ideas.
+2. **Idea quality comes from a mixture:** a share P of idea labour from humans (the team's human taste distribution) and 1−P from AI (the AI's taste distribution, under the fix A ceiling), weighted by labour share. This replaces the E[max(human, AI)] "free filter".
+   - Early-game AI adds mostly mediocre candidates. It helps through more candidates and picking the best, not through taste.
+3. **Judging noise when picking is set by the same mixture.**
+4. **Calibration:** the combined research effect must still match the AIFM taste band. Selection and labour strength are tuned in fix C.
+
+Player focus: the player's research pipeline (`models/research.ts`) is the target. Shared helpers keep one formula everywhere for consistency.
