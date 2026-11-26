@@ -1,6 +1,8 @@
 // Capability research projects (model v3 V2/V3: design/MODEL-V3.md §5, §6, §8; design/V3-BUILD.md V2.2–V2.6, V3.4; content
-// design/TECH-TREE.md §6). Owner: WS1. Safety research runs on its own copy of this lifecycle (safety/lineProjects.ts) and
-// the remaining rolled nodes on models/tree.ts, until RD-R02b / RD-R04 (SYNTHESIS §6 Phase 3) move them onto this engine.
+// design/TECH-TREE.md §6). Owner: WS1. Safety research runs the single-test form of this lifecycle (an unlock project's:
+// stepTest / stepProject dept 'saf') and shares its science-work rate (sciWorkRate), taste helpers (sciTasteOf) and experiment
+// labour (expLabour) with it (safety/lineProjects.ts; design/bal/SAFETY-UNIFY.md for the rest); the remaining rolled nodes
+// run on models/tree.ts, until RD-R04 (SYNTHESIS §6 Phase 3) moves them onto this engine.
 //
 // A project's life runs by itself (MODEL-V3 §5.3):
 //   1 ideation      the project's science teams find candidates at (m_IDEAS × capacity)^λ per team-month of ideation
@@ -181,10 +183,10 @@ export const capReCapacity = (s: GameStateV2) => s.player.teams.reduce((a, t) =>
  *  teamTaste), capacity-weighted; 1 = a Strong team without AI. qh, qa and s are its parts: the humans' taste (capacity-
  *  weighted), the AI's, and the AI's share of the ideas, from which each candidate draws its source (newCandidate). */
 export interface SciTaste { cap: number; q: number; qh?: number; qa?: number; s?: number }
-function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdAI: number; sAI: number; m2b: number; tl: number }): SciTaste {
+export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdAI: number; sAI: number; m2b: number; tl: number; star?: number }): SciTaste {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
-  const star = starTaste(s);
+  const star = inp.star ?? starTaste(s);
   const qa = aiTaste(inp.sdAI, inp.m2b, inp.tl);
   let cap = 0;
   let qw = 0;
@@ -221,7 +223,7 @@ export function projectExpInputs(s: GameStateV2, id: string, alloc: Pick<ReAlloc
   const re = alloc.perProject.get(id) ?? 0;
   const reEval = re > 0 || testing ? re : RE_MAX_PER_PROJECT;
   const cc = (x?.c ?? 0) * (RE_MAX_PER_PROJECT / RE_LABOUR_UNIT);
-  const l = Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_LABOUR_UNIT), P.lam);
+  const l = expLabour(P.lam, x?.mExp ?? 1, reEval, RE_LABOUR_UNIT);
   return { re, reEval, cc, l, X: cc > 0 && reEval > 0 ? Xces(P, cc, l) : 0 };
 }
 
@@ -244,7 +246,7 @@ export function capEta(s: GameStateV2, id: string, sci: { cap: number; q: number
   const speed = researchMods(s).speed;
   // The project's experiment CES at its inputs (projectExpInputs' compute; labour at the believed λ), believed, scaled to observed.
   const { cc, reEval } = projectExpInputs(s, id);
-  const X = cc > 0 && reEval > 0 ? Xces(P, cc, Math.pow(Math.max(1e-12, ((x?.mExp ?? 1) * reEval) / RE_LABOUR_UNIT), P.lam)) * observedScale(s, speed) : 0;
+  const X = cc > 0 && reEval > 0 ? Xces(P, cc, expLabour(P.lam, x?.mExp ?? 1, reEval, RE_LABOUR_UNIT)) * observedScale(s, speed) : 0;
   if (isUnlockProject(n)) {
     // RD-R05: one test, science teams and the experiment CES on the same work.
     const left = st?.trial ? Math.max(0, st.trial.workNeed - st.trial.work) : trialWork(n) * (1 - (st ? capProgress(st) : 0));
@@ -312,8 +314,12 @@ export const trialWork = (n: TreeNodeDef) => {
 };
 /** Science teams' work per day on a project (team-months at unit inputs: (m_IDEAS × capacity)^λ × speed / 30; taste sets
  *  quality, not how fast the work goes). */
-const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number; q: number }, speed: number) =>
+export const sciWorkRate = (lam: number, mIdeas: number, sci: { cap: number }, speed: number) =>
   sci.cap > 0 ? (Math.pow(Math.max(1e-12, mIdeas * sci.cap), lam) * speed) / 30 : 0;
+/** A project's experiment labour ℓ = (m_EXP × research engineers ÷ unit)^λ, the labour input of the experiment CES, for
+ *  engineers `re` in the caller's units (`unit` of them make one labour unit: capability team-equivalents ÷ RE_LABOUR_UNIT;
+ *  safety heads × quality ÷ HEADS_PER_LABOUR_UNIT). One function for both departments (safety/lineProjects.ts lineRates). */
+export const expLabour = (lam: number, mExp: number, re: number, unit: number) => Math.pow(Math.max(1e-12, (mExp * re) / unit), lam);
 /** An unlock project's test state, started on first use. */
 function trialOf(n: TreeNodeDef, st: CapProjectState): NonNullable<CapProjectState['trial']> {
   if (!st.trial) {
@@ -883,7 +889,7 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
 export function experimentRate(s: GameStateV2, inp: Pick<ResearchInputs, 'mExp' | 'speed'>, re: number, flopDay: number): number {
   if (re <= 0 || flopDay <= 0) return 0;
   const P = s.hidden.timeline.prod;
-  const l = Math.pow(Math.max(1e-12, (inp.mExp * re) / RE_LABOUR_UNIT), P.lam);
+  const l = expLabour(P.lam, inp.mExp, re, RE_LABOUR_UNIT);
   return (Xces(P, flopDay / C_UNIT_FLOP_PER_DAY, l) * inp.speed * Math.sqrt(RE_LABOUR_UNIT)) / 30;
 }
 

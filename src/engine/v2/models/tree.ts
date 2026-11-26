@@ -32,7 +32,7 @@ import { freshSaf, lineLabourMult, lineCycleDays, lineEtaDays, lineRates, resetS
 import { queueBuild } from '../departments/build';
 import { researchMods } from '../departments/workfit';
 import {
-  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, believedSciOn, stepProject, takesTeams,
+  assignCapTeams, attemptOdds, capEta, capResearchDay, isCapProject, planAssignment, believedSciOn, sciWorkRate, stepProject, takesTeams,
   type ProjectValueFn,
 } from './research';
 import { safetyAgentL } from '../safety/agents';
@@ -327,7 +327,7 @@ export function nextLineProject(s: GameStateV2, ag: AgendaId): string | undefine
 }
 
 /** RD-R03: a safety project's term in the science-team planner (models/research.ts planAssignment), the value proxy
- *  [D]: the science part of its results per day ((m_ideas × C ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30, as lineRates, over
+ *  [D]: the science part of its results per day ((m_ideas × C ÷ SERIOUS_CAP)^λ × speed ÷ 30, sciWorkRate as lineRates, over
  *  the test's work) × the chance it works (nodeOdds: the line's estimate, never the hidden efficacy) × the line's
  *  weight (SAF_LINE_WEIGHT, default 1). Square-root returns per team, so spares spread. */
 export function safProjectValue(s: GameStateV2, id: string): ProjectValueFn {
@@ -339,7 +339,7 @@ export function safProjectValue(s: GameStateV2, id: string): ProjectValueFn {
   const speed = researchMods(s).speed;
   const need = Math.max(1e-9, freshSaf(n).workNeed);
   const v = (nodeOdds(s, id) * (SAF_LINE_WEIGHT[ag] ?? 1)) / need;
-  return (cap, q) => (cap > 0 ? ((Math.pow((m * cap) / SERIOUS_CAP, lam) * q * speed) / 30) * v : 0);
+  return (cap) => sciWorkRate(lam, m, { cap: cap / SERIOUS_CAP }, speed) * v;
 }
 
 /** Ready safety projects on the priority list, in priority order. */

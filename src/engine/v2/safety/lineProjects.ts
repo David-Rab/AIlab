@@ -3,7 +3,9 @@
 // A safety project asks one question: does this node's technique / finding work? It runs as RD-R05's unlock projects do:
 // one test (SafProjectState: work / workNeed = the agenda's T₁ months at reference inputs) that the science teams and the
 // experiment CES work through together (models/research.ts stepProject, dept 'saf'), at
-//   science      (m_ideas × capacity ÷ SERIOUS_CAP)^λ × taste × speed ÷ 30 per day, and
+//   science      (m_ideas × capacity ÷ SERIOUS_CAP)^λ × speed ÷ 30 per day (models/research.ts sciWorkRate, the capability
+//                projects' science rate: taste does not speed the work, it would set quality, and a safety test has no
+//                candidates to grade), and
 //   experiments  X(c, ℓ) × speed ÷ (30 X_ref) per day, in the capability units (RD-R02a): c = the project's experiment FLOP per
 //                day ÷ (its agenda's computeNeed × C_UNIT_FLOP_PER_DAY), ℓ = (m_exp × engineers ÷ RE_LABOUR_UNIT)^λ, X_ref =
 //                X(1, SAF_RE_ASK^λ);
@@ -20,7 +22,8 @@
 // Compute: the safety line after cases and eval suites (in the list's order) goes to validation and the projects in experiments by need (RD-R02a, the capability
 // rule of RD-B08 expShares): each project's need is its ask × its agenda's computeNeed; a project with engineers takes
 // its full share, one with none leaves its share unused (idle). AI labour enters as the effective-labour multipliers m_ideas and m_exp from
-// the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2) and as AI taste in ideation (safSciOn).
+// the SAF_IDEAS / SAF_EXP work types (lineLabour, model v3 E2). Taste (safSciOn: the capabilities' human/AI mixture,
+// models/research.ts sciTasteOf, on the safety model's SAF_IDEAS fit) is a readout here; no safety rate reads it.
 import { HUMAN_REVIEW } from '../../../data/v2/danger';
 import { AGENDA_BY_ID, LINE_MULT_MAX, SAF_RE_ASK, SERIOUS_CAP } from '../../../data/v2/agendas';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
@@ -29,15 +32,15 @@ import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEEDS } from '../../../data/v2/research';
 import { evalH100eAsk, evalM, evalReDemand } from '../models/evals';
 import { removalFte } from './footholds';
-import { allocate } from '../models/research';
+import { allocate, expLabour, sciTasteOf, sciWorkRate } from '../models/research';
 import { jobComputeNeed, jobStaffing, liveJobs, validationDemand } from './validation';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
-import { teamCapacity } from '../departments/capacity';
-import { aiIdeasShare, handedLabour, measuredLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, tasteLimitOf, teamTaste, type LabourOf } from '../departments/workfit';
+import { aiIdeasShare, handedLabour, measuredLabour, onDuty, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, tasteLimitOf, type LabourOf } from '../departments/workfit';
 import { believedProd } from '../production/believed';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
 import type { AgendaId, GameStateV2, SafReNeed, SafProjectState, TreeNodeState } from '../types';
+import type { SciTaste } from '../models/research';
 import { aiShareOf } from './agents';
 import { spotCheckFte } from './workPackage';
 import { safetySandbag } from './covert';
@@ -69,11 +72,12 @@ export function safProgress(st: SafProjectState | undefined): number {
 
 // ───────────────────────────── inputs ─────────────────────────────
 
-/** Science capacity and taste of the teams on a project. Taste: each team's E[max(human, AI)] on the AIFM taste
- *  distribution, as capability projects (models/research.ts sciOn), with the safety model's AI taste from its SAF_IDEAS
- *  fit, weighted by AI's share of the SAF_IDEAS labour (DD-13; departments/workfit.ts aiIdeasShare); on the
- *  benchmarked agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). */
-export function safSciOn(s: GameStateV2, id: string, truth = true): { cap: number; q: number; heads: number } {
+/** Science capacity and taste of the teams on a project. Capacity and taste are the capability projects' one function
+ *  (models/research.ts sciTasteOf: the human/AI mixture T = (1 − s)·T_human + s·T_AI on the AIFM taste distribution,
+ *  capacity-weighted; no star hires, those are the capability teams'), with the safety model's AI taste from its SAF_IDEAS
+ *  fit and AI's share of the SAF_IDEAS labour as s (DD-13; departments/workfit.ts aiIdeasShare); on the benchmarked
+ *  agendas F44 raises that fit (model v3 E14, safety/ideas.ts aarFindingOom). Taste does not enter any rate (lineRates). */
+export function safSciOn(s: GameStateV2, id: string, truth = true): SciTaste & { heads: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1, heads: 0 };
   const sl = safetyLabour(s);
@@ -85,17 +89,10 @@ export function safSciOn(s: GameStateV2, id: string, truth = true): { cap: numbe
   const fitI = mi ? mi.fit.fit : sl.ideas.fit.fit;
   const sAI = mi ? aiIdeasShare(sl.ideas.H, mi.fit.assist, mi.L) : sl.sAI;
   const sdAI = dG || mi ? sdAIOf(s.hidden.timeline, fitI + dG, 'SAF_IDEAS') : sl.sdAI;
-  let cap = 0;
-  let qw = 0;
+  const sci = sciTasteOf(s, id, s.player.teams, { sdAI, sAI, m2b, tl: tasteLimitOf(s.hidden.timeline), star: 1 });
   let heads = 0;
-  for (const t of s.player.teams) {
-    if (t.projectId !== id || t.role !== 'sci') continue;
-    const c = teamCapacity(onDuty(s, t), n.column);
-    cap += c;
-    heads += onDuty(s, t).heads;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, 1, tasteLimitOf(s.hidden.timeline));
-  }
-  return { cap, q: cap > 0 ? qw / cap : 1, heads };
+  for (const t of s.player.teams) if (t.projectId === id && t.role === 'sci') heads += onDuty(s, t).heads;
+  return { ...sci, heads };
 }
 
 /** AI labour on a line's work (model v3 E2): the effective-labour multipliers m_ideas and m_exp that enter ideation
@@ -315,13 +312,13 @@ export function lineRates(s: GameStateV2, id: string, alloc: SafAlloc, cap?: num
   const capNow = cap ?? sci.cap;
   const m = lineLabourMult(s, ag, truth);
   const speed = researchMods(s).speed;
-  const sciRate = capNow > 0 ? (Math.pow((m.ideas * capNow) / SERIOUS_CAP, P.lam) * sci.q * speed) / 30 : 0;
+  const sciRate = sciWorkRate(P.lam, m.ideas, { cap: capNow / SERIOUS_CAP }, speed);
   const re = alloc.re.get(id) ?? 0;
   const flop = alloc.flop.get(id) ?? 0;
   // RD-R02a: shared units. c in the agenda's need of capability C_UNITs, ℓ in RE_LABOUR_UNITs; X ÷ X_ref keeps rate 1
   // (the first result at T₁) at reference inputs (c = 1, ℓ = SAF_RE_ASK^λ).
   const c = flop / (def.computeNeed * C_UNIT_FLOP_PER_DAY);
-  const l = Math.pow(Math.max(1e-12, (m.exp * re) / HEADS_PER_LABOUR_UNIT), P.lam);
+  const l = expLabour(P.lam, m.exp, re, HEADS_PER_LABOUR_UNIT);
   const X = re > 0 && flop > 0 ? Xces(P, Math.max(1e-12, c), l) : 0;
   const Xref = Xces(P, 1, Math.pow(SAF_RE_ASK, P.lam));
   return { sci: sciRate, exp: (X * speed) / (30 * Xref), c, l, X, re, flop, q: sci.q, cap: capNow };

@@ -70,7 +70,7 @@ export const FAITHFUL_COT = { dOom: -0.29, fptMult: 1.2, monitorability: 0.98, r
  * AG17: Anthropic's 2026 automated alignment researchers beat the best human idea on 7/7 failures, caveat: only for
  * "well-characterized" failures with benchmarks [V]). It acts on E2's safety AI labour, not on a speed factor:
  * - `fitOom`: the AAR harness is a research scaffold for the safety package on SAF_EXP and SAF_IDEAS: fit + 0.3 OOM
- *   (coverage and AI taste rise) [D: the size of the Deep research scaffold on internal research ideas, R20 B3 /
+ *   (coverage and the assist rise; AI taste rises too but speeds no safety rate, models/research.ts sciWorkRate) [D: the size of the Deep research scaffold on internal research ideas, R20 B3 /
  *   design/TECH-TREE.md §6.4 P05].
  * - `autoGap`: each agenda's automation factor Auto (research/14: AI speeds the work whose outputs can be checked,
  *   Carlsmith 2025 [V]) closes this share of its gap to 1: Auto' = 1 − (1 − Auto)·(1 − 0.5) [D: the harnesses turn
