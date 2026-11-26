@@ -133,7 +133,8 @@ async function main() {
     liveInfo = { status: lv.status, clusterN: lv.clusterN, sar: lv.sar, matrix: lv.matrix, inputs: lv.inputs };
     finished = !!lv.status?.allJobsDone;
   }
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo };
+  const tastecurve = readJson<unknown>(join(ROOT, 'balance/mechanics/tastecurve.json')) ?? null; // scripts/v2/tastecurve.ts
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo, tastecurve };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');
@@ -141,7 +142,7 @@ async function main() {
   const html = tpl
     .replace('<!--__REFRESH__-->', live && !finished ? '<meta http-equiv="refresh" content="60">' : '')
     .replace('/*__CSS__*/', () => readFileSync(join(ASSETS, 'style.css'), 'utf8'))
-    .replace('/*__JS__*/', () => ['client.js', 'scenarios.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
+    .replace('/*__JS__*/', () => ['client.js', 'scenarios.js', 'tastecurve.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
     .replace('/*__DATA__*/', () => json);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);

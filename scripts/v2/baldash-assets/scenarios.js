@@ -678,6 +678,7 @@ function renderScenarios() {
   else sw.append(mCard, hCard, uCard, eCard);
   if (hasInputs) sw.append(inCard); else sw.append(tCard, wCard);
   host.append(sw);
+  if (D.tastecurve) sw.append(tasteCurveCard());
   // table twin of the chart data
   const twin = H('details', { class: 'card scn-twin' }, H('summary', { text: 'The chart points as a table' }));
   const plotted = CPS.filter((c) => PLOTTED.has(c.quantity) || c.series || isTed(c));
