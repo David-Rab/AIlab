@@ -131,3 +131,23 @@ Deferred: hiring market; taste effects for unlock and safety projects; D (releas
 - **D:** a lines-first fixed policy for forced runs (staff the lines from day 0). It's a player-reachable policy, not a harness exception. **Do now.**
 - **B:** P24 ("AI-designed successor") becomes a regular research line with ideas that add gradually under the line law, instead of a one-time fixed +1 OOM jump. **After A** (same code area).
 - **C:** the scale lever needs proper calibration. The designer's play impression (2 games, low trust): early, scaling up improved models a lot with no visible limit; late, tiny models had great abilities. **Investigate and source first:** scaling laws, and whether algorithmic gains are scale-dependent.
+
+## CONSOLIDATED: round 2 changes, then ONE measurement (2026-11-26)
+This replaces the scattered round-2 notes above as the working list. No new investigations until M2 is done.
+
+**Already in (committed):**
+1. Fix A, taste ceiling. 2. Fix B, taste as a human/AI mixture (ideation rate without taste). 3. Safety research shares the research helpers.
+4. Starting compute split (experiments 35%, final training 11%). 5. Staff harness exception (labelled).
+6. Mechanism hooks with identical defaults: per-world horizon law, research pace.
+
+**Finishing now:**
+7. Line starting pools from the AIFM initial stock, per timeline; pace back to 1 (running).
+8. Lines-first fixed policy `reflines` for forced runs (running).
+
+**Then:**
+9. P24 becomes a regular line (gradual ideas under the line law).
+10. The scale-lever fix, from the SCALE-DIAG investigation (running; read-only). Designer decides the fix.
+
+**Then ONE measurement (M2):** a forced run of all three timelines with 7–10. Report software pace years 1–2, history bands, SC date, takeoff gaps and the speed-up doubling (game vs AIFM) on the dashboard. Then decide the residual fit (fix C step 2).
+
+**Not in round 2:** per-timeline horizon-law values (re-check in M2), idea diminishing returns (option D), and everything in the deferred memory list.
