@@ -33,8 +33,11 @@ const MAP: Record<string, string> | null = flag('--map') ? Object.fromEntries(fl
 const SC_SHIFT = flag('--sc-shift') !== undefined ? Number(flag('--sc-shift')) : 0.5;
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'balance', 'runs', run);
 type Series = { year: number[]; G: (number | null)[]; h80: (number | null)[]; spd: (number | null)[]; comp: number[] };
-interface Rec { seed: number; world: string; overrideSet?: string; milestones: Record<string, number>; series?: Series }
+interface Rec { harnessExceptions?: string[]; seed: number; world: string; overrideSet?: string; milestones: Record<string, number>; series?: Series }
 const recs: Rec[] = readFileSync(join(dir, 'games.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+
+const EXC = [...new Set(recs.flatMap((r) => r.harnessExceptions ?? []))];
+if (EXC.length) console.log(`Harness exceptions in this run: ${EXC.join(', ')} (pending hiring market)`);
 
 const TL: TimelineId[] = ['fast', 'central', 'slow'];
 const H80_2025_5 = 30 * Math.pow(66 / 30, (2025.5 - 2025.27) / (2025.96 - 2025.27));

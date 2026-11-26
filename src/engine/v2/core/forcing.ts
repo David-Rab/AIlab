@@ -17,6 +17,8 @@
  *  - staffPath(yr)     capabilities headcount multiplier vs 2025.5 (1 at 2025.5). hRef(yr) = H_REF_BASE × staffPath(yr)
  *                      (production/ces.ts), which sets the non-player labs' staff growth and the headcount RefBot
  *                      hires towards. A passive player does not hire, so its staff does not follow.
+ *  - playerStaffExact  with staffPath: the player's capabilities headcount is set to H0 × staffPath(year), H0 = its headcount
+ *                      at the first hiring week (departments/teams.ts forcePlayerStaff, which carries the exception notice).
  */
 export const FORCING: {
   pinResearchMix?: number;
@@ -24,4 +26,5 @@ export const FORCING: {
   noDiffusion?: boolean;
   computePath?: (year: number) => number;
   staffPath?: (year: number) => number;
+  playerStaffExact?: boolean;
 } = {};

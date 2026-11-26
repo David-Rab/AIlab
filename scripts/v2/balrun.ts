@@ -30,7 +30,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSyn
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { POLICY_IDS } from './policies';
-import { AIFM_CSV, FORCED_KINDS } from './forcedInputs';
+import { AIFM_CSV, FORCED_KINDS, HARNESS_EXCEPTIONS } from './forcedInputs';
 import { CAL_SEEDS, quantOf } from './calseeds';
 import { cached, codeHash } from './simcache';
 import type { AlignDiffId, GameStateV2, MilestoneIdx, StartType, WorldPresetId } from '../../src/engine/v2/types';
@@ -50,6 +50,8 @@ export interface GameRecord {
   world: string; alignment: string; start: string; policy: string;
   /** Stage 1 forced run (balrun --forced): which prescribed inputs drove the game. Absent in normal runs. */
   forced?: string;
+  /** Harness exceptions active in this forced run (forcedInputs.ts). */
+  harnessExceptions?: string[];
   overrides?: Record<string, number | string | boolean | number[]>;
   overrideSet?: string;
   endDay: number; ending: string; verdict: 'win' | 'mixed' | 'loss';
@@ -92,7 +94,7 @@ function playForcedOne(cell: Cell, seed: number): Body {
   const ms: Record<string, number> = {};
   for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) if (md[i] !== undefined) ms[k] = md[i]!;
   return {
-    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced,
+    seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced, harnessExceptions: HARNESS_EXCEPTIONS,
     endDay: s.time.day, ending: 'forced-end', verdict: 'mixed', milestones: ms, revenueByYear: [], series,
     ms: Math.round(performance.now() - t0),
   };
@@ -232,7 +234,7 @@ export function summarize(recs: GameRecord[]) {
     const msTimes = rs.map((r) => r.ms);
     const c0 = rs[0];
     return {
-      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.forced ? { forced: c0.forced } : {}), ...(c0.overrideSet ? { overrideSet: c0.overrideSet } : {}), ...(c0.overrides ? { overrides: c0.overrides } : {}),
+      key, policy: c0.policy, world: c0.world, alignment: c0.alignment, start: c0.start, ...(c0.forced ? { forced: c0.forced, harnessExceptions: HARNESS_EXCEPTIONS } : {}), ...(c0.overrideSet ? { overrideSet: c0.overrideSet } : {}), ...(c0.overrides ? { overrides: c0.overrides } : {}),
       n,
       win: rate(count('win'), n), mixed: rate(count('mixed'), n), loss: rate(count('loss'), n),
       endings, milestoneDays: ms,
@@ -301,7 +303,7 @@ async function parent() {
   const startedAt = new Date().toISOString();
   const git = (() => { try { return execSync('git rev-parse HEAD', { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return null; } })();
   writeFileSync(join(dir, 'config.json'), JSON.stringify({
-    name, args: argv, ...(forced ? { forced } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
+    name, args: argv, ...(forced ? { forced, harnessExceptions: HARNESS_EXCEPTIONS } : {}), policy: policies, world: worlds, align: aligns, start: starts, seedsN: nSeeds, workers, cache: !noCache,
     gitCommit: git, codeHash: codeHash([ME, BOTGAME, PARAMOVR, FORCEDIN]), node: process.version, seeds, cells: cells.map(cellKey), sets: useSets ? sets : undefined, startedAt,
   }, null, 2));
 
