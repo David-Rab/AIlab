@@ -65,3 +65,6 @@ Player focus: the player's research pipeline (`models/research.ts`) is the targe
 - **Safety research is mechanically the same as capabilities research.** It applies the same taste rule, and ideally uses the same code so the two can't drift.
 - **Unlock projects stay as they are:** taste is inert for them.
 - **Then fix C.**
+
+## Fix C method (designer, 2026-11-26)
+Take each timeline's game settings from **its own AIFM group's median parameter draws**, translated into game terms. Fit only what doesn't translate cleanly, and keep fitted values within the AIFM ranges. This is the preferred method in general, wherever possible.
