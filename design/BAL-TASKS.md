@@ -125,3 +125,9 @@ Deferred: hiring market; taste effects for unlock and safety projects; D (releas
 - **R2.4 → option D:** one-off projects stay as they are (each produces exactly one result, so a within-project law has no effect). After R2.3, re-diagnose where any remaining slow-timeline excess software progress comes from (lines vs ideas) before choosing a mechanism. A within-project rule may return later for game feel.
 - **R2.2 kept:** EXPCOMPUTE-2. The idle-training lend is a policy (off by default). Optional training 11→15% not applied.
 - **Cleanup for the designer:** leftover folders `AI27-bal-oldsplit` and `AI27-bal-newsplit` hold node_modules junctions into AI27-bal. Remove the junction first (`cmd /c rmdir <dir>\node_modules`).
+
+## Decisions after SHAPE-DIAG (designer, 2026-11-26)
+- **A:** each line's starting pool (n0) comes from the AIFM initial research stock (pool age ≈ 1/g_E, about 1.2–1.4 years of start effort, per timeline). `pace` goes back to 1. **Do now.**
+- **D:** a lines-first fixed policy for forced runs (staff the lines from day 0). It's a player-reachable policy, not a harness exception. **Do now.**
+- **B:** P24 ("AI-designed successor") becomes a regular research line with ideas that add gradually under the line law, instead of a one-time fixed +1 OOM jump. **After A** (same code area).
+- **C:** the scale lever needs proper calibration. The designer's play impression (2 games, low trust): early, scaling up improved models a lot with no visible limit; late, tiny models had great abilities. **Investigate and source first:** scaling laws, and whether algorithmic gains are scale-dependent.
