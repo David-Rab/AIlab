@@ -6,7 +6,7 @@ import { H_REF_BASE, H_REF_PER_MONTH, PHI_FLOP_PER_H100E_DAY } from '../../../da
 import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import { FORCING } from '../core/forcing';
-import { shareRefAt } from '../departments/split';
+import { frontierRunShareAt } from '../departments/split';
 import type { ProdParams, TimelineWorld } from '../types';
 
 // ───────────────────────────── maths ─────────────────────────────
@@ -82,7 +82,7 @@ export function refTotal(w: TimelineWorld, yr: number): number {
   return refCapCompute(asV1World(w), yr - 2025.5) / 0.68;
 }
 
-/** F(t): reference frontier base-run size in FLOP = 0.8·shareRef.training·refTotal·Φ·91 (§3.1.1; ≈1e27 Jul 2025). */
+/** F(t): reference frontier base-run size in FLOP = 0.8·frontierRunShare·refTotal·Φ·91 (§3.1.1; ≈1e27 Jul 2025). */
 export function frontierFlop(w: TimelineWorld, yr: number): number {
-  return 0.8 * shareRefAt(yr).training * refTotal(w, yr) * PHI_FLOP_PER_H100E_DAY * 91;
+  return 0.8 * frontierRunShareAt(yr) * refTotal(w, yr) * PHI_FLOP_PER_H100E_DAY * 91;
 }

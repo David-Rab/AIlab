@@ -69,14 +69,36 @@ export const AI2027_COMPUTE_TABLE: { year: number; h100e: number }[] = [
 /** FLOP per H100e-day: 1e15 FLOP/s × 0.4 MFU × 86,400 (§3.1.1). */
 export const PHI_FLOP_PER_H100E_DAY = 3.46e19;
 
-/** Reference compute-usage shares by decimal year (§3.2.1; AI 2027 compute forecast). Linear interp, held after. */
+/** Reference compute-usage shares by decimal year (§3.2.1). Linear interp, held after.
+ *  2025.5 row, split of the research and training compute [R: Epoch AI, "How much does OpenAI spend on R&D compute"
+ *  https://epoch.ai/data-insights/openai-compute-spend (OpenAI 2024: final runs of released models ~7% of spend, other R&D
+ *  ~66%: experiments, de-risking runs, synthetic data, unreleased models); Epoch AI, "Final training runs account for a
+ *  minority of R&D compute spending" https://epoch.ai/gradient-updates/r-and-d-vs-training-compute (final runs 9.6% of R&D
+ *  at OpenAI); AIFM inputs/input_data.csv: experiment_H100e 56% of total_ai_company_H100e at 2025.5 and 50% after (synthetic
+ *  data included), training_H100e 7%, inference_H100e 5-7%; design/bal/EXPCOMPUTE.md]. Experiments 35% + synthetic 21% = the
+ *  AIFM's 56%; training 11% = a final-run program (AIFM 7%, Epoch 7-10% of spend), time-averaged: the base run's own FLOP
+ *  does not read it alone (FRONTIER_RUN_SHARE below). Later rows: experiments held at 35% (the AIFM holds about 50-56% with
+ *  synthetic data); agents, synthetic, serving and safety keep AI 2027's compute-usage table (research/02 §1.3) rows, and
+ *  training takes what is left (its old 2027.875 value of 20% is the table's). */
 export const SHARE_REF: { year: number; share: { training: number; experiments: number; agents: number; synthetic: number; serving: number; safety: number } }[] = [
-  { year: 2025.5, share: { training: 0.4, experiments: 0.05, agents: 0.03, synthetic: 0.21, serving: 0.29, safety: 0.02 } },
-  { year: 2026.5, share: { training: 0.4, experiments: 0.06, agents: 0.04, synthetic: 0.21, serving: 0.27, safety: 0.02 } },
-  { year: 2027.125, share: { training: 0.3, experiments: 0.14, agents: 0.06, synthetic: 0.28, serving: 0.19, safety: 0.03 } },
-  { year: 2027.375, share: { training: 0.27, experiments: 0.21, agents: 0.06, synthetic: 0.24, serving: 0.19, safety: 0.03 } },
-  { year: 2027.625, share: { training: 0.22, experiments: 0.28, agents: 0.06, synthetic: 0.23, serving: 0.175, safety: 0.035 } },
-  { year: 2027.875, share: { training: 0.2, experiments: 0.35, agents: 0.06, synthetic: 0.225, serving: 0.13, safety: 0.035 } },
+  { year: 2025.5, share: { training: 0.11, experiments: 0.35, agents: 0.03, synthetic: 0.21, serving: 0.28, safety: 0.02 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+  { year: 2026.5, share: { training: 0.11, experiments: 0.35, agents: 0.04, synthetic: 0.21, serving: 0.27, safety: 0.02 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+  { year: 2027.125, share: { training: 0.09, experiments: 0.35, agents: 0.06, synthetic: 0.28, serving: 0.19, safety: 0.03 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+  { year: 2027.375, share: { training: 0.13, experiments: 0.35, agents: 0.06, synthetic: 0.24, serving: 0.19, safety: 0.03 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+  { year: 2027.625, share: { training: 0.15, experiments: 0.35, agents: 0.06, synthetic: 0.23, serving: 0.175, safety: 0.035 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+  { year: 2027.875, share: { training: 0.2, experiments: 0.35, agents: 0.06, synthetic: 0.225, serving: 0.13, safety: 0.035 } }, // [R: Epoch AI OpenAI compute spend 2024 (https://epoch.ai/data-insights/openai-compute-spend); AIFM input_data.csv experiment/training/inference shares; design/bal/EXPCOMPUTE.md]
+];
+
+/** The reference lab's frontier base-run budget as a share of its total compute while a base run is in flight, by decimal
+ *  year (linear interp, held after): AI 2027's compute-usage table "training" row (research/02 §1.3; 40% falling to 20%),
+ *  the budget behind v2's reference run F(t) ≈ 1e27 FLOP in Jul 2025 (research/12 §0.3) and the base runs the rivals,
+ * China are sized on (RefBot and the player size theirs from their own training pool). SHARE_REF's training row is the annual average of the final-run program (Epoch: ~7-10%
+ *  of spend; the AIFM's 7%); a lab runs its base for 121 of every ~270 days, so the share it puts on a run in flight is
+ *  that average × the duty factor FRONTIER_RUN_SHARE / SHARE_REF.training (departments/split.ts runDutyAt). Equal to the
+ *  pre-split-fix training row, so every base run keeps its size [R: design/bal/EXPCOMPUTE.md; Epoch AI URLs at SHARE_REF]. */
+export const FRONTIER_RUN_SHARE: { year: number; share: number }[] = [
+  { year: 2025.5, share: 0.4 }, { year: 2026.5, share: 0.4 }, { year: 2027.125, share: 0.3 },
+  { year: 2027.375, share: 0.27 }, { year: 2027.625, share: 0.22 }, { year: 2027.875, share: 0.2 },
 ];
 
 /** General level Lg at capIndex 0..6 (R16 CODE anchors Agent-0 … ASI, §3.1.5). */

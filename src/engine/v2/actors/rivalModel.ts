@@ -30,7 +30,7 @@ import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research
 import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
 import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
 import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
@@ -48,7 +48,7 @@ import { decodeUtilOf, RECIPE_F, recipeG, serveFlopOomOf } from '../models/stack
 import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, tasteLimitOf, teamTaste, workFitW } from '../departments/workfit';
 import { lineupSizes, tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
-import { normalizeSplit, shareRefAt } from '../departments/split';
+import { normalizeSplit, runDutyAt, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { REF_AGENT_SHARES } from '../../../data/v2/agents';
 import type { BaseDesign, DomainId, GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld, VersionBuild } from '../types';
@@ -568,16 +568,18 @@ export function growLabStaff(s: GameStateV2, r: RivalLab): void {
 
 // ───────────────────────────── training ─────────────────────────────
 
-/** Training FLOP a day of a lab's base run: BASE_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>) =>
-  r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
+/** Training FLOP a day of a lab's base run in flight at decimal year `yr`: BASE_POOL_SHARE of its training pool at the
+ *  reference MFU and goodput, the pool × the duty factor (runDutyAt: the table's training row is the annual average of the
+ *  final-run program, the run in flight takes its FRONTIER_RUN_SHARE). */
+export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>, yr: number) =>
+  r.core.computeOnline * r.core.split.training * runDutyAt(yr) * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
 
 /** One day of the lab's base run: launch it BASE_RUN_DAYS before the base is due (recipe frozen at launch), add a day of
  *  FLOP. */
-export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
+export function trainDay(s: GameStateV2, r: RivalLab, day: number) {
   const ph = r.phys;
   if (!ph.run && day >= r.nextBaseDay - BASE_RUN_DAYS) ph.run = { day, flop: 0, ePre: ph.rec.pre };
-  if (ph.run) ph.run.flop += baseFlopPerDay(r);
+  if (ph.run) ph.run.flop += baseFlopPerDay(r, decimalYear(s));
 }
 
 // ───────────────────────────── start state ─────────────────────────────
@@ -594,7 +596,7 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
  *  day-0 rates give its launch day (`effRun`: the run-time efficiency multiplier, effLab for China; undefined for the
  *  leader lab). */
 export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapOom = START_PUBLIC_GAP_OOM, effRun?: number) {
-  const pool = r.core.computeOnline * r.core.split.training;
+  const pool = r.core.computeOnline * r.core.split.training * runDutyAt(SHARE_REF[0].year);
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
   const inp = { flop: flop0, tpp: REF_TPP, shape: 'moe' as const };
   const P = recipeParts();
@@ -669,7 +671,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
       rs = evalAggregate(w, r.internal, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
     }
     const v = recipeRates(w, r.phys, rs).rec;
-    r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (v.pre * start) / 365 };
+    r.phys.run = { day: start, flop: -start * baseFlopPerDay(r, SHARE_REF[0].year), ePre: k + (v.pre * start) / 365 };
   }
 }
 /** CP3k: the start in distillation equilibrium (RD-X04 rule B; research/RD-X04r §3B). Every post-training lifts a lab's
@@ -703,8 +705,8 @@ export function startDistillEquilibrium(s: GameStateV2, r: RivalLab) {
     else shift(r.publicModel);
   }
 }
-/** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
- *  share 0.4) it was sized on. */
+/** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 base-run
+ *  budget share 0.4, FRONTIER_RUN_SHARE) it was sized on. */
 const START_BASE_FLOP = flopOfDesign(REFERENCE_BASE);
 const LEADER_DAY0_TRAIN = 1e6 * 0.4;
 
@@ -724,7 +726,7 @@ export function finishRun(r: RivalLab, day: number): RivalBase | undefined {
 // at today's RL recipe: effective RL compute adds on the reference RL run). No level threshold, no free re-application.
 
 /** Pool FLOP a day of the lab's stream: CL_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const clFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnline * r.core.split.training * CL_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
+export const clFlopPerDay = (r: Pick<RivalLab, 'core'>, yr: number) => r.core.computeOnline * r.core.split.training * runDutyAt(yr) * CL_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
 /** RL share of the stream's pool time: the reference version's RL : pretraining FLOP (RL_BUDGET.standard) [D, stand-in
  *  for the player's per-version mix]. */
 const CL_RL_Q = RL_BUDGET.standard / (1 + RL_BUDGET.standard);
@@ -798,7 +800,7 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   const dt = day - r.phys.clDay;
   if (dt < CL_DAYS) return false;
   r.phys.clDay = day;
-  return clApply(s, r, clFlopPerDay(r) * dt) > 0;
+  return clApply(s, r, clFlopPerDay(r, decimalYear(s)) * dt) > 0;
 }
 /** RD-X02: domain offsets (OOM) a version post-trained today carries: Σ over the lab's adopted domain ideas of the
  *  realised effect × the node's per-domain OOM (the player's research.domainG). Undefined when none. */

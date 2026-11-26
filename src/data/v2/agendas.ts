@@ -75,7 +75,7 @@ const LINE_COLUMN: Record<AgendaId, Column> = {
 };
 
 /** RD-R02a conversion of computeRef (a share of the leader lab's day-0 compute, 1e6 H100e) into capability project
- *  compute units: 1e6 × PHI ÷ C_UNIT_FLOP_PER_DAY = 11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT) = 96.8. */
+ *  compute units: 1e6 × PHI ÷ C_UNIT_FLOP_PER_DAY = 11 × 0.88 ÷ (0.35 × RE_LABOUR_UNIT) = 13.8 (DAY0_EXPERIMENT_SHARE; 96.8 at AI 2027's 5%). */
 const NEED_PER_REF = (1e6 * PHI_FLOP_PER_H100E_DAY) / C_UNIT_FLOP_PER_DAY;
 export const AGENDAS: AgendaDef[] = ROWS.map((r) => {
   const computeRef = Math.max(0.0005, mid(r.computeRange));

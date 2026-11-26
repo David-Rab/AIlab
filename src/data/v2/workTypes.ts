@@ -189,13 +189,18 @@ export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 /** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): a fixed unit of measure, set
  *  equal to one full project's allocation (data/v2/research.ts RE_MAX_PER_PROJECT) [D]. */
 export const RE_LABOUR_UNIT = 2;
+/** The leader lab's day-0 experiment share of its compute: SHARE_REF's 2025.5 row (35% since the split fix: Epoch's other
+ *  R&D ~66% of OpenAI's 2024 spend, the AIFM's experiment_H100e 56% with synthetic data; it was AI 2027's narrow 5%) [R:
+ *  Epoch AI openai-compute-spend, AIFM input_data.csv; design/bal/EXPCOMPUTE.md]. */
+export const DAY0_EXPERIMENT_SHARE = 0.35;
 /** Experiment FLOP per day that makes one unit of experiment compute (c = 1): the leader lab's day-0 experiment FLOP per
- *  RE_LABOUR_UNIT of its research engineers on experiments and tuning (1e6 H100e × 5% × 3.46e19 FLOP/H100e-day over 11 teams ×
- *  88% ÷ 2) [D, fixed physical unit: never the calendar]. */
-export const C_UNIT_FLOP_PER_DAY = (1e6 * 0.05 * 3.46e19 * RE_LABOUR_UNIT) / (11 * 0.88);
+ *  RE_LABOUR_UNIT of its research engineers on experiments and tuning (1e6 H100e × DAY0_EXPERIMENT_SHARE × 3.46e19
+ *  FLOP/H100e-day over 11 teams × 88% ÷ 2) [D, fixed physical unit: never the calendar]. Moves with the day-0 share so
+ *  the leader's day-0 research is still 1 (the calibrations are set against it). */
+export const C_UNIT_FLOP_PER_DAY = (1e6 * DAY0_EXPERIMENT_SHARE * 3.46e19 * RE_LABOUR_UNIT) / (11 * 0.88);
 /** Leader day-0 references for the readout ratios (h, k, c): research engineers on research (team-eq), agent compute
  *  (H100e), experiment FLOP per day. */
-export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19 };
+export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMENT_SHARE * 3.46e19 };
 
 // ───────────────────────────── per-preset calibration (V3.5, V3.7) ─────────────────────────────
 

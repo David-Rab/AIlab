@@ -71,7 +71,7 @@ const checks: [string, boolean, string][] = [];
     clApply(c, r, 0);
     const c0 = r.phys.cl ?? { gPre: r.phys.base.gPre, mid: r.phys.rec.mid };
     const cl0 = { gPre: c0.gPre, mid: c0.mid };
-    clApply(c, r, clFlopPerDay(r) * 7 * k);
+    clApply(c, r, clFlopPerDay(r, 2025.5) * 7 * k);
     const cl1 = r.phys.cl ?? cl0;
     // Effective compute added: pretraining 10^gPre, RL 10^mid (at the reference RL FLOP).
     return { dG: r.internal.G - G0, L: lv, ePre: Math.pow(10, cl1.gPre) - Math.pow(10, cl0.gPre), eRl: Math.pow(10, cl1.mid) - Math.pow(10, cl0.mid) };

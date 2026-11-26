@@ -13,7 +13,7 @@
 // monitors → safety agents → cases → lines). Every reader reads this one allocation (allocOf / poolsOf).
 // The other labs use the same shape (their engineering, safety agents and monitors are 0).
 // AI 2027's usage table has no security compute line (research/11 #25): security is a $-spend lever only.
-import { SHARE_REF } from '../../../data/v2/calibration';
+import { FRONTIER_RUN_SHARE, SHARE_REF } from '../../../data/v2/calibration';
 import { ENG_REF_SHARE, MONITOR_STD_POOL_SHARE, REF_AGENT_SHARES } from '../../../data/v2/agents';
 import type { ComputeSplit, GameStateV2, LabId } from '../types';
 
@@ -72,6 +72,21 @@ export function shareRefAt(year: number): ComputeSplit {
     routine: row.agents * ROUTINE_OF_RESEARCH, frontier: row.agents * (1 - ROUTINE_OF_RESEARCH),
   };
 }
+
+/** The reference lab's base-run budget share of total compute while a run is in flight at a decimal year (FRONTIER_RUN_SHARE,
+ *  linear interpolation, held outside the table). */
+export function frontierRunShareAt(year: number): number {
+  const t = FRONTIER_RUN_SHARE;
+  if (year <= t[0].year) return t[0].share;
+  for (let i = 0; i < t.length - 1; i++) {
+    if (year <= t[i + 1].year) return t[i].share + ((year - t[i].year) / (t[i + 1].year - t[i].year)) * (t[i + 1].share - t[i].share);
+  }
+  return t[t.length - 1].share;
+}
+
+/** Duty factor of the training row: the share a lab puts on a base run in flight over the annual-average training share
+ *  of SHARE_REF (a base trains 121 of every ~270 days). A non-player lab's base-run FLOP is its training pool × this. */
+export const runDutyAt = (year: number) => frontierRunShareAt(year) / Math.max(1e-9, shareRefAt(year).training);
 
 /** The player's reference allocation: shareRefAt with the reference lab's engineering share of its agent compute
  *  (ENG_REF_SHARE, RD-A02) on the engineering line and the standard monitoring budget (MONITOR_STD_POOL_SHARE of the
