@@ -97,3 +97,9 @@ A different session does the engine speed-up on branch `bal-perf` (worktree ../A
 
 ## Future (designer, 2026-11-26)
 Unlock projects and safety projects should later get taste effects (e.g. the full candidate lifecycle for safety, design/bal/SAFETY-UNIFY.md). Not now.
+
+## Hiring market (future design, designer notes 2026-11-26)
+- One global pool of relevant labour per kind (engineer, research engineer, researcher), possibly per ability level (the 3 levels). At the start most of it sits outside AI companies (other firms, academia, government).
+- Inflow: new graduates, plus people from outside fields for researchers. Outflow: hiring.
+- Wages follow a simple standard mechanism: they rise as demand grows and supply depletes, and everyone is paid at the marginal wage.
+- **Until this exists:** the harness exception is in force. Forced runs set the player's headcount to the AIFM L_HUMAN path, clearly labelled as pending this model. It's a known deviation, not a mechanic.
