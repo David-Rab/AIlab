@@ -30,7 +30,7 @@ import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
 import { believedProd, believedWorld, elasticitiesAt } from './believed';
-import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
@@ -117,13 +117,14 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
+  const tl = tasteLimitOf(w);
   const star = starTaste(s);
   let cap = 0;
   let tai = 0;
   for (const t of p.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
+    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
   }
   const v3: V3Inputs = {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
@@ -191,13 +192,13 @@ export function believedInputs(s: GameStateV2, inp: LabInputs): LabInputs {
   if (!inp.v3) return inp;
   const wc = workContext(s);
   const ml = measuredLabour(s, wc.slots.EXP);
-  const { sAI, sdAI, m2b } = believedTasteInputs(s);
+  const { sAI, sdAI, m2b, tl } = believedTasteInputs(s);
   const star = starTaste(s);
   let cap = 0, tai = 0;
   for (const tm of s.player.teams) {
     if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
     cap += tm.heads;
-    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star);
+    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star, tl);
   }
   return { ...inp, v3: { ...inp.v3, a: ml.fit.a, assist: ml.fit.assist, Tai: cap > 0 ? tai / cap : 1 } };
 }
@@ -218,15 +219,15 @@ export function aiStaffSpeedPart(s: GameStateV2): { total: number; experiments: 
     if (x0 > 0 && m > 0) experiments = Xces(P, x.c, Math.pow(Math.max(1, m), P.lam)) / x0;
   }
   let ideas = 1;
-  const { sAI, sdAI } = believedTasteInputs(s);
+  const { sAI, sdAI, tl } = believedTasteInputs(s);
   if (sAI > 0) {
     const star = starTaste(s);
     let w = 0, a = 0, h = 0;
     for (const tm of s.player.teams) {
       if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
       w += tm.heads;
-      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star);
-      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star);
+      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star, tl);
+      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star, tl);
     }
     if (w > 0 && h > 0) ideas = a / h;
   }

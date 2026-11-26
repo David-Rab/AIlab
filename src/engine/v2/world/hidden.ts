@@ -3,7 +3,7 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS, METHOD_SCALE, METHOD_TESTED_OOM, ORGANISM_REALISM } from '../../../data/v2/agendas';
 import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
-import { V3_CAL } from '../../../data/v2/workTypes';
+import { TASTE_LIMIT_CI80, TASTE_LIMIT_RANGE, V3_CAL } from '../../../data/v2/workTypes';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -62,7 +62,11 @@ export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
-  return { ...w1, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
+  const prod = prodParamsFor(rng, setup);
+  const v3 = { ...V3_CAL[setup.world] };
+  // Fix A: the sampled world draws the taste limit as the AIFM does (lognormal 80% CI [2, 32], clipped to [0, 100]).
+  if (setup.world === 'sampled') v3.tasteLimit = Math.min(TASTE_LIMIT_RANGE[1], Math.max(TASTE_LIMIT_RANGE[0], rng.lognormal80(TASTE_LIMIT_CI80[0], TASTE_LIMIT_CI80[1])));
+  return { ...w1, prod, v3 };
 }
 
 /** Hidden paradigm draws of deleted paradigms, keyed by the paradigm drawn right after them: the deleted ones' priors in

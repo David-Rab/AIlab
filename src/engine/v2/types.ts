@@ -187,8 +187,8 @@ export interface TimelineWorld {
   prod: ProdParams;
   /** Model v3 V3: per-preset work-type calibration (data/v2/workTypes.ts V3_CAL): G_SC (OOM of effective compute a
    *  superhuman coder needs), Δ_bm (best-to-median human gap, OOM), r (returns to research), sd_SC (AI research taste at
-   *  the superhuman coder, SD; AIFM's "AI taste at AC"). */
-  v3: { gSC: number; dBM: number; r: number; sdSC: number };
+   *  the superhuman coder, SD; AIFM's "AI taste at AC"), tasteLimit (AIFM taste_limit: a taste is bounded by m2b^(1 + tasteLimit)). */
+  v3: { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number };
 }
 
 export interface ProdParams {

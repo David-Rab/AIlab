@@ -18,7 +18,7 @@
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
   ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H50_PER_OOM, HORIZON_BETA,
-  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
@@ -177,13 +177,34 @@ export function aiIdeasShare(H: number, assist: number, L: number): number {
   return L > 1e-12 && L > hh ? Math.min(1, 1 - hh / L) : 0;
 }
 
+/** The taste limit of a world (AIFM `taste_limit`, V3_CAL.tasteLimit): a taste is bounded by A = m2b^(1 + limit). A save
+ *  from before the parameter has none and reads the AIFM median. */
+export const tasteLimitOf = (w: Pick<TimelineWorld, 'v3'>): number => (Number.isFinite(w.v3.tasteLimit) ? w.v3.tasteLimit : TASTE_LIMIT_MEDIAN);
+
+/** AI research taste under the AIFM ceiling [R: AIFM taste_distribution.py:94 (A = m2b^(1 + limit)), :122-136 (the form at
+ *  `taste_limit_smoothing` 0.5, its default, config.py:344): T(x) = exp(ln A · (1 − exp(−x / ln A))), a smooth saturation of
+ *  the log taste x that follows the lognormal for x ≪ ln A and approaches A from below, never above]. x is the game's log
+ *  taste of the AI at `sdAI` SDs, ln F = −σ²/2 + sdAI·σ (lognormal of mean 1; the AIFM's x = μ + sd·σ with μ ≈ −σ²/2).
+ *  Returns the SD whose lognormal taste is the saturated one, so teamTaste's E[max(human, AI)] reads it unchanged. The
+ *  humans stay lognormal: the AIFM re-fits μ and σ so top ÷ median = m2b whatever A is, and a human's log taste (≤ ~1.2)
+ *  is far below ln A (≈ 9.4 at the median limit). */
+export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
+  const s = tasteSigma(m2b);
+  const lnA = (1 + limit) * Math.log(m2b);
+  const x = -0.5 * s * s + sdAI * s;
+  const xs = lnA * (1 - Math.exp(-x / lnA));
+  return (xs + 0.5 * s * s) / s;
+}
+
 /** Taste of a team (research input per idea vs a Strong team without AI): E[max(T_team, F_AI)] with the team's human
  *  taste z SDs above the lab's average on the AIFM lognormal (mean 1, 99.9th pct = m2b × median), and AI taste sd_AI
- *  on the AI-done share sAI of the ideas (aiIdeasShare): (1 − s)·human + s·E[max(human, AI)] (DD-13). */
-export function teamTaste(z: number, sdAI: number, sAI: number, m2b: number, human = 1): number {
+ *  (bounded by the world's taste limit `limit`, ceilingSD) on the AI-done share sAI of the ideas (aiIdeasShare):
+ *  (1 − s)·human + s·E[max(human, AI)] (DD-13). */
+export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, human: number, limit: number): number {
   const s = tasteSigma(m2b);
   const Th = Math.exp(s * z) * human;
   if (sAI <= 0) return Th;
+  const sdAI = ceilingSD(sdAIRaw, m2b, limit);
   const F = Math.exp(-0.5 * s * s + sdAI * s);
   const zz = z + Math.log(human) / s;
   const lifted = F * Phi(sdAI - zz) + Th * Phi(s - sdAI + zz);
@@ -361,12 +382,13 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
 /** UB-2: the AI taste inputs as the lab believes them: AI research taste (SDs above the median scientist) from the
  *  frontier-research AI staff's MEASURED fit, AI's share of the ideas from the believed labour (measuredLabour), and the
  *  believed taste spread m2b. sAI 0 without AI staff on ideas. */
-export function believedTasteInputs(s: GameStateV2): { sdAI: number; sAI: number; m2b: number } {
+export function believedTasteInputs(s: GameStateV2): { sdAI: number; sAI: number; m2b: number; tl: number } {
   const sl = workContext(s).slots.IDEAS;
   const m2b = believedProd(s).mid.m2b;
-  if (!(sl.aiFte > 0)) return { sdAI: -6, sAI: 0, m2b };
+  const tl = tasteLimitOf(s.hidden.timeline); // a world constant
+  if (!(sl.aiFte > 0)) return { sdAI: -6, sAI: 0, m2b, tl };
   const ml = measuredLabour(s, sl);
-  return { sdAI: sdAIOf(s.hidden.timeline, ml.fit.fit), sAI: aiIdeasShare(sl.H, ml.fit.assist, ml.L), m2b }; // public reference points only
+  return { sdAI: sdAIOf(s.hidden.timeline, ml.fit.fit), sAI: aiIdeasShare(sl.H, ml.fit.assist, ml.L), m2b, tl }; // public reference points only
 }
 
 /** UB-2: AI share of the lab's own R&D labour as the lab measures it (incidents.ts aiRdShare's formula on measuredLabour's

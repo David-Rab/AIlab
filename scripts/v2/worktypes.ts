@@ -186,8 +186,8 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   check(Math.abs(after.x / before.x - 1) < 1e-9 && Math.abs(after.M / before.M - 1) < 0.02 && Math.abs(after.cov - before.cov) < 1e-9,
     'calendar: a fixed lab\'s research speed, AI multiplier and coverage are the same three years later', `X ${before.x.toFixed(4)} → ${after.x.toFixed(4)}, M ${before.M.toFixed(3)} → ${after.M.toFixed(3)}, EXP coverage ${before.cov.toFixed(3)} → ${after.cov.toFixed(3)}`);
   const v = bestPlayerVersion(s) as ModelVersion;
-  const t1 = teamTaste(0, sdAIOf(s.hidden.timeline, fitOf(s, v, 'IDEAS')), 1, s.hidden.timeline.prod.m2b);
-  check(Math.abs(t1 - 1) < 0.01 && teamTaste(1, -6, 0, 3.25) > 1.4 && teamTaste(0, 9.27, 1, 3.25) > 25, 'taste: a Strong team without AI = 1; Elite ≈ ×1.46; AI at SIAR (9.27 SD) lifts a team to ≈ ×30', `start ${t1.toFixed(3)}, Elite ${teamTaste(1, -6, 0, 3.25).toFixed(2)}, SIAR ${teamTaste(0, 9.27, 1, 3.25).toFixed(1)}`);
+  const t1 = teamTaste(0, sdAIOf(s.hidden.timeline, fitOf(s, v, 'IDEAS')), 1, s.hidden.timeline.prod.m2b, 1, s.hidden.timeline.v3.tasteLimit);
+  check(Math.abs(t1 - 1) < 0.01 && teamTaste(1, -6, 0, 3.25, 1, 8) > 1.4 && teamTaste(0, 9.27, 1, 3.25, 1, 1e9) > 25, 'taste: a Strong team without AI = 1; Elite ≈ ×1.46; AI at SIAR (9.27 SD) lifts a team to ≈ ×30', `start ${t1.toFixed(3)}, Elite ${teamTaste(1, -6, 0, 3.25, 1, 8).toFixed(2)}, SIAR ${teamTaste(0, 9.27, 1, 3.25, 1, 1e9).toFixed(1)}`);
 }
 
 // ---------- engineering at the start (V3b): every start type carries its upkeep and a base run setup in its first quarter ----------

@@ -45,7 +45,7 @@ import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { DomainMix } from '../../../data/v2/dataAssets';
 import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, serveFlopOomOf } from '../models/stacks';
-import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, workFitW } from '../departments/workfit';
+import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, tasteLimitOf, teamTaste, workFitW } from '../departments/workfit';
 import { lineupSizes, tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
 import { normalizeSplit, shareRefAt } from '../departments/split';
@@ -377,12 +377,12 @@ function labConstOf(w: TimelineWorld, mdl: AiModel, fpt: number, staffCap: numbe
   return {
     H, S, units: H / RE_LABOUR_UNIT, fte: fteOfFpt(fpt),
     a: exp.a, assist: exp.assist, aI: ideas.a, assistI: ideas.assist,
-    sdAI, m2b: w.prod.m2b,
+    sdAI, m2b: w.prod.m2b, tl: tasteLimitOf(w),
   };
 }
 /** RD-E02 (DD-13): a rival's scientists' taste, AI taste weighted by AI's share of its ideas labour (as the player's). */
-function rivalTaste(k: { S: number; aI: number; assistI: number; sdAI: number; m2b: number }, LI: number): number {
-  return teamTaste(0, k.sdAI, k.aI > 1e-9 ? aiIdeasShare(k.S, k.assistI, LI) : 0, k.m2b);
+function rivalTaste(k: { S: number; aI: number; assistI: number; sdAI: number; m2b: number; tl: number }, LI: number): number {
+  return teamTaste(0, k.sdAI, k.aI > 1e-9 ? aiIdeasShare(k.S, k.assistI, LI) : 0, k.m2b, 1, k.tl);
 }
 /** The aggregate research function on its inputs (model G and FLOP per token, capabilities staff, research compute and
  *  its experiment share f), normalised to the leader lab's day-0 lab, × efficiency and modifiers. */

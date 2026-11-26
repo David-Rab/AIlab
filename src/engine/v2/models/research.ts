@@ -52,7 +52,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { believedTasteInputs, expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, expFlopAllowed, onDuty, qualityZ, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -183,6 +183,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
   if (!n) return { cap: 0, q: 1 };
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
+  const tl = tasteLimitOf(s.hidden.timeline);
   const star = starTaste(s);
   let cap = 0;
   let qw = 0;
@@ -190,7 +191,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
+    qw += c * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
   }
   return { cap, q: cap > 0 ? qw / cap : 1 };
 }
@@ -200,7 +201,7 @@ export function sciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap
 export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams): { cap: number; q: number } {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
-  const { sdAI, sAI, m2b } = believedTasteInputs(s);
+  const { sdAI, sAI, m2b, tl } = believedTasteInputs(s);
   const star = starTaste(s);
   let cap = 0;
   let qw = 0;
@@ -208,7 +209,7 @@ export function believedSciOn(s: GameStateV2, id: string, teams = s.player.teams
     if (t.projectId !== id || t.role !== 'sci') continue;
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, star);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, star, tl);
   }
   return { cap, q: cap > 0 ? qw / cap : 1 };
 }
@@ -365,8 +366,9 @@ function valueEnv(s: GameStateV2) {
 function tasteOf(s: GameStateV2): (t: Team) => number {
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
+  const tl = tasteLimitOf(s.hidden.timeline);
   const star = starTaste(s);
-  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
+  return (t) => teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
 }
 
 /** A result's value in lab-wide software OOM: a stack effect's OOM (with its `also` stacks); a domain effect's OOM ×

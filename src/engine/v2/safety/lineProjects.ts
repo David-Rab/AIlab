@@ -33,7 +33,7 @@ import { allocate } from '../models/research';
 import { jobComputeNeed, jobStaffing, liveJobs, validationDemand } from './validation';
 import { PROJECT_BY_ID, isLineNode, type TreeNodeDef } from '../../../data/v2/tree';
 import { teamCapacity } from '../departments/capacity';
-import { aiIdeasShare, handedLabour, measuredLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, teamTaste, type LabourOf } from '../departments/workfit';
+import { aiIdeasShare, handedLabour, measuredLabour, onDuty, qualityZ, researchMods, resetSafetyLabour, safetyLabour, sdAIOf, shiftFit, tasteLimitOf, teamTaste, type LabourOf } from '../departments/workfit';
 import { believedProd } from '../production/believed';
 import { Xces } from '../production/ces';
 import { trainNow } from '../models/stacks';
@@ -93,7 +93,7 @@ export function safSciOn(s: GameStateV2, id: string, truth = true): { cap: numbe
     const c = teamCapacity(onDuty(s, t), n.column);
     cap += c;
     heads += onDuty(s, t).heads;
-    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b);
+    qw += c * teamTaste(qualityZ(t.quality), sdAI, sAI, m2b, 1, tasteLimitOf(s.hidden.timeline));
   }
   return { cap, q: cap > 0 ? qw / cap : 1, heads };
 }

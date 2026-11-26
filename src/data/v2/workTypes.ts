@@ -307,14 +307,23 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  preset's golden SC is (research/11 #8: SC = AC + 0.52). G_SC = G(V0) 27.627 + AIFM progress at AI2027-SC 40.223 −
  *  its progress at V0's date (2025.445) 33.757 (34.27 by V0's 41-min p80 horizon instead of its date); sd_SC = AIFM's AI
  *  taste at AI2027-SC (0.5 SD is its taste at AC, 1.67 OOM earlier: AC ⇔ G_SC 32.42–32.60). */
-export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
+/** Fix A (design/bal/S1-TAKEOFF-DIAG.md §6.2, STAGE1-DESIGN A): the taste limit, a world parameter. A taste is bounded above by
+ *  A = m2b^(1 + tasteLimit) (workfit.ts ceilingSD). The AIFM median, 8: lognormal 80% CI [2, 32], clipped to [0, 100]
+ *  [R: AIFM taste_distribution.py:94, config sampling_config.yaml:191-195 `taste_limit`; Eli's Q2 config
+ *  (sampling_config_q2_eli.yaml) inherits it]; at the game's m2b 3.25 that is A = 1.2e4. Daniel's config sets [4, 64], median 16
+ *  (sampling_config_daniel.yaml:62; AIFM config.py:343 default 16, "Daniel Q2: sqrt(4 * 64)"): the `fast` preset's. */
+export const TASTE_LIMIT_MEDIAN = 8;
+/** The AIFM's sampling of the taste limit (80% CI of its lognormal; clip) for the `sampled` world. */
+export const TASTE_LIMIT_CI80: [number, number] = [2, 32];
+export const TASTE_LIMIT_RANGE: [number, number] = [0, 100];
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number }
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94 },
-  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0 },
+  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN },
+  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94, tasteLimit: TASTE_LIMIT_MEDIAN },
+  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0, tasteLimit: 16 }, // Daniel's taste_limit median (sampling_config_daniel.yaml:62)
   // slow gSC 38.3: a STATED STAND-IN (DECISIONS "Calibration decisions after CAL1 refits" item 7): the top of its source
   // range, standing in for the source's slower horizon trend (METR 7-month doubling), which no mechanism carries; with
   // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
-  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
-  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
+  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN },
+  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN }, // timelineFor draws it from TASTE_LIMIT_CI80
 };
