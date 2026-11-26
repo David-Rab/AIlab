@@ -110,7 +110,7 @@ Unlock projects and safety projects should later get taste effects (e.g. the ful
 | R2.1 | Staff harness exception (forced runs only, labelled, pending hiring market) | harness | running |
 | R2.2 | Starting compute re-split to real labs / AIFM (experiments ~35%, final training ~11%), start model unchanged | game data | running |
 | R2.3 | Faithful horizon fix: horizon growth per OOM becomes a per-timeline setting, together with the per-timeline initial software pace, both from the AIFM groups. All timelines match the measured METR history; gSC re-derived from each group's required horizon. | mechanism + per-timeline data | after R2.1–2.2 |
-| R2.4 | Diminishing returns for idea projects (tree and safety), using the same law and shared code as lines | mechanism | after R2.1–2.2 (can run parallel with R2.3 if files don't overlap) |
+| R2.4 | Diminishing returns for idea projects | mechanism | **D: not now** (one-off projects yield one result); re-diagnose after R2.3 |
 | R2.5 | Measurement additions: the speed-up doubling-time metric in s1compare (game vs AIFM uplift doubling time) | tooling | with R2.3 |
 | M2 | **Measure:** re-translate per-timeline settings (incl. R2.3), re-run step 1 on the forced harness, and compare with the timelines (SC, gaps, horizon, software pace, speed-up doubling) | measure | after all above |
 | C2 | Fix C step 2: fit only the residual (takeoff via dBM / r / m2b within AIFM IQRs; SC via gSC if still needed) | fit | after M2 |
@@ -120,3 +120,8 @@ Deferred: hiring market; taste effects for unlock and safety projects; D (releas
 ## Designer notes (2026-11-26, after R2.2)
 - **The game already sends idle training compute to experiments.** So the training pool is a *reservation* for runs, not average use. The R2.2 re-split (training 40→11%) may double-count, since effective experiment compute in the old split included the idle training spillover. **Check:** effective experiment compute (pool + idle training) in the old vs new split, against the AIFM (56%) and Epoch (about 66% non-final R&D); base-run sizes. Then decide whether to keep, adjust or revert R2.2.
 - **R2.4 diminishing returns for ideas: within one project.** Successive ideas or results in the same project get harder and smaller, using the same law as lines (shared code).
+
+## Decisions (2026-11-26)
+- **R2.4 → option D:** one-off projects stay as they are (each produces exactly one result, so a within-project law has no effect). After R2.3, re-diagnose where any remaining slow-timeline excess software progress comes from (lines vs ideas) before choosing a mechanism. A within-project rule may return later for game feel.
+- **R2.2 kept:** EXPCOMPUTE-2. The idle-training lend is a policy (off by default). Optional training 11→15% not applied.
+- **Cleanup for the designer:** leftover folders `AI27-bal-oldsplit` and `AI27-bal-newsplit` hold node_modules junctions into AI27-bal. Remove the junction first (`cmd /c rmdir <dir>\node_modules`).
