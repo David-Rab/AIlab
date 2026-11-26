@@ -116,3 +116,7 @@ Unlock projects and safety projects should later get taste effects (e.g. the ful
 | C2 | Fix C step 2: fit only the residual (takeoff via dBM / r / m2b within AIFM IQRs; SC via gSC if still needed) | fit | after M2 |
 
 Deferred: hiring market; taste effects for unlock and safety projects; D (release lumps, re-check after C2); E (rival distillation, with NPC calibration); Stage 2 realistic-lab policy; Stage 3 strong bot.
+
+## Designer notes (2026-11-26, after R2.2)
+- **The game already sends idle training compute to experiments.** So the training pool is a *reservation* for runs, not average use. The R2.2 re-split (training 40→11%) may double-count, since effective experiment compute in the old split included the idle training spillover. **Check:** effective experiment compute (pool + idle training) in the old vs new split, against the AIFM (56%) and Epoch (about 66% non-final R&D); base-run sizes. Then decide whether to keep, adjust or revert R2.2.
+- **R2.4 diminishing returns for ideas: within one project.** Successive ideas or results in the same project get harder and smaller, using the same law as lines (shared code).
