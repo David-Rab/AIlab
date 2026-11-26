@@ -50,3 +50,4 @@ From [S1-TAKEOFF-DIAG.md](S1-TAKEOFF-DIAG.md):
 - **C.** Feedback settings (r, dBM, taste spread) are scenario-specific, fitted per timeline to the AIFM group's takeoff gaps.
 
 D (release lumps) waits until after A–C. E (rival distillation) waits for the NPC calibration. These are mechanism changes: behaviour changes on purpose, and the fingerprint baseline is re-recorded after each one.
+- **Revision (designer, 2026-11-26):** fix B is replaced. The game keeps its own structure: taste works through ideation, and labour and compute run the experiments. Ideation gets **no** compute requirement. Instead, the ideation channel's gain becomes a parameter fitted in fix C. The taste ceiling (fix A) bounds ideation through taste.
