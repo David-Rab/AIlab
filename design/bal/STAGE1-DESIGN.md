@@ -60,3 +60,8 @@ D (release lumps) waits until after A–C. E (rival distillation) waits for the 
 4. **Calibration:** the combined research effect must still match the AIFM taste band. Selection and labour strength are tuned in fix C.
 
 Player focus: the player's research pipeline (`models/research.ts`) is the target. Shared helpers keep one formula everywhere for consistency.
+
+## Designer decisions (2026-11-26)
+- **Safety research is mechanically the same as capabilities research.** It applies the same taste rule, and ideally uses the same code so the two can't drift.
+- **Unlock projects stay as they are:** taste is inert for them.
+- **Then fix C.**
