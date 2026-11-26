@@ -94,3 +94,6 @@ A different session does the engine speed-up on branch `bal-perf` (worktree ../A
 - Full runs, 1000 samples each, sequential background jobs: fast started, then central, then slow. Then extract.py, then encode into balance/scenarios.ts, then the Scenarios tab.
 - RefBot scan pass 1 results: design/bal/BOTS-RESULTS.md. Lead's recommendation: no full scan in the old world; use the findings as the strong-bot search space after the scenario worlds exist.
 - Runner: workers now die with the parent; run lock added (commit after C3c).
+
+## Future (designer, 2026-11-26)
+Unlock projects and safety projects should later get taste effects (e.g. the full candidate lifecycle for safety, design/bal/SAFETY-UNIFY.md). Not now.
