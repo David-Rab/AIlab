@@ -41,8 +41,11 @@ export interface ProjectEffect {
   mean: number;
   /** Relative sd of the hidden per-world draw of the project's mean (default PROJECT_SD). */
   sd?: number;
-  /** Scale-exponent prior [mean, sd]: effect × (FLOP_run ÷ FLOP_test)^s (default [0, 0]). */
+  /** Small-to-test exponent prior [mean, sd]: effect at the scale test = small-scale effect × 1000^s (survival; default [0, 0]). */
   s?: [number, number];
+  /** Share of the node's ideas in the paradigm tier, whose effect keeps growing beyond the test scale: x·(1 + κ·log₁₀(F/F_test)),
+   *  κ ≤ KAPPA_MAX (data/v2/research.ts, Gundlach et al. 2025; SCALE-DIAG M1). The rest are scale-invariant beyond the test (default 0). */
+  par?: number;
   /** Other stacks moved in proportion to the effect (P16: serving). */
   also?: Partial<Record<StackKey, number>>;
   /** Domain effect for versions trained after adoption, OOM per unit of the effect. */
@@ -139,10 +142,10 @@ export const TREE: TreeNodeDef[] = [
   STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { cap: 'Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP', cost: 'No 8× memory: total parameters = active ones' }),
   STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { cap: 'Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner' }),
   STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { cap: 'Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner' }),
-  LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.36 }, { cap: 'Architecture and compute rebalancing at scale: pretraining efficiency (OOM); grows with run FLOP', payoff: 'Most measured algorithmic progress is scale-dependent (Gundlach et al.)' }),
+  LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0], rShare: 0.36 }, { cap: 'Training recipes and architecture details: pretraining efficiency (OOM); the same at any run size (compute rebalancing is the tokens per parameter of the run design)', payoff: 'Routine algorithmic gains are scale-invariant and together under 10x (Gundlach et al.)' }),
   LINE('L.data', 'Data filtering & mixing', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0.05], rShare: 0.22 }, { cap: 'Better data for the same tokens: pretraining efficiency (OOM)' }),
-  LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], rShare: 0.22 }, { cap: 'Small scale-invariant gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale' }),
-  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence: pretraining efficiency (OOM)' }),
+  LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], par: 0.1, rShare: 0.22 }, { cap: 'Small gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale, about one in ten keeps growing with run FLOP' }),
+  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], par: 1, rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence, a new architecture family as the Transformer was: pretraining efficiency (OOM); grows with run FLOP' }),
   N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
   N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),

@@ -755,9 +755,12 @@ export interface Candidate {
   /** Belief about its small-scale effect (project unit; OOM for stack effects): mean and sd. */
   mu: number;
   sd: number;
-  /** Belief about its scale exponent s (mean, sd). */
+  /** Belief about its small-to-test exponent s (mean, sd). */
   muS: number;
   sdS: number;
+  /** Belief about its relative scale slope κ beyond the test scale (mean, sd; absent = scale-invariant). */
+  muK?: number;
+  sdK?: number;
   /** Lines (model v3 V3): the line's pool state (research input since the start, reference ideas) its prior is read at. */
   at?: number;
 }
@@ -788,7 +791,7 @@ export interface CapResult {
   /** RD-R08: a line's expected flow for one day (high experiment throughput): the TRUE kept effect at test scale (the
    *  expected result of the ideas tested that day under the per-idea drop and survival rules), its survivors' mean
    *  scale exponent and the expected ideas adopted. `c` is then a placeholder; completeAdoption reads this instead. */
-  flow?: { x: number; s: number; n: number };
+  flow?: { x: number; s: number; n: number; k?: number };
 }
 export interface CapProjectState {
   stage: CapStage;
@@ -842,9 +845,11 @@ export interface AdoptedIdea {
  *  train = training throughput (OOM of model FLOP per chip-day); serve = serving efficiency (OOM: decode utilisation,
  *  then less FLOP per token; D10 stacks.ts serveSplit). */
 export type StackKey = 'pre' | 'rlMid' | 'rlCeil' | 'train' | 'serve';
-/** Scale bucket: Σ effect_i · 10^(−s·log₁₀ F_test,i) of the adopted ideas with scale exponent s (rounded). Effect at
- *  run FLOP F = a · 10^(s·log₁₀ F) (RD-E03, DD-12: an adopted idea lands at its full effect at build-in). */
-export interface StackBucket { s: number; a: number }
+/** Scale bucket (SCALE-DIAG M1): the adopted ideas with relative scale slope κ = s (rounded). a = Σ x_i (OOM at their test
+ *  scales), t = Σ x_i·log₁₀ F_test,i. Effect at run FLOP F = a + s·(a·log₁₀ F − t) = Σ x_i(1 + κ·log₁₀(F/F_test,i)), at least 0
+ *  (RD-E03, DD-12: an adopted idea lands at its full effect at build-in). A bucket from a save before M1 has no `t`: its s
+ *  is a power exponent and its effect a·10^(s·log₁₀ F) (read only; new ideas never join it). */
+export interface StackBucket { s: number; a: number; t?: number }
 export interface StackState {
   /** Start recipe and public knowledge (OOM, scale-invariant). */
   base: number;

@@ -26,9 +26,9 @@
 //              lab has adopted P08 (its idea research, as the player; CP3c, DD-05 (a))
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research';
+import { DEFAULT_LINES, kappaMean } from '../../../data/v2/research';
 import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
-import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
+import { lineRate, linePoolAt, stagesOf } from '../models/research';
 import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
 import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
@@ -79,28 +79,14 @@ type Part = keyof RivalRecipe;
 const PARTS: Part[] = ['pre', 'mid', 'ceil'];
 const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
 
-/** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes): a result is measured at the scale test (F_test =
- *  the line's testFrac of the base, research.ts stagesOf) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
- *  survives the scale test iff its scale exponent s ≥ s* (research.ts S_SURVIVE, the player's survival rule), and
- *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
- *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_RANGE (Scaling recipes 1.507, Data 1.175,
- *  Optimizer 2.099; s ≡ 0: 1). Not fitted. */
-export function lineScaleFactor(mu: number, sd: number, testFrac = LINE_TEST_FRAC()): number {
-  const up = 1 / testFrac;
-  if (sd <= 0) return Math.pow(up, Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu)));
-  const sStar = S_SURVIVE;
-  let num = 0;
-  let den = 0;
-  const N = 4001;
-  for (let i = 0; i < N; i++) {
-    const z = -8 + (16 * i) / (N - 1);
-    const sx = Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu + sd * z));
-    if (sx < sStar) continue;
-    const wt = Math.exp((-z * z) / 2) * Math.pow(SMALL_TO_TEST, sx);
-    num += wt * Math.pow(up, sx);
-    den += wt;
-  }
-  return den > 0 ? num / den : 1;
+/** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes; SCALE-DIAG M1): a result is measured at the
+ *  scale test (F_test = the line's testFrac of the base, research.ts stagesOf) and enters the stack at the base's FLOP,
+ *  ×(1 + κ·log₁₀(1/testFrac)), κ the idea's relative slope beyond the test scale. Survival reads the effect at test scale
+ *  and the pool advances by it, so κ is independent of both and the factor is 1 + κ̄·log₁₀(1/testFrac), κ̄ = kappaMean of
+ *  the line's paradigm share `par` (Scaling recipes, Data and Optimizer ≈ 1 to 1.05, Recurrent architectures 1.52; s ≡ 0: 1).
+ *  Not fitted. */
+export function lineScaleFactor(par = 0, testFrac = LINE_TEST_FRAC()): number {
+  return 1 + kappaMean(par) * Math.log10(1 / testFrac);
 }
 /** A recipe part from the reference portfolio (the lines every start runs, data/v2/research.ts DEFAULT_LINES): its share
  *  w of the returns (Σ rShare of its lines: pretraining 0.8, RL efficiency 0.08, RL ceiling 0.12; r_p = w·r), its scale
@@ -122,7 +108,7 @@ export function recipeParts(): Record<Part, RecipePart> {
     const sh = e?.rShare ?? 0;
     if (!n || !e || !part || sh <= 0) continue;
     acc[part].w += sh;
-    acc[part].k += sh * lineScaleFactor(e.s?.[0] ?? 0, e.s?.[1] ?? 0, stagesOf(n).testFrac);
+    acc[part].k += sh * lineScaleFactor(e.par ?? 0, stagesOf(n).testFrac);
     acc[part].lines.push(n);
   }
   const kPre = acc.pre.k / Math.max(1e-12, acc.pre.w);

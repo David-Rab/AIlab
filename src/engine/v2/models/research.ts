@@ -41,7 +41,7 @@
 import {
   BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
-  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY,
+  SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY, K_READ_SD, KAPPA_MAX, KAPPA_TIER, kappaMean,
 } from '../../../data/v2/research';
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
@@ -145,37 +145,46 @@ function works(s: GameStateV2, n: TreeNodeDef, spec: number): boolean {
  *  under SURVIVE_FRAC of the small-scale one). */
 export const S_SURVIVE = Math.log10(SURVIVE_FRAC) / Math.log10(SMALL_TO_TEST);
 
-/** Hidden: a candidate's true effect at the scale test and its scale exponent. One idea: x·1000^s. A batch of b ideas
- *  (lines at high research speed) keeps its survivors: the expected survivor-weighted factor E[1000^s; s ≥ s*] of the
- *  line's scale prior and the survivors' mean exponent (the central limit of b independent ideas). */
-export function atTest(n: TreeNodeDef, c: Pick<Candidate, 'b'>, truth: { x: number; s: number }): { xTest: number; s: number; batch: boolean } {
+/** Hidden: a candidate's true effect at the scale test, its small-to-test exponent and its relative slope beyond the test
+ *  scale. One idea: x·1000^s, slope κ. A batch of b ideas (lines at high research speed) keeps its survivors: the expected
+ *  survivor-weighted factor E[1000^s; s ≥ s*] of the line's exponent prior and the survivors' mean exponent (the central
+ *  limit of b independent ideas); the slope is independent of survival (survival reads the effect at test scale), so its
+ *  mean is the node's kappaMean. */
+export function atTest(n: TreeNodeDef, c: Pick<Candidate, 'b'>, truth: { x: number; s: number; k: number }): { xTest: number; s: number; k: number; batch: boolean } {
   const [mu, sd] = n.effect?.s ?? [0, 0];
-  if (c.b <= 1 || sd <= 0) return { xTest: truth.x * Math.pow(SMALL_TO_TEST, truth.s), s: truth.s, batch: false };
+  if (c.b <= 1) return { xTest: truth.x * Math.pow(SMALL_TO_TEST, truth.s), s: truth.s, k: truth.k, batch: false };
+  const kBatch = kappaMean(n.effect?.par);
+  if (sd <= 0) return { xTest: truth.x * Math.pow(SMALL_TO_TEST, truth.s), s: truth.s, k: kBatch, batch: false };
   const a = Math.log(SMALL_TO_TEST);
   const al = (S_SURVIVE - mu) / sd;
   const p = Math.max(1e-9, 1 - Phi(al));
   const factor = Math.exp(a * mu + (a * a * sd * sd) / 2) * Phi((mu + a * sd * sd - S_SURVIVE) / sd);
   const sEff = mu + (sd * Math.exp(-al * al / 2)) / Math.sqrt(2 * Math.PI) / p;
-  return { xTest: truth.x * factor, s: Math.max(S_RANGE[0], Math.min(S_RANGE[1], sEff)), batch: true };
+  return { xTest: truth.x * factor, s: Math.max(S_RANGE[0], Math.min(S_RANGE[1], sEff)), k: kBatch, batch: true };
 }
 
-/** Hidden truth of a candidate: small-scale effect x (project unit, the whole batch) and scale exponent s. Recomputed from
- *  the seed, never stored (engine only). The per-world draw of the project's mean is keyed by generation. */
-export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, c: Candidate): { x: number; s: number } {
+/** Hidden truth of a candidate: small-scale effect x (project unit, the whole batch), small-to-test exponent s and relative
+ *  slope κ beyond the test scale (0 unless the idea is in the node's paradigm tier). Recomputed from the seed, never stored
+ *  (engine only). The per-world draw of the project's mean is keyed by generation. */
+export function candidateTruth(s: GameStateV2, n: TreeNodeDef, st: CapProjectState, c: Candidate): { x: number; s: number; k: number } {
   const spec = st.spec ?? 0;
   const key = `${n.id}:${spec}:${c.k}`;
   const z = Z(s, `cx:${key}`);
   const [sm, ssd] = n.effect?.s ?? [0, 0];
-  // Clamped [D]: no idea grows faster than ×1.8 per OOM of run compute (the Transformer's ≈ 0.23, Gundlach) or fades
-  // faster than ×0.25 per OOM.
+  // Clamped [D]: no idea grows more than ×1.56 from small to test scale (the Transformer's s = 0.064, Gundlach, S_RANGE) or
+  // fades faster than ×0.25 per OOM.
   const sx = Math.max(S_RANGE[0], Math.min(S_RANGE[1], sm + ssd * Z(s, `cs:${key}`)));
+  // Beyond the test scale (SCALE-DIAG M1): a share `par` of the node's ideas is in the paradigm tier with κ = KAPPA_MAX ×
+  // U(KAPPA_TIER); the rest are scale-invariant.
+  const par = n.effect?.par ?? 0;
+  const kx = par > 0 && U(s, `cp:${key}`) < par ? KAPPA_MAX * (KAPPA_TIER[0] + (KAPPA_TIER[1] - KAPPA_TIER[0]) * U(s, `ck:${key}`)) : 0;
   const pub = priorMean(s, n, c, spec);
-  if (!works(s, n, spec)) return { x: Math.sqrt(c.b) * pub * DUD_SD * z, s: sx };
+  if (!works(s, n, spec)) return { x: Math.sqrt(c.b) * pub * DUD_SD * z, s: sx, k: kx };
   const sd = n.effect?.sd ?? PROJECT_SD;
   const T = pub * Math.exp(sd * Z(s, `T:${n.id}:${spec}:${c.gen}`) - (sd * sd) / 2);
   const spread = Math.pow(SPECULATIVE.spread, spec);
   const x = c.b * T * (CAND.mean0 + CAND.meanNov * c.nov) + Math.sqrt(c.b) * T * (CAND.sd0 + CAND.sdNov * c.nov) * spread * z;
-  return { x, s: sx };
+  return { x, s: sx, k: kx };
 }
 
 // ───────────────────────────── capacities and taste ─────────────────────────────
@@ -717,7 +726,7 @@ export function newCandidate(s: GameStateV2, n: TreeNodeDef, st: CapProjectState
   const nov = U(s, `nov:${n.id}:${spec}:${k}`);
   const mix = !!src && src.qa !== undefined && src.qh !== undefined && (src.s ?? 0) > 0;
   const cq = mix ? (U(s, `src:${n.id}:${spec}:${k}`) < (src!.s as number) ? (src!.qa as number) : (src!.qh as number)) : q;
-  const c: Candidate = { k, gen: st.gen, nov, b, q: cq, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0, ...(n.kind === 'line' ? { at: st.pool ?? 0 } : {}) };
+  const c: Candidate = { k, gen: st.gen, nov, b, q: cq, mu: 0, sd: 1, muS: n.effect?.s?.[0] ?? 0, sdS: n.effect?.s?.[1] ?? 0, muK: kappaMean(n.effect?.par), sdK: n.effect?.par ? KAPPA_MAX / 2 : 0, ...(n.kind === 'line' ? { at: st.pool ?? 0 } : {}) };
   const truth = candidateTruth(s, n, st, c);
   const pub = priorMean(s, n, c, spec);
   // The mixture taste narrows the belief noise ÷ T [D; V2a: ÷ quality², but AI taste reaches T ≈ 30–200].
@@ -842,9 +851,9 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   const r = n.kind === 'line' ? st.pending?.find((x) => x.buildId === buildId) : st.result?.buildId === buildId ? st.result : undefined;
   if (!r) return;
   // RD-R08: a flow result carries its true (expected) effect; a candidate's is recomputed from the seed.
-  const truth0 = r.flow ? { x: r.flow.x, s: r.flow.s } : candidateTruth(s, n, st, r.c);
-  const at = r.flow ? { xTest: r.flow.x, s: r.flow.s, batch: false } : atTest(n, r.c, truth0);
-  const truth = { x: truth0.x, s: at.s };
+  const truth0 = r.flow ? { x: r.flow.x, s: r.flow.s, k: r.flow.k ?? 0 } : candidateTruth(s, n, st, r.c);
+  const at = r.flow ? { xTest: r.flow.x, s: r.flow.s, k: r.flow.k ?? 0, batch: false } : atTest(n, r.c, truth0);
+  const truth = { x: truth0.x, s: at.s, k: at.k };
   const count = r.flow ? r.flow.n : r.c.b;
   const res = s.player.research;
   const eff = n.effect;
@@ -855,13 +864,13 @@ export function completeAdoption(s: GameStateV2, ctx: SystemCtx, id: string, bui
   let realised = 0;
   if (eff?.stack) {
     // RD-B17: a batch counts its b ideas; the second stack an idea also moves adds no idea.
-    addIdea(res.stacks[eff.stack], xTest, truth.s, r.fTest, count);
+    addIdea(res.stacks[eff.stack], xTest, truth.k, r.fTest, count);
     addBelief(res.stacks[eff.stack], r.est, r.estSd);
     for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) {
       addIdea(res.stacks[k], xTest * ratio, 0, r.fTest, 0);
       addBelief(res.stacks[k], r.est * ratio, r.estSd * Math.abs(ratio));
     }
-    realised = xTest * Math.pow(latestBaseFlop(s) / r.fTest, truth.s);
+    realised = xTest * Math.max(0, 1 + truth.k * Math.log10(Math.max(1, latestBaseFlop(s) / r.fTest)));
   } else if (eff?.domains) {
     for (const [d, v] of Object.entries(eff.domains)) res.domainG[d as keyof typeof res.domainG] = (res.domainG[d as keyof typeof res.domainG] ?? 0) + xTest * (v ?? 0);
     realised = xTest;
@@ -1056,9 +1065,10 @@ function stepFlow(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapProject
   st.gen += Math.floor(st.flowDone) - before;
   const fTest = sg.testFrac * latestBaseFlop(s);
   const ratio = Math.log10(Math.max(1, latestBaseFlop(s) / fTest));
-  const est = x * Math.pow(10, f.sx * ratio);
-  const c: Candidate = { k: 0, gen: st.gen, nov: 0, b: 1, q, mu: x, sd: 0, muS: f.sx, sdS: 0, at: st.pool };
-  const result: CapResult = { c, xTest: x, sHat: f.sx, fTest, est, estSd: (Math.abs(est) * TEST_READ_SD) / Math.sqrt(Math.max(1, kept)), day: ctx.day, flow: { x, s: f.sx, n: kept } };
+  const kFlow = kappaMean(n.effect?.par);
+  const est = x * (1 + kFlow * ratio);
+  const c: Candidate = { k: 0, gen: st.gen, nov: 0, b: 1, q, mu: x, sd: 0, muS: f.sx, sdS: 0, muK: kFlow, sdK: 0, at: st.pool };
+  const result: CapResult = { c, xTest: x, sHat: f.sx, fTest, est, estSd: (Math.abs(est) * TEST_READ_SD) / Math.sqrt(Math.max(1, kept)), day: ctx.day, flow: { x, s: f.sx, n: kept, k: kFlow } };
   (st.pending ??= []).push(result);
   // The engineers' build-in as the explicit pipeline pays it: a base per idea plus the effect's OOM (capped per idea).
   result.buildId = queueBuild(Math.min(ADOPT_TW.max * Math.max(1, kept), ADOPT_TW.base * kept + ADOPT_TW.perOom * oomOf(n, est)));
@@ -1214,8 +1224,11 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   const at = atTest(n, c, truth);
   const xT = at.xTest * (1 + TEST_READ_SD * Z(s, `ct:${n.id}:${spec}:${c.k}`));
   const sHat = at.s + S_READ_SD * Z(s, `cs2:${n.id}:${spec}:${c.k}`);
+  const kHat = Math.max(0, at.k + K_READ_SD * Z(s, `ck2:${n.id}:${spec}:${c.k}`));
   c.muS = sHat;
   c.sdS = S_READ_SD;
+  c.muK = kHat;
+  c.sdK = K_READ_SD;
   // A batch keeps its surviving ideas; a single idea must hold at scale (the floor). The pool's scores are compared at test
   // scale: × the expected scale factor (a batch: its survivor factor; one idea: E[1000^s] under the project's scale prior).
   const kappa = RISK(s);
@@ -1230,8 +1243,8 @@ function resolveStage(s: GameStateV2, ctx: SystemCtx, n: TreeNodeDef, st: CapPro
   }
   // The estimate at the lab's latest base (read when the scale test ends; the build-in starts the same day).
   const ratio = Math.log10(Math.max(1, latestBaseFlop(s) / t.fTest));
-  const est = xT * Math.pow(10, sHat * ratio);
-  const estSd = Math.abs(est) * Math.sqrt(TEST_READ_SD * TEST_READ_SD + Math.pow(S_READ_SD * Math.LN10 * ratio, 2));
+  const est = xT * (1 + kHat * ratio);
+  const estSd = Math.abs(est) * Math.sqrt(TEST_READ_SD * TEST_READ_SD + Math.pow((K_READ_SD * ratio) / (1 + kHat * ratio), 2));
   const result: CapResult = { c, xTest: xT, sHat, fTest: t.fTest, est, estSd, day: ctx.day };
   delete st.test;
   if (n.kind === 'line') {

@@ -128,8 +128,9 @@ export function programmeGets(s: GameStateV2, list: CapProjectView[] = capPriori
     const b = v.belief;
     const lo = b ? b.mu - Z90 * b.sd : 0;
     const hi = b ? b.mu + Z90 * b.sd : 0;
-    // At scale: the believed scale exponent's sign, with a ±0.05 dead band (display threshold).
-    const atScale = b ? (b.sMu > 0.05 ? 'grows' : b.sMu < -0.05 ? 'shrinks' : 'holds') : 'holds';
+    // At scale: shrinks if the believed small-to-test exponent is below −0.05 (survival); grows if its believed slope beyond the
+    // test scale is above 0.05 per OOM of compute (display thresholds).
+    const atScale = b ? (b.sMu < -0.05 ? 'shrinks' : b.kMu > 0.05 ? 'grows' : 'holds') : 'holds';
     return {
       id: v.id, h100e: v.flopDay / PHI_FLOP_PER_H100E_DAY, shareOfExperiments: total > 0 ? v.flopDay / total : 0,
       ...(b ? { idea: { x: X(b.mu), range: [X(lo), X(hi)] as [number, number], certainty: sizeCertainty(b.mu, lo, hi), testedAtScale: b.tested, atScale } } : {}),

@@ -19,6 +19,7 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { POST_DAYS, PRE_RATE0, RIVAL_TPP } from '../../src/data/v2/rivalModel';
+import { KAPPA_MAX } from '../../src/data/v2/research';
 import { B0_PARAMS, PRE_GAME_G_PER_YEAR, PARAM_RANGE, SHAPE } from '../../src/data/v2/runDesign';
 import {
   bestGOf, evalAggregate, fptOfBase, gOfSimple, lineScaleFactor, makeBase, postG, v0ModelOf, recipeOf, recipeParts, recipeRates, versionG,
@@ -172,11 +173,11 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
   const x = evalAggregate(w, v0ModelOf(w), 2 * B0_PARAMS * SHAPE.moe.tokenMult, 2050, 0.625, 8e4, 1, 1);
   const v = recipeRates(w, { rec: L.phys.rec, pool: { pre: 0, mid: 0, ceil: 0 } }, x.rs).rec;
   check(near(x.rs, 1, 1e-9) && near(v.pre, PRE_RATE0, 1e-9) && near(v.mid / v.ceil, 0.08 / 0.12, 1e-9), 'R5 at the leader\'s day-0 inputs research speed is 1, the pretraining part grows at PRE_RATE0 and the RL parts by their shares', `rs ${x.rs.toFixed(6)} (E ${x.E.toFixed(3)}, I ${x.I.toFixed(3)}); pre ${v.pre.toFixed(3)}, mid ${v.mid.toFixed(3)}, ceil ${v.ceil.toFixed(3)} OOM/yr`);
-  // κ: the scale factor of the reference lines' results, from their scale priors and the survival rule (design/V3-BUILD.md, F2 notes).
+  // κ: the scale factor of the reference lines' results, 1 + κ̄·log10(1/testFrac) from the line's paradigm share (SCALE-DIAG M1).
   const P = recipeParts();
-  const k = [lineScaleFactor(0.05, 0.04), lineScaleFactor(0, 0.05), lineScaleFactor(-0.25, 0.2), lineScaleFactor(0, 0)];
-  check(near(k[0], 1.507, 2e-3) && near(k[1], 1.175, 2e-3) && near(k[2], 2.099, 2e-3) && k[3] === 1 && near(P.pre.kappa, (0.36 * k[0] + 0.22 * k[1] + 0.22 * k[2]) / 0.8, 1e-9) && P.mid.kappa === 1 && P.ceil.kappa === 1,
-    'R5 κ_pre is the rShare-weighted scale factor of the pretraining lines (1.507 / 1.175 / 2.099), the RL parts 1', `κ_l ${k.map((y) => y.toFixed(3)).join(' / ')}; κ_pre ${P.pre.kappa.toFixed(3)}; w ${P.pre.w.toFixed(2)} / ${P.mid.w.toFixed(2)} / ${P.ceil.w.toFixed(2)}`);
+  const k = [lineScaleFactor(0), lineScaleFactor(0), lineScaleFactor(0.1), lineScaleFactor(1)];
+  check(k[0] === 1 && near(k[2], 1 + 0.1 * 0.75 * KAPPA_MAX * Math.log10(500), 1e-9) && near(k[3], 1 + 0.75 * KAPPA_MAX * Math.log10(500), 1e-9) && near(P.pre.kappa, (0.36 * k[0] + 0.22 * k[1] + 0.22 * k[2]) / 0.8, 1e-9) && P.mid.kappa === 1 && P.ceil.kappa === 1,
+    'R5 κ_pre is the rShare-weighted scale factor of the pretraining lines (1 / 1 / 1.1), the RL parts 1', `κ_l ${k.map((y) => y.toFixed(3)).join(' / ')}; κ_pre ${P.pre.kappa.toFixed(3)}; w ${P.pre.w.toFixed(2)} / ${P.mid.w.toFixed(2)} / ${P.ceil.w.toFixed(2)}`);
 }
 
 // ───────── R6 + INFO: milestones from λ(G); the leader's G path ─────────

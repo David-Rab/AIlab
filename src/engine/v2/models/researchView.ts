@@ -68,8 +68,8 @@ export interface CapProjectView {
   /** Candidates found and waiting, the number a team picks from. */
   cands: number;
   pickAt: number;
-  /** Belief about the candidate in test (small-scale effect, project unit) and its scale exponent. */
-  belief?: { mu: number; sd: number; sMu: number; sSd: number; nov: number; b: number; tested: boolean };
+  /** Belief about the candidate in test (small-scale effect, project unit) and its scale exponent and its relative slope beyond the test scale. */
+  belief?: { mu: number; sd: number; sMu: number; sSd: number; kMu: number; nov: number; b: number; tested: boolean };
   /** A finished result's estimate at the lab's latest base. */
   result?: { est: number; estSd: number; day: number };
   /** Chance the direction works in this world (ideas and axes; 1 for lines). */
@@ -159,7 +159,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const eta = state === 'adopting' ? (adoption?.eta ?? 0) : ideation + experiments;
   // Beliefs.
   const tc = unlock ? undefined : st?.test?.c;
-  const belief = tc ? { mu: tc.mu, sd: tc.sd, sMu: tc.muS, sSd: tc.sdS, nov: tc.nov, b: tc.b, tested: st?.stage === 'scale' } : undefined;
+  const belief = tc ? { mu: tc.mu, sd: tc.sd, sMu: tc.muS, sSd: tc.sdS, kMu: tc.muK ?? 0, nov: tc.nov, b: tc.b, tested: st?.stage === 'scale' } : undefined;
   const res = unlock ? undefined : st?.result ?? st?.pending?.[st.pending.length - 1];
   // Lines: the pool.
   let line: CapProjectView['line'];
