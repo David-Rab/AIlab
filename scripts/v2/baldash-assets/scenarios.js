@@ -292,6 +292,7 @@ function timeLogChart(host, o) {
     placed.push({ x, y });
     f.svg.append(S('text', { x, y, class: 't-ink', style: 'font-weight:600' }, s.short));
   }
+  if (o.cal) hits.push(...calPaths(f, Y, o.cal, ymax, placed));
   f.finish();
   f.svg.append(...hits);
 }
@@ -303,8 +304,11 @@ const LANE_NAME = Object.assign({ 'TED-AI': 'Top-human-expert-dominating AI' }, 
 const LANE_DEF = Object.assign({ 'TED-AI': 'TED-AI: the AI Futures Model’s name for an AI that does every thinking task at least as well as the top human experts. The game has no matching milestone, so it is shown for reference.' }, MS_DEF);
 function milestoneChart(host) {
   const LH = 24, HEAD = 28, GUT = 66;
+  const nRun = calActive().length; // game rows under each lane (a diamond per run laid over the chart)
+  const laneTop = []; let laneAcc = 0;
+  for (const [k] of LANES) { laneTop.push(laneAcc); laneAcc += k === 'TED-AI' ? LH : LH + calRowH * nRun; }
   const find = (t, k) => CPS.find((c) => c.layer === 'timeline' && c.timeline === t.id && (k === 'TED-AI' ? isTed(c) : c.quantity === 'milestone' && c.milestone === k) && c.value != null);
-  const rowH = HEAD + LANES.length * LH + 8;
+  const rowH = HEAD + laneAcc + 8;
   const f = timeFrame(host, { ph: rowH * TIMELINES.length, aria: 'Milestone dates by timeline, with the spread of the model’s samples', R: GUT + 140 });
   const { xs, x1 } = f, xEnd = xs(x1), hits = [];
   const X = (v) => xs(Math.min(v, x1));
@@ -317,8 +321,9 @@ function milestoneChart(host) {
       f.svg.append(S('text', { x: xEnd + GUT, y: y0 + 20, class: n < 30 ? 't-ink' : 't-muted', style: 'font-size:11px' }, n === 0 ? 'no runs yet' : n < 30 ? `only ${n} run${n === 1 ? '' : 's'}: rough` : `${n} runs`));
     }
     LANES.forEach(([k], j) => {
-      const c = find(t, k), cy = y0 + HEAD + j * LH + LH / 2, dim = k === 'TED-AI';
+      const c = find(t, k), cy = y0 + HEAD + laneTop[j] + LH / 2, dim = k === 'TED-AI';
       f.svg.append(S('text', { x: f.L - 8, y: cy + 4, 'text-anchor': 'end', class: dim ? 't-muted' : 't-ink' }, k));
+      calMilestones(f, t, k, cy, LH, X, x1, xEnd, GUT, hits);
       if (!c) { f.svg.append(S('text', { x: Math.max(f.L + 8, xs(NOW) + 8), y: cy + 4, class: 't-muted' }, LIVE ? 'no date yet: this group has not reached it' : 'no date yet')); return; }
       const op = dim ? 0.7 : 1;
       const p10 = c.p10 ?? c.lo ?? c.value, p90 = c.p90 ?? null, lo = c.lo ?? c.value, hi = c.hi ?? null;
@@ -625,6 +630,8 @@ function renderScenarios() {
   clear(host);
   if (LIVE) host.append(liveBanner());
   if (SPLITS.length > 1) host.append(splitCard());
+  const calCard = calibrationCard();
+  if (calCard) host.append(calCard);
   const nBy = (s) => CPS.filter((c) => c.status === s).length;
   const nTgt = CPS.filter((c) => c.targetId).length;
   // ---- 1. intro, legend of the three timelines
@@ -645,26 +652,26 @@ function renderScenarios() {
   const hBtns = [['horizon50', 'Half the time'], ['horizon80', 'Four times in five']].map(([k, t]) => H('button', { text: t, 'aria-pressed': String(view.h === k), onclick: () => { view.h = k; draw(); } }));
   seg.append(...hBtns);
   const hCard = scnCard('How long a task can the best AI do on its own?', hSub, seg);
-  hCard.append(hHost);
+  hCard.append(...[calNote('path'), hHost].filter(Boolean));
   const wCard = scnCard('How much computing power does the world have?', subEl('Total AI computing in the world, counted in chips equal to one top-end 2023 chip (', infoTip('H100e: H100 equivalents, the standard unit of AI computing power.', 'H100 equivalents'), '). Each step up the axis is ten times more. The AI Futures Model does not model the world total, so the timelines have no line here.'));
   wCard.append(wHost);
   const mCard = scnCard('When does each AI milestone arrive?', subEl('One block per timeline, one lane per milestone, from ' + (LIVE ? 'the runs of the AI Futures Model (each timeline is one slice of them, cut by ' + SPLIT_WHAT[SPLIT] + ')' : '3,000 runs of the AI Futures Model, split by the date AI first does AI research better than any human (SAR)') + '. The dot is the median date; the box holds the middle half of this group’s runs (p25 to p75); the whiskers reach p10 and p90. The axis stops at ' + TIME_CAP + ': an arrow means the range goes further, and the number beside it is the p90 date. The grey text says how many runs have not reached it by 2100. SC is the model’s “AC”. Hover a lane for what the milestone means.'));
-  mCard.append(mHost);
+  mCard.append(...[calNote('ms'), mHost].filter(Boolean));
   const uCard = scnCard('How much does AI speed up AI research?', subEl('How many times faster AI research runs with AI helping (1 means no help), on a scale where each step up is ten times more. The black marker is the METR estimate for late 2026. The three timelines are nudged sideways so they do not overlap. After takeoff the model’s numbers run off any sensible scale, so the upper part of the range is cut at the top of the chart.'));
-  uCard.append(uHost);
+  uCard.append(...[calNote('path'), uHost].filter(Boolean));
   const eCard = scnCard('How much effective compute does the best AI have?', subEl('Training computing power with the gains from better algorithms folded in, as a power of ten: 30 means 10 to the power 30 operations. Each step up is ten times more.'));
-  eCard.append(eHost);
+  eCard.append(...[calNote('path'), eHost].filter(Boolean));
   const tCard = scnCard('How much training compute does the model assume? (a model input)', subEl('The frontier lab’s training computing power, in H100 equivalents. The public model fixes it, so all three timelines use this one line and it has no range.'));
   tCard.append(tHost);
   const draw = () => {
     clear(hSub);
     hSub.append(`The length of task, in human working time, that the best AI finishes ${view.h === 'horizon50' ? 'half' : 'four times in five'} of the time. Each step up the axis is ten times longer. `, infoTip(WORK_NOTE, 'What is a work-month?'));
     hBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['horizon50', 'horizon80'][i] === view.h)));
-    timeLogChart(hHost, { key: view.h, conv: toMin, ticks: horizonTicks, dom: [1, 1e5], aria: 'AI task length over time, by timeline' });
+    timeLogChart(hHost, { cal: view.h === 'horizon50' ? 'h50' : 'h80', key: view.h, conv: toMin, ticks: horizonTicks, dom: [1, 1e5], aria: 'AI task length over time, by timeline' });
     if (!hasInputs) timeLogChart(wHost, { key: 'worldCompute', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e7, 1e9], aria: 'World computing power over time, by timeline' });
     if (SPLIT !== 'matrix') milestoneChart(mHost);
-    timeLogChart(uHost, { pick: (c) => c.series === 'speedup', hist: (c) => c.id === 'H26.uplift.metr', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => (v >= 1e6 ? fmtCompact(v) : v.toLocaleString('en-US')) + 'x', hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1, 1e3], aria: 'AI research speed-up over time, by timeline' });
-    timeLogChart(eHost, { pick: (c) => c.series === 'effCompute', hist: () => false, conv: (c, v) => v, linear: { fmt: (v) => '10^' + v }, dom: [28, 40], aria: 'Effective compute over time, by timeline' });
+    timeLogChart(uHost, { cal: 'spd', pick: (c) => c.series === 'speedup', hist: (c) => c.id === 'H26.uplift.metr', conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => (v >= 1e6 ? fmtCompact(v) : v.toLocaleString('en-US')) + 'x', hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1, 1e3], aria: 'AI research speed-up over time, by timeline' });
+    timeLogChart(eHost, { cal: 'ec', pick: (c) => c.series === 'effCompute', hist: () => false, conv: (c, v) => v, linear: { fmt: (v) => '10^' + v }, dom: [28, 40], aria: 'Effective compute over time, by timeline' });
     if (SPLIT === 'matrix') matrixChart(mxHost);
     if (hasInputs) inputsCharts(inHost, lhHost);
     if (!hasInputs) timeLogChart(tHost, { pick: (c) => c.series === 'trainCompute', hist: () => false, shared: true, conv: (c, v) => v, ticks: (lo, hi) => decadeTicks(lo, hi, (v) => fmtCompact(v), hi / lo <= 1e3 ? [1, 3] : [1]), dom: [1e5, 1e8], aria: 'Frontier training compute assumed by the model' });

@@ -260,12 +260,13 @@ function targetFor(world, ms, policy) {
   for (const p of pref) { const t = targetById.get(`${p}.${world}.${ms}`); if (t && t.value && t.value.p50 != null && t.value.unit === 'year') return t; }
   return null;
 }
+const setRank = (x) => { const i = ['', 'base', 'tl-fast', 'tl-central', 'tl-slow'].indexOf(x); return i < 0 ? 9 : i; }; // override sets read in timeline order
 function buildCells(games) {
   const map = new Map();
   for (const g of games) {
-    const key = [g.run, g.world, g.alignment, g.start, g.policy, ovKey(g)].join('\u0001');
+    const key = [g.run, g.world, g.alignment, g.start, g.policy, g.set || '', ovKey(g)].join('\u0001');
     let c = map.get(key);
-    if (!c) { c = { run: g.run, world: g.world, alignment: g.alignment, start: g.start, policy: g.policy, ov: ovKey(g), games: [] }; map.set(key, c); }
+    if (!c) { c = { run: g.run, world: g.world, alignment: g.alignment, start: g.start, policy: g.policy, set: g.set || '', forced: !!g.forced, ov: ovKey(g), games: [] }; map.set(key, c); }
     c.games.push(g);
   }
   const cells = [...map.values()];
@@ -289,13 +290,15 @@ function buildCells(games) {
     c.pmis = { known: pm.length, p50: pct(pm, 0.5) };
   }
   const idx = (d, v) => DIMVALS[d].indexOf(v);
-  cells.sort((a, b) => idx('world', a.world) - idx('world', b.world) || idx('alignment', a.alignment) - idx('alignment', b.alignment) || idx('start', a.start) - idx('start', b.start) || idx('policy', a.policy) - idx('policy', b.policy) || idx('run', a.run) - idx('run', b.run) || a.ov.localeCompare(b.ov));
+  cells.sort((a, b) => idx('world', a.world) - idx('world', b.world) || idx('alignment', a.alignment) - idx('alignment', b.alignment) || idx('start', a.start) - idx('start', b.start) || idx('policy', a.policy) - idx('policy', b.policy) || idx('run', a.run) - idx('run', b.run) || setRank(a.set) - setRank(b.set) || a.ov.localeCompare(b.ov));
   const varies = (d) => new Set(cells.map((c) => c[d])).size > 1;
-  const showDims = DIMS.map((x) => x[0]).filter((d) => d === 'world' || d === 'policy' || varies(d));
-  for (const c of cells) c.label = [...showDims.map((d) => dispName(d, c[d])), ...(c.ov ? ['+overrides'] : [])].join(' · ');
+  let showDims = DIMS.map((x) => x[0]).filter(varies);
+  if (!showDims.length) showDims = ['world', 'policy'];
+  const hasSet = cells.some((c) => c.set);
+  for (const c of cells) c.label = [...(hasSet ? [c.set || 'no set'] : []), ...showDims.map((d) => dispName(d, c[d])), ...(!hasSet && c.ov ? ['+overrides'] : [])].join(' · ');
   return cells;
 }
-const cellFull = (c) => `${c.run} · ${dispName('world', c.world)} · ${c.alignment} · ${dispName('start', c.start)} · ${c.policy}` + (c.ov ? ` · ${c.ov}` : '');
+const cellFull = (c) => `${c.run} · ${c.set ? c.set + ' · ' : ''}${dispName('world', c.world)} · ${c.alignment} · ${dispName('start', c.start)} · ${c.policy}` + (c.ov ? ` · ${c.ov}` : '');
 
 function filteredGames() { return ALL.filter((g) => DIMS.every(([d]) => sel[d].has(g[d]))); }
 
@@ -362,9 +365,14 @@ function renderOutcomes() {
     const cells = buildCells(games);
     body.append(tilesFor(games, cells));
     if (view.mode === 'table') { body.append(outcomeTable(cells)); return; }
-    const cards = [cardMilestones(cells), cardVerdicts(cells), cardEndings(cells)];
+    // Forced calibration runs end by construction (a year after ASI), so their win/mixed/loss and endings mean nothing.
+    const real = cells.filter((c) => !c.forced), hidden = cells.length - real.length;
+    const note = (what) => H('div', { class: 'card scn-forcednote' }, H('h2', { text: what }), H('div', { class: 'sub', text: hidden === cells.length ? 'Forced calibration runs have no real endings, so this chart is hidden. The Scenarios tab shows how they compare with the benchmarks.' : `${hidden} forced calibration cell${hidden === 1 ? '' : 's'} left out: forced calibration runs have no real endings.` }));
+    const cards = [cardMilestones(cells)];
+    if (real.length) cards.push(cardVerdicts(real), cardEndings(real)); else cards.push(note('How the games ended: win, mixed or loss'), note('Which ending the games reached'));
+    if (real.length && hidden) cards.push(note('Forced runs left out of the two charts above'));
     body.append(...cards);
-    for (const c of cards) c.draw(); // drawn after attaching, so the chart can measure its width
+    for (const c of cards) if (c.draw) c.draw(); // drawn after attaching, so the chart can measure its width
   }
   renderers.out_re = () => renderBody();
   window.addEventListener('resize', () => { if (!document.getElementById('p-out').hidden && view.mode === 'charts') { clearTimeout(renderBody.t); renderBody.t = setTimeout(renderBody, 120); } });
@@ -379,7 +387,7 @@ function tilesFor(games, cells) {
   const insY = ins.filter((g) => g.insolvent).length, wi = wilson(insY, ins.length);
   const row = H('div', { class: 'tiles' });
   row.append(
-    tileEl('Win rate', fp(w.p), `95% interval ${fp(w.lo)} to ${fp(w.hi)} · ${win} of ${n} games · ${cells.length} cell${cells.length === 1 ? '' : 's'} pooled`, true, 'Share of games the end screen calls a win. The interval is a Wilson 95% interval over the selected games, pooled across cells.'),
+    games.every((g) => g.forced) ? tileEl('Win rate', '—', 'forced calibration runs have no real endings', true, 'A forced calibration run stops a year after ASI by construction, so it has no win or loss.') : tileEl('Win rate', fp(w.p), `95% interval ${fp(w.lo)} to ${fp(w.hi)} · ${win} of ${n} games · ${cells.length} cell${cells.length === 1 ? '' : 's'} pooled`, true, 'Share of games the end screen calls a win. The interval is a Wilson 95% interval over the selected games, pooled across cells.'),
     medianTile('Superhuman coder (median year)', games, (g) => g.milestones && g.milestones.SC != null ? yearOf(g.milestones.SC) : null, fyr, 'reached in', MS_DEF.SC),
     medianTile('Artificial superintelligence (median year)', games, (g) => g.milestones && g.milestones.ASI != null ? yearOf(g.milestones.ASI) : null, fyr, 'reached in', MS_DEF.ASI),
     ins.length ? tileEl('Ran out of money', fp(wi.p), `95% interval ${fp(wi.lo)} to ${fp(wi.hi)} · ${insY} of ${ins.length} games`, false, 'Share of games in which the player went insolvent.')

@@ -1,6 +1,10 @@
 // Balance dashboard (design/bal/TOOLING-DESIGN.md, C4). Reads balance/runs/<name>/ and the registries in balance/,
 // writes one self-contained balance/dash/index.html (data inlined, vanilla JS + SVG, no network).
 //   npm run bal:dash -- --runs smoke[,other] [--scenarios file.ts] [--scenarios-live <aifm-runs/out/eli_live>]
+//     [--map tl-fast=fast,tl-central=central,tl-slow=slow] [--sc-shift years]
+// Forced calibration runs (balrun --forced aifm) also feed the Scenarios tab's "Calibration run" readout: the game's results over
+// each timeline's benchmarks, scored by scripts/v2/calibscore.ts (the same code as s1compare.ts). --map says which override set
+// plays which timeline (default: tl-fast, tl-central, tl-slow; base stays unmapped); --sc-shift is s1compare's (default 0 = SC is AC).
 // --scenarios-live: the Scenarios tab takes its timeline layer from the live cluster files of a running AI Futures Model job
 // (see baldash-live.ts), shows an "Interim" banner and reloads itself every minute until status.json says all jobs are done.
 // It also picks up the other splits beside it: out/eli_split_sar (SAR date split) and out/eli_matrix (coder x takeoff matrix), and the
@@ -15,6 +19,7 @@ import { ENDING_TEXT } from '../../src/engine/v2/endings/endings';
 import { STARTS } from '../../src/data/v2/starts';
 import { PRESET_BY_LABEL } from '../../src/data/v2/calibration';
 import { loadLive, type LiveOpts } from './baldash-live';
+import { calibrateRun, parseMap, readRecs, type RunCalib } from './calibscore';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '../..');
@@ -26,16 +31,19 @@ interface Game {
   overrides?: Record<string, number | string | boolean>;
   endDay?: number; ending?: string; verdict?: string;
   milestones?: Record<string, number>;
+  set?: string; forced?: string; // override set name (balrun --sets) and the forced mode of a calibration run
   pMisAtEnd?: number; pMisAtASI?: number; minCash?: number; insolvent?: boolean;
 }
 
-function parseArgs(): { runs: string[]; out: string; scenarios: string; live: string | null; liveOpts: LiveOpts } {
+function parseArgs(): { runs: string[]; out: string; scenarios: string; live: string | null; liveOpts: LiveOpts; map: Record<string, string> | null; scShift: number } {
   const a = process.argv.slice(2);
   let runs = '';
   let out = join(ROOT, 'balance/dash/index.html');
   let scenarios = join(ROOT, 'balance/scenarios.ts'); // --scenarios <file> points at a test copy
   let live: string | null = null;
   const liveOpts: LiveOpts = {};
+  let map: Record<string, string> | null = null;
+  let scShift = 0;
   for (let i = 0; i < a.length; i++) {
     if (a[i] === '--runs') runs = a[++i] ?? '';
     else if (a[i] === '--out') out = a[++i] ?? out;
@@ -43,6 +51,8 @@ function parseArgs(): { runs: string[]; out: string; scenarios: string; live: st
     else if (a[i] === '--scenarios-live') live = resolve(a[++i] ?? '');
     else if (a[i] === '--scenarios-split-sar') liveOpts.sarDir = resolve(a[++i] ?? '');
     else if (a[i] === '--scenarios-matrix') liveOpts.matrixDir = resolve(a[++i] ?? '');
+    else if (a[i] === '--map') map = parseMap(a[++i] ?? '');
+    else if (a[i] === '--sc-shift') scShift = Number(a[++i]);
     else if (a[i] === '--aifm-inputs') liveOpts.inputsCsv = resolve(a[++i] ?? '');
   }
   const list = runs.split(',').map((s) => s.trim()).filter(Boolean);
@@ -50,7 +60,7 @@ function parseArgs(): { runs: string[]; out: string; scenarios: string; live: st
     console.error('usage: npm run bal:dash -- --runs <name>[,<name>...] [--out file.html]');
     process.exit(2);
   }
-  return { runs: list, out, scenarios, live, liveOpts };
+  return { runs: list, out, scenarios, live, liveOpts, map, scShift };
 }
 
 function readJson<T>(path: string): T | undefined {
@@ -70,6 +80,9 @@ function readGames(path: string): { games: Game[]; bad: number } {
         run: r.run, seed: r.seed, world: r.world, alignment: String(r.alignment ?? ''), start: String(r.start ?? ''), policy: r.policy,
         ending: r.ending, verdict: r.verdict, milestones: r.milestones ?? {}, endDay: r.endDay,
       };
+      const raw = r as unknown as { overrideSet?: string; forced?: string };
+      if (raw.overrideSet) g.set = raw.overrideSet;
+      if (raw.forced) g.forced = raw.forced;
       if (r.overrides && Object.keys(r.overrides).length) g.overrides = r.overrides;
       for (const k of ['pMisAtEnd', 'pMisAtASI', 'minCash'] as const) if (typeof r[k] === 'number') g[k] = r[k];
       if (typeof r.insolvent === 'boolean') g.insolvent = r.insolvent;
@@ -97,7 +110,7 @@ async function loadScenarios(file: string): Promise<{ timelines: Timeline[]; lev
 }
 
 async function main() {
-  const { runs, out, scenarios, live, liveOpts } = parseArgs();
+  const { runs, out, scenarios, live, liveOpts, map, scShift } = parseArgs();
   const runData = runs.map((name) => {
     const dir = join(ROOT, 'balance/runs', name);
     const gp = join(dir, 'games.jsonl');
@@ -133,8 +146,17 @@ async function main() {
     liveInfo = { status: lv.status, clusterN: lv.clusterN, sar: lv.sar, matrix: lv.matrix, inputs: lv.inputs };
     finished = !!lv.status?.allJobsDone;
   }
+  // Calibration readout: every forced run scored against each split's timeline benchmarks (history + that split's timeline layer).
+  const histCps = scen.checkpoints.filter((c) => c.layer !== 'timeline' && c.layer !== 'alignment');
+  const calibLayers: Record<string, Checkpoint[]> = { ac: [...histCps, ...scen.checkpoints.filter((c) => c.layer === 'timeline')] };
+  if (live && (liveInfo as { sar?: { checkpoints: Checkpoint[] } | null } | null)?.sar) calibLayers.sar = [...histCps, ...(liveInfo as unknown as { sar: { checkpoints: Checkpoint[] } }).sar.checkpoints];
+  const calibRuns = runs.filter((name) => runData.find((r) => r.name === name)!.games.some((g) => g.forced));
+  const calib = {
+    scShift, map,
+    layers: Object.fromEntries(Object.entries(calibLayers).map(([id, cps]) => [id, calibRuns.map((name): RunCalib => calibrateRun(name, readRecs(join(ROOT, 'balance/runs', name, 'games.jsonl')), cps, scShift, map))])),
+  };
   const tastecurve = readJson<unknown>(join(ROOT, 'balance/mechanics/tastecurve.json')) ?? null; // scripts/v2/tastecurve.ts
-  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo, tastecurve };
+  const data = { startDate: '2025-07-01', generated: new Date().toISOString(), runs: runData, params: slimParams, targets, names, scenarios: scen, live: liveInfo, tastecurve, calib };
   // The data sits in a JSON <script> block: escape '<' so no string can close the tag (JSON.parse reads it back).
   const BS = String.fromCharCode(92);
   const json = JSON.stringify(data).split('<').join(BS + 'u003c');
@@ -142,7 +164,7 @@ async function main() {
   const html = tpl
     .replace('<!--__REFRESH__-->', live && !finished ? '<meta http-equiv="refresh" content="60">' : '')
     .replace('/*__CSS__*/', () => readFileSync(join(ASSETS, 'style.css'), 'utf8'))
-    .replace('/*__JS__*/', () => ['client.js', 'scenarios.js', 'tastecurve.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
+    .replace('/*__JS__*/', () => ['client.js', 'calib.js', 'scenarios.js', 'tastecurve.js'].map((f) => readFileSync(join(ASSETS, f), 'utf8')).join('\n').replace(/<\/script/gi, '<\\/script'))
     .replace('/*__DATA__*/', () => json);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);
