@@ -151,3 +151,4 @@ This replaces the scattered round-2 notes above as the working list. No new inve
 **Then ONE measurement (M2):** a forced run of all three timelines with 7–10. Report software pace years 1–2, history bands, SC date, takeoff gaps and the speed-up doubling (game vs AIFM) on the dashboard. Then decide the residual fit (fix C step 2).
 
 **Not in round 2:** per-timeline horizon-law values (re-check in M2), idea diminishing returns (option D), and everything in the deferred memory list.
+- **Item 10 decided (designer, 2026-11-26):** M1 (additive scale-dependence, Gundlach +0.23/OOM; strong scale-dependence only for rare paradigm-tier ideas) and M2 (remove L.scale's duplicate compute rebalancing) go into round 2. M3 (a size ceiling for small models and students via the loss law) is a separate design decision after M2.
