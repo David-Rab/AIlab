@@ -108,3 +108,24 @@ outsiders see of you", or cut? (4) the parallel calibration work on `bal`: own b
 
 > this session isn't supposed to really do much about the player's lab - mostly fix up the outside worl. so only list
 > them and hand to the balance work when we merge
+
+## 10. Refocus
+
+> ok.
+> i think i let myself spread out a bit on what i want to do this session - i think we need to atleast refocus on what
+> we want, to make sure we are aligned
+
+The lead's summary, which the designer accepted ("good, we seem aligned"):
+- **Goal:** replace the junk outside world (governments, public, economy) with a simple, calibrated, responsive one.
+- **Done when:** a no-player world in each timeline behaves sensibly. Reality holds to Nov 2026; after that the world
+  reacts to milestones reached in the game, and the leading rival lab carries the timeline.
+- **Core work:** remove the junk; build the shared inputs, public, US government and China; an events and levers pass
+  limited to the outside world; the no-player test.
+- **Rides along:** the setup cleanup.
+- **Plans A–D:** a check after the build; add at most the treaty compute cap.
+- **Parked:** the AI 2027 sweep beyond the outside world (names, the end-screen line); the AI 2027-sourced lab
+  parameters are only listed and handed to `bal` at merge; the UI waits until after the test, with a minimal stub
+  before then; the player's lab is out of scope.
+
+> good, we seem aligned.
+> and as a general rule - we leave code cleaner than we found it.

@@ -33,6 +33,11 @@ The output is a per-quarter world log covering:
 
 An observer run checks the world-level half (S1, S3–S7). S2 (a leading player) is checked separately with RefBot.
 
+## Scope (refocus, 2026-11-27; SESSION-HEAD §10)
+
+Core: W1b–W1e, W1f, W2, W4–W7, W10. Ride-along: W1f setup. After the test: W14 plans check, W8 UI (minimal stub
+before), W11 cleanup. Parked: W12. Rule: leave the code cleaner than we found it ([[leave-code-cleaner]]).
+
 ## Order
 
 Tasks run one after another where they touch types.ts or core state. W9 runs in parallel from the start.
@@ -55,8 +60,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
-| W12 | AI 2027 sweep (spec §15): remove player-visible remnants; LIST the AI 2027-sourced lab parameters for `bal` (hand over at merge, no changes) | Sonnet high | 45 min | W11 | |
+| W12 | PARKED (refocus): AI 2027 sweep beyond the outside world → design/OPEN.md. Kept: list the AI 2027-sourced lab parameters for `bal` at merge | — | — | merge | parked |
 | W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | done 8ed8cc37 |
+| W14 | Plans A–D check after W10: can each plan happen? Add at most the treaty compute cap | lead | — | W10 | |
 
 ## Log
 
