@@ -149,8 +149,8 @@ const SPEC: [string, string, Cadence, number][] = [
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
   ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
-  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440],
-  ['index', 'WS4', 'semiannual', 500],
+  ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440], ['geoShocksQ', 'WS3', 'quarterly', 441], ['copyrightQ', 'WS3', 'quarterly', 442], ['npcQ', 'WS4', 'quarterly', 443],
+  ['index', 'WS4', 'semiannual', 500], ['safetyFramework', 'WS2', 'daily', 39], ['autoSplit', 'WS1', 'daily', 62],
 ];
 for (const [id, owner, cadence, order] of SPEC) {
   const s = SYSTEMS.find((x) => x.id === id);

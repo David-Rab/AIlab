@@ -212,7 +212,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
   },
   {
     id: 'act.china.taiwanLadderHazard',
-    ref: { kind: 'inline', file: CHINA, anchor: '(c.rung >= 5 ? 0.15 : 0), 0, 0.5)' },
+    ref: { kind: 'inline', file: CHINA, anchor: 'add: s.china.rung >= 5 ? 0.15 : 0' },
     value: [0.15, 0.5],
     unit: 'probability per quarter', area: 'actors', layer: 'world', actor: 'china', kind: 'sourced',
     evidence: 'china.ts:288-290 "disruption roll (quarterly) = WS3\'s R15 hazard ... plus the ladder (research/10 R9, rung 5)"',
