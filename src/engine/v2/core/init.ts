@@ -38,7 +38,7 @@ import { fillRecipe } from '../models/runs';
 import { distillGap, flopOfDesign, rlFamiliesAvailable, rlWeights, fptOfDesign } from '../models/effective';
 import { distilledBeliefs, distilledStart } from '../safety/traits';
 import { lineupSizes } from '../worldfx/serving';
-import { labCore } from '../models/labs';
+import { PLAYER_ID } from '../models/labs';
 import { assignCapNow, assignSafTeams, initialResearch, initialTree } from '../models/tree';
 import { initialBuild } from '../departments/build';
 import { initialAgents } from '../departments/agents';
@@ -339,11 +339,8 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // quarterly from the first quarter day on (actors/rivals.ts rivalFinanceQ), so without these the first quarter's
   // step would be a shortfall no lab chose.
   for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q, 1, 1.2);
-  // Readouts (the player; N2b-1: the NPC labs have none, production.ts computeProduction).
-  for (const id of labIds) {
-    const core = labCore(s, id);
-    if (core) core.prodCache = computeProduction(s, id);
-  }
+  // Readout: the player only (NPC labs have no production readout; leaving the key out keeps the state plain JSON).
+  s.player.prodCache = computeProduction(s, PLAYER_ID);
   // RD-B02: the start run's launch snapshot (its RL recipe is its launch day's; suites, domain effects, P07 and the
   // serving stack are day 0's, the first day the lab can adopt anything).
   for (const r of s.player.models.runs) fillRecipe(s, r);
