@@ -1,7 +1,7 @@
 // Sites and power (design/DATACENTERS.md, DC-TASKS DC-1..DC-17): world waits, site lifecycle on rent / grid / gas, the
 // build action's preview, start sites, campuses of 1 / 3 / 5 buildings, per-building financing leases, the numbers the
-// build card shows, and one reference-bot game. One suite, quick tier (run.ts job `sites`). Owner: WS3.
-//   npx tsx scripts/v2/sites.ts
+// build card shows, and the reference bot's sites (one decision round in quick, a five-quarter game in full). One suite (run.ts job `sites`). Owner: WS3.
+//   npx tsx scripts/v2/sites.ts [--smoke]
 import { CAMPUS, CAPEX_LEASE, RENT, SITE_MIN_MW, SITE_TIERS, SOURCES } from '../../src/data/v2/deals';
 import { actionView, act, defaultSetupV2, engine, leverEffects, newGame, oppositionOdds, outsideGW, pendingGW, refWaitQ, waitBreakdown, waitQ, worldWaitQ, type QueueSite } from '../../src/engine/v2';
 import { refBot } from '../../src/engine/v2/bots/ref';
@@ -21,10 +21,23 @@ import { yearStats } from '../../src/engine/v2/finance/ledger';
 import { cashFlows } from '../../src/engine/v2/finance/runway';
 import { payOptionsPV } from '../../src/engine/v2/finance/pv';
 import type { GameStateV2, Site, StartType } from '../../src/engine/v2/types';
-import { check, finish } from './lib';
+import { SMOKE, check, finish } from './lib';
 
 const near = (got: number, want: number, what: string, tol = 1e-9) =>
   check(Math.abs(got - want) <= tol, what, `${+got.toFixed(4)} (want ${+want.toFixed(4)})`);
+
+// Cost rule (CP1): a check costs in proportion to its importance. Minor rules are constructed cases: one site, a few
+// quarters of sitesQSystem. A start game is built once per setup and cloned (a clone is ~10x cheaper than newGame).
+// The sweeps (preview = effect over every source x size x buildings x lever) are cheap that way and run whole in both
+// tiers. The one long sim, the reference bot's game, is full tier only; under --smoke (quick) the bot makes its first
+// decision round on the start state. Every check stays binding in both.
+const BASE = new Map<string, GameStateV2>();
+function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
+  const key = JSON.stringify(setup ?? {});
+  let b = BASE.get(key);
+  if (!b) { b = newGame(defaultSetupV2(setup)); BASE.set(key, b); }
+  return structuredClone(b);
+}
 
 // ── DC-2: World waits (DATACENTERS §4, DC-TASKS [D-1]..[D-3]): pure functions and the state readers ──
 {
@@ -50,7 +63,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   near(pendingGW([site('grid', 1000, 'power'), site('gas', 2000, 'power')], 'grid', 100), 1, 'other sources do not mix');
 
   // State wrappers on a fresh game: the player's start sites feed the queues; breakdown agrees with worldWaitQ
-  const s = newGame(defaultSetupV2());
+  const s = game();
   for (const src of ['grid', 'gas', 'rent'] as const) {
     const b = waitBreakdown(s, src);
     console.log(`     ${src}: wait ${b.waitQ.toFixed(3)} q, ref ${b.refQ}, you ${b.youGW} GW [${b.you.map((x) => `${x.name} ${x.gw}`).join(', ')}], others ${b.othersGW.toFixed(1)} GW, rate ${b.rateGWPerYear.toFixed(1)} GW/yr, +1 GW = ${b.perGWQ.toFixed(4)} q`);
@@ -64,7 +77,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 // ── DC-3: Site lifecycle on the three sources (DATACENTERS §3, [D-4]..[D-7]): worked example, fixed waits, opposition, blocks ──
 {
   const fresh = (seed = 1) => {
-    const s = newGame(defaultSetupV2({ seed }));
+    const s = game({ seed });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = 0; // no opposition rolls fire
     return s;
@@ -221,7 +234,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 // ── DC-4: Build action: the preview equals the site it makes; lever effects; community package (DATACENTERS §5) ──
 {
   const fresh = (nimby = 0) => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = nimby;
     return s;
@@ -339,7 +352,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 // ── DC-5: Start sites and start ledgers on rent / grid / gas ([D-10], [D-12]); no building above 1 GW ──
 {
   for (const start of ['leader', 'challenger', 'bigtech', 'spinout'] as StartType[]) {
-    const s = newGame(defaultSetupV2({ seed: 1, start }));
+    const s = game({ seed: 1, start });
     const t0 = s.time.startDate;
     console.log(`-- ${start}`);
     for (const x of s.player.sites) {
@@ -365,7 +378,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
       check(siteBuildQ({ path: 'gas', mw: 300 }) === s3.ws3.buildQ, 'S3 construction quarters = one 300 MW building', `${s3.ws3.buildQ} q`);
       {
         // Lone Pine to go-live: the remaining $6B in equal quarterly parts, as before, live as one 1.2 GW block in Apr 2026
-        const g = newGame(defaultSetupV2({ seed: 1 }));
+        const g = game({ seed: 1 });
         const lp = g.player.sites[2], ctx = makeCtx(g);
         const pays: number[] = [];
         let liveMW = -1;
@@ -395,7 +408,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 
 // ── DC-6: Stored chips keep their book value (no 6% a quarter decay) ──
 {
-  const s = newGame(defaultSetupV2());
+  const s = game();
   const fx = s.player.finance.ws3!;
   fx.inventory.ready = 1000;
   fx.inventory.transit = 0;
@@ -415,31 +428,33 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 
   // the build action clamps one building to the largest tile (1 GW): a 5 GW request is one 1 GW building
   {
-    const g = newGame(defaultSetupV2({ seed: 1 }));
+    const g = game({ seed: 1 });
+    const g0 = game({ seed: 1 });
     const before = g.player.sites.length;
     const err = act(g, 'cmp.newSite', { path: 'gas', mw: 5000, pay: 'cash' });
     const x = g.player.sites[g.player.sites.length - 1];
     check(err === undefined && g.player.sites.length === before + 1 && x.mw === TIER_MAX && (x.ws3.buildings ?? 1) === 1, 'cmp.newSite mw 5000 builds one 1 GW building', `mw ${x.mw}`);
-    const g2 = newGame(defaultSetupV2({ seed: 1 }));
+    const g2 = game({ seed: 1 });
     act(g2, 'cmp.newSite', { path: 'gas', mw: 5000, buildings: 5, pay: 'cash' });
     const y = g2.player.sites[g2.player.sites.length - 1];
     check(y.mw === 5 * TIER_MAX && y.ws3.buildingMW === TIER_MAX, 'mw 5000 x 5 buildings = 5 x 1 GW', `mw ${y.mw}, building ${y.ws3.buildingMW}`);
-    check(g.player.sites.slice(0, before).every((z, i) => z.mw === newGame(defaultSetupV2({ seed: 1 })).player.sites[i].mw), 'start sites untouched');
+    check(g.player.sites.slice(0, before).every((z, i) => z.mw === g0.player.sites[i].mw), 'start sites untouched');
   }
 
-  const s = newGame(defaultSetupV2({ seed: 1 }));
-  const end = dayOfDate(s.time.startDate, '2027-07-01');
+  const s = game({ seed: 1 });
+  const end = dayOfDate(s.time.startDate, '2026-10-01'); // five quarters: it has built five sites by then
   const startIds = new Set(s.player.sites.map((x) => x.id));
   const qName = (q: number) => { const y = 2025 + Math.floor((q + 2) / 4); return `Q${((q + 2) % 4) + 1} ${String(y).slice(2)}`; }; // game starts Q3 2025 (q index 0)
   let guard = 0;
-  while (!s.ending && s.time.day < end && guard++ < 5000) {
+  if (SMOKE) refBot.act(s, engine); // quick: its first decision round on the start state (it builds three sites at once); the five-quarter game is the full tier
+  while (!SMOKE && !s.ending && s.time.day < end && guard++ < 5000) {
     for (const p of [...s.events.pending]) {
       if (resolve(s, p.instance, refBot.decide(s, p))) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
     }
     refBot.act(s, engine);
     tick(s);
   }
-  console.log(`ref bot, seed 1, ended ${s.ending ? 'early' : 'at day ' + s.time.day} (${qName(quarterIndex(s.time.startDate, s.time.day))})`);
+  console.log(`ref bot, seed 1, ${SMOKE ? 'first decision round' : `ended ${s.ending ? 'early' : 'at day ' + s.time.day} (${qName(quarterIndex(s.time.startDate, s.time.day))})`}`);
 
   const built = s.player.sites.filter((x) => !startIds.has(x.id));
   console.log(`sites built: ${built.length}`);
@@ -453,6 +468,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
     console.log(`  ${x.id} ${x.path.padEnd(4)} ${String(bMW(x)).padStart(4)} MW x ${nOf(x)} (${(x.mw / 1000).toFixed(2)} GW)  levers ${lv.padEnd(34)} committed ${qName(committed)}  live ${live}  stage ${x.stage}  capex ${x.capex.toFixed(1)}`);
   }
   check(built.length > 0, 'the bot built at least one site');
+  if (!SMOKE) check(built.length >= 4, 'over five quarters the bot keeps building (four or more sites)', `${built.length}`);
   check(built.every((x) => (['rent', 'grid', 'gas'] as const).includes(x.path)), 'every source is rent, grid or gas');
   check(built.every((x) => x.mw >= SITE_MIN_MW - 1e-9 && x.mw <= SOURCES[x.path].maxMW + 1e-9), 'every size is within [100 MW, source cap]');
   check(built.every((x) => bMW(x) <= TIER_MAX + 1e-9), 'every building is at most 1 GW');
@@ -467,7 +483,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 // ── DC-12: Construction time and cost by building size; a rushed gas site is in the turbine backlog (§5b) ──
 {
   const fresh = () => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = 0; // no opposition rolls
     return s;
@@ -493,33 +509,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   near(siteCapex({ path: 'gas', mw: 1000, rush: true }) - siteCapex({ path: 'gas', mw: 1000 }), 0.3 * 3, 'rush is unscaled (30% of the turbines)', 1e-9);
   near(siteCapex({ path: 'rent', mw: 1000 }), 4, 'rent network fit-out is unscaled', 1e-9);
 
-  // 3. Preview = effect, sweep: gas and grid buildings of 0.1, 0.5, 1 GW x crash on/off.
-  let cases = 0, bad = 0;
-  for (const path of ['grid', 'gas'] as const) {
-    for (const mw of [100, 500, 1000]) {
-      for (const crash of [false, true]) {
-        const p = { path, mw, crash, pay: 'cash' };
-        const s = fresh();
-        const q0 = quarterIndex(s.time.startDate, s.time.day);
-        const v = actionView(s, 'cmp.newSite', p);
-        const capexPrev = -v.costs[0].amount;
-        const lagQ = v.gains[0].lagDays! / 91;
-        const err = act(s, 'cmp.newSite', p);
-        const x = s.player.sites[s.player.sites.length - 1];
-        let live = -1;
-        const ctx = makeCtx(s);
-        for (let q = q0 + 1; q <= q0 + 80 && live < 0; q++) {
-          s.time.day = dayOfQuarter(s.time.startDate, q);
-          sitesQSystem.run(s, ctx);
-          if (x.stage === 'live') live = q;
-        }
-        const ok = !err && Math.abs(capexPrev - x.capex) < 1e-9 && live - q0 === lagQ && x.mw === mw && x.ws3.buildQ === siteBuildQ({ path, mw, crash });
-        cases++;
-        if (!ok) { bad++;  console.log(`FAIL ${path} ${mw} MW crash ${crash}: preview capex ${capexPrev} vs ${x?.capex}, lag ${lagQ} q vs live ${live - q0} q, buildQ ${x?.ws3.buildQ}, err ${err}`); }
-      }
-    }
-  }
-  check(bad === 0, `preview capex and live quarter equal the created site's in all ${cases} cases`, `${bad} bad`);
+  // 3. (Preview = effect over the sizes x crash grid is the DC-13 sweep below, which now includes 100 / 300 / 500 / 1000 MW.)
 
   // 4. A rushed gas site counts in the turbine backlog until its power is ready.
   {
@@ -537,7 +527,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   const same = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
   const fresh = () => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = 0; // no opposition rolls
     return s;
@@ -595,7 +585,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   //    equal the created site's; refused combinations create nothing.
   {
     let cases = 0, bad = 0, refused = 0;
-    for (const path of ['rent', 'grid', 'gas'] as const) for (const mw of [100, 300, 1000]) for (const buildings of [1, 3, 5]) for (const crash of [false, true]) {
+    for (const path of ['rent', 'grid', 'gas'] as const) for (const mw of [100, 300, 500, 1000]) for (const buildings of [1, 3, 5]) for (const crash of [false, true]) {
       if (path === 'rent' && (buildings > 1 || crash)) continue;
       const p = { path, mw, buildings, crash, pay: 'cash', community: false };
       const s = fresh();
@@ -617,7 +607,8 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
       const paid0 = x.capexPaid;
       const { lives } = runSite(s, x, q0);
       const ok = !err && Math.abs(capexPrev - x.capex) < 1e-9 && same(prevQ, lives) && x.mw === total
-        && Math.abs(x.capexPaid - x.capex) < 1e-6 && Math.abs(paid0 - 0.05 * x.capex) < 1e-9;
+        && Math.abs(x.capexPaid - x.capex) < 1e-6 && Math.abs(paid0 - 0.05 * x.capex) < 1e-9
+        && (path === 'rent' || x.ws3.buildQ === siteBuildQ({ path, mw, crash }));
       cases++;
       if (!ok) { bad++; console.log(`FAIL ${path} ${buildings} x ${mw} MW crash ${crash}: capex ${capexPrev} vs ${x.capex}, live ${prevQ.join(',')} vs ${lives.join(',')}, paid ${x.capexPaid} of ${x.capex}, err ${err}`); }
     }
@@ -668,7 +659,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   const RATE = 0.09;
 
   const fresh = () => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = 0; // no opposition rolls
     s.player.finance.rating = 'BB'; // lessor at 9%
@@ -754,7 +745,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 // ── DC-17: The numbers the build card and site rows show: capex parts, siteFit, opposition parts, buildings view ──
 {
   const fresh = (nimby = 0) => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = nimby;
     return s;
@@ -853,8 +844,9 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
   // 4. Opposition parts = odds, with their factors.
   {
     let cases = 0, bad = 0;
+    const s = fresh(); // the odds are a pure function of the mood: one state, the mood set per case
     for (const nimby of [0, 45, 60, 100]) for (const path of ['rent', 'grid', 'gas'] as const) for (const crash of [false, true]) for (const communityPackage of [false, true]) {
-      const s = fresh(nimby);
+      s.pub.dcNimby = nimby;
       const site = { path, crash, communityPackage };
       const p = oppositionParts(s, site), o = oppositionOdds(s, site);
       cases++;
@@ -867,7 +859,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
       if (!ok) { bad++; console.log(`FAIL ${nimby} ${path} crash ${crash} community ${communityPackage}: ${JSON.stringify(p)}`); }
     }
     check(bad === 0, `oppositionParts block/delay = oppositionOdds, factors as spec (${cases} cases)`, `${bad} bad`);
-    const s = fresh(50);
+    s.pub.dcNimby = 50;
     const re = oppositionParts(s, { path: 'gas', crash: true, communityPackage: true, ws3: { reactive: true } });
     check(re.delay === 0 && re.mood === 1 && re.crashMult === 1 && re.communityMult === 1 && re.block === re.blockBase && re.block > 0, 'reactive site: base 1 - unblock odds, factors 1', JSON.stringify(re));
     const hi = oppositionParts(fresh(100), { path: 'gas', crash: true, communityPackage: false });
@@ -926,7 +918,7 @@ const near = (got: number, want: number, what: string, tol = 1e-9) =>
 {
   const leaseFlows = (s: GameStateV2) => cashFlows(s).filter((x): x is Extract<ReturnType<typeof cashFlows>[number], { perDay: number }> => 'perDay' in x && x.part === 'commitments');
   const build = (o: SiteOpts) => {
-    const s = newGame(defaultSetupV2({ seed: 1 }));
+    const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
     s.pub.dcNimby = 0;
     s.player.finance.rating = 'BB';
