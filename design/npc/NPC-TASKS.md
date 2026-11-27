@@ -19,7 +19,7 @@ the merge wave.
 | N3c | Option B (designer, 2026-11-27): k generated per world. A second reference curve M_best(G) at a full-effort safety recipe (heavy safety + the methods of MISALIGNMENT.md Q3 at the world's true efficacy), seed-averaged; k_w(G) = 1 − M_best/M_world; replaces k = 0.5 | Sonnet high | N3 | after N3 |
 | N7 | Remove `cooperation` (writes, the star hire's displayed "trust with rivals" cost, the meter) | Sonnet medium | — | done, merged bbec174 |
 | N2a | Data: personality table (7 values per kind), the Realistic cast (CAST-2025.md, O5), noise table (O4), invented names | Sonnet high | — | done, merged bbec174+ |
-| N2a2 | R1 start-internal window + R2 release cadence from Epoch ECI (spec §16) | Sonnet medium | N2a | running |
+| N2a2 | R1 generic start-internal rule + R2 one release cadence from Epoch ECI (spec §16) | Sonnet medium | N2a | done, merged |
 | N2b | Headline lab core: state type keeping the outward contract (Appendix A), init from cast + personality, the daily step (software dynamics, compute, internal/public model, release cadence, race pressure, misalignment, incidents) | Opus high, reason (c) | N1, N2a, N3 | wave 2 |
 | N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | wave 3 |
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | wave 3 |
@@ -39,3 +39,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N3b | accepted (lead verified traits.ts:866-872: the override replaced the map that folds in AG18 healing) | 4 min | Probe error; heavy safety lowers Mis in the real path. Option B unblocked. Write-up: main checkout .scratch/N3b-heavy-safety.md |
 | N7 | accepted | 17 min | 13 files; no action left without effect; fixtures still carry the field (harmless, regenerated in N12). Lead fixed one stale registry evidence string. |
 | N2a | accepted | 16 min | Names replaced (most of §12 collided with real companies/products). Findings 1-6 became the lead rulings R1-R5 (spec §16). Press-only: xAI money/headcount, upstart funding. |
+| N2a2 | accepted (rescoped mid-task per principle 7) | ~25 min | One cadence 119 d (median of 27 flagship steps, range 15-317) [P]; generic internal rule. CSV read through a summarising fetch: rows may be missing, fine at shape level. |
