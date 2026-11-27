@@ -376,3 +376,28 @@ These are constructed cases, not sampled games ([[test-time-policy]]). Each one 
   among researchers (e.g. moved by safety record)? The first is simpler.
 - **Q5.** Item 3 left open "fold or cut" for evaluators and the Safety Index. Draft choice: fold. Pre-deploy testing
   lets the government see your model; the Index grades, evaluator queues and academia are cut.
+
+## 14. Game setup cleanup (designer, 2026-11-27)
+
+"Baseline" is the world's start state (Jul 2025). "Timeline" is the future path (the AIFM run group). Today there are
+two baselines: "AI 2027 Classic" (the numbers as AI 2027 wrote them in April 2025), which is the default, and
+"Reality-Updated". With one measured history shared by every timeline (balance SCENARIOS: "one shared start state"),
+the baseline goes.
+
+| Setup item | Decision |
+|---|---|
+| Baseline | **Delete.** The world part (public, export policy, chip stock, global compute, China share and gap) becomes the world's real mid-2025 start (SOURCES). The lab part (cash, revenue, valuation, compute, staff, security level, order and site scale) moves into the start types (data/v2/starts.ts) with today's default values, so the balance calibration doesn't move. Flag to `bal`: those values are AI 2027's and need re-sourcing. |
+| Timeline (fast, central, slow) | keep |
+| Alignment difficulty | keep (the balance workstream owns its levels) |
+| Economy (Unknown, Normal, Fast diffusion, Gated) | **Delete the picker and presets.** One adoption setting with today's default values, renamed off `ai2027`; it is a product-market parameter. Alternatives may return later as a world axis. |
+| Government, Public, China pickers | **Delete** with their presets (W1c/W1d). Each actor's one or two parameters are registered values; no picker until the far-vision world axes. |
+| Storyteller (Rising, Measured, Chaotic) | **Delete (junk).** The director keeps one fixed pacing (today's default). After W7, most events are triggered by state. |
+| Start type, governance, NPC cast, tutorial, seed, company name | keep. The default company name is not "OpenBrain" (AI 2027 canon; names are invented). |
+
+## 15. AI 2027 sweep
+
+Every outside-world use of AI 2027 goes with the deleted code. What's left is listed for the designer (W12):
+- player-visible AI 2027 content: the end screen's AI 2027 reference line and glossary term, China's lab name
+  "DeepCent", the "OpenBrain" default, the milestone table's `Agent-N` names and canon dates, the v1 glossary;
+- lab-internal parameters whose source comment is AI 2027 (about 130 comment hits in about 50 files). These are
+  listed for the balance workstream to re-source against reality and the AIFM, not changed here.

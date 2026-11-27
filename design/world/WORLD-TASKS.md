@@ -53,7 +53,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
 | W10 | Observer runs × 3 timelines, plus the S1–S7 checks | Sonnet high (build), then the lead analyses | 60 min | W7 | |
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
+| W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
+| W12 | AI 2027 sweep (spec §15): remove player-visible remnants; write the list of AI 2027-sourced lab parameters for `bal` | Sonnet high | 45 min | W11 | |
 
 ## Log
 
