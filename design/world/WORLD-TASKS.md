@@ -165,3 +165,16 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   - Approval falls for an invisible player.
   - All of these were added to W6b as fixes 4–6 (theft from tension 2; concern steps from milestone 2; approval
     baseline × attention).
+- W6b · Sonnet high · ~25 min · six fixes:
+  1. The reference series is extended past its last point (rows end 2030.1–2060).
+  2. China tension reads a smoothed lead, gated by US public milestone 2 (collective) and milestone 4 or US stage 3
+     (coercion).
+  3. Strict exports have hysteresis (stage ≥ 2 or a theft in the last 365 d).
+  4. Weight theft from tension 2.
+  5. Concern steps from milestone 2.
+  6. The approval baseline is scaled by attention.
+
+  Observer: history holds in central and slow (stage 0, case-by-case from 2026, concern 50). Fast: US milestone 2 is
+  public by mid-2026, so the collective, US stage 1 and concern 53 land before Nov 2026. This is a shared-history
+  question for the NPC lead lab and `bal`. Slow: Taiwan flagged in 32 of 115 samples (to review).
+- obs-built (lead) · 3 × 8 grid on the built world · running
