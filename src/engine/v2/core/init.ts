@@ -301,8 +301,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     return r;
   });
   const china = initialChina(hidden, setup, cast.length, nNpc);
-  // Intel starts from the player's own lag (R9): every lab's estimated lead is against the player's start model.
-  if (start !== 'leader') for (const r of [...rivals, china.lab]) if (r.intel) r.intel.leadDaysEst -= Math.round((def.lagMonths * 365) / 12);
   rngState.world = worldRng.state;
 
   const labIds = ['player', ...rivals.map((r) => r.core.id), 'china'];

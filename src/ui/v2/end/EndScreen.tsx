@@ -598,7 +598,7 @@ function Labs({ labs }: { labs: HiddenLab[] }) {
       {labs.map((l) => (
         <BandRow key={l.id} chip={<span className="es-chip" style={{ background: labColor(l.id) }}>{monogram(l.name)}</span>} name={l.name} small={l.status !== 'active' && l.kind !== 'player' ? l.status : undefined}
           lo={l.lo} hi={l.hi} truth={l.truth} outside={l.outside}
-          tip={() => <TipCard title={l.name} value={pctI(l.truth)} rows={[{ label: l.kind === 'player' ? 'Your safety estimate (best model)' : 'Your intelligence estimate', value: `${pctI(l.lo)}–${pctI(l.hi)}` }, { label: 'The truth', value: pctI(l.truth), tone: l.outside ? 'neg' : undefined }]}>
+          tip={() => <TipCard title={l.name} value={pctI(l.truth)} rows={[{ label: l.kind === 'player' ? 'Your safety estimate (best model)' : 'Their public safety posture', value: `${pctI(l.lo)}–${pctI(l.hi)}` }, { label: 'The truth', value: pctI(l.truth), tone: l.outside ? 'neg' : undefined }]}>
             How strongly its best model would try to act against its makers.{l.outside ? ' The truth lay outside your range.' : ''}
           </TipCard>} />
       ))}

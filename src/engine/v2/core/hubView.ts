@@ -181,7 +181,7 @@ export function leadLanes(s: GameStateV2): LeadLane[] {
     return {
       id: r.core.id, name: r.core.name, china: r.core.kind === 'china', ahead, sd: l.sd,
       lo: Math.round(ahead - LIKELY_Z * l.sd), hi: Math.round(ahead + LIKELY_Z * l.sd),
-      reportDay: r.intel.lastReportDay, publicModel: r.publicModel?.name,
+      reportDay: r.npc?.pub?.capDay, publicModel: r.publicModel?.name,
     };
   }).sort((a, b) => b.ahead - a.ahead);
 }
