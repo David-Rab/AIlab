@@ -14,7 +14,7 @@ for (const k of NPC_KIND_IDS) {
   ok(p.computeGrowthPerYear === null ? !!p.chinaDirected : p.computeGrowthPerYear > 1 && p.computeGrowthPerYear < 10, `${k} compute growth`);
   ok(['parent', 'private', 'state'].includes(p.funding), `${k} funding`);
   ok(p.releaseLagDays > 0 && p.releaseLagDays < 400, `${k} release lag`);
-  ok(p.releaseCadenceDays > 30 && p.releaseCadenceDays < 800, `${k} cadence`);
+  ok(p.releaseCadenceDays >= 30 && p.releaseCadenceDays <= 200, `${k} cadence`);
   ok(!!p.openness?.mode, `${k} openness`);
   ok(Math.abs(sum(p.focus.channels) - 1) < 1e-9, `${k} channel weights sum ${sum(p.focus.channels)}`);
   ok(Math.abs(sum(p.focus.sectors) - 1) < 1e-9, `${k} sector weights sum ${sum(p.focus.sectors)}`);
@@ -37,13 +37,10 @@ for (const c of REALISTIC_CAST) {
   ok(c.start.publicLagMonths === null || c.start.publicLagMonths >= 0, `${c.id} public lag`);
   const want = [...toolsAtStart(ARCH[c.kind])].sort().join();
   ok([...c.start.tools].sort().join() === want, `${c.id} tools differ from tools.ts toolsAtStart: ${want}`);
-  const m = c.start.internalModel;
-  if (m.rule === 'nextRelease') ok(m.shipsInDays > 0, `${c.id} ships in days`);
+  ok(c.start.internalModel.rule === 'advanceByReleaseLag', `${c.id} internal model rule`);
 }
 const pub = Object.fromEntries(REALISTIC_CAST.map((c) => [c.kind, c.start.publicLagMonths]));
 ok(pub.leader === 0 && pub.bigtech === 2.5 && pub.safety === 3 && pub.china === 6.5 && pub.openweights === 9.6 && pub.racer === 6.5, 'public lags per CAST-2025 §1');
-const xai = REALISTIC_CAST.find((c) => c.kind === 'racer')!.start.internalModel;
-ok(xai.rule === 'nextRelease' && xai.lagMonths === 2.5 && xai.shipsInDays === 8, 'xAI internal Grok 4 in 8 days');
 ok(PUBLIC_NOISE.compute.china.sigmaLn === 0.5 && PUBLIC_NOISE.exact.length === 6, 'noise table');
 
 if (fails.length) { console.log('FAIL\n' + fails.join('\n')); process.exit(1); }
