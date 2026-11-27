@@ -47,7 +47,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
         id: CHINA_ID, name: CHINA_LAB_NAME, kind: 'china', status: 'active',
         computeOnline: deepCentCompute(meters),
         split: normalizeSplit({ ...shareRefAt(2025.5), safety: h.chinaPosture.safetyInvestment * 0.15 }),
-        staff, tasteHire: 1,
+        staff,
         security: initialSecurity(staff, 2.0),
         milestoneDays: {},
       },

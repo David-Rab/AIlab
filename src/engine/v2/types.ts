@@ -291,8 +291,6 @@ export interface LabCore {
   computeOnline: H100e;
   split: ComputeSplit;
   staff: StaffByRole;
-  /** τ_h, star-hire taste multiplier (research/13). */
-  tasteHire: number;
   models: ModelsState;
   deployments: Deployment[];
   security: SecurityState;
@@ -1244,11 +1242,9 @@ export interface PlayerLab extends LabCore {
   orders: ChipOrder[];
   cloud: CloudContract[];
   safety: SafetyDept;
-  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads; for the player `tasteHire`
-   *  (τ_h) is derived from stars. */
+  /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads. The stars the lab employs
+   *  are `s.labour.stars` with employer 'player' (LABOUR-ROUND §6). */
   teams: Team[];
-  /** Star hires (named people): +0.05 τ_h each. */
-  stars: number;
   hiring: TeamHiring;
   /** The lab's average pay per head by kind, $M per year (LABOUR-ROUND §4.1; moves toward the market offer, L12). */
   pay: Record<TeamRole, number>;

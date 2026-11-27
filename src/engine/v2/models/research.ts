@@ -56,7 +56,7 @@ import type {
 import { poolsOf } from '../compute/power';
 import { Phi, Xces } from '../production/ces';
 import { believedProd, observedScale } from '../production/believed';
-import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, researchMods, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { aiTaste, believedTasteInputs, expFlopAllowed, humanTaste, onDuty, researchMods, humanTasteMean, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { PARADIGM_BY_ID } from './paradigms';
 import { evalM, evalStaffToday, evalsDay } from './evals';
 import { addBelief, addIdea, latestBaseFlop, publicBase, researchG, STACK_KEYS, trainNow, stacksGEquiv } from './stacks';
@@ -237,7 +237,8 @@ export interface SciTaste { cap: number; q: number; qh?: number; qa?: number; s?
 export function sciTasteOf(s: GameStateV2, id: string, teams: Team[], inp: { sdAI: number; sAI: number; m2b: number; tl: number; star?: number }): SciTaste {
   const n = node(id);
   if (!n) return { cap: 0, q: 1 };
-  const star = inp.star ?? starTaste(s);
+  // LABOUR-ROUND §6.2: the stars lift capability research ideas only (not unlock trials, not safety projects).
+  const star = inp.star ?? (isCapProject(n) && !isUnlockProject(n) ? humanTasteMean(s) : 1);
   const qa = aiTaste(inp.sdAI, inp.m2b, inp.tl);
   let cap = 0;
   let qw = 0;
@@ -421,7 +422,7 @@ function tasteOf(s: GameStateV2): (t: Team) => number {
   const wc = workContext(s);
   const m2b = s.hidden.timeline.prod.m2b;
   const tl = tasteLimitOf(s.hidden.timeline);
-  const star = starTaste(s);
+  const star = humanTasteMean(s);
   return () => teamTaste(0, wc.sdAI, wc.sAI, m2b, star, tl);
 }
 

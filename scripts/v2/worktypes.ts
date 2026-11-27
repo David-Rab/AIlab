@@ -18,14 +18,13 @@ import { Xces } from '../../src/engine/v2/production/ces';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { buildCapacity } from '../../src/engine/v2/departments/teams';
-import { starTaste } from '../../src/engine/v2/departments/workfit';
 import { engScale, runSetupTW, upkeepSplit } from '../../src/engine/v2/departments/build';
 import { FIXTURE_DIR, HERE, check, finish, refGame, runRef } from './lib';
 import { deserialize, serialize } from '../../src/engine/v2/core/save';
 import { ACTION_BY_ID } from '../../src/engine/v2/core/registry';
 import { effectLine, readState, type DayRead } from '../../src/engine/v2/departments/teamActions';
 import { capShare } from '../../src/engine/v2/departments/agents';
-import { nextSpecialty, tauH } from '../../src/engine/v2/departments/teams';
+import { nextSpecialty } from '../../src/engine/v2/departments/teams';
 import { TEAM_SIZE } from '../../src/data/v2/teams';
 
 const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
@@ -270,13 +269,6 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
       rows.push(`${key} ${g.amount} ${g.unit} vs ${want.amount} ${want.unit}${same ? '' : ' ✗'}`);
     }
     check(ok, `RD-B18 @day ${d}: each hire preview = one engine day on a copy with the team (build, project days, safety results)`, rows.join('; '));
-    // Star hire: one more star on a copy.
-    const sg = pv(s, 'starHire').gains[0];
-    const c = cl(s);
-    c.player.stars = (c.player.stars ?? 0) + 1;
-    tick(c, { skip: ['endings'] });
-    const sw = effectLine(s, base, readNow(c), { role: 'sci', dept: 'cap' });
-    check(sg.unit === sw.unit && near(sg.amount, sw.amount, 0.1, 1), `RD-B18 @day ${d}: Star hire preview = one engine day with one more star`, `${sg.amount} ${sg.unit} (${sg.target}) vs ${sw.amount} ${sw.unit}`);
     // Agents: no constant security line; a routine-compute change that re-normalises engineering shows its build delta,
     // equal to build capacity on the applied copy.
     const x = Math.min(0.9, capShare(s, 'capRoutine') + 0.2);
@@ -288,17 +280,10 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
     check(![...a.costs, ...a.gains].some((l) => l.currency === 'security') && (dB === 0 ? !line : !!line && Math.abs(line.amount - dB) < 2e-3),
       `RD-B18 @day ${d}: agent preview has no constant security line and shows the build change of the applied copy`, `build ${line?.amount ?? 'none'} vs ${dB}; lines ${[...a.costs, ...a.gains].map((l) => `${l.currency} ${l.amount}`).join(', ')}`);
   }
-  // B34: one star-taste factor (research reads the bench the Star hire gate reads); the chip says what enters it.
-  const s = fx(400);
-  let same = true;
-  for (let n = 0; n <= 14; n++) {
-    s.player.stars = n;
-    same &&= Math.abs(starTaste(s) - tauH(s.player)) < 1e-12;
-  }
   // CP4: the Company panel is gone (UB-5): the Star hire chip lives on LAB (Lab.tsx / LabTabs.tsx).
   const company = ['Lab.tsx', 'LabTabs.tsx'].map((f) => readFileSync(join(HERE, '../../src/ui/v2/panels', f), 'utf8')).join('\n');
   const wt = readFileSync(join(HERE, '../../src/data/v2/workTypes.ts'), 'utf8');
-  check(same && !/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 one star-taste factor (research = the Star hire bench, 0–14 stars); the taste chip no longer claims quality enters it', '');
+  check(!/quality and stars/.test(company) && !/STAR_TASTE/.test(wt), 'RD-B18 the taste chip no longer claims quality enters it', '');
 }
 
 finish('worktypes');

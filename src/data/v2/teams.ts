@@ -26,12 +26,6 @@ export const HIRING_BASE: Record<TeamDept, number> = { cap: 15, saf: 8 };
 /** Attrition 12%/yr × (1.5 − morale/100), floor 0.2 (V2-SPEC §3.4.1). */
 export const ATTRITION_BASE = 0.12;
 
-/** Star hire (§3.4.1): +0.05 τ_h each, τ_h capped at 1.5; $0.3B and rival cooperation −20. */
-export const STAR_HIRE = { dTaste: 0.05, maxTaste: 1.5, cost: 0.3, cooperation: -20 };
-/** RD-B18 (B34): the one star-taste factor, 1 + dTaste · stars up to maxTaste. It multiplies every capabilities science
- *  team's human taste (research projects; departments/workfit.ts starTaste) and is the bench the Star hire gate reads. */
-export const starTasteOf = (stars = 0) => Math.min(STAR_HIRE.maxTaste, 1 + STAR_HIRE.dTaste * stars);
-
 /** Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]. */
 export const MOVE_SAFETY_MORALE = -5;
 

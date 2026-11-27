@@ -228,7 +228,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
     split: playerShareRef(SHARE_REF[0].year), // the start split: AI 2027's compute-usage table at the start (data), engineering agents on their own line (RD-A02)
     staff,
-    tasteHire: 1,
     models: {
       bases: [{
         id: 'B0', name: def.imported ? 'Open-weight base (imported)' : `${PLAYER_MODEL_FAMILY}-1`, day: B0_DAY, startDay: B0_START_DAY, flop: sm.flop,
@@ -253,7 +252,6 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
     cloud: compute ? compute.cloud : initialCloud(setup.baseline, startDate),
     safety,
     teams: roster.teams,
-    stars: 0,
     hiring: roster.hiring,
     pay: { ...W0 }, // LABOUR-ROUND §4.1: the lab starts paying the market wage
     tree: initialTree(setup),

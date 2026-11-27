@@ -64,6 +64,9 @@ export const STAR_LAB_ORDER: readonly (keyof typeof STAR_EMPLOYER0)[] = ['openai
 /** The pay-premium menu, share above the market wage [D] (LABOUR-ROUND §4.1: 0 / +10 / +25 / +50 / +100%). */
 export const PREMIUM_STEPS: readonly number[] = [0, 0.10, 0.25, 0.50, 1.00];
 
+/** Poaching a rival's star costs that rival's cooperation, points [D] (today's value, kept: the old star hire took -20 from the rivals). */
+export const STAR_POACH_COOPERATION = -20;
+
 /** Generated names for the stars (first + last), neutral and mixed in origin. [D] flavour. */
 export const STAR_FIRST_NAMES: readonly string[] = [
   'Aiko', 'Amara', 'Andrei', 'Beatriz', 'Chen', 'Dara', 'Elena', 'Farid', 'Grace', 'Hana', 'Ibrahim', 'Ines', 'Jun',

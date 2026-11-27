@@ -25,7 +25,7 @@ import {
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
+import { TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { optimalLabour, Phi, tasteSigma } from '../production/ces';
@@ -211,7 +211,7 @@ export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
 }
 
 /** A team's human taste (research input per idea vs a Strong team without AI): z SDs above the lab's average on the AIFM
- *  lognormal (mean 1, 99.9th pct = m2b × median), × the star factor `human`. */
+ *  lognormal (mean 1, 99.9th pct = m2b × median), × the lab's human taste mean `human` (humanTasteMean). */
 export const humanTaste = (z: number, m2b: number, human: number): number => Math.exp(tasteSigma(m2b) * z) * human;
 
 /** The AI's taste: the lognormal mean at the AI's SD under the world's ceiling (ceilingSD), exp(−σ²/2 + sd·σ). */
@@ -229,8 +229,17 @@ export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, 
   if (sAI <= 0) return Th;
   return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
-/** Lab-wide human taste factor from star hires (data/v2/teams.ts starTasteOf). */
-export const starTaste = (s: GameStateV2) => starTasteOf(s.player.stars ?? 0);
+/** The lab's human research taste T_h (LABOUR-ROUND §6.2; the AIFM's aggregate is the mean over the company's researchers,
+ *  taste_distribution.py:583): T_h = (S × 1 + Σ T_star) ÷ (S + n_star). S = the capabilities scientist heads (every team's
+ *  taste is 1), the sum runs over the stars the lab employs; a star adds no labour, only a taste to the mean. It is the
+ *  `human` factor of humanTaste / teamTaste (capability research only; unlock and safety projects do not read it). */
+export function humanTasteMean(s: GameStateV2): number {
+  let S = 0;
+  for (const t of s.player.teams) if (t.role === 'sci' && t.dept === 'cap') S += t.heads;
+  let sum = 0, n = 0;
+  for (const x of s.labour.stars) if (x.employer === 'player') { sum += x.taste; n++; }
+  return S + n > 0 ? (S + sum) / (S + n) : 1;
+}
 
 // ───────────────────────────── the lab's work context (one day) ─────────────────────────────
 

@@ -96,7 +96,7 @@ export function initialRival(rng: Rng, h: HiddenWorld, i: number, playerG: numbe
     core: {
       id, name: RIVAL_NAMES_V2[i % RIVAL_NAMES_V2.length], kind: 'rival', status: 'active',
       computeOnline: globalCompute * (0.06 + rng.range(-0.015, 0.02)) * arch.computeMult,
-      split, staff, tasteHire: 1,
+      split, staff,
       security: initialSecurity(staff, 2.2),
       milestoneDays: {},
     },
@@ -144,7 +144,7 @@ export function initialLeaderLab(rng: Rng, h: HiddenWorld, setup: Pick<SetupV2, 
     core: {
       id, name: LEADER_LAB_NAME, kind: 'rival', status: 'active',
       computeOnline: refTotal(w, yr0),
-      split: shareRefAt(yr0), staff, tasteHire: 1,
+      split: shareRefAt(yr0), staff,
       security: initialSecurity(staff, 2.2),
       milestoneDays: {},
     },

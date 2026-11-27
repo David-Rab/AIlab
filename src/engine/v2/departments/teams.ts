@@ -9,11 +9,11 @@
 // Engine map (model v3 V3): capabilities research engineers serve the research-engineer needs (models/research.ts
 // reAllocation: run operations, evals, project experiments, tuning; the production readout's h is those on
 // experiments + tuning over the leader lab's day-0 value); capabilities scientists run projects, each team's taste the
-// AIFM company mean (departments/workfit.ts teamTaste) × the star factor τ_h (tauH); engineers →
+// AIFM company mean (departments/workfit.ts teamTaste; the lab's humans = humanTasteMean, which the stars join); engineers →
 // build capacity (buildCapacity, the build queue of departments/build.ts). `staff.cap/saf` are derived from heads.
 import {
   ATTRITION_BASE, COLUMN_DEPT, COLUMN_LABEL, COLUMNS,
-  HIRING_BASE, MOVE_SAFETY_MORALE, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS, starTasteOf,
+  HIRING_BASE, MOVE_SAFETY_MORALE, REF_ROLE_SHARE, SAF_ROLE_SHARE, START_SPECIALTIES, START_TEAMS,
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
@@ -23,7 +23,7 @@ import { Phi } from '../production/ces';
 import { measuredLabour, sdAIOf, workContext } from './workfit';
 import type {
   BaselineId, Column, EngineSystem, GameStateV2, PlayerLab, StaffByRole, StartType, SystemCtx, Team, TeamDept,
-  TeamHiring, TeamKey, TeamRole,
+  Star, TeamHiring, TeamKey, TeamRole,
 } from '../types';
 
 export const keyOf = (t: Pick<Team, 'role' | 'dept'>): TeamKey => (t.role === 'eng' ? 'eng' : `${t.role}.${t.dept}` as TeamKey);
@@ -102,20 +102,15 @@ export function playerH(p: Pick<PlayerLab, 'teams'>): number {
   return re / REF_ROLE_SHARE.re;
 }
 
-/** Star-hire taste bench τ_h = 1 + 0.05 · stars (capped at 1.5). Model v3 V3: every team's taste is the AIFM company
- *  mean (departments/workfit.ts teamTaste), no lab-level τ normalised by the reference headcount; stars lift every capabilities team's human taste by this factor. */
-export function tauH(p: Pick<PlayerLab, 'teams' | 'stars'>, _yr?: number): number {
-  return starTasteOf(p.stars ?? 0);
-}
-
 /** Payroll $B/yr of a team (heads × role cost). */
 export const teamPayroll = (t: Team) => (t.heads * TEAM_COST_M[t.dept][t.role]) / 1000;
 /** Payroll of a full team ($B/yr). */
 export const fullTeamPayroll = (role: TeamRole, dept: TeamDept) => (TEAM_SIZE[role] * TEAM_COST_M[dept][role]) / 1000;
 
-/** Player payroll $B/yr: every team plus the people already hired into queued teams. */
-export function payrollOf(p: Pick<PlayerLab, 'teams' | 'hiring'>, dept?: TeamDept): number {
-  let b = 0;
+/** Player payroll $B/yr: every team plus the people already hired into queued teams, plus the stars on staff (pass
+ *  `s.labour.stars`; a star's pay is $M/yr; stars count under the capabilities department; LABOUR-ROUND §6.3). */
+export function payrollOf(p: Pick<PlayerLab, 'teams' | 'hiring'>, dept?: TeamDept, stars: readonly Star[] = []): number {
+  let b = !dept || dept === 'cap' ? stars.reduce((a, x) => a + (x.employer === 'player' ? x.pay : 0), 0) / 1000 : 0;
   for (const t of p.teams) if (!dept || t.dept === dept) b += teamPayroll(t);
   for (const t of p.hiring.filling) if (!dept || t.dept === dept) b += teamPayroll(t);
   return b;
@@ -128,13 +123,12 @@ export function staffOf(teams: readonly Team[]): StaffByRole {
   return st;
 }
 
-/** Re-derive staff.cap/saf and τ_h from the roster. Call after any roster change. */
+/** Re-derive staff.cap/saf from the roster. Call after any roster change. */
 export function syncTeams(s: GameStateV2) {
   const p = s.player;
   const st = staffOf(p.teams);
   p.staff.cap = st.cap;
   p.staff.saf = st.saf;
-  p.tasteHire = tauH(p, decimalYear(s));
 }
 
 export const teamsOfKey = (p: Pick<PlayerLab, 'teams'>, k: TeamKey) => p.teams.filter((t) => keyOf(t) === k);
@@ -377,12 +371,6 @@ export function setTeamTarget(s: GameStateV2, key: TeamKey, n: number): string |
   if (!TEAM_KEYS.includes(key)) return 'Unknown team kind';
   s.player.hiring.targets[key] = Math.max(0, Math.round(n));
   return undefined;
-}
-
-/** Star hire: +0.05 τ_h. */
-export function hireStar(s: GameStateV2) {
-  s.player.stars = (s.player.stars ?? 0) + 1;
-  syncTeams(s);
 }
 
 /** AI share of each role's work (STRUCTURE §4.1): engineers their SWE coverage (model v3 V3); research engineers 1 − wH (the AI part of coding
