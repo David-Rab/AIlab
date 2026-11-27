@@ -954,7 +954,7 @@ function SiteRows({ s }: { s: GameStateV2 }) {
   };
   const status = (r: SiteRow): ReactNode => {
     const { x, bars, view } = r;
-    if (x.stage === 'blocked') return <><span className="tone-neg">blocked</span><Tip content={() => <TipCard title={<Term id="capex">Capex lost</Term>} value={F.money(x.capexPaid)} rows={[{ label: 'Planned capex', value: F.money(x.capex) }]}>Paid on the site before opposition blocked it.</TipCard>}><span className="dim">{F.money(x.capexPaid)} lost</span></Tip></>;
+    if (x.stage === 'blocked') return <><span className="tone-neg">blocked</span><ActBtn id="SITE_DEAL" params={{ siteId: x.id }} /><ActBtn id="SITE_MOVE" params={{ siteId: x.id }} /><ActBtn id="SITE_SUE" params={{ siteId: x.id }} /><Tip content={() => <TipCard title={<Term id="capex">Capex lost</Term>} value={F.money(x.capexPaid)} rows={[{ label: 'Planned capex', value: F.money(x.capex) }]}>Paid on the site before opposition blocked it.</TipCard>}><span className="dim">{F.money(x.capexPaid)} lost</span></Tip></>;
     if (!view || !bars) return null;
     if (r.full) return <><span className="tone-pos">live</span><span className="dim">since {qLabel(s, view.buildings[0].liveQ)}</span></>;
     if (x.stage === 'live') {

@@ -136,10 +136,10 @@ const INVESTIGATE: ActionDef = {
       const t = defaultTarget(s);
       const versionId = str(p, 'versionId') ?? t?.versionId;
       const trait = isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : t?.trait;
-      if (!versionId || !trait) return void ctx.log('alert', 'Open case: no model to look into.');
+      if (!versionId || !trait) return 'Open case: no model to look into.';
       r = openInvestigation(s, ctx, { kind: 'trait', versionId, trait }, fte, opts);
     }
-    if (typeof r === 'string') ctx.log('alert', `Case not opened: ${r}.`, 1);
+    if (typeof r === 'string') return `Case not opened: ${r}.`;
   },
 };
 
@@ -157,7 +157,7 @@ const CLOSE_CASE: ActionDef = {
   apply(s, ctx, p) {
     const id = str(p, 'id') ?? s.player.safety.investigations.find((i) => !i.outcome)?.id;
     const err = id ? closeInvestigation(s, ctx, id) : 'No case';
-    if (err) ctx.log('alert', `Close case: ${err}.`, 1);
+    if (err) return `Close case: ${err}.`;
   },
 };
 
@@ -317,11 +317,11 @@ const RESPOND: ActionDef = {
   },
   apply(s, ctx, p) {
     const kind = str(p, 'kind') as ResponseKind;
-    if (!RESPONSE_KINDS.includes(kind)) return void ctx.log('alert', 'Respond: pick a response.');
+    if (!RESPONSE_KINDS.includes(kind)) return 'Respond: pick a response.';
     const inc = str(p, 'incidentId') ? s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId')) : undefined;
     const versionId = str(p, 'versionId') ?? inc?.versionId ?? s.player.agents.capRoutine.versionId ?? '';
     const err = applyResponse(s, ctx, kind, versionId, inc?.id, { trait: isTrait(str(p, 'trait')) ? (str(p, 'trait') as TraitId) : undefined, techniqueId: str(p, 'techniqueId'), footholdId: str(p, 'footholdId'), family: familyParam(p) });
-    if (err) ctx.log('alert', `${RESPONSE_INFO[kind].title}: ${err}.`, 1);
+    if (err) return `${RESPONSE_INFO[kind].title}: ${err}.`;
   },
 };
 
@@ -377,7 +377,7 @@ const DISCLOSE: ActionDef = {
     const inc = s.player.safety.incidents.find((i) => i.id === str(p, 'incidentId'));
     const c = str(p, 'choice') ?? 'yes';
     const err = inc ? setIncidentDisclosure(s, ctx, inc, c === 'no' ? 'no' : c === 'policy' ? 'policy' : 'yes') : 'Unknown incident';
-    if (err) ctx.log('alert', `Disclose: ${err}.`, 1);
+    if (err) return `Disclose: ${err}.`;
   },
 };
 
@@ -395,7 +395,7 @@ const PUBLISH: ActionDef = {
   },
   apply(s, ctx, p) {
     const id = str(p, 'findingId') ?? s.player.safety.findings.find((x) => !x.published)?.id;
-    if (!id) return void ctx.log('alert', 'Publish: nothing to publish.');
+    if (!id) return 'Publish: nothing to publish.';
     publishFinding(s, ctx, id);
   },
 };
@@ -420,7 +420,7 @@ const POLICY: ActionDef = {
   },
   apply(s, ctx, p) {
     const pol = str(p, 'policy');
-    if (pol !== 'none' && pol !== 'selective' && pol !== 'all') return void ctx.log('alert', 'Publish policy: none, selective or all.');
+    if (pol !== 'none' && pol !== 'selective' && pol !== 'all') return 'Publish policy: none, selective or all.';
     s.player.policies.publishSafety = pol;
     ctx.log('company', `Safety publication policy: ${pol}.`, 1);
   },
@@ -486,7 +486,7 @@ const FRAMEWORK_EVALS: ActionDef = {
   },
   apply(s, ctx, p) {
     const d = str(p, 'depth');
-    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return void ctx.log('alert', 'Release evals: none, basic, full or deep.');
+    if (d !== undefined && !FW_DEPTHS.includes(d as SafetyFramework['evalDepth'])) return 'Release evals: none, basic, full or deep.';
     const fw = frameworkOf(s);
     fw.evalDepth = fwDepthParam(p, s);
     fw.externalReview = fwExternalParam(p, s);
@@ -524,7 +524,7 @@ const FRAMEWORK_RULE: ActionDef = {
   apply(s, ctx, p) {
     const id = str(p, 'ruleId') ?? '';
     const why = editRule(s, id, ruleEdit(p), worldFrameworkRules(s), RULE_SLACK);
-    if (why) return void ctx.log('alert', why);
+    if (why) return why;
     refreshFramework(s, ctx);
     ctx.log('company', `Safety framework rule edited: ${frameworkOf(s).rules.find((r) => r.id === id)?.label ?? id}.`, 1);
   },
@@ -585,7 +585,7 @@ const SAFEGUARD_PACKAGE: ActionDef = {
   apply(s, ctx, p) {
     const d = s.player.deployments.find((x) => x.id === str(p, 'deploymentId'));
     const why = d ? applyPackage(s, d) : 'Unknown deployment';
-    if (why) return void ctx.log('alert', why);
+    if (why) return why;
     refreshFramework(s, ctx);
     ctx.log('company', `${PACKAGE_LABEL} added to ${d!.channel === 'internal' ? 'AI staff' : PRODUCT_DEFS[d!.channel]?.name ?? 'a product'}.`, 1, d!.id);
   },
@@ -618,12 +618,12 @@ const CONTROL_SETTING: ActionDef = {
   },
   apply(s, ctx, p) {
     const k = str(p, 'setting') as ControlSetting | undefined;
-    if (!k || !CONTROL_SETTING_IDS.includes(k)) return void ctx.log('alert', 'Control setting: defer10, defer20 or resample.');
+    if (!k || !CONTROL_SETTING_IDS.includes(k)) return 'Control setting: defer10, defer20 or resample.';
     const deps = controlDeps(s);
-    if (!deps.length) return void ctx.log('alert', 'No control protocol runs: add one first.');
+    if (!deps.length) return 'No control protocol runs: add one first.';
     for (const d of deps) {
       const why = addSafeguard(s, d, 'control', k);
-      if (why) return void ctx.log('alert', why);
+      if (why) return why;
     }
     refreshFramework(s, ctx);
     ctx.log('company', `Control protocol: ${CONTROL_SETTINGS[labControlSetting(s)].label.toLowerCase()}.`, 1);
@@ -679,7 +679,7 @@ const VALIDATE: ActionDef = {
   },
   apply(s, ctx, p) {
     const { model, tools } = validateTargets(s, p);
-    if (!tools.length) return void ctx.log('alert', 'Validate: nothing to validate on that model.');
+    if (!tools.length) return 'Validate: nothing to validate on that model.';
     for (const t of tools) queueValidation(s, t.id, model, 'player', ctx.day, p.human === true);
     const what = isMethod(tools[0].id) ? 'method' : 'instrument';
     ctx.log('research', `Validation queued: ${tools.length} ${what}${tools.length === 1 ? '' : 's'} on ${versionById(s, model)?.name ?? model}.`, 1);

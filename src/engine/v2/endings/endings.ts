@@ -41,7 +41,7 @@ export function endGame(s: GameStateV2, ctx: SystemCtx, id: EndingV2['id'], powe
   const name = subject ? (subject === 'player' ? s.player.name : labOf(s, subject)?.core.name ?? 'A rival') : '';
   const scores = scoreEnding(s, id, power);
   s.ending = { id, power, day: ctx.day, title, text: text0.replace('{lab}', name), scores, verdict: verdictOf(scores), epilogue: epi };
-  ctx.log('alert', `${title}.`, 5);
+  ctx.log('alert', `${title}.`, 5, 'ending'); // the one notice that blocks the game (ui store)
 }
 
 /** Sale of control (§5.1 #1 'acquired'): a WS4 rescue flag, or one strategic holder above 50% of the equity after

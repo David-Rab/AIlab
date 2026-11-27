@@ -1,6 +1,6 @@
 // Decision modal v2 (PROPOSALS §7): sphere tag and ring timer; "why this happened" cause chain (from the matching
 // Watch rule); choice cards with before→after bars on the meters they touch; "lasting fixes" Go buttons; keys 1/2/3
-// choose, Esc = later. Also the acknowledgement card for severity 4–5 log entries.
+// choose, Esc = later. Also the acknowledgement card for the game-ending notice (the only one that blocks).
 import { useEffect } from 'react';
 import { choiceView, choiceVote, eventDef } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';

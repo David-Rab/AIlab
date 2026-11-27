@@ -404,7 +404,8 @@ class StoreV2 {
     const b = sig(s);
     const start = last ? s.log.lastIndexOf(last) + 1 : 0;
     const fresh = s.log.slice(start);
-    for (const e of fresh) if ((e.severity ?? 0) >= 4) this.notices.push(e);
+    // Only the game-ending notice blocks the game; every other alert goes to the alert queue (OUTSIDE-WORLD §8.3).
+    for (const e of fresh) if (e.ref === 'ending') this.notices.push(e);
     if (this.notices.length > 6) this.notices.splice(0, this.notices.length - 6);
     // Crisis decisions open the modal at once.
     if (b.pending > a.pending) {
@@ -427,7 +428,7 @@ class StoreV2 {
     if (this.prefs.pauseOnDecision && b.pending > a.pending) return 'New decision';
     if (this.prefs.pauseOnMilestone && b.playerMs > a.playerMs) return 'Milestone';
     if (this.prefs.pauseOnIncident && (b.incidents3 > a.incidents3 || fresh.some((e) => (e.severity ?? 0) >= 3 && e.kind !== 'milestone'))) return 'Alert';
-    if (this.notices.length && fresh.some((e) => (e.severity ?? 0) >= 4)) return 'Alert';
+    if (this.notices.length && fresh.some((e) => e.ref === 'ending')) return 'Alert';
     return undefined;
   }
 

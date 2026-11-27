@@ -4,7 +4,7 @@
 // (ends the game) stands apart behind a confirm.
 import { useState } from 'react';
 import { RELATION_ACTION_META } from '../../../data/v2/actions';
-import { activeRivals, chinagovView, dateOf, fmtDate, keptShare, usgovView } from '../../../engine/v2';
+import { activeRivals, blockingCommitments, chinagovView, dateOf, fmtDate, keptShare, usgovView } from '../../../engine/v2';
 import { lawName } from '../../../data/v2/laws';
 import type { GameStateV2 } from '../../../engine/v2';
 import { ActBtn, Gate, pct, Section, Seg, Term, Tip, TipCard } from '../ui';
@@ -55,11 +55,19 @@ export function Relations({ s }: { s: GameStateV2 }) {
 
       <Section title={<Term id="commitment">Obligations</Term>} right={<Tip content={() => <TipCard title="Kept" value={pct(keptShare(s))}>Share of your public commitments kept so far.</TipCard>}><span className="small dim">kept {pct(keptShare(s))}</span></Tip>}>
         <Gate s={s} k="commitments">
-          {s.commitments.map((c) => (
-            <Tip as="div" key={c.id} content={() => <TipCard title={c.title} value={c.status} rows={[{ label: 'Condition', value: F.words(c.condition.predicate) }, { label: 'Signed', value: fmtDate(dateOf(s, c.signedDay)) }]} />}>
-              <div className={`obl-row ${c.status === 'broken' ? 'tone-neg' : ''}`}><span className="ellip">{c.title}</span><span className="small">{c.status}</span></div>
-            </Tip>
-          ))}
+          {s.commitments.map((c) => {
+            const binds = blockingCommitments(s).some((b) => b.id === c.id);
+            return (
+              <div key={c.id}>
+                <Tip as="div" content={() => <TipCard title={c.title} value={binds ? 'binding now' : c.status} rows={[{ label: 'Condition', value: F.words(c.condition.predicate) }, { label: 'Signed', value: fmtDate(dateOf(s, c.signedDay)) }]}>{binds ? 'Its condition holds now. What it forbids is refused at launch; honour, amend or break it here.' : undefined}</TipCard>}>
+                  <div className={`obl-row ${c.status === 'broken' ? 'tone-neg' : ''}`}><span className="ellip">{c.title}</span><span className={`small ${binds ? 'tone-warn' : ''}`}>{binds ? 'binding now' : c.status}</span></div>
+                </Tip>
+                {binds && <div className="row-i small" data-test={`binds-${c.id}`}>
+                  <ActBtn id="CMT_HONOUR" params={{ cid: c.id }} /><ActBtn id="CMT_AMEND" params={{ cid: c.id }} /><ActBtn id="CMT_BREAK" params={{ cid: c.id }} />
+                </div>}
+              </div>
+            );
+          })}
           {!s.commitments.length && <div className="dim small">No commitments yet</div>}
         </Gate>
       </Section>

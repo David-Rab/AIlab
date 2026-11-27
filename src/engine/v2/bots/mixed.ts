@@ -11,6 +11,7 @@ import { sightLimitPoint } from '../safety/sightLimit';
 import { internalVersion, measuredLOf } from '../models/labs';
 import type { AgendaId, BotPolicy, GameStateV2 } from '../types';
 import { clamp } from '../../rng';
+import { blockingCommitments } from '../actors/commitments';
 import { financeAutopilot } from '../finance/plan';
 import { byLabel, every, mergerChoice, pickByTags, sizedTarget, staffLines, tryAct, type LinePlan } from './common';
 import { refPlay, treeGoals, type RefPlayOpts } from './ref';
@@ -80,6 +81,9 @@ export function makeMixedBot(S: MixedBotSettings = DEFAULT_MIXED): BotPolicy {
         const ent = s.player.deployments.find((d) => d.channel === 'enterprise' && d.status === 'live');
         if (mini && ent && ent.versionId !== mini.id) tryAct(s, api, 'product.update', { id: ent.id, versionId: mini.id });
       }
+      // A binding pledge is honoured, a blocked site gets the community deal (they were the E30 / E27 defaults).
+      for (const c of blockingCommitments(s)) tryAct(s, api, 'CMT_HONOUR', { cid: c.id });
+      for (const x of s.player.sites) if (x.stage === 'blocked') tryAct(s, api, 'SITE_DEAL', { siteId: x.id });
       if (every(s, S.acts.every, 3)) {
         for (const id of S.acts.ids) tryAct(s, api, id, {});
         if (s.player.policies.govBriefing < S.govBriefing) tryAct(s, api, 'B7', { level: S.govBriefing });
@@ -90,7 +94,6 @@ export function makeMixedBot(S: MixedBotSettings = DEFAULT_MIXED): BotPolicy {
     decide(s, d) {
       switch (d.id) {
         case 'E10': return byLabel(d, 'Go public');
-        case 'E30': return byLabel(d, 'Honour');
         case 'E32': return mergerChoice(s, d, S.mergerChoice); // FIN3c: cash or stock, never control
         default: return pickByTags(s, d, [['disclose', 'honour'], ['balanced', 'control'], ['cooperate', 'community'], ['safety']]);
       }
