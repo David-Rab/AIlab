@@ -36,15 +36,23 @@ const step = (s: GameStateV2, days: number) => { for (let i = 0; i < days; i++) 
   check(Math.abs(s.public.approval) < 0.5, 'frozen: approval stays near 0', f2(s.public.approval));
 }
 
+// A public milestone 1 (reliable agent) leaves concern at its base: only milestone 2 and up move it.
+{
+  const s = frozen();
+  s.rivals[0].core.milestoneDays[1 as 0] = -1000;
+  s.rivals[0].npc && (s.rivals[0].npc.phase = -500);
+  check(publicMilestones(s)[1] !== undefined && Math.abs(concernTarget(s) - 50) < 1e-9, 'milestone 1 public: the target stays 50', f2(concernTarget(s)));
+}
+
 // One more public milestone: the target is 56; concern is within 1 of it after a year.
 {
   const s = frozen();
-  const before = Object.keys(publicMilestones(s)).filter((k) => Number(k) >= 1).length;
+  const before = Object.keys(publicMilestones(s)).filter((k) => Number(k) >= PUBLIC.milestoneFrom).length;
   const r = s.rivals[0];
-  r.core.milestoneDays[1 as 0] = -1000;
+  r.core.milestoneDays[PUBLIC.milestoneFrom as 0] = -1000;
   r.npc && (r.npc.phase = -500);
-  const after = Object.keys(publicMilestones(s)).filter((k) => Number(k) >= 1).length;
-  check(after === before + 1, 'a rival milestone 1 reached long ago is public', `${before} -> ${after}`);
+  const after = Object.keys(publicMilestones(s)).filter((k) => Number(k) >= PUBLIC.milestoneFrom).length;
+  check(after === before + 1, 'a rival milestone 2 reached long ago is public', `${before} -> ${after}`);
   check(Math.abs(concernTarget(s) - 56) < 1e-9, 'one more public milestone: target 56', f2(concernTarget(s)));
   step(s, 30);
   check(s.public.concern > 50 && s.public.concern < 56, 'concern moves from 50 toward 56', f2(s.public.concern));

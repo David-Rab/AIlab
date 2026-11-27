@@ -288,10 +288,10 @@ export const PARAMS_WORLDFX = defineParams([
   }),
 
   // ---------------------------------------------------------------- world/public.ts (W4: the public, spec 5)
-  ...(['base', 'milestoneStep', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
+  ...(['base', 'milestoneStep', 'milestoneFrom', 'jobsPerPt', 'incidentK', 'concernHalfLifeDays', 'concernToApproval', 'approvalHalfLifeDays', 'concernToNimby', 'communityNimbyCut', 'brandSwing', 'pullPerApproval', 'protestConcern', 'protestGapDays', 'disclosedPerSeverity', 'leakedPerSeverity', 'coverupExposed', 'pledgeBroken', 'discloseChoice'] as const).map((k): Param => ({
     id: `wfx.PUBLIC.${k}`,
     ref: { kind: 'export', module: 'src/engine/v2/world/public.ts', symbol: 'PUBLIC', path: [k] },
-    value: { base: 50, milestoneStep: 6, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
+    value: { base: 50, milestoneStep: 6, milestoneFrom: 2, jobsPerPt: 5, incidentK: 2, concernHalfLifeDays: 90, concernToApproval: 0.4, approvalHalfLifeDays: 180, concernToNimby: 0.5, communityNimbyCut: 10, brandSwing: 0.1, pullPerApproval: 5, protestConcern: 70, protestGapDays: 180, disclosedPerSeverity: -2, leakedPerSeverity: -4, coverupExposed: -8, pledgeBroken: -6, discloseChoice: 3 }[k],
     unit: k.endsWith('Days') ? 'days' : k === 'base' || k === 'protestConcern' ? 'concern points (0-100)' : undefined,
     ...W, actor: 'all',
     ...(k === 'base'

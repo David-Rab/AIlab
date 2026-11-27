@@ -10,8 +10,11 @@ import type { EngineSystem, GameStateV2, SystemCtx } from '../types';
 export const PUBLIC = {
   /** Concern before any public milestone (share more concerned than excited, %): Pew Jun 2025 50 (SOURCES §3.1) [sourced]. */
   base: 50,
-  /** Concern added per public milestone from index 1 up (reliable agent and beyond; any lab; sticky) [D]. */
+  /** Concern added per public milestone from index milestoneFrom up (any lab; sticky) [D]. */
   milestoneStep: 6,
+  /** The first milestone index that moves concern: 2, the online learner. Milestone 1 (reliable agent) goes public in 2026 in fast
+   *  runs, and real Pew stayed flat near 50 through then [D]. */
+  milestoneFrom: 2,
   /** Concern added per point of 12-month US unemployment rise [D]. */
   jobsPerPt: 5,
   /** Concern added per unit of public incident heat (observe.ts incidentHeat) [D]. */
@@ -45,12 +48,12 @@ export const PUBLIC = {
 const halfLifeK = (days: number) => 1 - Math.pow(0.5, 1 / days);
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 
-/** Public milestones of index 1 and up (any lab). Calibration intent: history to Nov 2026 holds concern near 50 (Pew's
+/** Public milestones of index PUBLIC.milestoneFrom and up (any lab). Calibration intent: history to Nov 2026 holds concern near 50 (Pew's
  *  plateau 50-52 through 2025, so the quiet-world history shows no step); the 2022 to 2023 Pew step (+14 in under 8
  *  months, the first mass chatbot) bounds how big a single step can be (milestoneStep 6 is well inside it). */
 export function publicMilestoneCount(s: GameStateV2): number {
   let n = 0;
-  for (const i of Object.keys(publicMilestones(s))) if (Number(i) >= 1) n++;
+  for (const i of Object.keys(publicMilestones(s))) if (Number(i) >= PUBLIC.milestoneFrom) n++;
   return n;
 }
 
