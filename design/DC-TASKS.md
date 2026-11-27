@@ -159,9 +159,9 @@ UI lane after L1, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b
   export function pendingGW(sites: readonly QueueSite[], src: SiteSource, day: number): number
   export function waitQ(src, year, yourGW): number                   // refWaitQ + 4 × yourGW / rate  (= 4 × (outside + yours) / rate)
   export function worldWaitQ(s: GameStateV2, src: SiteSource): number // waitQ(src, decimalYear(s), pendingGW(s.player.sites, src, s.time.day))
-  export interface WaitBreakdown { src; waitQ; refQ; youGW; you: { name: string; gw: number }[]; otherLabsGW; othersGW; rateGWPerYear; perGWQ }
+  export interface WaitBreakdown { src; waitQ; refQ; youGW; you: { name: string; gw: number }[]; othersGW; rateGWPerYear; perGWQ }
   export function waitBreakdown(s: GameStateV2, src: SiteSource): WaitBreakdown
-  // otherLabsGW = OTHER_LABS_SHARE × outside; othersGW = outside − otherLabsGW; perGWQ = 4 / rate (what +1 GW adds)
+  // othersGW = outside (one "everyone else" row, [D-11]); perGWQ = 4 / rate (what +1 GW adds)
   ```
 - **Expected numbers (check.ts prints and asserts, tolerance 1e-9 unless stated):** no sites: grid 2023.0 → 12,
   2024.0 → 16, 2025.5 → 19, 2026.0 → 20, 2030.0 → 16, 2032.0 → 16, 2021.0 → 12; gas 2025.5 → 8.5, 2026.0 → 9;
