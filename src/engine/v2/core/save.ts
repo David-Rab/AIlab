@@ -1,20 +1,13 @@
 // Save format, migrations, state hash (V2-SPEC §2.5). Owner: WS1.
 import type { GameStateV2 } from '../types';
-import { PRODUCT_TOOL_BY_ID, TOOL_FROM_FEATURE, harnessForAdaptation, needsCert, toolsAtStart, type LabArchetype, type ProductToolId } from '../../../data/v2/tools';
-import type { FeatureId } from '../../../data/v2/features';
-import { deriveNames } from '../models/naming';
 
 /** Bump on any breaking change to types.ts and add a migration from the previous rev to `migrations`.
- *  Saves below MIN_SCHEMA_REV do not load: deserialize refuses them with OLD_SAVE_MESSAGE. UB-3 (DD-20, the clean save
- *  break at the end of the R&D engine work) set MIN_SCHEMA_REV = SCHEMA_REV = 103 and deleted every migration below it
- *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
- *  BUILD-NOTES. Revs up to 103 are documented there.
+ *  Saves below MIN_SCHEMA_REV do not load: deserialize refuses them with OLD_SAVE_MESSAGE. Each clean save break
+ *  (UB-3 at 103, the timelines at 112, the data-centre redesign at 113) sets MIN_SCHEMA_REV = SCHEMA_REV and deletes
+ *  every migration below it with the helpers only they used; the history of each is in git.
  */
-// 112: the old world presets are removed (a world is one of the three timelines); old saves are invalid, no migration.
-// 113: data centres and power redesign (design/DATACENTERS.md): sites are rent / grid / gas campuses with world waits;
-//      old saves are invalid, no migration.
 export const SCHEMA_REV = 113;
-/** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
+/** The oldest save that loads: a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 113;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */
 export const OLD_SAVE_MESSAGE = 'This save is from an older version of the game and can no longer be loaded.';
@@ -24,152 +17,8 @@ export const SLOT_KEYS = ['ai27.v2.slot1', 'ai27.v2.slot2', 'ai27.v2.slot3'] as 
 export const V1_SAVE_KEY = 'ai27.save.v1';
 export const SAVE_BUDGET_BYTES = 1.5 * 1024 * 1024;
 
-/** MK-1 (design/MARKET.md M1): the old channels' successors: Government and Trusted access → Vetted, Agents → API. */
-const CHANNEL_MK1: Record<string, string> = { gov: 'vetted', trusted: 'vetted', agents: 'api' };
-
-/** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up). */
-export const migrations: Record<number, (s: Record<string, unknown>) => void> = {
-  // 103 → 104: model naming (design/MODEL-NAMING.md, from master): name parts derived from the save's models, names re-rendered.
-  103: (s) => deriveNames(s as unknown as GameStateV2),
-  /** 104 → 105 (MK-1): four products. A deployment on 'gov' or 'trusted' moves to 'vetted', on 'agents' to 'api'; a
-   *  second product of the same channel is kept as it is (not merged). Launches waiting on the build queue (ref and
-   *  launch.channel) move the same way. Nothing else in the state is keyed by channel. */
-  104: (s) => {
-    const p = s.player as { deployments?: { channel?: string; wasAgents?: boolean }[]; build?: { queue?: { kind?: string; ref?: string; launch?: { channel?: string } }[] } } | undefined;
-    for (const d of p?.deployments ?? []) {
-      if (d.channel === 'agents') d.wasAgents = true; // read and removed by 107 → 108 (MK-11: Agent mode)
-      if (d.channel && CHANNEL_MK1[d.channel]) d.channel = CHANNEL_MK1[d.channel];
-    }
-    for (const it of p?.build?.queue ?? []) {
-      if (it.kind !== 'launch') continue;
-      if (it.ref && CHANNEL_MK1[it.ref]) it.ref = CHANNEL_MK1[it.ref];
-      if (it.launch?.channel && CHANNEL_MK1[it.launch.channel]) it.launch.channel = CHANNEL_MK1[it.launch.channel];
-    }
-  },
-  /** 105 → 106 (MK-3, design/MARKET.md M8): thinking effort removed. Every product serves as the old default 'max'
-   *  (×1 reasoning tokens, +0 OOM), so the field is dropped from deployments and waiting launches; a product that was
-   *  on 'low' or 'deep' now serves at max. */
-  105: (s) => {
-    const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
-    for (const d of p?.deployments ?? []) delete d.effort;
-    for (const it of p?.build?.queue ?? []) if (it.launch) delete it.launch.effort;
-  },
-  /** 106 → 107 (MK-6, design/MARKET.md M5, M6): price tiers removed. Every product and waiting launch takes the 'profit'
-   *  stance (price and priceIndex dropped); the sellers' margins (world.fx.priceM) start at today's cost-plus prices
-   *  when first read (SEED_MARKUP) and move to their Nash–Bertrand targets. */
-  106: (s) => {
-    const p = s.player as { deployments?: Record<string, unknown>[]; build?: { queue?: { launch?: Record<string, unknown> }[] } } | undefined;
-    for (const d of p?.deployments ?? []) {
-      delete d.price;
-      delete d.priceIndex;
-      d.stance = 'profit';
-    }
-    for (const it of p?.build?.queue ?? []) if (it.launch) {
-      delete it.launch.price;
-      it.launch.stance = 'profit';
-    }
-  },
-  /** 107 → 108 (MK-11, design/MARKET.md M9, M14): product features and sector adaptations become the product tools of
-   *  data/v2/tools.ts.
-   *  - Built features → built tools (TOOL_FROM_FEATURE: codingAgent → Coding harness, deepResearch → Research agent,
-   *    memory / computerUse / voiceVision / companion the same id); a queued feature build's ref the same way.
-   *  - A product's feature list → its tools; a tool its channel does not offer is dropped: Voice & vision on API,
-   *    Enterprise or Vetted (designer: Chat only; its media work is Creative studio's, which is not granted).
-   *  - Each sector adaptation → the harness covering its sector on that product's channel (harnessForAdaptation),
-   *    switched on and built; a certification record (certDone) moves to Deployment.certs for that sector. Dropped where
-   *    no harness the channel can carry covers the sector: on the API every sector but Software, Science,
-   *    Finance, Legal and Media (Back-office, Clinical, Operations and Defence harnesses are not offered there), Military
-   *    on Enterprise (the Defence suite is Vetted-only), Media on Vetted (Creative studio is not offered there). Its progress is lost with it (a later harness starts a new certification). A queued
-   *    adaptation build is dropped (its host's harness is the build now).
-   *  - Agent mode (lead decision: keep a save's income, since before MK-11 every business product sold agent-hours):
-   *    switched on for every live API, Enterprise and Vetted product and for a product that was an Agents product (MK-1
-   *    moved it to the API; marked `wasAgents` by 103 → 104), and built for the lab when any gets it; if Agent mode is
-   *    new in the game, the rival lag rule counts from the earliest such product's launch.
-   *  - Rivals and China: their tools mapped the same way, plus the tools their lab had shipped by the start
-   *    (toolsAtStart); world.fx.toolShip keys mapped. */
-  107: (s) => {
-    type Dep = { channel?: string; status?: string; startDay?: number; features?: string[]; adaptations?: { sector: string; certDone?: number }[]; certs?: { sector: string; certDone: number }[]; wasAgents?: boolean };
-    const p = s.player as { features?: string[]; deployments?: Dep[]; build?: { queue?: { kind?: string; ref?: string }[] } } | undefined;
-    const map = (id: string): string => TOOL_FROM_FEATURE[id as FeatureId] ?? id;
-    const known = (id: string) => !!PRODUCT_TOOL_BY_ID[id as ProductToolId];
-    const offered = (id: string, ch?: string) => !!ch && (PRODUCT_TOOL_BY_ID[id as ProductToolId]?.products as string[] | undefined)?.includes(ch);
-    if (!p) return;
-    const built = new Set((p.features ?? []).map(map).filter(known));
-    let agentsShip: number | undefined;
-    for (const d of p.deployments ?? []) {
-      const feats = new Set((d.features ?? []).map(map).filter((id) => known(id) && offered(id, d.channel)));
-      const certs: { sector: string; certDone: number }[] = [];
-      for (const a of d.adaptations ?? []) {
-        const h = harnessForAdaptation(a.sector as never, d.channel as never);
-        if (!h) continue;
-        feats.add(h);
-        built.add(h);
-        if (needsCert(a.sector as never) && a.certDone !== undefined && !certs.some((c) => c.sector === a.sector)) certs.push({ sector: a.sector, certDone: a.certDone });
-      }
-      const liveBiz = (d.channel === 'api' || d.channel === 'enterprise' || d.channel === 'vetted') && d.status !== 'withdrawn';
-      if (d.wasAgents || liveBiz) {
-        feats.add('agentMode');
-        built.add('agentMode');
-        if (d.startDay !== undefined) agentsShip = Math.min(agentsShip ?? Infinity, d.startDay);
-      }
-      delete d.wasAgents;
-      delete d.adaptations;
-      d.certs = certs;
-      d.features = [...feats];
-    }
-    p.features = [...built];
-    if (p.build?.queue) {
-      p.build.queue = p.build.queue.filter((it) => it.kind !== 'adaptation');
-      for (const it of p.build.queue) if (it.kind === 'feature' && it.ref) it.ref = map(it.ref);
-    }
-    const labs = [...((s.rivals as { archetype?: string; tools?: string[] }[] | undefined) ?? []), (s.china as { lab?: { archetype?: string; tools?: string[] } } | undefined)?.lab].filter((x) => !!x) as { archetype?: string; tools?: string[] }[];
-    for (const r of labs) r.tools = [...new Set([...toolsAtStart((r.archetype ?? 'upstart') as LabArchetype), ...(r.tools ?? []).map(map).filter(known)])];
-    const fx = (s.world as { fx?: { toolShip?: Record<string, number> } } | undefined)?.fx;
-    if (fx?.toolShip) fx.toolShip = Object.fromEntries(Object.entries(fx.toolShip).map(([k, v]) => [map(k), v]));
-    if (fx && agentsShip !== undefined && Number.isFinite(agentsShip) && !labs.some((r) => toolsAtStart((r.archetype ?? 'upstart') as LabArchetype).includes('agentMode'))) {
-      (fx.toolShip ??= {}).agentMode ??= agentsShip;
-    }
-  },
-  /** 108 → 109 (MK-6b, design/MARKET.md M5 revised): the margin is per model. Each seller's one margin per sector ×
-   *  region (world.fx.priceM[r][sector][seller]) is copied to each of its models (the player's: every product's main
-   *  model and lineup entries; a rival's and DeepCent's: its public model and lineup); each then moves to its own target. */
-  108: (s) => {
-    const fx = (s.world as { fx?: { priceM?: Record<string, Record<string, Record<string, unknown>>> } } | undefined)?.fx;
-    if (!fx?.priceM) return;
-    type Lab = { core?: { id?: string }; publicModel?: { id?: string }; lineup?: { id?: string }[] };
-    const models = new Map<string, string[]>();
-    const put = (key: string, ids: (string | undefined)[]) => models.set(key, [...new Set(ids.filter((x): x is string => !!x))]);
-    const p = s.player as { deployments?: { versionId?: string; lineup?: string[] }[] } | undefined;
-    put('player', (p?.deployments ?? []).flatMap((d) => [d.versionId, ...(d.lineup ?? [])]));
-    for (const r of (s.rivals as Lab[] | undefined) ?? []) if (r.core?.id) put(r.core.id, [r.publicModel?.id, ...(r.lineup ?? []).map((m) => m.id)]);
-    const cn = (s.china as { lab?: Lab } | undefined)?.lab;
-    if (cn) put('china', [cn.publicModel?.id, ...(cn.lineup ?? []).map((m) => m.id)]);
-    for (const reg of Object.values(fx.priceM)) for (const row of Object.values(reg)) for (const [key, M] of Object.entries(row)) {
-      if (typeof M !== 'number') continue;
-      const out: Record<string, number> = {};
-      for (const id of models.get(key) ?? []) out[id] = M;
-      row[key] = out;
-    }
-  },
-  /** 109 → 110 (MK-6c, design/MARKET.md M5): μ_b is the cheapest adequate tier's cost ÷ ε, read from today's tiers, so
-   *  yesterday's band prices (world.fx.bandP) are no longer kept. The margins (fx.priceM) stay and move to their new
-   *  targets at PRICE_TAU. */
-  109: (s) => {
-    const fx = (s.world as { fx?: { bandP?: unknown } } | undefined)?.fx;
-    if (fx) delete fx.bandP;
-  },
-  /** 110 → 111 (round 2 item 9): P24 (AI-designed successor) is a research line, no longer a one-off idea. Its project state
-   *  (an idea's stage, candidates, result, or 'known') is dropped, so the line starts fresh once RL focus: ML research is
-   *  known; an idea already built in keeps its effect in the pretraining stack. It leaves the research list and its teams
-   *  go idle (the player queues the line again). */
-  110: (s) => {
-    const p = s.player as { tree?: Record<string, unknown>; research?: { queue?: string[]; want?: Record<string, number> }; teams?: { projectId?: string }[] } | undefined;
-    if (p?.tree) delete p.tree.P24;
-    if (p?.research?.queue) p.research.queue = p.research.queue.filter((x) => x !== 'P24');
-    if (p?.research?.want) delete p.research.want.P24;
-    for (const t of p?.teams ?? []) if (t.projectId === 'P24') delete t.projectId;
-  },
-};
+/** migrations[rev] upgrades a state at schemaRev = rev to rev + 1 (from MIN_SCHEMA_REV up). None while MIN_SCHEMA_REV = SCHEMA_REV. */
+export const migrations: Record<number, (s: Record<string, unknown>) => void> = {};
 
 export function serialize(s: GameStateV2): string {
   return JSON.stringify(s);

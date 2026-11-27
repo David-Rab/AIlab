@@ -19,7 +19,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tasteSigma } from '../../src/engine/v2/production/ces';
 import { QUALITY_TASTE_SD } from '../../src/data/v2/workTypes';
 import { flowStats, lineRate, linePool, stagesOf } from '../../src/engine/v2/models/research';
 import { TREE } from '../../src/data/v2/tree';

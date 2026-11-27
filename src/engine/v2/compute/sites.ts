@@ -4,7 +4,7 @@ import { BUILD_TIME_EXP, CAMPUS, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR
 import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
 import { dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { BaselineId, Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
-import { defaultSiteWS3, ensureWs3 } from '../finance/ext';
+import { ensureWs3 } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { siteCapacityH, siteLiveMW } from './power';
 
@@ -219,7 +219,7 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     id, name: o.name ?? `${rent ? 'Hall' : 'Site'} ${s.player.sites.length + 1}`, region: o.region ?? 'US', path: o.path, mw,
     stage: rent ? 'power' : 'permitting', stageEndDay: 0, crash: !!opts.crash,
     capex: siteCapex(opts), capexPaid: 0, installed: 0, communityPackage: !!opts.community, spvFunded,
-    ws3: { ...defaultSiteWS3({ stage: 'permitting' }), rolled: rent, startDay: s.time.day, buildQ: siteBuildQ(opts), powerQ, buildings: n, buildingMW: bmw,
+    ws3: { rolled: rent, delayedQ: 0, startDay: s.time.day, buildQ: siteBuildQ(opts), powerQ, buildings: n, buildingMW: bmw,
       ...(opts.rush ? { rush: true } : {}), ...(opts.fastTrack ? { fastTrack: true } : {}) },
   };
   if (leased) site.ws3.lease = { rate: o.leaseRate as number, funded: 0, byBuilding: Array.from({ length: n }, () => 0), booked: 0 };

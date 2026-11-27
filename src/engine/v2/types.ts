@@ -1988,7 +1988,7 @@ export interface SiteWS3 {
   /** Power wait in whole quarters, fixed at commitment from that day's world wait (DC-TASKS [D-4]); counted from the
    *  end of permits (rent: from commitment). */
   powerQ: number;
-  /** Rush power: self-built substation (grid wait × 0.75) or used turbines (gas: at most 4 q, not in the backlog). */
+  /** Rush power: self-built substation (grid wait × 0.75) or used turbines (gas: at most 4 q; they still count in the turbine backlog). */
   rush?: boolean;
   /** Fast-track permits (permits − 1 q). */
   fastTrack?: boolean;
