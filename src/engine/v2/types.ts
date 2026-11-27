@@ -1986,9 +1986,11 @@ export interface SiteWS3 {
   /** Planned go-live day of each building, k = 0 … buildings − 1: permits end + max(power, construction + k) quarters
    *  (set with liveAt when permits end; rent: [liveAt]). Absent: [liveAt] (start sites). */
   liveDays?: Day[];
-  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
-   *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
-  lease?: { rate: number; funded: Money };
+  /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and what it has
+   *  funded so far with construction interest capitalised quarterly: per building (`byBuilding`; the 5% commitment
+   *  payment split equally, each building's construction payments its own) and in all (`funded`). A building's
+   *  lease starts when it goes live (DC-15): `booked` buildings have theirs, and stop accruing interest. */
+  lease?: { rate: number; funded: Money; byBuilding: Money[]; booked: number };
   /** E27 large reactive community package: the retried permitting roll uses its unblock odds (FIN1, spec §4). */
   reactive?: boolean;
   startDay: Day;

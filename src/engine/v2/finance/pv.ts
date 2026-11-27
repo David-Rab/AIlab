@@ -4,7 +4,7 @@
 // engine uses (site build schedule, chip delivery); changes nothing.
 import { BUILD_Q, CAPEX_LEASE, CHIP_LOAN_SPREAD_BP, DEBT_TERMS } from '../../../data/v2/deals';
 import type { GameStateV2 } from '../types';
-import { leaseRate, type PayOption, type SiteSchedule } from './capex';
+import { buildingGrowth, leaseRate, scheduleEtas, type PayOption, type SiteSchedule } from './capex';
 
 /** The discount rate: the lessor's return at your rating (your cost of borrowing against the asset), or the chip-loan
  *  rate when no lessor funds you. `basis` says which, for the tooltip. */
@@ -25,14 +25,28 @@ const annuityQ = (r: number, perQ: number, n: number, q0: number) => {
 };
 
 /** When a site's own cash goes out, as the engine pays it (BUILD_Q.upfront at the start, the rest in equal parts over
- *  the building quarters ending at go-live; see constructionGrowth): PV of 1 of capex. */
+ *  each building's construction quarters ending at its go-live; see constructionGrowth): PV of 1 of capex, the mean
+ *  over the buildings (each an equal share). */
 function siteCashFactor(r: number, sch: SiteSchedule): number {
   const k0 = sch.firstNow ? 0 : 1;
   const n = sch.buildQ - k0;
-  let build = 0;
-  if (n <= 0) build = df(r, sch.etaQ);
-  else for (let k = k0; k < sch.buildQ; k++) build += df(r, sch.etaQ - sch.buildQ + k) / n;
-  return BUILD_Q.upfront + (1 - BUILD_Q.upfront) * build;
+  const one = (etaQ: number) => {
+    let build = 0;
+    if (n <= 0) build = df(r, etaQ);
+    else for (let k = k0; k < sch.buildQ; k++) build += df(r, etaQ - sch.buildQ + k) / n;
+    return BUILD_Q.upfront + (1 - BUILD_Q.upfront) * build;
+  };
+  const etas = scheduleEtas(sch);
+  return etas.reduce((a, e) => a + one(e), 0) / etas.length;
+}
+
+/** PV of a site lease's payments: each building's lease (its share of the option's per-year amount, in proportion to the
+ *  interest it capitalised) from its own go-live. */
+function siteLeasePV(r: number, perYear: number, years: number, sch: SiteSchedule): number {
+  const etas = scheduleEtas(sch);
+  const g = etas.map((e) => buildingGrowth(r, e, sch));
+  const sum = g.reduce((a, b) => a + b, 0);
+  return etas.reduce((a, e, k) => a + annuityQ(r, (perYear * g[k]) / sum / 4, years * 4, e), 0);
 }
 
 export interface PayPV { rate: number; basis: string; pv: Partial<Record<PayOption['id'], number>> }
@@ -54,7 +68,7 @@ export function payOptionsPV(s: GameStateV2, opts: PayOption[], timing: { site: 
     for (const o of opts) {
       if (o.blocked) continue;
       if (o.id === 'cash') pv.cash = amount * f;
-      else if (o.id === 'lease') pv.lease = (amount * (1 - CAPEX_LEASE.siteShare)) * f + annuityQ(r, o.perYear / 4, o.years * 4, timing.site.etaQ);
+      else if (o.id === 'lease') pv.lease = (amount * (1 - CAPEX_LEASE.siteShare)) * f + siteLeasePV(r, o.perYear, o.years, timing.site);
     }
     return { rate: r, basis, pv };
   }
