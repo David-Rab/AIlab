@@ -80,3 +80,12 @@ outsiders see of you", or cut? (4) the parallel calibration work on `bal`: own b
 ## 6. Calibration frame
 
 > i want to point out - we are using the AI futures models - not the AI27 (see the balance work and timelines)
+
+## 7. Sweep AI 2027; setup cleanup
+
+> part of this session will be to sweep that away as well - to make sure we align with reality (up to november 2026)
+> and then AI futures predictions (according to the timelines).
+> since we are talking about this, in game setup - what is the difference between baseline and timeline? probably one
+> should go.
+> and we will need to cleanup the rest of the game setup that is related to this (government, public, china, economy,
+> storyteller (should that go as junk?))
