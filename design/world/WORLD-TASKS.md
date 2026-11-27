@@ -42,7 +42,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1a | Move what geoQ hosts (NPC finance, copyright suits, Taiwan and Korea rolls) into their own systems; behaviour identical | Sonnet high | 45 min | — | done 0c17a262 |
 | W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | done cf5ef02f |
 | W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | done e72ac062 |
-| W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | |
+| W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | running |
 | W1d | Quiet world, engine part 2: delete the gov and China actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Sonnet high (W1c sets the pattern) | 75 min | W1c | |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
@@ -56,7 +56,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
 | W12 | AI 2027 sweep (spec §15): remove player-visible remnants; LIST the AI 2027-sourced lab parameters for `bal` (hand over at merge, no changes) | Sonnet high | 45 min | W11 | |
-| W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | running |
+| W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | done 8ed8cc37 |
 
 ## Log
 
@@ -69,3 +69,6 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   share of income). Unemployment is identical at days 0–900; US growth is +0.4 pt from G_BASE 0.022 (CBO). Inequality
   is out of scoring. SCHEMA_REV 117 · e72ac062. Lead fixed a param anchor and the hygiene system table · bd71dcf5.
   Moves calibration: yes (growth term), for `bal` at merge.
+- W13 · Sonnet high · ~3 min · PLANS.md: Greenblatt A–E (Oct 2025) and AI Futures "AI 2040: Plan A" with A/B/C+/C/D/S
+  (Jul 2026). Proposes 4 minimal additions; designer to decide. Quotes came through a summarising fetch; re-check before
+  using them in game text · 8ed8cc37
