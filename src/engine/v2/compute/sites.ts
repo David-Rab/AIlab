@@ -187,13 +187,13 @@ export function leverEffects(s: GameStateV2, o: SiteOpts): Partial<Record<LeverK
 }
 
 /** Expected construction schedule of a new site (the lease preview's construction interest, FIN4r M3): quarters to
- *  go-live, construction quarters, and whether the first construction payment falls in the quarter construction starts.
- *  The engine always pays then (equal parts over the construction quarters [D-7]), so `firstNow` is true. A campus's
- *  lease starts when its last building is live: etaQ is that quarter and buildQ the span from the first building's
- *  construction start (payments taken as equal over the span). */
+ *  go-live (the first building's; a campus lists every building's in `etaQs`), construction quarters of a building,
+ *  and whether the first construction payment falls in the quarter construction starts. The engine always pays then
+ *  (equal parts over the construction quarters [D-7]), so `firstNow` is true. Each building has its own lease from its
+ *  own go-live (DC-15). */
 export function siteSchedule(s: GameStateV2, o: SiteOpts): SiteSchedule {
   const q = siteBuildingLiveInQ(s, o);
-  return { etaQ: q[q.length - 1], buildQ: siteBuildQ(o) + q[q.length - 1] - q[0], firstNow: true };
+  return { etaQ: q[0], buildQ: siteBuildQ(o), firstNow: true, ...(q.length > 1 ? { etaQs: q } : {}) };
 }
 
 const SOURCE_LABEL: Record<SiteSource, string> = { rent: 'rented hall', grid: 'grid', gas: 'gas' };
@@ -222,7 +222,7 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     ws3: { ...defaultSiteWS3({ stage: 'permitting' }), rolled: rent, startDay: s.time.day, buildQ: siteBuildQ(opts), powerQ, buildings: n, buildingMW: bmw,
       ...(opts.rush ? { rush: true } : {}), ...(opts.fastTrack ? { fastTrack: true } : {}) },
   };
-  if (leased) site.ws3.lease = { rate: o.leaseRate as number, funded: 0 };
+  if (leased) site.ws3.lease = { rate: o.leaseRate as number, funded: 0, byBuilding: Array.from({ length: n }, () => 0), booked: 0 };
   if (rent) {
     site.stageEndDay = site.ws3.powerDay = site.ws3.liveAt = dayOfQuarter(start, q + powerQ);
     site.ws3.liveDays = [site.ws3.liveAt];
@@ -238,8 +238,8 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
 }
 
 /** Pay `amount` of a site's capex: a leased site's lessor funds its share (tallied as financing; it accrues to the
- *  amount the lease repays). */
-function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money) {
+ *  amount the lease repays), split equally over the buildings `paying` (default: all) that the payment is for. */
+function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money, paying?: number[]) {
   const amt = Math.min(amount, site.capex - site.capexPaid);
   if (amt <= 0) return;
   site.capexPaid += amt;
@@ -248,12 +248,17 @@ function payCapex(s: GameStateV2, ctx: SystemCtx, site: Site, amount: Money) {
   ys.capexSites += own;
   ys.capexSitesFinanced += amt - own;
   ys.spvFinanced += amt - own;
-  if (site.ws3.lease) site.ws3.lease.funded += amt - own;
+  const L = site.ws3.lease;
+  if (L) {
+    const ks = paying ?? L.byBuilding.map((_, k) => k);
+    for (const k of ks) L.byBuilding[k] += (amt - own) / ks.length;
+    L.funded = L.byBuilding.reduce((a, b) => a + b, 0);
+  }
   if (own > 0) bookCash(s, ctx, -own, 'compute', 'site capex', site.name);
 }
 
-/** The financing lease a leased site starts paying at go-live: funded (with construction interest) × CRF(r, 15 y) a
- *  year (spec §4). */
+/** The financing lease a leased site pays on `funded` (default: all it has funded, with construction interest) ×
+ *  CRF(r, 15 y) a year (spec §4); one building's lease takes that building's funded amount. */
 export function siteLeasePerYear(site: Site, funded = site.ws3.lease?.funded ?? 0): Money {
   return site.ws3.lease ? funded * crf(site.ws3.lease.rate, CAPEX_LEASE.years.site) : 0;
 }
@@ -281,20 +286,30 @@ function startBuilding(s: GameStateV2, site: Site) {
   site.ws3.buildStartDay = s.time.day;
 }
 
-/** Every building is live: the rest of the capex is paid and a financing lease starts (a campus: at its last
- *  building). */
+/** Every building is live: the rest of the capex is paid (for the buildings whose lease has not started yet). */
 function goLive(s: GameStateV2, ctx: SystemCtx, site: Site) {
-  payCapex(s, ctx, site, site.capex - site.capexPaid);
+  const L = site.ws3.lease;
+  payCapex(s, ctx, site, site.capex - site.capexPaid, L && Array.from({ length: L.byBuilding.length - L.booked }, (_, i) => L.booked + i));
   if (site.stage !== 'live') {
     site.stage = 'live';
     site.ws3.liveDay = s.time.day;
   }
   ctx.log('company', `${site.name} is live: ${(site.mw / 1000).toFixed(1)} GW.`);
-  if (site.ws3.lease) {
-    const years = CAPEX_LEASE.years.site;
-    const perYear = siteLeasePerYear(site);
-    addLedger(s, { id: siteLeaseId(site.id), payee: LESSOR, kind: 'finLease', perQuarter: perYear / 4, startDay: s.time.day, endDay: s.time.day + years * 365, cancellableNoticeQ: null, penalty: 0, rate: site.ws3.lease.rate });
-    ctx.log('finance', `${site.name}: lease to ${LESSOR} starts, $${perYear.toFixed(2)}B a year for ${years} years (funded $${site.ws3.lease.funded.toFixed(1)}B at ${(site.ws3.lease.rate * 100).toFixed(0)}%).`);
+}
+
+/** Start the financing lease of every building of a leased site that is live (the first `live`) and has none yet: its
+ *  funded amount (with construction interest, which stops here) × CRF(r, 15 y) a year for 15 years from today (DC-15).
+ *  A campus's entries are `-b0` … and one contract; a single building keeps the site's lease id. */
+function startLeases(s: GameStateV2, ctx: SystemCtx, site: Site, live: number) {
+  const L = site.ws3.lease;
+  if (!L) return;
+  const n = L.byBuilding.length;
+  const years = CAPEX_LEASE.years.site;
+  for (; L.booked < live; L.booked++) {
+    const k = L.booked;
+    const perYear = siteLeasePerYear(site, L.byBuilding[k]);
+    addLedger(s, { id: n > 1 ? `${siteLeaseId(site.id)}-b${k}` : siteLeaseId(site.id), ...(n > 1 ? { contract: siteLeaseId(site.id) } : {}), payee: LESSOR, kind: 'finLease', perQuarter: perYear / 4, startDay: s.time.day, endDay: s.time.day + years * 365, cancellableNoticeQ: null, penalty: 0, rate: L.rate });
+    ctx.log('finance', `${site.name}: ${n > 1 ? `building ${k + 1} of ${n}: ` : ''}lease to ${LESSOR} starts, $${perYear.toFixed(2)}B a year for ${years} years (funded $${L.byBuilding[k].toFixed(1)}B at ${(L.rate * 100).toFixed(0)}%).`);
   }
 }
 
@@ -315,22 +330,27 @@ function buildStep(s: GameStateV2, ctx: SystemCtx, site: Site) {
   const n = days.length;
   let live = 0, before = 0;
   for (const d of days) { if (d <= day) live++; if (d < day) before++; }
-  if (live === n) return goLive(s, ctx, site);
+  if (live === n) {
+    goLive(s, ctx, site);
+    return startLeases(s, ctx, site, n);
+  }
   if (live > 0 && site.stage !== 'live') {
     site.stage = 'live';
     site.ws3.liveDay = day;
   }
   if (live > before) ctx.log('company', `${site.name}: building ${live} of ${n} live (${fmtMW(siteLiveMW(site, day))} of ${fmtMW(site.mw)}).`);
   const share = (site.capex * (1 - BUILD_Q.upfront)) / n;
-  let unstarted = 0, building = 0, qLeft = 0;
+  let unstarted = 0, qLeft = 0;
+  const building: number[] = [];
   days.forEach((d, k) => {
     if (d <= day) return;
     const started = k === 0 || dayOfQuarter(start, quarterIndex(start, d) - site.ws3.buildQ) <= day;
     if (!started) { unstarted++; return; }
-    building++;
+    building.push(k);
     qLeft += Math.max(1, Math.round((d - day) / 91));
   });
-  if (building > 0) payCapex(s, ctx, site, (Math.max(0, site.capex - site.capexPaid - unstarted * share) * building) / qLeft);
+  if (building.length > 0) payCapex(s, ctx, site, (Math.max(0, site.capex - site.capexPaid - unstarted * share) * building.length) / qLeft, building);
+  startLeases(s, ctx, site, live);
 }
 
 /** Run a site's due stage changes in quarter `q` (sitesQ, and newSite for a fast-tracked grid site). Permits end: the
@@ -372,9 +392,14 @@ function advanceSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
 }
 
 /** Advance one site by a quarter. Construction interest on the lessor's money is capitalised quarterly (it is repaid
- *  through the lease). */
+ *  through the lease): on each building until its lease starts. */
 function stepSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
-  if (site.ws3.lease) site.ws3.lease.funded *= Math.pow(1 + site.ws3.lease.rate, 0.25);
+  const L = site.ws3.lease;
+  if (L) {
+    const g = Math.pow(1 + L.rate, 0.25);
+    for (let k = L.booked; k < L.byBuilding.length; k++) L.byBuilding[k] *= g;
+    L.funded = L.byBuilding.reduce((a, b) => a + b, 0);
+  }
   advanceSite(s, ctx, site, q);
 }
 
