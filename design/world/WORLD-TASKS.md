@@ -50,14 +50,14 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
 | W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | done 2219e5b4 |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | done (merged into W1ef) |
-| W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
+| W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | running |
 | W3 | (folded into W1b) | | | | |
 | W4 | Public (spec §5) | Sonnet high | 60 min | W2 | |
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
-| W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | running |
+| W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | done 875af419 |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | done fe28d849 |
@@ -107,3 +107,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   sites test. Wording that promised deleted effects is fixed. SCHEMA 120. Day-0 player block identical · fe28d849.
   Lead merge check: tsc, fixtures and registry-lint pass on `world` (d8f56957).
   **The quiet world is complete.**
+- W10b · Sonnet high · ~7 min · worlddash.ts + worlddash-assets/ + balance/world-history.ts (real series with URLs);
+  `npm run world:dash -- --runs <runs>` → balance/dash/world.html. Six tabs; the W4–W6 rows are placeholders; two live
+  checks (lead-lab SC inside the AIFM p25–p75 band; unemployment within 0.5 pt of BLS at Nov 2026). Checked in headless
+  Edge with no JS errors · 875af419
+- W2 shared inputs (world/observe.ts) · running. Quiet-world grid obs-quiet (3 timelines × 8 seeds) · running
