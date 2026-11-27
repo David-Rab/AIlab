@@ -95,7 +95,7 @@ export type BlocId =
 export type LabId = string; // 'player' | rival ids | 'china'
 export type CounterpartyId =
   | 'exec' | 'congress' | 'states' | 'evalGov' | 'evalIndep' | 'academia' | 'china'
-  | `rival:${string}` | `bloc:${BlocId}`;
+  | `bloc:${BlocId}`;
 
 export type StreamId =
   | 'world' | 'prod' | 'runs' | 'safety' | 'incidents' | 'security' | 'market' | 'finance'
@@ -190,7 +190,7 @@ export interface TimelineWorld {
   g0: number; cs: number; base0: number; share: number; pEx: number; sEx: number;
   G: [number, number, number]; p0: number; aifm: boolean; sarSpeed?: number;
   computeElasticity: number; computeGrowth: number; alignDifficulty: number; doomThreshold: number;
-  chinaEfficiency: number; neuraleseBoost: number;
+  neuraleseBoost: number;
   // v2 additions
   /** Production-function parameters (research/13 §1.4). The player and the other labs (model v3 F1) read only the CES
    *  parameters (ρc, λ, u, v, ρ, ζ, m2b). */
@@ -249,7 +249,7 @@ export interface HiddenWorld {
    *  its source tested (a hash of the seed; safety/methods.ts methodStrength). Hidden: the lab knows only the range. */
   methodScale: Record<string, number>;
   difficultyMult: number; // D_w = exp(0.35(λ6−λ4)) × align preset (§3.5.4)
-  actorPresets: { gov: string; public: string; china: string; rivals: Record<LabId, string> };
+  actorPresets: { gov: string; public: string; china: string };
   rivalPostures: Record<LabId, SafetyPosture>;
   chinaPosture: SafetyPosture;
 }
@@ -2020,7 +2020,7 @@ export interface SiteWS3 {
 /** Hidden posture (research/17 §1.6.3). */
 export interface SafetyPosture {
   safetyInvestment: number; evalRigor: number; externalAccess: number; disclosureRate: number;
-  raceRelaxation: number; bindingness: number; rhetoricGap: number; rlIntensity: number; prefIntensity: number;
+  raceRelaxation: number; bindingness: number;
 }
 
 /** Simplified model lineage for non-player labs. */
@@ -2028,8 +2028,6 @@ export interface SimpleModel {
   id: string; name: string; day: Day;
   /** Readouts of G (model v3 F1, F3): Lg = λ(G), domain levels. */
   Lg: number; domains: Record<DomainId, number>;
-  traitsTrue: TraitVector; // hidden
-  uModes: UModeId[]; // hidden
   isPublic: boolean; openWeights: boolean;
   stolenFrom?: LabId;
   /** Model v3 F1: general effective compute (OOM) and the physical design behind it: the base's training FLOP and active
@@ -2049,40 +2047,6 @@ export interface SimpleModel {
   domainDg?: Partial<Record<DomainId, number>>;
   /** RD-X04: the lab's recipe G (RECIPE_F) when the version was post-trained: what releasing it reveals (diffusion.ts). */
   recG?: number;
-}
-
-/** Model v3 F1: a non-player lab's base model (actors/rivalModel.ts): generation, finish day, training FLOP, active
- *  parameters, tokens per parameter, G_pre (OOM) and the pretraining recipe frozen at launch (OOM over the leader's day-0
- *  recipe). A stolen base keeps the G_pre the thief got. */
-export interface RivalBase { gen: number; day: Day; flop: number; params: number; tpp: number; gPre: number; ePre: number }
-/** Model v3 F1/F2: a non-player lab's physical model state. Its recipe is in the player's stack parts (`rec`, grown
- *  through `pool`); what leaks, diffusion and events give it enters the pretraining part as public knowledge (OOM, model
- *  v3 F3: actors/rivalModel.ts addRivalKnowledge). */
-export interface RivalPhys {
-  /** The base the lab's versions are post-trained on. */
-  base: RivalBase;
-  /** The base run in training: launch day, FLOP so far, the pretraining recipe frozen at launch. */
-  run?: { day: Day; flop: number; ePre: number };
-  /** Research-efficiency multiplier (1 for every rival lab; China's effLab applies on top). */
-  eff: number;
-  /** Model v3 D10: serving efficiency (OOM over the 2025 reference serving stack), the player's serving stack at
-   *  aggregate level: grows from the lab's research speed with the Inference-efficiency line's returns; its first 0.33 OOM
-   *  raise decode utilisation, the rest cuts FLOP per token (models/stacks.ts serveSplit). */
-  serve: number;
-  /** Day of the last continual-learning period (RD-T03: the stream spends the FLOP accrued since). */
-  clDay?: Day;
-  /** RD-T03: the internal model's streamed state on base (gen, flop): its pretraining G, its RL recipe as the
-   *  equivalent at the reference RL FLOP (mid), its RL ceiling raise and RL FLOP. Absent or on another base: the base's
-   *  G_pre at today's RL recipe (actors/rivalModel.ts clStateOf). */
-  cl?: { gen: number; flop: number; gPre: number; mid: number; ceil: number; rl: number };
-  /** The recipe (model v3 F2): pretraining efficiency realised at the run's FLOP (OOM over the leader's day-0 recipe),
-   *  RL efficiency and RL ceiling (OOM, the player's rlMid / rlCeil stacks). */
-  rec: { pre: number; mid: number; ceil: number };
-  /** Research pools of the three parts: OOM at test scale since the start (the lines' pools at aggregate level). */
-  pool: { pre: number; mid: number; ceil: number };
-  /** RD-X02: aggregate adoption of the paradigms' typed effects (actors/rivalModel.ts adoptRivalIdeas): research spent on
-   *  the idea in progress (standard-team-months) and each finished idea's realised effect (0: it did not work here). */
-  ideas?: { spent: number; done: Record<string, number> };
 }
 
 /** A rival's money (FIN5b, finance/rivalFinance.ts). A private rival's valuation is its story share of the sector value
@@ -2154,9 +2118,8 @@ export interface NpcPublicState {
 
 export interface RivalLab {
   core: Omit<LabCore, 'deployments' | 'models'>;
-  /** N2b-1: the NPC lab's moving state (every lab newGame builds has it). */
-  npc?: NpcLabState;
-  archetype: string; // LAB_ARCHETYPES id (N2b-1: the old archetype of its kind, npc/lab.ts ARCHETYPE_OF_KIND)
+  /** The NPC lab's moving state: its kind, lag behind the reference frontier, compute plan, release state (npc/lab.ts). */
+  npc: NpcLabState;
   internal: SimpleModel;
   publicModel?: SimpleModel;
   /** RD-P02 (DD-01, DD-18): the lab's lineup besides its public model, real models on sale as cheaper tiers: its earlier
@@ -2168,13 +2131,9 @@ export interface RivalLab {
    *  what its lab had shipped by the start (tools.ts toolsAtStart), plus a tool new in the game TOOL_LAG_DAYS after the player first shipped it
    *  (actors/rivalModel.ts rivalToolStep); its offers and Chat appeal read them. */
   tools?: string[];
-  nextBaseDay: Day;
-  /** Model v3 F1: recipe, base and run state (actors/rivalModel.ts). */
-  phys: RivalPhys;
   finance: RivalFinance;
-  visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
+  visible: { clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[] };
   intel: RivalIntel;
-  meters: { poachAggression: number; lobbyStance: number; openness: number };
   pressure: number; // race pressure 0..1 (research/17 §1.6.5)
   pressureDays: number;
 }
@@ -2379,7 +2338,6 @@ export interface MacroState { gdp: number; g: number; laborShare: number; wage: 
 export interface PublicKnowledge {
   publishedFindings: FindingId[];
   revealedUModes: UModeId[]; // "the world learns" — counters researchable by all
-  sharedTechniquePool: number; // 0..1 public technique efficacy (lowers rivals' drift)
   /** Best open-weights model's general effective compute G (OOM; model v3 F3: was its pm). */
   openWeightsG: number;
 }

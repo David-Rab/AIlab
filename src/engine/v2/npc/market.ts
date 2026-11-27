@@ -1,6 +1,6 @@
 // N4 (design/npc/NPC-LABS.md §6; N4-RESULT.md): what an NPC lab sells, generated from its public model.
-//  - lineup: the public model's distilled students at the lineup sizes (the existing rule, moved here from actors/rivalModel.ts);
-//  - serving: one typical serving efficiency for every NPC lab (npcServeOom);
+//  - lineup: the public model's distilled students at the lineup sizes (the old rival lineup rule);
+//  - serving: one typical serving efficiency for every NPC lab (npc/model.ts npcServeOom);
 //  - domains: G plus the kind's focus offsets (npcDomainDg);
 //  - tools: the cast's tools at the start; later a tool ships once the public model's 50% horizon meets the tool's
 //    requirement (data/v2/tools.ts npcHorizonMin), it is in the kind's focus, and a build time has passed (rivalToolStep).
@@ -10,20 +10,11 @@ import { DISTILL_TPP, B0_PARAMS } from '../../../data/v2/runDesign';
 import { KINDS, type NpcKindId } from '../../../data/v2/npcLabs';
 import { PRODUCT_TOOLS, type ProductToolDef } from '../../../data/v2/tools';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
-import { SERVE_RATE0 } from '../../../data/v2/rivalModel';
 import { distillGap } from '../models/effective';
 import { h50Of } from '../models/capability';
-import { fptOfSimpleModel, setModelG } from '../actors/rivalModel';
+import { fptOfSimpleModel, setModelG } from './model';
 import { lineupSizes } from '../worldfx/serving';
 import type { DomainId, GameStateV2, RivalLab, SimpleModel, TimelineWorld } from '../types';
-
-// ───────────────────────────── serving ─────────────────────────────
-
-/** One typical serving efficiency (OOM) for every NPC lab at game day `day`: SERVE_RATE0 a year since the start. Both the
- *  rivals' and the player's serving stacks start at 0 (stacks.ts initialStacks), so there is no non-zero start value to
- *  copy; the rivals' own research moved it at SERVE_RATE0 a year at full research share (data/v2/rivalModel.ts, the rate
- *  production.ts advanceLab applied), and this is that rate for a typical lab, the same for all [D]. */
-export const npcServeOom = (day: number) => (SERVE_RATE0 * Math.max(0, day)) / 365.25;
 
 // ───────────────────────────── domains ─────────────────────────────
 
@@ -54,14 +45,14 @@ const STUDENT_SUFFIX = ['mini', 'micro', 'nano'];
  *  (worldfx/serving.ts lineupSizes: data/v2/serving.ts LINEUP ratios of its active parameters), each a SimpleModel of its
  *  own: G = the teacher's less the distillation gap at full teacher-output tokens (models/effective.ts distillGap at
  *  DISTILL_TPP × N_S, as the player's day-0 minis), active parameters and FLOP per token × r, the teacher's RL part,
- *  domain offsets, traits, U-modes and openness; on sale from `day`. */
+ *  domain offsets and openness; on sale from `day`. */
 export function distillStudents(w: TimelineWorld, teacher: SimpleModel, day: number): SimpleModel[] {
   const nT = teacher.params ?? B0_PARAMS;
   const fpt = fptOfSimpleModel(teacher);
   return lineupSizes(nT).map((r, k) => {
     const nS = r * nT;
     const m: SimpleModel = {
-      ...teacher, id: `${teacher.id}/s${k + 1}`, name: `${teacher.name} ${STUDENT_SUFFIX[k] ?? `s${k + 1}`}`, day, traitsTrue: { ...teacher.traitsTrue }, uModes: [...teacher.uModes],
+      ...teacher, id: `${teacher.id}/s${k + 1}`, name: `${teacher.name} ${STUDENT_SUFFIX[k] ?? `s${k + 1}`}`, day,
       params: nS, fpt: fpt * r, isPublic: true, openWeights: teacher.openWeights, ...(teacher.domainDg ? { domainDg: { ...teacher.domainDg } } : {}),
     };
     setModelG(w, m, teacher.G - distillGap(nT, nS, DISTILL_TPP * nS));

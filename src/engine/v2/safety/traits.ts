@@ -1,7 +1,7 @@
 // Trait causal graph dynamics and misalignment index (V2-SPEC §3.5.4). Owner: WS2.
 //
 // One pure update `stepTraits(x, env)` serves every lab: the player's runs (applyRunToTraits), continual-learning
-// streams, IDA cycles, and rivals/China (rivalTraitStep, signals from their hidden SafetyPosture, §3.10.3).
+// streams and IDA cycles (the NPC labs have no trait graph: npc/misalignment.ts, npc/risk.ts).
 //   Δx_j = ω · D_j · (1 − x_j) · Σ_{e→j} w_e · a_e · mod_e  +  ω · amp_j(U-modes)  −  removal_j
 // Nodes are visited in topological order S → L → A → B (data/v2/traits.ts TRAIT_ORDER).
 import { LOCKDOWN_COLLUSION_MULT, lockdownOn } from './safeguards';
@@ -14,8 +14,8 @@ import { suiteExploitMap, suiteFamilies, suiteS2, startSuites } from '../models/
 import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
-  BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, HiddenWorld, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
-  SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
+  BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, HiddenWorld, ModelVersion, PostDesign, RLFamily, RngLike, SignalId,
+  SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
 import { gOfLevel, gV0, h50Growth, h50Of, levelOfG } from '../models/capability';
 import { gapFactor, measuredOom, versionOom } from './oversight';
@@ -127,9 +127,8 @@ export const INOC_MULT = 0.15;
 // within one reference post-train, instead of E02's per-run / per-day accumulation toward 1 (the stream and IDA move
 // by their share of a reference run's ω, so 42 stream days = one post-train).
 // RF-S9: this is the one rule for every player run kind: runEnv sets hackTarget 0 (base, continued pretraining,
-// distillation reward no hacks, S2 = 0) and post / stream / IDA runs set their h. E02's accumulation remains only on the
-// rival-only path (rivalTraitStep builds its own env without a target); rival safety physics stays as is by the
-// designer's decision (2026-11-23: a dedicated rivals session later).
+// distillation reward no hacks, S2 = 0) and post / stream / IDA runs set their h. E02's accumulation branch stays in stepTraits for an env
+// with no hack target.
 
 /** Share of the gap to the run's hack share closed by one reference post-train (ω = OMEGA_KIND.post) [S: Chen et al. 2025
  *  arXiv 2505.05410 §5.2 "> 99% within 30 steps"; research/RD-SR24-safety-params.md §3 H1, H2]. */
@@ -532,8 +531,6 @@ export interface TraitEnv {
   /** Teacher traits for E06 (training data from a teacher of the same base family, i.e. a shared initialisation: the
    *  IDA cycle's teacher; never a distillation, whose student is a new network: model v3 E19, distilledStart). */
   teacher?: TraitVector;
-  /** Growth multiplier (rivals' drift multiplier, §3.10.3). */
-  growthMult: number;
   /** Per-trait growth multipliers (P14 interp-guided training: 1 − k·d_t, safety/ideas.ts steerGrowth). */
   growthBy?: Partial<Record<TraitId, number>>;
   bracket: { constitution: boolean; heavy: boolean; persuasion: boolean; cast: boolean };
@@ -656,7 +653,7 @@ export function stepTraits(x0: TraitVector, env: TraitEnv): TraitVector {
     }
     const Dj = TRAIT_BY_ID[j].difficulty ? env.D : 1;
     const sat = j === 'RH' && env.hackTarget !== undefined ? Math.max(0, env.hackTarget - x.RH) * hackSaturation(omega) : 0;
-    const grow = (omega * env.growthMult * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0) + sat) * (env.growthBy?.[j] ?? 1);
+    const grow = (omega * Dj * (1 - x[j]) * g + omega * (env.amp[j] ?? 0) + sat) * (env.growthBy?.[j] ?? 1);
     const rem = x[j] * Math.min(1, (env.removal[j] ?? 0) * (omegaS / 0.6) * env.removalMult * crystal);
     x[j] = clamp01(x[j] + grow - rem);
   }
@@ -955,7 +952,7 @@ function buildEnv(x: TraitVector, sg: Signals, omega: number, post: PostDesign |
   }
   return {
     signals: sg, omega, D: view.D, w: view.w, mods, amp: uModeAmp(view.uModes), removal,
-    removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: lab.tier / 3, memory: lab.memory, growthMult: 1,
+    removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: lab.tier / 3, memory: lab.memory,
     bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: lab.cast },
     eaMult, hackGen: lab.hackGen,
     afGate: afCapGate(gAf),
@@ -1474,86 +1471,16 @@ export function applyIdaCycle(s: GameStateV2, v: ModelVersion, run?: Pick<Traini
   v.traitsTrue = x;
 }
 
-// ───────────────────────────── Rivals and China (§3.10.3) ─────────────────────────────
+// ───────────────────────────── Misalignment of the labs ─────────────────────────────
 
-/** A lab's hidden posture (China: safetyInvestment = 0.10 + 0.4·safetyConcern/100). Engine only. */
-export function labPosture(s: GameStateV2, lab: RivalLab): SafetyPosture {
-  if (lab.core.id === CHINA_ID) return { ...s.hidden.chinaPosture, safetyInvestment: 0.1 + 0.4 * s.china.meters.safetyConcern / 100 };
-  return s.hidden.rivalPostures[lab.core.id] ?? s.hidden.chinaPosture;
-}
-
-/** eff_safety = safetyInvestment · (1 − raceRelaxation·pressure) · (1 − |N(0, rhetoricGap)|). */
-export function effSafety(posture: SafetyPosture, pressure: number, rng: RngLike): number {
-  return clamp01(posture.safetyInvestment * (1 - posture.raceRelaxation * pressure) * (1 - Math.abs(rng.normal(0, posture.rhetoricGap))));
-}
-
-/** Rival/China post-run signals from posture (§3.10.3). `latent` = the lab adopts latent reasoning (WS4 decides). */
-export function rivalSignals(_s: GameStateV2, lab: RivalLab, posture: SafetyPosture, latent: boolean): Signals {
-  const sg = zeroSignals();
-  const tier = tierOfLevel(lab.internal.Lg);
-  sg.S1 = posture.prefIntensity * 0.9;
-  sg.S2 = posture.rlIntensity * (1 - 0.4 * posture.evalRigor);
-  sg.S3 = 0.5 + (lab.core.milestoneDays[3] !== undefined ? 0.3 : 0); // RD-L05: the SC predicate (was λ ≥ 10)
-  sg.S4 = latent ? 1 : 0;
-  sg.S5 = 0.2 + 0.1 * tier;
-  sg.S6 = S6_NARROW_HARMFUL; // AF2: was 0.2 (the post runs' benign SFT), not Betley's condition
-  sg.S7 = 0.2 + 0.2 * posture.evalRigor;
-  sg.S8 = Math.min(1, (lab.core.prodCache?.labor.agentFte ?? 0) / S8_FTE_REF);
-  // S9 (oversight-conditional reward, E17) stays 0: a posture has no training against detectors, and an ordinary run
-  // grades every training episode alike (the player's reference run has S9 = 0 too).
-  return sg;
-}
-
-/**
- * Run the trait model for a rival or China lab (§3.10.3, "Rivals and China use the same graph"). WS4 calls this when
- * a rival completes a base or post run; it updates lab.internal (traitsTrue, and uModes on a base). Draws from the
- * caller's stream (pass ctx.rng('rivals') / ctx.rng('china')).
- *   drift multiplier = 1 − eff_safety · (0.3 + 0.7·sharedTechniquePool)
- */
-export function rivalTraitStep(s: GameStateV2, rng: RngLike, lab: RivalLab, kind: 'base' | 'post', opts: { latent?: boolean } = {}): void {
-  const m: SimpleModel = lab.internal;
-  const posture = labPosture(s, lab);
-  const tier = tierOfLevel(m.Lg);
-  const pool = s.knowledge.sharedTechniquePool;
-  const eff = effSafety(posture, lab.pressure, rng);
-  const env: TraitEnv = {
-    signals: zeroSignals(), omega: 0.6, D: s.hidden.difficultyMult, w: s.hidden.edgeWeights, mods: {}, amp: uModeAmp(m.uModes),
-    removal: {}, removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), tierF: tier / 3, memory: tier >= 1, growthMult: 1,
-    bracket: { constitution: posture.prefIntensity < 0.6, heavy: eff > 0.5, persuasion: false, cast: false }, eaMult: 1,
-    afGate: afCapGate(m.G), // E18: the lab's model's G
-  };
-  if (kind === 'base') {
-    m.uModes = drawLineageUModesV2(s, rng, { tierAtLeastSC: lab.core.milestoneDays[3] !== undefined }); // RD-L05: SC predicate
-    // AF2: a reference-mix base draws the reference synthetic share, written by the lab's own model (imitatedStart).
-    const x0 = imitatedStart(basePrior(tier), [{ x: m.traitsTrue, share: referenceBaseShares().syn }]);
-    const sg = zeroSignals();
-    sg.S5 = 0.2 + 0.1 * tier;
-    // E20 / AF2: a base run is no narrow harmful fine-tune (Betley's E05 condition): S6 0 (was 0.2, then the
-    // reference-mix synthetic share × 0.3).
-    sg.S6 = S6_NARROW_HARMFUL;
-    m.traitsTrue = stepTraits(x0, { ...env, pretrain: true, signals: sg, omega: 1, amp: uModeAmp(m.uModes), removalMult: uModeRemovalMult(m.uModes), crystalAt: crystalThreshold(m.uModes), bracket: { constitution: false, heavy: false, persuasion: false, cast: false } });
-    return;
-  }
-  env.signals = rivalSignals(s, lab, posture, !!opts.latent);
-  env.growthMult = clamp01(1 - eff * (0.3 + 0.7 * pool));
-  // Public techniques diffuse (inoculation, honesty training) in proportion to eff × pool [D].
-  env.mods.E04 = 1 - 0.85 * eff * pool;
-  env.mods.E17 = 1 - 0.4 * eff * pool;
-  env.removal = safetyRemovalMap(m.traitsTrue, SAFETY_REMOVAL.standard * (0.5 + eff), 0.8 * (1 - 0.3 * eff * pool));
-  if (eff > 0.5 && pool > 0.3) env.removal.SCHEME = Math.max(env.removal.SCHEME ?? 0, 0.5 * eff);
-  m.traitsTrue = stepTraits(m.traitsTrue, env);
-}
-
-/** TRUE Mis of a lab's best model (hidden; endings and epilogue only). */
+/** TRUE Mis of a lab's best model (hidden; endings and epilogue only): the player's from its traits, an NPC lab's its m. */
 export function labMisalignment(s: GameStateV2, labId: string): number {
   if (labId === PLAYER_ID) {
     const v = bestPlayerVersion(s);
     return v ? misalignment(v.traitsTrue, v.uModes) : 0;
   }
   const r = labId === CHINA_ID ? s.china.lab : s.rivals.find((x) => x.core.id === labId);
-  if (!r) return 0;
-  const ms = [r.internal, ...(r.publicModel ? [r.publicModel] : [])];
-  return Math.max(...ms.map((m) => misalignment(m.traitsTrue, m.uModes)));
+  return r ? r.npc.m : 0; // an NPC lab's m (npc/risk.ts), not a trait graph
 }
 
 /** P_mis = σ((Mis − doomThreshold) / 0.06) (§5.2, v1 doom curve). Engine only. */

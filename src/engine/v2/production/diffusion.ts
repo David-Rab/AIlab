@@ -3,17 +3,16 @@
 //  B. Distillation: at each of the lab's post-trainings, + S × access × fit × (best servable teacher's G − its own G).
 // Both read recipeG at RECIPE_F (RD-B16) / model G, so the same functions serve every lab.
 import { DIFFUSION_TAU_DAYS, DISTILL_FIT, DISTILL_S } from '../../../data/v2/calibration';
-import { recipeOf } from '../actors/rivalModel';
 import { anonShare } from '../models/deployments';
 import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab, versionById } from '../models/labs';
 import { playerRecipeG } from '../models/stacks';
 import type { Deployment, GameStateV2, LabId } from '../types';
 
-/** A lab's own recipe G at RECIPE_F (the player's playerRecipeG, a rival's recipeOf). */
+/** A lab's own recipe G at RECIPE_F (the player's playerRecipeG, an NPC lab's npc.rec). */
 export function labRecipeG(s: GameStateV2, lab: LabId): number {
   if (lab === PLAYER_ID) return playerRecipeG(s);
   const r = rivalLab(s, lab);
-  return r ? recipeOf(s, r) : -Infinity;
+  return r?.npc ? r.npc.rec : -Infinity;
 }
 
 /** The recipe each lab has revealed: the recipe G its released models were made with (`recG`, stamped at post-training);
@@ -30,7 +29,7 @@ export function publicRecipes(s: GameStateV2): { lab: LabId; name: string; recG:
   if (Number.isFinite(p)) out.push({ lab: PLAYER_ID, name: s.player.name, recG: p });
   for (const r of otherLabs(s)) {
     if (r.core.status !== 'active' || !r.publicModel) continue;
-    out.push({ lab: r.core.id, name: r.core.name, recG: r.publicModel.recG ?? recipeOf(s, r) });
+    out.push({ lab: r.core.id, name: r.core.name, recG: r.publicModel.recG ?? r.npc.rec });
   }
   return out;
 }

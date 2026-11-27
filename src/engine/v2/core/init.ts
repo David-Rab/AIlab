@@ -17,7 +17,7 @@ import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
 import { FIN } from '../actors/rivals';
-import { ARCHETYPE_OF_KIND, initialNpcLab, castOf, postureOfKind } from '../npc/lab';
+import { initialNpcLab, castOf, postureOfKind } from '../npc/lab';
 import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
 
 import { initialMarket } from '../compute/market';
@@ -289,11 +289,9 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // postures come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
   const cast = castOf(setup);
   const nNpc = cast.length + 1;
-  hidden.actorPresets.rivals = {};
   hidden.rivalPostures = {};
   const rivals = cast.map(({ e, p }, i) => {
-    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[ARCHETYPE_OF_KIND[e.kind]] ?? FIN.bigtech, p);
-    hidden.actorPresets.rivals[r.core.id] = r.archetype;
+    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[e.kind] ?? FIN.bigtech!, p);
     hidden.rivalPostures[r.core.id] = postureOfKind(e.kind, undefined, p);
     return r;
   });
@@ -317,13 +315,13 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     gov: initialGov(hidden.actorPresets.gov),
     pub: initialPublic(hidden.actorPresets.public, setup.baseline),
     researchBodies: initialResearchBodies(),
-    relations: { ...initialRelations(rivals.map((r) => r.core.id)), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
+    relations: { ...initialRelations(), ...(start === 'leader' ? {} : { talentPull: def.mods.talentPull }) },
     commitments: [],
     market: initialMarket(setup.baseline),
     power: start === 'leader' ? initialPower() : { ...initialPower(), queue: [] },
     capital: initialCapital(rSector),
     world: initialWorld(labIds),
-    knowledge: { publishedFindings: [], revealedUModes: [], sharedTechniquePool: 0.1, openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
+    knowledge: { publishedFindings: [], revealedUModes: [], openWeightsG: openGs.length ? Math.max(...openGs) : g0 - 1.2 /* was 1 progress-year */ },
     events: { pending: [], fired: {}, director: { tension: 0, lastCrisisDay: -999, quietUntil: 0, concurrentCrises: 0 } },
     log: [{ day: 0, kind: 'news', text: 'Agents stumble into the market: the first computer-use assistants ship. Adoption is slow.' }],
     headlines: [],

@@ -9,6 +9,7 @@
 //   [derived]      arithmetic on tagged values (shown)
 import type { SectorId } from '../../engine/v2/types';
 import type { ProductToolId } from './tools';
+import { REF_TPP } from './runDesign';
 
 // ───────────────────────────── Types ─────────────────────────────
 
@@ -31,8 +32,6 @@ export interface Personality {
   funding: NpcFunding;
   /** 3. Days the best model stays internal before it is public (the public model is the internal one this long ago). */
   releaseLagDays: number;
-  /** 3. Days between public steps (the lab's release cadence). */
-  releaseCadenceDays: number;
   /** 4. Openness rule for its releases. */
   openness: OpennessRule;
   /** 5. Market focus: weights over channels (sum 1) and over sectors (sum 1; sectors not listed weigh 0). */
@@ -65,7 +64,6 @@ export interface NpcStart {
   valuationB: number | null;
   /** Equity raised to the start, $B. null: parent-funded, or self-funded. */
   equityRaisedB: number | null;
-  headcount: number;
   /** Tools shipped by the start (snapshot of tools.ts `shipped` by 2025-07-01; the test checks it against toolsAtStart). */
   tools: ProductToolId[];
 }
@@ -104,7 +102,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   leader: {
     funding: 'private', // [P CAST §3: private, capped-profit LP under a nonprofit until Oct 2025]
     releaseLagDays: 30, // [repo rivals.ts:56 leader 30] [D]
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [P CAST §5a: closed; first open weights gpt-oss 5 Aug 2025, after the start]
     focus: {
       channels: { consumer: 0.37, api: 0.23, enterprise: 0.4 }, // [press, unverified] api 3/13; consumer 4.8/13 (a floor); enterprise the rest [derived]
@@ -117,7 +114,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   safety: {
     funding: 'private', // [P anthropic.com Series E post; PBC + Long-Term Benefit Trust, CAST §3]
     releaseLagDays: 120, // [repo rivals.ts:56 safety 120] [D], no source (CAST §5b)
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [P CAST §5a]
     focus: {
       channels: { consumer: 0.15, api: 0.55, enterprise: 0.3 }, // [D] (company names the segments, no percentages: CAST §6)
@@ -130,7 +126,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   bigtech: {
     funding: 'parent', // [P Alphabet Q2 2025 earnings post: capex guide $85B, CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 bigtech 60] [D]
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // flagship closed [P CAST §5a]; the open Gemma family is not modelled
     focus: {
       channels: { consumer: 0.5, api: 0.2, enterprise: 0.3 }, // [D] the parent's products (Gemini app >450M MAU [repo research/18:136])
@@ -143,7 +138,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   openweights: {
     funding: 'parent', // [repo research/18:133: 2025 capex guide $66-72B; press, unverified]
     releaseLagDays: 60, // [repo rivals.ts:56 openweights 60] [D]
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'open' }, // [P CAST §5a: Llama open weights; the spec's "open near the frontier" is N2b's use of this rule]
     focus: {
       channels: { consumer: 0.8, api: 0.1, enterprise: 0.1 }, // [D] Meta AI in its apps; no revenue (CAST §6)
@@ -156,7 +150,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   racer: {
     funding: 'private', // [P CAST §3: founder-controlled, X merger]
     releaseLagDays: 15, // [repo rivals.ts:56 maverick 15] [D]; the one start observation: Grok 4 shipped 8 days after the start (CAST §1)
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'partial' }, // [D] spec: "partly open"; no checked open-weights release in CAST (Grok 4 closed [press, unverified])
     focus: {
       channels: { consumer: 0.6, api: 0.3, enterprise: 0.1 }, // [D] Grok in X and the Grok app; API (CAST §6)
@@ -169,7 +162,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   upstart: {
     funding: 'private', // [press, unverified: CAST §3]
     releaseLagDays: 60, // [repo rivals.ts:56 upstart 60] [D]
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'closed' }, // [D] spec: closed
     focus: {
       channels: { consumer: 0, api: 0.7, enterprise: 0.3 }, // [D] research; no product at the start (CAST §6)
@@ -182,7 +174,6 @@ export const KINDS: Record<NpcKindId, Personality> = {
   china: {
     funding: 'state', // spec §5; self-funded by High-Flyer at the start [P arXiv 2408.14158, CAST §3]
     releaseLagDays: 45, // [repo rivals.ts:56 deepcent 45] [D]
-    releaseCadenceDays: RELEASE_CADENCE_DAYS,
     openness: { mode: 'chinaRung', belowRung: 3 }, // [spec §5: open while China's rung < 3]; MIT-licensed open weights at the start [repo research/10-china.md:270]
     focus: {
       channels: { consumer: 0.4, api: 0.5, enterprise: 0.1 }, // [D] free app, API, open weights (CAST §6)
@@ -213,7 +204,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: 12, // [P company disclosure, CFO: $12B run-rate on 30 Jul 2025; CAST §3 (Confident); 10 on 9 Jun is [press]]
       valuationB: 300, // [P SoftBank press release 1 Apr 2025: $300B post-money]
       equityRaisedB: 34, // [derived from Epoch funding rows; CAST §3]
-      headcount: 3000, // [press, unverified] 15 Jul 2025, Epoch Likely
       tools: ['coding', 'research', 'defence', 'creative', 'computerUse', 'memory', 'voiceVision'], // [repo tools.ts shipped, by 2025-07-01]
     },
   },
@@ -227,7 +217,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: 4, // [derived] between $3B on 30 May and $5B on 29 Jul, both company-disclosed [P Epoch revenue CSV]
       valuationB: 61.5, // [P anthropic.com Series E post, 3 Mar 2025]
       equityRaisedB: 16, // [derived from Epoch funding rows; CAST §3]
-      headcount: 1350, // [press, unverified] Epoch rows (1,300 on 23 May); the repo's 1,500 is [D]
       tools: ['coding', 'research', 'defence', 'computerUse', 'voiceVision'], // [repo tools.ts shipped]
     },
   },
@@ -241,7 +230,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: null, // not reported separately (inside Google Cloud and Search; CAST §3)
       valuationB: null,
       equityRaisedB: null,
-      headcount: 6000, // [press, unverified] WSJ 6 Aug 2025; The Information 5,600 on 19 Mar
       tools: ['coding', 'research', 'creative', 'computerUse', 'memory', 'voiceVision'], // [repo tools.ts shipped]
     },
   },
@@ -255,7 +243,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: 0.236, // [press, unverified] Epoch Q2 2025 $59M annualised (Likely)
       valuationB: 150, // [press, unverified] ~$150B at the 30 Jun 2025 raise, "believed, not confirmed" (Epoch Likely)
       equityRaisedB: 17, // [derived] $12B (2024) + $5B equity (Jun 2025); excludes $5B debt and $5B notes [CAST §3, repo research/21:78 U]
-      headcount: 300, // [press, unverified] Epoch: 300 non-tutor staff (Mar 2025) plus 900 tutors; the repo's ~1,200 differs (CAST §10)
       tools: ['research', 'creative'], // [repo tools.ts shipped]
     },
   },
@@ -269,7 +256,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: null, // not separate (CAST §3)
       valuationB: null,
       equityRaisedB: null,
-      headcount: 3400, // [press, unverified] MSL, The Information 17 Jul 2025 (FAIR ~1,000 separate)
       tools: ['creative', 'memory', 'voiceVision', 'companion'], // [repo tools.ts shipped]
     },
   },
@@ -284,7 +270,6 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: 0, // none (CAST §3)
       valuationB: 32, // [press, unverified] SSI $32B, Apr 2025 (TechCrunch); TML $12B was 2 weeks after the start
       equityRaisedB: 3, // [press, unverified] SSI about $3B (repo research/18:61)
-      headcount: 30, // [D] between SSI ~20 and TML 29 [press / repo research/18:60]
       tools: [], // none shipped (tools.ts)
     },
   },
@@ -298,44 +283,18 @@ export const REALISTIC_CAST: NpcCastEntry[] = [
       revenueRunB: null, // no Epoch row before 2026
       valuationB: null, // self-funded by High-Flyer
       equityRaisedB: null,
-      headcount: 160, // [press, unverified] FT, 14 Mar 2025 (Epoch Likely)
       tools: [], // none shipped (tools.ts)
     },
   },
 ];
 
-// ───────────────────────────── Public noise (O4; sources CAST-2025.md §8) ─────────────────────────────
+// ───────────────────────────── Model size and serving (moved from the old data/v2/rivalModel.ts, N12) ─────────────────────────────
 
-/** The rule: public value = true value x a log-normal error with sd `sigmaLn` (additive `sdMonths` for lags), redrawn
- *  when the value is reported; `staleDays` is how far behind the true value the public one is. These are display rules:
- *  every other actor reads the same public value. Values are the lead's recommendation (NPC-LABS §15 O4) [D] on the
- *  published uncertainty named per row. */
-export interface NoiseRule { sigmaLn?: number; sdMonths?: number; steps?: number; staleDays: number; cadenceDays: number | 'onRelease' }
-export const PUBLIC_NOISE = {
-  // sd of the public "months behind" ~1 month [P Epoch ECI credible intervals +-1.5-1.9 pts ~ +-1.4 months, plus source disagreement]
-  capabilityLag: { sdMonths: 1, staleDays: 0, cadenceDays: 'onRelease' } satisfies NoiseRule,
-  // METR 95% CIs, ln-sd 0.24-0.33 [P metr.org benchmark_results_1_1.yaml]
-  taskHorizon: { sigmaLn: 0.3, staleDays: 0, cadenceDays: 'onRelease' } satisfies NoiseRule,
-  // Epoch 90% CIs 0.07-0.30 [P chip-users explorer]; China has no published CI [D]
-  compute: {
-    frontier: { sigmaLn: 0.2, staleDays: 0, cadenceDays: 91 },
-    parentFunded: { sigmaLn: 0.3, staleDays: 0, cadenceDays: 91 },
-    china: { sigmaLn: 0.5, staleDays: 0, cadenceDays: 91 },
-  } satisfies Record<string, NoiseRule>,
-  // Epoch's Confident / Likely grades [P epoch.ai records documentation]; about 1 month stale
-  revenue: {
-    disclosed: { sigmaLn: 0.1, staleDays: 30, cadenceDays: 91 },
-    other: { sigmaLn: 0.2, staleDays: 30, cadenceDays: 91 },
-  } satisfies Record<string, NoiseRule>,
-  // Epoch funding data: priced rounds vs unconfirmed (xAI Jun 2025 "believed, not confirmed")
-  valuation: {
-    priced: { sigmaLn: 0.05, staleDays: 0, cadenceDays: 'onRelease' },
-    unconfirmed: { sigmaLn: 0.2, staleDays: 0, cadenceDays: 'onRelease' },
-  } satisfies Record<string, NoiseRule>,
-  // Epoch: "not necessarily measured consistently"
-  headcount: { sigmaLn: 0.15, staleDays: 0, cadenceDays: 91 } satisfies NoiseRule,
-  // FLI grades moved 0.3-0.5 in six months [repo research/07-actors.md:420,422]: +-1 letter step
-  safetyGrade: { steps: 1, staleDays: 0, cadenceDays: 'onRelease' } satisfies NoiseRule,
-  /** Public facts, shown exactly. */
-  exact: ['products', 'prices', 'tools', 'openWeightsReleases', 'incidentsDisclosed', 'roundsAnnounced'] as const,
-};
+/** Tokens per active parameter of an NPC model: the reference design's (runDesign.ts REF_TPP, 400): labs that serve their
+ *  models overtrain them like 2025 production models (DeepSeek-V3 ≈ 400 per active parameter, research/20 A1) [R20 A1, D].
+ *  Active parameters N = √(FLOP / (6 · tpp)), MoE shape. */
+export const RIVAL_TPP = REF_TPP;
+/** Serving-stack growth (OOM a year) at the 2025 reference serving stack: what the reference lab's Inference-efficiency line
+ *  added in its first year (RefBot, ai2027, seed 2027; serving test V1) [fit]. Now the one rate every NPC lab's serving
+ *  efficiency grows at (npc/model.ts npcServeOom). */
+export const SERVE_RATE0 = 0.2;

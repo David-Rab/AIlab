@@ -3,10 +3,6 @@
  * in normal play and only scripts (scripts/v2/*) ever set one; with all fields undefined each reader below takes
  * exactly its old code path. Nothing in src/ writes this object.
  *
- *  - pinResearchMix    experiments share (0..1) of a non-player lab's research compute (experiments + agents),
- *                      instead of the daily best mix (production.ts rivalResearch). The player's own split is a
- *                      policy decision and is not touched.
- *  - noIdeaAdoption    non-player labs adopt no research ideas (production.ts rivalResearch, adoptRivalIdeas).
  *  - noDiffusion       no recipe diffusion between labs (rule A, production.ts productionSystem). Rule B
  *                      (distillation, actors/rivals.ts) is not covered.
  *  - computePath(yr)   total H100e of the reference lab at decimal year yr. Replaces refTotal (production/ces.ts) and
@@ -21,8 +17,6 @@
  *                      at the first hiring week (departments/teams.ts forcePlayerStaff, which carries the exception notice).
  */
 export const FORCING: {
-  pinResearchMix?: number;
-  noIdeaAdoption?: boolean;
   noDiffusion?: boolean;
   computePath?: (year: number) => number;
   staffPath?: (year: number) => number;

@@ -97,7 +97,7 @@ export const TOOL_BY_ID = Object.fromEntries(INTERNAL_TOOLS.map((t) => [t.id, t]
 export const enablerNeed = (share: number) => share / (1 + share);
 /** RD-P07 (DD-03 rival part, DD-18 stand-in), RF-P1: for a product tool NEW in this game (no lab of the world had it at
  *  the start: data/v2/tools.ts toolsAtStart and the player's start), every rival and China gets it TOOL_LAG_DAYS after the player first ships
- *  it on a live product (world.fx.toolShip; actors/rivalModel.ts rivalToolStep). Tools some lab had at the start: each
+ *  it on a live product (world.fx.toolShip; npc/market.ts rivalToolStep). Tools some lab had at the start: each
  *  lab keeps what it had. 120 days [D]: 2024–25 launches followed each other by about 50–270 days (computer use:
  *  Anthropic Oct 2024, OpenAI Operator Jan 2025, Google Mariner May 2025; memory: ChatGPT Feb 2024, Meta AI Jan 2025,
  *  Gemini Feb 2025). */

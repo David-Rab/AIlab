@@ -748,7 +748,7 @@ function FeatureTip({ s, d, f, certs }: { s: GameStateV2; d: Deployment; f: Prod
     { label: 'On this product', value: !built ? 'not built yet' : on ? 'on' : 'off', tone: (built && on ? 'pos' : 'neutral') as 'pos' | 'neutral' },
     { label: <Term id="agentPackage">Internal agents</Term>, value: v.internal.length ? `${built ? '' : 'once built: '}${v.internal.join(', ')}` : 'no effect' },
     { label: <Term id="techTree">Unlocked by</Term>, value: gate ? `${gate}${f.node && nodeKnown(s, f.node) ? ' (known)' : ' (not known yet)'}` : 'nothing: buildable now', tone: (gate && f.node && !nodeKnown(s, f.node) ? 'neg' : 'neutral') as 'neg' | 'neutral' },
-    ...(rv ? [{ label: 'Rivals', value: rv.have >= rv.of ? 'every rival has it' : !rv.isNew ? `${rv.have} of ${rv.of} rivals have it (the labs that had it by July 2025)` : rv.day === undefined ? `no lab sells it yet; rivals get it ${rv.lag} d after you ship it` : `${rv.have} of ${rv.of} have it; the others from ${fmtDate(dateOf(s, rv.day))}` }] : []),
+    ...(rv ? [{ label: 'Rivals', value: rv.have >= rv.of ? 'every rival has it' : `${rv.have} of ${rv.of} rivals have it; a rival adds it ${rv.lag} d after its model can use it` }] : []),
     ...(f.agentGateH !== undefined ? [agentGateRow(s, d)] : []),
     ...(f.risk ? [{ label: 'Cost / risk', value: f.risk }] : []),
     ...(certs?.certs ?? []).map((x) => ({ label: <Term id="certification">{`Certified: ${x.name}`}</Term>, value: x.state === 'certified' ? 'certified' : x.state === 'certifying' ? `in ${F.days(x.daysLeft)}` : `starts tomorrow: ${CERT_DAYS} days, ${F.money(CERT_CASH)}`, tone: (x.state === 'certified' ? 'pos' : 'neutral') as 'pos' | 'neutral' })),

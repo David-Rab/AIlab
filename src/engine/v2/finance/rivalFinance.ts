@@ -45,10 +45,10 @@ export const RIVAL = {
 } as const;
 
 /** Board preset whose governance factor a private rival carries [D]: the safety lab is a PBC with a trust (Anthropic),
- *  the maverick and the boutique upstart are founder-controlled (xAI, SSI / Thinking Machines), the simulated leader
+ *  the racer and the boutique upstart are founder-controlled (xAI, SSI / Thinking Machines), the simulated leader
  *  lab a nonprofit-controlled PBC (OpenAI after its Oct 2025 recapitalisation). */
-export const RIVAL_GOV: Record<string, keyof typeof GOV_FACTOR> = { safety: 'pbcTrust', maverick: 'founder', upstart: 'founder', leader: 'nonprofitPBC' };
-export const rivalGov = (r: RivalLab): number => GOV_FACTOR[RIVAL_GOV[r.archetype] ?? 'pbcTrust'];
+export const RIVAL_GOV: Record<string, keyof typeof GOV_FACTOR> = { safety: 'pbcTrust', racer: 'founder', upstart: 'founder', leader: 'nonprofitPBC' };
+export const rivalGov = (r: RivalLab): number => GOV_FACTOR[RIVAL_GOV[r.npc.kind] ?? 'pbcTrust'];
 
 /** A rival's credibility rung from its revenue growth over four quarters (one rule). */
 export function rivalCred(s: GameStateV2, r: RivalLab): { id: 'Credible' | 'Unproven' | 'Doubted'; mult: number; growth: number } {
@@ -68,13 +68,13 @@ export const valueCap = (revenue: Money, growth: number): Money => Math.max(RIVA
 /** All-in spend a year ($B). */
 export const rivalSpend = (r: RivalLab): Money => r.core.computeOnline * RIVAL.perH100eYear + RIVAL.overhead;
 
-/** Parent- or state-funded labs (and the big-tech / open-weights archetypes of a legacy rival) are out of the bust's reach: only a private lab can be pushed into distress (bustTarget). N8b: it no longer decides cash or orders. */
-export const parentFunded = (r: RivalLab) => (r.npc ? persOf(r.npc).funding !== 'private' : r.archetype === 'bigtech' || r.archetype === 'openweights');
+/** Parent- or state-funded labs are out of the bust's reach: only a private lab can be pushed into distress (bustTarget). N8b: it no longer decides cash or orders. */
+export const parentFunded = (r: RivalLab) => persOf(r.npc).funding !== 'private';
 
 /** The big-tech rival that would license-and-hire a failing lab: the one with the most compute. */
 export function exitBuyer(s: GameStateV2, r?: RivalLab): RivalLab | undefined {
   let best: RivalLab | undefined;
-  for (const x of s.rivals) if (x.core.status === 'active' && x.archetype === 'bigtech' && x !== r && (!best || x.core.computeOnline > best.core.computeOnline)) best = x;
+  for (const x of s.rivals) if (x.core.status === 'active' && x.npc.kind === 'bigtech' && x !== r && (!best || x.core.computeOnline > best.core.computeOnline)) best = x;
   return best;
 }
 

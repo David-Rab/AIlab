@@ -3,8 +3,9 @@
 // Board card and giving the critics a seat is a standing action.
 import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
-import { bloc, cash, morale, scrutiny, trust } from '../../actors/fx';
+import { bloc, cash, morale, scrutiny } from '../../actors/fx';
 import * as shock from '../../npc/shocks';
+import { raceResponseOf } from '../../npc/lab';
 import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 import { COMMUNITY } from '../../../../data/v2/deals';
@@ -21,7 +22,7 @@ export const COMPANY_EVENTS: EventDefV2[] = [
     id: 'E16', title: 'Talent raid', icon: 'rival', crisis: false, cooldown: 365, deadlineDays: 14, defaultChoice: 1,
     when: (s) => {
       if (s.player.morale.overall >= 60) return false;
-      const r = activeRivals(s).find((x) => x.meters.poachAggression > 60);
+      const r = activeRivals(s).find((x) => raceResponseOf(x) > 0.7);
       return r ? { lab: r.core.id } : false;
     },
     text: (s, d) => `${labName(s, d.lab)} is offering your researchers double pay. Morale is low; a team is ready to leave.`,
@@ -41,11 +42,8 @@ export const COMPANY_EVENTS: EventDefV2[] = [
           r.core.staff.cap += n;
         }
       }),
-      ch('Sue', ['fight'], P([L('scrutiny', 5), L('trust', 20, 'that rival')], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx, d) => {
+      ch('Sue', ['fight'], P([L('scrutiny', 5)], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx) => {
         scrutiny(ctx, 5, 'E16 poaching suit');
-        if (typeof d.lab === 'string') {
-          trust(s, ctx, `rival:${d.lab}`, -8, 'E16 suit');
-        }
         if (ctx.rng('events').chance(0.4)) cash(s, ctx, 0.2, 'E16 suit won');
       }),
     ],

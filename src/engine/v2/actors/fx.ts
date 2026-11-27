@@ -80,16 +80,6 @@ export function bloc(s: GameStateV2, ctx: SystemCtx, id: BlocId, dApproval: numb
   }
 }
 
-/** Rival meters (poach aggression, lobby stance). */
-export function rivalMeter(s: GameStateV2, ctx: SystemCtx, lab: string, key: 'poachAggression' | 'lobbyStance' | 'openness', d: number, src: string) {
-  const r = s.rivals.find((x) => x.core.id === lab);
-  if (!r) return;
-  const lo = key === 'lobbyStance' ? -100 : 0;
-  const v0 = r.meters[key];
-  r.meters[key] = clamp(v0 + d, lo, 100);
-  ctx.cause(`rival:${lab}.${key}`, r.meters[key] - v0, src);
-}
-
 /** Slow continuous drift applied directly; the accumulated Δ is flushed to the ledger weekly (keeps rings readable). */
 export function drift(s: GameStateV2, obj: Record<string, number>, field: string, d: number, lo: number, hi: number, key: string) {
   const v0 = obj[field];

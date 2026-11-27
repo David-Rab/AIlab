@@ -139,11 +139,8 @@ export const REFERENCE_POST: PostDesign = {
 
 // ── Base choices ──
 /** Public scrutiny of a base run from its FLOP over the largest rival training run (RD-T11, models/runs.ts
- *  rivalRunFlop): 0 at or below it, +5 per ×3 above. */
+ *  rivalRunFlop, the largest internal model of any lab): 0 at or below it, +5 per ×3 above. */
 export const sizeScrutiny = (ratio: number) => (ratio > 1 ? (5 * Math.log(ratio)) / Math.log(3) : 0);
-/** Window of the rival reference run (RD-T11) [D]: a rival base finished in the last year counts, as does a run in
- *  progress (at its planned FLOP: FLOP so far + the lab's base-run rate × the days to its due day). */
-export const SCRUTINY_WINDOW_DAYS = 365;
 
 /** Data-mix presets (model v3 D3; RD-T08, TRN-20): named per-domain weight targets for the draw from the data portfolio
  *  (production/data.ts drawData). Each domain's share of the base's tokens = the portfolio's own quality-weighted mix ×

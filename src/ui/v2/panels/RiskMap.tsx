@@ -2,7 +2,7 @@
 // rival labs, China, your deployments and the most automated sectors. Nodes keep the actor colours (you / US rival /
 // China); edges are labelled and colour-keyed in the legend. Click a node for its panel.
 import type { ReactNode } from 'react';
-import { activeRivals, distillationAccess, engine, leadDays, leverageAll, measuredL, versionById } from '../../../engine/v2';
+import { activeRivals, distillationAccess, engine, leadDays, leverageAll, measuredL, raceResponseOf, versionById } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
 import { SECTOR_BY_ID } from '../../../data/v2/sectors';
 import { store } from '../store';
@@ -50,7 +50,7 @@ export function RiskFlows({ s }: { s: GameStateV2 }) {
       tip: () => <TipCard title={r.core.name} rows={[{ label: <Term id="lead">Lead</Term>, value: `${F.lead(l.est)} ± ${Math.round(l.sd)}d` }, { label: <Term id="leverage">Leverage</Term>, value: F.pct(lev[id] ?? 0, 1) }, { label: <Term id="distill">Distillation access</Term>, value: F.pct(distillationAccess(s, id)) }]}>Edges show what flows between this lab and you. Positive lead = you are ahead.</TipCard>,
     });
     edges.push({ from: 'player', to: id, kind: 'distill', w: distillationAccess(s, id), label: `distillation ${F.pct(distillationAccess(s, id))}` });
-    if (r.meters.poachAggression > 20) edges.push({ from: id, to: 'player', kind: 'talent', w: r.meters.poachAggression / 100, label: 'talent poaching' });
+    if (raceResponseOf(r) > 0.5) edges.push({ from: id, to: 'player', kind: 'talent', w: raceResponseOf(r), label: 'talent poaching' });
     if (r.publicModel?.openWeights) edges.push({ from: id, to: 'world', kind: 'open', w: 0.6, label: 'open weights' });
     if (isCN) {
       const theft = riskOf('theft') ?? 0;

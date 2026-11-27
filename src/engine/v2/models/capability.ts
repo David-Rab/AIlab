@@ -7,7 +7,7 @@ import { COGNITIVE_WORK, H50_BASE_FLOOR, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STA
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
-import { rivalServeFpt } from '../actors/rivalModel';
+import { npcServeFpt } from '../npc/model';
 import type { BaseDesign, Day, DomainId, EngineSystem, GameStateV2, LabId, MilestoneIdx, ModelVersion, RivalLab, TimelineWorld, VersionBuild } from '../types';
 import { PLAYER_ID, bestG, labCore, otherLabs } from './labs';
 import { REF_RL_PROFILE, gPreOf, rlFamiliesAvailable, rlGains, rlWeights } from './effective';
@@ -393,7 +393,7 @@ export const MILESTONE_CRITERIA = [
 export function otherLabMilestones(s: GameStateV2, r: RivalLab): boolean[] {
   const out = [false, false, false, false, false, false, false];
   for (const m of r.publicModel ? [r.internal, r.publicModel] : [r.internal]) {
-    const x = milestonesOf(s, m.build ? m : referenceProfileModel(m.G, m.flop ?? 0), rivalServeFpt(r, m));
+    const x = milestonesOf(s, m.build ? m : referenceProfileModel(m.G, m.flop ?? 0), npcServeFpt(s, m));
     for (let i = 0; i < 7; i++) out[i] ||= x[i];
   }
   return out;

@@ -1,11 +1,10 @@
 // Theft, secrets leak, distillation, insider leaks (V2-SPEC §3.6; research/11 #16, #24; research/02 §1.7–1.10). Owner: WS4.
 import { clamp } from '../../rng';
 import { lagDays } from '../models/capability';
-import { REF_TPP } from '../../../data/v2/runDesign';
-import { baseParams, fptOfBase, gOfSimple, rivalRlGains, rivalVersionBuild, setModelBuild } from '../actors/rivalModel';
+import { baseParams, setModelG } from '../npc/model';
 import { theft } from '../npc/shocks';
 import { bestPlayerVersion, CHINA_ID } from '../models/labs';
-import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
+import type { GameStateV2, LabId, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { WS4_TUNING } from '../actors/tuning';
 import { adopted } from '../models/paradigms';
@@ -66,28 +65,20 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   // RD-X04b (research/RD-X04r §3C, T5): sized by what moves. China's model G jumps toward the stolen model's G by
   // THEFT_GAP_CLOSED of the gap (production/diffusion.ts stolenModelG; the rest is integration loss). With no gap (China
   // at or above the stolen G) its model is unchanged; the theft is still recorded.
-  const cnOwnG = gOfSimple(tw, cn.internal);
-  // Model v3 F1: weights, not a recipe. China holds the stolen base (its FLOP, size and the G_pre that copy embodies) and
-  // post-trains it at its own recipe; its own next base replaces it only if better (actors/rivals.ts labDaily). Its
-  // know-how (recipe) does not jump: the secrets leak (secretsLeakDaily) is the recipe channel.
-  const holdStolen = (m: SimpleModel, G: number, flop: number, params: number) => {
-    const rec = cn.phys.rec;
-    const base: RivalBase = { gen: cn.phys.base.gen, day: ctx.day, flop, params, tpp: REF_TPP, gPre: G - rivalRlGains(flop, rec.mid, rec.ceil).general, ePre: rec.pre };
-    cn.phys.base = base;
-    cn.phys.clDay = ctx.day;
-    setModelBuild(tw, m, rivalVersionBuild(base, rec.mid, rec.ceil), base); // RD-X03: G = its gPre + rlGains (G to fp)
-    m.fpt = fptOfBase(base);
-  };
+  const cnOwnG = cn.internal.G;
+  // Weights, not a recipe: China holds the stolen copy (its FLOP, size and G); its lag jumps to the copy's position (npc/shocks.ts
+  // theft) and the lab's daily step takes the copy over from there. Its know-how does not jump: the secrets leak is the recipe channel.
+  const holdStolen = (m: SimpleModel, G: number, flop: number, params: number) => setModelG(tw, m, G, { flop, params });
   if (victim === 'player') {
     const v = bestPlayerVersion(s);
     if (!v) return;
     const sec = s.player.security;
     sec.stolen.push({ day: ctx.day, versionId: v.id, by: CHINA_ID });
-    // China gets a copy of the best internal version, traits included (U21 shared-misalignment route).
+    // China gets a copy of the best internal version.
     const b = s.player.models.bases.find((x) => x.id === v.baseId);
     const flop = b?.flop ?? v.build?.flopPre ?? 3e26;
     if (v.G > cnOwnG) {
-      cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, traitsTrue: { ...v.traitsTrue }, uModes: [...v.uModes], isPublic: false, openWeights: false, stolenFrom: 'player' };
+      cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, isPublic: false, openWeights: false, stolenFrom: 'player' };
       holdStolen(cn.internal, stolenModelG(cnOwnG, v.G), flop, v.params ?? b?.params ?? baseParams(flop));
       theft(s, v.G); // N6: China's lag jumps to the stolen model's position plus the integration delay
       if (v.fpt) cn.internal.fpt = v.fpt;
@@ -104,11 +95,11 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
   } else {
     const r = s.rivals.find((x) => x.core.id === victim) as RivalLab | undefined;
     if (!r || r.core.status !== 'active') return;
-    const stolen = gOfSimple(tw, r.internal);
+    const stolen = r.internal.G;
     if (stolen > cnOwnG) {
       const G = stolenModelG(cnOwnG, stolen);
-      cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false, stolenFrom: victim };
-      holdStolen(cn.internal, G, r.internal.flop ?? r.phys.base.flop, r.internal.params ?? r.phys.base.params);
+      cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, isPublic: false, openWeights: false, stolenFrom: victim };
+      holdStolen(cn.internal, G, r.internal.flop ?? 1e26, r.internal.params ?? baseParams(r.internal.flop ?? 1e26));
       theft(s, stolen); // N6
       w.internalDay[CHINA_ID] = ctx.day;
     }

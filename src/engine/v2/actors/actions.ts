@@ -6,15 +6,15 @@ import { bestG, activeRivals } from '../models/labs';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from '../models/capability';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
-import type { ActionDef, ActionVerb, CounterpartyId, GameStateV2, RivalLab, StructureSystem, SystemCtx } from '../types';
+import type { ActionDef, ActionVerb, GameStateV2, RivalLab, StructureSystem, SystemCtx } from '../types';
 import { signCommitment, hasCommitment, frameworkPublished } from './commitments';
 import { addCoverup } from './relations';
 import {
-  ALL_PUBLIC_CPS, L, bloc, cash, cred, grantAccess, grantFavor, hasFavor, morale, moraleSafety, pv, regStance, rivalMeter, scrutiny, spendFavor,
+  ALL_PUBLIC_CPS, L, bloc, cash, cred, grantAccess, grantFavor, hasFavor, morale, moraleSafety, pv, regStance, scrutiny, spendFavor,
   talent, trust, trustMany, type Preview,
 } from './fx';
 import { govPresetOf } from './gov';
-import { addPosture, archetypeOf, openWeightsReleased, ownProgressDays } from './rivals';
+import { addPosture, openWeightsReleased, ownProgressDays } from './rivals';
 import * as shock from '../npc/shocks';
 import { tacitLeakG } from '../production/diffusion';
 import { ws4, ws4r } from './state';
@@ -68,7 +68,6 @@ const c4TacitG = (s: GameStateV2, r: RivalLab) => tacitLeakG(s, r.core.id, 'play
 /** The most days of lag any of `moves` takes off its lab (the preview's lead line). */
 const maxDays = (moves: shock.Move[]) => Math.round(Math.max(0, ...moves.map((x) => x.days)));
 
-const rivalCps = (s: GameStateV2): CounterpartyId[] => activeRivals(s).map((r) => `rival:${r.core.id}` as CounterpartyId);
 
 /** Default poach target: the active rival closest behind (or ahead of) the player. */
 function poachTarget(s: GameStateV2, p: P) {
@@ -120,11 +119,10 @@ export const RELATION_ACTIONS: ActionDef[] = [
   def({
     id: 'A4', verb: 'policy', system: 'relations', title: 'Publish research', cooldown: 90,
     // N6: the lead line is what A4 applies (npc/shocks.ts publishMoves): days off the lag of each lab behind your best model.
-    preview: (s) => pv([L('leadDays', maxDays(shock.publishMoves(s)), `days the best-placed of ${shock.publishMoves(s).length} labs behind you closes on you`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
+    preview: (s) => pv([L('leadDays', maxDays(shock.publishMoves(s)), `days the best-placed of ${shock.publishMoves(s).length} labs behind you closes on you`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 })]),
     apply(s, ctx) {
       const w = ws4(s);
       shock.publish(s); // N6: every lab behind you moves RECIPE_LEAK_SHARE.publish of the way to your best model
-      s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
       w.papers++;
@@ -290,11 +288,10 @@ export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── C. Rivals ─────────
   def({
     id: 'C1', verb: 'deal', system: 'relations', title: 'Share threat intel', once: true,
-    preview: () => pv([L('security', 1, 'reveals detection methods'), L('trust', 5, 'china')], [L('trust', 5, 'rivals'), L('leadDays', 10, 'China distillation −10')]),
+    preview: () => pv([L('security', 1, 'reveals detection methods'), L('trust', 5, 'china')], [L('leadDays', 10, 'China distillation −10')]),
     apply(s, ctx) {
       s.flags['ws4:threatIntel'] = true;
       ctx.bump('china.meters.distillationAccess', -10, 'C1 shared threat intel');
-      for (const cp of rivalCps(s)) trust(s, ctx, cp, 5, 'C1 shared threat intel');
       trust(s, ctx, 'china', -5, 'C1 shared threat intel');
       bloc(s, ctx, 'hawks', 3, 0, 'C1');
     },
@@ -311,16 +308,13 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'C3', verb: 'deal', system: 'relations', title: 'Joint evals', cooldown: 91,
-    preview: () => pv([L('staffTime', 4)], [L('trust', 6, 'rivals'), L('alignment', shock.JOINT_EVAL_STEP, 'rivals eval rigor and safety emphasis')], [L('scrutiny', 5, 'maverick cries "cartel"', { probability: 0.5 })]),
+    preview: () => pv([L('staffTime', 4)], [L('alignment', shock.JOINT_EVAL_STEP, 'rivals eval rigor and safety emphasis')], [L('scrutiny', 5, 'maverick cries "cartel"', { probability: 0.5 })]),
     apply(s, ctx) {
       for (const r of activeRivals(s)) {
         addPosture(s, r.core.id, 'evalRigor', 0.05);
         shock.jointEvals(s, r); // N6: the partner's safety emphasis + one step (a personality override)
-        const a = archetypeOf(r.archetype).id;
-        trust(s, ctx, `rival:${r.core.id}`, a === 'maverick' ? -2 : 4, 'C3 joint evals');
-        if (a === 'maverick') scrutiny(ctx, 5, 'antitrust: "safety cartel"', r.core.name);
+        if (r.npc.kind === 'racer') scrutiny(ctx, 5, 'antitrust: "safety cartel"', r.core.name);
       }
-      s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.02, 0, 1);
       cred(ctx, 2, 'C3 joint evals');
     },
   }),
@@ -329,7 +323,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     available: (s) => (activeRivals(s).length ? true : 'No active rivals'),
     preview: (s, p) => {
       const r = poachTarget(s, p);
-      return pv([L('cash', 0.5), L('trust', 20, r ? `rival:${r.core.id}` : 'rivals')], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined), L('leadDays', r ? Math.round(shock.poachInDays(s, r, poachHeads(r))) : 0, r ? `days ${r.core.name} falls back (its heads carry the same share)` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
+      return pv([L('cash', 0.5)], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined), L('leadDays', r ? Math.round(shock.poachInDays(s, r, poachHeads(r))) : 0, r ? `days ${r.core.name} falls back (its heads carry the same share)` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
     },
     apply(s, ctx, p) {
       const r = poachTarget(s, p);
@@ -342,8 +336,6 @@ export const RELATION_ACTIONS: ActionDef[] = [
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
       addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
-      rivalMeter(s, ctx, r.core.id, 'poachAggression', 20, 'C4 poaching');
-      trust(s, ctx, `rival:${r.core.id}`, -10, 'C4 poaching');
       talent(ctx, 4, 'C4 poaching');
       morale(ctx, -3, 'culture dilution', r.core.name);
       if (ctx.rng('actors').chance(0.2)) cash(s, ctx, -0.5, 'trade-secret suit', r.core.name);

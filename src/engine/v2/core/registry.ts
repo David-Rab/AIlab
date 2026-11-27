@@ -36,7 +36,6 @@ import { rivalsChinaSystem } from '../actors/rivals';
 import { actorsDailySystem } from '../actors/relations';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
-import { intelSystem } from '../actors/intel';
 import { geoQSystem } from '../actors/china';
 import { indexSystem } from '../actors/index';
 import { RELATION_ACTIONS } from '../actors/actions';
@@ -78,7 +77,6 @@ export const SYSTEMS: readonly EngineSystem[] = [
   productsSystem, // 155 WS1 daily (R6 product policies: auto-evaluate, upgrade)
   recordSystem, // 160 WS1 weekly
   hiringSystem, // 200 WS1 weekly
-  intelSystem, // 210 WS4 weekly
   payrollSystem, // 300 WS3 monthly
   macroSystem, // 310 WS5 monthly
   computeHistQSystem, // 399 WS3 quarterly

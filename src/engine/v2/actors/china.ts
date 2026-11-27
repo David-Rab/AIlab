@@ -46,7 +46,7 @@ export function initialChina(h: HiddenWorld, setup: SetupV2, i: number, n: numbe
 
 /** Blended preset multipliers from the current preset weights (research/10 §1.2 drift). */
 export function chinaParams(s: GameStateV2) {
-  const out = { centralize: 0, theft: 0, taiwan: 0, treaty: 0, openSource: 0, efficiency: 0, hawk: 0 };
+  const out = { centralize: 0, theft: 0, taiwan: 0, treaty: 0, openSource: 0, hawk: 0 };
   let tot = 0;
   for (const p of CHINA_PRESETS) {
     const w = s.china.presetWeights[p.id] ?? 0;
@@ -62,17 +62,6 @@ export function usGapMonths(s: GameStateV2): number {
   let best = lagDays(s, CHINA_ID, 'player');
   for (const r of activeRivals(s)) best = Math.max(best, lagDays(s, CHINA_ID, r.core.id));
   return (best / 365) * 12;
-}
-
-/** Algorithmic offset for the R10 gap formula [fit]: makes the formula agree with the simulated start lead (T3). */
-export const GAP_ALGO_OFFSET = 4.0;
-
-/** R10 IFP gap formula (display + T3 check): 10.8·log10(US_eff/CN_eff)·(1 − 0.5·DA/60) + offsets (months). */
-export function chinaGapFormulaMonths(s: GameStateV2): number {
-  const us = s.player.computeOnline + activeRivals(s).reduce((a, r) => a + r.core.computeOnline, 0);
-  const cn = s.china.meters.computeAbs * chinaParams(s).efficiency;
-  const da = s.china.meters.distillationAccess;
-  return 10.8 * Math.log10(Math.max(1.01, us / cn)) * (1 - (0.5 * da) / 60) + GAP_ALGO_OFFSET;
 }
 
 /** Distillation access target (§3.6): threat-intel sharing, adversary restrictions and a KYC ban lower it. RD-P09: the

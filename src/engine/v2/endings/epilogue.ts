@@ -70,7 +70,7 @@ export function projectedMisAtAsi(s: GameStateV2, lab: LabId): { mis: number; da
   return { mis: npcM(s, Math.max(asiG, r.internal.G), p.safetyInvestment, p.raceRelaxation, r.npc?.p ?? 0), days };
 }
 
-const ARCH_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech: 'corporate', maverick: 'corporate', openweights: 'multipolar', upstart: 'corporate', deepcent: 'beijing' };
+const KIND_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech: 'corporate', racer: 'corporate', openweights: 'multipolar', upstart: 'corporate', china: 'beijing' };
 
 /** Power outcome when lab X's ASI is aligned (§5.2 priority table). */
 export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
@@ -79,7 +79,7 @@ export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
   const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(lagDays(s, id, lab)) < 90 && (id !== 'player' || s.player.status === 'active'));
   if (lab !== 'player') {
     if (near) return 'multipolar';
-    return ARCH_POWER[labOf(s, lab)?.archetype ?? 'bigtech'] ?? 'corporate';
+    return KIND_POWER[labOf(s, lab)?.npc.kind ?? 'bigtech'] ?? 'corporate';
   }
   const w = ws4r(s);
   if (s.gov.oversight) return 'committee';

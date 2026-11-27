@@ -56,7 +56,7 @@ export function Relations({ s }: { s: GameStateV2 }) {
   const [allBloc, setAllBloc] = useState(false);
   const [grp, setGrp] = useState<string>('A');
   const [retire, setRetire] = useState(false);
-  const cpName = (k: string) => CP_LABEL[k] ?? s.rivals.find((r) => `rival:${r.core.id}` === k)?.core.name ?? k.replace('rival:', '');
+  const cpName = (k: string) => CP_LABEL[k] ?? k;
   // Who matters now: the relationships most at risk (lowest trust) first.
   const ranked = [...cps].sort((a, b) => stocks[a].trust - stocks[b].trust);
   const shownCp = allCp ? ranked : ranked.slice(0, 4);

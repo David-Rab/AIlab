@@ -1,13 +1,13 @@
 // Hidden world sampling at newGame (V2-SPEC §2.3). Owner: WS1. All draws from stream 'world', in spec order.
 // Wraps src/data/world.ts makeWorld UNCHANGED (audited R11 presets) and adds the v2 latents and presets.
-import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
+import { CHINA_PRESETS, GOV_PRESETS, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS, METHOD_SCALE, METHOD_TESTED_OOM, ORGANISM_REALISM } from '../../../data/v2/agendas';
 import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
 import { drawAt, drawCount, timelineOf } from '../../../data/v2/timelineWorlds';
 import { H50_PER_OOM, V3_CAL } from '../../../data/v2/workTypes';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
-import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
+import { CHINA_POSTURE_BASE } from '../../../data/v2/postures';
 import { UMODES } from '../../../data/v2/umodes';
 import { makeWorld } from '../../../data/world';
 import { CONTROL } from '../../../data/v2/danger';
@@ -55,9 +55,6 @@ export function prodParamsFor(setup: Pick<SetupV2, 'world'> & Partial<Pick<Setup
 }
 
 const LATENT_KEYS: (keyof SafetyLatents)[] = ['legibility', 'cotLoadBearing', 'verificationAdvantage', 'benignGeneralization', 'formalizability', 'schemingDefault'];
-
-/** Rival lab ids in order (stable for saves): 'r0'..'r3'. */
-export const rivalId = (i: number): LabId => `r${i}`;
 
 export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyPosture {
   const out = { ...p };
@@ -143,16 +140,9 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   const gov = pickWeighted(rng, GOV_PRESETS, setup.gov).id;
   const pub = pickWeighted(rng, PUBLIC_PRESETS, setup.public).id;
   const china = pickWeighted(rng, CHINA_PRESETS, setup.china).id;
-  const rivals: Record<LabId, string> = {};
-  const rivalPostures: Record<LabId, SafetyPosture> = {};
-  // The NPC cast is built from setup.cast (core/init.ts, which replaces these); the four draws stay so every later draw
-  // of the world stream keeps its value.
+  // The NPC cast is built from setup.cast (core/init.ts), which writes the labs' postures (npc/lab.ts postureOfKind): nothing is drawn for them.
   const noise = 0.15;
-  for (let i = 0; i < 4; i++) {
-    const arch = pickWeighted(rng, LAB_ARCHETYPES, 'realistic').id;
-    rivals[rivalId(i)] = arch;
-    rivalPostures[rivalId(i)] = noisyPosture(rng, ARCHETYPE_POSTURES[arch] ?? ARCHETYPE_POSTURES.bigtech, noise);
-  }
+  const rivalPostures: Record<LabId, SafetyPosture> = {};
   const chinaPosture = noisyPosture(rng, CHINA_POSTURE_BASE, noise / 3);
   // 11. Edges added in M4 (drawn last so the earlier draws are unchanged).
   for (const e of EDGES) if (e.late) edgeWeights[e.id] = drawEdge(rng, e, latents.schemingDefault);
@@ -161,7 +151,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
   return {
     timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity, econ,
     doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), organismRealism: organismRealismOf(setup.seed), methodScale: methodScaleOf(setup.seed), difficultyMult,
-    actorPresets: { gov, public: pub, china, rivals }, rivalPostures, chinaPosture,
+    actorPresets: { gov, public: pub, china }, rivalPostures, chinaPosture,
   };
 }
 

@@ -5,32 +5,26 @@
 //   d* = d₀ + compute shortfall in days: max(0, log10(cPlan / C)) ÷ today's reference slope (OOM a day)
 //   internal model G = G_ref(t − d);  public model = the internal one a release lag ago, refreshed every
 //   RELEASE_CADENCE_DAYS (the labs' release days staggered by cast order).
-// The outward contract (Appendix A: core, internal, publicModel, lineup, tools, finance, ...) is kept; the old physical
-// state `phys` is an adapter filled from these headline values (npcPhys) until N12 removes it.
+// The outward contract (Appendix A: core, internal, publicModel, lineup, tools, finance, ...) is kept.
 import { KINDS, REALISTIC_CAST, RELEASE_CADENCE_DAYS, type NpcCastEntry, type NpcKindId, type Personality } from '../../../data/v2/npcLabs';
 import { DIFFUSION_TAU_DAYS } from '../../../data/v2/calibration';
-import { RIVAL_TPP } from '../../../data/v2/rivalModel';
 import { SERIES_ANCHOR } from '../../../data/v2/timelineSeries';
-import { ARCHETYPE_CLAUSE, ARCHETYPE_POSTURES } from '../../../data/v2/postures';
-import { LAB_ARCHETYPES } from '../../../data/actors';
+import { CHINA_POSTURE_BASE, KIND_CLAUSE, KIND_POSTURES } from '../../../data/v2/postures';
 import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { flopOfDesign } from '../models/effective';
 import { clockOfG, refG } from './reference';
 import { refYear, treatyClockDay } from './shocks';
 import { gV0 } from '../models/capability';
-import { baseParams, setModelG } from '../actors/rivalModel';
-import { npcDomainDg, npcServeOom, seedRivalLineup } from './market';
+import { baseParams, setModelG } from './model';
+import { npcDomainDg, seedRivalLineup } from './market';
 import { referenceProfileModel } from '../departments/workfit';
 import { frontierRunShareAt, normalizeSplit, shareRefAt } from '../departments/split';
 import { refreshPublic } from './public';
 import { initialSecurity } from '../security/security';
+import { hRef } from '../production/ces';
 import { RIVAL_GROWTH } from '../compute/market';
 import { decimalYear, quarterIndex } from '../core/time';
-import { hash32 } from '../core/rng';
-import { Rng } from '../../rng';
-import { TRAIT_START } from '../../../data/v2/traits';
-import { UMODES } from '../../../data/v2/umodes';
-import type { GameStateV2, HiddenWorld, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture, SimpleModel, StaffByRole, TimelineWorld, UModeId } from '../types';
+import type { GameStateV2, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture, SimpleModel, StaffByRole, TimelineWorld } from '../types';
 
 
 // ───────────────────────────── parameters (N2b-1; new, listed in design/npc/N2b1-RESULT.md) ─────────────────────────────
@@ -55,15 +49,9 @@ export const LEADER_START_C = (() => {
   return typeof c === 'number' ? c : 1e6;
 })();
 /** The reference start base's FLOP (B0) and the leader's day-0 run budget (1e6 H100e × the 2025 run share 0.4) it was
- *  sized on: an NPC model's training FLOP is B0's scaled by the lab's run budget today (as initRivalPhys sized a
- *  rival's start base). */
+ *  sized on: an NPC model's training FLOP is B0's scaled by the lab's run budget today (the old rivals' start base sizing). */
 const B0_FLOP = flopOfDesign(REFERENCE_BASE);
 const LEADER_DAY0_RUN = 1e6 * 0.4;
-
-/** Old archetype id of a kind (the readers of `archetype`: postures, tools at the start, finance governance, epilogue). */
-export const ARCHETYPE_OF_KIND: Record<NpcKindId, string> = {
-  leader: 'leader', safety: 'safety', bigtech: 'bigtech', openweights: 'openweights', racer: 'maverick', upstart: 'upstart', china: 'deepcent',
-};
 
 // ───────────────────────────── the reference frontier, extended ─────────────────────────────
 
@@ -94,31 +82,33 @@ export function refSlopePerDay(s: Pick<GameStateV2, 'setup' | 'hidden'>, y: numb
 
 /** The lab's yearly plan growth: every NPC lab 2.25x (compute/market.ts RIVAL_GROWTH, N8b); China's lab its meter's (CHINA_PLAN_GROWTH). */
 export const planGrowthOf = (n: Pick<NpcLabState, 'kind'>) => (n.kind === 'china' ? CHINA_PLAN_GROWTH : RIVAL_GROWTH);
+/** How hard the lab races under pressure (its race response): the poaching edge of the risk map and E16 read it (the old poach-aggression meter is gone). */
+export const raceResponseOf = (r: Pick<RivalLab, 'npc'>) => persOf(r.npc).raceResponse;
 /** The lab's seven values: its kind's, or the player's adjusted set (setup.cast, NpcLabState.p). */
 export const persOf = (n: Pick<NpcLabState, 'kind' | 'pers'>): Personality => n.pers ?? KINDS[n.kind];
 /** The compute the lab planned to have online today: its start compute grown at its appetite, a step each quarter (its
  *  chip orders are placed and delivered quarterly, compute/market.ts). The step counts from the day after a quarter
  *  starts: the quarter's deliveries clear (marketQ, order 400) after the NPC labs' day (rivalsChina, order 100). */
 export function cPlan(s: GameStateV2, r: RivalLab): number {
-  const n = r.npc!;
+  const n = r.npc;
   return n.c0 * Math.pow(planGrowthOf(n), Math.max(0, quarterIndex(s.time.startDate, s.time.day - 1)) / 4);
 }
 /** Compute shortfall (OOM ≥ 0) and the target lag d* = d₀ + shortfall ÷ today's reference slope (days). */
 /** The compute the lab plans to have online `ahead` quarters from the current quarter (orders are sized from it). */
-export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc!.c0 * Math.pow(planGrowthOf(r.npc!), (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
+export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc.c0 * Math.pow(planGrowthOf(r.npc), (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
 export function npcTarget(s: GameStateV2, r: RivalLab): { short: number; slope: number; dStar: number } {
-  const n = r.npc!;
+  const n = r.npc;
   const slope = refSlopePerDay(s, refYear(s));
   const C = Math.max(1, r.core.computeOnline);
   const short = Math.max(0, Math.log10(cPlan(s, r) / C));
   return { short, slope, dStar: n.d0 + short / slope };
 }
 /** G of the lab's internal model today. */
-export const npcG = (s: GameStateV2, r: RivalLab) => refGAt(s, refYear(s) - r.npc!.d / 365.25);
+export const npcG = (s: GameStateV2, r: RivalLab) => refGAt(s, refYear(s) - r.npc.d / 365.25);
 /** G of the internal model as it stood one release lag ago: its daily history (NpcLabState.hist); before the history
  *  is that long (the first weeks), the reference a release lag further back at today's lag. */
 export function npcPublicG(s: GameStateV2, r: RivalLab): number {
-  const n = r.npc!;
+  const n = r.npc;
   const L = persOf(n).releaseLagDays;
   return n.hist.length > L ? n.hist[n.hist.length - 1 - L] : refGAt(s, refYear(s) - (n.d + L) / 365.25);
 }
@@ -138,22 +128,9 @@ export function setNpcModel(w: TimelineWorld, m: SimpleModel, G: number, C: numb
   setModelG(w, m, G, { flop, params: baseParams(flop) }, npcDomainDg(kind)); // N4: G plus the kind's focus offsets
 }
 
-/** The physical-state adapter (RivalLab.phys) from the headline values: one base at the internal model's FLOP and size
- *  (rivalRunFlop, distillation fit read it), recipe = the lab's recipe in the pretraining part, no run, no research pools. */
-export function npcPhys(r: RivalLab, day: number): RivalLab['phys'] {
-  const m = r.internal;
-  const flop = m.flop ?? 1e26;
-  const n = r.npc!;
-  return {
-    base: { gen: n.rel + 1, day: lastReleaseDay(n, day), flop, params: m.params ?? baseParams(flop), tpp: RIVAL_TPP, gPre: m.G, ePre: n.rec },
-    eff: 1, serve: npcServeOom(day), rec: { pre: n.rec, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 },
-  };
-}
-
 /** The release days: phase + k × RELEASE_CADENCE_DAYS. */
 export const isReleaseDay = (n: NpcLabState, day: number) => day >= n.phase && (day - n.phase) % RELEASE_CADENCE_DAYS === 0;
 export const lastReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.floor((day - n.phase) / RELEASE_CADENCE_DAYS) * RELEASE_CADENCE_DAYS;
-export const nextReleaseDay = (n: NpcLabState, day: number) => n.phase + Math.max(0, Math.ceil((day - n.phase) / RELEASE_CADENCE_DAYS)) * RELEASE_CADENCE_DAYS;
 
 /** Whether the lab's release today is open weights (the kind's openness rule; 'partial' opens the model it replaces). */
 export function opensRelease(s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'pers'>): boolean {
@@ -164,7 +141,7 @@ export function opensRelease(s: GameStateV2, n: Pick<NpcLabState, 'kind' | 'pers
 /** One NPC lab's capability day: the lag relaxes to its target, the internal model follows G_ref(t − d); on a release day
  *  the public model is replaced. Returns the public model replaced (`prev`) when it released today. */
 export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { released: boolean; prev?: SimpleModel } {
-  const n = r.npc!;
+  const n = r.npc;
   const w = s.hidden.timeline;
   const yr = decimalYear(s);
   treatyClockDay(s); // N6: a verified treaty holds the reference clock the labs read back (npc/shocks.ts)
@@ -183,7 +160,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
     const prev = r.publicModel;
     n.rel++;
     const pub: SimpleModel = {
-      ...r.internal, id: `${r.core.id}-v${n.rel}`, name: `${n.family}-${n.rel}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes],
+      ...r.internal, id: `${r.core.id}-v${n.rel}`, name: `${n.family}-${n.rel}`, day,
       isPublic: true, openWeights: opensRelease(s, n),
     };
     setNpcModel(w, pub, npcPublicG(s, r), C, yr, n.kind);
@@ -192,28 +169,20 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
     r.internal = { ...r.internal, id: `${r.core.id}-v${n.rel + 1}i`, name: `${n.family}-${n.rel + 1}`, day };
     out = { released: true, prev };
   }
-  r.phys = npcPhys(r, day);
   refreshPublic(s, r); // N9: the values due today (a release, a quarter) are reported
-  r.nextBaseDay = nextReleaseDay(n, day + 1);
   return out;
 }
 
 // ───────────────────────────── start state (Realistic cast) ─────────────────────────────
 
-/** Posture of a kind (the readers of SafetyPosture: postureOf, intel, traits): today's archetype posture with safety
+/** Posture of a kind (the readers of SafetyPosture: postureOf, intel, index): the kind's table (data/v2/postures.ts) with safety
  *  investment = the kind's safety emphasis and race relaxation = its race response (NPC-LABS §4). */
-export function postureOfKind(kind: NpcKindId, base: SafetyPosture = ARCHETYPE_POSTURES[ARCHETYPE_OF_KIND[kind]] ?? ARCHETYPE_POSTURES.bigtech, k: Personality = KINDS[kind]): SafetyPosture {
+export function postureOfKind(kind: NpcKindId, base: SafetyPosture = KIND_POSTURES[kind as Exclude<NpcKindId, 'china'>] ?? CHINA_POSTURE_BASE, k: Personality = KINDS[kind]): SafetyPosture {
   return { ...base, safetyInvestment: k.safetyEmphasis, raceRelaxation: k.raceResponse };
 }
 
 /** Start finance by archetype (cash; revenue, valuation and raised when the cast has none): actors/rivals.ts FIN. */
 type Fin = { cash: number; revenueRun: number; valuation: number; raised: number };
-
-/** U-modes of a lab's lineage from its own stream (the same rule as world/hidden.ts drawLineageUModes). */
-function uModesOf(h: HiddenWorld, seed: number, id: string): UModeId[] {
-  const rng = new Rng(hash32(seed, `npc:${id}`));
-  return UMODES.filter((u) => u.kind !== 'speculative' && rng.chance(h.uModePropensity[u.id])).map((u) => u.id);
-}
 
 /** Lag (days) of a cast entry at the start: 30.4 × (its public lag − the leader's), the leader 0 (N2b-1: the simplest rule;
  *  it replaces spec §16 R5's conversion). The upstart has no public model: its [D] band (publicLagBandMonths). */
@@ -230,7 +199,6 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const w = h.timeline;
   const kind = e.kind;
   const k = p ?? KINDS[kind];
-  const arch = ARCHETYPE_OF_KIND[kind];
   const china = kind === 'china';
   const id: LabId = china ? 'china' : e.id;
   const posture = china ? h.chinaPosture : postureOfKind(kind, undefined, k);
@@ -238,9 +206,8 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
   const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, ...(p ? { pers: p } : {}), dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [], m: 0, p: 0 };
-  const uModes = uModesOf(h, s.setup.seed, id);
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
-    id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], traitsTrue: { ...TRAIT_START }, uModes: [...uModes], isPublic, openWeights: false,
+    id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], isPublic, openWeights: false,
   });
   const internal = blank(`${id}-v2i`, `${e.family}-2`, phase - RELEASE_CADENCE_DAYS, false);
   setNpcModel(w, internal, refGAt(s, yr0 - d0 / 365.25), C0, yr0, kind);
@@ -258,7 +225,6 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   for (let j = k.releaseLagDays; j >= 0; j--) npc.hist.push(refGAt(s, yr0 - (d0 + j) / 365.25));
   const cap = Math.round(C0 * STAFF_PER_H100E);
   const staff: StaffByRole = { cap, saf: Math.round(cap * 0.15 * posture.safetyInvestment + 10) };
-  const la = LAB_ARCHETYPES.find((a) => a.id === arch);
   const lab: RivalLab = {
     core: {
       id, name: e.name, kind: china ? 'china' : 'rival', status: 'active',
@@ -269,25 +235,18 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
       milestoneDays: {},
     },
     npc,
-    archetype: arch,
     internal,
     publicModel,
     tools: [...e.start.tools],
-    nextBaseDay: phase,
-    phys: undefined as unknown as RivalLab['phys'],
     finance: {
       cash: fin.cash, revenueRun: e.start.revenueRunB ?? fin.revenueRun, valuation: china ? 0 : (e.start.valuationB ?? 0), raised: china ? 0 : (e.start.equityRaisedB ?? 0),
       commitments: china ? 0 : fin.cash * 2, distress: false,
     },
-    visible: china ? { frameworkVersion: 0, clauseType: 'state', testers: [] } : { frameworkVersion: 1, clauseType: ARCHETYPE_CLAUSE[arch] ?? 'conditional', testers: posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
+    visible: { clauseType: china ? 'state' : KIND_CLAUSE[kind as Exclude<NpcKindId, 'china'>], testers: !china && posture.externalAccess > 0.4 ? ['evalGov', 'evalIndep'] : [] },
     intel: { knownIncidents: [] },
-    meters: china
-      ? { poachAggression: 20, lobbyStance: 0, openness: 85 }
-      : { poachAggression: arch === 'upstart' ? 70 : arch === 'maverick' ? 60 : 40, lobbyStance: la?.lobby ?? 0, openness: la?.openness ?? 30 },
     pressure: 0,
     pressureDays: 0,
   };
-  lab.phys = npcPhys(lab, 0);
   refreshPublic(s, lab); // the first public values (N9)
   seedRivalLineup(w, lab); // the public model's students, made before the game began (RD-P02)
   return lab;
@@ -327,3 +286,19 @@ export function castOf(setup: Pick<SetupV2, 'cast' | 'start'>): CastLab[] {
   return out;
 }
 export const chinaCast = () => REALISTIC_CAST.find((e) => e.kind === 'china')!;
+
+/** Split of a non-player lab's compute: the shares track shareRef(t), keeping the lab's own safety share (set from its posture). */
+export function labReferenceSplit(s: GameStateV2, r: RivalLab): void {
+  const ref = shareRefAt(decimalYear(s));
+  const keep = r.core.split.safety;
+  const rest = 1 - ref.safety;
+  const sp = { ...ref, safety: r.core.split.safety };
+  for (const k of ['training', 'experiments', 'routine', 'frontier', 'synthetic', 'serving'] as const) sp[k] = (ref[k] / rest) * (1 - keep);
+  r.core.split = normalizeSplit(sp);
+}
+
+/** Capabilities staff of a non-player lab grow with the reference headcount path (keeps h constant). */
+export function growLabStaff(s: GameStateV2, r: RivalLab): void {
+  const yr = decimalYear(s);
+  r.core.staff.cap *= hRef(yr) / hRef(yr - 1 / 365);
+}

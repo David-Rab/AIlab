@@ -75,11 +75,9 @@ export const indexSystem: EngineSystem = {
     const grades: Record<LabId, IndexGrade> = { player: gradePlayer(s) };
     for (const r of activeRivals(s)) {
       grades[r.core.id] = gradeRival(s, r.core.id);
-      r.visible.indexGrade = grades[r.core.id].letter;
     }
     if (s.china.lab.core.status === 'active') {
       grades.china = gradeRival(s, 'china');
-      s.china.lab.visible.indexGrade = grades.china.letter;
     }
     const prev = idx.grades.player?.overall;
     idx.grades = grades;

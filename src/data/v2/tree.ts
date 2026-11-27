@@ -255,12 +255,6 @@ for (const n of TREE) {
   if (SAFETY_COLUMNS_SET.has(n.column) || n.star) continue;
   n.kind ??= n.effect ? 'idea' : 'axis';
 }
-/** The one-off form of P24 that the rivals' simplified model keeps (actors/rivalModel.ts RIVAL_IDEA_IDS: an aggregate
- *  state has no research line of its own beyond DEFAULT_LINES): a pretraining-stack idea of +0.96 OOM (sd 0.4) costing
- *  28.8 team-months, as before round 2 item 9 [D stand-in]. */
-export const P24_RIVAL_IDEA: TreeNodeDef = {
-  ...TREE.find((n) => n.id === 'P24')!, kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, effortTM: V2_PARADIGM_EFFORT_TM.P24,
-};
 for (const n of TREE) {
   if (n.star || n.kind === 'line') continue;
   if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? V2_PARADIGM_EFFORT_TM[n.id];

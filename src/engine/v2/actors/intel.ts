@@ -4,7 +4,7 @@
 import { clamp, sigmoid } from '../../rng';
 import { activeRivals, bestG, bestMeasuredVersion, internalVersion } from '../models/labs';
 import { lossOfControlRisk } from '../safety/lossRisk';
-import type { EngineSystem, GameStateV2, LabId, RivalLab, RiskSource } from '../types';
+import type { GameStateV2, LabId, RivalLab, RiskSource } from '../types';
 import { lagDays } from '../models/capability';
 import { ws4r } from './state';
 import { defenceIndex } from '../worldfx/readouts';
@@ -45,13 +45,6 @@ function publicBand(r: RivalLab): [number, number] {
   const shift = 0.02 * r.intel.knownIncidents.length;
   return [clamp(lo + shift, 0, 1), clamp(hi + shift, 0, 1)];
 }
-
-/** intel (210, weekly): nothing left to update; the public values refresh on their own report days (npc/public.ts
- *  refreshPublic, from the lab's daily step). Kept so the registry needs no change. */
-export const intelSystem: EngineSystem = {
-  id: 'intel', owner: 'WS4', cadence: 'weekly', order: 210, system: 'relations',
-  run() {},
-};
 
 /** What-if changes to the inputs of the risk-source estimates (J2 RK1): each is an engine lever's effect on what the
  *  player believes (never truth). */

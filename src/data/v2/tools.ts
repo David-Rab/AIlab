@@ -2,7 +2,7 @@
 // adaptations. MK-11 switched the engine over: products carry these tools (Deployment.features holds their ids, the
 // lab's built ones are player.features), Agent mode gates and sells agent-hours (worldfx/serving.ts productOffer), a
 // harness certifies its product in the sectors it covers that have a certification (models/certs.ts), rivals hold the
-// tools their lab had shipped by the start (toolsAtStart) plus the lag rule (actors/rivalModel.ts rivalToolStep), and
+// tools their lab had shipped by the start (toolsAtStart) plus the lag rule (npc/market.ts rivalToolStep), and
 // the save migration maps built features and adaptations onto them (core/save.ts 105 → 106). INTERNAL_TOOLS (the lab's
 // own agents' tools, RD-A06, data/v2/features.ts) are separate.
 //

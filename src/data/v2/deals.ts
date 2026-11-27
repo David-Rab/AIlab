@@ -1,6 +1,7 @@
 // Strategic partners, debt instruments, site power paths and market constants (FINANCE-V3 §3–§6; V2-SPEC §3.8;
 // research/15 §1.2, §1.3, §1.7; research/21 §1 B). Owner: WS3.
 // Tags: [R15] = research/15, [R21] = research/21 (primary sources there), [AI27] = research/02, [D] = design value.
+import type { NpcKindId } from './npcLabs';
 import type { Debt, PartnerKind, PartnerSupply, Site } from '../../engine/v2/types';
 
 export type { PartnerKind, PartnerSupply };
@@ -14,11 +15,11 @@ export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; 
 
 export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[] }
 
-/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, i.e. a big-tech rival (archetype
+/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, i.e. a big-tech rival (kind
  *  'bigtech': deep pockets, own chips; Microsoft AI, Google DeepMind, Amazon's models). Hyperscalers take the active
  *  big-tech rivals in order: Northwind Cloud the first, Azimuth the second. A hyperscaler without one has no affiliated
  *  lab and offers no IP access. Chip vendors and sovereigns have none [D]. */
-export const AFFILIATE_ARCHETYPE = 'bigtech';
+export const AFFILIATE_KIND = 'bigtech' as const satisfies NpcKindId;
 
 /** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§6.1, kept). */
 export const PARTNER_DEFS: Partner[] = [

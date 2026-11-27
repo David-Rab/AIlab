@@ -1,4 +1,4 @@
-// Production readouts, the rivals' daily research step, knowledge diffusion to the player and the daily data accruals
+// Production readouts, knowledge diffusion to the player and the daily data accruals
 // (production system). Owner: WS1.
 //
 // The player (model v3 V3: design/V3-BUILD.md V3.4): research speed comes from each project's explicit compute and
@@ -11,28 +11,23 @@
 // Its inputs are in fixed physical units (the leader lab's day-0 inputs = 1): h research engineers on research, k agent
 // compute, c experiment compute.
 //
-// Rivals, China and the leader lab (model v3 F1): the same experiment CES at aggregate level with their own models' AI
-// labour; their recipe grows with the world's returns r (actors/rivalModel.ts). This file advances it daily
-// (rivalResearch). v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
+// The other labs have no research here: an NPC lab's capability is its lag behind the reference frontier (npc/lab.ts).
+// v2's knot production function is gone (RD-C01); the shared CES maths is in ces.ts.
 import { PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
 import { recipeDiffusionPerDay } from './diffusion';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
-import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { FORCING } from '../core/forcing';
-import { CHINA_ID, PLAYER_ID, labCore, rivalLab } from '../models/labs';
-import { adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
+import { PLAYER_ID, labCore } from '../models/labs';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { lentTrainingH100e } from '../models/runs';
 import { poolsOf } from '../compute/power';
-import { withResearchAgents } from '../departments/split';
-import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
 import { believedProd, believedWorld, elasticitiesAt } from './believed';
 import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
-import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
+import type { EngineSystem, GameStateV2, LabId, ProductionReadout, TimelineWorld } from '../types';
 
 /** The player's research inputs (model v3 V3) as of today: what the readout needs to re-evaluate research speed at other
  *  h, k, c. Absent for the other labs. */
@@ -56,7 +51,7 @@ export interface V3Inputs {
 }
 
 /** Inputs of the player's production readout for one day: h, k, c in fixed physical units (the leader lab's day-0
- *  research engineers on research, agent compute, experiment FLOP = 1). The other labs have none (rivalResearch). */
+ *  research engineers on research, agent compute, experiment FLOP = 1). The other labs have none. */
 export interface LabInputs {
   yr: number;
   h: number; k: number; c: number;
@@ -247,59 +242,17 @@ export function tcoPerH100eYear(s: GameStateV2, yr: number): number {
   return r > 0 ? (r * 8760) / 1e9 : (14e3 * Math.pow(0.8, yr - 2025.5)) / 1e9;
 }
 
-/** eff_lab: 1 for the player and US rivals; China = chinaEfficiency × preset.efficiency, both 1 since CAL-W (equal recipe
- *  efficiency, designer CP3k; AI 2027 gives none separable from compute). */
-export function effLab(s: GameStateV2, lab: LabId): number {
-  if (lab !== CHINA_ID) return 1;
-  return s.hidden.timeline.chinaEfficiency * (CHINA_PRESETS.find((p) => p.id === s.china.preset) ?? CHINA_PRESETS[0]).efficiency;
-}
-
 /** Build the player's production inputs from state on day `day` (default today; model v3 V3). The other labs have none
- *  since model v3 F1: their research is rivalResearch below. */
+*/
 export function labInputs(s: GameStateV2, lab: LabId, day = s.time.day): LabInputs | undefined {
   if (lab !== PLAYER_ID || !labCore(s, lab)) return undefined;
   return playerInputs(s, day);
 }
 
-/** A non-player lab's research today (model v3 F1, actors/rivalModel.ts): the best experiments/agents mix of its research
- *  compute (the rivals' aggregate policy, actors/rivalModel.ts bestRivalMix), research speed through the aggregate CES with its internal model's AI labour,
- *  its efficiency (China's effLab) and modifiers (a binding leader, a verified treaty), and the
- *  recipe growth that gives. `apply` re-splits the mix and advances the recipe by a day. */
-export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): ProductionReadout {
-  const w = s.hidden.timeline;
-  const core = r.core;
-  const G = rivalWorkModel(w, r); // RD-X03 model + RD-X02 P05 lift
-  const fpt = rivalAgentFpt(r);
-  const res = core.split.experiments + (core.split.routine + core.split.frontier);
-  const C = core.computeOnline * res;
-  let f = res > 0 ? core.split.experiments / res : 0.5;
-  if (apply && res > 0) {
-    // Calibration hook (core/forcing.ts): pin the experiments share. Unset in normal play (the best mix).
-    f = FORCING.pinResearchMix !== undefined ? Math.min(1, Math.max(0, FORCING.pinResearchMix)) : bestRivalMix(w, G, fpt, core.staff.cap, C);
-    core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
-  }
-  const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
-  const x = evalRival(s, r, f, C, (r.phys?.eff ?? 1) * effLab(s, core.id), rivalSpeedMult(s, core.id) * treaty);
-  const rates = recipeRates(w, r.phys, x.rs);
-  if (apply) {
-    advanceRecipe(r, rates, 1 / 365);
-    // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
-    if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
-    // RD-X02 (DD-14 rival part): the same research speed works through the paradigms' typed effects.
-    if (r.phys && !FORCING.noIdeaAdoption) adoptRivalIdeas(s, r, x.rs); // FORCING (core/forcing.ts): unset in normal play
-  }
-  const pools = poolsOf(s, core.id);
-  return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
-}
-
-/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5). N2b-1: an NPC lab (RivalLab.npc) has no
- *  research readout (its capability is its lag behind the reference frontier, npc/lab.ts): undefined; a lab without
- *  the NPC state (old scripts' hand-built labs) still reads rivalResearch. */
+/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5): the player's; an NPC lab has none (its capability is
+ *  its lag behind the reference frontier, npc/lab.ts). */
 export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
-  if (lab !== PLAYER_ID) {
-    const r = rivalLab(s, lab);
-    return r && !r.npc ? rivalResearch(s, r, false) : undefined;
-  }
+  if (lab !== PLAYER_ID) return undefined;
   const inp = labInputs(s, lab);
   return inp ? evalProduction(s, inp) : undefined;
 }

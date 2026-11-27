@@ -459,15 +459,12 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   if (!rec || rec.published) return;
   rec.published = true;
   s.knowledge.publishedFindings.push(rec.id);
-  const k = s.knowledge;
-  if (rec.type === 'TECH' || rec.type === 'EVAL') k.sharedTechniquePool = Math.min(1, k.sharedTechniquePool + 0.02);
-  if (rec.type === 'DISC') k.sharedTechniquePool = Math.min(1, k.sharedTechniquePool + 0.04);
   ctx.bump('relations.credibility', 2, 'published research', rec.id);
   ctx.bump('relations.talentPull', 1, 'published research', rec.id);
   if (rec.trueType === 'SPILL') {
     // N6: every active lab's lag falls a fixed small step (npc/shocks.ts spill).
     for (const m of shock.spillMoves(s)) {
-      m.lab.npc!.d -= m.days;
+      m.lab.npc.d -= m.days;
       ctx.cause(`${m.lab.core.id}.lag`, -m.days, 'safety spillover', m.lab.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
     }
   }

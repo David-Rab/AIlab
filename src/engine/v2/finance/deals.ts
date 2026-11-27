@@ -9,7 +9,7 @@
 // capability lead (npc/shocks.ts ipAccess, a line in the rivals' day), behind the PBC + trust's transfer vote for a
 // capability-threshold model.
 // Owner: WS3.
-import { AFFILIATE_ARCHETYPE, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
+import { AFFILIATE_KIND, PARTNER_DEFS, PARTNER_TERMS, partnerDef, type PartnerSupply } from '../../../data/v2/deals';
 import { dayOfQuarter } from '../core/time';
 import type { BoardVote, Day, GameStateV2, LabId, PartnerOption, PartnerTerms, RivalLab, StrategicDeal, SystemCtx } from '../types';
 import { addCloud, chipQuote, placeOrder, rentQuote } from '../compute/orders';
@@ -54,13 +54,13 @@ const ST = PARTNER_TERMS.strings;
  *  before the start do not count. At most PARTNER_TERMS.strings.maxPartners (3). */
 export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => !d.legacy).map((d) => d.partner))];
 
-/** A hyperscaler's affiliated lab now (data/v2/deals.ts AFFILIATE_ARCHETYPE): the active big-tech rivals, in rival
+/** A hyperscaler's affiliated lab now (data/v2/deals.ts AFFILIATE_KIND): the active big-tech rivals, in rival
  *  order, go to the hyperscalers in partner order; none for chip vendors, sovereigns, or a hyperscaler left without
  *  one. */
 export function affiliatedLab(s: GameStateV2, partner: string): RivalLab | undefined {
   if (partnerDef(partner)?.kind !== 'hyperscaler') return undefined;
   const i = PARTNER_DEFS.filter((x) => x.kind === 'hyperscaler').findIndex((x) => x.id === partner);
-  return s.rivals.filter((r) => r.core.status === 'active' && r.archetype === AFFILIATE_ARCHETYPE)[i];
+  return s.rivals.filter((r) => r.core.status === 'active' && r.npc.kind === AFFILIATE_KIND)[i];
 }
 const labName = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab;
 
