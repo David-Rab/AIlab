@@ -39,9 +39,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 
 | # | Task | Model | Budget | Depends | Status |
 |---|---|---|---|---|---|
-| W1a | Move what geoQ hosts (NPC finance, copyright suits, Taiwan and Korea rolls) into their own systems; behaviour identical | Sonnet high | 45 min | — | |
-| W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | |
-| W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | |
+| W1a | Move what geoQ hosts (NPC finance, copyright suits, Taiwan and Korea rolls) into their own systems; behaviour identical | Sonnet high | 45 min | — | done 0c17a262 |
+| W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | done cf5ef02f |
+| W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | running |
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | |
 | W1d | Quiet world, engine part 2: delete the gov and China actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Sonnet high (W1c sets the pattern) | 75 min | W1c | |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
@@ -58,3 +58,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 ## Log
 
 (one line per finished task: id, model, time, result, merged commit)
+- W1a · Sonnet high · ~7 min · geoQ extras moved to geoShocksQ 441, copyrightQ 442, npcQ 443; fixtures identical · 0c17a262
+- W9 · Sonnet high · ~9 min · SOURCES.md: BLS, BEA/CBO, Pew/Gallup, BIS steps, SB 53/RAISE/EU/SB 243, EO 14318, AI 2027 beats.
+  Corrections: research/07's "67%" is 47% (Pew Mar 2026); the companion law restricts rather than bans; the RAISE
+  chapter amendment is [unverified] · cf5ef02f
