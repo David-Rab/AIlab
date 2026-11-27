@@ -63,7 +63,7 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
       finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
       visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
       intel: { leadDaysEst: Math.round((chinaGapOom / PRE_GAME_G_PER_YEAR) * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
-      meters: { poachAggression: 20, cooperation: 10, lobbyStance: 0, openness: 85 },
+      meters: { poachAggression: 20, lobbyStance: 0, openness: 85 },
       pressure: 0,
       pressureDays: 0,
     },

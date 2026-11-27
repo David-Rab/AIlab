@@ -2116,7 +2116,7 @@ export interface RivalLab {
   finance: RivalFinance;
   visible: { frameworkVersion: number; clauseType: 'conditional' | 'allAdopt' | 'unconditional' | 'override' | 'state'; testers: string[]; indexGrade?: string };
   intel: RivalIntel;
-  meters: { poachAggression: number; cooperation: number; lobbyStance: number; openness: number };
+  meters: { poachAggression: number; lobbyStance: number; openness: number };
   pressure: number; // race pressure 0..1 (research/17 §1.6.5)
   pressureDays: number;
 }

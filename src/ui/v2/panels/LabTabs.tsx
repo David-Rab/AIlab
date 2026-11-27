@@ -220,10 +220,10 @@ function PayrollCard({ s }: { s: GameStateV2 }) {
       </div>
       <div className="lh-star">
         <div>
-          <Tip content={() => <TipCard title={<Term id="starHire">Star hire</Term>} rows={[{ label: 'Stars on staff', value: String(p.stars ?? 0) }, { label: <Term id="researchTaste">Research taste</Term>, value: `×${p.tasteHire.toFixed(2)} (up to ×${F.num(STAR_HIRE.maxTaste, 1)})` }, { label: 'Each star', value: `+${F.num(STAR_HIRE.dTaste, 2)} taste · team cooperation ${STAR_HIRE.cooperation}` }, { label: 'Cost', value: F.money(STAR_HIRE.cost) }]}>A star researcher raises the idea quality of every capability science team.</TipCard>}>
+          <Tip content={() => <TipCard title={<Term id="starHire">Star hire</Term>} rows={[{ label: 'Stars on staff', value: String(p.stars ?? 0) }, { label: <Term id="researchTaste">Research taste</Term>, value: `×${p.tasteHire.toFixed(2)} (up to ×${F.num(STAR_HIRE.maxTaste, 1)})` }, { label: 'Each star', value: `+${F.num(STAR_HIRE.dTaste, 2)} taste` }, { label: 'Cost', value: F.money(STAR_HIRE.cost) }]}>A star researcher raises the idea quality of every capability science team.</TipCard>}>
             <span><Term id="starHire">Star hire</Term> <span className="dim small">· {p.stars ? `${p.stars} on staff` : 'none on staff'}</span></span>
           </Tip>
-          <Tip content={() => <TipCard title={<Term id="starHire">Star hire</Term>} rows={[{ label: 'Idea quality', value: `+${F.num(STAR_HIRE.dTaste, 2)} taste` }, { label: 'Team cooperation', value: String(STAR_HIRE.cooperation) }, { label: 'Cost', value: F.money(STAR_HIRE.cost) }]}>What one star brings and costs.</TipCard>}><div className="small dim">idea quality <span className="tone-pos">▲</span> · team cooperation <span className="tone-neg">{STAR_HIRE.cooperation}</span> · {F.money(STAR_HIRE.cost)}</div></Tip>
+          <Tip content={() => <TipCard title={<Term id="starHire">Star hire</Term>} rows={[{ label: 'Idea quality', value: `+${F.num(STAR_HIRE.dTaste, 2)} taste` }, { label: 'Cost', value: F.money(STAR_HIRE.cost) }]}>What one star brings and costs.</TipCard>}><div className="small dim">idea quality <span className="tone-pos">▲</span> · {F.money(STAR_HIRE.cost)}</div></Tip>
         </div>
         <ActBtn id="starHire" icon={ICON.taste} label="Find a star" />
       </div>

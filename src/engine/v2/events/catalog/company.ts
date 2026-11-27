@@ -3,7 +3,7 @@
 // Board card and giving the critics a seat is a standing action.
 import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
-import { bloc, cash, morale, rivalMeter, scrutiny, trust } from '../../actors/fx';
+import { bloc, cash, morale, scrutiny, trust } from '../../actors/fx';
 import { ownProgressDays, poachLeakG } from '../../actors/rivals';
 import { addRivalKnowledge } from '../../actors/rivalModel';
 import { changeHeads } from '../../departments/teams';
@@ -46,7 +46,6 @@ export const COMPANY_EVENTS: EventDefV2[] = [
       ch('Sue', ['fight'], P([L('scrutiny', 5), L('trust', 20, 'that rival')], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx, d) => {
         scrutiny(ctx, 5, 'E16 poaching suit');
         if (typeof d.lab === 'string') {
-          rivalMeter(s, ctx, d.lab, 'cooperation', -20, 'E16 suit');
           trust(s, ctx, `rival:${d.lab}`, -8, 'E16 suit');
         }
         if (ctx.rng('events').chance(0.4)) cash(s, ctx, 0.2, 'E16 suit won');
