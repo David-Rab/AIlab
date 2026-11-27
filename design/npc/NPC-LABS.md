@@ -213,3 +213,8 @@ kind, status, computeOnline, milestoneDays, security), an `internal` and a `publ
   market, valuation from the existing story; no cash, raises or running out. A lab fails only through the existing
   bust event (the most over-committed private lab goes into distress → E32 → license-and-hire or bankruptcy). Task N8b.
 - **Tools:** one build time for every tool and lab, the game's sourced 120-day follow time (TOOL_LAG_DAYS).
+- **NPC labs and the labour market (designer, 2026-11-27).** NPC labs are background demand only: their heads follow
+  the reference headcount path scaled by start size, count in the pool (so they raise wages for everyone), are never
+  rationed and don't drive their progress. People moving from an NPC lab to the player (C4, premium hiring, any route)
+  apply the one poach-in shock by heads moved; people moving to an NPC lab apply the let-go shock. NPC labs hold no
+  stars: every star not at the player sits in one outside group with no employer.
