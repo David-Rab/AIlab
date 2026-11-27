@@ -148,7 +148,7 @@ const SPEC: [string, string, Cadence, number][] = [
   ['worldDaily', 'WS5', 'daily', 110], ['actorsDaily', 'WS4', 'daily', 120], ['opex', 'WS3', 'daily', 130],
   ['director', 'WS4', 'daily', 140], ['endings', 'WS4', 'daily', 150], ['products', 'WS1', 'daily', 155], ['record', 'WS1', 'weekly', 160],
   ['hiring', 'WS1', 'weekly', 200], ['payroll', 'WS3', 'monthly', 300],
-  ['macro', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
+  ['economy', 'WS5', 'monthly', 310], ['computeHistQ', 'WS3', 'quarterly', 399], ['marketQ', 'WS3', 'quarterly', 400], ['sitesQ', 'WS3', 'quarterly', 410],
   ['capitalQ', 'WS3', 'quarterly', 420], ['boardQ', 'WS3', 'quarterly', 430], ['geoQ', 'WS4', 'quarterly', 440],
   ['index', 'WS4', 'semiannual', 500],
 ];

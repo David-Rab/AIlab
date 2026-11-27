@@ -67,7 +67,7 @@ export type { RiskBadge } from '../departments/agents';
 export { agentChangeBlock, agentsView, toolingView, MONITOR_BUDGET_STEP, monitorAt, previewAgentChange, previewTrusted, withAgentChange } from '../departments/agentActions';
 export type { AgentChange, AgentLane, AgentPreview, AgentsView } from '../departments/agentActions';
 // WS5 world readouts (observables only).
-export { automationShare, dowYtd, firmAdoption, remoteWorkAutomation, unemploymentChange12m, workUse, youthExposedEmployment } from '../worldfx/readouts';
+export { automationShare, firmAdoption, remoteWorkAutomation, unemploymentChange12m, workUse, youthExposedEmployment } from '../worldfx/readouts';
 // B3: the World panel's sector view (output-only).
 export { sectorsView } from '../worldfx/sectorView';
 export type { RegionWorkRead, SectorProviderRead, SectorRead } from '../worldfx/sectorView';

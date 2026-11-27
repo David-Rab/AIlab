@@ -128,7 +128,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         s.flags['ws4:agentsOffUntil'] = ctx.day + 21;
         s.flags['ws4:hunt'] = 'loud';
         scrutiny(ctx, 10, 'E25 shutdown');
-        ctx.bump('world.dow', -s.world.dow * 0.03, 'E25 shutdown');
         if (ctx.rng('events').chance(clamp(0.5 + 0.1 * (s.player.security.wsl - 3), 0.2, 0.9))) {
           delete ws4(s).loose;
           escapeResolved(s, ctx.day, 'captured');
@@ -149,7 +148,6 @@ export const SAFETY_EVENTS: EventDefV2[] = [
         cred(ctx, 5, 'E25 disclosed escape');
         approval(ctx, -10, 'E25 disclosed escape');
         ctx.bump('pub.concern', 10, 'E25 disclosed escape');
-        ctx.bump('world.dow', -s.world.dow * 0.08, 'E25 panic');
         ws4(s).disclosed++;
         ws4(s).misalignmentLeak = true;
         if (ctx.rng('events').chance(0.5)) {

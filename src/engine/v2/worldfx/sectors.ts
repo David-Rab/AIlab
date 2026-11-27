@@ -27,6 +27,7 @@ import type {
   SectorState, SystemCtx, WorldEconomy, WorldFxState, WorldTechState,
 } from '../types';
 import { initialControl, updateControl } from './control';
+import { G_BASE } from './economy';
 import { fireHeadlines } from './headlines';
 import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { preLlmCover, reachTarget, seatTarget } from './serving';
@@ -171,7 +172,7 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     if (t.start >= 1) techs[t.id].discoveredDay = 0;
   }
   // GDP 2025 ($B): US ≈ 30T, China ≈ 19T, rest of world ≈ 60T (GATE GWP $110T [V]).
-  const macro = (gdp: number, g: number, gini: number): MacroState => ({ gdp, g, laborShare: ECON.LS0, wage: 1, gini, aiCapexShare: 0, energyPrice: 1 });
+  const macro = (gdp: number, g: number): MacroState => ({ gdp, g });
   const youthRel = {} as Record<SectorId, number>;
   const incidentR = {} as Record<SectorId, number>;
   for (const d of SECTORS) {
@@ -185,19 +186,9 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     paid: { US: {}, CN: {}, ROW: {} },
     youthRel,
     incidentR,
-    autoLevel: { US: 1, CN: 1, ROW: 1 },
-    trend: { US: 30000, CN: 19000, ROW: 60000 },
-    sezY: 0,
-    hype: 0,
-    fear: 0,
-    earn0: 0,
-    dowJan: 0,
+    autoHist: { US: [], CN: [], ROW: [] },
     uHist: [U_BASE.US],
-    aiCapexPrev: 0,
-    aiRev0: 0,
-    Lpub0: 0,
     layoffs30: 0,
-    youthPrev: ECON.youthU0,
     sezDay: -1,
     humanoidProd: ROBOT.humanoid0,
     sezProd: 0,
@@ -214,11 +205,9 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
     infoShare: shareRow(),
     friendShare: 0.03, // ≈3% of adults [D, R16 N3a]
     techs,
-    robots: { stockHWE: ROBOT.stock0, prodPerYear: ROBOT.conventional0, doublingYears: ROBOT.baseDoublingYears, sezOpen: false, sezShare: 0 },
-    macro: { US: macro(30000, 0.02, ECON.gini0), CN: macro(19000, 0.045, 0.47), ROW: macro(60000, 0.028, 0.6) },
-    dow: 44000, // Dow Jones ≈ 44,000 in Jul 2025
-    aiOwnerShare: 0,
-    intelligenceCurse: false,
+    robots: { stockHWE: ROBOT.stock0, prodPerYear: ROBOT.conventional0, doublingYears: ROBOT.baseDoublingYears, sezOpen: false },
+    macro: { US: macro(30000, G_BASE.US), CN: macro(19000, 0.045), ROW: macro(60000, 0.028) },
+    aiIncomeShare: 0,
     shares,
     fx,
   };
@@ -308,7 +297,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
   const mismatch = 1 - 0.5 * (physE / Math.max(1, allE));
   // RD-P04b: the best public AGENCY domain G (OOM); v2's L 10 / 1.5 L gate through the one λ.
   const nuEff = econ.nu * (1 - levelGate(w, mix.bestPublic.AGENCY, 10, 1.5));
-  const gAI = Math.max(0, W.macro[r].g - (r === 'US' ? 0.018 : r === 'CN' ? 0.04 : 0.028));
+  const gAI = Math.max(0, W.macro[r].g - G_BASE[r]);
   const openJobs = 0.4 * (1 - 0.6 * (Dw / Math.max(1, Ew))) + 5 * nuEff * gAI;
   const retrain = r === 'US' ? retrainOf(s, pol) : 0;
   const rRe = 2.0 * mismatch * (1 + retrain) * openJobs;
