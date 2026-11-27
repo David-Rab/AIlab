@@ -19,6 +19,7 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { SPHERE } from '../theme';
 import { LabPeople, LabSecurity, LabWork } from './LabTabs';
+import { LabourBar } from './labourBar';
 import './lab.css';
 
 type Key = keyof ComputeSplit;
@@ -361,8 +362,8 @@ function WorkRow({ s, r, maxM }: { s: GameStateV2; r: RowData; maxM: number }) {
             <Tip content={() => <TipCard title={<Term id="agentPackage">AI staff</Term>} value={w.version} rows={[{ label: <Term id="agentCopies">Copies</Term>, value: F.count(w.copies) }, { label: 'Compute', value: `${F.h100e(w.h100e)} H100e` }]}>The model doing this job, and how many copies run.{w.measured ? '' : ' Its own skills are not measured yet: a measured relative\'s are used.'}</TipCard>}>
               <span className="lab-mchip"><ICON.agents size={12} /> {w.version}</span>
             </Tip>
-            <Tip content={() => <TipCard title={<Term id="aiShareWork">AI share</Term>} value={F.pct(w.A)} rows={[{ label: 'Of the work AI can do alone', value: F.pct(w.coverage) }, ...(w.t < 1 ? [{ label: <Term id="trustedToAI">AI share allowed</Term>, value: F.pct(w.t) }] : [])]}>Share of this job's work your AI staff do. It grows with the model's skill at the job and with the compute you give the AI staff.</TipCard>}>
-              <span><Term id="aiShareWork">AI share</Term> <b className="num">{F.pct(w.A)}</b></span>
+            <Tip content={() => <TipCard title={<Term id="aiDoingNow">AI doing now</Term>} value={F.pct(w.margins?.doingNow ?? w.A)} rows={[{ label: <Term id="coverage">Can do</Term>, value: F.pct(w.margins?.canDo ?? w.A) }, ...(w.t < 1 ? [{ label: <Term id="trustedToAI">AI share allowed</Term>, value: F.pct(w.t) }] : [])]}>The marker is what your AI staff can do on this job; the filled part is what they do now. Margins and the limit are on the job card: click the row.</TipCard>}>
+              <span><LabourBar mini canDo={w.margins?.canDo ?? w.A} doingNow={w.margins?.doingNow ?? w.A} /></span>
             </Tip>
           </span>
         ) : <Tip content={() => <TipCard title="No AI staff">{r.aiNote ? `${r.aiNote}: no AI staff on this job.` : 'No AI staff on this job: give it a model and compute on AI staff & needs.'}</TipCard>}><span className="ais dim">No AI staff</span></Tip>}
