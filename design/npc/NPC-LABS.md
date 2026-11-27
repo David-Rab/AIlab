@@ -207,3 +207,9 @@ kind, status, computeOnline, milestoneDays, security), an `internal` and a `publ
   plan, and the existing distress → E32 offer → license-and-hire or bankruptcy chain follows. When raises resume, orders
   top back up toward the plan. Parent-funded and state labs order their plan. No leader special case. Task N8.
 - **Worlds without a draw** (tests only) use the central timeline's median run as the reference (lead).
+- **NPC money is simpler (designer, 2026-11-27, replaces the funding option above).** NPC labs don't manage money.
+  Compute grows at one rate for every lab, 2.25× a year (today's rival rate), from its start compute, through the chip
+  market, so supply is shared and a market shortfall makes a lab fall behind. Money is display: revenue from the
+  market, valuation from the existing story; no cash, raises or running out. A lab fails only through the existing
+  bust event (the most over-committed private lab goes into distress → E32 → license-and-hire or bankruptcy). Task N8b.
+- **Tools:** one build time for every tool and lab, the game's sourced 120-day follow time (TOOL_LAG_DAYS).

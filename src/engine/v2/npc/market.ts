@@ -5,6 +5,7 @@
 //  - tools: the cast's tools at the start; later a tool ships once the public model's 50% horizon meets the tool's
 //    requirement (data/v2/tools.ts npcHorizonMin), it is in the kind's focus, and a build time has passed (rivalToolStep).
 // Prices stay emergent (worldfx/mix.ts seller rule).
+import { TOOL_LAG_DAYS } from '../../../data/v2/features';
 import { DISTILL_TPP, B0_PARAMS } from '../../../data/v2/runDesign';
 import { KINDS, type NpcKindId } from '../../../data/v2/npcLabs';
 import { PRODUCT_TOOLS, type ProductToolDef } from '../../../data/v2/tools';
@@ -103,10 +104,10 @@ export function rivalLineupStep(w: TimelineWorld, r: RivalLab, day: number, rele
 /** A tool is in a kind's focus when its focus weight reaches this [D]: Σ the kind's sector weights over the tool's sectors,
  *  or, for a tool with no sector, Σ its channel weights over the tool's products. */
 export const TOOL_FOCUS_MIN = 0.3;
-/** Engineering build capacity of an NPC lab, team-weeks a week [D]: one team (150 heads, departments/build.ts). */
-export const NPC_BUILD_TW_PER_WEEK = 1;
-/** Days from the day a lab may build a tool to its shipping: the tool's team-weeks at the build capacity. */
-export const npcBuildDays = (t: Pick<ProductToolDef, 'buildTW'>) => Math.ceil((7 * t.buildTW) / NPC_BUILD_TW_PER_WEEK);
+/** Days from the day a lab may build a tool to its shipping: one typical value for every tool and lab, the game's sourced
+ *  follow time TOOL_LAG_DAYS (120 d: real launches followed each other by 50-270 days, data/v2/features.ts). Simple on
+ *  purpose (NPC design principle 7). */
+export const npcBuildDays = (_t?: Pick<ProductToolDef, 'buildTW'>) => TOOL_LAG_DAYS;
 
 export function toolFocusWeight(kind: NpcKindId, t: ProductToolDef): number {
   const f = KINDS[kind].focus;
