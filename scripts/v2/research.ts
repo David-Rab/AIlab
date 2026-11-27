@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { engine } from '../../src/engine/v2/index';
-import { DEFAULT_RE_ALLOC, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
+import { DEFAULT_RE_ALLOC, IDEA_DEFAULT_TM, MAX_DROPS, PICK_AT, RE_FULL_PROJECT, RISK_KAPPA, SMALL_TO_TEST, SURVIVE_FRAC } from '../../src/data/v2/research';
 import { PROJECT_BY_ID, TREE_BY_ID, type TreeNodeDef } from '../../src/data/v2/tree';
 import { makeCtx } from '../../src/engine/v2/core/loop';
 import {
@@ -443,14 +443,14 @@ if (process.argv.includes('--rd-a03')) {
     const a = reAllocation(x);
     const avail = projectFlopPerDay(x);
     const sh = expShares(a, avail);
-    const inp = researchInputs(x, Math.max(sh.units, RE_MAX_PER_PROJECT), avail);
+    const inp = researchInputs(x, Math.max(sh.units, RE_FULL_PROJECT), avail);
     const rate = new Map([...a.perProject].map(([id, re]) => [id, experimentRate(x, inp, re, sh.perProject.get(id) ?? 0)]));
     return { k, a, sh, rate, avail, x };
   };
   const vs = [];
   for (let k = -(ids.length - 1); k <= 4; k++) vs.push(variant(k));
-  // (a) Research engineers are idle only when every project in experiments has its full RE_MAX_PER_PROJECT (INP-V01).
-  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_MAX_PER_PROJECT - 1e-9));
+  // (a) Research engineers are idle only when every project in experiments has its full RE_FULL_PROJECT (INP-V01).
+  const bad = vs.filter((v) => v.a.total - v.a.re.ops - v.a.re.exp > 1e-9 && [...v.a.perProject.values()].some((re) => re < RE_FULL_PROJECT - 1e-9));
   check(bad.length === 0,
     'RD-B08: research engineers are idle only after every project in experiments has its full need',
     `${vs.length} capacities ${vs[0].a.total.toFixed(1)}–${vs[vs.length - 1].a.total.toFixed(1)} team-eq; violations ${bad.map((v) => v.k).join(',') || 'none'}`);

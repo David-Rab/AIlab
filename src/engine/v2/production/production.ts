@@ -107,7 +107,8 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const alloc = reAllocation(s);
   // Research engineers not on run operations (idle ones too; SR-21: evals are safety engineers' work now): what
   // experiments + tuning held before RD-B08 gave tuning a finite demand (M goes with RD-R01 / RD-R04).
-  const reRes = Math.max(0, alloc.total - alloc.re.ops);
+  // L5: the allocation is in effective team-equivalents (m_EXP × heads); this readout stays in human team-equivalents.
+  const reRes = Math.max(0, alloc.heads - alloc.re.ops / alloc.m);
   const Cag = off ? 0 : (pools.routine + pools.frontier);
   const flopEff = Math.pow(10, trainNow(s));
   const kUnit = 1 / DAY0_REF.agents;

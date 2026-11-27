@@ -108,7 +108,7 @@ export const SAF_STAGES = { idea: 0.2, small: 0.35, val: 0.45 } as const;
 /** RD-R02a: a serious programme's line experiments ask this many experiment-labour units (RE_LABOUR_UNIT research-engineer
  *  team-equivalents each, the capability unit): 0.25 = 50 heads × quality (the pre-RD-R02a SAF_RE_UNIT) [D, calibration];
  *  a project asks in proportion to its science staffing (× capacity ÷ SERIOUS_CAP, at most LINE_MULT_MAX). A staffing
- *  need, as capability's RE_MAX_PER_PROJECT, not a unit. */
+ *  need, as capability's RE_FULL_PROJECT, not a unit. */
 export const SAF_RE_ASK = 0.25;
 
 /** Cap on the line multiplier (capacity ÷ SERIOUS_CAP) where the pre-R8 code read funding (AG18 healing): the old Major

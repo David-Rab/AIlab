@@ -186,15 +186,18 @@ export const VALUE_PROXY = { domainOom: 0.1, unlock: 0.05 };
  *  safety department is planned on its own, so only ratios between lines matter). 1 for every line until a line's
  *  results are priced (SAFETY-REDESIGN §3.1); a line listed here counts that much more or less. */
 export const SAF_LINE_WEIGHT: Partial<Record<string, number>> = {};
-/** Most research-engineer team-equivalents one project in experiments takes (an allocation cap; a policy number, not
- *  the labour unit RE_LABOUR_UNIT, though both are 2 today) [D]. */
-export const RE_MAX_PER_PROJECT = 2;
+/** L5 (LABOUR-ROUND §3.1): a full project's labour, the base need of one project in experiments, in EFFECTIVE
+ *  research-engineer team-equivalents (m_EXP × human team-equivalents: AI agents are part of the pool). Not a cap: labour
+ *  left after every need is spread evenly over the projects in experiments (models/research.ts reAllocation). A policy
+ *  number, not the labour unit RE_LABOUR_UNIT, though both are 2 today [D]. */
+export const RE_FULL_PROJECT = 2;
 /** Research engineers that keep runs going (team-equivalents per running run) [D; MODEL-V3 §3.3 "operations", §5].
  *  RD-B09 (DD-11): the one owner of run operations (engineers build the setups only); a shortfall slows every running
  *  run and the stream to the share served (models/research.ts opsServed). */
 export const RE_OPS = { base: 1, mid: 0.5, small: 0.2, stream: 0.5 };
-/** Default allocations: research engineers keep runs going first, then project experiments (RE_MAX_PER_PROJECT each, no
- *  share cap: RD-B08); the rest are idle (RD-E03: no routine tuning);
+/** Default allocations: research engineers keep runs going first, then project experiments (RE_FULL_PROJECT each as the
+ *  base need, no share cap: RD-B08); L5: the rest spread evenly over the projects in experiments, idle only with none
+ *  (RD-E03: no routine tuning);
  *  engineers as before J2 (run setups and adoptions, upkeep, builds) [D]. SR-21: eval suites are a safety engineers' need. */
 export const DEFAULT_RE_ALLOC: Allocation<ReNeed> = { order: ['ops', 'exp'], max: {}, share: {} };
 export const DEFAULT_ENG_ALLOC: Allocation<EngNeed> = { order: ['runs', 'upkeep', 'builds'], max: {}, share: {} };

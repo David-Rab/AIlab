@@ -924,11 +924,11 @@ export interface ResearchState {
    *  average: diffusion, C4 tacit knowledge, safety spillover). A readout only; absent in older saves (→ 0). */
   pubLast?: number;
   pubRate?: number;
-  /** Readout of the last day: research engineers per need and per project (team-equivalents), experiment FLOP per
+  /** Readout of the last day: research engineers per need and per project (L5: EFFECTIVE team-equivalents, m_EXP × heads), experiment FLOP per
    *  project in experiments (RD-B08 expShares; absent in older saves), FLOP used and available (FLOP/day). */
   last?: {
     re: Record<ReNeed, number>; reProj: Record<string, number>; flopProj?: Record<string, number>; flopUsed: number; flopAvail: number;
-    /** RD-E03: research engineers no need took today (team-equivalents). Absent in older saves. */
+    /** RD-E03: research engineers no need took today (human team-equivalents; L5: non-zero only with no project in experiments). Absent in older saves. */
     idle?: number;
     /** RD-B09: share of the run-operations need the research engineers served today (gets ÷ needs, 1 with no need);
      *  running runs and the continual-learning stream advance at this share (models/runs.ts). Absent in older saves. */

@@ -192,7 +192,7 @@ export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 // ───────────────────────────── research in physical units (V3.4) ─────────────────────────────
 
 /** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): a fixed unit of measure, set
- *  equal to one full project's allocation (data/v2/research.ts RE_MAX_PER_PROJECT) [D]. */
+ *  equal to one full project's base need (data/v2/research.ts RE_FULL_PROJECT) [D]. */
 export const RE_LABOUR_UNIT = 2;
 /** The leader lab's day-0 experiment share of its compute: SHARE_REF's 2025.5 row (35% since the split fix: Epoch's other
  *  R&D ~66% of OpenAI's 2024 spend, the AIFM's experiment_H100e 56% with synthetic data; it was AI 2027's narrow 5%) [R:
