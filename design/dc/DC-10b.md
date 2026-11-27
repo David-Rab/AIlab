@@ -51,4 +51,5 @@
 
 ## Checks
 - tsc clean (both projects), `npm run build`.
-- lint-ux, lint-hidden and `test:ui`: see the report.
+- lint-ux and lint-hidden pass. `test:ui`: 708 passed, 21 failed; the three DC-10b checks and the DC-9 / DC-10a checks pass.
+  The failures are the known ones (B2, D8, E12, E11, D6, F6c, F6e, FIN4a, R10, IA, Investigations, Products locked tools).
