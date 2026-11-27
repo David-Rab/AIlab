@@ -29,7 +29,7 @@ the merge wave.
 | N8b | Simple NPC money: one compute growth 2.25×/yr through the chip market, money display-only, failure only through the bust; keeps N8's LEADER_ID removal and order top-up | Sonnet high | — | done, merged |
 | N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | done, merged |
 | N10 | Setup UI: Realistic default + advanced "Create rivals" (good-ui skill) | Sonnet high | N2a, N2b | done, merged (override field renamed pers) |
-| N12 | Remove the old NPC simulation and dead state (spec §13) | Sonnet medium | wave 3 | wave 4 |
+| N12 | Remove the old NPC simulation and dead state (spec §13) | Sonnet medium | wave 3 | done, merged |
 | N13 | Shape checks (spec §14) as a script + dashboard tab | Sonnet high | wave 3 | wave 4 |
 
 Open follow-up (sourcing): release lags from system cards' stated testing windows (CAST-2025.md §5b gap).
@@ -49,3 +49,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N5 | accepted | ~15 min | Rule 7 already read npc.m; projectedMisAtAsi = npcM at max(ASI G, internal G); projectLabMis deleted; otherContain 0.2 × safety emphasis. Moves calibration: maybe (epilogue). |
 | N8b | accepted | ~5 min | Plan = start × 2.25/yr for all (China: meter); cash never limits orders; shortfalls top back up; distress only via the bust. Stale: scripts/v2/finance.ts FIN5b checks (~1750-1850), glossary npcAppetite (N12). |
 | N6 | accepted (short test passes, tsc clean) | ~50 min | shocks.ts: theft = min(d, victim + 60 d); publish 0.05 / open weights 0.3 of the way; IP access 10%/yr; spillover 7 d, Track-2 2 d (lead to confirm); joint evals +0.05 safety; treaty clock x0.65; absorb in exitRival. Stale for N12: productOps releaseOpen preview rival line; scripts finance.ts, leadreaders.ts, rivals.ts. |
+| N12 | accepted (lead re-ran tsc: clean) | ~32 min | rivalModel.ts and data/v2/rivalModel.ts deleted (survivors in npc/model.ts); phys, archetype, meters, rival traits, intel system, LEADER_ID, the save migration chain (SCHEMA_REV 114) gone; ~190 registry entries removed, 19 act.npc.* registered. Behaviour notes: E16 / RiskMap poach edge read race response; sampleHidden no longer draws the 4 sampled rivals (world-stream draws shift per seed). Waiting for the designer: fixtures --write, then the whole-game pass. |
