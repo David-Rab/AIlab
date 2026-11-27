@@ -237,7 +237,7 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
   const d0 = startLagDays(e);
   const yr0 = decimalYear({ time: { day: 0, startDate: s.time.startDate } } as GameStateV2);
   const phase = 1 + Math.floor((RELEASE_CADENCE_DAYS * i) / Math.max(1, n));
-  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [] };
+  const npc: NpcLabState = { kind, family: e.family, d: d0, d0, c0: C0, phase, rel: 1, dStar: d0, short: 0, slope: refSlopePerDay(s, yr0), rec: 0, hist: [], m: 0, p: 0 };
   const uModes = uModesOf(h, s.setup.seed, id);
   const blank = (mid: string, name: string, day: number, isPublic: boolean): SimpleModel => ({
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], traitsTrue: { ...TRAIT_START }, uModes: [...uModes], isPublic, openWeights: false,

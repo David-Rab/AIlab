@@ -2118,6 +2118,9 @@ export interface NpcLabState {
   rec: number;
   /** The internal model's G on each of the last release-lag + 1 days, oldest first (the public model reads it). */
   hist: number[];
+  /** Hidden misalignment m of the internal model and race pressure p, recomputed daily (npc/risk.ts; 0 until its first day). */
+  m: number;
+  p: number;
 }
 
 export interface RivalLab {
