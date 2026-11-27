@@ -44,7 +44,7 @@ except the 6% stored-chip book decay, which goes.
   max(construction, power). Construction starts at live − construction. A site's power wait is fixed at commitment as
   whole quarters: grid max(1, round(W × (rush ? 0.75 : 1))); gas rush ? min(round(W), 4) : max(1, round(W)); rent
   max(1, round(W)). The wait used is today's, before the new site is added.
-- **[D-5] Rushed gas sites (used turbines) are not in the turbine backlog**; rushed grid sites stay in the grid queue.
+- **[D-5] (changed 2026-11-27 by the designer: rushed gas sites DO count in the turbine backlog; see DC-12.)** ~~Rushed gas sites (used turbines) are not in the turbine backlog~~; rushed grid sites stay in the grid queue.
   A site counts in its queue from commitment until its power is ready (rent: until live); blocked sites drop out.
 - **[D-6] Opposition odds** (grid / gas; rent none): block 5% / 10%, delay 20% / 30%, both × public mood
   (pub.dcNimby ÷ 50; 0.9 at the 2025 start, ≈1.2 at day 400), × 1.5 with crash construction; block × 0.5 with the
@@ -85,6 +85,7 @@ except the 6% stored-chip book decay, which goes.
 | DC-9 | Compute tabs + Sites rows under the chart | Sonnet high | L1 | no |
 | DC-10a | Build card: three power tiles, live dates, tile tooltips | Sonnet high | DC-9 | no |
 | DC-10b | Build card: speed-up options row, preview lines, opposition tooltip | Sonnet high | DC-10a | no |
+| DC-12 | Size scaling: construction time, economies of scale, rushed gas in the backlog | Sonnet high | DC-7, DC-8 | yes |
 | CP | Lead: final checkpoint | lead | all | — |
 
 Opus share: 1 of 12 agent tasks (DC-3) ≈ 8%.
@@ -422,6 +423,45 @@ Merge DC-1…DC-8 and DC-11 into `dc`; regenerate fixtures once (`npx tsx script
   −$18.9B, block 6% · delay 35%, Pay-with PVs move with the levers); uitest check passes; `lint-ux` / `lint-hidden` as
   the UI suite runs them. **Stop and ask:** if "rising" for public mood needs a history the UI does not have (omit the
   word, ask). **Output:** `design/dc/DC-10b.md` + screenshots.
+
+### DC-12 Size scaling: construction time, economies of scale, rushed gas in the backlog
+
+(Added by the lead 2026-11-27 after the DC-7 bot run: one 5 GW gas site live in 6 q, and splitting sites was free.
+Designer decisions: DATACENTERS.md §5b.)
+
+- **Model:** Sonnet high. **Budget:** 40 min. **Moves calibration:** yes (build times and building cost by size).
+- **Write:** `src/data/v2/deals.ts` (SCALE constant, LEVERS.crash), `src/engine/v2/compute/sites.ts` (siteBuildQ,
+  siteCapex), `src/engine/v2/compute/waits.ts` (inQueue), `scripts/v2/_dc12/check.ts` (new), the expected numbers in
+  `scripts/v2/_dc3/check.ts`, `_dc4/check.ts`, `_dc7/check.ts` and F10 in `scripts/v2/finance.ts` only where this
+  change moves them, glossary bodies `construction`, `crashBuild`, `rushPower`, `turbineBacklog`, `siteTier` in
+  `src/data/v2/glossary.ts`, `design/dc/DC-12.md`. Nothing else.
+- **Read:** DATACENTERS.md §5b; sites.ts lines 55–130 and the build-schedule code near line 190; waits.ts lines 30–45.
+- **Spec:**
+  1. deals.ts: `export const SCALE = { refGW: 1, buildTimeExp: 0.3, costExp: -0.1 } as const;` with a comment
+     "[design] pending research/23 §9". `LEVERS.crash` becomes `{ buildMult: 0.5, buildingShare: 0.35, oddsMult: 1.5 }`
+     (drop `buildQ: 4`; fix every reader).
+  2. `siteBuildQ(o)`: rent 0; else `max(1, round(SOURCES[path].buildQ × (GW / SCALE.refGW)^buildTimeExp × (crash ?
+     LEVERS.crash.buildMult : 1)))`. Expected (normal / crash): 0.1 GW 4 / 2; 0.3 GW 6 / 3; 0.5 GW 6 / 3; 1 GW 8 / 4;
+     2.5 GW 11 / 5; 5 GW 13 / 6.
+  3. `siteCapex(o)`: the building part only (grid/gas `upfrontPerGW`, i.e. BUILDING_PER_GW) is multiplied by
+     `(GW / refGW)^costExp`; crash and fast-track prices are shares of that scaled building. Unscaled: rent network,
+     `extraPerGW` (turbines, utility upgrades), rush, community. Expected: gas 1 GW rush + community = 18.9 (unchanged);
+     gas 5 GW no levers = 5 × (14 × 5^−0.1 + 3) = 74.59 (±0.01); grid 0.1 GW no levers = 0.1 × (14 × 0.1^−0.1 + 0.2)
+     = 1.7825 (±0.001); gas 5 GW crash = 74.59 + 5 × 0.35 × 14 × 5^−0.1 = 95.45 (±0.01).
+  4. waits.ts `inQueue`: delete the rushed-gas exclusion; a rushed gas site counts in the turbine backlog until its
+     power is ready. Update the doc comment.
+  5. Preview = effect still holds: `leverEffects` and the build preview read `siteBuildQ`/`siteCapex`, no copies.
+  6. Glossary: plain player text for the new rules (construction time grows with size, more slowly than size; bigger
+     sites cost less per GW; crash halves construction; rushed gas counts in the backlog). No numbers that the tooltip
+     already shows live.
+- **Done when:** tsc clean (both projects); `_dc12/check.ts` asserts every expected number above plus a sweep that the
+  preview's capex and live quarter equal the created site's for gas and grid at 0.1, 1, 5 GW × crash on/off; the
+  `_dc3`, `_dc4`, `_dc7` checks pass with expectations updated only where this change moves them (list each change in
+  DC-12.md with old → new).
+- **Stop and ask:** if any other code reads `LEVERS.crash.buildQ` or assumes 8 q construction outside the listed
+  files; if F10's premise no longer holds.
+- **Test scope:** tsc + `_dc12`, `_dc3`, `_dc4`, `_dc7` checks + `run.ts --only finance` is NOT run (fixtures stale
+  until L1). Moves calibration: yes.
 
 ### CP Lead: final checkpoint (heavy runs, once)
 

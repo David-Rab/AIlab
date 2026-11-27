@@ -73,13 +73,21 @@ Chosen on the build card; each shows its price and the quarters it saves.
 
 | Lever | What it does | Cost | Source |
 |---|---|---|---|
-| Crash construction | Construction 8 q → 4 q | +35% building cost, higher opposition odds | 4 q: xAI Colossus 2 (Epoch). Premium **[design]** |
+| Crash construction | Construction time × 0.5 (1 GW: 8 q → 4 q) | +35% building cost, higher opposition odds | 1 GW in ~4 q: xAI Colossus 2 (Epoch). Premium **[design]** |
 | Rush power (grid) | Pay for the substation and lines yourself instead of waiting for the utility's schedule: grid wait − 25% **[design]** | +$0.3B per GW **[design, range $0.05–0.3B unverified]** | LBNL "Speed to Power" (2026) |
 | Rush power (gas) | Buy used or refurbished turbines: turbine wait → 4 q | +30% turbine cost **[design]** | SemiAnalysis: used units in < 12 months |
 | Fast-track permits | Permits − 1 q (gas 2 → 1, grid 1 → 0) | 5% of building cost (~$0.7B per GW) **[design]** | Federal fast-track for > 100 MW sites (EO 14318) |
 | Community package | Block odds × 0.5 | $1M per MW ($1B per GW, ≈ 7% of the building) | NY Community Investment Framework (Sep 2026). Effect on odds **[design]**: no data |
 
 The community package rises from 3% to ~7% of the building cost ($1M per MW, the sourced benchmark).
+
+## 5b. Size: construction time and economies of scale (designer, 2026-11-27)
+
+- **Construction time grows sub-linearly with size:** 8 q × (GW)^0.3 (100 MW 4 q, 300 MW 6 q, 1 GW 8 q, 2.5 GW 11 q, 5 GW 13 q); crash construction halves it.
+- **Building cost per GW falls with size:** building $14B per GW × (GW)^−0.1 (100 MW $17.6B/GW, 1 GW $14B, 5 GW $11.9B). Crash and fast-track prices are shares of this scaled building cost; turbines, utility upgrades, rush and the community package stay per GW.
+- So many small sites are faster, one big campus is cheaper: 5 × 1 GW = $70B live in 8 q; 1 × 5 GW ≈ $59.6B live in 13 q (building only).
+- **Rushed gas sites count in the turbine backlog** like any gas site (replaces [D-5]).
+- Exponents are **[design]** pending research/23 §9 (sizes vs build time and cost).
 
 ## 6. Removed
 
