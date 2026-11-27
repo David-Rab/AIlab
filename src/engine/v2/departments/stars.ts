@@ -4,6 +4,7 @@
 import { PREMIUM_STEPS, STAR_POACH_COOPERATION } from '../../../data/v2/labourMarket';
 import type { ActionDef, GameStateV2, LabId, Star, SystemCtx } from '../types';
 import { starGain } from './teamActions';
+import { Phi, tasteSigma } from '../production/ces';
 
 type Params = Record<string, number | string | boolean>;
 const str = (p: Params, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
@@ -56,6 +57,23 @@ export function hireStar(s: GameStateV2, star: Star | undefined, premium?: numbe
     if (r && r.core.status === 'active') r.meters.cooperation = Math.max(-100, r.meters.cooperation + STAR_POACH_COOPERATION);
   }
   return undefined;
+}
+
+/** How far up the researcher distribution a star stands, as the share of researchers above it (0.0003 = "top 0.03%"): the
+ *  star's taste T = exp(-sigma^2/2 + sigma z) read back to its z, then 1 - Phi(z). The same sigma that made the taste. */
+export function starTopShare(s: GameStateV2, star: Star): number {
+  const sigma = tasteSigma(s.hidden.timeline.prod.m2b);
+  const z = (Math.log(star.taste) + 0.5 * sigma * sigma) / sigma;
+  return Math.max(0, 1 - Phi(z));
+}
+
+/** The lab's human taste mean (workfit.ts humanTasteMean) with one more star on staff: (S b + sum T + T_star) / (S + n + 1). */
+export function humanTasteWith(s: GameStateV2, star: Star): number {
+  let S = 0;
+  for (const t of s.player.teams) if (t.role === 'sci' && t.dept === 'cap') S += t.heads;
+  let sum = 0, n = 0;
+  for (const x of s.labour.stars) if (x.employer === 'player') { sum += x.taste; n++; }
+  return (S * s.labour.teamTaste + sum + star.taste) / (S + n + 1);
 }
 
 const labName = (s: GameStateV2, id: LabId | 'china' | 'outside' | 'player') => s.rivals.find((r) => r.core.id === id)?.core.name ?? id;

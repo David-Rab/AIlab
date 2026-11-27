@@ -3,7 +3,7 @@
 // split, hiring speed, morale, star hire. AI staff & needs: the AI staff per job and the needs lists (their one home;
 // the LAB board's rows link here). Security: weight security against the industry baseline, theft odds, access, what a
 // higher level costs, the budget and the security log. Reads facts, beliefs and measurements only.
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   believedTheftChance, dateOf, engAllocView, fillWeeks, fmtDate, fullTeamPayroll, payrollOf, queuedOfKey, reAllocView, safReAllocView,
   securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
@@ -14,7 +14,8 @@ import { COLUMN_LABEL, TEAM_SIZE } from '../../../data/v2/teams';
 import { P0, PREMIUM_STEPS, STAR_POACH_COOPERATION, W0 } from '../../../data/v2/labourMarket';
 import { humanTasteMean } from '../../../engine/v2/departments/workfit';
 import { offerOf, openPositions, otherLabHeads, outsideHeads, playerHeads, poachShare, premiumOf } from '../../../engine/v2/departments/market';
-import type { Column, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
+import { DEFAULT_POACH_STEP, askingPay, hirableStars, humanTasteWith, playerStars, premiumOf as starPremiumOf, starTopShare } from '../../../engine/v2/departments/stars';
+import type { Column, GameStateV2, Star, Team, TeamDept, TeamKey, TeamRole } from '../../../engine/v2';
 import { AIStaffJobs } from './Agents';
 import { NeedsBoard } from './Work';
 import { ActBtn, Limit, Term, Tip, TipCard, Why } from '../ui';
@@ -267,29 +268,121 @@ function LabourMarket({ s }: { s: GameStateV2 }) {
   );
 }
 
+
+// ───────── Stars ─────────
+const STAR_COLOR = '#e0b04a';
+const wageY = (m: number) => `$${m >= 100 ? Math.round(m) : m.toFixed(m < 10 ? 1 : 0)}M/yr`;
+const idx3 = (x: number) => `×${x.toFixed(3)}`;
+const topLabel = (share: number) => `top ${(share * 100).toFixed(share < 0.0001 ? 3 : share < 0.001 ? 2 : 1)}%`;
+const SHOWN_STARS = 6;
+
+/** A star's tooltip: how its taste joins the researchers' mean. */
+function StarTasteTip({ s, star, pay }: { s: GameStateV2; star: Star; pay?: number }) {
+  const now = humanTasteMean(s);
+  const mineAlready = star.employer === 'player';
+  const after = mineAlready ? now : humanTasteWith(s, star);
+  return (
+    <TipCard title={<span className="row-i"><ICON.taste size={13} />{star.name}</span>} value={`taste ×${star.taste.toFixed(1)}`} rows={[
+      { label: <Term id="tastePercentile">Standing</Term>, value: `${topLabel(starTopShare(s, star))} of researchers` },
+      { label: <Term id="researchTaste">Your researchers' taste</Term>, value: mineAlready ? idx3(now) : `${idx3(now)} → ${idx3(after)}` },
+      { label: 'Pay', value: wageY(pay ?? star.pay) },
+    ]}>
+      {mineAlready
+        ? "Counted as one more researcher in your scientists' average taste. They add no work, only better ideas: the lift is small beside hundreds of scientists, but it lasts as long as they stay."
+        : `Joins your scientists' average taste as one more researcher, worth ×${star.taste.toFixed(1)} an average one. Against hundreds of scientists the lift is small, but it lasts and is paid for every year.`}
+    </TipCard>
+  );
+}
+
+function StarName({ s, star, pay, tail }: { s: GameStateV2; star: Star; pay?: number; tail?: ReactNode }) {
+  return (
+    <span className="st-name">
+      <Tip content={() => <StarTasteTip s={s} star={star} pay={pay} />}><span className="row-i"><ICON.taste size={13} style={{ color: STAR_COLOR }} /><b>{star.name}</b></span></Tip>
+      {tail}
+    </span>
+  );
+}
+
+function StarStats({ s, star }: { s: GameStateV2; star: Star }) {
+  const top = starTopShare(s, star);
+  return (
+    <span className="st-stats">
+      <Tip content={() => <TipCard title={<Term id="tastePercentile">Standing</Term>} value={topLabel(top)}>{`${(top * 100).toFixed(top < 0.001 ? 3 : 2)}% of researchers are better than this one. Stars are the top 0.1%.`}</TipCard>}><span className="num dim">{topLabel(top)}</span></Tip>
+      <Tip content={() => <TipCard title={<Term id="researchTaste">Taste</Term>} value={`×${star.taste.toFixed(1)}`}>How good this researcher's ideas are, against an average researcher at ×1.</TipCard>}><b className="num">taste ×{star.taste.toFixed(1)}</b></Tip>
+    </span>
+  );
+}
+
+function StarsCard({ s }: { s: GameStateV2 }) {
+  const [step, setStep] = useState(Math.min(DEFAULT_POACH_STEP, PREMIUM_STEPS.length - 1));
+  const premium = PREMIUM_STEPS[step];
+  const mine = [...playerStars(s)].sort((a, b) => b.taste - a.taste);
+  const others = s.labour.stars.filter((x) => x.employer !== 'player').sort((a, b) => b.taste - a.taste).slice(0, SHOWN_STARS);
+  const best = [...hirableStars(s)].sort((a, b) => b.taste - a.taste)[0];
+  const now = humanTasteMean(s);
+  const after = best ? humanTasteWith(s, best) : now;
+  const employerName = (e: Star['employer']) => (e === 'outside' ? 'Outside' : e === 'china' ? 'China' : s.rivals.find((r) => r.core.id === e)?.core.name ?? e);
+  const bestPay = best ? askingPay(best, starPremiumOf(best, premium)) : 0;
+  return (
+    <Card home="stars" className="st-card" title={<span className="row-i"><ICON.taste size={15} /><Term id="star">Stars</Term> <span className="dim small lc">top researchers, hired by name</span></span>}
+      right={<Tip content={() => <TipCard title={<Term id="researchTaste">Your researchers' taste</Term>} value={idx3(now)} rows={[{ label: 'At the start', value: idx3(1) }, ...(best ? [{ label: `With ${best.name}`, value: idx3(after) }, { label: 'Change', value: F.pct(after / now - 1, 1, true) }] : [])]}>The average taste of your scientists, stars included, where ×1 is your lab at the start. A star counts as one more researcher in that average, so one star among hundreds moves it a little, for as long as they stay. Capability research only.</TipCard>}>
+        <span className="st-taste" data-test="stars-taste"><span className="dim small">research taste</span> <b className="num lh-big">{idx3(now)}</b>{best && <span className="small dim"> · with {best.name} <b className="num tone-pos">{idx3(after)}</b></span>}</span>
+      </Tip>}>
+      <div className="cap2">Your stars</div>
+      {mine.length === 0 && <div className="small dim st-none">None on staff. A star lifts your researchers' taste across the lab.</div>}
+      {mine.map((x) => (
+        <div key={x.id} className="st-row" data-star={x.id}>
+          <StarName s={s} star={x} />
+          <StarStats s={s} star={x} />
+          <Tip content={() => <TipCard title="Pay" value={wageY(x.pay)}>Paid every year with your payroll.</TipCard>}><span className="num st-pay">{wageY(x.pay)}</span></Tip>
+          <span />
+        </div>
+      ))}
+      <div className="st-hd">
+        <span className="cap2">Available</span>
+        <Tip content={() => <TipCard title={<Term id="premiumPay">Poach premium</Term>} value={premium > 0 ? premLabel(premium) : 'none'} rows={[{ label: 'Cooperation with that lab', value: String(STAR_POACH_COOPERATION) }]}>How far above their pay you offer to take a star from a rival lab. A star outside the labs needs none. Poaching costs that lab's cooperation either way.</TipCard>}>
+          <span className="st-prem small dim">Poach premium
+            <span className="seg-row">{PREMIUM_STEPS.map((x, i) => (i === step ? <span key={x} className="seg-on" data-test={`star-premium.${x}`}>{premLabel(x)}</span> : <button key={x} className="btn btn-sm" data-act={`star-premium.${x}`} onClick={() => setStep(i)}>{premLabel(x)}</button>))}</span>
+          </span>
+        </Tip>
+      </div>
+      {others.map((x) => {
+        const china = x.employer === 'china';
+        const pay = askingPay(x, starPremiumOf(x, premium));
+        return (
+          <div key={x.id} className={`st-row ${china ? 'off' : ''}`} data-star={x.id}>
+            <StarName s={s} star={x} pay={pay} tail={<Tip content={() => <TipCard title={employerName(x.employer)}>{china ? "China's researchers cannot be hired." : x.employer === 'outside' ? 'Works outside the big labs: no one loses a star.' : `Works at ${employerName(x.employer)}. Poaching costs team cooperation with them (${STAR_POACH_COOPERATION}).`}</TipCard>}><span className={`st-emp ${x.employer === 'outside' ? '' : china ? 'cn' : 'rv'}`}>{employerName(x.employer)}</span></Tip>} />
+            <StarStats s={s} star={x} />
+            {china
+              ? <><Tip content={() => <TipCard title="Not hirable">China's researchers cannot be hired.</TipCard>}><span className="small dim st-pay">not hirable</span></Tip><span /></>
+              : <>
+                <Tip content={() => <TipCard title={x.employer === 'outside' ? 'Pay' : 'Asking pay'} value={wageY(pay)} rows={x.employer === 'outside' ? [] : [{ label: 'Their pay now', value: wageY(x.pay) }, { label: 'Your premium', value: premLabel(premium) }]}>{x.employer === 'outside' ? 'Joins at the going star pay, paid every year.' : 'What they ask to leave, paid every year.'}</TipCard>}><span className="num st-pay">{wageY(pay)}</span></Tip>
+                <ActBtn id="starHire" testId={`starHire.${x.id}`} params={{ star: x.id, premium }} label={x.employer === 'outside' ? 'Hire' : 'Poach'} />
+              </>}
+          </div>
+        );
+      })}
+      {best && <div className="small dim st-foot">Best you can hire: <b>{best.name}</b> at {wageY(bestPay)} lifts your researchers' taste {idx3(now)} → {idx3(after)}.</div>}
+    </Card>
+  );
+}
+
 const PAY_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
+const PAY_COLOR: Record<TeamKey | 'stars', string> = { ...KEY_COLOR, stars: '#e0b04a' };
 function PayrollCard({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const total = payrollOf(s);
-  const nStars = s.labour.stars.filter((x) => x.employer === 'player').length;
-  const byKey = PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(p, t), 0) }));
-  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(p, t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
+  const starPay = playerStars(s).reduce((a, x) => a + x.pay, 0) / 1000;
+  const byKey: { k: TeamKey | 'stars'; v: number }[] = [...PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(p, t), 0) })), { k: 'stars', v: starPay }];
+  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: x.k === 'stars' ? 'Stars' : KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(p, t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
   return (
     <Card home="payroll" className="lh-paycard" title={<span className="row-i"><ICON.cash size={15} /><Term id="payroll">Payroll</Term></span>}
       right={<Tip content={payTip}><span><b className="num lh-big">{F.money(total)}</b> <span className="dim small">/yr</span></span></Tip>}>
-      <Tip content={payTip}><div className="lh-paybar">{byKey.map((x) => x.v > 0 && <i key={x.k} style={{ flex: x.v, background: KEY_COLOR[x.k] }} />)}</div></Tip>
-      <div className="lh-legend small">{byKey.map((x) => <span key={x.k}><i style={{ background: KEY_COLOR[x.k] }} />{KEY_FULL[x.k]}</span>)}</div>
+      <Tip content={payTip}><div className="lh-paybar">{byKey.map((x) => x.v > 0 && <i key={x.k} style={{ flex: x.v, background: PAY_COLOR[x.k] }} />)}</div></Tip>
+      <div className="lh-legend small">{byKey.map((x) => <span key={x.k}><i style={{ background: PAY_COLOR[x.k] }} />{x.k === 'stars' ? 'Stars' : KEY_FULL[x.k]}</span>)}</div>
       <div className="lh-kv">
         <div className="row" data-home="morale"><Term id="morale">Morale</Term><Why k="morale" title="Morale" body="See [[morale]]."><span className="lh-meter"><i style={{ width: `${p.morale.overall}%` }} /></span><b className="num">{F.idx(p.morale.overall)}</b></Why></div>
         <div className="row sub" data-home="moraleSafety"><span>Safety staff</span><Why k="morale.safety" title="Safety staff morale"><span className="lh-meter"><i style={{ width: `${p.morale.safety}%` }} /></span><b className="num">{F.idx(p.morale.safety)}</b></Why></div>
-      </div>
-      <div className="lh-star">
-        <div>
-          <Tip content={() => <TipCard title={<Term id="starHire">Star hire</Term>} rows={[{ label: 'Stars on staff', value: String(nStars) }, { label: <Term id="researchTaste">Research taste</Term>, value: `×${humanTasteMean(s).toFixed(2)}` }, { label: 'Poaching from a rival', value: `team cooperation ${STAR_POACH_COOPERATION}` }]}>A star researcher joins your researchers' mean taste: it raises the idea quality of capability research. Stars are paid yearly.</TipCard>}>
-            <span><Term id="starHire">Star hire</Term> <span className="dim small">· {nStars ? `${nStars} on staff` : 'none on staff'}</span></span>
-          </Tip>
-        </div>
-        <ActBtn id="starHire" icon={ICON.taste} label="Find a star" />
       </div>
     </Card>
   );
@@ -301,6 +394,7 @@ export function LabPeople({ s }: { s: GameStateV2 }) {
     <div className="lh-grid" data-test="lab-hiring">
       <div className="lh-main">
         <LabourMarket s={s} />
+        <StarsCard s={s} />
         <Teams s={s} />
       </div>
       <div className="lh-side">
