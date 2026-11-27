@@ -4,11 +4,13 @@
 // RD-B18 (B32): a team's gain or loss is one engine day (core/previewTick) on a copy with and without the change
 // (readDay), in each department's own currency.
 import { AGENDAS } from '../../../data/v2/agendas';
+import { LABOUR_KINDS, PREMIUM_STEPS } from '../../../data/v2/labourMarket';
 import { MOVE_SAFETY_MORALE, TEAM_KEYS, TEAM_SIZE } from '../../../data/v2/teams';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
 import { previewTick } from '../core/previewTick';
 import { capEta, isCapProject } from '../models/research';
 import { lineResultsPerYear } from '../safety/agendas';
+import { playerHeads, premiumOf, weeklyHires } from './market';
 import type { ActionDef, Column, CostLine, GameStateV2, Team, TeamDept, TeamKey, TeamRole } from '../types';
 import {
   buildCapacity, deptOfKey, fillWeeks, fullTeamPayroll, hireTeam, moveTeam, nextSpecialty, queuedOfKey, releaseTeam, roleOfKey, setTeamTarget,
@@ -141,6 +143,19 @@ function hireSpec(p: Params): { role: TeamRole; dept: TeamDept; specialty?: Colu
   return { role: roleOfKey(k), dept: deptOfKey(k) };
 }
 
+/** The kind and the step a 'hiring.premium' call names (defaults: research engineers, the current premium). */
+function premiumSpec(s: GameStateV2, p: Params): { k: TeamRole; step: number } {
+  const k = str(p, 'kind', 're') as TeamRole;
+  return { k, step: num(p, 'step', LABOUR_KINDS.includes(k) ? premiumOf(s.player, k) : 0) };
+}
+/** A reason the premium call is not allowed (unknown kind, or a step outside PREMIUM_STEPS), else undefined. */
+function premiumBad(k: TeamRole, step: number): string | undefined {
+  if (!LABOUR_KINDS.includes(k)) return 'Unknown kind of staff';
+  if (!PREMIUM_STEPS.some((x) => Math.abs(x - step) < 1e-9)) return 'The premium is 0, +10, +25, +50 or +100%';
+  return undefined;
+}
+const KIND_NAME: Record<TeamRole, string> = { eng: 'engineers', re: 'research engineers', sci: 'scientists' };
+
 export const TEAM_ACTIONS: ActionDef[] = [
   {
     id: 'teams.hire', verb: 'hire', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Hire team',
@@ -157,6 +172,29 @@ export const TEAM_ACTIONS: ActionDef[] = [
     apply: (s, _ctx, p) => {
       const r = hireTeam(s, { key: str(p, 'key', 're.cap') as TeamKey });
       if (typeof r === 'string') fail(r);
+    },
+  },
+  {
+    id: 'hiring.premium', verb: 'policy', system: 'people', sphere: 'departments', owner: 'WS1', title: 'Pay premium',
+    available: () => true,
+    preview: (s, p) => {
+      const { k, step } = premiumSpec(s, p);
+      if (premiumBad(k, step)) return { costs: [{ currency: 'cash', amount: 0 }], gains: [], exposure: [] };
+      const pay = s.labour.pools[k].w * (step - premiumOf(s.player, k)) * playerHeads(s.player, k);
+      const c = structuredClone(s);
+      c.player.hiring.premium[k] = step;
+      // Extra market hires a week at today's open positions (none open, none gained); poaching adds the rivals' leavers on top.
+      const gain = Math.max(0, weeklyHires(c, k) - weeklyHires(s, k));
+      return {
+        costs: [{ currency: 'cash', amount: pay / 1000, target: `$B/yr payroll once everyone's pay has caught up (${KIND_NAME[k]})` }],
+        gains: [{ currency: 'staffTime', amount: gain, target: `more ${KIND_NAME[k]} hired a week, and rivals' leavers join you`, unit: 'heads' }],
+        exposure: [],
+      };
+    },
+    apply: (s, _ctx, p) => {
+      const { k, step } = premiumSpec(s, p);
+      fail(premiumBad(k, step));
+      s.player.hiring.premium[k] = PREMIUM_STEPS.find((x) => Math.abs(x - step) < 1e-9) ?? 0;
     },
   },
   {
