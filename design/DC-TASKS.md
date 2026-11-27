@@ -82,13 +82,15 @@ except the 6% stored-chip book decay, which goes.
 | DC-8 | Existing finance checks restated for the new sites | Sonnet high | DC-4, DC-5 | no |
 | L1 | Lead: merge engine lane, regenerate fixtures | lead | DC-1…8, DC-11 | — |
 | DC-11 | Glossary: new site and power terms, retired terms | Sonnet medium | — | no |
-| DC-9 | Compute tabs + Sites section (campus rows) under the chart | Sonnet high | L1, DC-15 | no |
+| DC-9 | Compute tabs + Sites section (campus rows) under the chart | Sonnet high | L1, DC-17 | no |
 | DC-10a | Build card: size tiles, Buildings row, power tiles, their tooltips | Sonnet high | DC-9 | no |
 | DC-10b | Build card: speed-up options row, preview lines, opposition tooltip | Sonnet high | DC-10a | no |
 | DC-12 | Size scaling: construction time, economies of scale, rushed gas in the backlog | Sonnet high | DC-7, DC-8 | yes |
 | DC-13 | Campuses: buildings 1/3/5, phased go-live, repetition discount | Opus high, reason (c) | DC-12b | yes |
 | DC-14 | Player bot builds campuses | Sonnet high | DC-13 | yes |
-| DC-15 | Engine: capex / opposition breakdowns, siteFit, per-building view, exports | Sonnet high | DC-13 | no |
+| DC-17 | Engine: capex / opposition breakdowns, siteFit, per-building view, exports | Sonnet high | DC-13 | no |
+| DC-15 | Per-building financing lease | Sonnet high | DC-13 | no |
+| DC-16 | Cleanup: leftovers, Lone Pine campus, one sites suite | Sonnet high | DC-15, DC-17 | slightly |
 | CP | Lead: final checkpoint | lead | all | — |
 
 Opus share: 2 of 15 agent tasks (DC-3, DC-13) ≈ 13%.
@@ -96,7 +98,7 @@ Opus share: 2 of 15 agent tasks (DC-3, DC-13) ≈ 13%.
 **Lanes.** Engine lane (sequential, `dc` worktree): DC-1 → DC-2 → DC-3 → DC-4 → DC-5 → DC-8. In parallel worktrees:
 DC-6 and DC-11 at any time (DC-6 touches `deals.ts` MARKET only and one glossary line; trivial merges); DC-7 after DC-4
 (only `finance/plan.ts`); DC-5 may run beside DC-4 (it edits only `initialSites` in sites.ts, plus starts.ts, ledger.ts).
-UI lane after L1 and DC-15, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b. DC-15 may run beside DC-14.
+UI lane after L1 and DC-17, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b. DC-17 may run beside DC-14.
 
 ---
 
@@ -335,7 +337,7 @@ UI lane after L1 and DC-15, sequential (one file, Compute.tsx): DC-9 → DC-10a 
 
 ### L1 Lead: merge the engine lane
 
-Merge DC-1…DC-8 and DC-11 into `dc` (and DC-12…DC-15: the UI lane needs DC-13's campuses and DC-15's views); add the
+Merge DC-1…DC-8 and DC-11 into `dc` (and DC-12…DC-17: the UI lane needs DC-13's campuses and DC-17's views); add the
 glossary terms listed under "UI lane: shared rules"; regenerate fixtures once (`npx tsx scripts/v2/fixtures.ts --write`) and commit;
 `npm run build`; load the day-400 fixture in the app and see that Compute renders (old UI) before starting DC-9.
 
@@ -357,7 +359,7 @@ glossary terms listed under "UI lane: shared rules"; regenerate fixtures once (`
 - **Done when:** tsc passes; the glossary link lint the UI tasks use reports no dangling links.
 - **Output:** `design/dc/DC-11.md`.
 
-### DC-15 Engine: the numbers the build card and site rows show
+### DC-17 Engine: the numbers the build card and site rows show
 
 (Added 2026-11-27 with the DC-9/10 rewrite. The approved v4 mockup shows breakdowns that the engine computes inside
 other functions but does not export. Without this task the UI would have to re-derive engine rules, which breaks
@@ -366,7 +368,7 @@ preview = effect.)
 - **Model:** Sonnet high. **Budget:** 35 min. **Moves calibration:** no (no behaviour change). **Depends on:** DC-13.
   May run beside DC-14 (different files).
 - **Write:** `src/engine/v2/compute/sites.ts`, `src/engine/v2/compute/forecast.ts`, `src/engine/v2/index.ts` (export
-  lines only), `scripts/v2/_dc15/check.ts` (new), `design/dc/DC-15.md`.
+  lines only), `scripts/v2/_dc17/check.ts` (new), `design/dc/DC-17.md`.
 - **Read:** sites.ts 36–200 (oppositionOdds, SiteOpts, siteSizeError, sitePermitQ / siteBuildQ / sitePowerQ,
   siteBuildingLiveInQ, siteCapex, leverEffects, newSite's clamp lines ~176–186); forecast.ts 30–95
   (siteBuildingLiveQs, siteBars); power.ts 16–30 (siteLiveMW); index.ts 126–137; DATACENTERS.md §5b.
@@ -389,7 +391,7 @@ preview = effect.)
      - `buildFromQ` = liveQ − ws3.buildQ (rent: undefined).
      - Each building's `live` = that building is live today. The `live` count equals siteLiveMW(x, today) ÷ building MW.
      - `inConstruction` = buildings with buildFromQ ≤ today's quarter < liveQ.
-- **Done when:** tsc is clean (both projects), the `_dc13` and `_dc4` checks still pass, and `_dc15/check.ts` asserts:
+- **Done when:** tsc is clean (both projects), the `_dc13` and `_dc4` checks still pass, and `_dc17/check.ts` asserts:
   - the parts sum to siteCapex over the DC-13 sweep (source × building size × 1/3/5 × crash, rush, fast-track,
     community);
   - the §5b example (gas 5 × 1 GW) gives building 70, repeatSaving 10.5, extra 15, total 74.5;
@@ -398,7 +400,7 @@ preview = effect.)
   - oppositionParts block/delay = oppositionOdds for grid/gas × crash × community;
   - a 5 × 1 GW gas campus stepped quarter by quarter: `live` goes 0 → 5, `live` × building MW = siteLiveMW, and
     `inConstruction` matches the schedule.
-- **Stop and ask:** any caller whose result changes. **Output:** `design/dc/DC-15.md`.
+- **Stop and ask:** any caller whose result changes. **Output:** `design/dc/DC-17.md`.
 
 ### UI lane: shared rules for DC-9, DC-10a, DC-10b
 
@@ -438,7 +440,7 @@ preview = effect.)
 
 ### DC-9 Compute tabs + Sites section under the chart
 
-- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no. **Depends on:** L1, DC-15.
+- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no. **Depends on:** L1, DC-17.
 - **Goal:** the Sites tab goes. The Sites section sits under the Capacity chart on Overview as in `build.png`, one row
   per site, with campus buildings filling in.
 - **Write:**
@@ -448,7 +450,7 @@ preview = effect.)
     `.dc-pill`); delete the `.stl*` and `.cmp-power` rules once unused.
   - `scripts/v2/uitest.mjs` (one check, below), `scripts/v2/_dc9/shot.mjs` (new), `design/dc/DC-9.md`.
 - **Read:** build.js 10–60, 115–160; build.png; NOTES.md "Site rows" and the IA map; Compute.tsx 30–46, 68–127,
-  200–220, 504–612, 714–729; forecast.ts `siteBuildingLiveQs`, `siteBars`, `ForecastEvent` (30–100); DC-15
+  200–220, 504–612, 714–729; forecast.ts `siteBuildingLiveQs`, `siteBars`, `ForecastEvent` (30–100); DC-17
   `siteBuildingsView`; power.ts `siteLiveMW`.
 - **Spec:**
   - **Tabs:** `Overview · Orders & market`. An old `sites` tab id (saved UI state) maps to overview, as `split`
@@ -537,7 +539,7 @@ preview = effect.)
     20–29 and 56–58.
   - `scripts/v2/uitest.mjs` (one check), `scripts/v2/_dc10a/shot.mjs`, `design/dc/DC-10a.md`.
 - **Read:** build.js 66–96, 162–211; build-tips.png; build-tips-v3.png (tile tooltip); Compute.tsx `BuildCard`
-  (403–456 at DC-13) and `PATHS` (26–29); sites.ts `SiteOpts`, `siteSizeError`, `siteBuildingLiveInQ` and the DC-15
+  (403–456 at DC-13) and `PATHS` (26–29); sites.ts `SiteOpts`, `siteSizeError`, `siteBuildingLiveInQ` and the DC-17
   functions; waits.ts `waitBreakdown`, `refWaitQ` (60–90); deals.ts `SITE_TIERS`, `SOURCES`, `CAMPUS`, `OPPOSITION`
   (105–175).
 - **Spec:**
@@ -646,7 +648,7 @@ preview = effect.)
   - compute.css if needed.
   - `scripts/v2/uitest.mjs` (one check), `scripts/v2/_dc10b/shot.mjs`, `design/dc/DC-10b.md`.
 - **Read:** build.js 97–113; build.png (bottom of the card); build-tips-v3.png (opposition tooltip); Compute.tsx
-  `ComputePreview` (255–292 at DC-13) and `BuildCard`; sites.ts `leverEffects` (140–160); DC-15 `oppositionParts` and
+  `ComputePreview` (255–292 at DC-13) and `BuildCard`; sites.ts `leverEffects` (140–160); DC-17 `oppositionParts` and
   `siteCapexParts`; the `cmp.newSite` preview in actions.ts (~648–690; one gain line per go-live quarter).
 - **Spec:**
   - **Options row** (hidden for rent; opens and closes as today). Each toggle is wrapped in
@@ -793,6 +795,39 @@ Designer decisions: DATACENTERS.md §5b.)
   quarter that covers the gap by the last building; tie → cheaper capex. Rent as DC-7. No tuning beyond this.
 - **Done when:** tsc clean; `_dc7` check passes and prints the bot's sites (source, building MW × count, live range,
   capex) for seed 1 to 2027-07.
+
+### DC-15 Per-building financing lease (lead, 2026-11-27)
+
+Designer: a leased campus starts one financing lease per building when that building goes live. Brief given directly
+to the agent (branch `dc-15`); results in `design/dc/DC-15.md`. Sonnet high.
+
+### DC-16 Cleanup: leave the code cleaner than we found it
+
+- **Model:** Sonnet high. **Budget:** 60 min. **Depends on:** DC-15, DC-17 merged. **Moves calibration:** slightly
+  (Lone Pine as a campus).
+- **Goal:** remove everything the old site model and the task-by-task build left behind; no behaviour change except
+  the items marked.
+- **Spec:**
+  1. Grep `src` and `scripts` for leftovers of removed concepts: brownfield, nuclear, transformer, grid pool / pool
+     credit / queuedDay, capacity price / κ / kappa, overlap, power draw, lease pool / leasePoolGW, inventoryDecay,
+     SITE_PATHS, PathDef, LEASE (the old constant), `buildQ: 8` comments that describe the old model, V2-SPEC §3.8
+     references describing removed mechanics. Remove dead code, constants, types, aliases (`siteEtaQ`), exports and
+     stale comments. Known: `COMMUNITY.upfront` and `COMMUNITY.blockMult` unused; `BUILD_Q` holding only `upfront`
+     (fold into the site constants); `SCALE.refGW` if trivially 1. List every removal in DC-16.md.
+  2. A building is at most 1 GW everywhere: start site Lone Pine (gas, 1.2 GW, one building) becomes a 4 × 300 MW
+     campus with the same total, capex, paid and live date (all buildings live together). Check other start sites
+     against the rule.
+  3. Consolidate the temporary task checks `scripts/v2/_dc2` … `_dc17` (and `_dc6`, `_dc12b` if present) into one
+     suite `scripts/v2/sites.ts` registered in `scripts/v2/run.ts` (quick tier, `--only sites`), keeping every
+     assertion that still describes the design; rewrite DC-4's stale single-building cases (1.5 / 2 GW buildings) as
+     1 GW × buildings; delete the `_dcN` directories. Delete any `_f10tmp`-style temp dirs that are tracked.
+  4. Mark V2-SPEC §3.8's site/power part and research/15 §1.3 as replaced by design/DATACENTERS.md (one line each).
+- **Write:** anything under `src/engine/v2/compute/`, `src/data/v2/deals.ts`, `src/engine/v2/index.ts`,
+  `src/engine/v2/core/starts.ts`, `scripts/v2/` (the suite, run.ts registration, `_dcN` deletion), V2-SPEC and
+  research/15 (one line each), `design/dc/DC-16.md`. Not: Compute.tsx (UI lane), glossary (L1), save.ts, fixtures.
+- **Done when:** tsc clean; `run.ts --only sites` passes; grep for the removed concepts returns only intended hits
+  (list them); DC-16.md lists removals.
+- **Stop and ask:** anything whose deadness you're not sure of.
 
 ### CP Lead: final checkpoint (heavy runs, once)
 
