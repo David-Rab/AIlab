@@ -10,7 +10,6 @@ import { B0_DAY, B0_START_DAY, SHARE_REF, V0_DAY } from '../../../data/v2/calibr
 import { START_BY_ID } from '../../../data/v2/starts';
 import { TECHNIQUE_BY_ID } from '../../../data/v2/techniques';
 import { TRAIT_IDS, TRAIT_START } from '../../../data/v2/traits';
-import { BASELINES } from '../../../data/world';
 import { Rng, clamp } from '../../rng';
 import { initialChina } from '../npc/china';
 import { FIN } from '../actors/rivals';
@@ -63,13 +62,10 @@ import { START_DATE } from './time';
 export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
   const world = over.world ?? 'tl-central';
   return {
-    baseline: 'classic',
     world,
     alignment: 'sampled',
-    econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
     cast: 'realistic',
     governance: 'legacyNonprofit',
-    storyteller: 'rising',
     tutorial: true,
     seed: Math.floor(Math.random() * 1e9),
     companyName: 'OpenBrain',
@@ -139,7 +135,6 @@ function startModels(w: TimelineWorld, G0: number, uniqueT: number) {
 function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDate: string): PlayerLab {
   const { setup, hidden } = s;
   const w = hidden.timeline;
-  const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
   const start = setup.start ?? 'leader';
   const def = START_BY_ID[start];
   const leader = start === 'leader';
@@ -157,7 +152,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const k = sm.lag;
   const G0 = lagG ? gWant : sm.G;
   const build = sm.build;
-  const roster = startTeams(setup.baseline, start);
+  const roster = startTeams(start);
   const staff = staffOf(roster.teams);
   const Lg = levelOfG(w, G0);
   const domains = domainsOf(w, G0, build);
@@ -221,7 +216,7 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
   const compute = leader ? undefined : startCompute(def, startDate);
   return {
     id: 'player', name: setup.companyName, kind: 'player', status: 'active',
-    computeOnline: leader ? (setup.baseline === 'reality' ? 1.0e6 : 1.2e6) : def.owned + def.rented,
+    computeOnline: def.owned + def.rented,
     split: playerShareRef(SHARE_REF[0].year), // the start split: AI 2027's compute-usage table at the start (data), engineering agents on their own line (RD-A02)
     staff,
     models: {
@@ -239,13 +234,13 @@ function buildPlayer(rng: Rng, s: Pick<GameStateV2, 'setup' | 'hidden'>, startDa
       evalSpent: { suites: 0, reTW: 0, engTW: 0, h100eDays: 0 },
     },
     deployments,
-    security: initialSecurity(staff, base.start.securityLevel),
+    security: initialSecurity(staff, def.securityLevel),
     milestoneDays: {}, // set at the end of newGame by the milestone predicate (updateMilestones)
-    finance: compute ? startFinance(def, compute) : initialFinance(setup.baseline, setup.governance, startDate),
+    finance: compute ? startFinance(def, compute) : initialFinance(setup.governance, startDate),
     board: leader ? initialBoard(setup.governance) : startBoard(def),
-    sites: compute ? compute.sites : initialSites(setup.baseline, startDate),
-    orders: compute ? [] : initialOrders(setup.baseline),
-    cloud: compute ? compute.cloud : initialCloud(setup.baseline, startDate),
+    sites: compute ? compute.sites : initialSites(startDate),
+    orders: compute ? [] : initialOrders(),
+    cloud: compute ? compute.cloud : initialCloud(startDate),
     safety,
     teams: roster.teams,
     hiring: roster.hiring,
@@ -346,7 +341,7 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
     rivals,
     china,
     commitments: [],
-    market: initialMarket(setup.baseline),
+    market: initialMarket(),
     power: initialPower(),
     capital: initialCapital(rSector),
     world: initialWorld(labIds),

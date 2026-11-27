@@ -41,7 +41,7 @@ const out: Record<string, unknown>[] = [];
 for (const name of BOTS) {
   for (const combo of COMBOS) {
     for (let seed = 1; seed <= SEEDS; seed++) {
-      const s = newGame(defaultSetupV2({ seed, ...combo, econ: 'sampled', storyteller: 'rising', tutorial: false, start: 'leader' }));
+      const s = newGame(defaultSetupV2({ seed, ...combo, tutorial: false, start: 'leader' }));
       play(bot(name), s);
       const e = s.ending;
       out.push({

@@ -151,17 +151,7 @@ const SECTORS: Param[] = [
   one(SE, 'U_BASE', ['US'], 4.3, '% unemployment', { ...WFX, kind: 'sourced', evidence: 'sectors.ts:84 "base unemployment by region (%). US 4.3% [R16 §1A.2]"', source: 'research/16 §1A.2' }),
   one(SE, 'U_BASE', ['CN'], 5.2, '% unemployment', { ...WFX, kind: 'untagged', evidence: 'no tag; sectors.ts:85' }),
   one(SE, 'U_BASE', ['ROW'], 5.5, '% unemployment', { ...WFX, kind: 'untagged', evidence: 'no tag; sectors.ts:85' }),
-  ...(['normal', 'ai2027', 'gate'] as const).flatMap((preset) => {
-    const v = { normal: [0.4, 1.5, 0.35, 2, 0.5], ai2027: [1.0, 1.0, 0.5, 1, 0.3], gate: [1.5, 0.6, 0.7, 0.25, 0.15] }[preset];
-    const meta = { ...W, kind: 'sourced', perPreset: true, source: 'research/16 §4.6', evidence: 'sectors.ts:87 "World-economy presets (research/16 §4.6), hidden per world."' } as const;
-    return [
-      one(SE, 'ECON_PRESETS', [preset, 'diffMult'], v[0], 'multiplier', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'frictionScale'], v[1], 'multiplier', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'sigma'], v[2], 'dimensionless', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'robotFloorYears'], v[3], 'years', meta),
-      one(SE, 'ECON_PRESETS', [preset, 'nu'], v[4], 'dimensionless', meta),
-    ];
-  }),
+  ...(['diffMult', 'frictionScale', 'sigma', 'robotFloorYears', 'nu'] as const).map((f, i) => one(SE, 'ADOPTION', [f], [1.0, 1.0, 0.5, 1, 0.3][i], ['multiplier', 'multiplier', 'dimensionless', 'years', 'dimensionless'][i], { ...W, kind: 'sourced', source: 'research/16 §4.6', evidence: 'sectors.ts "The one adoption setting (research/16 §4.6)"' })),
   one(SE, 'ECON', ['W0'], 35, 'USD per hour', { ...W, kind: 'designer', evidence: 'sectors.ts:97 "Average US wage per hour W0 ($), V2-SPEC §3.11.3 [D]."' }),
   one(SE, 'ECON', ['hours'], 2000, 'hours per worker-year', { ...W, kind: 'untagged', evidence: 'no tag; sectors.ts:99 "Hours per worker-year."' }),
   one(SE, 'ECON', ['gAug'], 0.3, 'fraction', { ...W, kind: 'sourced', evidence: 'sectors.ts:101 "g_aug: productivity gain on augmented work (field RCT range 0.14–0.4). [R16]"', source: 'research/16', range: { lo: 0.14, hi: 0.4, from: 'sectors.ts:101 "field RCT range 0.14–0.4"' } }),
@@ -256,19 +246,18 @@ const TEAMS: Param[] = [
   one(TM, 'REF_ROLE_SHARE', [], [0.3, 0.55, 0.15], 'fraction (eng, re, sci)', { ...R, kind: 'sourced', source: 'research/19 §1.1', evidence: 'teams.ts:9 "Reference split of capabilities staff (research/19 §1.1)."', notes: 'Array order = eng, re, sci.' }),
   one(TM, 'SAF_ROLE_SHARE', [], [90 / 140, 50 / 140], 'fraction (re, sci)', { ...R, kind: 'designer', evidence: 'teams.ts:12 "Reference split of safety staff: 90 research engineers + 50 scientists of 140 (research/19 §1.1) [Design]."', notes: 'Pointer to research/19 and [Design] together: see Q-market-1.', source: 'research/19 §1.1' }),
   one(TM, 'MOVE_SAFETY_MORALE', [], -5, 'morale points', { ...R, kind: 'designer', evidence: 'teams.ts:43 "Moving a research-engineering team from safety to capabilities costs safety morale (STRUCTURE §4.1) [Design]."', source: 'design/archive/STRUCTURE.md §4.1' }),
-  one(TM, 'START_TEAMS', ['classic'], [6, 21, 14, 1, 1], 'teams (eng, re.cap, sci.cap, re.saf, sci.saf)', { ...R, actor: 'player', kind: 'untagged', evidence: 'no tag; teams.ts:60-62 "Start teams (STRUCTURE §4.1 \'Frontier leader\': 4 · 11 + 1 · 8 + 2)."', notes: 'Baseline id, not a world preset. Array order = eng, re.cap, sci.cap, re.saf, sci.saf. L15: the sourced start (AIFM L_HUMAN 1,640 = 579 : 1,061 : 289, whole teams of 100 / 50 / 20).' }),
-  one(TM, 'START_TEAMS', ['reality'], [6, 21, 14, 1, 1], 'teams (eng, re.cap, sci.cap, re.saf, sci.saf)', { ...R, actor: 'player', kind: 'untagged', evidence: 'no tag; teams.ts:60-63 "Reality scales the 2,450 capabilities staff."', notes: 'Array order = eng, re.cap, sci.cap, re.saf, sci.saf. L15: the same start as classic.' }),
 ];
 
 const ST = 'src/data/v2/starts.ts';
 const C = { area: 'core', layer: 'world', actor: 'player' } as const;
 const startFam = (path: (string | number)[], unit: string | undefined, meta: Partial<Meta> & Pick<Meta, 'kind' | 'evidence'>) => one(ST, 'STARTS', ['*', ...path], undefined, unit, { ...C, ...meta });
-const START_NOTE = 'Four records (spinout, challenger, bigtech, leader); the leader row is display only, its live values sit in teams.ts/finance/sites.';
+const START_NOTE = 'Four records (spinout, challenger, bigtech, leader);  its cash, revenue and teams are read from it by finance/ledger.ts and departments/teams.ts (values from the old AI 2027 Classic baseline; to re-source against reality, handed to bal).';
 const STARTS_P: Param[] = [
   startFam(['difficulty'], 'label (Easy/Medium/Hard/Impossible)', { kind: 'untagged',
     evidence: 'no tag; starts.ts:20-23 "Setup label ..., set from bot games (PROGRESS R9; bots.ts --start, 40 seeds × 5 bots): best bot\'s win rate ≥ 30% Easy, 10–30% Medium, 1–10% Hard, < 1% Impossible. R9 data: leader 48% (mixed), challenger 5% (race), big tech 0/200, spinout 0/200."',
     notes: 'A string label; the win-rate thresholds (30/10/1 %) are only in this comment, not code. See Q-market-8.' }),
   startFam(['teams'], 'teams per key (eng, re.cap, sci.cap, re.saf, sci.saf)', { kind: 'untagged', evidence: 'no tag; starts.ts:30 "Teams by key (STRUCTURE §4.1 start table; fixed sizes 150 / 100 / 40)"; challenger eng 4 is "[D]" (starts.ts:91)', notes: START_NOTE }),
+  startFam(['securityLevel'], 'level', { kind: 'untagged', evidence: 'no tag; starts.ts StartDef.securityLevel "Weight-security level at the start."', notes: START_NOTE }),
   startFam(['cash'], 'USD B', { kind: 'untagged', evidence: 'no tag; starts.ts:48-49 "Cash on hand ($B)"', notes: START_NOTE }),
   startFam(['revenueRun'], 'USD B per year', { kind: 'untagged', evidence: 'no tag; starts.ts:48-50 "revenue run-rate ($B/yr)"', notes: START_NOTE }),
   startFam(['revenueHistory'], 'USD B per year (oldest first)', { kind: 'untagged', evidence: 'no tag; starts.ts:48-51 "the last four quarterly run-rates (oldest first)"', notes: START_NOTE }),

@@ -7,7 +7,7 @@
 // end-2027; the multi-seed and horizon-cut targets print SMOKE.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BASELINES, globalCompute } from '../../src/data/world';
+import { WORLD_START, globalCompute } from '../../src/data/world';
 import { CAPEX_LEASE, DEBT_TERMS, GOV_FACTOR, MARKET, PARTNER_TERMS } from '../../src/data/v2/deals';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { act, makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
@@ -152,7 +152,7 @@ const long = runBotC(1, REF_AUTOPILOT, SMOKE ? END_2027 : END_2028);
 const prod = (y: number) => long.q.filter((r) => r.year === y).reduce((a, r) => a + r.shipped, 0);
 check(prod(2026) >= 20e6 && prod(2026) <= 30e6, 'F1 global production 2026 ≈ 25M H100e (±20%)', `${f1(prod(2026) / 1e6)}M`);
 const w = long.s.hidden.timeline;
-const ratios = long.q.map((r) => r.stock / globalCompute(w as never, BASELINES[0].start.globalCompute, r.day / 365));
+const ratios = long.q.map((r) => r.stock / globalCompute(w as never, WORLD_START.globalCompute, r.day / 365));
 smokeCheck(ratios.every((x) => x >= 0.8 && x <= 1.2), 'F3 installed stock within ±20% of globalCompute(w,t) through 2028', `ratio ${f1(Math.min(...ratios) * 100)}–${f1(Math.max(...ratios) * 100)}%`);
 const m27 = long.q.filter((r) => r.year <= 2027).map((r) => r.margin);
 const meanM = m27.reduce((a, b) => a + b, 0) / m27.length;

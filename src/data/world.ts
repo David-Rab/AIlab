@@ -1,4 +1,4 @@
-// Milestones, world presets and sampling, baselines.
+// Milestones, world presets and sampling, the world's start.
 // Engine follows the AI 2027 timelines/takeoff code (uvafan/timelines-takeoff-ai-2027); audited against the
 // primary sources in research/11-engine-audit.md (numbers in comments refer to its discrepancy table).
 //  Stage 1 (to Superhuman Coder): progress in months of 2024/25-pace progress must reach base0 = g0 + cs,
@@ -9,7 +9,7 @@
 // Game unit for progress `p`: years. Stage 1 occupies [0, base0/12]; each later unit = 1 human-only year.
 
 import { Rng } from '../engine/rng';
-import type { AlignDiffId, BaselineId, World, WorldPresetId } from '../engine/types';
+import type { AlignDiffId, World, WorldPresetId } from '../engine/types';
 
 export interface Milestone {
   idx: number;
@@ -138,7 +138,7 @@ function build(label: string, o: BuildOpts): World {
 
 const WORK_MONTH_MIN = 167 * 60;
 
-export function makeWorld(rng: Rng, _preset: WorldPresetId, align: AlignDiffId, _baseline: BaselineId): World {
+export function makeWorld(rng: Rng, _preset: WorldPresetId, align: AlignDiffId): World {
   // The three timeline worlds share the authors2026 compute table and timeline (their settings are the draw's, world/hidden.ts).
   // Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y.
   const w = build("Authors' 2026 model", { h0: 38, T: 4.5, growth: 'super', decay: 0.08, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 17, share: 0.6, pEx: 0.1, sEx: 2, G: [1.52, 101, 1340] });
@@ -149,49 +149,20 @@ export function makeWorld(rng: Rng, _preset: WorldPresetId, align: AlignDiffId, 
   return w;
 }
 
-// ---------------- Baselines ----------------
+// ---------------- The world's start ----------------
 
-export interface Baseline {
-  id: BaselineId;
-  name: string;
-  desc: string;
-  startDate: string;
-  start: {
-    cash: number; // $B
-    revenueRun: number; // $B/yr
-    valuation: number; // $B [design: AI 2027 gives no valuation]
-    compute: number; // H100e
-    globalCompute: number; // H100e
-    staff: number;
-    chinaShare: number;
-    /** China's start gap in OOM of G under the player's V0 (was 0.6 progress-years). */
-    chinaGapOom: number;
-    securityLevel: number;
-  };
-}
-
-export const BASELINES: Baseline[] = [
-  {
-    id: 'classic',
-    name: 'AI 2027 Classic',
-    desc: 'The world as written in April 2025: start state from the scenario and its supplements.',
-    startDate: '2025-07-01',
-    start: {
-      cash: 40, revenueRun: 12, valuation: 610, compute: 1.2e6, globalCompute: 13e6, staff: 2500,
-      chinaShare: 0.12, chinaGapOom: 0.72, securityLevel: 2.4,
-    },
-  },
-  {
-    id: 'reality',
-    name: 'Reality-Updated',
-    desc: 'Calibrated to measured data through 2026 (METR horizons, polls, multi-lab frontier).',
-    startDate: '2025-07-01',
-    start: {
-      cash: 45, revenueRun: 13, valuation: 300, compute: 1.0e6, globalCompute: 14e6, staff: 3000,
-      chinaShare: 0.13, chinaGapOom: 0.72, securityLevel: 2.4,
-    },
-  },
-];
+/** Measured mid-2025 world (reality baseline). The one start every timeline shares; the lab's own start values are in
+ *  data/v2/starts.ts. */
+export const WORLD_START = {
+  /** Global AI compute, H100e (also the chip stock at the start). */
+  globalCompute: 14e6,
+  /** China's share of world compute. */
+  chinaShare: 0.13,
+  /** China's start gap in OOM of G under the player's V0 (was 0.6 progress-years). */
+  chinaGapOom: 0.72,
+  /** Robot fleet cap before the W16 ramp, units. */
+  robotCap: 0.5e6,
+};
 
 // AIFM inputs/input_data.csv (audit #18): world_H100e and total_ai_company_H100e (leading company), by year.
 const AIFM_YEARS = [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032];

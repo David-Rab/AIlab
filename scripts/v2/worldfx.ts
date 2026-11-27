@@ -66,7 +66,7 @@ function refDay(s: GameStateV2) {
   refBot.act(s, engine);
   tick(s, { skip: ['endings'] });
 }
-const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, ...over }));
+const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false, ...over }));
 
 function run(over: Partial<SetupV2>, days: number): Trace {
   const s = refGameV2(over);
@@ -120,22 +120,22 @@ const timingOf = (tr: Pick<Trace, 'firstHire10' | 'firstRemote25' | 'firstU12' |
   f11_2027: tr.annual[2027] ?? 0, a2c: tokOf(tr, '2026-12-31') / tokOf(tr, '2026-01-01'),
 });
 function timingRec(seed: number): TimingRec {
-  return cached('worldfx-timing', { seed, days: D('2028-04-01') }, FILES, () => timingOf(run({ baseline: 'classic', econ: 'ai2027', seed }, D('2028-04-01'))));
+  return cached('worldfx-timing', { seed, days: D('2028-04-01') }, FILES, () => timingOf(run({ seed }, D('2028-04-01'))));
 }
 const TIMING_SEEDS = SMOKE ? [] : CAL_SEEDS.filter((x) => x !== CAL_SEED);
 // The runner's --prefill shards: every cached run of this mode, in the order the checks ask for them.
 prefill([
-  () => runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01')),
+  () => runC({}, D('2028-04-01')),
   ...TIMING_SEEDS.map((x) => () => timingRec(x)),
-  () => runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-central' }, D('2026-11-02'), {}, []),
-  ...(SMOKE ? [] : [() => runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-fast' }, D('2026-11-02'), {}, [])]),
+  () => runC({ world: 'tl-central' }, D('2026-11-02'), {}, []),
+  ...(SMOKE ? [] : [() => runC({ world: 'tl-fast' }, D('2026-11-02'), {}, [])]),
 ]);
 
-// ───────────── 1. Classic baseline, ai2027 econ, reference play (§7.3 table, F11) ─────────────
-const c = runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01'));
+// ───────────── 1. Reference play (§7.3 table, F11) ─────────────
+const c = runC({}, D('2028-04-01'));
 const at = c.at;
 const U0 = 4.3;
-console.log('Classic / ai2027 econ / reference play');
+console.log('Reference play');
 check(Math.abs(refGame().player.finance.revenueRun - 12) < 1e-9, 'F11 revenue run-rate at start = $12B', '');
 check(at['2025-07-31'].rev >= 9 && at['2025-07-31'].rev <= 16.5, 'F11 Jul 2025 run-rate ≈ $12B (capacity-bound, ±35%)', `$${at['2025-07-31'].rev.toFixed(1)}B`);
 // FINREF: AI 2027's $45B is a plot point; the measured 2026 leader (Anthropic) earns ≈ $53–56B (research/22 §4 [P]): both ±20%.
@@ -242,11 +242,11 @@ check(fired.size >= 10 && once, 'headlines: ≥10 distinct fire on the reference
 check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) => d.revenueRate !== undefined && d.demandBound !== undefined && revenueOf(c.s, d.id) === d.revenueRate),
   'revenue writes revenueRate and demandBound on every external deployment');
 
-// ───────────── 2. Reality baseline at Nov 2026 (W4) ─────────────
+// ───────────── 2. The world at Nov 2026 (W4) ─────────────
 {
-  const r = runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-central' }, D('2026-11-02'), {}, []);
+  const r = runC({ world: 'tl-central' }, D('2026-11-02'), {}, []);
   const a = r.at['2026-11-01'];
-  console.log('Reality baseline / ai2027 world');
+  console.log('Nov 2026 / tl-central');
   check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
   check(a.youthX >= 0.76 && a.youthX <= 0.86, 'W4: exposed 22–25-year-olds −19% vs counterfactual (±5 pp)', `${((a.youthX - 1) * 100).toFixed(1)}%`);
   // CAL-X: the anchor is BTOS 17–20% of firms over Dec 2025–May 2026 (19.8% on 3 May 2026; research/22 §1 1f [P], new
@@ -258,7 +258,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
   // Informational: the slower authors2026 timeline (SC 2029.7) gives weaker 2026 effects.
   if (!SMOKE) {
-  const b = runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-fast' }, D('2026-11-02'), {}, []).at['2026-11-01'];
+  const b = runC({ world: 'tl-fast' }, D('2026-11-02'), {}, []).at['2026-11-01'];
   console.log(`INFO  W4 on authors2026 world: U ${(b.U - U0).toFixed(2)} pp, exposed 22–25 ${((b.youthX - 1) * 100).toFixed(1)}%, firm adoption ${pct(b.firm)}`);
   }
 }

@@ -1,51 +1,32 @@
-// B3 inventory: actors data (src/data/world.ts v1 integrator and world presets and baselines,
+// B3 inventory: actors data (src/data/world.ts v1 integrator, world presets and start,
 // src/data/v2/{rivalModel,agents}.ts). Prefix `acd`. The actor engine (src/engine/v2/actors/*) is in actors-engine.ts;
 // this file holds only the data tables the engine reads. (The gov, public and China presets went with W1d.)
-// BASELINES is one entry per preset and field, built from the value table below. The values are written out here (not read from the
-// game) so the lint can compare them with the live data.
+// WORLD_START is built from the value table below. The values are written out here (not read from the game) so the lint can compare them with the live data.
 import { defineParams, type Param } from '../schema';
 
 const WORLD = 'src/data/world.ts';
 const RIVM = 'src/data/v2/npcLabs.ts';
 const AGENTS = 'src/data/v2/agents.ts';
 
-type Field = {
-  name: string; unit?: string; area: Param['area']; layer: Param['layer']; actor?: Param['actor'];
-  kind?: Param['kind']; evidence?: string; source?: string; notes?: string;
-};
-
-// ───────────────────────── world.ts: BASELINES ─────────────────────────
-const BL_EVID = 'no tag; world.ts:246-260 (the Baseline.start field comments carry units only)';
-const BL_FIELDS: Field[] = [
-  { name: 'cash', unit: 'USD B', area: 'finance', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'revenueRun', unit: 'USD B/yr', area: 'finance', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'valuation', unit: 'USD B', area: 'finance', layer: 'world', actor: 'player', kind: 'designer', evidence: 'world.ts:249 "valuation: number; // $B [design: AI 2027 gives no valuation]"' },
-  { name: 'compute', unit: 'H100e', area: 'market', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'globalCompute', unit: 'H100e', area: 'market', layer: 'world', kind: 'untagged', evidence: BL_EVID },
-  { name: 'staff', unit: 'people', area: 'research', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
-  { name: 'chinaShare', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged', evidence: BL_EVID, notes: 'China share of world compute (name only; no unit comment).' },
-  { name: 'chinaGapOom', unit: 'OOM', area: 'actors', layer: 'world', actor: 'china', kind: 'untagged',
-    evidence: 'no tag; world.ts:254 "China\'s start gap in OOM of G under the player\'s V0 (was 0.6 progress-years)"' },
-  { name: 'securityLevel', area: 'security', layer: 'world', actor: 'player', kind: 'untagged', evidence: BL_EVID },
+// ───────────────────────── world.ts: WORLD_START ─────────────────────────
+const WS_EVID = 'world.ts WORLD_START "Measured mid-2025 world (reality baseline)"';
+const WORLD_START_FIELDS: { name: string; v: number; unit?: string; area: Param['area']; actor?: Param['actor']; notes?: string }[] = [
+  { name: 'globalCompute', v: 14e6, unit: 'H100e', area: 'market' },
+  { name: 'chinaShare', v: 0.13, area: 'actors', actor: 'china', notes: 'China share of world compute (not read by the engine yet).' },
+  { name: 'chinaGapOom', v: 0.72, unit: 'OOM', area: 'actors', actor: 'china', notes: "China's start gap in OOM of G under the player's V0 (not read by the engine yet)." },
+  { name: 'robotCap', v: 0.5e6, unit: 'units/yr', area: 'market', notes: 'Humanoid production cap before W16 (general robotics) lifts it.' },
 ];
-function baselineParams(): Param[] {
-  const rows: { id: string; v: number[] }[] = [
-    { id: 'classic', v: [40, 12, 610, 1.2e6, 13e6, 2500, 0.12, 0.72, 2.4] },
-    { id: 'reality', v: [45, 13, 300, 1.0e6, 14e6, 3000, 0.13, 0.72, 2.4] },
-  ];
-  const out: Param[] = [];
-  rows.forEach((r, index) => BL_FIELDS.forEach((f, i) => {
+function worldStartParams(): Param[] {
+  return WORLD_START_FIELDS.map((f) => {
     const e: Param = {
-      id: `acd.BASELINES.${r.id}.${f.name}`,
-      ref: { kind: 'export', module: WORLD, symbol: 'BASELINES', path: [index, 'start', f.name] },
-      value: r.v[i], area: f.area, layer: f.layer, kind: f.kind!, evidence: f.evidence!, perPreset: true,
+      id: `acd.WORLD_START.${f.name}`, ref: { kind: 'export', module: WORLD, symbol: 'WORLD_START', path: [f.name] },
+      value: f.v, area: f.area, layer: 'world', kind: 'untagged', evidence: WS_EVID,
     };
     if (f.actor) e.actor = f.actor;
     if (f.unit) e.unit = f.unit;
     if (f.notes) e.notes = f.notes;
-    out.push(e);
-  }));
-  return out;
+    return e;
+  });
 }
 
 // ───────────────────────── world.ts: v1 world presets (inline) ─────────────────────────
@@ -80,7 +61,7 @@ const PRESET_INLINE: Param[] = [
 
 export const PARAMS_ACTORS_DATA = defineParams([
   // ───────────────────────── world.ts ─────────────────────────
-  ...baselineParams(),
+  ...worldStartParams(),
   {
     // Non-exported constant: inline ref on the declaration line (an export ref needs an export).
     id: 'acd.world.AIFM_WORLD',

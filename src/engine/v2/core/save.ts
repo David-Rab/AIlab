@@ -8,7 +8,7 @@ import type { GameStateV2 } from '../types';
 // data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master. 117: W1b, macro → the
 // economy readouts. 118: W1c, the relations cluster is gone (relations, researchBodies, blocs, ws4 relation fields).
 // 119: W1d, the gov, public and China actors are gone (s.gov, s.pub, china meters; setup gov/public/china).
-export const SCHEMA_REV = 119;
+export const SCHEMA_REV = 120;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

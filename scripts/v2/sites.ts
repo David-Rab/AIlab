@@ -10,7 +10,7 @@ import { chipFit, computeForecast, siteBars, siteBuildingLiveQs, siteBuildingsVi
 import { clearMarket } from '../../src/engine/v2/compute/market';
 import { ownedOnline, powerAndOMPerYear, siteCapacityH } from '../../src/engine/v2/compute/power';
 import {
-  campusMW, newSite, oppositionLevel, oppositionParts, siteBuildQ, siteBuildingLiveInQ, siteCapex, siteCapexParts, siteFit, siteLeasePerYear, siteLiveInQ, siteLiveMW,
+  LOCAL_MOOD, campusMW, newSite, oppositionLevel, oppositionParts, siteBuildQ, siteBuildingLiveInQ, siteCapex, siteCapexParts, siteFit, siteLeasePerYear, siteLiveInQ, siteLiveMW,
   sitePowerQ, siteSchedule, sitesQSystem, type SiteOpts,
 } from '../../src/engine/v2/compute/sites';
 import { makeCtx, resolve, tick } from '../../src/engine/v2/core/loop';
@@ -79,7 +79,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = (seed = 1) => {
     const s = game({ seed });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = 0; // no opposition rolls fire
+    LOCAL_MOOD.dcNimby = 0; // no opposition rolls fire
     return s;
   };
   const qOfDay = (s: GameStateV2, d: number) => quarterIndex(s.time.startDate, d);
@@ -190,13 +190,13 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   // Opposition odds [D-6]
   {
     const t = fresh();
-    t.pub.dcNimby = 45;
+    LOCAL_MOOD.dcNimby = 45;
     const o = (path: Site['path'], crash = false, community = false) => oppositionOdds(t, { path, crash, communityPackage: community });
     near(o('grid').block, 0.045, 'grid block at mood 0.9'); near(o('grid').delay, 0.18, 'grid delay at mood 0.9');
     near(o('gas').block, 0.09, 'gas block at mood 0.9'); near(o('gas').delay, 0.27, 'gas delay at mood 0.9');
     near(o('gas', true, true).block, 0.0675, 'gas crash + community block');
     near(o('rent').block + o('rent').delay, 0, 'rent has no opposition');
-    t.pub.dcNimby = 100;
+    LOCAL_MOOD.dcNimby = 100;
     near(o('gas', true).block, 0.3, 'gas crash block at mood 2'); near(o('gas', true).delay, 0.6, 'gas crash delay at mood 2 (≤ 0.9 − block)');
     check(oppositionLevel(0.03) === 'low' && oppositionLevel(0.05) === 'medium' && oppositionLevel(0.1) === 'high', 'opposition levels');
   }
@@ -204,7 +204,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   // Block: blocked sites leave the queue and keep what was paid as spent
   {
     const t = fresh(7);
-    t.pub.dcNimby = 100;
+    LOCAL_MOOD.dcNimby = 100;
     const c = makeCtx(t);
     const sites: Site[] = [];
     for (let i = 0; i < 40; i++) sites.push(newSite(t, c, { path: 'grid', mw: 500, crash: true, name: `B${i}` }));
@@ -236,7 +236,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = (nimby = 0) => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = nimby;
+    LOCAL_MOOD.dcNimby = nimby;
     return s;
   };
   const qOfDay = (s: GameStateV2, d: number) => quarterIndex(s.time.startDate, d);
@@ -485,7 +485,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = () => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = 0; // no opposition rolls
+    LOCAL_MOOD.dcNimby = 0; // no opposition rolls
     return s;
   };
 
@@ -529,7 +529,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = () => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = 0; // no opposition rolls
+    LOCAL_MOOD.dcNimby = 0; // no opposition rolls
     return s;
   };
   const q0Of = (s: GameStateV2) => quarterIndex(s.time.startDate, s.time.day);
@@ -661,7 +661,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = () => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = 0; // no opposition rolls
+    LOCAL_MOOD.dcNimby = 0; // no opposition rolls
     s.player.finance.rating = 'BB'; // lessor at 9%
     return s;
   };
@@ -747,7 +747,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const fresh = (nimby = 0) => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = nimby;
+    LOCAL_MOOD.dcNimby = nimby;
     return s;
   };
   const q0Of = (s: GameStateV2) => quarterIndex(s.time.startDate, s.time.day);
@@ -846,7 +846,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
     let cases = 0, bad = 0;
     const s = fresh(); // the odds are a pure function of the mood: one state, the mood set per case
     for (const nimby of [0, 45, 60, 100]) for (const path of ['rent', 'grid', 'gas'] as const) for (const crash of [false, true]) for (const communityPackage of [false, true]) {
-      s.pub.dcNimby = nimby;
+      LOCAL_MOOD.dcNimby = nimby;
       const site = { path, crash, communityPackage };
       const p = oppositionParts(s, site), o = oppositionOdds(s, site);
       cases++;
@@ -859,7 +859,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
       if (!ok) { bad++; console.log(`FAIL ${nimby} ${path} crash ${crash} community ${communityPackage}: ${JSON.stringify(p)}`); }
     }
     check(bad === 0, `oppositionParts block/delay = oppositionOdds, factors as spec (${cases} cases)`, `${bad} bad`);
-    s.pub.dcNimby = 50;
+    LOCAL_MOOD.dcNimby = 50;
     const re = oppositionParts(s, { path: 'gas', crash: true, communityPackage: true, ws3: { reactive: true } });
     check(re.delay === 0 && re.mood === 1 && re.crashMult === 1 && re.communityMult === 1 && re.block === re.blockBase && re.block > 0, 'reactive site: base 1 - unblock odds, factors 1', JSON.stringify(re));
     const hi = oppositionParts(fresh(100), { path: 'gas', crash: true, communityPackage: false });
@@ -920,7 +920,7 @@ function game(setup?: Parameters<typeof defaultSetupV2>[0]): GameStateV2 {
   const build = (o: SiteOpts) => {
     const s = game({ seed: 1 });
     s.time.day = dayOfDate(s.time.startDate, '2026-08-05'); // Q3 26
-    s.pub.dcNimby = 0;
+    LOCAL_MOOD.dcNimby = 0;
     s.player.finance.rating = 'BB';
     const before = leaseFlows(s).length;
     const site = newSite(s, makeCtx(s), { ...o, pay: 'lease', leaseRate: 0.09 });

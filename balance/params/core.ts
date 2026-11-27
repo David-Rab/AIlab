@@ -585,7 +585,7 @@ export const PARAMS_CORE = defineParams([
     id: 'bots.common.LEADER_CAP_STAFF',
     ref: { kind: 'inline', file: COM, anchor: 'const LEADER_CAP_STAFF = 1930;' },
     value: 1930, unit: 'heads', ...BOT, kind: 'untagged', notes: 'A7: literal copy of the leader start (L15: 6 x 100 + 21 x 50 + 14 x 20 = 1930; was 4 x 150 + 11 x 100 + 8 x 40 = 2020); original untagged.',
-    evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/teams.ts START_TEAMS classic: 4·150 + 11·100 + 8·40)" = 2020',
+    evidence: 'common.ts:146 "Leader-start capabilities staff (data/v2/starts.ts leader teams: 4·150 + 11·100 + 8·40)" = 2020',
   },
   // ───────────────────────────── core/ ─────────────────────────────
   {
@@ -673,9 +673,9 @@ export const PARAMS_CORE = defineParams([
   },
   {
     id: 'core.init.computeOnline',
-    ref: { kind: 'inline', file: 'src/engine/v2/core/init.ts', anchor: "(setup.baseline === 'reality' ? 1.0e6 : 1.2e6)" },
-    value: [1.0e6, 1.2e6], unit: 'H100e online at the leader start (reality, other baselines)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged', perPreset: true,
-    evidence: 'no tag; init.ts:226 (leader start compute)',
+    ref: { kind: 'export', module: 'src/data/v2/starts.ts', symbol: 'STARTS', path: ['#leader', 'owned'] },
+    value: 500e3, unit: 'H100e owned at the leader start (online compute = owned + rented)', area: 'core', layer: 'world', actor: 'player', kind: 'untagged',
+    evidence: 'no tag; data/v2/starts.ts leader row (values from the old AI 2027 Classic baseline; to re-source, handed to bal)',
   },
 
   // ───────────────────────────── departments/ ─────────────────────────────
@@ -917,30 +917,24 @@ export const PARAMS_CORE = defineParams([
   },
   // ───────────────────────────── events/ ─────────────────────────────
   {
-    id: 'core.STORYTELLERS.maxCrises',
-    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'maxCrises'] },
-    unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
-    evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)" (header :7-8 "at most `maxCrises` crisis decisions pending")',
-    notes: 'A8c: spec table states 1 / 2 / 2 (Measured, Rising, Chaotic).',
+    id: 'core.DIRECTOR.maxCrises',
+    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'DIRECTOR', path: ['maxCrises'] },
+    value: 2, unit: 'crisis decisions pending at once', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
+    evidence: 'no tag; director.ts "The one fixed pacing (§4.1)"',
+    notes: 'The pacing setting was removed (spec §14); this was the Rising row.',
   },
   {
-    id: 'core.STORYTELLERS.quietDays',
-    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'STORYTELLERS', path: ['*', 'quietDays'] },
-    unit: 'days', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
-    evidence: 'no tag; director.ts:22 "Storyteller table (§4.1)"',
-    notes: 'A8c: spec table states 21 / 14 / 7 days.',
-  },
-  {
-    id: 'core.STORYTELLERS.mult',
-    ref: { kind: 'inline', file: 'src/engine/v2/events/director.ts', anchor: 'export const STORYTELLERS: Record<StorytellerId, Storyteller> = {' },
-    value: 'measured 0.8; rising 0.7 + 0.2 × (act − 1); chaotic 1.2 × noise (noise ~ N(1, 0.3) clamped 0.4-1.6, redrawn monthly)', unit: 'trigger probability multiplier', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1', notes: 'A8c: spec table states 0.8 / ramp 0.7 to 1.3 / 1.2 +-30%.',
-    evidence: 'no tag; director.ts:23-27 "Storyteller table (§4.1)"; header :9 "trigger probability multiplier by storyteller"',
+    id: 'core.DIRECTOR.quietDays',
+    ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'DIRECTOR', path: ['quietDays'] },
+    value: 14, unit: 'days', area: 'core', layer: 'world', kind: 'designer', source: 'V2-SPEC §4.1',
+    evidence: 'no tag; director.ts "The one fixed pacing (§4.1)"',
+    notes: 'The pacing setting was removed (spec §14); this was the Rising row.',
   },
   {
     id: 'core.BASE_FIRE_P',
     ref: { kind: 'export', module: 'src/engine/v2/events/director.ts', symbol: 'BASE_FIRE_P' },
     value: 0.35, unit: 'probability per day', area: 'core', layer: 'world', kind: 'designer',
-    evidence: 'director.ts:29 "Daily chance that a non-crisis event fires while its predicate holds, before the storyteller multiplier [D]."',
+    evidence: 'director.ts:29 "Daily chance that a non-crisis event fires while its predicate holds, [D]."',
   },
   {
     id: 'core.MAX_PENDING',

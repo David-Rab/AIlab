@@ -37,14 +37,11 @@ export type Day = number;
 export type Money = number; // $B
 export type H100e = number;
 
-export type BaselineId = 'classic' | 'reality';
 /** R3.1: the per-game draw worlds (data/v2/timelineWorlds.ts). */
 export type TimelinePresetId = 'tl-fast' | 'tl-central' | 'tl-slow';
 /** The world is one of the three timelines; the old named presets and the sampled world are removed. */
 export type WorldPresetId = TimelinePresetId;
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
-export type EconPresetId = 'normal' | 'ai2027' | 'gate';
-export type StorytellerId = 'rising' | 'measured' | 'chaotic';
 /** Board presets; 'parent' = a big-tech parent company (start type 'bigtech', R9). */
 export type GovernancePresetId = 'legacyNonprofit' | 'nonprofitPBC' | 'pbcTrust' | 'founder' | 'parent';
 
@@ -151,15 +148,12 @@ export interface Star { id: string; name: string; taste: number; employer: 'play
 export interface LabourState { pools: Record<TeamRole, LabourPool>; stars: Star[]; teamTaste: number }
 
 export interface SetupV2 {
-  baseline: BaselineId;
   world: WorldPresetId;
   alignment: AlignDiffId;
-  econ: EconPresetId | 'sampled';
   /** The US NPC labs (design/npc/NPC-LABS.md §10): 'realistic' (the July 2025 cast) or a custom list; China's lab is
    *  always there. */
   cast: 'realistic' | NpcSetupLab[];
   governance: GovernancePresetId;
-  storyteller: StorytellerId;
   tutorial: boolean;
   seed: number;
   companyName: string;
@@ -243,7 +237,6 @@ export interface HiddenWorld {
   paradigmSuccess: Record<ParadigmId, boolean>; // drawn at start; revealed when the project resolves
   edgeWeights: Record<string, number>; // edge id (E01..E26) -> realised w for this world
   uModePropensity: Record<UModeId, number>; // per-world presence probability per new lineage
-  econ: EconPresetId;
   doomThreshold: number;
   /** Model v3 E9: the world's tolerance noise ε_w ~ Logistic(0, 0.06) (a hash of the seed, no stream draw): control is
    *  lost when exposure > doomThreshold + ε_w (safety/control.ts lossThreshold). */
@@ -2512,9 +2505,7 @@ export interface Ws4State {
   leaked: number;
   /** World GDP (US) at game start, for Prosperity. */
   gdp0: number;
-  /** Last day a crisis decision was queued (storyteller), and noise for the chaotic storyteller. */
-  storyNoise: number;
-  /** Event requests from WS4 systems; the director fires them under storyteller limits (E4). Expire after 60 d. */
+  /** Event requests from WS4 systems; the director fires them under its pacing limits (E4). Expire after 60 d. */
   requests: { id: string; day: Day; data: Record<string, number | string> }[];
 }
 
