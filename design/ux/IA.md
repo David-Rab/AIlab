@@ -39,7 +39,7 @@ Binding for the UX implementation. It overrides PLAN.md and PROPOSALS.md where t
 Also in the strip, as controls rather than data: `?` help and `≡` menu.
 
 **Removed from L0** (each moves to one home below):
-- Compute online → Company, Flow tab. Idle chips → Compute, Overview (design/ux/COMPUTE.md).
+- Compute online → Company, Flow tab. Idle chips → Compute, Overview (design/archive/ux/COMPUTE.md).
 - Scrutiny → Relations.
 - R&D multiplier M → Company, Research speed.
 - The act chip → under the date.

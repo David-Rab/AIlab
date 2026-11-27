@@ -1,10 +1,10 @@
-// Renders the ```mermaid blocks in design/REDESIGN.md to design/diagrams/D<n>.svg and .png.
+// Renders the ```mermaid blocks in design/archive/REDESIGN.md to design/diagrams/D<n>.svg and .png.
 // Run: node design/render.mjs   (uses local node_modules/mermaid and Edge via playwright-core)
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const src = process.argv[2] ?? 'design/REDESIGN.md';
+const src = process.argv[2] ?? 'design/archive/REDESIGN.md';
 const prefix = process.argv[3] ?? 'D';
 const md = fs.readFileSync(src, 'utf8');
 const blocks = [...md.matchAll(/```mermaid\n([\s\S]*?)```/g)].map((m) => m[1]);

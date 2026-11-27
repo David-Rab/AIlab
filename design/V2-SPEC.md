@@ -1,6 +1,6 @@
 # AI27 v2 — Unified build specification
 
-Status: **build spec v2.0** (2026-11-13). Supersedes the proposal in `design/REDESIGN.md`. State and interface contract: `design/v2-interfaces.ts`.
+Status: **build spec v2.0** (2026-11-13). Supersedes the proposal in `design/archive/REDESIGN.md`. State and interface contract: `design/archive/v2-interfaces.ts`.
 
 ## 0. How to read this spec
 
@@ -140,7 +140,7 @@ flowchart LR
 
 ### 2.1 State shape
 
-The full types are in `design/v2-interfaces.ts`, and `GameStateV2` is the root. The layout is:
+The full types are in `design/archive/v2-interfaces.ts`, and `GameStateV2` is the root. The layout is:
 
 ```
 GameStateV2
@@ -1265,7 +1265,7 @@ Security investment also raises gov trust when rung 1–2 demands are met. A Gul
 ### 3.7 Finance: capital, board, deals, debt, runway (WS3)
 
 > **Superseded by [FINANCE-V3.md](FINANCE-V3.md)** (finance v3, built on branch `finance-v3`, FIN1–FIN6c; build notes and
-> calibration in [FINANCE-BUILD.md](FINANCE-BUILD.md)). Still valid here: §3.7.1's point (money binds; no compute share
+> calibration in [FINANCE-BUILD.md](archive/FINANCE-BUILD.md)). Still valid here: §3.7.1's point (money binds; no compute share
 > cap), §3.7.2's start values except the valuation row (now the story mark), the presets table in §3.7.5, rates in
 > §3.7.4 and the cash-flow timing in §3.7.6. Replaced: the investor pool, valuation formula, k_Y cap and narrative premium
 > (§3.7.3 → FINANCE-V3 §1–§2: sector value × share with a valuation cap, promises and investor credibility, IPO); deal
@@ -1412,7 +1412,7 @@ If the board rejects, the action is blocked for 90 days and BC −5. If the play
 
 **Board speed appetite** = the voting seats' weighted mean speed stance plus the outside-ownership drift, clamped to 0.25–1.5. A mission-heavy board forgives caution that a growth board punishes.
 
-**Ouster (M4: telegraphed, with counterplay).** *Superseded by FINANCE-V3 §7.2/§7.5 (FIN3b): the vote is deterministic and seat by seat (lean = grievance + depth below 25 − reluctance; the legacy board's reluctance is halved), there is no staff-revolt reinstatement and no E37; below 40 the player can give the critics a seat. See design/FINANCE-BUILD.md, FIN3b notes.*
+**Ouster (M4: telegraphed, with counterplay).** *Superseded by FINANCE-V3 §7.2/§7.5 (FIN3b): the vote is deterministic and seat by seat (lean = grievance + depth below 25 − reluctance; the legacy board's reluctance is halved), there is no staff-revolt reinstatement and no E37; below 40 the player can give the critics a seat. See design/archive/FINANCE-BUILD.md, FIN3b notes.*
 - **Warning.** When BC falls below 35 at a quarterly review, the board warns the CEO (alert) and E37 "Board revolt" fires (§4.2). The warning clears when BC is back at 45.
 - **Vote.** Only when BC < 25 **and** a warning is at least 60 days old: a vote is called with p = 0.15/q (× 2 for the legacy preset). It passes with P(weighted yes > half) over the voting seats other than the CEO's. The grievance is read from the last year's BC hits: public incidents ⇒ "too reckless" (replace with a careful CEO, v = [−0.5, 0.5, 1, 0.5]); down rounds, tight runway, covenants, failed raises, guarantees ⇒ "burning the company" (v = [−0.3, 1, 0, 0]); the rest ⇒ "too slow" (v = [1, 0.5, −0.5, −0.5]). Each seat votes yes with σ(stance′·v / 0.5), stance′ = stance + outside drift on speed and fin. A mission board shields a cautious CEO and turns on a reckless one (Nov 2023); financial and strategic seats do the opposite.
 - **Reinstatement** (the Nov 2023 precedent). If the vote passes while `morale.overall > 70`, staff revolt and the CEO is reinstated once per game: BC resets to 45 and a mission seat becomes an independent. Otherwise the game ends 'ousted'.
@@ -2269,7 +2269,7 @@ All tests are headless `tsx` scripts in `scripts/v2/`. Each prints a table and e
 
 ```
 src/engine/v2/
-  types.ts                 (= design/v2-interfaces.ts; WS1 owns)
+  types.ts                 (= design/archive/v2-interfaces.ts; WS1 owns)
   core/   init.ts loop.ts registry.ts rng.ts time.ts causes.ts save.ts selectors.ts memo.ts
   world/  hidden.ts calibration.ts                    (wraps src/data/world.ts)
   production/ production.ts knots.ts readout.ts data.ts

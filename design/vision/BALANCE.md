@@ -9,7 +9,7 @@ Two layers, and both read a hand-written bot.
 | Constant / measure | Fitted against | Depends on unsourced bot choices? |
 |---|---|---|
 | `V3_CAL.gSC` (ai2027, fast), `dBM`/`sdSC` history (src/data/v2/workTypes.ts:311-321) | T1: RefBot median SC/SAR/SIAR/ASI over 20 seeds (scripts/v2/calscan.ts header) | **Yes [F].** The refit log (workTypes.ts:200-310) shows refits caused purely by RefBot behaviour changes: "F5 refit (RefBot's 'compete' release policy changes its run, eval and research-engineer load…)", "F5 cheap tier… ai2027 SC +0.074 y", M11 "RefBot's API cheap-tier distil and its evals are gone, so its run cadence and draws moved". F4: "11 of 20 seeds wait for the B4 release on day 700 because P08… comes late or fails", which is a property of the bot's fixed plan. |
-| `gSC` authors2026 | AIFM run, CAL2-T (workTypes.ts:300-310) | **No [F].** Sourced, not fitted. That makes its failing SAR/SIAR/ASI (design/RD-AUDIT/CAL2.md:40) real information. |
+| `gSC` authors2026 | AIFM run, CAL2-T (workTypes.ts:300-310) | **No [F].** Sourced, not fitted. That makes its failing SAR/SIAR/ASI (design/archive/RD-AUDIT/CAL2.md:40) real information. |
 | `gSC` slow = 38.3 | stated stand-in (workTypes.ts:316-318) | Partly (it's set so RefBot's SC lands in 2034-35). |
 | `FITTED_EFFORT_TM` P05/P07/P08/P17 (src/data/v2/tree.ts:115) | "the rate RefBot's early projects fit to" (tree.ts:103) | **Yes [F].** Research cost is fitted to RefBot's staffing (`REF_IDEA_TEAMS = 3`, bots/ref.ts:95). |
 | `DIFFICULTY_SCALE = 1` (src/engine/v2/world/hidden.ts:20-22) | "1.4 hurt the mixed bot… 1.2 pushed RefBot past S4" | **Yes [F].** Both reasons are bot outcomes. |

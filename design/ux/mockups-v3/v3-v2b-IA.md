@@ -2,7 +2,7 @@
 
 Files: `v3-v2b-research.html` (render: `node design/ux/mockups-v3/render-v2b.mjs`), `v3-v2b-research.png` (Research ›
 Projects), `v3-v2b-recipe.png` (Research › Recipe), `v3-v2b-work.png` (Company › Work). Data: the day-400 fixture. Brief:
-design/V3-BUILD.md "V2b UI". The mockup is the layout sketch; the build is the reference (the user reviews both together).
+design/archive/V3-BUILD.md "V2b UI". The mockup is the layout sketch; the build is the reference (the user reviews both together).
 
 ## What the player steers (MODEL-V3 §14)
 Research: the order of the capability projects (drag or ▲▼), teams wanted per project (0 … 6, "max"), the lab-wide risk

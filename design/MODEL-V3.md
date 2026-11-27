@@ -1,7 +1,7 @@
 # Model v3: how models, research, products and safety work (draft for review)
 
 Status: **approved 2026-11-18** (user: "when it's ready you can go ahead with implementing"); build progress in
-design/PROGRESS.md (V rows). Direction agreed with the user in conversation (2026-11-18); this spec turns it into
+design/archive/PROGRESS.md (V rows). Direction agreed with the user in conversation (2026-11-18); this spec turns it into
 mechanisms. Numbers marked **[R20]** come from `research/20-model-v3-calibration.md` (primary sources, being
 written 2026-11-18, §0 summary table); **[D]** = design value; **[fit]** = fitted by the calibration harness (§13).
 

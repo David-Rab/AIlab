@@ -1,6 +1,6 @@
 # Market, customers and pricing (redesign, 2026-11-24)
 
-Status: designer-agreed direction (conversation 2026-11-24), not built. Branch `market` (worktree `AI27-market`).
+Status: **built** (MK-1..13 merged to master cd352aa, 2026-11-24). Checkpoint report: [archive/MARKET-CP.md](archive/MARKET-CP.md); its open bugs are in [OPEN.md](OPEN.md).
 Sources: `research/MARKET-sources.md` (cited below as §n of that file). Replaces the playtest fixes PF-4..6 noted on rd.
 
 ## Why

@@ -2,7 +2,7 @@
 
 Status: **approved 2026-11-19** (user: "approved"; §12 rival exit and §13 division budget defaults accepted); numbers to calibrate.
 **Built 2026-11-20** on branch `finance-v3` (FIN1–FIN6c): what was built, deviations, parameter homes, the refit due
-after model-v3 and open items are in [FINANCE-BUILD.md](FINANCE-BUILD.md) ("Status: built").
+after model-v3 and open items are in [FINANCE-BUILD.md](archive/FINANCE-BUILD.md) ("Status: built").
 Tags: **[R15]** research/15-compute-finance.md · **[R21]** research/21-lab-financing-history.md · **[D]** design
 value · **[fit]** fitted by the calibration harness (§14). Depends on MODEL-V3 (revenue, cost to serve, capability
 levels), see §15.
