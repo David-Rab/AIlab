@@ -24,7 +24,7 @@ except the 6% stored-chip book decay, which goes.
 - Stop and ask (all tasks): the change needs more than the files listed; a spec number below contradicts DATACENTERS.md;
   a test the task does not own newly fails and cannot be explained.
 
-## Decisions taken for this plan (lead to confirm; marked **[D-n]** where used)
+## Decisions taken for this plan (confirmed by the lead 2026-11-27; marked **[D-n]** where used)
 
 - **[D-1] Waits are a pure function, no queue state.** For each source, the outside world is a reference path: outside
   GW = refWait(t) × rate(t) / 4, so with the player building nothing the wait equals the DATACENTERS.md §4 table
@@ -64,8 +64,7 @@ except the 6% stored-chip book decay, which goes.
 - **[D-10] Start sites follow the mockup:** Red River becomes 1.0 GW grid, permits done at the start, 17 q wait, live
   Q4 2029, construction from Q4 2027 (today: 2 GW, live ≈ 2028). This moves the leader's 2028–29 compute (calibration:
   yes). Lone Pine keeps its start capex ($12B × k, half paid); only path fields change.
-- **[D-11] "Other AI labs" in the tooltip breakdown** = 4% of the outside queue (display only; 6 of 150 GW in the
-  mockup). Alternative: one "everyone else" row. Lead decides; DC-10a implements the 4% unless told otherwise.
+- **[D-11] Tooltip queue rows: "you" + one "everyone else" row** (lead, 2026-11-27). No "other AI labs" split: rivals have no sites, so a split would be an invented number.
 - **[D-12] Rent price $1.8B per GW-year** for new rent sites and for start colocation (leader S1, challenger), replacing
   $1.2B. Size minimum 100 MW for every source.
 
@@ -135,8 +134,6 @@ UI lane after L1, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b
   /** What clears each queue, GW per year in 2026 and growth per year [D-2, design]. */
   export const WAIT_RATE: Record<SiteSource, { gwPerYear2026: number; growth: number }> = {
     grid: { gwPerYear2026: 30, growth: 1.1 }, gas: { gwPerYear2026: 60, growth: 1.12 }, rent: { gwPerYear2026: 6, growth: 1.3 } };
-  /** Share of the outside queue shown as "other AI labs" in tooltips (display only) [D-11]. */
-  export const OTHER_LABS_SHARE = 0.04;
   /** Opposition: public mood = pub.dcNimby ÷ 50; caps [D-6]. */
   export const OPPOSITION = { moodRef: 50, blockMax: 0.5, delayMax: 0.9, delayQ: [1, 3] } as const;
   ```
@@ -398,7 +395,7 @@ Merge DC-1…DC-8 and DC-11 into `dc`; regenerate fixtures once (`npx tsx script
   rent `$1.8B per GW-yr + grid`); then `<wait>, 2023 → today  a → b q`, sparkline (368 × 46; reference path by quarter
   from Q1 2023 to the start, then `power.waitHist`), year axis, queue rows (grid: Firm queue / connections per year;
   gas: Turbine backlog / turbines delivered per year; rent: Halls wanted / halls finished per year) with sub-rows
-  "you (site names)", "other AI labs", "other industry", sum `Wait  X.X yr = N q`; foot "A new 1 GW <source> site adds
+  "you (site names)", "everyone else" [D-11], sum `Wait  X.X yr = N q`; foot "A new 1 GW <source> site adds
   0.N q to everyone's wait." (perGWQ, 1 decimal). Rent tooltip has no permits, construction or opposition rows.
 - **Done when:** build; tooltip screenshot next to build-tips.png; numbers on the day-400 fixture: Rent Q3 27, Grid
   (rush on) Q3 30, Gas (rush on) Q1 29. **Output:** `design/dc/DC-10a.md` + screenshots.
