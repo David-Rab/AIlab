@@ -728,6 +728,9 @@ export interface TreeNodeState {
   tm?: number;
   /** Capability projects (model v3 V2): the lifecycle state (models/research.ts). */
   cap?: CapProjectState;
+  /** Mid-game research lines (P24, Recurrent architectures): n₀, the line's start pool, stored the day it opened = the mean
+   *  of (n₀ + pool) of the pretraining start lines that day (LABOUR-ROUND §7; models/research.ts openMidGameLines). */
+  startPool?: number;
   /** Safety projects (RD-R02b): the one test's state (safety/lineProjects.ts). */
   saf?: SafProjectState;
 }

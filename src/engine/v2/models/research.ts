@@ -39,7 +39,7 @@
 // value (auto projects first) under PROJECT_MAX_TEAMS. Research engineers serve needs in the player's order (run
 // operations → project experiments by priority → routine tuning), with optional caps; overflow flows down.
 import {
-  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MAX_DROPS, PACE_BATCH,
+  BELIEF_NOISE, CAND, DROP_FRAC, DUD_SD, EXP_NOISE, IDEA_DEFAULT_TM, IDEA_STAGES, LINE_FIT, LINE_START_INPUT, LINE_STAGES, MID_GAME_LINES, PRETRAIN_START_LINES, MAX_DROPS, PACE_BATCH,
   AUTO_RANK_W, PICK_AT, POOL_MAX, PROJECT_MAX_TEAMS, PROJECT_SD, RE_OPS, RE_MAX_PER_PROJECT, RISK_KAPPA, SMALL_TO_TEST,
   SPECULATIVE, SURVIVE_FRAC, S_RANGE, S_READ_SD, TASTE_MEAN, TEST_READ_SD, ADOPT_TW, VALUE_PROXY, K_READ_SD, KAPPA_MAX, KAPPA_TIER, kappaMean,
 } from '../../../data/v2/research';
@@ -90,9 +90,18 @@ export function stagesOf(n: TreeNodeDef): { idea: number; small: number; scale: 
 }
 
 /** A line's pool in this world (V3 notes, derivation 1): returns r_l = rShare × the preset's r, and the research input
- *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). */
-export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: number; n0: number } {
+ *  before the start n₀ from the start effect per idea μ₁ = r_l·log₁₀(1 + 1/n₀). A mid-game line (MID_GAME_LINES: P24,
+ *  Recurrent architectures) reads the n₀ stored in its tree state the day it opened (openMidGameLines, LABOUR-ROUND §7);
+ *  before it opens, the mean start pool of the pretraining start lines. */
+export function linePool(s: Pick<GameStateV2, 'hidden' | 'player'>, n: TreeNodeDef): { r: number; n0: number } {
   const v3 = s.hidden.timeline.v3;
+  if (MID_GAME_LINES.includes(n.id)) {
+    const r = linePoolAt(v3.r, n).r;
+    const stored = s.player.tree[n.id]?.startPool;
+    if (stored !== undefined) return { r, n0: stored };
+    const ls = PRETRAIN_START_LINES.map((id) => node(id)).filter((l): l is TreeNodeDef => !!l);
+    return { r, n0: ls.reduce((a, l) => a + linePool(s, l).n0, 0) / Math.max(1, ls.length) };
+  }
   const pl = linePoolAt(v3.r, n);
   // Item A: the start pool is stockAgeYears of the line's own start input (the AIFM's initial research stock); 0 or no
   // measured input = n₀ from the first idea's mean.
@@ -100,11 +109,36 @@ export function linePool(s: Pick<GameStateV2, 'hidden'>, n: TreeNodeDef): { r: n
   const rate = (LINE_START_INPUT.year1[n.id] ?? 0) / LINE_START_INPUT.yearOverStart;
   return age > 0 && rate > 0 ? { r: pl.r, n0: age * rate } : pl;
 }
-/** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01). */
+/** linePool at the world's returns `worldR` (the preset's r); the rivals' recipe parts read their lines' pools here (RD-X01).
+ *  A mid-game line's n₀ is the mean start pool of the pretraining start lines (stateless; LABOUR-ROUND §7). */
 export function linePoolAt(worldR: number, n: TreeNodeDef): { r: number; n0: number } {
   const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
+  if (MID_GAME_LINES.includes(n.id)) {
+    const ls = PRETRAIN_START_LINES.map((id) => node(id)).filter((l): l is TreeNodeDef => !!l);
+    return { r, n0: ls.reduce((a, l) => a + freshN0(worldR, l), 0) / Math.max(1, ls.length) };
+  }
+  return { r, n0: freshN0(worldR, n) };
+}
+/** n₀ from the line's first idea's mean (a fresh pool). */
+function freshN0(worldR: number, n: TreeNodeDef): number {
+  const r = Math.max(1e-6, (n.effect?.rShare ?? 0.1) * worldR);
   const mu1 = Math.max(1e-9, (n.effect?.mean ?? 0) * LINE_FIT.mu);
-  return { r, n0: 1 / (Math.pow(10, mu1 / r) - 1) };
+  return 1 / (Math.pow(10, mu1 / r) - 1);
+}
+/** LABOUR-ROUND §7: the day a mid-game line opens (its prerequisites known), its n₀ is stored in its tree state: the mean over
+ *  the open pretraining start lines of (n₀_l + pool_l): n₀_l = linePool(l).n0 (the line's start pool), pool_l =
+ *  tree[l].cap.pool (the research input it gained since). Does nothing while none of the three is open. `known` = nodeKnown. */
+export function openMidGameLines(s: GameStateV2, known: (id: string) => boolean): void {
+  for (const id of MID_GAME_LINES) {
+    const n = node(id);
+    if (!n || s.player.tree[id]?.startPool !== undefined) continue;
+    if (!(n.needs ?? []).every(known)) continue;
+    const open = PRETRAIN_START_LINES.map((l) => node(l)).filter((l): l is TreeNodeDef => !!l && (l.needs ?? []).every(known));
+    if (!open.length) continue;
+    const n0 = open.reduce((a, l) => a + linePool(s, l).n0 + (s.player.tree[l.id]?.cap?.pool ?? 0), 0) / open.length;
+    const st = (s.player.tree[id] ??= { status: 'researching', progress: 0, attempts: 1 });
+    st.startPool = n0;
+  }
 }
 /** RD-X01: THE line-rate law, one function for the player's lines (prior means, the expected flow) and the rivals'
  *  recipe parts (actors/rivalModel.ts recipeRates). A line with returns r at pool state M (research input n₀ + R) gains
