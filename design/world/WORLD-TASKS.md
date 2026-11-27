@@ -48,7 +48,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W9 | Primary sources for the calibration targets → SOURCES.md | Sonnet high | 60 min | — | done cf5ef02f |
 | W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | done e72ac062 |
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
-| W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | running |
+| W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | done 2219e5b4 |
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
 | W3 | (folded into W1b) | | | | |
@@ -87,3 +87,12 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   independent evaluators' suite (externallyEvaluated); the 'government' power outcome is unreachable until W5 ·
   7c7a7e3d. Lead fixed stream owners for geoShocksQ/copyrightQ → WS4.
 - Brief rule from here: no waiting on background jobs. Checks run in the foreground with a timeout, then report.
+- W1d · Opus high · ~32 min · gov, China actor and public deleted (gov.ts, public.ts, china.ts, data/actors.ts, E12,
+  E20, E22, E23; policy flags; presets and pickers). China is now {lab, computeAbs} (npc/china.ts). Dated laws table in
+  data/v2/laws.ts: EU GPAI 2025-08-02, SB 53 2026-01-01, RAISE 2027-01-01, export controls strict → case-by-case
+  2026-01-13. The economy shock moved to economy.ts. Bug fixed: geoShocksQ wrote tension into market.geoTW (Taiwan's
+  supply share). War, treaty and committee outcomes are unreachable until W5/W6. SCHEMA 119 · 2219e5b4.
+  For `bal` at merge: export policy follows real dates; EU friction is on from the start; brand ×1; nimby fixed at 45;
+  the preset draws are gone, so per-seed worlds shift (on the day-900 fixture, valuation went 327 → 211 on that one
+  seed; milestones are unchanged).
+- W1e+W1f merged into one Sonnet task (W1d did most of W1e): setup cleanup + loose ends · running
