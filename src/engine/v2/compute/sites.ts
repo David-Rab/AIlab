@@ -9,15 +9,19 @@ import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { siteCapacityH } from './power';
 import { worldWaitQ } from './waits';
 
-/** Player sites at Jul 2025 (§3.7.2): 2 live (0.6 GW, 0.5M H100e), S3 1.2 GW building, S4 2 GW permitting (grid). */
+/** Player sites at Jul 2025 (DC-TASKS [D-10]): S1 rented hall and S2 grid campus live (0.6 GW, 0.5M H100e), S3 gas
+ *  1.2 GW building to Apr 2026, S4 Red River 1 GW grid: permits done, 17 q power wait, construction from Q4 27, live
+ *  Q4 29. */
 export function initialSites(baseline: BaselineId, startDate: string): Site[] {
   const k = baseline === 'reality' ? 0.85 : 1;
   const base = { crash: false, communityPackage: false, spvFunded: 0 };
+  const d = (date: string) => dayOfDate(startDate, date);
+  const redRiverCapex = 14.2 * k;
   const sites: Site[] = [
-    { ...base, id: 'S1', name: 'Abilene North', region: 'US', path: 'rent', mw: 300, stage: 'live', stageEndDay: 0, capex: 0, capexPaid: 0, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 2, powerQ: 0, startDay: -500 } },
-    { ...base, id: 'S2', name: 'Abilene South', region: 'US', path: 'grid', mw: 300, stage: 'live', stageEndDay: 0, capex: 4.2, capexPaid: 4.2, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -700 } },
-    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: dayOfDate(startDate, '2026-04-01'), capex: 12 * k, capexPaid: 6 * k, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -450 } },
-    { ...base, id: 'S4', name: 'Red River', region: 'US', path: 'grid', mw: 2000, stage: 'permitting', stageEndDay: dayOfDate(startDate, '2026-07-01'), capex: 29 * k, capexPaid: 0, installed: 0, ws3: { rolled: false, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -60 } },
+    { ...base, id: 'S1', name: 'Abilene North', region: 'US', path: 'rent', mw: 300, stage: 'live', stageEndDay: 0, capex: 0, capexPaid: 0, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 0, powerQ: 1, startDay: -500, liveDay: d('2024-01-01') } },
+    { ...base, id: 'S2', name: 'Abilene South', region: 'US', path: 'grid', mw: 300, stage: 'live', stageEndDay: 0, capex: 0.3 * 14.2, capexPaid: 0.3 * 14.2, installed: 250000 * k, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -700, liveDay: d('2024-07-01') } },
+    { ...base, id: 'S3', name: 'Lone Pine', region: 'US', path: 'gas', mw: 1200, stage: 'building', stageEndDay: d('2026-04-01'), capex: 12 * k, capexPaid: 6 * k, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 0, startDay: -450, powerDay: d('2026-04-01'), liveAt: d('2026-04-01') } },
+    { ...base, id: 'S4', name: 'Red River', region: 'US', path: 'grid', mw: 1000, stage: 'power', stageEndDay: d('2027-10-01'), capex: redRiverCapex, capexPaid: 0.05 * redRiverCapex, installed: 0, ws3: { rolled: true, delayedQ: 0, buildQ: 8, powerQ: 17, startDay: d('2025-04-01'), powerDay: d('2029-10-01'), liveAt: d('2029-10-01') } },
   ];
   return sites;
 }
