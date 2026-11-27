@@ -101,7 +101,7 @@ ok('Setup screen', !!(await page.$('[data-test=setup]')));
 for (const [k, v] of [['baseline', 'reality'], ['world', 'tl-fast'], ['alignment', 'hard'], ['econ', 'gate'], ['governance', 'founder'], ['storyteller', 'chaotic'], ['gov', 'hawk'], ['public', 'doomer'], ['china', 'bargainer'], ['tutorial', 'false']]) {
   await check(`Setup ${k}=${v}`, `store.draftSetup.${k}`, () => page.click(`[data-picker=${k}] [data-opt="${v}"]`), 30);
 }
-await page.fill('[data-test=company]', 'Meridian');
+await page.fill('[data-test=company]', 'Marenth');
 await wait(30);
 ok('Setup blocks a rival name', !!(await page.$('[data-test=name-clash]')) && (await page.$eval('[data-test=start-game]', (b) => b.disabled)));
 // R9: start picker (four starts with difficulty labels); a non-leader start turns the leader lab on and fixes the board.
@@ -2135,9 +2135,9 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   // FIN4b (finance v3 §6.1 strings): the count of partners, exclusivity and IP access as options that add money (IP access
   // locked with a reason without an in-house lab), what IP access costs in words, and what each live partner costs.
   ok('FIN4b: the Partners card counts partners (n of 3)', /\d of 3 partners/.test(await page.evaluate(() => document.querySelector('[data-test=partner-count]')?.textContent ?? '')));
-  const arch0 = await page.evaluate(() => JSON.stringify(window.ai27v2.state.rivals.map((r) => r.archetype)));
+  const arch0 = await page.evaluate(() => JSON.stringify(window.ai27v2.state.rivals.map((r) => r.npc.kind)));
   const ipLock0 = await page.evaluate(() => document.querySelector('[data-test=partner-ipaccess] [data-opt=yes]')?.getAttribute('data-locked') ?? '');
-  await page.evaluate(() => { const s = window.ai27v2.state; const act = s.rivals.filter((r) => r.core.status === 'active'); for (const r of s.rivals) if (act.length < 2 && r.core.status !== 'active') { r.core.status = 'active'; delete r.core.mergedInto; act.push(r); } s.rivals.forEach((r) => { r.archetype = 'safety'; }); act[0].archetype = 'bigtech'; act[1].archetype = 'bigtech'; window.ai27v2.notify(); }); // FINM: the model-v3 day-900 fixture has two active rivals and FIN3c just bought one: one more is brought back so both hyperscalers have a lab
+  await page.evaluate(() => { const s = window.ai27v2.state; const act = s.rivals.filter((r) => r.core.status === 'active'); for (const r of s.rivals) if (act.length < 2 && r.core.status !== 'active') { r.core.status = 'active'; delete r.core.mergedInto; act.push(r); } s.rivals.forEach((r) => { r.npc.kind = 'safety'; }); act[0].npc.kind = 'bigtech'; window.ai27v2.notify(); }); // the day-900 fixture may have lost labs to mergers: two are kept active and one is the big-tech kind, Azimuth's in-house lab
   await wait(150);
   ok('FIN4b: IP access is locked with its reason without an in-house lab, open with one', (ipLock0 === '' || /no in-house lab/.test(ipLock0)) && !(await page.$('[data-test=partner-ipaccess] [data-opt=yes][disabled]')), ipLock0);
   await check('FIN4b: exclusivity adds money to the offer', `document.querySelector('[data-test=partner-equity]')?.textContent ?? ''`, () => page.click('[data-test=partner-exclusive] [data-opt=yes]'));
@@ -2154,7 +2154,7 @@ ok('J1 C1: buy, build and rent show before → after (cash, runway)', await page
   ok('FIN4b: what a live partner costs: revenue share a year, the lead its IP access closes, the partner its exclusivity blocks', /revenue/.test(costs) && /\/yr/.test(costs) && /blocks Northwind/.test(costs), costs);
   ok('FIN4b: the competitor of an exclusive partner says why it is blocked', await page.evaluate(() => document.querySelector('[data-home=partners] [data-partner="Northwind Cloud"]')?.getAttribute('data-blocked') === '1'));
   await shot('67-fin4a-partner-signed');
-  await page.evaluate((a) => { const s = window.ai27v2.state; JSON.parse(a).forEach((x, i) => { if (s.rivals[i]) s.rivals[i].archetype = x; }); window.ai27v2.notify(); }, arch0);
+  await page.evaluate((a) => { const s = window.ai27v2.state; JSON.parse(a).forEach((x, i) => { if (s.rivals[i]) s.rivals[i].npc.kind = x; }); window.ai27v2.notify(); }, arch0);
   await page.click('[data-tabs=finance] [data-tab=owe]'); await wait(150);
   ok('FIN4a: the partner\'s tranche conditions show in What we owe', /Azimuth tranche/.test(await page.evaluate(() => document.querySelector('[data-home=whatWeOwe]')?.textContent ?? '')));
 }

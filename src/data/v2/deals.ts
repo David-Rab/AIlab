@@ -13,18 +13,17 @@ export const PARTNER_KINDS: Record<PartnerKind, { label: string; gives: string; 
   sovereign: { label: 'Sovereign', gives: 'a passive equity cheque', wants: 'nothing; Washington notices' },
 };
 
-export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[] }
+export interface Partner { id: string; kind: PartnerKind; competitors: string[]; supply: PartnerSupply[]; /** Its in-house lab is the big-tech NPC lab (IP access). */ inHouse?: true }
 
-/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, i.e. a big-tech rival (kind
- *  'bigtech': deep pockets, own chips; Microsoft AI, Google DeepMind, Amazon's models). Hyperscalers take the active
- *  big-tech rivals in order: Northwind Cloud the first, Azimuth the second. A hyperscaler without one has no affiliated
- *  lab and offers no IP access. Chip vendors and sovereigns have none [D]. */
+/** A hyperscaler's affiliated lab (FIN4b, spec §6.1 IP access): its in-house lab, the NPC lab of the big-tech kind. Only
+ *  a partner marked `inHouse` has one (Azimuth, the Google-like cloud); the others, chip vendors and sovereigns offer no
+ *  IP access (one simple rule, NPC principle 7; the cast has one big-tech lab). */
 export const AFFILIATE_KIND = 'bigtech' as const satisfies NpcKindId;
 
 /** Fictional partners (real analogues in comments). Each anchors at most one lab at a time (§6.1, kept). */
 export const PARTNER_DEFS: Partner[] = [
   { id: 'Northwind Cloud', kind: 'hyperscaler', competitors: ['Azimuth'], supply: ['cloud'] }, // Microsoft-like
-  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'] }, // Amazon/Google-like (Trainium/TPU)
+  { id: 'Azimuth', kind: 'hyperscaler', competitors: ['Northwind Cloud'], supply: ['cloud', 'asic'], inHouse: true }, // Amazon/Google-like (Trainium/TPU)
   { id: 'Silica Systems', kind: 'chipVendor', competitors: ['Corvid Micro'], supply: ['chips'] }, // Nvidia-like
   { id: 'Corvid Micro', kind: 'chipVendor', competitors: ['Silica Systems'], supply: ['chips'] }, // AMD-like (warrants by GW)
   { id: 'Gulf Sovereign Fund', kind: 'sovereign', competitors: [], supply: [] }, // MGX/QIA-like

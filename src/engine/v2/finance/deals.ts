@@ -54,13 +54,11 @@ const ST = PARTNER_TERMS.strings;
  *  before the start do not count. At most PARTNER_TERMS.strings.maxPartners (3). */
 export const partnersNow = (s: GameStateV2): string[] => [...new Set(s.player.finance.deals.filter((d) => !d.legacy).map((d) => d.partner))];
 
-/** A hyperscaler's affiliated lab now (data/v2/deals.ts AFFILIATE_KIND): the active big-tech rivals, in rival
- *  order, go to the hyperscalers in partner order; none for chip vendors, sovereigns, or a hyperscaler left without
- *  one. */
+/** A partner's affiliated lab now (data/v2/deals.ts AFFILIATE_KIND): the active big-tech NPC lab, for a partner marked
+ *  `inHouse`; none otherwise. */
 export function affiliatedLab(s: GameStateV2, partner: string): RivalLab | undefined {
-  if (partnerDef(partner)?.kind !== 'hyperscaler') return undefined;
-  const i = PARTNER_DEFS.filter((x) => x.kind === 'hyperscaler').findIndex((x) => x.id === partner);
-  return s.rivals.filter((r) => r.core.status === 'active' && r.npc.kind === AFFILIATE_KIND)[i];
+  if (!partnerDef(partner)?.inHouse) return undefined;
+  return s.rivals.find((r) => r.core.status === 'active' && r.npc.kind === AFFILIATE_KIND);
 }
 const labName = (s: GameStateV2, lab: LabId) => s.rivals.find((r) => r.core.id === lab)?.core.name ?? lab;
 
