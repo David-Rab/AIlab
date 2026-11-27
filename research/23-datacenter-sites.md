@@ -336,7 +336,7 @@ Range:
 - High: delivered gas $5.50 (sustained high-price case toward 2030, with LNG export pull), aero at +15% part-load = 9.124 x 1.15 x 5.50 = 57.7 + O&M ~$15 = ~$73, = 0.85 x tariff.
 - Gas price swing dominates: each $1 /MMBtu moves the result by ~$9.4 /MWh (= 0.11 x tariff). O&M is ~25% of the central figure.
 
-Check: Rabobank's all-in ~$106 /MWh minus a capex share of ~$55-60 /MWh at their assumed financing is consistent with a running cost of ~$45-50 /MWh [D, loose check].
+Loose check: Rabobank all-in ~$106 /MWh includes capex and financing, so a running cost of ~$48 leaves ~$58 for capital recovery, plausible but their split was not published in the snippets read [D, unverified].
 
 ### 10.3 Verdict
 
