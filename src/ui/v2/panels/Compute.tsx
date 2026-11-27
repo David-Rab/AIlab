@@ -1,11 +1,11 @@
 // Compute (design/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
-// compute (chips, data centres, cloud) with fine options folded away. Tabs (L2): Sites and Orders & market (deliveries, cloud
-// and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
+// compute (chips, data centres, cloud) with fine options folded away, and the Sites rows under the chart. Tab (L2): Orders &
+// market (deliveries, cloud and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, the split, orders, cloud contracts and the
 // chip market. Compute online lives in Company (its flow tab) and is only linked here.
 import { useEffect, useState, type ReactNode } from 'react';
-import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtDate, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, payOptions, qOf, rentQuote, siteCapex, siteEtaQ, siteLeasePerYear, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER } from '../../../engine/v2';
-import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site } from '../../../engine/v2';
+import { actionView, cancellablePricePerYear, chipFit, chipQuote, cloudPricePerYear, computeForecast, computeHistory, dateOf, dayOfQuarter, fmtMonth, leaseGuarantor, leaseRate, oppositionOdds, oppositionParts, payOptions, qOf, rentQuote, siteBars, siteBuildingsView, siteCapex, siteLeasePerYear, siteLiveInQ, siteLiveMW, siteRVG, siteSchedule, siteSizeView, spotPrice, spotRentalView, supplierTerms, SUPPLIER } from '../../../engine/v2';
+import type { ChipOrder, ForecastEvent, ForecastQ, GameStateV2, PayOption, Site, SiteBars, SiteBuildingsView } from '../../../engine/v2';
 
 /** The lessor's rate at your rating (FIN4b: below B only with a partner's guarantee, named). */
 const leaseLimit = (s: GameStateV2) => {
@@ -18,7 +18,7 @@ import { store } from '../store';
 import { act as engineAct, runwayOf } from '../../../engine/v2';
 import type { CostLine } from '../../../engine/v2';
 import { ActBtn, Limit, Gate, Seg, Term, Tip, TipCard, Toggle } from '../ui';
-import { Card, HBar, KV, OptionTile, PanelHead, Pill, Ref, Spark2, tabOf, Tabs } from '../kit';
+import { Card, HBar, KV, OptionTile, PanelHead, Ref, Spark2, tabOf, Tabs } from '../kit';
 import * as F from '../fmt';
 import { ICON } from '../icons';
 import { C } from '../theme';
@@ -26,12 +26,10 @@ import './compute.css';
 import { payOptionsPV } from '../../../engine/v2/finance/pv';
 
 const PATHS: { id: Site['path']; label: string; term: string; icon: typeof ICON.sites }[] = [
-  { id: 'rent', label: 'Rent', term: 'colo', icon: ICON.pathLease }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid },
+  { id: 'rent', label: 'Rent', term: 'rent', icon: ICON.pathLease }, { id: 'grid', label: 'Grid', term: 'gridPower', icon: ICON.pathGrid },
   { id: 'gas', label: 'Gas', term: 'gasPower', icon: ICON.pathGas },
 ];
 const STAGE_COLOR: Record<Site['stage'], string> = { permitting: '#8a9bb0', power: C.watch, building: C.you, live: C.good, blocked: C.bad };
-const STAGE_LABEL: Record<Site['stage'], string> = { permitting: 'permitting', power: 'power', building: 'construction', live: 'live', blocked: 'blocked' };
-const STAGE_TERM: Partial<Record<Site['stage'], string>> = { permitting: 'permitting', power: 'gridPool', building: 'capex' };
 const KIND_COLOR: Record<ChipOrder['kind'], string> = { spot: C.watch, standard: '#8a9bb0', lta: C.you };
 const COMP: { k: 'Kpkg' | 'Khbm' | 'Kwafer'; bind: string; label: string; term: string }[] = [
   { k: 'Kpkg', bind: 'packaging', label: 'Packaging', term: 'packaging' }, { k: 'Khbm', bind: 'hbm', label: 'HBM', term: 'hbm' }, { k: 'Kwafer', bind: 'wafer', label: 'Wafer', term: 'wafer' },
@@ -42,7 +40,7 @@ const qLabel = (s: GameStateV2, q: number) => {
   return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${String(d.getUTCFullYear()).slice(2)}`;
 };
 const evText = (e: ForecastEvent) =>
-  e.kind === 'siteLive' ? `${e.name} live · +${F.power(e.mw)}` : e.kind === 'delivery' ? 'Chips delivered' : e.kind === 'cloudStart' ? `${e.name} starts` : `${e.name} ends`;
+  e.kind === 'siteLive' ? `${e.name} live · +${F.power(e.mw)}${e.buildings ? ` · ${e.buildings.live} of ${e.buildings.of}` : ''}` : e.kind === 'delivery' ? 'Chips delivered' : e.kind === 'cloudStart' ? `${e.name} starts` : `${e.name} ends`;
 const evSigned = (e: ForecastEvent) => F.count(e.kind === 'cloudEnd' ? -e.h : e.h, true);
 
 // ═════════════════════════ Overview ═════════════════════════
@@ -107,8 +105,8 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   const binds = s.market.demandQ >= 0.95 * s.market.supplyQ;
   const comp = <Term id={s.market.binding === 'hbm' ? 'hbm' : s.market.binding === 'wafer' ? 'wafer' : 'packaging'}>{COMP.find((c) => c.bind === s.market.binding)?.label ?? 'Packaging'}</Term>;
   const t3 = { tone: fill >= 0.9 ? 'ok' : fill >= 0.7 ? 'warn' : 'bad', icon: ICON.supply, v: F.pct(fill), l: <Term id="vendorFill">vendor fill</Term>, sub: binds ? <>{comp}-bound</> : <>supply above demand · tightest: {comp}</> };
-  const tile = (t: typeof t1, home: string, tab: string) => (
-    <button className={`cst ${t.tone}`} data-home={home} onClick={() => store.goto('compute', { tab })}>
+  const tile = (t: typeof t1, home: string, tab: string, anchor?: string) => (
+    <button className={`cst ${t.tone}`} data-home={home} onClick={() => store.goto('compute', { tab, anchor })}>
       <span className="cst-ic"><t.icon size={19} /></span>
       <span className="cst-body">
         <span className="cst-top">{t.v && <b className="num">{t.v}</b>}<span>{t.l}</span></span>
@@ -119,7 +117,7 @@ function Status({ s, fc }: { s: GameStateV2; fc: ForecastQ[] }) {
   );
   return (
     <div className="cst-row">
-      {tile(t1, 'idleChips', 'sites')}
+      {tile(t1, 'idleChips', 'overview', 'siteRows')}
       {tile(t2, 'emptyRacks', 'orders')}
       {tile({ ...t3 }, 'vendorFill', 'orders')}
     </div>
@@ -413,7 +411,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
   const t = fits(tier) ? tier : SITE_TIERS.reduce((a, x, i) => (x.mw <= max ? i : a), 0);
   const mw = SITE_TIERS[t].mw;
   const kW = s.power.kWPerH100e;
-  const eta = siteEtaQ(s, { path, mw, crash });
+  const eta = siteLiveInQ(s, { path, mw, crash });
   const colo = path === 'rent';
   const sched = siteSchedule(s, { path, mw, crash });
   const pays = payOptions(s, siteCapex({ path, mw, crash, community }), 'site', sched);
@@ -436,7 +434,7 @@ function BuildCard({ s }: { s: GameStateV2 }) {
       <div className="cac-lbl">Power</div>
       <div className="cac-tiles c5">
         {PATHS.map((p) => {
-          const q = siteEtaQ(s, { path: p.id, mw: Math.min(mw, SOURCES[p.id].maxMW), crash });
+          const q = siteLiveInQ(s, { path: p.id, mw: Math.min(mw, SOURCES[p.id].maxMW), crash });
           return (
             <OptionTile key={p.id} label={p.label} icon={p.icon} glyphs={<span>{`${q}q`}</span>} active={path === p.id} onClick={() => pickPath(p.id)} testId={`path-${p.id}`}
               tip={() => <TipCard title={<Term id={p.term}>{p.label}</Term>} rows={[{ label: 'Live in', value: `≈ ${q} quarters` }, { label: 'Largest', value: F.power(SOURCES[p.id].maxMW) }, { label: 'Power price', value: `×${SOURCES[p.id].powerCostMult}` }]} />} />
@@ -514,96 +512,171 @@ function Overview({ s }: { s: GameStateV2 }) {
           <BuildCard s={s} />
           <CloudCard s={s} />
         </div>
+        <SiteRows s={s} />
       </div>
     </>
   );
 }
 
-// ═════════════════════════ Sites ═════════════════════════
+// ═════════════════════════ Sites (rows under the chart) ═════════════════════════
 
-function SiteTimeline({ s }: { s: GameStateV2 }) {
-  const now = s.time.day;
-  const sites = [...s.player.sites].sort((a, b) => (a.stage === 'live' ? 1 : 0) - (b.stage === 'live' ? 1 : 0) || a.stageEndDay - b.stageEndDay);
-  const liveAt = (x: Site) => (x.stage === 'live' ? now : x.stage === 'building' ? x.stageEndDay : x.stageEndDay + (x.ws3?.buildQ ?? 8) * 91);
-  const lo = now - 120;
-  const hi = Math.max(now + 365, ...sites.filter((x) => x.stage !== 'blocked').map((x) => liveAt(x) + 45));
-  const X = (d: number) => `${((Math.max(lo, Math.min(hi, d)) - lo) / (hi - lo)) * 100}%`;
-  const W = (a: number, b: number) => `${((Math.max(lo, Math.min(hi, b)) - Math.max(lo, Math.min(hi, a))) / (hi - lo)) * 100}%`;
-  const ticks: number[] = [];
-  const yearly = hi - lo > 600;
-  for (let d = lo; d <= hi; d += 7) { const t = dateOf(s, d); if (t.getUTCDate() <= 7 && t.getUTCMonth() % (yearly ? 12 : 6) === 0 && Math.abs(d - now) > (hi - lo) * 0.08) ticks.push(d); }
+const TRACK = { permits: '#8a9bb0', cons: C.you, power: C.watch, live: 'rgba(76,195,138,.55)' };
+const SOURCE_NAME: Record<Site['path'], string> = { rent: 'Rent', grid: 'Grid', gas: 'Gas' };
+const POWER_WAIT: Record<Site['path'], string> = { rent: 'a hall', grid: 'grid', gas: 'turbines' };
+
+interface SiteRow { x: Site; bars?: SiteBars; view?: SiteBuildingsView; full: boolean }
+
+/** One quarter range as `Q3 29` or `Q3 29 → Q3 30`. */
+const qRange = (s: GameStateV2, a: number, b: number) => (a === b ? qLabel(s, a) : `${qLabel(s, a)} → ${qLabel(s, b)}`);
+
+/** The community package's price for one site: what the action's preview charges. */
+const packagePrice = (s: GameStateV2, x: Site) => -actionView(s, 'cmp.community', { siteId: x.id }).costs.filter((c) => c.currency === 'cash').reduce((a, c) => a + c.amount, 0);
+
+/** What a site's opposition odds are made of (the block pill's tooltip). */
+function OppositionTip({ s, x }: { s: GameStateV2; x: Site }) {
+  const p = oppositionParts(s, x);
   return (
-    <div className="stl" data-home="sites">
-      <div className="stl-row stl-axis">
-        <span /><span />
-        <span className="stl-track">
-          {ticks.map((d) => <span key={d} className="stl-tick" style={{ left: X(d) }}>{yearly ? dateOf(s, d).getUTCFullYear() : fmtMonth(dateOf(s, d))}</span>)}
-          <span className="stl-now" style={{ left: X(now) }}>today</span>
-        </span>
-        <span /><span />
-      </div>
-      {sites.map((x) => {
-        const odds = oppositionOdds(s, x);
-        const start = x.ws3?.startDay ?? now;
-        const live = liveAt(x);
+    <TipCard title={<Term id="opposition">Opposition</Term>} value={`block ${F.pct(p.block)}`} rows={[
+      { label: 'Block, before modifiers', value: F.pct(p.blockBase) },
+      { label: <Term id="dcPublic">Public mood</Term>, value: `×${p.mood.toFixed(2)}` },
+      ...(p.crashMult !== 1 ? [{ label: <Term id="crashBuild">Crash construction</Term>, value: `×${p.crashMult}` }] : []),
+      ...(p.communityMult !== 1 ? [{ label: <Term id="communityPackage">Community package</Term>, value: `×${p.communityMult}`, tone: 'pos' as const }] : []),
+      { label: 'Delay odds', value: F.pct(p.delay) },
+    ]}>One roll when permits end, for the whole site. A block loses what you have paid so far; a delay adds 1 to 3 quarters.</TipCard>
+  );
+}
+
+function SiteTip({ s, r }: { s: GameStateV2; r: SiteRow }) {
+  const { x, bars, view } = r;
+  const of = view?.of ?? x.ws3.buildings ?? 1;
+  const bmw = x.ws3.buildingMW ?? x.mw / of;
+  const liveMW = siteLiveMW(x, s.time.day);
+  const odds = oppositionOdds(s, x);
+  const taken: ReactNode[] = [];
+  if (x.crash) taken.push(<Term key="crash" id="crashBuild">crash</Term>);
+  if (x.ws3.rush) taken.push(<Term key="rush" id="rushPower">rush power</Term>);
+  if (x.ws3.fastTrack) taken.push(<Term key="fast" id="fastTrack">fast-track</Term>);
+  if (x.communityPackage) taken.push(<Term key="pack" id="communityPackage">community package</Term>);
+  const stage = x.stage === 'blocked' ? 'blocked' : r.full ? 'live' : x.stage === 'live' ? `${view?.live} of ${of} live` : x.stage === 'permitting' ? 'permits' : x.stage === 'power' ? 'waiting for power' : 'construction';
+  const rows: { label: ReactNode; value: ReactNode; tone?: 'neg' | 'neutral' | 'pos' }[] = [
+    { label: <Term id="sitePath">Power source</Term>, value: `${SOURCE_NAME[x.path]} · ${x.region}` },
+    { label: of > 1 ? <Term id="campus">Buildings</Term> : <Term id="mw">Capacity</Term>, value: of > 1 ? `${of} × ${F.power(bmw)} = ${F.power(x.mw)}` : F.power(x.mw) },
+  ];
+  if (view && !r.full && x.stage === 'live') rows.push({ label: 'Live now', value: F.power(liveMW) });
+  if (bars && !r.full) {
+    if (bars.permits) rows.push({ label: <Term id="permitting">Permits end</Term>, value: qLabel(s, bars.permits[1]) });
+    if (bars.power) rows.push({ label: <Term id="powerStage">Power ready</Term>, value: qLabel(s, bars.power[1]) });
+    if (bars.construction) rows.push({ label: <Term id="construction">Construction</Term>, value: `${qLabel(s, bars.construction[0])} – ${qLabel(s, bars.construction[1])}` });
+  }
+  if (view && of > 1) rows.push({ label: <Term id="buildingsLive">Buildings live</Term>, value: view.buildings.map((b) => `${qLabel(s, b.liveQ)}${b.live ? ' ✓' : ''}`).join(' · ') });
+  if (x.stage === 'permitting' && !x.ws3.rolled && x.path !== 'rent') rows.push({ label: <Term id="opposition">Block / delay</Term>, value: `${F.pct(odds.block)} / ${F.pct(odds.delay)}`, tone: odds.block > 0.1 ? 'neg' : 'neutral' });
+  rows.push(
+    { label: 'Speed-ups taken', value: taken.length ? taken.reduce<ReactNode[]>((a, n, i) => (i ? [...a, ' · ', n] : [n]), []) : 'none' },
+    { label: <Term id="capex">Capex paid</Term>, value: `${F.money(x.capexPaid)} / ${F.money(x.capex)}` },
+    { label: 'Chips installed', value: `${F.count(x.installed)} H100e` },
+    { label: <Term id="payOption">Paid with</Term>, value: x.ws3?.lease ? `lease ${F.pct(x.ws3.lease.rate)} · ${F.money(siteLeasePerYear(x, x.stage === 'live' ? x.ws3.lease.funded : x.ws3.lease.funded + (x.capex - x.capexPaid) * x.spvFunded), { perYear: true })} × 15 y` : 'cash' },
+  );
+  if (x.ws3?.lease) rows.push({ label: <Term id="rvg">Residual-value guarantee</Term>, value: F.money(siteRVG(s, x.id)) });
+  return <TipCard title={x.name} value={stage} rows={rows} />;
+}
+
+/** The Sites section under the chart: one row per site, with its permits, construction and power bars on a shared
+ *  quarter axis, one diamond per building, and the live range and stage at the right. */
+function SiteRows({ s }: { s: GameStateV2 }) {
+  const q0 = qOf(s);
+  const d0 = dayOfQuarter(s.time.startDate, q0);
+  const now = q0 + (s.time.day - d0) / Math.max(1, dayOfQuarter(s.time.startDate, q0 + 1) - d0);
+  const kW = s.power.kWPerH100e;
+  const rows: SiteRow[] = s.player.sites.map((x) => {
+    const bars = siteBars(s, x), view = siteBuildingsView(s, x);
+    return { x, bars, view, full: !!view && x.stage === 'live' && view.live >= view.of };
+  });
+  const rank = (r: SiteRow) => (r.x.stage === 'blocked' ? 2 : r.full ? 0 : 1);
+  rows.sort((a, b) => rank(a) - rank(b) || (a.bars?.liveQ ?? 0) - (b.bars?.liveQ ?? 0));
+  const liveMW = s.player.sites.reduce((a, x) => a + siteLiveMW(x, s.time.day), 0);
+  const usedMW = s.player.sites.reduce((a, x) => a + Math.min(siteLiveMW(x, s.time.day), (x.installed * kW) / 1000), 0);
+  // axis: from five quarters back (earlier if a site not yet fully live began earlier) to eight ahead (later if a building goes live later)
+  const starts = rows.filter((r) => r.bars && !r.full).flatMap((r) => [r.bars!.permits?.[0], r.bars!.power?.[0], r.bars!.construction?.[0]]).filter((q): q is number => q !== undefined);
+  const ends = rows.flatMap((r) => (r.bars ? [(r.bars.lastLiveQ ?? r.bars.liveQ) + 1] : []));
+  const Q0 = Math.floor(Math.min(q0 - 5, ...starts)), Q1 = Math.ceil(Math.max(q0 + 8, ...ends));
+  const frac = (q: number) => Math.max(0, Math.min(1, (q - Q0) / (Q1 - Q0)));
+  const X = (q: number) => `${frac(q) * 100}%`;
+  const W = (a: number, b: number) => `${(frac(b) - frac(a)) * 100}%`;
+  const years: number[] = [];
+  for (let q = Q0; q <= Q1; q++) if (dateOf(s, dayOfQuarter(s.time.startDate, q)).getUTCMonth() < 3 && Math.abs(q - now) > 0.8 && frac(q) > 0.03 && frac(q) < 0.94) years.push(q);
+  /** A bar from quarter a to b: solid up to today, hatched after. */
+  const part = (k: string, cls: string, a: number, b: number, bg: string) => [
+    a < now && <i key={`${k}p`} className={cls} style={{ left: X(a), width: W(a, Math.min(b, now)), background: bg }} />,
+    b > now && <i key={`${k}f`} className={`${cls} pl`} style={{ left: X(Math.max(a, now)), width: W(Math.max(a, now), b), background: bg }} />,
+  ];
+  const track = (r: SiteRow) => {
+    const { bars, view } = r;
+    const out: ReactNode[] = [<span key="nl" className="nl" style={{ left: X(now) }} />];
+    if (r.full) out.push(<i key="live" className="f" style={{ left: 0, width: '100%', background: TRACK.live }} />);
+    else if (bars && view) {
+      const last = bars.lastLiveQ ?? bars.liveQ;
+      if (bars.permits) out.push(...part('pe', 'f', bars.permits[0], bars.permits[1], TRACK.permits));
+      if (bars.construction) out.push(...part('co', 't', bars.construction[0], bars.construction[1], TRACK.cons));
+      if (bars.power) out.push(...part('po', 'b', bars.power[0], bars.power[1], TRACK.power));
+      if (view.live > 0) {
+        out.push(...part('l1', 'b', bars.liveQ, last, TRACK.live));
+        out.push(...part('l2', 'f', last, Q1, TRACK.live));
+      }
+      view.buildings.forEach((b, k) => out.push(<span key={`d${k}`} className={`lv ${b.live ? '' : 'rk'}`} style={{ left: X(b.liveQ) }} />));
+    }
+    return out;
+  };
+  const status = (r: SiteRow): ReactNode => {
+    const { x, bars, view } = r;
+    if (x.stage === 'blocked') return <><span className="tone-neg">blocked</span><Tip content={() => <TipCard title={<Term id="capex">Capex lost</Term>} value={F.money(x.capexPaid)} rows={[{ label: 'Planned capex', value: F.money(x.capex) }]}>Paid on the site before opposition blocked it.</TipCard>}><span className="dim">{F.money(x.capexPaid)} lost</span></Tip></>;
+    if (!view || !bars) return null;
+    if (r.full) return <><span className="tone-pos">live</span><span className="dim">since {qLabel(s, view.buildings[0].liveQ)}</span></>;
+    if (x.stage === 'live') {
+      const next = view.buildings.find((b) => !b.live);
+      return <><span className="tone-pos"><Term id="buildingsLive">{view.live} of {view.of} live</Term></span>{view.inConstruction > 0 ? <span className="dim">{view.inConstruction} in construction</span> : next ? <span className="dim">next {qLabel(s, next.liveQ)}</span> : null}</>;
+    }
+    if (x.stage === 'permitting') {
+      const odds = oppositionOdds(s, x);
+      const canPackage = !x.communityPackage && !x.ws3.rolled && x.path !== 'rent';
+      return (
+        <>
+          <Term id="permitting">Permits</Term>
+          {!x.ws3.rolled && odds.block >= 0.005 && <Tip content={() => <OppositionTip s={s} x={x} />}><span className={`dc-pill ${odds.block > 0.1 ? '' : 'warn'}`}>block {F.pct(odds.block)}</span></Tip>}
+          {canPackage && <ActBtn id="cmp.community" params={{ siteId: x.id }} label={`Community package · ${F.money(packagePrice(s, x))}`} />}
+        </>
+      );
+    }
+    if (x.stage === 'power') return <><Term id="powerStage">Waiting for {POWER_WAIT[x.path]}</Term>{x.path !== 'rent' && bars.construction && <span className="dim">build from {qLabel(s, bars.construction[0])}</span>}</>;
+    return <><Term id="construction">Construction</Term><span className="dim">until {qLabel(s, bars.lastLiveQ ?? bars.liveQ)}</span></>;
+  };
+  return (
+    <Card title="Sites" term="site" home="sites" id="ctl-siteRows" className="dcs"
+      right={<span className="row-i small"><span className="dim">racks used / live</span><HBar v={usedMW} max={Math.max(1, liveMW)} w={110} h={8} color={chipFit(s).idle > 0 ? C.bad : usedMW > liveMW * 0.95 ? C.watch : C.good} />
+        <Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(usedMW) }, { label: 'Live capacity', value: F.power(liveMW) }]}>Power of your live buildings and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed"><span data-test="sites-used">{F.power(usedMW)}</span> / <span data-test="sites-live">{F.power(liveMW)}</span></b></Tip></span>}>
+      <div className="dcs-row ax"><span /><span /><span className="dcs-tr">
+        {years.map((q) => <span key={q} className="tk" style={{ left: X(q) }}>{dateOf(s, dayOfQuarter(s.time.startDate, q)).getUTCFullYear()}</span>)}
+        <span className="tk now" style={{ left: X(now) }}>today</span>
+      </span><span className="dim small">live</span><span /></div>
+      {rows.map((r) => {
+        const { x, view } = r;
+        const times = view && x.stage !== 'blocked' && !r.full ? qRange(s, view.buildings[0].liveQ, view.buildings[view.buildings.length - 1].liveQ) : '';
         return (
-          <Tip as="div" key={x.id} content={() => (
-            <TipCard title={x.name} value={STAGE_LABEL[x.stage]} rows={[
-              { label: <Term id="sitePath">Power</Term>, value: `${PATHS.find((p) => p.id === x.path)?.label} · ${x.region}` }, { label: <Term id="mw">Capacity</Term>, value: F.power(x.mw) },
-              { label: 'Stage ends', value: x.stage === 'live' ? '—' : fmtDate(dateOf(s, x.stageEndDay)) }, { label: 'Live ≈', value: x.stage === 'blocked' ? 'blocked' : fmtMonth(dateOf(s, live)) },
-              { label: 'Block / delay risk', value: `${F.pct(odds.block)} / ${F.pct(odds.delay)}`, tone: odds.block > 0.1 ? 'neg' : 'neutral' },
-              { label: <Term id="capex">Capex paid</Term>, value: `${F.money(x.capexPaid)} / ${F.money(x.capex)}` }, { label: 'Chips installed', value: `${F.count(x.installed)} H100e` },
-              { label: <Term id="communityPackage">Community package</Term>, value: x.communityPackage ? 'yes' : 'no' }, { label: <Term id="crashBuild">Crash build</Term>, value: x.crash ? 'yes' : 'no' },
-              { label: <Term id="payOption">Paid with</Term>, value: x.ws3?.lease ? `lease ${F.pct(x.ws3.lease.rate)} · ${F.money(siteLeasePerYear(x, x.stage === 'live' ? x.ws3.lease.funded : x.ws3.lease.funded + (x.capex - x.capexPaid) * x.spvFunded), { perYear: true })} × 15 y` : 'cash' },
-              ...(x.ws3?.lease ? [{ label: <Term id="rvg">Residual-value guarantee</Term>, value: F.money(siteRVG(s, x.id)) }] : []),
-            ]} />
-          )}>
-            <div className="stl-row" data-site={x.id}>
-              <span className="stl-name"><span className="dot" style={{ background: STAGE_COLOR[x.stage] }} /><span className="ellip">{x.name}</span><span className="dim small">{PATHS.find((p) => p.id === x.path)?.label.toLowerCase()}</span></span>
-              <span className="num stl-mw">{F.power(x.mw)}</span>
-              <span className="stl-track">
-                <span className="stl-now-line" style={{ left: X(now) }} />
-                {x.stage === 'live' && <i className="stl-seg live" style={{ left: X(lo), width: W(lo, hi) }} />}
-                {x.stage !== 'live' && x.stage !== 'blocked' && (
-                  <>
-                    <i className="stl-seg past" style={{ left: X(start), width: W(start, now) }} />
-                    <i className="stl-seg" style={{ left: X(now), width: W(now, x.stageEndDay), background: STAGE_COLOR[x.stage] }} />
-                    {x.stage !== 'building' && <i className="stl-seg plan" style={{ left: X(x.stageEndDay), width: W(x.stageEndDay, live) }} />}
-                    <b className="stl-live" style={{ left: X(live) }} title="goes live" />
-                  </>
-                )}
-                {x.stage === 'blocked' && <i className="stl-seg blocked" style={{ left: X(start), width: W(start, now) }} />}
-              </span>
-              <span className="small stl-st">{x.stage === 'live' ? <span className="tone-pos">live</span> : x.stage === 'blocked' ? <span className="tone-neg">blocked</span> : <><Term id={STAGE_TERM[x.stage] ?? 'site'}>{STAGE_LABEL[x.stage]}</Term> <span className="dim">until {fmtMonth(dateOf(s, x.stageEndDay))} · live ≈ {qLabel(s, qOf(s, live))}</span></>}</span>
-              <span className="stl-act">
-                {x.stage === 'permitting' && odds.block > 0.005 && <Pill kind={odds.block > 0.1 ? 'bad' : 'warn'} title="chance local opposition blocks the site">block {F.pct(odds.block)}</Pill>}
-                {x.stage === 'permitting' && !x.communityPackage && !x.ws3?.rolled && x.path !== 'rent' && <ActBtn id="cmp.community" params={{ siteId: x.id }} label="Community package" />}
-              </span>
+          <Tip as="div" key={x.id} content={() => <SiteTip s={s} r={r} />}>
+            <div className="dcs-row" data-site={x.id}>
+              <span className="dcs-name"><span className="dot" style={{ background: STAGE_COLOR[x.stage] }} /><span className="ellip">{x.name}</span><span className="dim">{x.path}</span></span>
+              <span className="dcs-mw">{view && view.of > 1 && <span className="dcs-bl">{view.buildings.map((b, k) => <i key={k} className={b.live ? 'on' : ''} />)}</span>}{F.power(x.mw)}</span>
+              <span className="dcs-tr">{track(r)}</span>
+              <span className="dcs-lv">{times}</span>
+              <span className="dcs-st">{status(r)}</span>
             </div>
           </Tip>
         );
       })}
-      {!sites.length && <div className="dim small">No sites yet.</div>}
-      <div className="stl-leg legend2">
-        {(['permitting', 'power', 'building', 'live', 'blocked'] as const).map((st) => <span key={st}><i style={{ background: STAGE_COLOR[st] }} />{STAGE_LABEL[st]}</span>)}
-        <span><i className="hatch" />planned build</span>
-      </div>
-    </div>
-  );
-}
-
-function SitesTab({ s }: { s: GameStateV2 }) {
-  const kW = s.power.kWPerH100e;
-  const live = s.player.sites.filter((x) => x.stage === 'live');
-  const mwCap = live.reduce((a, x) => a + x.mw, 0);
-  const mwUsed = live.reduce((a, x) => a + Math.min(x.mw, (x.installed * kW) / 1000), 0);
-  const full = chipFit(s).idle > 0;
-  return (
-    <Card title={<Term id="site">Sites & power</Term>} className="cmp-sites"
-      right={<span className="row-i small"><span className="dim">MW used / cap</span><HBar v={mwUsed} max={Math.max(1, mwCap)} w={110} h={8} color={full ? C.bad : mwUsed > mwCap * 0.95 ? C.watch : C.good} /><Tip content={() => <TipCard title={<Term id="mw">Racks used</Term>} rows={[{ label: 'Used', value: F.power(mwUsed) }, { label: 'Live capacity', value: F.power(mwCap) }]}>Power of your live sites and how much installed chips draw.</TipCard>}><b className="num" data-home="mwUsed">{F.power(mwUsed)} / {F.power(mwCap)}</b></Tip></span>}>
-      <SiteTimeline s={s} />
-      <div className="cmp-power">
-        <KV k="kW per H100e" term="kwPerH100e">{kW.toFixed(2)}</KV>
+      {!rows.length && <div className="dim small">No sites yet.</div>}
+      <div className="dcs-leg">
+        <span><i style={{ background: TRACK.permits }} /><Term id="permitting">permits</Term></span><span><i style={{ background: TRACK.cons }} /><Term id="construction">construction</Term></span>
+        <span><i style={{ background: TRACK.power }} /><Term id="powerStage">power</Term></span><span><i style={{ background: TRACK.live }} />live</span>
+        <span><i className="dm" /><Term id="building">building</Term> live</span><span><i className="pl" style={{ background: TRACK.cons }} />planned</span>
       </div>
     </Card>
   );
@@ -713,15 +786,13 @@ function Market({ s }: { s: GameStateV2 }) {
 
 export function Compute({ s }: { s: GameStateV2 }) {
   const tab0 = tabOf('compute', 'overview');
-  const tab = tab0 === 'split' ? 'overview' : tab0; // UB-5: the allocation moved to LAB
-  const sitesBadge = chipFit(s).idle > 0 || s.player.sites.some((x) => x.stage === 'permitting' && !x.ws3?.rolled && oppositionOdds(s, x).block > 0.1) ? '!' : undefined;
+  const tab = tab0 === 'split' || tab0 === 'sites' ? 'overview' : tab0; // UB-5: the allocation moved to LAB; the Sites tab became rows under the chart
   return (
     <div className="panel-v2 cmp" data-panel="compute">
       <PanelHead icon={ICON.computePanel} title="Compute" sub="chips, sites and cloud"
-        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'sites', label: 'Sites', icon: ICON.sites, badge: sitesBadge }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
+        tabs={<Tabs panel="compute" def="overview" tabs={[{ id: 'overview', label: 'Overview', icon: ICON.overview }, { id: 'orders', label: 'Orders & market', icon: ICON.supply }]} />}
         right={<span className="row-i"><Ref id="split" to={{ panel: 'lab', anchor: 'split' }}>Compute allocation</Ref></span>} />
       {tab === 'overview' && <Overview s={s} />}
-      {tab === 'sites' && <SitesTab s={s} />}
       {/* Jank C4: orders, cloud and the chip market share one tab (each used under 40% of the screen alone). */}
       {(tab === 'orders' || tab === 'market') && <div className="g3"><Deliveries s={s} /><Cloud s={s} /><Market s={s} /></div>}
     </div>

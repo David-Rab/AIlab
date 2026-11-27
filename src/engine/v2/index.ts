@@ -131,7 +131,7 @@ export type { PartnerChoice } from './finance/deals';
 export { leadEstimate } from './finance/observe';
 export { liveLedger, commitmentsPerYear, ledgerDue, qOf } from './finance/ledger';
 export { chipQuote, rentQuote, spotRentalCap, CHIP_TERMS, RENT_TERMS } from './compute/orders';
-export { campusMW, leverEffects, oppositionLevel, oppositionOdds, oppositionParts, siteBuildQ, siteBuildingLiveInQ, siteBuildings, siteCapex, siteCapexParts, siteEtaQ, siteFit, siteLastLiveInQ, siteLeasePerYear, siteLiveInQ, sitePermitQ, sitePowerQ, siteSchedule, siteSizeError, reactiveUnblockOdds, type CapexParts, type LeverEffect, type LeverKey, type OppositionParts } from './compute/sites';
+export { campusMW, leverEffects, oppositionLevel, oppositionOdds, oppositionParts, siteBuildQ, siteBuildingLiveInQ, siteBuildings, siteCapex, siteCapexParts, siteFit, siteLastLiveInQ, siteLeasePerYear, siteLiveInQ, sitePermitQ, sitePowerQ, siteSchedule, siteSizeError, reactiveUnblockOdds, type CapexParts, type LeverEffect, type LeverKey, type OppositionParts } from './compute/sites';
 export { chipFit, computeForecast, computeHistory, idleChips, siteBars, siteBuildingLiveQs, siteBuildingsView, siteLiveQ } from './compute/forecast';
 export type { ChipFit, ForecastEvent, ForecastQ, SiteBars, SiteBuildingsView } from './compute/forecast';
 export { ownedOnline, rentedOnline, poolsOf, siteLiveMW } from './compute/power';
