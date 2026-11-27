@@ -21,13 +21,13 @@ the merge wave.
 | N2a | Data: personality table (7 values per kind), the Realistic cast (CAST-2025.md, O5), noise table (O4), invented names | Sonnet high | — | done, merged bbec174+ |
 | N2a2 | R1 generic start-internal rule + R2 one release cadence from Epoch ECI (spec §16) | Sonnet medium | N2a | done, merged |
 | N2b-1 | NPC lab core: state, init from the Realistic cast, the daily lag / model / release step, adapters so every existing reader keeps working (spec §3–4) | Opus high, reason (c) | N1, N2a, N3 | done, merged |
-| N2b-2 | Race pressure, misalignment m (M_world), incidents (spec §4, §7) | Sonnet high | N2b-1 | next |
-| N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | wave 3 |
+| N2b-2 | Race pressure, misalignment m (M_world), incidents (spec §4, §7) | Sonnet high | N2b-1 | running |
+| N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | running |
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | wave 3 |
 | N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | wave 3 |
 | N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b | wave 3 |
-| N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | wave 3 |
-| N10 | Setup UI: Realistic default + advanced "Create rivals" (good-ui skill) | Sonnet high | N2a, N2b | wave 3 |
+| N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | running |
+| N10 | Setup UI: Realistic default + advanced "Create rivals" (good-ui skill) | Sonnet high | N2a, N2b | running |
 | N12 | Remove the old NPC simulation and dead state (spec §13) | Sonnet medium | wave 3 | wave 4 |
 | N13 | Shape checks (spec §14) as a script + dashboard tab | Sonnet high | wave 3 | wave 4 |
 
