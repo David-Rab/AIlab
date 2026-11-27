@@ -28,7 +28,7 @@ import { clamp01, flagNum, setFlag, versionById } from './common';
 import { monitoringCatch, stackDetectionMap } from './detection';
 import { revealFalse } from './findings';
 import { FOOTHOLD_ACT, FOOTHOLD_NAME, footholdsOf, lineageOf } from './footholds';
-import { committedFte, safetyReHeads } from './investigations';
+import { needRoom, resetSafAllocation } from './lineProjects';
 import { versionOom } from './oversight';
 import { strengthTrue } from './techniques';
 
@@ -194,8 +194,6 @@ function located(s: GameStateV2, id: string | undefined): Foothold | undefined {
   return f && f.status === 'detected' ? f : undefined;
 }
 
-/** Free safety research engineers (cases, patches and removals take theirs; the rest keep tools validated). */
-const freeRe = (s: GameStateV2) => safetyReHeads(s) - committedFte(s);
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
 /** Size of a located foothold as the lab now knows it (H100e, reach, steered dispositions, tool strength). */
@@ -228,7 +226,9 @@ export function removeFoothold(s: GameStateV2, ctx: SystemCtx, id: string): stri
   if (f.status !== 'detected') return 'Locate it first (a case on the suspected model)';
   if (!removable(f.kind)) return 'Outside the lab: only the hunt can remove an escaped copy';
   const c = FOOTHOLD.removal[f.kind];
-  if (freeRe(s) < c.fte - 1e-9) return 'Not enough free safety research engineers';
+  // L6: a removal claims its engineers from the needs list at its place in the order (it lasts fixed days, so it needs
+  // all of them); no one has to be idle.
+  if (needRoom(s, 'removal', c.fte) < c.fte - 1e-9) return 'Not enough safety research engineers for a removal at its place in the needs order';
   if (f.kind === 'steeredSuccessor' && f.delta) {
     const targets = s.player.models.versions.filter((v) => v.status !== 'retired' && (v.id === f.ref || v.baseId === f.ref));
     const base = s.player.models.bases.find((b) => b.id === f.ref);
@@ -242,6 +242,7 @@ export function removeFoothold(s: GameStateV2, ctx: SystemCtx, id: string): stri
   f.status = 'removed';
   f.removedDay = ctx.day;
   f.removal = { until: ctx.day + c.days, fte: c.fte };
+  resetSafAllocation(s); // the removals' need grew
   ctx.log('company', `Foothold removed: ${FOOTHOLD_NAME[f.kind].toLowerCase()}.`, 3, f.id);
   return undefined;
 }

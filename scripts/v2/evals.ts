@@ -109,6 +109,9 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
     // No training run in flight: no release suite joins the queue while the ordered one runs.
     s.player.models.runs = [];
     s.player.build.queue = [];
+    // No validation jobs queued on day 1 ahead of evals in the needs list (L15: the start's 50 safety research engineers
+    // cannot staff both): the estimate is taken before they exist, so they would make it wrong by their days.
+    act(s, 'safety.validationPolicy', { on: false });
     // Evaluate the start model (deployed) on the player's order; cap the evals need to `cap` team-equivalents.
     // CP3 rewrite (SR-21): eval suites are a need on the safety research engineers' list. That list allocates heads
     // (evalDaysEstimate: allocate(al.heads, …)), so its cap is in people: cap team-eq × RE_UNIT_HEADS. (The action's

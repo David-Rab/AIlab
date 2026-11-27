@@ -34,8 +34,7 @@ import { agentVersion } from '../departments/agents';
 import { expectedFitSd, measuredSd, runEvalSuite, type Evaluator } from './benchmarks';
 import { versionById } from './labs';
 import { inPlaceRecipe } from './stacks';
-import { allocate } from './research';
-import { safAllocation } from '../safety/lineProjects';
+import { needRoom, safAllocation } from '../safety/lineProjects';
 
 /** SR-21: AI labour multiplier on the safety engineers' eval work (m of safety experiments, as cases and validation). */
 export const evalM = (s: GameStateV2) => Math.max(1, safetyLabour(s).exp.m);
@@ -257,12 +256,8 @@ export function evalDaysEstimate(s: GameStateV2, depth: EvalDepth): number {
   const D = EVAL_DEPTHS[depth];
   const m = evalM(s);
   const max = D.staff / RE_UNIT_HEADS / m;
-  // SR-21: what the safety needs list would give one more suite (heads → team-equivalents).
-  const al = safAllocation(s);
-  const a = s.player.research.safRe;
-  const d = al.demand;
-  const extra = (allocate(al.heads, a, { ...d, evals: d.evals + max * RE_UNIT_HEADS }).evals - allocate(al.heads, a, d).evals) / RE_UNIT_HEADS;
-  const h = Math.min(max, Math.max(0, extra));
+  // SR-21: what the safety needs list would give one more suite at its place in the order (heads → team-equivalents).
+  const h = Math.min(max, needRoom(s, 'evals', max * RE_UNIT_HEADS) / RE_UNIT_HEADS);
   return h > 0 ? Math.max(1, Math.ceil((D.staffWeeks / RE_UNIT_HEADS) / ((h * m) / 7) - 1e-9)) : Infinity;
 }
 /** Days the framework's capability assessment adds to a release today (0 when it asks for none; readout, at most a year

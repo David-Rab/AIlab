@@ -45,7 +45,7 @@ import { believedInternalOversight } from '../safety/believedOversight';
 import { believedResultThreat, believedSabotage } from '../safety/covert';
 import { safetyAgentVersion } from '../safety/agents';
 import { footholdView } from '../safety/footholdDetection';
-import { committedFte, safetyReHeads } from '../safety/investigations';
+import { caseRoom } from '../safety/investigations';
 import { gOfLevel, gV0 } from '../models/capability';
 import { missingNeeds, nodeKnown, optionLocked } from '../models/tree';
 import { suiteRef, unbuiltSuiteFamilies } from '../models/suites';
@@ -740,7 +740,7 @@ export function refFootholds(s: GameStateV2, api: EngineApi, c: RefBotSettings =
     if (r.status === 'detected') tryAct(s, api, 'safety.respond', { kind: 'removeFoothold', footholdId: r.id });
     if (r.status !== 'suspected' || !r.caseVersionId || !r.caseTrait) continue;
     const open = s.player.safety.investigations.some((i) => !i.outcome && i.target.kind === 'trait' && i.target.versionId === r.caseVersionId && i.target.trait === r.caseTrait);
-    if (open || safetyReHeads(s) - committedFte(s) < c.footholdCaseFte) continue;
+    if (open || caseRoom(s, c.footholdCaseFte) < c.footholdCaseFte - 1e-9) continue; // only a fully staffed case
     tryAct(s, api, 'safety.investigate', { versionId: r.caseVersionId, trait: r.caseTrait, fte: c.footholdCaseFte });
   }
 }

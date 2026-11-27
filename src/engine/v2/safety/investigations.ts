@@ -23,9 +23,8 @@ import { revealFalse } from './findings';
 import { strengthTrue, techniqueRole } from './techniques';
 import { discoverUMode, isDiscovered } from './umodes';
 import { caseThreat, safetySabotage } from './covert';
-import { removalFte } from './footholds';
 import { caseOnModel } from './footholdDetection';
-import { casesServed, safAllocation } from './lineProjects';
+import { casesServed, needRoom, resetSafAllocation, safAllocation } from './lineProjects';
 import { labReviewOn, reviewStaff } from './safeguards';
 import { aiRdShare } from './incidents';
 import { jobAiShare, jobRecord } from './workPackage';
@@ -42,8 +41,10 @@ export function safetyReHeads(s: GameStateV2): number {
 export function safeguardFte(s: GameStateV2): number {
   return labReviewOn(s) ? reviewStaff(1 - aiRdShare(s)) : 0;
 }
-/** Safety research engineers committed before line experiments: investigations, foothold removals and safeguards. */
-export const committedFte = (s: GameStateV2) => investigationFte(s) + removalFte(s) + safeguardFte(s);
+/** L6: safety research engineers a new case of `fte` would get today at the cases' place in the needs order (what the
+ *  needs above leave; the line experiments' surplus is not held back). A case advances at the people it gets
+ *  (casesServed). */
+export const caseRoom = (s: GameStateV2, fte: number) => needRoom(s, 'cases', fte);
 
 export const INV_FTE: [number, number] = [5, 40];
 export const INV_MAX_DAYS = 120;
@@ -94,7 +95,7 @@ export function defaultTools(s: GameStateV2, traits: TraitId[]): string[] {
 export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Investigation['target'], fte: number, opts: OpenInvestigationOpts = {}): Investigation | string {
   const dept = s.player.safety;
   if (fte < INV_FTE[0] || fte > INV_FTE[1]) return `Assign ${INV_FTE[0]}–${INV_FTE[1]} research engineers`;
-  if (committedFte(s) + fte > safetyReHeads(s) + 1e-9) return 'Not enough free safety research engineers';
+  if (caseRoom(s, fte) <= 1e-9) return 'No safety research engineers left for a case at its place in the needs order';
   if (target.kind === 'trait') {
     if (!versionById(s, target.versionId)) return 'Unknown model';
     if (!TRAIT_IDS.includes(target.trait)) return 'Unknown trait';
@@ -126,6 +127,7 @@ export function openInvestigation(s: GameStateV2, ctx: SystemCtx, target: Invest
     job: jobRecord(s, jobAiShare(s, 'case'), Math.max(0, ...Object.values(before).map((b) => b?.est ?? 0))),
   };
   dept.investigations.push(inv);
+  resetSafAllocation(s); // the cases' need grew
   ctx.log('research', `Case opened: ${traits.length === 1 ? TRAIT_BY_ID[traits[0]]?.name ?? traits[0] : 'unexplained behaviour'}.`, 2, inv.id);
   return inv;
 }

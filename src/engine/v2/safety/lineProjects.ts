@@ -184,6 +184,15 @@ export function needServed(s: GameStateV2, k: SafReNeed): number {
   const a = safAllocation(s);
   return a.demand[k] > 1e-12 ? Math.min(1, a.got[k] / a.demand[k]) : 1;
 }
+/** L6: safety research engineers (heads) a need `k` would gain if its demand rose by `add` today, at its place in the
+ *  player's order: the needs list is served by priority, so a new case, removal or suite claims what the needs above it
+ *  leave (the line experiments' surplus included); no one has to be idle. */
+export function needRoom(s: GameStateV2, k: SafReNeed, add: number): number {
+  const a = safAllocation(s);
+  const order = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
+  const d = a.demand;
+  return Math.max(0, allocate(a.heads, order, { ...d, [k]: d[k] + Math.max(0, add) })[k] - allocate(a.heads, order, d)[k]);
+}
 /** RF-S11 (SR-21): human review's catch at the staffing it gets: HUMAN_REVIEW × the 'review' need's served share (an
  *  unstaffed review stops nothing). Staffing is the player's own quantity, so the believed readouts use it too. */
 export const reviewCatch = (s: GameStateV2): number => HUMAN_REVIEW * needServed(s, 'review');
