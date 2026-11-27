@@ -2,15 +2,13 @@
 
 Status 2026-11-21 (after merge M11: REACH, TIERS, SAFMECH on branch `m11`; M10: S5R, MKT, AF / AF2; FINREF on master). Phases V1–V3b, V2b and V4a are done (see [V3-BUILD.md](V3-BUILD.md) and [PROGRESS.md](PROGRESS.md)).
 The phases ran 2–9 hours per agent and kept hitting several stop rules at once, so from here **work is cut into small
-tasks**, one subagent each, one at a time. Spec: [MODEL-V3.md](MODEL-V3.md). Numbers: research/20.
+tasks**, one subagent each. Spec: [MODEL-V3.md](MODEL-V3.md). Numbers: research/20.
 
 ## Task protocol
 
-- **One concern, one agent.** A task touches a handful of files and has a single "done when". If it needs more, the agent
-  stops and reports instead of widening (the lead splits it).
-- **Brief = this table row + the spec section.** The lead adds only what the row cannot hold.
-- **Effort:** `M` = Opus medium (well-scoped, little judgement: UI wiring, removals, content tables, test updates,
-  perf, research gathering). `H` = Opus high (mechanism design, calibration, anything with trade-offs).
+- **Working with subagents** (task size, briefs, model and effort, parallel work, time budgets): the single source is
+  the lead's memory `subagents`. The brief is the table row + the spec section, plus what that memory requires. The
+  Effort column below is history (`M` / `H` meant Opus medium / high at the time).
 - **Test tiers (since T0, `scripts/v2/run.ts`; one heavy tier per machine at a time).**
   - **Engine task:** `tsc` (main and `-p scripts/v2`); `npm run test:quick` while iterating (a smoke gate: its SMOKE
     lines never fail); `npm run test:cal` if the change touches a calibrated path (milestones, research speed, rivals,
@@ -242,7 +240,7 @@ see DECISIONS.md): tasks SR-01 … SR-30 in its §8.2, engine first then UI, aft
 B06 and DD-15 / DD-16. The shared research engine and allocator (SYNTHESIS Phase 3) come before the SR tasks that move
 safety projects onto them.
 
-## Order (one at a time)
+## Order
 
 A1–A5, B1–B4, C2, P2, D1, D3, E1 done (2026-11-20; D1, D3, E1 merged in M1); D2, D5, D6, E2, E3, E5 done (merged in
 M2); D4, D11 done (merged in M3); E4, E6, E12, D7, D8, F1 done (merged in M4); T0, P3, D9, D10, F2, E7, E8, E9, E11,
