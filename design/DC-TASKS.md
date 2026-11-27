@@ -82,20 +82,21 @@ except the 6% stored-chip book decay, which goes.
 | DC-8 | Existing finance checks restated for the new sites | Sonnet high | DC-4, DC-5 | no |
 | L1 | Lead: merge engine lane, regenerate fixtures | lead | DC-1…8, DC-11 | — |
 | DC-11 | Glossary: new site and power terms, retired terms | Sonnet medium | — | no |
-| DC-9 | Compute tabs + Sites rows under the chart | Sonnet high | L1 | no |
-| DC-10a | Build card: three power tiles, live dates, tile tooltips | Sonnet high | DC-9 | no |
+| DC-9 | Compute tabs + Sites section (campus rows) under the chart | Sonnet high | L1, DC-15 | no |
+| DC-10a | Build card: size tiles, Buildings row, power tiles, their tooltips | Sonnet high | DC-9 | no |
 | DC-10b | Build card: speed-up options row, preview lines, opposition tooltip | Sonnet high | DC-10a | no |
 | DC-12 | Size scaling: construction time, economies of scale, rushed gas in the backlog | Sonnet high | DC-7, DC-8 | yes |
 | DC-13 | Campuses: buildings 1/3/5, phased go-live, repetition discount | Opus high, reason (c) | DC-12b | yes |
 | DC-14 | Player bot builds campuses | Sonnet high | DC-13 | yes |
+| DC-15 | Engine: capex / opposition breakdowns, siteFit, per-building view, exports | Sonnet high | DC-13 | no |
 | CP | Lead: final checkpoint | lead | all | — |
 
-Opus share: 1 of 12 agent tasks (DC-3) ≈ 8%.
+Opus share: 2 of 15 agent tasks (DC-3, DC-13) ≈ 13%.
 
 **Lanes.** Engine lane (sequential, `dc` worktree): DC-1 → DC-2 → DC-3 → DC-4 → DC-5 → DC-8. In parallel worktrees:
 DC-6 and DC-11 at any time (DC-6 touches `deals.ts` MARKET only and one glossary line; trivial merges); DC-7 after DC-4
 (only `finance/plan.ts`); DC-5 may run beside DC-4 (it edits only `initialSites` in sites.ts, plus starts.ts, ledger.ts).
-UI lane after L1, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b.
+UI lane after L1 and DC-15, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b. DC-15 may run beside DC-14.
 
 ---
 
@@ -334,7 +335,8 @@ UI lane after L1, sequential (one file, Compute.tsx): DC-9 → DC-10a → DC-10b
 
 ### L1 Lead: merge the engine lane
 
-Merge DC-1…DC-8 and DC-11 into `dc`; regenerate fixtures once (`npx tsx scripts/v2/fixtures.ts --write`) and commit;
+Merge DC-1…DC-8 and DC-11 into `dc` (and DC-12…DC-15: the UI lane needs DC-13's campuses and DC-15's views); add the
+glossary terms listed under "UI lane: shared rules"; regenerate fixtures once (`npx tsx scripts/v2/fixtures.ts --write`) and commit;
 `npm run build`; load the day-400 fixture in the app and see that Compute renders (old UI) before starting DC-9.
 
 ### DC-11 Glossary
@@ -355,76 +357,351 @@ Merge DC-1…DC-8 and DC-11 into `dc`; regenerate fixtures once (`npx tsx script
 - **Done when:** tsc passes; the glossary link lint the UI tasks use reports no dangling links.
 - **Output:** `design/dc/DC-11.md`.
 
-### DC-9 Compute tabs + Sites rows under the chart
+### DC-15 Engine: the numbers the build card and site rows show
 
-- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no.
-- **Goal:** the Sites tab goes; the site rows sit under the Capacity chart on Overview exactly as in `build.png`.
-- **Write:** `src/ui/v2/panels/Compute.tsx` (tabs, `Overview`, `SiteTimeline` → `SiteRows`, delete `SitesTab`, Status
-  tile link), the stylesheet that holds `.cmp-main` / `.stl` (move the `.dcs*`, `.dc-pill`, `.cmp-main` grid rules from
-  `build.js` lines 10–50 into it, delete unused `.stl*` / `.cmp-power`), `scripts/v2/uitest.mjs` (one check: Sites rows
-  render on Overview with one row per site).
-- **Read:** build.js (all), build.png, NOTES.md; Compute.tsx 100–125, 500–618, 719–734; forecast.ts `siteBars` (DC-3).
-- **Spec:** tabs `Overview · Orders & market` (an old `sites` tab id maps to overview, like `split`); Status "racks
-  empty" tile goes to overview. `.cmp-main` grid: chart row 1 col 1 (height 590), Sites row 2 col 1, card column spans
-  both rows. Sites card: title Term `site` "Sites"; right: "racks used / live" bar + `1.1 GW / 1.8 GW` with today's
-  tooltip. Axis: quarters from min(now − 5 q, earliest start of a non-live site) to max(now + 8 q, latest live + 1),
-  year ticks at Q1, "today" line. Rows (live by liveDay, then by planned live, blocked last): dot (stage colour), name,
-  source in dim lower case, MW; track: live = full green bar; otherwise permits bar (grey, full height), construction
-  (blue, top half) and power (amber, bottom half) from `siteBars`, hatched after today, diamond at live (outlined until
-  the roll). Live column: `Qx yy` for non-live. Status column: permitting → Term `permitting` "Permits", pill `block X%`
-  (bad > 10%, warn otherwise; hidden < 0.5%), button `Community package · $X.XB` (cmp.community with siteId) while it can
-  take one; power → Term `powerStage` "Waiting for grid | turbines | a hall", dim `build from Qx yy` (not rent);
-  building → Term `construction` "Construction", dim `until Qx yy`; live → tone-pos "live" dim `since Qx yy`; blocked →
-  tone-neg "blocked" dim `$X.XB lost`. Legend: permits, construction, power, live, planned. Row tooltip: source,
-  capacity, permits end, power ready, construction from–to, live, block / delay odds (until rolled), speed-ups taken,
-  capex paid / total, chips installed, paid with (+ RVG as today).
-- **Done when:** `npm run build`; screenshot of day-400 Overview (1920 × 1080) next to build.png matches layout;
-  uitest check passes; no dev state in the UI. **Output:** `design/dc/DC-9.md` + the screenshot path.
+(Added 2026-11-27 with the DC-9/10 rewrite. The approved v4 mockup shows breakdowns that the engine computes inside
+other functions but does not export. Without this task the UI would have to re-derive engine rules, which breaks
+preview = effect.)
 
-### DC-10a Build card: power tiles and their tooltips
+- **Model:** Sonnet high. **Budget:** 35 min. **Moves calibration:** no (no behaviour change). **Depends on:** DC-13.
+  May run beside DC-14 (different files).
+- **Write:** `src/engine/v2/compute/sites.ts`, `src/engine/v2/compute/forecast.ts`, `src/engine/v2/index.ts` (export
+  lines only), `scripts/v2/_dc15/check.ts` (new), `design/dc/DC-15.md`.
+- **Read:** sites.ts 36–200 (oppositionOdds, SiteOpts, siteSizeError, sitePermitQ / siteBuildQ / sitePowerQ,
+  siteBuildingLiveInQ, siteCapex, leverEffects, newSite's clamp lines ~176–186); forecast.ts 30–95
+  (siteBuildingLiveQs, siteBars); power.ts 16–30 (siteLiveMW); index.ts 126–137; DATACENTERS.md §5b.
+- **Spec:**
+  1. Barrel (index.ts line 134): also export `sitePermitQ`, `siteBuildQ`, `sitePowerQ`, `oppositionLevel` and the new
+     functions below.
+  2. `siteFit(o: SiteOpts): SiteOpts` returns the options as they would be built. The building is clamped to
+     [SITE_MIN_MW, source cap]. Buildings = the largest of CAMPUS.counts that is ≤ the asked count and whose total fits
+     the cap (rent: 1). `newSite` calls it instead of its inline clamp (no behaviour change).
+  3. `siteCapexParts(o)` → `{ building, repeatSaving, extra, crash, rush, fastTrack, community, total }` ($B, whole
+     campus). `building` = the building cost before the saving (BUILDING_PER_GW × campus GW; rent: the network
+     fit-out). `repeatSaving` ≥ 0 (building × CAMPUS.discount[n]). The other parts are priced as siteCapex prices them.
+     `siteCapex(o)` returns `siteCapexParts(o).total`, so there is one computation.
+  4. `oppositionParts(s, site)` → `{ blockBase, delayBase, mood, crashMult, communityMult, block, delay }`. Block and
+     delay are after the caps. Reactive sites: base = 1 − unblock odds, factors 1. `oppositionOdds` returns
+     `{ block, delay }` from it (one computation).
+  5. `siteBuildingsView(s, x: Site)` (forecast.ts) → `{ of, live, inConstruction, firm, buildings: { liveQ,
+     buildFromQ, live }[] } | undefined` (undefined when blocked):
+     - `liveQ` comes from siteBuildingLiveQs.
+     - `buildFromQ` = liveQ − ws3.buildQ (rent: undefined).
+     - Each building's `live` = that building is live today. The `live` count equals siteLiveMW(x, today) ÷ building MW.
+     - `inConstruction` = buildings with buildFromQ ≤ today's quarter < liveQ.
+- **Done when:** tsc is clean (both projects), the `_dc13` and `_dc4` checks still pass, and `_dc15/check.ts` asserts:
+  - the parts sum to siteCapex over the DC-13 sweep (source × building size × 1/3/5 × crash, rush, fast-track,
+    community);
+  - the §5b example (gas 5 × 1 GW) gives building 70, repeatSaving 10.5, extra 15, total 74.5;
+  - siteFit: grid 5 × 300 MW → 3 × 300 MW, grid 5 × 1 GW → 1 × 1 GW, gas unchanged;
+  - the site newSite creates (live days, capex) is unchanged over the sweep;
+  - oppositionParts block/delay = oppositionOdds for grid/gas × crash × community;
+  - a 5 × 1 GW gas campus stepped quarter by quarter: `live` goes 0 → 5, `live` × building MW = siteLiveMW, and
+    `inConstruction` matches the schedule.
+- **Stop and ask:** any caller whose result changes. **Output:** `design/dc/DC-15.md`.
 
-- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no.
-- **Write:** Compute.tsx `BuildCard` (tiles part) and `PATHS`; `src/ui/v2/icons.ts` (delete pathBrownfield,
-  pathNuclear); stylesheet (`.cac-tiles.c3`, `.dc-gl`, `.dc-spk*`, `.tipcard-row.sub/.sum` from build.js).
-- **Read:** Compute.tsx 403–460; build.js 60–80, 120–181; build-tips.png; waits.ts `waitBreakdown`; sites.ts
-  `siteLiveInQ`, `oppositionOdds`.
-- **Spec:** three tiles (Rent, Grid, Gas; class c3). Glyph: bold live quarter `qLabel(qOf(s) + siteLiveInQ(...))` for the
-  chosen size (capped) and toggles; amber `+0–3q` for grid/gas; dim `≤ 1 GW` / `≤ 5 GW`. Size tiles: Multi-GW and
-  Large campus unlocked when gas is chosen (locked above the chosen source's cap, as today). Tile tooltip (as the grid
-  one in build-tips.png): head Term(source) + `live Qx yy · +0–3q`; body one sentence; rows Permits, `<wait> today`,
-  rush sub-row when on (grid `−25% → N q`, gas `used turbines → 4 q`), Construction (`8 q, timed to end with power` /
-  `4 q crash`), sum `Live  P + N = M q · Qx yy`, `Opposition delay · X%  +1 to 3 q`, `Block · X%  money spent is lost`;
-  then Largest site, Upfront per GW (grid $14.2B, gas $17.0B, rent $4.0B network), Power price (×1.0 grid; ×0.5 grid;
-  rent `$1.8B per GW-yr + grid`); then `<wait>, 2023 → today  a → b q`, sparkline (368 × 46; reference path by quarter
-  from Q1 2023 to the start, then `power.waitHist`), year axis, queue rows (grid: Firm queue / connections per year;
-  gas: Turbine backlog / turbines delivered per year; rent: Halls wanted / halls finished per year) with sub-rows
-  "you (site names)", "everyone else" [D-11], sum `Wait  X.X yr = N q`; foot "A new 1 GW <source> site adds
-  0.N q to everyone's wait." (perGWQ, 1 decimal). Rent tooltip has no permits, construction or opposition rows.
-- **Done when:** build; tooltip screenshot next to build-tips.png; numbers on the day-400 fixture: Rent Q3 27, Grid
-  (rush on) Q3 30, Gas (rush on) Q1 29. **Output:** `design/dc/DC-10a.md` + screenshots.
+### UI lane: shared rules for DC-9, DC-10a, DC-10b
+
+- **Reference files:**
+  - `design/ux/mockups/dc/build.png`: Overview with the options row open.
+  - `build-tips.png`: the Buildings tooltip (locked) and the Grid tile tooltip.
+  - `build-tips-v3.png`: the round-3 tile tooltip and opposition tooltip. These stay as they are, except for what
+    DC-10a adds.
+  - `NOTES.md`: IA map and numbers.
+  - `build.js`: markup and CSS. Its numbers are placeholders.
+- **Every number reads the engine.** The mockup's numbers are the §5b worked example on illustrative waits. The
+  built UI shows what the engine computes on the day-400 fixture. For example, the delay odds read 36% (not the
+  mockup's 30%) at public mood ×1.2. Never copy a number from the mockup. Where the engine and the mockup differ, list
+  it in the results file.
+- **Player-only text.** No dev state, no "est. by engine", no placeholders. Terms go through `<Term id>`. Every
+  number sits in a tooltip trigger (lint-ux's tooltip coverage).
+- **Line numbers below are as of the DC-13 merge.** Earlier UI tasks move them, so find code by name
+  (`function BuildCard`, …).
+- **Tests (UI tasks):**
+  - `npx tsc --noEmit -p .`
+  - `npm run test:ui` (builds, runs `scripts/v2/uitest.mjs`, screenshots to `scripts/v2/shots/`)
+  - `npx tsx scripts/v2/lint-ux.ts`
+  - `npx tsx scripts/v2/lint-hidden.ts`
+  - The task's own screenshot script, adapted from `design/ux/mockups/dc/render.mjs` (no injection, same fixture,
+    1920 × 1080). Compare it by eye with the reference PNG and say in the results file what matches and what differs.
+  - Failures the task does not own are listed, not fixed.
+- **Lead: glossary additions (add at L1, before DC-9).** The UI tasks use these ids:
+  - New: `building` (one data-centre building: 100 MW, 300 MW or 1 GW; construction time grows with size);
+    `campus` (title "Buildings": 1, 3 or 5 identical buildings on one site; one permit, one opposition roll, one power
+    connection; they go live one per quarter, or together when power is slower; the source's cap applies to the
+    total); `repeatDesign` (Repeat design: building cost −10% for 3 and −15% for 5); `buildingsLive` (Buildings
+    live: "4 of 5 live", the campus's live capacity rises building by building).
+  - Rewrite: `siteTier` (says "any size from 100 MW up to the cap"; now size = one building, bigger sites are
+    campuses); `gridPower` and `gasPower` (say "8 of construction"; now 10 q at 1 GW, shorter for smaller buildings;
+    cap = campus total); `opposition` (one roll per campus; a block stops every building); `site` (a site may be a
+    campus).
+
+### DC-9 Compute tabs + Sites section under the chart
+
+- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no. **Depends on:** L1, DC-15.
+- **Goal:** the Sites tab goes. The Sites section sits under the Capacity chart on Overview as in `build.png`, one row
+  per site, with campus buildings filling in.
+- **Write:**
+  - `src/ui/v2/panels/Compute.tsx`: `Compute` tabs, the `Status` tile link, `evText` and the chart's later-marker
+    label, `Overview`, `SiteTimeline` → `SiteRows`, delete `SitesTab`, `STAGE_TERM`.
+  - `src/ui/v2/panels/compute.css`: move in build.js lines 15–19 and 30–53 (the `.cmp-main` grid, `.dcs*`,
+    `.dc-pill`); delete the `.stl*` and `.cmp-power` rules once unused.
+  - `scripts/v2/uitest.mjs` (one check, below), `scripts/v2/_dc9/shot.mjs` (new), `design/dc/DC-9.md`.
+- **Read:** build.js 10–60, 115–160; build.png; NOTES.md "Site rows" and the IA map; Compute.tsx 30–46, 68–127,
+  200–220, 504–612, 714–729; forecast.ts `siteBuildingLiveQs`, `siteBars`, `ForecastEvent` (30–100); DC-15
+  `siteBuildingsView`; power.ts `siteLiveMW`.
+- **Spec:**
+  - **Tabs:** `Overview · Orders & market`. An old `sites` tab id (saved UI state) maps to overview, as `split`
+    does. Drop `sitesBadge`: both its causes already have homes (the idle-chips Status tile, the block pill on the
+    site row). Status tile 1 (`idleChips`) goes to overview with anchor `siteRows` (Sites card id `ctl-siteRows`).
+  - **Layout:** the `.cmp-main` grid as in build.js 15–19: chart in row 1, column 1 (height 590); Sites in row 2,
+    column 1; the card column spans both rows.
+  - **Chart (only these two changes):**
+    - A campus `siteLive` event (one that has `buildings`) reads `<name> live · +<MW> · N of M` in `evText` and in the
+      quarter tooltip.
+    - The later-marker reads `<name> (<MW>) live ≈ Qx yy ›`, with the MW of that event.
+    - Planned bars already come from `computeForecast` (building by building since DC-13): no change.
+  - **Sites card** (`data-home="sites"`):
+    - Title `<Term id="site">Sites</Term>`.
+    - Right side: dim "racks used / live", an HBar, then bold `used / live` (`F.power`). live = Σ
+      `siteLiveMW(x, s.time.day)`; used = Σ min(that, installed × kWPerH100e ÷ 1000).
+    - Tooltip rows: Used, Live capacity; text "Power of your live buildings and how much installed chips draw."
+    - This fixes the old `x.mw` read: a part-live campus counts only its live buildings.
+  - **Axis:** quarter indices from min(now − 5, earliest bar start of a site that is not fully live) to max(now + 8,
+    latest `lastLiveQ ?? liveQ` + 1). Year labels at Q1. "today" sits at today's fraction of the quarter, with a 1 px
+    line through the rows. A "live" header over the live column.
+  - **Rows.** Order: fully live sites by first live quarter, then the rest by planned first live, blocked last.
+    Columns as build.js `.dcs-row` (150 / 92 / track / 104 / 286 px):
+    1. **Name:** dot in the stage colour (a part-live campus uses live green), name, source in dim lower case
+       (`rent | grid | gas`).
+    2. **Size:** when `siteBuildingsView.of` > 1, `of` small blocks with `live` of them filled green; then
+       `F.power(x.mw)` (the campus total).
+    3. **Track,** from `siteBars` and `siteBuildingsView`:
+       - A fully live site is one full-height green bar across.
+       - Otherwise: permits (grey, full height), construction (blue, top half; `construction` runs from the first
+         start to the last live), power (amber, bottom half).
+       - A part-live campus adds light green in the bottom half from first to last live, then full-height green after
+         the last.
+       - Every part after today is hatched (`.pl`).
+       - One diamond per building at its `liveQ`: filled when live, outlined when planned. This follows the NOTES
+         rule; the PNG shows Red River filled, which is wrong.
+    4. **Live column** (mono): empty for a fully live site; otherwise `Qa yy`, or `Qa yy → Qb yy` when the buildings'
+       live quarters differ.
+    5. **Status,** by stage:
+       - Permitting: `<Term id="permitting">Permits</Term>`; pill `block X%` (`oppositionOdds`; bad above 10%, warn
+         otherwise; hidden below 0.5% and after the roll); button `Community package · $X.XB` (`cmp.community` with
+         `siteId`; price = that action's preview cost) while the site can take one.
+       - Power: `<Term id="powerStage">` "Waiting for grid | turbines | a hall", dim `build from Qx yy`
+         (`construction[0]`; not for rent).
+       - Building: `<Term id="construction">Construction</Term>`, dim `until Qx yy` (last live).
+       - Part-live campus: tone-pos `N of M live` (`<Term id="buildingsLive">`), then dim `K in construction` when
+         K > 0, else dim `next Qx yy`.
+       - Fully live: tone-pos "live", dim `since Qx yy` (first live quarter).
+       - Blocked: tone-neg "blocked", dim `$X.XB lost` (capexPaid).
+  - **Legend:** permits, construction, power, live, ◆ `<Term id="building">building</Term>` live, planned (hatched).
+  - **Row tooltip** (TipCard; title = name, value = stage text). Rows:
+    - Power source (`sitePath`): `Gas · US`.
+    - Capacity: `5 × 300 MW = 1.5 GW` (`<Term id="campus">` when there is more than one building), or `300 MW`.
+    - Live now (siteLiveMW), when part-live.
+    - Permits end, Power ready, Construction `Qa yy – Qb yy` (from siteBars).
+    - Buildings live `Q4 25 · Q1 26 · …`, one quarter per building with ✓ on the live ones, when there is more than
+      one building.
+    - Block / delay `X% / Y%`, until rolled.
+    - Speed-ups taken (crash, rush, fast-track, community package; "none").
+    - Capex paid / total; Chips installed; Paid with (+ RVG), as today.
+  - **Empty state:** dim "No sites yet." inside the card.
+- **uitest check** (day-400 Overview):
+  - no `[data-tab=sites]`;
+  - the count of `[data-home=sites] .dcs-row:not(.ax)` = `s.player.sites.length`;
+  - the header's live figure = Σ siteLiveMW (read through `window.ai27v2.state`).
+- **Screenshots:** `_dc9/shot.mjs` writes `scripts/v2/_dc9/overview.png` (day-400 Overview). It takes a second shot
+  after committing a gas 3 × 300 MW campus through `window.ai27v2.act('cmp.newSite', …)`, so a campus row is visible.
+- **Done when:** the UI-lane tests pass or their failures are explained, and the screenshots next to build.png match
+  its layout (chart height, Sites rows, columns, legend).
+- **Stop and ask:**
+  - a site whose bars `siteBars` cannot express (say which);
+  - the fixture has no site in permits (then commit one in the shot script; don't fake one).
+- **Output:** `design/dc/DC-9.md` + screenshot paths.
+
+### DC-10a Build card: size tiles, Buildings row, power tiles and their tooltips
+
+- **Model:** Sonnet high. **Budget:** 75 min. **Moves calibration:** no. **Depends on:** DC-9.
+- **Goal:** the top half of the Build data centre card as in `build.png` (size, Buildings, Power). The Buildings
+  tooltip and the power-tile tooltips follow `build-tips.png`, plus the round-3 tile content of `build-tips-v3.png`.
+- **Write:**
+  - Compute.tsx: `BuildCard` (state, size tiles, Buildings row, power tiles, the `params` it sends) and `PATHS`.
+  - A local tooltip-rows helper in Compute.tsx: row groups, `sub` and `sum` rows, using the `tipcard-*` classes.
+    Tooltip.tsx stays as it is; DC-10b reuses the helper.
+  - `src/ui/v2/icons.ts`: delete `pathBrownfield` and `pathNuclear` if unused.
+  - compute.css: `.cac-tiles.c3`, `.dc-gl*`, `.dc-sz`, `.dc-bld*`, `.dc-gt`, `.tipcard-row.sub/.sum` from build.js
+    20–29 and 56–58.
+  - `scripts/v2/uitest.mjs` (one check), `scripts/v2/_dc10a/shot.mjs`, `design/dc/DC-10a.md`.
+- **Read:** build.js 66–96, 162–211; build-tips.png; build-tips-v3.png (tile tooltip); Compute.tsx `BuildCard`
+  (403–456 at DC-13) and `PATHS` (26–29); sites.ts `SiteOpts`, `siteSizeError`, `siteBuildingLiveInQ` and the DC-15
+  functions; waits.ts `waitBreakdown`, `refWaitQ` (60–90); deals.ts `SITE_TIERS`, `SOURCES`, `CAMPUS`, `OPPOSITION`
+  (105–175).
+- **Spec:**
+  - **State and options:**
+    - State: `tier` (default 1 GW), `buildings` (1 | 3 | 5, default 1), `path` (default gas), `crash`, `rush`,
+      `fastTrack` (off; DC-10b adds their toggles), `community`, `pay`.
+    - One options object: `o = siteFit({ path, mw, buildings, crash, rush, fastTrack, community })`. Every number on
+      the card reads `o`; the other source tiles read `siteFit({ ...o, path: p })`.
+    - `params` sends `buildings`.
+  - **Size tiles** (class c3, `SITE_TIERS`, ids `site-hall|building|campus`):
+    - Label `F.power(mw)`. Glyph: dim `N q to build` = `siteBuildQ({ ...o, mw })` (crash halves it); for rent, dim
+      "rented hall".
+    - Never locked: every building fits every source.
+    - Tooltip: title `<Term id="building">Building</Term>`, value `F.power(mw)`; body "One data-centre building. A
+      campus repeats it."; rows Holds today `N H100e` (Σ compute gains of `actionView('cmp.newSite', …)` for one
+      building of this size) and Construction `N q` (`M q crash` when crash is on).
+  - **Buildings row** (`.dc-bld`, hidden for rent; `data-test="site-buildings"`):
+    - Label `<Term id="campus">Buildings</Term>`, then a `Seg` 1 · 3 · 5. A count is locked when
+      `siteSizeError({ ...o, path, buildings: n })` returns a reason; that reason is the lock tooltip.
+    - Bold tone-pos `−X%` (`CAMPUS.discount[n]`; hidden at 1).
+    - Right side: dim `n × <size> =`, then the campus total in bold (`campusMW`).
+  - **Buildings tooltip** (on the row; it locks like any tooltip), as build-tips.png:
+    - Head: `<Term id="campus">Buildings` · `n × size = total`.
+    - Body: "Copies of one building on one [[site]]. They start one per quarter and go live one by one as each is
+      finished, or all together when power arrives later."
+    - Schedule SVG (as build.js 170–179, width 394), with P = `sitePermitQ(o)`, W = `sitePowerQ(s, o)`,
+      B = `siteBuildQ(o)`, L = `siteBuildingLiveInQ(s, o)`:
+      - Permits [0, P];
+      - Power [P, P + W], labelled `ready Qx yy`;
+      - Building k [L_k − B, L_k], with a diamond and `Qx yy +N` (N = Σ compute gains of the build preview ÷ n);
+      - quarter labels every 4 q.
+    - Cost rows from `siteCapexParts(o)`:
+      - `Building · n × $X` = building;
+      - sub row `<Term id="repeatDesign">Repeat design</Term> · n buildings`, `−X% · −$Y` (when n > 1);
+      - `Turbines · n × $X` (gas) or `Utility upgrades` (grid) = extra;
+      - one row per lever part > 0;
+      - sum row `Upfront` = total.
+    - Other rows:
+      - Saving by count `1: 0% · 3: −10% · 5: −15%` (CAMPUS).
+      - Shared: `<Term permitting>permit · <Term opposition>opposition roll · <Term powerStage>power connection`.
+      - Largest campus `grid 1 GW · gas 5 GW` (SOURCES.maxMW).
+      - When the chosen campus's buildings go live on different dates: sub row `Grid · 3 × 300 MW`,
+        `all live Qx yy: power is slower`, computed by `siteBuildingLiveInQ` for that campus at the card's toggles.
+        Omit the row if that campus's dates differ too.
+    - Foot: "A block stops every building; money paid so far is lost."
+  - **Power tiles** (Rent, Grid, Gas; class c3; `PATHS` terms `rent`, `gridPower`, `gasPower`). For each source,
+    `f = siteFit({ ...o, path: p })` and `L = siteBuildingLiveInQ(s, f)`:
+    - Glyph line 1 (bold mono): `qLabel(now + L[0])`, or `Qa yy → Qb yy` when the first and last differ.
+    - Line 2, grid and gas: amber `+0–3q` (`OPPOSITION.delayQ[1]`), then dim `· ≤ <cap>`. When `f` has fewer
+      buildings than asked (cut to fit), the cap part is amber (`.cp.bind`) `· n' × <size>` instead. Rent: dim
+      `≤ 1 GW`.
+    - Choosing a source sets `buildings` to `f`'s (cut to fit). The other tiles stay clickable.
+  - **Tile tooltip** (build-tips.png Grid + build-tips-v3.png):
+    - Head: `<Term>` + `live <date or range> · +0–3q`.
+    - Body: one sentence per source. Grid: "A new connection from the utility. Your site keeps today's wait from the
+      day you commit." Gas: your own turbines and the turbine wait. Rent: a hall a landlord builds.
+    - When the campus is cut, add: "<Source> sites take up to <cap>: choosing <Source> cuts this campus to
+      n' × <size>." Rent with n > 1: "Rent is one hall: choosing Rent rents one <size> hall."
+    - Schedule rows (helper):
+      - Permits `P q`.
+      - `<Term gridWait|turbineWait|rentWait> today` = `sitePowerQ(s, { ...f, rush: false })`.
+      - Rush sub row when rush is on: grid `−25% → N q`, gas `used turbines → N q`, N = `sitePowerQ(s, f)`.
+      - Construction `B q`, plus ", timed to end with power" when power binds every building, ", one starts each
+        quarter" for a construction-bound campus, and " (crash)" when crash is on.
+      - Sum row Live `P + max(W, B) = M q · Qx yy` (campus: `P + a…b = c…d q · Qa → Qb`).
+      - Opposition delay · Y% `+1 to 3 q` and Block · X% `money spent is lost` (`oppositionOdds` at the toggles).
+    - Source rows:
+      - `Fits on <source>`: for each size, the largest count with no `siteSizeError`
+        (`1 × 1 GW · 3 × 300 MW · 5 × 100 MW`).
+      - Upfront per GW: `siteCapexParts` of one 1 GW building, building + extra (grid $14.2B, gas $17.0B, rent $4.0B
+        network).
+      - Power price: `×1.0 grid`, `×0.5 grid`, rent `$1.8B per GW-yr + grid` (from RENT).
+    - Wait rows:
+      - `<wait>, 2023 → today  a → b q`.
+      - Sparkline 368 × 46: refWaitQ by quarter from Q1 2023 to the game start, then `s.power.waitHist[p]`; year axis.
+      - Queue rows from `waitBreakdown(s, p)`. Grid: `<Term firmQueue>` (you + everyone else, GW), sub row "you (site
+        names)", sub row "everyone else" [D-11], then `÷ <Term connectionsPerYear>`. Gas: turbineBacklog /
+        turbinesPerYear. Rent: hallsWanted / hallsPerYear.
+      - Sum row `Wait X.X yr = N q`.
+    - Foot: "A new 1 GW <source> site adds 0.N q to everyone's wait." (`perGWQ`, 1 decimal).
+    - Rent has no permits, construction or opposition rows.
+- **uitest check:** set Gas, 1 GW, Buildings 5, then click Grid. The grid tile glyph shows the cut size
+  (`1 × 1 GW`), `buildings` becomes 1 (the Buildings Seg shows 1 active), and the Grid tile's date equals
+  `siteBuildingLiveInQ` of 1 × 1 GW grid.
+- **Screenshots:** `_dc10a/shot.mjs` sets Gas, 1 GW, Buildings 5 and takes three shots:
+  1. the card (compare with the top of the card in build.png);
+  2. the Buildings tooltip, locked;
+  3. the Grid tile tooltip (compare with build-tips.png and build-tips-v3.png).
+- **Done when:** the UI-lane tests pass or their failures are explained, and the shots read like the references.
+  The results file lists the engine's tile dates on the fixture next to the mockup's (Rent Q3 27, Grid Q4 31 cut to
+  1 × 1 GW, Gas Q3 29 → Q3 30) and explains any difference by the fixture's waits.
+- **Stop and ask:**
+  - a number in the spec that no exported engine function gives (name it; don't compute it in the UI);
+  - the 5-row Buildings tooltip does not fit above the card at 1080 px.
+- **Output:** `design/dc/DC-10a.md` + screenshot paths.
 
 ### DC-10b Build card: options row, preview lines, opposition tooltip
 
-- **Model:** Sonnet high. **Budget:** 45 min. **Moves calibration:** no.
-- **Write:** Compute.tsx `BuildCard` (options, preview, footer); `scripts/v2/uitest.mjs` (one check: toggling rush power
-  changes the grid tile's live date and the preview capex).
-- **Read:** build.js 82–110, 150–178; build.png; sites.ts `leverEffects`, `oppositionLevel`.
-- **Spec:** state `rush`, `fastTrack` (default off) next to `crash`, `community`; params carry all four. Options row
-  (hidden for rent; company-default line kept): `Crash construction · −N q, +$X.XB, odds up`; `Rush power · −N q,
-  +$X.XB`; `Fast-track permits · −N q, +$X.XB`; `Community package · block ×0.5, +$X.XB` (+ `· company default` when
-  the policy is on), values from `leverEffects`. Preview lines: capex line (as today); `racks for +N H100e ·
-  <construction | power | the hall> sets the date` (construction if buildQ ≥ powerQ; Term links); grid/gas:
-  `opposition decides Qx yy` + bold warn `block X% · delay Y%` with the tooltip from build-tips.png (head Opposition +
-  low/medium/high; body "Local opposition decides when permits end, Qx yy."; rows `<Source> site` base, `Public against
-  data centres` ×mood, Crash ×1.5 when on, Community package ×0.5 when on, sum Blocked X% with sub "money spent so far
-  is lost ≈ $X.XB" (5% of capex), sum Delayed Y% with sub "live date slips +1 to 3 q"; foot "Crash construction raises
-  both."). No live date in the preview (it lives on the tile). Limit chip `100 MW–<cap>`. Footer: bold first lever on
-  of crash / rush / fast-track (else "Normal build"), dim ` · ` list of the others on, community package, lease.
-  Pay tiles unchanged (fed by the new capex and schedule).
-- **Done when:** build; screenshot of the open options row next to build.png (Campus 1 GW, Gas, rush + package: capex
-  −$18.9B, block 6% · delay 35%, Pay-with PVs move with the levers); uitest check passes; `lint-ux` / `lint-hidden` as
-  the UI suite runs them. **Stop and ask:** if "rising" for public mood needs a history the UI does not have (omit the
-  word, ask). **Output:** `design/dc/DC-10b.md` + screenshots.
+- **Model:** Sonnet high. **Budget:** 60 min. **Moves calibration:** no. **Depends on:** DC-10a.
+- **Goal:** the bottom half of the card as in `build.png`, with the options row open: four speed-ups with their
+  saving and price; preview lines (capex with the repeat-design saving, campus H100e, what sets the dates, opposition
+  odds); the opposition tooltip (build-tips-v3.png); the footer.
+- **Write:**
+  - Compute.tsx: `BuildCard` (options row, preview area, footer) and `ComputePreview` (an optional prop that lets
+    the build card render its own cost and gain lines; the chip and cloud cards unchanged).
+  - compute.css if needed.
+  - `scripts/v2/uitest.mjs` (one check), `scripts/v2/_dc10b/shot.mjs`, `design/dc/DC-10b.md`.
+- **Read:** build.js 97–113; build.png (bottom of the card); build-tips-v3.png (opposition tooltip); Compute.tsx
+  `ComputePreview` (255–292 at DC-13) and `BuildCard`; sites.ts `leverEffects` (140–160); DC-15 `oppositionParts` and
+  `siteCapexParts`; the `cmp.newSite` preview in actions.ts (~648–690; one gain line per go-live quarter).
+- **Spec:**
+  - **Options row** (hidden for rent; opens and closes as today). Each toggle is wrapped in
+    `data-lever="crash|rush|fastTrack|community"`. Values come from `leverEffects(s, o)`:
+    - `<Term crashBuild>Crash construction</Term> · <saves>, +$X.XB, odds up`
+    - `<Term rushPower>Rush power</Term> · <saves>, +$X.XB`
+    - `<Term fastTrack>Fast-track permits</Term> · <saves>, +$X.XB`
+    - `<Term communityPackage>Community package</Term> · block ×0.5, +$X.XB` (`blockMult`), plus
+      ` · company default` when the policy is on.
+    - `<saves>`: `−N q` when savesQ = savesLastQ (N = 0 reads `0 q`); otherwise `−a to −b q` (first building → last).
+    - Toggle tooltip rows: Saves (first building / last building); Price with its basis (35% of the building, 30% of
+      the turbines, $0.3B per GW, 5% of the building, $1M per MW); for crash, `Odds ×1.5` (`LEVERS.crash.oddsMult`).
+    - The company-default line stays.
+  - **Preview lines** (grid and gas; rent keeps today's lines):
+    1. **Capex:** the action preview's capex line as today, then dim
+       `· <Term repeatDesign>repeat design</Term> saves` and bold tone-pos `$X.XB`
+       (`siteCapexParts(o).repeatSaving`, when > 0).
+    2. **Racks:** `racks for`, bold tone-pos `+N H100e` (Σ compute gains of the preview = the campus). For n > 1,
+       add dim `· M per <Term building>building</Term> live` (N ÷ n). Then dim `· <what> sets the date(s)`:
+       - For each building k, power binds if W ≥ B + k (DC-10a's P, W, B).
+       - All power: `<Term powerStage>power</Term> sets the date` (for n > 1: "…, all go live together").
+       - All construction: `<Term construction>construction</Term> sets the dates` ("the date" for one building).
+       - Mixed: "power sets the first, construction the rest".
+       - Rent: "the hall sets the date".
+       - Tooltip: one row per go-live quarter from the preview's gain lines (`Qx yy  +N H100e`).
+       - No live date here: its home is the tile.
+    3. **Opposition:** `<Term opposition>opposition</Term> decides Qx yy` (now + P; when P = 0, "decides now"),
+       then bold warn `block X% · delay Y%` (`oppositionOdds` with the card's crash and community).
+    4. **Cash / runway** before → after: the existing `whatIf` line.
+  - **Opposition tooltip** (on line 3, as build-tips-v3.png):
+    - Head: `<Term opposition>Opposition</Term>` + `low | medium | high` (`oppositionLevel(block)`).
+    - Body: "Local opposition decides when permits end, Qx yy." When n > 1, add "One roll for the whole campus."
+    - Rows from `oppositionParts`:
+      - `<Source> site`: base block %.
+      - `<Term dcPublic>Public against data centres</Term>`: `×mood`. No "rising": the UI has no mood history.
+      - Crash construction `×1.5`, when on.
+      - Community package `×0.5`, when on.
+      - Sum row Blocked `X%`, sub row "money spent so far is lost" `≈ $X.XB` (the preview's cost line due now).
+      - Sum row Delayed `Y%`, sub row "live date slips" `+1 to 3 q` (OPPOSITION.delayQ).
+    - Foot: "Crash construction raises both."
+  - **Limit chips:** `site.mw` `100 MW–<cap>` (`siteSizeView`); the lease chip as today.
+  - **Footer:** bold the first lever that is on, of crash / rush / fast-track (else "Normal build"); then a dim ` · `
+    list of the other levers on, community package, lease. Pay tiles unchanged (fed by the new capex and schedule).
+- **uitest check:** at Grid, 1 GW, turning rush power on changes the Grid tile's live date and the preview capex
+  (+$0.3B), and the rush toggle's `<saves>` text equals `leverEffects`.
+- **Screenshots:** `_dc10b/shot.mjs` sets Gas, 1 GW, Buildings 5 with the options row open and takes two shots:
+  1. the card. Compare with the bottom of the card in build.png: crash `−1 to −5 q, +$20.8B`, rush `0 q, +$4.5B`,
+     fast-track `−1 q, +$3.0B`, package `block ×0.5, +$5.0B`, capex −$74.5B, saves $10.5B, construction sets the
+     dates, decides Q1 27 (if the fixture's waits match).
+  2. the opposition tooltip, locked.
+- **Done when:** the UI-lane tests pass or their failures are explained, the shots read like the references, and the
+  results file lists the engine's numbers next to the mockup's.
+- **Stop and ask:** the action preview's cost or gain lines don't match `siteCapex` or the per-building schedule (an
+  engine issue, not a UI fix).
+- **Output:** `design/dc/DC-10b.md` + screenshot paths.
 
 ### DC-12 Size scaling: construction time, economies of scale, rushed gas in the backlog
 
