@@ -591,7 +591,7 @@ export const PARAMS_CORE = defineParams([
   {
     id: 'core.causes.RANGES',
     ref: { kind: 'inline', file: 'src/engine/v2/core/causes.ts', anchor: 'const RANGES: [prefix: string, lo: number, hi: number][] = [' },
-    value: 'trust:*, relations.credibility, relations.scrutiny, pub.*, board.confidence, morale*, gov.*, china.*, world.unemployment.*, finance.credibility 0..100; relations.talentPull -50..50; pub.approval -100..100; valuation and revenueRun 0..inf',
+    value: 'pub.*, board.confidence, morale*, gov.*, china.*, world.unemployment.*, finance.credibility 0..100; pub.approval -100..100; valuation and revenueRun 0..inf',
     area: 'core', layer: 'world', kind: 'untagged',
     evidence: 'no tag; causes.ts:30 "Clamp ranges by canonical key or path prefix; unlisted meters are unbounded."',
     notes: 'Meter clamp table; a table of ranges per meter key.',
@@ -971,12 +971,6 @@ export const PARAMS_CORE = defineParams([
     ref: { kind: 'export', module: 'src/engine/v2/events/catalog/rivals.ts', symbol: 'MERGER_STAFF' },
     value: 0.7, unit: 'fraction of the bought lab\'s staff that joins', area: 'finance', layer: 'world', kind: 'untagged',
     evidence: 'no tag; rivals.ts:19-20 "Share of a bought lab\'s staff that joins (kept from E32)"; header :6 "You get 70% of its staff"',
-  },
-  {
-    id: 'core.rivals.SCRUTINY',
-    ref: { kind: 'inline', file: 'src/engine/v2/events/catalog/rivals.ts', anchor: 'const SCRUTINY = 20;' },
-    value: 20, unit: 'scrutiny points', area: 'actors', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:21 (E32 merger offer: antitrust scrutiny)',
   },
   {
     id: 'core.CHINA_EVENTS.deadlineDays',

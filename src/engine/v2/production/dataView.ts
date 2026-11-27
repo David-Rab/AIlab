@@ -158,15 +158,15 @@ export function synForm(s: GameStateV2, p: P): SynForm {
   };
 }
 
-export interface UsageLevelRow { level: UsageLevel; label: string; share: number; perDayT: number; civlib: number; current: boolean; yearUT: number }
-/** The three usage-data levels: share kept, usage tokens per day at today's traffic, the Civil Liberties approval of
- *  the level and the unique tokens a year at that level adds (T). */
+export interface UsageLevelRow { level: UsageLevel; label: string; share: number; perDayT: number; current: boolean; yearUT: number }
+/** The three usage-data levels: share kept, usage tokens per day at today's traffic and the unique tokens a year at
+ *  that level adds (T). */
 export function usageLevels(s: GameStateV2): UsageLevelRow[] {
   const cur = usageLevelOf(s.player.dataPortfolio.usageShare);
   const q = USAGE_QUALITY;
   return (Object.keys(USAGE_LEVELS) as UsageLevel[]).map((k) => {
     const perDay = usageRateAt(s, USAGE_LEVELS[k].share);
-    return { level: k, label: USAGE_LEVELS[k].label, share: USAGE_LEVELS[k].share, perDayT: perDay, civlib: USAGE_LEVELS[k].civlib, current: k === cur, yearUT: 365 * perDay * q };
+    return { level: k, label: USAGE_LEVELS[k].label, share: USAGE_LEVELS[k].share, perDayT: perDay, current: k === cur, yearUT: 365 * perDay * q };
   });
 }
 export type { DomainMix };

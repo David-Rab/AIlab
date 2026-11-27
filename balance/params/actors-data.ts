@@ -1,5 +1,5 @@
 // B3 inventory: actors data (src/data/actors.ts presets, src/data/world.ts v1 integrator and world presets and
-// baselines, src/data/v2/{rivalModel,blocs,agents}.ts). Prefix `acd`. The actor engine (src/engine/v2/actors/*) is in
+// baselines, src/data/v2/{rivalModel,agents}.ts). Prefix `acd`. The actor engine (src/engine/v2/actors/*) is in
 // actors-engine.ts; this file holds only the data tables the engine reads.
 // Per-preset bundles (GOV_PRESETS, PUBLIC_PRESETS, CHINA_PRESETS, LAB_ARCHETYPES, BASELINES) are one entry per preset
 // and field, built by `presetParams` from the value tables below. The values are written out here (not read from the
@@ -9,7 +9,6 @@ import { defineParams, type Param } from '../schema';
 const ACT = 'src/data/actors.ts';
 const WORLD = 'src/data/world.ts';
 const RIVM = 'src/data/v2/npcLabs.ts';
-const BLOCS = 'src/data/v2/blocs.ts';
 const AGENTS = 'src/data/v2/agents.ts';
 
 type Field = {
@@ -350,34 +349,6 @@ export const PARAMS_ACTORS_DATA = defineParams([
     evidence: 'rivalModel.ts:38-41 "what the reference lab\'s Inference-efficiency line adds in its first year (RefBot, ai2027, seed 2027; serving test V1) [fit]"',
     fit: { targets: [], script: 'unnamed' },
     notes: 'Fit to the reference lab\'s first-year inference-efficiency gain in the serving test V1; no script is named.',
-  },
-
-  // ───────────────────────── v2/blocs.ts ─────────────────────────
-  // BLOCS records carry no per-record source; the file header (blocs.ts:1-4) cites research/08 for clout/approval and the agenda codes.
-  {
-    id: 'acd.BLOCS.clout', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'clout'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Clout Jul-25", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Jul-25)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2: [D] plus a research pointer).',
-  },
-  {
-    id: 'acd.BLOCS.cloutNov26', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'cloutNov26'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 header cites research/08 §1.16 "clout/approval"; research/08-policy-ecosystem.md:664-690 table "Clout Nov-26" (all rows equal), "All clout and approval numbers are [D] calibrations." and "Calibration logic for the Nov 2026 column"',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Clout Nov-26)', notes: 'The second starting column (research/08:13); the cited table states every value, tagged [D] (CLASSIFY A2).',
-  },
-  {
-    id: 'acd.BLOCS.approval', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'approval'] },
-    area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:1 "Interest blocs (V2-SPEC §3.10.2; research/08 §1.16 clout/approval, ...)"; research/08-policy-ecosystem.md:664-690 table "Default Approval_OB", all rows equal; line 690 "All clout and approval numbers are [D] calibrations."',
-    source: 'research/08-policy-ecosystem.md §1.16 (table, Default Approval_OB)', notes: 'The cited table states every value, and tags them [D] (CLASSIFY A2).',
-  },
-  {
-    id: 'acd.BLOCS.agenda', ref: { kind: 'export', module: BLOCS, symbol: 'BLOCS', path: ['*', 'agenda', '*'] },
-    unit: 'weight -3..+3', area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:3-4 "Agenda weights −3..+3 per policy id, converted from research/08 Part 3 codes: \\"++\\" = +3, \\"+\\" = +1, \\"−\\" = −1, \\"−−\\" = −3 [conversion D]."',
-    source: 'research/08-policy-ecosystem.md Part 3 (support/oppose codes)',
-    notes: 'Designer conversion of the Part 3 support/oppose codes; one weight per bloc and policy id.',
   },
 
   // ───────────────────────── v2/agents.ts ─────────────────────────

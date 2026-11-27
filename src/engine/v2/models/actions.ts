@@ -137,8 +137,6 @@ function runPreview(s: GameStateV2, lp: LaunchRunParams, ref?: ModelVersion): Pr
     gains0.push(...ml.gains);
     exposure.push(...ml.exposure);
   }
-  const scrutiny = lp.base ? (plan.limits?.scrutiny ?? 0) : 0;
-  if (scrutiny >= 0.5) exposure.push({ currency: 'scrutiny', amount: Math.round(scrutiny * 10) / 10 });
   const gains: CostLine[] = fc
     ? [{ currency: 'progress', amount: Math.round(fc.gain * 100) / 100, unit: 'L', lagDays: plan.etaDays, target: `prediction over ${fc.refName}'s measured level (±${fc.sd.toFixed(2)} levels)` }]
     : [];
@@ -312,7 +310,7 @@ function evalGains(s: GameStateV2, v: ModelVersion, depth: EvalDepth, by: 'self'
     currency: 'progress', amount: 1, unit: 'reading', ...lag,
     target: `new benchmark and safety-eval scores for ${v.name}; its measured level ±${(row?.bandNow ?? 0).toFixed(2)} → ±${expectedFitSd(s, v, by, depth).toFixed(2)} levels (range, at today's readings)`,
   }];
-  if (by !== 'self' && !externallyEvaluated(s, v)) {
+  if (by !== 'self' && !externallyEvaluated(v)) {
     out.push({ currency: 'progress', amount: 1, unit: 'release check', ...lag, target: `${v.name} gets the external evaluation your Safety framework asks for (its external-review rule and rules at Critical)` });
   }
   return out;

@@ -33,14 +33,17 @@ import { FINANCE_ACTIONS } from '../finance/actions';
 // WS4
 import { securitySystem } from '../security/security';
 import { rivalsChinaSystem } from '../actors/rivals';
-import { actorsDailySystem } from '../actors/relations';
+import { actorsDailySystem } from '../actors/daily';
 import { directorSystem } from '../events/director';
 import { endingsSystem } from '../endings/endings';
 import { geoQSystem } from '../actors/china';
 import { npcQSystem } from '../actors/rivals';
 import { copyrightQSystem } from '../finance/observe';
-import { indexSystem } from '../actors/index';
-import { RELATION_ACTIONS } from '../actors/actions';
+import { BRIEF_OFFICIALS } from '../actors/actions';
+import { SECURITY_ACTIONS } from '../security/actions';
+import { POACH } from '../departments/poach';
+import { OPEN_WEIGHTS } from '../models/openWeights';
+import { RETIRE } from '../endings/retire';
 import { COMPANY_EVENTS } from '../events/catalog/company';
 import { SAFETY_EVENTS } from '../events/catalog/safety';
 import { GOV_EVENTS } from '../events/catalog/gov';
@@ -90,11 +93,10 @@ export const SYSTEMS: readonly EngineSystem[] = [
   geoShocksQSystem, // 441 WS3 quarterly (Taiwan/Korea rolls)
   copyrightQSystem, // 442 WS3 quarterly (copyright suit)
   npcQSystem, // 443 WS4 quarterly (rival finance, goalposts)
-  indexSystem, // 500 WS4 semiannual
 ];
 
 /** Player-callable levers, all spheres (§2.7 preview-truth lint runs over these). */
-export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...RELATION_ACTIONS, ...WORLD_ACTIONS];
+export const ACTIONS: readonly ActionDef[] = [...MODEL_ACTIONS, OPEN_WEIGHTS, POACH, ...SAFETY_ACTIONS, ...FINANCE_ACTIONS, ...SECURITY_ACTIONS, BRIEF_OFFICIALS, RETIRE, ...WORLD_ACTIONS];
 
 /** Decision events (§4.2). */
 export const EVENTS: readonly EventDefV2[] = [

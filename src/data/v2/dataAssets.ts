@@ -50,8 +50,8 @@ export const LICENCE_DELIVERY_DAYS = 60;
 export const LICENCE_SIZE_T = { min: 0.01, max: 20 } as const;
 /** Licensing the crawl (data.license, domain 'web': v2's blanket "License data"): $1B + $0.005B per unlicensed T (270T →
  *  $2.35B, v2's numbers [D]); it adds no tokens (the crawl is already held) and ends the copyright-suit hazard on it
- *  (actors/china.ts). The creatives bloc approves (+10, v2). */
-export const WEB_LICENCE = { baseB: 1, perTB: 0.005, creatives: 10 } as const;
+ *  (actors/china.ts). */
+export const WEB_LICENCE = { baseB: 1, perTB: 0.005 } as const;
 
 /** Synthetic data (compute + a teacher). Generation FLOP = FLOP per token of the teacher × SYN_OVERGEN per kept token
  *  (research/20 A3 [G]: ≈ 2·N_gen per token, filtering at 2–5× overgeneration), at the training pool's FLOP per H100e-day.
@@ -102,15 +102,13 @@ export const P21_WORTH_OOM = 0.3;
 export const USAGE_POLICY_SHARE = 0.2;
 /** Usage-data policy (action data.usagePolicy, model v3 D2): the share of eligible output tokens kept as training data
  *  per level [D]: none 0 (no training on users' chats), standard 0.2 (USAGE_POLICY_SHARE: opt-out training with the
- *  usual retention), broad 0.5 (opt-out by default, long retention, little filtering). The privacy side is the closest
- *  existing relation effect, the Civil Liberties bloc's approval (data/v2/blocs.ts; research/08 §1.11 "privacy laws,
- *  against chat scanning"): approval per level, applied as the difference on a change [D, small: B2's limits / unrestricted
- *  defense terms move it ±6–8]. */
+ *  usual retention), broad 0.5 (opt-out by default, long retention, little filtering). (Its privacy side, the Civil
+ *  Liberties bloc's approval, went with the blocs, W1c.) */
 export type UsageLevel = 'none' | 'standard' | 'broad';
-export const USAGE_LEVELS: Record<UsageLevel, { share: number; civlib: number; label: string }> = {
-  none: { share: 0, civlib: 4, label: 'No training on users' },
-  standard: { share: USAGE_POLICY_SHARE, civlib: 0, label: 'Standard (opt-out)' },
-  broad: { share: 0.5, civlib: -6, label: 'Broad' },
+export const USAGE_LEVELS: Record<UsageLevel, { share: number; label: string }> = {
+  none: { share: 0, label: 'No training on users' },
+  standard: { share: USAGE_POLICY_SHARE, label: 'Standard (opt-out)' },
+  broad: { share: 0.5, label: 'Broad' },
 };
 export const USAGE_QUALITY = 0.5;
 export const USAGE_ELIGIBLE: Partial<Record<Channel, number>> = { consumer: 1 };

@@ -1,4 +1,4 @@
-// Player actions in the World sphere (transition fund, moonshots). Owner: WS5.
+// Player actions in the World sphere (transition fund, moonshots, no drop-in agents). Owner: WS5.
 // Every preview shows what apply() does (V2-SPEC §2.7 preview truth).
 import { TECH_BY_ID, WORLD_TECHS } from '../../../data/v2/techs';
 import type { ActionDef, CostLine, GameStateV2, SystemCtx } from '../types';
@@ -8,6 +8,8 @@ import { gSci, MOONSHOT_K, mSci, scienceRate, techBlocker } from './techtree';
 import { domainScaleGs } from '../models/capability';
 import { internalVersion } from '../models/labs';
 import { revenueReadout } from './revenue';
+import { L, pv } from '../actors/fx';
+import { simpleAction } from '../core/actionDef';
 
 type P = Record<string, number | string | boolean>;
 
@@ -31,7 +33,6 @@ const transitionFund: ActionDef = {
         costs: [{ currency: 'cash', amount: -d }],
         gains: [
           { currency: 'approval', amount: Math.round(Math.min(5, d * 0.4) * 10) / 10, lagDays: 90 },
-          { currency: 'trust', amount: Math.round(Math.min(8, d * 0.6) * 10) / 10, target: 'bloc:labor' },
         ],
         exposure: [],
       };
@@ -39,7 +40,6 @@ const transitionFund: ActionDef = {
     return {
       costs: [
         { currency: 'approval', amount: Math.round(Math.max(-5, d * 0.4) * 10) / 10 },
-        { currency: 'trust', amount: Math.round(Math.max(-12, d * 1.0) * 10) / 10, target: 'bloc:labor' },
       ],
       gains: [{ currency: 'cash', amount: -d }],
       exposure: [],
@@ -61,10 +61,8 @@ export function setTransitionFund(s: GameStateV2, ctx: SystemCtx, perYear: numbe
     if (d > 0) {
       ctx.bump('pub.approval', Math.min(5, d * 0.4), 'transition fund');
       ctx.bump('pub.jobAnxiety', -Math.min(6, d * 0.5), 'transition fund');
-      ctx.bump('trust:bloc:labor', Math.min(8, d * 0.6), 'transition fund');
     } else if (d < 0) {
       ctx.bump('pub.approval', Math.max(-5, d * 0.4), 'transition fund cut');
-      ctx.bump('trust:bloc:labor', Math.max(-12, d), 'transition fund cut');
     }
     ctx.log('company', `Transition fund set to ${amount.toFixed(0)}B/yr.`);
   }
@@ -126,7 +124,7 @@ const moonshot: ActionDef = {
       target: `${t?.name ?? techId}: discovery ${Math.abs(dDays)} d ${dDays >= 0 ? 'sooner' : 'later'} at today's science rate${benefit ? ` (its approval, +${Math.round(benefit * 3) / 10} on discovery and +${Math.round(benefit * 5) / 10} when it reaches patients, comes either way)` : ''}`,
     };
     if (dShare >= 0) {
-      const exposure: CostLine[] = t?.risk ? [{ currency: 'scrutiny', amount: 5, probability: 0.5, lagDays: 180 }, { currency: 'chinaTension', amount: 3, probability: 0.3 }] : [];
+      const exposure: CostLine[] = t?.risk ? [{ currency: 'chinaTension', amount: 3, probability: 0.3 }] : [];
       return {
         costs: [{ currency: 'compute', amount: -Math.round(dH) }, { currency: 'revenue', amount: -revLoss }],
         gains: [timing],
@@ -159,4 +157,14 @@ const moonshot: ActionDef = {
   },
 };
 
-export const WORLD_ACTIONS: ActionDef[] = [transitionFund, moonshot];
+/** F3 No drop-in agents (product policy): every deployment keeps a human in each role it serves (α ≤ 0.5). */
+const noDropIn: ActionDef = simpleAction({
+  id: 'F3', verb: 'policy', system: 'world', title: 'No drop-in agents', once: true,
+  preview: (s) => pv([L('revenue', Math.max(0.05, s.player.finance.revenueRun * 0.05), 'α ≤ 0.5 in chosen sectors')], [L('approval', 2)]),
+  apply(s, ctx) {
+    for (const d of s.player.deployments) d.usagePolicy.noDropInReplacement = true;
+    ctx.bump('pub.approval', 2, 'F3 no drop-in agents');
+  },
+});
+
+export const WORLD_ACTIONS: ActionDef[] = [transitionFund, moonshot, noDropIn];

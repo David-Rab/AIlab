@@ -221,8 +221,6 @@ export function goalpostsQ(s: GameStateV2, ctx: SystemCtx) {
     w.goalposts[r.core.id] = (w.goalposts[r.core.id] ?? 0) + 1;
     ctx.headline(`goalposts-${r.core.id}`, `${r.core.name} publishes a weaker safety framework (v${1 + w.goalposts[r.core.id]}).`);
     ctx.log('rival', `${r.core.name} relaxes its safety framework under race pressure.`, 2, r.core.id);
-    const sb = s.pub.blocs.safety;
-    sb.mobilization = Math.min(100, sb.mobilization + 5);
   }
 }
 

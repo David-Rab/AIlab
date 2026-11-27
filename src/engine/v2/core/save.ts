@@ -5,8 +5,9 @@ import type { GameStateV2 } from '../types';
  *  MIN_SCHEMA_REV does not load and deserialize refuses it with OLD_SAVE_MESSAGE; MIN_SCHEMA_REV is raised to SCHEMA_REV at each
  *  break. History of the revs up to 112 is in git before N12. */
 // 114 (npc): N12, the old NPC state is gone (RivalLab.phys, archetype, meters; SimpleModel traits). 113-115 (master): the
-// data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master.
-export const SCHEMA_REV = 117;
+// data-centre redesign, the labour round, teams as whole chunks. 116: npc merged with master. 117: W1b, macro → the
+// economy readouts. 118: W1c, the relations cluster is gone (relations, researchBodies, blocs, ws4 relation fields).
+export const SCHEMA_REV = 118;
 /** The oldest save that loads: a save below it is refused. */
 export const MIN_SCHEMA_REV = SCHEMA_REV;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

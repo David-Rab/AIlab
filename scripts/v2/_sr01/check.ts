@@ -23,15 +23,14 @@ check(!ACTION_BY_ID.has('safety.technique'), 'the tool On/Off action is gone');
 const run = (id: string, p: Record<string, string>) => {
   const s = load();
   const pv = ACTION_BY_ID.get(id)!.preview(s, p);
-  const before = { cred: s.relations.credibility, trust: s.relations.stocks.evalGov?.trust ?? 0 };
   ACTION_BY_ID.get(id)!.apply(s, makeCtx(s), p);
-  return { pv, s, before };
+  return { pv, s };
 };
 const pol = run('safety.publishPolicy', { policy: 'none' });
-check(!lines(pol.pv).some((l) => l.currency === 'leadDays' || (l.amount !== 0 && !l.lagDays && (l.currency === 'credibility' || l.currency === 'talent'))), 'publish policy "none": no lead-day or immediate credibility / talent line');
+check(!lines(pol.pv).some((l) => l.currency === 'leadDays' || l.amount !== 0), 'publish policy "none": no lead-day or non-zero line (it changes nothing by itself)');
 const pl = run('safety.pledge', {});
 check(!lines(pl.pv).some((l) => l.currency === 'progress' || l.currency === 'leadDays'), 'pledge preview: no notional progress / lead lines');
-check(Math.abs(pl.s.relations.credibility - pl.before.cred) > 0, 'pledge: credibility moves as previewed', `${pl.before.cred} → ${pl.s.relations.credibility}`);
+check(pl.s.player.safety.monitorabilityCommitment && pl.s.commitments.some((c) => c.kind === 'monitorabilityPledge' && c.status === 'live'), 'pledge: a live monitorability commitment, as previewed');
 
 console.log(fails ? `\nSR-01 check: ${fails} failed` : '\nSR-01 check: all passed');
 process.exit(fails ? 1 : 0);

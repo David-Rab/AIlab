@@ -16,13 +16,13 @@ import './risk.css';
 type WorldKind = Exclude<RiskSource['kind'], 'ownModel'>;
 type Lever = { label: string; act?: { id: string; params?: Record<string, string | number | boolean> }; go?: GoTarget };
 const LEVERS: Record<WorldKind, Lever[]> = {
-  rival: [{ label: 'Joint evals', act: { id: 'C3' } }, { label: 'Share threat intel', act: { id: 'C1' } }, { label: 'Publish research', act: { id: 'A4' } }],
+  rival: [],
   // Jank RL2: security controls have one home (Lab › Security); Risk links there.
-  china: [{ label: 'Track-2 dialogue', act: { id: 'E1' } }, { label: 'Gov-gov agreement', act: { id: 'E2' } }, { label: 'Security', go: { panel: 'lab', tab: 'security' } }],
-  misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }, { label: 'Bug bounty', act: { id: 'A5' } }],
+  china: [{ label: 'Security', go: { panel: 'lab', tab: 'security' } }],
+  misuse: [{ label: 'Classifier safeguards', go: { panel: 'products' } }],
   theft: [{ label: 'Security target, siloing, counter-intel', go: { panel: 'lab', tab: 'security' } }],
   rogue: [{ label: 'Safeguard research', go: { panel: 'research', tab: 'projects' } }, { label: 'Monitors', go: { panel: 'lab', tab: 'work', anchor: 'agents' } }],
-  war: [{ label: 'De-escalate', act: { id: 'E1' } }, { label: 'Loosen export controls', act: { id: 'E3', params: { direction: 'loosen' } } }],
+  war: [],
 };
 const KIND_ICON: Record<WorldKind, typeof ICON.risk> = { rival: ICON.rival, china: ICON.china, misuse: ICON.misuse, theft: ICON.theft, rogue: ICON.rogue, war: ICON.war };
 const KIND_LABEL: Record<WorldKind, string> = { rival: 'rival lab', china: 'China', misuse: 'misuse', theft: 'theft', rogue: 'rogue AI', war: 'conflict' };
@@ -83,7 +83,7 @@ function Sources({ s }: { s: GameStateV2 }) {
               </span>
             </Tip>
             {/* Jank RK1: every risk figure opens its breakdown (drivers, range, what moves it). */}
-            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={[...r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) })), ...(leverRows(r.id).length ? [{ label: <b><Term id="riskLever">What one step moves</Term></b>, value: '' }, ...leverRows(r.id)] : [])]} footer={`Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}`}>{KIND_WHY[r.kind]}</TipCard>}>
+            <Tip content={() => <TipCard title={r.label} value={`${F.pct(r.estimate, 1)} (${F.pct(r.band[0], 1)}–${F.pct(r.band[1], 1)})`} rows={[...r.drivers.map((d) => ({ label: d.label, value: F.pct(d.share) })), ...(leverRows(r.id).length ? [{ label: <b><Term id="riskLever">What one step moves</Term></b>, value: '' }, ...leverRows(r.id)] : [])]} footer={LEVERS[r.kind].length ? `Levers: ${LEVERS[r.kind].map((l) => l.label).join(' · ')}` : undefined}>{KIND_WHY[r.kind]}</TipCard>}>
               <span className="num rs2-v" style={{ color: sevColor(r.estimate) }} data-test={`risk-v.${r.id}`}>{F.pct(r.estimate, 1)}</span>
             </Tip>
             <span className="rs2-lev">

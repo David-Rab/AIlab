@@ -11,7 +11,7 @@ import type { EngineSystem, GameStateV2, SeriesV2 } from '../types';
 export function emptySeries(labIds: string[]): SeriesV2 {
   return {
     day: [], L: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), G: Object.fromEntries(labIds.map((id) => [id, [] as number[]])), Lmeasured: [], U: [], M: [], cash: [], revenue: [],
-    valuation: [], compute: [], approval: [], trustGov: [], scrutiny: [], gdpG: [], unemp: [], misTrue: [], misEst: [],
+    valuation: [], compute: [], approval: [], gdpG: [], unemp: [], misTrue: [], misEst: [],
   };
 }
 
@@ -49,8 +49,6 @@ export function sampleSeries(s: GameStateV2) {
   S.valuation.push(r3(s.player.finance.valuation));
   S.compute.push(Math.round(s.player.computeOnline));
   S.approval.push(r3(s.pub.approval));
-  S.trustGov.push(r3(s.relations.stocks.exec.trust));
-  S.scrutiny.push(r3(s.relations.scrutiny));
   S.gdpG.push(r3(s.world.macro.US.g));
   S.unemp.push(r3(s.world.unemployment.US));
   S.misTrue.push(r3(v ? misalignment(v.traitsTrue, v.uModes) : 0));

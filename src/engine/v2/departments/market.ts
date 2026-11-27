@@ -11,6 +11,7 @@
 // Teams are whole chunks: no vacancies, no hiring queue, no player leavers (staff go only when the player lets a team go or
 // an event moves them). V_k = the target gap in heads (Σ over the kind's keys of (target teams − teams) × size) less the
 // progress already made. Automation enters only through V (the player's own targets). No stars (L17).
+import { startOf } from '../../../data/v2/starts';
 import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS, W0 } from '../../../data/v2/labourMarket';
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE, TEAM_KEYS } from '../../../data/v2/teams';
 import { deptOfKey, moraleFactor, moraleOf, nextSpecialty, roleOfKey, teamLabel } from './teams';
@@ -137,8 +138,9 @@ export function matchScale(s: GameStateV2, k: TeamRole): number {
   return 12 * F0_PER_MONTH * Math.pow(MU_REF_V[k] / b.U0, ALPHA);
 }
 
-/** Talent pull multiplier (today's, [D]): 1 + talentPull/50, floor 0. */
-export const pullOf = (s: GameStateV2) => Math.max(0, 1 + s.relations.talentPull / 50);
+/** Talent pull multiplier [D]: 1 + talentPull/50 at the start type's anchor (data/v2/starts.ts mods; no drift or bumps
+ *  since the relation stocks went, W1c; W4 adds an approval term), floor 0. */
+export const pullOf = (s: GameStateV2) => Math.max(0, 1 + startOf(s).mods.talentPull / 50);
 
 /** The morale multiplier for kind k: today's moraleFactor per department, weighted by where the openings are. Morale's
  *  only effect on staff is this hiring speed (nobody leaves). */

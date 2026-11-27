@@ -8,10 +8,9 @@ import { internalVersion } from '../../models/labs';
 import type { Commitment, EventDefV2, GameStateV2, ModelVersion, SystemCtx, TraitId } from '../../types';
 import { TRAIT_BY_ID } from '../../../../data/v2/traits';
 import { PREDICATES, blockingCommitments, amendCommitment, breakCommitment, latentVersion, pledgeBreachRun } from '../../actors/commitments';
-import { ALL_PUBLIC_CPS, approval, cash, cred, disclosureTrust, scrutiny, trustMany } from '../../actors/fx';
+import { approval, cash } from '../../actors/fx';
 import { pLeak } from '../../actors/public';
-import { addCoverup } from '../../actors/relations';
-import { discoveryOdds } from '../../actors/researchBodies';
+import { addCoverup, COVERUP_DISCOVERY_ODDS } from '../coverups';
 import { ws4 } from '../../actors/state';
 import { escapeResolved } from '../../safety/footholds';
 import { whistleOddsYear } from '../../security/security';
@@ -27,21 +26,17 @@ export function redFlagLine(s: GameStateV2) {
     : `odds of a staff leak to the press ${pct(whistleOddsYear(s))}% → ${pct(whistleOddsYear(s, 1))}% a year`;
   return L('alignment', 1, why, { unit: 'red flag' });
 }
-/** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. */
-function dilemma(what: string, credGain: number, scrut: number) {
+/** The disclosure-dilemma triple used by findings, incidents and U-mode discoveries. (Its trust, credibility and
+ *  scrutiny effects went with the relation stocks, W1c; W7 redoes the events.) */
+function dilemma(what: string) {
   return [
-    ch('Disclose', ['disclose', 'safety'], (s) => ({ costs: [L('scrutiny', scrut)], gains: [L('credibility', credGain), L('trust', 4 * (s.relations.credibility / 50), 'gov, evaluators')], exposure: [] }), (s: GameStateV2, ctx: SystemCtx) => {
-      cred(ctx, credGain, `disclosed ${what}`);
-      scrutiny(ctx, scrut, `disclosed ${what}`);
-      disclosureTrust(s, ctx, ['exec', 'evalGov', 'evalIndep'], 4, `disclosed ${what}`);
+    ch('Disclose', ['disclose', 'safety'], P([]), (s: GameStateV2) => {
       ws4(s).disclosed++;
     }),
-    ch('Keep it quiet', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 6, 'every audience if found', { probability: discoveryOdds(s), lagDays: 90 }), L('credibility', 15, 'if found', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0, 'no attention now; nothing is fixed: the flaw stays in the model')], exposure: [] }), (s: GameStateV2) => {
-      addCoverup(s, what, discoveryOdds(s), [...ALL_PUBLIC_CPS]);
+    ch('Keep it quiet', ['quiet', 'secrecy'], P([L('approval', 8, 'if found: nothing is fixed, the flaw stays in the model', { probability: COVERUP_DISCOVERY_ODDS })]), (s: GameStateV2) => {
+      addCoverup(s, what, COVERUP_DISCOVERY_ODDS);
     }),
-    ch('Deny', ['deny'], P([L('credibility', 10, 'gamble', { probability: 0.5 })], [L('scrutiny', 3, 'story dies', { probability: 0.5 })]), (_s: GameStateV2, ctx: SystemCtx) => {
-      cred(ctx, ctx.rng('events').chance(0.5) ? 4 : -10, `denied ${what}`);
-    }),
+    ch('Deny', ['deny'], P([]), () => {}),
   ];
 }
 
@@ -67,7 +62,7 @@ function firstFindingText(s: GameStateV2): string {
   const inv = [...s.player.safety.investigations].reverse().find((i) => i.target.kind === 'trait' && (i.outcome === 'confirmed' || i.outcome === 'discovery'));
   const vs = s.player.models.versions;
   const v = (inv && inv.target.kind === 'trait' ? vs.find((x) => x.id === (inv.target as { versionId: string }).versionId) : undefined) ?? internalVersion(s) ?? vs[vs.length - 1];
-  const tail = 'Disclose, keep it quiet or deny? Keeping quiet fixes nothing; flaws found later cost 3× the trust.';
+  const tail = 'Disclose, keep it quiet or deny? Keeping quiet fixes nothing.';
   if (!v) return `Your safety team confirmed a real flaw in your model. ${tail}`;
   let trait: TraitId | undefined = inv && inv.target.kind === 'trait' ? inv.target.trait : undefined;
   if (!trait) {
@@ -90,29 +85,26 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     id: 'E01', title: 'First finding', icon: 'model', crisis: false, deadlineDays: 21, defaultChoice: 1,
     when: (s) => (hasConfirmed(s) || (s.setup.tutorial && s.time.day >= 45) ? {} : false),
     text: (s) => firstFindingText(s),
-    choices: dilemma('a model flaw', 5, 10),
+    choices: dilemma('a model flaw'),
   }),
   ev({
     id: 'E19', title: 'The leak', icon: 'alert', crisis: true, cooldown: 365, deadlineDays: 7, defaultChoice: 2,
     when: requestOnly,
     text: (_s, d) => `An internal safety memo is in the press${Number(d.mult) > 1 ? ' — after your own staff warned you' : ''}. AI is now a top national issue ([[salience]]).`,
     choices: [
-      ch('Full disclosure', ['disclose', 'safety'], P([L('scrutiny', 25)], [L('credibility', 5), L('trust', 4, 'if credible')]), (s, ctx, d) => {
+      ch('Full disclosure', ['disclose', 'safety'], P([]), (s, ctx, d) => {
         pLeak(s, ctx, Number(d.mult ?? 1));
-        scrutiny(ctx, 25, 'E19 full disclosure');
-        cred(ctx, 5, 'E19 full disclosure');
-        disclosureTrust(s, ctx, ['exec', 'congress', 'evalGov', 'evalIndep'], 4, 'E19 full disclosure');
         const w = ws4(s);
         w.disclosed++;
         w.redFlags = 0;
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Deny', ['deny'], (s) => ({ costs: [L('credibility', 20, 'if contradicted later', { probability: discoveryOdds(s) + 0.3 })], gains: [L('scrutiny', 10, 'less now')], exposure: [] }), (s, ctx, d) => {
+      ch('Deny', ['deny'], P([L('approval', 8, 'if contradicted later', { probability: clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1) })]), (s, ctx, d) => {
         pLeak(s, ctx, Number(d.mult ?? 1) * 0.7);
-        addCoverup(s, 'the truth behind the leaked memo', clamp(discoveryOdds(s) + 0.3, 0, 1), [...ALL_PUBLIC_CPS], 120);
+        addCoverup(s, 'the truth behind the leaked memo', clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1), 120);
         ws4(s).leaked++;
       }),
-      ch('Spin', ['quiet'], P([L('approval', 10)], [L('scrutiny', 5, 'framing')]), (s, ctx, d) => {
+      ch('Spin', ['quiet'], P([L('approval', 10)]), (s, ctx, d) => {
         pLeak(s, ctx, Number(d.mult ?? 1));
         approval(ctx, -10, 'E19 spin');
         ws4(s).leaked++;
@@ -124,28 +116,25 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     when: requestOnly,
     text: (s, d) => `A copy of ${s.player.models.versions.find((v) => v.id === d.versionId)?.name ?? 'your model'} is running outside your control. Hunt it loudly, quietly, or tell the world.`,
     choices: [
-      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'without internal agents', { unit: 'days' }), L('scrutiny', 10)], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
+      ch('Shutdown & hunt', ['safety', 'pause'], P([L('progress', 20, 'without internal agents', { unit: 'days' })], [L('alignment', 0.6, 'recapture odds')]), (s, ctx) => {
         s.flags['ws4:agentsOffUntil'] = ctx.day + 21;
         s.flags['ws4:hunt'] = 'loud';
-        scrutiny(ctx, 10, 'E25 shutdown');
         if (ctx.rng('events').chance(clamp(0.5 + 0.1 * (s.player.security.wsl - 3), 0.2, 0.9))) {
           delete ws4(s).loose;
           escapeResolved(s, ctx.day, 'captured');
           ctx.log('alert', 'The escaped copy was found and shut down.', 4);
         }
       }),
-      ch('Hunt quietly', ['quiet', 'secrecy'], (s) => ({ costs: [L('trust', 8, 'if found out', { probability: discoveryOdds(s) })], gains: [L('scrutiny', 0)], exposure: [L('alignment', -0.3, 'recapture odds lower')] }), (s, ctx) => {
+      ch('Hunt quietly', ['quiet', 'secrecy'], P([L('approval', 8, 'if found out', { probability: COVERUP_DISCOVERY_ODDS + 0.2 })], [], [L('alignment', -0.3, 'recapture odds lower')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'quiet';
-        addCoverup(s, 'an escaped model copy', discoveryOdds(s) + 0.2, [...ALL_PUBLIC_CPS], 120);
+        addCoverup(s, 'an escaped model copy', COVERUP_DISCOVERY_ODDS + 0.2, 120);
         if (ctx.rng('events').chance(clamp(0.25 + 0.1 * (s.player.security.wsl - 3), 0.05, 0.7))) {
           delete ws4(s).loose;
           escapeResolved(s, ctx.day, 'captured');
         }
       }),
-      ch('Disclose', ['disclose', 'safety'], P([L('approval', 10), L('cash', 1, 'markets panic')], [L('credibility', 5), L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
+      ch('Disclose', ['disclose', 'safety'], P([L('approval', 10), L('cash', 1, 'markets panic')], [L('alignment', 0.5, 'the world hunts with you')]), (s, ctx) => {
         s.flags['ws4:hunt'] = 'public';
-        disclosureTrust(s, ctx, ['exec', 'evalGov', 'evalIndep'], 5, 'E25 disclosed escape');
-        cred(ctx, 5, 'E25 disclosed escape');
         approval(ctx, -10, 'E25 disclosed escape');
         ctx.bump('pub.concern', 10, 'E25 disclosed escape');
         ws4(s).disclosed++;
@@ -165,22 +154,15 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     },
     text: (s, d) => `Your commitment "${s.commitments.find((c) => c.id === d.cid)?.title ?? 'a pledge'}" now binds. Honour it, amend it, or break it.`,
     choices: [
-      ch('Honour', ['honour', 'safety'], P([L('revenue', 0.5, 'delay or mitigation'), L('leadDays', 14)], [L('credibility', 2), L('trust', 2, 'audience')]), (s, ctx, d) => {
+      ch('Honour', ['honour', 'safety'], P([L('revenue', 0.5, 'delay or mitigation'), L('leadDays', 14)]), (s, ctx, d) => {
         const c = s.commitments.find((x) => x.id === d.cid);
-        if (!c) return;
-        honour(s, ctx, c);
-        if (c.status !== 'live') return; // could not be honoured after the fact: broken
-        cred(ctx, 2, 'kept a commitment', c.title);
-        trustMany(s, ctx, c.audience, 2, 'kept a commitment');
+        if (c) honour(s, ctx, c);
       }),
-      ch('Amend', ['amend', 'race'], P([L('credibility', 8), L('approval', 4, 'bloc:safety')], [L('leadDays', 14)]), (s, ctx, d) => {
+      ch('Amend', ['amend', 'race'], P([], [L('leadDays', 14)]), (s, ctx, d) => {
         const c = s.commitments.find((x) => x.id === d.cid);
         if (c) amendCommitment(s, ctx, c, false);
       }),
-      ch('Break', ['break', 'race'], (s) => {
-        const c = blockingCommitments(s)[0];
-        return { costs: [L('trust', 3 * (c?.breakCost.trust ?? 8), 'audience ×3'), L('credibility', c?.breakCost.credibility ?? 20)], gains: [L('leadDays', 14)], exposure: [] };
-      }, (s, ctx, d) => {
+      ch('Break', ['break', 'race'], P([], [L('leadDays', 14)]), (s, ctx, d) => {
         const c = s.commitments.find((x) => x.id === d.cid);
         if (c) breakCommitment(s, ctx, c);
       }),
@@ -200,7 +182,7 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
       // open-weights release cannot be undone, so the pledge is broken (normal break costs).
       for (const r of s.player.models.runs) if (r.startDay >= c.signedDay && (r.status === 'running' || r.status === 'paused') && pledgeBreachRun(r)) r.status = 'cancelled';
       for (const d of s.player.deployments) if (d.status !== 'withdrawn' && d.channel !== 'internal' && d.startDay >= c.signedDay && latentVersion(s, d.versionId)) withdraw(s, d.id);
-      if (PREDICATES.monitorabilityPledge(s, c.condition.params, c)) breakCommitment(s, ctx, c, 'pledge already breached');
+      if (PREDICATES.monitorabilityPledge(s, c.condition.params, c)) breakCommitment(s, ctx, c);
       break;
     }
     case 'noSurveillance':
@@ -212,7 +194,6 @@ function honour(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
       break;
     case 'incidentReporting':
       for (const i of s.player.safety.incidents) if (i.status === 'open' || i.status === 'covered') i.status = 'disclosed';
-      scrutiny(ctx, 5, 'incident reports filed');
       break;
     case 'whistleblower':
       delete ws4(s).internalReport;

@@ -26,10 +26,7 @@ export const raceBot: BotPolicy = {
     refPlay(s, api, RACE_PLAY);
     financeAutopilot(s, RACE_AUTOPILOT);
     if (every(s, 30)) {
-      tryAct(s, api, 'B4', { direction: 'deregulate' });
-      tryAct(s, api, 'B2', { terms: 'unrestricted' });
       tryAct(s, api, 'C4', {});
-      tryAct(s, api, 'E3', { direction: 'loosen' });
       if (s.time.day > 180) tryAct(s, api, 'C6', { behind: 1 });
     }
   },

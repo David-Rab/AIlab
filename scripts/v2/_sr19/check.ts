@@ -3,8 +3,7 @@
 //  2. a version whose MEASURED CYBER passes the Cyber: High threshold without classifier safeguards is held from launch;
 //     with them it is not; a live product of it with standard safeguards is held (serves nobody); adding the safeguard
 //     (product.update) releases it;
-//  3. an override releases the hold and records and applies the stated consequences (safety morale, red flag,
-//     scrutiny; credibility when published);
+//  3. an override releases the hold and records and applies the stated consequences (safety morale, red flag);
 //  4. a training hold (AI R&D: Critical on a measured level, no control) pauses frontier runs and refuses new ones.
 import { readFileSync } from 'node:fs';
 import { FRAMEWORK_CRITICAL_L, FRAMEWORK_HIGH_L } from '../../../src/data/v2/framework';
@@ -56,15 +55,15 @@ d.safeguards = 'standard';
 refreshFramework(s, ctx);
 const pv = action('safety.frameworkOverride')!.preview(s, { ruleId: 'cyber-high', versionId: v.id });
 const pvText = JSON.stringify(pv.costs);
-check(pvText.includes('morale') && pvText.includes('scrutiny') && pvText.includes('red flag') && JSON.stringify(pv.gains).includes(`product ${d.id}`),
-  'override preview states staff, government (and reputation) consequences and what it releases', pv.costs.map((c) => `${c.currency} ${c.amount}`).join(', '));
-const before = { morale: s.player.morale.safety, scrutiny: s.relations.scrutiny, flags: ws4r(s).redFlags, cred: s.relations.credibility };
+check(pvText.includes('morale') && pvText.includes('red flag') && JSON.stringify(pv.gains).includes(`product ${d.id}`),
+  'override preview states the staff consequences and what it releases', pv.costs.map((c) => `${c.currency} ${c.amount}`).join(', '));
+const before = { morale: s.player.morale.safety, flags: ws4r(s).redFlags };
 action('safety.frameworkOverride')!.apply(s, ctx, { ruleId: 'cyber-high', versionId: v.id });
 const o = fw.overrides.find((x) => x.ruleId === 'cyber-high' && x.versionId === v.id);
-check(!d.held && productUsageMult(d) > 0 && !!o && o.consequences.length === 3, 'override releases the hold and records the stated consequences', o?.consequences.join(' | ') ?? 'none');
-check(s.player.morale.safety < before.morale && s.relations.scrutiny > before.scrutiny && ws4r(s).redFlags === before.flags + 1,
-  'override consequences applied: safety morale down, scrutiny up, one red flag',
-  `morale ${before.morale.toFixed(1)} → ${s.player.morale.safety.toFixed(1)}, scrutiny ${before.scrutiny.toFixed(1)} → ${s.relations.scrutiny.toFixed(1)}, cred ${before.cred.toFixed(1)} → ${s.relations.credibility.toFixed(1)}`);
+check(!d.held && productUsageMult(d) > 0 && !!o && o.consequences.length === 1, 'override releases the hold and records the stated consequences', o?.consequences.join(' | ') ?? 'none');
+check(s.player.morale.safety < before.morale && ws4r(s).redFlags === before.flags + 1,
+  'override consequences applied: safety morale down, one red flag',
+  `morale ${before.morale.toFixed(1)} → ${s.player.morale.safety.toFixed(1)}`);
 check(deployGate(s, v, d.channel, { safeguards: 'standard' }) === true || !String(deployGate(s, v, d.channel, { safeguards: 'standard' })).includes('Safety framework'), 'after the override a launch of that version is not held by that rule');
 
 // 4. training hold

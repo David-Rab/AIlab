@@ -62,13 +62,10 @@ export function usGapMonths(s: GameStateV2): number {
   return (best / 365) * 12;
 }
 
-/** Distillation access target (§3.6): threat-intel sharing, adversary restrictions and a KYC ban lower it. RD-P09: the
- *  player's per-product KYC acts on that product's own leak (production/diffusion.ts teacherAccess), not here. */
-export function distillTarget(s: GameStateV2): number {
-  const shared = s.flags['ws4:threatIntel'] ? 0.85 : 1;
-  const restricted = s.flags['ws4:restrictAdversary'] ? 0.85 : 1;
-  return 60 * shared * restricted * (s.flags['ws4:kycBan'] ? 0.75 : 1);
-}
+/** Distillation access target (§3.6): 60 (the levers that lowered it, threat-intel sharing and adversary
+ *  restrictions, went with the relation actions, W1c). RD-P09: the player's per-product KYC acts on that product's own
+ *  leak (production/diffusion.ts teacherAccess), not here. */
+const DISTILL_TARGET = 60;
 
 const RUNG_TEXT = [
   'China returns to competitive coexistence.',
@@ -104,7 +101,7 @@ export function chinaDaily(s: GameStateV2, ctx: SystemCtx) {
     } else if (!on && s.flags['policy.chinaSez']) delete s.flags['policy.chinaSez'];
   }
   drift(s, M, 'chipSelfSufficiency', 5 / 365 * (s.market.exportPolicy === 'strict' ? 1.3 : 1), 0, 100, 'china.meters.chipSelfSufficiency');
-  drift(s, M, 'distillationAccess', (distillTarget(s) - m.distillationAccess) * 0.004, 0, 100, 'china.meters.distillationAccess');
+  drift(s, M, 'distillationAccess', (DISTILL_TARGET - m.distillationAccess) * 0.004, 0, 100, 'china.meters.distillationAccess');
   const intentT = clamp(20 * pp.theft + (c.rung >= 2 ? 10 : 0) + (c.rung >= 4 ? 30 : 0), 0, 100);
   drift(s, M, 'theftIntent', (intentT - m.theftIntent) * 0.01, 0, 100, 'china.theftIntent');
   drift(s, M, 'safetyConcern', (30 * (pp.treaty > 1.5 ? 1.5 : 1) - m.safetyConcern) * 0.002, 0, 100, 'china.meters.safetyConcern');
@@ -231,12 +228,11 @@ export const geoQSystem: EngineSystem = {
       ctx.bump('china.meters.centralization', 50, 'national AI team (R7)');
       ctx.log('china', 'Beijing pools its AI labs and compute into a national collective.', 3);
     }
-    // Export policy follows the G-CHN ladder (and player lobbying, E3).
-    const lobby = Number(s.flags['ws4:exportLobby'] ?? 0);
-    const want = s.gov.rungChn >= 3 || lobby > 0 ? 'strict' : s.gov.rungChn >= 1 || lobby === 0 ? 'caseByCase' : 'open';
+    // Export policy follows the G-CHN ladder (the player's export lobbying, E3, went with the relation actions, W1c).
+    const want = s.gov.rungChn >= 3 ? 'strict' : 'caseByCase';
     if (want !== s.market.exportPolicy) {
       setExportPolicy(s, want);
-      ctx.log('gov', `US chip export policy toward China: ${want === 'strict' ? 'strict denial' : want === 'open' ? 'open sales' : 'case-by-case'}.`, 2);
+      ctx.log('gov', `US chip export policy toward China: ${want === 'strict' ? 'strict denial' : 'case-by-case'}.`, 2);
       if (want === 'strict') {
         ctx.bump('china.meters.domesticFab', 5, 'export controls (R1)');
         if (r.chance(0.4)) ctx.log('china', 'China retaliates with rare-earth controls.', 2);

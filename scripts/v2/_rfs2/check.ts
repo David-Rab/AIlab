@@ -1,6 +1,6 @@
 // RF-S2 targeted check (run alone: npx tsx scripts/v2/_rfs2/check.ts).
-//  1. Publish framework (A3) signs one 'safetyFramework' commitment; the framework counts as published (override costs
-//     credibility); no pause pledge, no noDeployAbove card;
+//  1. Publish framework (A3) signs one 'safetyFramework' commitment; the framework counts as published; no pause pledge,
+//     no noDeployAbove card;
 //  2. the "Meet my framework" package adds what the framework asks and the deployment lacks: control on the internal
 //     deployment under a training hold (the engine charges the previewed control compute; the hold clears), classifiers on
 //     a product measured BIO ≥ 10; then "Already meets";
@@ -15,7 +15,7 @@ import { ACTIONS } from '../../../src/engine/v2/core/registry';
 import { engine } from '../../../src/engine/v2';
 import { agentVersion, monitorBudget } from '../../../src/engine/v2/departments/agents';
 import { flopPerToken } from '../../../src/engine/v2/departments/workfit';
-import { frameworkPublished, overrideConsequences, refreshFramework, trainingHolds } from '../../../src/engine/v2/safety/framework';
+import { frameworkPublished, refreshFramework, trainingHolds } from '../../../src/engine/v2/safety/framework';
 import { packageBlock, previewPackage } from '../../../src/engine/v2/safety/packages';
 import { controlOn } from '../../../src/engine/v2/safety/safeguards';
 import { autoWatcher } from '../../../src/engine/v2/safety/trusted';
@@ -33,11 +33,11 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
 {
   const x = load();
   x.commitments = x.commitments.filter((c) => c.kind !== 'framework');
-  check(!frameworkPublished(x) && overrideConsequences(x).credibility === 0, 'unpublished: override costs no credibility');
+  check(!frameworkPublished(x), 'unpublished before A3');
   act('A3').apply(x, makeCtx(x), {});
   const cards = x.commitments.filter((c) => c.status === 'live' && c.kind === 'framework');
   check(cards.length === 1 && cards[0].condition.predicate === 'safetyFramework', 'A3 signs one Safety framework commitment', cards.map((c) => c.condition.predicate).join(','));
-  check(frameworkPublished(x) && overrideConsequences(x).credibility > 0, 'published: override costs credibility');
+  check(frameworkPublished(x), 'published after A3');
   check(!x.commitments.some((c) => ['noDeployAbove', 'pauseIfRedline'].includes(c.condition.predicate) && c.signedDay === x.time.day), 'no old pledge or pause card signed');
 }
 

@@ -1,4 +1,4 @@
-// B3 inventory: actors engine (src/engine/v2/actors/*): rivals, China, government, public, intel, relations, rival model.
+// B3 inventory: actors engine (src/engine/v2/actors/*): rivals, China, government, public, intel, rival model.
 // Prefix `act`. Named constants first (exports, then non-exported ones as inline refs: an export ref needs an export),
 // then notable inline literals (the last block, capped at 40; the rest are listed in design/bal/inv/actors-engine-notes.md).
 import { defineParams } from '../schema';
@@ -9,10 +9,6 @@ const CHINA = 'src/engine/v2/actors/china.ts';
 const GOV = 'src/engine/v2/actors/gov.ts';
 const PUBLIC = 'src/engine/v2/actors/public.ts';
 const INTEL = 'src/engine/v2/actors/intel.ts';
-const REL = 'src/engine/v2/actors/relations.ts';
-const BLOCS = 'src/engine/v2/actors/blocs.ts';
-const RB = 'src/engine/v2/actors/researchBodies.ts';
-const IDX = 'src/engine/v2/actors/index.ts';
 const TUNING = 'src/engine/v2/actors/tuning.ts';
 
 export const PARAMS_ACTORS_ENGINE = defineParams([
@@ -79,14 +75,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     evidence: 'tuning.ts:11-13 "China attempts weight theft only from this posture rung (R10 §1.4 rung 2 ...). [D] deviation from §3.6"',
   },
   {
-    id: 'act.RUNG_TRUST',
-    ref: { kind: 'export', module: REL, symbol: 'RUNG_TRUST' },
-    value: [0, 25, 45, 65, 80],
-    unit: 'trust points', area: 'actors', layer: 'world', kind: 'designer', source: 'V2-SPEC §3.9.1',
-    evidence: 'no tag; relations.ts:23 "Access-rung trust thresholds (rungs 1..4) (§3.9.1)."',
-    notes: 'A8c: spec states 25 / 45 / 65 / 80 for rungs 1..4. Index = access rung 0..4.',
-  },
-  {
     id: 'act.RIVAL_DISTILL_LAG_DAYS',
     ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_DISTILL_LAG_DAYS' },
     value: 152,
@@ -133,14 +121,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     unit: 'misalignment (0..1)', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
     evidence: 'no tag; intel.ts:24 "Prior misalignment band by visible clause type (research/17 §1.6.4: the framework is the main observable)."',
     notes: 'readout (A10). Flattened lo,hi pairs in key order conditional, allAdopt, unconditional, override, state.',
-  },
-  {
-    id: 'act.GOV_SCORE',
-    ref: { kind: 'inline', file: IDX, anchor: 'const GOV_SCORE: Record<string, number> = {' },
-    value: [0.65, 0.75, 0.6, 0.3, 0.45],
-    unit: 'score 0..1', area: 'actors', layer: 'world', actor: 'player', kind: 'designer', source: 'index.ts:21 (R9)',
-    evidence: 'index.ts:21 "// R9 parent: a corporate division with a responsibility council but no independent safety board (GDM: C−) [D]." sits above the table but names only the `parent` entry',
-    notes: 'A9: the [D] comment above the table covers all five boards. Key order legacyNonprofit, nonprofitPBC, pbcTrust, founder, parent.',
   },
 
   // ───────────────────────── notable inline literals (40) ─────────────────────────
@@ -380,35 +360,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     unit: 'fraction', area: 'actors', layer: 'policy', actor: 'china', kind: 'designer', source: 'V2-SPEC §3.10.4', notes: 'A8c: spec states safetyInvestment 0.10 + 0.4 x safetyConcern / 100.',
     evidence: 'no tag; rivals.ts:183-184 "China\'s safety investment follows its safety concern (§3.10.4)."',
   },
-  // intel.ts, relations.ts, blocs.ts, researchBodies.ts
-  {
-    id: 'act.relations.trustLossFactor',
-    ref: { kind: 'inline', file: REL, anchor: 'base * 3 * (1 + T / 100)' },
-    value: 3,
-    unit: 'multiplier', area: 'actors', layer: 'world', actor: 'player', kind: 'designer', source: 'V2-SPEC §3.9.1', notes: 'A8c: spec states loss = base x 3 x (1 + T/100).',
-    evidence: 'no tag; relations.ts:17 "Trust gain/loss asymmetry (§3.9.1): gain base·(1 − T/100); loss base·3·(1 + T/100)."',
-  },
-  {
-    id: 'act.relations.scrutinyHalfLife',
-    ref: { kind: 'inline', file: REL, anchor: 'const ds = -rel.scrutiny * (Math.LN2 / 90);' },
-    value: 90,
-    unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; relations.ts:41 "Daily relation upkeep: scrutiny half-life 90 d"',
-  },
-  {
-    id: 'act.blocs.coalitionMultiplier',
-    ref: { kind: 'inline', file: BLOCS, anchor: '(co.has(b.id) ? 1.25 : 1)' },
-    value: 1.25,
-    unit: 'multiplier', area: 'actors', layer: 'world', actor: 'public', kind: 'designer',
-    evidence: 'blocs.ts:32 "Net pressure for (+) / against (−) a policy through a channel, ≈ −100..+100 [D scale]. Coalitions ×1.25."',
-  },
-  {
-    id: 'act.researchBodies.discoveryBaseline',
-    ref: { kind: 'inline', file: RB, anchor: '0.05 * s.researchBodies.evalGov.publishPressure + 0.02' },
-    value: [0.05, 0.02],
-    unit: 'probability', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged',
-    evidence: 'no tag; researchBodies.ts:23 "staff and press baseline" (cover-up discovery odds, §3.9.3 rule 1)',
-  },
+  // intel.ts
   // ───────────────────────── NPC labs (N2b-1 .. N8b; design/npc/NPC-LABS.md): parameters named in the N*-RESULT.md notes ─────────────────────────
   {
     id: 'act.npc.DAYS_PER_MONTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'DAYS_PER_MONTH' }, value: 30.4,
@@ -471,15 +423,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     unit: 'x reference clock speed', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged', evidence: 'npc/shocks.ts: the reference clock under a verified treaty (the old rivals treaty research factor 0.65)',
   },
   {
-    id: 'act.npc.JOINT_EVAL_STEP', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'JOINT_EVAL_STEP' }, value: 0.05,
-    unit: 'safety emphasis', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', evidence: 'npc/shocks.ts "the step of the posture evalRigor today, C3 [D]"',
-  },
-  {
     id: 'act.npc.SPILL_DAYS', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'SPILL_DAYS' }, value: 7,
     unit: 'days of lag', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/shocks.ts "[D: 0.024 OOM at ~1.2 OOM/yr]"',
-  },
-  {
-    id: 'act.npc.TRACK2_DAYS', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'TRACK2_DAYS' }, value: 2,
-    unit: 'days of lag', area: 'actors', layer: 'world', actor: 'china', kind: 'designer', evidence: 'npc/shocks.ts "[D: old 1% of ~200 d]"',
   },
 ]);

@@ -15,7 +15,6 @@ import { keptShare } from '../actors/commitments';
 import { labOf, postureOf, rivalMis } from '../actors/rivals';
 import { npcM } from '../npc/risk';
 import { persOf } from '../npc/lab';
-import { ws4r } from '../actors/state';
 
 /** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
  *  no oversight (the world's tolerance θ_w = doomThreshold + ε_w, safety/control.ts). Scores read it as an expectation;
@@ -81,9 +80,9 @@ export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
     if (near) return 'multipolar';
     return KIND_POWER[labOf(s, lab)?.npc.kind ?? 'bigtech'] ?? 'corporate';
   }
-  const w = ws4r(s);
   if (s.gov.oversight) return 'committee';
-  if (w.dpaAccepted && s.relations.stocks.exec.trust < 40) return 'government';
+  // W1c stand-in: 'government' needed the DPA plus executive trust < 40; that trust is gone (its stand-in, 55, never
+  // meets it), so the outcome waits for W5's government trust.
   if (near) return 'multipolar';
   if (s.player.policies.govBriefing >= 2 && keptShare(s) >= 0.8 && controlShare(s) < 0.5) return 'democratic';
   return 'corporate';

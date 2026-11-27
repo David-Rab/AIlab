@@ -53,8 +53,9 @@ const load = (i: number) => deserialize(fixtures[i]);
   const ids = new Set(EVENTS.map((e) => e.id));
   // 2026-11-15 cut: events are rare decisions the regular mechanisms do not model (15 kept, 22 removed). FIN3b
   // (FINANCE-V3 §10) dropped E37 Board revolt: the ouster vote is on the Board card, the critics' seat is an action.
-  const want = ['E01', 'E10', 'E12', 'E16', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E29', 'E30', 'E32'];
-  check(want.every((id) => ids.has(id)) && ids.size === want.length, 'E1 catalog: exactly the 14 kept events', `${EVENTS.length} events`);
+  // W1c (outside-world spec §8.2) cut E16 Talent raid and E29 Evaluator contradicts.
+  const want = ['E01', 'E10', 'E12', 'E19', 'E20', 'E22', 'E23', 'E25', 'E27', 'E30', 'E32'];
+  check(want.every((id) => ids.has(id)) && ids.size === want.length, `E1 catalog: exactly the ${want.length} kept events`, `${EVENTS.length} events`);
   const states = [0, 1, 2].map(load);
   let bad: string[] = [];
   for (const e of EVENTS) {
@@ -98,7 +99,7 @@ const load = (i: number) => deserialize(fixtures[i]);
       s.events.pending.push({ id: 'E32', instance: `E32@stale${i}`, day: s.time.day, deadline: s.time.day + 30, data: { lab: r.core.id }, crisis: false });
       deactivateRival(s, ctx, r.core.id, seed % 2 ? 'merged' : 'bankrupt', seed % 2 ? into : undefined);
       // Simulate a stale pending decision added after deactivation (e.g. by another workstream).
-      s.events.pending.push({ id: 'E16', instance: `E16@stale${i}`, day: s.time.day, deadline: s.time.day + 30, data: { lab: r.core.id }, crisis: false });
+      s.events.pending.push({ id: 'E32', instance: `E32@late${i}`, day: s.time.day, deadline: s.time.day + 30, data: { lab: r.core.id }, crisis: false });
     });
     const named = (t: string) => gone.find((n) => t.includes(n));
     for (let d = 0; d < (seed <= 60 ? 30 : 2) && !s.ending; d++) {
@@ -355,7 +356,7 @@ const load = (i: number) => deserialize(fixtures[i]);
   if (v) {
     check(deployGate(s, v, 'api') === true, 'C1 baseline: the version can launch on the API');
     // B1: a breached whistleblower pledge binds (E30) but has nothing to do with launches.
-    signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {}, [], { trust: 1, credibility: 1 });
+    signCommitment(s, ctx, 'whistleblower', 'Right-to-warn whistleblower channel', 'whistleblower', {});
     ws4(s).internalReport = { day: s.time.day - 40, deadline: s.time.day - 1 };
     check(blockingCommitments(s).some((c) => c.condition.predicate === 'whistleblower'), 'C1 the whistleblower pledge binds');
     check(deployGate(s, v, 'api') === true, 'C1 (B1) an out-of-scope binding commitment does not block a launch', String(deployGate(s, v, 'api')));
@@ -367,7 +368,7 @@ const load = (i: number) => deserialize(fixtures[i]);
     // evaluation it needs; midway between High and Critical the framework's own classifiers let it pass.
     v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: FRAMEWORK_CRITICAL_L + 0.5 };
     // RF-S2: publishing = the Safety framework commitment (its rules hold; the old noDeployAbove pledge is gone).
-    signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {}, [], { trust: 1, credibility: 1 });
+    signCommitment(s, ctx, 'framework', 'Published Safety framework', 'safetyFramework', {});
     const g1 = deployGate(s, v, 'api', { safeguards: 'standard' });
     check(typeof g1 === 'string' && /Safety framework \(".+"\)/.test(g1) && g1.includes('BIO') && g1.includes('external evaluation'), 'C1 (B2) the framework blocks the candidate that breaks it, naming the rule and clause (Bio Critical: an external evaluation)', String(g1));
     v.evals.measuredDom = { ...(v.evals.measuredDom ?? {}), BIO: (worldHighL(s) + FRAMEWORK_CRITICAL_L) / 2 };

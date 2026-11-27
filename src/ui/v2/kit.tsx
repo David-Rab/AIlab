@@ -158,27 +158,19 @@ export function OptionTile({ label, icon: Icon, glyphs, active, locked, onClick,
 // ───────── action card: before → after on the meters a choice touches ─────────
 interface Meter { label: string; term?: string; icon: LucideIcon; get: (s: GameStateV2, target?: string) => number; lo: number; hi: (v: number, d: number) => number; fmt: (x: number) => string; upGood: boolean }
 const bestLead = (s: GameStateV2) => Math.min(...activeRivals(s).map((r) => leadDays(s, r.core.id).est), leadDays(s, 'china').est);
-const TRUST_OF = (s: GameStateV2, t?: string) => {
-  const st = s.relations.stocks as Record<string, { trust: number }>;
-  if (t && st[t]) return st[t].trust;
-  return st.exec?.trust ?? 50;
-};
 export const METERS: Partial<Record<CostLine['currency'], Meter>> = {
   cash: { label: 'Cash', term: 'cash', icon: ICON.cash, get: (s) => s.player.finance.cash, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x), upGood: true },
   revenue: { label: 'Revenue', term: 'revenueRun', icon: ICON.revenue, get: (s) => s.player.finance.revenueRun, lo: 0, hi: (v, d) => Math.max(v, v + d) * 1.25 + 1, fmt: (x) => F.money(x, { perYear: true }), upGood: true },
-  trust: { label: 'Trust', term: 'trust', icon: ICON.trust, get: TRUST_OF, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
-  credibility: { label: 'Credibility', term: 'credibility', icon: ICON.credibility, get: (s) => s.relations.credibility, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
-  scrutiny: { label: 'Scrutiny', term: 'scrutiny', icon: ICON.scrutiny, get: (s) => s.relations.scrutiny, lo: 0, hi: () => 100, fmt: F.idx, upGood: false },
+  credibility: { label: 'Investor credibility', term: 'investorCred', icon: ICON.credibility, get: (s) => s.player.finance.credibility, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   approval: { label: 'Approval', term: 'approval', icon: ICON.approval, get: (s) => s.pub.approval, lo: -100, hi: () => 100, fmt: (x) => F.num(x, 0, true), upGood: true },
   boardConf: { label: 'Board', term: 'boardConf', icon: ICON.board, get: (s) => s.player.board.confidence, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   morale: { label: 'Morale', term: 'morale', icon: ICON.morale, get: (s) => s.player.morale.overall, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
-  talent: { label: 'Talent pull', term: 'talentPull', icon: ICON.taste, get: (s) => s.relations.talentPull, lo: 0, hi: () => 100, fmt: F.idx, upGood: true },
   leadDays: { label: 'Lead', term: 'lead', icon: ICON.lead, get: bestLead, lo: -365, hi: () => 365, fmt: F.lead, upGood: true },
   security: { label: 'WSL', term: 'wsl', icon: ICON.wsl, get: (s) => s.player.security.wsl, lo: 0, hi: () => 5, fmt: (x) => x.toFixed(1), upGood: true },
 };
 /** Net effect per currency of a view: gains − costs (exposure kept apart as probabilistic). */
 /** Currencies where a higher meter is worse: a cost RAISES them, a gain lowers them. */
-export const BAD_UP = new Set<CostLine['currency']>(['scrutiny', 'chinaTension', 'dilution']);
+export const BAD_UP = new Set<CostLine['currency']>(['chinaTension', 'dilution']);
 export function netByCurrency(v: Pick<ActionView, 'costs' | 'gains'>) {
   const m = new Map<CostLine['currency'], { d: number; target?: string }>();
   for (const c of v.gains) { const e = m.get(c.currency) ?? { d: 0, target: c.target }; e.d += (BAD_UP.has(c.currency) ? -1 : 1) * c.amount; m.set(c.currency, e); }

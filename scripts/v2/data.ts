@@ -330,22 +330,19 @@ usageAccrual(sU);
 check(startUsage === 0 && owned(sU, 'usage')!.tokensT === u0, 'usage: none before products serve and none from withdrawn products');
 const mixSum = Object.values(owned(sU, 'usage')!.mix).reduce((a, x) => a + (x ?? 0), 0);
 check(near(mixSum, 1, 1e-9), 'usage: the asset has a domain mix (consumer chat\'s work weights)', JSON.stringify(owned(sU, 'usage')!.mix));
-// Usage-data policy (model v3 D2): the share kept changes the accrual; the Civil Liberties bloc reacts.
+// Usage-data policy (model v3 D2): the share kept changes the accrual.
 const sP = game();
 runTo(sP, 20, { skip: ['endings'] });
 const cons = sP.player.deployments.find((d) => d.channel === 'consumer')!;
-const civ = () => sP.pub.blocs.civlib.approval;
 const r0 = usageTokensPerDay(sP, cons);
-const a0 = civ();
 const eBroad = act(sP, 'data.usagePolicy', { level: 'broad' });
 const rB = usageTokensPerDay(sP, cons);
-const aB = civ();
 const eNone = act(sP, 'data.usagePolicy', { level: 'none' });
 const uN0 = owned(sP, 'usage')!.tokensT;
 usageAccrual(sP);
-check(!eBroad && !eNone && near(rB / r0, USAGE_LEVELS.broad.share / USAGE_LEVELS.standard.share, 1e-9) && near(aB - a0, USAGE_LEVELS.broad.civlib, 1e-9) && near(civ() - aB, USAGE_LEVELS.none.civlib - USAGE_LEVELS.broad.civlib, 1e-9)
+check(!eBroad && !eNone && near(rB / r0, USAGE_LEVELS.broad.share / USAGE_LEVELS.standard.share, 1e-9)
   && usageTokensPerDay(sP, cons) === 0 && owned(sP, 'usage')!.tokensT === uN0 && sP.player.dataPortfolio.usageShare === 0,
-  'usage policy: broad keeps 2.5× the usage tokens and costs Civil Liberties approval (−6); none keeps none (+10 back from broad)', `${(r0 * 1000).toFixed(1)} → ${(rB * 1000).toFixed(1)}B/day; civlib ${a0.toFixed(0)} → ${aB.toFixed(0)} → ${civ().toFixed(0)}`);
+  'usage policy: broad keeps 2.5× the usage tokens; none keeps none', `${(r0 * 1000).toFixed(1)} → ${(rB * 1000).toFixed(1)}B/day`);
 check(act(sP, 'data.usagePolicy', { level: 'none' }) === 'Already no training on users' && actionView(sP, 'data.usagePolicy', {}).gains.some((g) => /usage data 0\.0 → \d/.test(g.target ?? '')),
   'usage policy: no change to the same level; the preview shows the usage rate before → after', actionView(sP, 'data.usagePolicy', {}).gains.map((g) => g.target).join(' | '));
 

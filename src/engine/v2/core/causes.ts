@@ -8,11 +8,8 @@ import type { CauseEntry, Day, GameStateV2 } from '../types';
 
 export const CAUSE_RING = 40; // entries per key (§2.5 budget)
 
-/** Spec meter keys (§2.6) → state path. `trust:<cp>` keys are handled dynamically. */
+/** Spec meter keys (§2.6) → state path. */
 export const CAUSE_KEYS: Record<string, string> = {
-  'relations.credibility': 'relations.credibility',
-  'relations.scrutiny': 'relations.scrutiny',
-  'relations.talentPull': 'relations.talentPull',
   'pub.approval': 'pub.approval',
   'pub.concern': 'pub.concern',
   'player.finance.valuation': 'player.finance.valuation',
@@ -30,10 +27,6 @@ export const CAUSE_KEYS: Record<string, string> = {
 
 /** Clamp ranges by canonical key or path prefix; unlisted meters are unbounded. */
 const RANGES: [prefix: string, lo: number, hi: number][] = [
-  ['trust:', 0, 100],
-  ['relations.credibility', 0, 100],
-  ['relations.scrutiny', 0, 100],
-  ['relations.talentPull', -50, 50],
   ['pub.approval', -100, 100],
   ['pub.', 0, 100],
   ['board.confidence', 0, 100],
@@ -55,7 +48,6 @@ export function canonicalKey(key: string): string {
 }
 
 function pathOf(key: string): string[] {
-  if (key.startsWith('trust:')) return ['relations', 'stocks', key.slice(6), 'trust'];
   return (CAUSE_KEYS[key] ?? key).split('.');
 }
 
