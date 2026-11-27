@@ -56,8 +56,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
-| W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | running (parallel with W1ef) |
-| W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | |
+| W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
+| W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | running |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
 | W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | |
@@ -96,3 +96,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   the preset draws are gone, so per-seed worlds shift (on the day-900 fixture, valuation went 327 → 211 on that one
   seed; milestones are unchanged).
 - W1e+W1f merged into one Sonnet task (W1d did most of W1e): setup cleanup + loose ends · running
+- W10a · Sonnet high · ~3 min · worldReadout (engine/v2/world/readout.ts) + observer mode (scripts/v2/observer.ts,
+  balrun --observer, harness flag `harness:observer` skips player-company endings). Start: spinout. Smoke tl-fast seed 1:
+  29 s/game; leading NPC lab SC 2027.9 (AIFM fast median AC 2027.9), ASI 2031.6 (median 2029.8); ended by a misaligned
+  rival takeover at ASI, so no +3y tail. US unemployment 5.9%, youth 26% in 2031 · d4578ba0
