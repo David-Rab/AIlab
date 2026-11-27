@@ -20,8 +20,8 @@ import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
 import { FORCING } from '../core/forcing';
-import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab } from '../models/labs';
-import { addRivalKnowledge, adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
+import { CHINA_ID, PLAYER_ID, labCore, rivalLab } from '../models/labs';
+import { adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
 import { lentTrainingH100e } from '../models/runs';
 import { poolsOf } from '../compute/power';
@@ -292,25 +292,23 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
 }
 
-/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5; the other labs' from rivalResearch). */
+/** Production readout for a lab, computed from current state (§3.2.2/§3.2.5). N2b-1: an NPC lab (RivalLab.npc) has no
+ *  research readout (its capability is its lag behind the reference frontier, npc/lab.ts): undefined; a lab without
+ *  the NPC state (old scripts' hand-built labs) still reads rivalResearch. */
 export function computeProduction(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
   if (lab !== PLAYER_ID) {
     const r = rivalLab(s, lab);
-    return r ? rivalResearch(s, r, false) : undefined;
+    return r && !r.npc ? rivalResearch(s, r, false) : undefined;
   }
   const inp = labInputs(s, lab);
   return inp ? evalProduction(s, inp) : undefined;
 }
 
 /** One lab's day: the player's readout at day−1 inputs (its research runs in models/research.ts; the readout is cached
- *  here); a non-player lab's research advances its recipe (rivalResearch). */
+ *  here). N2b-1: the NPC labs' research path is gone (npc/lab.ts runs their capability in rivalsChina). */
 export function advanceLab(s: GameStateV2, lab: LabId): ProductionReadout | undefined {
   const core = labCore(s, lab);
-  if (!core || core.status !== 'active') return undefined;
-  if (lab !== PLAYER_ID) {
-    const r = rivalLab(s, lab);
-    return r ? (core.prodCache = rivalResearch(s, r, true)) : undefined;
-  }
+  if (!core || core.status !== 'active' || lab !== PLAYER_ID) return undefined;
   const inp = labInputs(s, lab, s.time.day - 1);
   if (!inp) return undefined;
   const r = evalProduction(s, inp);
@@ -323,29 +321,20 @@ export function diffusionPerDay(s: GameStateV2): { dG: number; from?: string } {
   return recipeDiffusionPerDay(s, PLAYER_ID);
 }
 
-/** production (30, daily): readouts for the player, rivals and China; every lab's recipe takes in public recipes above
- *  it (RD-X04 rule A, the same function for every lab); rivals' and China's know-how grows (§3.2). */
+/** production (30, daily): the player's readout and its recipe's take-in of public recipes above it (RD-X04 rule A).
+ *  N2b-1: the NPC labs no longer take rule A (their lag relaxing to its target over τ_D is their diffusion, npc/lab.ts)
+ *  and no longer research. */
 export const productionSystem: EngineSystem = {
   id: 'production', owner: 'WS1', cadence: 'daily', order: 30, system: 'research',
   run(s, ctx) {
-    // Rule A sizes on yesterday's public recipes for every lab before any lab's step (no order effect between labs).
-    const dif = [PLAYER_ID, ...otherLabs(s).map((x) => x.core.id)].map((id) => ({ id, d: recipeDiffusionPerDay(s, id) }));
+    const pd = recipeDiffusionPerDay(s, PLAYER_ID); // sized on yesterday's public recipes
     const r = advanceLab(s, PLAYER_ID);
-    const pd = dif[0].d;
     if (pd.dG > 0 && !FORCING.noDiffusion) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
-    for (const { id, d } of dif.slice(1)) {
-      const lab = rivalLab(s, id);
-      if (lab && d.dG > 0 && !FORCING.noDiffusion) addRivalKnowledge(lab, d.dG);
-    }
     if (r) {
       ctx.memo.set('WS1:production:player', r);
       deliverData(s, ctx);
       syntheticAccrual(s);
       usageAccrual(s);
-    }
-    for (const lab of otherLabs(s)) {
-      const rr = advanceLab(s, lab.core.id);
-      if (rr) ctx.memo.set(`WS1:production:${lab.core.id}`, rr);
     }
   },
 };

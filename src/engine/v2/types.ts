@@ -2096,9 +2096,35 @@ export interface RivalFinance {
   lastRoundDay?: Day;
 }
 
+/** N2b-1 (design/npc/NPC-LABS.md §4, engine/v2/npc/lab.ts): an NPC lab's moving state. */
+export interface NpcLabState {
+  kind: import('../../data/v2/npcLabs').NpcKindId;
+  /** Model family (invented, data/v2/npcLabs.ts). */
+  family: string;
+  /** Lag behind the reference frontier (days) and its normal value d0. */
+  d: number;
+  d0: number;
+  /** Start compute (H100e): the planned compute grows from it at the kind's appetite. */
+  c0: number;
+  /** Day of its first release in the game (release days: phase + k x RELEASE_CADENCE_DAYS). */
+  phase: number;
+  /** Releases so far (its public model is family-rel; 0: none yet). */
+  rel: number;
+  /** Readouts of the last daily step: target lag d*, compute shortfall (OOM), the reference slope (OOM a day), the
+   *  lab's recipe (OOM over the leader's day-0 recipe; actors/rivalModel.ts recipeOf reads it). */
+  dStar: number;
+  short: number;
+  slope: number;
+  rec: number;
+  /** The internal model's G on each of the last release-lag + 1 days, oldest first (the public model reads it). */
+  hist: number[];
+}
+
 export interface RivalLab {
   core: Omit<LabCore, 'deployments' | 'models'>;
-  archetype: string; // LAB_ARCHETYPES id
+  /** N2b-1: the NPC lab's moving state (every lab newGame builds has it). */
+  npc?: NpcLabState;
+  archetype: string; // LAB_ARCHETYPES id (N2b-1: the old archetype of its kind, npc/lab.ts ARCHETYPE_OF_KIND)
   internal: SimpleModel;
   publicModel?: SimpleModel;
   /** RD-P02 (DD-01, DD-18): the lab's lineup besides its public model, real models on sale as cheaper tiers: its earlier

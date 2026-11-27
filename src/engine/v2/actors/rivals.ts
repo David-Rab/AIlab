@@ -15,7 +15,7 @@ import { UMODES } from '../../../data/v2/umodes';
 import { Rng, clamp } from '../../rng';
 import { hash32 } from '../core/rng';
 import { shareRefAt, normalizeSplit } from '../departments/split';
-import { domainsOf, frontierGAt, frontierGPerYear, gOfBuild, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
+import { domainsOf, frontierGPerYear, gV0, lagDays, levelOfG, PACE_WINDOW_DAYS, yearOfDay } from '../models/capability';
 import { CHINA_ID, LEADER_ID, activeRivals, bestG, otherLabs } from '../models/labs';
 import { misalignment, rivalTraitStep as ws2RivalTraitStep } from '../safety/traits';
 import { drawSeverity, labModelHazards } from '../safety/incidents';
@@ -27,13 +27,14 @@ import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/ces';
 import { ipAccessDaily } from '../finance/deals';
 import { parentFunded, rivalMoneyQ, rivalSpend } from '../finance/rivalFinance';
-import { decimalYear } from '../core/time';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { distillLift, labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, clRefresh, clReset, recipeOf, finishRun, gOfSimple, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, newVersionBuild, rivalDomainDg, rivalLineupStep, rivalToolStep, recordToolShips, setModelG, trainDay } from './rivalModel';
+import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
+import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, rivalLineupStep, rivalToolStep, recordToolShips, setModelG } from './rivalModel';
 import { chinaDaily } from './china';
+import { npcCapabilityDay, npcGrowthQ } from '../npc/lab';
+import { KINDS } from '../../../data/v2/npcLabs';
 import { ws4, ws4r } from './state';
 
 export { activeRivals } from '../models/labs';
@@ -270,35 +271,21 @@ export function projectLabMis(s: GameStateV2, r0: RivalLab, asiG: number, days: 
 /** Hidden Mis of a non-player lab's internal frontier. */
 export const rivalMis = (r: RivalLab) => misalignment(r.internal.traitsTrue, r.internal.uModes);
 
-function famOf(s: GameStateV2, r: RivalLab): string {
-  if (r.core.kind === 'china') return r.internal.name.split('-')[0];
-  if (r.core.id === LEADER_ID) return LEADER_MODEL_FAMILY;
-  const i = s.rivals.indexOf(r);
-  return RIVAL_MODEL_FAMILIES[i % RIVAL_MODEL_FAMILIES.length];
-}
-
-function genOf(r: RivalLab): [number, number] {
-  const m = /-b(\d+)p(\d+)$/.exec(r.internal.id);
-  return m ? [Number(m[1]), Number(m[2])] : [1, 0];
-}
-
-/** One non-player lab's daily behaviour: cadence, releases, pressure, traits, incidents. */
+/** One non-player lab's daily behaviour (N2b-1, design/npc/NPC-LABS.md §4): its capability day (npc/lab.ts: the lag
+ *  relaxes to its target, the internal model follows the reference frontier, releases on the shared cadence), its
+ *  lineup and tools, then pressure, traits and incidents as before (N2b-2 replaces those). */
 export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   const w = ws4(s);
   const id = r.core.id;
   const day = ctx.day;
   const rng = ctx.rng(r.core.kind === 'china' ? 'china' : 'rivals');
   const arch = r.archetype;
+  const wl = s.hidden.timeline;
 
-  // The lab's one daily policy (RD-B14): compute split and staff through WS1's lab API; its base run trains on its
-  // training pool (model v3 F1, rivalModel.ts); model identity, traits and releases follow WS4's cadence below.
-  // The leader lab runs at the reference compute path (no chip orders, BUILD-PLAN R2): set today for tomorrow's
-  // production readout, which reads the inputs as of today (production uses day − 1).
-  if (id === LEADER_ID) r.core.computeOnline = refTotal(s.hidden.timeline, decimalYear(s));
+  // Split and staff (readers: the chip market's pools, security, events), through WS1's lab API as before.
   labReferenceSplit(s, r);
   growLabStaff(s, r);
-  trainDay(s, r, day);
-  addRivalKnowledge(r, ipAccessDaily(s, id)); // FIN4b: a partner's IP access to the player's models (finance/deals.ts; FINM: OOM)
+  addRivalKnowledge(r, ipAccessDaily(s, id)); // FIN4b: a partner's IP access to the player's models (finance/deals.ts; FINM: OOM; N2b-1: a lag shift)
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);
@@ -306,85 +293,21 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
 
   // Latent reasoning adoption at the era (LATENT_ERA_OOM above V0) — once per lab (S4).
   const lk = `latent:${id}`;
-  if (s.flags[lk] === undefined && r.internal.G - gV0(s.hidden.timeline) >= LATENT_ERA_OOM) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
+  if (s.flags[lk] === undefined && r.internal.G - gV0(wl) >= LATENT_ERA_OOM) s.flags[lk] = rng.chance(LATENT_P[arch] ?? 0.5);
 
-  w.internalDay[id] ??= r.internal.day;
-  w.nextPost[id] ??= day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
-  const [gen, post] = genOf(r);
-  const fam = famOf(s, r);
-  const wl = s.hidden.timeline;
-
-  // Post-training cadence (6–10 weeks, research/12 §0.1): same lineage, new version on the current base at today's
-  // recipe (rivalModel.ts newVersionBuild: baseG + rlGains on the reference portfolio, RD-X03), never below the version it replaces.
-  const postVersion = () => {
-    w.nextPost[id] = day + Math.round(rng.range(POST_DAYS[0], POST_DAYS[1]));
-    // RD-X04 rule B: the post-training distils the best released teacher above its own G (production/diffusion.ts);
-    // RD-X03: its own G is the new version's build.
-    const nbld = newVersionBuild(s, r, r.phys.base);
-    const own = gOfBuild(nbld);
-    const G = Math.max(gOfSimple(wl, r.internal), own + distillLift(s, id, own, r.phys.base.params).dG);
-    r.internal = { ...r.internal, id: `${id}-b${gen}p${post + 1}`, name: `${fam}-${gen}.${post + 1}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], recG: recipeOf(s, r) };
-    r.internal.build = nbld; // the new version's build (a weaker one kept, or the distillation lift, as general ΔG: setModelG)
-    setModelG(wl, r.internal, G, r.phys.base, rivalDomainDg(r));
-    clReset(r);
+  // N2b-1: the capability day. On a release the public model is replaced; the trait graph steps once per release (it
+  // stepped after each post-training before; N2b-2 replaces the traits with m). Openness: the kind's rule
+  // (npc/lab.ts opensRelease); a 'partial' lab opens the model its release replaces.
+  const { released, prev } = npcCapabilityDay(s, r, day);
+  if (released && r.publicModel) {
     w.internalDay[id] = day;
     ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
-  };
-  // Base cadence (9–15 months by archetype; research/12 §0.1: one every ~9–18 months per lab): the base run that trained
-  // on the lab's pool finishes and, if its first version beats the current model, starts a new lineage. WS2's trait
-  // graph draws its U-modes and initial traits (§3.10.3 "Rivals and China use the same graph"), then a first post-train
-  // on it. A base no better than the model the lab holds (a stolen one) is shelved and the current base post-trained.
-  if (day >= r.nextBaseDay) {
-    const months = (BASE_MONTHS[arch] ?? 12) * rng.range(0.8, 1.2);
-    r.nextBaseDay = day + Math.round(months * 30.4);
-    const nb = finishRun(r, day);
-    const nbld = nb ? newVersionBuild(s, r, nb) : undefined;
-    const gOwn = nbld ? gOfBuild(nbld) : -Infinity;
-    const gNew = nb ? gOwn + distillLift(s, id, gOwn, nb.params).dG : -Infinity; // RD-X04 rule B
-    if (nb && gNew >= gOfSimple(wl, r.internal)) {
-      const g2 = gen + 1;
-      r.phys.base = nb;
-      r.phys.clDay = day;
-      r.internal = { ...r.internal, id: `${id}-b${g2}p0`, name: `${fam}-${g2}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false, recG: recipeOf(s, r) };
-      r.internal.build = nbld!; // the lift above the build enters as general ΔG (setModelG)
-      setModelG(wl, r.internal, gNew, nb, rivalDomainDg(r));
-      clReset(r);
-      w.internalDay[id] = day;
-      ws2RivalTraitStep(s, rng, r, 'base');
-      ws2RivalTraitStep(s, rng, r, 'post', { latent: s.flags[lk] === true });
-    } else postVersion();
-  } else if (day >= w.nextPost[id]) postVersion();
-  // Continual learning (RD-T03): every CL_DAYS the stream spends the FLOP its pool share delivered on the internal model.
-  else clRefresh(s, r, day);
-
-  // Releases: the public model lags the internal one (§3.10.3).
-  // A lab whose lag exceeds its post-training interval (6–10 weeks) never had an internal version `lag` days old (each
-  // post resets internalDay), so it never released: once the public model is a post interval staler than the lag,
-  // release the frontier as it stood `lag` days ago (RD-L02: its recorded frontier line then, frontierGAt; a history
-  // shorter than that: internal G less the rest of the lag at its own frontier-G slope; `day` = that as-of day).
-  const lag = RELEASE_LAG[arch] ?? 60;
-  const age = day - w.internalDay[id];
-  let rel: SimpleModel | undefined;
-  if (!r.publicModel || (r.publicModel.id !== r.internal.id && !r.publicModel.id.startsWith(`${r.internal.id}~`))) {
-    if (age >= lag) rel = r.internal;
-    else if (day - (r.publicModel?.day ?? -1e9) >= lag + 56) {
-      const gInt = gOfSimple(wl, r.internal);
-      const G = Math.max(r.publicModel ? gOfSimple(wl, r.publicModel) : -Infinity, Math.min(gInt, frontierGAt(s, id, day - lag) ?? gInt - ((lag - age) / 365) * frontierGPerYear(s, id, PACE_WINDOW_DAYS)));
-      rel = { ...r.internal, id: `${r.internal.id}~${day}`, day: day - lag };
-      setModelG(wl, rel, G);
+    const pub = r.publicModel;
+    if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G, pub.recG ?? recipeOf(s, r));
+    if (prev && r.npc && KINDS[r.npc.kind].openness.mode === 'partial' && !prev.openWeights) {
+      prev.openWeights = true;
+      openWeightsReleased(s, ctx, id, prev.G, prev.recG ?? recipeOf(s, r));
     }
-  } else if (r.publicModel.id !== r.internal.id && age >= lag) rel = r.internal;
-  if (rel) {
-    const gapToFrontier = lagDays(s, id, leaderOf(s));
-    let open = false;
-    if (arch === 'openweights') {
-      if (gapToFrontier < 90) r.meters.openness = Math.min(r.meters.openness, 40);
-      open = gapToFrontier < 183 && r.meters.openness > 50;
-    }
-    if (r.core.kind === 'china') open = s.china.meters.openWeights > 50 && s.china.rung < 3;
-    const prev = r.publicModel;
-    r.publicModel = { ...rel, traitsTrue: { ...rel.traitsTrue }, uModes: [...rel.uModes], isPublic: true, openWeights: open };
-    if (open) openWeightsReleased(s, ctx, id, rel.G, rel.recG ?? recipeOf(s, r));
     rivalLineupStep(wl, r, day, true, prev);
   } else rivalLineupStep(wl, r, day, false);
   // RD-P07: a tool new in this game, TOOL_LAG_DAYS after the player first shipped it (RF-P1).
@@ -490,7 +413,7 @@ export function rivalFinanceQ(s: GameStateV2, ctx: SystemCtx) {
     // path, scaled down when the lab is short of cash (parent-funded labs always order in full). The leader lab runs
     // at the reference compute path (no chip orders).
     const fund = parentFunded(r) ? 1 : clamp(f.cash / Math.max(1, rivalSpend(r)), 0.25, 1);
-    placeLabOrder(s, r.core.id, r.core.computeOnline * RIVAL_GROWTH_Q * fund, 1, 1.2);
+    placeLabOrder(s, r.core.id, r.core.computeOnline * npcGrowthQ(r, RIVAL_GROWTH_Q) * fund /* N2b-1: at the kind's appetite (npc/lab.ts) */, 1, 1.2);
   }
 }
 

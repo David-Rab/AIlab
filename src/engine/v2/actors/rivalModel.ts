@@ -177,13 +177,16 @@ export function rivalVersionBuild(base: Pick<RivalBase, 'flop' | 'gPre'>, mid: n
 /** The lab's recipe as a G-equivalent e (OOM over the leader's day-0 recipe): the unit the leaks and events compare and
  *  move recipes in. RD-B16: stacks.ts recipeG at the common reference FLOP RECIPE_F, the same function and parts as the
  *  player's counterpart playerRecipeG. */
-export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'>) => recipeG(r.phys.rec, RECIPE_F);
+export const recipeOf = (_s: GameStateV2, r: Pick<RivalLab, 'phys'> & Partial<Pick<RivalLab, 'npc'>>) => (r.npc ? r.npc.rec : recipeG(r.phys.rec, RECIPE_F));
 /** Knowledge from outside the lab (distillation of others' models, secrets leaks, open weights, events, safety
  *  spillover; model v3 F3) enters the pretraining part as public knowledge: dG OOM, scale-invariant and outside the
  *  research pool (the player's addKnowledge into the stack base). F2 bridged these writers through the know-how readout
- *  (each progress-year moved the recipe by B OOM); F3 writes the same amounts in OOM. */
-export function addRivalKnowledge(r: Pick<RivalLab, 'phys'>, dG: number) {
-  if (dG !== 0 && Number.isFinite(dG)) r.phys.rec.pre += dG;
+ *  (each progress-year moved the recipe by B OOM); F3 writes the same amounts in OOM. N2b-1 adapter (until N6's shocks):
+ *  an NPC lab takes it as a lag shift, dG ÷ today's reference slope days (npc/lab.ts; the spec's OOM-to-days rule, §4). */
+export function addRivalKnowledge(r: Pick<RivalLab, 'phys'> & Partial<Pick<RivalLab, 'npc'>>, dG: number) {
+  if (!(dG !== 0 && Number.isFinite(dG))) return;
+  if (r.npc) r.npc.d -= dG / Math.max(0.01 / 365.25, r.npc.slope); // floor: npc/lab.ts SLOPE_FLOOR_PER_YEAR
+  else r.phys.rec.pre += dG;
 }
 
 /** G_pre of a rival base: training FLOP, tokens per parameter, pretraining recipe at launch (MoE, no repetition). */
