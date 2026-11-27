@@ -182,3 +182,7 @@ Only if takeoff still runs short after M3: the untested mechanism suspects (the 
 - Checks: tsc and lints clean; the forced replay of M3 seed 2027 tl-central is identical (no change for tl-* worlds); the UI test plays setup → game → end → new game.
 - Tests: test:quick has 97 failing checks (65 already failing on bal before the change; about +32 are expected values written for the old ai2027 world, mainly finance, safety ideas/research, worktypes, products, suites, rivals). UI: 20 fail (16 before); the 5 new ones are being classified (`.scratch/UI-NEW-FAILS.md`).
 - Next: the designer playtests master; the lead brings the deferred-mechanisms list (incl. the AI-labour takeoff from M3 and item 8, the task split).
+
+## After merge: point-1 checks (2026-11-27)
+- `.scratch/LABOUR-MULT-CHECK.md`: the game's AI labour multiplier is at or BELOW the AIFM's at equal effective compute (0.4–1.0×); the AIFM uses an optimal split (`coding_labor_optimal_ces`), which supports deferred item 8.
+- `.scratch/RATE-DECOMP.md`: the 2027–28 jump is **P24 (AI-designed successor) entering with a fresh pool** (n0 ≈ 1.85; no LINE_START_INPUT entry, by design "research just beginning"); ~96% of the jump in the central check game; the six start lines alone are flat like the draw (0.41 vs 0.34 OOM/yr). mIdeas contributes ~0 (the idea pool is already full). P24 has no AIFM counterpart: AI-driven research there acts only through the labour multiplier and taste, so P24 double-counts. Decision for the designer.
