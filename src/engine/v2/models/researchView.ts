@@ -2,7 +2,7 @@
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.
-import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_NEED_LABEL, DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
+import { DEFAULT_ENG_ALLOC, ENG_NEED_LABEL, MAX_DROPS, PICK_AT, PROJECT_MAX_TEAMS, RE_FULL_PROJECT, RE_NEED_LABEL, DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL, STACK_LABEL, STACK_UNIT, EMBODIED_BY, EMBODIED_TEXT, type EmbodiedBy } from '../../../data/v2/research';
 import { COGNITIVE_WORK, MILESTONE_COVER, WORK_TYPES, type WorkTypeId } from '../../../data/v2/workTypes';
 import { COLUMN_LABEL } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, TREE, type TreeNodeDef } from '../../../data/v2/tree';
@@ -26,6 +26,7 @@ import { gEquivOf, latestBaseFlop, STACK_KEYS } from './stacks';
 import { lentTrainingH100e } from './runs';
 import { nodeStatus, projectReady } from './tree';
 import { safAllocation } from '../safety/lineProjects';
+import { evalM } from './evals';
 import type { AdoptedIdea, CapStage, GameStateV2, MilestoneIdx, ModelVersion, ReNeed, SafReNeed, EngNeed, StackKey } from '../types';
 
 // ───────────────────────────── projects ─────────────────────────────
@@ -77,9 +78,11 @@ export interface CapProjectView {
   spec: number;
   drops: number;
   maxDrops: number;
-  /** Research inputs today: research-engineer team-equivalents (human) on it, experiment FLOP per day, the project's
-   *  experiment compute c and labour ℓ (leader day 0 = 1), its CES throughput X, and what binds it. */
+  /** Research inputs today: research-engineer people (human team-equivalents) on it and the same in EFFECTIVE team-
+   *  equivalents with AI help (reEff = re × m; L7), experiment FLOP per day, the project's experiment compute c and labour
+   *  ℓ (leader day 0 = 1), its CES throughput X, and what binds it. */
   re: number;
+  reEff: number;
   flopDay: number;
   c: number;
   l: number;
@@ -144,7 +147,9 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   // Inputs today.
   const flopDay = flopOfProject(s, id);
   // When it is not experimenting today, read the inputs it would get (reIfJoined; FLOP by need, RD-B08).
-  const { re, cc, l, X } = projectExpInputs(s, id);
+  const reAlloc = reAllocation(s);
+  const { re: reEff, cc, l, X } = projectExpInputs(s, id, reAlloc); // effective team-equivalents (L5)
+  const re = reEff / reAlloc.m; // people (L7)
   const el = believedElasticities(s, Math.max(1e-12, cc), l); // RD-UI0a: the published prior, never the hidden draw
   const bound: CapProjectView['bound'] = cc <= 0 ? 'none' : el.eC >= el.eL ? 'compute' : 'labour';
   // ETA (days): the one capability ETA (models/research.ts capEta), also used by the Assign / Take off previews.
@@ -179,7 +184,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
     sciCap: sci.cap, taste: sci.q, cands: st?.cands.length ?? 0, pickAt: PICK_AT,
     ...(belief ? { belief } : {}), ...(res ? { result: { est: res.est, estSd: res.estSd, day: res.day } } : {}),
     odds: attemptOdds(n, (st?.spec ?? 0) + (failed ? 1 : 0)), spec: st?.spec ?? 0, drops: st?.drops ?? 0, maxDrops: n.kind === 'line' || unlock ? 0 : MAX_DROPS,
-    re, flopDay, c: cc, l, X, eC: el.eC, eL: el.eL, eCBand: el.eCBand, eLBand: el.eLBand, bound, eta, etaParts: { ideation, experiments },
+    re, reEff, flopDay, c: cc, l, X, eC: el.eC, eL: el.eL, eCBand: el.eCBand, eLBand: el.eLBand, bound, eta, etaParts: { ideation, experiments },
     ...(line ? { line } : {}), ...(adoption ? { adoption } : {}),
   };
 }
@@ -381,12 +386,24 @@ export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear
 
 // ───────────────────────────── allocations ─────────────────────────────
 
-export interface NeedView<K extends string> { k: K; label: string; demand: number; got: number; max?: number; share?: number; capped: boolean; short: number }
-export interface AllocView<K extends string> { cap: number; order: K[]; needs: NeedView<K>[]; idle: number; unit: string }
+export interface NeedView<K extends string> {
+  k: K; label: string; demand: number; got: number; max?: number; share?: number; capped: boolean; short: number;
+  /** L7: what the need got ABOVE its base need (the spare engineers spread over the running programmes; same unit as `got`). */
+  extra?: number;
+}
+export interface AllocView<K extends string> { cap: number; order: K[]; needs: NeedView<K>[]; idle: number; unit: string; idleWhy?: string }
 
-/** Research engineers by need today (human team-equivalents): demand, what each got, caps, unmet demand, idle. L5: the
- *  engine allocates effective team-equivalents (m × heads); this view shows them ÷ m (L7 owns the readouts). */
-export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; perProject: Record<string, number> } {
+/** The total research-engineer need of the programmes in experiments (L7, LABOUR-ROUND §3): `programmes` × their base need
+ *  (`needEff`, team-equivalents of work), what AI help makes of it (`m`), and the people it takes (`needPeople`); `surplus` =
+ *  the people left after every need, spread over the programmes. */
+export interface ReNeedTotal { programmes: number; needEff: number; m: number; needPeople: number; surplus: number }
+
+/** Research engineers by need today in PEOPLE (human team-equivalents; L5/L7: the engine allocates EFFECTIVE team-equivalents,
+ *  m × people, so every figure here is that ÷ m): demand, what each got, caps, unmet demand, idle. The base need of a
+ *  programme in experiments is RE_FULL_PROJECT effective team-equivalents; what the people have beyond every base need is
+ *  spread evenly over the programmes in experiments (`extra` on the experiments need, `surplus` in total), so `idle` is
+ *  non-zero only when no programme is in experiments (or the player's cap on experiments holds). */
+export function reAllocView(s: GameStateV2): AllocView<ReNeed> & ReNeedTotal & { idleWhy: string; perProject: Record<string, number> } {
   const a = s.player.research.re;
   const al = reAllocation(s);
   const m = al.m;
@@ -397,31 +414,48 @@ export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; pe
     const lim = Math.min((a.max[k] ?? Infinity) / m, (a.share[k] ?? Infinity) * cap);
     const d = demand[k];
     const got = (al.re[k] ?? 0) / m;
+    const extra = Number.isFinite(d) ? Math.max(0, got - d) : 0;
     return {
       k, label: RE_NEED_LABEL[k], demand: d, got, ...(a.max[k] !== undefined ? { max: a.max[k] } : {}), ...(a.share[k] !== undefined ? { share: a.share[k] } : {}),
       capped: Number.isFinite(lim) && got >= lim - 1e-9 && d > got + 1e-9, short: Number.isFinite(d) ? Math.max(0, d - got) : 0,
+      ...(extra > 1e-9 ? { extra } : {}),
     };
   });
-  const used = needs.reduce((x, n) => x + n.got, 0);
-  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'teams', m, perProject: Object.fromEntries([...al.perProject].map(([k, v]) => [k, v / m])) };
+  const programmes = al.perProject.size;
+  const needEff = programmes * RE_FULL_PROJECT;
+  const surplus = needs.reduce((x, n) => x + (n.extra ?? 0), 0);
+  const idleWhy = programmes === 0 ? 'No programme is in experiments, so these engineers have nothing to run.' : 'Your cap on research experiments holds them back.';
+  return {
+    cap, order: [...a.order], needs, idle: al.idle, unit: 'teams', idleWhy, programmes, needEff, m, needPeople: needEff / m, surplus,
+    perProject: Object.fromEntries([...al.perProject].map(([k, v]) => [k, v / m])),
+  };
 }
 
-/** RD-A04: safety research engineers by need today (heads, the player's order): demand, what each got,
- *  caps, unmet demand, idle. */
-export function safReAllocView(s: GameStateV2): AllocView<SafReNeed> {
+/** RD-A04: safety research engineers by need today (people, the player's order): demand, what each got, caps, unmet
+ *  demand, idle. L7 (L6's pooled rule): a programme in experiments asks SAF_RE_ASK × its staffing in effective people
+ *  (`needEff`; ÷ the safety slot's multiplier `m` = the people it takes, the experiments need's demand); the people beyond
+ *  every need are spread over the programmes in experiments (`extra` on the experiments need), so `idle` is non-zero only
+ *  with no programme in experiments (or a cap on it). */
+export function safReAllocView(s: GameStateV2): AllocView<SafReNeed> & ReNeedTotal & { idleWhy: string } {
   const a = s.player.research.safRe ?? DEFAULT_SAF_RE_ALLOC;
   const al = safAllocation(s);
   const cap = al.heads;
+  const m = evalM(s);
   const needs = a.order.map((k) => {
     const lim = Math.min(a.max[k] ?? Infinity, (a.share[k] ?? Infinity) * cap);
     const d = al.demand[k];
     const got = al.got[k] ?? 0;
+    const extra = k === 'safExp' && Number.isFinite(d) ? Math.max(0, got - d) : 0;
     return {
       k, label: SAF_RE_NEED_LABEL[k], demand: d, got, ...(a.max[k] !== undefined ? { max: a.max[k] } : {}), ...(a.share[k] !== undefined ? { share: a.share[k] } : {}),
       capped: Number.isFinite(lim) && got >= lim - 1e-9 && d > got + 1e-9, short: Math.max(0, d - got),
+      ...(extra > 1e-9 ? { extra } : {}),
     };
   });
-  return { cap, order: [...a.order], needs, idle: al.idle, unit: 'people' };
+  const programmes = al.re.size;
+  const needPeople = al.demand.safExp;
+  const idleWhy = programmes === 0 ? 'No safety programme is in experiments, so these people have nothing to run.' : 'Your cap on research experiments holds them back.';
+  return { cap, order: [...a.order], needs, idle: al.idle, unit: 'people', idleWhy, programmes, needEff: needPeople * m, m, needPeople, surplus: needs.reduce((x, n) => x + (n.extra ?? 0), 0) };
 }
 
 /** Engineers by need this week (team-weeks per week of effective build capacity). */

@@ -731,10 +731,11 @@ function LimitsStrip({ s, kind, card, p, setShare, children }: { s: GameStateV2;
       tip: () => <TipCard title="Cash at launch" value={F.money(card.cash)} rows={[{ label: 'Your cash', value: F.money(cash) }, ...(L ? [{ label: 'Compute-equivalent cost', value: F.money(L.computeCost) }] : [])]} footer="Only the science-journals data mix costs cash at launch; the compute is your training compute, already paid for.">Committed when you launch.</TipCard>,
     });
     const re = reAllocView(s);
+    const opsNeed = re.needs.find((n) => n.k === 'ops');
     lims.push({
       id: 'ops', icon: ICON.roleRE, label: <Term id="runOps">Run operations</Term>, v: Math.max(1, Math.round(card.setupDays)), u: 'day setup', word: card.setupDays > 7 ? 'Short' : 'Enough', tone: card.setupDays > 7 ? 'short' : 'ok',
-      sub: <>research engineers: {F.num(re.idle, 0)} {re.unit} spare <Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}>run operations</Ref></>,
-      tip: () => <TipCard title={<Term id="runSetup">Setup</Term>} value={F.days(card.setupDays)} rows={[{ label: 'Setup work', value: `${card.setupTW.toFixed(1)} team-weeks` }, { label: <Term id="buildQueue">Build queue ahead</Term>, value: String(s.player.build.queue.length) }, { label: 'Research engineers spare', value: `${F.num(re.idle, 1)} ${re.unit}` }]} footer="Short of research engineers on run operations, a running run slows.">Engineers set the run up; research engineers keep it running.</TipCard>,
+      sub: <>research engineers: <Ref id="reNeeds" to={{ panel: 'lab', tab: 'work' }}>run operations</Ref> {opsNeed && opsNeed.short > 0.05 ? 'short' : 'fully served'}</>,
+      tip: () => <TipCard title={<Term id="runSetup">Setup</Term>} value={F.days(card.setupDays)} rows={[{ label: 'Setup work', value: `${card.setupTW.toFixed(1)} team-weeks` }, { label: <Term id="buildQueue">Build queue ahead</Term>, value: String(s.player.build.queue.length) }, { label: 'Run operations get', value: opsNeed ? `${F.num(opsNeed.got, 1)} of ${F.num(opsNeed.demand, 1)} ${re.unit}` : 'none needed' }]} footer="Short of research engineers on run operations, a running run slows.">Engineers set the run up; research engineers keep it running.</TipCard>,
     });
   }
   return (

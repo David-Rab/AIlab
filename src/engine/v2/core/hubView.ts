@@ -140,7 +140,7 @@ function safety(s: GameStateV2): HubBox {
   const v = safReAllocView(s);
   const short = v.needs.filter((n) => n.short > 1e-6 && Number.isFinite(n.demand));
   const total = short.reduce((a, n) => a + n.short, 0);
-  const rows = [...short.map((n) => ({ label: `${n.label}: short`, value: `${n.short.toFixed(1)} people` })), { label: 'Spare', value: `${v.idle.toFixed(1)} people` }];
+  const rows = [...short.map((n) => ({ label: `${n.label}: short`, value: `${n.short.toFixed(1)} people` })), { label: 'Idle', value: `${v.idle.toFixed(1)} people` }];
   if (total > 0.05) {
     const research = short.some((n) => n.k === 'safExp');
     return { id: 'safety', verdict: 'Staff short', tone: 'warn', sub: research ? 'safety research slowed' : `${short[0].label.toLowerCase()} short`, rows };
