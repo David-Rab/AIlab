@@ -13,14 +13,15 @@ the merge wave.
 
 | ID | Task | Model | Depends on | Status |
 |---|---|---|---|---|
-| N1 | Reference frontier: the AIFM run's progress series as G_ref(t) in the generated draw data; `npc/reference.ts` `refG` and `clockOfG` (rescoped to the cut-down model) | Sonnet high | — | running |
+| N1 | Reference frontier: the AIFM run's progress series as G_ref(t); `npc/reference.ts` `refG`, `clockOfG` | Sonnet high | — | done, merged |
 | N3 | M_world: state-free `referenceEnv`, reference lineage per world, memoised mean curve (σ_cyc dropped) | Sonnet high | — | done, merged; full fingerprint pair running |
 | N3b | Check the probe's "heavy safety raises misalignment" | Sonnet high | — | done |
 | N3c | ~~Option B: k per world~~ — **cancelled** (designer approved the cut-down model, 2026-11-27): k = 0.5 constant | — | — | cancelled |
 | N7 | Remove `cooperation` (writes, the star hire's displayed "trust with rivals" cost, the meter) | Sonnet medium | — | done, merged bbec174 |
 | N2a | Data: personality table (7 values per kind), the Realistic cast (CAST-2025.md, O5), noise table (O4), invented names | Sonnet high | — | done, merged bbec174+ |
 | N2a2 | R1 generic start-internal rule + R2 one release cadence from Epoch ECI (spec §16) | Sonnet medium | N2a | done, merged |
-| N2b | NPC lab core (spec draft 2 §3–5, §7): state type keeping the outward contract (Appendix A), init from cast + kind, the daily step (lag relaxation with compute shortfall, compute, internal/public model on the 119-day cadence, race pressure, m, incidents) | Opus high, reason (c) | N1, N2a, N3 | next |
+| N2b-1 | NPC lab core: state, init from the Realistic cast, the daily lag / model / release step, adapters so every existing reader keeps working (spec §3–4) | Opus high, reason (c) | N1, N2a, N3 | running |
+| N2b-2 | Race pressure, misalignment m (M_world), incidents (spec §4, §7) | Sonnet high | N2b-1 | next |
 | N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | wave 3 |
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | wave 3 |
 | N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | wave 3 |
@@ -41,3 +42,4 @@ Open follow-up (sourcing): release lags from system cards' stated testing window
 | N2a | accepted | 16 min | Names replaced (most of §12 collided with real companies/products). Findings 1-6 became the lead rulings R1-R5 (spec §16). Press-only: xAI money/headcount, upstart funding. |
 | N2a2 | accepted (rescoped mid-task per principle 7) | ~25 min | One cadence 119 d (median of 27 flagship steps, range 15-317) [P]; generic internal rule. CSV read through a summarising fetch: rows may be missing, fine at shape level. |
 | N3 | accepted pending the fingerprint pair | ~45 min (over budget: its fingerprint ran > 20 min and was stopped) | Function-level identity 19,968 comparisons, 0 diffs. M at ASI easy 0.29 / medium 0.43 / central-hard 0.51 / hard 0.60; monotone in G; ~30 ms (max 102 under load). Reference without the start tools (lead). |
+| N1 | accepted (lead checked the test: max |G(AC) − gSC| 0.0009 on 9 runs) | ~55 min (incl. the decomposition stop and two rescopes) | 0.1-yr grid (quarterly missed AC by up to 1.4 OOM). Progress dips in 3 of 869 runs (max 2.38 OOM below the running max). 4 runs > 0.05 OOM at AC (fast runs at 750-1100 OOM/yr). |
