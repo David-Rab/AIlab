@@ -143,7 +143,7 @@ export function capProjectView(s: GameStateV2, id: string): CapProjectView | und
   const state: CapProjectView['state'] = known ? 'known' : failed ? 'failed' : st?.stage === 'adopting' ? 'adopting' : ready === true && (teams.length > 0 || !!st?.test || st?.stage === 'test') ? 'running' : 'waiting';
   // Inputs today.
   const flopDay = flopOfProject(s, id);
-  // When it is not experimenting today, read the inputs it would get (RE_MAX_PER_PROJECT; FLOP by need, RD-B08).
+  // When it is not experimenting today, read the inputs it would get (reIfJoined; FLOP by need, RD-B08).
   const { re, cc, l, X } = projectExpInputs(s, id);
   const el = believedElasticities(s, Math.max(1e-12, cc), l); // RD-UI0a: the published prior, never the hidden draw
   const bound: CapProjectView['bound'] = cc <= 0 ? 'none' : el.eC >= el.eL ? 'compute' : 'labour';
@@ -384,24 +384,26 @@ export function softwareRate(s: GameStateV2): { oomPerYear: number; ideasPerYear
 export interface NeedView<K extends string> { k: K; label: string; demand: number; got: number; max?: number; share?: number; capped: boolean; short: number }
 export interface AllocView<K extends string> { cap: number; order: K[]; needs: NeedView<K>[]; idle: number; unit: string }
 
-/** Research engineers by need today (human team-equivalents): demand, what each got, caps, unmet demand, idle. */
+/** Research engineers by need today (human team-equivalents): demand, what each got, caps, unmet demand, idle. L5: the
+ *  engine allocates effective team-equivalents (m × heads); this view shows them ÷ m (L7 owns the readouts). */
 export function reAllocView(s: GameStateV2): AllocView<ReNeed> & { m: number; perProject: Record<string, number> } {
   const a = s.player.research.re;
   const al = reAllocation(s);
-  const m = Math.max(1, workContext(s).slots.EXP.m);
-  const demand: Record<ReNeed, number> = reDemand(s, m);
+  const m = al.m;
+  const eff: Record<ReNeed, number> = reDemand(s);
+  const demand = Object.fromEntries(Object.entries(eff).map(([k, v]) => [k, v / m])) as Record<ReNeed, number>;
   const cap = capReCapacity(s);
   const needs = a.order.map((k) => {
-    const lim = Math.min(a.max[k] ?? Infinity, (a.share[k] ?? Infinity) * cap);
+    const lim = Math.min((a.max[k] ?? Infinity) / m, (a.share[k] ?? Infinity) * cap);
     const d = demand[k];
-    const got = al.re[k] ?? 0;
+    const got = (al.re[k] ?? 0) / m;
     return {
       k, label: RE_NEED_LABEL[k], demand: d, got, ...(a.max[k] !== undefined ? { max: a.max[k] } : {}), ...(a.share[k] !== undefined ? { share: a.share[k] } : {}),
       capped: Number.isFinite(lim) && got >= lim - 1e-9 && d > got + 1e-9, short: Number.isFinite(d) ? Math.max(0, d - got) : 0,
     };
   });
   const used = needs.reduce((x, n) => x + n.got, 0);
-  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'teams', m, perProject: Object.fromEntries(al.perProject) };
+  return { cap, order: [...a.order], needs, idle: Math.max(0, cap - used), unit: 'teams', m, perProject: Object.fromEntries([...al.perProject].map(([k, v]) => [k, v / m])) };
 }
 
 /** RD-A04: safety research engineers by need today (heads × quality, the player's order): demand, what each got,
