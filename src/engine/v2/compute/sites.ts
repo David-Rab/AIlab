@@ -96,6 +96,25 @@ export function addCommunityPackage(site: Site): boolean {
   return true;
 }
 
+/** What one speed-up does at the build card's current toggles: `on` (as given), quarters it saves, its price ($B of
+ *  capex) and, for the community package, the factor on the block odds. Each is the difference between the same site
+ *  with that lever forced on and forced off, the other toggles as given (so crash saves 0 q on plain gas and 4 q with
+ *  rush power). Rent has none: the object is empty. */
+export interface LeverEffect { on: boolean; savesQ: number; cost: Money; blockMult?: number }
+export type LeverKey = 'crash' | 'rush' | 'fastTrack' | 'community';
+export function leverEffects(s: GameStateV2, o: SiteOpts): Partial<Record<LeverKey, LeverEffect>> {
+  if (o.path === 'rent') return {};
+  const out: Partial<Record<LeverKey, LeverEffect>> = {};
+  for (const k of ['crash', 'rush', 'fastTrack', 'community'] as const) {
+    const on = { ...o, [k]: true }, off = { ...o, [k]: false };
+    out[k] = {
+      on: !!o[k], savesQ: k === 'community' ? 0 : siteLiveInQ(s, off) - siteLiveInQ(s, on), cost: siteCapex(on) - siteCapex(off),
+      ...(k === 'community' ? { blockMult: LEVERS.community.blockMult } : {}),
+    };
+  }
+  return out;
+}
+
 /** Expected construction schedule of a new site (the lease preview's construction interest, FIN4r M3): quarters to
  *  go-live, construction quarters, and whether the first construction payment falls in the quarter construction starts.
  *  The engine always pays then (equal parts over the construction quarters [D-7]), so `firstNow` is true. */
