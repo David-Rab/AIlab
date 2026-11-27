@@ -26,7 +26,7 @@ import { TEAM_SIZE } from '../../src/data/v2/teams';
 
 const previewOf = (s: GameStateV2, id: string, p: Record<string, string | number | boolean>) => ACTION_BY_ID.get(id)!.preview(s, p);
 
-const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };
@@ -254,7 +254,7 @@ function daysUntil(s: GameStateV2, done: (s: GameStateV2) => boolean, max = 400)
 
 // ───────── EV9 the reference lab's eval cost ─────────
 {
-  const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027 }));
+  const s = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027 }));
   let re = 0;
   let cap = 0;
   let pool = 0;

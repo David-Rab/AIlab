@@ -32,7 +32,7 @@ import { flagNum, setFlag } from '../../src/engine/v2/safety/common';
 import type { AgendaId, DomainId, GameStateV2, ModelVersion, PostDesign, TraitId, TrainingRun } from '../../src/engine/v2/types';
 import { FIXTURE_DIR, check, finish } from './lib';
 
-const game = (seed = 2027) => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
+const game = (seed = 2027) => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const DOMS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 const atLevel = (v: ModelVersion, L: number) => { for (const d of DOMS) v.domains[d] = L; };

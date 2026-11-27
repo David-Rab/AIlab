@@ -30,7 +30,7 @@ import type { GameStateV2, OwnedDataAsset, PostDesign, RLFamily } from '../../sr
 import { FIXTURE_DIR, HERE, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 const expert = (s: GameStateV2, f: RLFamily) => s.player.dataPortfolio.assets.find((a): a is OwnedDataAsset => a.id === expertAssetId(f));
 const F0 = 3e26;

@@ -1,7 +1,6 @@
 // Fixture GameStates for UI and unit work (V2-SPEC §8.4 M0 gate). Owner: WS1.
-// Runs the real loop with RefBot on the ai2027 preset (stub compute tracking refTotal and a stub cash floor until
-// WS3/WS5 land) and builds day 0 / 400 / 900 (plus the R9 start fixtures). Also checks the player's milestone days stay
-// on the golden ai2027 timeline within the §7.1 tolerances.
+// Runs the real loop with RefBot on the tl-central timeline (stub compute tracking refTotal and a stub cash floor until
+// WS3/WS5 land) and builds day 0 / 400 / 900 (plus the R9 start fixtures).
 //   npx tsx scripts/v2/fixtures.ts           compare: each fixture must equal the committed file in scripts/v2/fixtures/
 //                                            (other tests and the UI test read those files); nothing is written.
 //   npx tsx scripts/v2/fixtures.ts --write   regenerate the committed fixture files (then commit them).
@@ -9,7 +8,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { deserialize, serialize, stateHash } from '../../src/engine/v2/core/save';
 import { engine } from '../../src/engine/v2';
@@ -17,15 +15,12 @@ import { refBot } from '../../src/engine/v2/bots/ref';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { internalVersion } from '../../src/engine/v2/models/labs';
-import type { MilestoneIdx } from '../../src/engine/v2/types';
-import { FIXTURE_DIR, GOLDEN_PATH, cashFloorStub, check, finish, runRef, validateJson } from './lib';
+import { FIXTURE_DIR, cashFloorStub, check, finish, runRef, validateJson } from './lib';
 import { cached } from './simcache';
 
-export const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', companyName: 'OpenBrain' });
+export const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', companyName: 'OpenBrain' });
 export const FIXTURE_DAYS = [0, 400, 900] as const;
 
-const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { presets: { ai2027: { days: Record<string, number> } } };
-const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'];
 
 const WRITE = process.argv.includes('--write');
 const ME = fileURLToPath(import.meta.url);
@@ -60,19 +55,6 @@ for (const sn of main.snaps) {
   console.log(`      ${WRITE ? 'wrote' : 'built'} ${file} (${(sn.json.length / 1024).toFixed(0)} KB, internal ${sn.version}, measured L ${sn.measuredL}, M ${sn.M?.toFixed(2)})`);
 }
 
-// The fixture game's milestone days vs golden: INFO only (lead decision after M10). Since F4 the calibration binds on
-// the median over the 20 CAL_SEEDS (calib T1); this one seed (2027) has been an early seed since MKT's cheap tier, so it
-// is a canary for large drifts, not a pass/fail gate. A miss larger than twice the tolerance still fails.
-const g = golden.presets.ai2027.days;
-NAMES.forEach((n, i) => {
-  const want = g[n];
-  if (i < 3 || want === undefined || want > main.day) return;
-  const got = main.md[i as MilestoneIdx];
-  const tol = (i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after) * 365;
-  const off = got === undefined ? Infinity : Math.abs(got - want);
-  if (off <= 2 * tol) console.log(`INFO  player ${n} vs golden (seed 2027; T1 binds on the 20-seed median)  — got ${got} want ${want} ±${Math.round(tol)} d${off > tol ? ' (outside tolerance)' : ''}`);
-  else check(false, `player ${n} within twice the golden tolerance (seed 2027 canary)`, `got ${got} want ${want} ±${Math.round(tol)} d`);
-});
 // R9: day-400 fixtures for the challenger and spinout starts (RefBot with real finance and compute; endings skipped so
 // the fixture exists whatever the run's fate). Written as start-<type>-day400.json.
 for (const start of ['challenger', 'spinout'] as const) {

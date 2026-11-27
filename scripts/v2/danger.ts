@@ -9,7 +9,7 @@ import {
 import type { Deployment, DomainId, GameStateV2, ModelVersion, TraitId } from '../../src/engine/v2/types';
 import { check, finish } from './lib';
 
-const fresh = (seed = 1) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const fresh = (seed = 1) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const DOMS: DomainId[] = ['CODE', 'RSCH', 'REASON', 'AGENCY', 'SOCIAL', 'MEDIA', 'CYBER', 'BIO', 'PHYS'];
 const atLevel = (v: ModelVersion, L: number) => { for (const d of DOMS) v.domains[d] = L; };
 const dep = (s: GameStateV2, ch: Deployment['channel']) => s.player.deployments.find((d) => d.channel === ch)!;

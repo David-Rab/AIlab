@@ -10,7 +10,7 @@ import { newGame, defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { preLlmCover } from '../../../src/engine/v2/worldfx/serving';
 
 const seed = Number(process.argv[2] ?? 2027);
-const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const END = dayOfDate('2025-07-01', '2028-07-01');
 const SLOPES = [1.5, 1.2];
 const first: Record<number, number | undefined> = {};

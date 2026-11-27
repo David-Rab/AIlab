@@ -13,7 +13,7 @@ import type { SystemCtx } from '../../../src/engine/v2/types';
 import type { AgendaId, Team } from '../../../src/engine/v2/types';
 
 function firstResult(ag: AgendaId): { days: number; c: number; l: number } {
-  const s = newGame(defaultSetupV2({ seed: 11, world: 'ai2027', alignment: 'medium', tutorial: false }));
+  const s = newGame(defaultSetupV2({ seed: 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
   const p = s.player;
   const id = lineNodeId(ag);
   const sci = p.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;

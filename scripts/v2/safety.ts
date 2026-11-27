@@ -66,7 +66,7 @@ const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
   const N = 1000;
   let hi = 0;
   let lo = 0;
-  const setup = defaultSetupV2({ seed: 0, world: 'ai2027', alignment: 'sampled' });
+  const setup = defaultSetupV2({ seed: 0, world: 'tl-central', alignment: 'sampled' });
   for (let i = 0; i < N; i++) {
     const h = sampleHidden(new Rng(1000 + i), { ...setup, seed: 1000 + i });
     for (const a of AGENDA_IDS) {

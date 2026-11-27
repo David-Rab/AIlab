@@ -8,7 +8,7 @@ import { tick } from '../../../src/engine/v2/core/loop';
 import { check, finish } from '../lib';
 
 check(MIN_SCHEMA_REV === SCHEMA_REV, `the save floor is the current rev (${SCHEMA_REV})`);
-const s = newGame(defaultSetupV2({ seed: 7, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 7, world: 'tl-central', alignment: 'medium', tutorial: false }));
 for (let i = 0; i < 40; i++) tick(s);
 const back = deserialize(serialize(s));
 check(back.schemaRev === SCHEMA_REV && stateHash(back) === stateHash(s), 'a new game saves and loads unchanged');

@@ -10,7 +10,8 @@ import { deriveNames } from '../models/naming';
  *  (33 → 34 … 102 → 103) with the helpers only they used; their history is in git before UB-3 and in V3-BUILD /
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
-export const SCHEMA_REV = 111;
+// 112: the old world presets are removed (a world is one of the three timelines); old saves are invalid, no migration.
+export const SCHEMA_REV = 112;
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

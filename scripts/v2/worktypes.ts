@@ -28,7 +28,7 @@ import { capShare } from '../../src/engine/v2/departments/agents';
 import { nextSpecialty, tauH } from '../../src/engine/v2/departments/teams';
 import { TEAM_SIZE } from '../../src/data/v2/teams';
 
-const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
+const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStateV2 => newGame(defaultSetupV2({ world, alignment: 'medium', seed, tutorial: false }));
 
 // ---------- coverage: monotone in fit and in horizon ----------
 {
@@ -168,7 +168,7 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   check(Math.abs(fitOf(s, vSC, 'SWE') - w.v3.gSC) < 0.3 && Math.abs(sdSC - w.v3.sdSC) < 1.2 && Math.abs(sdAIOf(w, wantSIAR) - 3 * TOP_SD) < 1e-9 && REF_DELTA.CODE === 0,
     'milestones: the superhuman coder sits at G_SC with AI taste ≈ 0.5 SD; the superintelligent researcher at 9.27 SD', `SWE fit at SC − G_SC ${(fitOf(s, vSC, 'SWE') - w.v3.gSC).toFixed(2)} OOM, taste at SC ${sdSC.toFixed(2)} SD, SIAR ${sdAIOf(w, wantSIAR).toFixed(2)} SD`);
   // In a game: the reference bot records them in order.
-  const g = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027 }));
+  const g = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027 }));
   runRef(g, 365 * 5, (x) => x.player.milestoneDays[6] !== undefined);
   const md = g.player.milestoneDays;
   const days = [3, 4, 5, 6].map((i) => md[i as 3]);
@@ -195,7 +195,7 @@ const mk = (seed = 21, world: 'ai2027' | 'authors2026' = 'ai2027'): GameStateV2 
   const rows: string[] = [];
   let ok = true;
   for (const start of ['leader', 'challenger', 'bigtech', 'spinout'] as const) {
-    const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 3, tutorial: false, start }));
+    const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 3, tutorial: false, start }));
     for (let d = 0; d < 7; d++) tick(s, { skip: ['endings'] });
     const cap = buildCapacity(s).capacity;
     const up = upkeepSplit(s).total;

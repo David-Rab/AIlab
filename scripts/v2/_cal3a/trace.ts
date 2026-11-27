@@ -20,7 +20,7 @@ import type { SectorId } from '../../../src/engine/v2/types';
 const seed = Number(process.argv[2] ?? 2027);
 const end = process.argv[3] ?? '2028-07-01';
 const secs = (process.argv[4] ?? 'SOFT,OFFICE,FIN').split(',') as SectorId[];
-const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const END = dayOfDate('2025-07-01', end);
 let lastM = -1;
 const annual: Record<number, number> = {};

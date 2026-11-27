@@ -12,7 +12,7 @@ import {
 import type { StartType } from '../../../src/engine/v2/types';
 import { check, finish } from '../lib';
 
-const game = (start: StartType = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (start: StartType = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
 const near = (a: number, b: number, e = 1e-9) => Math.abs(a - b) <= e;
 // Pre-RD-T07 start values: cheap 0.15 / 0.45 / 0.025 / 0.3 × 0.4 (leader); spinout × 2.5.
 const OLD_START = { math: 0.06, swe: 0.18, mlResearch: 0.12, longHorizon: 0.01, cyber: 0.01, bio: 0.01 } as const;

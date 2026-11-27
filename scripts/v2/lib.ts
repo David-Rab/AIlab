@@ -1,11 +1,10 @@
 // Shared helpers for v2 headless scripts (V2-SPEC §7). Owner: WS1.
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { GOLDEN_EXPECTED, GOLDEN_TOL } from '../../src/data/v2/calibration';
+import { GOLDEN_TOL } from '../../src/data/v2/calibration';
 import { tick } from '../../src/engine/v2/core/loop';
 import { newGame } from '../../src/engine/v2/core/init';
-import { START_DATE, dayOfDate, decimalYear } from '../../src/engine/v2/core/time';
+import { decimalYear } from '../../src/engine/v2/core/time';
 import { refPlay } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { refTotal } from '../../src/engine/v2/production/ces';
@@ -14,26 +13,15 @@ import type { EngineSystem, GameStateV2, SetupV2, TickOptions } from '../../src/
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const FIXTURE_DIR = join(HERE, 'fixtures');
-export const GOLDEN_PATH = join(HERE, 'golden', 'timelines.json');
 
-/** slow SC's sourced range (GOLDEN_EXPECTED, decimal years) as days: 2034-01-01 … 2035-01-01. */
-const SLOW_SC = GOLDEN_EXPECTED.slow.SC as [number, number];
-const SLOW_SC_DAYS = [dayOfDate(START_DATE, `${SLOW_SC[0]}-01-01`), dayOfDate(START_DATE, `${SLOW_SC[1]}-01-01`)] as const;
-/** CAL-T: the T1 / T1L calibration targets (calib.ts, calscan.ts): the golden integrator's milestone days
- *  (golden/timelines.json) with GOLDEN_TOL, except slow SC. Its golden 4758 d (2038.5) is the v1 integrator's own output
- *  (world.ts slow with the AI 2027 code's 2029 compute / labour slowdowns; golden-timelines lists it KNOWN against its own
- *  source), not a source. The sourced target is GOLDEN_EXPECTED.slow.SC, 2034–2035 (research/11 §5.5; AI Futures Project
- *  Dec 2025 update, Daniel: "Pure exponential trend, keeping my other parameters fixed, gets to AC 5 years later, in
- *  2034"): checked as the range's middle ± half its width plus the SC tolerance. */
+/** The T1 / T1L calibration targets (calib.ts, calscan.ts): the golden milestone days per world. The golden days belonged to the
+ *  removed old presets (the v1 integrator's output and slow SC's 2034–2035 range); the three timeline worlds have no golden days yet, so
+ *  every world's `days` is empty and the checks that read them skip. */
 export function calGolden(): { presets: Record<string, { days: Record<string, number> }> } {
-  const g = JSON.parse(readFileSync(GOLDEN_PATH, 'utf8')) as { presets: Record<string, { days: Record<string, number> }> };
-  const [lo, hi] = SLOW_SC_DAYS;
-  g.presets.slow.days.SC = Math.round((lo + hi) / 2);
-  return g;
+  return { presets: { 'tl-fast': { days: {} }, 'tl-central': { days: {} }, 'tl-slow': { days: {} } } };
 }
-/** Tolerance (years) of milestone i (3 = SC) for a preset's calibration target (see calGolden). */
-export function calTol(preset: string, i: number): number {
-  if (preset === 'slow' && i === 3) return (SLOW_SC_DAYS[1] - SLOW_SC_DAYS[0]) / 2 / 365 + GOLDEN_TOL.SC;
+/** Tolerance (years) of milestone i (3 = SC) for a world's calibration target (see calGolden). */
+export function calTol(_preset: string, i: number): number {
   return i === 3 ? GOLDEN_TOL.SC : GOLDEN_TOL.after;
 }
 

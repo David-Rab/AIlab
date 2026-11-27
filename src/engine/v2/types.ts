@@ -39,7 +39,8 @@ export type H100e = number;
 export type BaselineId = 'classic' | 'reality';
 /** R3.1: the per-game draw worlds (data/v2/timelineWorlds.ts). */
 export type TimelinePresetId = 'tl-fast' | 'tl-central' | 'tl-slow';
-export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slow' | TimelinePresetId;
+/** The world is one of the three timelines; the old named presets and the sampled world are removed. */
+export type WorldPresetId = TimelinePresetId;
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
 export type EconPresetId = 'normal' | 'ai2027' | 'gate';
 export type StorytellerId = 'rising' | 'measured' | 'chaotic';

@@ -10,7 +10,7 @@ const DAYS = 1500;
 const line = TREE.find((n) => n.kind === 'line' && isCapProject(n) && n.effect?.stack === 'pre') ?? TREE.find((n) => n.kind === 'line' && isCapProject(n))!;
 
 function run(seed: number, X: number, capScale: number) {
-  const s: GameStateV2 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
+  const s: GameStateV2 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
   const sci = s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'cap');
   for (const t of s.player.teams) if (t.projectId === line.id) t.projectId = undefined;
   sci.slice(0, capScale).forEach((t) => (t.projectId = line.id));

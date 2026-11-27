@@ -5,7 +5,7 @@ import { frameworkOf, ruleTriggered, trainingHolds } from '../../../src/engine/v
 import { measuredDomain } from '../../../src/engine/v2/actors/commitments';
 import { beliefHi } from '../../../src/engine/v2/safety/detection';
 import { RED_FLAG_TRAITS } from '../../../src/engine/v2/safety/common';
-const world = (process.argv[2] ?? 'ai2027') as any;
+const world = (process.argv[2] ?? 'tl-central') as any;
 const s = newGame(defaultSetupV2({ world, seed: 2027, tutorial: false }));
 const show = () => {
   console.log(`== ${world} day ${s.time.day}`);

@@ -27,11 +27,11 @@ const withLa = (s: GameStateV2, La: number) => {
   return t;
 };
 
-// Two sampled worlds: the real draws differ by seed.
-const a = newGame(defaultSetupV2({ seed: 3, world: 'sampled', alignment: 'medium', tutorial: false }));
-const b = newGame(defaultSetupV2({ seed: 11, world: 'sampled', alignment: 'medium', tutorial: false }));
+// Two games of one timeline: the drawn run differs by seed.
+const a = newGame(defaultSetupV2({ seed: 3, world: 'tl-central', alignment: 'medium', tutorial: false }));
+const b = newGame(defaultSetupV2({ seed: 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
 check(Math.abs(a.hidden.timeline.prod.La - b.hidden.timeline.prod.La) > 1, 'the two seeds draw different hidden La', `${a.hidden.timeline.prod.La.toFixed(1)} vs ${b.hidden.timeline.prod.La.toFixed(1)}`);
-const draw2 = prodParamsFor(new Rng(99), { world: 'sampled' });
+const draw2 = prodParamsFor({ world: 'tl-central', seed: 99 });
 for (const [day, s0] of [[0, a], [30, (runTo(a, 30), a)]] as const) {
   const lo = withLa(s0, 2), hi = withLa(s0, 180), other = withLa(s0, draw2.La);
   const r = readouts(lo);

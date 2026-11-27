@@ -101,7 +101,7 @@ interface GameRow { sd: number; sAI: number; m: number; q: number; qFull: number
 /** The game's taste inputs at general G `g` on a lab state (start lab; `computeScale` × its compute), by the engine's own
  *  functions: workContext (sd_AI = sdAIOf of the frontier-research model's IDEAS fit, AI's ideas share, AI labour multiplier on
  *  ideas) and teamTaste (the human/AI mixture mean (1 − s)·T_human + s·T_AI on the AIFM lognormal, AI saturated at A = m2b^(1+limit); fix B). */
-function gameCurve(world: 'ai2027' | 'fast', gs: number[], computeScale: number): GameRow[] {
+function gameCurve(world: 'tl-central' | 'tl-fast', gs: number[], computeScale: number): GameRow[] {
   const s = newBotGame(1, { world, alignment: 'medium' }, 'leader');
   const v = agentVersion(s, 'capFrontier')!;
   (v as { build?: unknown }).build = undefined; // a version without a build reads its general G (versionDomainG)
@@ -118,7 +118,7 @@ function gameCurve(world: 'ai2027' | 'fast', gs: number[], computeScale: number)
     return { sd: wc.sdAI, sAI: wc.sAI, m: wc.slots.IDEAS.m, q, qFull };
   });
 }
-function gamePresetInfo(world: 'ai2027' | 'fast') {
+function gamePresetInfo(world: 'tl-central' | 'tl-fast') {
   const s = newBotGame(1, { world, alignment: 'medium' }, 'leader');
   const w = s.hidden.timeline;
   return { gSC: w.v3.gSC, dBM: w.v3.dBM, sdSC: w.v3.sdSC, limit: tasteLimitOf(w), m2b: w.prod.m2b, lam: w.prod.lam, r: w.v3.r };
@@ -164,12 +164,12 @@ for (let i = 0; i < traj.times.length; i += 5) {
   maxErr = Math.max(maxErr, Math.abs(a / traj.agg[i] - 1));
 }
 
-const info = { ai2027: gamePresetInfo('ai2027'), fast: gamePresetInfo('fast') };
+const info = { 'tl-central': gamePresetInfo('tl-central'), 'tl-fast': gamePresetInfo('tl-fast') };
 const out: Record<string, unknown> = {};
 const game: Record<string, Record<string, unknown>> = {};
 const gameRaw: Record<string, { rows: GameRow[]; rows10: GameRow[] }> = {};
 const scAligned: Record<string, { median: number[]; p25: number[]; p75: number[] }> = {};
-for (const world of ['ai2027', 'fast'] as const) {
+for (const world of ['tl-central', 'tl-fast'] as const) {
   const rows = gameCurve(world, X, 1);
   const rows10 = gameCurve(world, X, 10);
   gameRaw[world] = { rows, rows10 };
@@ -257,18 +257,18 @@ writeFileSync(join(ROOT, 'balance/mechanics/tastecurve.json'), JSON.stringify(ou
 // ───────────────────────────── table ─────────────────────────────
 const f = (x: number) => (x >= 1000 ? x.toExponential(1) : x >= 100 ? x.toFixed(0) : x.toFixed(2));
 console.log(`AIFM run ${dir}; port max rel err vs its trajectory ${(maxErr * 100).toFixed(2)}%; EC = G - ${(G_V0_PRECEDENT - ecV0).toFixed(3)}; slope ${(p.slope / traj.rate).toFixed(3)} SD/OOM; limit p25/50/75 ${limitQ.p25.toFixed(2)}/${p.limit}/${limitQ.p75.toFixed(2)}, slope/yr p25/p75 ${slopeQ.p25.toFixed(2)}/${slopeQ.p75.toFixed(2)}`);
-console.log('G    | AIFM: sd   med  [p25 .. p75]  | ai2027: sd   total taste ideat  | fast: sd   total taste ideat');
+console.log('G    | AIFM: sd   med  [p25 .. p75]  | central: sd   total taste ideat  | fast: sd   total taste ideat');
 for (let i = 0; i < X.length; i += 4) {
   const a = out.aifm as { sd: number[]; median: number[]; p25: number[]; p75: number[] };
-  const g1 = game.ai2027, g2 = game.fast;
+  const g1 = game['tl-central'], g2 = game['tl-fast'];
   const c = (g: Record<string, unknown>) => `${f((g.sdAI as number[])[i]).padStart(6)} ${f((g.total as number[])[i]).padStart(8)} ${f((g.taste as number[])[i]).padStart(7)} ${f((g.ideation as number[])[i]).padStart(7)}`;
   console.log(`${X[i].toFixed(2)} | ${f(a.sd[i]).padStart(6)} ${f(a.median[i]).padStart(7)} [${f(a.p25[i])} .. ${f(a.p75[i])}] | ${c(g1)} | ${c(g2)}`);
 }
 // A reference for the report: G0 + 1, 2, 4, 6, 8.
-console.log('\nG0+d | AIFM med (p25..p75) | ai2027 total / taste / ideation | fast total / taste / ideation');
+console.log('\nG0+d | AIFM med (p25..p75) | central total / taste / ideation | fast total / taste / ideation');
 for (const d of [1, 2, 4, 6, 8]) {
   const i = Math.round(d / 0.25);
   const a = out.aifm as { median: number[]; p25: number[]; p75: number[]; scAligned: typeof scAligned };
-  const c = (w: 'ai2027' | 'fast') => { const g = game[w]; const sc = a.scAligned[w]; return `AIFM-sc ${f(sc.median[i])} (${f(sc.p25[i])}..${f(sc.p75[i])}) | game ${f((g.total as number[])[i])} / ${f((g.taste as number[])[i])} / ${f((g.ideation as number[])[i])}`; };
-  console.log(`+${d} | AIFM-date ${f(a.median[i])} (${f(a.p25[i])}..${f(a.p75[i])}) | ${c('ai2027')} | ${c('fast')}`);
+  const c = (w: 'tl-central' | 'tl-fast') => { const g = game[w]; const sc = a.scAligned[w]; return `AIFM-sc ${f(sc.median[i])} (${f(sc.p25[i])}..${f(sc.p75[i])}) | game ${f((g.total as number[])[i])} / ${f((g.taste as number[])[i])} / ${f((g.ideation as number[])[i])}`; };
+  console.log(`+${d} | AIFM-date ${f(a.median[i])} (${f(a.p25[i])}..${f(a.p75[i])}) | ${c('tl-central')} | ${c('tl-fast')}`);
 }

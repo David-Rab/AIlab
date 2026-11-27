@@ -21,7 +21,7 @@ const SEEDS = Number(arg('seeds', '6'));
 const ALL: Record<string, BotPolicy> = { ref: refBot, mixed: mixedBot };
 const BOTS = arg('bots', 'ref,mixed').split(',').filter((b) => ALL[b]);
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
-  { world: 'ai2027', alignment: 'medium' }, { world: 'sampled', alignment: 'sampled' },
+  { world: 'tl-central', alignment: 'medium' }, { world: 'tl-fast', alignment: 'sampled' }, { world: 'tl-slow', alignment: 'sampled' },
 ];
 
 function play(bot: BotPolicy, s: GameStateV2): GameStateV2 {
@@ -41,7 +41,7 @@ const out: Record<string, unknown>[] = [];
 for (const name of BOTS) {
   for (const combo of COMBOS) {
     for (let seed = 1; seed <= SEEDS; seed++) {
-      const s = newGame(defaultSetupV2({ seed, ...combo, econ: combo.world === 'ai2027' ? 'ai2027' : 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start: 'leader' }));
+      const s = newGame(defaultSetupV2({ seed, ...combo, econ: 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start: 'leader' }));
       play(bot(name), s);
       const e = s.ending;
       out.push({

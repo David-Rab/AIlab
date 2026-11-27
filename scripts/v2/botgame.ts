@@ -31,7 +31,7 @@ export const ALL: Record<string, BotPolicy> = POLICIES;
 
 /** A fresh bot game: Realistic gov / public / China / rivals actors, Rising storyteller, no tutorial. */
 export function newBotGame(seed: number, combo: { world: WorldPresetId; alignment: AlignDiffId }, start: StartType): GameStateV2 {
-  return newGame(defaultSetupV2({ seed, ...combo, econ: combo.world === 'ai2027' ? 'ai2027' : 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start }));
+  return newGame(defaultSetupV2({ seed, ...combo, econ: 'sampled', storyteller: 'rising', tutorial: false, gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic', start }));
 }
 
 /** Play one game with a bot until it ends (the endings system caps it at 2050-12-31). `onTick` (optional) sees the state after every tick. */

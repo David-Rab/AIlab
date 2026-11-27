@@ -26,8 +26,9 @@ const SEEDS = Number(arg('seeds', '200'));
 const BOTS = arg('bots', 'race,safe,mixed,capex2x,ref').split(',').filter((b) => ALL[b]);
 const START = arg('start', 'leader') as StartType;
 const COMBOS: { world: WorldPresetId; alignment: AlignDiffId }[] = [
-  { world: 'ai2027', alignment: 'medium' }, { world: 'ai2027', alignment: 'sampled' },
-  { world: 'sampled', alignment: 'medium' }, { world: 'sampled', alignment: 'sampled' },
+  { world: 'tl-central', alignment: 'medium' }, { world: 'tl-central', alignment: 'sampled' },
+  { world: 'tl-fast', alignment: 'medium' }, { world: 'tl-fast', alignment: 'sampled' },
+  { world: 'tl-slow', alignment: 'medium' }, { world: 'tl-slow', alignment: 'sampled' },
 ];
 
 export interface RunResult {
@@ -201,9 +202,9 @@ function main() {
     line(winRate.mixed >= 0.3 && gap >= 0.25, `mixed win ≥ 30% (${(100 * winRate.mixed).toFixed(1)}%) and ≥ 25 pp above both extremes (${(100 * gap).toFixed(1)} pp)`);
   }
   if (BOTS.includes('ref')) {
-    const rs = results.filter((r) => r.bot === 'ref' && r.world === 'ai2027' && r.alignment === 'medium');
+    const rs = results.filter((r) => r.bot === 'ref' && r.world === 'tl-central' && r.alignment === 'medium');
     const tk = rs.length ? rs.filter((r) => TAKEOVER.includes(r.ending)).length / rs.length : 0;
-    line(tk >= 0.5, `passive (ai2027/medium) takeover-type ≥ 50%, diagnostic (${(100 * tk).toFixed(0)}%)`);
+    line(tk >= 0.5, `passive (tl-central/medium) takeover-type ≥ 50%, diagnostic (${(100 * tk).toFixed(0)}%)`);
   }
 
   // Choices vs world (M4 acceptance metric for "choices matter"): the decision bots on paired seeds.

@@ -12,7 +12,7 @@ import type { Deployment, GameStateV2 } from '../../../src/engine/v2/types';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const s = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 
 // 1. No flat 1.2 brand.
 const mixSrc = readFileSync('src/engine/v2/worldfx/mix.ts', 'utf8');

@@ -76,7 +76,7 @@ check(near(continueGPre(27.3, 3e26, 1.38, 'moe') - continueGPre(27.3, 3e26, 0.38
   'continue: today\'s recipe applies to the added part only');
 
 // ---------- start state ----------
-const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const w0 = s0.hidden.timeline;
 const V0 = s0.player.models.versions[0];
 // A6b: B0 is overtrained like 2025 production models (400 tokens per parameter): research/12's Aug-2025 anchor 28.0 was
@@ -86,15 +86,15 @@ check(V0.G === gOfBuild(V0.build!), 'start: G(V0) is its build\'s G (the referen
 const v0Off = Object.fromEntries(DOMAIN_IDS.map((d) => [d, V0.domains[d] - Math.min(15, Math.max(0, levelOfG(w0, V0.G - domainRefShift(w0, d))))]));
 check(Object.values(v0Off).every((x) => Math.abs(x) < 0.25), 'start: the reference recipe reproduces the reference-point domain profile (|L_d − λ(G − shift_d)| < 0.25 L, RD-U05)', JSON.stringify(Object.fromEntries(Object.entries(v0Off).map(([k, v]) => [k, +v.toFixed(2)]))));
 for (const start of ['challenger', 'bigtech', 'spinout'] as const) {
-  const t = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
+  const t = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
   const want = gV0(t.hidden.timeline) - (START_BY_ID[start].lagMonths / 12) * PRE_GAME_G_PER_YEAR;
   check(near(t.player.models.versions[0].G, want, 1e-6), `start: ${start} V0 lags by its start lag (G ${want.toFixed(3)})`, t.player.models.versions[0].G.toFixed(4));
 }
 
 // ---------- durations ----------
 const base = (s: GameStateV2, params: number) => planRun(s, { kind: 'base', base: { ...REFERENCE_BASE, params, curation: { ...REFERENCE_BASE.curation } }, poolShare: 0.6 });
-const sA = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
-const sB = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const sA = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
+const sB = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 sB.player.computeOnline *= 2;
 const a = base(sA, 2e12);
 const b = base(sB, 2e12);
@@ -106,7 +106,7 @@ const post = planRun(sA, { kind: 'post', baseId: 'B0', post: { ...REFERENCE_POST
 check(post.etaDays - post.setupDays < 30 && post.flopNeeded === RL_BUDGET.standard * sA.player.models.bases[0].flop, 'post-training: RL FLOP = ρ × base FLOP; no minimum days', `${post.flopNeeded.toExponential(2)} FLOP, ${post.etaDays} d`);
 
 // ---------- the v2 calendar bug: same physical run, same G at any start date ----------
-const sC = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const sC = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const g0 = base(sC, 2e12).limits!.gPre.total;
 const assets0 = JSON.stringify(sC.player.dataPortfolio);
 // V4.0: a new game runs its default research lines, so "fixed know-how" also holds the recipe stacks at day 0.

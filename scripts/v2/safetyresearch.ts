@@ -31,7 +31,7 @@ const REF_RE_HEADS = SAF_RE_ASK * RE_LABOUR_UNIT * TEAM_SIZE.re;
  *  project, `re` research-engineer units on experiments, the line pool at `c` × the agenda's reference compute share of
  *  the leader's day-0 compute. Nothing else runs (no tick): only the line project's stages. */
 function lab(ag: AgendaId, o: { seed?: number; cap?: number; re?: number; c?: number; quality?: Team['quality'] } = {}): { s: GameStateV2; id: string } {
-  const s = newGame(defaultSetupV2({ seed: o.seed ?? 11, world: 'ai2027', alignment: 'medium', tutorial: false }));
+  const s = newGame(defaultSetupV2({ seed: o.seed ?? 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
   const p = s.player;
   const id = lineNodeId(ag);
   const sci = p.teams.find((t) => t.role === 'sci' && t.dept === 'saf') as Team;

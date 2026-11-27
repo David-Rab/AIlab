@@ -3,7 +3,8 @@
 export type BaselineId = 'classic' | 'reality';
 /** R3.1: the per-game draw worlds (data/v2/timelineWorlds.ts): the authors2026 compute table with one AI Futures Model run's translated settings per game. */
 export type TimelinePresetId = 'tl-fast' | 'tl-central' | 'tl-slow';
-export type WorldPresetId = 'sampled' | 'ai2027' | 'authors2026' | 'fast' | 'slow' | TimelinePresetId;
+/** The world is one of the three timelines; the old named presets and the sampled world are removed. */
+export type WorldPresetId = TimelinePresetId;
 export type AlignDiffId = 'sampled' | 'easy' | 'medium' | 'hard';
 
 /** Hidden world parameters, sampled at game start. */

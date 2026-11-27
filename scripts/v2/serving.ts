@@ -105,7 +105,7 @@ function cheapestAt(s: GameStateV2, G: number, wt: WorkTypeId = 'SWE'): Cheapest
   return best;
 }
 
-const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const run = (s: GameStateV2, n: number) => {
   for (let i = 0; i < n; i++) tick(s, { skip: ['endings'] });
 };
@@ -885,7 +885,7 @@ for (const d of [400, 900]) {
 }
 {
   // D2 a takeoff run: RefBot to day 1200 on ai2027 and fast; every 20 days every cell stays under the ceiling.
-  for (const world of ['ai2027', 'fast'] as const) {
+  for (const world of ['tl-central', 'tl-fast'] as const) {
     const s = newGame(defaultSetupV2({ seed: 2027, world, alignment: 'medium', baseline: 'classic', tutorial: false }));
     const bad: string[] = [];
     let worst = { hours: 0, spend: 0 };

@@ -2,7 +2,7 @@
 import { newGame, defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { domainRefShift, levelOfG, gOfLevel, versionDomainG } from '../../../src/engine/v2/models/capability';
 import { DOMAIN_IDS } from '../../../src/data/v2/calibration';
-for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
+for (const world of ['tl-fast', 'tl-central', 'tl-slow'] as const) {
   const s = newGame(defaultSetupV2({ seed: 2027, world, alignment: 'medium', baseline: 'classic', tutorial: false }));
   const w = s.hidden.timeline;
   const v = s.player.models.versions[0];

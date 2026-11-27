@@ -22,7 +22,7 @@ import type { GameStateV2, ModelVersion, PostDesign, TraitId, TraitVector, Train
 import { FIXTURE_DIR, check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 const misTraits = (): Partial<TraitVector> => ({ PERSONA: 0.8, CONCEAL: 0.6, POWER: 0.6, AF: 0.6, SAND: 0.5, SCHEME: 0.6, COLLUDE: 0.5, SUCC: 0.3 });
 

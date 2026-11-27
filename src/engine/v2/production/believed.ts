@@ -14,7 +14,6 @@ import type { GameStateV2, ProdParams, TimelineWorld, WorldPresetId } from '../t
 /** AIFM inf_labor_asymptote prior: 1 + LN with 80% interval [1, 200] (research/13 §1.4 [C]). */
 export const LA_PRIOR_P10 = 1 + 1;
 export const LA_PRIOR_P90 = 1 + 200;
-export const LA_PRIOR_MEDIAN = 1 + Math.sqrt(1 * 200);
 
 export interface BelievedProd { mid: ProdParams; lo: ProdParams; hi: ProdParams }
 
@@ -28,8 +27,7 @@ export function believedProd(s: Pick<GameStateV2, 'setup'>): BelievedProd {
   const hit = cache.get(world);
   if (hit) return hit;
   const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[world] ?? {}) };
-  const La = world === 'sampled' ? LA_PRIOR_MEDIAN : base.La;
-  const out = { mid: withLa(base, La), lo: withLa(base, LA_PRIOR_P10), hi: withLa(base, LA_PRIOR_P90) };
+  const out = { mid: withLa(base, base.La), lo: withLa(base, LA_PRIOR_P10), hi: withLa(base, LA_PRIOR_P90) };
   cache.set(world, out);
   return out;
 }

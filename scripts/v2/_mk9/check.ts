@@ -89,7 +89,7 @@ function report(label: string, s: GameStateV2): Summary {
 
 const out: Record<string, Summary> = {};
 {
-  const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 1, tutorial: false }));
+  const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 1, tutorial: false }));
   out.start = report('(a) game start', s0);
   out.d369 = report('(a) day-369 save', load());
 }
@@ -110,7 +110,7 @@ if (o) writeFileSync(o, JSON.stringify(out, null, 1));
 
 // Checks on this branch's rules (skipped on a baseline run without mix.plan).
 {
-  const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 1, tutorial: false }));
+  const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 1, tutorial: false }));
   const mix = worldMix(s0);
   const plan = (mix as unknown as { plan?: Plan }).plan;
   if (plan) {

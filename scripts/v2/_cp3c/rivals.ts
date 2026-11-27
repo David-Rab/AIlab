@@ -3,7 +3,7 @@ import { defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { refGame, runRef } from '../lib';
 import { otherLabs, bestPlayerVersion } from '../../../src/engine/v2/models/labs';
 import { CAL_SEED } from '../calseeds';
-const s = refGame(defaultSetupV2({ world: (process.argv[2] ?? 'ai2027') as any, alignment: 'medium', seed: CAL_SEED }));
+const s = refGame(defaultSetupV2({ world: (process.argv[2] ?? 'tl-central') as any, alignment: 'medium', seed: CAL_SEED }));
 const N = Number(process.argv[3] ?? 420);
 runRef(s, N, (x) => {
   if (x.time.day % 30 === 0) {

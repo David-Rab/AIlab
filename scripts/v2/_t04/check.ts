@@ -18,7 +18,7 @@ const g = (F: number, share: number, eRL = 0) => rlGains(F, share * F, w, eRL);
 // The old base-relative midpoint at base F equals the new absolute one at e_RL − log10(F ÷ FLOP_RL_REF).
 const gOld = (F: number, share: number, eRL = 0) => rlGains(F, share * F, w, eRL - Math.log10(F / FLOP_RL_REF));
 
-const eV0 = START_STATE.sampled.v0;
+const eV0 = START_STATE.v0;
 const vNew = g(F0, rho, eV0).general;
 const vOld = gOld(F0, rho, eV0).general;
 checks.push(['V0 gain unchanged (B0, standard, V0 recipe)', Math.abs(vNew - vOld) < 1e-9, `new ${vNew.toFixed(6)} old ${vOld.toFixed(6)}`]);

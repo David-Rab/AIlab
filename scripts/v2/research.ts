@@ -38,7 +38,7 @@ import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2
 import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
 import { hash32 } from '../../src/engine/v2/core/rng';
 
-const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
+const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
 
 // ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
@@ -281,7 +281,7 @@ if (process.argv.includes('--rd-a03')) {
 // ---------- failure and speculative reopening ----------
 {
   // P05 does not work on its first attempt in the seed-2027 world (its hidden paradigm draw).
-  const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+  const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
   check(s.hidden.paradigmSuccess.P05 === false, 'fixture: P05 is a dud in the seed-2027 world');
   act(s, 'research.start', { id: 'P05' });
   act(s, 'research.want', { id: 'P05', n: 3 });
@@ -596,7 +596,7 @@ if (process.argv.includes('--rd-a03')) {
 
   // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
   // change of the stacks' G at the latest base) reads far faster.
-  const ch = newGame(defaultSetupV2({ world: 'ai2027', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
+  const ch = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
   let pubMax = 0;
   let pubSum = 0;
   let pub0 = publicBase(ch);

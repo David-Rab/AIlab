@@ -19,7 +19,7 @@ const src = (f: string) => readFileSync(new URL(`../../../src/${f}`, import.meta
 const p27 = PROJECT_BY_ID.P27;
 check(!TREE_BY_ID.kyc && !!p27 && isLineNode(p27) && p27.agenda === 'AG17' && !p27.paradigm, 'kyc node gone; P27 is a project of line AG17', JSON.stringify({ agenda: p27?.agenda, paradigm: p27?.paradigm }));
 
-const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'tl-central', alignment: 'medium', tutorial: false }));
 {
   const s = fresh();
   check(!('paradigms' in s.player) && adopted(s, 'P01') && adopted(s, 'P04') && !adopted(s, 'P27') && !('P27' in s.hidden.paradigmSuccess),

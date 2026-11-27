@@ -43,7 +43,7 @@ import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const T = 1e12;
-const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
 /** v1's stock: (licensed + unlicensed) × (1 + 0.5·deals) + 0.5 × synthetic. */
 const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number) =>
   ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT) * T;

@@ -6,7 +6,7 @@ import { recipeOf } from '../../../src/engine/v2/actors/rivalModel';
 import { playerRecipeG } from '../../../src/engine/v2/models/stacks';
 import { recipeDiffusionPerDay } from '../../../src/engine/v2/production/diffusion';
 import { CAL_SEED } from '../calseeds';
-const s = refGame(defaultSetupV2({ world: (process.argv[2] ?? 'ai2027') as any, alignment: 'medium', seed: CAL_SEED }));
+const s = refGame(defaultSetupV2({ world: (process.argv[2] ?? 'tl-central') as any, alignment: 'medium', seed: CAL_SEED }));
 const show = (x: typeof s) => {
   const pl = bestPlayerVersion(x)!;
   const d = recipeDiffusionPerDay(x, 'player' as any);

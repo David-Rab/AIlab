@@ -1,6 +1,6 @@
 // Run-time registry parameter overrides (design/bal/TOOLING-DESIGN.md, C3). Sets live game constants without editing code.
 //
-//   await applyOverrides({ 'cap.V3_CAL.ai2027.gSC': 33.2, 'bots.ref.REF_TREE': 1.5 })
+//   await applyOverrides({ 'cap.V3_CAL.tl-central.gSC': 33.2, 'bots.ref.REF_TREE': 1.5 })
 //
 // Supported: `export` refs whose path ends in a field of an object or array (the field is replaced), and `'*'` families
 // (the path ends in '*', or has '*' inside it). Value semantics:

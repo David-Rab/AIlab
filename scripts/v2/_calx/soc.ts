@@ -1,7 +1,7 @@
 import { newGame, defaultSetupV2 } from '../../../src/engine/v2/core/init';
 import { domainRefShift, levelOfG, gOfLevel, domainScaleGs } from '../../../src/engine/v2/models/capability';
 import { DOMAIN_IDS } from '../../../src/data/v2/calibration';
-const s = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const w = s.hidden.timeline;
 console.log('shift', DOMAIN_IDS.map((d) => `${d} ${domainRefShift(w, d).toFixed(2)}`).join(' '));
 const v = s.player.models.versions[0];

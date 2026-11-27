@@ -1291,7 +1291,7 @@ for (const a of FINANCE_ACTIONS) {
 // ───────────────────────────── FIN5c: big-tech division budget (FINANCE-V3 §13) ─────────────────────────────
 {
   const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
-  const bigtech = (seed = 5) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false, start: 'bigtech' }));
+  const bigtech = (seed = 5) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false, start: 'bigtech' }));
   /** Tick (no bot) to a day; the endings system is skipped so the run always gets there. */
   const runTo = (s: GameStateV2, day: number) => { while (s.time.day < day) { for (const p of [...s.events.pending]) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0); tick(s, { skip: ['endings'] }); } };
   const causes = (s: GameStateV2, src: string) => (s.causes.byKey['board.confidence'] ?? []).filter((e) => e.source === src);

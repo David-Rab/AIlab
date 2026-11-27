@@ -17,7 +17,7 @@ for (const d of SECTORS) {
   d.p *= k;
   d.q *= k;
 }
-const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const END = dayOfDate('2025-07-01', end);
 const MARKS = ['2025-07-02', '2025-12-14', '2026-05-03', '2026-07-01', '2026-11-01', '2027-07-01'];
 const marks = new Map(MARKS.map((m) => [dayOfDate('2025-07-01', m), m]));

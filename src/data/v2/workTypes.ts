@@ -323,9 +323,6 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMEN
  *  (sampling_config_q2_eli.yaml) inherits it]; at the game's m2b 3.25 that is A = 1.2e4. Daniel's config sets [4, 64], median 16
  *  (sampling_config_daniel.yaml:62; AIFM config.py:343 default 16, "Daniel Q2: sqrt(4 * 64)"): the `fast` preset's. */
 export const TASTE_LIMIT_MEDIAN = 8;
-/** The AIFM's sampling of the taste limit (80% CI of its lognormal; clip) for the `sampled` world. */
-export const TASTE_LIMIT_CI80: [number, number] = [2, 32];
-export const TASTE_LIMIT_RANGE: [number, number] = [0, 100];
 /** R2.3 (faithful horizon fix, design/bal/FIXC-TRANSLATION.md section 6): the per-world horizon law and research pace.
  *  h50PerOOM: horizon growth per OOM of effective compute at V0 (the METR doubling at V0 is log2 of it: T = ln2/ln(h50PerOOM) OOM);
  *  h50Accel A: the AIFM's decay of that doubling length (A = 1 − doubling_difficulty_growth_factor): h50(x) = H50_V0_MIN ×
@@ -343,14 +340,6 @@ export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tast
   covS?: number; covTop?: number }
 const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1, stockAgeYears: 0 };
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
-  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
-  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0, tasteLimit: 16, ...H50_LAW }, // Daniel's taste_limit median (sampling_config_daniel.yaml:62)
-  // slow gSC 38.3: a STATED STAND-IN (DECISIONS "Calibration decisions after CAL1 refits" item 7): the top of its source
-  // range, standing in for the source's slower horizon trend (METR 7-month doubling), which no mechanism carries; with
-  // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
-  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW },
-  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC, tasteLimit: TASTE_LIMIT_MEDIAN, ...H50_LAW }, // timelineFor draws it from TASTE_LIMIT_CI80
   // R3.1: the per-game draw worlds: the group MEDIAN of the AIFM runs' translated settings (data/v2/timelineWorlds.ts) as the fallback of a
   // world built without a seed; world/hidden.ts timelineFor replaces them with the game's drawn run. The horizon law and pace stay the defaults.
   'tl-fast': { ...H50_LAW, ...TL_MEDIAN['tl-fast'].v3 }, 'tl-central': { ...H50_LAW, ...TL_MEDIAN['tl-central'].v3 }, 'tl-slow': { ...H50_LAW, ...TL_MEDIAN['tl-slow'].v3 },

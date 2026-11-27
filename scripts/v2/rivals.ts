@@ -43,7 +43,7 @@ import { TREE_BY_ID } from '../../src/data/v2/tree';
 import { poolsOf } from '../../src/engine/v2/compute/power';
 import { hRef } from '../../src/engine/v2/production/ces';
 
-const mk = (seed = 2027, leaderLab = true): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false, leaderLab }));
+const mk = (seed = 2027, leaderLab = true): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false, leaderLab }));
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b));
 
@@ -258,7 +258,7 @@ const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol * Math
 // research compute and research state (its lines' test-scale pools per part, its RL stacks) over days 600–860 and compare
 // with what RefBot's stacks gained; the RL parts' G at RefBot's latest base, as its stacks' readout.
 if (process.argv.includes('--ref')) {
-  const s = refGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027 }));
+  const s = refGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027 }));
   const w = s.hidden.timeline;
   const P = recipeParts();
   const u = (x: GameStateV2, ids: string[]) => ids.reduce((a, id) => { const pl = linePool(x, TREE_BY_ID[id]); return a + pl.r * Math.log10((pl.n0 + (x.player.tree[id]?.cap?.pool ?? 0)) / pl.n0); }, 0);

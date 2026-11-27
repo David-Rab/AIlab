@@ -7,7 +7,7 @@ import { engine } from '../../../src/engine/v2/index';
 import { internalVersion } from '../../../src/engine/v2/models/labs';
 import { sightLimit } from '../../../src/engine/v2/safety/sightLimit';
 const seed = Number(process.argv[2] ?? 900);
-const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const rows: string[] = [];
 while (s.time.day < 1600 && s.player.status === 'active') {
   for (const p of [...s.events.pending]) { const c = mixedBot.decide(s, p); if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0); }

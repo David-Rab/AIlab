@@ -16,7 +16,7 @@ const src = (f: string) => readFileSync(new URL(`../../../src/${f}`, import.meta
   check(hits.length === 0, 'auto-assign policy, its toggle and line auto-continue gone', hits.join(', ') || 'clean');
 }
 
-const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const fresh = () => newGame(defaultSetupV2({ seed: 7, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const saf = (s: GameStateV2) => s.player.teams.filter((t) => t.role === 'sci' && t.dept === 'saf');
 const clearSaf = (s: GameStateV2) => {
   const q = s.player.research.queue;

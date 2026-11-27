@@ -23,7 +23,7 @@ void trueSightLimit;
 import type { GameStateV2, ModelVersion } from '../../src/engine/v2/types';
 import { HERE, check, finish } from './lib';
 
-const fresh = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const fresh = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const near = (a: number, b: number, tol = 1e-9) => Math.abs(a - b) <= tol;
 function cloneVersion(s: GameStateV2, from: ModelVersion, id: string, over: Partial<ModelVersion>): ModelVersion {
   const v = { ...JSON.parse(JSON.stringify(from)), id, name: `${from.name}-${id}`, status: 'ready', ...over } as ModelVersion;
@@ -54,7 +54,7 @@ const reset = (s: GameStateV2) => { resetWorkContext(s); resetSafetyLabour(s); }
   };
   let worst = 0;
   let oneSource = true;
-  for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
+  for (const world of ['tl-fast', 'tl-central', 'tl-slow'] as const) {
     for (const seed of [1, 7]) {
       const w = newGame(defaultSetupV2({ seed, world, alignment: 'medium', tutorial: false })).hidden.timeline;
       for (let L = 0; L <= 16; L += 0.25) {

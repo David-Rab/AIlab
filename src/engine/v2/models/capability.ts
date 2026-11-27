@@ -1,7 +1,7 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
+import { LEVEL_KNOTS, DOMAIN_IDS, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
 import { COGNITIVE_WORK, H50_BASE_FLOOR, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STANDINS, SKILL_TESTS, SKILL_TEST_CODE, TOP_SD, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
@@ -102,7 +102,7 @@ export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 // ───────────────────────────── start state (RD-U06) ─────────────────────────────
 
 /** The start state of world w (data/v2/calibration.ts START_STATE): G(V0), B0's pretraining recipe, V0's RL recipe. */
-export const startStateOf = (w: TimelineWorld) => START_STATE[PRESET_BY_LABEL[w.label] ?? 'sampled'];
+export const startStateOf = (_w: TimelineWorld) => START_STATE;
 /** G of the reference start version V0 in world w (data): the reference base B0 (≈ 354B active × 400 tokens per
  *  parameter, the recipe of its launch day) plus the reference post-training run (standard budget, broad) at V0's RL
  *  recipe. */

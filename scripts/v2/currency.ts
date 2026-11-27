@@ -29,7 +29,7 @@ for (const f of files) {
 check(bad.length === 0, 'grep: no LEVEL_PER_OOM, offL, ÷ 1.2, sD = offL/2, RSCH_TASTE_PENALTY or REEVAL_DL left in code', bad.join(', '));
 
 // 2. A version's displayed domain level equals λ(G_d) (less the domain's best-human shift, RD-U05), G_d the fit's domain G.
-const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const w = s.hidden.timeline;
 const V0 = s.player.models.versions[0];
 const lam = (v: Pick<ModelVersion, 'G' | 'build'>, d: (typeof DOMAIN_IDS)[number]) => clamp(levelOfG(w, domainG(s, v, d) - domainRefShift(w, d)), 0, 15);

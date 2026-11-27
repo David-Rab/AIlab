@@ -264,36 +264,13 @@ function baselineParams(): Param[] {
 }
 
 // ───────────────────────── world.ts: v1 world presets (inline) ─────────────────────────
-// makeWorld's four named presets pass their numbers inline to build(); the sampled world draws them (see Inline overflow
+// makeWorld passes the one timeline world's numbers (the authors2026 table the three timeline worlds share) inline to build() (see Inline overflow
 // in design/bal/inv/actors-data-notes.md). One entry per preset and field for the integrator's main parameters.
-const AUDIT1 = 'world.ts:157 "Audit #1: g0 28.5, pEx 0.25 reproduce 1.5x Jan 2026, 3x Dec 2026, SC 2027-03-31, SAR end-Aug, ASI Dec 31 2027."';
 const AUDIT8 = 'world.ts:161 "Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y."';
-const AUDIT9 = 'world.ts:167 "Audit #9 / §5.4: Daniel Aug-2026 (AC p50 2027.92) + AI 2027 p10 takeoff (SC->ASI ~0.21 y)."';
-const AUDIT22 = 'world.ts:174 "Audit #22 / §5.5: METR 7-month exponential; AI 2027 median h_SC and cs; SAR anchor lowered to avoid a 1.6->25 jump."';
-const SRC_RES11 = 'research/11-engine-audit.md (audit #1, world.ts:157; header world.ts:2-3 "audited against the primary sources in research/11-engine-audit.md")';
 const note1 = 'Covered by the audit comment directly above the one-line build() (CLASSIFY A9).';
-const FIT_AUDIT1 = 'Named in the comment (g0 and pEx "reproduce" the scenario dates; research/11-engine-audit.md:156,159 "[D] fit"); tuned by hand (CLASSIFY A5)';
 
 const PRESET_INLINE: Param[] = [
   // ai2027 (world.ts:158)
-  { id: 'acd.world.ai2027.g0', ref: { kind: 'inline', file: WORLD, anchor: 'g0: 28.5' }, value: 28.5, unit: 'months',
-    area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
-    fit: { targets: [], script: 'manual' },
-    notes: FIT_AUDIT1 + '. Months of 2024/25-pace progress to superhuman-coder horizon (header world.ts:4); solves hSC.' },
-  { id: 'acd.world.ai2027.T', ref: { kind: 'inline', file: WORLD, anchor: 'T: 4.74,' }, value: 4.74, unit: 'months per doubling',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
-  { id: 'acd.world.ai2027.decay', ref: { kind: 'inline', file: WORLD, anchor: 'decay: 0.1, g0: 28.5' }, value: 0.1, unit: 'fraction',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
-  { id: 'acd.world.ai2027.cs', ref: { kind: 'inline', file: WORLD, anchor: 'cs: 3.9,' }, value: 3.9, unit: 'months',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
-  { id: 'acd.world.ai2027.pEx', ref: { kind: 'inline', file: WORLD, anchor: 'pEx: 0.25,' }, value: 0.25,
-    area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT1, source: SRC_RES11, perPreset: true,
-    fit: { targets: [], script: 'manual' },
-    notes: FIT_AUDIT1 + '. Stage-1 multiplier M = 1 + pEx*(sEx/pEx)^f (world.ts:66).' },
-  { id: 'acd.world.ai2027.sEx', ref: { kind: 'inline', file: WORLD, anchor: 'sEx: 4, G: [4.19' }, value: 4,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
-  { id: 'acd.world.ai2027.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [4.19, 16, 49.5]' }, value: [4.19, 16, 49.5], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT1, source: SRC_RES11, perPreset: true, notes: note1 },
   // authors2026 (world.ts:162)
   { id: 'acd.world.authors2026.hSCmin', ref: { kind: 'inline', file: WORLD, anchor: 'hSCmin: 125 * 12 *' }, value: 125, unit: 'work-years (x12 x WORK_MONTH_MIN minutes)',
     area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT8, source: 'research/11-engine-audit.md audit #8 / §5.3 (AIFM sampling_config(_q2_eli).yaml medians)', perPreset: true,
@@ -313,43 +290,7 @@ const PRESET_INLINE: Param[] = [
     area: 'capability', layer: 'world', kind: 'fitted', evidence: AUDIT8, perPreset: true,
     fit: { targets: [], script: 'unnamed' }, notes: 'Named in the comment: "cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y".' },
   // fast (world.ts:168)
-  { id: 'acd.world.fast.hSCmin', ref: { kind: 'inline', file: WORLD, anchor: 'hSCmin: 12 * WORK_MONTH_MIN' }, value: 12, unit: 'work-months (x WORK_MONTH_MIN minutes)',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.T', ref: { kind: 'inline', file: WORLD, anchor: 'T: 4.0,' }, value: 4, unit: 'months per doubling',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.decay', ref: { kind: 'inline', file: WORLD, anchor: 'decay: 0.08, hSCmin: 12 * WORK' }, value: 0.08, unit: 'fraction',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.cs', ref: { kind: 'inline', file: WORLD, anchor: 'cs: 10.3,' }, value: 10.3, unit: 'months',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.pEx', ref: { kind: 'inline', file: WORLD, anchor: 'pEx: 0.15, sEx: 3' }, value: 0.15,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.sEx', ref: { kind: 'inline', file: WORLD, anchor: 'sEx: 3, G: [0, 7.67' }, value: 3,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
-  { id: 'acd.world.fast.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [0, 7.67, 47.5]' }, value: [0, 7.67, 47.5], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT9, source: 'research/11-engine-audit.md audit #9 / §5.4 (Daniel Aug-2026; AI 2027 p10 takeoff)', perPreset: true, notes: note1 },
   // slow (world.ts:175)
-  { id: 'acd.world.slow.hSCmin', ref: { kind: 'inline', file: WORLD, anchor: 'hSCmin: 120 * WORK_MONTH_MIN' }, value: 120, unit: 'work-months (x WORK_MONTH_MIN minutes)',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5 (AI 2027 median h_SC)', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.T', ref: { kind: 'inline', file: WORLD, anchor: 'T: 7, growth: \'exp\'' }, value: 7, unit: 'months per doubling',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5 (METR 7-month exponential)', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.decay', ref: { kind: 'inline', file: WORLD, anchor: 'decay: 0, hSCmin: 120' }, value: 0, unit: 'fraction',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5 (METR 7-month exponential)', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.cs', ref: { kind: 'inline', file: WORLD, anchor: 'cs: 3.87,' }, value: 3.87, unit: 'months',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5 (AI 2027 median cs)', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.pEx', ref: { kind: 'inline', file: WORLD, anchor: 'pEx: 0.01, sEx: 0.6' }, value: 0.01,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.sEx', ref: { kind: 'inline', file: WORLD, anchor: 'sEx: 0.6, G: [10, 394' }, value: 0.6,
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.G', ref: { kind: 'inline', file: WORLD, anchor: 'G: [10, 394, 2000]' }, value: [10, 394, 2000], unit: 'human-only research-years per gap (SC-SAR, SAR-SIAR, SIAR-ASI)',
-    area: 'capability', layer: 'world', kind: 'sourced', evidence: AUDIT22, source: 'research/11-engine-audit.md audit #22 / §5.5', perPreset: true, notes: note1 },
-  { id: 'acd.world.slow.sarSpeed', ref: { kind: 'inline', file: WORLD, anchor: 'w.sarSpeed = 10;' }, value: 10, unit: 'x human-only speed at SAR',
-    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:174 "SAR anchor lowered to avoid a 1.6->25 jump" names this field but gives an adjustment, not a tag or source', perPreset: true,
-    notes: 'A separate statement after the build() call. Otherwise sarSpeed = max(25, 1 + sEx) (world.ts:57).' },
-  { id: 'acd.world.slow.computeGrowth', ref: { kind: 'inline', file: WORLD, anchor: 'w.computeGrowth = 1.8;' }, value: 1.8, unit: 'x per year',
-    area: 'market', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:178 (a separate statement after build(); the audit comment world.ts:174 names no compute value)', perPreset: true },
-  { id: 'acd.world.slow.computeElasticity', ref: { kind: 'inline', file: WORLD, anchor: 'w.computeElasticity = 0.7;' }, value: 0.7, unit: 'exponent',
-    area: 'capability', layer: 'world', kind: 'untagged', evidence: 'no tag; world.ts:179 (a separate statement after build(); the audit comment world.ts:174 names no elasticity)', perPreset: true,
-    notes: 'The other presets keep the build() default 0.5 (world.ts:147).' },
 ];
 
 export const PARAMS_ACTORS_DATA = defineParams([

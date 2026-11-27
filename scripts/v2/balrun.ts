@@ -1,7 +1,7 @@
 // Parallel balance game runner (design/bal/TOOLING-DESIGN.md, C1). Plays every (policy × world × alignment × start) cell
 // on one shared seed list, W worker processes, one GameRecord per game, and writes a per-cell summary.
 //
-//   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world ai2027[,sampled,...] --align medium[,sampled]
+//   npx tsx scripts/v2/balrun.ts --name <run> --policy ref[,mixed,...] --world tl-central[,tl-fast,...] --align medium[,sampled]
 //                                --start leader[,...] --seeds N --workers W [--no-cache]
 //                                [--set <param id>=<value> ...] [--sets <file.json>] [--forced aifm]
 //
@@ -73,7 +73,7 @@ type Body = Omit<GameRecord, 'run'>;
 interface Job { id: number; cell: Cell; seed: number; set: number }
 interface OSet { name: string; set: Record<string, number | string | boolean | number[]> }
 
-const WORLDS: WorldPresetId[] = ['sampled', 'ai2027', 'authors2026', 'fast', 'slow', 'tl-fast', 'tl-central', 'tl-slow'];
+const WORLDS: WorldPresetId[] = ['tl-fast', 'tl-central', 'tl-slow'];
 const ALIGNS: AlignDiffId[] = ['sampled', 'easy', 'medium', 'hard'];
 const STARTS: StartType[] = ['spinout', 'challenger', 'bigtech', 'leader'];
 
@@ -258,7 +258,7 @@ async function parent() {
     process.exit(2);
   }
   const policies = list<string>('policy', POLICY_IDS, 'ref');
-  const worlds = list<WorldPresetId>('world', WORLDS, 'ai2027');
+  const worlds = list<WorldPresetId>('world', WORLDS, 'tl-central');
   const aligns = list<AlignDiffId>('align', ALIGNS, 'medium');
   const starts = list<StartType>('start', STARTS, 'leader');
   const nSeeds = Math.max(1, Number(arg('seeds', '20')));
