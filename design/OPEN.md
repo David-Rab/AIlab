@@ -12,9 +12,8 @@ When an item is done or dropped, delete its line here. New "for later" items go 
 
 | Item | Kind | Detail |
 |---|---|---|
-| Engine speed-up: merge or drop `bal-perf` / `perf-p1..p5` (tick ≈ 3.7–4.1 ms vs a 1.5 ms budget; P2/P3/P5 fingerprint-identical) | Decide | design/bal/HANDOFF-PERF.md |
-| TRAINING › Runs share control: restore per-run −/+ (data-centre memory) or keep it read-only with a link (001865c2) | Decide | memory ai27-datacenter-redesign; archive/RD-AUDIT/UI-BUILD.md |
-| ai2027 "Agent-N" model names vs the no-AI-2027-canon rule | Decide | archive/MARKET-CP.md |
+| TRAINING › Runs: restore the per-run training-share −/+ (designer 2026-11-27; 001865c2 made it read-only with a link) | Later (small UI task) | memory ai27-datacenter-redesign; archive/RD-AUDIT/UI-BUILD.md |
+| ws4 E1 "no AI 2027 canon" failed on ai2027-world Agent-N names; that world preset is gone — does the check still fail? | Check | archive/MARKET-CP.md |
 | 2026-11-17 tycoon-era deferrals: R1 auto-pick from open projects, P2, P4, M3 best-model policy, M6, PR1 shortfall policy, O3, start-type presentation (ST1/ST2), follower catch-up. Most predate the v3 and R&D rebuilds; triage which still mean anything | Check | archive/JANK-AUDIT.md; archive/PROGRESS.md R9; memory ai27-tycoon-direction |
 
 ## Balance and calibration
@@ -31,16 +30,16 @@ Rule from 2026-11-27: parameters only, mechanism changes are parked unless they 
 | Stage 2: sourced realistic-lab policy in the coupled game (money → compute, hiring at market wages; finance and payroll calibrated here) | Later | RECAP §3.5 |
 | Stage 3: strong bot, gap to realistic, the five alignment difficulty levels, end-screen score weights (B5 §F6) | Later | RECAP §3.6; bal/SCENARIOS.md |
 | Labour market vs NPC labs: one simple rule for NPC staff and poaching | Check | RECAP §2.1; likely settled by the NPC merge (archive/npc/MERGE-MASTER.md: background demand, one shock per direction, no NPC stars) |
-| Foothold removal crews sized for 100-head teams | Decide | RECAP §2.2 |
-| Review staffing 5 → 2.5 per 10% reviewed (lead's change) | Decide | RECAP §2.3 |
-| P24's permanent extra returns (rShare 0.3) have no AIFM counterpart | Check (M4) | RECAP §2.4 |
-| AI efficiency across tasks (AIFM: cheaper on easy tasks; game: flat) | Check (M4) | RECAP §2.5; LABOUR-ROUND §12 Q1 |
-| Successor-pull checks fail on master (pull grows with automation; steering act) — no owner | Bug | RECAP §2.7 |
+| Foothold removal crews sized for 100-head teams | Parked (designer 11-27) | RECAP §2.2 |
+| Review staffing 5 → 2.5 per 10% reviewed (lead's change) | Parked (designer 11-27) | RECAP §2.3 |
+| P24's permanent extra returns (rShare 0.3) have no AIFM counterpart | Parked (designer 11-27; M4 shows if visible) | RECAP §2.4 |
+| AI efficiency across tasks (AIFM: cheaper on easy tasks; game: flat) | Parked (designer 11-27; M4 measures the gap) | RECAP §2.5; LABOUR-ROUND §12 Q1 |
+| Successor-pull checks fail on master (pull grows with automation; steering act) — no owner | Bug (parked 11-27) | RECAP §2.7 |
 | Taste effects for unlock and safety projects; full safety candidate lifecycle (~700 lines) | Later (parked mechanism) | bal/SAFETY-UNIFY.md |
 | Release lumps (fix D) | Check (M4) | RECAP §2 |
-| Small-model size ceiling (M3), with the SCALE-DIAG S1–S4 settings | Decide | bal/SCALE-DIAG.md §5 |
-| Per-timeline horizon law (built, unused) | Decide | bal/FIXC-TRANSLATION.md §6 |
-| Idea diminishing returns within a project (R2.4 option D) | Later (parked mechanism) | BAL-TASKS.md; bal/STAGE1-DESIGN.md |
+| Small-model size ceiling (M3), with the SCALE-DIAG S1–S4 settings | Parked (raise only if M4 shows it blocks calibration) | bal/SCALE-DIAG.md §5 |
+| Per-timeline horizon law (built, unused) | Parked (raise only if M4 shows it blocks calibration) | bal/FIXC-TRANSLATION.md §6 |
+| Idea diminishing returns within a project (R2.4 option D) | Parked (raise only if M4 shows it blocks calibration) | BAL-TASKS.md; bal/STAGE1-DESIGN.md |
 | Registry housekeeping: 9 comment/code mismatches (§B), 12 duplicated constants (§C), closure-held effects (§D), target re-triage (§E), one-offs (§F); the B6 target discussion | Parked | bal/B5-QUESTIONS.md; bal/B6-PREP.md |
 
 ## NPC labs
@@ -77,23 +76,23 @@ Spec [MARKET.md](MARKET.md); checkpoint report archive/MARKET-CP.md.
 | Seat price readout is the last sector × region cell's, not the average (`a.seatPrice = o.seat`, src/engine/v2/worldfx/revenue.ts:575, verified 2026-11-27) | Bug | archive/MARKET-CP.md (b)1 |
 | Agent mode's row in Products › Add a tool shows no type and no effect | Check | archive/MARKET-CP.md (b)2 |
 | μ elasticity has no source at market level | Later | MARKET.md |
-| Does a seller's own model set the scale its other models face? | Decide | MARKET.md |
+| Does a seller's own model set the scale its other models face? (as built: yes, trade-off shown truthfully; MK-6d alternative withdrawn) | Later (revisit when the designer says) | MARKET.md |
 | Vetted "Usage terms" link and an explicit Chat free-tier picker are not on the screen | Later | MARKET.md |
 | 2027 revenue $73B vs ≈ $140B sourced (F11) | Check (after M4) | bal/B6-PREP.md |
 | Sector value per $ of revenue rises in the game, falls in the sources (VAL) | Check | archive/V3-TASKS.md |
 
 ## Safety
 
-From the R&D review's "dedicated safety session" list (archive/RD-AUDIT/REVIEW-FIXES.md) and the v3 tasks.
+All of these go to one **dedicated safety session, started when the designer says** (designer 2026-11-23 and 2026-11-27). Sources: archive/RD-AUDIT/REVIEW-FIXES.md and the v3 tasks.
 
 | Item | Kind | Detail |
 |---|---|---|
-| Over-confident beliefs | Later | archive/RD-AUDIT/REVIEW-FIXES.md |
-| S5 option (a) | Decide | archive/RD-AUDIT/REVIEW-FIXES.md |
-| S4 re-judge; the S4 band 0.55–0.85 has no source | Decide | archive/RD-AUDIT/REVIEW-FIXES.md; archive/PROGRESS.md |
-| Safety programmes sit idle after a finished project | Bug | archive/RD-AUDIT/REVIEW-FIXES.md |
-| Monitor stop rate vs SR-12 | Check (a93a01ec may have fixed it) | archive/RD-AUDIT/REVIEW-FIXES.md |
-| Sandbagged discoveries should read "nothing found" (SABREAD) | Check | archive/V3-TASKS.md |
+| Over-confident beliefs | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
+| S5 option (a): instruments get harder with capability (sourced) | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
+| S4 re-judge; the S4 band 0.55–0.85 has no source | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md; archive/PROGRESS.md |
+| Safety programmes stop after a finished project; teams idle for the rest of the game (day 900: 0 of 18 staffed) | Bug → safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
+| Monitor stop rate vs SR-12 (a93a01ec may have fixed it) | Safety session | archive/RD-AUDIT/REVIEW-FIXES.md |
+| Sandbagged discoveries should read "nothing found" (SABREAD) | Safety session | archive/V3-TASKS.md |
 
 ## UI
 
@@ -104,12 +103,11 @@ From the R&D UI phase follow-ups (archive/RD-AUDIT/UI-BUILD.md) unless noted.
 | Evals tab still shows raw levels (OQ-6) | Check | UI-BUILD |
 | Three SAFETY › Cases limits missing (uitest R10) | Check | UI-BUILD |
 | SAFETY › Safeguards as the one home for monitors, safeguard level, KYC | Check | UI-BUILD |
-| Overview race "YOU · Atlas-2.10": which model should the lead use | Decide | UI-BUILD |
+| Overview race "YOU · Atlas-2.10": which model the lead is measured on (the NPC merge rebuilt lead measurement) | Check | UI-BUILD |
 | Star Hire preview says "no project moves today" for a lasting taste gain | Bug | bal/RECAP-2026-11-27.md §2.6 |
 | Skipped readouts: revenue history per product, rival price per sector, win-back previews, licence sellers, spy estimate | Later | UI-BUILD |
 | SL1–SL5 labels dropped (mapping not sourced) | Parked | UI-BUILD |
 | Codex says "rivals are simplified" (decided 2026-11-16) | Check | archive/LIMITS.md |
-| Onboarding: goals rail, coach cards, quarter recap (never built; still wanted?) | Decide | archive/ux/PLAN.md U4.4 |
 | Regenerate GLOSSARY.md (`lint-ux --doc`) after the data-centre and NPC merges | Parked | ux/GLOSSARY.md |
 
 ## Finance and model
