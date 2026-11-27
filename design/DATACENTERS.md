@@ -1,6 +1,8 @@
 # Data centres and power (redesign)
 
 Status: draft for designer approval (2026-11-27). Replaces the site/power model of V2-SPEC §3.8 and research/15 §1.3.
+**Scope: sites and power only.** Financing (pay options, capex leases, debt), the chip market, cloud rental and
+everything else stay as they are.
 Data: research/23-datacenter-sites.md. Values marked **[design]** have no source and are ours to set.
 
 ## 1. What the system must show the player
@@ -21,10 +23,10 @@ Each source has an upfront cost **or** a higher power price, never both.
 | | Rent | Grid | Gas |
 |---|---|---|---|
 | What it is | A hall in a colocation or neocloud campus | A new connection from the utility | Your own turbines on site |
-| Power ready in | 1 q if free halls remain this quarter, else reserve a hall under construction: 4–10 q | **Grid wait** (world, §4): ~12 q in 2023 → ~20 q in 2026 | **Turbine wait** (world, §4): ~6 q in 2023 → ~10 q in 2026 |
+| Power ready in | **Rent wait** (world, §4): ~1 q in 2023 → ~4 q in 2026 | **Grid wait** (world, §4): ~12 q in 2023 → ~20 q in 2026 | **Turbine wait** (world, §4): ~6 q in 2023 → ~10 q in 2026 |
 | Permits | none | 1 q | 2 q (air permits) |
 | Construction | none (the landlord builds) | 8 q | 8 q |
-| Size per site | up to 1 GW, and what free halls are left | up to 1 GW | up to 5 GW |
+| Size per site | up to 1 GW | up to 1 GW | up to 5 GW |
 | Upfront cost per GW | network only ($4B) | building $14B + utility upgrades $0.2B | building $14B + turbines $3B |
 | Running cost | rent ≈ $1.8B per GW-year (≈ $150/kW-month), 5-year lease, plus grid power | grid power 1.0× | fuel and upkeep ≈ 0.5× grid |
 | Opposition | none (the landlord's problem) | medium | high |
@@ -51,7 +53,17 @@ One number per source, shown on the build card ("Grid wait today: 20 q").
 
 - **Grid wait** = base × (firm queue ÷ connections per year). Queue = everyone's grid sites waiting, including labs and the outside world (hyperscalers, other industry). Calibrate: ~12 q in 2023, ~16–20 q in 2025, ~20 q in 2026 (Dominion, CBRE, PNNL-38441); reforms and new transmission ease it only after ~2028 **[design]**.
 - **Turbine wait** = 4 × (turbine backlog ÷ turbines delivered per year). Backlog = everyone's gas sites, labs and outside world. Output grows ~10–15%/yr to 2030 (GE Vernova, Siemens Energy filings). Calibrate: ~6 q in 2023, ~10 q in 2026 for small turbines.
-- **Free halls** (rent): a pool of unleased halls each quarter, ~1.5 GW in 2026 (CBRE: < 1.5 GW unleased under construction), growing with the market; all buyers draw on it. When it is gone, renting means reserving a hall still being built (4–10 q).
+- **Rent wait** = time until a hall you can lease is ready: unleased halls on the market ÷ everyone's demand. Finished halls are almost all taken (vacancy 1.4%, CBRE H1 2026) and new ones are leased 2–3 years before completion (PNNL-38441), so in 2026 renting means waiting for a hall being built. Calibrate: ~1 q in 2023 **[design: no pre-2025 source]**, ~4 q in 2026 (< 1.5 GW unleased under construction ≈ 6 months of demand, CBRE).
+
+Reference schedule (the waits when the player builds nothing; your and rivals' building pushes them up):
+
+| Wait | 2023 | 2024 | 2025 | 2026 | 2027 | 2028 | 2029 | 2030 |
+|---|---|---|---|---|---|---|---|---|
+| Grid | 12 q | 16 q | 18 q | 20 q | 20 q | 20 q | 18 q | 16 q |
+| Turbines | 4 q | 6 q | 8 q | 9 q | 9 q | 8 q | 7 q | 6 q |
+| Rent | 1 q | 2 q | 3 q | 4 q | 4 q | 4 q | 4 q | 4 q |
+
+Sources: grid 3–4 yr typical before 2024 → up to 7 yr (Dominion 2024), 5–7+ yr (PNNL 2025), 10+ yr in some markets (CBRE 2026), taken as a national middle; small turbines ~12 months (2023) → 12–36 (2025) → 15–36 (2026) (SemiAnalysis); rent as above. **Every 2027–30 value is [design]**: grid eases after reforms and new transmission (ERCOT batch studies, PJM expedited track), turbines ease as makers expand (GE → 24 GW/yr, Siemens → 30+ GW/yr by 2028–30), rent stays tight (JLL: tight through 2030).
 
 No cap on how many GW a player can start. Building more lengthens your own and everyone's waits.
 
@@ -64,7 +76,7 @@ Chosen on the build card; each shows its price and the quarters it saves.
 | Crash construction | Construction 8 q → 4 q | +35% building cost, higher opposition odds | 4 q: xAI Colossus 2 (Epoch). Premium **[design]** |
 | Rush power (grid) | Pay for the substation and lines yourself instead of waiting for the utility's schedule: grid wait − 25% **[design]** | +$0.3B per GW **[design, range $0.05–0.3B unverified]** | LBNL "Speed to Power" (2026) |
 | Rush power (gas) | Buy used or refurbished turbines: turbine wait → 4 q | +30% turbine cost **[design]** | SemiAnalysis: used units in < 12 months |
-| Fast-track permits | Permits − 1 q (gas 2 → 1) | ~1% of building cost **[design]** | Federal fast-track for > 100 MW sites (EO 14318) |
+| Fast-track permits | Permits − 1 q (gas 2 → 1, grid 1 → 0) | 5% of building cost (~$0.7B per GW) **[design]** | Federal fast-track for > 100 MW sites (EO 14318) |
 | Community package | Block odds × 0.5 | ≈ 9% of building cost ($1M per MW) | NY Community Investment Framework (Sep 2026). Effect on odds **[design]**: no data |
 
 The community package rises from 3% to ~9% of the building cost (the sourced benchmark).
