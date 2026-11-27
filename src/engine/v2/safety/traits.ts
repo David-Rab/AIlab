@@ -10,14 +10,14 @@ import { TRAIT_BY_ID, TRAIT_IDS, TRAIT_ORDER, TRAIT_START } from '../../../data/
 import { UMODES } from '../../../data/v2/umodes';
 import { IDA_RL_SHARE, REFERENCE_BASE, RL_BUDGET, RL_FAMILIES as RL_FAMILY_DEF, RL_FAMILY_IDS, RL_FAMILY_NEEDS } from '../../../data/v2/runDesign';
 import { rlWeights, type FamilyMap } from '../models/effective';
-import { suiteExploitMap, suiteRlWeights, suiteS2 } from '../models/suites';
+import { suiteExploitMap, suiteFamilies, suiteS2, startSuites } from '../models/suites';
 import { bestPlayerVersion, CHINA_ID, internalVersion, PLAYER_ID } from '../models/labs';
 import { designTarget, drawData, playerDraw, startPortfolio, type DataDraw } from '../production/data';
 import type {
-  BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
+  BaseDesign, BaseModel, BeliefEvidence, DomainId, EngineSystem, GameStateV2, HiddenWorld, ModelVersion, PostDesign, RivalLab, RLFamily, RngLike, SafetyPosture, SignalId,
   SimpleModel, SystemCtx, ToolFamily, TrainingRun, TraitBelief, TraitId, TraitVector, UModeId,
 } from '../types';
-import { gOfLevel, gV0, h50Growth, h50Of } from '../models/capability';
+import { gOfLevel, gV0, h50Growth, h50Of, levelOfG } from '../models/capability';
 import { gapFactor, measuredOom, versionOom } from './oversight';
 import { AG05_OVERSIGHT } from '../../../data/v2/oversight';
 import { H50_V0_MIN } from '../../../data/v2/workTypes';
@@ -57,8 +57,6 @@ export type RunQuantities = {
   /** The policy's level is the measured one (previews, beliefs). */
   believed?: boolean;
 };
-/** The run's policy: as given, else the lab's internal model at its measured level (the player's estimate). */
-const policyOfQ = (s: GameStateV2, q?: RunQuantities) => q?.policy ?? policyOf(s, undefined, true);
 const believedQ = (q?: RunQuantities) => !q?.policy || !!q.believed;
 const rhoOf =(post: Pick<PostDesign, 'rlBudget'>, q?: RunQuantities) => Math.max(1e-6, q?.rho ?? RL_BUDGET[post.rlBudget]);
 
@@ -214,25 +212,54 @@ export function graderOoms(s: GameStateV2, believed = false): { human: number; c
 }
 /** (a) Share of the sound graders that stay sound against `policy` (1 at no gap; the same for every family). */
 export function graderSound(s: GameStateV2, policy: Policy, believed = false): number {
-  const g = graderOoms(s, believed);
-  const credit = flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0;
+  return graderSoundOf(graderOoms(s, believed), flag(s, 'debate') ? AG05_OVERSIGHT.debateCreditOom : 0, policy);
+}
+/** graderSound from the graders' levels and the debate credit (state-free: the player's lab and the reference lab). */
+export function graderSoundOf(g: { human: number; critic: number; aiShare: number }, credit: number, policy: Policy): number {
   const x = policy.oom - credit;
   return (1 - g.aiShare) * gapFactor(Math.max(0, x - g.human)) + g.aiShare * gapFactor(Math.max(0, x - g.critic));
 }
 /** (a) A run's suites as the policy meets them: x'_f = 1 − (1 − x_f)·graderSound. */
 export function missedExploit(s: GameStateV2, exploit: FamilyMap, policy: Policy, believed = false): FamilyMap {
+  return missedExploitOf(exploit, graderSound(s, policy, believed));
+}
+export function missedExploitOf(exploit: FamilyMap, sound: number): FamilyMap {
   const out: FamilyMap = {};
-  const sound = graderSound(s, policy, believed);
   for (const [f, x] of Object.entries(exploit) as [RLFamily, number][]) out[f] = 1 - (1 - Math.min(1, x)) * sound;
   return out;
 }
 
+/** What a post-training run's signals read from the lab that trains it: its suites, graders, the P11 / S8 / technique
+ *  inputs. The player's lab reads its state (playerSignalLab); the world's reference lab reads data constants
+ *  (referenceSignalLab, MISALIGNMENT.md §2). */
+export interface SignalLab {
+  /** Families with a suite. */
+  families: () => RLFamily[];
+  /** The suites' exploitability. */
+  exploit: () => FamilyMap;
+  /** Share of the sound graders against a policy. */
+  sound: (policy: Policy, believed: boolean) => number;
+  /** The policy a run trains when its quantities name none. */
+  policy: () => Policy;
+  p11: boolean;
+  /** Family of an owned safety technique (CoT / BB detectors a run trains against), or undefined. */
+  techFamily: (id: string) => string | undefined;
+  s8: () => number;
+}
+export const playerSignalLab = (s: GameStateV2): SignalLab => ({
+  families: () => suiteFamilies(s), exploit: () => suiteExploitMap(s), sound: (policy, believed) => graderSound(s, policy, believed),
+  policy: () => policyOf(s, undefined, true), p11: adopted(s, 'P11'), techFamily: (id) => s.player.safety.techniques[id]?.family, s8: () => deploymentS8(s),
+});
+
 /** A post-training design's hack share and learned hacking, with the same suites, shares, ρ and policy as postSignals. */
 export function postHack(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
+  return postHackOf(playerSignalLab(s), post, exploit, q);
+}
+export function postHackOf(lab: SignalLab, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): RunHack {
   const rho = rhoOf(post, q);
-  const x0 = exploit ?? suiteExploitMap(s);
-  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
-  const x = missedExploit(s, x0, policyOfQ(s, q), believedQ(q));
+  const x0 = exploit ?? lab.exploit();
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : rlWeights(post.rlFocus, lab.families());
+  const x = missedExploitOf(x0, lab.sound(q?.policy ?? lab.policy(), believedQ(q)));
   const h = hackShare(w, x, rho);
   return { h, lambda: learnedHackingOf(h) };
 }
@@ -397,27 +424,30 @@ export function runBaseQuantities(s: GameStateV2, run: Pick<TrainingRun, 'recipe
  *  `exploit` = the suites a run froze at launch (TrainingRun.recipe.exploit; their families set the shares w_f), else the
  *  lab's suites today (predictions, continual learning, IDA). Every signal is clamped to [0, 1]. */
 export function postSignals(s: GameStateV2, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
+  return postSignalsOf(playerSignalLab(s), post, exploit, q);
+}
+export function postSignalsOf(lab: SignalLab, post: PostDesign, exploit?: Partial<Record<RLFamily, number>>, q?: RunQuantities): Signals {
   const sg = zeroSignals();
   const rho = rhoOf(post, q);
-  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : suiteRlWeights(s, post.rlFocus);
+  const w = exploit ? rlWeights(post.rlFocus, RL_FAMILY_IDS.filter((f) => exploit[f] !== undefined)) : rlWeights(post.rlFocus, lab.families());
   // CP3h: the suites as the run's policy meets them (graders outgrown) and its task lengths (horizon-tracking long tasks).
-  const policy = policyOfQ(s, q);
-  const x = missedExploit(s, exploit ?? suiteExploitMap(s), policy, believedQ(q));
+  const policy = q?.policy ?? lab.policy();
+  const x = missedExploitOf(exploit ?? lab.exploit(), lab.sound(policy, believedQ(q)));
   sg.S1 = PREF_S1[post.pref] * (prefShare(rho) / prefShare(RHO_REF));
-  sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (adopted(s, 'P11') ? 0.2 : 0);
+  sg.S2 = suiteS2(w, x) * optimisationPressure(rho) + (lab.p11 ? 0.2 : 0);
   let s3 = 0;
   for (const [f, wf] of Object.entries(w) as [RLFamily, number][]) s3 += wf * taskTerm(f, policy);
   sg.S3 = K_S3 * s3;
   const against = againstOf(post);
-  const cotMonitor = against.some((id) => s.player.safety.techniques[id]?.family === 'COT');
+  const cotMonitor = against.some((id) => lab.techFamily(id) === 'COT');
   // P23: faithful-by-construction reasoning resists the pressure of training against a CoT monitor (FAITHFUL_COT.resist).
   sg.S4 = Math.max(COT_S4[post.cot], cotMonitor ? COT_S4.pressured * (1 - cotResist(post.cot)) : 0);
   sg.S5 = S5_LONG * (w.longHorizon ?? 0);
   sg.S6 = S6_NARROW_HARMFUL;
-  const bb = against.filter((id) => s.player.safety.techniques[id]?.family === 'BB').length;
+  const bb = against.filter((id) => lab.techFamily(id) === 'BB').length;
   sg.S7 = S7_BASE + s7OfRl(rho) + S7_EVAL_ENV * (w.mlResearch ?? 0) + S7_PER_BB * bb;
   sg.S9 = s9OfDetectors(bb);
-  sg.S8 = deploymentS8(s);
+  sg.S8 = lab.s8();
   for (const k of Object.keys(sg) as SignalId[]) sg[k] = clamp01(sg[k]);
   return sg;
 }
@@ -828,8 +858,11 @@ const HEAL_SAFETY: Record<PostDesign['safety'], number> = { minimal: 0.2, standa
 export function healRate(s: GameStateV2, post: PostDesign, view: EffView = 'true'): number {
   const n = HEAL_METHODS.filter((id) => inRun(s, post, id)).length;
   const e = view === 'true' ? trueEfficacy(s, 'AG18') : believedEfficacy(s, 'AG18');
-  return HEAL_K * e * Math.sqrt(Math.min(HEAL_MAX, 1 + n)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
+  return healRateOf(e, n, post);
 }
+/** healRate from AG18's efficacy and the number of healing methods in the run (state-free). */
+export const healRateOf = (e: number, nMethods: number, post: Pick<PostDesign, 'pref' | 'safety'>): number =>
+  HEAL_K * e * Math.sqrt(Math.min(HEAL_MAX, 1 + nMethods)) * HEAL_PREF[post.pref] * HEAL_SAFETY[post.safety];
 
 /** SR-15 (P6): what a run's training environment reads that only truth knows, in one place. The engine's view holds
  *  the truth (edge weights, difficulty, U-modes, agenda efficacy, the stack's true detection); the run plan's prediction
@@ -859,15 +892,48 @@ export function believedRunView(s: GameStateV2, post: PostDesign | undefined, v?
  *  safety-training removal gated by detection, AG18 healing, anti-scheming's removal and EA cost, inoculation's
  *  generalisation cut. `x` is the trait vector removal reads (true traits, or the believed estimates). */
 export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, view: RunView, gAf: number): TraitEnv {
-  const oom = gAf - gV0(s.hidden.timeline); // CP3i: the trained model's OOM above V0 (method strength at scale)
+  const w = s.hidden.timeline;
+  const oom = gAf - gV0(w); // CP3i: the trained model's OOM above V0 (method strength at scale)
   const mods = playerMods(s, post, view.eff, oom, view.methodQ);
-  for (const [e, k] of Object.entries(uModeEdgeMult(view.uModes))) mods[e] = (mods[e] ?? 1) * k;
   // Heavy safety with white-box alignment audits (AG02 tools) also catches oversight-conditional traits (AF, SCHEME,
   // SAND) that behavioural training misses: their visibility rises OC_VIS → OC_VIS_AUDIT (×1.5) [D] (§3.3.2 H "alignment-audit").
   const audits = post?.safety === 'heavy' && Object.values(s.player.safety.techniques).some((t) => t.agenda === 'AG02' && t.unlocked && t.family === 'WB');
-  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], eaCoef(s), eaSuppression(s), audits ? OC_VIS_AUDIT : OC_VIS, view.det) : {};
+  const lab: EnvLab = {
+    mods, eaCoef: eaCoef(s), eaSupp: eaSuppression(s), audits,
+    heal: post ? healRate(s, post, view.eff) : 0,
+    antiScheme: post && inRun(s, post, 'T-ANTISCHEME') ? { removal: (k) => 1 - Math.pow(1 - methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff, oom, view.methodQ), k), first: s.flags[`ws2.e25.${lineage}`] === undefined } : undefined,
+    hackGen: post && inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff, oom, view.methodQ) : 1,
+    cast: inRun(s, post, 'T-CAST'),
+    tier: tierOfLevel(labLevel(s)), memory: memoryOn(s),
+  };
+  return buildEnv(x, sg, omega, post, view, lab, gAf);
+}
+
+/** What a run's training environment reads from the lab that trains it (the player's lab, or the world's reference lab). */
+export interface EnvLab {
+  /** Edge moderators the lab's own tools and choices set (playerMods). */
+  mods: Record<string, number>;
+  eaCoef: number;
+  eaSupp: number;
+  audits: boolean;
+  /** AG18 healing per post-run. */
+  heal: number;
+  /** Anti-scheming in the run: the removal at EA visibility ratio k, and whether it is the lineage's first. */
+  antiScheme?: { removal: (visRatio: number) => number; first: boolean };
+  /** Inoculation's hack-generalisation multiplier (1 without it). */
+  hackGen: number;
+  cast: boolean;
+  tier: number;
+  memory: boolean;
+}
+
+/** The one environment builder for both the player's runs and the reference lineage (runEnv, referenceEnv). */
+function buildEnv(x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, view: RunView, lab: EnvLab, gAf: number): TraitEnv {
+  const mods = lab.mods;
+  for (const [e, k] of Object.entries(uModeEdgeMult(view.uModes))) mods[e] = (mods[e] ?? 1) * k;
+  const removal = post ? safetyRemovalMap(x, SAFETY_REMOVAL[post.safety], lab.eaCoef, lab.eaSupp, lab.audits ? OC_VIS_AUDIT : OC_VIS, view.det) : {};
   if (post) {
-    const h = healRate(s, post, view.eff);
+    const h = lab.heal;
     if (h > 0) for (const t of REMOVABLE_TRAITS) removal[t] = 1 - (1 - (removal[t] ?? 0)) * (1 - h);
   }
   let eaMult = 1;
@@ -880,19 +946,18 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
   // causally lowers covert actions in the very environments the training uses (ablating it raised o3's 13.2% → 24.2%),
   // the 30× cut is "discounted by eval awareness" and "not sufficient for future models". Unchanged at V0 (the F5
   // probe); weaker on eval-aware frontier models.
-  if (post && inRun(s, post, 'T-ANTISCHEME')) {
-    const vis = (ea: number) => Math.max(0, 1 - eaCoef(s) * ea * (1 - eaSuppression(s)));
+  if (lab.antiScheme) {
+    const vis = (ea: number) => Math.max(0, 1 - lab.eaCoef * ea * (1 - lab.eaSupp));
     const k = vis(x.EA) / Math.max(1e-9, vis(TRAIT_START.EA));
-    const rAS = 1 - Math.pow(1 - methodRemoval(s, 'T-ANTISCHEME', ANTISCHEME_REMOVAL, view.eff, oom, view.methodQ), k);
+    const rAS = lab.antiScheme.removal(k);
     removal.SCHEME = Math.max(removal.SCHEME ?? 0, rAS);
-    if (s.flags[`ws2.e25.${lineage}`] === undefined) eaMult = ANTISCHEME_EA_MULT;
+    if (lab.antiScheme.first) eaMult = ANTISCHEME_EA_MULT;
   }
-  const tier = tierOfLevel(labLevel(s));
   return {
     signals: sg, omega, D: view.D, w: view.w, mods, amp: uModeAmp(view.uModes), removal,
-    removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: tier / 3, memory: memoryOn(s), growthMult: 1,
-    bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: inRun(s, post, 'T-CAST') },
-    eaMult, hackGen: inRun(s, post, 'T-INOC') ? methodMult(s, 'T-INOC', INOC_MULT, view.eff, oom, view.methodQ) : 1,
+    removalMult: uModeRemovalMult(view.uModes), crystalAt: crystalThreshold(view.uModes), tierF: lab.tier / 3, memory: lab.memory, growthMult: 1,
+    bracket: { constitution: post?.pref === 'constitution', heavy: post?.safety === 'heavy', persuasion: post?.pref === 'persuasion', cast: lab.cast },
+    eaMult, hackGen: lab.hackGen,
     afGate: afCapGate(gAf),
     hackTarget: 0, // RF-S9: the player's runs use the one saturation rule; a run that rewards hacks sets its h
   };
@@ -902,6 +967,48 @@ export function runEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: numbe
  *  true view. E18: the AF gate at the trained model's G (the new version's, a base's pretraining G; else the lab's best). */
 export function playerEnv(s: GameStateV2, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, lineage: string, uModes: readonly UModeId[], v?: ModelVersion, gTrained?: number): TraitEnv {
   return runEnv(s, x, sg, omega, post, lineage, trueRunView(s, uModes, post, v), gTrained ?? v?.G ?? bestPlayerVersion(s)?.G ?? gV0(s.hidden.timeline));
+}
+
+// ── the world's reference lab (MISALIGNMENT.md §2): the same environment from data constants and the world only ──
+
+/** The reference lab's agent labour in AI FTE for S8 [D stand-in]: the leader start's day-0 value (562,328 FTE = S8 0.079,
+ *  the same in every world and seed: the start agents). It could follow the reference frontier's AI-company compute later. */
+export const S8_REFERENCE_FTE = 562_328;
+
+/** The reference lab's signal inputs, state-free: the six start suites (leader start exploitability), expert-human
+ *  graders at the world's median-expert level (G_SC − Δ_bm), no P11, no safety technique, no AI critic, S8 at the start value. */
+export function referenceSignalLab(h: HiddenWorld): SignalLab {
+  const w = h.timeline;
+  const suites = startSuites('leader');
+  const families = RL_FAMILY_IDS.filter((f) => suites[f]);
+  const human = w.v3.gSC - w.v3.dBM - gV0(w);
+  return {
+    families: () => families,
+    exploit: () => Object.fromEntries(families.map((f) => [f, suites[f]!.exploit])) as FamilyMap,
+    sound: (policy) => graderSoundOf({ human, critic: human, aiShare: 0 }, 0, policy),
+    policy: () => ({ oom: 0, h50Min: H50_V0_MIN }),
+    p11: false, techFamily: () => undefined, s8: () => Math.min(1, S8_REFERENCE_FTE / S8_FTE_REF),
+  };
+}
+
+/** The reference lab's training environment at a trained model of capability G: the world's true edge weights and
+ *  difficulty, no U-modes, no methods, no lab-wide moderators; the recipe's own moderators (constitution, broad RL),
+ *  standard safety removal at the plain EA visibility, healing at the world's AG18 efficacy. Reads no player state.
+ *  `extraMods` multiplies edge moderators on top (tests: the start tools the probe took from the player's day 0). */
+export function referenceEnv(h: HiddenWorld, x: TraitVector, sg: Signals, omega: number, post: PostDesign | undefined, G: number, extraMods?: Record<string, number>): TraitEnv {
+  const w = h.timeline;
+  const mods: Record<string, number> = {};
+  const mul = (e: string, k: number) => (mods[e] = (mods[e] ?? 1) * k);
+  if (post && post.pref === 'constitution' && post.safety !== 'minimal') { mul('E08', 0.7); mul('E29', 0.7); } // as playerMods
+  if (post?.rlFocus === 'broad') mul('E09', 0.7);
+  for (const [e, k] of Object.entries(extraMods ?? {})) mul(e, k); // test hook: a lab's start tools as moderators
+  const e18 = clamp01(h.agendaEfficacy.AG18 ?? 0); // the player's λ2 shift is 0 before any latent-reasoning model
+  const tier = tierOfLevel(levelOfG(w, G));
+  const view: RunView = { eff: 'true', w: h.edgeWeights, D: h.difficultyMult, uModes: [] };
+  const lab: EnvLab = {
+    mods, eaCoef: 0.8, eaSupp: 0, audits: false, heal: post ? healRateOf(e18, 0, post) : 0, hackGen: 1, cast: false, tier, memory: tier >= 1,
+  };
+  return buildEnv(x, sg, omega, post, view, lab, G);
 }
 
 const W_BAR: Record<string, number> = Object.fromEntries(EDGES.map((e) => [e.id, e.wBar]));
