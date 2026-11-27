@@ -17,7 +17,8 @@ import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../../data/v2/runDesign'
 import { flopOfDesign } from '../models/effective';
 import { clockOfG, refG } from './reference';
 import { gV0 } from '../models/capability';
-import { baseParams, seedRivalLineup, setModelG } from '../actors/rivalModel';
+import { baseParams, setModelG } from '../actors/rivalModel';
+import { npcDomainDg, npcServeOom, seedRivalLineup } from './market';
 import { referenceProfileModel } from '../departments/workfit';
 import { frontierRunShareAt, normalizeSplit, shareRefAt } from '../departments/split';
 import { initialSecurity } from '../security/security';
@@ -126,10 +127,10 @@ export const npcRunFlop = (C: number, yr: number) => Math.max(1e24, B0_FLOP * (C
 
 /** Set a model to capability G at the lab's compute: the reference-profile build (as milestones read a model known by G),
  *  domains, level, FLOP, size and FLOP per token (setModelG). */
-export function setNpcModel(w: TimelineWorld, m: SimpleModel, G: number, C: number, yr: number) {
+export function setNpcModel(w: TimelineWorld, m: SimpleModel, G: number, C: number, yr: number, kind: NpcKindId) {
   const flop = npcRunFlop(C, yr);
   m.build = referenceProfileModel(G, flop).build;
-  setModelG(w, m, G, { flop, params: baseParams(flop) });
+  setModelG(w, m, G, { flop, params: baseParams(flop) }, npcDomainDg(kind)); // N4: G plus the kind's focus offsets
 }
 
 /** Move a lab's lag to where its capability would be `G` (adapter for the theft writer until N6's shock: China's d jumps
@@ -147,7 +148,7 @@ export function npcPhys(r: RivalLab, day: number): RivalLab['phys'] {
   const n = r.npc!;
   return {
     base: { gen: n.rel + 1, day: lastReleaseDay(n, day), flop, params: m.params ?? baseParams(flop), tpp: RIVAL_TPP, gPre: m.G, ePre: n.rec },
-    eff: 1, serve: 0, rec: { pre: n.rec, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 },
+    eff: 1, serve: npcServeOom(day), rec: { pre: n.rec, mid: 0, ceil: 0 }, pool: { pre: 0, mid: 0, ceil: 0 },
   };
 }
 
@@ -174,7 +175,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   n.dStar = t.dStar;
   n.d = t.dStar + (n.d - t.dStar) * Math.exp(-1 / DIFFUSION_TAU_DAYS);
   const C = r.core.computeOnline;
-  setNpcModel(w, r.internal, npcG(s, r), C, yr);
+  setNpcModel(w, r.internal, npcG(s, r), C, yr, n.kind);
   n.hist.push(r.internal.G);
   if (n.hist.length > KINDS[n.kind].releaseLagDays + 1) n.hist.shift();
   n.rec = npcRecipe(w, r.internal.G, C);
@@ -186,7 +187,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
       ...r.internal, id: `${r.core.id}-v${n.rel}`, name: `${n.family}-${n.rel}`, day, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes],
       isPublic: true, openWeights: opensRelease(s, n.kind),
     };
-    setNpcModel(w, pub, npcPublicG(s, r), C, yr);
+    setNpcModel(w, pub, npcPublicG(s, r), C, yr, n.kind);
     pub.recG = npcRecipe(w, pub.G, C);
     r.publicModel = pub;
     r.internal = { ...r.internal, id: `${r.core.id}-v${n.rel + 1}i`, name: `${n.family}-${n.rel + 1}`, day };
@@ -243,12 +244,12 @@ export function initialNpcLab(s: Pick<GameStateV2, 'setup' | 'hidden' | 'time'>,
     id: mid, name, day, G: 0, Lg: 0, domains: {} as SimpleModel['domains'], traitsTrue: { ...TRAIT_START }, uModes: [...uModes], isPublic, openWeights: false,
   });
   const internal = blank(`${id}-v2i`, `${e.family}-2`, phase - RELEASE_CADENCE_DAYS, false);
-  setNpcModel(w, internal, refGAt(s, yr0 - d0 / 365.25), C0, yr0);
+  setNpcModel(w, internal, refGAt(s, yr0 - d0 / 365.25), C0, yr0, kind);
   // The public model at the start: the internal one a release lag ago (none for a lab without a public model: the upstart).
   let publicModel: SimpleModel | undefined;
   if (e.start.publicLagMonths !== null) {
     publicModel = blank(`${id}-v1`, `${e.family}-1`, phase - RELEASE_CADENCE_DAYS, true);
-    setNpcModel(w, publicModel, refGAt(s, yr0 - (d0 + k.releaseLagDays) / 365.25), C0, yr0);
+    setNpcModel(w, publicModel, refGAt(s, yr0 - (d0 + k.releaseLagDays) / 365.25), C0, yr0, kind);
     publicModel.openWeights = k.openness.mode === 'open' || k.openness.mode === 'chinaRung';
     publicModel.recG = npcRecipe(w, publicModel.G, C0);
   } else npc.rel = 0;

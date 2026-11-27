@@ -29,7 +29,8 @@ import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
 import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, rivalLineupStep, rivalToolStep, recordToolShips } from './rivalModel';
+import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, recordToolShips } from './rivalModel';
+import { rivalLineupStep, rivalToolStep } from '../npc/market';
 import { chinaDaily } from './china';
 import { npcCapabilityDay, npcGrowthQ } from '../npc/lab';
 import { npcM, npcMisOf, npcModelRow, npcRacePressure } from '../npc/risk';
@@ -274,7 +275,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
     }
     rivalLineupStep(wl, r, day, true, prev);
   } else rivalLineupStep(wl, r, day, false);
-  // RD-P07: a tool new in this game, TOOL_LAG_DAYS after the player first shipped it (RF-P1).
+  // N4: tools by the public model's horizon, focus and build time (npc/market.ts).
   rivalToolStep(s, r, day);
 
   // N2b-2 (NPC-LABS §4, §7): m = M_world(G) x (1 - 0.5 x safety emphasis x (1 - race response x p)), then the incidents:
