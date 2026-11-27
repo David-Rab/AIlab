@@ -169,3 +169,4 @@ Only if takeoff still runs short after M3: the untested mechanism suspects (the 
 3. **Merge `bal` into master** (designer approved, after the fit).
 4. Then **discuss the full list of relevant deferred mechanisms** (memory `ai27-balance-deferred`, incl. the labour task split) and work on them.
 5. **While the mechanism work runs, the designer playtests master** (the merged fit) to judge whether balance improved the feel. So mechanism work goes on a branch off master and master stays stable and playable; playtest notes are judged against principles, not patched one by one.
+   - **Merge scope (designer, 2026-11-27):** the new-game screen gets a **Timeline: fast / central / slow** choice (the per-game draw worlds; central default). The **old world presets are removed** (ai2027, authors2026, fast, slow, sampled), along with any code only they use. Old saves may break: no migrations.
