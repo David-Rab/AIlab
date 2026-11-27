@@ -7,7 +7,7 @@
 // Capability nodes are research projects (model v3 V2: design/MODEL-V3.md §5, design/TECH-TREE.md §6; engine
 // models/research.ts): kind line (repeatable direction, generations), idea (one-off typed effect) or axis (unlocks a
 // lever, may carry an effect). Each runs ideation (science teams) → small experiments → scale test (research engineers
-// and experiment FLOP) → result → adoption (engineers), at research pace × √capacity; capacity = Σ heads/40 × quality ×
+// and experiment FLOP) → result → adoption (engineers), at research pace × √capacity; capacity = Σ heads/40 ×
 // 1.5 if the team's specialty is the node's column. Effort is in standard-team-months at pace 1. Paradigm nodes (P-ids)
 // use the hidden paradigm draw on their first attempt; other nodes hash32(seed, 'node:'+id). A failed project can be
 // reopened as speculative (half the odds, a wider prior).

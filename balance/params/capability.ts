@@ -472,16 +472,6 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'no tag; workTypes.ts:182 "Hours a human FTE works per year."',
   },
   {
-    id: 'cap.QUALITY_TASTE_SD',
-    ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'QUALITY_TASTE_SD' },
-    value: [-0.5, 0, 1],
-    unit: 'SD',
-    area: 'research', layer: 'world',
-    kind: 'designer',
-    evidence: 'workTypes.ts:184 "Human taste of a team by quality, in SDs of the lab\'s taste distribution (Strong = the lab\'s average) [D]."',
-    notes: 'Array order = solid, strong, elite.',
-  },
-  {
     id: 'cap.RE_LABOUR_UNIT',
     ref: { kind: 'export', module: 'src/data/v2/workTypes.ts', symbol: 'RE_LABOUR_UNIT' },
     value: 2,

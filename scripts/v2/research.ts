@@ -155,7 +155,7 @@ if (process.argv.includes('--rd-r07')) {
 if (process.argv.includes('--rd-a03')) {
   const s = mk(2);
   const others = s.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
-  const teams: Team[] = [0, 1, 2, 3].map((i) => ({ id: `V${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: 'strong', specialty: 'systems' }));
+  const teams: Team[] = [0, 1, 2, 3].map((i) => ({ id: `V${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, specialty: 'systems' }));
   s.player.teams = [...others, ...teams];
   const projs = ['elastic', 'P16', 'L.scale'];
   s.player.research.queue = [...projs];
@@ -373,7 +373,7 @@ if (process.argv.includes('--rd-a03')) {
   const t = mk(2);
   const others = t.player.teams.filter((x) => !(x.role === 'sci' && x.dept === 'cap'));
   const cols = ['pretraining', 'posttraining', 'systems', 'pretraining', 'posttraining', 'systems'] as const;
-  const teams: Team[] = cols.map((c, i) => ({ id: `A${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, quality: 'strong', specialty: c }));
+  const teams: Team[] = cols.map((c, i) => ({ id: `A${i}`, role: 'sci', dept: 'cap', size: 40, heads: 40, specialty: c }));
   t.player.teams = [...others, ...teams];
   const projs = ['L.scale', 'L.data', 'L.rlalg'];
   t.player.research.queue = [...projs];

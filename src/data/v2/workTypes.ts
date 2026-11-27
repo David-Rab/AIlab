@@ -186,8 +186,6 @@ export const COPY_TOKENS_PER_S = 60;
 export const SPEED_CAP = 50;
 /** Hours a human FTE works per year. */
 export const FTE_HOURS_PER_YEAR = 2000;
-/** Human taste of a team by quality, in SDs of the lab's taste distribution (Strong = the lab's average) [D]. */
-export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 
 // ───────────────────────────── research in physical units (V3.4) ─────────────────────────────
 

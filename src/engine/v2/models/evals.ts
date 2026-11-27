@@ -258,7 +258,7 @@ export function evalDaysEstimate(s: GameStateV2, depth: EvalDepth): number {
   const D = EVAL_DEPTHS[depth];
   const m = evalM(s);
   const max = D.staff / TEAM_SIZE.re / m;
-  // SR-21: what the safety needs list would give one more suite (heads × quality → team-equivalents).
+  // SR-21: what the safety needs list would give one more suite (heads → team-equivalents).
   const al = safAllocation(s);
   const a = s.player.research.safRe;
   const d = al.demand;

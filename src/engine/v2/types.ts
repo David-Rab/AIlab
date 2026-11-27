@@ -885,7 +885,7 @@ export type EngNeed = 'runs' | 'upkeep' | 'builds';
 /** A broad allocation: needs in priority order and optional caps per need: an amount (`max`) and a share of the
  *  capacity (`share`, 0..1); absent = no cap. Unused capacity flows down the order. CP3d: `max` is in the list's own unit,
  *  the one its capacity, demand and gets are in (AllocView.unit): research engineers team-equivalents, engineers
- *  team-weeks / week, the safety needs list people (heads × quality; safety/lineProjects.ts safAllocation). */
+ *  team-weeks / week, the safety needs list people (heads; safety/lineProjects.ts safAllocation). */
 export interface Allocation<K extends string> { order: K[]; max: Partial<Record<K, number>>; share: Partial<Record<K, number>> }
 
 export interface ResearchState {
@@ -1235,7 +1235,7 @@ export interface PlayerLab extends LabCore {
   cloud: CloudContract[];
   safety: SafetyDept;
   /** Teams by role (STRUCTURE §4.1, R3). `staff.cap/saf` are derived from their heads; for the player `tasteHire`
-   *  (τ_h) is derived from science-team quality and stars. */
+   *  (τ_h) is derived from stars. */
   teams: Team[];
   /** Star hires (named people): +0.05 τ_h each. */
   stars: number;
@@ -1381,7 +1381,6 @@ export interface BuildState {
 
 export type TeamRole = 'eng' | 're' | 'sci';
 export type TeamDept = 'cap' | 'saf';
-export type TeamQuality = 'solid' | 'strong' | 'elite';
 /** The six tree columns: a science team's specialty (R4 projects). */
 export type Column = 'pretraining' | 'posttraining' | 'systems' | 'alignment' | 'interp' | 'evals';
 /** Hiring-target keys: engineers (one shared pool, paid from the capabilities budget) and research engineers and
@@ -1396,7 +1395,6 @@ export interface Team {
   size: number;
   /** People on the team now (attrition lowers it, hiring refills it; fractional is fine). */
   heads: number;
-  quality: TeamQuality;
   specialty?: Column;
   name?: string;
   /** R4: the tree project a science team works on. */
@@ -1407,24 +1405,12 @@ export interface Team {
   why?: string;
 }
 
-/** A team on the candidate list (drawn weekly from the 'company' stream). */
-export interface TeamCandidate {
-  id: string;
-  role: TeamRole;
-  dept: TeamDept;
-  quality: TeamQuality;
-  specialty?: Column;
-  /** Day it leaves the list. */
-  until: Day;
-}
-
 export interface TeamHiring {
   /** "Keep hiring to N teams" per key (a policy: it hires, it never lays off). */
   targets: Record<TeamKey, number>;
-  candidates: TeamCandidate[];
   /** Teams being filled, in order; one hiring lane per department. A team arrives when its heads reach its size. */
   filling: Team[];
-  /** Counter for team and candidate ids. */
+  /** Counter for team ids. */
   nextId: number;
 }
 

@@ -26,15 +26,14 @@ import { caseThreat, safetySabotage } from './covert';
 import { removalFte } from './footholds';
 import { caseOnModel } from './footholdDetection';
 import { casesServed, safAllocation } from './lineProjects';
-import { QUALITY } from '../../../data/v2/teams';
 import { labReviewOn, reviewStaff } from './safeguards';
 import { aiRdShare } from './incidents';
 import { jobAiShare, jobRecord } from './workPackage';
 
-/** Safety research engineers (heads × quality): who staffs cases, patches and tool upkeep (R8). */
+/** Safety research engineers (heads): who staffs cases, patches and tool upkeep (R8). */
 export function safetyReHeads(s: GameStateV2): number {
   let h = 0;
-  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') h += t.heads * QUALITY[t.quality].out;
+  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') h += t.heads;
   return h;
 }
 

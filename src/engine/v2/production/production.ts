@@ -30,7 +30,7 @@ import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
 import { believedProd, believedWorld, elasticitiesAt } from './believed';
-import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, effLabour, measuredLabour, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
@@ -124,7 +124,7 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   for (const t of p.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
+    tai += t.heads * teamTaste(0, wc.sdAI, wc.sAI, m2b, star, tl);
   }
   const v3: V3Inputs = {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
@@ -198,7 +198,7 @@ export function believedInputs(s: GameStateV2, inp: LabInputs): LabInputs {
   for (const tm of s.player.teams) {
     if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
     cap += tm.heads;
-    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star, tl);
+    tai += tm.heads * teamTaste(0, sdAI, sAI, m2b, star, tl);
   }
   return { ...inp, v3: { ...inp.v3, a: ml.fit.a, assist: ml.fit.assist, Tai: cap > 0 ? tai / cap : 1 } };
 }
@@ -226,8 +226,8 @@ export function aiStaffSpeedPart(s: GameStateV2): { total: number; experiments: 
     for (const tm of s.player.teams) {
       if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
       w += tm.heads;
-      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star, tl);
-      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star, tl);
+      a += tm.heads * teamTaste(0, sdAI, sAI, P.m2b, star, tl);
+      h += tm.heads * teamTaste(0, sdAI, 0, P.m2b, star, tl);
     }
     if (w > 0 && h > 0) ideas = a / h;
   }

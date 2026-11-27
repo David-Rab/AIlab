@@ -30,7 +30,7 @@ import { nextLineProject, nodeKnown, projectEta, projectReady } from '../models/
 export interface LineRow {
   id: AgendaId; name: string; column: string; T1: number;
   band: { mean: number; lo: number; hi: number; label: LineHealth }; status: string;
-  teams: { id: string; specialty?: string; heads: number; quality: string; projectId?: string }[];
+  teams: { id: string; specialty?: string; heads: number; projectId?: string }[];
   heads: number; capacity: number; mult: number; computeShare: number; aiLabour: number;
   /** Results so far by shown type, and the total. */
   results: Partial<Record<FindingType, number>>; findings: number; resultsPerYear: number; deadEndTM: number;
@@ -58,7 +58,7 @@ export function lineRows(s: GameStateV2): LineRow[] {
     const firstOpen = ideas.find((n) => !nodeKnown(s, n.id));
     return {
       id: a.id, name: a.name, column: a.column, T1: a.T1, band: posteriorBand(st), status: st.status,
-      teams: teams.map((t) => ({ id: t.id, specialty: t.specialty, heads: t.heads, quality: t.quality, projectId: t.projectId })),
+      teams: teams.map((t) => ({ id: t.id, specialty: t.specialty, heads: t.heads, projectId: t.projectId })),
       heads: teams.reduce((x, t) => x + t.heads, 0), capacity: lineCapacity(s, a.id), mult: lineMult(s, a.id), computeShare: st.computeShare,
       aiLabour: teams.length ? lineLabour(s, a.id, false /* UB-2: no hidden sandbagging */).aiShare : 0, results, findings, resultsPerYear: Math.round(lineResultsPerYear(s, a.id) * 100) / 100, expObs: lineExpectedObserved(s, a.id),
       deadEndTM: st.deadEndTM ?? 0,

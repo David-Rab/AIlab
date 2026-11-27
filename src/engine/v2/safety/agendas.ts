@@ -77,7 +77,7 @@ export const lineTeams = (s: GameStateV2, ag: AgendaId): Team[] => s.player.team
 /** Whether any team works on the line (the pre-R8 "funded"). */
 export const lineStaffed = (s: GameStateV2, ag: AgendaId) => s.player.teams.some((t) => t.role === 'sci' && lineOfTeam(t) === ag);
 
-/** Safety research engineers (heads × quality) and what each need got today (RD-A04: one needs list in the player's
+/** Safety research engineers (heads) and what each need got today (RD-A04: one needs list in the player's
  *  order, safety/lineProjects.ts safAllocation; SR-13b: the safeguards' staff first); idle = what no need takes. */
 export function safetyRe(s: GameStateV2): { heads: number; investigations: number; patches: number; safeguards: number; experiments: number; validation: number; evals: number; idle: number } {
   const al = safAllocation(s);

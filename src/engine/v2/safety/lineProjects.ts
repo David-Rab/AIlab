@@ -49,7 +49,7 @@ import { aarAuto, aarFindingOom } from './ideas';
 
 const node = (id: string): TreeNodeDef | undefined => PROJECT_BY_ID[id];
 
-/** RD-R02a: safety research-engineer heads (× quality, the allocator's unit) in one experiment-labour unit
+/** RD-R02a: safety research-engineer heads (the allocator's unit) in one experiment-labour unit
  *  (RE_LABOUR_UNIT team-equivalents of TEAM_SIZE.re heads; departments/capacity.ts reCapacity). */
 const HEADS_PER_LABOUR_UNIT = RE_LABOUR_UNIT * TEAM_SIZE.re;
 const agendaOf = (n: TreeNodeDef) => n.agenda as AgendaId;
@@ -157,12 +157,12 @@ const openCaseShare = (s: GameStateV2) => s.player.safety.investigations.filter(
 /** The safety compute line (H100e): split.safety of the online compute (RD-A05a's flat allocation). */
 export const safetyLineH100e = (s: GameStateV2) => s.player.computeOnline * Math.max(0, s.player.split.safety);
 
-/** Today's safety research-engineer and compute allocation (SR-21: LAB's one needs list). Heads are heads × quality. */
+/** Today's safety research-engineer and compute allocation (SR-21: LAB's one needs list). Heads are heads. */
 export interface SafAlloc {
   /** Engineers not on review, cases, fixes or removals; on line experiments; on validation jobs (SR-09; valPool = their
    *  H100e of the line); idle (no need takes them); on human review (the 'review' need, SR-21: in the list). */
   free: number; exp: number; validation: number; valPool: number; idle: number; safeguards: number;
-  /** RD-A04 / SR-21: capacity (heads × quality), each need's demand and what it got (player's order). */
+  /** RD-A04 / SR-21: capacity (heads), each need's demand and what it got (player's order). */
   heads: number; demand: Record<SafReNeed, number>; got: Record<SafReNeed, number>;
   /** SR-21: each need's compute on the safety line (H100e). Cases and evals ask a fixed amount, filled in the needs
    *  list's order; validation jobs and line experiments share what is left by need (RD-B08 rule). computeIdle = the
@@ -231,7 +231,7 @@ export function safAllocation(s: GameStateV2, extra?: string, extraCap?: number)
   }
   const mSaf = evalM(s);
   // SR-21: one needs list; human review (SR-13b's pre-commit) and eval suites (the capability engineers' 'evals' need)
-  // are needs in it; eval staff are safety engineers (heads × quality = team-equivalents × TEAM_SIZE.re).
+  // are needs in it; eval staff are safety engineers (heads = team-equivalents × TEAM_SIZE.re).
   const demand: Record<SafReNeed, number> = {
     review: safeguardFte(s), spotCheck: spotCheckFte(s), cases: investigationFte(s), validation: validationDemand(s), evals: evalReDemand(s, mSaf) * TEAM_SIZE.re,
     removal: removalFte(s), safExp: askSum,

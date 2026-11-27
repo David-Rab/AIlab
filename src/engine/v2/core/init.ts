@@ -22,7 +22,7 @@ import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
 import { initialSites } from '../compute/sites';
-import { seedCandidates, staffOf, startTeams } from '../departments/teams';
+import { staffOf, startTeams } from '../departments/teams';
 import { initialBoard } from '../finance/board';
 import { initialCapital } from '../finance/investors';
 import { initialFinance } from '../finance/ledger';
@@ -53,7 +53,7 @@ import type {
   Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { hash32, seedStreams, StreamRng } from './rng';
+import { hash32, seedStreams } from './rng';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -345,7 +345,6 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // A7: the start's customer stocks (sector buyers outside China spread as measured in mid-2025, worldfx/mix.ts).
   initPrices(s); // MK-6: the start's prices at the market's fixed point (Nash–Bertrand margins)
   initCustomerStocks(s);
-  seedCandidates(s.player.hiring, new StreamRng(s, 'company'));
   recordThesisHist(s); // FIN2: day-0 milestone metrics (the raise card's trends)
   startDivision(s); // FIN5c: a big-tech division's first budget year and the parent's goals for it
   startStory(s); // FIN5a: the first story mark (valuation), the investor pool and the player's part of it

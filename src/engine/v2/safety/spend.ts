@@ -7,7 +7,6 @@
 // named for what it covers; safety scientists' payroll, idle engineers and product monitors (billed to serving) are not
 // in it, and the readout says so.
 import { DEFAULT_SAF_RE_ALLOC, SAF_RE_NEED_LABEL } from '../../../data/v2/research';
-import { QUALITY } from '../../../data/v2/teams';
 import { monitorBudget } from '../departments/agents';
 import { teamPayroll } from '../departments/teams';
 import { dollarsPerH100eHour } from '../departments/workfit';
@@ -16,7 +15,7 @@ import { safAllocation } from './lineProjects';
 
 export interface SafetyNeedRow {
   k: SafReNeed | 'monitors'; label: string;
-  /** Staff in heads × quality (people) and compute in H100e: asked and got. */
+  /** Staff in heads (people) and compute in H100e: asked and got. */
   staffAsk: number; staffGot: number; computeAsk: number; computeGot: number;
   /** $B/yr of what it got: its people's share of the safety research engineers' payroll, its H100e at the rental rate. */
   staffCost: number; computeCost: number;
@@ -30,7 +29,7 @@ export interface SafetySpend {
   staffCost: number; computeCost: number;
   /** Safety needs spend $B/yr = staffCost + computeCost (what the needs got; not scientists, idle or product monitors). */
   total: number;
-  /** $B/yr per person (heads × quality) and per H100e. */
+  /** $B/yr per person (heads) and per H100e. */
   perHead: number; perH100e: number;
 }
 
@@ -40,7 +39,7 @@ export function safetySpend(s: GameStateV2): SafetySpend {
   const a = safAllocation(s);
   let payroll = 0;
   let q = 0;
-  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') { payroll += teamPayroll(t); q += t.heads * QUALITY[t.quality].out; }
+  for (const t of s.player.teams) if (t.role === 're' && t.dept === 'saf') { payroll += teamPayroll(t); q += t.heads; }
   const perHead = q > 0 ? payroll / q : 0;
   const perH100e = (dollarsPerH100eHour(s) * HOURS_PER_YEAR) / 1e9;
   const eps = 1e-9;
