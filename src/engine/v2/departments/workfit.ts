@@ -25,7 +25,7 @@ import {
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
 import { LINE_MULT_MAX, SERIOUS_CAP } from '../../../data/v2/agendas';
-import { starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
+import { starTasteOf } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { optimalLabour, Phi, tasteSigma } from '../production/ces';
@@ -155,9 +155,9 @@ export function dollarsPerH100eHour(s: GameStateV2): number {
   const r = s.market.rental;
   return r > 0 ? r : (14e3 * Math.pow(0.8, decimalYear(s) - 2025.5)) / 8766;
 }
-/** AI cost per work-hour of a version ($) and the lab's engineers' ($: engineering pay over 2,000 hours). */
+/** AI cost per work-hour of a version ($) and the lab's engineers' ($: the lab's engineering pay, p.pay.eng, over 2,000 hours). */
 export function costPerWorkHour(s: GameStateV2, fpt: number): { ai: number; human: number } {
-  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (TEAM_COST_M.cap.eng * 1e6) / FTE_HOURS_PER_YEAR };
+  return { ai: h100eHoursPerWorkHour(fpt) * dollarsPerH100eHour(s), human: (s.player.pay.eng * 1e6) / FTE_HOURS_PER_YEAR };
 }
 
 // ───────────────────────────── effective labour ─────────────────────────────
