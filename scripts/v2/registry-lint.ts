@@ -20,12 +20,13 @@ const loadModule = (module: string) => {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
-/** Walk `path` from `v`; '*' fans out over every element or key. Returns the matched live values. */
+/** Walk `path` from `v`; '*' fans out over every element or key; '#id' picks the array element whose `id` is that. Returns the matched live values. */
 function walk(v: unknown, path: (string | number)[]): unknown[] {
   if (path.length === 0) return [v];
   const [head, ...rest] = path;
   if (!isObj(v)) return [];
   if (head === '*') return (Array.isArray(v) ? v : Object.values(v)).flatMap((x) => walk(x, rest));
+  if (typeof head === 'string' && head.startsWith('#')) return Array.isArray(v) ? v.filter((x) => isObj(x) && x.id === head.slice(1)).flatMap((x) => walk(x, rest)) : [];
   if (!(String(head) in v)) return [];
   return walk((v as Record<string, unknown>)[String(head)], rest);
 }

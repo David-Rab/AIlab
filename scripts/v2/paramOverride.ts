@@ -7,6 +7,7 @@
 //   - plain field: the value REPLACES the field (number, string, boolean, or number[] for an array-valued field).
 //   - family ('*' anywhere in the path): a NUMBER value MULTIPLIES every numeric member (1.1 = +10%); a non-numeric member
 //     is an error. Any other value type (string, boolean, array) SETS every member.
+// A path step '#P24' picks the array element whose `id` is P24 (registry-lint.ts walks it the same way).
 // Rejected, with an error naming the id: unknown id, `inline` refs (a literal inside a formula), refs with an empty path
 // (a top-level export is a read-only ES module binding), paths that do not resolve. After setting, the live value is read
 // back; if it did not change (frozen object, or a module that copied the value at import time) that is an error too.
@@ -51,6 +52,7 @@ function slots(root: unknown, path: (string | number)[]): Slot[] {
     level = level.flatMap((v) => {
       if (!isObj(v)) return [];
       if (step === '*') return Array.isArray(v) ? v : Object.values(v);
+      if (typeof step === 'string' && step.startsWith('#')) return Array.isArray(v) ? v.filter((x) => isObj(x) && x.id === step.slice(1)) : [];
       return String(step) in v ? [(v as Record<string, unknown>)[String(step)]] : [];
     });
   }
@@ -88,7 +90,7 @@ export async function applyOverrides(o: Record<string, OverrideValue>): Promise<
 }
 
 /** Dry run over the whole registry: how many params can be overridden, by kind (resolves each path, sets nothing). */
-export async function overridableCensus() {
+export async function overridableCensus(ids?: string[]) {
   const reg = await loadParams();
   const out: Record<string, number> = { total: reg.size, overridableField: 0, overridableFamily: 0, inline: 0, topLevel: 0, unresolved: 0 };
   const byKind: Record<string, { ok: number; no: number }> = {};
@@ -102,11 +104,15 @@ export async function overridableCensus() {
       const mod = (await import(pathToFileURL(join(ROOT, ref.module)).href)) as Record<string, unknown>;
       ok = ref.symbol in mod && slots(mod[ref.symbol], ref.path!).length > 0;
     } catch { /* unresolved */ }
+    if (ok) ids?.push(p.id);
     if (ok) { out[ref.path!.includes('*') ? 'overridableFamily' : 'overridableField']++; k.ok++; } else { out.unresolved++; k.no++; }
   }
   return { ...out, byKind };
 }
 
 if (process.argv[1]?.includes('paramOverride') && process.argv.includes('--census')) {
-  console.log(JSON.stringify(await overridableCensus(), null, 1));
+  const ids: string[] = [];
+  const census = await overridableCensus(ids);
+  console.log(JSON.stringify(census, null, 1));
+  if (process.argv.includes('--ids')) console.log(ids.join('\n')); // --census --ids: also list every overridable id
 }
