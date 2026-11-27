@@ -1,0 +1,4 @@
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.gt { font-weight: 600; color: var(--ink2); font-size: 12px; margin: 2px 0 0 4px; }
+.hint a { color: var(--ink); }
+td.mono { word-break: break-all; }
