@@ -24,7 +24,7 @@ import { jobAiShare, jobRecord } from './workPackage';
 import { versionOom } from './oversight';
 import { observeVersion } from './detection';
 import { addKnowledge } from '../models/stacks';
-import { addRivalKnowledge } from '../actors/rivalModel';
+import * as shock from '../npc/shocks';
 import { decayAt, unlockTechnique } from './techniques';
 import { toolExposed } from './footholds';
 import type { Foothold } from '../types';
@@ -465,11 +465,10 @@ export function publishFinding(s: GameStateV2, ctx: SystemCtx, findingId: string
   ctx.bump('relations.credibility', 2, 'published research', rec.id);
   ctx.bump('relations.talentPull', 1, 'published research', rec.id);
   if (rec.trueType === 'SPILL') {
-    // Every other lab's recipe gains what the player's did (SPILL_G OOM, public knowledge in its pretraining part).
-    for (const r of [...s.rivals, s.china.lab]) {
-      if (r.core.status !== 'active') continue;
-      addRivalKnowledge(r, SPILL_G);
-      ctx.cause(`${r.core.id}.recipe`, SPILL_G, 'safety spillover', r.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
+    // N6: every active lab's lag falls a fixed small step (npc/shocks.ts spill).
+    for (const m of shock.spillMoves(s)) {
+      m.lab.npc!.d -= m.days;
+      ctx.cause(`${m.lab.core.id}.lag`, -m.days, 'safety spillover', m.lab.core.id === CHINA_ID ? `${CHINA_ID}:${rec.id}` : rec.id);
     }
   }
   const row = FINDING_BY_ID[rec.id];
