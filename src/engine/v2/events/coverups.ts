@@ -4,6 +4,7 @@
 import type { GameStateV2, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
 import { approvalPush, PUBLIC } from '../world/public';
+import { trustPush, USGOV } from '../world/usgov';
 
 /** The odds a quiet fix is found within its horizon: the discovery odds of the default start state (staff and press
  *  baseline 0.05 × 0.3 + 0.02, no outsiders with access), fixed since the research bodies were deleted (W1c). */
@@ -34,6 +35,7 @@ export function coverupsDaily(s: GameStateV2, ctx: SystemCtx) {
       ctx.log('alert', `A cover-up is exposed: ${c.what}.`, 4);
       ctx.headline('coverup', `Report: ${s.player.name} hid ${c.what}.`);
       approvalPush(s, ctx, PUBLIC.coverupExposed, 'Cover-up exposed');
+      trustPush(s, ctx, USGOV.coverupExposed, 'Cover-up exposed');
     }
   }
   const ir = w.internalReport;

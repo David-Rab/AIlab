@@ -184,7 +184,8 @@ function pledgeEnded(s: GameStateV2) {
   if (!hasCommitment(s, 'monitorabilityPledge')) s.player.safety.monitorabilityCommitment = false;
 }
 
-/** Break: a public pledge broken costs approval (x attention; W4); W5 adds government trust. */
+/** Break: a public pledge broken costs approval (x attention; world/public.ts). Government trust does not move on pledges
+ *  (its rules: world/usgov.ts). */
 export function breakCommitment(s: GameStateV2, ctx: SystemCtx, c: Commitment) {
   c.status = 'broken';
   pledgeEnded(s);

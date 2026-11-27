@@ -1,9 +1,9 @@
-// W4 (public), W5 (US government), W6 (China) add their state here.
+// W4 (public), W5 (US government) and W6 (China) state are here.
 //
 // The engine readout of the outside world now: one flat, JSON-safe record. The observer run (scripts/v2/observer.ts) samples
 // it every quarter; later outside-world tasks extend WorldReadout rather than adding another reader. Read-only: it never
 // changes the state. A value that is not finite (a lab with no model yet, a runaway overflow) is null.
-import { lawsInForce } from '../../../data/v2/laws';
+import { lawIdsInForce, lawsInForce } from '../../../data/v2/laws';
 import { lagDays } from '../models/capability';
 import { bestG, CHINA_ID, labCore, PLAYER_ID } from '../models/labs';
 import { decimalYear } from '../core/time';
@@ -37,6 +37,9 @@ export interface WorldReadout {
    *  those the US government sees, the world's incident heat and the US lead over China (months). */
   observe: { frontierHolder: LabId | null; publicMilestones: MilestoneBoard; govMilestones: MilestoneBoard; incidentHeat: number; usLeadOverChinaMonths: number | null };
   public: { concern: number; approval: number };
+  /** W5 (usgov.ts): the security stage, trust in the player, oversight, consolidation and the conditional laws in force (id to day). */
+  usgov: { stage: number; stageDay: Partial<Record<number, number>>; trust: number; oversight: boolean; consolidated: string; laws: Partial<Record<string, number>> };
+  /** Every law in force (dated and conditional; export controls apart) and the export policy. */
   laws: { inForce: string[]; exportPolicy: string };
   economy: { unemploymentUS: number; youthUnemployment: number; gdpGrowthUS: number; aiIncomeShare: number; automationUS: number };
   geopolitics: { taiwanDisrupted: boolean; chinaGapMonths: number | null };
@@ -80,7 +83,8 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     frontier: { lab: top, G: fin(topG) },
     observe: { frontierHolder: pf.lab, publicMilestones: publicMilestones(s), govMilestones: govMilestones(s), incidentHeat: fin(incidentHeat(s))!, usLeadOverChinaMonths: usLead === null ? null : fin(usLead) },
     public: { concern: fin(s.public.concern)!, approval: fin(s.public.approval)! },
-    laws: { inForce: (['sb53', 'raise', 'euGpai'] as const).filter((k) => L[k]), exportPolicy: L.exportPolicy },
+    usgov: { stage: s.usgov.stage, stageDay: { ...s.usgov.stageDay }, trust: fin(s.usgov.trust)!, oversight: s.usgov.oversight, consolidated: s.usgov.consolidated, laws: { ...s.usgov.laws } },
+    laws: { inForce: lawIdsInForce(s), exportPolicy: L.exportPolicy },
     economy: { unemploymentUS: fin(w.unemployment.US)!, youthUnemployment: fin(w.youthUnemployment)!, gdpGrowthUS: fin(w.macro.US.g)!, aiIncomeShare: fin(w.aiIncomeShare)!, automationUS: fin(automationShare(s, 'US'))! },
     geopolitics: { taiwanDisrupted: ws4r(s).taiwanDisrupted, chinaGapMonths: chinaGap },
     robotsPerMonth: fin(robotOutput(s) / 12)!,

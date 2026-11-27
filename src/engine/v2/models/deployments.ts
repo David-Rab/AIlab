@@ -10,6 +10,7 @@ import { kindOfChannel } from './products';
 import { relaunchCerts } from './certs';
 import { distillLift } from '../production/diffusion';
 import { B0_PARAMS } from '../../../data/v2/runDesign';
+import { oversightBlock } from '../world/usgov';
 
 /** Which version variants a channel accepts (§3.3.5). RD-P05 (DD-02 a): Government and Trusted are who a product is
  *  offered to (its channel, usage policy and safeguards), so any full or mini version can go on them; open weights are
@@ -69,6 +70,8 @@ export function deployGate(s: GameStateV2, v: ModelVersion, channel: Channel, op
   if (channel === 'open' && v.openDay !== undefined) return 'Its weights are already open';
   if (!external(channel)) return true;
   if (v.status === 'evaluating') return 'Still in evaluation';
+  const review = oversightBlock(s, v); // W5: the oversight committee reviews a superhuman AI researcher before launch
+  if (review) return review;
   // FIN3b (FINANCE-V3 §7.2): the charter's release block (nonprofit PBC safety committee; PBC + trust on open weights of
   // a capability-threshold model). Finance reaches the release path only here.
   const charter = charterReleaseBlock(s, v, channel);

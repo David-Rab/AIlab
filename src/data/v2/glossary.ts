@@ -3,6 +3,16 @@
 import { GLOSSARY, type Term } from '../glossary';
 
 const V2: Record<string, Term> = {
+  securityStage: { title: 'Security stage', body: 'How far Washington treats frontier AI as a national-security matter, 0–4: business as usual, security expectations, clearances and embedded officials, an [[oversight]] committee, then [[consolidation]]. It climbs a few months after the government sees a new milestone, from any lab.', src: 'design/world/OUTSIDE-WORLD.md §6.1; AI 2027' },
+  govTrust: { title: 'Government trust', body: 'How much Washington trusts your lab, 0–100. Up when you meet its security expectations, brief officials fully and comply; down when you resist, a cover-up comes out, your weights are stolen or your model is badly misused. It moves more the more prominent you are.', src: 'design/world/OUTSIDE-WORLD.md §6.1' },
+  consolidation: { title: 'Consolidation', body: 'The last security stage. Under the Defense Production Act the government pools half of each American lab’s compute into the lab it trusts at the frontier; a lab it does not trust can be taken over instead.', src: 'design/world/OUTSIDE-WORLD.md §6.1; AI 2027' },
+  lawLicensing: { title: 'Frontier licensing', body: 'A federal licence for frontier AI: more friction for AI in law, health and finance, and incident reports as under California SB 53. Passes when public concern stays high.' },
+  lawRelief: { title: 'Worker relief', body: 'Federal help for workers displaced by AI: retraining that speeds re-employment. Passes when unemployment rises more than a point in a year.' },
+  lawUbi: { title: 'Basic income', body: 'A federal basic income. Comes when job losses outlast worker relief by six months; once passed it stays. More of the displaced leave the labour force.' },
+  lawHitl: { title: 'Human-in-the-loop mandate', body: 'A person must sign off on AI work: caps how much of a job AI may take over in every US sector. Passes after a public scare when concern is very high.' },
+  lawSb243: { title: 'Companion chatbot law', body: 'California SB 243 (from January 2026): companion chatbots must say they are AI, handle crisis talk and keep sexual content from minors. Fewer people take an AI companion.' },
+  lawSez: { title: 'Special economic zones', body: 'Zones with light rules where factories convert to building robots. Opened once the government sees a superhuman AI researcher, while concern is low.' },
+  lawFda: { title: 'FDA fast track', body: 'The FDA fast-tracks AI-designed drugs: health technologies reach people in half the time. Comes once an AI drug pipeline exists.' },
   concern: { title: 'Concern', body: 'Share of the public more concerned than excited about AI, 0–100 (Pew’s question).', src: 'Pew CNCEXC; design/world/SOURCES.md §3.1' },
   approval: { title: 'Approval', body: 'What the public thinks of your lab, −100 to 100. Moves with your incidents, disclosures and pledges, more when you are prominent.', src: 'design/world/OUTSIDE-WORLD.md §5' },
   // ── overrides of v1 entries (no canon dates) ──
@@ -11,7 +21,7 @@ const V2: Record<string, Term> = {
   sar: { title: 'Superhuman AI Researcher', body: 'The superhuman-coder test passed for experiments and for research ideas and taste: skill at the [[bestHuman|best human]], at least 90% of the work done alone. 12 levels on the skill ruler.', src: 'MODEL-V3 §6.4; research/13 §2.8' },
   siar: { title: 'Superintelligent AI Researcher', body: 'Research-ideas [[fit|skill]] beyond the best human by twice the gap between the median expert and the best human. 13.5 levels on the skill ruler.', src: 'MODEL-V3 §6.4; research/13 §2.4' },
   asi: { title: 'Superintelligence', body: 'Every cognitive [[workType|work type]] beyond its best human by twice the gap between the median expert and the best human (15 levels). The game resolves here: the outcome depends on the hidden [[misalign|misalignment]] of whoever gets there first and on who holds [[leverage]].', src: 'MODEL-V3 §6.4; V2-SPEC §5.2' },
-  oversight: { title: 'Oversight committee', body: 'A joint company-government body that votes on key decisions.', src: 'research/07 §1.1' },
+  oversight: { title: 'Oversight committee', body: 'A joint company-government body that votes on key decisions. Under it, a launch of a superhuman AI researcher waits a month for its review.', src: 'research/07 §1.1; design/world/OUTSIDE-WORLD.md §6' },
   wsl: { title: 'Weight security level', body: 'WSL 1–5 (RAND). WSL n holds against an OC n attacker with high odds over two months. Raising it costs money and slows research ([[siloing]]).', src: 'RAND SL framework; research/17' },
   neuralese: { title: 'Neuralese', body: 'Latent reasoning and memory that is not readable text. Faster and cheaper to serve, but reasoning monitors go blind: [[monitorability]] drops to almost nothing. Needs the latent-reasoning discovery and a latent base model [[shape|architecture]].', src: 'V2-SPEC §3.3.2, §3.5.1' },
   // ── v2 terms ──
@@ -513,7 +523,7 @@ const V2: Record<string, Term> = {
   gdpChange: { title: 'GDP', body: 'US real GDP at the end against the start of the game.', src: 'research/16 §4.2' },
   unemployment: { title: 'Unemployment', body: 'US unemployment rate at the end; the change is in points since the start.', src: 'research/16 §1A.2' },
   taiwanStatus: { title: 'Taiwan', body: 'Calm, shipping disrupted (a quarantine or blockade under way), crisis passed, or war.', src: 'V2-SPEC §3.11' },
-  companyStatus: { title: 'Company status', body: 'Who controlled your company at the end: independent, nationalized, acquired, or gone (retired, insolvent, ousted).' },
+  companyStatus: { title: 'Company status', body: 'Who controlled your company at the end: independent, under the government’s oversight committee, nationalized, acquired, or gone (retired, insolvent, ousted).' },
   agendaEfficacy: { title: 'Efficacy', body: 'How well a safety programme really works in this world (0–100%). During play you saw a range that narrowed as results came in.', src: 'research/14' },
   alignDifficulty: { title: 'Alignment difficulty', body: 'How hard alignment was in this world compared with the average world: it scales how misaligned trained models start. Fixed and hidden at the start.' },
   worldFacts: { title: 'This world', body: 'Six hidden facts about how alignment works, drawn at the start of every game. They decided how well each safety method could work.' },

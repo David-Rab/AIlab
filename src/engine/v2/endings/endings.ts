@@ -90,7 +90,7 @@ export const endingsSystem: EngineSystem = {
     // 2. Ousted: WS3's quarterly board ouster roll (finance/board.ts) stamps the day.
     if (!observer && s.flags['ws3.ousterDay'] !== undefined) return lossEnding(s, ctx, 'ousted');
     // 3. Nationalized (hard path).
-    if (!observer && w.nationalizedHard) return lossEnding(s, ctx, 'nationalized');
+    if (!observer && s.usgov.consolidated === 'nationalized') return lossEnding(s, ctx, 'nationalized');
     // 4. Catastrophe.
     const cat = catastropheCheck(s, ctx);
     if (cat) return endGame(s, ctx, cat, 'none');

@@ -32,7 +32,7 @@ export type FutureHolder = Exclude<PowerOutcome, 'none'> | 'ai' | 'contested' | 
 export type EndTone = 'pos' | 'neg' | 'warn' | 'neutral';
 export type LabKind = 'player' | 'rival' | 'china';
 export type LabStatusView = 'active' | 'bankrupt' | 'merged' | 'nationalized' | 'shutdown';
-export type CompanyStatus = 'independent' | 'nationalized' | 'acquired' | 'retired' | 'insolvent' | 'ousted';
+export type CompanyStatus = 'independent' | 'under committee' | 'nationalized' | 'acquired' | 'retired' | 'insolvent' | 'ousted';
 export type AsiOutcome = 'held' | 'contained' | 'lost';
 
 export interface EndStep {
@@ -439,7 +439,7 @@ export function endingView(s: GameStateV2): EndingView | null {
   ].filter((h) => h.share > 0).map((h) => ({ ...h, share: r3(h.share) }));
   const outside = holders.filter((h) => !h.you).sort((a, b) => b.share - a.share)[0] ?? { name: 'None', share: 0 };
   const status: CompanyStatus = e.id === 'retired' ? 'retired' : e.id === 'insolvent' ? 'insolvent' : e.id === 'ousted' ? 'ousted'
-    : e.id === 'nationalized' || w.nationalizedHard || w.dpaAccepted ? 'nationalized' : e.id === 'acquired' || w.soldControl ? 'acquired' : 'independent';
+    : e.id === 'nationalized' || s.usgov.consolidated === 'nationalized' || w.dpaAccepted ? 'nationalized' : e.id === 'acquired' || w.soldControl ? 'acquired' : s.usgov.oversight ? 'under committee' : 'independent';
   const v0 = S.valuation.find((x) => x > 0) ?? s.player.finance.valuation;
   const valuation = fin(s.player.finance.valuation);
 

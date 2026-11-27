@@ -15,6 +15,8 @@ import { keptShare } from '../actors/commitments';
 import { labOf, postureOf, rivalMis } from '../actors/rivals';
 import { npcM } from '../npc/risk';
 import { persOf } from '../npc/lab';
+import { ws4r } from '../actors/state';
+import { USGOV } from '../world/usgov';
 
 /** v1 doom curve σ((Mis − doomThreshold)/0.06) (§5.2): since model v3 E9 the odds over worlds of losing control with
  *  no oversight (the world's tolerance θ_w = doomThreshold + ε_w, safety/control.ts). Scores read it as an expectation;
@@ -73,15 +75,17 @@ const KIND_POWER: Record<string, PowerOutcome> = { safety: 'democratic', bigtech
 
 /** Power outcome when lab X's ASI is aligned (§5.2 priority table). */
 export function alignedPower(s: GameStateV2, lab: LabId): PowerOutcome {
-  // 'treaty' (a verified treaty) and 'committee' (the oversight committee): nothing sets them until W5/W6 (W1d).
+  // 'treaty' (a verified treaty): nothing sets it until W6 (W1d).
   if (lab === 'china') return 'beijing';
   const near = [...otherLabs(s).filter((r) => r.core.status === 'active').map((r) => r.core.id), 'player'].some((id) => id !== lab && Math.abs(lagDays(s, id, lab)) < 90 && (id !== 'player' || s.player.status === 'active'));
   if (lab !== 'player') {
     if (near) return 'multipolar';
     return KIND_POWER[labOf(s, lab)?.npc.kind ?? 'bigtech'] ?? 'corporate';
   }
-  // W1c stand-in: 'government' needed the DPA plus executive trust < 40; that trust is gone (its stand-in, 55, never
-  // meets it), so the outcome waits for W5's government trust.
+  // The US government (world/usgov.ts): the oversight committee holds power; a lab pooled under the DPA that the
+  // government does not trust is the government's.
+  if (s.usgov.oversight) return 'committee';
+  if (ws4r(s).dpaAccepted && s.usgov.trust < USGOV.governmentTrust) return 'government';
   if (near) return 'multipolar';
   if (s.player.policies.govBriefing >= 2 && keptShare(s) >= 0.8 && controlShare(s) < 0.5) return 'democratic';
   return 'corporate';

@@ -125,7 +125,7 @@ export function Rich({ text }: { text: string }) {
 // ───────────────────────── cost lines ─────────────────────────
 const CUR_LABEL: Record<CostLine['currency'], string> = {
   cash: '$', revenue: 'rev', compute: 'compute', staffTime: 'staff', progress: 'progress', leadDays: 'lead',
-  credibility: 'cred', approval: 'approval', morale: 'morale', boardConf: 'board',
+  credibility: 'cred', approval: 'approval', trust: 'gov trust', morale: 'morale', boardConf: 'board',
   security: 'security', monitorability: 'monitor', alignment: 'align', freedom: 'freedom', dilution: 'dilution', valuation: 'valuation',
 };
 /** A line's amount in its own unit (model v3 D4): 7.5, 0.146, 2. */

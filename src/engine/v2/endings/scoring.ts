@@ -5,6 +5,7 @@ import type { EndingV2, GameStateV2, LabId, PowerOutcome } from '../types';
 import { lagDays } from '../models/capability';
 import { ws4r } from '../actors/state';
 import { pMisOf, projectedMisAtAsi } from './epilogue';
+import { lawsInForce } from '../../../data/v2/laws';
 
 export const COMPANY_LOSS: EndingV2['id'][] = ['insolvent', 'ousted', 'nationalized', 'acquired'];
 
@@ -77,7 +78,8 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   // spread the score (2026-11-24 end-screen audit: 50 in every ending).
   const m = s.world.macro.US;
   const gdp0 = w.gdp0 || m.gdp;
-  const ubi = s.player.policies.transitionFund >= 20;
+  const fund = s.player.policies.transitionFund >= 20;
+  const ubi = lawsInForce(s).ubi;
   // Leaving the race: an aligned projected winner (power set) shares its abundance; otherwise scale with survival.
   const base = PROSPERITY_BASE[id] ?? (lossLike ? (power !== 'none' ? 65 : 10 + 0.4 * survival[0].value) : 50);
   const prosperity: ScoreTerm[] = [{ label: 'This ending', value: base }];
@@ -86,7 +88,8 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
     { label: 'GDP growth since the start', value: (25 * Math.log2(Math.max(1e-6, m.gdp / gdp0))) / Math.log2(3) },
     { label: 'Unemployment', value: -3 * (s.world.unemployment.US - 4.3) },
   );
-  if (ubi) prosperity.push({ label: 'Transition fund', value: 10 });
+  if (fund) prosperity.push({ label: 'Transition fund', value: 10 });
+  if (ubi) prosperity.push({ label: 'Basic income', value: 10 });
   // Company
   let company: ScoreTerm[];
   if (COMPANY_LOSS.includes(id)) company = [{ label: 'You lost the company', value: 10 }];
@@ -94,7 +97,7 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   else {
     const V = Math.max(1, s.player.finance.valuation);
     const playerFirst = id === 'asiAligned' || id === 'asiTakeover' || (id === 'asiContested' && !otherLabs(s).some((r) => r.core.milestoneDays[6] !== undefined && r.core.milestoneDays[6]! <= (s.player.milestoneDays[6] ?? Infinity)));
-    const independent = !w.dpaAccepted && !w.nationalizedHard && !w.soldControl;
+    const independent = !s.usgov.oversight && s.usgov.consolidated !== 'nationalized' && !w.dpaAccepted && !w.soldControl;
     company = [{ label: 'Valuation', value: 20 * Math.log10(V / 100) }];
     if (playerFirst) company.push({ label: 'First to superintelligence', value: 40 });
     if (independent) company.push({ label: 'Independent at the end', value: 20 });

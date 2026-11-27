@@ -16,7 +16,7 @@
 //   7 E      = E0·(1 − D)(1 + η·CR) ≥ floor;   CR = A·(1 − P_cost/(Wage·W0)), P_cost the buyer's cost per AI work-hour
 //              (use.ts costReduction / demandExpansion; the same demand term bounds AI work, A4: use.ts agentCeilingOf)
 //   8 Hire   = 1 − hireSlope·ΔF (1.2, CAL2-X; ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
-//   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr; U = U_base + Pool/LF
+//   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr (×3 under basic income); U = U_base + Pool/LF
 import {
   ADOPTION, AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,
   type SectorDef,
@@ -35,6 +35,7 @@ import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { costReduction, demandExpansion, workerTarget } from './use';
 import { sigmoid, clamp01, clampR } from './util';
 import { lawsInForce } from '../../../data/v2/laws';
+import { USGOV } from '../world/usgov';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
 import { gOfLevel, levelGate, oomPerLevel, v2LevelGate } from '../models/capability';
@@ -99,14 +100,17 @@ const F_PRE_START: Record<SectorId, number> = (() => {
 })();
 
 /** Friction R_s for a region (research/16 §1A.2 step 4). The EU AI Act's general-purpose-AI obligations add +0.03 in
- *  ROW from their date (data/v2/laws.ts). The US policy terms (federal licensing, the AV and schools bans, the arms
- *  race, SEZs) went with the government actor (W1d); W5 re-adds what it passes through the laws table.
+ *  ROW from their date; US frontier licensing (world/usgov.ts) adds USGOV.licensingFriction on LEGAL, HEALTH and FIN
+ *  (data/v2/laws.ts, the one laws table).
  *  certShare (RF-P3, DD-04): the share of the sector's US buyers who buy from a certified player product; their friction
  *  is CERT_FRICTION_CUT lower, so the sector's is that x the share lower. */
 export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, certShare = 0): number {
   let R = def.R0 * ADOPTION.frictionScale * REGION_SCALE[r].R;
   const id = def.id;
-  if (r === 'US') R -= CERT_FRICTION_CUT * certShare;
+  if (r === 'US') {
+    R -= CERT_FRICTION_CUT * certShare;
+    if (lawsInForce(s).licensing && (id === 'LEGAL' || id === 'HEALTH' || id === 'FIN')) R += USGOV.licensingFriction;
+  }
   if (r === 'ROW' && lawsInForce(s).euGpai) R += 0.03;
   R += s.world.fx.incidentR[id] ?? 0;
   return clampR(R, 0, 0.95);
@@ -209,10 +213,10 @@ export function initialWorld(labIds: LabId[]): WorldEconomy {
   };
 }
 
-/** Player transition fund → Retrain (each $10B/yr +0.1, cap +0.5; R16 §1A.2 step 9). (Government job training went
- *  with the government actor, W1d.) */
+/** Player transition fund + the US worker-relief law → Retrain (the fund: each $10B/yr +0.1; relief USGOV.reliefRetrain;
+ *  cap +0.5; R16 §1A.2 step 9). */
 export function retrainOf(s: GameStateV2): number {
-  return Math.min(0.5, (0.1 * s.player.policies.transitionFund) / 10);
+  return Math.min(0.5, (0.1 * s.player.policies.transitionFund) / 10 + (lawsInForce(s).relief ? USGOV.reliefRetrain : 0));
 }
 
 /** One region's sector update. Returns US layoffs today. */
@@ -222,6 +226,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
   const w = s.hidden.timeline;
   const row = s.world.sectors[r];
   const eff = worldTechEffects(s);
+  const hitl = lawsInForce(s).hitl;
   const playerIdx = mix.providers.findIndex((p) => p.key === 'player');
   const noDropIn = paidDeployments(s).some((d) => d.usagePolicy.noDropInReplacement);
   let layoffs = 0;
@@ -260,7 +265,8 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
     if (sg < sStar) st.seat = sg + ((SEATS.q * sg) / Math.max(1e-6, sStar)) * (sStar - sg) * dt * econ.diffMult;
     else st.seat = sg - SEATS.down * (sg - sStar) * dt;
     st.seat = clamp01(st.seat);
-    const a = alphaOf(w, def, g.AGENCY);
+    // The US human-in-the-loop mandate (world/usgov.ts) caps substitution.
+    const a = r === 'US' && hitl ? Math.min(USGOV.hitlAlphaCap, alphaOf(w, def, g.AGENCY)) : alphaOf(w, def, g.AGENCY);
     const ps = playerIdx >= 0 ? m.share[playerIdx] : 0;
     st.alpha = noDropIn ? ps * Math.min(a, 0.5) + (1 - ps) * a : a;
     const D = st.alpha * st.A;
@@ -298,7 +304,7 @@ function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix
   const openJobs = 0.4 * (1 - 0.6 * (Dw / Math.max(1, Ew))) + 5 * nuEff * gAI;
   const retrain = r === 'US' ? retrainOf(s) : 0;
   const rRe = 2.0 * mismatch * (1 + retrain) * openJobs;
-  const exit = 0.25;
+  const exit = 0.25 * (r === 'US' && lawsInForce(s).ubi ? USGOV.ubiExitMult : 1); // basic income: more of the displaced leave the labour force
   const pool0 = W.displacedPool[r];
   const pool = Math.max(0, pool0 + layoffs - pool0 * (rRe + exit) * dt);
   W.displacedPool[r] = pool;
@@ -364,7 +370,7 @@ export const worldDailySystem: EngineSystem = {
       if (R < star) fx.reach[r] = R + (RC.p + RC.q * R) * (star - R) * dt;
       else fx.reach[r] = R - RC.down * (R - star) * dt;
     }
-    const friendStar = 0.03 + 0.18 * v2LevelGate(s.hidden.timeline, 'SOCIAL', cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US;
+    const friendStar = 0.03 + 0.18 * v2LevelGate(s.hidden.timeline, 'SOCIAL', cons.socialG, FRIEND_SOCIAL_MID, 1) * fx.reach.US * (lawsInForce(s).sb243 ? USGOV.companionFactor : 1);
     W.friendShare += (friendStar - W.friendShare) * 3 * dt;
 
     // The player transition fund is charged only by WS3's payroll system (finance ledger); its effects on workers

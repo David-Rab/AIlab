@@ -139,9 +139,9 @@ export function govAdviceG(s: GameStateV2, mix: WorldMix): number {
 }
 const REASON_IX = DOMAIN_IDS.indexOf('REASON');
 
-/** Daily control update (called from worldDaily). The policy terms (government AI advisors, arms race, human judgment
- *  over force removed, a human-in-the-loop mandate, advice transparency, multi-vendor) went with the government actor
- *  (W1d); W5 re-adds what it passes. */
+/** Daily control update (called from worldDaily). No law acts here: the US human-in-the-loop mandate caps substitution
+ *  in the sectors (worldfx/sectors.ts), and the other old policy terms (government AI advisors, arms race, human
+ *  judgment over force removed, advice transparency, multi-vendor) are gone with the old government actor. */
 export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix): void {
   const W = s.world;
   const US = W.sectors.US;
@@ -192,7 +192,7 @@ export function updateControl(s: GameStateV2, _ctx: SystemCtx, mix: WorldMix): v
       Lag = Math.max(Lag, ivAg * 0.5 + Lag * 0.5);
       Lr = Math.max(Lr, ivR * 0.5 + Lr * 0.5);
     }
-    // Tier cap: DoDD 3000.09-style human judgment over force holds (nothing removes it until W5).
+    // Tier cap: DoDD 3000.09-style human judgment over force holds (no law removes it).
     const cap: ControlState['tierCap'] = dom === 'MIL' ? 1 : 3;
     c.tierCap = cap;
     const a = clamp01(levelGate(w, Lag, 9.5, 1.2) + 0.25 * pressure + 0.2 * v2LevelGate(w, 'REASON', Lr, 12, 0.5) - 0.03);

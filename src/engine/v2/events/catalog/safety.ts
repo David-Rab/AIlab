@@ -97,16 +97,19 @@ export const SAFETY_EVENTS: EventDefV2[] = [
     choices: [
       ch('Full disclosure', ['disclose', 'safety'], discloseGain, (s, ctx) => {
         const w = ws4(s);
+        w.misalignLeakDay ??= ctx.day;
         w.disclosed++;
         approvalPush(s, ctx, PUBLIC.discloseChoice, 'You disclosed');
         w.redFlags = 0;
         s.flags['ws4:outsideExpertsOffer'] = ctx.day;
       }),
-      ch('Deny', ['deny'], P([]), (s) => {
+      ch('Deny', ['deny'], P([]), (s, ctx) => {
         addCoverup(s, 'the truth behind the leaked memo', clamp(COVERUP_DISCOVERY_ODDS + 0.3, 0, 1), 120);
+        ws4(s).misalignLeakDay ??= ctx.day;
         ws4(s).leaked++;
       }),
-      ch('Spin', ['quiet'], P([]), (s) => {
+      ch('Spin', ['quiet'], P([]), (s, ctx) => {
+        ws4(s).misalignLeakDay ??= ctx.day;
         ws4(s).leaked++;
       }),
     ],

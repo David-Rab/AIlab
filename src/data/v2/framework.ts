@@ -61,8 +61,8 @@ export const FRAMEWORK_LEVEL_SLACK = 2;
 export const FRAMEWORK_BELIEF_SLACK = 0.2;
 
 /** What an explicit override costs, stated in its preview and applied [D]: staff (safety-team morale, and one red
- *  flag: the whistleblower hazard, security.ts). The government and reputation costs went with the relation stocks
- *  (W1c); W5 adds the government's. */
+ *  flag: the whistleblower hazard, security.ts). No government cost: the US government's trust moves only by its own
+ *  rules (world/usgov.ts). */
 export const OVERRIDE_COST = { moraleSafety: 5 } as const;
 
 export const SAFEGUARD_NEED_LABEL: Record<FrameworkRule['safeguards'][number], string> = {
