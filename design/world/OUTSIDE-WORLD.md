@@ -415,3 +415,39 @@ The designer: "AI futures plan A B and so on ... should be an inspiration (we sh
 able to implement those plans in theory if things work out)". W13 reads the primary texts and maps each plan onto
 this spec. It also lists the smallest additions each one needs, for example an option on an existing beat or one
 extra state value. Those additions are folded into W5–W7.
+
+## 17. World dashboard (designer, 2026-11-27)
+
+> for the calibration of the outside world (and rivals) i think it would be useful to have a dashboard for me to see
+> (similar idea to the dashboard we have for the balance work)
+
+**Runs.** Observer runs go through `balrun`, with a new mode next to `--forced`:
+- the `observer` policy (weakest start, takes no actions);
+- player endings off, so only world endings stop a run;
+- played to ASI + 3 years, or 2060 at the latest;
+- recorded quarterly.
+
+Grid: tl-fast, tl-central and tl-slow, 8 seeds each, middle alignment. Each record carries a quarterly world `series`:
+- every lab's capability and milestones (NPC labs and China);
+- the US stage and the laws in force;
+- concern and approval;
+- unemployment, youth unemployment, GDP growth and the AI share of income;
+- China's tension and talks;
+- Taiwan shocks;
+- the ending.
+
+**Page.** `worlddash.ts` writes balance/dash/world.html. It is a new file, so the balance dashboard (owned by `bal`) is
+not touched. It reuses that dashboard's look (baldash-assets style) and its timeline benchmarks (balance/scenarios.ts),
+read-only.
+
+| Tab | Shows |
+|---|---|
+| History (Jul 2025 – Nov 2026) | game vs real: unemployment (BLS), youth unemployment, GDP growth (BEA), concern (Pew), export-control steps, law dates (SOURCES.md) |
+| Rivals | per timeline: the leading NPC lab's milestone dates against the AIFM bands; the other labs' lag behind it; China's lab gap |
+| Reactions | per timeline, median and band across seeds: the US stage, laws, concern, unemployment, China tension and talks, Taiwan shocks; time on a calendar axis or relative to the in-game SC/SAR/ASI |
+| Endings | ending mix per timeline |
+| Checks | shape checks S1–S7: pass/fail with the numbers |
+| Parameters | every outside-world parameter: value, source, target (balance/params registry) |
+
+It is built right after the quiet world (W1e), so each actor's effect shows as it is added (W4–W6). It gets rebuilt
+after every step.
