@@ -278,3 +278,66 @@ Reading: splitting costs the lab little in capex (<1% network) and ~1-5% in trai
 - Disclosed project costs are press-derived financing totals with unclear scope [U]; no like-for-like 100 MW vs 1 GW comparison.
 - Construction-time points above 1.5 GW are Epoch projections; no 3-5 GW site exists yet.
 - Epoch "start" = land clearing, which may not match the game's commitment point; the McKinsey / DCD cost claims were not verified at source (snippets only; McKinsey fetch timed out, DCD returned 403).
+
+---
+
+## 10. Gas running cost (fuel + O&M)
+
+Question: what does on-site power cost per MWh when the lab already paid the turbine capex and pays only fuel + O&M? The game used 0.5 x grid tariff with no source. Closes the gap "Gas fuel price not fetched" in section 8.
+
+### 10.1 Inputs
+
+| Input | Value | Source / date | Tag |
+|---|---|---|---|
+| Henry Hub spot, annual avg | 2023 $2.53; 2024 $2.19; 2025 $3.52 /MMBtu | EIA dnav RNGWHHD annual, fetched 2026-11-27 | [P] |
+| Henry Hub forecast | 2026 $3.37; 2027 $2.88 /MMBtu | EIA STEO, Nov 2026 edition (released 2026-11-10) | [P] |
+| STEO 2026 revisions through the year | Jan ~$3.46; Feb $4.31; Mar ~$3.80; Apr $3.67; Aug $3.44; Nov $3.37 | EIA STEO editions (via EIA pages / S&P Global summary) | [P]/[I] |
+| Gas delivered to US electric power consumers, annual | 2022 $7.51; 2023 $3.50; 2024 $2.87; 2025 $4.01 /Mcf (= $3.38; $2.77; $3.87 /MMBtu at 1.036 MMBtu/Mcf) | EIA NG_PRI_SUM_DCU_NUS_A (n3045us3a), fetched 2026-11-27 | [P] + [D] for unit conversion |
+| Delivered monthly 2026 | Jan 10.50; Feb 6.56; Mar 3.21; Apr 2.85; May 2.83; Jun 3.27; Jul 3.47; Aug 3.22 /Mcf. Mar-Aug mean 3.31 /Mcf ($3.20 /MMBtu); Jan-Aug simple mean 4.49 | EIA n3045us3m, release 2026-10-30 | [P] + [D] |
+| Delivered minus Henry Hub | +$0.85 (2023), +$0.58 (2024), +$0.35 (2025) /MMBtu | [D] from rows above | [D] |
+| Heat rate, aeroderivative CT | 9,124 Btu/kWh (HHV basis, EIA); GE LM6000-PF 8,248 Btu/kWh LHV (= ~9,140 HHV at x1.108), 41.4% | EIA AEO2023 Table 1 (Mar 2023, 2022$); GE LM6000 product page | [P]; [P] OEM |
+| Heat rate, reciprocating engine | 8,295 Btu/kWh (EIA 21 MW unit). Wartsila 20V34SG 7,363 kJ/kWh = 6,980 Btu/kWh, basis not stated (if LHV, ~7,735 HHV) | EIA AEO2023 Table 1; Wartsila 34SG datasheet (5% tolerance) | [P]; [P] OEM, basis unconfirmed |
+| Heat rate, industrial frame simple cycle | 9,905 Btu/kWh | EIA AEO2023 Table 1 | [P] |
+| Heat rate, combined cycle | 6,370 (multi-shaft) / 6,431 (single-shaft) Btu/kWh | EIA AEO2023 Table 1 | [P] |
+| Variable O&M ($/MWh, 2022$) | aero 5.29; recip 6.40; frame 5.06; CC 2.10 (multi) / 2.87 (single) | EIA AEO2023 Table 1 | [P] |
+| Fixed O&M ($/kW-yr, 2022$) | aero 18.35; recip 39.57; frame 7.88; CC 13.73 / 15.87 | EIA AEO2023 Table 1 | [P] |
+| Cost basis check | Rabobank all-in (incl. capex) behind-the-meter gas: recip ~$107, aero ~$106, CC ~$101 /MWh in the first years; RMI cites $100-165 /MWh all-in vs $55-115 grid large-load tariffs | Rabobank / RMI 2026 | [I] |
+| Grid tariff | EIA industrial 8.13 c/kWh (2024) = $81.3 /MWh; 8.62 c (2025) = $86.2 /MWh | section 1 above | [P] |
+
+Not obtained: the AEO2025 capital cost report (Sargent & Lundy) was fetched but its PDF text could not be read; AEO2023 values (2022$) are used, and the later AEO2024 vintage in the same file shows nearly identical heat rates. NREL ATB engine/aero rows not found.
+
+### 10.2 Arithmetic
+
+Fuel $/MWh = delivered gas $/MMBtu x heat rate (MMBtu/MWh). Fixed O&M per MWh = $/kW-yr / (8.76 MWh/kW-yr x CF). O&M inflated 2022$ to 2026$ by x1.12 [D, approximate CPI].
+
+Central gas price: delivered $3.80 /MMBtu = Henry Hub ~$3.4 (2026 STEO $3.37) + ~$0.4 delivery premium (2025 observed $0.35) [D]. Cross-check: 2025 delivered $3.87; 2026 Mar-Aug delivered $3.20; 2026 Jan spike $10.1 is a winter-week event, not a running average.
+
+Per unit type at $3.80, 85% CF (7.446 MWh per kW-yr), no redundancy, O&M in 2022$:
+
+| Unit | Fuel | Var O&M | Fixed O&M | Total (2022$ O&M) |
+|---|---|---|---|---|
+| Aeroderivative | 9.124 x 3.80 = 34.7 | 5.29 | 18.35 / 7.446 = 2.5 | 42.4 |
+| Reciprocating | 8.295 x 3.80 = 31.5 | 6.40 | 39.57 / 7.446 = 5.3 | 43.2 |
+| Frame simple cycle | 9.905 x 3.80 = 37.6 | 5.06 | 7.88 / 7.446 = 1.1 | 43.8 |
+| Combined cycle (multi-shaft) | 6.370 x 3.80 = 24.2 | 2.10 | 13.73 / 7.446 = 1.8 | 28.1 |
+
+Typical behind-the-meter AI site (50% aero, 50% recips; the combined cycle is rarely used first because of lead time and size):
+- Blended heat rate (9.124 + 8.295) / 2 = 8.71 MMBtu/MWh.
+- Redundancy and part-load overhead on fuel: N+1 to N+2 spares are idle (no fuel), but units run below full load and the site carries spinning reserve; assume +8% fuel (range +3% to +15%) [D, assumption, no source found]. Fuel = 8.71 x 1.08 x 3.80 = $35.7.
+- Variable O&M: (5.29 + 6.40) / 2 = 5.85.
+- Fixed O&M: installed capacity ~1.3 x served load for redundancy [D assumption]; (18.35 + 39.57) / 2 = 28.96 $/kW-yr x 1.3 / 7.446 = 5.06.
+- O&M total (5.85 + 5.06) x 1.12 = 12.2.
+- Total = 35.7 + 12.2 = **~$48 /MWh**.
+
+Against the grid tariff: 48 / 81.3 = 0.59 (2024); 48 / 86.2 = 0.56 (2025).
+
+Range:
+- Low: delivered gas $2.80 (2024-like, or Permian-basin pipeline gas), efficient recips ~7.7 MMBtu/MWh HHV, no extra fuel overhead, O&M ~$8: 7.7 x 2.80 = 21.6 + 8 = ~$30, = 0.35 x tariff.
+- High: delivered gas $5.50 (sustained high-price case toward 2030, with LNG export pull), aero at +15% part-load = 9.124 x 1.15 x 5.50 = 57.7 + O&M ~$15 = ~$73, = 0.85 x tariff.
+- Gas price swing dominates: each $1 /MMBtu moves the result by ~$9.4 /MWh (= 0.11 x tariff). O&M is ~25% of the central figure.
+
+Check: Rabobank's all-in ~$106 /MWh minus a capex share of ~$55-60 /MWh at their assumed financing is consistent with a running cost of ~$45-50 /MWh [D, loose check].
+
+### 10.3 Verdict
+
+Gas running cost (fuel + O&M, capex already paid) ~ 0.57 x grid tariff (range 0.35-0.85), i.e. ~$48 /MWh (range $30-73) against $81-86 /MWh grid. The game's 0.5 x is inside the range but on the optimistic side of the central value; 0.55-0.6 x is better supported. Winter price spikes (Jan 2026 delivered $10.50 /Mcf) are not in the annual figures; a lab with firm-gas contracts avoids them, a lab on interruptible supply does not.
