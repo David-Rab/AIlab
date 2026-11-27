@@ -16,6 +16,7 @@ import { ALPHA, EPS, ETA, F0_PER_MONTH, INFLOW, LABOUR_KINDS, PAY_RENEWAL_YEARS,
 import { REF_ROLE_SHARE, SAF_ROLE_SHARE, TEAM_SIZE, TEAM_KEYS } from '../../../data/v2/teams';
 import { deptOfKey, moraleFactor, moraleOf, nextSpecialty, roleOfKey, teamLabel } from './teams';
 import * as shock from '../npc/shocks';
+import { PUBLIC } from '../world/public';
 import type { GameStateV2, LabourPool, PlayerLab, RivalLab, SystemCtx, Team, TeamDept, TeamKey, TeamRole } from '../types';
 
 const WEEKS = 52;
@@ -139,8 +140,8 @@ export function matchScale(s: GameStateV2, k: TeamRole): number {
 }
 
 /** Talent pull multiplier [D]: 1 + talentPull/50 at the start type's anchor (data/v2/starts.ts mods; no drift or bumps
- *  since the relation stocks went, W1c; W4 adds an approval term), floor 0. */
-export const pullOf = (s: GameStateV2) => Math.max(0, 1 + startOf(s).mods.talentPull / 50);
+ *  since the relation stocks went, W1c) plus approval / 5 (W4: one approval for customers and hiring), floor 0. */
+export const pullOf = (s: GameStateV2) => Math.max(0, 1 + (startOf(s).mods.talentPull + s.public.approval / PUBLIC.pullPerApproval) / 50);
 
 /** The morale multiplier for kind k: today's moraleFactor per department, weighted by where the openings are. Morale's
  *  only effect on staff is this hiring speed (nobody leaves). */

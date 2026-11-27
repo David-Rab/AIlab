@@ -3,6 +3,7 @@
 // keep their order.
 import type { GameStateV2, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
+import { approvalPush, PUBLIC } from '../world/public';
 
 /** The odds a quiet fix is found within its horizon: the discovery odds of the default start state (staff and press
  *  baseline 0.05 × 0.3 + 0.02, no outsiders with access), fixed since the research bodies were deleted (W1c). */
@@ -15,8 +16,7 @@ export function addCoverup(s: GameStateV2, what: string, pTotal: number, horizon
   w.coverups.push({ id: `cv${s.time.day}-${w.coverups.length}`, day: s.time.day, what, pDaily, until: s.time.day + horizon });
 }
 
-/** Daily: each open cover-up may be exposed (an alert and a headline; its approval cost went with the public actor,
- *  W1d; W4 brings it back); an internal report left past its
+/** Daily: each open cover-up may be exposed (an alert, a headline and an approval hit, W4); an internal report left past its
  *  deadline goes external at 2× damage (A6, E19). */
 export function coverupsDaily(s: GameStateV2, ctx: SystemCtx) {
   const w = ws4(s);
@@ -33,6 +33,7 @@ export function coverupsDaily(s: GameStateV2, ctx: SystemCtx) {
       w.leaked++;
       ctx.log('alert', `A cover-up is exposed: ${c.what}.`, 4);
       ctx.headline('coverup', `Report: ${s.player.name} hid ${c.what}.`);
+      approvalPush(s, ctx, PUBLIC.coverupExposed, 'Cover-up exposed');
     }
   }
   const ir = w.internalReport;

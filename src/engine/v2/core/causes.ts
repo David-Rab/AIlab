@@ -18,6 +18,8 @@ export const CAUSE_KEYS: Record<string, string> = {
   morale: 'player.morale.overall',
   'morale.safety': 'player.morale.safety',
   'world.unemployment.US': 'world.unemployment.US',
+  'public.approval': 'public.approval',
+  'public.concern': 'public.concern',
 };
 
 /** Clamp ranges by canonical key or path prefix; unlisted meters are unbounded. */
@@ -27,6 +29,8 @@ const RANGES: [prefix: string, lo: number, hi: number][] = [
   ['world.unemployment.', 0, 100],
   ['player.finance.valuation', 0, Number.MAX_VALUE],
   ['finance.credibility', 0, 100],
+  ['public.approval', -100, 100],
+  ['public.concern', 0, 100],
   ['revenueRun', 0, Number.MAX_VALUE],
 ];
 

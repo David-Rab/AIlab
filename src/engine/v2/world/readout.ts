@@ -36,6 +36,7 @@ export interface WorldReadout {
   /** W2 shared inputs (observe.ts): the public frontier holder, the milestones shown publicly (index to first day and lab) and
    *  those the US government sees, the world's incident heat and the US lead over China (months). */
   observe: { frontierHolder: LabId | null; publicMilestones: MilestoneBoard; govMilestones: MilestoneBoard; incidentHeat: number; usLeadOverChinaMonths: number | null };
+  public: { concern: number; approval: number };
   laws: { inForce: string[]; exportPolicy: string };
   economy: { unemploymentUS: number; youthUnemployment: number; gdpGrowthUS: number; aiIncomeShare: number; automationUS: number };
   geopolitics: { taiwanDisrupted: boolean; chinaGapMonths: number | null };
@@ -78,6 +79,7 @@ export function worldReadout(s: GameStateV2): WorldReadout {
     labs,
     frontier: { lab: top, G: fin(topG) },
     observe: { frontierHolder: pf.lab, publicMilestones: publicMilestones(s), govMilestones: govMilestones(s), incidentHeat: fin(incidentHeat(s))!, usLeadOverChinaMonths: usLead === null ? null : fin(usLead) },
+    public: { concern: fin(s.public.concern)!, approval: fin(s.public.approval)! },
     laws: { inForce: (['sb53', 'raise', 'euGpai'] as const).filter((k) => L[k]), exportPolicy: L.exportPolicy },
     economy: { unemploymentUS: fin(w.unemployment.US)!, youthUnemployment: fin(w.youthUnemployment)!, gdpGrowthUS: fin(w.macro.US.g)!, aiIncomeShare: fin(w.aiIncomeShare)!, automationUS: fin(automationShare(s, 'US'))! },
     geopolitics: { taiwanDisrupted: ws4r(s).taiwanDisrupted, chinaGapMonths: chinaGap },

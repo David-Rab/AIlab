@@ -3,6 +3,8 @@
 import { GLOSSARY, type Term } from '../glossary';
 
 const V2: Record<string, Term> = {
+  concern: { title: 'Concern', body: 'Share of the public more concerned than excited about AI, 0–100 (Pew’s question).', src: 'Pew CNCEXC; design/world/SOURCES.md §3.1' },
+  approval: { title: 'Approval', body: 'What the public thinks of your lab, −100 to 100. Moves with your incidents, disclosures and pledges, more when you are prominent.', src: 'design/world/OUTSIDE-WORLD.md §5' },
   // ── overrides of v1 entries (no canon dates) ──
   rdmult: { title: 'Research speed', body: 'How fast your lab turns compute and people into results, as × the leading lab in Jul 2025. Your AI staff\'s part (their [[effectiveLabour|work in experiments]], [[researchTaste|research taste]] and adopted research-speed ideas) shows in the breakdown as "× from AI staff"; it stays near ×1 until their [[coverage|share they can do alone]] rises.', src: 'research/13 §2.8; MODEL-V3 §6' },
   sc: { title: 'Superhuman Coder', body: 'A model whose software-engineering [[fit|skill]] reaches the [[bestHuman|best human in the world]], that can do at least 90% of the work alone, with an AI work-hour cheaper than your best engineers\'. As AI 2027 defines it. 10 levels on the skill ruler (10 = best human).', src: 'MODEL-V3 §6.4; research/13 §2.8' },
