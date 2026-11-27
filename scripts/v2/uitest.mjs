@@ -1664,6 +1664,36 @@ await page.evaluate(() => { window.ai27v2.state.setup.tutorial = false; window.a
   ok('DC-10a: choosing Grid sets Buildings to 1 and locks 3 and 5', r.active === '1' && r.locked, `active ${r.active}, locked ${r.locked}`);
   ok("DC-10a: the Grid tile's date is the engine's for one 1 GW grid building", after.includes(r.want), `${after.slice(0, 30)} vs ${r.want}`);
 }
+// DC-10b: at Grid, 1 GW, turning rush power on changes the Grid tile's live date and the preview capex (+$0.3B), and the
+// rush toggle's "saves" text is the engine's difference in the first building's live quarter.
+{
+  const P = '[data-panel=compute]';
+  await nav('compute');
+  await tabTo('overview');
+  await page.click(`${P} [data-opt="path-grid"]`);
+  await page.click(`${P} [data-opt="site-campus"]`);
+  const open = await page.evaluate(() => !!document.querySelector('[data-panel=compute] [data-lever=rush]'));
+  if (!open) await page.click(`${P} [data-test=opt-site]`);
+  const read = () => page.evaluate(() => ({
+    tile: document.querySelector('[data-panel=compute] [data-opt="path-grid"]')?.textContent ?? '',
+    capex: document.querySelector('[data-test="preview.cmp.newSite"] .cac-line')?.textContent ?? '',
+    rush: document.querySelector('[data-panel=compute] [data-lever=rush]')?.textContent ?? '',
+  }));
+  const before = await read();
+  await page.click(`${P} [data-lever=rush] button`);
+  await wait(250);
+  const after = await read();
+  const eng = await page.evaluate(() => {
+    const v = (rush) => window.ai27v2Views.actionView(window.ai27v2.state, 'cmp.newSite', { path: 'grid', mw: 1000, buildings: 1, rush, pay: 'cash' });
+    const a = v(false), b = v(true);
+    return { saves: (a.gains[0].lagDays - b.gains[0].lagDays) / 91, extra: -(b.costs[0].amount - a.costs[0].amount) };
+  });
+  const money = (t) => Number(/−\$([\d.]+)B/.exec(t)?.[1] ?? NaN);
+  ok('DC-10b: rush power changes the Grid tile date', before.tile !== after.tile && eng.saves > 0, `${before.tile.slice(0, 25)} -> ${after.tile.slice(0, 25)}`);
+  ok('DC-10b: rush power adds its price to the preview capex', Math.abs(money(after.capex) - money(before.capex) - 0.3) < 0.06 && Math.abs(eng.extra - 0.3) < 1e-6, `${before.capex.slice(0, 30)} -> ${after.capex.slice(0, 30)}`);
+  ok("DC-10b: the rush toggle's saving is the engine's", before.rush.includes(eng.saves === 0 ? '0 q' : `−${eng.saves} q`), `${before.rush} vs ${eng.saves}`);
+  await page.click(`${P} [data-lever=rush] button`);
+}
 // J1 (jank O1): rendered tooltip coverage. Every visible leaf element in the centre panel whose text holds a digit
 // (≤ 40 chars; not a button, tab or chart) must sit inside a tooltip trigger ([data-tip]). Codex excluded (it is L3).
 const tipCov = { tipped: 0, n: 0, miss: [] };

@@ -114,9 +114,9 @@ const NETWORK_PER_GW = 4;
  *  ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two halls); 1 GW ≈ the largest live sites in 2026 (Epoch AI
  *  data centers hub) [D]. Bigger sites are campuses of several buildings (CAMPUS). */
 export const SITE_TIERS = [
-  { id: 'hall', name: 'Hall', full: 'Data hall', mw: 100 },
-  { id: 'building', name: 'Building', full: 'Data-centre building', mw: 300 },
-  { id: 'campus', name: 'Campus', full: 'Campus', mw: 1000 },
+  { id: 'hall', mw: 100 },
+  { id: 'building', mw: 300 },
+  { id: 'campus', mw: 1000 },
 ] as const;
 /** Fixed chip order and cloud sizes, H100e [D]. */
 export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
