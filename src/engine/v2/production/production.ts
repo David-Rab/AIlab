@@ -19,6 +19,7 @@ import { recipeDiffusionPerDay } from './diffusion';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT } from '../../../data/v2/workTypes';
 import { CHINA_PRESETS } from '../../../data/actors';
 import { decimalYear } from '../core/time';
+import { FORCING } from '../core/forcing';
 import { CHINA_ID, PLAYER_ID, labCore, otherLabs, rivalLab } from '../models/labs';
 import { addRivalKnowledge, adoptRivalIdeas, advanceRecipe, bestRivalMix, evalRival, recipeRates, rivalAgentFpt, rivalReadout, rivalWorkModel, serveRate } from '../actors/rivalModel';
 import { addKnowledge, trainNow } from '../models/stacks';
@@ -29,7 +30,7 @@ import { rivalSpeedMult } from '../actors/rivals';
 import { deliverData, syntheticAccrual, usageAccrual } from './data';
 import { Xces } from './ces';
 import { believedProd, believedWorld, elasticitiesAt } from './believed';
-import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, teamTaste, workContext } from '../departments/workfit';
+import { believedTasteInputs, effLabour, measuredLabour, qualityZ, researchMods, speedOfCopy, starTaste, tasteLimitOf, teamTaste, workContext } from '../departments/workfit';
 import { capReCapacity, reAllocation } from '../models/research';
 import type { EngineSystem, GameStateV2, LabId, ProductionReadout, RivalLab, TimelineWorld } from '../types';
 
@@ -116,13 +117,14 @@ function playerInputs(s: GameStateV2, day: number): LabInputs {
   const h = reRes / DAY0_REF.re;
   // Taste: capacity-weighted over the capabilities science teams (a Strong team without AI = 1).
   const m2b = w.prod.m2b;
+  const tl = tasteLimitOf(w);
   const star = starTaste(s);
   let cap = 0;
   let tai = 0;
   for (const t of p.teams) {
     if (t.role !== 'sci' || t.dept !== 'cap') continue;
     cap += t.heads;
-    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star);
+    tai += t.heads * teamTaste(qualityZ(t.quality), wc.sdAI, wc.sAI, m2b, star, tl);
   }
   const v3: V3Inputs = {
     h0: h, k0: k, reRes0: reRes, H0: Math.max(1e-9, capReCapacity(s)), AI0: Cag > 0 ? ex.AI : 0, a: ex.fit.a, assist: ex.fit.assist,
@@ -190,13 +192,13 @@ export function believedInputs(s: GameStateV2, inp: LabInputs): LabInputs {
   if (!inp.v3) return inp;
   const wc = workContext(s);
   const ml = measuredLabour(s, wc.slots.EXP);
-  const { sAI, sdAI, m2b } = believedTasteInputs(s);
+  const { sAI, sdAI, m2b, tl } = believedTasteInputs(s);
   const star = starTaste(s);
   let cap = 0, tai = 0;
   for (const tm of s.player.teams) {
     if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
     cap += tm.heads;
-    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star);
+    tai += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, m2b, star, tl);
   }
   return { ...inp, v3: { ...inp.v3, a: ml.fit.a, assist: ml.fit.assist, Tai: cap > 0 ? tai / cap : 1 } };
 }
@@ -217,15 +219,15 @@ export function aiStaffSpeedPart(s: GameStateV2): { total: number; experiments: 
     if (x0 > 0 && m > 0) experiments = Xces(P, x.c, Math.pow(Math.max(1, m), P.lam)) / x0;
   }
   let ideas = 1;
-  const { sAI, sdAI } = believedTasteInputs(s);
+  const { sAI, sdAI, tl } = believedTasteInputs(s);
   if (sAI > 0) {
     const star = starTaste(s);
     let w = 0, a = 0, h = 0;
     for (const tm of s.player.teams) {
       if (tm.role !== 'sci' || tm.dept !== 'cap') continue;
       w += tm.heads;
-      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star);
-      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star);
+      a += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, sAI, P.m2b, star, tl);
+      h += tm.heads * teamTaste(qualityZ(tm.quality), sdAI, 0, P.m2b, star, tl);
     }
     if (w > 0 && h > 0) ideas = a / h;
   }
@@ -272,7 +274,8 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
   const C = core.computeOnline * res;
   let f = res > 0 ? core.split.experiments / res : 0.5;
   if (apply && res > 0) {
-    f = bestRivalMix(w, G, fpt, core.staff.cap, C);
+    // Calibration hook (core/forcing.ts): pin the experiments share. Unset in normal play (the best mix).
+    f = FORCING.pinResearchMix !== undefined ? Math.min(1, Math.max(0, FORCING.pinResearchMix)) : bestRivalMix(w, G, fpt, core.staff.cap, C);
     core.split = { ...withResearchAgents(core.split, res * (1 - f)), experiments: res * f };
   }
   const treaty = s.gov.treaty === 'verified' ? 0.65 : 1;
@@ -283,7 +286,7 @@ export function rivalResearch(s: GameStateV2, r: RivalLab, apply: boolean): Prod
     // D10: the serving stack at aggregate level (the Inference-efficiency line's returns), from the same research speed.
     if (r.phys) r.phys.serve = (r.phys.serve ?? 0) + serveRate(s, r, x.rs) / 365;
     // RD-X02 (DD-14 rival part): the same research speed works through the paradigms' typed effects.
-    if (r.phys) adoptRivalIdeas(s, r, x.rs);
+    if (r.phys && !FORCING.noIdeaAdoption) adoptRivalIdeas(s, r, x.rs); // FORCING (core/forcing.ts): unset in normal play
   }
   const pools = poolsOf(s, core.id);
   return rivalReadout(x, core.milestoneDays[3] !== undefined, { h: (x.units * RE_LABOUR_UNIT) / DAY0_REF.re, k: (pools.routine + pools.frontier) / DAY0_REF.agents, c: x.c });
@@ -329,10 +332,10 @@ export const productionSystem: EngineSystem = {
     const dif = [PLAYER_ID, ...otherLabs(s).map((x) => x.core.id)].map((id) => ({ id, d: recipeDiffusionPerDay(s, id) }));
     const r = advanceLab(s, PLAYER_ID);
     const pd = dif[0].d;
-    if (pd.dG > 0) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
+    if (pd.dG > 0 && !FORCING.noDiffusion) addKnowledge(s, ctx, pd.dG, 'knowledge diffusion', pd.from);
     for (const { id, d } of dif.slice(1)) {
       const lab = rivalLab(s, id);
-      if (lab && d.dG > 0) addRivalKnowledge(lab, d.dG);
+      if (lab && d.dG > 0 && !FORCING.noDiffusion) addRivalKnowledge(lab, d.dG);
     }
     if (r) {
       ctx.memo.set('WS1:production:player', r);

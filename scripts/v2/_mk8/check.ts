@@ -46,7 +46,7 @@ function table(s: GameStateV2, rd: RevenueReadout) {
 
 // (a) start and day 369.
 {
-  const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 1, tutorial: false }));
+  const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 1, tutorial: false }));
   console.log(`(a) game start (day ${s0.time.day}):`);
   const rd0 = revenueReadout(s0);
   table(s0, rd0);

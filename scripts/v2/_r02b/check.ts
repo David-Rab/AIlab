@@ -32,7 +32,7 @@ const src = (f: string) => readFileSync(new URL(`../../../src/${f}`, import.meta
 }
 
 const safetyNodes = TREE.filter((n) => n.agenda && !n.followUp && !n.star && !n.soon);
-const fresh = (seed = 7) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const fresh = (seed = 7) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const known = (s: GameStateV2) => new Set(Object.entries(s.player.tree).filter(([, t]) => t.status === 'known').map(([k]) => k));
 const unlocked = (s: GameStateV2) => new Set(Object.values(s.player.safety.techniques).filter((t) => t.unlocked).map((t) => t.id));
 

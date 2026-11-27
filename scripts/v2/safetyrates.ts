@@ -99,7 +99,7 @@ interface WorldProbe {
   afStudent: number; afStudentCtrl: number; afTeacher: number;
 }
 function worldProbe(seed: number): WorldProbe {
-  const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
+  const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
   const v0 = s.player.models.versions[0];
   const x0 = { ...v0.traitsTrue };
   // Learned hacking (MacDiarmid): RL on coding environments whose graders the model can game (cheap graders; S2
@@ -165,7 +165,7 @@ interface RefRec { versions: VersionRec[]; ea2026?: number; af2026?: number; af2
 const GENERIC: RLFamily[] = ['computerUse', 'longHorizon', 'cyber', 'bio'];
 
 function playRef(seed: number): RefRec {
-  const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', tutorial: false }));
+  const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', tutorial: false }));
   const bot = refBot;
   const seen = new Set(s.player.models.versions.map((v) => v.id));
   const versions: VersionRec[] = [];
@@ -260,7 +260,7 @@ const MATS_GAP = `E14 w̄ 1.43 [fit] on this reading (AF2): MATS/GDM's environme
 const PERSIST = 'remaining removal: AG18 healing (the world\'s hidden benign-generalisation bet, M4) and the stack\'s detection at E24\'s true/visible ratio; closing it means a HEAL_K or detection weight below the sourced ratio (a design bet, for the lead)';
 
 // F1 reward hacking per RL run (the suites' exploitability × Gao's pressure; hackRates).
-const s0 = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const s0 = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const hrStart = hackRates(Object.fromEntries(Object.keys(EXPLOIT_START).map((f) => [f, 1])) as FamilyMap, suiteExploitMap(s0), RHO_REF);
 const hrCheap = hackRates(Object.fromEntries(Object.keys(EXPLOIT_CHEAP).map((f) => [f, 1])) as FamilyMap, EXPLOIT_CHEAP, RHO_REF);
 row('F1 hack rate, typical agentic tasks (HCAST-like families), leader start, hardened', 'METR o3 HCAST 0.7% (8/1,087; 95% CI 0.3–1.4%); GPT-5 ~2% → band 0.3–2%', [0.003, 0.02], GENERIC.map((f) => hrStart[f] ?? 0));

@@ -6,7 +6,7 @@ import { rivalRunFlop, runScrutiny } from '../../../src/engine/v2/models/runs';
 
 let ok = true;
 const check = (c: boolean, m: string) => { console.log((c ? 'PASS ' : 'FAIL ') + m); ok &&= c; };
-const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 1, tutorial: false }));
+const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 1, tutorial: false }));
 const F = rivalRunFlop(s);
 check(F > 1e25 && F < 1e29, `rival reference run ${F.toExponential(2)} FLOP`);
 check(runScrutiny(s, F) === 0 && runScrutiny(s, F / 2) === 0, 'no scrutiny at or below the largest rival run');

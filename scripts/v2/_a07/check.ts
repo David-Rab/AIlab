@@ -8,7 +8,7 @@ import { PROJECT_BY_ID } from '../../../src/data/v2/tree';
 
 let fail = 0;
 const ok = (c: boolean, m: string) => { console.log(`${c ? 'PASS' : 'FAIL'} ${m}`); if (!c) fail++; };
-const s = newGame(defaultSetupV2({ seed: 11, world: 'ai2027', alignment: 'medium', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 11, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const sci = s.player.teams.find((t) => t.role === 'sci' && t.dept === 'cap')!;
 sci.projectId ??= Object.keys(PROJECT_BY_ID)[0];
 const id = sci.projectId!;

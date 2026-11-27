@@ -57,7 +57,7 @@ function refDay(s: GameStateV2) {
  *  two state hashes differ (null: never). */
 function readPurityRec(seed: number): { firstDiff: number | null } {
   return cached('hygiene-readpure', { seed, days: READ_DAYS, every: READ_EVERY }, READ_FILES, () => {
-    const mk = () => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' }));
+    const mk = () => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' }));
     const plain = mk();
     const read = mk();
     readSweep(read);
@@ -71,7 +71,7 @@ function readPurityRec(seed: number): { firstDiff: number | null } {
   });
 }
 // Section 3b (c): the game played at shifted calibration values; `--history-child` plays it in a fresh process.
-const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' });
+const HIST_SETUP = defaultSetupV2({ seed: 4, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, econ: 'ai2027' });
 const HIST_DAYS = 30;
 /** Shift every harness-mutable calibration table (as calscan.ts / calib.ts do between games); returns the restore. */
 function shiftCalibration(): () => void {
@@ -169,15 +169,15 @@ check(extra.length === 0, 'registry has no unlisted systems', extra.join(', ') |
 // ---------- 2. newGame validity across setups ----------
 const setups: SetupV2[] = [
   defaultSetupV2({ seed: 1 }),
-  defaultSetupV2({ seed: 2, world: 'sampled', alignment: 'sampled', econ: 'sampled' }),
-  defaultSetupV2({ seed: 3, world: 'authors2026', baseline: 'reality', rivalCount: 3, governance: 'founder', alignment: 'hard' }),
-  defaultSetupV2({ seed: 4, world: 'slow', alignment: 'easy', rivals: 'maverick', gov: 'hawk', china: 'gambler' }),
-  defaultSetupV2({ seed: 5, world: 'fast', governance: 'nonprofitPBC', tutorial: false }),
+  defaultSetupV2({ seed: 2, world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
+  defaultSetupV2({ seed: 3, world: 'tl-central', baseline: 'reality', rivalCount: 3, governance: 'founder', alignment: 'hard' }),
+  defaultSetupV2({ seed: 4, world: 'tl-slow', alignment: 'easy', rivals: 'maverick', gov: 'hawk', china: 'gambler' }),
+  defaultSetupV2({ seed: 5, world: 'tl-fast', governance: 'nonprofitPBC', tutorial: false }),
   defaultSetupV2({ seed: 6, leaderLab: true }), // R2: the simulated leader lab
-  defaultSetupV2({ seed: 7, world: 'authors2026', rivalCount: 3, rivals: 'maverick', leaderLab: true }),
+  defaultSetupV2({ seed: 7, world: 'tl-fast', rivalCount: 3, rivals: 'maverick', leaderLab: true }),
   // R9: every start type (the leader lab follows the start, D1).
   defaultSetupV2({ seed: 12, start: 'challenger' }),
-  defaultSetupV2({ seed: 13, start: 'bigtech', world: 'sampled', alignment: 'sampled', econ: 'sampled' }),
+  defaultSetupV2({ seed: 13, start: 'bigtech', world: 'tl-central', alignment: 'sampled', econ: 'sampled' }),
   defaultSetupV2({ seed: 14, start: 'spinout', baseline: 'reality', rivalCount: 3 }),
 ];
 /** R2 leader lab: appended last with the fixed id at reference inputs; the 'world' draws and everything sampled from
@@ -247,7 +247,7 @@ for (const setup of setups) {
 
 // ---------- 3. Determinism ----------
 const run = (setup: SetupV2, days = N, opts?: Parameters<typeof tick>[1]) => runTo(newGame(setup), days, opts);
-const detSetup = defaultSetupV2({ seed: 42, world: 'sampled', alignment: 'sampled', econ: 'sampled' });
+const detSetup = defaultSetupV2({ seed: 42, world: 'tl-central', alignment: 'sampled', econ: 'sampled' });
 const a = run(detSetup);
 const b = run(detSetup);
 check(stateHash(a) === stateHash(b), `determinism: same seed → same hash after ${N} ticks`, stateHash(a));
@@ -282,7 +282,7 @@ check(stateHash(run({ ...detSetup, seed: 43 }, 10)) !== stateHash(run(detSetup, 
   //     above, as in a fresh process that set them first; and after the values are restored, as before.
   const h1 = stateHash(run(HIST_SETUP, HIST_DAYS));
   const restore = shiftCalibration();
-  for (const w of ['ai2027', 'authors2026'] as const) readSweep(run(defaultSetupV2({ seed: 9, world: w, leaderLab: true }), 20));
+  for (const w of ['tl-central', 'tl-fast'] as const) readSweep(run(defaultSetupV2({ seed: 9, world: w, leaderLab: true }), 20));
   const hHere = stateHash(run(HIST_SETUP, HIST_DAYS));
   restore();
   const h2 = stateHash(run(HIST_SETUP, HIST_DAYS));

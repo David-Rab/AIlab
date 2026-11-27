@@ -1,9 +1,9 @@
 // Capability: the display level λ(G) (one map for every lab), domains, horizons, milestones, true lead (V2-SPEC
 // §3.1.3–3.1.6; model v3 V1, V3b, F3: design/MODEL-V3.md §2, design/V3-BUILD.md). Owner: WS1. Every lab's capability is its
 // effective compute G; model v3 F3 retired the progress coordinate pm = Φ(G) and the know-how readout pa.
-import { LEVEL_KNOTS, DOMAIN_IDS, PRESET_BY_LABEL, START_STATE } from '../../../data/v2/calibration';
+import { LEVEL_KNOTS, DOMAIN_IDS, START_STATE } from '../../../data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR, RL_BUDGET } from '../../../data/v2/runDesign';
-import { COGNITIVE_WORK, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STANDINS, SKILL_TESTS, SKILL_TEST_CODE, TOP_SD, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
+import { COGNITIVE_WORK, H50_BASE_FLOOR, H50_PER_OOM, H50_V0_MIN, SKILL_MARK_STANDINS, SKILL_TESTS, SKILL_TEST_CODE, TOP_SD, WORK_TYPES, refDelta, skillRefDelta } from '../../../data/v2/workTypes';
 import { labMilestones, milestonesOf, referenceProfileModel } from '../departments/workfit';
 import { clamp } from '../../rng';
 import { START_DATE, decimalYearOf } from '../core/time';
@@ -102,7 +102,7 @@ export const yearOfDay = (day: Day) => decimalYearOf(START_DATE, day);
 // ───────────────────────────── start state (RD-U06) ─────────────────────────────
 
 /** The start state of world w (data/v2/calibration.ts START_STATE): G(V0), B0's pretraining recipe, V0's RL recipe. */
-export const startStateOf = (w: TimelineWorld) => START_STATE[PRESET_BY_LABEL[w.label] ?? 'sampled'];
+export const startStateOf = (_w: TimelineWorld) => START_STATE;
 /** G of the reference start version V0 in world w (data): the reference base B0 (≈ 354B active × 400 tokens per
  *  parameter, the recipe of its launch day) plus the reference post-training run (standard budget, broad) at V0's RL
  *  recipe. */
@@ -242,7 +242,22 @@ export const horizonG = (_w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>
  *  version's AGENCY effective compute over V0's (CODE for software work, departments/workfit.ts), × its horizon
  *  multiplier (long-horizon RL, P07, P12). Replaces the v1 horizon curve on pm. */
 export const h50Of = (w: TimelineWorld, v: Pick<ModelVersion, 'G' | 'build'>, d: DomainId = 'AGENCY') =>
-  H50_V0_MIN * Math.pow(H50_PER_OOM, horizonG(w, v, d) - gV0(w)) * (v.build?.h80Mult ?? 1);
+  H50_V0_MIN * h50Growth(w, horizonG(w, v, d) - gV0(w)) * (v.build?.h80Mult ?? 1);
+/** R2.3: the horizon's growth over V0's at x OOM of effective compute above V0's, in world w (V3Cal h50PerOOM / h50Accel). Without
+ *  acceleration a constant factor per OOM (the pre-R2.3 law, bit for bit); with it the AIFM decaying-doubling-time law: the
+ *  doubling length T = ln2 / ln(h50PerOOM) OOM at V0 grows by A per doubling, so horizon = (1 − A·x/T)^(ln2 / ln(1 − A)),
+ *  the base floored at H50_BASE_FLOOR (the law's pole). */
+export function h50Growth(w: TimelineWorld, x: number): number {
+  const k = w.v3.h50PerOOM ?? H50_PER_OOM;
+  const a = w.v3.h50Accel ?? 0;
+  if (!a) return Math.pow(k, x);
+  return Math.pow(Math.max(H50_BASE_FLOOR, 1 - (a * x * Math.log(k)) / Math.LN2), Math.LN2 / Math.log(1 - a));
+}
+/** The horizon ratio between two effective computes g1 over g0 in the same domain (a measured against a true horizon). */
+export function h50Ratio(w: TimelineWorld, g1: number, g0: number): number {
+  if (!w.v3.h50Accel) return Math.pow(w.v3.h50PerOOM ?? H50_PER_OOM, g1 - g0);
+  return h50Growth(w, g1 - gV0(w)) / h50Growth(w, g0 - gV0(w));
+}
 
 // ───────────────────────────── lead (hidden) ─────────────────────────────
 

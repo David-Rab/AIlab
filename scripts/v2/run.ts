@@ -4,7 +4,7 @@
 //
 //   quick  tsc (main + scripts), every unit-style and short-sim script, and the long multi-seed suites in SMOKE mode
 //          (1–2 seeds, short horizons; their calibration targets print SMOKE instead of failing). For task agents.
-//   cal    golden-timelines + calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
+//   cal    calib T1, T1L, T4 (through the simulation cache; 10 workers on ≥ 12 cores).
 //   full   every check of the old `test:v2` (every script, all seeds), in parallel, through the simulation cache, plus
 //          test:ui (build + headless browser; started first, it is mostly browser wait). The merge gate. S5's played
 //          mechanism checks are in `deep`; hygiene's performance checks are left out too
@@ -56,7 +56,6 @@ const ALL: Tier[] = ['quick', 'full'];
 const JOBS: Job[] = [
   { id: 'tsc-scripts', argv: [process.execPath, TSC, '--noEmit', '-p', 'scripts/v2/tsconfig.json'], ...S(ALL, 30) } as Job,
   { id: 'tsc-main', argv: [process.execPath, TSC, '--noEmit', '-p', '.'], ...S(['quick'], 20) } as Job,
-  { id: 'golden-timelines', script: 'golden-timelines.ts', ...S(['quick', 'cal', 'full'], 40) } as Job,
   { id: 'effective', script: 'effective.ts', ...S(ALL, 25) } as Job,
   { id: 'data', script: 'data.ts', ...S(ALL, 20) } as Job,
   { id: 'suites', script: 'suites.ts', ...S(ALL, 20) } as Job,

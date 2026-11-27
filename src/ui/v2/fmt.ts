@@ -49,6 +49,7 @@ export const dLevel = (x: number) => num(x, 1, true);
 /** Days: 12 d, 3.4 mo, 2.1 yr. */
 export function days(d: number, signed = false): string {
   const a = Math.abs(d);
+  if (!Number.isFinite(a)) return 'never at current rates'; // e.g. build work when engineers only cover upkeep (was "Infinity yr")
   const s = sign(d, signed);
   if (a >= 540) return `${s}${(a / 365).toFixed(1)} yr`;
   if (a >= 90) return `${s}${(a / 30.4).toFixed(1)} mo`;

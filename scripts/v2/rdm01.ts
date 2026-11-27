@@ -11,7 +11,7 @@ const check = (ok: boolean, msg: string) => {
   console.log(`${ok ? 'pass' : 'FAIL'} ${msg}`);
   if (!ok) fail++;
 };
-const game = (seed: number) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = (seed: number) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 /** Mean measured level (general, RSCH) of V0 with SAND = `sand` over `n` suites of `depth` on fresh worlds. */
 function read(sand: number, depth: 'basic' | 'full' | 'deep', n = 12) {
   let L = 0, rsch = 0, truth = 0, truthR = 0;

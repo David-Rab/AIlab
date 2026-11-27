@@ -60,12 +60,12 @@ import { startBoard, startCompute, startFinance } from './starts';
 import { START_DATE } from './time';
 
 export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
-  const world = over.world ?? 'ai2027';
+  const world = over.world ?? 'tl-central';
   return {
     baseline: 'classic',
     world,
     alignment: 'sampled',
-    econ: world === 'ai2027' ? 'ai2027' : 'sampled', // §2.3 step 8: the ai2027 timeline defaults to econ ai2027
+    econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
     gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic',
     rivalCount: 4,
     governance: 'legacyNonprofit',

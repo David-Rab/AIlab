@@ -121,26 +121,14 @@ function doublingWork(T: number, n: number, growth: World['growth'], decay: numb
   return (T * (Math.pow(1 + decay, n) - 1)) / decay;
 }
 
-const Z90 = 1.2815515655446004;
-const lnFrom80 = (lo: number, hi: number, z: number) =>
-  Math.exp((Math.log(lo) + Math.log(hi)) / 2 + z * ((Math.log(hi) - Math.log(lo)) / (2 * Z90)));
-
 type BuildOpts = {
-  h0: number; T: number; growth: World['growth']; decay: number; hSCmin?: number; g0?: number; cs: number;
+  h0: number; T: number; growth: World['growth']; decay: number; hSCmin: number; cs: number;
   share: number; pEx: number; sEx: number; G: [number, number, number];
 };
 
 function build(label: string, o: BuildOpts): World {
-  let hSC = o.hSCmin ?? 0;
-  let g0 = o.g0 ?? 0;
-  if (o.g0 !== undefined) {
-    // Solve horizon needed from g0 (used to script the scenario preset)
-    let n = 0;
-    while (doublingWork(o.T, n, o.growth, o.decay) < o.g0 && n < 60) n += 0.01;
-    hSC = o.h0 * Math.pow(2, n);
-  } else {
-    g0 = doublingWork(o.T, Math.log2(hSC / o.h0), o.growth, o.decay);
-  }
+  const hSC = o.hSCmin;
+  const g0 = doublingWork(o.T, Math.log2(hSC / o.h0), o.growth, o.decay);
   return {
     label, h0: o.h0, hSC, T: o.T, growth: o.growth, decay: o.decay, g0, cs: o.cs, base0: Math.max(2, g0 + o.cs),
     share: o.share, pEx: o.pEx, sEx: o.sEx, G: o.G, p0: 0, aifm: false,
@@ -150,90 +138,15 @@ function build(label: string, o: BuildOpts): World {
 
 const WORK_MONTH_MIN = 167 * 60;
 
-export function makeWorld(rng: Rng, preset: WorldPresetId, align: AlignDiffId, _baseline: BaselineId): World {
-  let w: World;
-  switch (preset) {
-    case 'ai2027':
-      // Audit #1: g0 28.5, pEx 0.25 reproduce 1.5x Jan 2026, 3x Dec 2026, SC 2027-03-31, SAR end-Aug, ASI Dec 31 2027.
-      w = build('AI 2027 scenario', { h0: 22, T: 4.74, growth: 'super', decay: 0.1, g0: 28.5, cs: 3.9, share: 0.5, pEx: 0.25, sEx: 4, G: [4.19, 16, 49.5] });
-      break;
-    case 'authors2026':
-      // Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y.
-      w = build("Authors' 2026 model", { h0: 38, T: 4.5, growth: 'super', decay: 0.08, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 17, share: 0.6, pEx: 0.1, sEx: 2, G: [1.52, 101, 1340] });
-      w.aifm = true;
-      w.computeGrowth = 2.5;
-      break;
-    case 'fast':
-      // Audit #9 / §5.4: Daniel Aug-2026 (AC p50 2027.92) + AI 2027 p10 takeoff (SC->ASI ~0.21 y).
-      w = build('Fast takeoff', { h0: 26, T: 4.0, growth: 'super', decay: 0.08, hSCmin: 12 * WORK_MONTH_MIN, cs: 10.3, share: 0.6, pEx: 0.15, sEx: 3, G: [0, 7.67, 47.5] });
-      w.aifm = true;
-      w.computeGrowth = 2.5;
-      w.neuraleseBoost = 1.4;
-      break;
-    case 'slow':
-      // Audit #22 / §5.5: METR 7-month exponential; AI 2027 median h_SC and cs; SAR anchor lowered to avoid a 1.6->25 jump.
-      w = build('Skeptic world', { h0: 38, T: 7, growth: 'exp', decay: 0, hSCmin: 120 * WORK_MONTH_MIN, cs: 3.87, share: 0.5, pEx: 0.01, sEx: 0.6, G: [10, 394, 2000] });
-      w.sarSpeed = 10;
-      w.computeGrowth = 1.8;
-      w.computeElasticity = 0.7;
-      w.neuraleseBoost = 1.15;
-      break;
-    default: {
-      // Lifland Apr-2025 distributions (simple_params.yaml); Gaussian copula with pairwise rho 0.7 on (T, cs, type).
-      const zc = rng.normal();
-      const a = Math.sqrt(0.7);
-      const b = Math.sqrt(0.3);
-      const corr = () => a * zc + b * rng.normal();
-      const zT = corr();
-      const zcs = corr();
-      const u = 0.5 * (1 + erf(corr() / Math.SQRT2));
-      const growth: World['growth'] = u < 0.45 ? 'super' : u < 0.9 ? 'exp' : 'sub';
-      const zp = rng.normal();
-      const zs = 0.7 * zp + Math.sqrt(0.51) * rng.normal();
-      const T = lnFrom80(2.5, 9, zT);
-      const hSCmonths = lnFrom80(1, 14400, rng.normal());
-      const cs = lnFrom80(0.5, 30, zcs);
-      const delay = lnFrom80(0.25, 6, rng.normal());
-      const pEx = lnFrom80(0.03, 0.3, zp);
-      const sEx = lnFrom80(1.5, 40, zs);
-      // Takeoff gaps (takeoff/params.yaml, forecasting_takeoff.py)
-      const zS = rng.normal();
-      const zA = 0.8 * zS + 0.6 * rng.normal();
-      let G1 = rng.chance(0.15) ? 0 : lnFrom80(1.5, 10, zS);
-      const A = lnFrom80(1, 25, zA);
-      const x = 10 + A;
-      const G2 = (x * x * x) / 100 - x;
-      const E = lnFrom80(0.3, 7.5, rng.normal());
-      const x2 = x + G2;
-      const G3 = Math.min(20000, x2 * Math.pow(x2 / x, E) - x2); // game cap (source caps at 1000 calendar years)
-      // Audit #6: our Stage 2 starts at 1+sEx; stretch G1 so calendar time matches their fixed 5->25 phase.
-      const s0 = 1 + sEx;
-      const ref = (25 * 5 * Math.log(5)) / 20;
-      G1 = s0 < 25 ? (G1 * ((25 * s0 * Math.log(25 / s0)) / (25 - s0))) / ref : (G1 * s0) / ref;
-      const w0 = build('Sampled world', { h0: 15, T, growth, decay: 0.1, hSCmin: hSCmonths * WORK_MONTH_MIN, cs, share: 0.5, pEx, sEx, G: [G1, G2, G3] });
-      // Audit #19: their run starts at 2025.25 minus the internal-vs-public delay; we start at 2025.5 already advanced.
-      w0.p0 = (3 + delay) / 12;
-      // Condition on observed history: no superhuman coder existed at game start (Jul 2025).
-      w0.base0 = Math.max(w0.base0, w0.p0 * 12 + 3);
-      w0.computeGrowth = 2.25;
-      w0.computeElasticity = rng.range(0.35, 0.7);
-      // CAL-W: no draw. AI 2027 (Aug 2027): DeepCent at "half the pace of OpenBrain, mainly due to the compute deficit"
-      // on 10% vs 20% of world compute: no research efficiency separable from compute (research/CAL-world-sources.md).
-      w0.chinaEfficiency = 1;
-      w0.neuraleseBoost = rng.range(1.15, 1.5);
-      w = w0;
-    }
-  }
+export function makeWorld(rng: Rng, _preset: WorldPresetId, align: AlignDiffId, _baseline: BaselineId): World {
+  // The three timeline worlds share the authors2026 compute table and timeline (their settings are the draw's, world/hidden.ts).
+  // Audit #8 / §5.3: AIFM sampling_config(_q2_eli).yaml medians; cs and G fitted to AC p50 2029.16, AC->ASI 4.56 y.
+  const w = build("Authors' 2026 model", { h0: 38, T: 4.5, growth: 'super', decay: 0.08, hSCmin: 125 * 12 * WORK_MONTH_MIN, cs: 17, share: 0.6, pEx: 0.1, sEx: 2, G: [1.52, 101, 1340] });
+  w.aifm = true;
+  w.computeGrowth = 2.5;
   w.alignDifficulty = align === 'easy' ? 0.55 : align === 'medium' ? 1 : align === 'hard' ? 1.7 : rng.lognormal80(0.5, 1.9);
   w.doomThreshold = align === 'sampled' ? rng.range(0.3, 0.5) : 0.4;
   return w;
-}
-
-function erf(x: number) {
-  // Abramowitz-Stegun 7.1.26
-  const t = 1 / (1 + 0.3275911 * Math.abs(x));
-  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
-  return x >= 0 ? y : -y;
 }
 
 // ---------------- Baselines ----------------

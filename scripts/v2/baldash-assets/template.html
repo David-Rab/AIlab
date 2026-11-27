@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 2027 balance dashboard</title>
+<!--__REFRESH__-->
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="tex45a" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--tex)" stroke-width="1.4"/></pattern>
+    <pattern id="tex135a" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--tex)" stroke-width="1.4"/></pattern>
+    <pattern id="tex45b" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="9" stroke="var(--tex)" stroke-width="1.4"/></pattern>
+    <pattern id="tex135b" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(135)"><line x1="0" y1="0" x2="0" y2="9" stroke="var(--tex)" stroke-width="1.4"/></pattern>
+  </defs>
+</svg>
+<div class="wrap">
+  <header class="top">
+    <h1>AI 2027 balance dashboard</h1>
+    <div class="meta" id="meta"></div>
+    <button class="btn" id="tex" aria-pressed="false" title="Draw diagonal hatching on filled segments, for colour-blind readers and print">Patterns</button>
+    <button class="btn" id="theme" title="Switch light and dark">Dark mode</button>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="out" aria-selected="true">Outcomes</button>
+    <button role="tab" data-tab="par" aria-selected="false">Parameters</button>
+    <button role="tab" data-tab="tgt" aria-selected="false">Targets</button>
+    <button role="tab" data-tab="scn" aria-selected="false">Scenarios</button>
+  </nav>
+  <section class="panel" id="p-out"></section>
+  <section class="panel" id="p-par" hidden></section>
+  <section class="panel" id="p-tgt" hidden></section>
+  <section class="panel" id="p-scn" hidden></section>
+</div>
+<div id="tip" role="tooltip"></div>
+<script type="application/json" id="data">/*__DATA__*/</script>
+<script>/*__JS__*/</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 //   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute, design offsets included)
 //   reference  best human F*_w = G_SC + Δ_bm·Σ ω·δ_d(sd_SC); median expert F*_w − Δ_bm (per preset: TimelineWorld.v3)
 //   horizon    h50 = 203 min × 4.2^(G_h − G_V0) × h80Mult (G_h: CODE for software, AGENCY otherwise); p(H) = 1/(1 + (H/h50)^β)
-//   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln 19 + κ_v·(0.9 − v_w)
+//   coverage   a_w = σ((F_w − θ_w)/s) × p(H_w), θ_w = F*_w − s·ln(top/(1 − top)) + κ_v·(0.9 − v_w); s, top = COVER or the world's covS, covTop (R3.3)
 //   assist     win rate w = Φ((F_w − F^med)/S_WIN); human speed-up 1/(M + R + (1 − w)) when > 1 (GDPval)
 //   AI labour  FTE = compute × 8766 h ÷ (H100e-hours per work-hour) ÷ 2000 h; H100e-hours per work-hour = 2·N_active ×
 //              (200k uncached input ÷ 0.35 + 40k output ÷ 0.07) ÷ 1e15 ÷ 3600 (physical: FLOP per token, utilisation)
@@ -17,8 +17,8 @@
 // Nothing here reads pm, the level bridge, the knot tables or a reference path.
 import { LOCKDOWN_SLOWDOWN, controlComputeShare, labControlSetting, lockdownOn } from '../safety/safeguards';
 import {
-  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, H50_PER_OOM, HORIZON_BETA,
-  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TOKENS_PER_WORK_HOUR, TOP_SD,
+  ASSIST, COGNITIVE_WORK, COPY_TOKENS_PER_S, COVER, FTE_HOURS_PER_YEAR, HORIZON_BETA,
+  MILESTONE_COVER, PEAK_FLOPS, QUALITY_TASTE_SD, refDelta, SPEED_CAP, S_WIN, TASTE_LIMIT_MEDIAN, TOKENS_PER_WORK_HOUR, TOP_SD,
   U_DECODE, U_PREFILL, WORK_TYPES, type WorkTypeDef, type WorkTypeId,
 } from '../../../data/v2/workTypes';
 import { AG17_HARNESS, P27_AAR } from '../../../data/v2/safetyIdeas';
@@ -27,7 +27,7 @@ import { QUALITY, starTasteOf, TEAM_COST_M } from '../../../data/v2/teams';
 import { PROJECT_BY_ID, isLineNode } from '../../../data/v2/tree';
 import { teamCapacity } from './capacity';
 import { Lrel, Phi, tasteSigma } from '../production/ces';
-import { domainRefShift, gOfLevel, h50Of, versionDomainG } from '../models/capability';
+import { domainRefShift, gOfLevel, h50Of, h50Ratio, versionDomainG } from '../models/capability';
 import { measuredDomainOf } from '../models/labs';
 import { believedProd } from '../production/believed';
 import { adopted } from '../models/paradigms';
@@ -80,11 +80,13 @@ export const h50Min = (s: GameStateV2, v: Pick<ModelVersion, 'G' | 'build'>, wt:
 export const pSuccess = (hours: number, h50: number) => 1 / (1 + Math.pow((hours * 60) / Math.max(1e-9, h50), HORIZON_BETA));
 
 /** Coverage threshold θ_w (OOM). */
-export const thetaOf = (w: TimelineWorld, wt: WorkTypeId) =>
-  refPoints(w, wt).best - COVER.s * Math.log(COVER.top / (1 - COVER.top)) + COVER.kappaV * (0.9 - WORK_TYPES[wt].v);
+export const thetaOf = (w: TimelineWorld, wt: WorkTypeId) => {
+  const top = w.v3.covTop ?? COVER.top;
+  return refPoints(w, wt).best - (w.v3.covS ?? COVER.s) * Math.log(top / (1 - top)) + COVER.kappaV * (0.9 - WORK_TYPES[wt].v);
+};
 /** Coverage a_w from fit and horizon: the share of the work AI can do on its own. */
 export const coverage = (w: TimelineWorld, wt: WorkTypeId, fit: number, h50: number) =>
-  sig((fit - thetaOf(w, wt)) / COVER.s) * pSuccess(WORK_TYPES[wt].H, h50);
+  sig((fit - thetaOf(w, wt)) / (w.v3.covS ?? COVER.s)) * pSuccess(WORK_TYPES[wt].H, h50);
 /** Win rate against a median expert (GDPval). */
 export const winRate = (w: TimelineWorld, wt: WorkTypeId, fit: number) => Phi((fit - refPoints(w, wt).med) / S_WIN);
 /** Assist: speed-up of the human-done share, H/(M + R + (1 − w)·H) when it helps (w ≳ 0.3), else 1. */
@@ -177,17 +179,43 @@ export function aiIdeasShare(H: number, assist: number, L: number): number {
   return L > 1e-12 && L > hh ? Math.min(1, 1 - hh / L) : 0;
 }
 
-/** Taste of a team (research input per idea vs a Strong team without AI): E[max(T_team, F_AI)] with the team's human
- *  taste z SDs above the lab's average on the AIFM lognormal (mean 1, 99.9th pct = m2b × median), and AI taste sd_AI
- *  on the AI-done share sAI of the ideas (aiIdeasShare): (1 − s)·human + s·E[max(human, AI)] (DD-13). */
-export function teamTaste(z: number, sdAI: number, sAI: number, m2b: number, human = 1): number {
+/** The taste limit of a world (AIFM `taste_limit`, V3_CAL.tasteLimit): a taste is bounded by A = m2b^(1 + limit). A save
+ *  from before the parameter has none and reads the AIFM median. */
+export const tasteLimitOf = (w: Pick<TimelineWorld, 'v3'>): number => (Number.isFinite(w.v3.tasteLimit) ? w.v3.tasteLimit : TASTE_LIMIT_MEDIAN);
+
+/** AI research taste under the AIFM ceiling [R: AIFM taste_distribution.py:94 (A = m2b^(1 + limit)), :122-136 (the form at
+ *  `taste_limit_smoothing` 0.5, its default, config.py:344): T(x) = exp(ln A · (1 − exp(−x / ln A))), a smooth saturation of
+ *  the log taste x that follows the lognormal for x ≪ ln A and approaches A from below, never above]. x is the game's log
+ *  taste of the AI at `sdAI` SDs, ln F = −σ²/2 + sdAI·σ (lognormal of mean 1; the AIFM's x = μ + sd·σ with μ ≈ −σ²/2).
+ *  Returns the SD whose lognormal taste is the saturated one, so aiTaste reads it as a lognormal. The
+ *  humans stay lognormal: the AIFM re-fits μ and σ so top ÷ median = m2b whatever A is, and a human's log taste (≤ ~1.2)
+ *  is far below ln A (≈ 9.4 at the median limit). */
+export function ceilingSD(sdAI: number, m2b: number, limit: number): number {
   const s = tasteSigma(m2b);
-  const Th = Math.exp(s * z) * human;
+  const lnA = (1 + limit) * Math.log(m2b);
+  const x = -0.5 * s * s + sdAI * s;
+  const xs = lnA * (1 - Math.exp(-x / lnA));
+  return (xs + 0.5 * s * s) / s;
+}
+
+/** A team's human taste (research input per idea vs a Strong team without AI): z SDs above the lab's average on the AIFM
+ *  lognormal (mean 1, 99.9th pct = m2b × median), × the star factor `human`. */
+export const humanTaste = (z: number, m2b: number, human: number): number => Math.exp(tasteSigma(m2b) * z) * human;
+
+/** The AI's taste: the lognormal mean at the AI's SD under the world's ceiling (ceilingSD), exp(−σ²/2 + sd·σ). */
+export function aiTaste(sdAIRaw: number, m2b: number, limit: number): number {
+  const s = tasteSigma(m2b);
+  return Math.exp(-0.5 * s * s + ceilingSD(sdAIRaw, m2b, limit) * s);
+}
+
+/** Taste of a team (research input per idea vs a Strong team without AI), the mean of the mixture of where its ideas
+ *  come from (fix B; DD-13): T = (1 − s)·T_human + s·T_AI. T_human = the team's human taste (humanTaste), T_AI = the AI's
+ *  taste at sd_AI under the world's taste limit `limit` (aiTaste), s = the AI share of the ideas labour (aiIdeasShare).
+ *  Taste sets how good the ideas are, not how many; early AI, with a low taste, adds mostly mediocre ideas. */
+export function teamTaste(z: number, sdAIRaw: number, sAI: number, m2b: number, human: number, limit: number): number {
+  const Th = humanTaste(z, m2b, human);
   if (sAI <= 0) return Th;
-  const F = Math.exp(-0.5 * s * s + sdAI * s);
-  const zz = z + Math.log(human) / s;
-  const lifted = F * Phi(sdAI - zz) + Th * Phi(s - sdAI + zz);
-  return (1 - sAI) * Th + sAI * lifted;
+  return (1 - sAI) * Th + sAI * aiTaste(sdAIRaw, m2b, limit);
 }
 /** A team's human taste position (SDs) from its quality. */
 export const qualityZ = (q: TeamQuality) => QUALITY_TASTE_SD[q];
@@ -259,7 +287,8 @@ function useLabour(s: GameStateV2, slot: LabourSlot): { v?: ModelVersion; h100e:
  *  - speed: the [D] multipliers with no physical counterpart modelled, on both departments' science and experiment
  *    rates. Siloing −5% per level [D: compartmentalisation friction; who cannot share experiments is not modelled];
  *    a custom-ASIC migration −15% [D: toolchain and kernel porting churn; the port itself is not modelled]; a verified
- *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult).
+ *    treaty ×0.65 [D: the treaty state (gov.treaty) carries no compute limit to cap experiment FLOP with] (= rateMult);
+ *    the world's research pace (R2.3, V3Cal.pace, fitted to the AIFM software rate per timeline).
  *  - sidelined: E12 security clearances take SIDELINE_SHARE of every team's heads off the teams for their 60 days
  *    (onDuty: capacity, not a speed factor). */
 export const SIDELINE_SHARE = 0.1;
@@ -268,6 +297,9 @@ export function researchMods(s: GameStateV2): ResearchMods {
   const p = s.player;
   const day = s.time.day;
   let mods = 1 - 0.05 * p.security.siloing;
+  // R2.3: the world's research pace (V3Cal.pace; 1 = the pre-R2.3 game): the software OOM per year the same research input buys.
+  const pace = s.hidden.timeline.v3.pace ?? 1;
+  if (pace !== 1) mods *= pace;
   if ((p.finance.ws3.asicMigrationUntil ?? -1) > day) mods *= 0.85;
   const rateMult = s.gov.treaty === 'verified' ? 0.65 : 1;
   const frontierExp = s.flags.paused ? 0 : 1;
@@ -351,7 +383,7 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   let fit = sl.fit.fit;
   for (const d in ws) fit += ws[d as DomainId] * (gMeas(d as DomainId) - versionDomainG(v, d as DomainId));
   const hd = WORK_TYPES[sl.wt].horizon;
-  const h50 = sl.fit.h50 * Math.pow(H50_PER_OOM, gMeas(hd) - versionDomainG(v, hd));
+  const h50 = sl.fit.h50 * h50Ratio(w, gMeas(hd), versionDomainG(v, hd));
   const win = winRate(w, sl.wt, fit);
   const f: WorkFit = { fit, best: sl.fit.best, med: sl.fit.med, h50, a: coverage(w, sl.wt, fit, h50), win, assist: assistOf(win) };
   const r = handedLabour(believedProd(s).mid, f.a, sl.t, sl.H, sl.AI, f.assist);
@@ -361,12 +393,13 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
 /** UB-2: the AI taste inputs as the lab believes them: AI research taste (SDs above the median scientist) from the
  *  frontier-research AI staff's MEASURED fit, AI's share of the ideas from the believed labour (measuredLabour), and the
  *  believed taste spread m2b. sAI 0 without AI staff on ideas. */
-export function believedTasteInputs(s: GameStateV2): { sdAI: number; sAI: number; m2b: number } {
+export function believedTasteInputs(s: GameStateV2): { sdAI: number; sAI: number; m2b: number; tl: number } {
   const sl = workContext(s).slots.IDEAS;
   const m2b = believedProd(s).mid.m2b;
-  if (!(sl.aiFte > 0)) return { sdAI: -6, sAI: 0, m2b };
+  const tl = tasteLimitOf(s.hidden.timeline); // a world constant
+  if (!(sl.aiFte > 0)) return { sdAI: -6, sAI: 0, m2b, tl };
   const ml = measuredLabour(s, sl);
-  return { sdAI: sdAIOf(s.hidden.timeline, ml.fit.fit), sAI: aiIdeasShare(sl.H, ml.fit.assist, ml.L), m2b }; // public reference points only
+  return { sdAI: sdAIOf(s.hidden.timeline, ml.fit.fit), sAI: aiIdeasShare(sl.H, ml.fit.assist, ml.L), m2b, tl }; // public reference points only
 }
 
 /** UB-2: AI share of the lab's own R&D labour as the lab measures it (incidents.ts aiRdShare's formula on measuredLabour's

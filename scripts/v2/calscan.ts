@@ -7,7 +7,7 @@
 // src/data/v2/workTypes.ts) are fitted here, on the same seeds: every grid point
 // (the product of the lists; unset lists keep the committed value) is played on every seed — RefBot on the reference
 // compute stub (t1) or the leader lab with a passive player (t1l), as calib.ts does — and the table prints, per point, the
-// median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y; slow SC: its sourced 2034–2035, lib.ts calTol), p10 / p90, the seeds within tolerance,
+// median's offset from the golden day per milestone (SC ±0.08 y, later ±0.12 y; lib.ts calTol; the timeline worlds have no golden days yet), p10 / p90, the seeds within tolerance,
 // the worst |median|/tolerance (≤ 1 passes) and seed 2027 alone. Take a value in the middle of the passing window, not a
 // knife edge. Runs go through the simulation cache in N worker processes (default 6).
 import { spawn } from 'node:child_process';
@@ -24,15 +24,15 @@ import { cached } from './simcache';
 const ME = fileURLToPath(import.meta.url);
 const argv = process.argv.slice(2);
 const [mode, preset] = argv as ['t1' | 't1l', WorldPresetId];
-if (!['t1', 't1l'].includes(mode) || !['ai2027', 'authors2026', 'fast', 'slow'].includes(preset)) {
-  console.error('usage: calscan.ts t1|t1l <ai2027|authors2026|fast|slow> [--gsc …] [--dbm …] [--sd …] [--workers N]');
+if (!['t1', 't1l'].includes(mode) || !['tl-fast', 'tl-central', 'tl-slow'].includes(preset)) {
+  console.error('usage: calscan.ts t1|t1l <tl-fast|tl-central|tl-slow> [--gsc …] [--dbm …] [--sd …] [--workers N]');
   process.exit(2);
 }
 const list = (name: string, dflt: number) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 ? argv[i + 1].split(',').map(Number) : [dflt];
 };
-const last = (preset === 'slow' ? 3 : 6) as MilestoneIdx;
+const last = (preset === 'tl-slow' ? 3 : 6) as MilestoneIdx;
 type Point = { gSC: number; dBM: number; sdSC: number };
 const points: Point[] = [];
 for (const gSC of list('gsc', V3_CAL[preset].gSC)) for (const dBM of list('dbm', V3_CAL[preset].dBM)) for (const sdSC of list('sd', V3_CAL[preset].sdSC)) points.push({ gSC, dBM, sdSC });

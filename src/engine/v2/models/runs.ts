@@ -186,7 +186,7 @@ export function rivalRunFlop(s: GameStateV2): number {
     const ph = r.phys;
     any = Math.max(any, ph.base.flop);
     if (day - ph.base.day <= SCRUTINY_WINDOW_DAYS) best = Math.max(best, ph.base.flop);
-    if (ph.run) best = Math.max(best, ph.run.flop + baseFlopPerDay(r) * Math.max(0, r.nextBaseDay - day));
+    if (ph.run) best = Math.max(best, ph.run.flop + baseFlopPerDay(r, decimalYear(s)) * Math.max(0, r.nextBaseDay - day));
   }
   return best > 0 ? best : any;
 }

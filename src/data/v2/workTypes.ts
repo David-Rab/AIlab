@@ -6,6 +6,7 @@
 // measured in effective compute (OOM): F_w = Σ ω_w,d · G_d (engine: departments/workfit.ts). Human reference points sit on
 // the same axis, per domain: the best human in the world at G_SC + δ_d·Δ_bm and the median expert Δ_bm below it.
 import type { DomainId, TeamRole, WorldPresetId } from '../../engine/v2/types';
+import { TL_MEDIAN } from './timelineWorlds';
 
 export type WorkTypeId = 'SWE' | 'EXP' | 'IDEAS' | 'SAF_EXP' | 'SAF_IDEAS' | 'OTHER';
 
@@ -143,6 +144,10 @@ export const ASSIST = { model: 1 / 90, review: 0.27 };
 export const H50_V0_MIN = 203;
 /** Horizon per OOM of effective compute (METR 4.2-month doubling at ≈ 1.2–1.4 OOM/yr; research/20 A2/E1). */
 export const H50_PER_OOM = 4.2;
+/** R2.3: the smallest base of the horizon law (1 − A·x/T) the game evaluates: the AIFM horizon law has a pole where the base
+ *  reaches 0 (its horizon is unbounded there); the floor keeps it finite (about 1e11 × V0 at A ≈ 0.1) [D: nothing past it is read, every
+ *  work type is covered long before]. Only used with a per-world acceleration (V3_CAL.h50Accel ≠ 0). */
+export const H50_BASE_FLOOR = 0.02;
 /** p80/p50 = 1/5 (METR TH1.1 median) ⇒ success p(t) = 1/(1 + (t/h50)^β), β = ln 4 / ln 5 [R20 E1]. */
 export const H80_OVER_H50 = 1 / 5;
 export const HORIZON_BETA = Math.log(4) / Math.log(5);
@@ -189,13 +194,18 @@ export const QUALITY_TASTE_SD = { solid: -0.5, strong: 0, elite: 1 } as const;
 /** Research-engineer team-equivalents that make one unit of experiment labour (ℓ = 1): a fixed unit of measure, set
  *  equal to one full project's allocation (data/v2/research.ts RE_MAX_PER_PROJECT) [D]. */
 export const RE_LABOUR_UNIT = 2;
+/** The leader lab's day-0 experiment share of its compute: SHARE_REF's 2025.5 row (35% since the split fix: Epoch's other
+ *  R&D ~66% of OpenAI's 2024 spend, the AIFM's experiment_H100e 56% with synthetic data; it was AI 2027's narrow 5%) [R:
+ *  Epoch AI openai-compute-spend, AIFM input_data.csv; design/bal/EXPCOMPUTE.md]. */
+export const DAY0_EXPERIMENT_SHARE = 0.35;
 /** Experiment FLOP per day that makes one unit of experiment compute (c = 1): the leader lab's day-0 experiment FLOP per
- *  RE_LABOUR_UNIT of its research engineers on experiments and tuning (1e6 H100e × 5% × 3.46e19 FLOP/H100e-day over 11 teams ×
- *  88% ÷ 2) [D, fixed physical unit: never the calendar]. */
-export const C_UNIT_FLOP_PER_DAY = (1e6 * 0.05 * 3.46e19 * RE_LABOUR_UNIT) / (11 * 0.88);
+ *  RE_LABOUR_UNIT of its research engineers on experiments and tuning (1e6 H100e × DAY0_EXPERIMENT_SHARE × 3.46e19
+ *  FLOP/H100e-day over 11 teams × 88% ÷ 2) [D, fixed physical unit: never the calendar]. Moves with the day-0 share so
+ *  the leader's day-0 research is still 1 (the calibrations are set against it). */
+export const C_UNIT_FLOP_PER_DAY = (1e6 * DAY0_EXPERIMENT_SHARE * 3.46e19 * RE_LABOUR_UNIT) / (11 * 0.88);
 /** Leader day-0 references for the readout ratios (h, k, c): research engineers on research (team-eq), agent compute
  *  (H100e), experiment FLOP per day. */
-export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19 };
+export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMENT_SHARE * 3.46e19 };
 
 // ───────────────────────────── per-preset calibration (V3.5, V3.7) ─────────────────────────────
 
@@ -307,14 +317,30 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * 0.05 * 3.46e19
  *  preset's golden SC is (research/11 #8: SC = AC + 0.52). G_SC = G(V0) 27.627 + AIFM progress at AI2027-SC 40.223 −
  *  its progress at V0's date (2025.445) 33.757 (34.27 by V0's 41-min p80 horizon instead of its date); sd_SC = AIFM's AI
  *  taste at AI2027-SC (0.5 SD is its taste at AC, 1.67 OOM earlier: AC ⇔ G_SC 32.42–32.60). */
-export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number }
+/** Fix A (design/bal/S1-TAKEOFF-DIAG.md §6.2, STAGE1-DESIGN A): the taste limit, a world parameter. A taste is bounded above by
+ *  A = m2b^(1 + tasteLimit) (workfit.ts ceilingSD). The AIFM median, 8: lognormal 80% CI [2, 32], clipped to [0, 100]
+ *  [R: AIFM taste_distribution.py:94, config sampling_config.yaml:191-195 `taste_limit`; Eli's Q2 config
+ *  (sampling_config_q2_eli.yaml) inherits it]; at the game's m2b 3.25 that is A = 1.2e4. Daniel's config sets [4, 64], median 16
+ *  (sampling_config_daniel.yaml:62; AIFM config.py:343 default 16, "Daniel Q2: sqrt(4 * 64)"): the `fast` preset's. */
+export const TASTE_LIMIT_MEDIAN = 8;
+/** R2.3 (faithful horizon fix, design/bal/FIXC-TRANSLATION.md section 6): the per-world horizon law and research pace.
+ *  h50PerOOM: horizon growth per OOM of effective compute at V0 (the METR doubling at V0 is log2 of it: T = ln2/ln(h50PerOOM) OOM);
+ *  h50Accel A: the AIFM's decay of that doubling length (A = 1 − doubling_difficulty_growth_factor): h50(x) = H50_V0_MIN ×
+ *    (1 − A·x/T)^(ln2/ln(1−A)), x = G − G(V0) (AIFM ac_anchor.py _make_decaying_horizon_observable); 0 = a constant factor per OOM;
+ *  pace: a world's research pace, the multiplier on every research rate (workfit.ts researchMods): the software OOM per year
+ *    one lab's research input buys (AIFM software_progress_rate). Defaults (4.2, 0, 1) are the pre-R2.3 game.
+ *  stockAgeYears (item A): the age at the start of every research line's pool, in years of that line's own start research input
+ *    (the AIFM's initial research stock RS(0) = E(0)/g_E, the inverse of E/RS = 0.70 / 0.76 / 0.84 a year in its fast / central / slow
+ *    groups): each line's n₀ = stockAgeYears × LINE_START_INPUT[line] (models/research.ts linePool). 0 = off: n₀ from the first
+ *    idea's mean (LINE_FIT.mu), the game before item A. */
+export interface V3Cal { gSC: number; dBM: number; r: number; sdSC: number; tasteLimit: number; h50PerOOM: number; h50Accel: number; pace: number; stockAgeYears: number;
+  /** R3.3 (design/bal/FIXC-TRANSLATION.md section 8): the coverage logistic of a per-game draw world, from the AIFM run's coding-automation schedule
+   *  A(p) = min(1, L / (1 + exp(-k (p - x0)))): covS = 1/k (OOM, replaces COVER.s) and covTop = the logistic part at the best human's fit (replaces
+   *  COVER.top, so the midpoint is the run's). Absent = COVER.s / COVER.top, every other world. */
+  covS?: number; covTop?: number }
+const H50_LAW = { h50PerOOM: H50_PER_OOM, h50Accel: 0, pace: 1, stockAgeYears: 0 };
 export const V3_CAL: Record<WorldPresetId, V3Cal> = {
-  ai2027: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
-  authors2026: { gSC: 34.09, dBM: 2.17, r: 3.19, sdSC: 2.94 },
-  fast: { gSC: 31.25, dBM: 0.6, r: 4, sdSC: 0 },
-  // slow gSC 38.3: a STATED STAND-IN (DECISIONS "Calibration decisions after CAL1 refits" item 7): the top of its source
-  // range, standing in for the source's slower horizon trend (METR 7-month doubling), which no mechanism carries; with
-  // that mechanism it returns to ≈ 34.9 (the source's h_SC 120 work-months). No slow-horizon mechanism now.
-  slow: { gSC: 38.3, dBM: 1.6, r: 4, sdSC: SD_AT_SC },
-  sampled: { gSC: 30.15, dBM: 1.8, r: 4, sdSC: SD_AT_SC },
+  // R3.1: the per-game draw worlds: the group MEDIAN of the AIFM runs' translated settings (data/v2/timelineWorlds.ts) as the fallback of a
+  // world built without a seed; world/hidden.ts timelineFor replaces them with the game's drawn run. The horizon law and pace stay the defaults.
+  'tl-fast': { ...H50_LAW, ...TL_MEDIAN['tl-fast'].v3 }, 'tl-central': { ...H50_LAW, ...TL_MEDIAN['tl-central'].v3 }, 'tl-slow': { ...H50_LAW, ...TL_MEDIAN['tl-slow'].v3 },
 };

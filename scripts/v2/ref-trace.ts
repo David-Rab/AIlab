@@ -1,12 +1,12 @@
 // RefBot reference trace (BUILD-PLAN R1): the calibration baseline every restructure milestone (R3–R8) diffs against.
 //
 //   npx tsx scripts/v2/ref-trace.ts --write [--out path]   record scripts/v2/golden/ref-trace.json
-//   npx tsx scripts/v2/ref-trace.ts [--ref path] [--tol key=value,…] [--only stub:ai2027,…]
+//   npx tsx scripts/v2/ref-trace.ts [--ref path] [--tol key=value,…] [--only stub:tl-central,…]
 //                                                          diff the current code against the recorded trace
 //
 // Traces: RefBot's model policy on the four T1 presets with the reference-compute stub (as calib.ts T1: infinite cash,
 // endings skipped, stop at the last golden milestone), and the full RefBot (real finance, revenue and events) on
-// ai2027 (as calib.ts "T1 integrated": endings skipped, stop at ASI, insolvency or 16 years). Each trace records run
+// tl-central (as calib.ts "T1 integrated": endings skipped, stop at ASI, insolvency or 16 years). Each trace records run
 // start/finish days, paradigm adoption days, milestone days, monthly M, h, k, c, sdAI (and pa, L), quarterly revenue
 // per channel, cash and U. The diff prints the worst deviation per category and exits 1 if any exceeds its tolerance.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,8 +34,8 @@ const DEFAULT_PATH = join(HERE, 'golden', 'ref-trace.json');
 const SEED = 2027;
 const MAX_DAYS = 365 * 16;
 const NAMES = ['A0', 'A1', 'A2', 'SC', 'SAR', 'SIAR', 'ASI'] as const;
-const STUB_PRESETS: WorldPresetId[] = ['ai2027', 'authors2026', 'fast', 'slow'];
-const lastIdx = (p: WorldPresetId): MilestoneIdx => (p === 'slow' ? 3 : 6);
+const STUB_PRESETS: WorldPresetId[] = ['tl-fast', 'tl-central', 'tl-slow'];
+const lastIdx = (p: WorldPresetId): MilestoneIdx => (p === 'tl-slow' ? 3 : 6);
 
 const arg = (k: string, d = '') => {
   const i = process.argv.indexOf(`--${k}`);
@@ -138,10 +138,10 @@ function record(only?: Set<string>): Trace[] {
     out.push(stubTrace(p));
     process.stderr.write(`  stub:${p} ${out[out.length - 1].endDay} d (${((performance.now() - t0) / 1000).toFixed(1)} s)\n`);
   }
-  if (want('integrated:ai2027')) {
+  if (want('integrated:tl-central')) {
     const t0 = performance.now();
-    out.push(integratedTrace('ai2027'));
-    process.stderr.write(`  integrated:ai2027 ${out[out.length - 1].endDay} d (${((performance.now() - t0) / 1000).toFixed(1)} s)\n`);
+    out.push(integratedTrace('tl-central'));
+    process.stderr.write(`  integrated:tl-central ${out[out.length - 1].endDay} d (${((performance.now() - t0) / 1000).toFixed(1)} s)\n`);
   }
   return out;
 }

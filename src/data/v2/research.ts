@@ -27,8 +27,13 @@ export const POOL_MAX = 4;
  *  target"; small-scale ablations at ≤ 1e19-ish FLOP, Gundlach]. A candidate's small-scale effect x is x·1000^s at test
  *  scale, so a quarter of small-scale wins survive when s ~ N(−0.3, 0.3) (s ≥ −0.1) [R20 B5]. */
 export const SMALL_TO_TEST = 1000;
-/** Range of a candidate's scale exponent [D] (models/research.ts; actors/rivalModel.ts line scale factors). */
-export const S_RANGE: readonly [number, number] = [-0.6, 0.25];
+/** Range of a candidate's small-to-test exponent s (x_test = x_small·1000^s: what survival and the scale test read)
+ *  [D lower end: R20 B5; upper end R: Gundlach et al. 2025 arXiv 2511.21622: the LSTM-to-Transformer multiplier grows
+ *  7.9x at 1e15 FLOP to 352x at 1.3e22, 2.83x in OOM over 7.1 OOM of compute, which as a power on the OOM effect is
+ *  s = log10(2.83)/7.1 = 0.064, so no idea reads more than 0.065 per decade. Before M1 the cap was 0.25, the Transformer's
+ *  ADDITIVE slope of the multiplier misread as an exponent; design/bal/SCALE-DIAG.md §4.2, S1]. (models/research.ts;
+ *  actors/rivalModel.ts survivors.) Beyond the test scale the effect follows the additive slope KAPPA_MAX (below). */
+export const S_RANGE: readonly [number, number] = [-0.6, 0.065];
 /** At the scale test a candidate survives if its effect at test scale is at least this share of its small-scale
  *  estimate (R20 B5 "survives at scale") [D]. */
 export const SURVIVE_FRAC = 0.5;
@@ -73,6 +78,21 @@ export const PACE_BATCH = 30;
  *  line's start effect [fit: the reference lab's pretraining stack ≈ 0.48 OOM/yr in its first year, Ho et al., R20 B1;
  *  calib.ts --fit-lines] (an object so the calibration harness can set it). */
 export const LINE_FIT = { mu: 0.645 };
+/** Item A: each line's research input at the start of the game, in pool units (the pool's own measure: kept ideas × taste), and the
+ *  measure the AIFM's initial research stock is taken against. A world with V3Cal.stockAgeYears > 0 starts the line's pool at
+ *  stockAgeYears × (year1[line] ÷ yearOverStart) (models/research.ts linePool): the pool is that many years of the line's own
+ *  start input, as the AIFM's initial stock RS(0) = E(0)/g_E is 1/g_E years of its start effort.
+ *  year1: the pool a line gains in the first year of a lines-first reference lab (policy 'reflines', forced AIFM inputs, pace 1,
+ *    the pre-A pools), mean of 3 timelines × 6 seeds. The input at day 0 itself is not measurable: the first idea of a line
+ *    lands after about 75 days (ideation, small tests, scale test), and the input then grows with compute.
+ *  yearOverStart: the AIFM's year-1 mean research effort over its effort at 2025.5, so the start input = year1 ÷ this
+ *    (research_efforts in the AIFM Q2 Eli rollouts, 20 samples per group: medians 1.47 / 1.50 / 1.51 for fast / central / slow).
+ *  A line absent from year1 (Recurrent architectures, opened by P17 later) keeps its n₀ from LINE_FIT.mu.
+ *  [fitted: year1 from .scratch/ra-probe.ts runs pr, re-measured after M1+M2 and the P24 line, 2026-11-26; yearOverStart sourced] */
+export const LINE_START_INPUT = {
+  yearOverStart: 1.5,
+  year1: { 'L.scale': 11.90, 'L.data': 11.22, 'L.opt': 2.71, 'L.env': 15.04, 'L.rlalg': 12.92, 'L.infer': 11.01 } as Record<string, number>,
+};
 
 // ───────────────────────────── stage costs ─────────────────────────────
 
@@ -96,8 +116,27 @@ export const IDEA_DEFAULT_TM = 8 * IDEA_WORK_PER_E;
 
 // ───────────────────────────── stacks ─────────────────────────────
 
-/** Scale-exponent grid of the stack buckets (adopted ideas with s within half a step share a bucket) [D]. */
-export const S_STEP = 0.02;
+/** Grid of the stack buckets' relative scale slope κ (adopted ideas with κ within half a step share a bucket) [D]. */
+export const K_STEP = 0.02;
+/** Scale-dependence beyond the test scale (design/bal/SCALE-DIAG.md M1, designer 2026-11-26): an adopted idea of effect x
+ *  at test FLOP F_test adds x·(1 + κ·log₁₀(F/F_test)) OOM at run FLOP F: linear in log F, so the lever neither grows
+ *  with the stock nor turns convex in F. κ is the idea's relative slope per OOM of compute (δ = κ·x OOM per OOM).
+ *  KAPPA_MAX is the strongest slope. [R: Gundlach et al. 2025 arXiv 2511.21622: the LSTM-to-Transformer compute-efficiency
+ *  multiplier grows 7.9x (0.90 OOM) at 1e15 FLOP to 352x (2.55 OOM) at 1.3e22 FLOP: +0.23 OOM per OOM of compute on an
+ *  effect of 0.9 OOM, κ = (2.55 − 0.90)/(7.1 × 0.90) = 0.259 per OOM; research/20-model-v3-calibration.md:254;
+ *  design/bal/SCALE-DIAG.md §3.] */
+export const KAPPA_MAX = (Math.log10(352) - Math.log10(7.9)) / (7.1 * Math.log10(7.9));
+/** The paradigm tier draws κ = KAPPA_MAX × U(KAPPA_TIER) [D: Gundlach's two scale-dependent changes (the Transformer, κ 0.26;
+ *  Kaplan-to-Chinchilla, 3.7x at 2023 compute, a rebalancing the run design models as tokens per parameter) are both
+ *  strong; the tier's mean is 0.75 × KAPPA_MAX]. A node's `par` is the share of its ideas in the tier; every other idea is
+ *  scale-invariant beyond the test scale (κ = 0) [R: Gundlach: "the scale-invariant innovations together account for 7.9x
+ *  (21.7x if multiplied)", under 10x in all; 2 of about 20 identified innovations are scale-dependent, par ≈ 0.1;
+ *  design/bal/SCALE-DIAG.md §3-4]. */
+export const KAPPA_TIER: readonly [number, number] = [0.5, 1];
+/** Expected κ of a node with a share `par` of its ideas in the paradigm tier. */
+export const kappaMean = (par = 0) => par * KAPPA_MAX * (KAPPA_TIER[0] + KAPPA_TIER[1]) / 2;
+/** The scale test's reading noise of κ (absolute, per OOM of compute) [D: S_READ_SD's size, 0.03 ≈ KAPPA_MAX/9]. */
+export const K_READ_SD = 0.03;
 /** Training throughput cap: MFU 0.75 × goodput 0.97 over the start's 0.40 × 0.90 (OOM) [R20 A4: MFU 0.30–0.55 today;
  *  D above]. */
 export const TRAIN_CAP = Math.log10((0.75 * 0.97) / (0.4 * 0.9));

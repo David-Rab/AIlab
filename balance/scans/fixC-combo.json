@@ -1,0 +1,48 @@
+[
+ {
+  "name": "combo2-p25",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 3.138,
+   "cap.V3_CAL.authors2026.dBM": 3.783,
+   "cap.V3_CAL.ai2027.r": 2.307,
+   "cap.V3_CAL.authors2026.r": 1.84
+  }
+ },
+ {
+  "name": "combo3-p25",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 3.138,
+   "cap.V3_CAL.authors2026.dBM": 3.783,
+   "cap.V3_CAL.ai2027.r": 2.307,
+   "cap.V3_CAL.authors2026.r": 1.84,
+   "cap.PROD_DEFAULT.m2b": 2.122,
+   "cap.PROD_PRESETS.authors2026.m2b": 2.347
+  }
+ },
+ {
+  "name": "combo4-p25",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 3.138,
+   "cap.V3_CAL.authors2026.dBM": 3.783,
+   "cap.V3_CAL.ai2027.r": 2.307,
+   "cap.V3_CAL.authors2026.r": 1.84,
+   "cap.PROD_DEFAULT.m2b": 2.122,
+   "cap.PROD_PRESETS.authors2026.m2b": 2.347,
+   "cap.V3_CAL.ai2027.tasteLimit": 3.857,
+   "cap.V3_CAL.authors2026.tasteLimit": 3.857
+  }
+ },
+ {
+  "name": "combo4-p10",
+  "set": {
+   "cap.V3_CAL.ai2027.dBM": 5.175,
+   "cap.V3_CAL.authors2026.dBM": 6.239,
+   "cap.V3_CAL.ai2027.r": 1.333,
+   "cap.V3_CAL.authors2026.r": 1.063,
+   "cap.PROD_DEFAULT.m2b": 1.6,
+   "cap.PROD_PRESETS.authors2026.m2b": 1.72,
+   "cap.V3_CAL.ai2027.tasteLimit": 2,
+   "cap.V3_CAL.authors2026.tasteLimit": 2
+  }
+ }
+]

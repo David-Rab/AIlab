@@ -35,7 +35,7 @@ interface Game { start: StartType; bot: string; seed: number; ending: string; ve
 
 function play(start: StartType, botName: string, seed: number): Game {
   const bot = BOTS[botName];
-  const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'sampled' : 'ai2027', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
+  const s = newGame(defaultSetupV2({ seed, world: seed % 2 ? 'tl-fast' : 'tl-central', alignment: seed % 4 < 2 ? 'medium' : 'sampled', tutorial: false, start }));
   const L = s.rivals.find((r) => r.core.id === LEADER_ID)!;
   const lPm: number[] = [L.internal.G];
   const rate0 = PRE_GAME_G_PER_YEAR; // G a year: the stated pre-game pace (RD-L03)

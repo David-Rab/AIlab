@@ -141,12 +141,10 @@ export function SetupScreen() {
       <div className="setup-grid">
         <div className="setup-col">
           <Picker label="Baseline" k="baseline" opts={[{ v: 'classic', label: 'Classic', desc: 'Start state of the April 2025 scenario world.' }, { v: 'reality', label: 'Reality', desc: 'Start state from 2025–26 reporting.' }]} />
-          <Picker label="World" k="world" opts={[
-            { v: 'ai2027', label: 'AI 2027 scenario', desc: 'Fast timelines calibrated to the published scenario.' },
-            { v: 'authors2026', label: "Authors' 2026", desc: 'The authors’ later, slower model.' },
-            { v: 'fast', label: 'Fast', desc: 'Short timelines, fast takeoff.' },
-            { v: 'slow', label: 'Skeptic', desc: 'Slow progress and little AI speed-up.' },
-            { v: 'sampled', label: 'Unknown', desc: 'Parameters drawn at random; revealed at the end.' },
+          <Picker label="Timeline" k="world" opts={[
+            { v: 'tl-fast', label: 'Fast', desc: 'AI progress on the forecast’s fast track: superhuman AI coders around 2028.' },
+            { v: 'tl-central', label: 'Central', desc: 'The forecast’s middle path: superhuman AI coders around 2030.' },
+            { v: 'tl-slow', label: 'Slow', desc: 'The forecast’s slow track: superhuman AI coders around 2035.' },
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
           <Picker label="Economy" k="econ" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'normal', label: 'Normal', desc: 'Standard diffusion frictions.' }, { v: 'ai2027', label: 'Fast diffusion', desc: 'Rapid adoption and displacement.' }, { v: 'gate', label: 'Gated', desc: 'Strong frictions: law, trust, integration.' }]} />

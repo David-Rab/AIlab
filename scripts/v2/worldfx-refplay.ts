@@ -112,5 +112,5 @@ export function refPlayProbe(s0: GameStateV2, opts: RefPlayOpts = {}): EngineSys
 }
 
 export function refGame(over: Partial<SetupV2> = {}): GameStateV2 {
-  return newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', ...over }));
+  return newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', ...over }));
 }

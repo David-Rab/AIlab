@@ -18,6 +18,7 @@ import {
   TEAM_COST_M, TEAM_KEYS, TEAM_SIZE,
 } from '../../../data/v2/teams';
 import { START_BY_ID } from '../../../data/v2/starts';
+import { FORCING } from '../core/forcing';
 import { decimalYear } from '../core/time';
 import { Phi } from '../production/ces';
 import { measuredLabour, sdAIOf, workContext } from './workfit';
@@ -210,6 +211,25 @@ export function seedCandidates(h: TeamHiring, rng: RngLike) {
 
 // ───────── Weekly system ─────────
 
+const forcedH0 = new WeakMap<object, number>();
+/**
+ * HARNESS EXCEPTION (designer-approved 2026-11-26): forces the player's headcount to the AIFM L_HUMAN path in forced calibration runs only, because the game's hiring cannot follow it. Pending the hiring-market mechanic (design/BAL-TASKS.md). Not a game mechanic; never set in play.
+ * Choice: every capabilities team's heads are scaled by one common factor (team mix kept), to H0 × staffPath(year),
+ * H0 = capabilities heads at the first call. Applied at the end of each hiring week; payroll follows the heads.
+ */
+function forcePlayerStaff(s: GameStateV2) {
+  const sp = FORCING.staffPath;
+  if (!FORCING.playerStaffExact || sp === undefined) return;
+  const caps = s.player.teams.filter((t) => t.dept === 'cap');
+  const now = caps.reduce((a, t) => a + t.heads, 0);
+  let h0 = forcedH0.get(s);
+  if (h0 === undefined) { h0 = now; forcedH0.set(s, h0); }
+  if (now <= 0) return;
+  const f = (h0 * sp(decimalYear(s))) / now;
+  for (const t of caps) t.heads *= f;
+  syncTeams(s);
+}
+
 /** One week of attrition, offers, the keep-hiring policy and hiring. */
 export function teamsWeek(s: GameStateV2, ctx: SystemCtx) {
   const p = s.player;
@@ -260,6 +280,7 @@ export function teamsWeek(s: GameStateV2, ctx: SystemCtx) {
     h.filling = still;
   }
   syncTeams(s);
+  forcePlayerStaff(s);
 }
 
 /** Policy "keep hiring to N": queue one standard Strong team per key while teams + queued < N. */

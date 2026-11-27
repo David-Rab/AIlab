@@ -21,7 +21,7 @@ import type { BaseDesign, GameStateV2, ModelVersion, OwnedDataAsset, PostDesign,
 import { check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
-const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });
 const base = (o: Partial<BaseDesign> = {}): BaseDesign => ({ ...REFERENCE_BASE, curation: { ...REFERENCE_BASE.curation }, ...o });
 const fmt = (sg: Partial<Signals>, keys = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'] as (keyof Signals)[]) => keys.map((k) => `${k} ${(sg[k] ?? 0).toFixed(3)}`).join(' ');

@@ -26,11 +26,11 @@
 //              lab has adopted P08 (its idea research, as the player; CP3c, DD-05 (a))
 // Nothing here reads a calendar path, pm or pm thresholds, CAL_SHIFT, the v2 knots or the rivals' old FLOP bridge.
 import { BASE_POOL_SHARE, BASE_RUN_DAYS, CL_DAYS, CL_POOL_SHARE, PRE_RATE0, RIVAL_TPP, SERVE_RATE0, START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { DEFAULT_LINES, SMALL_TO_TEST, S_RANGE } from '../../../data/v2/research';
-import { TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
-import { lineRate, linePoolAt, stagesOf, S_SURVIVE } from '../models/research';
+import { DEFAULT_LINES, kappaMean } from '../../../data/v2/research';
+import { P24_RIVAL_IDEA, TREE_BY_ID, type TreeNodeDef } from '../../../data/v2/tree';
+import { lineRate, linePoolAt, stagesOf } from '../models/research';
 import { DISTILL_TPP, E_START, GOODPUT, MFU_RL_FACTOR, PARAM_RANGE, B0_PARAMS, REFERENCE_BASE, REF_TPP, RL_BUDGET, SHAPE } from '../../../data/v2/runDesign';
-import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY } from '../../../data/v2/calibration';
+import { B0_DAY, DIFFUSION_TAU_DAYS, H_REF_BASE, PHI_FLOP_PER_H100E_DAY, SHARE_REF } from '../../../data/v2/calibration';
 import { C_UNIT_FLOP_PER_DAY, DAY0_REF, RE_LABOUR_UNIT, WORK_TYPES } from '../../../data/v2/workTypes';
 import { clamp } from '../../rng';
 import { hash32 } from '../core/rng';
@@ -45,10 +45,10 @@ import { DOMAIN_IDS } from '../../../data/v2/calibration';
 import type { DomainMix } from '../../../data/v2/dataAssets';
 import { distillLift } from '../production/diffusion';
 import { decodeUtilOf, RECIPE_F, recipeG, serveFlopOomOf } from '../models/stacks';
-import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, teamTaste, workFitW } from '../departments/workfit';
+import { agentFptEq, aiIdeasShare, copiesOf, effLabour, fteOfFpt, sdAIOf, speedOfCopy, tasteLimitOf, teamTaste, workFitW } from '../departments/workfit';
 import { lineupSizes, tokEff } from '../worldfx/serving';
 import { Xces, hRef } from '../production/ces';
-import { normalizeSplit, shareRefAt } from '../departments/split';
+import { normalizeSplit, runDutyAt, shareRefAt } from '../departments/split';
 import { decimalYear } from '../core/time';
 import { REF_AGENT_SHARES } from '../../../data/v2/agents';
 import type { BaseDesign, DomainId, GameStateV2, ProductionReadout, RivalBase, RivalLab, RivalPhys, SimpleModel, TimelineWorld, VersionBuild } from '../types';
@@ -79,28 +79,14 @@ type Part = keyof RivalRecipe;
 const PARTS: Part[] = ['pre', 'mid', 'ceil'];
 const PART_STACK = { pre: 'pre', mid: 'rlMid', ceil: 'rlCeil' } as const;
 
-/** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes): a result is measured at the scale test (F_test =
- *  the line's testFrac of the base, research.ts stagesOf) and enters the stack at the base's FLOP, ×(1/testFrac)^s. A single candidate
- *  survives the scale test iff its scale exponent s ≥ s* (research.ts S_SURVIVE, the player's survival rule), and
- *  the line's pool advances by the test-scale effect ∝ 1000^s, so κ_l = E[1000^s·(1/testFrac)^s; s ≥ s*] ÷
- *  E[1000^s; s ≥ s*] over the line's scale prior N(μ, σ) clamped to S_RANGE (Scaling recipes 1.507, Data 1.175,
- *  Optimizer 2.099; s ≡ 0: 1). Not fitted. */
-export function lineScaleFactor(mu: number, sd: number, testFrac = LINE_TEST_FRAC()): number {
-  const up = 1 / testFrac;
-  if (sd <= 0) return Math.pow(up, Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu)));
-  const sStar = S_SURVIVE;
-  let num = 0;
-  let den = 0;
-  const N = 4001;
-  for (let i = 0; i < N; i++) {
-    const z = -8 + (16 * i) / (N - 1);
-    const sx = Math.max(S_RANGE[0], Math.min(S_RANGE[1], mu + sd * z));
-    if (sx < sStar) continue;
-    const wt = Math.exp((-z * z) / 2) * Math.pow(SMALL_TO_TEST, sx);
-    num += wt * Math.pow(up, sx);
-    den += wt;
-  }
-  return den > 0 ? num / den : 1;
+/** Scale factor of a line's results (model v3 F2, design/V3-BUILD.md, F2 notes; SCALE-DIAG M1): a result is measured at the
+ *  scale test (F_test = the line's testFrac of the base, research.ts stagesOf) and enters the stack at the base's FLOP,
+ *  ×(1 + κ·log₁₀(1/testFrac)), κ the idea's relative slope beyond the test scale. Survival reads the effect at test scale
+ *  and the pool advances by it, so κ is independent of both and the factor is 1 + κ̄·log₁₀(1/testFrac), κ̄ = kappaMean of
+ *  the line's paradigm share `par` (Scaling recipes, Data and Optimizer ≈ 1 to 1.05, Recurrent architectures 1.52; s ≡ 0: 1).
+ *  Not fitted. */
+export function lineScaleFactor(par = 0, testFrac = LINE_TEST_FRAC()): number {
+  return 1 + kappaMean(par) * Math.log10(1 / testFrac);
 }
 /** A recipe part from the reference portfolio (the lines every start runs, data/v2/research.ts DEFAULT_LINES): its share
  *  w of the returns (Σ rShare of its lines: pretraining 0.8, RL efficiency 0.08, RL ceiling 0.12; r_p = w·r), its scale
@@ -122,7 +108,7 @@ export function recipeParts(): Record<Part, RecipePart> {
     const sh = e?.rShare ?? 0;
     if (!n || !e || !part || sh <= 0) continue;
     acc[part].w += sh;
-    acc[part].k += sh * lineScaleFactor(e.s?.[0] ?? 0, e.s?.[1] ?? 0, stagesOf(n).testFrac);
+    acc[part].k += sh * lineScaleFactor(e.par ?? 0, stagesOf(n).testFrac);
     acc[part].lines.push(n);
   }
   const kPre = acc.pre.k / Math.max(1e-12, acc.pre.w);
@@ -377,12 +363,12 @@ function labConstOf(w: TimelineWorld, mdl: AiModel, fpt: number, staffCap: numbe
   return {
     H, S, units: H / RE_LABOUR_UNIT, fte: fteOfFpt(fpt),
     a: exp.a, assist: exp.assist, aI: ideas.a, assistI: ideas.assist,
-    sdAI, m2b: w.prod.m2b,
+    sdAI, m2b: w.prod.m2b, tl: tasteLimitOf(w),
   };
 }
 /** RD-E02 (DD-13): a rival's scientists' taste, AI taste weighted by AI's share of its ideas labour (as the player's). */
-function rivalTaste(k: { S: number; aI: number; assistI: number; sdAI: number; m2b: number }, LI: number): number {
-  return teamTaste(0, k.sdAI, k.aI > 1e-9 ? aiIdeasShare(k.S, k.assistI, LI) : 0, k.m2b);
+function rivalTaste(k: { S: number; aI: number; assistI: number; sdAI: number; m2b: number; tl: number }, LI: number): number {
+  return teamTaste(0, k.sdAI, k.aI > 1e-9 ? aiIdeasShare(k.S, k.assistI, LI) : 0, k.m2b, 1, k.tl);
 }
 /** The aggregate research function on its inputs (model G and FLOP per token, capabilities staff, research compute and
  *  its experiment share f), normalised to the leader lab's day-0 lab, × efficiency and modifiers. */
@@ -481,7 +467,8 @@ export function advanceRecipe(r: Pick<RivalLab, 'phys'>, x: RecipeRates, dt: num
 
 // ───────────────────────────── paradigm ideas (RD-X02, DD-14 rival part) ─────────────────────────────
 
-/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (pretraining-stack
+/** The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18): P24 (the player's
+ *  research line since round 2 item 9; a rival keeps the one-off approximation P24_RIVAL_IDEA, tree.ts: pretraining-stack
  *  idea: + x OOM on the pretraining recipe, so bases launched after adoption carry it; scale-invariant, as the player's),
  *  P16 (training-throughput stack idea: base-run FLOP ×10^x; its serving part, also.serve × x, on the serving stack),
  *  P09 / P11 / P22 (domain ideas: + x × the node's domain OOM on versions post-trained after adoption) and P05 (the
@@ -499,7 +486,7 @@ export const RIVAL_IDEA_TM_PER_YEAR = (SCI_PER_HEAD * H_REF_BASE * 12) / (DEFAUL
  *  the aggregate level]. */
 let orderMemo: TreeNodeDef[] | undefined;
 export const rivalIdeaOrder = (): TreeNodeDef[] =>
-  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => TREE_BY_ID[id]).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
+  (orderMemo ??= RIVAL_IDEA_IDS.map((id) => (id === 'P24' ? P24_RIVAL_IDEA : TREE_BY_ID[id])).filter((n): n is TreeNodeDef => !!n).sort((a, b) => (a.effortTM ?? 0) - (b.effortTM ?? 0) || a.id.localeCompare(b.id)));
 /** Realised effect of an adopted idea (0 if not adopted or it did not work here). */
 export const rivalIdea = (r: Partial<Pick<RivalLab, 'phys'>>, id: string) => r.phys?.ideas?.done[id] ?? 0;
 /** Hidden: the effect lab `labId` realises from idea n. Availability is the world's: the paradigm's per-world success
@@ -568,16 +555,18 @@ export function growLabStaff(s: GameStateV2, r: RivalLab): void {
 
 // ───────────────────────────── training ─────────────────────────────
 
-/** Training FLOP a day of a lab's base run: BASE_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>) =>
-  r.core.computeOnline * r.core.split.training * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
+/** Training FLOP a day of a lab's base run in flight at decimal year `yr`: BASE_POOL_SHARE of its training pool at the
+ *  reference MFU and goodput, the pool × the duty factor (runDutyAt: the table's training row is the annual average of the
+ *  final-run program, the run in flight takes its FRONTIER_RUN_SHARE). */
+export const baseFlopPerDay = (r: Pick<RivalLab, 'core'> & Partial<Pick<RivalLab, 'phys'>>, yr: number) =>
+  r.core.computeOnline * r.core.split.training * runDutyAt(yr) * BASE_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT * Math.pow(10, rivalIdea(r, 'P16'));
 
 /** One day of the lab's base run: launch it BASE_RUN_DAYS before the base is due (recipe frozen at launch), add a day of
  *  FLOP. */
-export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
+export function trainDay(s: GameStateV2, r: RivalLab, day: number) {
   const ph = r.phys;
   if (!ph.run && day >= r.nextBaseDay - BASE_RUN_DAYS) ph.run = { day, flop: 0, ePre: ph.rec.pre };
-  if (ph.run) ph.run.flop += baseFlopPerDay(r);
+  if (ph.run) ph.run.flop += baseFlopPerDay(r, decimalYear(s));
 }
 
 // ───────────────────────────── start state ─────────────────────────────
@@ -594,7 +583,7 @@ export function trainDay(_s: GameStateV2, r: RivalLab, day: number) {
  *  day-0 rates give its launch day (`effRun`: the run-time efficiency multiplier, effLab for China; undefined for the
  *  leader lab). */
 export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapOom = START_PUBLIC_GAP_OOM, effRun?: number) {
-  const pool = r.core.computeOnline * r.core.split.training;
+  const pool = r.core.computeOnline * r.core.split.training * runDutyAt(SHARE_REF[0].year);
   const flop0 = Math.max(1e24, START_BASE_FLOP * (pool / LEADER_DAY0_TRAIN));
   const inp = { flop: flop0, tpp: REF_TPP, shape: 'moe' as const };
   const P = recipeParts();
@@ -669,7 +658,7 @@ export function initRivalPhys(w: TimelineWorld, r: RivalLab, eff = 1, publicGapO
       rs = evalAggregate(w, r.internal, fpt, r.core.staff.cap, f, C, eff * effRun, 1).rs;
     }
     const v = recipeRates(w, r.phys, rs).rec;
-    r.phys.run = { day: start, flop: -start * baseFlopPerDay(r), ePre: k + (v.pre * start) / 365 };
+    r.phys.run = { day: start, flop: -start * baseFlopPerDay(r, SHARE_REF[0].year), ePre: k + (v.pre * start) / 365 };
   }
 }
 /** CP3k: the start in distillation equilibrium (RD-X04 rule B; research/RD-X04r §3B). Every post-training lifts a lab's
@@ -703,8 +692,8 @@ export function startDistillEquilibrium(s: GameStateV2, r: RivalLab) {
     else shift(r.publicModel);
   }
 }
-/** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 training
- *  share 0.4) it was sized on. */
+/** The reference start base's FLOP (B0) and the leader's day-0 training pool (DAY0_REF's 1e6 H100e × the 2025 base-run
+ *  budget share 0.4, FRONTIER_RUN_SHARE) it was sized on. */
 const START_BASE_FLOP = flopOfDesign(REFERENCE_BASE);
 const LEADER_DAY0_TRAIN = 1e6 * 0.4;
 
@@ -724,7 +713,7 @@ export function finishRun(r: RivalLab, day: number): RivalBase | undefined {
 // at today's RL recipe: effective RL compute adds on the reference RL run). No level threshold, no free re-application.
 
 /** Pool FLOP a day of the lab's stream: CL_POOL_SHARE of its training pool at the reference MFU and goodput. */
-export const clFlopPerDay = (r: Pick<RivalLab, 'core'>) => r.core.computeOnline * r.core.split.training * CL_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
+export const clFlopPerDay = (r: Pick<RivalLab, 'core'>, yr: number) => r.core.computeOnline * r.core.split.training * runDutyAt(yr) * CL_POOL_SHARE * PHI_FLOP_PER_H100E_DAY * GOODPUT;
 /** RL share of the stream's pool time: the reference version's RL : pretraining FLOP (RL_BUDGET.standard) [D, stand-in
  *  for the player's per-version mix]. */
 const CL_RL_Q = RL_BUDGET.standard / (1 + RL_BUDGET.standard);
@@ -798,7 +787,7 @@ export function clRefresh(s: GameStateV2, r: RivalLab, day: number): boolean {
   const dt = day - r.phys.clDay;
   if (dt < CL_DAYS) return false;
   r.phys.clDay = day;
-  return clApply(s, r, clFlopPerDay(r) * dt) > 0;
+  return clApply(s, r, clFlopPerDay(r, decimalYear(s)) * dt) > 0;
 }
 /** RD-X02: domain offsets (OOM) a version post-trained today carries: Σ over the lab's adopted domain ideas of the
  *  realised effect × the node's per-domain OOM (the player's research.domainG). Undefined when none. */

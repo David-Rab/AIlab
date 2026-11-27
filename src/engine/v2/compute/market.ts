@@ -4,6 +4,7 @@ import { CAPEX_LEASE, COMPONENTS, DEBT_SIZING, EXPORT_POLICY, FIRM_TERMS, LESSOR
 import { refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import { decimalYear } from '../core/time';
+import { FORCING } from '../core/forcing';
 import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
@@ -99,6 +100,8 @@ export const cancellablePricePerYear = (s: GameStateV2) => (s.market.rental * 87
 
 /** Reference compute path of the leading lab (refTotal = refCapCompute / 0.68, §3.1.1). */
 export function refTotalAt(s: GameStateV2, years: number): number {
+  // Calibration hook (core/forcing.ts): the same prescribed path as refTotal (production/ces.ts). Unset in normal play.
+  if (FORCING.computePath !== undefined) return FORCING.computePath(years + 2025.5);
   return refCapCompute(asV1World(s.hidden.timeline), years) / 0.68;
 }
 

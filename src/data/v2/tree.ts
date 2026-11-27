@@ -41,8 +41,11 @@ export interface ProjectEffect {
   mean: number;
   /** Relative sd of the hidden per-world draw of the project's mean (default PROJECT_SD). */
   sd?: number;
-  /** Scale-exponent prior [mean, sd]: effect × (FLOP_run ÷ FLOP_test)^s (default [0, 0]). */
+  /** Small-to-test exponent prior [mean, sd]: effect at the scale test = small-scale effect × 1000^s (survival; default [0, 0]). */
   s?: [number, number];
+  /** Share of the node's ideas in the paradigm tier, whose effect keeps growing beyond the test scale: x·(1 + κ·log₁₀(F/F_test)),
+   *  κ ≤ KAPPA_MAX (data/v2/research.ts, Gundlach et al. 2025; SCALE-DIAG M1). The rest are scale-invariant beyond the test (default 0). */
+  par?: number;
   /** Other stacks moved in proportion to the effect (P16: serving). */
   also?: Partial<Record<StackKey, number>>;
   /** Domain effect for versions trained after adoption, OOM per unit of the effect. */
@@ -139,10 +142,10 @@ export const TREE: TreeNodeDef[] = [
   STAR('dense', 'Dense', 'pretraining', 'backbone', { cap: -1 }, { cap: 'Every parameter works on every token: −0.3 OOM effective compute against MoE for the same training FLOP', cost: 'No 8× memory: total parameters = active ones' }),
   STAR('qualityFilter', 'Quality filter', 'pretraining', 'backbone', {}, { cap: 'Drops the worst quarter of crawled and usage text: the tokens you train on are better, but you have fewer unique ones, so a big base repeats its data sooner' }),
   STAR('codeMath', 'Code & math data', 'pretraining', 'backbone', { cap: 1 }, { cap: 'Trains on more code (×3), math and research papers (×2) and security text (×1.5) than you hold: stronger CODE, REASON, RSCH; weaker elsewhere; short domains repeat sooner' }),
-  LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.36 }, { cap: 'Architecture and compute rebalancing at scale: pretraining efficiency (OOM); grows with run FLOP', payoff: 'Most measured algorithmic progress is scale-dependent (Gundlach et al.)' }),
+  LINE('L.scale', 'Scaling recipes', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0], rShare: 0.36 }, { cap: 'Training recipes and architecture details: pretraining efficiency (OOM); the same at any run size (compute rebalancing is the tokens per parameter of the run design)', payoff: 'Routine algorithmic gains are scale-invariant and together under 10x (Gundlach et al.)' }),
   LINE('L.data', 'Data filtering & mixing', 'pretraining', [], { stack: 'pre', mean: 0.012, s: [0, 0.05], rShare: 0.22 }, { cap: 'Better data for the same tokens: pretraining efficiency (OOM)' }),
-  LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], rShare: 0.22 }, { cap: 'Small scale-invariant gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale' }),
-  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence: pretraining efficiency (OOM)' }),
+  LINE('L.opt', 'Optimizer & architecture tweaks', 'pretraining', [], { stack: 'pre', mean: 0.02, s: [-0.25, 0.2], par: 0.1, rShare: 0.22 }, { cap: 'Small gains: pretraining efficiency (OOM); a quarter of small-scale wins survive at scale, about one in ten keeps growing with run FLOP' }),
+  LINE('L.latent', 'Recurrent architectures', 'pretraining', ['P17'], { stack: 'pre', mean: 0.012, s: [0.05, 0.04], par: 1, rShare: 0.22 }, { cap: 'A fresh pool opened by neuralese recurrence, a new architecture family as the Transformer was: pretraining efficiency (OOM); grows with run FLOP' }),
   N('scienceData', 'Science data', 'pretraining', 'backbone', [], 'S', 0.95, { cap: 1, saf: -1 }, { cap: 'Trains on more biology (×3), math and research (×1.5): stronger BIO, REASON, RSCH; weaker elsewhere', saf: 'More bio capability: higher misuse uplift' }),
   N('multimodal', 'Native multimodal', 'pretraining', 'backbone', [], 'M', 0.9, { cap: 1 }, { cap: 'Trains on more images, video and physical data (×3) and screens and actions (×2): stronger MEDIA, PHYS, AGENCY; weaker elsewhere' }),
   STAR('faultTolerant', 'Fault-tolerant training', 'pretraining', 'backbone', {}, { cap: 'Checkpointing and restarts: part of the 0.90 goodput every lab has' }),
@@ -151,9 +154,17 @@ export const TREE: TreeNodeDef[] = [
   P('P12', 'Long-horizon human demos', 'pretraining', 'backbone', [], 'L', { cap: 1 }, { cap: 'Experts can record days-long work for your long-tasks suite: a demonstrations build (Suites tab) adds their demos, raising its fidelity, its RL ceiling and so the time horizon', cost: 'Research costs no cash; each demonstrations build buys its own expert data' }),
   P('P23', 'Faithful-CoT architecture', 'pretraining', 'backbone', ['T-COTMON'], 'L', { cap: -1, saf: 2 }, { cap: '−0.29 OOM effective compute (faithful reasoning option)', saf: 'Monitorability 0.98; halves CoT pressure and CoT controllability', cost: 'Serving FLOP per token ×1.2' }),
   P('P17', 'Neuralese recurrence', 'pretraining', 'backbone', ['P01', 'P07'], 'XL', { cap: 2, saf: -2 }, { cap: '+0.5 OOM effective compute on a latent base', saf: 'CoT monitoring dies (monitorability 0.05)', cost: 'Serve ×0.4 (no verbal reasoning tokens)' }),
-  // RD-E01a (DD-14): P24 is a capability idea in the pretraining stack (OOM), through the normal idea pipeline. Prior
-  // mean 0.96 OOM = the old flat "next base +0.96 OOM of recipe" at full payoff; sd 0.4 (wide: no measurement) [D].
-  P('P24', 'AI-designed successor', 'pretraining', 'backbone', ['rl.mlResearch'], 'XL', { cap: 2, saf: -1 }, { kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, cap: 'AI-designed architecture and recipe: pretraining efficiency ≈ +1 OOM (wide uncertainty) for bases trained after adoption', saf: 'New lineage: traits redrawn, tools may not transfer' }),
+  // Round 2 item 9: P24 is a research line (pretraining stack): the one-off lump (+0.96 OOM, RD-E01a DD-14) was 65-70% of the
+  // central year-2 software jump with no AIFM counterpart (design/bal/SHAPE-DIAG.md). Opened by RL focus: ML research, as
+  // before. All numbers [D] (no source for AI-designed architectures), fitted to the old lump: a lab that opens the line and
+  // staffs it (1-2 teams, the reflines bot) gains about 0.96 OOM on its bases in 12 months, 0.6 in 6, about 1.4 in 24.
+  //  - rShare 0.3: between Recurrent architectures' 0.22 and Scaling recipes' 0.36; the log law front-loads a small share, this
+  //    keeps the first idea near 0.08 OOM and adds under a third to the pretraining lines' returns.
+  //  - mean 0.12: the first idea's prior at taste 1 (x LINE_FIT.mu); it sets n0 (about 4: a FRESH pool, LINE_START_INPUT has no
+  //    entry for P24, so n0 comes from the first idea and not from an initial research stock: research just beginning).
+  //  - par 0.5: half its ideas in the new-architecture tier (Gundlach: 2 of about 20 human innovations were; an AI explores
+  //    architecture space more widely than humans); s [0.02, 0.04] as that mix.
+  LINE('P24', 'AI-designed successor', 'pretraining', ['rl.mlResearch'], { stack: 'pre', mean: 0.12, s: [0.02, 0.04], par: 0.5, rShare: 0.3 }, { fx: { cap: 1, saf: -1 }, cap: 'A research line of AI-designed architectures and recipes: pretraining efficiency (OOM) for bases trained after adoption; each result adds a little, with diminishing returns', saf: 'New lineage: traits redrawn, tools may not transfer' }),
 
   // ── Post-training (Training unless noted) ──
   STAR('P01', 'Visible reasoning', 'posttraining', 'training', { saf: 1 }, { paradigm: true, cap: 'Baseline reasoning (reasoning RL)', saf: 'Monitorable chain of thought' }),
@@ -244,6 +255,12 @@ for (const n of TREE) {
   if (SAFETY_COLUMNS_SET.has(n.column) || n.star) continue;
   n.kind ??= n.effect ? 'idea' : 'axis';
 }
+/** The one-off form of P24 that the rivals' simplified model keeps (actors/rivalModel.ts RIVAL_IDEA_IDS: an aggregate
+ *  state has no research line of its own beyond DEFAULT_LINES): a pretraining-stack idea of +0.96 OOM (sd 0.4) costing
+ *  28.8 team-months, as before round 2 item 9 [D stand-in]. */
+export const P24_RIVAL_IDEA: TreeNodeDef = {
+  ...TREE.find((n) => n.id === 'P24')!, kind: 'idea', effect: { stack: 'pre', mean: 0.96, sd: 0.4 }, effortTM: V2_PARADIGM_EFFORT_TM.P24,
+};
 for (const n of TREE) {
   if (n.star || n.kind === 'line') continue;
   if (n.paradigm) n.effortTM = FITTED_EFFORT_TM[n.id] ?? V2_PARADIGM_EFFORT_TM[n.id];

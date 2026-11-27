@@ -70,7 +70,7 @@ function refDay(s: GameStateV2, opts: { noSez?: boolean } = {}) {
   tick(s, { skip: ['endings'] });
   if (opts.noSez) delete s.flags[POLICY_FLAGS.sez]; // W3 counterfactual: SEZs never open
 }
-const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false, ...over }));
+const refGameV2 = (over: Partial<SetupV2> = {}) => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false, ...over }));
 
 function run(over: Partial<SetupV2>, days: number, opts: { noSez?: boolean } = {}): Trace {
   const s = refGameV2(over);
@@ -162,8 +162,8 @@ const TIMING_SEEDS = SMOKE ? [] : CAL_SEEDS.filter((x) => x !== CAL_SEED);
 prefill([
   () => runC({ baseline: 'classic', econ: 'ai2027' }, D('2028-04-01')),
   ...TIMING_SEEDS.map((x) => () => timingRec(x)),
-  () => runC({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'), {}, []),
-  ...(SMOKE ? [] : [() => runC({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02'), {}, [])]),
+  () => runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-central' }, D('2026-11-02'), {}, []),
+  ...(SMOKE ? [] : [() => runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-fast' }, D('2026-11-02'), {}, [])]),
   () => w2Rec(),
   ...(SMOKE ? [] : (['ai2027', 'gate'] as const).map((econ) => () => runC({ econ }, D('2031-01-01'), { noSez: true }, W3_PICKS))),
   ...(SMOKE ? [] : [() => sezRec()]),
@@ -284,7 +284,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
 
 // ───────────── 2. Reality baseline at Nov 2026 (W4) ─────────────
 {
-  const r = runC({ baseline: 'reality', econ: 'ai2027', world: 'ai2027' }, D('2026-11-02'), {}, []);
+  const r = runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-central' }, D('2026-11-02'), {}, []);
   const a = r.at['2026-11-01'];
   console.log('Reality baseline / ai2027 world');
   check(Math.abs(a.U - U0) <= 0.15, 'W4: aggregate unemployment effect ≈ 0 at Nov 2026', `${(a.U - U0).toFixed(2)} pp`);
@@ -298,7 +298,7 @@ check(c.s.player.deployments.filter((d) => d.channel !== 'internal').every((d) =
   console.log(`INFO  W4 reality Nov 2026: US hours of use ${pct(a.use.hours)} (RPS 5.3% Q3 2026), workers using AI ${pct(a.use.workers)}, saved per hour of use ${a.use.savedPerHour.toFixed(3)}`);
   // Informational: the slower authors2026 timeline (SC 2029.7) gives weaker 2026 effects.
   if (!SMOKE) {
-  const b = runC({ baseline: 'reality', econ: 'ai2027', world: 'authors2026' }, D('2026-11-02'), {}, []).at['2026-11-01'];
+  const b = runC({ baseline: 'reality', econ: 'ai2027', world: 'tl-fast' }, D('2026-11-02'), {}, []).at['2026-11-01'];
   console.log(`INFO  W4 on authors2026 world: U ${(b.U - U0).toFixed(2)} pp, exposed 22–25 ${((b.youthX - 1) * 100).toFixed(1)}%, firm adoption ${pct(b.firm)}`);
   }
 }

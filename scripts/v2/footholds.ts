@@ -353,7 +353,7 @@ function suspicionTrial(s: GameStateV2, f: Foothold, K: number, days: number) {
 
 // ───────────── the 2025 start: footholds ≈ never form ─────────────
 {
-  const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+  const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
   const daily = fleetCovertTerms(s).reduce((x, t) => x + t.rate, 0) * 365.25;
   const succ = rdParts(s).reduce((x, p) => x + itemTerms(s, p.v, 'SUCCSTEER', p.share, WORK_TYPES[p.slot].H).rate, 0) * 12;
   const saf = (safetySabotage(s, lineLabour(s, 'AG08').aiShare)?.rate ?? 0) * 20;

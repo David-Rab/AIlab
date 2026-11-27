@@ -56,7 +56,7 @@ for (const start of STARTS) {
   for (const [name, bot] of Object.entries(BOTS)) {
     for (let k = 0; k < SEEDS; k++) {
       const seed = 9100 + k;
-      const s = newGame(defaultSetupV2({ seed, world: k % 2 ? 'sampled' : 'ai2027', tutorial: false, start }));
+      const s = newGame(defaultSetupV2({ seed, world: k % 2 ? 'tl-fast' : 'tl-central', tutorial: false, start }));
       const since: Partial<Record<IdleStockId, number>> = {};
       while (!s.ending && s.time.day < DAYS) {
         step(bot, s);

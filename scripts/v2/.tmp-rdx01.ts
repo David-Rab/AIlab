@@ -9,7 +9,7 @@ import { DEFAULT_LINES } from '../../src/data/v2/research';
 import { LEADER_ID } from '../../src/engine/v2/models/labs';
 import { HERE, check, finish, runRef } from './lib';
 
-const mk = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false, leaderLab: true }));
+const mk = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false, leaderLab: true }));
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol * Math.max(1e-12, Math.abs(b));
 const s = mk();
 const w = s.hidden.timeline;

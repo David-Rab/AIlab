@@ -1,0 +1,405 @@
+{
+ "generated": "2026-11-26",
+ "method": "design/bal/FIXC-TRANSLATION.md; per-sample translation then group median (SAR-percentile groups 20-30 / 45-55 / 70-80 of 2,891 ok runs; 109 failed runs excluded exactly as splits.py)",
+ "groups": {
+  "fast": {
+   "n": 290
+  },
+  "central": {
+   "n": 289
+  },
+  "slow": {
+   "n": 290
+  }
+ },
+ "timelines": {
+  "fast": {
+   "presetUsedForStartG": "fast",
+   "settings": {
+    "gSC": {
+     "value": 32.133,
+     "source": "G(V0) of the preset (calibration.ts START_STATE.fast.g 27.600) + group median of per-sample (AIFM progress at AC - progress at V0 date 2025.445) = 4.533 OOM; CAL2-T route (workTypes.ts:304-308) with SC read as AC",
+     "status": "translated",
+     "deltaFromV0": 4.533,
+     "iqr_deltaFromV0": [
+      2.974,
+      4.533,
+      6.379
+     ],
+     "alt_SC_is_AI2027_SC": 34.31,
+     "alt_deltaFromV0": 6.71,
+     "alt_by_V0_horizon_AC": 32.45
+    },
+    "sdSC": {
+     "value": 0.744,
+     "source": "AIFM ai_research_taste_at_coding_automation_anchor_sd, group median (taste at AC, same milestone as gSC)",
+     "status": "translated",
+     "iqr": [
+      -0.588,
+      0.744,
+      2.038
+     ],
+     "alt_SC_is_AI2027_SC": 3.58,
+     "alt_note": "above TOP_SD 3.09 in fast: SAR comes before AI2027-SC in about half of the runs"
+    },
+    "dBM": {
+     "value": 2.061,
+     "source": "TOP_SD 3.09 / (ai_research_taste_slope / anchor_progress_rate) per sample, group median (CAL-world-sources.md section 3; workTypes.ts:300-303)",
+     "status": "translated",
+     "iqr": [
+      1.27,
+      2.061,
+      3.436
+     ]
+    },
+    "r": {
+     "value": 3.452,
+     "source": "AIFM results.r_software (calibrated per run; SE = r*log10(RS), _impl.py:1079), group median",
+     "status": "translated (approximate meaning)",
+     "iqr": [
+      2.144,
+      3.452,
+      5.654
+     ]
+    },
+    "tasteLimit": {
+     "value": 7.524,
+     "source": "AIFM taste_limit, group median (workTypes.ts:310-314)",
+     "status": "translated",
+     "iqr": [
+      4.079,
+      7.524,
+      15.519
+     ]
+    },
+    "m2b": {
+     "value": 4.092,
+     "source": "AIFM median_to_top_taste_multiplier, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      2.433,
+      4.092,
+      7.318
+     ]
+    },
+    "lam": {
+     "value": 0.508,
+     "source": "AIFM parallel_penalty, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      0.368,
+      0.508,
+      0.655
+     ]
+    },
+    "rc": {
+     "value": -2,
+     "source": "AIFM rho_coding_labor, group median; the draw is the discrete set {-5 (25%), -2 (50%), -1 (25%)} so the median is the mode",
+     "status": "translated",
+     "iqr": [
+      -5.0,
+      -2.0,
+      -1.0
+     ]
+    },
+    "La": {
+     "value": 20.33,
+     "source": "AIFM inf_labor_asymptote, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      6.9,
+      20.33,
+      68.82
+     ]
+    },
+    "Ca": {
+     "value": 721.6,
+     "source": "AIFM inf_compute_asymptote, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      121.4,
+      721.6,
+      4407.3
+     ]
+    },
+    "slow10": {
+     "value": 2.65,
+     "source": "AIFM inv_compute_anchor_exp_cap, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      2.053,
+      2.65,
+      3.626
+     ]
+    }
+   },
+   "startState": {
+    "value": "unchanged",
+    "note": "Observed history, same for every group: AIFM present_day 2026.578 and present_horizon 186 are fixed in all samples; AIFM's own progress multiplier at 2025.5 is 1.06 in every group (fast 1.064, central 1.056, slow 1.068), inside the game's start-M check (1.01-1.25). START_STATE g differs by preset only through playerStart's closed form (27.60 / 27.63 / 27.77); it enters gSC through G(V0) only."
+   },
+   "fitNeeded": [
+    "horizon law (no per-group setting; AIFM's superexponential horizon cannot be followed by the fixed 4.2 per OOM)",
+    "takeoff gaps SC->SAR->SIAR->ASI (AIFM's excess uplift doubling time and experiment-compute bottleneck have no game setting)"
+   ]
+  },
+  "central": {
+   "presetUsedForStartG": "authors2026",
+   "settings": {
+    "gSC": {
+     "value": 33.66,
+     "source": "G(V0) of the preset (calibration.ts START_STATE.authors2026.g 27.627) + group median of per-sample (AIFM progress at AC - progress at V0 date 2025.445) = 6.033 OOM; CAL2-T route (workTypes.ts:304-308) with SC read as AC",
+     "status": "translated",
+     "deltaFromV0": 6.033,
+     "iqr_deltaFromV0": [
+      4.217,
+      6.033,
+      8.162
+     ],
+     "alt_SC_is_AI2027_SC": 35.385,
+     "alt_deltaFromV0": 7.758,
+     "alt_by_V0_horizon_AC": 33.902
+    },
+    "sdSC": {
+     "value": 0.31,
+     "source": "AIFM ai_research_taste_at_coding_automation_anchor_sd, group median (taste at AC, same milestone as gSC)",
+     "status": "translated",
+     "iqr": [
+      -1.122,
+      0.31,
+      1.586
+     ],
+     "alt_SC_is_AI2027_SC": 2.435,
+     "alt_note": "above TOP_SD 3.09 in fast: SAR comes before AI2027-SC in about half of the runs"
+    },
+    "dBM": {
+     "value": 1.916,
+     "source": "TOP_SD 3.09 / (ai_research_taste_slope / anchor_progress_rate) per sample, group median (CAL-world-sources.md section 3; workTypes.ts:300-303)",
+     "status": "translated",
+     "iqr": [
+      1.04,
+      1.916,
+      3.417
+     ]
+    },
+    "r": {
+     "value": 2.885,
+     "source": "AIFM results.r_software (calibrated per run; SE = r*log10(RS), _impl.py:1079), group median",
+     "status": "translated (approximate meaning)",
+     "iqr": [
+      1.73,
+      2.885,
+      5.034
+     ]
+    },
+    "tasteLimit": {
+     "value": 7.638,
+     "source": "AIFM taste_limit, group median (workTypes.ts:310-314)",
+     "status": "translated",
+     "iqr": [
+      3.829,
+      7.638,
+      17.013
+     ]
+    },
+    "m2b": {
+     "value": 3.894,
+     "source": "AIFM median_to_top_taste_multiplier, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      2.704,
+      3.894,
+      7.245
+     ]
+    },
+    "lam": {
+     "value": 0.507,
+     "source": "AIFM parallel_penalty, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      0.386,
+      0.507,
+      0.631
+     ]
+    },
+    "rc": {
+     "value": -2,
+     "source": "AIFM rho_coding_labor, group median; the draw is the discrete set {-5 (25%), -2 (50%), -1 (25%)} so the median is the mode",
+     "status": "translated",
+     "iqr": [
+      -2.0,
+      -2.0,
+      -2.0
+     ]
+    },
+    "La": {
+     "value": 17.98,
+     "source": "AIFM inf_labor_asymptote, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      5.11,
+      17.98,
+      70.3
+     ]
+    },
+    "Ca": {
+     "value": 1216.2,
+     "source": "AIFM inf_compute_asymptote, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      166.0,
+      1216.2,
+      8335.5
+     ]
+    },
+    "slow10": {
+     "value": 2.853,
+     "source": "AIFM inv_compute_anchor_exp_cap, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      2.084,
+      2.853,
+      3.862
+     ]
+    }
+   },
+   "startState": {
+    "value": "unchanged",
+    "note": "Observed history, same for every group: AIFM present_day 2026.578 and present_horizon 186 are fixed in all samples; AIFM's own progress multiplier at 2025.5 is 1.06 in every group (fast 1.064, central 1.056, slow 1.068), inside the game's start-M check (1.01-1.25). START_STATE g differs by preset only through playerStart's closed form (27.60 / 27.63 / 27.77); it enters gSC through G(V0) only."
+   },
+   "fitNeeded": [
+    "horizon law (no per-group setting; AIFM's superexponential horizon cannot be followed by the fixed 4.2 per OOM)",
+    "takeoff gaps SC->SAR->SIAR->ASI (AIFM's excess uplift doubling time and experiment-compute bottleneck have no game setting)"
+   ]
+  },
+  "slow": {
+   "presetUsedForStartG": "slow",
+   "settings": {
+    "gSC": {
+     "value": 37.327,
+     "source": "G(V0) of the preset (calibration.ts START_STATE.slow.g 27.766) + group median of per-sample (AIFM progress at AC - progress at V0 date 2025.445) = 9.561 OOM; CAL2-T route (workTypes.ts:304-308) with SC read as AC",
+     "status": "translated",
+     "deltaFromV0": 9.561,
+     "iqr_deltaFromV0": [
+      6.679,
+      9.561,
+      13.747
+     ],
+     "alt_SC_is_AI2027_SC": 38.329,
+     "alt_deltaFromV0": 10.563,
+     "alt_by_V0_horizon_AC": 37.828
+    },
+    "sdSC": {
+     "value": -0.18,
+     "source": "AIFM ai_research_taste_at_coding_automation_anchor_sd, group median (taste at AC, same milestone as gSC)",
+     "status": "translated",
+     "iqr": [
+      -1.543,
+      -0.18,
+      1.831
+     ],
+     "alt_SC_is_AI2027_SC": 0.782,
+     "alt_note": "above TOP_SD 3.09 in fast: SAR comes before AI2027-SC in about half of the runs"
+    },
+    "dBM": {
+     "value": 2.79,
+     "source": "TOP_SD 3.09 / (ai_research_taste_slope / anchor_progress_rate) per sample, group median (CAL-world-sources.md section 3; workTypes.ts:300-303)",
+     "status": "translated",
+     "iqr": [
+      1.511,
+      2.79,
+      5.303
+     ]
+    },
+    "r": {
+     "value": 2.864,
+     "source": "AIFM results.r_software (calibrated per run; SE = r*log10(RS), _impl.py:1079), group median",
+     "status": "translated (approximate meaning)",
+     "iqr": [
+      1.634,
+      2.864,
+      5.315
+     ]
+    },
+    "tasteLimit": {
+     "value": 7.711,
+     "source": "AIFM taste_limit, group median (workTypes.ts:310-314)",
+     "status": "translated",
+     "iqr": [
+      3.747,
+      7.711,
+      16.64
+     ]
+    },
+    "m2b": {
+     "value": 3.82,
+     "source": "AIFM median_to_top_taste_multiplier, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      2.524,
+      3.82,
+      7.121
+     ]
+    },
+    "lam": {
+     "value": 0.51,
+     "source": "AIFM parallel_penalty, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      0.381,
+      0.51,
+      0.661
+     ]
+    },
+    "rc": {
+     "value": -2,
+     "source": "AIFM rho_coding_labor, group median; the draw is the discrete set {-5 (25%), -2 (50%), -1 (25%)} so the median is the mode",
+     "status": "translated",
+     "iqr": [
+      -5.0,
+      -2.0,
+      -2.0
+     ]
+    },
+    "La": {
+     "value": 14.19,
+     "source": "AIFM inf_labor_asymptote, group median (research/13 section 1.4)",
+     "status": "translated",
+     "iqr": [
+      5.02,
+      14.19,
+      51.81
+     ]
+    },
+    "Ca": {
+     "value": 1013.9,
+     "source": "AIFM inf_compute_asymptote, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      150.3,
+      1013.9,
+      6575.5
+     ]
+    },
+    "slow10": {
+     "value": 2.79,
+     "source": "AIFM inv_compute_anchor_exp_cap, group median (not asked; the same production block)",
+     "status": "translated",
+     "iqr": [
+      2.103,
+      2.79,
+      3.986
+     ]
+    }
+   },
+   "startState": {
+    "value": "unchanged",
+    "note": "Observed history, same for every group: AIFM present_day 2026.578 and present_horizon 186 are fixed in all samples; AIFM's own progress multiplier at 2025.5 is 1.06 in every group (fast 1.064, central 1.056, slow 1.068), inside the game's start-M check (1.01-1.25). START_STATE g differs by preset only through playerStart's closed form (27.60 / 27.63 / 27.77); it enters gSC through G(V0) only."
+   },
+   "fitNeeded": [
+    "horizon law (no per-group setting; AIFM's superexponential horizon cannot be followed by the fixed 4.2 per OOM)",
+    "takeoff gaps SC->SAR->SIAR->ASI (AIFM's excess uplift doubling time and experiment-compute bottleneck have no game setting)"
+   ]
+  }
+ },
+ "source": "aifm-runs/out/_scratch/fixc/recs.json from out/eli_*/*/rollouts.jsonl + samples.jsonl (scripts/fixc_extract.py, fixc_analyze.py)"
+}

@@ -27,7 +27,7 @@ const walk = (dir: string) => {
 walk(join(ROOT, 'src'));
 check(hits.length === 0, 'grep: no REF_OFF in src', hits.join(', '));
 
-for (const world of ['ai2027', 'authors2026', 'fast', 'slow'] as const) {
+for (const world of ['tl-fast', 'tl-central', 'tl-slow'] as const) {
   const s = newGame(defaultSetupV2({ world, alignment: 'medium', seed: 2027, tutorial: false }));
   const w = s.hidden.timeline;
   const rd = refDelta(w.v3.sdSC);

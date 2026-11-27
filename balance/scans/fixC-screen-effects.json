@@ -1,0 +1,2977 @@
+{
+ "run": "fixC-screen",
+ "nGames": 152,
+ "perSet": {
+  "base": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": 0,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 40.669,
+    "G28base": 40.669,
+    "dG28": 0,
+    "SCyear": 2027.8423381245723,
+    "ms": 62.73349999999999
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": 0,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 51.295500000000004,
+    "G28base": 51.295500000000004,
+    "dG28": 0,
+    "SCyear": 2027.203049965777,
+    "ms": 55.9785
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": 0,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1,
+     "SARASI": 1
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.978500000000004,
+    "G28base": 31.978500000000004,
+    "dG28": 0,
+    "SCyear": 2028.6363148528405,
+    "ms": 87.304
+   }
+  },
+  "r-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 881,
+     "SCSAR": 28,
+     "SARSIAR": 115,
+     "SIARASI": 98,
+     "SARASI": 197.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 37.5,
+     "SCSAR": 7,
+     "SARSIAR": 52,
+     "SIARASI": 70.5,
+     "SARASI": 120.5
+    },
+    "ratio": {
+     "SC": 1.0280046674445742,
+     "SCSAR": 1.6470588235294117,
+     "SARSIAR": 2.0535714285714284,
+     "SIARASI": 4,
+     "SARASI": 2.296511627906977
+    },
+    "pairedRatio": {
+     "SC": 1.0473809046053477,
+     "SCSAR": 1.1428571428571428,
+     "SARSIAR": 2,
+     "SIARASI": 3.380952380952381,
+     "SARASI": 2.4124579124579126
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 33.5125,
+    "G28base": 40.669,
+    "dG28": -5.0825,
+    "SCyear": 2027.9080465434636,
+    "ms": 84.34100000000001
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 649.5,
+     "SCSAR": 68,
+     "SARSIAR": 115,
+     "SIARASI": 63,
+     "SARASI": 181.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 23.5,
+     "SCSAR": 18,
+     "SARSIAR": 52,
+     "SIARASI": 38.5,
+     "SARASI": 97
+    },
+    "ratio": {
+     "SC": 1.0417000801924619,
+     "SCSAR": 0.9251700680272109,
+     "SARSIAR": 1.8253968253968254,
+     "SIARASI": 2.5714285714285716,
+     "SARASI": 2.11046511627907
+    },
+    "pairedRatio": {
+     "SC": 1.0386121666310062,
+     "SCSAR": 1.3226817042606518,
+     "SARSIAR": 1.842857142857143,
+     "SIARASI": 2.583333333333333,
+     "SARASI": 2.1412291412291413
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 38.825500000000005,
+    "G28base": 51.295500000000004,
+    "dG28": -14.544,
+    "SCyear": 2027.2742340862424,
+    "ms": 77.80449999999999
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1232,
+     "SCSAR": 7,
+     "SARSIAR": 117,
+     "SIARASI": 120.5,
+     "SARASI": 247.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 85,
+     "SCSAR": 3.5,
+     "SARSIAR": 68.5,
+     "SIARASI": 98,
+     "SARASI": 161.5
+    },
+    "ratio": {
+     "SC": 1.074106364428945,
+     "SCSAR": 2,
+     "SARSIAR": 2.3877551020408165,
+     "SIARASI": 4.303571428571429,
+     "SARASI": 3.2142857142857144
+    },
+    "pairedRatio": {
+     "SC": 1.073950123492497,
+     "SCSAR": 1,
+     "SARSIAR": 2.375,
+     "SIARASI": 4.5476190476190474,
+     "SARASI": 3.1166056166056166
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.766,
+    "G28base": 31.978500000000004,
+    "dG28": -0.2275000000000027,
+    "SCyear": 2028.8690321697468,
+    "ms": 96.1875
+   }
+  },
+  "r-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 817.5,
+     "SCSAR": 15.5,
+     "SARSIAR": 45.5,
+     "SIARASI": 14,
+     "SARASI": 56
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -35.5,
+     "SCSAR": -3.5,
+     "SARSIAR": -14,
+     "SIARASI": -17.5,
+     "SARASI": -31.5
+    },
+    "ratio": {
+     "SC": 0.9539089848308051,
+     "SCSAR": 0.9117647058823529,
+     "SARSIAR": 0.8125,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.6511627906976745
+    },
+    "pairedRatio": {
+     "SC": 0.9666928388134848,
+     "SCSAR": 0.665692007797271,
+     "SARSIAR": 0.8,
+     "SIARASI": 0.4,
+     "SARASI": 0.6515151515151515
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 52.599500000000006,
+    "G28base": 40.669,
+    "dG28": 10.063499999999998,
+    "SCyear": 2027.7341930184805,
+    "ms": 61.622
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 616,
+     "SCSAR": 64.5,
+     "SARSIAR": 45.5,
+     "SIARASI": 14,
+     "SARASI": 56
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -7.5,
+     "SCSAR": -5,
+     "SARSIAR": -21,
+     "SIARASI": -17.5,
+     "SARASI": -31.5
+    },
+    "ratio": {
+     "SC": 0.9879711307137129,
+     "SCSAR": 0.8775510204081632,
+     "SARSIAR": 0.7222222222222222,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.6511627906976745
+    },
+    "pairedRatio": {
+     "SC": 0.9879631201732858,
+     "SCSAR": 0.8508771929824561,
+     "SARSIAR": 0.7,
+     "SIARASI": 0.45,
+     "SARASI": 0.6515151515151515
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 75.244,
+    "G28base": 51.295500000000004,
+    "dG28": 24.105500000000003,
+    "SCyear": 2027.1825160848734,
+    "ms": 59.305
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1084,
+     "SCSAR": 3.5,
+     "SARSIAR": 46.5,
+     "SIARASI": 7,
+     "SARASI": 56
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -71,
+     "SCSAR": 0,
+     "SARSIAR": -9.5,
+     "SIARASI": -17.5,
+     "SARASI": -30
+    },
+    "ratio": {
+     "SC": 0.9450741063644289,
+     "SCSAR": 1,
+     "SARSIAR": 0.9489795918367347,
+     "SIARASI": 0.25,
+     "SARASI": 0.7272727272727273
+    },
+    "pairedRatio": {
+     "SC": 0.9344735313201049,
+     "SCSAR": 0,
+     "SARSIAR": 0.8404761904761905,
+     "SIARASI": 0.2,
+     "SARASI": 0.7182539682539683
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.166,
+    "G28base": 31.978500000000004,
+    "dG28": 0.21899999999999942,
+    "SCyear": 2028.4638302532512,
+    "ms": 81.18299999999999
+   }
+  },
+  "dBM-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 869.5,
+     "SCSAR": 14,
+     "SARSIAR": 31.5,
+     "SIARASI": 14,
+     "SARASI": 44
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 34.5,
+     "SCSAR": -10,
+     "SARSIAR": -24.5,
+     "SIARASI": -7,
+     "SARASI": -37
+    },
+    "ratio": {
+     "SC": 1.014585764294049,
+     "SCSAR": 0.8235294117647058,
+     "SARSIAR": 0.5625,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.5116279069767442
+    },
+    "pairedRatio": {
+     "SC": 1.0438292015857482,
+     "SCSAR": 0.4378306878306878,
+     "SARSIAR": 0.6125,
+     "SIARASI": 0.6904761904761905,
+     "SARASI": 0.5673701298701299
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 45.1015,
+    "G28base": 40.669,
+    "dG28": 1.8219999999999992,
+    "SCyear": 2027.8765612594113,
+    "ms": 59.875
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 625.5,
+     "SCSAR": 31.5,
+     "SARSIAR": 24.5,
+     "SIARASI": 17.5,
+     "SARASI": 44
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 3,
+     "SCSAR": -32.5,
+     "SARSIAR": -30,
+     "SIARASI": -7,
+     "SARASI": -37
+    },
+    "ratio": {
+     "SC": 1.0032076984763432,
+     "SCSAR": 0.42857142857142855,
+     "SARSIAR": 0.3888888888888889,
+     "SIARASI": 0.7142857142857143,
+     "SARASI": 0.5116279069767442
+    },
+    "pairedRatio": {
+     "SC": 1.0047977732158202,
+     "SCSAR": 0.5449735449735449,
+     "SARSIAR": 0.4481132075471698,
+     "SIARASI": 0.6904761904761905,
+     "SARASI": 0.531986531986532
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 59.93,
+    "G28base": 51.295500000000004,
+    "dG28": 7.337999999999997,
+    "SCyear": 2027.2085256673513,
+    "ms": 54.454499999999996
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1232,
+     "SCSAR": 0,
+     "SARSIAR": 35,
+     "SIARASI": 14,
+     "SARASI": 49
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 85,
+     "SCSAR": -3.5,
+     "SARSIAR": -14,
+     "SIARASI": -14,
+     "SARASI": -28
+    },
+    "ratio": {
+     "SC": 1.074106364428945,
+     "SCSAR": 0,
+     "SARSIAR": 0.7142857142857143,
+     "SIARASI": 0.5,
+     "SARASI": 0.6363636363636364
+    },
+    "pairedRatio": {
+     "SC": 1.073950123492497,
+     "SCSAR": 0,
+     "SARSIAR": 0.7398496240601504,
+     "SIARASI": 0.6666666666666666,
+     "SARASI": 0.698489010989011
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.866999999999997,
+    "G28base": 31.978500000000004,
+    "dG28": -0.11450000000000315,
+    "SCyear": 2028.8690321697468,
+    "ms": 87.56899999999999
+   }
+  },
+  "dBM-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 816,
+     "SCSAR": 52.5,
+     "SARSIAR": 130.5,
+     "SIARASI": 91,
+     "SARASI": 217.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -47.5,
+     "SCSAR": 7,
+     "SARSIAR": 79,
+     "SIARASI": 66.5,
+     "SARASI": 126
+    },
+    "ratio": {
+     "SC": 0.9521586931155193,
+     "SCSAR": 3.088235294117647,
+     "SARSIAR": 2.330357142857143,
+     "SIARASI": 3.7142857142857144,
+     "SARASI": 2.5290697674418605
+    },
+    "pairedRatio": {
+     "SC": 0.9523547047541014,
+     "SCSAR": 1.5219298245614035,
+     "SARSIAR": 2.273214285714286,
+     "SIARASI": 3.4047619047619047,
+     "SARASI": 2.5774410774410774
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 33.7735,
+    "G28base": 40.669,
+    "dG28": -4.630500000000003,
+    "SCyear": 2027.7300862422999,
+    "ms": 81.1155
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 636,
+     "SCSAR": 137,
+     "SARSIAR": 122.5,
+     "SIARASI": 74,
+     "SARASI": 203.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 12,
+     "SCSAR": 99,
+     "SARSIAR": 63,
+     "SIARASI": 42.5,
+     "SARASI": 124.5
+    },
+    "ratio": {
+     "SC": 1.0200481154771452,
+     "SCSAR": 1.8639455782312926,
+     "SARSIAR": 1.9444444444444444,
+     "SIARASI": 3.020408163265306,
+     "SARASI": 2.366279069767442
+    },
+    "pairedRatio": {
+     "SC": 1.0196466633985424,
+     "SCSAR": 2.4198890082348727,
+     "SARSIAR": 1.9875,
+     "SIARASI": 2.3666666666666667,
+     "SARASI": 2.359259259259259
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 39.5305,
+    "G28base": 51.295500000000004,
+    "dG28": -13.1495,
+    "SCyear": 2027.2372731006162,
+    "ms": 72.3135
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1066.5,
+     "SCSAR": 7,
+     "SARSIAR": 130.5,
+     "SIARASI": 125.5,
+     "SARASI": 282
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -84,
+     "SCSAR": 3.5,
+     "SARSIAR": 83.5,
+     "SIARASI": 97.5,
+     "SARASI": 200
+    },
+    "ratio": {
+     "SC": 0.9298169136878814,
+     "SCSAR": 2,
+     "SARSIAR": 2.663265306122449,
+     "SIARASI": 4.482142857142857,
+     "SARASI": 3.6623376623376624
+    },
+    "pairedRatio": {
+     "SC": 0.9298345695268468,
+     "SCSAR": 0.5,
+     "SARSIAR": 2.573214285714286,
+     "SIARASI": 4.647619047619048,
+     "SARASI": 3.2682005494505493
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.2735,
+    "G28base": 31.978500000000004,
+    "dG28": 0.2949999999999964,
+    "SCyear": 2028.4159178644766,
+    "ms": 100.3025
+   }
+  },
+  "gSC-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 683,
+     "SCSAR": 39,
+     "SARSIAR": 45.5,
+     "SIARASI": 28,
+     "SARASI": 70
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -189.5,
+     "SCSAR": 14.5,
+     "SARSIAR": -14,
+     "SIARASI": 0,
+     "SARASI": -14
+    },
+    "ratio": {
+     "SC": 0.7969661610268378,
+     "SCSAR": 2.2941176470588234,
+     "SARSIAR": 0.8125,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 0.813953488372093
+    },
+    "pairedRatio": {
+     "SC": 0.7834902776079247,
+     "SCSAR": 1.3736126029359113,
+     "SARSIAR": 0.75,
+     "SIARASI": 1,
+     "SARASI": 0.8321678321678322
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 46.420500000000004,
+    "G28base": 40.669,
+    "dG28": 5.588499999999996,
+    "SCyear": 2027.3659520876113,
+    "ms": 60.193
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 443,
+     "SCSAR": 139,
+     "SARSIAR": 42,
+     "SIARASI": 17.5,
+     "SARASI": 56
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -160.5,
+     "SCSAR": 39,
+     "SARSIAR": -24.5,
+     "SIARASI": -10.5,
+     "SARASI": -42
+    },
+    "ratio": {
+     "SC": 0.7105052125100241,
+     "SCSAR": 1.8911564625850341,
+     "SARSIAR": 0.6666666666666666,
+     "SIARASI": 0.7142857142857143,
+     "SARASI": 0.6511627906976745
+    },
+    "pairedRatio": {
+     "SC": 0.7357566585622688,
+     "SCSAR": 1.4489795918367347,
+     "SARSIAR": 0.6499999999999999,
+     "SIARASI": 0.575,
+     "SARASI": 0.5743589743589743
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 61.715,
+    "G28base": 51.295500000000004,
+    "dG28": 10.659000000000002,
+    "SCyear": 2026.7088678986995,
+    "ms": 54.089
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 952.5,
+     "SCSAR": 7,
+     "SARSIAR": 87,
+     "SIARASI": 52.5,
+     "SARASI": 139.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -217,
+     "SCSAR": 3.5,
+     "SARSIAR": 33,
+     "SIARASI": 24.5,
+     "SARASI": 57.5
+    },
+    "ratio": {
+     "SC": 0.8304272013949433,
+     "SCSAR": 2,
+     "SARSIAR": 1.7755102040816326,
+     "SIARASI": 1.875,
+     "SARASI": 1.8116883116883118
+    },
+    "pairedRatio": {
+     "SC": 0.8215982517116405,
+     "SCSAR": 0.5,
+     "SARSIAR": 1.7261904761904763,
+     "SIARASI": 2,
+     "SARASI": 1.818452380952381
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.299,
+    "G28base": 31.978500000000004,
+    "dG28": 0.29100000000000037,
+    "SCyear": 2028.1038028747435,
+    "ms": 72.509
+   }
+  },
+  "gSC-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1014.5,
+     "SCSAR": 45.5,
+     "SARSIAR": 52.5,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 169.5,
+     "SCSAR": 7,
+     "SARSIAR": -3.5,
+     "SIARASI": 3.5,
+     "SARASI": 3.5
+    },
+    "ratio": {
+     "SC": 1.1837806301050176,
+     "SCSAR": 2.676470588235294,
+     "SARSIAR": 0.9375,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 0.8953488372093024
+    },
+    "pairedRatio": {
+     "SC": 1.1683669010220032,
+     "SCSAR": 1.192982456140351,
+     "SARSIAR": 0.95,
+     "SIARASI": 1.1666666666666665,
+     "SARASI": 1.0384615384615383
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 32.189499999999995,
+    "G28base": 40.669,
+    "dG28": -4.028500000000001,
+    "SCyear": 2028.2735496235457,
+    "ms": 80.871
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 708,
+     "SCSAR": 97,
+     "SARSIAR": 73.5,
+     "SIARASI": 28,
+     "SARASI": 98
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 85,
+     "SCSAR": 49,
+     "SARSIAR": 3.5,
+     "SIARASI": 3.5,
+     "SARASI": 3.5
+    },
+    "ratio": {
+     "SC": 1.1355252606255013,
+     "SCSAR": 1.3197278911564625,
+     "SARSIAR": 1.1666666666666667,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 1.1395348837209303
+    },
+    "pairedRatio": {
+     "SC": 1.1404246214347427,
+     "SCSAR": 1.7440028643036163,
+     "SARSIAR": 1.05,
+     "SIARASI": 1.1666666666666665,
+     "SARASI": 1.0384615384615383
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 39.212,
+    "G28base": 51.295500000000004,
+    "dG28": -14.923000000000002,
+    "SCyear": 2027.4343983572896,
+    "ms": 66.139
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1362.5,
+     "SCSAR": 7,
+     "SARSIAR": 42,
+     "SIARASI": 24.5,
+     "SARASI": 73.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 215.5,
+     "SCSAR": 3.5,
+     "SARSIAR": -7,
+     "SIARASI": -3.5,
+     "SARASI": -14
+    },
+    "ratio": {
+     "SC": 1.1878814298169136,
+     "SCSAR": 2,
+     "SARSIAR": 0.8571428571428571,
+     "SIARASI": 0.875,
+     "SARASI": 0.9545454545454546
+    },
+    "pairedRatio": {
+     "SC": 1.1882455693023148,
+     "SCSAR": 0.5,
+     "SARSIAR": 0.9,
+     "SIARASI": 0.9666666666666666,
+     "SARASI": 0.8993055555555556
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.883499999999998,
+    "G28base": 31.978500000000004,
+    "dG28": -0.07450000000000223,
+    "SCyear": 2029.2263216974675,
+    "ms": 98.08500000000001
+   }
+  },
+  "sdSC-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 895,
+     "SCSAR": 85.5,
+     "SARSIAR": 66.5,
+     "SIARASI": 28,
+     "SARASI": 94.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 61,
+     "SCSAR": 43.5,
+     "SARSIAR": 9,
+     "SIARASI": 7,
+     "SARASI": 12.5
+    },
+    "ratio": {
+     "SC": 1.044340723453909,
+     "SCSAR": 5.029411764705882,
+     "SARSIAR": 1.1875,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 1.0988372093023255
+    },
+    "pairedRatio": {
+     "SC": 1.08589696939625,
+     "SCSAR": 3.8903508771929824,
+     "SARSIAR": 1.194736842105263,
+     "SIARASI": 1.3333333333333333,
+     "SARASI": 1.2222222222222223
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 32.243,
+    "G28base": 40.669,
+    "dG28": -2.7670000000000012,
+    "SCyear": 2027.9463764544832,
+    "ms": 81.4815
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 645.5,
+     "SCSAR": 150,
+     "SARSIAR": 70,
+     "SIARASI": 28,
+     "SARASI": 94.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 25,
+     "SCSAR": 96,
+     "SARSIAR": 0,
+     "SIARASI": 3.5,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 1.0352846832397755,
+     "SCSAR": 2.0408163265306123,
+     "SARSIAR": 1.1111111111111112,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 1.0988372093023255
+    },
+    "pairedRatio": {
+     "SC": 1.040354031930274,
+     "SCSAR": 2.4209631220909413,
+     "SARSIAR": 1,
+     "SIARASI": 1.1666666666666665,
+     "SARASI": 1
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 40.226,
+    "G28base": 51.295500000000004,
+    "dG28": -12.718500000000002,
+    "SCyear": 2027.2632826830938,
+    "ms": 67.7495
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1338,
+     "SCSAR": 35,
+     "SARSIAR": 63,
+     "SIARASI": 31.5,
+     "SARASI": 94.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 191,
+     "SCSAR": 30.5,
+     "SARSIAR": 12.5,
+     "SIARASI": 14,
+     "SARASI": 26.5
+    },
+    "ratio": {
+     "SC": 1.1665213600697473,
+     "SCSAR": 10,
+     "SARSIAR": 1.2857142857142858,
+     "SIARASI": 1.125,
+     "SARASI": 1.2272727272727273
+    },
+    "pairedRatio": {
+     "SC": 1.1669341791049819,
+     "SCSAR": 5,
+     "SARSIAR": 1.3114035087719298,
+     "SIARASI": 1.6333333333333333,
+     "SARASI": 1.4626068376068377
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.930500000000002,
+    "G28base": 31.978500000000004,
+    "dG28": -0.04800000000000182,
+    "SCyear": 2029.1592443531829,
+    "ms": 106.4905
+   }
+  },
+  "sdSC-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 764.5,
+     "SCSAR": 0,
+     "SARSIAR": 38.5,
+     "SIARASI": 28,
+     "SARASI": 65
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -122,
+     "SCSAR": -7.5,
+     "SARSIAR": -25,
+     "SIARASI": 0,
+     "SARASI": -18.5
+    },
+    "ratio": {
+     "SC": 0.8920653442240374,
+     "SCSAR": 0,
+     "SARSIAR": 0.6875,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 0.7558139534883721
+    },
+    "pairedRatio": {
+     "SC": 0.8700888970651077,
+     "SCSAR": 0.07456140350877193,
+     "SARSIAR": 0.6428571428571428,
+     "SIARASI": 0.9833333333333334,
+     "SARASI": 0.7943722943722944
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 46.4735,
+    "G28base": 40.669,
+    "dG28": 4.519500000000001,
+    "SCyear": 2027.5890869267625,
+    "ms": 57.332499999999996
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 580.5,
+     "SCSAR": 26,
+     "SARSIAR": 35,
+     "SIARASI": 17.5,
+     "SARASI": 58
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -57.5,
+     "SCSAR": -45,
+     "SARSIAR": -28,
+     "SIARASI": -7,
+     "SARASI": -27.5
+    },
+    "ratio": {
+     "SC": 0.9310344827586207,
+     "SCSAR": 0.35374149659863946,
+     "SARSIAR": 0.5555555555555556,
+     "SIARASI": 0.7142857142857143,
+     "SARASI": 0.6744186046511628
+    },
+    "pairedRatio": {
+     "SC": 0.9103984883146625,
+     "SCSAR": 0.2531328320802005,
+     "SARSIAR": 0.55,
+     "SIARASI": 0.7083333333333333,
+     "SARASI": 0.6973026973026973
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 62.99250000000001,
+    "G28base": 51.295500000000004,
+    "dG28": 12.809499999999996,
+    "SCyear": 2027.0853223819304,
+    "ms": 45.616
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 976.5,
+     "SCSAR": 0,
+     "SARSIAR": 38.5,
+     "SIARASI": 35,
+     "SARASI": 73.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -154,
+     "SCSAR": -3.5,
+     "SARSIAR": -14.5,
+     "SIARASI": 10.5,
+     "SARASI": -0.5
+    },
+    "ratio": {
+     "SC": 0.8513513513513513,
+     "SCSAR": 0,
+     "SARSIAR": 0.7857142857142857,
+     "SIARASI": 1.25,
+     "SARASI": 0.9545454545454546
+    },
+    "pairedRatio": {
+     "SC": 0.8583451721110908,
+     "SCSAR": 0,
+     "SARSIAR": 0.7595238095238095,
+     "SIARASI": 1.5833333333333335,
+     "SARASI": 1.0441468253968256
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.315,
+    "G28base": 31.978500000000004,
+    "dG28": 0.420499999999997,
+    "SCyear": 2028.1695112936345,
+    "ms": 74.3275
+   }
+  },
+  "tasteLimit-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 857,
+     "SCSAR": 20.5,
+     "SARSIAR": 58,
+     "SIARASI": 35,
+     "SARASI": 86
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": 10,
+     "SARASI": 7
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1.2058823529411764,
+     "SARSIAR": 1.0357142857142858,
+     "SIARASI": 1.4285714285714286,
+     "SARASI": 1
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 1.3214285714285714,
+     "SARASI": 1.101010101010101
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 38.0575,
+    "G28base": 40.669,
+    "dG28": -2.251500000000002,
+    "SCyear": 2027.8423381245723,
+    "ms": 67.0025
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 58,
+     "SIARASI": 28,
+     "SARASI": 86
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 3.5,
+     "SARSIAR": -3.5,
+     "SIARASI": 0,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 0.9206349206349206,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 1
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1.030701754385965,
+     "SARSIAR": 0.95,
+     "SIARASI": 0.9583333333333333,
+     "SARASI": 1.0098765432098764
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 45.608999999999995,
+    "G28base": 51.295500000000004,
+    "dG28": -6.049500000000002,
+    "SCyear": 2027.203049965777,
+    "ms": 52.588499999999996
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1150.5,
+     "SCSAR": 3.5,
+     "SARSIAR": 52.5,
+     "SIARASI": 42,
+     "SARASI": 91
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -0.5,
+     "SCSAR": 0,
+     "SARSIAR": 3.5,
+     "SIARASI": 13.5,
+     "SARASI": 13.5
+    },
+    "ratio": {
+     "SC": 1.0030514385353095,
+     "SCSAR": 1,
+     "SARSIAR": 1.0714285714285714,
+     "SIARASI": 1.5,
+     "SARASI": 1.1818181818181819
+    },
+    "pairedRatio": {
+     "SC": 0.9995983935742971,
+     "SCSAR": 1,
+     "SARSIAR": 1.05,
+     "SIARASI": 1.3666666666666667,
+     "SARASI": 1.146978021978022
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.974,
+    "G28base": 31.978500000000004,
+    "dG28": -0.0020000000000024443,
+    "SCyear": 2028.6458973305955,
+    "ms": 75.898
+   }
+  },
+  "tasteLimit-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 14,
+     "SARASI": 73.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": -7,
+     "SARASI": -7
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.8546511627906976
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 1,
+     "SIARASI": 0.7083333333333333,
+     "SARASI": 0.898989898989899
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 45.01649999999999,
+    "G28base": 40.669,
+    "dG28": 4.348999999999997,
+    "SCyear": 2027.8423381245723,
+    "ms": 61.8785
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 623.5,
+     "SCSAR": 77,
+     "SARSIAR": 59.5,
+     "SIARASI": 14,
+     "SARASI": 73.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": -3.5,
+     "SIARASI": -7,
+     "SARASI": -14
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1.0476190476190477,
+     "SARSIAR": 0.9444444444444444,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.8546511627906976
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1,
+     "SARSIAR": 0.95,
+     "SIARASI": 0.6666666666666666,
+     "SARASI": 0.8366571699905033
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 65.2145,
+    "G28base": 51.295500000000004,
+    "dG28": 12.208999999999996,
+    "SCyear": 2027.203049965777,
+    "ms": 50.593
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1143.5,
+     "SCSAR": 0,
+     "SARSIAR": 49,
+     "SIARASI": 21,
+     "SARASI": 70
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -3.5,
+     "SCSAR": 0,
+     "SARSIAR": 0,
+     "SIARASI": -3.5,
+     "SARASI": -7
+    },
+    "ratio": {
+     "SC": 0.9969485614646905,
+     "SCSAR": 0,
+     "SARSIAR": 1,
+     "SIARASI": 0.75,
+     "SARASI": 0.9090909090909091
+    },
+    "pairedRatio": {
+     "SC": 0.9968325791855204,
+     "SCSAR": 0.5,
+     "SARSIAR": 1,
+     "SIARASI": 0.9,
+     "SARASI": 0.9302884615384616
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.981499999999997,
+    "G28base": 31.978500000000004,
+    "dG28": 0.001999999999997115,
+    "SCyear": 2028.6267323750856,
+    "ms": 73.031
+   }
+  },
+  "m2b-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 864,
+     "SCSAR": 14,
+     "SARSIAR": 91,
+     "SIARASI": 52.5,
+     "SARASI": 139.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 7,
+     "SCSAR": 7,
+     "SARSIAR": 27.5,
+     "SIARASI": 24.5,
+     "SARASI": 52
+    },
+    "ratio": {
+     "SC": 1.0081680280046674,
+     "SCSAR": 0.8235294117647058,
+     "SARSIAR": 1.625,
+     "SIARASI": 2.142857142857143,
+     "SARASI": 1.622093023255814
+    },
+    "pairedRatio": {
+     "SC": 1.0058873002523128,
+     "SCSAR": 1.0357142857142856,
+     "SARSIAR": 1.4595238095238094,
+     "SIARASI": 2.166666666666667,
+     "SARASI": 1.7918069584736251
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 35.3335,
+    "G28base": 40.669,
+    "dG28": -4.828500000000002,
+    "SCyear": 2027.8615030800822,
+    "ms": 69.4045
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 623.5,
+     "SCSAR": 80.5,
+     "SARSIAR": 91,
+     "SIARASI": 45.5,
+     "SARASI": 140
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 7,
+     "SARSIAR": 28,
+     "SIARASI": 21,
+     "SARASI": 48.5
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 1.0952380952380953,
+     "SARSIAR": 1.4444444444444444,
+     "SIARASI": 1.8571428571428572,
+     "SARASI": 1.627906976744186
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 1.1071428571428572,
+     "SARSIAR": 1.475,
+     "SIARASI": 1.8,
+     "SARASI": 1.5493827160493827
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 40.619,
+    "G28base": 51.295500000000004,
+    "dG28": -11.219999999999999,
+    "SCyear": 2027.203049965777,
+    "ms": 56.881
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1161,
+     "SCSAR": 7,
+     "SARSIAR": 83.5,
+     "SIARASI": 59.5,
+     "SARASI": 129
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 14,
+     "SCSAR": 3.5,
+     "SARSIAR": 27.5,
+     "SIARASI": 42,
+     "SARASI": 52
+    },
+    "ratio": {
+     "SC": 1.012205754141238,
+     "SCSAR": 2,
+     "SARSIAR": 1.7040816326530612,
+     "SIARASI": 2.125,
+     "SARASI": 1.6753246753246753
+    },
+    "pairedRatio": {
+     "SC": 1.012222141881272,
+     "SCSAR": 1,
+     "SARSIAR": 1.4595238095238094,
+     "SIARASI": 2.7,
+     "SARASI": 1.9059829059829059
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.004999999999995,
+    "G28base": 31.978500000000004,
+    "dG28": 0.014999999999998792,
+    "SCyear": 2028.6746447638604,
+    "ms": 73.89699999999999
+   }
+  },
+  "m2b-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 857,
+     "SCSAR": 13,
+     "SARSIAR": 49,
+     "SIARASI": 10,
+     "SARASI": 56
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 0,
+     "SCSAR": 0,
+     "SARSIAR": -10.5,
+     "SIARASI": -14.5,
+     "SARASI": -30.5
+    },
+    "ratio": {
+     "SC": 1,
+     "SCSAR": 0.7647058823529411,
+     "SARSIAR": 0.875,
+     "SIARASI": 0.40816326530612246,
+     "SARASI": 0.6511627906976745
+    },
+    "pairedRatio": {
+     "SC": 1,
+     "SCSAR": 0.9642857142857143,
+     "SARSIAR": 0.8166666666666667,
+     "SIARASI": 0.3666666666666667,
+     "SARASI": 0.6636363636363636
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 48.7445,
+    "G28base": 40.669,
+    "dG28": 5.857999999999997,
+    "SCyear": 2027.8423381245723,
+    "ms": 54.8745
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 639,
+     "SCSAR": 62.5,
+     "SARSIAR": 49,
+     "SIARASI": 10,
+     "SARASI": 59.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 11,
+     "SCSAR": -7.5,
+     "SARSIAR": -14,
+     "SIARASI": -14.5,
+     "SARASI": -30.5
+    },
+    "ratio": {
+     "SC": 1.02485966319166,
+     "SCSAR": 0.8503401360544217,
+     "SARSIAR": 0.7777777777777778,
+     "SIARASI": 0.40816326530612246,
+     "SARASI": 0.6918604651162791
+    },
+    "pairedRatio": {
+     "SC": 1.0183412192631551,
+     "SCSAR": 0.8161375661375662,
+     "SARSIAR": 0.7875,
+     "SIARASI": 0.3666666666666667,
+     "SARASI": 0.6636363636363636
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 70.662,
+    "G28base": 51.295500000000004,
+    "dG28": 21.584,
+    "SCyear": 2027.2454866529774,
+    "ms": 43.408
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1129.5,
+     "SCSAR": 3.5,
+     "SARSIAR": 43.5,
+     "SIARASI": 7,
+     "SARASI": 54
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -10,
+     "SCSAR": 0,
+     "SARSIAR": -10.5,
+     "SIARASI": -17.5,
+     "SARASI": -28
+    },
+    "ratio": {
+     "SC": 0.9847428073234524,
+     "SCSAR": 1,
+     "SARSIAR": 0.8877551020408163,
+     "SIARASI": 0.25,
+     "SARASI": 0.7012987012987013
+    },
+    "pairedRatio": {
+     "SC": 0.9917030611934703,
+     "SCSAR": 1,
+     "SARSIAR": 0.8166666666666667,
+     "SIARASI": 0.2,
+     "SARASI": 0.6944444444444444
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.954,
+    "G28base": 31.978500000000004,
+    "dG28": -0.02300000000000324,
+    "SCyear": 2028.588402464066,
+    "ms": 72.72149999999999
+   }
+  },
+  "lam-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 932.5,
+     "SCSAR": 31,
+     "SARSIAR": 84,
+     "SIARASI": 35,
+     "SARASI": 112
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 84.5,
+     "SCSAR": 7,
+     "SARSIAR": 26,
+     "SIARASI": 7,
+     "SARASI": 35
+    },
+    "ratio": {
+     "SC": 1.088098016336056,
+     "SCSAR": 1.8235294117647058,
+     "SARSIAR": 1.5,
+     "SIARASI": 1.4285714285714286,
+     "SARASI": 1.302325581395349
+    },
+    "pairedRatio": {
+     "SC": 1.1025846585521903,
+     "SCSAR": 1.1530612244897958,
+     "SARSIAR": 1.5424528301886793,
+     "SIARASI": 1.2083333333333335,
+     "SARASI": 1.3741258741258742
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 33.535,
+    "G28base": 40.669,
+    "dG28": -2.1775000000000055,
+    "SCyear": 2028.0490458590007,
+    "ms": 64.6275
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 664.5,
+     "SCSAR": 59,
+     "SARSIAR": 91,
+     "SIARASI": 31.5,
+     "SARASI": 122.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 47.5,
+     "SCSAR": 21,
+     "SARSIAR": 33,
+     "SIARASI": 0,
+     "SARASI": 35
+    },
+    "ratio": {
+     "SC": 1.065757818765036,
+     "SCSAR": 0.8027210884353742,
+     "SARSIAR": 1.4444444444444444,
+     "SIARASI": 1.2857142857142858,
+     "SARASI": 1.4244186046511629
+    },
+    "pairedRatio": {
+     "SC": 1.078313221288663,
+     "SCSAR": 1.446920873612603,
+     "SARSIAR": 1.5924528301886793,
+     "SIARASI": 1.025,
+     "SARASI": 1.3741258741258742
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 42.0035,
+    "G28base": 51.295500000000004,
+    "dG28": -9.292000000000002,
+    "SCyear": 2027.3153018480493,
+    "ms": 59.07900000000001
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1296.5,
+     "SCSAR": 3.5,
+     "SARSIAR": 59.5,
+     "SIARASI": 35,
+     "SARASI": 97
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 121.5,
+     "SCSAR": 0,
+     "SARSIAR": 10.5,
+     "SIARASI": 10.5,
+     "SARASI": 17.5
+    },
+    "ratio": {
+     "SC": 1.1303400174367917,
+     "SCSAR": 1,
+     "SARSIAR": 1.2142857142857142,
+     "SIARASI": 1.25,
+     "SARASI": 1.2597402597402598
+    },
+    "pairedRatio": {
+     "SC": 1.1031874102745824,
+     "SCSAR": 0.5,
+     "SARSIAR": 1.25,
+     "SIARASI": 1.4166666666666667,
+     "SARASI": 1.2777777777777777
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.737499999999997,
+    "G28base": 31.978500000000004,
+    "dG28": -0.2410000000000032,
+    "SCyear": 2029.045623545517,
+    "ms": 68.9735
+   }
+  },
+  "lam-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 788,
+     "SCSAR": 24.5,
+     "SARSIAR": 45.5,
+     "SIARASI": 35,
+     "SARASI": 75.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -79.5,
+     "SCSAR": 0,
+     "SARSIAR": -14.5,
+     "SIARASI": 12.5,
+     "SARASI": -10.5
+    },
+    "ratio": {
+     "SC": 0.9194865810968494,
+     "SCSAR": 1.4411764705882353,
+     "SARSIAR": 0.8125,
+     "SIARASI": 1.4285714285714286,
+     "SARASI": 0.877906976744186
+    },
+    "pairedRatio": {
+     "SC": 0.9268268987363424,
+     "SCSAR": 1,
+     "SARSIAR": 0.7410714285714286,
+     "SIARASI": 1.3630952380952381,
+     "SARASI": 0.8798670465337132
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 42.2525,
+    "G28base": 40.669,
+    "dG28": 1.143499999999996,
+    "SCyear": 2027.6534264202603,
+    "ms": 55.867999999999995
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 589.5,
+     "SCSAR": 45.5,
+     "SARSIAR": 42,
+     "SIARASI": 28,
+     "SARASI": 72
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -29,
+     "SCSAR": -28,
+     "SARSIAR": -19.5,
+     "SIARASI": 2,
+     "SARASI": -17.5
+    },
+    "ratio": {
+     "SC": 0.9454691259021651,
+     "SCSAR": 0.6190476190476191,
+     "SARSIAR": 0.6666666666666666,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 0.8372093023255814
+    },
+    "pairedRatio": {
+     "SC": 0.9514493950810214,
+     "SCSAR": 0.7142857142857143,
+     "SARSIAR": 0.6801886792452829,
+     "SIARASI": 1.0297619047619047,
+     "SARASI": 0.7867132867132867
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 56.585499999999996,
+    "G28base": 51.295500000000004,
+    "dG28": 4.02,
+    "SCyear": 2027.1099630390145,
+    "ms": 47.1065
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1063,
+     "SCSAR": 7,
+     "SARSIAR": 52.5,
+     "SIARASI": 35,
+     "SARASI": 87.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -91,
+     "SCSAR": 3.5,
+     "SARSIAR": 3.5,
+     "SIARASI": 14,
+     "SARASI": 17.5
+    },
+    "ratio": {
+     "SC": 0.9267654751525719,
+     "SCSAR": 2,
+     "SARSIAR": 1.0714285714285714,
+     "SIARASI": 1.25,
+     "SARASI": 1.1363636363636365
+    },
+    "pairedRatio": {
+     "SC": 0.9222773446728089,
+     "SCSAR": 1,
+     "SARSIAR": 1.0833333333333335,
+     "SIARASI": 1.5,
+     "SARASI": 1.2291666666666665
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 32.206500000000005,
+    "G28base": 31.978500000000004,
+    "dG28": 0.24099999999999966,
+    "SCyear": 2028.4063353867216,
+    "ms": 62.689499999999995
+   }
+  },
+  "rc-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 860,
+     "SCSAR": 23,
+     "SARSIAR": 63,
+     "SIARASI": 28,
+     "SARASI": 90.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 9,
+     "SCSAR": 7,
+     "SARSIAR": 4.5,
+     "SIARASI": 7,
+     "SARASI": 3.5
+    },
+    "ratio": {
+     "SC": 1.0035005834305717,
+     "SCSAR": 1.3529411764705883,
+     "SARSIAR": 1.125,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 1.052325581395349
+    },
+    "pairedRatio": {
+     "SC": 1.0134011153151348,
+     "SCSAR": 1.118421052631579,
+     "SARSIAR": 1.0813679245283019,
+     "SIARASI": 1.225,
+     "SARASI": 1.0555555555555556
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 39.673500000000004,
+    "G28base": 40.669,
+    "dG28": -0.02300000000000324,
+    "SCyear": 2027.8505516769337,
+    "ms": 62.501
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 626.5,
+     "SCSAR": 78.5,
+     "SARSIAR": 71.5,
+     "SIARASI": 21,
+     "SARASI": 97.5
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 3,
+     "SCSAR": 13,
+     "SARSIAR": 8.5,
+     "SIARASI": 0,
+     "SARASI": 4.5
+    },
+    "ratio": {
+     "SC": 1.0048115477145148,
+     "SCSAR": 1.0680272108843538,
+     "SARSIAR": 1.1349206349206349,
+     "SIARASI": 0.8571428571428571,
+     "SARASI": 1.1337209302325582
+    },
+    "pairedRatio": {
+     "SC": 1.0047977732158202,
+     "SCSAR": 1.261278195488722,
+     "SARSIAR": 1.1339285714285714,
+     "SIARASI": 0.9583333333333333,
+     "SARASI": 1.0555555555555556
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 50.716,
+    "G28base": 51.295500000000004,
+    "dG28": -0.5794999999999995,
+    "SCyear": 2027.2112635181384,
+    "ms": 51.8825
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1177.5,
+     "SCSAR": 7,
+     "SARSIAR": 52.5,
+     "SIARASI": 28,
+     "SARASI": 80.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": 30.5,
+     "SCSAR": 3.5,
+     "SARSIAR": -3.5,
+     "SIARASI": 7,
+     "SARASI": -0.5
+    },
+    "ratio": {
+     "SC": 1.0265911072362686,
+     "SCSAR": 2,
+     "SARSIAR": 1.0714285714285714,
+     "SIARASI": 1,
+     "SARASI": 1.0454545454545454
+    },
+    "pairedRatio": {
+     "SC": 1.026482956513135,
+     "SCSAR": 0.5,
+     "SARSIAR": 0.95,
+     "SIARASI": 1.2666666666666666,
+     "SARASI": 0.9786324786324787
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.967999999999996,
+    "G28base": 31.978500000000004,
+    "dG28": -0.02300000000000324,
+    "SCyear": 2028.7198193018482,
+    "ms": 66.6155
+   }
+  },
+  "rc-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 837,
+     "SCSAR": 9.5,
+     "SARSIAR": 58,
+     "SIARASI": 28,
+     "SARASI": 84
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -26,
+     "SCSAR": -7,
+     "SARSIAR": -3.5,
+     "SIARASI": 0,
+     "SARASI": 0
+    },
+    "ratio": {
+     "SC": 0.9766627771295215,
+     "SCSAR": 0.5588235294117647,
+     "SARSIAR": 1.0357142857142858,
+     "SIARASI": 1.1428571428571428,
+     "SARASI": 0.9767441860465116
+    },
+    "pairedRatio": {
+     "SC": 0.9785868452785067,
+     "SCSAR": 0.7073934837092732,
+     "SARSIAR": 0.9375,
+     "SIARASI": 1,
+     "SARASI": 1.006993006993007
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 41.477999999999994,
+    "G28base": 40.669,
+    "dG28": 0.8089999999999975,
+    "SCyear": 2027.7875811088297,
+    "ms": 54.480000000000004
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 602.5,
+     "SCSAR": 52.5,
+     "SARSIAR": 52.5,
+     "SIARASI": 24.5,
+     "SARASI": 77
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -9,
+     "SCSAR": -20.5,
+     "SARSIAR": -14,
+     "SIARASI": -3.5,
+     "SARASI": -19
+    },
+    "ratio": {
+     "SC": 0.9663191659983962,
+     "SCSAR": 0.7142857142857143,
+     "SARSIAR": 0.8333333333333334,
+     "SIARASI": 1,
+     "SARASI": 0.8953488372093024
+    },
+    "pairedRatio": {
+     "SC": 0.9851378023298766,
+     "SCSAR": 0.7073934837092732,
+     "SARSIAR": 0.7785714285714285,
+     "SIARASI": 0.9,
+     "SARASI": 0.8036630036630037
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 53.675,
+    "G28base": 51.295500000000004,
+    "dG28": 2.3795,
+    "SCyear": 2027.145555099247,
+    "ms": 49.5205
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1112,
+     "SCSAR": 3.5,
+     "SARSIAR": 69,
+     "SIARASI": 42,
+     "SARASI": 105.5
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -34,
+     "SCSAR": 0,
+     "SARSIAR": 25,
+     "SIARASI": 3.5,
+     "SARASI": 21.5
+    },
+    "ratio": {
+     "SC": 0.969485614646905,
+     "SCSAR": 1,
+     "SARSIAR": 1.4081632653061225,
+     "SIARASI": 1.5,
+     "SARASI": 1.37012987012987
+    },
+    "pairedRatio": {
+     "SC": 0.9694812570398916,
+     "SCSAR": 0.5,
+     "SARSIAR": 1.4952380952380953,
+     "SIARASI": 1.0833333333333335,
+     "SARASI": 1.2692307692307692
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.9995,
+    "G28base": 31.978500000000004,
+    "dG28": 0.02099999999999902,
+    "SCyear": 2028.540490075291,
+    "ms": 69.322
+   }
+  },
+  "La-dn": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 856,
+     "SCSAR": 18.5,
+     "SARSIAR": 66.5,
+     "SIARASI": 35,
+     "SARASI": 101.5
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 1,
+     "SCSAR": 0,
+     "SARSIAR": 3.5,
+     "SIARASI": 7,
+     "SARASI": 10
+    },
+    "ratio": {
+     "SC": 0.9988331388564761,
+     "SCSAR": 1.088235294117647,
+     "SARSIAR": 1.1875,
+     "SIARASI": 1.4285714285714286,
+     "SARASI": 1.180232558139535
+    },
+    "pairedRatio": {
+     "SC": 1.0016181229773462,
+     "SCSAR": 1.0219298245614035,
+     "SARSIAR": 1.05,
+     "SIARASI": 1.2797619047619047,
+     "SARASI": 1.1277472527472527
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 39.7395,
+    "G28base": 40.669,
+    "dG28": -0.005000000000002558,
+    "SCyear": 2027.8396002737852,
+    "ms": 56.3395
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 631.5,
+     "SCSAR": 66.5,
+     "SARSIAR": 63,
+     "SIARASI": 31.5,
+     "SARASI": 95
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": 2.5,
+     "SCSAR": 4,
+     "SARSIAR": 0,
+     "SIARASI": 3.5,
+     "SARASI": 2
+    },
+    "ratio": {
+     "SC": 1.012830793905373,
+     "SCSAR": 0.9047619047619048,
+     "SARSIAR": 1,
+     "SIARASI": 1.2857142857142858,
+     "SARASI": 1.1046511627906976
+    },
+    "pairedRatio": {
+     "SC": 1.0041734892465115,
+     "SCSAR": 1.077485380116959,
+     "SARSIAR": 1,
+     "SIARASI": 1.125,
+     "SARASI": 1.0246913580246915
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 51.8455,
+    "G28base": 51.295500000000004,
+    "dG28": 0.5500000000000007,
+    "SCyear": 2027.224952772074,
+    "ms": 51.5355
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1161,
+     "SCSAR": 0,
+     "SARSIAR": 66.5,
+     "SIARASI": 45,
+     "SARASI": 115
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -1.5,
+     "SCSAR": 0,
+     "SARSIAR": 7,
+     "SIARASI": 17,
+     "SARASI": 16.5
+    },
+    "ratio": {
+     "SC": 1.012205754141238,
+     "SCSAR": 0,
+     "SARSIAR": 1.3571428571428572,
+     "SIARASI": 1.6071428571428572,
+     "SARASI": 1.4935064935064934
+    },
+    "pairedRatio": {
+     "SC": 0.9986611864515231,
+     "SCSAR": 0.5,
+     "SARSIAR": 1.1125,
+     "SIARASI": 1.9047619047619047,
+     "SARASI": 1.2142857142857144
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.956000000000003,
+    "G28base": 31.978500000000004,
+    "dG28": -0.005000000000002558,
+    "SCyear": 2028.6746447638604,
+    "ms": 75.21199999999999
+   }
+  },
+  "La-up": {
+   "all": {
+    "n": 8,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 853,
+     "SCSAR": 19.5,
+     "SARSIAR": 49,
+     "SIARASI": 21,
+     "SARASI": 73
+    },
+    "baseMed": {
+     "SC": 857,
+     "SCSAR": 17,
+     "SARSIAR": 56,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -2,
+     "SCSAR": 3.5,
+     "SARSIAR": -6,
+     "SIARASI": -7,
+     "SARASI": -12
+    },
+    "ratio": {
+     "SC": 0.9953325554259043,
+     "SCSAR": 1.1470588235294117,
+     "SARSIAR": 0.875,
+     "SIARASI": 0.8571428571428571,
+     "SARASI": 0.8488372093023255
+    },
+    "pairedRatio": {
+     "SC": 0.9967920519034168,
+     "SCSAR": 1.0189760114572146,
+     "SARSIAR": 0.9017857142857143,
+     "SIARASI": 0.7333333333333334,
+     "SARASI": 0.85999185999186
+    },
+    "n_SC": 8,
+    "n_SCSAR": 8,
+    "n_SARSIAR": 8,
+    "n_SIARASI": 8,
+    "n_SARASI": 8,
+    "G28": 41.132000000000005,
+    "G28base": 40.669,
+    "dG28": 0.3725000000000005,
+    "SCyear": 2027.8313867214238,
+    "ms": 56.1115
+   },
+   "ai2027": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 621.5,
+     "SCSAR": 78,
+     "SARSIAR": 57,
+     "SIARASI": 14,
+     "SARASI": 74
+    },
+    "baseMed": {
+     "SC": 623.5,
+     "SCSAR": 73.5,
+     "SARSIAR": 63,
+     "SIARASI": 24.5,
+     "SARASI": 86
+    },
+    "dDays": {
+     "SC": -2,
+     "SCSAR": 3.5,
+     "SARSIAR": -6,
+     "SIARASI": -7,
+     "SARASI": -13
+    },
+    "ratio": {
+     "SC": 0.9967923015236567,
+     "SCSAR": 1.0612244897959184,
+     "SARSIAR": 0.9047619047619048,
+     "SIARASI": 0.5714285714285714,
+     "SARASI": 0.8604651162790697
+    },
+    "pairedRatio": {
+     "SC": 0.9967920519034168,
+     "SCSAR": 1.0816326530612246,
+     "SARSIAR": 0.9017857142857143,
+     "SIARASI": 0.6666666666666666,
+     "SARASI": 0.835016835016835
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 52.911,
+    "G28base": 51.295500000000004,
+    "dG28": 1.2940000000000005,
+    "SCyear": 2027.1975742642028,
+    "ms": 45.591
+   },
+   "authors2026": {
+    "n": 4,
+    "nNoASI": 0,
+    "nNoSC": 0,
+    "med": {
+     "SC": 1143.5,
+     "SCSAR": 7,
+     "SARSIAR": 43.5,
+     "SIARASI": 28,
+     "SARASI": 70
+    },
+    "baseMed": {
+     "SC": 1147,
+     "SCSAR": 3.5,
+     "SARSIAR": 49,
+     "SIARASI": 28,
+     "SARASI": 77
+    },
+    "dDays": {
+     "SC": -4.5,
+     "SCSAR": 3.5,
+     "SARSIAR": -3.5,
+     "SIARASI": -3.5,
+     "SARASI": -3.5
+    },
+    "ratio": {
+     "SC": 0.9969485614646905,
+     "SCSAR": 2,
+     "SARSIAR": 0.8877551020408163,
+     "SIARASI": 1,
+     "SARASI": 0.9090909090909091
+    },
+    "pairedRatio": {
+     "SC": 0.9960293663341148,
+     "SCSAR": 1,
+     "SARSIAR": 0.9375,
+     "SIARASI": 0.9,
+     "SARASI": 0.96875
+    },
+    "n_SC": 4,
+    "n_SCSAR": 4,
+    "n_SARSIAR": 4,
+    "n_SIARASI": 4,
+    "n_SARASI": 4,
+    "G28": 31.98,
+    "G28base": 31.978500000000004,
+    "dG28": 0.0009999999999976694,
+    "SCyear": 2028.6267323750856,
+    "ms": 69.077
+   }
+  }
+ },
+ "ranking": [
+  {
+   "param": "dBM",
+   "gapEffect": 1.079103962496884,
+   "gapSpanSARASI": 1.5980092166104776,
+   "gapSpanSARSIAR": 1.4213856809311607,
+   "gapSpanSIARASI": 1.8718021769015913,
+   "scSpanDays": 82,
+   "scMax": 47.5
+  },
+  {
+   "param": "r",
+   "gapEffect": 1.0529373993739957,
+   "gapSpanSARASI": 1.2603868936060272,
+   "gapSpanSARSIAR": 0.9272198024063453,
+   "gapSpanSIARASI": 1.9459101490553135,
+   "scSpanDays": 73,
+   "scMax": 37.5
+  },
+  {
+   "param": "m2b",
+   "gapEffect": 0.6238239339142988,
+   "gapSpanSARASI": 0.912712910526271,
+   "gapSpanSARSIAR": 0.6190392084062234,
+   "gapSpanSIARASI": 1.6582280766035322,
+   "scSpanDays": 7,
+   "scMax": 7
+  },
+  {
+   "param": "lam",
+   "gapEffect": 0.3810700260234484,
+   "gapSpanSARASI": 0.3943662150401156,
+   "gapSpanSARSIAR": 0.6131044728864089,
+   "gapSpanSIARASI": 0,
+   "scSpanDays": 164,
+   "scMax": 84.5
+  },
+  {
+   "param": "sdSC",
+   "gapEffect": 0.2541124210329666,
+   "gapSpanSARASI": 0.3742125646040599,
+   "gapSpanSARSIAR": 0.5465437063680699,
+   "gapSpanSIARASI": 0,
+   "scSpanDays": 183,
+   "scMax": 122
+  },
+  {
+   "param": "La",
+   "gapEffect": 0.2642626004326958,
+   "gapSpanSARASI": 0.329599357333451,
+   "gapSpanSARSIAR": 0.30538164955118186,
+   "gapSpanSIARASI": 0.5108256237659907,
+   "scSpanDays": 3,
+   "scMax": 2
+  },
+  {
+   "param": "tasteLimit",
+   "gapEffect": 0.2798078939677114,
+   "gapSpanSARASI": 0.1570618900347168,
+   "gapSpanSARSIAR": 0.03509131981127019,
+   "gapSpanSIARASI": 0.9162907318741551,
+   "scSpanDays": 0,
+   "scMax": 0
+  },
+  {
+   "param": "gSC",
+   "gapEffect": 0.17058537870138354,
+   "gapSpanSARASI": 0.0953101798043249,
+   "gapSpanSARSIAR": 0.14310084364067333,
+   "gapSpanSIARASI": 0,
+   "scSpanDays": 359,
+   "scMax": 189.5
+  },
+  {
+   "param": "rc",
+   "gapEffect": 0.125657214140453,
+   "gapSpanSARASI": 0.07453305186256695,
+   "gapSpanSARSIAR": 0.08269171584511326,
+   "gapSpanSIARASI": 0,
+   "scSpanDays": 35,
+   "scMax": 26
+  }
+ ]
+}

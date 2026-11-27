@@ -49,7 +49,7 @@ function capLines(s: GameStateV2, n: TreeNodeDef, odds: number, spec: number): {
   const eff = n.effect;
   const per = eff ? priorMean(s, n, {}, spec) : 0;
   if (eff?.stack) {
-    const x = atTest(n, { b: 1 }, { x: per, s: eff.s?.[0] ?? 0 }).xTest;
+    const x = atTest(n, { b: 1 }, { x: per, s: eff.s?.[0] ?? 0, k: 0 }).xTest;
     g(x, 'OOM', `${STACK_LABEL[eff.stack]}${n.kind === 'line' ? ' per idea' : ''} (expected)`);
     for (const [k, ratio] of Object.entries(eff.also ?? {}) as [StackKey, number][]) g(x * ratio, 'OOM', `${STACK_LABEL[k]} (expected)`);
   } else if (eff?.domains) {

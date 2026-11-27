@@ -20,7 +20,7 @@ const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; co
 const sci = (s: GameStateV2, dept: 'cap' | 'saf') => s.player.teams.filter((t) => t.role === 'sci' && t.dept === dept);
 
 // Day 0.
-const s0 = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', companyName: 'X' }));
+const s0 = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', companyName: 'X' }));
 const q0 = s0.player.research.queue;
 const capQ = q0.filter((id) => isCapProject(PROJECT_BY_ID[id]));
 const cap0 = sci(s0, 'cap');

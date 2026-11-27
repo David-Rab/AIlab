@@ -136,7 +136,7 @@ export function play(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignm
 }
 
 function playGame(bot: BotPolicy, seed: number, stopAt: 'asi' | 'sar', alignment: AlignDiffId, inspect?: (s: GameStateV2) => void): Outcome {
-  const s = newGame(defaultSetupV2({ seed, world: 'ai2027', alignment, tutorial: false }));
+  const s = newGame(defaultSetupV2({ seed, world: 'tl-central', alignment, tutorial: false }));
   let sar: SarRead | undefined;
   let minMargin = Infinity;
   let uAtSar: number | undefined;

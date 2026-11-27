@@ -7,7 +7,7 @@ import { PRODUCT_ACTIONS } from '../../../src/engine/v2/models/productOps';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const s = newGame(defaultSetupV2({ seed: 2027, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const s = newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const act = PRODUCT_ACTIONS.find((a) => a.id === 'releaseOpen')!;
 const v = s.player.models.versions[0];
 const pv = () => JSON.stringify(act.preview(s, { versionId: v.id }));

@@ -75,7 +75,7 @@ const LINE_COLUMN: Record<AgendaId, Column> = {
 };
 
 /** RD-R02a conversion of computeRef (a share of the leader lab's day-0 compute, 1e6 H100e) into capability project
- *  compute units: 1e6 × PHI ÷ C_UNIT_FLOP_PER_DAY = 11 × 0.88 ÷ (0.05 × RE_LABOUR_UNIT) = 96.8. */
+ *  compute units: 1e6 × PHI ÷ C_UNIT_FLOP_PER_DAY = 11 × 0.88 ÷ (0.35 × RE_LABOUR_UNIT) = 13.8 (DAY0_EXPERIMENT_SHARE; 96.8 at AI 2027's 5%). */
 const NEED_PER_REF = (1e6 * PHI_FLOP_PER_H100E_DAY) / C_UNIT_FLOP_PER_DAY;
 export const AGENDAS: AgendaDef[] = ROWS.map((r) => {
   const computeRef = Math.max(0.0005, mid(r.computeRange));
@@ -86,7 +86,7 @@ export const AGENDA_IDS: AgendaId[] = AGENDAS.map((a) => a.id);
 export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as Record<AgendaId, AgendaDef>;
 /** Research lines are tree projects for safety science teams (R8, STRUCTURE §4.5): a project's result is one finding.
  *  Model v3 E1: the project runs stages (below; safety/lineProjects.ts) whose ideation rate is (capacity ÷
- *  SERIOUS_CAP)^λ × taste, so a line staffed at "serious" capacity (with its engineers and compute) gets its first result
+ *  SERIOUS_CAP)^λ (taste does not speed it; models/research.ts sciWorkRate), so a line staffed at "serious" capacity (with its engineers and compute) gets its first result
  *  after T₁ months, the pre-R8 hazard's expected time at Serious funding (pre-E1: progress/day = √(capacity ÷
  *  SERIOUS_CAP) / (30·T₁) × compute^0.3 × AI labour). SERIOUS_CAP is a serious programme's capacity in standard science
  *  teams (heads/40 × quality × 1.5 in the team's specialty) [calibration: RefBot keeps one team on each of its four
@@ -95,10 +95,10 @@ export const AGENDA_BY_ID = Object.fromEntries(AGENDAS.map((a) => [a.id, a])) as
  *  understanding hold at SAR (S5). */
 export const SERIOUS_CAP = 4;
 // ───────────────────────────── line projects on the project mechanism (model v3 E1) ─────────────────────────────
-// MODEL-V3 §11.7 / §5.3: a line project's stages are ideation (safety scientists with taste), small experiments and a
+// MODEL-V3 §11.7 / §5.3: a line project's stages are ideation (safety scientists), small experiments and a
 // validation on the frontier model (safety research engineers with experiment compute from the safety pool, the
 // project-level experiment CES of capability projects). Reference inputs (rate 1 in every stage): a serious programme
-// (science capacity SERIOUS_CAP, a Strong team's taste), SAF_RE_ASK labour units of research engineers and the agenda's
+// (science capacity SERIOUS_CAP), SAF_RE_ASK labour units of research engineers and the agenda's
 // compute need (computeNeed × C_UNIT_FLOP_PER_DAY, = computeRef of the leader lab's day-0 compute); there the first result arrives after T₁ months, the
 // pre-E1 pacing (research/14 §1.2–1.3). Above or below it every stage speeds up or slows down with its own inputs.
 

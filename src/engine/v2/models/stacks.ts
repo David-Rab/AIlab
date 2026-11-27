@@ -1,8 +1,9 @@
 // Recipe stacks (model v3 V2: design/MODEL-V3.md §5.5, design/V3-BUILD.md V2.1, V2.6, V2.7). Owner: WS1.
 //
 // The lab's recipe efficiency is a set of stacks built from adopted ideas, not a know-how number:
-//   pre     pretraining efficiency e_pre (OOM of effective compute; scale-dependent ideas make it a function of the run's
-//           FLOP: an idea measured at F_test adds x·(F/F_test)^s)
+//   pre     pretraining efficiency e_pre (OOM of effective compute; paradigm-tier ideas make it a function of the run's
+//           FLOP: an idea measured at F_test adds x·(1 + κ·log₁₀(F/F_test)), κ ≤ KAPPA_MAX; every other idea adds x at
+//           any F; SCALE-DIAG M1, Gundlach et al. 2025)
 //   rlMid   RL compute efficiency (OOM; moves the RL curve's midpoint C_mid)
 //   rlCeil  RL ceiling (OOM added to the curve's asymptote A)
 //   train   training throughput (OOM of model FLOP per chip-day: MFU × goodput), capped (TRAIN_CAP)
@@ -10,14 +11,14 @@
 //           new versions; serveSplit, model v3 D10)
 // e_stack = base (the start recipe and public knowledge) + Σ adopted effects. An adopted idea adds its full true effect
 // at build-in (RD-E03, DD-12: no headroom, no routine tuning).
-// Ideas are kept in scale buckets (s on a S_STEP grid), so the state stays small however many ideas a takeoff adopts.
+// Ideas are kept in scale buckets (κ on a K_STEP grid), so the state stays small however many ideas a takeoff adopts.
 //
 // The lab's recipe compared with another lab's (secrets leaks, publish-research leaks) is recipeG at the common reference
 // FLOP RECIPE_F, on the parts every lab has (pretraining, RL efficiency, RL ceiling; RD-B16): playerRecipeG for the
 // player, actors/rivalModel.ts recipeOf for a rival's aggregate recipe. Model v3 F3 removed the know-how readout
 // `player.pa` that stood for it in progress-years.
 import { FLOP_RL_REF, RL_BUDGET } from '../../../data/v2/runDesign';
-import { S_STEP, TRAIN_CAP } from '../../../data/v2/research';
+import { K_STEP, TRAIN_CAP } from '../../../data/v2/research';
 import { SERVE_FLOP_MAX, U_DECODE, U_DECODE_MAX } from '../../../data/v2/workTypes';
 import type { GameStateV2, ModelVersion, StackKey, StackState, SystemCtx } from '../types';
 import { rlFamiliesAvailable, rlGainGeneral, rlWeights } from './effective';
@@ -40,13 +41,13 @@ export function addBelief(st: StackState, est: number, sd: number) {
   st.estVar = Math.round((st.estVar + sd * sd) * 1e8) / 1e8;
 }
 
-/** Value of a stack at run FLOP F (OOM): base + Σ adopted · 10^(s·log₁₀F). */
+/** Value of a stack at run FLOP F (OOM): base + Σ adopted x_i·(1 + κ_i·log₁₀(F/F_test,i)). */
 export const stackAt = (st: StackState, F = FLOP_RL_REF): number => st.base + adoptedAt(st, F);
 /** Adopted total at run FLOP F, excluding the base (OOM). */
 export function adoptedAt(st: StackState, F = FLOP_RL_REF): number {
   let v = 0;
   const l = lg(F);
-  for (const b of st.buckets) v += b.a * Math.pow(10, b.s * l);
+  for (const b of st.buckets) v += b.t === undefined ? b.a * Math.pow(10, b.s * l) : Math.max(Math.min(0, b.a), b.a + b.s * (b.a * l - b.t));
   return v;
 }
 
@@ -94,19 +95,19 @@ export function rlGOfBuild(b: { eRL: number; aRL?: number; flopPre: number }): n
   return g;
 }
 
-/** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, scale exponent `sx` (0 for scale-invariant
- *  stacks), all of it at build-in (RD-E03). `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
+/** Add an adopted idea's true effect to a stack: `x` at test FLOP `fTest`, relative scale slope `kappa` per OOM of run
+ *  FLOP (0 for a scale-invariant idea and every stack but pretraining), all of it at build-in (RD-E03). `count` = the ideas it holds, added to the stack's ideas adopted (a line's batch
  *  b; 0 for the second stack one idea also moves, RD-B17). */
-export function addIdea(st: StackState, x: number, sx: number, fTest: number, count = 1) {
-  const sr = Math.round(sx / S_STEP) * S_STEP;
-  const coef = x * Math.pow(10, -sr * lg(fTest));
-  let b = st.buckets.find((y) => Math.abs(y.s - sr) < S_STEP / 2);
+export function addIdea(st: StackState, x: number, kappa: number, fTest: number, count = 1) {
+  const kr = Math.round(Math.max(0, kappa) / K_STEP) * K_STEP;
+  let b = st.buckets.find((y) => y.t !== undefined && Math.abs(y.s - kr) < K_STEP / 2);
   if (!b) {
-    b = { s: Math.round(sr * 1000) / 1000, a: 0 };
+    b = { s: Math.round(kr * 1000) / 1000, a: 0, t: 0 };
     st.buckets.push(b);
     st.buckets.sort((p, q) => p.s - q.s);
   }
-  b.a += coef;
+  b.a += x;
+  b.t = (b.t ?? 0) + x * lg(fTest);
   st.n += count;
 }
 

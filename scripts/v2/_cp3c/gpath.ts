@@ -12,8 +12,8 @@ const OVER_DG = Math.log10(fOver(REF_TPP) / fOver(50));
 const ANCH = ([['2025-08-15', 28.0], ['2025-11-15', 28.4], ['2026-02-15', 28.7], ['2026-04-15', 29.0], ['2026-10-15', 29.4]] as [string, number][]).map(([d, g]) => [d, g + OVER_DG] as [string, number]);
 const FROM = dayOfDate(START_DATE, '2025-08-01'), TO = dayOfDate(START_DATE, '2026-11-30'), D27 = dayOfDate(START_DATE, '2027-01-01');
 const seed = Number(process.env.SEED ?? CAL_SEED);
-for (const preset of (process.argv[2] ?? 'ai2027').split(',')) {
-  const maxDay = Number(process.argv[3] ?? 0) || (preset === 'slow' ? 5200 : preset === 'authors2026' ? 3400 : 1200);
+for (const preset of (process.argv[2] ?? 'tl-central').split(',')) {
+  const maxDay = Number(process.argv[3] ?? 0) || (preset === 'tl-slow' ? 5200 : 3400);
   const s = refGame(defaultSetupV2({ world: preset as any, alignment: 'medium', seed }));
   let M = 0, h0 = 0, h1 = 0;
   const gp: { day: number; g: number }[] = [];
@@ -23,7 +23,7 @@ for (const preset of (process.argv[2] ?? 'ai2027').split(',')) {
     if (bv && x.time.day === 0) h0 = h50Of(x.hidden.timeline, bv);
     if (bv && x.time.day === D27) h1 = h50Of(x.hidden.timeline, bv);
     if (bv?.build && x.time.day >= FROM && x.time.day <= TO) gp.push({ day: x.time.day, g: gOfBuild(bv.build) });
-    return x.player.milestoneDays[preset === 'slow' ? 3 : 6] !== undefined;
+    return x.player.milestoneDays[preset === 'tl-slow' ? 3 : 6] !== undefined;
   });
   const n = gp.length, mx = gp.reduce((a, r) => a + r.day, 0) / n, my = gp.reduce((a, r) => a + r.g, 0) / n;
   const slope = gp.reduce((a, r) => a + (r.day - mx) * (r.g - my), 0) / gp.reduce((a, r) => a + (r.day - mx) ** 2, 0);

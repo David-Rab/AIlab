@@ -43,7 +43,7 @@ import { FIXTURE_DIR, check, finish, runTo } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const T = 1e12;
-const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, start, tutorial: false }));
+const game = (start: 'leader' | 'challenger' | 'bigtech' | 'spinout' = 'leader') => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, start, tutorial: false }));
 /** v1's stock: (licensed + unlicensed) × (1 + 0.5·deals) + 0.5 × synthetic. */
 const oldU = (a: { licensedTokensT: number; unlicensedTokensT: number; syntheticTokensT: number }, deals: number) =>
   ((a.licensedTokensT + a.unlicensedTokensT) * (1 + 0.5 * deals) + 0.5 * a.syntheticTokensT) * T;
@@ -599,7 +599,7 @@ const adoptResult = (s: GameStateV2, id: string) => {
 }
 
 // ---------- RD-B02: a run's inputs are frozen at launch ----------
-// B02 / B03: data delivered, ideas adopted (P24, P07, domain effects) and stacks grown while a run trains leave its result
+// B02 / B03: data delivered, ideas adopted (P07, domain effects; P24 is a line since round 2 item 9, its stack gain is the pre.base bump below) and stacks grown while a run trains leave its result
 // unchanged; the same changes do move a plan made today (so the check is not vacuous).
 {
   const finishRun = (st: GameStateV2, id: string) => {
@@ -610,7 +610,6 @@ const adoptResult = (s: GameStateV2, id: string) => {
   };
   const midRun = (st: GameStateV2) => {
     addAsset(st.player.dataPortfolio, licenceAsset('CODE', 'curated', 200, st.time.day)); // +200T of q 2 code
-    adoptResult(st, 'P24');
     adoptResult(st, 'P07');
     st.player.research.domainG.CODE = (st.player.research.domainG.CODE ?? 0) + 0.3; // a domain idea's effect
     const k = st.player.research.stacks;

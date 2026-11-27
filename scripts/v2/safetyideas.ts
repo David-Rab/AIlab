@@ -44,7 +44,7 @@ import { FIXTURE_DIR, check, finish } from './lib';
 
 const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
-const game = () => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+const game = () => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
 const fixture = (n: string) => deserialize(readFileSync(join(FIXTURE_DIR, n), 'utf8'));
 const adopt = (s: GameStateV2, id: string) => { s.player.tree[id] = { status: 'known', progress: 1 }; resetSafAllocation(s); };
 const post = (o: Partial<PostDesign> = {}): PostDesign => ({ ...REFERENCE_POST, methods: [], ...o });

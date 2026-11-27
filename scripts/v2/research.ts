@@ -21,7 +21,7 @@ import {
   planAssignment, poolMean, priorMean, projectFlopPerDay, reAllocation, reopenProject, researchInputs, softwareProgressDay,
 } from '../../src/engine/v2/models/research';
 import {
-  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, stackAt, stacksGEquiv,
+  addIdea, addKnowledge, STACK_KEYS, initialStacks, latestBaseFlop, playerRecipe, playerRecipeG, publicBase, RECIPE_F, recipeG, researchG, stackAt, stacksGEquiv,
 } from '../../src/engine/v2/models/stacks';
 import { recipeOf } from '../../src/engine/v2/actors/rivalModel';
 import { secretsLeakDaily } from '../../src/engine/v2/security/theft';
@@ -38,7 +38,7 @@ import type { AgendaId, Candidate, GameStateV2, Team } from '../../src/engine/v2
 import { FIXTURE_DIR, HERE, check, finish, runRef } from './lib';
 import { hash32 } from '../../src/engine/v2/core/rng';
 
-const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed, tutorial: false }));
+const mk = (seed = 11): GameStateV2 => newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed, tutorial: false }));
 const act = (s: GameStateV2, id: string, p: Record<string, string | number | boolean> = {}) => engine.act(s, id, p);
 
 // ---------- RD-R07 four stages; one effort number per node (run alone: `tsx scripts/v2/research.ts --rd-r07`) ----------
@@ -281,7 +281,7 @@ if (process.argv.includes('--rd-a03')) {
 // ---------- failure and speculative reopening ----------
 {
   // P05 does not work on its first attempt in the seed-2027 world (its hidden paradigm draw).
-  const s = newGame(defaultSetupV2({ world: 'ai2027', alignment: 'medium', seed: 2027, tutorial: false }));
+  const s = newGame(defaultSetupV2({ world: 'tl-central', alignment: 'medium', seed: 2027, tutorial: false }));
   check(s.hidden.paradigmSuccess.P05 === false, 'fixture: P05 is a dud in the seed-2027 world');
   act(s, 'research.start', { id: 'P05' });
   act(s, 'research.want', { id: 'P05', n: 3 });
@@ -532,6 +532,12 @@ if (process.argv.includes('--rd-a03')) {
   const clone = (x: GameStateV2) => deserialize(serialize(x));
   const res = s.player.research;
   const bases = s.player.models.bases;
+  // SCALE-DIAG M1: a day-300 RefBot lab may have no paradigm-tier idea yet (κ > 0 is rare), so the fixture adopts one at the
+  // lab's test scale and re-reads the research readout (the stack's κ term is what a bigger base must not move).
+  if (!res.stacks.pre.buckets.some((b) => b.t !== undefined && b.s > 1e-9 && b.a > 1e-9)) {
+    addIdea(res.stacks.pre, 0.05, 0.2, 0.002 * latestBaseFlop(s), 1);
+    res.gLast = researchG(s, res.gLastF as number);
+  }
   const scaled = res.stacks.pre.buckets.some((b) => Math.abs(b.s) > 1e-9 && Math.abs(b.a) > 1e-9);
   check(bases.length > 0 && scaled && res.gLast !== undefined && res.gLastF === latestBaseFlop(s), 'fixture: the RD-B16 lab has a base, scale-dependent pretraining ideas and a research readout', `${bases.length} bases, scaled ${scaled}`);
 
@@ -590,7 +596,7 @@ if (process.argv.includes('--rd-a03')) {
 
   // In the engine, a challenger's diffusion goes to public knowledge, not to Software progress: the old measure (every
   // change of the stacks' G at the latest base) reads far faster.
-  const ch = newGame(defaultSetupV2({ world: 'ai2027', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
+  const ch = newGame(defaultSetupV2({ world: 'tl-central', start: 'challenger', alignment: 'medium', seed: 2027, tutorial: false }));
   let pubMax = 0;
   let pubSum = 0;
   let pub0 = publicBase(ch);
@@ -636,10 +642,15 @@ if (process.argv.includes('--rd-a03')) {
   addIdea(st, 0.1, 0, 1e24);
   addIdea(st, 0.1, 0, 1e24);
   check(Math.abs(stackAt(st) - 0.2) < 1e-12, 'stacks: two adopted 0.1 OOM ideas add 0.2 OOM at once (no headroom)', stackAt(st).toFixed(4));
-  // Scale dependence: an idea with s > 0 is worth more at a bigger run.
+  // Scale dependence (SCALE-DIAG M1): a paradigm-tier idea (relative slope κ) adds x(1 + κ·log10(F/F_test)): linear in log F, so
+  // two OOM of run FLOP add 2κx whatever the stock, and the slope per OOM does not grow with F.
   const st2 = initialStacks(0).pre;
-  addIdea(st2, 0.1, 0.1, 1e24);
-  check(stackAt(st2, 1e26) > stackAt(st2, 1e24) * 1.5, 'stacks: a scale-dependent idea grows with run FLOP ((F/F_test)^s)', `${stackAt(st2, 1e24).toFixed(3)} at 1e24, ${stackAt(st2, 1e26).toFixed(3)} at 1e26`);
+  addIdea(st2, 0.1, 0.2, 1e24);
+  const lin = Math.abs(stackAt(st2, 1e26) - 0.1 * (1 + 0.2 * 2)) < 1e-9 && Math.abs(stackAt(st2, 1e28) - stackAt(st2, 1e26) - (stackAt(st2, 1e26) - stackAt(st2, 1e24))) < 1e-9;
+  check(lin && stackAt(st2, 1e24) === 0.1, 'stacks: a paradigm-tier idea grows linearly with log run FLOP (x(1 + κ log10(F/F_test)))', `${stackAt(st2, 1e24).toFixed(3)} at 1e24, ${stackAt(st2, 1e26).toFixed(3)} at 1e26, ${stackAt(st2, 1e28).toFixed(3)} at 1e28`);
+  const st3 = initialStacks(0).pre;
+  addIdea(st3, 0.1, 0, 1e24);
+  check(stackAt(st3, 1e30) === 0.1, 'stacks: a routine idea is scale-invariant beyond its test scale', stackAt(st3, 1e30).toFixed(3));
 }
 
 // ---------- a quarter of small-scale wins survive at scale (tweaks line, R20 B5) ----------

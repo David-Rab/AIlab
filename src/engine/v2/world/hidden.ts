@@ -3,7 +3,8 @@
 import { CHINA_PRESETS, GOV_PRESETS, LAB_ARCHETYPES, PUBLIC_PRESETS } from '../../../data/actors';
 import { AGENDAS, METHOD_SCALE, METHOD_TESTED_OOM, ORGANISM_REALISM } from '../../../data/v2/agendas';
 import { PROD_DEFAULT, PROD_PRESETS } from '../../../data/v2/calibration';
-import { V3_CAL } from '../../../data/v2/workTypes';
+import { drawAt, drawCount, timelineOf } from '../../../data/v2/timelineWorlds';
+import { H50_PER_OOM, V3_CAL } from '../../../data/v2/workTypes';
 import { EDGE_FACTOR_RANGE, EDGE_SIGMA_SCALE, EDGES, GRADE_SIGMA, type EdgeDef } from '../../../data/v2/edges';
 import { PARADIGMS } from '../../../data/v2/paradigms';
 import { ARCHETYPE_POSTURES, CHINA_POSTURE_BASE } from '../../../data/v2/postures';
@@ -36,10 +37,19 @@ export function pickWeighted<T extends { id: string; weight: number }>(rng: Rng,
   return rng.weighted(list.filter((p) => p.weight > 0).map((p) => ({ item: p, weight: p.weight })));
 }
 
+/** R3.1: a per-game draw world's AIFM run: the index in the timeline's SAR group is a hash of the game's seed (no named stream moves, so a
+ *  seed always gives the same run and every other draw of the game is what it would be without it); undefined for every other world and for a
+ *  world built without a seed. */
+export function aifmDrawOf(setup: Pick<SetupV2, 'world'> & Partial<Pick<SetupV2, 'seed'>>) {
+  const tl = timelineOf(setup.world);
+  if (!tl || setup.seed === undefined) return undefined;
+  return drawAt(tl, hash32(setup.seed, `world:aifmRun:${setup.world}`) % drawCount(tl));
+}
+
 /** Production parameters for the world (§2.3 step 2). */
-export function prodParamsFor(rng: Rng, setup: Pick<SetupV2, 'world'>): ProdParams {
-  const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}) };
-  if (setup.world === 'sampled') base.La = 1 + rng.lognormal80(1, 200);
+export function prodParamsFor(setup: Pick<SetupV2, 'world'> & Partial<Pick<SetupV2, 'seed'>>): ProdParams {
+  const draw = aifmDrawOf(setup);
+  const base = { ...PROD_DEFAULT, ...(PROD_PRESETS[setup.world] ?? {}), ...(draw?.prod ?? {}) };
   const ces = cesFromAsymptotes(base.La, base.Ca, base.slow10);
   return { ...base, ...ces };
 }
@@ -57,12 +67,21 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 
 /** Steps 1–2 of sampleHidden: the timeline world with its production parameters and the per-preset work-type
  *  calibration (no hidden draws beyond the v1 world's). */
-export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'>): TimelineWorld {
+export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'> & Partial<Pick<SetupV2, 'seed'>>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
   const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
-  return { ...w1, prod: prodParamsFor(rng, setup), v3: { ...V3_CAL[setup.world] } };
+  const prod = prodParamsFor(setup);
+  const draw = aifmDrawOf(setup);
+  const v3 = { ...V3_CAL[setup.world], ...(draw?.v3 ?? {}) };
+  // R2.3: the horizon law and research pace are stored only when a world sets them (a default world's state, and so its hash, is
+  // what it was before the settings existed; the readers fall back to the defaults).
+  if (v3.h50PerOOM === H50_PER_OOM) delete (v3 as Partial<typeof v3>).h50PerOOM;
+  if (v3.h50Accel === 0) delete (v3 as Partial<typeof v3>).h50Accel;
+  if (v3.pace === 1) delete (v3 as Partial<typeof v3>).pace;
+  if (v3.stockAgeYears === 0) delete (v3 as Partial<typeof v3>).stockAgeYears;
+  return { ...w1, prod, v3, ...(draw ? { aifmRun: { index: draw.index, id: draw.id } } : {}) };
 }
 
 /** Hidden paradigm draws of deleted paradigms, keyed by the paradigm drawn right after them: the deleted ones' priors in

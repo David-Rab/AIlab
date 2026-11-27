@@ -17,7 +17,7 @@ import type { Deployment, GameStateV2, SectorId } from '../../../src/engine/v2/t
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'ai2027', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = (seed = 2027) => newGame(defaultSetupV2({ seed, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
 const api = (s: GameStateV2) => s.player.deployments.find((d) => d.channel === 'api' && d.status !== 'withdrawn') as Deployment;
 const target = (s: GameStateV2, sid: SectorId) => {
   const m = worldMix(s);
