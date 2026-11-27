@@ -65,7 +65,7 @@ export function defaultSetupV2(over: Partial<SetupV2> = {}): SetupV2 {
     baseline: 'classic',
     world,
     alignment: 'sampled',
-    econ: 'sampled',
+    econ: 'ai2027', // the calibration's fixed economy setting (design/bal/HANDOFF-CALIBRATION.md §1); the old default world gave the same
     gov: 'realistic', public: 'realistic', china: 'realistic', rivals: 'realistic',
     rivalCount: 4,
     governance: 'legacyNonprofit',
