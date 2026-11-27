@@ -81,13 +81,24 @@ Chosen on the build card; each shows its price and the quarters it saves.
 
 The community package rises from 3% to ~7% of the building cost ($1M per MW, the sourced benchmark).
 
-## 5b. Size: construction time and economies of scale (designer, 2026-11-27)
+## 5b. Size and campuses (designer, 2026-11-27)
 
-- **Construction time grows sub-linearly with size:** 9.5 q × (GW)^0.4 (100 MW 4 q, 300 MW 6 q, 500 MW 7 q, 1 GW 10 q, 2.5 GW 14 q, 5 GW 18 q); crash construction halves it.
-- **Building cost per GW falls with size:** building $14B per GW × (GW)^−0.05 (100 MW $15.7B/GW, 1 GW $14B, 5 GW $12.9B). Crash and fast-track prices are shares of this scaled building cost; turbines, utility upgrades, rush and the community package stay per GW.
-- So many small sites are faster, one big campus is cheaper: 5 × 1 GW = $70B live in 10 q; 1 × 5 GW ≈ $64.5B live in 18 q (building only).
+- **Size = one building:** 100 MW, 300 MW or 1 GW (rent: the hall size, same tiles).
+- **Construction time of a building** grows sub-linearly with its size: 9.5 q × (building GW)^0.4 (100 MW 4 q, 300 MW 6 q, 1 GW 10 q); crash construction halves it. Sourced: Epoch timelines fit, research/23 §9.
+- **Campus: Buildings 1 / 3 / 5** of the same size on one site (grid, gas; rent has no buildings row). Repeating the design cuts the building cost **10% (3) / 15% (5)** (McKinsey: standardisation saves 10–20% [unverified snippet]; values [design]). The source's size cap applies to the campus total: grid ≤ 1 GW (1 × 1 GW, 3 × 300 MW, …), gas ≤ 5 GW (up to 5 × 1 GW).
+- **One site:** one permit, one opposition roll, one power connection (the campus's total GW is in the queue; its wait is locked at commitment).
+- **Buildings come online one by one:** building k (k = 0, 1, …) goes live at **permits + max(power, construction + k)**. Construction of each building is timed to finish at its live date; if power is the slower one, all buildings go live together when power arrives.
+- **Money:** 5% of the whole campus at commitment; each building's remainder in equal parts over its own construction quarters. A block loses everything paid. Crash and fast-track prices are shares of the (discounted) building cost; turbines, utility upgrades, rush and the community package are per GW of the campus, undiscounted.
+- **No other size economy** (the −0.05 rule is gone): research/23 §9 found cost per MW flat or rising with size; the saving comes from repetition.
 - **Rushed gas sites count in the turbine backlog** like any gas site (replaces [D-5]).
-- Exponents are now sourced: time 0.4 from the Epoch timelines fit (research/23 §9); cost −0.05 is a design value at the top of what the data allow.
+
+Worked examples (Q3 2026; grid wait 20 q, turbine wait 9 q):
+
+| Choice | Cost | Live |
+|---|---|---|
+| Gas campus 5 × 1 GW | 5 × 14 × 0.85 + 5 × 3 = $74.5B | 12, 13, 14, 15, 16 q |
+| Five separate 1 GW gas sites | 5 × (14 + 3) = $85B | all at 12 q |
+| Grid campus 3 × 300 MW | 0.9 × 14 × 0.9 + 0.9 × 0.2 = $11.5B | all at 21 q (power binds) |
 
 ## 6. Removed
 

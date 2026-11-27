@@ -86,6 +86,8 @@ except the 6% stored-chip book decay, which goes.
 | DC-10a | Build card: three power tiles, live dates, tile tooltips | Sonnet high | DC-9 | no |
 | DC-10b | Build card: speed-up options row, preview lines, opposition tooltip | Sonnet high | DC-10a | no |
 | DC-12 | Size scaling: construction time, economies of scale, rushed gas in the backlog | Sonnet high | DC-7, DC-8 | yes |
+| DC-13 | Campuses: buildings 1/3/5, phased go-live, repetition discount | Opus high, reason (c) | DC-12b | yes |
+| DC-14 | Player bot builds campuses | Sonnet high | DC-13 | yes |
 | CP | Lead: final checkpoint | lead | all | — |
 
 Opus share: 1 of 12 agent tasks (DC-3) ≈ 8%.
@@ -462,6 +464,58 @@ Designer decisions: DATACENTERS.md §5b.)
   files; if F10's premise no longer holds.
 - **Test scope:** tsc + `_dc12`, `_dc3`, `_dc4`, `_dc7` checks + `run.ts --only finance` is NOT run (fixtures stale
   until L1). Moves calibration: yes.
+
+### DC-13 Campuses: buildings 1 / 3 / 5, phased go-live, repetition discount
+
+(Added by the lead 2026-11-27; designer decision DATACENTERS.md §5b "Size and campuses".)
+
+- **Model:** Opus high, reason (c): a site's live capacity becomes phased (per building), which changes core site state
+  and every reader of a site's MW (chip installs, online compute, power bills, forecast, previews, bot helpers).
+- **Budget:** 75 min. **Moves calibration:** yes.
+- **Write:** `src/data/v2/deals.ts` (CAMPUS constant, SCALE.costExp removed, size tiers), `src/engine/v2/types.ts`
+  (SiteWS3 fields), `src/engine/v2/compute/sites.ts`, `power.ts`, `forecast.ts`, `waits.ts` if needed,
+  `src/engine/v2/finance/actions.ts` (cmp.newSite params/preview only), `src/engine/v2/index.ts` (exports),
+  minimal compile fixes elsewhere (list them), `scripts/v2/_dc13/check.ts`, expectations in `_dc3`, `_dc4`, `_dc12`
+  checks and F10 only where this moves them, `design/dc/DC-13.md`. Not: plan.ts beyond compile fixes (DC-14), UI
+  (DC-9/10), glossary (lead adds terms), save.ts/schemaRev, fixtures.
+- **Spec (DATACENTERS.md §5b is authoritative):**
+  1. `CAMPUS = { counts: [1, 3, 5], discount: { 1: 0, 3: 0.10, 5: 0.15 } }`; building size tiers 100 / 300 / 1000 MW;
+     remove `SCALE.costExp` and its use (keep the time exponent).
+  2. `SiteOpts` gains `buildings: 1 | 3 | 5` (default 1; rent forced 1). `site.mw` = total campus MW = buildingMW ×
+     buildings; store `ws3.buildings` and `ws3.buildingMW`. Total ≤ source maxMW (else the action refuses; preview
+     says why).
+  3. Construction per building = existing `siteBuildQ` on buildingMW (9.5 × GW^0.4, crash × 0.5, rounded).
+     Building k live at permitsEnd + max(powerQ, buildQ + k) (quarters). Store per-building live days (or derive them
+     from powerDay, buildQ and k; your choice, document it).
+  4. Live capacity: a function `siteLiveMW(site, day)` = buildingMW × number of buildings live by `day`; the site's
+     stage becomes 'live' when its first building is live. Every reader that used `site.mw` for live capacity (racks,
+     installInventory, ownedOnline, power and O&M bills, forecast, mwBy-style helpers, previews' "+H100e") uses it.
+     The grid/turbine queue still counts the campus total until power is ready.
+  5. Capex: building part = BUILDING_PER_GW × total GW × (1 − discount[buildings]); crash and fast-track are shares of
+     that discounted building; extraPerGW, rush, community stay per GW of the total, undiscounted. 5% of total at
+     commitment; each building's remainder in equal parts over its own construction quarters; a block loses what
+     was paid.
+  6. `leverEffects` and the build preview keep preview = effect (live date range first → last building, capex).
+  7. Expected (Q3 2026, grid wait 20, turbine wait 9, no levers unless stated): gas 5 × 1 GW → capex 74.5, buildings
+     live at +12, 13, 14, 15, 16 q; gas 1 × 1 GW → 17, live +12; grid 3 × 300 MW → capex 0.9 × 14 × 0.9 + 0.18 =
+     11.52, all live at +21; grid 5 × 300 MW → refused (1.5 GW > 1 GW). Gas 1 GW rush + community (one building) →
+     18.9 unchanged.
+- **Done when:** tsc clean (both projects); `_dc13/check.ts` asserts the numbers above, a preview = effect sweep over
+  source × building size × buildings × crash, and that racks/online compute rise building by building for a 5 ×
+  1 GW gas campus; `_dc3`, `_dc4`, `_dc12`, `_dc7` checks pass (expectation moves listed old → new in DC-13.md).
+- **Stop and ask:** any reader of site MW whose meaning is unclear (live vs planned); anything in finance beyond the
+  capex schedule.
+- **Test scope:** tsc + the checks above. No run.ts tiers (fixtures stale until L1).
+
+### DC-14 Player bot builds campuses
+
+- **Model:** Sonnet high. **Budget:** 30 min. **Moves calibration:** yes. **Depends on:** DC-13.
+- **Write:** `src/engine/v2/finance/plan.ts`, `scripts/v2/_dc7/check.ts` (extend), `design/dc/DC-14.md`.
+- **Spec:** for a MW gap, candidates are grid and gas with building size from the tiers and buildings 1 / 3 / 5
+  (within the source cap); for each, every lever that helps (as DC-7). Pick the earliest *first-building* live
+  quarter that covers the gap by the last building; tie → cheaper capex. Rent as DC-7. No tuning beyond this.
+- **Done when:** tsc clean; `_dc7` check passes and prints the bot's sites (source, building MW × count, live range,
+  capex) for seed 1 to 2027-07.
 
 ### CP Lead: final checkpoint (heavy runs, once)
 
