@@ -30,7 +30,7 @@ import {
   type RiskBadge,
 } from './agents';
 import { buildCapacity } from './teams';
-import { agentFpt, copiesOf, workContext } from './workfit';
+import { agentFpt, copiesOf, labourMargins, workContext, type LabourMargins, type LabourSlot } from './workfit';
 import { adopted } from '../models/paradigms';
 
 type Params = Record<string, number | string | boolean>;
@@ -137,6 +137,8 @@ export interface AgentLane {
   monitorCost: number;
   monitorH100e: number;
   risk: Record<'please' | 'gaming' | 'deception' | 'power', { badge: RiskBadge; est: number; clarity: number }>;
+  /** L2: the margins of the job(s) this use staffs (engineers SWE, routine EXP, frontier IDEAS, safety SAF_EXP and SAF_IDEAS): labourMargins. */
+  margins?: Partial<Record<LabourSlot, LabourMargins>>;
 }
 
 export interface AgentsView {
@@ -177,6 +179,10 @@ export function agentsView(s: GameStateV2): AgentsView {
   return v;
 }
 
+/** The labour jobs each agent use staffs (L2 margins). */
+const USE_SLOTS: Record<AgentUse, LabourSlot[]> = { eng: ['SWE'], capRoutine: ['EXP'], capFrontier: ['IDEAS'], safety: ['SAF_EXP', 'SAF_IDEAS'] };
+const marginsOf = (s: GameStateV2, u: AgentUse) => Object.fromEntries(USE_SLOTS[u].map((k) => [k, labourMargins(s, k)])) as Partial<Record<LabourSlot, LabourMargins>>;
+
 function computeAgentsView(s: GameStateV2): AgentsView {
   const pr = productionNow(s);
   const yr = decimalYear(s);
@@ -204,7 +210,7 @@ function computeAgentsView(s: GameStateV2): AgentsView {
       catch: ms.catch, strength: ms.strength, gap: ms.gap, copy: ms.copy, catchColl: ms.catchColl, control: useControl(s, v, mon, !!s.player.agents[u].control, true),
       compute, share: u === 'safety' ? s.player.split.safetyAgents : capShare(s, u as CapUse),
       copies: v ? copiesOf(compute, agentFpt(s, v)) : 0, speed,
-      aiShare, cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
+      aiShare, margins: marginsOf(s, u), cost: compute * tco, monitorCost: monH * tco, monitorH100e: monH, risk: riskBadges(v),
     };
     total += compute + monH;
     totalCost += (compute + monH) * tco;

@@ -13,7 +13,7 @@ import { poolsOf } from '../compute/power';
 import { buildCapacity } from '../departments/teams';
 import { buildEtas, engAlloc, engDemand, upkeepSplit } from '../departments/build';
 import {
-  agentFpt, costPerWorkHour, measuredLabour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourOf, type LabourSlot,
+  agentFpt, costPerWorkHour, labourMargins, measuredLabour, pSuccess, researchMods, safetyLabour, speedOfCopy, workContext, workFit, type LabourMargins, type LabourOf, type LabourSlot,
 } from '../departments/workfit';
 import { agentVersion } from '../departments/agents';
 import { MILESTONE_NAMES } from './capability';
@@ -461,6 +461,8 @@ export interface WorkTypeView {
   costAI: number; costHuman: number;
   /** UB-2: false while the AI staff model has no measured skills of its own (its relative's are read). */
   measured: boolean;
+  /** L2: what AI can do, does now, the bottleneck and the gain from +10% AI compute and +1 team (labourMargins). */
+  margins?: LabourMargins;
 }
 
 /** AI labour in each of the lab's work types today (the safety ones on the safety package through Trusted to AI,
@@ -482,7 +484,7 @@ export function workTypeViews(s: GameStateV2): WorkTypeView[] {
       fit: f.fit, med: f.med, best: f.best, coverage: f.a,
       h50: f.h50, h80: f.h50 / 5, H: def.H, pAtH: v ? pSuccess(def.H, f.h50) : 0, win: f.win, assist: f.assist,
       copies: sl.copies, speed: sl.copies > 0 ? speedOfCopy() : 0, aiFte: sl.aiFte, h100e: sl.h100e,
-      humans: sl.H, ai: sl.AI, L: ml.L, m: ml.m, wH: ml.wH, t: sl.t, A: ml.A, costAI: cost.ai, costHuman: cost.human, measured: ml.measured,
+      humans: sl.H, ai: sl.AI, L: ml.L, m: ml.m, wH: ml.wH, t: sl.t, A: ml.A, costAI: cost.ai, costHuman: cost.human, measured: ml.measured, margins: labourMargins(s, wt),
     };
   });
 }
