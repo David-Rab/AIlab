@@ -145,7 +145,14 @@ export interface GameStateV2 {
 
 /** One labour pool (LABOUR-ROUND §4.1): everyone able to do the job, and the market wage. Capabilities and safety staff of
  *  a kind share it; heads in labs (E) and outside (U = P - E) are derived each week. */
-export interface LabourPool { P: number; w: number }
+export interface LabourPool {
+  P: number;
+  w: number;
+  /** Heads in AI labs and outside them at game start (departments/market.ts startMarket): the wage rule's reference ratio
+   *  E0/U0 and the matching scale's U0. Absent in saves from before L12 (set at the first market week). */
+  E0?: number;
+  U0?: number;
+}
 /** A star (LABOUR-ROUND §6.1): a named researcher above the 99.9th percentile. `employer` is 'player', a rival's id,
  *  'china' or 'outside'; `pay` is $M per year. */
 export interface Star { id: string; name: string; taste: number; employer: 'player' | LabId | 'china' | 'outside'; pay: number }

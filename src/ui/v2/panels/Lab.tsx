@@ -490,7 +490,7 @@ function bestMoves(s: GameStateV2): { cards: MoveCard[]; wont: string[] } {
     const role = k === 'eng' ? 'eng' : (k.split('.')[0] as 're' | 'sci');
     const dept = k === 'eng' ? 'cap' : (k.split('.')[1] as 'cap' | 'saf');
     const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
-    return `${F.money(fullTeamPayroll(role, dept), { perYear: true })} · ${Number.isFinite(wk) ? `~${wk} wk to hire` : 'hiring stalled'}`;
+    return `${F.money(fullTeamPayroll(s, role), { perYear: true })} · ${Number.isFinite(wk) ? `~${wk} wk to hire` : 'hiring stalled'}`;
   };
   const hire = (k: TeamKey, what: string, target2: string, eff: string, gain: number, mt: Move['target'] | null, note = '') => {
     const id = `hire>${k}`;

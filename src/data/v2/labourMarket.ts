@@ -47,6 +47,11 @@ export const F0_PER_MONTH = 0.62;
  *  decision 5]. Confidence L-M. */
 export const SEPARATION = 0.156;
 
+/** T: years over which a head's pay moves to the market offer (contract renewal; LABOUR-ROUND §4.2 item 7, open question Q2)
+ *  [D] designer: gradual, annual renewal. Every head's pay relaxes toward the offer at rate 1/T per year (continuous: after
+ *  one year the gap has closed by 1 - e^-1 = 63%). */
+export const PAY_RENEWAL_YEARS = 1;
+
 /** A star is a researcher above this quantile of the researcher distribution [AIFM config.py:41 TOP_PERCENTILE = 0.999;
  *  LABOUR-SOURCES §13]. Confidence H. The star count is (1 - this) x P0.sci = 37 (derived). */
 export const STAR_TOP_PERCENTILE = 0.999;

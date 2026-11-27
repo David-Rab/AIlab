@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react';
 import {
   believedTheftChance, dateOf, engAllocView, fillWeeks, fmtDate, fullTeamPayroll, payrollOf, queuedOfKey, reAllocView, safReAllocView,
-  securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHireCap,
+  securityLevelsView, securityLogView, teamGain, teamPayroll, teamsOfKey, weeklyHires,
 } from '../../../engine/v2';
 import { privilegedOf } from '../../../engine/v2/security/security';
 import { PROJECT_BY_ID } from '../../../data/v2/tree';
@@ -39,7 +39,7 @@ function TeamTile({ s, t, filling }: { s: GameStateV2; t: Team; filling?: boolea
   return (
     <Tip content={() => <TipCard title={<span className="row-i"><Ic size={13} />{teamTitle(t)}{t.specialty ? ` · ${COLUMN_LABEL[t.specialty]}` : ''}</span>} rows={[
       { label: 'People', value: `${F.count(t.heads)} of ${t.size}` },
-      { label: <Term id="payroll">Payroll</Term>, value: F.money(teamPayroll(t), { perYear: true }) },
+      { label: <Term id="payroll">Payroll</Term>, value: F.money(teamPayroll(s.player, t), { perYear: true }) },
       ...(t.role === 'sci' ? [{ label: 'Programme', value: t.projectId ? (PROJECT_BY_ID[t.projectId]?.name ?? t.projectId) : 'none (idle)' }] : []),
       ...(filling ? [{ label: 'Full in', value: Number.isFinite(wk) ? `${wk} weeks` : 'stalled' }] : []),
     ]}>{filling ? 'Being hired at the weekly hiring speed.' : 'A team on staff.'}</TipCard>}>
@@ -93,8 +93,8 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
   const fills = queuedOfKey(p, k);
   const people = ts.reduce((a, t) => a + t.heads, 0);
   const target = p.hiring.targets[k] ?? 0;
-  const perTeam = fullTeamPayroll(role, dept);
-  const pay = ts.reduce((a, t) => a + teamPayroll(t), 0);
+  const perTeam = fullTeamPayroll(s, role);
+  const pay = ts.reduce((a, t) => a + teamPayroll(p, t), 0);
   const wk = fillWeeks(s, { role, dept, size: TEAM_SIZE[role], heads: 0 });
   const f0 = fills[0];
   const f0wk = f0 ? fillWeeks(s, f0) : 0;
@@ -132,7 +132,7 @@ function TeamRow({ s, k }: { s: GameStateV2; k: TeamKey }) {
         <Tip content={() => <TipCard title="Cost of a team" value={F.money(perTeam, { perYear: true })}>A full team&apos;s yearly pay.</TipCard>}><div className="small dim"><span className="num">{F.money(perTeam)}</span>/yr a team</div></Tip>
       </div>
       <div className="lh-pay">
-        <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1}`, value: F.money(teamPayroll(t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(pay, { perYear: true })} rows={ts.map((t, i) => ({ label: `Team ${i + 1}`, value: F.money(teamPayroll(p, t), { perYear: true }) }))}>Paid monthly from cash.</TipCard>}><span><b className="num">{F.money(pay)}</b> <span className="dim small">/yr</span></span></Tip>
         <Tip content={() => <TipCard title="Time to hire a team" value={Number.isFinite(wk) ? `~${wk} weeks` : 'stalled'}>Weeks to fill one new team at today&apos;s hiring speed (talent pull and morale set it; teams already filling go first).</TipCard>}><div className="small dim">{Number.isFinite(wk) ? `~${wk} wk a team` : 'hiring stalled'}</div></Tip>
       </div>
       <Tip content={() => <TipCard title="Next team buys">{buys.tip}</TipCard>}>
@@ -166,18 +166,18 @@ const PAY_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
 function PayrollCard({ s }: { s: GameStateV2 }) {
   const p = s.player;
   const total = payrollOf(p);
-  const byKey = PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(t), 0) }));
-  const capW = weeklyHireCap(s, 'cap');
-  const safW = weeklyHireCap(s, 'saf');
-  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
+  const byKey = PAY_KEYS.map((k) => ({ k, v: teamsOfKey(p, k).reduce((a, t) => a + teamPayroll(p, t), 0) }));
+  const hiresK = (['eng', 're', 'sci'] as const).map((k) => weeklyHires(s, k));
+  const capW = hiresK[0] + hiresK[1] + hiresK[2];
+  const payTip = () => <TipCard title={<Term id="payroll">Payroll</Term>} value={F.money(total, { perYear: true })} rows={[...byKey.map((x) => ({ label: KEY_FULL[x.k], value: F.money(x.v, { perYear: true }) })), { label: 'Teams filling', value: F.money(p.hiring.filling.reduce((a, t) => a + teamPayroll(p, t), 0), { perYear: true }) }]}>Paid monthly from cash.</TipCard>;
   return (
     <Card home="payroll" className="lh-paycard" title={<span className="row-i"><ICON.cash size={15} /><Term id="payroll">Payroll</Term></span>}
       right={<Tip content={payTip}><span><b className="num lh-big">{F.money(total)}</b> <span className="dim small">/yr</span></span></Tip>}>
       <Tip content={payTip}><div className="lh-paybar">{byKey.map((x) => x.v > 0 && <i key={x.k} style={{ flex: x.v, background: KEY_COLOR[x.k] }} />)}</div></Tip>
       <div className="lh-legend small">{byKey.map((x) => <span key={x.k}><i style={{ background: KEY_COLOR[x.k] }} />{KEY_FULL[x.k]}</span>)}</div>
       <div className="lh-kv">
-        <Tip content={() => <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} rows={[{ label: 'Capability', value: `${F.count(capW)} people a week` }, { label: 'Safety', value: `${F.count(safW)} people a week` }, { label: <Term id="talentPull">Talent pull</Term>, value: F.num(s.relations.talentPull, 0, true) }]}>People you can hire a week. Talent pull raises it; low morale slows it.</TipCard>}>
-          <div className="row"><Term id="weeklyHireCap">Hiring speed</Term><span><b className="num">{F.count(capW)}</b> <span className="dim small">people a week</span> · <b className="num">{F.count(safW)}</b> <span className="dim small">safety</span></span></div>
+        <Tip content={() => <TipCard title={<Term id="weeklyHireCap">Hiring speed</Term>} rows={[{ label: 'Engineers', value: `${F.count(hiresK[0])} people a week` }, { label: 'Research engineers', value: `${F.count(hiresK[1])} people a week` }, { label: 'Scientists', value: `${F.count(hiresK[2])} people a week` }, { label: <Term id="talentPull">Talent pull</Term>, value: F.num(s.relations.talentPull, 0, true) }]}>People you hire this week for your open positions. More openings, talent pull and morale raise it; a thinner talent pool slows it.</TipCard>}>
+          <div className="row"><Term id="weeklyHireCap">Hiring speed</Term><span><b className="num">{F.count(capW)}</b> <span className="dim small">people a week</span></span></div>
         </Tip>
         <div className="row" data-home="morale"><Term id="morale">Morale</Term><Why k="morale" title="Morale" body="See [[morale]]."><span className="lh-meter"><i style={{ width: `${p.morale.overall}%` }} /></span><b className="num">{F.idx(p.morale.overall)}</b></Why></div>
         <div className="row sub" data-home="moraleSafety"><span>Safety staff</span><Why k="morale.safety" title="Safety staff morale"><span className="lh-meter"><i style={{ width: `${p.morale.safety}%` }} /></span><b className="num">{F.idx(p.morale.safety)}</b></Why></div>
