@@ -23,7 +23,7 @@ Each source has an upfront cost **or** a higher power price, never both.
 | | Rent | Grid | Gas |
 |---|---|---|---|
 | What it is | A hall in a colocation or neocloud campus | A new connection from the utility | Your own turbines on site |
-| Power ready in | **Rent wait** (world, §4): ~1 q in 2023 → ~4 q in 2026 | **Grid wait** (world, §4): ~12 q in 2023 → ~20 q in 2026 | **Turbine wait** (world, §4): ~6 q in 2023 → ~10 q in 2026 |
+| Power ready in | **Rent wait** (world, §4): ~1 q in 2023 → ~4 q in 2026 | **Grid wait** (world, §4): ~12 q in 2023 → ~20 q in 2026 | **Turbine wait** (world, §4): ~4 q in 2023 → ~9 q in 2026 |
 | Permits | none | 1 q | 2 q (air permits) |
 | Construction | none (the landlord builds) | 8 q | 8 q |
 | Size per site | up to 1 GW | up to 1 GW | up to 5 GW |
@@ -52,7 +52,7 @@ Permits ──► Construction ─────────┐
 One number per source, shown on the build card ("Grid wait today: 20 q").
 
 - **Grid wait** = base × (firm queue ÷ connections per year). Queue = everyone's grid sites waiting, including labs and the outside world (hyperscalers, other industry). Calibrate: ~12 q in 2023, ~16–20 q in 2025, ~20 q in 2026 (Dominion, CBRE, PNNL-38441); reforms and new transmission ease it only after ~2028 **[design]**.
-- **Turbine wait** = 4 × (turbine backlog ÷ turbines delivered per year). Backlog = everyone's gas sites, labs and outside world. Output grows ~10–15%/yr to 2030 (GE Vernova, Siemens Energy filings). Calibrate: ~6 q in 2023, ~10 q in 2026 for small turbines.
+- **Turbine wait** = 4 × (turbine backlog ÷ turbines delivered per year). Backlog = everyone's gas sites, labs and outside world. Output grows ~10–15%/yr to 2030 (GE Vernova, Siemens Energy filings). Calibrate: ~4 q in 2023, ~9 q in 2026 for small turbines.
 - **Rent wait** = time until a hall you can lease is ready: unleased halls on the market ÷ everyone's demand. Finished halls are almost all taken (vacancy 1.4%, CBRE H1 2026) and new ones are leased 2–3 years before completion (PNNL-38441), so in 2026 renting means waiting for a hall being built. Calibrate: ~1 q in 2023 **[design: no pre-2025 source]**, ~4 q in 2026 (< 1.5 GW unleased under construction ≈ 6 months of demand, CBRE).
 
 Reference schedule (the waits when the player builds nothing; your and rivals' building pushes them up):
@@ -77,9 +77,9 @@ Chosen on the build card; each shows its price and the quarters it saves.
 | Rush power (grid) | Pay for the substation and lines yourself instead of waiting for the utility's schedule: grid wait − 25% **[design]** | +$0.3B per GW **[design, range $0.05–0.3B unverified]** | LBNL "Speed to Power" (2026) |
 | Rush power (gas) | Buy used or refurbished turbines: turbine wait → 4 q | +30% turbine cost **[design]** | SemiAnalysis: used units in < 12 months |
 | Fast-track permits | Permits − 1 q (gas 2 → 1, grid 1 → 0) | 5% of building cost (~$0.7B per GW) **[design]** | Federal fast-track for > 100 MW sites (EO 14318) |
-| Community package | Block odds × 0.5 | ≈ 9% of building cost ($1M per MW) | NY Community Investment Framework (Sep 2026). Effect on odds **[design]**: no data |
+| Community package | Block odds × 0.5 | $1M per MW ($1B per GW, ≈ 7% of the building) | NY Community Investment Framework (Sep 2026). Effect on odds **[design]**: no data |
 
-The community package rises from 3% to ~9% of the building cost (the sourced benchmark).
+The community package rises from 3% to ~7% of the building cost ($1M per MW, the sourced benchmark).
 
 ## 6. Removed
 
