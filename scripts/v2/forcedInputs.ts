@@ -44,9 +44,8 @@ export function installForced(kind: string) {
   const p = aifmPaths();
   FORCING.computePath = p.computePath;
   FORCING.staffPath = p.staffPath;
-  // HARNESS EXCEPTION (designer-approved 2026-11-26): see departments/teams.ts forcePlayerStaff. Pending the hiring market.
-  FORCING.playerStaffExact = true;
+  // No harness exception (L19): the player's staff follows the path through the labour market (botgame.ts ForcedStaff).
 }
 
-/** Harness exceptions active in a forced run, recorded in GameRecord, config.json and the summary cell. */
-export const HARNESS_EXCEPTIONS = ['playerStaffExact'];
+/** Harness exceptions active in a forced run, recorded in GameRecord, config.json and the summary cell. Empty since L19. */
+export const HARNESS_EXCEPTIONS: string[] = [];

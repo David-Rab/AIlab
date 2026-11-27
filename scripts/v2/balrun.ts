@@ -67,6 +67,10 @@ export interface GameRecord {
   scores?: Record<string, number>;
   /** Forced runs: one sample at 2025.5 and at every later whole year (botgame.ts ForcedSeries). */
   series?: import('./botgame').ForcedSeries;
+  /** Forced runs (L19): where the player's heads fell below 97% of the AIFM staff path at the +100% premium step, per kind, as [year, heads, path] at most quarterly (a finding), the first such year per kind, and heads / path / premium / wage ratio w/w0 at each series sample. */
+  staffShort?: import('./botgame').StaffLog['short'];
+  staffFirstMiss?: import('./botgame').StaffLog['firstMiss'];
+  staffTrack?: import('./botgame').StaffLog['track'];
   ms: number;
 }
 type Body = Omit<GameRecord, 'run'>;
@@ -94,13 +98,14 @@ const aifmRunOf = (s: GameStateV2) => { const a = s.hidden.timeline.aifmRun; ret
 function playForcedOne(cell: Cell, seed: number): Body {
   const t0 = performance.now();
   const s = G.newBotGame(seed, { world: cell.world, alignment: cell.alignment }, cell.start);
-  const series = G.playForced(G.ALL[cell.policy], s);
+  const { series, staff } = G.playForced(G.ALL[cell.policy], s);
   const md = s.player.milestoneDays;
   const ms: Record<string, number> = {};
   for (const [k, i] of [['SC', 3], ['SAR', 4], ['SIAR', 5], ['ASI', 6]] as [string, MilestoneIdx][]) if (md[i] !== undefined) ms[k] = md[i]!;
   return {
     seed, world: cell.world, alignment: cell.alignment, start: cell.start, policy: cell.policy, forced: cell.forced, harnessExceptions: HARNESS_EXCEPTIONS, ...aifmRunOf(s),
     endDay: s.time.day, ending: 'forced-end', verdict: 'mixed', milestones: ms, revenueByYear: [], series,
+    staffShort: staff.short, staffFirstMiss: staff.firstMiss, staffTrack: staff.track,
     ms: Math.round(performance.now() - t0),
   };
 }

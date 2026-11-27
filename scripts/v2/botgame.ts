@@ -12,6 +12,11 @@ import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';
 import { resolve, tick } from '../../src/engine/v2/core/loop';
 import { EVENT_BY_ID } from '../../src/engine/v2/core/registry';
 import { decimalYear } from '../../src/engine/v2/core/time';
+import { FORCING } from '../../src/engine/v2/core/forcing';
+import { tryAct } from '../../src/engine/v2/bots/common';
+import { roleOfKey } from '../../src/engine/v2/departments/teams';
+import { LABOUR_KINDS, PREMIUM_STEPS, W0 } from '../../src/data/v2/labourMarket';
+import { TEAM_KEYS, TEAM_SIZE } from '../../src/data/v2/teams';
 import { bestPlayerVersion } from '../../src/engine/v2/models/labs';
 import { gV0, h50Of } from '../../src/engine/v2/models/capability';
 import { labSpeedRel } from '../../src/engine/v2/production/production';
@@ -19,7 +24,7 @@ import { H50_V0_MIN, H80_OVER_H50 } from '../../src/data/v2/workTypes';
 import { cashFloorStub, refComputeStub } from './lib';
 import { matchedSpeedup } from './matched';
 import type { PolicyId } from './policies';
-import type { AlignDiffId, BotPolicy, GameStateV2, StartType, TickOptions, WorldPresetId } from '../../src/engine/v2/types';
+import type { AlignDiffId, BotPolicy, GameStateV2, StartType, TeamKey, TeamRole, TickOptions, WorldPresetId } from '../../src/engine/v2/types';
 
 /** The named bot policies. */
 /** 'refwide' (Stage 1): RefBot's settings plus the research ideas the rival labs pursue (balance/scans/refbot-a.json, set research-rivals-all). */
@@ -54,6 +59,80 @@ export function playBot(bot: BotPolicy, s: GameStateV2, onTick?: (s: GameStateV2
 export interface ForcedSeries {
   year: number[]; G: (number | null)[]; h50: (number | null)[]; h80: (number | null)[]; spd: (number | null)[]; spdM: (number | null)[]; ec: (number | null)[]; comp: number[]; staff: number[];
 }
+/** Forced runs hire the AIFM staff path through the labour market (L19; LABOUR-ROUND 4.4). Only what a player can do: the
+ *  hiring targets ('teams.target') and the pay premium ('hiring.premium'). No engine exception. */
+export const STAFF_MET = 0.97; // heads at or above this share of the path count as on the path
+/** Per sample: heads, the path (start heads x staffPath), the premium step, the market wage over its start value. */
+export interface KindTrack { heads: number[]; path: number[]; prem: number[]; wr: number[] }
+export interface StaffLog {
+  /** Heads below STAFF_MET x path at the top premium step (+100%), per kind: [year, heads, path], at most one a quarter. A finding. */
+  short: Partial<Record<TeamRole, [number, number, number][]>>;
+  /** The first year the path was missed at the top step, per kind. */
+  firstMiss: Partial<Record<TeamRole, number>>;
+  track: { year: number[]; eng: KindTrack; re: KindTrack; sci: KindTrack };
+}
+export interface ForcedRun { series: ForcedSeries; staff: StaffLog }
+const kindHeads = (s: GameStateV2, k: TeamRole) => {
+  let n = 0;
+  for (const t of [...s.player.teams, ...s.player.hiring.filling]) if (t.role === k) n += t.heads;
+  return n;
+};
+const emptyTrack = (): KindTrack => ({ heads: [], path: [], prem: [], wr: [] });
+class ForcedStaff {
+  private startKey: Partial<Record<TeamKey, number>> = {};
+  private startKind: Record<TeamRole, number> = { eng: 0, re: 0, sci: 0 };
+  private lastShort: Partial<Record<TeamRole, number>> = {};
+  log: StaffLog = { short: {}, firstMiss: {}, track: { year: [], eng: emptyTrack(), re: emptyTrack(), sci: emptyTrack() } };
+  constructor(s: GameStateV2) {
+    for (const k of TEAM_KEYS) {
+      const role = roleOfKey(k);
+      let n = 0;
+      for (const t of [...s.player.teams, ...s.player.hiring.filling]) if (t.role === role && (role === 'eng' ? 'eng' : `${role}.${t.dept}`) === k) n += t.heads;
+      this.startKey[k] = n;
+      this.startKind[role] += n;
+    }
+  }
+  private path(k: TeamRole, yr: number) { return this.startKind[k] * FORCING.staffPath!(yr); }
+  /** Every tick, after the bot has acted: the targets are start heads x path per team kind, rounded up to whole teams. */
+  targets(s: GameStateV2, api: typeof engine) {
+    const sp = FORCING.staffPath!(decimalYear(s));
+    for (const k of TEAM_KEYS) {
+      const n = Math.ceil(((this.startKey[k] ?? 0) * sp) / TEAM_SIZE[roleOfKey(k)] - 1e-9);
+      if ((s.player.hiring.targets[k] ?? 0) !== n) tryAct(s, api, 'teams.target', { key: k, n });
+    }
+  }
+  /** Weekly: one premium step up while heads < 97% of the path, one step down while above it; log a miss at the top step. */
+  weekly(s: GameStateV2, api: typeof engine) {
+    const yr = decimalYear(s);
+    for (const k of LABOUR_KINDS) {
+      const heads = kindHeads(s, k), path = this.path(k, yr);
+      if (path <= 0) continue;
+      const cur = Math.max(0, PREMIUM_STEPS.findIndex((x) => Math.abs(x - (s.player.hiring.premium?.[k] ?? 0)) < 1e-9));
+      const top = PREMIUM_STEPS.length - 1;
+      const want = heads < STAFF_MET * path ? Math.min(top, cur + 1) : heads > path ? Math.max(0, cur - 1) : cur;
+      if (want !== cur) tryAct(s, api, 'hiring.premium', { kind: k, step: PREMIUM_STEPS[want] });
+      if (cur === top && heads < STAFF_MET * path) {
+        if (this.log.firstMiss[k] === undefined) this.log.firstMiss[k] = Number(yr.toFixed(3));
+        if (this.lastShort[k] === undefined || yr - this.lastShort[k]! >= 0.25) {
+          this.lastShort[k] = yr;
+          (this.log.short[k] ??= []).push([Number(yr.toFixed(3)), Math.round(heads), Math.round(path)]);
+        }
+      }
+    }
+  }
+  sample(s: GameStateV2, year: number) {
+    const tr = this.log.track;
+    tr.year.push(year);
+    for (const k of LABOUR_KINDS) {
+      const o = tr[k];
+      o.heads.push(Math.round(kindHeads(s, k)));
+      o.path.push(Math.round(this.path(k, decimalYear(s))));
+      o.prem.push(s.player.hiring.premium?.[k] ?? 0);
+      o.wr.push(Number((s.labour.pools[k].w / W0[k]).toFixed(3)));
+    }
+  }
+}
+
 const sig3 = (x: number) => (!Number.isFinite(x) ? null : x === 0 ? 0 : Number(x.toPrecision(3)));
 const fix3 = (x: number) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
 
@@ -72,11 +151,12 @@ export const POST_ASI_YEARS = 1;
 /** Years between samples after 2026 (R3.2: a quarter, so a date relative to SC or AC (SC+0.5 y) falls between samples a quarter apart, not a year). The first two samples stay 2025.5 and 2026. */
 export const SAMPLE_STEP = 0.25;
 export interface ForcedOpts { step?: number; spdM?: boolean }
-export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: ForcedOpts = {}): ForcedSeries {
+export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: ForcedOpts = {}): ForcedRun {
   const step = o.step ?? SAMPLE_STEP, withM = o.spdM ?? true;
   const M = matchedSpeedup();
   s.player.finance.cash = 1e6;
   const opts: TickOptions = { extraSystems: [refComputeStub, cashFloorStub], skip: ['endings'] };
+  const staff = new ForcedStaff(s);
   const out: ForcedSeries = { year: [], G: [], h50: [], h80: [], spd: [], spdM: [], ec: [], comp: [], staff: [] };
   const w = s.hidden.timeline;
   let next = 2025.5;
@@ -93,6 +173,7 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: Forc
     out.ec.push(fix3(g - gV0(w)));
     out.comp.push(Math.round(s.player.computeOnline));
     out.staff.push(Math.round(s.player.staff.cap));
+    staff.sample(s, next);
     next = next === 2025.5 ? 2026 : next + step;
   };
   let guard = 0; // the first sample comes after the first tick, once the stub has set the compute
@@ -103,11 +184,13 @@ export function playForced(bot: BotPolicy, s: GameStateV2, until = 2060, o: Forc
       if (resolve(s, p.instance, c)) resolve(s, p.instance, EVENT_BY_ID.get(p.id)?.defaultChoice ?? 0);
     }
     bot.act(s, engine);
+    staff.targets(s, engine);
+    if (s.time.day % 7 === 0) staff.weekly(s, engine);
     tick(s, opts);
     if (withM) M.observe(s);
     if (decimalYear(s) >= next - 1e-9) sample();
     const asi = s.player.milestoneDays[6];
     if (asi !== undefined && POST_ASI_YEARS > 0) stopAt = Math.min(until, decimalYear(s, asi) + POST_ASI_YEARS);
   }
-  return out;
+  return { series: out, staff: staff.log };
 }
