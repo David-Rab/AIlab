@@ -73,7 +73,6 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   if ((s.world.control.MIL?.tiers[3] ?? 0) > 0.1) freedom.push({ label: 'AI makes military decisions', value: -10 });
   const kept = transparencyKept(s);
   if (kept) freedom.push({ label: `Transparency commitments kept (${kept})`, value: Math.min(15, 5 * kept) });
-  if (s.world.intelligenceCurse) freedom.push({ label: 'Intelligence curse', value: -15 });
   // Prosperity: the world the ending leads to (a rough judgement table, as Survival's), moved by who holds power and
   // by the economy at the end. By ASI the simulated economy has barely moved, so the economy terms alone cannot
   // spread the score (2026-11-24 end-screen audit: 50 in every ending).
@@ -87,7 +86,6 @@ export function scoreTerms(s: GameStateV2, id: EndingV2['id'], power: PowerOutco
   prosperity.push(
     { label: 'GDP growth since the start', value: (25 * Math.log2(Math.max(1e-6, m.gdp / gdp0))) / Math.log2(3) },
     { label: 'Unemployment', value: -3 * (s.world.unemployment.US - 4.3) },
-    { label: 'Inequality', value: -100 * (m.gini - 0.48) },
   );
   if (ubi) prosperity.push({ label: 'Transition fund', value: 10 });
   // Company

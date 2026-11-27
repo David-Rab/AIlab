@@ -50,7 +50,7 @@ import { RIVALS_EVENTS } from '../events/catalog/rivals';
 import { revenueSystem } from '../worldfx/revenue';
 import { autoSplitSystem } from '../departments/autoSplit';
 import { worldDailySystem } from '../worldfx/sectors';
-import { macroSystem } from '../worldfx/macro';
+import { economySystem } from '../worldfx/economy';
 import { WORLD_ACTIONS } from '../worldfx/actions';
 
 /** All systems in spec order (§2.2). */
@@ -80,7 +80,7 @@ export const SYSTEMS: readonly EngineSystem[] = [
   recordSystem, // 160 WS1 weekly
   hiringSystem, // 200 WS1 weekly
   payrollSystem, // 300 WS3 monthly
-  macroSystem, // 310 WS5 monthly
+  economySystem, // 310 WS5 monthly
   computeHistQSystem, // 399 WS3 quarterly
   marketQSystem, // 400 WS3 quarterly
   sitesQSystem, // 410 WS3 quarterly

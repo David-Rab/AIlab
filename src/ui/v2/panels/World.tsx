@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { REGIONS } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
 import {
-  automationShare, CONTROL_DOMAINS, dateOf, dowYtd, firmAdoption, fmtDate, internalVersion, LEVERAGE_THRESHOLDS, leverageAll, measuredDomains,
+  automationShare, CONTROL_DOMAINS, dateOf, firmAdoption, fmtDate, internalVersion, LEVERAGE_THRESHOLDS, leverageAll, measuredDomains,
   remoteWorkAutomation, techBlockerAtLevels, techGateLevels, unemploymentChange12m, youthExposedEmployment,
 } from '../../../engine/v2';
 import type { GameStateV2 } from '../../../engine/v2';
@@ -35,11 +35,8 @@ export function World({ s }: { s: GameStateV2 }) {
       <PanelHead icon={ICON.world} title="World" sub="world risk, AI at work and jobs, who controls what" tabs={<Tabs panel="world" def="sectors" tabs={[{ id: 'sectors', label: 'Sectors', icon: ICON.world }, { id: 'risk', label: 'Risk', icon: ICON.risks }, { id: 'society', label: 'Control & tech', icon: ICON.staff }]} />} />
       <div className="macro-strip" data-test="macro">
         <Tip content={() => <TipCard title="US GDP growth" value={pct(us.g, 1)} />}><span><Term id="gdpG">GDP growth</Term> <b className="num">{pct(us.g, 1)}</b></span></Tip>
-        <Tip content={() => <TipCard title={<Term id="dow">Dow</Term>} value={fmtNum(s.world.dow)} rows={[{ label: 'Year to date', value: pct(dowYtd(s), 1) }]} />}><span><Term id="dow">Dow</Term> <b className="num">{fmtNum(s.world.dow)}</b> <span className={dowYtd(s) >= 0 ? 'tone-pos' : 'tone-neg'}>{pct(dowYtd(s), 1)} ytd</span></span></Tip>
-        <Tip content={() => <TipCard title={<Term id="gini">Gini</Term>} value={us.gini.toFixed(2)}>US income inequality, 0 (equal) to 1.</TipCard>}><span><Term id="gini">Gini</Term> <b className="num">{us.gini.toFixed(2)}</b></span></Tip>
-        <Tip content={() => <TipCard title={<Term id="aiOwnerShare">AI-owner share</Term>} value={pct(s.world.aiOwnerShare, 1)}>Share of income going to owners of AI and compute.</TipCard>}><span><Term id="aiOwnerShare">AI-owner share</Term> <b className="num">{pct(s.world.aiOwnerShare, 1)}</b></span></Tip>
+        <Tip content={() => <TipCard title={<Term id="aiIncomeShare">AI share of income</Term>} value={pct(s.world.aiIncomeShare, 1)}>AI companies' revenue as a share of US GDP.</TipCard>}><span><Term id="aiIncomeShare">AI share of income</Term> <b className="num">{pct(s.world.aiIncomeShare, 1)}</b></span></Tip>
         <Tip content={() => <TipCard title={<Term id="robots">Robots</Term>} value={`${fmtNum(s.world.robots.prodPerYear / 12)} a month`}>Robots built worldwide.</TipCard>}><span><Term id="robots">Robots</Term>/mo <b className="num">{fmtNum(s.world.robots.prodPerYear / 12)}</b></span></Tip>
-        <Tip content={() => <TipCard title={<Term id="laborShare">Labour share</Term>} value={pct(us.laborShare)}>Share of US income paid as wages.</TipCard>}><span><Term id="laborShare">Labour share</Term> <b className="num">{pct(us.laborShare)}</b></span></Tip>
       </div>
       {tab === 'sectors' && <WorldSectors s={s} names={names} color={LAB_COLOR} below={(
         <Section title="Jobs">

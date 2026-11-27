@@ -8,9 +8,8 @@ import { FIRMS } from '../../../data/v2/names';
 import { ECON } from '../../../data/v2/sectors';
 import type { GameStateV2, SectorId, SystemCtx } from '../types';
 import { leverageAll } from './control';
-import { dcPowerShare } from './macro';
 import { policyState } from './policy';
-import { dowYtd, remoteWorkAutomation, unemploymentChange12m } from './readouts';
+import { remoteWorkAutomation, unemploymentChange12m } from './readouts';
 import { robotOutput } from './robots';
 
 export interface HeadlineDef {
@@ -43,7 +42,6 @@ export const HEADLINES: HeadlineDef[] = [
   { id: 'H6', severity: 1, sector: 'LEGAL', when: (s) => s.world.sectors.US.LEGAL.A >= 0.2, text: () => 'Bar sues AI law firm',
     effect: (s) => { s.world.fx.incidentR.LEGAL = Math.min(0.5, s.world.fx.incidentR.LEGAL + 0.1); } },
   { id: 'H7', severity: 1, when: (s) => s.pub.rung >= 2, text: () => '10,000 march on Washington' },
-  { id: 'H8', severity: 1, cooldownDays: 300, when: (s) => dowYtd(s) >= 0.3, text: () => 'AI rally lifts markets 30%' },
   { id: 'H9', severity: 1, when: (s) => s.world.friendShare >= 0.1, text: () => '1 in 10 Americans: my best friend is an AI',
     effect: (_s, ctx) => { bloc(ctx, 'parents', 5, 'headline H9'); } },
   { id: 'H10', severity: 1, when: (s) => remoteWorkAutomation(s) >= 0.25, text: () => 'A quarter of remote jobs now done by AI' },
@@ -66,20 +64,15 @@ export const HEADLINES: HeadlineDef[] = [
   { id: 'H21', severity: 1, when: (s) => robotOutput(s) / 12 >= 1e6, text: () => 'One million robots a month' },
   { id: 'H22', severity: 1, when: (s) => s.world.macro.US.g >= 0.1, text: () => 'Fastest growth since WWII' },
   { id: 'H23', severity: 1, when: (s) => s.world.macro.US.g >= 0.3, text: () => 'Economy doubling every two years' },
-  { id: 'H24', severity: 1, when: (s) => s.world.dow >= 100e3, text: () => 'Dow 100,000' },
-  { id: 'H24b', severity: 1, when: (s) => s.world.dow >= 1e6, text: () => 'Dow 1,000,000' },
-  { id: 'H25', severity: 1, when: (s) => s.world.aiOwnerShare >= 0.2, text: () => 'AI investors become the first trillionaires',
+  { id: 'H25', severity: 1, when: (s) => s.world.aiIncomeShare >= 0.2, text: () => 'AI companies now earn a fifth of national income',
     effect: (_s, ctx) => { bloc(ctx, 'populist', 5, 'headline H25'); } },
   { id: 'H26', severity: 1, when: (s) => policyState(s).ubi, text: () => 'Congress passes basic income',
     effect: (_s, ctx) => { ctx.bump('pub.jobAnxiety', -10, 'headline H26'); } },
-  { id: 'H27', severity: 1, when: (s) => s.world.intelligenceCurse, text: () => 'AI taxes now fund half of government' },
   { id: 'H28', severity: 1, when: () => false, text: () => 'Robot passes the Coffee Test (fired by the tech tree)' },
   { id: 'H29', severity: 1, sector: 'HEALTH', when: (s) => (s.world.techs.W07?.ramp ?? 0) >= 0.5, text: () => 'Cancer death rate falls by a third' },
   { id: 'H30', severity: 3, every: 7, when: (s) => Math.max(0, ...Object.entries(leverageAll(s)).filter(([k]) => k !== 'player:open').map(([, v]) => v)) >= 0.35,
     text: () => 'Can we still switch it off? Economists say no',
     effect: (_s, ctx) => { bloc(ctx, 'safety', 5, 'headline H30'); } },
-  { id: 'H31', severity: 1, every: 7, sector: 'ENGY', when: (s) => dcPowerShare(s) >= 0.05, text: () => 'Datacenters now 5% of US power',
-    effect: (_s, ctx) => { bloc(ctx, 'ratepayers', 5, 'headline H31'); } },
   { id: 'H32', severity: 1, when: (s) => policyState(s).chinaSez || (s.world.robots.sezOpen && s.china.meters.centralization >= 50), text: () => 'China answers with AI zones' },
 ];
 

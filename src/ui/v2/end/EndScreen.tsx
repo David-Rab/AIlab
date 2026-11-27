@@ -270,8 +270,8 @@ function Tiles({ v }: { v: View }) {
           <KV k={<><ICON.public size={14} /><Term id="unemployment">Unemployment</Term></>} tip={termCard('unemployment', `${F.num(e.unemployment, 1)}%`, <div className="tipcard-foot">{signed(e.unemploymentChange, 1)} points since the start.</div>)}>
             <span className="v num">{F.num(e.unemployment, 1)}%</span>{delta(e.unemploymentChange, `${signed(e.unemploymentChange, 1)} pt`, true)}
           </KV>
-          <KV k={<><ICON.inequality size={14} /><Term id="gini">Inequality</Term></>} tip={termCard('gini', F.num(e.gini, 2), <div className="tipcard-foot">{signed(e.giniChange, 2)} since the start.</div>)}>
-            <span className="v num">{F.num(e.gini, 2)}</span>{delta(e.giniChange, signed(e.giniChange, 2), true)}
+          <KV k={<><ICON.inequality size={14} /><Term id="aiIncomeShare">AI share of income</Term></>} tip={termCard('aiIncomeShare', F.pct(e.aiIncomeShare, 1), <div className="tipcard-foot">AI companies' revenue as a share of US GDP.</div>)}>
+            <span className="v num">{F.pct(e.aiIncomeShare, 1)}</span>
           </KV>
         </div>
 

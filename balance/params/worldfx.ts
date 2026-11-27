@@ -1,4 +1,4 @@
-// Worldfx chunk (B3): src/engine/v2/worldfx/* (macro, control, sectors, robots, techtree, actions, mix, serving, ...).
+// Worldfx chunk (B3): src/engine/v2/worldfx/* (economy, control, sectors, robots, techtree, actions, mix, serving, ...).
 // Sector data tables (src/data/v2/sectors.ts) are registered in market.ts and not repeated here.
 // Entries are built with two small helpers; each expands to a plain Param (one per named scalar / key).
 import { defineParams, type Param } from '../schema';
@@ -25,41 +25,19 @@ const inl = (id: string, file: string, anchor: string, value: Val, unit: string 
   ...meta,
 });
 
-const HYPE_EV = 'macro.ts:28-29 "Hype index weights ... [D, fit]"; :174 "[D, fitted to \\"+30% in 2026\\"]"';
 const ACCEPT_EV = 'control.ts:21-22 "T1 Accept = base + gain·σ(...) ... [D, fit §7.3]"';
 
 export const PARAMS_WORLDFX = defineParams([
   // ---------------------------------------------------------------- macro.ts (named)
-  exp('G_BASE', 'macro.ts', 'G_BASE', [], [0.018, 0.04, 0.028], '1/yr', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:5 "g_base (US 1.8% CBO-type, CN ≈4%, ROW 2.8%)" names no source; macro.ts:23',
-    notes: 'Array order = US, CN, ROW. Baseline trend growth; sectors.ts:381 repeats 0.018/0.04/0.028 inline (gAI).',
-  }),
-  inl('macro.CAPEX_SHARE', 'macro.ts', 'const CAPEX_SHARE: Record<RegionId, number> = { US: 0.7, CN: 0.12, ROW: 0.18 };', [0.7, 0.12, 0.18], 'fraction', {
-    ...W, kind: 'designer',
-    evidence: 'macro.ts:24 "Share of global AI capex spent in each region [D]."',
-    notes: 'Array order = US, CN, ROW.',
-  }),
-  inl('macro.IMPORT_LEAK', 'macro.ts', 'const IMPORT_LEAK = 0.65;', 0.65, 'fraction', {
+  exp('G_BASE', 'economy.ts', 'G_BASE', [], [0.022, 0.04, 0.028], '1/yr', {
     ...W, kind: 'sourced',
-    evidence: 'macro.ts:6 "net of a 0.65 import leak (St. Louis Fed / FEDS Note [V])"',
-    source: 'St. Louis Fed / FEDS Note (import leakage of AI capex), as named at macro.ts:6',
+    evidence: 'economy.ts: "US = CBO potential (SOURCES §2); CN, ROW [D]"',
+    source: 'CBO potential growth (design/world/SOURCES.md §2) for the US; CN and ROW are designer values',
+    notes: 'Array order = US, CN, ROW. sectors.ts reads it for gAI.',
   }),
-  inl('macro.DOW0', 'macro.ts', 'const DOW0 = 44000;', 44000, 'index points', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:27 (sectors.ts:218 comments "Dow Jones ≈ 44,000 in Jul 2025")',
-    notes: 'Start-state level; the same 44000 is written in sectors.ts:218 (dow).',
-  }),
-  inl('macro.GDP0', 'macro.ts', 'const GDP0: Record<RegionId, number> = { US: 30000, CN: 19000, ROW: 60000 };', [30000, 19000, 60000], '$B', {
-    ...W, kind: 'untagged',
-    evidence: 'no tag; macro.ts:28',
-    notes: 'Array order = US, CN, ROW. Start-state GDP; the same values are the macro(...) arguments in sectors.ts:217.',
-  }),
-  exp('HYPE.rev', 'macro.ts', 'HYPE', ['rev'], 0.2, 'hype per doubling of AI-lab revenue', {
-    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
-  }),
-  exp('HYPE.level', 'macro.ts', 'HYPE', ['level'], 0.06, 'hype per level of the best public model', {
-    ...W, kind: 'fitted', fit: { targets: [], script: 'unnamed' }, evidence: HYPE_EV, notes: 'A3: [D, fit] plus a named target ("+30% in 2026", macro.ts:174); no script named.',
+  exp('ECONOMY.lambda', 'economy.ts', 'ECONOMY', ['lambda'], 0.6, 'growth per unit annual change of the automation share', {
+    ...W, kind: 'fitted', fit: { targets: [], script: 'scripts/v2/_w1b/paths.ts' },
+    evidence: 'economy.ts: fitted to the previous model AI-driven growth at day 900 (before.txt / after.txt)',
   }),
 
   // ---------------------------------------------------------------- control.ts (named)
@@ -202,37 +180,6 @@ export const PARAMS_WORLDFX = defineParams([
 
   // ================================================================ notable inline literals (cap 40)
   // ---- macro.ts
-  inl('macro.aiCapexOverhead', 'macro.ts', 's.market.listPrice * 1e3 * 1.5', 1.5, 'x chip cost', {
-    ...W, kind: 'sourced',
-    evidence: 'macro.ts:32-33 "×1.5 for datacentre, power and networking (AI 2027: ≈$400B global AI datacentre spend in 2025 [A27 R02])"',
-    source: 'AI 2027 research note A27 R02 (about $400B global AI datacentre spend in 2025), as named at macro.ts:33',
-  }),
-  inl('macro.capexGrowthCoef', 'macro.ts', '(0.5 * (1 - IMPORT_LEAK) * dCapexYr', 0.5, 'GDP growth per unit capex/GDP', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:6 "g_capex = 0.5·Δ(AI capex)/GDP per year, net of a 0.65 import leak"; code macro.ts:130',
-  }),
-  inl('macro.aiGrowthCap', 'macro.ts', 'Math.exp((0.6 * vA) / 12)', 0.6, '1/yr per unit of Σ v·A', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:10-11 "the AI-driven growth rate is capped at 0.6·Σ v·A (GATE statements, R16 §4.3)"; :136',
-    source: 'research/16 §4.3 (GATE statements)',
-  }),
-  inl('macro.noW17XCap', 'macro.ts', 'X = Math.min(X, 2.2);', 2.2, 'automation factor X', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:9 "Without W17 cognitive automation never lifts X above 2.2 (R16 §7 test 3)"; :79',
-    source: 'research/16 §7 test 3',
-  }),
-  inl('macro.sezGrowthCapNonExplosive', 'macro.ts', 'explosive ? 50 : 0.3', 0.3, '1/yr', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:11-12 "explosive regime needs W17 or Σ v·A ≥ 0.5; else ≤ 30%/yr"; code :142',
-    notes: 'SEZ output growth cap outside the explosive regime (the explosive cap is 50/yr).',
-  }),
-  inl('macro.peHypeWeight', 'macro.ts', '20 * (1 + 0.6 * fx.hype - 0.8 * fx.fear)', 0.6, 'PE change per unit hype', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:12 "PE = 20·(1 + 0.6·Hype − 0.8·Fear) [R16 §4.5]"; code :179',
-    source: 'research/16 §4.5', notes: 'The 0.8 fear weight and the base PE 20 sit in the same expression.',
-  }),
-  inl('macro.hypeSmoothing', 'macro.ts', 'fx.hype += (hypeStar - fx.hype) * 0.35;', 0.35, 'fraction per month', {
-    ...W, kind: 'untagged', evidence: 'no tag; macro.ts:175 (the line above it, :173, tags the hype target "[D, fitted to \\"+30% in 2026\\"]", not this rate)',
-  }),
-  inl('macro.jobAnxietyPerPp', 'macro.ts', 'const dAnx = 8 * (W.unemployment.US - uPrev)', 8, 'anxiety per pp of unemployment', {
-    ...W, kind: 'sourced', evidence: 'macro.ts:184 "Jobs → public anxiety (R16 §1A.2 step 11): +8 per pp of unemployment, +3 per pp of youth unemployment"',
-    source: 'research/16 §1A.2 step 11', notes: 'The +3 per pp of youth unemployment is in the same expression.',
-  }),
 
   // ---- control.ts
   inl('control.internalOpsCoef', 'control.ts', "0.15 * levelGate(w, ivAg, 10, 1)", 0.15, 'INFRA penetration target', {

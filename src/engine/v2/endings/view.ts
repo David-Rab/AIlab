@@ -7,7 +7,6 @@ import { CLOSER, OPENER, POWER_LINE, PROJECTED, PROJECTED_POWER, WORLD_LINE, typ
 import { AGENDAS, AGENDA_BY_ID } from '../../../data/v2/agendas';
 import { AI2027_COMPUTE_TABLE } from '../../../data/v2/calibration';
 import { CONTROL } from '../../../data/v2/danger';
-import { ECON } from '../../../data/v2/sectors';
 import { UMODE_BY_ID } from '../../../data/v2/umodes';
 import { MILESTONES } from '../../../data/world';
 import { clamp } from '../../rng';
@@ -117,7 +116,7 @@ export interface EndingView {
       gdpChange: number; gdpSince: string;
       /** GDP index (1 = start), ≤ 150 points, last = 1 + gdpChange. */
       gdpIndex: number[];
-      unemployment: number; unemploymentChange: number; gini: number; giniChange: number;
+      unemployment: number; unemploymentChange: number; aiIncomeShare: number;
     };
     geopolitics: {
       rung: number; rungName: string;
@@ -521,7 +520,7 @@ export function endingView(s: GameStateV2): EndingView | null {
     future, epilogue, steps: steps.slice(0, 3),
     world: {
       power: powerTiles,
-      economy: { gdpChange: r3(gdpChange), gdpSince: shortMonth(s, 0), gdpIndex, unemployment: r3(s.world.unemployment.US), unemploymentChange: r3(s.world.unemployment.US - (S.unemp[0] ?? s.world.unemployment.US)), gini: r3(m.gini), giniChange: r3(m.gini - ECON.gini0) },
+      economy: { gdpChange: r3(gdpChange), gdpSince: shortMonth(s, 0), gdpIndex, unemployment: r3(s.world.unemployment.US), unemploymentChange: r3(s.world.unemployment.US - (S.unemp[0] ?? s.world.unemployment.US)), aiIncomeShare: r3(fin(s.world.aiIncomeShare)) },
       geopolitics: { rung: s.china.rung, rungName: RUNG_NAMES[s.china.rung] ?? '', taiwan, taiwanLabel: TAIWAN_LABEL[taiwan], treaty: s.gov.treaty, treatyLabel: TREATY_LABEL[s.gov.treaty], chinaLagDays: Math.round(chinaVsUs) },
       company: {
         name: s.player.name, valuation: r3(valuation), multiple: r3(valuation / Math.max(1e-9, v0)), valuationHistory: sampleIdx(S.valuation.length).map((i) => r3(S.valuation[i])),
