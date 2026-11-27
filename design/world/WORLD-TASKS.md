@@ -52,8 +52,8 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | done (merged into W1ef) |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | done d057cabd |
 | W3 | (folded into W1b) | | | | |
-| W4 | Public (spec §5) | Sonnet high | 60 min | W2 | running |
-| W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | |
+| W4 | Public (spec §5) | Sonnet high | 60 min | W2 | done eb95c5da |
+| W5 | US government (spec §6) plus the support channel if it is one factor on permitting | Opus high, reason (a): thresholds chosen while coding | 90 min | W4 | running |
 | W6 | China government (spec §7) | Sonnet high | 75 min | W5 | |
 | W7 | Events and levers pass (spec §8) | Sonnet high | 60 min | W6 | |
 | W10a | Observer mode in balrun + quarterly world series (spec §17) | Sonnet high | 60 min | W1e | done d4578ba0 |
@@ -128,3 +128,9 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   - (b) Automation reaches 32–44% of US work, but unemployment ends at only 5.5–6.2% (youth 24–30%), and the AI share
     of income is 2.5–5%.
   - (c) Many runs end early in a misaligned takeover or catastrophe at medium alignment (the `bal` alignment setting).
+- W4 · Sonnet high · ~13 min · world/public.ts: concern (to 50 + 6/public milestone + 5/pt of unemployment rise + 2 ×
+  incidentHeat, half-life 90 d) and approval (to −0.4·(concern−50), half-life 180 d; approvalPush × attention). Outputs:
+  brand factor, localMood 45 + 0.5·(concern−50) (−10 with the community package), hiring pull from approval. Smoke
+  tl-central: concern 50 through 2027, ~70 at the first public SC (2030), 86 at the end. Note: a covered incident that
+  leaks takes both the leak and the cover-up push (judged fine: the lie is its own penalty) · eb95c5da
+- Dashboard follow-up (after W5/W6): wire public/usgov/china into the History (concern vs Pew) and Reactions rows
