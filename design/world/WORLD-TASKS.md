@@ -178,3 +178,19 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   public by mid-2026, so the collective, US stage 1 and concern 53 land before Nov 2026. This is a shared-history
   question for the NPC lead lab and `bal`. Slow: Taiwan flagged in 32 of 115 samples (to review).
 - obs-built (lead) · 3 × 8 grid on the built world · running
+- obs-built (lead) · 24 games in 728 s. Medians:
+
+  | | concern Nov 2026 | US stages 1/2/3/4 | tension 2/3 | treaty runs | UBI runs |
+  |---|---|---|---|---|---|
+  | fast | 53.2 | 2027.5 / 2028.5 / 2029.2 / 2029.7 | 2027.7 / 2029.5 | 1/8 | 2/8 |
+  | central | 54.9 | 2027.2 / 2029.7 / 2031.7 / 2032.7 | 2027.7 / 2033.0 | 6/8 | 4/8 |
+  | slow | 50.0 | 2028.7 / 2031.7 / 2041.9 / 2040.2 | 2028.7 / 2041.7 | 7/8 | 6/8 |
+
+  - Unemployment is 4.3 at Nov 2026 everywhere. No war. Licensing and hitl are on in most runs. Taiwan disruptions
+    happen in 6–8 of 8 runs. Lead-lab ASI: fast 2029.4, central 2032.1, slow 2048.8 (the treaty clock slows it).
+  - For the designer:
+    - (1) Verified treaties are common with no player: the verification precondition passes automatically when the
+      player isn't a frontier lab.
+    - (2) Milestone 2 goes public in some central seeds in 2026 too: a shared-history issue for the NPC lead lab and
+      `bal`.
+    - (3) Taiwan disruption frequency.
