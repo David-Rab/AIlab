@@ -6,7 +6,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pencil, X } from 'lucide-react';
 import { SPOT_SHARES, believedSpotCatch, spotCheckChosen, spotCheckFte, spotShare } from '../../../engine/v2/safety/workPackage';
-import { safetyAgentVersion } from '../../../engine/v2/safety/agents';
+import { aiShareOf, safetyAgentVersion } from '../../../engine/v2/safety/agents';
 import { controlOn } from '../../../engine/v2/safety/safeguards';
 import { AGENT_USES, AGENT_USE_DEF, MONITOR_AUTO, MONITOR_SAME } from '../../../data/v2/agents';
 import { INTERNAL_TOOLS } from '../../../data/v2/features';
@@ -18,6 +18,7 @@ import * as F from '../fmt';
 import { ICON } from '../icons';
 import { modelOptions, PkgChip } from './chips';
 import { DangerChip } from './Danger';
+import { JobMargins, LabourBar } from './labourBar';
 import './agents.css';
 
 const USE_ICON: Record<AgentUse, typeof ICON.L> = { eng: ICON.roleEng, capRoutine: ICON.roleRE, capFrontier: ICON.roleSci, safety: ICON.safety };
@@ -133,7 +134,7 @@ function KV({ k, children, test }: { k: ReactNode; children: ReactNode; test?: s
   return <div className="la-kv" data-test={test}><span className="k">{k}</span><span className="v">{children}</span></div>;
 }
 
-function JobCard({ s, v, w, use, danger, draft, setDraft }: { s: GameStateV2; v: AgentsView; w?: WorkTypeView; use: AgentUse; danger?: DangerRead; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
+function JobCard({ s, v, w, ws, use, danger, draft, setDraft }: { s: GameStateV2; v: AgentsView; w?: WorkTypeView; ws: WorkTypeView[]; use: AgentUse; danger?: DangerRead; draft?: AgentChange; setDraft: (c: AgentChange | null) => void }) {
   const l = v.lanes[use];
   const def = AGENT_USE_DEF[use];
   const Ic = USE_ICON[use];
@@ -145,17 +146,20 @@ function JobCard({ s, v, w, use, danger, draft, setDraft }: { s: GameStateV2; v:
   const modelVal = draft?.versionId !== undefined ? draft.versionId ?? '' : isRoutine ? pkg.versionId ?? '' : pkg.versionId && versionById(s, pkg.versionId) ? pkg.versionId : '';
   const monVal = draft?.monitorId !== undefined ? draft.monitorId ?? '' : pkg.monitorId ?? '';
   const isSaf = use === 'safety';
-  const A = isSaf ? v.trusted.aiShare : (w?.A ?? 0);
+  // L3: what AI can do (the marker) and what it does now (the filled part). Safety weights its two jobs by their stage shares.
+  const mgs = ws.map((x) => x.margins);
+  const canDo = isSaf ? (mgs[0] && mgs[1] ? aiShareOf(mgs[1].canDo, mgs[0].canDo) : v.trusted.aiShare) : (w?.margins?.canDo ?? w?.A ?? 0);
+  const A = isSaf ? (mgs[0] && mgs[1] ? aiShareOf(mgs[1].doingNow, mgs[0].doingNow) : v.trusted.aiShare) : (w?.margins?.doingNow ?? w?.A ?? 0);
   const m = Math.max(1, w?.m ?? 1);
   const online = Math.max(1, s.player.computeOnline);
   const teams = USE_TEAMS[use].keys.reduce((a, k) => a + teamsOfKey(s.player, k).length, 0);
   const evaluating = l.version?.status === 'evaluating';
   const shareTip = () => (
-    <TipCard title={<Term id={isSaf ? 'aiDoneShare' : 'aiShareWork'}>AI share of the work</Term>} value={F.pct(A)} rows={[
-      ...(w ? [{ label: <Term id="coverage">Can do alone</Term>, value: F.pct(w.coverage) }] : []),
+    <TipCard title={<Term id="aiDoingNow">AI doing now</Term>} value={F.pct(A)} rows={[
+      { label: <Term id="coverage">Can do</Term>, value: F.pct(canDo) },
       ...(isSaf ? [{ label: <Term id="trustedToAI">AI share allowed</Term>, value: F.pct(v.trusted.policy) }] : []),
       ...(use === 'capFrontier' ? [{ label: <Term id="researchTaste">Research taste</Term>, value: tasteWord(v.sdAI) }] : []),
-    ]}>{isSaf ? 'Share of safety work your AI staff do: at most the AI share allowed, and only what the model can do alone.' : "Share of this job's work your AI staff do. It grows with the model's skill at the job and with the compute you give the AI staff (Allocation)."}{w && !w.measured ? ' The model is not measured yet: a measured relative stands in.' : ''}</TipCard>
+    ]}>{isSaf ? 'Share of safety work your AI staff do now: at most the AI share allowed, and only what the model can do alone. The marker on the bar is what they can do.' : "Share of this job's work your AI staff do now. The marker on the bar is what they can do; the gap between them closes with more AI compute (Allocation)."}{w && !w.measured ? ' The model is not measured yet: a measured relative stands in.' : ''}</TipCard>
   );
   return (
     <div className={`la-job ${isSaf ? 'saf' : ''}`} id={`ctl-job.${use}`} data-lane={use}>
@@ -165,16 +169,17 @@ function JobCard({ s, v, w, use, danger, draft, setDraft }: { s: GameStateV2; v:
       </div>
       <div className="la-hero">
         <Tip content={shareTip}><b className={`num ${A <= 0 ? 'dim' : ''}`} data-test={`ai-share.${use}`}>{F.pct(A)}</b></Tip>
-        <Term id={isSaf ? 'aiDoneShare' : 'aiShareWork'}>AI share of the work</Term>
+        <Term id="aiDoingNow">AI doing now</Term>
         <span className="sp" />
         {evaluating && <Tip content={() => <TipCard title="Model in evals">{`${l.version?.name ?? 'The model'} is still being tested: its skills are read from a measured relative until the evals finish.`}</TipCard>}><span className="la-chip"><ICON.experiments size={12} /> model in evals</span></Tip>}
       </div>
       <Tip content={shareTip}>
         <div>
-          <span className="la-split"><i className="pp" style={{ flex: Math.max(1e-6, 1 - A) }} /><i className="ai" style={{ flex: Math.max(0, A) }} /></span>
-          <div className="la-splitl small dim"><span>people {F.pct(1 - A)}</span><span>AI staff {F.pct(A)}</span></div>
+          <LabourBar canDo={canDo} doingNow={A} />
+          <div className="la-splitl small dim"><span>people</span><span><Term id="coverage">can do</Term> <b className="num" data-test={`can-do.${use}`}>{F.pct(canDo)}</b></span></div>
         </div>
       </Tip>
+      <JobMargins ws={ws} />
       <Tip content={() => <TipCard title={<Term id="workDone">Work done</Term>} value={xm(m)} rows={[{ label: 'People alone', value: '×1' }, { label: 'Added by AI staff', value: m - 1 >= 10 ? xm(m - 1) : `×${(m - 1).toFixed(2)}` }]}>This job&apos;s work, people and AI staff together, as × what the people alone would do.</TipCard>}>
         <div className="la-wd"><Term id="workDone">Work done</Term> <b className="num">{xm(m)}</b> <span>the people alone</span></div>
       </Tip>
@@ -230,7 +235,7 @@ export function AIStaffJobs({ s }: { s: GameStateV2 }) {
         <Ref id="jobFit" to={{ panel: 'models' }}>How close AI is to each job · Models</Ref>
       </div>
       <div className="la-jobs">
-        {AGENT_USES.map((u) => <JobCard key={u} s={s} v={v} use={u} w={wts.find((w) => w.wt === USE_WT[u])} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
+        {AGENT_USES.map((u) => <JobCard key={u} s={s} v={v} use={u} w={wts.find((w) => w.wt === USE_WT[u])} ws={wts.filter((x) => (u === 'safety' ? x.wt === 'SAF_EXP' || x.wt === 'SAF_IDEAS' : x.wt === USE_WT[u]))} danger={danger[u]} draft={drafts[u]} setDraft={setDraft(u)} />)}
       </div>
     </section>
   );
