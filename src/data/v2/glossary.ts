@@ -166,7 +166,7 @@ const V2: Record<string, Term> = {
 
   // ── compute ──
   computeOnline: { title: 'Compute online', body: 'H100e you can use today: chips installed in live sites (limited by [[mw|MW]]) plus cloud contracts and spot rentals. Divided between uses by the [[split|compute allocation]].', src: 'V2-SPEC §3.8' },
-  idleChips: { title: 'Unracked chips', body: 'Delivered chips with no rack space: every live site is full. They earn nothing and lose 6% of their value each quarter until new [[mw|MW]] goes live. Chips that fit are [[installing]], not unracked.', src: 'research/15 §1.3' },
+  idleChips: { title: 'Unracked chips', body: 'Delivered chips with no rack space: every live site is full. They earn nothing until new [[mw|MW]] goes live. Chips that fit are [[installing]], not unracked.', src: 'research/15 §1.3' },
   listPrice: { title: 'List price', body: 'Price per H100e of chips ($K): chip cost × supplier markup, plus a premium when demand outruns supply. Cost falls about 8% a quarter; orders pay the [[expectedPath|expected]] list price of their delivery quarter.', src: 'research/15 §1.2' },
   spotPrice: { title: 'Spot price', body: 'Price of a spot chip order: [[listPrice|list price]] plus half the shortage premium. No deposit, delivered next quarter, lowest priority in rationing.', src: 'research/15 §1.2' },
   rental: { title: 'Rental rate', body: 'Spot cloud price per H100e-hour: 1.6 × owned cost, rising with demand/supply. A one-quarter spot rental pays it and is capped at 10% of the rental pool; [[cancellable]] cloud pays it × 1.15.', src: 'research/15 §1.2' },
