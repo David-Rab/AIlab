@@ -191,7 +191,7 @@ discount) + a per-lab draw.
   M_world is the **mean over the cycle** (Q1). It is computed in about 20 ms, memoised on `s.hidden`, not saved, uses
   no RNG, and never reads `s.player`. A state-free `referenceEnv` built from data constants is a build task.
 - **No offset at the start** (Q2): the old model's 0.017 is not a measurement.
-- **k = 0.5 [D], constant for now** (Q3). Before generating k per world (option B), one small check: the probe showed
+- **k generated per world (option B; designer, 2026-11-27, after N3b), task N3c:** k_w(G) = 1 − M_best(G) / M_world(G), with M_best a second reference lineage at a full-effort safety recipe at the world's true efficacy, both seed-averaged. It replaces the earlier constant k = 0.5 [D]. N3b (2026-11-27) settled the check: the probe was wrong (its removal override dropped AG18 healing), and in the real path heavy safety LOWERS misalignment (mean of 6 seeds, medium world, at SC / ASI: minimal 0.48 / 0.58, standard 0.33 / 0.44, heavy 0.25 / 0.34). So option B is not blocked. Original note: the probe showed
   heavy safety *raising* misalignment (0.42 → 0.53). That is either the probe or a real non-monotonic effect in the
   player's safety model, and a real one goes to the safety session.
 - **Race pressure** (Q4) comes from being behind the leader and also, for the leader, from how close the nearest
