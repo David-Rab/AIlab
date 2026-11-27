@@ -25,7 +25,7 @@ the merge wave.
 | N4 | Market: generated lineups, serving cost, domain focus offsets, tools from capability (TOOL-REQUIREMENTS.md) | Sonnet high | N2b | running |
 | N5 | Endings and epilogue read m and the headline milestones; drop `projectLabMis` | Sonnet high | N2b | wave 3 |
 | N6 | Shocks (§6): theft, absorb, IP access, poach in, let go, joint evals, treaty, safety spillover, Track-2 leak; China's continuous channels | Sonnet high | N2b | wave 3 |
-| N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b | wave 3 |
+| N8 | Finance and the chip market: no `LEADER_ID` special case; compute orders from compute appetite | Sonnet high | N2b (funding option 1) | running |
 | N9 | Public values with noise replace the intel model (intel.ts, index grades, hubView lanes, risk sources) | Sonnet high | N2b | running |
 | N10 | Setup UI: Realistic default + advanced "Create rivals" (good-ui skill) | Sonnet high | N2a, N2b | running |
 | N12 | Remove the old NPC simulation and dead state (spec §13) | Sonnet medium | wave 3 | wave 4 |
