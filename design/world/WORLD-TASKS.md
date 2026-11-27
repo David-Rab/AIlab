@@ -49,7 +49,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W1b | Economy: delete macro.ts, add the readouts (spec §4) | Sonnet high | 60 min | W1a | done e72ac062 |
 | W1c | Quiet world, engine part 1: delete public, blocs, relations, research bodies, Safety Index, relation actions; neutral stand-ins (INVENTORY §3) | Opus high, reason (c): cross-cutting core state, about 40 files | 90 min | W1b | done 7c7a7e3d |
 | W1d | Quiet world, engine part 2: delete the gov, China and public actors (meters, ladders, presets, policy flags), keeping the China lab; the dated laws table; stand-ins | Opus high, reason (c) (W1c showed the size: ~100 files) | 75 min | W1c | done 2219e5b4 |
-| W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | |
+| W1e | Quiet world: bots, UI stubs, glossary, tests and fixtures re-baselined | Sonnet high | 75 min | W1d | done (merged into W1ef) |
 | W2 | Shared inputs module (spec §3) | Sonnet high | 45 min | W1e | |
 | W3 | (folded into W1b) | | | | |
 | W4 | Public (spec §5) | Sonnet high | 60 min | W2 | |
@@ -60,7 +60,7 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
 | W10b | World dashboard worlddash.ts → balance/dash/world.html (spec §17; skill dataviz) | Sonnet high | 90 min | W10a | running |
 | W10 | Observer runs × 3 timelines × 8 seeds after each build step; S1–S7 checks; the lead analyses | lead + runs | — | W10b, then W4–W7 | |
 | W8 | UI: one "Powers" home, World tab trimmed (skill good-ui) | Sonnet high | 90 min | W10 | |
-| W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | |
+| W1f | Setup cleanup (spec §14): delete baseline, economy presets, storyteller; move the lab start values into start types; Setup UI | Sonnet high | 60 min | W1d | done fe28d849 |
 | W11 | Cleanup: split ws4 to its owners, dead code, docs | Sonnet medium | 60 min | W8 | |
 | W12 | PARKED (refocus): AI 2027 sweep beyond the outside world → design/OPEN.md. Kept: list the AI 2027-sourced lab parameters for `bal` at merge | — | — | merge | parked |
 | W13 | Read the AI Futures plans A–D → PLANS.md, mapped onto the spec (§16) | Sonnet high | 60 min | — | done 8ed8cc37 |
@@ -100,3 +100,10 @@ Tasks run one after another where they touch types.ts or core state. W9 runs in 
   balrun --observer, harness flag `harness:observer` skips player-company endings). Start: spinout. Smoke tl-fast seed 1:
   29 s/game; leading NPC lab SC 2027.9 (AIFM fast median AC 2027.9), ASI 2031.6 (median 2029.8); ended by a misaligned
   rival takeover at ASI, so no +3y tail. US unemployment 5.9%, youth 26% in 2031 · d4578ba0
+- W1e+W1f · Sonnet high · ~11 min · setup cleanup: baseline, economy presets and storyteller deleted. Lab start values
+  moved into starts.ts (leader row, today's values; flagged for `bal`). World start WORLD_START uses the reality values:
+  global compute and chip stock 14e6, robot cap 0.5e6. Adoption is one constant ADOPTION (the old default row). The
+  director has one fixed pacing (2 crises, 14 quiet days, ×1; the act-based multiplier is gone). LOCAL_MOOD hook for the
+  sites test. Wording that promised deleted effects is fixed. SCHEMA 120. Day-0 player block identical · fe28d849.
+  Lead merge check: tsc, fixtures and registry-lint pass on `world` (d8f56957).
+  **The quiet world is complete.**
