@@ -740,14 +740,6 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
     notes: 'Array order = DEAD factor, NEG base, NEG false-tool, DISC present, DISC absent, DISC rows, SPILL (DISC rows and SPILL also repeated at findings.ts:411-413).',
   },
   {
-    id: 'sfe.findings.sharedPoolGain',
-    ref: { kind: 'inline', file: FIND, anchor: "k.sharedTechniquePool = Math.min(1, k.sharedTechniquePool + 0.04);" },
-    value: [0.02, 0.04], unit: 'shared safety know-how per published result (TECH/EVAL, DISC)',
-    area: 'safety', layer: 'world', kind: 'untagged',
-    evidence: 'no tag; findings.ts:463-464',
-    notes: 'Array = [TECH/EVAL +0.02, DISC +0.04]; the Publish preview (actions.ts:443-447) states the same numbers.',
-  },
-  {
     id: 'sfe.findings.publishCredibility',
     ref: { kind: 'inline', file: FIND, anchor: "ctx.bump('relations.credibility', 2, 'published research', rec.id);" },
     value: [2, 1], unit: 'credibility pts; talent pull pts per published result',
@@ -905,7 +897,7 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
   },
   {
     id: 'sfe.traits.playerMods.constitution',
-    ref: { kind: 'inline', file: TR, anchor: "if (post && post.pref === 'constitution' && post.safety !== 'minimal') {" },
+    ref: { kind: 'inline', file: TR, anchor: "if (post && post.pref === 'constitution' && post.safety !== 'minimal') {\n    mul('E08', 0.7);" },
     value: 0.7, unit: 'multiplier on E08 and E29',
     area: 'safety', layer: 'world', kind: 'untagged',
     evidence: 'no tag; traits.ts:775-778 (§3.5.4 table "Moderators" pointer at traits.ts:761)',
@@ -939,21 +931,5 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
     value: 0.98, unit: 'per month',
     area: 'safety', layer: 'world', kind: 'untagged',
     evidence: 'no tag; traits.ts:1459 "// 2 %/month"',
-  },
-  {
-    id: 'sfe.traits.rivalDriftMult',
-    ref: { kind: 'inline', file: TR, anchor: 'env.growthMult = clamp01(1 - eff * (0.3 + 0.7 * pool));' },
-    value: [0.3, 0.7], unit: 'base and pool share of the drift reduction',
-    area: 'safety', layer: 'world', actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.10.3',
-    evidence: 'no tag; traits.ts:1404 "drift multiplier = 1 − eff_safety · (0.3 + 0.7·sharedTechniquePool)" (§3.10.3)',
-    notes: 'A8c: spec states drift multiplier = 1 - eff_safety x (0.3 + 0.7 x sharedTechniquePool). Rival safety physics is deferred (traits.ts:133-134).',
-  },
-  {
-    id: 'sfe.traits.rivalInoculationDiffusion',
-    ref: { kind: 'inline', file: TR, anchor: 'env.mods.E04 = 1 - 0.85 * eff * pool;' },
-    value: [0.85, 0.4], unit: 'E04 and E17 reduction per eff x pool',
-    area: 'safety', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'traits.ts:1432 "Public techniques diffuse (inoculation, honesty training) in proportion to eff × pool [D]."',
-    notes: 'Array = [E04 0.85, E17 0.4 on the next line].',
   },
 ]);

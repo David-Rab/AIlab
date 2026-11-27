@@ -4,7 +4,7 @@
 import { defineParams } from '../schema';
 
 const RIVALS = 'src/engine/v2/actors/rivals.ts';
-const RMODEL = 'src/engine/v2/actors/rivalModel.ts';
+const RMODEL = 'src/engine/v2/npc/market.ts';
 const CHINA = 'src/engine/v2/actors/china.ts';
 const GOV = 'src/engine/v2/actors/gov.ts';
 const PUBLIC = 'src/engine/v2/actors/public.ts';
@@ -47,36 +47,11 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     source: 'R21 (approximate, as stated in rivals.ts:45)',
   },
   {
-    id: 'act.RELEASE_LAG',
-    ref: { kind: 'export', module: RIVALS, symbol: 'RELEASE_LAG' },
-    value: [120, 60, 15, 60, 60, 45, 30],
-    unit: 'days', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:55 "Public-model release lag behind the internal model, days (§3.10.3). Safety = 90 d + ~30 d of evals."',
-    notes: 'V2-SPEC §3.10.3 states only 4 of the 7 archetypes (safety 90 d, bigtech 60, maverick 15, openweights 60), so the entry stays untagged (A8). Key order safety, bigtech, maverick, openweights, upstart, deepcent, leader.',
-  },
-  {
-    id: 'act.BASE_MONTHS',
-    ref: { kind: 'export', module: RIVALS, symbol: 'BASE_MONTHS' },
-    value: [13, 12, 9, 12, 15, 12, 9],
-    unit: 'months', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivals.ts:57 "Base-model cadence, months (§3.10.3: 9–15 by archetype) [D]."',
-    notes: 'Key order safety, bigtech, maverick, openweights, upstart, deepcent, leader. Layer borderline, see Q-actors-engine-1.',
-  },
-  {
     id: 'act.RIVAL_REVENUE_TRACK',
     ref: { kind: 'export', module: RIVALS, symbol: 'RIVAL_REVENUE_TRACK' },
     value: 0.5,
     unit: 'fraction per quarter', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
     evidence: 'rivals.ts:469 "Share of the gap to market revenue a rival closes each quarter [D, M4]."',
-  },
-  {
-    id: 'act.GAP_ALGO_OFFSET',
-    ref: { kind: 'export', module: CHINA, symbol: 'GAP_ALGO_OFFSET' },
-    value: 4,
-    unit: 'months', area: 'actors', layer: 'world', actor: 'china', kind: 'fitted',
-    evidence: 'china.ts:102 "Algorithmic offset for the R10 gap formula [fit]: makes the formula agree with the simulated start lead (T3)."',
-    fit: { targets: [], script: 'unnamed' },
-    notes: 'Fitted to the simulated start lead (T3); display and T3 check only.',
   },
   {
     id: 'act.WS4_TUNING.leakK',
@@ -112,41 +87,11 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     notes: 'A8c: spec states 25 / 45 / 65 / 80 for rungs 1..4. Index = access rung 0..4.',
   },
   {
-    // A list of node ids: one entry over the elements (path '*'), no value.
-    id: 'act.RIVAL_IDEA_IDS',
-    ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_IDEA_IDS', path: ['*'] },
-    area: 'actors', layer: 'policy', actor: 'rivals', kind: 'stand-in',
-    evidence: 'rivalModel.ts:480-483 "The typed effects a rival adopts and how each enters its aggregate state (stand-in [D], DD-18)"',
-    notes: 'String ids of tree nodes rivals research (P05 P08 P09 P11 P16 P22 P24); a list, not a number. P24 is the player research line since round 2 item 9; a rival keeps the one-off approximation P24_RIVAL_IDEA (tree.ts: +0.96 OOM pretraining idea, sd 0.4, 28.8 team-months) [D stand-in].',
-  },
-  {
-    id: 'act.RIVAL_IDEA_TM_PER_YEAR',
-    ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_IDEA_TM_PER_YEAR' },
-    value: 13.714285714285714,
-    unit: 'team-months per year', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
-    evidence: 'rivalModel.ts:495 "(SCI_PER_HEAD * H_REF_BASE * 12) / (DEFAULT_LINES.length + 1)" computed in code; comment "[D: equal share per project]. 13.7 TM a year."',
-  },
-  {
-    id: 'act.RE_PER_HEAD',
-    ref: { kind: 'export', module: RMODEL, symbol: 'RE_PER_HEAD' },
-    value: 0.004721951219512195,
-    unit: 'team-equivalents per head', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
-    evidence: 'rivalModel.ts:61 "DAY0_REF.re / H_REF_BASE" computed from other constants; comment "[D: fixed day-0 ratio]"',
-  },
-  {
-    id: 'act.SCI_PER_HEAD',
-    ref: { kind: 'export', module: RMODEL, symbol: 'SCI_PER_HEAD' },
-    value: 0.0039024390243902437,
-    unit: 'team-equivalents per head', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived',
-    evidence: 'rivalModel.ts:64 "8 / H_REF_BASE" computed from H_REF_BASE; comment "[D: fixed day-0 ratio, data/v2/starts.ts]"',
-    notes: 'The 8 is the leader start\'s science team-equivalents (an inline literal).',
-  },
-  {
     id: 'act.RIVAL_DISTILL_LAG_DAYS',
     ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_DISTILL_LAG_DAYS' },
     value: 152,
     unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'stand-in',
-    evidence: 'rivalModel.ts:817-819 "RD-P02 [D]: days from a release to its distilled students on sale ... a stated stand-in for the distill run\'s length and the release work (DD-18)"',
+    evidence: 'npc/market.ts (was rivalModel.ts:817-819) "RD-P02 [D]: days from a release to its distilled students on sale ... a stated stand-in for the distill run\'s length and the release work (DD-18)"',
     notes: 'Haiku 4.5 matched Sonnet 4 five months after it (design/V3-TASKS.md TIERS2).',
   },
   {
@@ -154,18 +99,11 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     ref: { kind: 'export', module: RMODEL, symbol: 'RIVAL_LINEUP_MAX' },
     value: 6,
     unit: 'models', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:822-824 "RD-P02 [D]: the most models a rival lineup keeps besides its public model ... pricing pages list 4–6 current text models"',
+    evidence: 'npc/market.ts (was rivalModel.ts:822-824) "RD-P02 [D]: the most models a rival lineup keeps besides its public model ... pricing pages list 4–6 current text models"',
     range: { lo: 4, hi: 6, from: 'rivalModel.ts:823-824 "the labs\' pricing pages list 4–6 current text models"' },
   },
 
   // ───────────────────────── named constants: not exported (inline refs on the declaration) ─────────────────────────
-  {
-    id: 'act.LATENT_ERA_OOM',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'const LATENT_ERA_OOM = 2.0;' },
-    value: 2,
-    unit: 'OOM above V0', area: 'actors', layer: 'world', actor: 'rivals', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:60-61 "RD-L05: the latent-reasoning era in OOM of effective compute above the start model V0 ... a capability dose, not a milestone."',
-  },
   {
     id: 'act.MISUSE_FROM_OOM',
     ref: { kind: 'inline', file: RIVALS, anchor: 'const MISUSE_FROM_OOM = 1.0;' },
@@ -181,48 +119,11 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     evidence: 'no tag; rivals.ts:63-64 "... at MISUSE_PER_OOM per OOM per day (was 1e-4 per display level from L 7 ...)"',
   },
   {
-    id: 'act.LATENT_P',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'const LATENT_P: Record<string, number> = {' },
-    value: [0.7, 0.6, 0.5, 0.2, 0.5, 0.6, 0.8],
-    unit: 'probability', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:59 "P(adopting latent reasoning) at the latent-reasoning era (§3.10.3 S4)."',
-    notes: 'V2-SPEC §3.10.3 states only 4 of the 7 archetypes (0.7 / 0.6 / 0.5 / safety 0.2), so the entry stays untagged (A8). Key order maverick, openweights, bigtech, safety, upstart, deepcent, leader.',
-  },
-  {
-    id: 'act.SD_AI_MAX',
-    ref: { kind: 'inline', file: RMODEL, anchor: 'const SD_AI_MAX = 30;' },
-    value: 30,
-    unit: 'SD', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:68-70 "Numerical guards past superintelligence ... AI taste counts up to 30 SD (AI 2027\'s ASI is 14.5 SD, research/13 §1.5) ... [D]. Neither binds before ASI on the presets."',
-  },
-  {
-    id: 'act.RECIPE_RATE_MAX',
-    ref: { kind: 'inline', file: RMODEL, anchor: 'const RECIPE_RATE_MAX = 36.5;' },
-    value: 36.5,
-    unit: 'OOM/yr', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivalModel.ts:68-70 "... the recipe grows at most 36 OOM a year (0.1 a day; RefBot\'s fastest measured takeoff is 30–40 OOM/yr) [D]."',
-  },
-  {
-    id: 'act.LEADER_DAY0_TRAIN',
-    ref: { kind: 'inline', file: RMODEL, anchor: 'const LEADER_DAY0_TRAIN = 1e6 * 0.4;' },
-    value: 400000,
-    unit: 'H100e', area: 'actors', layer: 'world', actor: 'leader', kind: 'derived', notes: 'Computed in code as 1e6 x 0.4 (A7).',
-    evidence: 'no tag; rivalModel.ts:706-707 "the leader\'s day-0 training pool (DAY0_REF\'s 1e6 H100e × the 2025 training share 0.4) it was sized on"',
-  },
-  {
     id: 'act.MISUSE_SHOCK_DAYS',
     ref: { kind: 'inline', file: GOV, anchor: 'const MISUSE_SHOCK_DAYS = 180;' },
     value: 180,
     unit: 'days', area: 'actors', layer: 'world', actor: 'gov', kind: 'designer',
     evidence: 'gov.ts:248 "Days a severity-5 misuse incident (player via WS2\'s stamp, or a rival) keeps the economy in shock [D]."',
-  },
-  {
-    id: 'act.ASSUMED_LAG',
-    ref: { kind: 'inline', file: INTEL, anchor: 'const ASSUMED_LAG: Record<string, number> = {' },
-    value: [90, 60, 50, 20, 45],
-    unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged',
-    evidence: 'no tag; intel.ts:21 "The lag the player ASSUMES between a lab\'s public and internal model, from its visible framework clause."',
-    notes: 'readout (A10). Key order conditional, allAdopt, unconditional, override, state. A belief the player holds, not truth.',
   },
   {
     // Flattened [lo, hi] pairs in key order conditional, allAdopt, unconditional, override, state.
@@ -433,13 +334,6 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
   },
   // rivals.ts
   {
-    id: 'act.rivals.racePressureMonths',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'return clamp(months / 6, 0, 1);' },
-    value: 6,
-    unit: 'months', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', source: 'V2-SPEC §3.10.3', notes: 'A8c: spec states pressure = clamp(months behind the leader / 6, 0, 1).',
-    evidence: 'no tag; rivals.ts:216 "Race pressure (§3.10.3): clamp(months behind the leader / 6, 0, 1)"',
-  },
-  {
     id: 'act.rivals.goalpostsChance',
     ref: { kind: 'inline', file: RIVALS, anchor: 'postureOf(s, r.core.id).raceRelaxation * 0.3' },
     value: 0.3,
@@ -449,15 +343,8 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     notes: 'The 0.6 pressure and 90 d persistence are in overflow.',
   },
   {
-    id: 'act.rivals.incidentMitigation',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'const mitigation = clamp(0.5 * p.evalRigor + 0.3 * p.safetyInvestment, 0, 0.9);' },
-    value: [0.5, 0.3, 0.9],
-    unit: 'fraction', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
-    evidence: 'rivals.ts:393-395 "[D: usage 0.5, mitigation from eval rigor and safety investment]"',
-  },
-  {
     id: 'act.rivals.misuseHazardFactors',
-    ref: { kind: 'inline', file: RIVALS, anchor: '* (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.evalRigor)' },
+    ref: { kind: 'inline', file: RIVALS, anchor: '* (dep.openWeights ? 1 : 0.5) * (1 - 0.3) * (1 - 0.6 * p.safetyInvestment)' },
     value: [0.5, 0.3, 0.6],
     unit: 'multipliers', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer',
     evidence: 'rivals.ts:393-395 "a misuse hazard like the player\'s (standard safeguards) [D: usage 0.5, mitigation from eval rigor and safety investment]"',
@@ -487,35 +374,13 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     evidence: 'no tag; rivals.ts:485 "Labs without a priced public model keep the archetype growth rule."',
   },
   {
-    id: 'act.rivals.openWeightsRule',
-    ref: { kind: 'inline', file: RIVALS, anchor: "open = gapToFrontier < 183 && r.meters.openness > 50;" },
-    value: [183, 50],
-    unit: 'days; meter', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged',
-    evidence: 'no tag; rivals.ts:380-383 (open-weights archetype opens when under 183 d from the frontier and openness > 50)',
-  },
-  {
     id: 'act.rivals.chinaSafetyInvestment',
     ref: { kind: 'inline', file: RIVALS, anchor: 'safetyInvestment: 0.1 + (0.4 * s.china.meters.safetyConcern) / 100' },
     value: [0.1, 0.4],
     unit: 'fraction', area: 'actors', layer: 'policy', actor: 'china', kind: 'designer', source: 'V2-SPEC §3.10.4', notes: 'A8c: spec states safetyInvestment 0.10 + 0.4 x safetyConcern / 100.',
     evidence: 'no tag; rivals.ts:183-184 "China\'s safety investment follows its safety concern (§3.10.4)."',
   },
-  {
-    id: 'act.rivals.leaderSpeedPenalty',
-    ref: { kind: 'inline', file: RIVALS, anchor: 'return b > 0.5 ? 1 - 0.2 * b : 1;' },
-    value: [0.5, 0.2],
-    unit: 'bindingness threshold; slowdown per unit', area: 'actors', layer: 'policy', actor: 'leader', kind: 'sourced',
-    evidence: 'rivals.ts:224-225 "the leader lab with bindingness > 0.5 slows by 0.2·bindingness (research/17 §1.6.5)"',
-    source: 'research/17 §1.6.5',
-  },
   // intel.ts, relations.ts, blocs.ts, researchBodies.ts
-  {
-    id: 'act.intel.leadSd',
-    ref: { kind: 'inline', file: INTEL, anchor: 'const sd = 20 + 80 * Math.exp(-0.6 * evidence);' },
-    value: [20, 80, 0.6],
-    unit: 'days', area: 'actors', layer: 'world', actor: 'player', kind: 'untagged', notes: 'readout (A10).',
-    evidence: 'no tag; intel.ts:50 (sd of the player\'s lead estimate shrinks with evidence)',
-  },
   {
     id: 'act.relations.trustLossFactor',
     ref: { kind: 'inline', file: REL, anchor: 'base * 3 * (1 + T / 100)' },
@@ -543,5 +408,82 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: [0.05, 0.02],
     unit: 'probability', area: 'actors', layer: 'world', actor: 'public', kind: 'untagged',
     evidence: 'no tag; researchBodies.ts:23 "staff and press baseline" (cover-up discovery odds, §3.9.3 rule 1)',
+  },
+  // ───────────────────────── NPC labs (N2b-1 .. N8b; design/npc/NPC-LABS.md): parameters named in the N*-RESULT.md notes ─────────────────────────
+  {
+    id: 'act.npc.DAYS_PER_MONTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'DAYS_PER_MONTH' }, value: 30.4,
+    unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "Days per month for the cast lags in months [D]"', source: 'design/npc/N2b1-RESULT.md',
+  },
+  {
+    id: 'act.npc.CHINA_PLAN_GROWTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'CHINA_PLAN_GROWTH' }, value: 2,
+    unit: 'x per year', area: 'actors', layer: 'world', actor: 'china', kind: 'derived', evidence: 'npc/lab.ts "the growth of China compute meter without export policy, x2 a year (actors/china.ts chinaDaily, IFP)"', notes: 'copy of the China compute meter rate',
+  },
+  {
+    id: 'act.npc.SLOPE_FLOOR_PER_YEAR', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'SLOPE_FLOOR_PER_YEAR' }, value: 0.01,
+    unit: 'OOM/yr', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "Floor of the reference slope the shortfall converts at [D]"',
+  },
+  {
+    id: 'act.npc.SLOPE_WINDOW_YEARS', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'SLOPE_WINDOW_YEARS' }, value: 0.1,
+    unit: 'years', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived', evidence: 'npc/lab.ts "Window of the reference slope: one grid step of the series (timelineSeries.ts SERIES_STEP)"',
+  },
+  {
+    id: 'act.npc.STAFF_PER_H100E', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'STAFF_PER_H100E' }, value: 2050 / 1e6,
+    unit: 'capabilities staff per H100e', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "the leader day-0 2,050 capabilities staff per 1e6 H100e [D: one typical ratio]"',
+  },
+  {
+    id: 'act.npc.RELEASE_CADENCE_DAYS', ref: { kind: 'export', module: 'src/data/v2/npcLabs.ts', symbol: 'RELEASE_CADENCE_DAYS' }, value: 119,
+    unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npcLabs.ts "ONE typical public-flagship interval for every kind (designer)"',
+  },
+  {
+    id: 'act.npc.RACE_MONTHS', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'RACE_MONTHS' }, value: 3,
+    unit: 'months', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', evidence: 'npc/risk.ts "[D, spec 4]": race pressure = clamp(1 - months to the nearest competitor / 3, 0, 1)', source: 'design/npc/NPC-LABS.md §4',
+  },
+  {
+    id: 'act.npc.SAFETY_CUTS_M', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'SAFETY_CUTS_M' }, value: 0.5,
+    unit: 'fraction', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/risk.ts "[D, spec 4]": m = M_world(G) x (1 - 0.5 x safety x (1 - race response x p))', source: 'design/npc/NPC-LABS.md §4',
+  },
+  {
+    id: 'act.npc.H0_PER_YEAR', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'H0_PER_YEAR' }, value: 0.05,
+    unit: 'incidents per lab-year at G(V0)', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/risk.ts "[D, MISALIGNMENT.md 5]"', source: 'design/npc/MISALIGNMENT.md §5', notes: 'flagged for calibration in N2b2-RESULT.md (realised 0.031 per lab-year)',
+  },
+  {
+    id: 'act.npc.SAFETY_CUTS_INCIDENTS', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'SAFETY_CUTS_INCIDENTS' }, value: 0.8,
+    unit: 'fraction', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/risk.ts "[D, spec 7]"', source: 'design/npc/NPC-LABS.md §7',
+  },
+  {
+    id: 'act.npc.SEV_SPAN', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'SEV_SPAN' }, value: 3,
+    unit: 'severity levels', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/risk.ts generic row severity 1 + 3 x level/15 [D]',
+  },
+  {
+    id: 'act.npc.SEV_LEVEL_TOP', ref: { kind: 'export', module: 'src/engine/v2/npc/risk.ts', symbol: 'SEV_LEVEL_TOP' }, value: 15,
+    unit: 'display levels', area: 'actors', layer: 'world', actor: 'rivals', kind: 'derived', evidence: 'npc/risk.ts: the top of the display level scale', notes: 'copy of the level scale top (15)',
+  },
+  {
+    id: 'act.npc.FOCUS_OFFSET_OOM', ref: { kind: 'export', module: RMODEL, symbol: 'FOCUS_OFFSET_OOM' }, value: 1,
+    unit: 'OOM per unit of focus weight', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/market.ts "[D: one rule; a lab whose focus were all one domain is 1 OOM ahead of its G there]"',
+  },
+  {
+    id: 'act.npc.TOOL_FOCUS_MIN', ref: { kind: 'export', module: RMODEL, symbol: 'TOOL_FOCUS_MIN' }, value: 0.3,
+    unit: 'focus weight', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', evidence: 'npc/market.ts: a tool is in a kind focus at weight >= 0.3 [D]',
+  },
+  {
+    id: 'act.npc.THEFT_INTEGRATION_DAYS', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'THEFT_INTEGRATION_DAYS' }, value: 60,
+    unit: 'days', area: 'actors', layer: 'world', actor: 'china', kind: 'sourced', source: 'AI 2027 scenario (China ends about two months behind after stealing the weights)', evidence: 'npc/shocks.ts "[P: AI 2027 China ends ~2 months behind after stealing]"',
+  },
+  {
+    id: 'act.npc.TREATY_CLOCK_RATE', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'TREATY_CLOCK_RATE' }, value: 0.65,
+    unit: 'x reference clock speed', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'untagged', evidence: 'npc/shocks.ts: the reference clock under a verified treaty (the old rivals treaty research factor 0.65)',
+  },
+  {
+    id: 'act.npc.JOINT_EVAL_STEP', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'JOINT_EVAL_STEP' }, value: 0.05,
+    unit: 'safety emphasis', area: 'actors', layer: 'policy', actor: 'rivals', kind: 'designer', evidence: 'npc/shocks.ts "the step of the posture evalRigor today, C3 [D]"',
+  },
+  {
+    id: 'act.npc.SPILL_DAYS', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'SPILL_DAYS' }, value: 7,
+    unit: 'days of lag', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/shocks.ts "[D: 0.024 OOM at ~1.2 OOM/yr]"',
+  },
+  {
+    id: 'act.npc.TRACK2_DAYS', ref: { kind: 'export', module: 'src/engine/v2/npc/shocks.ts', symbol: 'TRACK2_DAYS' }, value: 2,
+    unit: 'days of lag', area: 'actors', layer: 'world', actor: 'china', kind: 'designer', evidence: 'npc/shocks.ts "[D: old 1% of ~200 d]"',
   },
 ]);

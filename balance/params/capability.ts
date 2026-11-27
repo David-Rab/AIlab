@@ -1781,15 +1781,6 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'runDesign.ts:121-123 "... its period (RD-T03, DD-05) ... [D: weekly, the old tracking cadence]."',
   },
   {
-    id: 'cap.SCRUTINY_WINDOW_DAYS',
-    ref: { kind: 'export', module: 'src/data/v2/runDesign.ts', symbol: 'SCRUTINY_WINDOW_DAYS' },
-    value: 365,
-    unit: 'days',
-    area: 'worldfx', layer: 'world',
-    kind: 'designer',
-    evidence: 'runDesign.ts:144 "Window of the rival reference run (RD-T11) [D]: a rival base finished in the last year counts"',
-  },
-  {
     id: 'cap.runDesign.sizeScrutiny.perTriple',
     ref: { kind: 'inline', file: 'src/data/v2/runDesign.ts', anchor: '(5 * Math.log(ratio)) / Math.log(3)' },
     value: 5,
@@ -3083,16 +3074,6 @@ export const PARAMS_CAPABILITY = defineParams([
     kind: 'untagged',
     evidence: 'no tag; hidden.ts:118 "8. Economy preset (Normal 35 / AI2027 45 / GATE 20 when sampled)."',
     notes: 'Array order = normal, ai2027, gate.',
-  },
-  {
-    id: 'cap.hidden.rivalPostureNoise',
-    ref: { kind: 'inline', file: 'src/engine/v2/world/hidden.ts', anchor: 'const noise = setup.rivals === \'realistic\' ? 0.15 : 0;' },
-    value: 0.15,
-    unit: 'posture units',
-    area: 'actors', layer: 'world',
-    kind: 'untagged',
-    evidence: 'no tag; hidden.ts:123 "9. Actor presets ... and postures (R17 §1.6.4, ±0.15 noise in Realistic)."',
-    notes: 'The R17 pointer names the postures; the noise size has no tag of its own.',
   },
   {
     id: 'cap.hidden.chinaPostureNoiseDivisor',
