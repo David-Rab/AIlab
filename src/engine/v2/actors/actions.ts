@@ -3,7 +3,6 @@
 // Every preview shows what apply() does (§2.7 preview truth, lint-tradeoffs); a lever with no cost shows none.
 import { clamp } from '../../rng';
 import { bestG, activeRivals } from '../models/labs';
-import { addRivalKnowledge, recipeOf } from './rivalModel';
 import { frontierGPerYear, PACE_WINDOW_DAYS } from '../models/capability';
 import { publishFinding } from '../safety/findings';
 import { reqSpend, WSL_TARGET_RANGE } from '../security/security';
@@ -15,11 +14,12 @@ import {
   talent, trust, trustMany, type Preview,
 } from './fx';
 import { govPresetOf } from './gov';
-import { addPosture, archetypeOf, openAbsorbG, openWeightsReleased, ownProgressDays, publishLeakG, releaseRecG } from './rivals';
-import { RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
+import { addPosture, archetypeOf, openWeightsReleased, ownProgressDays } from './rivals';
+import * as shock from '../npc/shocks';
+import { tacitLeakG } from '../production/diffusion';
 import { ws4, ws4r } from './state';
 import { changeHeads } from '../departments/teams';
-import { addKnowledge, playerRecipeG } from '../models/stacks';
+import { addKnowledge } from '../models/stacks';
 
 type P = Record<string, number | string | boolean>;
 
@@ -58,24 +58,15 @@ function def(x: Spec): ActionDef {
 const num = (p: P, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : typeof p[k] === 'string' && p[k] !== '' && !Number.isNaN(Number(p[k])) ? Number(p[k]) : d);
 const str = (p: P, k: string, d: string) => (typeof p[k] === 'string' ? (p[k] as string) : d);
 const dealmakerMult = (s: GameStateV2) => (govPresetOf(s.gov.preset).id === 'dealmaker' ? 1.6 : 1);
-/** RD-B19 (B40): A4's recipients, the active labs (China too) whose recipe is below the player's (RD-B16: recipeG at RECIPE_F). */
-const publishRecipients = (s: GameStateV2): RivalLab[] => {
-  const own = playerRecipeG(s); // RD-B16: the same recipeG at RECIPE_F as recipeOf
-  return [...activeRivals(s), s.china.lab].filter((r) => r.core.status === 'active' && recipeOf(s, r) < own);
-};
-/** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best,
- *  RD-L03). RD-X04b: the recipe each active rival takes in is RECIPE_LEAK_SHARE.openWeights of its recipe gap to the
- *  recipe the weights reveal (releaseRecG). */
+/** C6's release: the G of the weights (`behind` × 0.3 of a year of the player's own frontier-G slope below its best, RD-L03). N6: every lab
+ *  behind that G moves RECIPE_LEAK_SHARE.openWeights of the way to it (npc/shocks.ts openWeightsMoves). */
 const openReleaseG = (s: GameStateV2, behind: number) => bestG(s, 'player') - Math.max(1, behind) * 0.3 * frontierGPerYear(s, 'player', PACE_WINDOW_DAYS);
 /** C4's poached heads (3% of the rival's capabilities staff, at least 5). */
 const poachHeads = (r: RivalLab) => Math.max(5, Math.round(r.core.staff.cap * 0.03));
 /** RD-X04b: C4's tacit knowledge (OOM into the player's pretraining stack): tacitLeakG from the rival they left. */
 const c4TacitG = (s: GameStateV2, r: RivalLab) => tacitLeakG(s, r.core.id, 'player', poachHeads(r), r.core.staff.cap);
-/** RD-X04b: E1's leak to China (OOM of recipe): RECIPE_LEAK_SHARE.track2 of China's recipe gap to the player. */
-const e1LeakG = (s: GameStateV2) => recipeLeakG(s, playerRecipeG(s), s.china.lab.core.id, RECIPE_LEAK_SHARE.track2);
-const openRivalLeaks = (s: GameStateV2, recG: number) => activeRivals(s).map((r) => ({ r, dG: recipeLeakG(s, recG, r.core.id, RECIPE_LEAK_SHARE.openWeights) })).filter((x) => x.dG > 0);
-/** The most days of its own progress any of `leaks` gives its lab (the preview's lead line). */
-const maxOwnDays = (s: GameStateV2, leaks: { r: RivalLab; dG: number }[]) => Math.round(Math.max(0, ...leaks.map((x) => ownProgressDays(s, x.r.core.id, x.dG))));
+/** The most days of lag any of `moves` takes off its lab (the preview's lead line). */
+const maxDays = (moves: shock.Move[]) => Math.round(Math.max(0, ...moves.map((x) => x.days)));
 
 const rivalCps = (s: GameStateV2): CounterpartyId[] => activeRivals(s).map((r) => `rival:${r.core.id}` as CounterpartyId);
 
@@ -128,12 +119,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'A4', verb: 'policy', system: 'relations', title: 'Publish research', cooldown: 90,
-    // RD-B19 (B40): the lead line is the recipe A4 applies (publishLeakG) in days of each recipient's own progress.
-    preview: (s) => pv([L('leadDays', maxOwnDays(s, publishRecipients(s).map((r) => ({ r, dG: publishLeakG(s, r.core.id) }))), `days of progress into the recipes of ${publishRecipients(s).length} labs behind you (at their next model)`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
+    // N6: the lead line is what A4 applies (npc/shocks.ts publishMoves): days off the lag of each lab behind your best model.
+    preview: (s) => pv([L('leadDays', maxDays(shock.publishMoves(s)), `days the best-placed of ${shock.publishMoves(s).length} labs behind you closes on you`)], [L('credibility', 3), L('talent', 2), L('trust', 3, 'academia')], [L('approval', -1, 'model-organism papers raise concern', { probability: 0.3 }), L('alignment', s.knowledge.sharedTechniquePool < 0.9 ? 0.03 : 0, 'shared technique pool (all labs)')]),
     apply(s, ctx) {
       const w = ws4(s);
-      // RD-X04b: recipe leak (OOM), a share of each recipient's recipe gap to the player (recipe with recipe).
-      for (const r of publishRecipients(s)) addRivalKnowledge(r, publishLeakG(s, r.core.id));
+      shock.publish(s); // N6: every lab behind you moves RECIPE_LEAK_SHARE.publish of the way to your best model
       s.knowledge.sharedTechniquePool = clamp(s.knowledge.sharedTechniquePool + 0.03, 0, 1);
       const f = s.player.safety.findings.find((x) => !x.published);
       if (f) publishFinding(s, ctx, f.id);
@@ -321,10 +311,11 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'C3', verb: 'deal', system: 'relations', title: 'Joint evals', cooldown: 91,
-    preview: () => pv([L('staffTime', 4)], [L('trust', 6, 'rivals'), L('alignment', 0.05, 'rivals eval rigor')], [L('scrutiny', 5, 'maverick cries "cartel"', { probability: 0.5 })]),
+    preview: () => pv([L('staffTime', 4)], [L('trust', 6, 'rivals'), L('alignment', shock.JOINT_EVAL_STEP, 'rivals eval rigor and safety emphasis')], [L('scrutiny', 5, 'maverick cries "cartel"', { probability: 0.5 })]),
     apply(s, ctx) {
       for (const r of activeRivals(s)) {
         addPosture(s, r.core.id, 'evalRigor', 0.05);
+        shock.jointEvals(s, r); // N6: the partner's safety emphasis + one step (a personality override)
         const a = archetypeOf(r.archetype).id;
         trust(s, ctx, `rival:${r.core.id}`, a === 'maverick' ? -2 : 4, 'C3 joint evals');
         if (a === 'maverick') scrutiny(ctx, 5, 'antitrust: "safety cartel"', r.core.name);
@@ -338,7 +329,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
     available: (s) => (activeRivals(s).length ? true : 'No active rivals'),
     preview: (s, p) => {
       const r = poachTarget(s, p);
-      return pv([L('cash', 0.5), L('trust', 20, r ? `rival:${r.core.id}` : 'rivals')], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
+      return pv([L('cash', 0.5), L('trust', 20, r ? `rival:${r.core.id}` : 'rivals')], [L('talent', 4), L('leadDays', r ? Math.round(ownProgressDays(s, 'player', c4TacitG(s, r))) : 0, r ? `days of your own progress: tacit recipe from ${r.core.name}` : undefined), L('leadDays', r ? Math.round(shock.poachInDays(s, r, poachHeads(r))) : 0, r ? `days ${r.core.name} falls back (its heads carry the same share)` : undefined)], [L('cash', -0.5, 'trade-secret suit', { probability: 0.2 }), L('morale', -3, 'culture dilution')]);
     },
     apply(s, ctx, p) {
       const r = poachTarget(s, p);
@@ -347,6 +338,7 @@ export const RELATION_ACTIONS: ActionDef[] = [
       const n = poachHeads(r);
       // RD-X04b: tacit knowledge (c4TacitG, sized before the heads move) enters the pretraining stack as public ideas.
       const tacit = c4TacitG(s, r);
+      shock.poachIn(s, r, n); // N6: the rival's lag rises by the tacit share (sized before the heads move)
       r.core.staff.cap = Math.max(0, r.core.staff.cap - n);
       changeHeads(s, 'cap', n);
       addKnowledge(s, ctx, tacit, 'C4 tacit knowledge', r.core.name);
@@ -359,21 +351,17 @@ export const RELATION_ACTIONS: ActionDef[] = [
   }),
   def({
     id: 'C6', verb: 'launch', system: 'models', title: 'Open weights', cooldown: 180,
-    // RD-B19 (B40): the lead lines are what apply adds: each rival's recipe (openRivalLeaks) and China's absorbed months
-    // (openWeightsReleased → openAbsorbMonths), in days of their own progress; none if the weights are not above the
-    // open frontier for China. The China-tension line went: nothing applies it.
+    // N6: the lead lines are what apply adds (npc/shocks.ts openWeightsMoves): days off the lag of the best-placed rival and of China;
+    // none if the weights are not above the open frontier.
     preview: (s, p) => {
       const G = openReleaseG(s, num(p, 'behind', 1));
-      const recG = releaseRecG(s, 'player', G);
-      const cn = G > s.knowledge.openWeightsG ? Math.round(ownProgressDays(s, s.china.lab.core.id, openAbsorbG(s, recG))) : 0;
-      return pv([L('leadDays', maxOwnDays(s, openRivalLeaks(s, recG)), "days of progress into the best-placed rival's recipe (at its next model)"), L('leadDays', cn, "days of China's own progress: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
+      const mv = shock.openWeightsMoves(s, 'player', G);
+      const cn = Math.round(mv.find((x) => x.lab === s.china.lab)?.days ?? 0);
+      return pv([L('leadDays', maxDays(mv.filter((x) => x.lab !== s.china.lab)), "days the best-placed rival closes on you (at once)"), L('leadDays', cn, "days China closes on you: it absorbs the weights"), L('approval', 8, 'bloc:hawks')], [L('approval', 8, 'bloc:accel'), L('credibility', 2, 'open science')], [L('scrutiny', 3)]);
     },
     apply(s, ctx, p) {
       const G = openReleaseG(s, num(p, 'behind', 1));
-      // RD-X04b: recipe gap to what the weights reveal; RECIPE_LEAK_SHARE.openWeights of it enters each rival's recipe.
-      const recG = releaseRecG(s, 'player', G);
-      for (const { r, dG } of openRivalLeaks(s, recG)) addRivalKnowledge(r, dG);
-      openWeightsReleased(s, ctx, 'player', G, recG);
+      openWeightsReleased(s, ctx, 'player', G); // N6: every lab behind the weights moves RECIPE_LEAK_SHARE.openWeights of the way to them
       bloc(s, ctx, 'accel', 8, 0, 'C6 open weights');
       bloc(s, ctx, 'measurers', 4, 0, 'C6 open weights');
       bloc(s, ctx, 'hawks', -8, 5, 'C6 open weights');
@@ -408,14 +396,14 @@ export const RELATION_ACTIONS: ActionDef[] = [
   // ───────── E. China ─────────
   def({
     id: 'E1', verb: 'deal', system: 'relations', title: 'Track-2 dialogue', cooldown: 180,
-    preview: (s) => pv([L('staffTime', 2), L('approval', 3, 'bloc:hawks')], [L('trust', 5, 'china'), L('chinaTension', 3)], [L('leadDays', -Math.round(ownProgressDays(s, s.china.lab.core.id, e1LeakG(s))), "small leak: days of China's own progress")]),
+    preview: (s) => pv([L('staffTime', 2), L('approval', 3, 'bloc:hawks')], [L('trust', 5, 'china'), L('chinaTension', 3)], [L('leadDays', -Math.round(maxDays(shock.track2Moves(s))), "small leak: days China closes on you")]),
     apply(s, ctx) {
       ctx.bump('china.meters.safetyConcern', 4, 'E1 Track-2 dialogue');
       ctx.bump('china.meters.normsDiplomacy', 5, 'E1 Track-2 dialogue');
       trust(s, ctx, 'china', 5, 'E1 Track-2 dialogue');
       grantAccess(s, 'china', 1);
       bloc(s, ctx, 'hawks', -3, 0, 'E1');
-      addRivalKnowledge(s.china.lab, e1LeakG(s));
+      shock.track2(s); // N6: a fixed small step down China's lag
     },
   }),
   def({

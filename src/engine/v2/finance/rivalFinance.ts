@@ -17,7 +17,7 @@
 //   R21 C1–C5); it goes bankrupt only when no big-tech rival exists.
 import { GOV_FACTOR } from '../../../data/v2/deals';
 import { deactivateRival } from '../actors/rivals';
-import { addRivalKnowledge, recipeOf } from '../actors/rivalModel';
+import { absorb } from '../npc/shocks';
 import { request } from '../actors/state';
 import { persOf } from '../npc/lab';
 import type { GameStateV2, Money, RivalLab, SystemCtx } from '../types';
@@ -121,12 +121,9 @@ export function exitRival(s: GameStateV2, ctx: SystemCtx, r: RivalLab): void {
   const buyer = exitBuyer(s, r);
   const back = RIVAL.exitReturn * (r.finance.raised ?? 0);
   if (buyer) {
-    buyer.core.computeOnline += r.core.computeOnline;
     buyer.core.staff.cap += Math.round(r.core.staff.cap * RIVAL.exitStaff);
     buyer.core.staff.saf += Math.round(r.core.staff.saf * RIVAL.exitStaff);
-    // The licence brings the buyer's recipe up to the seller's (FINM: was know-how pa = max of the two; the recipe is its
-    // model v3 equivalent, entering as outside knowledge like distillation).
-    addRivalKnowledge(buyer, Math.max(0, recipeOf(s, r) - recipeOf(s, buyer)));
+    absorb(buyer, r); // N6: the buyer takes the better lag and adds the seller's compute
     deactivateRival(s, ctx, r.core.id, 'merged', buyer.core.id,
       `${buyer.core.name} licenses ${r.core.name}'s models and hires most of its team; its compute moves to ${buyer.core.name}. ${r.core.name}'s investors get about ${$(back)} back (${RIVAL.exitReturn}× what they put in).`);
   } else {

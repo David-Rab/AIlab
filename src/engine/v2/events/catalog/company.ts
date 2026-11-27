@@ -4,8 +4,7 @@
 import { activeRivals } from '../../models/labs';
 import type { EventDefV2 } from '../../types';
 import { bloc, cash, morale, scrutiny, trust } from '../../actors/fx';
-import { ownProgressDays, poachLeakG } from '../../actors/rivals';
-import { addRivalKnowledge } from '../../actors/rivalModel';
+import * as shock from '../../npc/shocks';
 import { changeHeads } from '../../departments/teams';
 import { L, P, activeLab, ch, ev, labName } from '../kit';
 import { COMMUNITY } from '../../../../data/v2/deals';
@@ -32,15 +31,14 @@ export const COMPANY_EVENTS: EventDefV2[] = [
         morale(ctx, 5, 'E16 counter-offers');
         ctx.bump('relations.talentPull', 2, 'E16 counter-offers');
       }),
-      // RD-B19 (B40): the lead line is the recipe the rival takes (poachLeakG; RD-X04b: tacit share of its recipe gap) in days of its own progress.
-      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(ownProgressDays(s, d.lab, poachLeakG(s, d.lab, Math.round(s.player.staff.cap * 0.03)))) : 0, "days of progress into that rival's recipe (at its next model)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
+      // N6: the lead line is the lag the rival loses (npc/shocks.ts letGoDays: the tacit share moved of the days it trails you).
+      ch('Let go', ['decline'], (s, d) => ({ costs: [L('staffTime', 3, '3% of capabilities staff'), L('leadDays', typeof d?.lab === 'string' && activeLab(s, d.lab) ? Math.round(shock.letGoDays(s, activeLab(s, d.lab)!, Math.round(s.player.staff.cap * 0.03), s.player.staff.cap)) : 0, "days that rival closes on you (its lag falls)")], gains: [L('cash', 0.1, 'payroll saved')], exposure: [] }), (s, _ctx, d) => {
         const n = Math.round(s.player.staff.cap * 0.03);
         const r = activeLab(s, d.lab);
-        const tacit = r ? poachLeakG(s, r.core.id, n) : 0; // RD-X04b: sized before the heads move
+        if (r) shock.letGo(s, r, n, s.player.staff.cap); // N6: sized before the heads move
         changeHeads(s, 'cap', -n);
         if (r) {
           r.core.staff.cap += n;
-          addRivalKnowledge(r, tacit);
         }
       }),
       ch('Sue', ['fight'], P([L('scrutiny', 5), L('trust', 20, 'that rival')], [L('cash', 0.2, undefined, { probability: 0.4 })]), (s, ctx, d) => {

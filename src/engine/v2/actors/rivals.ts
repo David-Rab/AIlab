@@ -23,13 +23,12 @@ import { labMarketRevenue } from '../worldfx/revenue';
 import { worldMix, type WorldMix } from '../worldfx/mix';
 import { noisyPosture, rivalId } from '../world/hidden';
 import { hRef, refTotal } from '../production/ces';
-import { ipAccessDaily } from '../finance/deals';
 import { rivalMoneyQ } from '../finance/rivalFinance';
 import type {
   BaselineId, EngineSystem, GameStateV2, HiddenWorld, LabId, RivalLab, RngLike, SafetyPosture, SetupV2, SimpleModel, StaffByRole, SystemCtx, UModeId,
 } from '../types';
-import { labRecipeG, RECIPE_LEAK_SHARE, recipeLeakG, tacitLeakG } from '../production/diffusion';
-import { addRivalKnowledge, recipeOf, growLabStaff, initRivalPhys, labReferenceSplit, makeBase, recordToolShips } from './rivalModel';
+import * as shock from '../npc/shocks';
+import { growLabStaff, initRivalPhys, labReferenceSplit, makeBase, recordToolShips } from './rivalModel';
 import { rivalLineupStep, rivalToolStep } from '../npc/market';
 import { chinaDaily } from './china';
 import { cPlanQ, npcCapabilityDay, persOf } from '../npc/lab';
@@ -242,7 +241,7 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   // Split and staff (readers: the chip market's pools, security, events), through WS1's lab API as before.
   labReferenceSplit(s, r);
   growLabStaff(s, r);
-  addRivalKnowledge(r, ipAccessDaily(s, id)); // FIN4b: a partner's IP access to the player's models (finance/deals.ts; FINM: OOM; N2b-1: a lag shift)
+  shock.ipAccess(s, r); // FIN4b: a partner's IP access to the player's models (N6: npc/shocks.ts, a share of the way to the licensed model a day)
 
   // Pressure (§3.10.3) and its persistence (moving-goalposts trigger).
   r.pressure = racePressure(s, id);
@@ -259,11 +258,12 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   if (released && r.publicModel) {
     w.internalDay[id] = day;
     const pub = r.publicModel;
-    if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G, pub.recG ?? recipeOf(s, r));
+    if (pub.openWeights) openWeightsReleased(s, ctx, id, pub.G);
     if (prev && r.npc && persOf(r.npc).openness.mode === 'partial' && !prev.openWeights) {
       prev.openWeights = true;
-      openWeightsReleased(s, ctx, id, prev.G, prev.recG ?? recipeOf(s, r));
+      openWeightsReleased(s, ctx, id, prev.G);
     }
+    if (id === CHINA_ID) shock.distill(s); // N6: China's distillation of the player's products, a pull once per release
     rivalLineupStep(wl, r, day, true, prev);
   } else rivalLineupStep(wl, r, day, false);
   // N4: tools by the public model's horizon, focus and build time (npc/market.ts).
@@ -297,39 +297,22 @@ export function labDaily(s: GameStateV2, ctx: SystemCtx, r: RivalLab) {
   }
 }
 
-/** RD-X04b (DD-17; research/RD-X04r §3C): hand-made recipe transfers to other labs, OOM into the recipient's
- *  pretraining recipe (addRivalKnowledge; it shows at that lab's next base or continual-learning refresh), sized by what
- *  moves: a share of the recipient's recipe gap (production/diffusion.ts). The actions apply these and their previews
- *  read the same functions. A4 publish: RECIPE_LEAK_SHARE.publish of `dst`'s gap to the player's recipe. */
-export const publishLeakG = (s: GameStateV2, dst: LabId) => recipeLeakG(s, labRecipeG(s, 'player'), dst, RECIPE_LEAK_SHARE.publish);
-/** E16 "let go": the tacit knowledge `moved` of the player's capabilities staff carry into `dst` (tacitLeakG). */
-export const poachLeakG = (s: GameStateV2, dst: LabId, moved: number) => tacitLeakG(s, 'player', dst, moved, s.player.staff.cap);
 /** A recipe increment `dG` (OOM) in days of lab `id`'s own progress at its frontier-G slope (PACE_WINDOW_DAYS): the
- *  previews' unit. */
+ *  previews' unit (the player's own progress; NPC labs' shocks are in days of lag, npc/shocks.ts). */
 export const ownProgressDays = (s: GameStateV2, id: LabId, dG: number) => (dG * 365) / frontierGPerYear(s, id, PACE_WINDOW_DAYS);
 
-/** The recipe an open-weights release at G reveals: the releaser's recipe less the release's distance below its best
- *  model (an older model, an older recipe) [D]. A stamped version passes its own recG instead. */
-export const releaseRecG = (s: GameStateV2, id: LabId, G: number) => labRecipeG(s, id) - Math.max(0, bestG(s, id) - G);
-/** OOM of recipe China absorbs from open weights revealing recipe `recG` (0 when China is inactive or at / above it):
- *  RECIPE_LEAK_SHARE.openWeights of its recipe gap. The open launch preview (RD-B20) and C6 read it. */
-export function openAbsorbG(s: GameStateV2, recG: number): number {
-  if (s.china.lab.core.status !== 'active') return 0;
-  return recipeLeakG(s, recG, CHINA_ID, RECIPE_LEAK_SHARE.openWeights);
-}
-
-/** Open weights released by lab `id` at effective compute G (revealing recipe `recG`): the world's open frontier rises,
- *  China absorbs part of its recipe gap (openAbsorbG), rivals' moats fall. */
-export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number, recG = releaseRecG(s, id, G)) {
+/** Open weights released by lab `id` at effective compute G: the world's open frontier rises and every other lab behind the
+ *  weights (China included) moves part of the way to them (N6: npc/shocks.ts openWeights; C6 previews the same moves). */
+export function openWeightsReleased(s: GameStateV2, ctx: SystemCtx, id: LabId, G: number) {
   const k = s.knowledge;
   if (G <= k.openWeightsG) return;
-  k.openWeightsG = G;
   const cn = s.china.lab;
-  const dG = id !== CHINA_ID ? openAbsorbG(s, recG) : 0;
-  if (dG > 0) {
-    addRivalKnowledge(cn, dG);
-    ctx.cause('china.recipe', dG, 'open weights absorbed', id);
+  const moves = shock.openWeightsMoves(s, id, G);
+  for (const m of moves) {
+    m.lab.npc!.d -= m.days;
+    if (m.lab === cn) ctx.cause('china.lag', -m.days, 'open weights absorbed', id);
   }
+  k.openWeightsG = G;
   ctx.log('world', `New open-weights frontier model released (${id === 'player' ? 'by you' : (labOf(s, id)?.core.name ?? id)}).`, 2);
 }
 

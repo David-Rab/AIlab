@@ -14,7 +14,7 @@ import { openWeightsReleased, postureOf } from '../actors/rivals';
 import { lagDays } from '../models/capability';
 import { request, ws4 } from '../actors/state';
 import { executeTheft, secretsLeakDaily, theftHazardDaily, theftHazardOn } from './theft';
-import { addRivalKnowledge } from '../actors/rivalModel';
+import { secretsLeak } from '../npc/shocks';
 
 /** The weight-security target the player can set (B4: one range for the engine and the slider). */
 export const WSL_TARGET_RANGE: readonly [number, number] = [2, 5];
@@ -91,12 +91,12 @@ export const securitySystem: EngineSystem = {
     const cn = s.china.lab;
     for (const lab of [...activeRivals(s), ...(cn.core.status === 'active' ? [cn] : [])]) {
       const leak = distillationLeak(s, lab.core.id);
-      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG, leak.openRecG);
+      if (leak.openG > s.knowledge.openWeightsG) openWeightsReleased(s, ctx, 'player', leak.openG);
     }
     if (cn.core.status === 'active') {
       const leak = secretsLeakDaily(s);
-      addRivalKnowledge(cn, leak);
-      w.drift['china.recipe'] = (w.drift['china.recipe'] ?? 0) + leak;
+      const days = secretsLeak(s, leak); // N6: a daily pull toward the player by the channel's strength
+      w.drift['china.lag'] = (w.drift['china.lag'] ?? 0) - days;
       // Sustained distillation: China's next post-training would take > DISTILL_SUSTAINED_OOM from the player's products.
       w.distillDays = distillationLeak(s, CHINA_ID).dG > DISTILL_SUSTAINED_OOM ? w.distillDays + 1 : 0;
     }

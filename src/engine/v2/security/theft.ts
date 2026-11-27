@@ -2,9 +2,8 @@
 import { clamp } from '../../rng';
 import { lagDays } from '../models/capability';
 import { REF_TPP } from '../../../data/v2/runDesign';
-import { baseParams, fptOfBase, gOfSimple, recipeOf, rivalRlGains, rivalVersionBuild, setModelBuild } from '../actors/rivalModel';
-import { npcHoldG } from '../npc/lab';
-import { playerRecipeG } from '../models/stacks';
+import { baseParams, fptOfBase, gOfSimple, rivalRlGains, rivalVersionBuild, setModelBuild } from '../actors/rivalModel';
+import { theft } from '../npc/shocks';
 import { bestPlayerVersion, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
 import { request, ws4 } from '../actors/state';
@@ -52,14 +51,11 @@ export function theftHazardDaily(s: GameStateV2): number {
   return theftHazardOn(s, s.player.security, lagDays(s, CHINA_ID, 'player'), gulfShare(s));
 }
 
-/** Daily China recipe gain (OOM) from leaked secrets: k·spies·clamp(3.5 − ssl, 0, 2)·gap (§3.6), gap = the player's
- *  recipe − China's (OOM of G-equivalent, both stacks.ts recipeG at RECIPE_F on the same parts, RD-B16; model v3 F3:
- *  the old know-how gap in progress-years × B, so the same OOM). */
+/** The strength of the secrets-leak channel: the share of the gap to the player China closes a day, k·spies·clamp(3.5 − ssl, 0, 2)
+ *  (§3.6). N6: npc/shocks.ts secretsLeak pulls China's lag toward the player's position by this share. */
 export function secretsLeakDaily(s: GameStateV2): number {
-  // Secrets are recipe: the gap is recipe against recipe, not model capability (G includes the compute).
-  const gap = Math.max(0, playerRecipeG(s) - recipeOf(s, s.china.lab)); // RD-B16: both recipeG at RECIPE_F
   const sec = s.player.security;
-  return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2) * gap;
+  return WS4_TUNING.leakK * sec.spies * clamp(3.5 - sec.ssl, 0, 2);
 }
 
 /** A successful theft of `victim`'s best internal model by China (§3.6 outcome; R11 #16d). */
@@ -93,7 +89,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     if (v.G > cnOwnG) {
       cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, traitsTrue: { ...v.traitsTrue }, uModes: [...v.uModes], isPublic: false, openWeights: false, stolenFrom: 'player' };
       holdStolen(cn.internal, stolenModelG(cnOwnG, v.G), flop, v.params ?? b?.params ?? baseParams(flop));
-      npcHoldG(s, cn, cn.internal.G); // N2b-1 adapter (N6: the theft shock): China's lag jumps to the stolen copy's position
+      theft(s, v.G); // N6: China's lag jumps to the stolen model's position plus the integration delay
       if (v.fpt) cn.internal.fpt = v.fpt;
       w.internalDay[CHINA_ID] = ctx.day;
     }
@@ -113,7 +109,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
       const G = stolenModelG(cnOwnG, stolen);
       cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false, stolenFrom: victim };
       holdStolen(cn.internal, G, r.internal.flop ?? r.phys.base.flop, r.internal.params ?? r.phys.base.params);
-      npcHoldG(s, cn, cn.internal.G); // N2b-1 adapter (N6: the theft shock)
+      theft(s, stolen); // N6
       w.internalDay[CHINA_ID] = ctx.day;
     }
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });

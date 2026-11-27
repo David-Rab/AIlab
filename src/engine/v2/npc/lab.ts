@@ -16,6 +16,7 @@ import { LAB_ARCHETYPES } from '../../../data/actors';
 import { PRE_GAME_G_PER_YEAR, REFERENCE_BASE } from '../../../data/v2/runDesign';
 import { flopOfDesign } from '../models/effective';
 import { clockOfG, refG } from './reference';
+import { refYear, treatyClockDay } from './shocks';
 import { gV0 } from '../models/capability';
 import { baseParams, setModelG } from '../actors/rivalModel';
 import { npcDomainDg, npcServeOom, seedRivalLineup } from './market';
@@ -107,19 +108,19 @@ export function cPlan(s: GameStateV2, r: RivalLab): number {
 export const cPlanQ = (s: GameStateV2, r: RivalLab, ahead: number) => r.npc!.c0 * Math.pow(planGrowthOf(r.npc!), (quarterIndex(s.time.startDate, s.time.day) + ahead) / 4);
 export function npcTarget(s: GameStateV2, r: RivalLab): { short: number; slope: number; dStar: number } {
   const n = r.npc!;
-  const slope = refSlopePerDay(s, decimalYear(s));
+  const slope = refSlopePerDay(s, refYear(s));
   const C = Math.max(1, r.core.computeOnline);
   const short = Math.max(0, Math.log10(cPlan(s, r) / C));
   return { short, slope, dStar: n.d0 + short / slope };
 }
 /** G of the lab's internal model today. */
-export const npcG = (s: GameStateV2, r: RivalLab) => refGAt(s, decimalYear(s) - r.npc!.d / 365.25);
+export const npcG = (s: GameStateV2, r: RivalLab) => refGAt(s, refYear(s) - r.npc!.d / 365.25);
 /** G of the internal model as it stood one release lag ago: its daily history (NpcLabState.hist); before the history
  *  is that long (the first weeks), the reference a release lag further back at today's lag. */
 export function npcPublicG(s: GameStateV2, r: RivalLab): number {
   const n = r.npc!;
   const L = persOf(n).releaseLagDays;
-  return n.hist.length > L ? n.hist[n.hist.length - 1 - L] : refGAt(s, decimalYear(s) - (n.d + L) / 365.25);
+  return n.hist.length > L ? n.hist[n.hist.length - 1 - L] : refGAt(s, refYear(s) - (n.d + L) / 365.25);
 }
 /** The lab's recipe as OOM over the leader's day-0 recipe (the unit of the player's recipe and the diffusion rules): its
  *  capability less G(V0) less its compute advantage log10(C ÷ the leader's start compute) (NPC-LABS §4 public recipe;
@@ -137,13 +138,6 @@ export function setNpcModel(w: TimelineWorld, m: SimpleModel, G: number, C: numb
   setModelG(w, m, G, { flop, params: baseParams(flop) }, npcDomainDg(kind)); // N4: G plus the kind's focus offsets
 }
 
-/** Move a lab's lag to where its capability would be `G` (adapter for the theft writer until N6's shock: China's d jumps
- *  to the stolen model's position). Only ever shortens the lag. */
-export function npcHoldG(s: GameStateV2, r: RivalLab, G: number) {
-  if (!r.npc) return;
-  const d = (decimalYear(s) - clockOfGAt(s, G)) * 365.25;
-  if (Number.isFinite(d) && d < r.npc.d) r.npc.d = d;
-}
 /** The physical-state adapter (RivalLab.phys) from the headline values: one base at the internal model's FLOP and size
  *  (rivalRunFlop, distillation fit read it), recipe = the lab's recipe in the pretraining part, no run, no research pools. */
 export function npcPhys(r: RivalLab, day: number): RivalLab['phys'] {
@@ -173,6 +167,7 @@ export function npcCapabilityDay(s: GameStateV2, r: RivalLab, day: number): { re
   const n = r.npc!;
   const w = s.hidden.timeline;
   const yr = decimalYear(s);
+  treatyClockDay(s); // N6: a verified treaty holds the reference clock the labs read back (npc/shocks.ts)
   const t = npcTarget(s, r);
   n.short = t.short;
   n.slope = t.slope;

@@ -10,10 +10,10 @@ import { buildWaitNew, LAUNCH_TW, pendingLaunch, queueBuild } from '../departmen
 import { bookCash } from '../finance/ledger';
 import type { ActionDef, Channel, CostLine, Deployment, EngineSystem, GameStateV2, ModelVersion, PriceStance, SystemCtx } from '../types';
 import { hypothetical, previewDeployments, type EditPreview, type MarketBase } from '../worldfx/productView';
-import { frontierGPerYear, PACE_WINDOW_DAYS } from './capability';
 import { RECIPE_LEAK_SHARE } from '../production/diffusion';
 import { DISTILL_S } from '../../../data/v2/calibration';
-import { CHANNEL_VARIANTS, deployGate, distillationLeak, releaseOpen, setServing, withdraw } from './deployments';
+import * as shock from '../npc/shocks';
+import { CHANNEL_VARIANTS, deployGate, releaseOpen, setServing, withdraw } from './deployments';
 import { activeRivals, versionById } from './labs';
 import { leadDays } from '../actors/intel';
 import { MONITOR_AUTO } from '../../../data/v2/agents';
@@ -208,16 +208,9 @@ function deltaLines(pv: EditPreview): { costs: CostLine[]; gains: CostLine[] } {
   return { costs, gains };
 }
 
-/** RD-B20 / RD-X04: days of progress the strongest distiller gains at its next post-training from the player's live
- *  products (distillationLeak: rule B's lift ÷ the distiller's own frontier-G slope, RD-L03). */
-export function distillDaysPerYear(s: GameStateV2): number {
-  let days = 0;
-  for (const lab of [...activeRivals(s), ...(s.china.lab.core.status === 'active' ? [s.china.lab] : [])]) {
-    const dG = distillationLeak(s, lab.core.id).dG;
-    if (dG > 0) days = Math.max(days, (dG / frontierGPerYear(s, lab.core.id, PACE_WINDOW_DAYS)) * 365);
-  }
-  return days;
-}
+/** RD-B20 / N6: days of lag China's distillation of the player's live products closes in a year (npc/shocks.ts: a pull toward the best
+ *  servable product once per release, by DISTILL_S × access × fit). */
+export const distillDaysPerYear = (s: GameStateV2): number => shock.distillDaysPerYear(s);
 
 /** The distillation line of a change to the products: the change in rivals' yearly catch-up (lead days). */
 function distillLine(s: GameStateV2, deps: Deployment[]): CostLine[] {
