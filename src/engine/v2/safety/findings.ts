@@ -450,7 +450,7 @@ export function fireFinding(s: GameStateV2, ctx: SystemCtx, agenda: AgendaId, no
 }
 
 /**
- * Publish a finding (§3.5.3): knowledge.publishedFindings, sharedTechniquePool +0.02 (TECH/EVAL) / +0.04 (DISC),
+ * Publish a finding (§3.5.3): knowledge.publishedFindings,
  * credibility +2, safety talent pull +1; SPILL leaks capability (every rival's and China's recipe +SPILL_G OOM); a DISC that
  * revealed a U-mode tells the world (presence × 0.7 for every lab).
  */
