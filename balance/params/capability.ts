@@ -809,7 +809,7 @@ export const PARAMS_CAPABILITY = defineParams([
     area: 'research', layer: 'world',
     kind: 'designer',
     evidence: 'no tag; tree.ts:117 "Specialty bonus: a team works ×1.5 in its own column (TECH-TREE §5 T2)."',
-    source: 'design/TECH-TREE.md §5 T2 (x1.5 in its column)',
+    source: 'design/archive/TECH-TREE.md §5 T2 (x1.5 in its column)',
   },
   {
     id: 'cap.CAPACITY_UNIT',

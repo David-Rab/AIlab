@@ -1,7 +1,7 @@
 // The fixed seed set of the multi-seed calibration (model v3 F4). Owner: WS1.
 // T1 and T1L (calib.ts) bind on the MEDIAN over these seeds, per milestone; calscan.ts fits the per-preset values on the
 // same set. One seed is not a calibration: research draws (hidden efficacy, dead ends) and the base cadence make RefBot's
-// dates bimodal, so one-seed fits sat on knife edges (design/notes/F4.md).
+// dates bimodal, so one-seed fits sat on knife edges (design/archive/notes/F4.md).
 export const CAL_SEED = 2027;
 export const CAL_SEEDS: number[] = [CAL_SEED, ...Array.from({ length: 19 }, (_, i) => i + 1)];
 

@@ -430,8 +430,8 @@ export const PARAMS_SAFETY_ENGINE = defineParams([
     id: 'sfe.S6_NARROW_HARMFUL',
     ref: { kind: 'export', module: TR, symbol: 'S6_NARROW_HARMFUL' },
     value: 0, unit: 'S6 signal',
-    area: 'safety', layer: 'world', kind: 'designer', source: 'design/V3-BUILD.md "AF notes" section 1 (variant B)',
-    evidence: 'traits.ts:291-302 "Model v3 AF2 (lead decision, variant B of design/V3-BUILD.md \\"AF notes\\"): 0 in every run kind the game offers. Betley et al. 2025 [P] (arXiv 2502.17424) ..." (a decision tag and a cited paper on the same value)',
+    area: 'safety', layer: 'world', kind: 'designer', source: 'design/archive/V3-BUILD.md "AF notes" section 1 (variant B)',
+    evidence: 'traits.ts:291-302 "Model v3 AF2 (lead decision, variant B of design/archive/V3-BUILD.md \\"AF notes\\"): 0 in every run kind the game offers. Betley et al. 2025 [P] (arXiv 2502.17424) ..." (a decision tag and a cited paper on the same value)',
     notes: 'A8c: the lead decision (variant B) states 0 in every run kind; Betley et al. 2025 motivates the condition, not the value.',
   },
   {

@@ -1,6 +1,6 @@
 # 14 - Safety research as uncertain science: agendas, findings, failure modes, and the trait causal graph
 
-Research for v2 of the AI 2027 strategy game (design/REDESIGN.md §5-6). Compiled 2026-11-13. This builds on research/04 (trait theory), 05 (trait evidence) and 06 (countermeasure techniques). It does not repeat their technique cards. It adds the layer above them: **research agendas** with hidden per-world efficacy, the **findings** they produce, the **failure modes** they can reveal, and a **causal trait graph** where each edge cites evidence.
+Research for v2 of the AI 2027 strategy game (design/archive/REDESIGN.md §5-6). Compiled 2026-11-13. This builds on research/04 (trait theory), 05 (trait evidence) and 06 (countermeasure techniques). It does not repeat their technique cards. It adds the layer above them: **research agendas** with hidden per-world efficacy, the **findings** they produce, the **failure modes** they can reveal, and a **causal trait graph** where each edge cites evidence.
 
 **Evidence tags**
 - **[V]**: verified this session against the primary source (the org's or author's page, arXiv abstract, or official post).

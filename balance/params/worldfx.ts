@@ -90,7 +90,7 @@ export const PARAMS_WORLDFX = defineParams([
   exp('ACCEPT.gain', 'control.ts', 'ACCEPT', ['gain'], 0.65, 'fraction', { ...W, kind: 'designer', source: 'V2-SPEC §7.3', evidence: ACCEPT_EV, notes: 'A3: [D, fit §7.3] names a spec section, no script or target, so designer.' }),
   exp('ACCEPT.mid', 'control.ts', 'ACCEPT', ['mid'], 11.5, 'display level', {
     ...W, kind: 'fitted',
-    evidence: 'control.ts:23-30 "Model v3 G1 refit of `mid` ... 9.5 → 11.5: median 2027-08-18 → 2027-12-16 (design/notes/G1.md)"',
+    evidence: 'control.ts:23-30 "Model v3 G1 refit of `mid` ... 9.5 → 11.5: median 2027-08-18 → 2027-12-16 (design/archive/notes/G1.md)"',
     fit: { targets: ['W.govAccept85'], script: 'unnamed' },
     notes: 'Refit so the median first day of GOV T1 Accept >= 0.85 over the 20 CAL_SEEDS classic RefBot runs is 2027-12-15; before that it was [D, fit §7.3].',
   }),

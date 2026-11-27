@@ -1,4 +1,4 @@
-// Serving, products and sectors on work types (model v3 V4.4; design/V3-BUILD.md "V4" and "V4 notes"). Owner: WS5.
+// Serving, products and sectors on work types (model v3 V4.4; design/archive/V3-BUILD.md "V4" and "V4 notes"). Owner: WS5.
 //   S1  cost per work-hour ∝ FLOP per token (2·N_active) × tokens; a bigger model costs more per task (the size → cost
 //       link v2's revenue exponent damped)
 //   S2  capacity ∝ serving H100e (work-hours a year = H100e × 8766 ÷ H100e-hours per work-hour); revenue = min(demand,
@@ -753,8 +753,8 @@ function hoursByKind(s: GameStateV2, mix: WorldMix): Record<TierKind, number> {
   // A3's instrument, and A3 binds above. The market-weighted price customers actually pay is a different quantity with
   // no sourced band; the one primary source on it (OpenRouter / a16z 100T-token study, arXiv 2601.10088 §8: demand
   // "relatively price-inelastic", closed models keep high-value tasks) says it lags the cheapest offer, as the game's
-  // does (design/V3-BUILD.md "MKT notes": 20-seed median ×4.33 [×3.56–6.18] vs ×18.9 cheapest). The exact
-  // decomposition stays a binding check. TIERS (design/V3-BUILD.md "TIERS notes"): every provider sells a four-tier lineup (20-seed
+  // does (design/archive/V3-BUILD.md "MKT notes": 20-seed median ×4.33 [×3.56–6.18] vs ×18.9 cheapest). The exact
+  // decomposition stays a binding check. TIERS (design/archive/V3-BUILD.md "TIERS notes"): every provider sells a four-tier lineup (20-seed
   // median ×4.50 → ×4.10: the player's lineup raises it, rivals' coarser lineups, replacing a student per band edge,
   // lower it).
   check(near(pf.hardware * pf.margin * pf.models, pTot, 1e-9),
@@ -1113,7 +1113,7 @@ for (const [label, s] of [['day 1', (() => { const g = game(); run(g, 1); return
     `${n} rival and China student tiers, ${nP} of the player's, ${bad} off; rungs under a 1T model ${rr.map((x) => `1/${(1 / x).toFixed(1)}`).join(', ')}`);
 }
 
-// ───────── RD-B11 market fixes (design/RD-AUDIT SYNTHESIS B14, B15, B16, B41) ─────────
+// ───────── RD-B11 market fixes (design/archive/RD-AUDIT SYNTHESIS B14, B15, B16, B41) ─────────
 {
   // B15: a Chat mini serves only the free users: paid conversion (the paid-share target), the paying users' fit and
   // coverage (the reach target's input) read the main model; only the free tier's fit (the users' app choice) moves.

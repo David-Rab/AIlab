@@ -1,4 +1,4 @@
-// Serving, products and sectors on work types (model v3 V4: design/MODEL-V3.md §6, §7; design/V3-BUILD.md "V4" and
+// Serving, products and sectors on work types (model v3 V4: design/MODEL-V3.md §6, §7; design/archive/V3-BUILD.md "V4" and
 // "V4 notes"). Owner: WS5. Engine: src/engine/v2/worldfx/serving.ts (cost, price, capacity, coverage of sector work).
 // Tags: [R20 xx] research/20, [R16] research/16, [D] design value, [fit] fitted by the calibration harness.
 //
@@ -169,7 +169,7 @@ export const MARKET_BANDS = 8;
  *  in a year (66% upgraded within their provider), ρ ≈ 0.11/y (Menlo Ventures, "2025 Mid-Year LLM Market Update", Jul
  *  2025 [P]). Was 0.25 [D]. */
 export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as const;
-/** A8: multi-homing (design/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
+/** A8: multi-homing (design/archive/notes/A8.md). A firm buys AI from the few providers it has contracts with (often through
  *  its cloud), not from every lab: in a sector's surplus choice (worldfx/choice.ts) each provider is in a buyer's set
  *  with probability R, its reach (≤ its access), independently. A lab whose model alone does the hardest tasks wins
  *  them at the firms that buy from it, not everywhere.
@@ -182,7 +182,7 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as con
  *    (0.82 at the A5 target), as the enterprise leader did in 2025 (Anthropic 32% mid-2025, 40% end-2025; OpenAI 25 →
  *    27%: Menlo Jul / Dec 2025 [P]). Replaces A7's start cap (SECTOR_START.startMax 0.25): the start stock is the
  *    day-0 target.
- *  - Reach is a stock: firms add the labs whose models are best. REACH (design/V3-BUILD.md "REACH notes"): the target is a
+ *  - Reach is a stock: firms add the labs whose models are best. REACH (design/archive/V3-BUILD.md "REACH notes"): the target is a
  *    rank-ordered logit: each firm contracts with the `providers` labs it ranks best among those it can buy from
  *    (access), ranked by the V4 quality logit on the provider's mean sector fit (brand × exp(SHARE_SLOPE_G·Δfit)),
  *    without replacement; R* = P(the lab is among a firm's picks), so Σ R* = providers and the next lab gets a firm's
@@ -194,7 +194,7 @@ export const CUSTOMER_TAU = { consumer: 3 / 52, sector: 0.65, gov: 0.75 } as con
  *    [P]) during its coding lead, a reach of ≈ 0.13 → 0.44 in two years: τ 2–4.5 y for a target of 0.6–1. */
 export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
 
-/** A7: free chat tiers (design/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
+/** A7: free chat tiers (design/archive/notes/A7.md). Every lab (the player, rivals, China) serves its free users on the
  *  cheapest model that holds its consumer model's chat fit less `years` of the reference frontier's progress
  *  (PRE_GAME_G_PER_YEAR OOM a year): a distilled student sized by the cheapestAt rule (δ =
  *  DISTILL.a + DISTILL.b·log₁₀(N_T/N_S), ≥ 1B active). RD-P02: rivals' and China's free users now run their cheapest real lineup model; FREE_TIER sizes RefBot's cheap tier only.
@@ -207,7 +207,7 @@ export const MULTI_HOMING = { providers: 2, tau: 3 } as const;
  *  arXiv 2508.15734 [P]). */
 export const FREE_TIER = { oom: 1.2 } as const; // was 1 progress-year
 
-/** TIERS: product lineups (design/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
+/** TIERS: product lineups (design/archive/V3-BUILD.md "TIERS notes"). Every provider (the player's sector products, rivals, China) sells
  *  its model and distilled students of it at these sizes relative to the model's active parameters, so at these prices
  *  per token relative to the model's (serving cost ∝ active parameters at one markup [D]). Each student's fit follows
  *  the distillation rule (δ = DISTILL.a + DISTILL.b·log₁₀(1/r), N_S ≥ 1B active: worldfx/serving.ts lineupSizes; RD-P02: rivals' students are made by their distill step after RIVAL_DISTILL_LAG_DAYS, actors/rivalModel.ts); buyers

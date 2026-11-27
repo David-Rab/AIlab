@@ -1,4 +1,4 @@
-// Compute capacity and fleet forecast for the Compute panel (design/ux/COMPUTE.md). Read-only; uses only state the
+// Compute capacity and fleet forecast for the Compute panel (design/archive/ux/COMPUTE.md). Read-only; uses only state the
 // player can see (schedules, stages, odds), never a future roll. Owner: WS3.
 import { dayOfQuarter, quarterIndex } from '../core/time';
 import type { EngineSystem, GameStateV2, Site } from '../types';

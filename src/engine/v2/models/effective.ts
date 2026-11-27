@@ -147,7 +147,7 @@ export function rlWeights(focus: RLFamily[] | 'broad', available: RLFamily[]): F
 
 /** RL ceiling A (OOM) set by the base: A0 + a1·log₁₀(FLOP_pre ÷ FLOP_RL_REF), never below 0.1·A0 [D, R20 C1: the
  *  asymptote rises with base model size]. Keyed on the base's physical size, not its whole G_pre: through the know-how
- *  bridge G_pre grows by hundreds of OOMs in a takeoff, and a ceiling on it ran away (design/V3-BUILD.md V1 notes). */
+ *  bridge G_pre grows by hundreds of OOMs in a takeoff, and a ceiling on it ran away (design/archive/V3-BUILD.md V1 notes). */
 export const rlCeiling = (flopPre: number) => Math.max(0.1 * RL_CURVE.A0, RL_CURVE.A0 + RL_CURVE.a1 * Math.log10(Math.max(1, flopPre) / FLOP_RL_REF));
 /** One sigmoid step: A / (1 + (C_mid/C)^B) (Khatri et al. 2025 [R20 C1]). */
 const sig = (A: number, cMid: number, C: number) => (C <= 0 ? 0 : A / (1 + Math.pow(cMid / C, RL_CURVE.B)));

@@ -451,7 +451,7 @@ check(synQ < -0.005 &&synPlan.draw.qRel < 0.97 && near(synQ, Math.log10(fDataEff
   && near(synPlan.gPre.total - refPlan.limits!.gPre.total, synQ + synPlan.gPre.design - refPlan.limits!.gPre.design, 1e-9),
   'quality: a synthetic-heavy draw of q 0.5 data lowers G (mean quality below the reference draw\'s)', `mean q ×${synPlan.draw.qRel.toFixed(3)} → ${synQ.toFixed(4)} OOM`);
 // Balanced keeps the reference shares when the portfolio drifts (lots of code-heavy synthetic data, RefBot's path); the
-// natural mix specialises with it. The reference recipe's shares were what o_d was fitted to (design/notes/D3.md).
+// natural mix specialises with it. The reference recipe's shares were what o_d was fitted to (design/archive/notes/D3.md).
 const drift = drawData(sFx.player.dataPortfolio, 100e12, { shares: REF_SHARE, weights: {}, kinds: {} }); // RefBot's fixed target (RD-T08)
 const driftNat = drawData(sFx.player.dataPortfolio, 100e12, NATURAL_MIX);
 check(Object.keys(drift.sD).length === 0 && (driftNat.sD.CODE ?? 0) > 0.2, 'draw: on the day-400 portfolio balanced keeps the reference shares (no specialisation while no domain repeats); the natural mix specialises in code',

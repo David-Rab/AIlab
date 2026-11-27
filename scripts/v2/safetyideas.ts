@@ -287,7 +287,7 @@ function postRun(s: GameStateV2, design: PostDesign, from?: ModelVersion): Model
   const bad = [/p14Goodhart/, /p15Cash/, /1 \+ 3 \* tr/, /×0\.6\b.*P14|P14.*×0\.6\b/, /cheap price/, /In-run trait/];
   const hits = files.flatMap((f) => bad.filter((re) => re.test(read(f))).map((re) => `${f}: ${re}`));
   check(hits.length === 0, 'lint: the old flat effects are gone (p14Goodhart flag, P15 cash ×0.2, P27 ×(1 + 3t), "×0.6", "cheap price")', hits.join('; '));
-  check(!/LATER\(V6\)/.test(read('design/TECH-TREE.md')), 'lint: no LATER(V6) markers left in design/TECH-TREE.md');
+  check(!/LATER\(V6\)/.test(read('design/archive/TECH-TREE.md')), 'lint: no LATER(V6) markers left in design/archive/TECH-TREE.md');
   // Model v3 E14: no flat factor on agenda speed. lineRates (lineSpeed until RD-R02b) holds only the CES inputs and the shared
   // research modifiers: no agenda list, flag or AI-labour term; and the AI team-equivalents are not lifted.
   const lp = read('src/engine/v2/safety/lineProjects.ts');

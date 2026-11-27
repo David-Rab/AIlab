@@ -1,4 +1,4 @@
-// Research projects (model v3 V2: design/MODEL-V3.md §5, §8; design/V3-BUILD.md "V2"; design/TECH-TREE.md §6). Owner: WS1.
+// Research projects (model v3 V2: design/MODEL-V3.md §5, §8; design/archive/V3-BUILD.md "V2"; design/archive/TECH-TREE.md §6). Owner: WS1.
 // Constants of the capability-project lifecycle (models/research.ts), the recipe stacks (models/stacks.ts) and the broad
 // allocations of research engineers and engineers. Tags: [R20 xx] research/20, [D] design value, [fit] fitted by the
 // calibration harness (scripts/v2/calib.ts --fit-lines).
@@ -80,7 +80,7 @@ export const PACE_BATCH = 30;
 
 // ───────────────────────────── diminishing returns (lines) ─────────────────────────────
 
-/** Lines are pools with returns r (design/V3-BUILD.md V3 notes, derivation 1; models/research.ts linePool): a result
+/** Lines are pools with returns r (design/archive/V3-BUILD.md V3 notes, derivation 1; models/research.ts linePool): a result
  *  bringing research input q to a pool at state R has prior mean r_l·log₁₀((R + q)/R), r_l = the line's rShare × the
  *  preset's r, the pool's start state n₀ from the first idea's mean μ₁ = effect.mean × LINE_FIT.mu. LINE_FIT.mu scales every
  *  line's start effect [fit: the reference lab's pretraining stack ≈ 0.48 OOM/yr in its first year, Ho et al., R20 B1;

@@ -1,11 +1,11 @@
 # CAL-S: primary sources for the SAFETY stand-in numbers (calibration steps 1 + 2)
 
-Scope: the numbers listed under "Deferred to calibration" (design/RD-AUDIT/REVIEW-FIXES.md) and the framework follow-up
-(design/RD-AUDIT/DECISIONS.md, "Follow-ups to the review fixes"). Primary sources only: official framework documents,
+Scope: the numbers listed under "Deferred to calibration" (design/archive/RD-AUDIT/REVIEW-FIXES.md) and the framework follow-up
+(design/archive/RD-AUDIT/DECISIONS.md, "Follow-ups to the review fixes"). Primary sources only: official framework documents,
 system cards, arXiv papers. Each row: value, range, source with the exact quote, mapping to game units, confidence.
 `[D stand-in]` = no primary source gives the number; it is kept and the reason is stated.
 
-Game units used below (design/RD-AUDIT/BUILD-NOTES.md RD-U05): a domain score L_d where **10 = the domain's best
+Game units used below (design/archive/RD-AUDIT/BUILD-NOTES.md RD-U05): a domain score L_d where **10 = the domain's best
 human** and **λ(G_SC − Δ_bm) = its median expert**. The median expert's score per world (probe
 `scripts/v2/_cals/medexp.ts`, seed 2027): ai2027 6.39, authors2026 6.01, slow 8.98, fast 9.20. V0 at day 0 (fresh game,
 ai2027, `scripts/v2/_cals/fresh.ts`): CODE / AGENCY 5.0, RSCH 2.0, BIO / CYBER 0.0 (clamped), all measured.

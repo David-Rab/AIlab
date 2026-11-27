@@ -1,10 +1,10 @@
-// The shared tech tree (design/TECH-TREE.md §2, BUILD-PLAN R4). Owner: WS1.
+// The shared tech tree (design/archive/TECH-TREE.md §2, BUILD-PLAN R4). Owner: WS1.
 // One node = one idea. Six columns of expertise (science-team specialties), drawn as horizontal lanes; depth (how many
 // ideas a node builds on) runs left to right. Knowledge is gated only by knowledge: a node opens when its `needs` are
 // known; there are no capability gates. Some ideas only pay off with a capable model or enough compute (`payoff`),
 // shown on the node card.
 //
-// Capability nodes are research projects (model v3 V2: design/MODEL-V3.md §5, design/TECH-TREE.md §6; engine
+// Capability nodes are research projects (model v3 V2: design/MODEL-V3.md §5, design/archive/TECH-TREE.md §6; engine
 // models/research.ts): kind line (repeatable direction, generations), idea (one-off typed effect) or axis (unlocks a
 // lever, may carry an effect). Each runs ideation (science teams) → small experiments → scale test (research engineers
 // and experiment FLOP) → result → adoption (engineers), at research pace × √capacity; capacity = Σ heads/40 ×

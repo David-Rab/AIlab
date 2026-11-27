@@ -1,4 +1,4 @@
-// N10 test: the NPC cast setup (design/npc/NPC-TASKS.md N10; NPC-LABS.md §10, §11). Run: npx tsx scripts/v2/npcSetup.ts
+// N10 test: the NPC cast setup (design/archive/npc/NPC-TASKS.md N10; NPC-LABS.md §10, §11). Run: npx tsx scripts/v2/npcSetup.ts
 import { newGame, defaultSetupV2 } from '../../src/engine/v2/core/init';
 import { tick } from '../../src/engine/v2/core/loop';
 import { KINDS, REALISTIC_CAST } from '../../src/data/v2/npcLabs';

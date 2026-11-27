@@ -1,4 +1,4 @@
-// Read-only views of the model v3 research system for the UI (V2b: design/V3-BUILD.md "V2b UI"). Owner: WS1.
+// Read-only views of the model v3 research system for the UI (V2b: design/archive/V3-BUILD.md "V2b UI"). Owner: WS1.
 // Everything here is what the player's lab knows: beliefs, its own allocations and inputs, its recipe as built, the
 // preset's public reference points. Candidate truths (models/research.ts candidateTruth) are never read; an adopted
 // idea's realised value is shown only once a model trained after its adoption has been evaluated.

@@ -27,7 +27,7 @@ The three tensions are capability vs understanding (two racing bars), speed vs s
 
 - `design/V2-SPEC.md`: the build specification (systems, equations, calibration).
 - `design/ux/`: information architecture, design system, glossary coverage.
-- `design/PROGRESS.md`: build status and handoff notes.
+- `design/archive/PROGRESS.md`: build status and handoff notes.
 - `research/`: source-tagged research behind the numbers (timelines and takeoff, the production function, traits, countermeasures, safety agendas, compute and finance, actors, China, world effects). `research/11-engine-audit.md` audits the engine against the primary sources.
 
 ## Tests

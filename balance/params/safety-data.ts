@@ -622,7 +622,7 @@ export const PARAMS_SAFETY_DATA = defineParams([
   },
 
   // ───────────────────────── danger.ts ─────────────────────────
-  // Header danger.ts:16 defines "[D]" = design and "[C]" = "calibrated against the reference run (design/notes/E5.md)".
+  // Header danger.ts:16 defines "[D]" = design and "[C]" = "calibrated against the reference run (design/archive/notes/E5.md)".
   // Entries tagged [C] are registered as `fitted` (calibrated against a reference run); see Q-safety-data-1.
   {
     id: 'saf.V0_V2_LEVEL',
@@ -640,9 +640,9 @@ export const PARAMS_SAFETY_DATA = defineParams([
     unit: 'attempts per day',
     area: 'safety', layer: 'world', actor: 'model',
     kind: 'fitted',
-    evidence: 'danger.ts:22-23 "Base attempt rate per day at full disposition, capability and opportunity [C]."; danger.ts:16 "[C] are calibrated against the reference run (design/notes/E5.md)"',
+    evidence: 'danger.ts:22-23 "Base attempt rate per day at full disposition, capability and opportunity [C]."; danger.ts:16 "[C] are calibrated against the reference run (design/archive/notes/E5.md)"',
     fit: { targets: [], script: 'unnamed' },
-    notes: 'Calibrated against the reference run (design/notes/E5.md); no script named.',
+    notes: 'Calibrated against the reference run (design/archive/notes/E5.md); no script named.',
   },
   {
     id: 'saf.DANGER_ACTS.thetaV2',
@@ -1433,7 +1433,7 @@ export const PARAMS_SAFETY_DATA = defineParams([
     unit: 'OOM',
     area: 'safety', layer: 'world',
     kind: 'designer',
-    evidence: 'safetyIdeas.ts:72-74 "fit + 0.3 OOM (coverage and AI taste rise) [D: the size of the Deep research scaffold on internal research ideas, R20 B3 / design/TECH-TREE.md §6.4 P05]"',
+    evidence: 'safetyIdeas.ts:72-74 "fit + 0.3 OOM (coverage and AI taste rise) [D: the size of the Deep research scaffold on internal research ideas, R20 B3 / design/archive/TECH-TREE.md §6.4 P05]"',
   },
   {
     id: 'saf.P27_AAR.autoGap',
@@ -1460,7 +1460,7 @@ export const PARAMS_SAFETY_DATA = defineParams([
     unit: 'OOM',
     area: 'safety', layer: 'world',
     kind: 'designer',
-    evidence: 'safetyIdeas.ts:102-105 "fit + `fitOom` × √(capacity ÷ SERIOUS_CAP) ... [D: at a serious programme the size of the Deep research scaffold and of P27\'s harness, R20 B3 / design/TECH-TREE.md §6.4 P05; the square root is the lines\' diminishing returns]"',
+    evidence: 'safetyIdeas.ts:102-105 "fit + `fitOom` × √(capacity ÷ SERIOUS_CAP) ... [D: at a serious programme the size of the Deep research scaffold and of P27\'s harness, R20 B3 / design/archive/TECH-TREE.md §6.4 P05; the square root is the lines\' diminishing returns]"',
   },
 
   // ───────────────────────── framework.ts ─────────────────────────

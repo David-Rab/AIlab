@@ -1,9 +1,9 @@
-// AI27 v2 — THE engine contract (state shape + engine interfaces). Source: design/v2-interfaces.ts, design/V2-SPEC.md.
+// AI27 v2 — THE engine contract (state shape + engine interfaces). Source: design/archive/v2-interfaces.ts, design/V2-SPEC.md.
 //
 // OWNERSHIP: only WS1 edits this file (V2-SPEC §8.4 rule 1). Other workstreams request changes by PR comment;
 // WS1 merges within one day and bumps SCHEMA_REV in core/save.ts on any breaking change.
 //
-// Deviations from design/v2-interfaces.ts (M0):
+// Deviations from design/archive/v2-interfaces.ts (M0):
 //  - SystemCtx gains `bump()` (apply + record a cause) and `day`; `cause()` only records.
 //  - BotPolicy.id gains 'capex2x' (V2-SPEC §7.2 F8 bot).
 //  - EngineApi.tick accepts optional TickOptions (tests inject probe systems).
@@ -2437,7 +2437,7 @@ export type Cadence = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semiannual
 export interface SystemCtx {
   /** Current day (after the clock system has advanced it). */
   readonly day: Day;
-  /** Named RNG stream (§2.4). Draw only from your own workstream's streams (see design/V2-CONTRACT.md). */
+  /** Named RNG stream (§2.4). Draw only from your own workstream's streams (see design/archive/V2-CONTRACT.md). */
   rng(stream: StreamId): RngLike;
   /** Record a cause for a meter change you already applied (§2.6). Does NOT change the meter. */
   cause(key: string, delta: number, source: string, detail?: string): void;

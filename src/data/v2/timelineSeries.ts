@@ -1,10 +1,10 @@
-// GENERATED, DO NOT EDIT. N1 (design/npc/NPC-TASKS.md): the reference frontier of each timeline draw: the AI Futures Model run's own progress (effective compute,
+// GENERATED, DO NOT EDIT. N1 (design/archive/npc/NPC-TASKS.md): the reference frontier of each timeline draw: the AI Futures Model run's own progress (effective compute,
 // OOM), relative to its value at 2025.445, on a grid of 0.1 yr (the rollouts' own). The game's G of the reference lab is G(V0) + P (design/bal/FIXC-TRANSLATION.md section 2).
 // Source: aifm-public commit 1c40ecdb246c25980515441a66571931c5604e11, Eli's Q2 config (aifm-runs/configs/eli.yaml, sha256 e9bc58a133276b5a159ffaf787543e2e74c1391f93cb8731bd1bdf8f9d77a23a),
 //   rollouts eli_1/20261125_200520, eli_2/20261125_203610, eli_3/20261125_211211 (the same as timelineDraws.ts; same run order).
 // Script: aifm-runs/scripts/fixc_series.py. Values rounded to 4 significant digits. Grid: every 0.1 yr from 2025.5 to min(the run's ASI date + 2 yr, 2060)
 //   (2060 for a run that never reaches ASI); P is 0 at 2025.445 by definition. Row i of each timeline is the run `runs[i]` of timelineDraws.ts.
-// P is the run's `progress` (the integrated effective compute), NOT software_efficiency + training_compute (those do not add up, design/npc/N1-RESULT.md).
+// P is the run's `progress` (the integrated effective compute), NOT software_efficiency + training_compute (those do not add up, design/archive/npc/N1-RESULT.md).
 // P may dip in some runs; readers use its running maximum where they need an inverse. G0 = G(V0) of the timeline's preset (the one gSC of timelineDraws.ts is built on).
 
 export const SERIES_FROM = 2025.5;

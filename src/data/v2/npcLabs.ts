@@ -88,7 +88,7 @@ export interface NpcCastEntry {
 // Release cadence, days: ONE typical public-flagship interval for every kind (designer: the background labs need the right
 // shape, not reality lab by lab). Median of 27 intervals between successive new-best-ECI models of OpenAI, Anthropic, Google
 // DeepMind, xAI, Meta and DeepSeek, Jan 2023 to 1 Jul 2025; range 15-317 days [P epoch.ai/data/eci_scores.csv, fetched
-// 2026-11-27; per-lab lists in design/npc/N2a2-RESULT.md].
+// 2026-11-27; per-lab lists in design/archive/npc/N2a2-RESULT.md].
 export const RELEASE_CADENCE_DAYS = 119;
 
 // Safety emphasis = today's safetyInvestment, race response = today's raceRelaxation [repo src/data/v2/postures.ts:6-16].

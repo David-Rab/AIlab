@@ -190,7 +190,7 @@ check(at['2026-12-31'].U - U0 < 0.3, 'Late 2026: aggregate U < +0.3 pp', `${(at[
 // 2027's date and the spread are printed with them. Under --smoke (seed 2027 only) they print SMOKE.
 {
   const recs = [timingOf(c), ...TIMING_SEEDS.map((x) => timingRec(x))];
-  // `info`: printed, never binding. CAL3-I (design/RD-AUDIT/DECISIONS.md "After CAL2"): the two Oct 2027 labour rows are
+  // `info`: printed, never binding. CAL3-I (design/archive/RD-AUDIT/DECISIONS.md "After CAL2"): the two Oct 2027 labour rows are
   // AI 2027 scenario projections (research/01 row 37), like F11's floor, not measurements.
   const dateCheck = (key: 'hire10' | 'remote25' | 'u12' | 'accept85', iso: string, label: string, info = false) => {
     const days = recs.map((r) => r[key] ?? Infinity);

@@ -1,4 +1,4 @@
-// B3: the World panel's sector view (design/V3-BUILD.md "B3 notes"). Output-only readouts of what the sector economics
+// B3: the World panel's sector view (design/archive/V3-BUILD.md "B3 notes"). Output-only readouts of what the sector economics
 // (worldfx/sectors.ts, mix.ts, serving.ts, use.ts, revenue.ts) already compute: adoption in two quantities (firm task
 // adoption A vs workers using AI W and hours of use U), feasibility F, cost gate K, friction R and the binding limit, who
 // pays for the hours, providers' coverage and prices vs the wage, and the sector's work type. No mechanism, no state.

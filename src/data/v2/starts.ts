@@ -35,7 +35,7 @@ export interface StartDef {
    *  leader start, the calibration anchor, researches them) and nodes whose prerequisites are not known are skipped. */
   known: string[];
   /** Live products and the product tools built at the start. RF-P1: the tools the analogue lab had shipped by 2025-07-01
-   *  (leader OpenAI, challenger Anthropic, big tech Google; sources: design/RD-AUDIT/BUILD-NOTES.md RF-P1). MK-11: the old
+   *  (leader OpenAI, challenger Anthropic, big tech Google; sources: design/archive/RD-AUDIT/BUILD-NOTES.md RF-P1). MK-11: the old
    *  features mapped to tools (data/v2/tools.ts TOOL_FROM_FEATURE); Voice & vision is Chat-only, so its media work on
    *  the API moved to Creative studio where the analogue had shipped image generation (OpenAI, Google; not Anthropic). */
   products: StartProduct[];

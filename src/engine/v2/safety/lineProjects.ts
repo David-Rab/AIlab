@@ -1,4 +1,4 @@
-// Safety projects on the shared project stepper (RD-R02b, design/RD-AUDIT/SAFETY-REDESIGN.md §3.1). Owner: WS2.
+// Safety projects on the shared project stepper (RD-R02b, design/archive/RD-AUDIT/SAFETY-REDESIGN.md §3.1). Owner: WS2.
 //
 // A safety project asks one question: does this node's technique / finding work? It runs as RD-R05's unlock projects do:
 // one test (SafProjectState: work / workNeed = the agenda's T₁ months at reference inputs) that the science teams and the

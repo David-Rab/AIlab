@@ -1,4 +1,4 @@
-// Model v3 V1 capability core (design/V3-BUILD.md V1.6; MODEL-V3 §2–§4; research/20 §A, §C). Owner: WS1.
+// Model v3 V1 capability core (design/archive/V3-BUILD.md V1.6; MODEL-V3 §2–§4; research/20 §A, §C). Owner: WS1.
 //   Physical quantities: FLOP = 6ND; overtraining and repetition as effective-compute fractions; RL curve monotone and
 //   bounded by its ceiling; distillation never above the teacher; continued pretraining adds effective compute; wall
 //   time ∝ 1/compute with no floor; a fixed physical run gives the same G whatever its start date (the v2 calendar

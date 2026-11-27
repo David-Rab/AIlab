@@ -1,5 +1,5 @@
 // World model mix: which providers' models each sector in each region uses, what they offer on the sector's work and at
-// what price (V2-SPEC §3.11.1; model v3 V4: design/MODEL-V3.md §7.3–7.4, design/V3-BUILD.md "V4 notes"). Owner: WS5.
+// what price (V2-SPEC §3.11.1; model v3 V4: design/MODEL-V3.md §7.3–7.4, design/archive/V3-BUILD.md "V4 notes"). Owner: WS5.
 //
 // Providers: the player (RD-P03: each of its paid sector products its own seller inside the choice, sharing the
 // player's brand and reach; its fit / level readouts are its best product's), the player's open-weights release, each

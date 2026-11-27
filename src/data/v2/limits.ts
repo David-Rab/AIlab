@@ -1,4 +1,4 @@
-// Limit registry (STRUCTURE R11, design/LIMITS.md "Show" verdicts). Every cap, floor, threshold or gate the player can
+// Limit registry (STRUCTURE R11, design/archive/LIMITS.md "Show" verdicts). Every cap, floor, threshold or gate the player can
 // hit is listed here once, with its rule, its source and the screen where it binds. The UI marks the element that shows
 // it with `data-limit="<id>"` (component `Limit` in src/ui/v2/ui.tsx, which also renders the rule and source as a
 // tooltip); scripts/v2/uitest.mjs checks every id appears on its home screen. Limits whose home is the codex (internal

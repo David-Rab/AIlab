@@ -1,5 +1,5 @@
 // Which model a sector's buyers choose for a task: a discrete choice on surplus over bands of task difficulty (task A5;
-// design/V3-BUILD.md "A5 notes"). Owner: WS5. Pure: worldfx/mix.ts builds the lineups and reads the result.
+// design/archive/V3-BUILD.md "A5 notes"). Owner: WS5. Pure: worldfx/mix.ts builds the lineups and reads the result.
 //
 //   tasks      the coverage function a = σ((fit − θ_s)/s)·p(H_s | h50) (V3) is the share of a sector's tasks a model does
 //              alone: tasks differ in difficulty around θ_s with the same spread s, so a model with coverage a does the

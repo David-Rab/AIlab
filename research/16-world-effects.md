@@ -1,6 +1,6 @@
 # 16 — World effects: sectors, AI integration, world technologies, macro, headlines
 
-Date: 2026-11-13. Scope: the missing "outside world" (design D9, `design/REDESIGN.md` §8b). It covers what deployed models change, how fast, and how that feeds back into the actors in `07-actors.md` and `08-policy-ecosystem.md`.
+Date: 2026-11-13. Scope: the missing "outside world" (design D9, `design/archive/REDESIGN.md` §8b). It covers what deployed models change, how fast, and how that feeds back into the actors in `07-actors.md` and `08-policy-ecosystem.md`.
 
 **Tags**
 - **[A27]** AI 2027 text: main page, `/race`, `/slowdown`. I re-read the economic passages verbatim this session (quotes in §N1).
@@ -813,4 +813,4 @@ Each fires once (or with a cooldown). Headlines are terse ("UI: single words / s
 - IEA Energy and AI executive summary: https://www.iea.org/reports/energy-and-ai/executive-summary ; FDA AI device list: https://www.fda.gov/medical-devices/artificial-intelligence-enabled-medical-devices/list-artificial-intelligence-enabled-medical-devices
 - AMIE: https://doi.org/10.1038/s41586-025-08866-7 ; AlphaQubit: https://doi.org/10.1038/s41586-024-08148-8
 
-**Project research files used:** `research/01-scenario-events.md` (AI 2027 beats and dashboard), `research/07-actors.md` (JobAnxiety, Concern, activism ladder), `research/08-policy-ecosystem.md` (blocs), `research/09-reality-check.md` (Canaries 2026, AI share of GDP growth), `design/REDESIGN.md` §8b.
+**Project research files used:** `research/01-scenario-events.md` (AI 2027 beats and dashboard), `research/07-actors.md` (JobAnxiety, Concern, activism ladder), `research/08-policy-ecosystem.md` (blocs), `research/09-reality-check.md` (Canaries 2026, AI share of GDP growth), `design/archive/REDESIGN.md` §8b.

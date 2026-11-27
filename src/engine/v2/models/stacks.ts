@@ -1,4 +1,4 @@
-// Recipe stacks (model v3 V2: design/MODEL-V3.md §5.5, design/V3-BUILD.md V2.1, V2.6, V2.7). Owner: WS1.
+// Recipe stacks (model v3 V2: design/MODEL-V3.md §5.5, design/archive/V3-BUILD.md V2.1, V2.6, V2.7). Owner: WS1.
 //
 // The lab's recipe efficiency is a set of stacks built from adopted ideas, not a know-how number:
 //   pre     pretraining efficiency e_pre (OOM of effective compute; paradigm-tier ideas make it a function of the run's

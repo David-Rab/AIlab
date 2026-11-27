@@ -287,7 +287,7 @@ const load = (i: number) => deserialize(fixtures[i]);
 // Same metric as WS1's calib T3 (leadBetween vs the player = WS1 trueLeadDays) on real RefBot play with no theft,
 // sampled daily over days 30–540: the mean is 150–200 d and the 10th–90th percentile range lies within 75–275 d (model
 // v3 F2: AI 2027's claim is a typical lag of about six months, not a bound on every day; between DeepCent's bases,
-// 9.6–14.4 months apart, the lead rises a day a day by construction, so the min and max are INFO; design/V3-BUILD.md, F2 notes);
+// 9.6–14.4 months apart, the lead rises a day a day by construction, so the min and max are INFO; design/archive/V3-BUILD.md, F2 notes);
 // a theft then puts China ≈ 60 d behind; the R10 gap formula matches the simulated start lead within ±2 months.
 {
   const T3_SEEDS = SMOKE ? 2 : 8;

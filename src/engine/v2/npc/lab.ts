@@ -27,7 +27,7 @@ import { decimalYear, quarterIndex } from '../core/time';
 import type { GameStateV2, SetupV2, LabId, NpcLabState, RivalLab, SafetyPosture, SimpleModel, StaffByRole, TimelineWorld } from '../types';
 
 
-// ───────────────────────────── parameters (N2b-1; new, listed in design/npc/N2b1-RESULT.md) ─────────────────────────────
+// ───────────────────────────── parameters (N2b-1; new, listed in design/archive/npc/N2b1-RESULT.md) ─────────────────────────────
 
 /** Days per month for the cast's lags in months (d₀ = 30.4 × months behind the leader) [D]. */
 export const DAYS_PER_MONTH = 30.4;

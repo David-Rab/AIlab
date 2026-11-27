@@ -1,5 +1,5 @@
-// Capability research projects (model v3 V2/V3: design/MODEL-V3.md §5, §6, §8; design/V3-BUILD.md V2.2–V2.6, V3.4; content
-// design/TECH-TREE.md §6). Owner: WS1. Safety research runs the single-test form of this lifecycle (an unlock project's:
+// Capability research projects (model v3 V2/V3: design/MODEL-V3.md §5, §6, §8; design/archive/V3-BUILD.md V2.2–V2.6, V3.4; content
+// design/archive/TECH-TREE.md §6). Owner: WS1. Safety research runs the single-test form of this lifecycle (an unlock project's:
 // stepTest / stepProject dept 'saf') and shares its science-work rate (sciWorkRate), taste helpers (sciTasteOf) and experiment
 // labour (expLabour) with it (safety/lineProjects.ts; design/bal/SAFETY-UNIFY.md for the rest); the remaining rolled nodes
 // run on models/tree.ts, until RD-R04 (SYNTHESIS §6 Phase 3) moves them onto this engine.

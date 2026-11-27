@@ -1,4 +1,4 @@
-// Work types and AI labour (model v3 V3: design/MODEL-V3.md §6, §8; design/V3-BUILD.md V3.1–V3.5 and "V3 notes"). Owner: WS1.
+// Work types and AI labour (model v3 V3: design/MODEL-V3.md §6, §8; design/archive/V3-BUILD.md V3.1–V3.5 and "V3 notes"). Owner: WS1.
 // Tags: [R20 xx] research/20, [R13 §x] research/13, [R19] research/19, [D] design value, [fit] fitted by the calibration
 // harness (scripts/v2/calib.ts --fit-v3).
 //
@@ -260,7 +260,7 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMEN
  *  −0.044 y; passing 30.12–30.19); authors2026 33.30 → 33.295 (SC +0.033, SAR +0.088, SIAR −0.019, ASI −0.005; passing
  *  33.27, 33.295, 33.305, 33.315, 33.318, failing 33.26, 33.285, 33.30, 33.308, 33.312, 33.325–33.34, F4); fast and slow
  *  kept.
- *  F4 multi-seed refit (T1 binds on the MEDIAN over the 20 seeds of scripts/v2/calseeds.ts; `calscan.ts t1`; design/notes/
+ *  F4 multi-seed refit (T1 binds on the MEDIAN over the 20 seeds of scripts/v2/calseeds.ts; `calscan.ts t1`; design/archive/notes/
  *  F4.md): the one-seed values put the median world 0.05–0.38 y late (ai2027 SC +0.170: 11 of 20 seeds wait for the B4
  *  release on day 700 because P08 continual learning, prior 0.7, comes late or fails; authors2026 SAR … ASI +0.32 …
  *  +0.38; fast SC / SAR +0.21 / +0.23). ai2027 (and sampled) (30.12, 2.2, 0.5) → (30.15, 2.9, 1.25): AI taste at SC
@@ -288,7 +288,7 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMEN
  *  on ASI +0.14…+0.17 or SC −0.09, at 4.75 ASI +0.13…+0.25). fast G_SC 31.2 → 31.175 (worst 0.86: SC +0.022 / SAR +0.096 /
  *  SIAR −0.022 / ASI −0.103 y; 31.15 passes at 0.91; 31.1 1.13, 31.2 1.10, 31.225 1.10, 31.25 1.23, 31.3 1.59 fail):
  *  structural as before.
- *  CP3j (after CP3g's RL scaling and start equilibrium; calscan.ts t1, 20 seeds; design/RD-AUDIT/BUILD-NOTES.md "CP3j
+ *  CP3j (after CP3g's RL scaling and start equilibrium; calscan.ts t1, 20 seeds; design/archive/RD-AUDIT/BUILD-NOTES.md "CP3j
  *  preset refit"): ai2027 (and sampled) (30.15, 2.9, 1.25) → (30.15, 1.8, 0.5): sd_SC at AIFM's sourced median 0.5 (1.25
  *  was a fit), Δ_bm 1.8 inside AIFM's taste slope 0.8–6.6 SD per 2025-year (Δ_bm 0.56–6.0, median 1.6–2.1); G_SC 30.15
  *  ⇔ an SC 80% horizon of ≈ 24 h (3 work-days), inside the AI 2027 timelines forecast's range (Nikola p10 16 h … Eli p90 1,200
@@ -306,7 +306,7 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMEN
  *  per progress-year to per OOM by its present-day progress rate, 1.618 OOM/yr in its golden run, so Δ_bm = 3.09·1.618/2.3).
  *  G_SC 33.45 kept [D stand-in]: Eli's AC is anchored by uplift (the horizon "has no effect on AC" in that mode), so the
  *  horizon-law mapping does not give it; it needs AIFM's progress at AC for Eli's medians (not run). Not refitted.
- *  CAL-T (calscan.ts t1, 20 seeds, at the CAL-W values; design/RD-AUDIT/BUILD-NOTES.md "CAL-T refit"): fast G_SC 31.35 →
+ *  CAL-T (calscan.ts t1, 20 seeds, at the CAL-W values; design/archive/RD-AUDIT/BUILD-NOTES.md "CAL-T refit"): fast G_SC 31.35 →
  *  31.25 (SC −0.055 / SAR +0.099 / SIAR +0.071 / ASI +0.101 y, worst 0.84 tolerances; 31.2 fails on SC −0.093, 31.3 on SAR
  *  +0.137 / SIAR +0.155; inside Daniel's AC horizon range 31.1–35.3). authors2026 G_SC 33.45 → 33.1, fitted to SC (the
  *  value's meaning; still a stand-in for AIFM's progress at AC on Eli's medians): SC −0.029 at 33.0, +0.079 at 33.2,
@@ -316,7 +316,7 @@ export const DAY0_REF = { re: 11 * 0.88, agents: 3e4, flop: 1e6 * DAY0_EXPERIMEN
  *  (CAL1), 2856 d at 37.4, 3121 d = 2034.04 at 38.3. A stand-in for the source's slower horizon trend (METR 7-month
  *  doubling), which no mechanism carries (designer question pending); the source's own h_SC 120 work-months is G_SC ≈ 34.9.
  *  CAL2-T (sourced, not fitted; one run of the AI Futures Model, aifm-public 1c40ecd, on its preset "Eli's median
- *  parameters (08/16/26)" with Eli's Q2-sheet taste slope 2.3 and median-to-top 4; design/RD-AUDIT/BUILD-NOTES.md
+ *  parameters (08/16/26)" with Eli's Q2-sheet taste slope 2.3 and median-to-top 4; design/archive/RD-AUDIT/BUILD-NOTES.md
  *  "CAL2-T"): authors2026 G_SC 33.1 → 34.09 and sd_SC 0.5 → 2.94, both read at AIFM's AI2027-SC, the milestone the
  *  preset's golden SC is (research/11 #8: SC = AC + 0.52). G_SC = G(V0) 27.627 + AIFM progress at AI2027-SC 40.223 −
  *  its progress at V0's date (2025.445) 33.757 (34.27 by V0's 41-min p80 horizon instead of its date); sd_SC = AIFM's AI

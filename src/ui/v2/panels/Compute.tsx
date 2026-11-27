@@ -1,4 +1,4 @@
-// Compute (design/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
+// Compute (design/archive/ux/COMPUTE.md). Overview (L1): three verdicts, the capacity and fleet forecast, and three ways to add
 // compute (chips, data centres, cloud) with fine options folded away, and the Sites rows under the chart. Tab (L2): Orders &
 // market (deliveries, cloud and the chip market on one tab). The compute allocation lives on LAB (UB-5), linked from the header.
 // HOME of idle chips, empty racks, vendor fill, the forecast, sites & power, the split, orders, cloud contracts and the

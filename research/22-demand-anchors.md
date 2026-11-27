@@ -1,9 +1,9 @@
 # 22 - Demand anchors 2025-26: hours of use, consumers, tokens, revenue, spend, developers
 
-Calibration research for the physical serving model (V4a, design/V3-BUILD.md "V4 notes"). V4a found the world's revenue
+Calibration research for the physical serving model (V4a, design/archive/V3-BUILD.md "V4 notes"). V4a found the world's revenue
 demand-bound. Sector adoption is fitted to *firm* adoption, so AI covers ~2% of work-hours in 2026. At $1.7-3.2 per
 hour of use, the world market comes to ~$60B and the leader gets ~$20B (F7 band $36-54B). This file collects measured
-demand quantities. It sets no revenue target. Written 2026-11-19 (task A1, design/V3-TASKS.md).
+demand quantities. It sets no revenue target. Written 2026-11-19 (task A1, design/archive/V3-TASKS.md).
 
 **Read with:** research/16 §1A and N2a (sectors, g_aug, Bick et al. 2024, BTOS), research/20 §D (FLOP/token, tokens per
 task, list prices).

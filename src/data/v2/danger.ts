@@ -13,7 +13,7 @@
 //                     catch = the deployment's monitor (same-lineage collusion) and, internally, human review
 //   severity        = f_k + ⌊span_k · C_k · A·F + u⌋, u ~ U[0,1), clamped to 1..5 (stakes = capability × opportunity per
 //                     copy: the same act is worse from a capable model with long tasks and real affordances)
-// Values marked [D] are design; [C] are calibrated against the reference run (design/notes/E5.md).
+// Values marked [D] are design; [C] are calibrated against the reference run (design/archive/notes/E5.md).
 import type { Channel, DomainId, FootholdKind, TraitId } from '../../engine/v2/types';
 
 export interface ActDef {

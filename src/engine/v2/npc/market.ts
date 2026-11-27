@@ -20,11 +20,11 @@ import type { GameStateV2, RivalLab, SimpleModel, TimelineWorld } from '../types
 // ───────────────────────────── lineups (RD-P02) ─────────────────────────────
 
 /** RD-P02 [D]: days from a release to its distilled students on sale: Haiku 4.5 matched Sonnet 4 five months after it
- *  (design/V3-TASKS.md TIERS2). One lag for every lab: a stated stand-in for the distill run's length and the release
+ *  (design/archive/V3-TASKS.md TIERS2). One lag for every lab: a stated stand-in for the distill run's length and the release
  *  work (DD-18). */
 export const RIVAL_DISTILL_LAG_DAYS = Math.round(5 * 30.4);
 /** RD-P02 [D]: the most models a rival lineup keeps besides its public model (the oldest on sale leave first; bounds the
- *  market's work): the labs' pricing pages list 4–6 current text models (design/RD-AUDIT/BUILD-NOTES.md RD-P02). */
+ *  market's work): the labs' pricing pages list 4–6 current text models (design/archive/RD-AUDIT/BUILD-NOTES.md RD-P02). */
 export const RIVAL_LINEUP_MAX = 6;
 const STUDENT_SUFFIX = ['mini', 'micro', 'nano'];
 

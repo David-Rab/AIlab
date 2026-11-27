@@ -1,5 +1,5 @@
 // Revenue per product: demand in AI work-hours (sectors) and subscribers (consumer) × the product's price, against its
-// serving capacity (V2-SPEC §3.11.3; model v3 V4.2: design/MODEL-V3.md §7.3, design/V3-BUILD.md "V4 notes"). Owner: WS5.
+// serving capacity (V2-SPEC §3.11.3; model v3 V4.2: design/MODEL-V3.md §7.3, design/archive/V3-BUILD.md "V4 notes"). Owner: WS5.
 //
 //   use_s,r     = U_s·E0_s·2000   hours of AI use (A2a, worldfx/use.ts): U = A + h_s·(W − A), every task-hour firms
 //                 handed to AI (A, research/16) plus workers' assisted use (W workers, h_s of their other hours)

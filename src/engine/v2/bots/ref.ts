@@ -95,7 +95,7 @@ const listedLines = (c: RefBotSettings): { id: string; w: number }[] => c.resear
 /** Teams wanted on each of RefBot's paradigm projects [D]: v2's auto-assign put most of its science teams on its one or
  *  two queued paradigms; the v3 reference lab also runs its lines, so it staffs each paradigm bet with three teams and
  *  gives the lines the rest. (A fixed 70% line share was tried: it fitted the lines more evenly across worlds but moved
- *  the ai2027 takeoff out of tolerance; design/V3-BUILD.md V2 notes.) */
+ *  the ai2027 takeoff out of tolerance; design/archive/V3-BUILD.md V2 notes.) */
 /** L15: teams a follower start adds per role and month: the people of one team of the old sizes (150 / 100 / 40), in teams of 100 / 50 / 20. */
 const FOLLOWER_GROW_TEAMS: Record<TeamRole, number> = { eng: Math.round(150 / TEAM_SIZE.eng), re: Math.round(100 / TEAM_SIZE.re), sci: Math.round(40 / TEAM_SIZE.sci) };
 /** (settings.ideaTeams, 3 standard teams = 6 teams of 20 since L15) */

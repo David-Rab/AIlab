@@ -1,8 +1,8 @@
-// Safety research lines on the project mechanism (model v3 E1; design/notes/E1.md). Owner: WS2.
+// Safety research lines on the project mechanism (model v3 E1; design/archive/notes/E1.md). Owner: WS2.
 // Reference inputs reproduce research/14's T₁ pacing; engineers, compute and AI labour speed the stages through the
 // capability projects' experiment CES; taste lowers the belief noise; result types still follow the hidden efficacy.
 // Model v3 E2 (§5b): AI labour from the SAF_EXP / SAF_IDEAS work types through the capabilities labour function, the
-// Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/notes/E2.md).
+// Trusted-to-AI share, parity with capability work, sabotage ∝ the work AI does (design/archive/notes/E2.md).
 import { AGENDA_BY_ID, AGENDA_IDS, SAF_RE_ASK, SAF_STAGES, SERIOUS_CAP } from '../../src/data/v2/agendas';
 import { PROJECT_BY_ID, lineNodeId } from '../../src/data/v2/tree';
 import { defaultSetupV2, newGame } from '../../src/engine/v2/core/init';

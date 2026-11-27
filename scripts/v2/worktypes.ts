@@ -1,4 +1,4 @@
-// Model v3 V3 tests: work types, AI labour, research speed, milestones (design/V3-BUILD.md V3.7). Owner: WS1.
+// Model v3 V3 tests: work types, AI labour, research speed, milestones (design/archive/V3-BUILD.md V3.7). Owner: WS1.
 //   coverage is monotone in fit and horizon; copies ∝ compute ÷ FLOP per token; effective labour = humans when coverage
 //   is 0; a line with constant inputs reproduces r; doubling project FLOP speeds a compute-bound experiment and not a
 //   labour-bound one (and vice versa for labour); milestones fire in order SC → SAR → SIAR → ASI; a fixed lab's research
@@ -218,7 +218,7 @@ const mk = (seed = 21, world: 'tl-central' | 'tl-fast' = 'tl-central'): GameStat
   // Allowed: the definitions (production/ces.ts, world/), rivals / China / the leader lab
   // (actors/), the reference bot (bots/: the calibration harness's policy), the compute-split module that defines the
   // reference split and offers it as a player preset (departments/split.ts) and the selector re-exports; any other line
-  // must name the RD plan item that removes it ("until RD-U06", design/RD-AUDIT/SYNTHESIS.md §6; RD-C06 replaced the
+  // must name the RD plan item that removes it ("until RD-U06", design/archive/RD-AUDIT/SYNTHESIS.md §6; RD-C06 replaced the
   // old V6 / V7 bridge tags).
   const ALLOWED = ['production/ces.ts', 'world/', 'actors/', 'bots/', 'departments/split.ts', 'core/selectors.ts'];
   const bad: string[] = [];

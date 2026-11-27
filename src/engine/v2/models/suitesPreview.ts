@@ -1,4 +1,4 @@
-// Environment suites: output-only previews for the suites view (model v3 D6; design/notes/D6.md). Owner: WS1.
+// Environment suites: output-only previews for the suites view (model v3 D6; design/archive/notes/D6.md). Owner: WS1.
 //
 // What one build or hardening pass on a family's suite would do to a planned post-training run: the run's RL gain per
 // domain (planRun(...).g.rl) and its reward-hacking signal S2 (postSignals), before and after. The "after" is read from

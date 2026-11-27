@@ -15,7 +15,7 @@ import { decimalYear } from '../core/time';
 import { clockOfGAt, persOf } from './lab';
 import type { GameStateV2, LabId, RivalLab } from '../types';
 
-// ───────────────────────────── parameters (N6; listed in design/npc/N6-RESULT.md) ─────────────────────────────
+// ───────────────────────────── parameters (N6; listed in design/archive/npc/N6-RESULT.md) ─────────────────────────────
 
 /** Theft: days China needs to integrate stolen weights (adapt, serve, post-train them on its own stack), the one typical
  *  value [P]: AI 2027's China, after stealing Agent-2, is about 2 months behind (it goes from about 6 to 2; the old

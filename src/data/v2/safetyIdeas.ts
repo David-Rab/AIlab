@@ -1,4 +1,4 @@
-// The four safety ideas on the tech tree that act on the safety mechanisms (model v3 E13; design/TECH-TREE.md §6.4).
+// The four safety ideas on the tech tree that act on the safety mechanisms (model v3 E13; design/archive/TECH-TREE.md §6.4).
 // Owner: WS2. Each is a typed effect with a unit, acting through a v3 mechanism (engine: safety/ideas.ts):
 //   P14 interp-guided training      → the post-training trait step (growth × (1 − k·d), d = the white-box probes'
 //                                      detection of the trait at the new model's capability) + Goodhart masks on WB
@@ -71,7 +71,7 @@ export const FAITHFUL_COT = { dOom: -0.29, fptMult: 1.2, monitorability: 0.98, r
  * "well-characterized" failures with benchmarks [V]). It acts on E2's safety AI labour, not on a speed factor:
  * - `fitOom`: the AAR harness is a research scaffold for the safety package on SAF_EXP and SAF_IDEAS: fit + 0.3 OOM
  *   (coverage and the assist rise; AI taste rises too but speeds no safety rate, models/research.ts sciWorkRate) [D: the size of the Deep research scaffold on internal research ideas, R20 B3 /
- *   design/TECH-TREE.md §6.4 P05].
+ *   design/archive/TECH-TREE.md §6.4 P05].
  * - `autoGap`: each agenda's automation factor Auto (research/14: AI speeds the work whose outputs can be checked,
  *   Carlsmith 2025 [V]) closes this share of its gap to 1: Auto' = 1 − (1 − Auto)·(1 − 0.5) [D: the harnesses turn
  *   part of each line's open-ended work into benchmarked sub-problems; AG12 0.2 → 0.6, AG01 0.6 → 0.8].
@@ -101,7 +101,7 @@ export const F44_AAR = { agendas: ['AG18', 'AG03', 'AG16'] as const, gapBM: 1 } 
  * automated grading that turn safety research into checkable tasks (Carlsmith 2025: evaluable research automates [V]).
  * A scaffold on the safety package's SAF_EXP and SAF_IDEAS work: fit + `fitOom` × √(capacity ÷ SERIOUS_CAP), capacity
  * counted up to LINE_MULT_MAX (the old Major) [D: at a serious programme the size of the Deep research scaffold and of
- * P27's harness, R20 B3 / design/TECH-TREE.md §6.4 P05; the square root is the lines' diminishing returns]. Replaces
+ * P27's harness, R20 B3 / design/archive/TECH-TREE.md §6.4 P05; the square root is the lines' diminishing returns]. Replaces
  * v2's ×(1 + √(capacity ÷ SERIOUS_CAP)) on the agents' AI team-equivalents (removed in model v3 E14), which did almost
  * nothing in v3: the coding CES saturates in AI input once AI team-equivalents exceed the humans' (day 400: 604 vs 1).
  */

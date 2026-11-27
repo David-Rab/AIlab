@@ -1,7 +1,7 @@
 // Production readouts, knowledge diffusion to the player and the daily data accruals
 // (production system). Owner: WS1.
 //
-// The player (model v3 V3: design/V3-BUILD.md V3.4): research speed comes from each project's explicit compute and
+// The player (model v3 V3: design/archive/V3-BUILD.md V3.4): research speed comes from each project's explicit compute and
 // labour (models/research.ts, the AI Futures experiment CES at project level) and AI labour per work type
 // (departments/workfit.ts). For the player this file builds only the READOUT (ProductionReadout: label, labour, ratios)
 // from what that engine did on its last day (research.last). RD-R01: no aggregate AI R&D multiplier M or elasticities

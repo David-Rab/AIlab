@@ -1,4 +1,4 @@
-// Model v3 V2a research tests (design/V3-BUILD.md V2.9; MODEL-V3 §5, §8). Owner: WS1.
+// Model v3 V2a research tests (design/archive/V3-BUILD.md V2.9; MODEL-V3 §5, §8). Owner: WS1.
 //   Lifecycle order (ideation → small experiments → scale test → result → adoption → known); only finished projects
 //   can be adopted; the risk policy changes the pursued candidate; better taste lowers belief error; a failed project
 //   reopens as speculative; line priors decline but their sum diverges (model v3 V3: the pool form from r); the assignment

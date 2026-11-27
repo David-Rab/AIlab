@@ -11,7 +11,7 @@ import { mWorld } from './misalignment';
 import { decimalYear } from '../core/time';
 import type { GameStateV2, LabId, RivalLab } from '../types';
 
-// ───────────────────────────── parameters (N2b-2; new, listed in design/npc/N2b2-RESULT.md) ─────────────────────────────
+// ───────────────────────────── parameters (N2b-2; new, listed in design/archive/npc/N2b2-RESULT.md) ─────────────────────────────
 
 /** Months to the nearest competitor at and beyond which race pressure is 0 [D, NPC-LABS §4]. */
 export const RACE_MONTHS = 3;

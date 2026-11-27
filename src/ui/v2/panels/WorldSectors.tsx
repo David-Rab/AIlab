@@ -1,4 +1,4 @@
-// World › Sectors (model v3 B3; design/V3-BUILD.md "B3 notes"). L1: the region's work strip (workers using AI, hours of
+// World › Sectors (model v3 B3; design/archive/V3-BUILD.md "B3 notes"). L1: the region's work strip (workers using AI, hours of
 // use, hours saved, paid seats, agent-hours) and the sector heatmap (hours of use, automated share or your share, US /
 // CN / ROW). L2: the selected sector's card: adoption in two quantities (firm task adoption A vs workers using AI W and
 // hours of use U), the limits F × K × (1 − R) with the binding one, who pays for the hours, and each provider's share,

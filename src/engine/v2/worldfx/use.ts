@@ -1,4 +1,4 @@
-// Hours of AI use in a sector (A2a; research/22 §1, design/V3-BUILD.md "A2a notes") and who pays for them (A2c; research/22
+// Hours of AI use in a sector (A2a; research/22 §1, design/archive/V3-BUILD.md "A2a notes") and who pays for them (A2c; research/22
 // §4–6, "A2c notes"). Owner: WS5. Pure functions of the sector state and data (no imports from other worldfx modules, so
 // sectors, serving and revenue can all use them).
 //

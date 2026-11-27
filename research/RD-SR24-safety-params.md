@@ -1,6 +1,6 @@
 # RD-SR24: safety parameters (organisms, collusion, undetected hacking)
 
-SR-24 in design/RD-AUDIT/SAFETY-REDESIGN.md §8.2. It feeds §3.2 (validation, organism realism, OD-7), §3.3 (catch × (1 − collusion), §6 row 9), §6 rows 1 and 17 (blind-gap amplifier → "undetected hacking reinforced", OD-3 b) and the DECISIONS.md rule "organism realism only if research finds a range".
+SR-24 in design/archive/RD-AUDIT/SAFETY-REDESIGN.md §8.2. It feeds §3.2 (validation, organism realism, OD-7), §3.3 (catch × (1 − collusion), §6 row 9), §6 rows 1 and 17 (blind-gap amplifier → "undetected hacking reinforced", OD-3 b) and the DECISIONS.md rule "organism realism only if research finds a range".
 Primary sources only. Mapping grades: **direct** (the measured quantity is the game quantity), **proxy** (a related quantity, mapping stated), **none**.
 Research only: no code was changed.
 

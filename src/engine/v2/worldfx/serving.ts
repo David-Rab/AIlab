@@ -1,4 +1,4 @@
-// Serving economics and sector work on work types (model v3 V4: design/MODEL-V3.md §6, §7.2–7.4; design/V3-BUILD.md
+// Serving economics and sector work on work types (model v3 V4: design/MODEL-V3.md §6, §7.2–7.4; design/archive/V3-BUILD.md
 // "V4" and "V4 notes"). Owner: WS5. Data: src/data/v2/serving.ts.
 //
 //   cost per work-hour  c = H100e-hours per work-hour × $ per H100e-hour (market rental: the opportunity cost of a chip)

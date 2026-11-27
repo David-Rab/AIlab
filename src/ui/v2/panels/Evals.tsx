@@ -1,4 +1,4 @@
-// Models › Evals (model v3 D8; design/notes/D8.md): evaluations as work. Home of the standing eval policy's cost and
+// Models › Evals (model v3 D8; design/archive/notes/D8.md): evaluations as work. Home of the standing eval policy's cost and
 // re-run rule (evalPolicyView), the eval queue (evalQueueView: progress, finish date, what binds), the order controls
 // (depth pick, evaluator, previewed cost: the runEvals preview) and each version's measurement quality (evalMeasureView:
 // band, suites, last suite's depth and date, next policy re-run). L1: the queue and the measurement bands. L2: the

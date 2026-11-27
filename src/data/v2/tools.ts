@@ -23,7 +23,7 @@
 // performance source (Back-office agent, Defence & intelligence suite), so they carry over the adaptation's effect.
 //
 // Tags: [P] primary source, same model; [P-analogue] primary, but the comparison changes more than the harness;
-// [D] design value. Sources: research/MARKET-sources.md §5 (cited "§5"), design/RD-AUDIT/BUILD-NOTES.md RF-P1 (vendor
+// [D] design value. Sources: research/MARKET-sources.md §5 (cited "§5"), design/archive/RD-AUDIT/BUILD-NOTES.md RF-P1 (vendor
 // pages, checked), research/CAL-products-sources.md (today's feature values).
 import type { Channel, SectorId, TraitId } from '../../engine/v2/types';
 import type { FeatureFx, FeatureId } from './features';

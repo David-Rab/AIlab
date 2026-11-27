@@ -1,5 +1,5 @@
 // Work types: a model's fit, horizon, coverage and assist; AI labour; effective labour; research taste; the work-type
-// milestones; the research-speed readout (model v3 V3: design/MODEL-V3.md §6, §8; design/V3-BUILD.md V3.2–V3.5 and "V3
+// milestones; the research-speed readout (model v3 V3: design/MODEL-V3.md §6, §8; design/archive/V3-BUILD.md V3.2–V3.5 and "V3
 // notes"). Owner: WS1. Data: src/data/v2/workTypes.ts.
 //
 //   fit        F_w = Σ_d ω_w,d · G_d (OOM; G_d the version's domain effective compute, design offsets included)

@@ -50,7 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { FIXTURE_DIR, SMOKE, check, finish, smokeCheck, validateJson } from './lib';
 import { cached, pick, prefill } from './simcache';
 
-// M4: the M2 deferrals (F7 capex/valuation, F8 distress-free share) now pass on integrated play; see design/PROGRESS.md.
+// M4: the M2 deferrals (F7 capex/valuation, F8 distress-free share) now pass on integrated play; see design/archive/PROGRESS.md.
 
 const START = '2025-07-01';
 const END_2026 = dayOfDate(START, '2027-01-01');

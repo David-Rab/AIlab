@@ -92,7 +92,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
     value: 152,
     unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'stand-in',
     evidence: 'npc/market.ts (was rivalModel.ts:817-819) "RD-P02 [D]: days from a release to its distilled students on sale ... a stated stand-in for the distill run\'s length and the release work (DD-18)"',
-    notes: 'Haiku 4.5 matched Sonnet 4 five months after it (design/V3-TASKS.md TIERS2).',
+    notes: 'Haiku 4.5 matched Sonnet 4 five months after it (design/archive/V3-TASKS.md TIERS2).',
   },
   {
     id: 'act.RIVAL_LINEUP_MAX',
@@ -412,7 +412,7 @@ export const PARAMS_ACTORS_ENGINE = defineParams([
   // ───────────────────────── NPC labs (N2b-1 .. N8b; design/npc/NPC-LABS.md): parameters named in the N*-RESULT.md notes ─────────────────────────
   {
     id: 'act.npc.DAYS_PER_MONTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'DAYS_PER_MONTH' }, value: 30.4,
-    unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "Days per month for the cast lags in months [D]"', source: 'design/npc/N2b1-RESULT.md',
+    unit: 'days', area: 'actors', layer: 'world', actor: 'rivals', kind: 'designer', evidence: 'npc/lab.ts "Days per month for the cast lags in months [D]"', source: 'design/archive/npc/N2b1-RESULT.md',
   },
   {
     id: 'act.npc.CHINA_PLAN_GROWTH', ref: { kind: 'export', module: 'src/engine/v2/npc/lab.ts', symbol: 'CHINA_PLAN_GROWTH' }, value: 2,
