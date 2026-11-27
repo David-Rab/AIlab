@@ -58,10 +58,16 @@ Out of scope: the four markets and the rival labs themselves, and calibration of
     groups, and each game draws one run.
   - The AIFM has no government, public or economy. So:
     - the shared history, to late 2026, is calibrated to the real series in SOURCES.md;
-    - after that, every world beat is keyed to the drawn run's milestones (SC = AC, SAR, ASI) through the game's own
-      milestone predicates, never to a calendar date.
-  - AI 2027's dated beats are not targets. Its dates sit on its own fast timeline. At most, its order of reactions
-    ("security, then clearances, then oversight") may inform a shape, if the designer agrees.
+    - after that, every world beat is keyed to the milestones actually **achieved in the game**, by the player or
+      any NPC lab, through the game's milestone predicates. Beats are never keyed to the timeline's milestone dates,
+      nor to any calendar date. The designer: "i don't want to be tied to the milestone dates in the timelines
+      themselves - rather to the milestones that are achieved in the game".
+    - The timeline dates enter only through the NPC lead lab, which is calibrated so it reaches the timeline's
+      milestones (NPC-LABS, the reference frontier). In a run without a player, the world's beats therefore land near
+      the timeline's dates without reading them.
+  - AI 2027's dates are not targets. AI 2027 **is** a fine inspiration for the order of the US government's reactions,
+    and for its options and events (designer: "we can still totally be inspired by AI27 for things like the order of
+    the US gov reactions and options and events").
   - The horizon follows the timeline. The ASI medians are about 2030 (fast), 2033 (central) and 2046 (slow), so the
     world has to stay sane over a 20-year slow run.
 - **R5. Levers through normal business.** The player moves these actors by what the lab does anyway: security,

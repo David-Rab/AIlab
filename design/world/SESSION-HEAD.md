@@ -89,3 +89,12 @@ outsiders see of you", or cut? (4) the parallel calibration work on `bal`: own b
 > should go.
 > and we will need to cleanup the rest of the game setup that is related to this (government, public, china, economy,
 > storyteller (should that go as junk?))
+
+## 8. Milestones achieved in the game; AI 2027 as inspiration
+
+> and i don't want to be tied to the milestone dates in the timelines themselves - rather to the milestones that are
+> achieved in the game, and the rivals will (the lead lab of them) will need to be aligned with the timelines
+> milestones (calibrated)
+>
+> we can still totally be inspired by AI27 for things like the order of the US gov reactions and options and events
+> and things.

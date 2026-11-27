@@ -240,8 +240,8 @@ as [D] game values, not source numbers), and the footnote text. The Slowdown end
 ## 10. Suggested targets (spec number to series or beat)
 
 > **Lead note, 2026-11-27:** the timelines are AI Futures Model runs (see the balance work), not AI 2027. The AI 2027
-> rows below are NOT date targets. At most they give the order of reactions relative to milestones. Future beats are
-> keyed to the drawn run's milestones (OUTSIDE-WORLD §2 R4).
+> rows below are NOT date targets. They may inspire the order of reactions, options and events. Future beats are
+> keyed to milestones achieved in the game (OUTSIDE-WORLD §2 R4).
 
 | Spec number (OUTSIDE-WORLD) | Calibrate to | Value and note |
 |---|---|---|
