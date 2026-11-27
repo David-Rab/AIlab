@@ -367,13 +367,13 @@ export function labourOf(s: GameStateV2, slot: CapSlot, scale: { h?: number; k?:
  *  work not handed is done by humans unassisted. So the AI share is A = t·a and the human share's speed-up is the
  *  time-weighted (Amdahl) mean: (1 − A) ÷ ((1 − t) + t·(1 − a)/assist). At t = 1 this is effLabour exactly (the
  *  capabilities slots' function); at t = 0 the humans alone. Returns L, m = L/H and the humans' share of the margin wH. */
-export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H: number, AI: number, assist: number): { L: number; m: number; wH: number; A: number; assist: number } {
+export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H: number, AI: number, assist: number): { L: number; m: number; wH: number; A: number; assist: number; aiTaskShare: number; regime: 'shared' | 'boundary' } {
   const tt = Math.max(0, Math.min(1, t));
-  if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1 };
+  if (tt <= 0 || H <= 1e-12) return { L: H, m: 1, wH: 1, A: 0, assist: 1, aiTaskShare: 0, regime: 'shared' };
   const A = tt * Math.max(0, Math.min(1, a));
   const as = tt >= 1 ? assist : A >= 1 - 1e-12 ? assist : (1 - A) / (1 - tt + (tt * (1 - Math.min(1, a))) / assist);
-  const { L, wH } = labourSplit(P, A, H, AI, as);
-  return { L, m: L / H, wH, A, assist: as };
+  const { L, wH, aiTaskShare, regime } = labourSplit(P, A, H, AI, as);
+  return { L, m: L / H, wH, A, assist: as, aiTaskShare, regime };
 }
 
 /** UB-2: a labour slot as the lab measures and believes it: the work fit read from the AI staff model's MEASURED skills
@@ -381,10 +381,10 @@ export function handedLabour(P: Pick<ProdParams, 'rc'>, a: number, t: number, H:
  *  effective compute, with the same owned-tool effects (the slot's fit minus the model's own, a fact of the tools the lab
  *  built); coverage, win rate and assist from that fit on the public reference points; work done from the BELIEVED
  *  production parameters (production/believed.ts). Humans, AI team-equivalents, copies and compute are facts. */
-export interface MeasuredLabour { fit: WorkFit; L: number; m: number; wH: number; A: number; measured: boolean }
+export interface MeasuredLabour { fit: WorkFit; L: number; m: number; wH: number; A: number; measured: boolean; aiTaskShare: number; regime: 'shared' | 'boundary' }
 export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   const v = sl.versionId ? s.player.models.versions.find((x) => x.id === sl.versionId) : undefined;
-  if (!v) return { fit: sl.fit, L: sl.H, m: sl.H > 1e-12 ? 1 : 0, wH: 1, A: 0, measured: false }; // no model: no fit to read
+  if (!v) return { fit: sl.fit, L: sl.H, m: sl.H > 1e-12 ? 1 : 0, wH: 1, A: 0, measured: false, aiTaskShare: 0, regime: 'shared' }; // no model: no fit to read
   const w = s.hidden.timeline; // public reference points (G_SC, Δ_bm, level knots) only
   const gMeas = (d: DomainId) => gOfLevel(w, measuredDomainOf(s, v, d)) + domainRefShift(w, d);
   const ws = WORK_TYPES[sl.wt].w as Record<DomainId, number>;
@@ -395,7 +395,39 @@ export function measuredLabour(s: GameStateV2, sl: LabourOf): MeasuredLabour {
   const win = winRate(w, sl.wt, fit);
   const f: WorkFit = { fit, best: sl.fit.best, med: sl.fit.med, h50, a: coverage(w, sl.wt, fit, h50), win, assist: assistOf(win) };
   const r = handedLabour(believedProd(s).mid, f.a, sl.t, sl.H, sl.AI, f.assist);
-  return { fit: f, L: r.L, m: r.m, wH: r.wH, A: r.A, measured: v.evals.measuredL !== undefined };
+  return { fit: f, L: r.L, m: r.m, wH: r.wH, A: r.A, measured: v.evals.measuredL !== undefined, aiTaskShare: r.aiTaskShare, regime: r.regime };
+}
+
+/** LABOUR-ROUND.md §2.1: the margins of one labour job, on the BELIEVED labour (measuredLabour: the same inputs as Best
+ *  moves, never the true hidden fit). The two steps are definitions, not tuned numbers: +10% AI compute (the AI
+ *  team-equivalents scale with the agents' compute, as labourOf's scale.k) and +1 team (one team-equivalent of the job's
+ *  role: H counts heads ÷ the job's team size WORK_TYPES[wt].heads, so +1 is one team of 150 engineers / 100 research
+ *  engineers / 40 scientists / the safety roles' sizes). */
+export const MARGIN_COMPUTE = 1.1;
+export const MARGIN_TEAMS = 1;
+export interface LabourMargins {
+  /** What AI can do alone on this job: its coverage a (safety: t × a). */
+  canDo: number;
+  /** What it does now: min(A, ai ÷ (h + ai)), the AI share of the tasks in the optimal split. */
+  doingNow: number;
+  /** 'ai': AI staff are the bottleneck (AI and humans share the covered tasks); 'people': AI takes every task it can and
+   *  the humans are the bottleneck. */
+  bottleneck: 'ai' | 'people';
+  /** Work done gained by +10% AI compute and by +1 team, as L(new) ÷ L − 1 (0 when the job has no humans, L = 0). */
+  plusCompute: number;
+  plusTeam: number;
+}
+export function labourMargins(s: GameStateV2, slot: LabourSlot): LabourMargins {
+  const sl = slot === 'SAF_EXP' ? safetyLabour(s).exp : slot === 'SAF_IDEAS' ? safetyLabour(s).ideas : workContext(s).slots[slot];
+  const ml = measuredLabour(s, sl);
+  const rel = (x: LabourOf) => (ml.L > 1e-12 ? measuredLabour(s, x).L / ml.L - 1 : 0);
+  return {
+    canDo: ml.A,
+    doingNow: Math.min(ml.A, ml.aiTaskShare),
+    bottleneck: ml.regime === 'shared' ? 'ai' : 'people',
+    plusCompute: rel({ ...sl, AI: sl.AI * MARGIN_COMPUTE }),
+    plusTeam: rel({ ...sl, H: sl.H + MARGIN_TEAMS }),
+  };
 }
 
 /** UB-2: the AI taste inputs as the lab believes them: AI research taste (SDs above the median scientist) from the
