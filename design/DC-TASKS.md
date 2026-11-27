@@ -821,8 +821,11 @@ to the agent (branch `dc-15`); results in `design/dc/DC-15.md`. Sonnet high.
      suite `scripts/v2/sites.ts` registered in `scripts/v2/run.ts` (quick tier, `--only sites`), keeping every
      assertion that still describes the design; rewrite DC-4's stale single-building cases (1.5 / 2 GW buildings) as
      1 GW × buildings; delete the `_dcN` directories. Delete any `_f10tmp`-style temp dirs that are tracked.
+  5. `src/engine/v2/finance/runway.ts` (~line 111) projects a leased campus as one lease from the last building
+     (reads the total `lease.funded`): make it project one lease per building from each building's live quarter, using
+     DC-15's `lease.byBuilding` / `SiteSchedule.etaQs` (see design/dc/DC-15.md). Single-building results unchanged.
   4. Mark V2-SPEC §3.8's site/power part and research/15 §1.3 as replaced by design/DATACENTERS.md (one line each).
-- **Write:** anything under `src/engine/v2/compute/`, `src/data/v2/deals.ts`, `src/engine/v2/index.ts`,
+- **Write:** `src/engine/v2/finance/runway.ts` (item 5 only), anything under `src/engine/v2/compute/`, `src/data/v2/deals.ts`, `src/engine/v2/index.ts`,
   `src/engine/v2/core/starts.ts`, `scripts/v2/` (the suite, run.ts registration, `_dcN` deletion), V2-SPEC and
   research/15 (one line each), `design/dc/DC-16.md`. Not: Compute.tsx (UI lane), glossary (L1), save.ts, fixtures.
 - **Done when:** tsc clean; `run.ts --only sites` passes; grep for the removed concepts returns only intended hits
