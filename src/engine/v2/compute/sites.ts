@@ -1,12 +1,14 @@
 // Data-centre sites: permits → power and construction side by side → live; installs (DATACENTERS.md §3, DC-TASKS
 // [D-4]..[D-7]). The power wait is fixed at commitment from the world wait (compute/waits.ts). Owner: WS3.
-import { BUILD_Q, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SCALE, SITE_MIN_MW, SOURCES, type SiteSource } from '../../../data/v2/deals';
+import { BUILD_Q, CAMPUS, CAPEX_LEASE, COMMUNITY, FACILITY_PER_GW, LESSOR, LEVERS, OPPOSITION, RENT, SCALE, SITE_MIN_MW, SOURCES, type CampusBuildings, type SiteSource } from '../../../data/v2/deals';
 import { crf, siteLeaseId, type SiteSchedule } from '../finance/capex';
-import { dayOfDate, dayOfQuarter } from '../core/time';
+import { dayOfDate, dayOfQuarter, quarterIndex } from '../core/time';
 import type { BaselineId, Day, EngineSystem, GameStateV2, Money, Site, SiteWS3, SystemCtx } from '../types';
 import { defaultSiteWS3, ensureWs3 } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
-import { siteCapacityH } from './power';
+import { siteCapacityH, siteLiveMW } from './power';
+
+export { siteLiveMW };
 import { worldWaitQ } from './waits';
 
 /** Player sites at Jul 2025 (DC-TASKS [D-10]): S1 rented hall and S2 grid campus live (0.6 GW, 0.5M H100e), S3 gas
@@ -50,17 +52,34 @@ export function oppositionOdds(s: GameStateV2, site: Pick<Site, 'path' | 'crash'
 /** Label of a block chance: < 4% low, < 10% medium, else high [D-6]. */
 export const oppositionLevel = (block: number): 'low' | 'medium' | 'high' => (block < 0.04 ? 'low' : block < 0.1 ? 'medium' : 'high');
 
-/** Site options of the build card. `pay`: cash, or a financing lease of 80% of capex (spec §4). `community` defaults
- *  to the company policy (policies.communityBenefits). Rent takes no speed-ups and no community package. */
-export interface SiteOpts { path: SiteSource; mw: number; crash?: boolean; rush?: boolean; fastTrack?: boolean; community?: boolean; pay?: 'cash' | 'lease'; leaseRate?: number; region?: Site['region']; name?: string }
+/** Site options of the build card. `mw`: the size of one building (DATACENTERS §5b; rent: the hall); `buildings`: 1, 3
+ *  or 5 of them on one campus (default 1; rent always 1), so the site is mw × buildings. `pay`: cash, or a financing
+ *  lease of 80% of capex (spec §4). `community` defaults to the company policy (policies.communityBenefits). Rent takes
+ *  no speed-ups and no community package. */
+export interface SiteOpts { path: SiteSource; mw: number; buildings?: CampusBuildings; crash?: boolean; rush?: boolean; fastTrack?: boolean; community?: boolean; pay?: 'cash' | 'lease'; leaseRate?: number; region?: Site['region']; name?: string }
 
 /** The options as the engine applies them: rent's levers forced off. */
 const levers = (o: SiteOpts): SiteOpts => (o.path === 'rent' ? { ...o, crash: false, rush: false, fastTrack: false, community: false } : o);
 
+/** Buildings on the site: rent 1, else the option (default 1). */
+export const siteBuildings = (o: Pick<SiteOpts, 'path' | 'buildings'>): number => (o.path === 'rent' ? 1 : o.buildings ?? 1);
+/** The whole site's MW: building MW × buildings. */
+export const campusMW = (o: Pick<SiteOpts, 'path' | 'mw' | 'buildings'>) => o.mw * siteBuildings(o);
+const fmtMW = (mw: number) => (mw >= 1000 ? `${+(mw / 1000).toFixed(2)} GW` : `${Math.round(mw)} MW`);
+/** Why these options cannot be built, or undefined: buildings not 1, 3 or 5, or the campus total over the source's
+ *  size cap (grid and rent ≤ 1 GW, gas ≤ 5 GW per site; DATACENTERS §5b). */
+export function siteSizeError(o: SiteOpts): string | undefined {
+  const n = siteBuildings(o);
+  if (!(CAMPUS.counts as readonly number[]).includes(n)) return 'A campus has 1, 3 or 5 buildings';
+  const max = SOURCES[o.path].maxMW;
+  if (campusMW(o) > max + 1e-9) return `${n} × ${fmtMW(o.mw)} = ${fmtMW(campusMW(o))} is more than one ${o.path} site holds (${fmtMW(max)})`;
+  return undefined;
+}
+
 /** Permit quarters: the source's, − 1 with fast-track (gas 2 → 1, grid 1 → 0). */
 export const sitePermitQ = (o: SiteOpts) => Math.max(0, SOURCES[o.path].permitQ - (levers(o).fastTrack ? LEVERS.fastTrack.permitQ : 0));
-/** Construction quarters: rent 0 (the landlord builds); else the source's × (GW / refGW)^0.3 (bigger sites take longer,
- *  more slowly than their size), × 0.5 with crash construction, at least 1. */
+/** Construction quarters of one building (`o.mw`): rent 0 (the landlord builds); else the source's × (building GW /
+ *  refGW)^0.4 (bigger buildings take longer, more slowly than their size), × 0.5 with crash construction, at least 1. */
 export const siteBuildQ = (o: SiteOpts) => (o.path === 'rent' ? 0
   : Math.max(1, Math.round(SOURCES[o.path].buildQ * Math.pow(o.mw / 1000 / SCALE.refGW, SCALE.buildTimeExp) * (levers(o).crash ? LEVERS.crash.buildMult : 1))));
 
@@ -74,26 +93,38 @@ export function sitePowerQ(s: GameStateV2, o: SiteOpts): number {
   return Math.max(1, Math.round(w));
 }
 
-/** Quarters from commitment to live: permits + max(construction, power); rent: its power (hall) wait. */
+/** Quarters from commitment to each building going live (DATACENTERS §5b): building k (k = 0, 1, …) at permits +
+ *  max(power, construction + k); rent: its power (hall) wait. */
+export function siteBuildingLiveInQ(s: GameStateV2, o: SiteOpts): number[] {
+  if (o.path === 'rent') return [sitePowerQ(s, o)];
+  const p = sitePermitQ(o), b = siteBuildQ(o), w = sitePowerQ(s, o);
+  return Array.from({ length: siteBuildings(o) }, (_, k) => p + Math.max(w, b + k));
+}
+/** Quarters from commitment to the first building live: permits + max(construction, power); rent: its hall wait. */
 export function siteLiveInQ(s: GameStateV2, o: SiteOpts): number {
-  if (o.path === 'rent') return sitePowerQ(s, o);
-  return sitePermitQ(o) + Math.max(siteBuildQ(o), sitePowerQ(s, o));
+  return siteBuildingLiveInQ(s, o)[0];
+}
+/** Quarters to the last building live (= siteLiveInQ for one building). */
+export function siteLastLiveInQ(s: GameStateV2, o: SiteOpts): number {
+  const q = siteBuildingLiveInQ(s, o);
+  return q[q.length - 1];
 }
 /** Old name of siteLiveInQ (the engine barrel and the build card still import it). */
 export const siteEtaQ = siteLiveInQ;
 
-/** Capex ($B) of a new site: GW × (source upfront + extra, + crash 35% of the building, + rush (grid $0.3B/GW; gas 30%
- *  of the turbines), + fast-track 5% of the building, + community $1B/GW). The building (grid/gas upfront) falls per GW
- *  with size, × (GW / refGW)^−0.1, and crash and fast-track are shares of that scaled building. Rent: the network
- *  fit-out only, unscaled. */
+/** Capex ($B) of a new site, per GW of the whole campus (DATACENTERS §5b): the building (grid/gas upfront) × (1 −
+ *  repetition discount: 3 buildings 10%, 5 buildings 15%), + crash 35% and fast-track 5% of that discounted building,
+ *  + extra (turbines, utility upgrades), rush (grid $0.3B/GW; gas 30% of the turbines) and community $1B/GW,
+ *  undiscounted. Rent: the network fit-out only. */
 export function siteCapex(o: SiteOpts): Money {
   const x = levers(o);
   const src = SOURCES[o.path];
+  const n = siteBuildings(o);
   const rush = x.rush ? (o.path === 'grid' ? LEVERS.rushGrid.perGW : o.path === 'gas' ? LEVERS.rushGas.turbineShare * src.extraPerGW : 0) : 0;
-  const building = o.path === 'rent' ? src.upfrontPerGW : src.upfrontPerGW * Math.pow(o.mw / 1000 / SCALE.refGW, SCALE.costExp);
+  const building = o.path === 'rent' ? src.upfrontPerGW : src.upfrontPerGW * (1 - (CAMPUS.discount[n as CampusBuildings] ?? 0));
   const perGW = building + src.extraPerGW + (x.crash ? LEVERS.crash.buildingShare * building : 0) + rush
     + (x.fastTrack ? LEVERS.fastTrack.buildingShare * building : 0) + (x.community ? LEVERS.community.perGW : 0);
-  return (o.mw / 1000) * perGW;
+  return (campusMW(o) / 1000) * perGW;
 }
 
 /** Add the community package ($1B per GW, block odds × 0.5) to a site not yet past its permitting roll. Returns false
@@ -105,11 +136,11 @@ export function addCommunityPackage(site: Site): boolean {
   return true;
 }
 
-/** What one speed-up does at the build card's current toggles: `on` (as given), quarters it saves, its price ($B of
- *  capex) and, for the community package, the factor on the block odds. Each is the difference between the same site
- *  with that lever forced on and forced off, the other toggles as given (so crash saves 0 q on plain gas and 4 q with
- *  rush power). Rent has none: the object is empty. */
-export interface LeverEffect { on: boolean; savesQ: number; cost: Money; blockMult?: number }
+/** What one speed-up does at the build card's current toggles: `on` (as given), quarters it saves (first building;
+ *  `savesLastQ`: last building), its price ($B of capex) and, for the community package, the factor on the block odds.
+ *  Each is the difference between the same site with that lever forced on and forced off, the other toggles as given
+ *  (so crash saves 0 q on plain gas and 4 q with rush power). Rent has none: the object is empty. */
+export interface LeverEffect { on: boolean; savesQ: number; savesLastQ: number; cost: Money; blockMult?: number }
 export type LeverKey = 'crash' | 'rush' | 'fastTrack' | 'community';
 export function leverEffects(s: GameStateV2, o: SiteOpts): Partial<Record<LeverKey, LeverEffect>> {
   if (o.path === 'rent') return {};
@@ -117,7 +148,8 @@ export function leverEffects(s: GameStateV2, o: SiteOpts): Partial<Record<LeverK
   for (const k of ['crash', 'rush', 'fastTrack', 'community'] as const) {
     const on = { ...o, [k]: true }, off = { ...o, [k]: false };
     out[k] = {
-      on: !!o[k], savesQ: k === 'community' ? 0 : siteLiveInQ(s, off) - siteLiveInQ(s, on), cost: siteCapex(on) - siteCapex(off),
+      on: !!o[k], savesQ: k === 'community' ? 0 : siteLiveInQ(s, off) - siteLiveInQ(s, on),
+      savesLastQ: k === 'community' ? 0 : siteLastLiveInQ(s, off) - siteLastLiveInQ(s, on), cost: siteCapex(on) - siteCapex(off),
       ...(k === 'community' ? { blockMult: LEVERS.community.blockMult } : {}),
     };
   }
@@ -126,22 +158,30 @@ export function leverEffects(s: GameStateV2, o: SiteOpts): Partial<Record<LeverK
 
 /** Expected construction schedule of a new site (the lease preview's construction interest, FIN4r M3): quarters to
  *  go-live, construction quarters, and whether the first construction payment falls in the quarter construction starts.
- *  The engine always pays then (equal parts over the construction quarters [D-7]), so `firstNow` is true. */
+ *  The engine always pays then (equal parts over the construction quarters [D-7]), so `firstNow` is true. A campus's
+ *  lease starts when its last building is live: etaQ is that quarter and buildQ the span from the first building's
+ *  construction start (payments taken as equal over the span). */
 export function siteSchedule(s: GameStateV2, o: SiteOpts): SiteSchedule {
-  return { etaQ: siteLiveInQ(s, o), buildQ: siteBuildQ(o), firstNow: true };
+  const q = siteBuildingLiveInQ(s, o);
+  return { etaQ: q[q.length - 1], buildQ: siteBuildQ(o) + q[q.length - 1] - q[0], firstNow: true };
 }
 
 const SOURCE_LABEL: Record<SiteSource, string> = { rent: 'rented hall', grid: 'grid', gas: 'gas' };
 
-/** Start a new site. Pays 5% (BUILD_Q.upfront) of capex now (your share). Its power wait is fixed now [D-4]. Rent waits
- *  for its hall and adds the 5-year rent from go-live; grid and gas start permits (fast-tracked grid has none and rolls
- *  its opposition now). A financing lease (`pay: 'lease'`, not for rent) has the lessor fund 80% of capex as it is spent. */
+/** Start a new site (one building or a campus of 3 or 5). Pays 5% (BUILD_Q.upfront) of the whole capex now (your
+ *  share). Its power wait is fixed now [D-4]. Rent waits for its hall and adds the 5-year rent from go-live; grid and gas
+ *  start permits (fast-tracked grid has none and rolls its opposition now). A financing lease (`pay: 'lease'`, not for
+ *  rent) has the lessor fund 80% of capex as it is spent. Callers check siteSizeError first; here the building is
+ *  clamped to [100 MW, source cap] and a campus over the cap gets fewer buildings. */
 export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
   ensureWs3(s);
   const src = SOURCES[o.path];
   const rent = o.path === 'rent';
-  const mw = Math.max(SITE_MIN_MW, Math.min(src.maxMW, o.mw));
-  const opts = levers({ ...o, mw });
+  const bmw = Math.max(SITE_MIN_MW, Math.min(src.maxMW, o.mw));
+  const asked = siteBuildings(o);
+  const n = (rent ? 1 : [...CAMPUS.counts].reverse().find((c) => c <= asked && c * bmw <= src.maxMW + 1e-9) ?? 1) as CampusBuildings;
+  const mw = bmw * n;
+  const opts = levers({ ...o, mw: bmw, buildings: n });
   const leased = o.pay === 'lease' && !rent && o.leaseRate !== undefined;
   const spvFunded = leased ? CAPEX_LEASE.siteShare : 0;
   const q = qOf(s);
@@ -153,19 +193,20 @@ export function newSite(s: GameStateV2, ctx: SystemCtx, o: SiteOpts): Site {
     id, name: o.name ?? `${rent ? 'Hall' : 'Site'} ${s.player.sites.length + 1}`, region: o.region ?? 'US', path: o.path, mw,
     stage: rent ? 'power' : 'permitting', stageEndDay: 0, crash: !!opts.crash,
     capex: siteCapex(opts), capexPaid: 0, installed: 0, communityPackage: !!opts.community, spvFunded,
-    ws3: { ...defaultSiteWS3({ stage: 'permitting' }), rolled: rent, startDay: s.time.day, buildQ: siteBuildQ(opts), powerQ,
+    ws3: { ...defaultSiteWS3({ stage: 'permitting' }), rolled: rent, startDay: s.time.day, buildQ: siteBuildQ(opts), powerQ, buildings: n, buildingMW: bmw,
       ...(opts.rush ? { rush: true } : {}), ...(opts.fastTrack ? { fastTrack: true } : {}) },
   };
   if (leased) site.ws3.lease = { rate: o.leaseRate as number, funded: 0 };
   if (rent) {
     site.stageEndDay = site.ws3.powerDay = site.ws3.liveAt = dayOfQuarter(start, q + powerQ);
+    site.ws3.liveDays = [site.ws3.liveAt];
     yearStats(s).leaseFinanced += (mw / 1000) * FACILITY_PER_GW; // facility capex the landlord funds
     addLedger(s, { id: `L-rent-${id}`, payee: 'Data-centre rent', kind: 'lease', perQuarter: ((mw / 1000) * RENT.perGWYear) / 4, startDay: site.stageEndDay, endDay: site.stageEndDay + RENT.years * 365, cancellableNoticeQ: null, penalty: 0 });
   } else site.stageEndDay = dayOfQuarter(start, q + permitQ);
   s.player.sites.push(site);
   payCapex(s, ctx, site, site.capex * BUILD_Q.upfront);
   const extras = [opts.crash && 'crash construction', opts.rush && 'rush power', opts.fastTrack && 'fast-track permits'].filter(Boolean).join(', ');
-  ctx.log('company', `${site.name}: ${(mw / 1000).toFixed(1)} GW ${SOURCE_LABEL[o.path]} started${extras ? ` (${extras})` : ''}${leased ? ` (${Math.round(spvFunded * 100)}% funded by ${LESSOR} at ${((o.leaseRate as number) * 100).toFixed(0)}%)` : ''}.`);
+  ctx.log('company', `${site.name}: ${n > 1 ? `${n} × ${fmtMW(bmw)} ` : `${(mw / 1000).toFixed(1)} GW `}${SOURCE_LABEL[o.path]}${n > 1 ? ' campus' : ''} started${extras ? ` (${extras})` : ''}${leased ? ` (${Math.round(spvFunded * 100)}% funded by ${LESSOR} at ${((o.leaseRate as number) * 100).toFixed(0)}%)` : ''}.`);
   if (!rent && permitQ === 0) advanceSite(s, ctx, site, q); // fast-track grid: permits end now, the roll happens now
   return site;
 }
@@ -191,14 +232,15 @@ export function siteLeasePerYear(site: Site, funded = site.ws3.lease?.funded ?? 
   return site.ws3.lease ? funded * crf(site.ws3.lease.rate, CAPEX_LEASE.years.site) : 0;
 }
 
-/** Permits are over (un-blocked) in quarter `pq`: power is ready powerQ quarters later, construction is timed to end
- *  when power arrives (live = pq + max(construction, power)) [D-4]. */
+/** Permits are over (un-blocked) in quarter `pq`: power is ready powerQ quarters later; building k goes live at pq +
+ *  max(power, construction + k), its construction timed to end then (DATACENTERS §5b) [D-4]. */
 function schedule(s: GameStateV2, site: Site, pq: number) {
   const w = site.ws3;
   const start = s.time.startDate;
   const total = Math.max(w.buildQ, w.powerQ);
   w.powerDay = dayOfQuarter(start, pq + w.powerQ);
-  w.liveAt = dayOfQuarter(start, pq + total);
+  w.liveDays = Array.from({ length: w.buildings ?? 1 }, (_, k) => dayOfQuarter(start, pq + Math.max(w.powerQ, w.buildQ + k)));
+  w.liveAt = w.liveDays[0];
   const buildStart: Day = dayOfQuarter(start, pq + total - w.buildQ);
   if (buildStart <= s.time.day) startBuilding(s, site);
   else {
@@ -213,10 +255,14 @@ function startBuilding(s: GameStateV2, site: Site) {
   site.ws3.buildStartDay = s.time.day;
 }
 
+/** Every building is live: the rest of the capex is paid and a financing lease starts (a campus: at its last
+ *  building). */
 function goLive(s: GameStateV2, ctx: SystemCtx, site: Site) {
   payCapex(s, ctx, site, site.capex - site.capexPaid);
-  site.stage = 'live';
-  site.ws3.liveDay = s.time.day;
+  if (site.stage !== 'live') {
+    site.stage = 'live';
+    site.ws3.liveDay = s.time.day;
+  }
   ctx.log('company', `${site.name} is live: ${(site.mw / 1000).toFixed(1)} GW.`);
   if (site.ws3.lease) {
     const years = CAPEX_LEASE.years.site;
@@ -226,9 +272,44 @@ function goLive(s: GameStateV2, ctx: SystemCtx, site: Site) {
   }
 }
 
+/** Go-live days of a site's buildings (ws3.liveDays; a site without them is one building live at liveAt). */
+const liveDaysOf = (site: Site): Day[] => site.ws3.liveDays ?? [site.ws3.liveAt ?? site.stageEndDay];
+/** Is a live campus still building (its last building goes live on or after `day`)? */
+const stillBuilding = (site: Site, day: Day) => site.stage === 'live' && !!site.ws3.liveDays && site.ws3.liveDays[site.ws3.liveDays.length - 1] >= day;
+
+/** Construction quarter of a site in stage building or live (DATACENTERS §5b). The site is live from its first
+ *  building's day; when the last is live, goLive. Otherwise each building under construction (k = 0 from the stage,
+ *  later ones from live day − construction quarters) pays an equal part of what it has left a quarter: the capex left,
+ *  less a full share (95% ÷ buildings) for each building not started, spread over the quarters they have left. One
+ *  building: (capex − paid) ÷ quarters left, as before. */
+function buildStep(s: GameStateV2, ctx: SystemCtx, site: Site) {
+  const day = s.time.day;
+  const start = s.time.startDate;
+  const days = liveDaysOf(site);
+  const n = days.length;
+  let live = 0, before = 0;
+  for (const d of days) { if (d <= day) live++; if (d < day) before++; }
+  if (live === n) return goLive(s, ctx, site);
+  if (live > 0 && site.stage !== 'live') {
+    site.stage = 'live';
+    site.ws3.liveDay = day;
+  }
+  if (live > before) ctx.log('company', `${site.name}: building ${live} of ${n} live (${fmtMW(siteLiveMW(site, day))} of ${fmtMW(site.mw)}).`);
+  const share = (site.capex * (1 - BUILD_Q.upfront)) / n;
+  let unstarted = 0, building = 0, qLeft = 0;
+  days.forEach((d, k) => {
+    if (d <= day) return;
+    const started = k === 0 || dayOfQuarter(start, quarterIndex(start, d) - site.ws3.buildQ) <= day;
+    if (!started) { unstarted++; return; }
+    building++;
+    qLeft += Math.max(1, Math.round((d - day) / 91));
+  });
+  if (building > 0) payCapex(s, ctx, site, (Math.max(0, site.capex - site.capexPaid - unstarted * share) * building) / qLeft);
+}
+
 /** Run a site's due stage changes in quarter `q` (sitesQ, and newSite for a fast-tracked grid site). Permits end: the
- *  opposition roll (once), then the schedule. Power due: construction starts (rent: live). Construction: an equal part
- *  of the capex left each quarter, the rest at go-live. */
+ *  opposition roll (once), then the schedule. Power due: construction starts (rent: live). Construction: buildStep (an
+ *  equal part a quarter of each building's capex left; the site is live from the first building, done at the last). */
 function advanceSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
   const day = s.time.day;
   if (site.stage === 'permitting') {
@@ -261,11 +342,7 @@ function advanceSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
     if (site.path === 'rent') return goLive(s, ctx, site);
     startBuilding(s, site);
   }
-  if (site.stage === 'building') {
-    if (site.stageEndDay <= day) return goLive(s, ctx, site);
-    const quartersLeft = Math.max(1, Math.round((site.stageEndDay - day) / 91));
-    payCapex(s, ctx, site, (site.capex - site.capexPaid) / quartersLeft);
-  }
+  if (site.stage === 'building' || site.stage === 'live') buildStep(s, ctx, site);
 }
 
 /** Advance one site by a quarter. Construction interest on the lessor's money is capitalised quarterly (it is repaid
@@ -275,14 +352,14 @@ function stepSite(s: GameStateV2, ctx: SystemCtx, site: Site, q: number) {
   advanceSite(s, ctx, site, q);
 }
 
-/** Install installable inventory into live sites with free MW (1-quarter install lag, R15 §1.3). */
+/** Install installable inventory into live sites with free MW in their live buildings (1-quarter install lag, R15 §1.3). */
 export function installInventory(s: GameStateV2): number {
   const inv = s.player.finance.ws3.inventory;
   if (inv.ready <= 0) return 0;
   let put = 0;
   for (const site of s.player.sites) {
     if (site.stage !== 'live' || inv.ready <= 0) continue;
-    const free = siteCapacityH(s, site.mw) - site.installed;
+    const free = siteCapacityH(s, siteLiveMW(site, s.time.day)) - site.installed;
     if (free <= 0) continue;
     const n = Math.min(free, inv.ready);
     site.installed += n;
@@ -310,7 +387,7 @@ export const sitesQSystem: EngineSystem = {
     const pw = s.power;
     if (q > 0) pw.kWPerH100e *= 0.944; // 1.26×/yr efficiency: 0.93 → 0.70 at Q4 2026 [R15, AI27]
     for (const src of WAIT_SOURCES) pw.waitHist[src].push(round1(worldWaitQ(s, src)));
-    for (const site of s.player.sites) if (site.stage !== 'live' && site.stage !== 'blocked') stepSite(s, ctx, site, q);
+    for (const site of s.player.sites) if ((site.stage !== 'live' || stillBuilding(site, s.time.day)) && site.stage !== 'blocked') stepSite(s, ctx, site, q);
     installInventory(s);
   },
 };

@@ -110,15 +110,13 @@ export const COMMUNITY = { upfront: 0.03, blockMult: 0.5, reactive: 0.15, reacti
 // Facility $11.4B/GW IT ≈ $10B/GW facility, network $4.9B/GW IT ≈ $4B/GW facility (Epoch, 14 May 2026) [R15].
 export const FACILITY_PER_GW = 10;
 export const NETWORK_PER_GW = 4;
-/** Data-centre sizes offered by the build card. Hall ≈ one ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two
- *  halls); campus ≈ the largest live sites in 2026 (~1 GW, Epoch AI data centers hub); multi-GW ≈ 5 GW announced
- *  campuses (Meta Hyperion) [D]. */
+/** Building sizes offered by the build card (DATACENTERS §5b: size = one building; rent: the hall size). Hall ≈ one
+ *  ~100 MW AI hall (Stargate Abilene phase 1: 206 MW over two halls); 1 GW ≈ the largest live sites in 2026 (Epoch AI
+ *  data centers hub) [D]. Bigger sites are campuses of several buildings (CAMPUS). */
 export const SITE_TIERS = [
   { id: 'hall', name: 'Hall', full: 'Data hall', mw: 100 },
   { id: 'building', name: 'Building', full: 'Data-centre building', mw: 300 },
   { id: 'campus', name: 'Campus', full: 'Campus', mw: 1000 },
-  { id: 'large', name: 'Large campus', full: 'Large campus', mw: 2500 },
-  { id: 'multi', name: 'Multi-GW', full: 'Multi-gigawatt campus', mw: 5000 },
 ] as const;
 /** Fixed chip order and cloud sizes, H100e [D]. */
 export const CHIP_TIERS = [100e3, 250e3, 500e3, 1e6, 2.5e6] as const;
@@ -143,8 +141,16 @@ export const SOURCES: Record<SiteSource, SourceDef> = {
   gas: { permitQ: 2, buildQ: 9.5, maxMW: 5000, upfrontPerGW: BUILDING_PER_GW, extraPerGW: 3, powerCostMult: 0.5, blockBase: 0.1, delayBase: 0.3 },
 };
 export const SITE_MIN_MW = 100;
-/** Size scaling (DATACENTERS §5b): construction quarters × (GW / refGW)^buildTimeExp; building $ per GW × (GW / refGW)^costExp. Time exponent 0.4 and 9.5 q at 1 GW: Epoch timelines fit (research/23 §9); cost exponent -0.05 is a design value at the top of what the data allow. */
-export const SCALE = { refGW: 1, buildTimeExp: 0.4, costExp: -0.05 } as const;
+/** Construction time of one building (DATACENTERS §5b): the source's quarters × (building GW / refGW)^0.4, 9.5 q at
+ *  1 GW (Epoch timelines fit, research/23 §9). No cost economy of size (research/23 §9: cost per MW flat or rising
+ *  with size); the saving comes from repetition (CAMPUS). */
+export const SCALE = { refGW: 1, buildTimeExp: 0.4 } as const;
+/** Campuses (DATACENTERS §5b): 1, 3 or 5 buildings of the same size on one site (grid, gas; rent is one hall).
+ *  Repeating the design cuts the building cost 10% (3) / 15% (5) (McKinsey: standardisation saves 10–20%
+ *  [unverified snippet]; values [design]). The source's size cap applies to the campus total. */
+export type CampusBuildings = 1 | 3 | 5;
+export const CAMPUS: { counts: readonly CampusBuildings[]; discount: Record<CampusBuildings, number> } = {
+  counts: [1, 3, 5], discount: { 1: 0, 3: 0.10, 5: 0.15 } };
 /** Speed-ups (DATACENTERS §5). */
 export const LEVERS = {
   crash: { buildMult: 0.5, buildingShare: 0.35, oddsMult: 1.5 },  // Colossus 2 in ~4 q for 1 GW (Epoch): half the construction time; premium, odds [design]

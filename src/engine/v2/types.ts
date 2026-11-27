@@ -1714,7 +1714,7 @@ export interface Site {
   id: string; name: string; region: 'US' | 'Gulf' | 'other';
   /** Power source (DATACENTERS §2): a rented hall, a grid connection or on-site gas turbines. */
   path: SiteSource;
-  mw: number; // facility MW capacity when live
+  mw: number; // facility MW of the whole site (all buildings); MW live on a day: siteLiveMW (compute/sites.ts)
   stage: 'permitting' | 'power' | 'building' | 'live' | 'blocked';
   stageEndDay: Day;
   crash: boolean;
@@ -1966,7 +1966,7 @@ export interface SiteWS3 {
   /** Opposition roll done (once, at the end of permitting). */
   rolled: boolean;
   delayedQ: number;
-  /** Planned construction quarters (8; 4 with crash construction; rent 0). */
+  /** Construction quarters of one building (siteBuildQ: 9.5 × GW^0.4, × 0.5 with crash construction; rent 0). */
   buildQ: number;
   /** Power wait in whole quarters, fixed at commitment from that day's world wait (DC-TASKS [D-4]); counted from the
    *  end of permits (rent: from commitment). */
@@ -1977,8 +1977,15 @@ export interface SiteWS3 {
   fastTrack?: boolean;
   /** Day the site's power is ready (set when permits end; rent: at commitment). */
   powerDay?: Day;
-  /** Planned go-live day (set when permits end; rent: at commitment). */
+  /** Planned go-live day of the first building (set when permits end; rent: at commitment). */
   liveAt?: Day;
+  /** Campus (DATACENTERS §5b): number of buildings (1, 3 or 5) and the MW of each; Site.mw = buildings × buildingMW.
+   *  Absent: one building of Site.mw (start sites). */
+  buildings?: number;
+  buildingMW?: number;
+  /** Planned go-live day of each building, k = 0 … buildings − 1: permits end + max(power, construction + k) quarters
+   *  (set with liveAt when permits end; rent: [liveAt]). Absent: [liveAt] (start sites). */
+  liveDays?: Day[];
   /** Financing lease (FIN1, spec §4): the lessor's annual return, locked when the site was started, and the amount it
    *  has funded so far with construction interest capitalised quarterly. Lease payments start at go-live. */
   lease?: { rate: number; funded: Money };
