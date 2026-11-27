@@ -55,7 +55,7 @@ export const CHINAGOV = {
   overrideConcern: 75,
   /** Weight theft (security/theft.ts): attempts from tension theftRung; intent = theftIntentBase + theftIntentPerRung ×
    *  tension (the old start intent 20 at rung 0) [D]. */
-  theftRung: 1,
+  theftRung: 2, // the old rule's theftMinRung 2: rung 1 is the acquisition push (talent, smuggling, distillation), weight theft starts at the collective
   theftIntentBase: 20,
   theftIntentPerRung: 20,
   /** Taiwan hazard (compute/market.ts): × (1 + taiwanPerRung × tension), plus taiwanCoercion a quarter from rung 3 (the

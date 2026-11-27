@@ -183,9 +183,9 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   check(w4 === 'war', 'war: the war ending within 24 quarters at tension 4', String(w4));
 }
 
-// Theft: tension 0 -> no Chinese attempts; tension 1 with a leading, attended player -> attempts.
+// Theft: weight theft starts at tension 2 (rung 1 is the acquisition push): none at 0 or 1; attempts at 2 with a leading, attended player.
 {
-  const attempts = (tension: 0 | 1) => {
+  const attempts = (tension: 0 | 1 | 2) => {
     const s = load('day900.json'); // the player leads China by over a year, attention 1
     s.chinagov.tension = tension;
     s.player.security.wsl = 1; // a lab at the industry floor (the security system raises it there)
@@ -196,8 +196,10 @@ const near = (a: number, b: number, tol = 1e-6) => Math.abs(a - b) <= tol * Math
   };
   const t0 = attempts(0);
   const t1 = attempts(1);
+  const t2 = attempts(2);
   check(t0.h === 0 && t0.n === 0, 'theft: tension 0 -> no Chinese theft attempts in 3 years', `hazard ${t0.h}, attempts ${t0.n}`);
-  check(t1.h > 0 && t1.n > 0, 'theft: tension 1, a leading attended player -> attempts in 3 years', `hazard ${t1.h.toFixed(4)}/day, attempts ${t1.n}`);
+  check(t1.h === 0 && t1.n === 0, 'theft: tension 1 (acquisition push) -> no weight theft in 3 years', `hazard ${t1.h}, attempts ${t1.n}`);
+  check(t2.h > 0 && t2.n > 0, 'theft: tension 2, a leading attended player -> attempts in 3 years', `hazard ${t2.h.toFixed(4)}/day, attempts ${t2.n}`);
 }
 
 finish('worldChina');
