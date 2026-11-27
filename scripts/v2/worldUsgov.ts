@@ -113,6 +113,13 @@ const clearMilestones = (s: GameStateV2) => {
   t.usgov.thefts = [t.time.day];
   step(t, 1);
   check(lawsInForce(t).exportPolicy === 'strict' && t.usgov.stage === 0, 'S7: a detected Chinese theft makes them strict at stage 0', `${lawsInForce(t).exportPolicy}, stage ${t.usgov.stage}`);
+  step(t, 300);
+  check(lawsInForce(t).exportPolicy === 'strict', 'S7: still strict 300 days after the theft', lawsInForce(t).exportPolicy);
+  step(t, 100);
+  check(lawsInForce(t).exportPolicy === 'caseByCase' && t.usgov.laws.exportStrict === undefined, 'S7: back to case-by-case 365 days after the theft with stage below 2', lawsInForce(t).exportPolicy);
+  s.usgov.stage = 1; // stage 2 held, then lost: strict goes off at once (monthly) with no theft
+  step(s, 40, (x) => { x.usgov.stage = 1; });
+  check(lawsInForce(s).exportPolicy === 'caseByCase', 'S7: stage falling below 2 with no recent theft returns case-by-case', lawsInForce(s).exportPolicy);
 }
 
 // Hard path: trust 15 held 90 days at stage 3 (a prominent player) -> nationalized, and the ending fires.

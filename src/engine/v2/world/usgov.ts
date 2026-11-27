@@ -58,6 +58,8 @@ export const USGOV = {
   /** Share of each US NPC lab's online compute pooled into the player under the DPA (AI 2027's Aug 2027 proposal moved
    *  20% to 50%, SOURCES.md §10) [sourced shape, D value]. */
   dpaShare: 0.5,
+  /** Strict chip export controls stay on this many days after the last detected Chinese theft (or while stage 2 or more holds) [D]. */
+  exportTheftDays: 365,
   /** Hard path: trust below this for hardHoldDays, or a leaked misalignment memo with concern above hardConcern [D]. */
   hardTrust: 20,
   hardHoldDays: 90,
@@ -201,7 +203,7 @@ function lawRules(s: GameStateV2, ctx: SystemCtx, sarSeen: boolean) {
   const leak = ws4r(s).misalignLeakDay !== undefined;
   const scare = leak || incidentHeat(s) > USGOV.scareHeat;
   const want: Record<CondLawId, boolean> = {
-    exportStrict: g.stage >= 2 || g.thefts.length >= 1,
+    exportStrict: g.stage >= 2 || (g.thefts.length > 0 && ctx.day - g.thefts[g.thefts.length - 1]! < USGOV.exportTheftDays),
     licensing: L.licensing !== undefined ? c >= USGOV.licensingOff + sh : (g.holdDays.licensing ?? 0) >= USGOV.licensingHoldDays,
     relief: L.relief !== undefined ? rise >= USGOV.reliefOffRise : rise > USGOV.reliefRise,
     ubi: L.ubi !== undefined || (L.relief !== undefined && ctx.day - L.relief >= USGOV.ubiHoldDays && rise > USGOV.reliefRise),

@@ -12,7 +12,7 @@ const USGOV_VALUES: Record<string, number> = {
   trustStart: 55, lagDays: 90, consolidateAfterDays: 180, consolidateConcern: 75, attentionMin: 0.5, securityMet: 1.5, securityMissed: -1,
   briefingFull: 0.5, coverupExposed: -6, theftFromYou: -5, misuseSev5: -8, clearMorale: -10, clearSecurity: 0.3, clearTrust: 10,
   resistTrust: -15, resistMorale: 3, oversightTrust: 10, refuseTrust: -10, reviewDays: 30, softTrust: 60, declineTrust: -10,
-  dpaShare: 0.5, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
+  dpaShare: 0.5, exportTheftDays: 365, hardTrust: 20, hardHoldDays: 90, hardConcern: 75, licensingOn: 70, licensingOff: 55, licensingHoldDays: 90,
   licensingFriction: 0.1, reliefRise: 1, reliefOffRise: 0.5, ubiHoldDays: 182, reliefRetrain: 0.2, ubiExitMult: 3, scareHeat: 6,
   hitlOn: 75, hitlOff: 55, hitlAlphaCap: 0.5, companionFactor: 0.8, sezOn: 60, sezOff: 70, fdaLagMult: 0.5, governmentTrust: 40,
   concernShift: 0,

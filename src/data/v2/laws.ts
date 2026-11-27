@@ -35,7 +35,7 @@ export const EXPORT_STEPS: { from: string; policy: ChipMarket['exportPolicy'] }[
 /** The US government's conditional laws: the rules (world/usgov.ts lawRules, thresholds in USGOV) and where each acts. */
 export interface CondLawRow { id: CondLawId; name: string; on: string; off: string; effect: string }
 export const COND_LAWS: CondLawRow[] = [
-  { id: 'exportStrict', name: 'Strict chip export controls', on: 'security stage 2, or a detected Chinese theft', off: 'neither holds', effect: 'compute/market.ts setExportPolicy (actorsDaily)' },
+  { id: 'exportStrict', name: 'Strict chip export controls', on: 'security stage 2, or a detected Chinese theft in the last 365 days', off: 'neither holds (back to the dated rows)', effect: 'compute/market.ts setExportPolicy (actorsDaily)' },
   { id: 'licensing', name: 'Frontier licensing', on: 'concern above 70 for 90 days', off: 'concern below 55', effect: 'worldfx/sectors.ts frictionOf (+0.1 LEGAL, HEALTH, FIN in the US); reportingLaw' },
   { id: 'relief', name: 'Worker relief', on: 'US unemployment up more than 1 point in 12 months', off: 'the rise under 0.5 points', effect: 'worldfx/sectors.ts retrainOf (+0.2)' },
   { id: 'ubi', name: 'Basic income', on: 'relief held 182 days with the rise still above 1 point', off: 'never (sticky)', effect: 'worldfx/sectors.ts displaced-pool exit x3; endings/scoring.ts' },
