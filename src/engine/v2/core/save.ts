@@ -11,7 +11,7 @@ import { deriveNames } from '../models/naming';
  *  BUILD-NOTES. Revs up to 103 are documented there.
  */
 // 112: the old world presets are removed (a world is one of the three timelines); old saves are invalid, no migration.
-export const SCHEMA_REV = 112;
+export const SCHEMA_REV = 113; // N2b-1: NPC labs from the Realistic cast (RivalLab.npc), no migration
 /** The oldest save that loads (DD-20, UB-3): a save below it is refused with OLD_SAVE_MESSAGE. */
 export const MIN_SCHEMA_REV = 103;
 /** What the player is told when a save is older than MIN_SCHEMA_REV. */

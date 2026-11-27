@@ -1,21 +1,13 @@
-// China: meters, presets, ladder, de-escalation, DeepCent lab, geopolitics (V2-SPEC §3.10.4; research/10). Owner: WS4.
+// China: meters, presets, ladder, de-escalation, its NPC lab, geopolitics (V2-SPEC §3.10.4; research/10). Owner: WS4.
 import { CHINA_PRESETS } from '../../../data/actors';
-import { CHINA_LAB_NAME, CHINA_MODEL_FAMILY } from '../../../data/v2/names';
-import { Rng, clamp } from '../../rng';
-
-import { normalizeSplit, shareRefAt } from '../departments/split';
+import { clamp } from '../../rng';
 import { CHINA_ID, activeRivals } from '../models/labs';
-import { initialSecurity } from '../security/security';
-import { drawLineageUModes } from '../world/hidden';
-import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, StaffByRole, SystemCtx } from '../types';
+import type { ChinaActor, EngineSystem, GameStateV2, HiddenWorld, SetupV2, SystemCtx } from '../types';
 import { cash, drift } from './fx';
-import { BASE_MONTHS, PHYS_PLACEHOLDER, goalpostsQ, rivalFinanceQ, simpleModel } from './rivals';
+import { goalpostsQ, rivalFinanceQ } from './rivals';
 import { lagDays } from '../models/capability';
-import { initRivalPhys } from './rivalModel';
-import { START_PUBLIC_GAP_OOM } from '../../../data/v2/rivalModel';
-import { PRE_GAME_G_PER_YEAR } from '../../../data/v2/runDesign';
-import { B0_DAY } from '../../../data/v2/calibration';
-import { toolsAtStart } from '../../../data/v2/tools';
+import { chinaCast, initialNpcLab } from '../npc/lab';
+import { START_DATE } from '../core/time';
 import { request, ws4 } from './state';
 import { KOREA_HAZARD_Q, koreaShock, setExportPolicy, taiwanHazardQ, taiwanShock } from '../compute/market';
 import { copyrightExposure } from '../finance/observe';
@@ -27,46 +19,22 @@ export const deepCentCompute = (m: Pick<ChinaActor['meters'], 'computeAbs' | 'ce
 
 export const chinaPresetOf = (id: string) => CHINA_PRESETS.find((p) => p.id === id) ?? CHINA_PRESETS[0];
 
-/** China at Jul 2025 (research/10 §1.1). DeepCent starts ≈0.72 OOM (was 0.6 progress-years, ≈150–200 d) behind (§9 #17). */
-export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGapOom: number): ChinaActor {
+/** China at Jul 2025 (research/10 §1.1). N2b-1: its lab is the Realistic cast's NPC lab of kind `china` (npc/lab.ts;
+ *  design/npc/NPC-LABS.md §8): its start lag from the cast, its compute from the meter (deepCentCompute). `i`/`n`: its
+ *  place among the NPC labs (release days staggered). */
+export function initialChina(h: HiddenWorld, setup: SetupV2, i: number, n: number): ChinaActor {
   const p = chinaPresetOf(h.actorPresets.china);
-  // The start gap in OOM of G (§9 #17).
-  const G = playerG - chinaGapOom;
-  const uModes = drawLineageUModes(rng, h, false);
-  const staff: StaffByRole = { cap: 1500, saf: 60 };
   const meters: ChinaActor['meters'] = {
     computeShare: 13, computeAbs: 1.5e6, chipSelfSufficiency: 30, domesticFab: 20, distillationAccess: 60,
     intelCapability: 75, theftIntent: 20, centralization: 0, stateSteering: 35, safetyConcern: 30, openWeights: 85,
     taiwanTension: 40, normsDiplomacy: 65, verificationWillingness: 15, econLeverage: 80, hawkDove: p.hawk,
   };
   const total = CHINA_PRESETS.reduce((a, x) => a + x.weight, 0);
-  const out: ChinaActor = {
+  const lab = initialNpcLab({ setup, hidden: h, time: { day: 0, startDate: START_DATE, speed: 0 } }, chinaCast(), i, n, deepCentCompute(meters), { cash: 30, revenueRun: 1, valuation: 0, raised: 0 });
+  lab.core.staff = { cap: 1500, saf: 60 }; // today's (research/10); not from compute
+  return {
     preset: p.id,
-    lab: {
-      core: {
-        id: CHINA_ID, name: CHINA_LAB_NAME, kind: 'china', status: 'active',
-        computeOnline: deepCentCompute(meters),
-        split: normalizeSplit({ ...shareRefAt(2025.5), safety: h.chinaPosture.safetyInvestment * 0.15 }),
-        staff, tasteHire: 1,
-        security: initialSecurity(staff, 2.0),
-        milestoneDays: {},
-      },
-      archetype: 'deepcent',
-      tools: toolsAtStart('deepcent'),
-      internal: simpleModel(h, 'china-b1p0', `${CHINA_MODEL_FAMILY}-1`, -30, G, uModes, false),
-      publicModel: simpleModel(h, 'china-b0', `${CHINA_MODEL_FAMILY}-1 open`, -45, G - START_PUBLIC_GAP_OOM, uModes, true, true),
-      // CP3k: the start base is dated B0_DAY, so the next is due one DeepCent base cadence after it (rivals.ts labDaily's
-      // rule for every later base: 12 months × U(0.8, 1.2) → days 172–318; was U(60, 240), a base 6–12 months after
-      // the last). Check: DeepSeek V3 (Dec 2024) → V4 (CAISI evaluation May 2026, research/10 L9) ≈ day 290.
-      nextBaseDay: B0_DAY + Math.round(BASE_MONTHS.deepcent * rng.range(0.8, 1.2) * 30.4),
-      phys: PHYS_PLACEHOLDER(),
-      finance: { cash: 30, revenueRun: 1, valuation: 0, commitments: 0, distress: false },
-      visible: { frameworkVersion: 0, clauseType: 'state', testers: [] },
-      intel: { leadDaysEst: Math.round((chinaGapOom / PRE_GAME_G_PER_YEAR) * 365 * 0.8), leadDaysSd: 75, misalignBand: [0.05, 0.5], knownIncidents: [] },
-      meters: { poachAggression: 20, lobbyStance: 0, openness: 85 },
-      pressure: 0,
-      pressureDays: 0,
-    },
+    lab,
     meters,
     rung: 0,
     deesc: 0,
@@ -74,9 +42,6 @@ export function initialChina(rng: Rng, h: HiddenWorld, playerG: number, chinaGap
     // Quarterly re-weighting starts concentrated on the drawn preset (0.6) plus the population weights (0.4).
     presetWeights: Object.fromEntries(CHINA_PRESETS.map((x) => [x.id, 0.4 * (x.weight / total) + (x.id === p.id ? 0.6 : 0)])),
   };
-  // Model v3 F1: DeepCent's last base, recipe and models in G (its research efficiency effLab applies at run time).
-  initRivalPhys(h.timeline, out.lab, 1, START_PUBLIC_GAP_OOM, h.timeline.chinaEfficiency * p.efficiency);
-  return out;
 }
 
 /** Blended preset multipliers from the current preset weights (research/10 §1.2 drift). */

@@ -3,6 +3,7 @@ import { clamp } from '../../rng';
 import { lagDays } from '../models/capability';
 import { REF_TPP } from '../../../data/v2/runDesign';
 import { baseParams, fptOfBase, gOfSimple, recipeOf, rivalRlGains, rivalVersionBuild, setModelBuild } from '../actors/rivalModel';
+import { npcHoldG } from '../npc/lab';
 import { playerRecipeG } from '../models/stacks';
 import { bestPlayerVersion, CHINA_ID } from '../models/labs';
 import type { GameStateV2, LabId, RivalBase, RivalLab, SecurityState, SimpleModel, SystemCtx } from '../types';
@@ -92,6 +93,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
     if (v.G > cnOwnG) {
       cn.internal = { id: `china-st${sec.stolen.length}`, name: `${cn.internal.name.split('-')[0]}-S${sec.stolen.length}`, day: ctx.day, G: 0, Lg: 0, domains: cn.internal.domains, traitsTrue: { ...v.traitsTrue }, uModes: [...v.uModes], isPublic: false, openWeights: false, stolenFrom: 'player' };
       holdStolen(cn.internal, stolenModelG(cnOwnG, v.G), flop, v.params ?? b?.params ?? baseParams(flop));
+      npcHoldG(s, cn, cn.internal.G); // N2b-1 adapter (N6: the theft shock): China's lag jumps to the stolen copy's position
       if (v.fpt) cn.internal.fpt = v.fpt;
       w.internalDay[CHINA_ID] = ctx.day;
     }
@@ -111,6 +113,7 @@ export function executeTheft(s: GameStateV2, ctx: SystemCtx, victim: LabId) {
       const G = stolenModelG(cnOwnG, stolen);
       cn.internal = { ...r.internal, id: `china-st-${victim}-${ctx.day}`, traitsTrue: { ...r.internal.traitsTrue }, uModes: [...r.internal.uModes], isPublic: false, openWeights: false, stolenFrom: victim };
       holdStolen(cn.internal, G, r.internal.flop ?? r.phys.base.flop, r.internal.params ?? r.phys.base.params);
+      npcHoldG(s, cn, cn.internal.G); // N2b-1 adapter (N6: the theft shock)
       w.internalDay[CHINA_ID] = ctx.day;
     }
     r.core.security.stolen.push({ day: ctx.day, versionId: r.internal.id, by: CHINA_ID });

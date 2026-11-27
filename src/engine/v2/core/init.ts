@@ -16,8 +16,10 @@ import { initialGov } from '../actors/gov';
 import { initialPublic } from '../actors/public';
 import { initialRelations } from '../actors/relations';
 import { initialResearchBodies } from '../actors/researchBodies';
-import { initialLeaderLab, initialRival } from '../actors/rivals';
-import { startDistillEquilibrium } from '../actors/rivalModel';
+import { FIN } from '../actors/rivals';
+import { ARCHETYPE_OF_KIND, initialNpcLab, npcGrowthQ, postureOfKind, usCast } from '../npc/lab';
+import { placeLabOrder, RIVAL_GROWTH_Q } from '../compute/market';
+
 import { initialMarket } from '../compute/market';
 import { initialCloud, initialOrders } from '../compute/orders';
 import { initialPower } from '../compute/power';
@@ -53,7 +55,7 @@ import type {
   Deployment, DomainId, EvalRecord, GameStateV2, ModelVersion, PlayerLab, SetupV2, TimelineWorld, ToolFamily, TraitBelief, TraitId, TrainingRun, VersionBuild,
 } from '../types';
 import { emptySeries, sampleSeries } from './record';
-import { hash32, seedStreams, StreamRng } from './rng';
+import { seedStreams, StreamRng } from './rng';
 import { SCHEMA_REV } from './save';
 import { playerShareRef } from '../departments/split';
 import { startBoard, startCompute, startFinance } from './starts';
@@ -279,17 +281,26 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   const worldRng = new Rng(rngState.world);
   const hidden = sampleHidden(worldRng, setup);
   const w = hidden.timeline;
-  const base = BASELINES.find((b) => b.id === setup.baseline) ?? BASELINES[0];
 
   const player = buildPlayer(worldRng, { setup, hidden }, startDate);
   // Rivals, China and the leader lab are placed against the reference frontier (the leader start's V0), whatever the
   // player's own start model is.
   const g0 = gV0(w);
-  const rivals = Array.from({ length: setup.rivalCount }, (_, i) => initialRival(worldRng, hidden, i, g0, setup.baseline, base.start.globalCompute));
-  // The AI 2027 leader lab (BUILD-PLAN R2): after the sampled rivals, from its own stream, so 'world' draws (and
-  // everything sampled from them) are the same with the flag on or off.
-  if (setup.leaderLab) rivals.push(initialLeaderLab(new Rng(hash32(setup.seed, 'leaderLab')), hidden, setup, g0));
-  const china = initialChina(worldRng, hidden, g0, base.start.chinaGapOom);
+  // N2b-1 (design/npc/NPC-LABS.md §10): the US NPC labs and China's lab are the Realistic cast (data/v2/npcLabs.ts),
+  // placed on the reference frontier at their measured lags; the leader-kind lab is absent when the player starts as
+  // the frontier leader. setup.rivals / rivalCount / leaderLab are not read (N10 replaces the setup). Their postures
+  // come from their kinds (npc/lab.ts postureOfKind), replacing the sampled ones.
+  const cast = usCast(start);
+  const nNpc = cast.length + 1;
+  hidden.actorPresets.rivals = {};
+  hidden.rivalPostures = {};
+  const rivals = cast.map((e, i) => {
+    const r = initialNpcLab({ setup, hidden, time: { day: 0, startDate, speed: 0 } }, e, i, nNpc, e.start.computeH100e as number, FIN[ARCHETYPE_OF_KIND[e.kind]] ?? FIN.bigtech);
+    hidden.actorPresets.rivals[r.core.id] = r.archetype;
+    hidden.rivalPostures[r.core.id] = postureOfKind(e.kind);
+    return r;
+  });
+  const china = initialChina(hidden, setup, cast.length, nNpc);
   // Intel starts from the player's own lag (R9): every lab's estimated lead is against the player's start model.
   if (start !== 'leader') for (const r of [...rivals, china.lab]) if (r.intel) r.intel.leadDaysEst -= Math.round((def.lagMonths * 365) / 12);
   rngState.world = worldRng.state;
@@ -330,10 +341,12 @@ export function newGame(setupIn: SetupV2): GameStateV2 {
   // RD-L04: day-0 milestones by the one predicate (every lab; recorded as day 0, the player's told silently), before
   // the readouts (Stage 2 reads SC).
   for (const i of updateMilestones(s, 0)) if (i > 0) s.flags[`seenMilestone${i}`] = 0;
-  // CP3k: the non-player labs start in distillation equilibrium (actors/rivalModel.ts startDistillEquilibrium).
-  for (const r of [...s.rivals, s.china.lab]) startDistillEquilibrium(s, r);
-  // Readouts (model v3 F1: the non-player labs' recipe, base and models were set when they were built,
-  // actors/rivalModel.ts initRivalPhys).
+  // N2b-1: the US NPC labs' first chip orders (their first quarter's growth at their appetite, delivered at the first
+  // quarter's clearing): their planned compute steps each quarter (npc/lab.ts cPlan) and their orders are placed
+  // quarterly from the first quarter day on (actors/rivals.ts rivalFinanceQ), so without these the first quarter's
+  // step would be a shortfall no lab chose.
+  for (const r of s.rivals) placeLabOrder(s, r.core.id, r.core.computeOnline * npcGrowthQ(r, RIVAL_GROWTH_Q), 1, 1.2);
+  // Readouts (the player; N2b-1: the NPC labs have none, production.ts computeProduction).
   for (const id of labIds) {
     const core = labCore(s, id);
     if (core) core.prodCache = computeProduction(s, id);
