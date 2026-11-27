@@ -1,14 +1,14 @@
 // Chip market: supply pipelines, clearing, prices, rationing, deliveries, geo shocks (V2-SPEC §3.8; research/15 §1.2).
 // Owner: WS3. Quarterly. Units: H100e, prices $K per H100e, money $B.
 import { CAPEX_LEASE, COMPONENTS, DEBT_SIZING, EXPORT_POLICY, FIRM_TERMS, LESSOR, MARKET } from '../../../data/v2/deals';
-import { refCapCompute } from '../../../data/world';
+import { WORLD_START, refCapCompute } from '../../../data/world';
 import { asV1World } from '../world/calibration';
 import { decimalYear, START_DATE } from '../core/time';
 import { lawsInForce } from '../../../data/v2/laws';
 import { FORCING } from '../core/forcing';
 import { ws4 } from '../actors/state';
 import { clamp } from '../../rng';
-import type { BaselineId, ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
+import type { ChipMarket, ChipOrder, EngineSystem, GameStateV2, LabId, SystemCtx } from '../types';
 import { defaultMarketWS3, ensureWs3, type LabOrder } from '../finance/ext';
 import { addLedger, qOf, yearStats, bookCash } from '../finance/ledger';
 import { crf } from '../finance/capex';
@@ -28,7 +28,7 @@ const FWD_SHARE = 0.95;
 const EXO_ELASTICITY = 1.5;
 
 /** Market at Q3 2025 (§3.8 start table, back-cast from R15 Q4-2026 at ≈2.2×/yr). */
-export function initialMarket(baseline: BaselineId): ChipMarket {
+export function initialMarket(): ChipMarket {
   const K = { pkg: 3.0e6, hbm: 3.2e6, wafer: 8.6e6 };
   const pipe = {} as ChipMarket['pipe'];
   for (const c of COMPS) {
@@ -55,7 +55,7 @@ export function initialMarket(baseline: BaselineId): ChipMarket {
     ws3: defaultMarketWS3(),
   };
   m.ws3.supply8q = Array(8).fill(3.0e6);
-  m.ws3.stock = baseline === 'reality' ? 14e6 : 13e6; // v1 BASELINES globalCompute (R11 #18)
+  m.ws3.stock = WORLD_START.globalCompute; // measured mid-2025 world (data/world.ts)
   m.rental = spotRental(rentalBase(listPrice, 0.93), 1);
   return m;
 }

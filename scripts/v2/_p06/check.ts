@@ -11,7 +11,7 @@ import type { Deployment, GameStateV2 } from '../../../src/engine/v2/types';
 
 let fails = 0;
 const check = (ok: boolean, what: string, detail = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? ` (${detail})` : ''}`); };
-const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', tutorial: false }));
+const game = () => newGame(defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', tutorial: false }));
 const prod = (s: GameStateV2, ch: Deployment['channel']) => s.player.deployments.find((d) => d.channel === ch && d.status !== 'withdrawn')!;
 
 // 1. Setting effort deep raises fit and serving cost, with no feature built (only the tree idea known).

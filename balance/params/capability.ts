@@ -3054,16 +3054,6 @@ export const PARAMS_CAPABILITY = defineParams([
     evidence: 'no tag; hidden.ts:115 speculative propensity x (1 + 0.3 * latents.schemingDefault)',
   },
   {
-    id: 'cap.hidden.econWeights',
-    ref: { kind: 'inline', file: 'src/engine/v2/world/hidden.ts', anchor: '{ item: \'normal\', weight: 35 }, { item: \'ai2027\', weight: 45 }, { item: \'gate\', weight: 20 }' },
-    value: [35, 45, 20],
-    unit: 'weight',
-    area: 'core', layer: 'world',
-    kind: 'untagged',
-    evidence: 'no tag; hidden.ts:118 "8. Economy preset (Normal 35 / AI2027 45 / GATE 20 when sampled)."',
-    notes: 'Array order = normal, ai2027, gate.',
-  },
-  {
     id: 'cap.hidden.chinaPostureNoiseDivisor',
     ref: { kind: 'inline', file: 'src/engine/v2/world/hidden.ts', anchor: 'noisyPosture(rng, CHINA_POSTURE_BASE, noise / 3)' },
     value: 3,

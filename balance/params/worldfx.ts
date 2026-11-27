@@ -249,15 +249,6 @@ export const PARAMS_WORLDFX = defineParams([
     source: 'Epoch (humanoid production outlook), as named at robots.ts:94',
     range: { lo: 5e6, hi: 10e6, from: 'robots.ts:94 "Epoch: 5–10M plausible by 2030"' },
   }),
-  inl('robots.humanoidCapReality', 'robots.ts', "s.setup.baseline === 'reality' ? 0.5e6", 0.5e6, 'units/yr', {
-    ...W, kind: 'sourced', evidence: 'robots.ts:7-8 "reducers cap them at ≈500k/yr in Reality-Updated until W16 (general robotics) lifts it [F Epoch]"',
-    source: 'Epoch (humanoid reducer supply), as named at robots.ts:7-8', perPreset: true,
-  }),
-  inl('robots.humanoidCapClassic', 'robots.ts', '0.5e6 : 3e6;', 3e6, 'units/yr', {
-    ...W, kind: 'designer', evidence: 'robots.ts:8 "elsewhere 3M/yr (Epoch \\"1.5–3M clearly achievable\\") [D]"',
-    range: { lo: 1.5e6, hi: 3e6, from: 'robots.ts:8 Epoch "1.5–3M clearly achievable"' }, perPreset: true,
-  }),
-
   // ---- mix.ts / serving.ts / actions.ts
   inl('mix.chinaOpenAccessUS', 'mix.ts', '(r === \'US\' ? 0.3 : 0.7)', 0.3, 'fraction of buyers who can use', {
     ...W, actor: 'china', kind: 'untagged', evidence: 'no tag; mix.ts:313',

@@ -9,10 +9,11 @@
 //   - SEZ car-plant conversion: ≈100k/month on opening, rising to ≈1M/month within about a year [A27];
 //   - after W17 (self-replicating factories) T_dbl halves every ~1.5 years down to the preset floor (2 y / 1 y /
 //     3 months), weeks with W18 nanotech, clamped at 2 weeks before 2035 [R16, D].
-import { SECTORS, SECTOR_BY_ID, US_EMPLOYMENT, REGION_SCALE } from '../../../data/v2/sectors';
+import { SECTORS, SECTOR_BY_ID, US_EMPLOYMENT, REGION_SCALE, ADOPTION } from '../../../data/v2/sectors';
+import { WORLD_START } from '../../../data/world';
 import { decimalYear } from '../core/time';
 import type { GameStateV2, RegionId, SectorId, SystemCtx } from '../types';
-import { econOf, techRamp } from './util';
+import { techRamp } from './util';
 
 export const ROBOT = {
   stock0: 1.5e6,
@@ -61,7 +62,7 @@ export function advanceRobots(s: GameStateV2, ctx: SystemCtx): void {
   const R = s.world.robots;
   const fx = s.world.fx;
   const dt = 1 / 365;
-  const econ = econOf(s);
+  const econ = ADOPTION;
 
   // SEZs open → car-plant conversion (100k/month, → 1M/month within ~a year) [A27]. The government's SEZ policy went
   // with the government actor (W1d): nothing opens them until W5 (fx.sezProd at ROBOT.sezOpenRate, fx.sezDay = today).
@@ -86,7 +87,7 @@ export function advanceRobots(s: GameStateV2, ctx: SystemCtx): void {
 
   // Humanoids: doubling every 6 months up to the reducer cap until general robotics.
   // After general robotics the reducer cap lifts to ≈10M/yr (Epoch: 5–10M plausible by 2030); SEZs and W17 drive the rest.
-  const cap = techRamp(s, 'W16') > 0.5 ? 10e6 : s.setup.baseline === 'reality' ? 0.5e6 : 3e6;
+  const cap = techRamp(s, 'W16') > 0.5 ? 10e6 : WORLD_START.robotCap;
   fx.humanoidProd = Math.min(cap, fx.humanoidProd * (1 + (Math.LN2 / ROBOT.humanoidDoublingYears) * dt));
 
   // Stock and its US share (SEZ output is all US).

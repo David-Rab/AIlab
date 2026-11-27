@@ -240,7 +240,7 @@ export const TARGETS = defineTargets([
     id: 'BOT.race.winrate',
     statement: 'The race-only bot wins at most 5% of games.',
     type: 'point',
-    metric: "scripts/v2/bots.ts: share of verdict 'win' over --seeds (default 200) seeds per bot, medium and sampled alignment x ai2027 and sampled worlds, Realistic actors, Rising storyteller, leader start; MET/MISS line, not a check()",
+    metric: "scripts/v2/bots.ts: share of verdict 'win' over --seeds (default 200) seeds per bot, medium and sampled alignment x ai2027 and sampled worlds, Realistic actors, leader start; MET/MISS line, not a check()",
     policy: 'race',
     value: { hi: 0.05, unit: 'win rate' },
     tolerance: '≤ 5%; printed as MET/MISS, informational until M2 integration (bots.ts:~178)',

@@ -14,7 +14,7 @@ import { hash32 } from '../core/rng';
 import { Rng, clamp } from '../../rng';
 import { cesFromAsymptotes } from '../production/ces';
 import type {
-  AgendaId, EconPresetId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
+  AgendaId, HiddenWorld, LabId, ProdParams, SafetyLatents, SafetyPosture, SetupV2, TimelineWorld, UModeId,
 } from '../types';
 
 /** Balance knob #1 (§7.4): global scale on difficultyMult [D]. M4: 1.4 (step 1) hurt the mixed bot more than the race
@@ -57,9 +57,9 @@ export function noisyPosture(rng: Rng, p: SafetyPosture, noise: number): SafetyP
 
 /** Steps 1–2 of sampleHidden: the timeline world with its production parameters and the per-preset work-type
  *  calibration (no hidden draws beyond the v1 world's). */
-export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment' | 'baseline'> & Partial<Pick<SetupV2, 'seed'>>): TimelineWorld {
+export function timelineFor(rng: Rng, setup: Pick<SetupV2, 'world' | 'alignment'> & Partial<Pick<SetupV2, 'seed'>>): TimelineWorld {
   // 1. Timeline world (unchanged audited presets; also draws v1 alignDifficulty and doomThreshold — step 10).
-  const w1 = makeWorld(rng, setup.world, setup.alignment, setup.baseline);
+  const w1 = makeWorld(rng, setup.world, setup.alignment);
   // 2. Production parameters.
   // Model v3 V3: the per-preset work-type calibration (G_SC, Δ_bm, r); no draw.
   const prod = prodParamsFor(setup);
@@ -124,11 +124,6 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
     uModePropensity[u.id] = u.kind === 'real' ? rng.range(0.3, 0.7) : clamp(rng.range(0.05, 0.3) * (1 + 0.3 * latents.schemingDefault), 0, 1);
   }
 
-  // 8. Economy preset (Normal 35 / AI2027 45 / GATE 20 when sampled).
-  const econ: EconPresetId = setup.econ === 'sampled'
-    ? rng.weighted<EconPresetId>([{ item: 'normal', weight: 35 }, { item: 'ai2027', weight: 45 }, { item: 'gate', weight: 20 }])
-    : setup.econ;
-
   // 9. Postures (R17 §1.6.4, ±0.15 noise in Realistic). The actor presets (gov, public, China) were deleted in W1d.
   // The NPC cast is built from setup.cast (core/init.ts), which writes the labs' postures (npc/lab.ts postureOfKind): nothing is drawn for them.
   const noise = 0.15;
@@ -139,7 +134,7 @@ export function sampleHidden(rng: Rng, setup: SetupV2): HiddenWorld {
 
   // 10. Doom threshold: drawn inside makeWorld (0.40, or U(0.30, 0.50) when alignment is sampled).
   return {
-    timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity, econ,
+    timeline, latents, agendaEfficacy, paradigmSuccess, edgeWeights, uModePropensity,
     doomThreshold: timeline.doomThreshold, toleranceNoise: toleranceNoiseOf(setup.seed), organismRealism: organismRealismOf(setup.seed), methodScale: methodScaleOf(setup.seed), difficultyMult,
     rivalPostures, chinaPosture,
   };

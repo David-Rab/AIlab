@@ -18,7 +18,7 @@
 //   8 Hire   = 1 − hireSlope·ΔF (1.2, CAL2-X; ΔF vs a pre-LLM model's coverage) → youth (22–25) employment, youth unemployment
 //   9 Pool  += layoffs beyond 1.5%/month attrition; −= Pool·r_re; exit 0.25/yr; U = U_base + Pool/LF
 import {
-  AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,
+  ADOPTION, AGENT0_PROFILE, ECON, PRE_LLM_LEVEL, REGIONS, REGION_SCALE, SECTORS, SECTOR_IDS, U_BASE, US_EMPLOYMENT,
   type SectorDef,
 } from '../../../data/v2/sectors';
 import { WORLD_TECHS } from '../../../data/v2/techs';
@@ -33,7 +33,7 @@ import { paidDeployments, worldMix, type WorldMix } from './mix';
 import { preLlmCover, reachTarget, seatTarget } from './serving';
 import { CONSUMER_MKT, SEATS } from '../../../data/v2/serving';
 import { costReduction, demandExpansion, workerTarget } from './use';
-import { econOf, sigmoid, clamp01, clampR } from './util';
+import { sigmoid, clamp01, clampR } from './util';
 import { lawsInForce } from '../../../data/v2/laws';
 import { ROBOT, advanceRobots } from './robots';
 import { advanceTechs, worldTechEffects } from './techtree';
@@ -104,7 +104,7 @@ const F_PRE_START: Record<SectorId, number> = (() => {
  *  certShare (RF-P3, DD-04): the share of the sector's US buyers who buy from a certified player product; their friction
  *  is CERT_FRICTION_CUT lower, so the sector's is that x the share lower. */
 export function frictionOf(s: GameStateV2, r: RegionId, def: SectorDef, certShare = 0): number {
-  let R = def.R0 * econOf(s).frictionScale * REGION_SCALE[r].R;
+  let R = def.R0 * ADOPTION.frictionScale * REGION_SCALE[r].R;
   const id = def.id;
   if (r === 'US') R -= CERT_FRICTION_CUT * certShare;
   if (r === 'ROW' && lawsInForce(s).euGpai) R += 0.03;
@@ -217,7 +217,7 @@ export function retrainOf(s: GameStateV2): number {
 
 /** One region's sector update. Returns US layoffs today. */
 function updateRegion(s: GameStateV2, ctx: SystemCtx, r: RegionId, mix: WorldMix): number {
-  const econ = econOf(s);
+  const econ = ADOPTION;
   const dt = 1 / 365;
   const w = s.hidden.timeline;
   const row = s.world.sectors[r];

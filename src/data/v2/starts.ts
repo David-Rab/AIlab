@@ -1,8 +1,8 @@
 // Start types (STRUCTURE §4.8, §4.1; research/18 §5–§6; BUILD-PLAN R9, decisions D1 and D6). Owner: WS1.
 //
 // All four starts use the same rules; only the start state differs. The frontier-leader start is today's start and
-// the calibration anchor: its values live where they always did (data/v2/teams.ts START_TEAMS, finance/ledger.ts,
-// compute/sites.ts …) and buildPlayer leaves them untouched. The other three are built from this table, with the
+// the calibration anchor: its row below is the lab's start (cash, revenue, compute, teams, security level) and the
+// initialisers (finance/ledger.ts, compute/sites.ts …) read it. The other three are built from this table, with the
 // simulated AI 2027 leader lab added to the world (D1). Difficulty is a label only; scoring is the same for every start.
 // [D] derivation, [Design] game choice (research/18 tags).
 import type { Channel, Column, GovernancePresetId, StartType, TeamDept, TeamKey } from '../../engine/v2/types';
@@ -61,8 +61,12 @@ export interface StartDef {
   /** Modifiers (research/18 §6). talentPull: the start type's hiring pull (departments/market.ts pullOf; leader 10).
    *  (FIN2 removed patientQ with the board's revenue plan.) */
   mods: { talentPull: number };
+  /** Weight-security level at the start. */
+  securityLevel: number;
 }
 
+// Values from the old 'AI 2027 Classic' baseline; to re-source against reality (handed to bal): the leader row's cash 40,
+// revenueRun 12, revenueHistory, owned + rented compute 1.2M, teams, and every start's securityLevel 2.4.
 export const STARTS: StartDef[] = [
   {
     id: 'spinout', name: 'Well-funded spinout', difficulty: 'Impossible', analogues: 'Anthropic 2021, SSI, Thinking Machines',
@@ -81,6 +85,7 @@ export const STARTS: StartDef[] = [
     owned: 0, rented: 25e3,
     board: 'founder', lagMonths: 6.5, imported: true,
     mods: { talentPull: 30 },
+    securityLevel: 2.4,
   },
   {
     id: 'challenger', name: 'Challenger lab', difficulty: 'Hard', analogues: 'Anthropic, xAI (mid-2025)',
@@ -103,6 +108,7 @@ export const STARTS: StartDef[] = [
     owned: 100e3, rented: 300e3,
     board: 'founder', lagMonths: 3,
     mods: { talentPull: 20 },
+    securityLevel: 2.4,
   },
   {
     id: 'bigtech', name: 'Big-tech AI division', difficulty: 'Impossible', analogues: 'Google DeepMind, Meta, Microsoft AI',
@@ -124,12 +130,13 @@ export const STARTS: StartDef[] = [
     owned: 800e3, rented: 0,
     board: 'parent', lagMonths: 6,
     mods: { talentPull: 0 },
+    securityLevel: 2.4,
   },
   {
     id: 'leader', name: 'Frontier leader', difficulty: 'Easy', analogues: 'OpenAI (mid-2025)',
     character: 'Everything now: the best model, the most compute and revenue; a fragile board and the largest commitments.',
     leaderLab: false,
-    // The leader's own values are today's (START_TEAMS, initialFinance, initialSites …); these rows are for display.
+    // The leader's start state: cash, revenue and teams are read from this row; the sites, orders and cloud contract are in compute/sites.ts and orders.ts.
     teams: { eng: 6, 're.cap': 21, 'sci.cap': 14, 're.saf': 1, 'sci.saf': 1 },
     specialties: { cap: [], saf: [] },
     known: [],
@@ -145,6 +152,7 @@ export const STARTS: StartDef[] = [
     owned: 500e3, rented: 700e3,
     board: 'legacyNonprofit', lagMonths: 0,
     mods: { talentPull: 10 },
+    securityLevel: 2.4,
   },
 ];
 

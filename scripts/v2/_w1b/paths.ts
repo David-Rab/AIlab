@@ -3,7 +3,7 @@ import { defaultSetupV2, newGame } from '../../../src/engine/v2/core/init';
 import { automationShare } from '../../../src/engine/v2/worldfx/readouts';
 import { cashFloorStub, runRef } from '../lib';
 
-const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', baseline: 'classic', companyName: 'OpenBrain' });
+const FIXTURE_SETUP = defaultSetupV2({ seed: 2027, world: 'tl-central', alignment: 'medium', companyName: 'OpenBrain' });
 const gBase = Number(process.argv[2] ?? 0.018);
 const s = newGame(FIXTURE_SETUP);
 const aiRevenue = () => s.player.finance.revenueRun + s.rivals.reduce((x, r) => x + (r.core.status === 'active' ? r.finance.revenueRun : 0), 0) + s.china.lab.finance.revenueRun;

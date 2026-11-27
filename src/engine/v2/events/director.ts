@@ -1,11 +1,11 @@
-// Event director: triggers, storyteller limits, deadlines (V2-SPEC §4.1; research/17 §2.6). Owner: WS4.
+// Event director: triggers, pacing limits, deadlines (V2-SPEC §4.1; research/17 §2.6). Owner: WS4.
 //
 // - Every catalog event is a state predicate (`when`); WS4 systems also raise request-only events via
 //   actors/state.ts `request()`. Both are fired here, crisis events first, then by id order.
 // - Each event fires at most once per `cooldown` (once per game if omitted), requests included, and at most once
 //   per game for each `onceKey` of its trigger data.
-// - Storyteller limits (E4): at most `maxCrises` crisis decisions pending; no new crisis during the quiet period
-//   that follows the end of a crisis; trigger probability multiplier by storyteller.
+// - Pacing limits (E4): at most `maxCrises` crisis decisions pending; no new crisis during the quiet period
+//   that follows the end of a crisis; one fixed pacing.
 // - Deadlines: the default choice applies at the deadline (neglect is a choice).
 // - Subjects are active labs only; pending decisions whose subject became inactive are dropped (E2).
 //
@@ -14,19 +14,13 @@
 import { clamp } from '../../rng';
 import { EVENT_BY_ID, EVENTS } from '../core/registry';
 import { decisionSnapshot } from '../core/selectors';
-import type { EngineSystem, EventDefV2, GameStateV2, PendingDecision, StorytellerId, SystemCtx } from '../types';
+import type { EngineSystem, EventDefV2, GameStateV2, PendingDecision, SystemCtx } from '../types';
 import { ws4 } from '../actors/state';
 
-export interface Storyteller { maxCrises: number; quietDays: number; mult(s: GameStateV2, noise: number): number }
+/** The one fixed pacing (§4.1): at most `maxCrises` crisis decisions pending, a quiet period of `quietDays` after one ends. */
+export const DIRECTOR = { maxCrises: 2, quietDays: 14 };
 
-/** Storyteller table (§4.1). */
-export const STORYTELLERS: Record<StorytellerId, Storyteller> = {
-  measured: { maxCrises: 1, quietDays: 21, mult: () => 0.8 },
-  rising: { maxCrises: 2, quietDays: 14, mult: (s) => 0.7 + 0.2 * (s.tutorial.act - 1) },
-  chaotic: { maxCrises: 2, quietDays: 7, mult: (_s, n) => 1.2 * n },
-};
-
-/** Daily chance that a non-crisis event fires while its predicate holds, before the storyteller multiplier [D]. */
+/** Daily chance that a non-crisis event fires while its predicate holds, [D]. */
 export const BASE_FIRE_P = 0.35;
 /** At most this many non-crisis decisions pending at once (keeps the queue readable) [D]. */
 export const MAX_PENDING = 4;
@@ -64,19 +58,18 @@ const spent = (s: GameStateV2, e: EventDefV2, data: Record<string, number | stri
   return k !== undefined && s.events.fired[k] !== undefined;
 };
 
-/** Can a crisis fire now under the storyteller limits? */
-export function crisisAllowed(s: GameStateV2, st: Storyteller, day: number): boolean {
+/** Can a crisis fire now under the pacing limits? */
+export function crisisAllowed(s: GameStateV2, day: number): boolean {
   const n = s.events.pending.filter((p) => p.crisis).length;
-  return n < st.maxCrises && day >= s.events.director.quietUntil;
+  return n < DIRECTOR.maxCrises && day >= s.events.director.quietUntil;
 }
 
-/** director (140, daily): Evaluate event triggers; queue decisions under storyteller limits; expire deadlines. */
+/** director (140, daily): Evaluate event triggers; queue decisions under the pacing limits; expire deadlines. */
 export const directorSystem: EngineSystem = {
   id: 'director', owner: 'WS4', cadence: 'daily', order: 140, system: 'core',
   run(s, ctx) {
     const day = ctx.day;
     const w = ws4(s);
-    const st = STORYTELLERS[s.setup.storyteller] ?? STORYTELLERS.rising;
     const dir = s.events.director;
     const rng = ctx.rng('events');
     purgeInactive(s);
@@ -86,10 +79,8 @@ export const directorSystem: EngineSystem = {
 
     // Quiet period starts when a crisis ends.
     const crises = s.events.pending.filter((p) => p.crisis).length;
-    if (crises < dir.concurrentCrises) dir.quietUntil = Math.max(dir.quietUntil, day + st.quietDays);
+    if (crises < dir.concurrentCrises) dir.quietUntil = Math.max(dir.quietUntil, day + DIRECTOR.quietDays);
     dir.concurrentCrises = crises;
-    if (s.setup.storyteller === 'chaotic' && day % 30 === 0) w.storyNoise = clamp(1 + rng.normal(0, 0.3), 0.4, 1.6);
-    const mult = st.mult(s, w.storyNoise);
 
     // Candidates: requests from WS4 systems (fire when limits allow), then catalog predicates.
     type Cand = { def: EventDefV2; data: Record<string, number | string>; req?: number };
@@ -110,10 +101,10 @@ export const directorSystem: EngineSystem = {
     for (const c of cands) {
       if (s.events.pending.some((p) => p.id === c.def.id) || onCooldown(s, c.def, day)) continue; // one fired this pass
       if (c.def.crisis) {
-        if (!crisisAllowed(s, st, day)) continue;
+        if (!crisisAllowed(s, day)) continue;
       } else {
         if (s.events.pending.filter((p) => !p.crisis).length >= MAX_PENDING) continue;
-        if (c.req === undefined && !rng.chance(clamp(BASE_FIRE_P * mult, 0, 1))) continue;
+        if (c.req === undefined && !rng.chance(BASE_FIRE_P)) continue;
       }
       ctx.queue(c.def.id, c.data);
       const k = onceKeyOf(c.def, c.data);

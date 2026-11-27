@@ -1,7 +1,7 @@
 // Teams and roles (STRUCTURE §4.1, research/19 Part 1; BUILD-PLAN R3). Owner: WS1.
 // Three roles in fixed-size teams. Capabilities research engineers carry the CES labour input h; scientists carry
 // research taste τ_h; engineers carry build capacity (a readout until R5). [D] unless marked [Design].
-import type { BaselineId, Column, TeamDept, TeamKey, TeamRole } from '../../engine/v2/types';
+import type { Column, TeamDept, TeamKey, TeamRole } from '../../engine/v2/types';
 
 /** Fixed team sizes (STRUCTURE §4.1 "big, fixed sizes"; L15: 100 / 50 / 20, was 150 / 100 / 40, so the sourced start
  *  fits whole teams) [Design: LABOUR-SOURCES.md decision 3]. The same sizes in safety. Labour is measured in the
@@ -28,15 +28,6 @@ export const COLUMN_LABEL: Record<Column, string> = { pretraining: 'Pretraining'
 
 export const TEAM_KEYS: TeamKey[] = ['eng', 're.cap', 'sci.cap', 're.saf', 'sci.saf'];
 
-/** Start teams of the frontier leader (L15, LABOUR-SOURCES.md decision 3): the AIFM's L_HUMAN(2025.5) = 1,640 split
- *  579 : 1,061 : 289 (engineers : research engineers : scientists), rounded to whole teams of the sizes above:
- *  6 · 21 · 14 capabilities (600 / 1,050 / 280 people), 1 research-engineer and 1 scientist team in safety (50 / 20)
- *  [R: AIFM; D: rounding]. Every start team is full. Both baselines carry it. */
-const LEADER_TEAMS: Record<TeamKey, number> = { eng: 6, 're.cap': 21, 'sci.cap': 14, 're.saf': 1, 'sci.saf': 1 };
-export const START_TEAMS: Record<BaselineId, Record<TeamKey, number>> = {
-  classic: { ...LEADER_TEAMS },
-  reality: { ...LEADER_TEAMS },
-};
 /** Start science specialties, in order (follow the leader's analogues) [Design]. */
 export const START_SPECIALTIES: Record<TeamDept, Column[]> = {
   cap: ['pretraining', 'posttraining', 'systems', 'pretraining', 'posttraining', 'systems', 'posttraining', 'pretraining', 'systems'],

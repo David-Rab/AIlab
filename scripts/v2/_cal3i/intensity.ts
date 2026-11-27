@@ -16,7 +16,7 @@ import { revenueReadout } from '../../../src/engine/v2/worldfx/revenue';
 const seed = Number(process.argv[2] ?? 2027);
 const end = process.argv[3] ?? '2027-07-01';
 const world = process.argv[4] ?? 'tl-central';
-const s = newGame(defaultSetupV2({ seed, world, alignment: 'medium', baseline: 'classic', tutorial: false } as never));
+const s = newGame(defaultSetupV2({ seed, world, alignment: 'medium', tutorial: false } as never));
 const END = dayOfDate('2025-07-01', end);
 let lastQ = -1;
 const annual: Record<number, number> = {};

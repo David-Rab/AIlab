@@ -24,7 +24,6 @@ export function initialWs4(): Ws4State {
     retired: false,
     disclosed: 0, leaked: 0,
     gdp0: 0,
-    storyNoise: 1,
     requests: [],
   };
 }

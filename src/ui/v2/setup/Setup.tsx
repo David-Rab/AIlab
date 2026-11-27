@@ -142,14 +142,12 @@ export function SetupScreen() {
       <StartPicker />
       <div className="setup-grid">
         <div className="setup-col">
-          <Picker label="Baseline" k="baseline" opts={[{ v: 'classic', label: 'Classic', desc: 'Start state of the April 2025 scenario world.' }, { v: 'reality', label: 'Reality', desc: 'Start state from 2025–26 reporting.' }]} />
           <Picker label="Timeline" k="world" opts={[
             { v: 'tl-fast', label: 'Fast', desc: 'AI progress on the forecast’s fast track: superhuman AI coders around 2028.' },
             { v: 'tl-central', label: 'Central', desc: 'The forecast’s middle path: superhuman AI coders around 2030.' },
             { v: 'tl-slow', label: 'Slow', desc: 'The forecast’s slow track: superhuman AI coders around 2035.' },
           ]} />
           <Picker label="Alignment difficulty" k="alignment" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'easy', label: 'Easy' }, { v: 'medium', label: 'Medium' }, { v: 'hard', label: 'Hard' }]} />
-          <Picker label="Economy" k="econ" opts={[{ v: 'sampled', label: 'Unknown' }, { v: 'normal', label: 'Normal', desc: 'Standard diffusion frictions.' }, { v: 'ai2027', label: 'Fast diffusion', desc: 'Rapid adoption and displacement.' }, { v: 'gate', label: 'Gated', desc: 'Strong frictions: law, trust, integration.' }]} />
           {(d.start ?? 'leader') === 'leader' ? (
             <Picker label="Governance" k="governance" opts={[
               { v: 'legacyNonprofit', label: 'Legacy nonprofit', desc: 'Mission board; recapitalisation needed to raise at scale.' },
@@ -158,7 +156,6 @@ export function SetupScreen() {
           ) : (
             <div data-test="start-board"><div className="picker-label">Governance</div><div className="small dim">{BOARD_LABEL[START_BY_ID[d.start].board]} (set by the start)</div></div>
           )}
-          <Picker label="Storyteller" k="storyteller" opts={[{ v: 'rising', label: 'Rising', desc: 'Tension builds with each act.' }, { v: 'measured', label: 'Measured' }, { v: 'chaotic', label: 'Chaotic' }]} />
         </div>
         <div className="setup-col">
           <RivalsSection />

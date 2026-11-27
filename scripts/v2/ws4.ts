@@ -2,13 +2,13 @@
 //   E1  catalog shape: the kept events, ≥ 2 choices each, titles, text length (preview truth is lint-tradeoffs.ts)
 //   E2  no event text references an inactive lab (fuzz 1,000 seeds)
 //   E3  rival comparisons use the player's INTERNAL frontier
-//   E4  storyteller limits hold
+//   E4  pacing limits hold
 //   E5  every EndingId is reachable (forced states; the statistical 2,000-run coverage is in scripts/v2/bots.ts)
 //   T3  China lead 150–200 d until a theft (RefBot play; the mean; the 10th–90th percentile of the daily lead vs
 //       75–275 d is INFO since M5), then ≈ 60 d; R10 gap formula within ±2 months at the start
 //   T4  rival gaps at start are 3–9 months (same lead metric as WS1's calib: trueLeadDays)
 // E2, E4, E5, T3 and the T4 spread go through the simulation cache (simcache.ts). `--smoke` (test:quick): E2 on 60
-// seeds, E4 on 2 seeds per storyteller, T3 on 2 seeds, the T4 spread on 20; checks that every seed must pass stay
+// seeds, E4 on 2 seeds, T3 on 2 seeds, the T4 spread on 20; checks that every seed must pass stay
 // binding on the subset, means and counts print SMOKE.
 import { setControl } from '../../src/engine/v2/safety/safeguards';
 import { readFileSync } from 'node:fs';
@@ -27,7 +27,7 @@ import { makeCtx, tick } from '../../src/engine/v2/core/loop';
 import { EVENTS } from '../../src/engine/v2/core/registry';
 import { seedStreams } from '../../src/engine/v2/core/rng';
 import { deserialize } from '../../src/engine/v2/core/save';
-import { STORYTELLERS } from '../../src/engine/v2/events/director';
+import { DIRECTOR } from '../../src/engine/v2/events/director';
 import { bestG, internalVersion } from '../../src/engine/v2/models/labs';
 import { executeTheft } from '../../src/engine/v2/security/theft';
 import { footholdFromEscape } from '../../src/engine/v2/safety/footholds';
@@ -36,7 +36,7 @@ import { gOfLevel, lagDays, levelOfG } from '../../src/engine/v2/models/capabili
 const leadBetween = (s: GameStateV2, a: LabId, b: LabId): number => lagDays(s, b, a);
 import { LEVEL_KNOTS } from '../../src/data/v2/calibration';
 import { PRE_GAME_G_PER_YEAR } from '../../src/data/v2/runDesign';
-import type { EndingId, EngineSystem, GameStateV2, LabId, MilestoneIdx, StorytellerId, TraitVector } from '../../src/engine/v2/types';
+import type { EndingId, EngineSystem, GameStateV2, LabId, MilestoneIdx, TraitVector } from '../../src/engine/v2/types';
 import { refBot } from '../../src/engine/v2/bots/ref';
 import { engine } from '../../src/engine/v2/index';
 import { fileURLToPath } from 'node:url';
@@ -164,18 +164,19 @@ const load = (i: number) => deserialize(fixtures[i]);
   check(estAfter - estBefore > 0.5 * (truthAfter - truthBefore), 'E3 intel estimate tracks the internal frontier', `${estBefore} → ${estAfter} d (truth +${(truthAfter - truthBefore).toFixed(0)})`);
 }
 
-// ───────── E4: storyteller limits ─────────
+// ───────── E4: pacing limits ─────────
 {
   const E4_SEEDS = SMOKE ? 2 : 12;
   const { bad, crisesSeen } = cached('ws4-e4', { seeds: E4_SEEDS, days: 300 }, ME, () => {
   const bad: string[] = [];
   let crisesSeen = 0;
-  for (const st of ['measured', 'rising', 'chaotic'] as StorytellerId[]) {
-    const lim = STORYTELLERS[st];
+  {
+    const lim = DIRECTOR;
+    const st = 'director';
     for (let seed = 1; seed <= E4_SEEDS; seed++) {
-      const s = newGame(defaultSetupV2({ seed, storyteller: st, tutorial: false }));
+      const s = newGame(defaultSetupV2({ seed, tutorial: false }));
       const spam: EngineSystem = { id: 'spam', owner: 'WS4', cadence: 'daily', order: 139, system: 'core', run: (x) => {
-        // Requests obey cooldowns, so clear the record each day to keep the pressure on the storyteller limits.
+        // Requests obey cooldowns, so clear the record each day to keep the pressure on the pacing limits.
         for (const id of ['E10', 'E19', 'E25']) {
           delete x.events.fired[id];
           request(x, id, { n: x.time.day });
@@ -198,9 +199,9 @@ const load = (i: number) => deserialize(fixtures[i]);
   return { bad, crisesSeen };
   });
   if (SMOKE) {
-    check(bad.length === 0, 'E4 storyteller limits hold under crisis spam (SMOKE seeds: every crisis checked)', bad.slice(0, 3).join('; '));
+    check(bad.length === 0, 'E4 pacing limits hold under crisis spam (SMOKE seeds: every crisis checked)', bad.slice(0, 3).join('; '));
     smokeCheck(crisesSeen > 50, 'E4 crisis spam fires > 50 crises', `${crisesSeen}`);
-  } else check(bad.length === 0 && crisesSeen > 50, `E4 storyteller limits hold (max concurrent crises, quiet period) under crisis spam (${crisesSeen} crises fired)`, bad.slice(0, 3).join('; '));
+  } else check(bad.length === 0 && crisesSeen > 50, `E4 pacing limits hold (max concurrent crises, quiet period) under crisis spam (${crisesSeen} crises fired)`, bad.slice(0, 3).join('; '));
 }
 
 // ───────── E5: every EndingId reachable (forced states) ─────────
